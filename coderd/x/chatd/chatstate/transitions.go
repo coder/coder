@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstructured"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -467,6 +469,11 @@ type SendMessageInput struct {
 	// MaxQueueSize is the maximum number of messages that can be queued
 	// in the chat. It must be positive when the message is queued.
 	MaxQueueSize int
+	// InterruptReceipts are structured output receipt rows that close the
+	// interrupted turn when this transaction finishes an unowned
+	// interruption. They are ignored otherwise, because the runner that
+	// finishes an owned interruption commits its own receipt.
+	InterruptReceipts []Message
 }
 
 // SendMessageResult is returned by [Tx.SendMessage].
@@ -687,7 +694,7 @@ func (tx *Tx) sendMessageInterrupt(chat database.Chat, from ExecutionState, inpu
 	if chat.WorkerID.Valid {
 		return result, nil
 	}
-	finished, err := tx.finishUnownedInterruption(chat, "Tool execution interrupted by new user message")
+	finished, err := tx.finishUnownedInterruption(chat, "Tool execution interrupted by new user message", input.InterruptReceipts)
 	if err != nil {
 		return SendMessageResult{}, err
 	}
@@ -712,6 +719,10 @@ type EditMessageInput struct {
 	Content                 pqtype.NullRawMessage
 	ModelConfigIDOverride   uuid.NullUUID
 	ReasoningEffortOverride database.NullChatReasoningEffort
+	// Receipts are structured output receipt rows closing requests the
+	// edit discards. They insert after the tool cancellations and before
+	// the replacement; anything else is rejected.
+	Receipts []Message
 }
 
 // EditMessageResult is returned by [Tx.EditMessage].
@@ -720,6 +731,7 @@ type EditMessageResult struct {
 	DeletedMessageIDs       []int64
 	DeletedQueuedMessageIDs []int64
 	CancellationMessages    []database.ChatMessage
+	Receipts                []database.ChatMessage
 	SuffixMessages          []database.ChatMessage
 }
 
@@ -749,6 +761,9 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 			ErrEditedMessageNotUser,
 			"only user messages can be edited",
 		)
+	}
+	if err := requireReceipts(input.Receipts); err != nil {
+		return EditMessageResult{}, err
 	}
 
 	suffix, err := tx.store.GetChatMessagesByChatID(tx.ctx, database.GetChatMessagesByChatIDParams{
@@ -781,6 +796,10 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 	cancellationMessages, err := tx.insertMessages(cancels)
 	if err != nil {
 		return EditMessageResult{}, xerrors.Errorf("insert message edit cancellations: %w", err)
+	}
+	receipts, err := tx.insertMessages(input.Receipts)
+	if err != nil {
+		return EditMessageResult{}, xerrors.Errorf("insert message edit receipts: %w", err)
 	}
 
 	modelConfig := target.ModelConfigID
@@ -833,6 +852,7 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 		DeletedMessageIDs:       deletedIDs,
 		DeletedQueuedMessageIDs: deletedQueuedIDs,
 		CancellationMessages:    cancellationMessages,
+		Receipts:                receipts,
 		SuffixMessages:          insertedSuffix,
 	}, nil
 }
@@ -932,16 +952,23 @@ func (tx *Tx) ClearContext(input ClearContextInput) (ClearContextResult, error) 
 // DeleteQueuedMessageInput configures [Tx.DeleteQueuedMessage].
 type DeleteQueuedMessageInput struct {
 	QueuedMessageID int64
+	// Receipts are structured output receipt rows inserted after the
+	// deletion; anything else is rejected.
+	Receipts []Message
 }
 
 // DeleteQueuedMessageResult is returned by [Tx.DeleteQueuedMessage].
 type DeleteQueuedMessageResult struct {
 	DeletedQueuedMessage database.ChatQueuedMessage
+	Receipts             []database.ChatMessage
 }
 
 // DeleteQueuedMessage removes a single queued user message.
 func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedMessageResult, error) {
 	_, _, err := tx.requireFromAllowed(TransitionDeleteQueuedMessage)
+	if err == nil {
+		err = requireReceipts(input.Receipts)
+	}
 	if err != nil {
 		return DeleteQueuedMessageResult{}, err
 	}
@@ -965,14 +992,24 @@ func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedM
 	if rows == 0 {
 		return DeleteQueuedMessageResult{}, ErrQueuedMessageNotFound
 	}
+	receipts, err := tx.insertMessages(input.Receipts)
+	if err != nil {
+		return DeleteQueuedMessageResult{}, xerrors.Errorf("insert queue deletion receipts: %w", err)
+	}
 	return DeleteQueuedMessageResult{
 		DeletedQueuedMessage: target,
+		Receipts:             receipts,
 	}, nil
 }
 
 // PromoteQueuedMessageInput configures [Tx.PromoteQueuedMessage].
 type PromoteQueuedMessageInput struct {
 	QueuedMessageID int64
+	// Receipts are structured output receipt rows inserted between the
+	// tool cancellations and the promoted message. Only a promotion that
+	// inserts history (from E1 or A1) accepts them; anything else is
+	// rejected.
+	Receipts []Message
 }
 
 // PromoteQueuedMessageResult is returned by [Tx.PromoteQueuedMessage].
@@ -980,6 +1017,7 @@ type PromoteQueuedMessageResult struct {
 	QueuedMessage        database.ChatQueuedMessage
 	InsertedMessage      *database.ChatMessage
 	CancellationMessages []database.ChatMessage
+	Receipts             []database.ChatMessage
 	// PromotedQueuedAt is zero when the row only moved to the queue head.
 	PromotedQueuedAt time.Time
 }
@@ -988,8 +1026,14 @@ type PromoteQueuedMessageResult struct {
 // queue head; from E1/A1 it also pops it into active history.
 func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueuedMessageResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionPromoteQueuedMessage)
+	if err == nil {
+		err = requireReceipts(input.Receipts)
+	}
 	if err != nil {
 		return PromoteQueuedMessageResult{}, err
+	}
+	if len(input.Receipts) > 0 && (from == StateR1 || from == StateI1) {
+		return PromoteQueuedMessageResult{}, xerrors.New("receipts require a promotion into history")
 	}
 	target, err := tx.store.GetChatQueuedMessageByID(tx.ctx, database.GetChatQueuedMessageByIDParams{
 		ID:     input.QueuedMessageID,
@@ -1041,14 +1085,15 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 	if err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("resolve promoted queued message: %w", err)
 	}
-	inserted, err := tx.insertMessages(append(cancels, promotedMsg))
+	toInsert := append(append(cancels, input.Receipts...), promotedMsg)
+	inserted, err := tx.insertMessages(toInsert)
 	if err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("insert promoted queued message: %w", err)
 	}
-	if len(inserted) != len(cancels)+1 {
+	if len(inserted) != len(toInsert) {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf(
 			"insert promoted queued message: expected %d rows, got %d",
-			len(cancels)+1, len(inserted),
+			len(toInsert), len(inserted),
 		)
 	}
 	if err := tx.deletePromotedQueuedMessage(target.ID); err != nil {
@@ -1064,12 +1109,14 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 	}); err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("set running: %w", err)
 	}
-	cancellations := inserted[:len(inserted)-1]
+	cancellations := inserted[:len(cancels)]
+	receipts := inserted[len(cancels) : len(inserted)-1]
 	insertedUserMsg := inserted[len(inserted)-1]
 	return PromoteQueuedMessageResult{
 		QueuedMessage:        target,
 		InsertedMessage:      &insertedUserMsg,
 		CancellationMessages: cancellations,
+		Receipts:             receipts,
 		PromotedQueuedAt:     target.CreatedAt,
 	}, nil
 }
@@ -1077,6 +1124,11 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 // InterruptInput configures [Tx.Interrupt].
 type InterruptInput struct {
 	Reason string
+	// Receipts are structured output receipt rows that close the
+	// interrupted turn when this call finishes an unowned interruption.
+	// They are ignored otherwise, because the runner that finishes an
+	// owned interruption commits its own receipt.
+	Receipts []Message
 }
 
 // InterruptResult is returned by [Tx.Interrupt].
@@ -1106,7 +1158,7 @@ func (tx *Tx) Interrupt(input InterruptInput) (InterruptResult, error) {
 		if !errors.Is(err, ErrTransitionNotAllowed) || (from != StateI0 && from != StateI1) || chat.WorkerID.Valid {
 			return InterruptResult{}, err
 		}
-		finished, err := tx.finishUnownedInterruption(chat, reason)
+		finished, err := tx.finishUnownedInterruption(chat, reason, input.Receipts)
 		if err != nil {
 			return InterruptResult{}, err
 		}
@@ -1131,7 +1183,7 @@ func (tx *Tx) Interrupt(input InterruptInput) (InterruptResult, error) {
 		if chat.WorkerID.Valid {
 			return InterruptResult{}, nil
 		}
-		finished, err := tx.finishUnownedInterruption(chat, reason)
+		finished, err := tx.finishUnownedInterruption(chat, reason, input.Receipts)
 		if err != nil {
 			return InterruptResult{}, err
 		}
@@ -1180,15 +1232,19 @@ type unownedInterruption struct {
 // the pool may be full. The chat stays unowned, so a promoted turn
 // still goes through capacity admission. Orphaned tool calls from an
 // earlier runner receive synthetic cancellations.
-func (tx *Tx) finishUnownedInterruption(chat database.Chat, reason string) (unownedInterruption, error) {
+func (tx *Tx) finishUnownedInterruption(chat database.Chat, reason string, receipts []Message) (unownedInterruption, error) {
 	if chat.WorkerID.Valid {
 		return unownedInterruption{}, xerrors.New("finish unowned interruption: chat is owned")
+	}
+	if err := requireReceipts(receipts); err != nil {
+		return unownedInterruption{}, err
 	}
 	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, reason, false)
 	if err != nil {
 		return unownedInterruption{}, err
 	}
-	finished, err := tx.FinishInterruption(FinishInterruptionInput{PartialMessages: cancels})
+	// The receipts go last so they precede any queue promotion.
+	finished, err := tx.FinishInterruption(FinishInterruptionInput{PartialMessages: append(slices.Clone(cancels), receipts...)})
 	if err != nil {
 		return unownedInterruption{}, xerrors.Errorf("finish unowned interruption: %w", err)
 	}
@@ -1557,7 +1613,8 @@ type FinishInterruptionResult struct {
 
 // FinishInterruption commits an optional partial assistant/tool suffix
 // and lands the chat in waiting (I0) or running with the next queued
-// message promoted (I1).
+// message promoted (I1). A structured output receipt goes last in the
+// partial messages, so it precedes any promotion.
 func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterruptionResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionFinishInterruption)
 	if err != nil {
@@ -1633,7 +1690,11 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 }
 
 // FinishTurnInput configures [Tx.FinishTurn].
-type FinishTurnInput struct{}
+type FinishTurnInput struct {
+	// TerminalMessages are structured output receipt rows committed with the
+	// turn, before any queue promotion. Any other message is rejected.
+	TerminalMessages []Message
+}
 
 // FinishTurnResult is returned by [Tx.FinishTurn].
 type FinishTurnResult struct {
@@ -1644,12 +1705,18 @@ type FinishTurnResult struct {
 }
 
 // FinishTurn completes a running turn.
-func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
+func (tx *Tx) FinishTurn(input FinishTurnInput) (FinishTurnResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionFinishTurn)
+	if err == nil {
+		err = requireReceipts(input.TerminalMessages)
+	}
 	if err != nil {
 		return FinishTurnResult{}, err
 	}
 	if from == StateR0 {
+		if _, err := tx.insertMessages(input.TerminalMessages); err != nil {
+			return FinishTurnResult{}, xerrors.Errorf("insert terminal messages: %w", err)
+		}
 		updated, err := tx.applyExecutionState(executionStateUpdate{
 			Status:                   database.ChatStatusWaiting,
 			Archived:                 false,
@@ -1676,7 +1743,9 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 	if err != nil {
 		return FinishTurnResult{}, xerrors.Errorf("resolve promoted queue head: %w", err)
 	}
-	inserted, err := tx.insertMessages(append(cancels, promotedMsg))
+	// Cancellations are derived from history before the receipts land, and
+	// both precede the promoted head.
+	inserted, err := tx.insertMessages(slices.Concat(cancels, input.TerminalMessages, []Message{promotedMsg}))
 	if err != nil {
 		return FinishTurnResult{}, xerrors.Errorf("insert promoted queue head: %w", err)
 	}
@@ -1708,6 +1777,9 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 // FinishErrorInput configures [Tx.FinishError].
 type FinishErrorInput struct {
 	LastError pqtype.NullRawMessage
+	// TerminalMessages are structured output receipt rows committed before
+	// the status change. Any other message is rejected.
+	TerminalMessages []Message
 }
 
 // FinishErrorResult is returned by [Tx.FinishError].
@@ -1717,8 +1789,14 @@ type FinishErrorResult struct{}
 // It is allowed when an unarchived chat is waiting or running.
 func (tx *Tx) FinishError(input FinishErrorInput) (FinishErrorResult, error) {
 	chat, _, err := tx.requireFromAllowed(TransitionFinishError)
+	if err == nil {
+		err = requireReceipts(input.TerminalMessages)
+	}
 	if err != nil {
 		return FinishErrorResult{}, err
+	}
+	if _, err := tx.insertMessages(input.TerminalMessages); err != nil {
+		return FinishErrorResult{}, xerrors.Errorf("insert terminal messages: %w", err)
 	}
 	if _, err := tx.applyExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusError,
@@ -1731,6 +1809,47 @@ func (tx *Tx) FinishError(input FinishErrorInput) (FinishErrorResult, error) {
 		return FinishErrorResult{}, xerrors.Errorf("set error: %w", err)
 	}
 	return FinishErrorResult{}, nil
+}
+
+// ReceiptRowOutcome decodes msg when it is a structured output receipt row:
+// role assistant, visibility user, content version 1, and receipt parts
+// whose outcome decodes.
+func ReceiptRowOutcome(msg database.ChatMessage) (codersdk.ChatStructuredOutput, error) {
+	parts, ok := receiptParts(msg)
+	if !ok {
+		return codersdk.ChatStructuredOutput{}, chatstructured.ErrMalformedStructuredOutputMetadata
+	}
+	return chatstructured.ReceiptOutcome(parts)
+}
+
+// IsReceiptRow reports whether msg is a structured output receipt row.
+// History readers skip receipts: they close requests without being model
+// output.
+func IsReceiptRow(msg database.ChatMessage) bool {
+	_, ok := receiptParts(msg)
+	return ok
+}
+
+// receiptParts returns the parts of msg and whether it has the receipt row
+// shape that the database exempts from execution fencing.
+func receiptParts(msg database.ChatMessage) ([]codersdk.ChatMessagePart, bool) {
+	if msg.Role != database.ChatMessageRoleAssistant || msg.Visibility != database.ChatMessageVisibilityUser ||
+		msg.ContentVersion != chatprompt.ContentVersionV1 {
+		return nil, false
+	}
+	parts, err := chatprompt.ParseContent(msg)
+	return parts, err == nil && chatstructured.IsReceipt(parts)
+}
+
+// requireReceipts fails closed unless every message is a valid receipt row.
+func requireReceipts(messages []Message) error {
+	for _, m := range messages {
+		row := database.ChatMessage{Role: m.Role, Visibility: m.Visibility, ContentVersion: m.ContentVersion, Content: m.Content}
+		if _, err := ReceiptRowOutcome(row); err != nil {
+			return xerrors.New("terminal message is not a structured output receipt")
+		}
+	}
+	return nil
 }
 
 // CancelRequiresActionInput configures [Tx.CancelRequiresAction].
@@ -1787,6 +1906,9 @@ func (tx *Tx) CancelRequiresAction(input CancelRequiresActionInput) (CancelRequi
 type ReconcileInvalidStateInput struct {
 	LastError          pqtype.NullRawMessage
 	CancellationReason string
+	// TerminalMessages are structured output receipt rows inserted after
+	// the synthesized tool cancellations. Anything else is rejected.
+	TerminalMessages []Message
 }
 
 // ReconcileInvalidStateResult is returned by [Tx.ReconcileInvalidState].
@@ -1808,6 +1930,9 @@ func (tx *Tx) ReconcileInvalidState(input ReconcileInvalidStateInput) (Reconcile
 			"reconcile is only valid for invalid states",
 		)
 	}
+	if err := requireReceipts(input.TerminalMessages); err != nil {
+		return ReconcileInvalidStateResult{}, err
+	}
 	reason := input.CancellationReason
 	if reason == "" {
 		reason = "Tool execution canceled due to invalid chat state"
@@ -1822,6 +1947,9 @@ func (tx *Tx) ReconcileInvalidState(input ReconcileInvalidStateInput) (Reconcile
 		if err != nil {
 			return ReconcileInvalidStateResult{}, xerrors.Errorf("insert invalid-state cancellations: %w", err)
 		}
+	}
+	if _, err := tx.insertMessages(input.TerminalMessages); err != nil {
+		return ReconcileInvalidStateResult{}, xerrors.Errorf("insert terminal messages: %w", err)
 	}
 	lastErr := input.LastError
 	if !lastErr.Valid {

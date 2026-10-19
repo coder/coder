@@ -70,6 +70,8 @@ type chatWorkerTaskStartInput struct {
 	SessionStart             *sessionStartTracker
 	StopNudges               *stopNudgeTracker
 	TurnExperiments          *turnExperimentDecisions
+	// structuredTerminal is the open request's receipt FinishTurn commits.
+	structuredTerminal *structuredTerminal
 }
 
 func (i chatWorkerTaskStartInput) hookTurnID() *uuid.UUID {

@@ -22152,6 +22152,19 @@ const docTemplate = `{
                 "role": {
                     "$ref": "#/definitions/codersdk.ChatMessageRole"
                 },
+                "structured_output": {
+                    "description": "StructuredOutput is set on the assistant message that closed a\nstructured output request, whose content holds a text fallback of it.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatStructuredOutput"
+                        }
+                    ]
+                },
+                "structured_output_request_id": {
+                    "description": "StructuredOutputRequestID is set on a user message that asked for a\nstructured output: the ID its result reports in StructuredOutput.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "usage": {
                     "$ref": "#/definitions/codersdk.ChatMessageUsage"
                 }
@@ -22306,6 +22319,13 @@ const docTemplate = `{
                 "start_line": {
                     "type": "integer"
                 },
+                "structured_output_data": {
+                    "description": "StructuredOutputData is the JSON payload of a structured output\nrequest, control or outcome part. Internal only: cleared by\nStripInternal, and db2sdk drops those parts entirely.",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
                 "text": {
                     "type": "string"
                 },
@@ -22361,7 +22381,10 @@ const docTemplate = `{
                 "skill",
                 "workspace-file-reference",
                 "hook-context",
-                "hook-notice"
+                "hook-notice",
+                "structured-output-request",
+                "structured-output-control",
+                "structured-output-outcome"
             ],
             "x-enum-varnames": [
                 "ChatMessagePartTypeText",
@@ -22375,7 +22398,10 @@ const docTemplate = `{
                 "ChatMessagePartTypeSkill",
                 "ChatMessagePartTypeWorkspaceFileReference",
                 "ChatMessagePartTypeHookContext",
-                "ChatMessagePartTypeHookNotice"
+                "ChatMessagePartTypeHookNotice",
+                "ChatMessagePartTypeStructuredOutputRequest",
+                "ChatMessagePartTypeStructuredOutputControl",
+                "ChatMessagePartTypeStructuredOutputOutcome"
             ]
         },
         "codersdk.ChatMessageRole": {
@@ -23371,8 +23397,60 @@ const docTemplate = `{
                 "model_config_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "structured_output_request_id": {
+                    "description": "StructuredOutputRequestID is set when the queued message asks for a\nstructured output; it keeps the ID once the message is sent.",
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
+        },
+        "codersdk.ChatResponseFormat": {
+            "type": "object",
+            "properties": {
+                "json_schema": {
+                    "$ref": "#/definitions/codersdk.ChatResponseFormatJSONSchema"
+                },
+                "type": {
+                    "enum": [
+                        "text",
+                        "json_schema"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatResponseFormatType"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.ChatResponseFormatJSONSchema": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "description": "Description tells the model what the output is for (1024 bytes max).",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Name identifies the output and matches ^[A-Za-z0-9_-]{1,64}$.",
+                    "type": "string"
+                },
+                "schema": {
+                    "description": "Schema is the JSON Schema object the output must satisfy.",
+                    "type": "object"
+                }
+            }
+        },
+        "codersdk.ChatResponseFormatType": {
+            "type": "string",
+            "enum": [
+                "text",
+                "json_schema"
+            ],
+            "x-enum-varnames": [
+                "ChatResponseFormatTypeText",
+                "ChatResponseFormatTypeJSONSchema"
+            ]
         },
         "codersdk.ChatRetentionDaysResponse": {
             "type": "object",
@@ -23561,6 +23639,70 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.ChatStructuredOutput": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/codersdk.ChatStructuredOutputError"
+                },
+                "request_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.ChatStructuredOutputStatus"
+                },
+                "value": {
+                    "description": "Value is the validated output of a succeeded request. The JSON null\nvalue is a valid output and is distinct from an absent value. It can\nbe any JSON value: object is the closest Swagger type the generator\nsupports, and the TypeScript type is unknown.",
+                    "type": "object"
+                }
+            }
+        },
+        "codersdk.ChatStructuredOutputError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "$ref": "#/definitions/codersdk.ChatStructuredOutputErrorCode"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatStructuredOutputErrorCode": {
+            "type": "string",
+            "enum": [
+                "not_produced",
+                "validation_exhausted",
+                "generation_failed",
+                "configuration_error",
+                "interrupted",
+                "superseded",
+                "queue_deleted"
+            ],
+            "x-enum-varnames": [
+                "ChatStructuredOutputErrorCodeNotProduced",
+                "ChatStructuredOutputErrorCodeValidationExhausted",
+                "ChatStructuredOutputErrorCodeGenerationFailed",
+                "ChatStructuredOutputErrorCodeConfigurationError",
+                "ChatStructuredOutputErrorCodeInterrupted",
+                "ChatStructuredOutputErrorCodeSuperseded",
+                "ChatStructuredOutputErrorCodeQueueDeleted"
+            ]
+        },
+        "codersdk.ChatStructuredOutputStatus": {
+            "type": "string",
+            "enum": [
+                "succeeded",
+                "failed",
+                "canceled"
+            ],
+            "x-enum-varnames": [
+                "ChatStructuredOutputStatusSucceeded",
+                "ChatStructuredOutputStatusFailed",
+                "ChatStructuredOutputStatusCanceled"
+            ]
         },
         "codersdk.ChatSystemPromptResponse": {
             "type": "object",
@@ -23995,6 +24137,14 @@ const docTemplate = `{
                 },
                 "reasoning_effort": {
                     "type": "string"
+                },
+                "response_format": {
+                    "description": "ResponseFormat asks for a structured final answer to this message.\njson_schema requires the chat-structured-output experiment, a root\nchat outside plan mode, and no plan_mode switch in the same request.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatResponseFormat"
+                        }
+                    ]
                 }
             }
         },
@@ -24146,6 +24296,14 @@ const docTemplate = `{
                 },
                 "reasoning_effort": {
                     "type": "string"
+                },
+                "response_format": {
+                    "description": "ResponseFormat asks for a structured final answer to the first message.\njson_schema requires the chat-structured-output experiment, not plan mode.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatResponseFormat"
+                        }
+                    ]
                 },
                 "system_prompt": {
                     "type": "string"
@@ -25757,6 +25915,14 @@ const docTemplate = `{
                 },
                 "reasoning_effort": {
                     "type": "string"
+                },
+                "response_format": {
+                    "description": "ResponseFormat sets the replacement's final answer format. Omitted\nor JSON null keeps the edited message's format under a new request\nID; {\"type\":\"text\"} clears it; json_schema replaces it.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatResponseFormat"
+                        }
+                    ]
                 }
             }
         },
@@ -25856,7 +26022,8 @@ const docTemplate = `{
                 "agent-lifecycle-hooks",
                 "chat-inline-mcp-servers",
                 "enable-ai-workspace-debug",
-                "chat-stage-metrics"
+                "chat-stage-metrics",
+                "chat-structured-output"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -25866,6 +26033,7 @@ const docTemplate = `{
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
                 "ExperimentChatProjects": "Enables organization-scoped projects that group agent chats.",
                 "ExperimentChatStageMetrics": "Exposes chat lifecycle stage durations as Prometheus metrics.",
+                "ExperimentChatStructuredOutput": "Accepts structured output response formats on agent chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
                 "ExperimentExample": "This isn't used for anything.",
@@ -25894,7 +26062,8 @@ const docTemplate = `{
                 "Enables chat lifecycle hook webhooks for agent chats.",
                 "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents.",
-                "Exposes chat lifecycle stage durations as Prometheus metrics."
+                "Exposes chat lifecycle stage durations as Prometheus metrics.",
+                "Accepts structured output response formats on agent chats."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -25913,7 +26082,8 @@ const docTemplate = `{
                 "ExperimentAgentLifecycleHooks",
                 "ExperimentChatInlineMCPServers",
                 "ExperimentEnableAIWorkspaceDebug",
-                "ExperimentChatStageMetrics"
+                "ExperimentChatStageMetrics",
+                "ExperimentChatStructuredOutput"
             ]
         },
         "codersdk.ExperimentRule": {

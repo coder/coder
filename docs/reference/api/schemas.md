@@ -3254,6 +3254,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "skill_name": "string",
       "source_id": "string",
       "start_line": 0,
+      "structured_output_data": [
+        0
+      ],
       "text": "string",
       "title": "string",
       "tool_call_id": "string",
@@ -3273,6 +3276,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "queued_message_id": 0,
   "role": "system",
+  "structured_output": {
+    "error": {
+      "code": "not_produced",
+      "message": "string"
+    },
+    "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+    "status": "succeeded",
+    "value": {}
+  },
+  "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
   "usage": {
     "cache_creation_tokens": 0,
     "cache_read_tokens": 0,
@@ -3287,17 +3300,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                | Type                                                          | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                     |
-|---------------------|---------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `chat_id`           | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
-| `content`           | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |                                                                                                                                                                                                                                                                                                                                 |
-| `created_at`        | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
-| `created_by`        | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
-| `id`                | integer                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                 |
-| `model_config_id`   | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
-| `queued_message_id` | integer                                                       | false    |              | Queued message ID is the ID of the queued message this message was promoted from. It matches ChatQueuedMessage.ID in the response that queued the message. It is nil when the message was not promoted from the queue (edits create a new message without it) or when a server version that did not record the link created it. |
-| `role`              | [codersdk.ChatMessageRole](#codersdkchatmessagerole)          | false    |              |                                                                                                                                                                                                                                                                                                                                 |
-| `usage`             | [codersdk.ChatMessageUsage](#codersdkchatmessageusage)        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| Name                           | Type                                                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                     |
+|--------------------------------|----------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `chat_id`                      | string                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `content`                      | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart)  | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `created_at`                   | string                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `created_by`                   | string                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `id`                           | integer                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `model_config_id`              | string                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `queued_message_id`            | integer                                                        | false    |              | Queued message ID is the ID of the queued message this message was promoted from. It matches ChatQueuedMessage.ID in the response that queued the message. It is nil when the message was not promoted from the queue (edits create a new message without it) or when a server version that did not record the link created it. |
+| `role`                         | [codersdk.ChatMessageRole](#codersdkchatmessagerole)           | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `structured_output`            | [codersdk.ChatStructuredOutput](#codersdkchatstructuredoutput) | false    |              | Structured output is set on the assistant message that closed a structured output request, whose content holds a text fallback of it.                                                                                                                                                                                           |
+| `structured_output_request_id` | string                                                         | false    |              | Structured output request ID is set on a user message that asked for a structured output: the ID its result reports in StructuredOutput.                                                                                                                                                                                        |
+| `usage`                        | [codersdk.ChatMessageUsage](#codersdkchatmessageusage)         | false    |              |                                                                                                                                                                                                                                                                                                                                 |
 
 ## codersdk.ChatMessagePart
 
@@ -3350,6 +3365,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "skill_name": "string",
   "source_id": "string",
   "start_line": 0,
+  "structured_output_data": [
+    0
+  ],
   "text": "string",
   "title": "string",
   "tool_call_id": "string",
@@ -3403,6 +3421,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `skill_name`                   | string                                                       | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                                                                                                    |
 | `source_id`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `start_line`                   | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `structured_output_data`       | array of integer                                             | false    |              | Structured output data is the JSON payload of a structured output request, control or outcome part. Internal only: cleared by StripInternal, and db2sdk drops those parts entirely.                                                                                                                                                                                                                        |
 | `text`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `title`                        | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `tool_call_id`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3425,9 +3444,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
+| Value(s)                                                                                                                                                                                                                                                       |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `reasoning`, `skill`, `source`, `structured-output-control`, `structured-output-outcome`, `structured-output-request`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
 
 ## codersdk.ChatMessageRole
 
@@ -3526,6 +3545,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "skill_name": "string",
           "source_id": "string",
           "start_line": 0,
+          "structured_output_data": [
+            0
+          ],
           "text": "string",
           "title": "string",
           "tool_call_id": "string",
@@ -3545,6 +3567,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
       "queued_message_id": 0,
       "role": "system",
+      "structured_output": {
+        "error": {
+          "code": "not_produced",
+          "message": "string"
+        },
+        "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+        "status": "succeeded",
+        "value": {}
+      },
+      "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
       "usage": {
         "cache_creation_tokens": 0,
         "cache_read_tokens": 0,
@@ -3608,6 +3640,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "skill_name": "string",
           "source_id": "string",
           "start_line": 0,
+          "structured_output_data": [
+            0
+          ],
           "text": "string",
           "title": "string",
           "tool_call_id": "string",
@@ -3623,7 +3658,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "created_at": "2019-08-24T14:15:22Z",
       "id": 0,
-      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c"
     }
   ],
   "turn_start_id": 0
@@ -5192,6 +5228,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "skill_name": "string",
       "source_id": "string",
       "start_line": 0,
+      "structured_output_data": [
+        0
+      ],
       "text": "string",
       "title": "string",
       "tool_call_id": "string",
@@ -5207,19 +5246,79 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "created_at": "2019-08-24T14:15:22Z",
   "id": 0,
-  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c"
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                          | Required | Restrictions | Description |
-|-------------------|---------------------------------------------------------------|----------|--------------|-------------|
-| `chat_id`         | string                                                        | false    |              |             |
-| `content`         | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
-| `created_at`      | string                                                        | false    |              |             |
-| `id`              | integer                                                       | false    |              |             |
-| `model_config_id` | string                                                        | false    |              |             |
+| Name                           | Type                                                          | Required | Restrictions | Description                                                                                                                         |
+|--------------------------------|---------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| `chat_id`                      | string                                                        | false    |              |                                                                                                                                     |
+| `content`                      | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |                                                                                                                                     |
+| `created_at`                   | string                                                        | false    |              |                                                                                                                                     |
+| `id`                           | integer                                                       | false    |              |                                                                                                                                     |
+| `model_config_id`              | string                                                        | false    |              |                                                                                                                                     |
+| `structured_output_request_id` | string                                                        | false    |              | Structured output request ID is set when the queued message asks for a structured output; it keeps the ID once the message is sent. |
+
+## codersdk.ChatResponseFormat
+
+```json
+{
+  "json_schema": {
+    "description": "string",
+    "name": "string",
+    "schema": {}
+  },
+  "type": "text"
+}
+```
+
+### Properties
+
+| Name          | Type                                                                           | Required | Restrictions | Description |
+|---------------|--------------------------------------------------------------------------------|----------|--------------|-------------|
+| `json_schema` | [codersdk.ChatResponseFormatJSONSchema](#codersdkchatresponseformatjsonschema) | false    |              |             |
+| `type`        | [codersdk.ChatResponseFormatType](#codersdkchatresponseformattype)             | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s)              |
+|----------|-----------------------|
+| `type`   | `json_schema`, `text` |
+
+## codersdk.ChatResponseFormatJSONSchema
+
+```json
+{
+  "description": "string",
+  "name": "string",
+  "schema": {}
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description                                                          |
+|---------------|--------|----------|--------------|----------------------------------------------------------------------|
+| `description` | string | false    |              | Description tells the model what the output is for (1024 bytes max). |
+| `name`        | string | false    |              | Name identifies the output and matches ^[A-Za-z0-9_-]{1,64}$.        |
+| `schema`      | object | false    |              | Schema is the JSON Schema object the output must satisfy.            |
+
+## codersdk.ChatResponseFormatType
+
+```json
+"text"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)              |
+|-----------------------|
+| `json_schema`, `text` |
 
 ## codersdk.ChatRetentionDaysResponse
 
@@ -5356,6 +5455,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "skill_name": "string",
         "source_id": "string",
         "start_line": 0,
+        "structured_output_data": [
+          0
+        ],
         "text": "string",
         "title": "string",
         "tool_call_id": "string",
@@ -5375,6 +5477,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
     "queued_message_id": 0,
     "role": "system",
+    "structured_output": {
+      "error": {
+        "code": "not_produced",
+        "message": "string"
+      },
+      "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+      "status": "succeeded",
+      "value": {}
+    },
+    "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
     "usage": {
       "cache_creation_tokens": 0,
       "cache_read_tokens": 0,
@@ -5436,6 +5548,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "skill_name": "string",
       "source_id": "string",
       "start_line": 0,
+      "structured_output_data": [
+        0
+      ],
       "text": "string",
       "title": "string",
       "tool_call_id": "string",
@@ -5503,6 +5618,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "skill_name": "string",
           "source_id": "string",
           "start_line": 0,
+          "structured_output_data": [
+            0
+          ],
           "text": "string",
           "title": "string",
           "tool_call_id": "string",
@@ -5518,7 +5636,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "created_at": "2019-08-24T14:15:22Z",
       "id": 0,
-      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c"
     }
   ],
   "retry": {
@@ -5619,6 +5738,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "skill_name": "string",
     "source_id": "string",
     "start_line": 0,
+    "structured_output_data": [
+      0
+    ],
     "text": "string",
     "title": "string",
     "tool_call_id": "string",
@@ -5703,6 +5825,73 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `args`         | string | false    |              |             |
 | `tool_call_id` | string | false    |              |             |
 | `tool_name`    | string | false    |              |             |
+
+## codersdk.ChatStructuredOutput
+
+```json
+{
+  "error": {
+    "code": "not_produced",
+    "message": "string"
+  },
+  "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+  "status": "succeeded",
+  "value": {}
+}
+```
+
+### Properties
+
+| Name         | Type                                                                       | Required | Restrictions | Description                                                                                                                                                                                                                                                |
+|--------------|----------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `error`      | [codersdk.ChatStructuredOutputError](#codersdkchatstructuredoutputerror)   | false    |              |                                                                                                                                                                                                                                                            |
+| `request_id` | string                                                                     | false    |              |                                                                                                                                                                                                                                                            |
+| `status`     | [codersdk.ChatStructuredOutputStatus](#codersdkchatstructuredoutputstatus) | false    |              |                                                                                                                                                                                                                                                            |
+| `value`      | object                                                                     | false    |              | Value is the validated output of a succeeded request. The JSON null value is a valid output and is distinct from an absent value. It can be any JSON value: object is the closest Swagger type the generator supports, and the TypeScript type is unknown. |
+
+## codersdk.ChatStructuredOutputError
+
+```json
+{
+  "code": "not_produced",
+  "message": "string"
+}
+```
+
+### Properties
+
+| Name      | Type                                                                             | Required | Restrictions | Description |
+|-----------|----------------------------------------------------------------------------------|----------|--------------|-------------|
+| `code`    | [codersdk.ChatStructuredOutputErrorCode](#codersdkchatstructuredoutputerrorcode) | false    |              |             |
+| `message` | string                                                                           | false    |              |             |
+
+## codersdk.ChatStructuredOutputErrorCode
+
+```json
+"not_produced"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                                                         |
+|----------------------------------------------------------------------------------------------------------------------------------|
+| `configuration_error`, `generation_failed`, `interrupted`, `not_produced`, `queue_deleted`, `superseded`, `validation_exhausted` |
+
+## codersdk.ChatStructuredOutputStatus
+
+```json
+"succeeded"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                          |
+|-----------------------------------|
+| `canceled`, `failed`, `succeeded` |
 
 ## codersdk.ChatSystemPromptResponse
 
@@ -6401,21 +6590,30 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "plan_mode": "plan",
-  "reasoning_effort": "string"
+  "reasoning_effort": "string",
+  "response_format": {
+    "json_schema": {
+      "description": "string",
+      "name": "string",
+      "schema": {}
+    },
+    "type": "text"
+  }
 }
 ```
 
 ### Properties
 
-| Name                 | Type                                                                        | Required | Restrictions | Description                                                                                                  |
-|----------------------|-----------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
-| `busy_behavior`      | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)                      | false    |              |                                                                                                              |
-| `content`            | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              |                                                                                                              |
-| `inline_mcp_servers` | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers replaces the inline MCP servers. nil: no change, empty: remove all.                       |
-| `mcp_server_ids`     | array of string                                                             | false    |              |                                                                                                              |
-| `model_config_id`    | string                                                                      | false    |              |                                                                                                              |
-| `plan_mode`          | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear. |
-| `reasoning_effort`   | string                                                                      | false    |              |                                                                                                              |
+| Name                 | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                                                 |
+|----------------------|-----------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `busy_behavior`      | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)                      | false    |              |                                                                                                                                                                                                             |
+| `content`            | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              |                                                                                                                                                                                                             |
+| `inline_mcp_servers` | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers replaces the inline MCP servers. nil: no change, empty: remove all.                                                                                                                      |
+| `mcp_server_ids`     | array of string                                                             | false    |              |                                                                                                                                                                                                             |
+| `model_config_id`    | string                                                                      | false    |              |                                                                                                                                                                                                             |
+| `plan_mode`          | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear.                                                                                                |
+| `reasoning_effort`   | string                                                                      | false    |              |                                                                                                                                                                                                             |
+| `response_format`    | [codersdk.ChatResponseFormat](#codersdkchatresponseformat)                  | false    |              | Response format asks for a structured final answer to this message. json_schema requires the chat-structured-output experiment, a root chat outside plan mode, and no plan_mode switch in the same request. |
 
 #### Enumerated Values
 
@@ -6478,6 +6676,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "skill_name": "string",
         "source_id": "string",
         "start_line": 0,
+        "structured_output_data": [
+          0
+        ],
         "text": "string",
         "title": "string",
         "tool_call_id": "string",
@@ -6497,6 +6698,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
     "queued_message_id": 0,
     "role": "system",
+    "structured_output": {
+      "error": {
+        "code": "not_produced",
+        "message": "string"
+      },
+      "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+      "status": "succeeded",
+      "value": {}
+    },
+    "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
     "usage": {
       "cache_creation_tokens": 0,
       "cache_read_tokens": 0,
@@ -6559,6 +6770,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "skill_name": "string",
           "source_id": "string",
           "start_line": 0,
+          "structured_output_data": [
+            0
+          ],
           "text": "string",
           "title": "string",
           "tool_call_id": "string",
@@ -6578,6 +6792,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
       "queued_message_id": 0,
       "role": "system",
+      "structured_output": {
+        "error": {
+          "code": "not_produced",
+          "message": "string"
+        },
+        "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+        "status": "succeeded",
+        "value": {}
+      },
+      "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
       "usage": {
         "cache_creation_tokens": 0,
         "cache_read_tokens": 0,
@@ -6641,6 +6865,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "skill_name": "string",
         "source_id": "string",
         "start_line": 0,
+        "structured_output_data": [
+          0
+        ],
         "text": "string",
         "title": "string",
         "tool_call_id": "string",
@@ -6656,7 +6883,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "created_at": "2019-08-24T14:15:22Z",
     "id": 0,
-    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c"
   },
   "warnings": [
     "string"
@@ -6944,6 +7172,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "plan_mode": "plan",
   "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "reasoning_effort": "string",
+  "response_format": {
+    "json_schema": {
+      "description": "string",
+      "name": "string",
+      "schema": {}
+    },
+    "type": "text"
+  },
   "system_prompt": "string",
   "title": "string",
   "unsafe_dynamic_tools": [
@@ -6975,6 +7211,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              |                                                                                                                                                                                                                                                                                                                                       |
 | `project_id`           | string                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                       |
 | `reasoning_effort`     | string                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                       |
+| `response_format`      | [codersdk.ChatResponseFormat](#codersdkchatresponseformat)                  | false    |              | Response format asks for a structured final answer to the first message. json_schema requires the chat-structured-output experiment, not plan mode.                                                                                                                                                                                   |
 | `system_prompt`        | string                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                       |
 | `title`                | string                                                                      | false    |              | Title, when set, is stored as the user title and automatic title generation does not run. It is trimmed and must then be non-empty and at most 200 Unicode code points (MaxChatTitleRunes), else the request fails with 400. When omitted, the title is derived from the first prompt and may later be replaced by a generated title. |
 | `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)                       | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                                                                                                                                                                            |
@@ -9518,18 +9755,27 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
-  "reasoning_effort": "string"
+  "reasoning_effort": "string",
+  "response_format": {
+    "json_schema": {
+      "description": "string",
+      "name": "string",
+      "schema": {}
+    },
+    "type": "text"
+  }
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                      | Required | Restrictions | Description                                                                                                                                                                  |
-|--------------------|-----------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `content`          | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                                                              |
-| `mcp_server_ids`   | array of string                                           | false    |              | Mcp server ids when set, replaces the chat's MCP server selection before the replacement turn runs. When nil the current selection is preserved.                             |
-| `model_config_id`  | string                                                    | false    |              | Model config ID when set, overrides the model used for the replacement user message and the assistant turn that follows. When nil the original message's model is preserved. |
-| `reasoning_effort` | string                                                    | false    |              |                                                                                                                                                                              |
+| Name               | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                    |
+|--------------------|------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `content`          | array of [codersdk.ChatInputPart](#codersdkchatinputpart)  | false    |              |                                                                                                                                                                                                |
+| `mcp_server_ids`   | array of string                                            | false    |              | Mcp server ids when set, replaces the chat's MCP server selection before the replacement turn runs. When nil the current selection is preserved.                                               |
+| `model_config_id`  | string                                                     | false    |              | Model config ID when set, overrides the model used for the replacement user message and the assistant turn that follows. When nil the original message's model is preserved.                   |
+| `reasoning_effort` | string                                                     | false    |              |                                                                                                                                                                                                |
+| `response_format`  | [codersdk.ChatResponseFormat](#codersdkchatresponseformat) | false    |              | Response format sets the replacement's final answer format. Omitted or JSON null keeps the edited message's format under a new request ID; {"type":"text"} clears it; json_schema replaces it. |
 
 ## codersdk.EditChatMessageResponse
 
@@ -9589,6 +9835,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "skill_name": "string",
         "source_id": "string",
         "start_line": 0,
+        "structured_output_data": [
+          0
+        ],
         "text": "string",
         "title": "string",
         "tool_call_id": "string",
@@ -9608,6 +9857,16 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
     "queued_message_id": 0,
     "role": "system",
+    "structured_output": {
+      "error": {
+        "code": "not_produced",
+        "message": "string"
+      },
+      "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+      "status": "succeeded",
+      "value": {}
+    },
+    "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
     "usage": {
       "cache_creation_tokens": 0,
       "cache_read_tokens": 0,
@@ -9670,6 +9929,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "skill_name": "string",
           "source_id": "string",
           "start_line": 0,
+          "structured_output_data": [
+            0
+          ],
           "text": "string",
           "title": "string",
           "tool_call_id": "string",
@@ -9689,6 +9951,16 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
       "queued_message_id": 0,
       "role": "system",
+      "structured_output": {
+        "error": {
+          "code": "not_produced",
+          "message": "string"
+        },
+        "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+        "status": "succeeded",
+        "value": {}
+      },
+      "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
       "usage": {
         "cache_creation_tokens": 0,
         "cache_read_tokens": 0,
@@ -9799,9 +10071,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                 |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-projects`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                           |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-projects`, `chat-stage-metrics`, `chat-structured-output`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 

@@ -2905,6 +2905,16 @@ export interface ChatMessage {
 	 * version that did not record the link created it.
 	 */
 	readonly queued_message_id?: number;
+	/**
+	 * StructuredOutputRequestID is set on a user message that asked for a
+	 * structured output: the ID its result reports in StructuredOutput.
+	 */
+	readonly structured_output_request_id?: string;
+	/**
+	 * StructuredOutput is set on the assistant message that closed a
+	 * structured output request, whose content holds a text fallback of it.
+	 */
+	readonly structured_output?: ChatStructuredOutput;
 }
 
 // From codersdk/chats.go
@@ -2956,6 +2966,9 @@ export type ChatMessagePartType =
 	| "reasoning"
 	| "skill"
 	| "source"
+	| "structured-output-control"
+	| "structured-output-outcome"
+	| "structured-output-request"
 	| "text"
 	| "tool-call"
 	| "tool-result"
@@ -2970,6 +2983,9 @@ export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"reasoning",
 	"skill",
 	"source",
+	"structured-output-control",
+	"structured-output-outcome",
+	"structured-output-request",
 	"text",
 	"tool-call",
 	"tool-result",
@@ -3626,6 +3642,11 @@ export interface ChatQueuedMessage {
 	readonly model_config_id?: string;
 	readonly content: readonly ChatMessagePart[];
 	readonly created_at: string;
+	/**
+	 * StructuredOutputRequestID is set when the queued message asks for a
+	 * structured output; it keeps the ID once the message is sent.
+	 */
+	readonly structured_output_request_id?: string;
 }
 
 // From codersdk/chats.go
@@ -3651,6 +3672,45 @@ export interface ChatReasoningPart {
 	 */
 	readonly completed_at?: string;
 }
+
+// From codersdk/chats.go
+/**
+ * ChatResponseFormat asks for the final answer of the turn a message starts.
+ * The server parses it strictly and rejects unknown fields.
+ */
+export interface ChatResponseFormat {
+	readonly type: ChatResponseFormatType;
+	readonly json_schema?: ChatResponseFormatJSONSchema;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatResponseFormatJSONSchema describes a structured final answer. The
+ * turn ends with a receipt holding a value that satisfies Schema, or a
+ * typed failure.
+ */
+export interface ChatResponseFormatJSONSchema {
+	/**
+	 * Name identifies the output and matches ^[A-Za-z0-9_-]{1,64}$.
+	 */
+	readonly name: string;
+	/**
+	 * Description tells the model what the output is for (1024 bytes max).
+	 */
+	readonly description?: string;
+	/**
+	 * Schema is the JSON Schema object the output must satisfy.
+	 */
+	readonly schema: unknown;
+}
+
+// From codersdk/chats.go
+export type ChatResponseFormatType = "json_schema" | "text";
+
+export const ChatResponseFormatTypes: ChatResponseFormatType[] = [
+	"json_schema",
+	"text",
+];
 
 // From codersdk/chats.go
 /**
@@ -3818,6 +3878,61 @@ export interface ChatStreamToolCall {
 	readonly tool_name: string;
 	readonly args: string;
 }
+
+// From codersdk/chats.go
+/**
+ * ChatStructuredOutput is the outcome of a structured output request.
+ */
+export interface ChatStructuredOutput {
+	readonly request_id: string;
+	readonly status: ChatStructuredOutputStatus;
+	/**
+	 * Value is the validated output of a succeeded request. The JSON null
+	 * value is a valid output and is distinct from an absent value. It can
+	 * be any JSON value: object is the closest Swagger type the generator
+	 * supports, and the TypeScript type is unknown.
+	 */
+	readonly value?: unknown;
+	readonly error?: ChatStructuredOutputError;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatStructuredOutputError describes why a request failed or was canceled.
+ */
+export interface ChatStructuredOutputError {
+	readonly code: ChatStructuredOutputErrorCode;
+	readonly message: string;
+}
+
+// From codersdk/chats.go
+export type ChatStructuredOutputErrorCode =
+	| "configuration_error"
+	| "generation_failed"
+	| "interrupted"
+	| "not_produced"
+	| "queue_deleted"
+	| "superseded"
+	| "validation_exhausted";
+
+export const ChatStructuredOutputErrorCodes: ChatStructuredOutputErrorCode[] = [
+	"configuration_error",
+	"generation_failed",
+	"interrupted",
+	"not_produced",
+	"queue_deleted",
+	"superseded",
+	"validation_exhausted",
+];
+
+// From codersdk/chats.go
+export type ChatStructuredOutputStatus = "canceled" | "failed" | "succeeded";
+
+export const ChatStructuredOutputStatuses: ChatStructuredOutputStatus[] = [
+	"canceled",
+	"failed",
+	"succeeded",
+];
 
 // From codersdk/chats.go
 /**
@@ -4262,6 +4377,12 @@ export interface CreateChatMessageRequest {
 	 */
 	readonly plan_mode?: ChatPlanMode;
 	readonly reasoning_effort?: string;
+	/**
+	 * ResponseFormat asks for a structured final answer to this message.
+	 * json_schema requires the chat-structured-output experiment, a root
+	 * chat outside plan mode, and no plan_mode switch in the same request.
+	 */
+	readonly response_format?: ChatResponseFormat;
 }
 
 // From codersdk/chats.go
@@ -4367,6 +4488,11 @@ export interface CreateChatRequest {
 	readonly inline_mcp_servers?: readonly InlineMCPServerRequest[];
 	readonly plan_mode?: ChatPlanMode;
 	readonly client_type?: ChatClientType;
+	/**
+	 * ResponseFormat asks for a structured final answer to the first message.
+	 * json_schema requires the chat-structured-output experiment, not plan mode.
+	 */
+	readonly response_format?: ChatResponseFormat;
 }
 
 // From codersdk/users.go
@@ -5488,6 +5614,12 @@ export interface DynamicToolResponse {
 export interface EditChatMessageRequest {
 	readonly content: readonly ChatInputPart[];
 	/**
+	 * ResponseFormat sets the replacement's final answer format. Omitted
+	 * or JSON null keeps the edited message's format under a new request
+	 * ID; {"type":"text"} clears it; json_schema replaces it.
+	 */
+	readonly response_format?: ChatResponseFormat;
+	/**
 	 * ModelConfigID, when set, overrides the model used for the
 	 * replacement user message and the assistant turn that follows.
 	 * When nil the original message's model is preserved.
@@ -5576,6 +5708,7 @@ export type Experiment =
 	| "chat-inline-mcp-servers"
 	| "chat-projects"
 	| "chat-stage-metrics"
+	| "chat-structured-output"
 	| "chat-virtual-desktop"
 	| "enable-ai-workspace-debug"
 	| "example"
@@ -5656,6 +5789,7 @@ export const Experiments: Experiment[] = [
 	"chat-inline-mcp-servers",
 	"chat-projects",
 	"chat-stage-metrics",
+	"chat-structured-output",
 	"chat-virtual-desktop",
 	"enable-ai-workspace-debug",
 	"example",

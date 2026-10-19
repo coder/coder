@@ -363,6 +363,7 @@ func testPromoteQueuedMessageA1SynthesizesDynamicToolCancellations(t *testing.T)
 		var err error
 		promote, err = tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
 			QueuedMessageID: queued.QueuedMessage.ID,
+			Receipts:        []chatstate.Message{receiptMessage(t)},
 		})
 		return err
 	}))
@@ -374,6 +375,10 @@ func testPromoteQueuedMessageA1SynthesizesDynamicToolCancellations(t *testing.T)
 	require.False(t, promote.CancellationMessages[0].QueuedMessageID.Valid,
 		"synthetic cancellations are not promoted from the queue")
 	requireQueuedMessageLink(t, *promote.InsertedMessage, queued.QueuedMessage.ID)
+	// The receipt closes the waiting turn before the promoted message.
+	require.Len(t, promote.Receipts, 1)
+	require.Less(t, promote.CancellationMessages[0].ID, promote.Receipts[0].ID)
+	require.Less(t, promote.Receipts[0].ID, promote.InsertedMessage.ID)
 }
 
 func TestSyntheticCancellation_FinishTurn(t *testing.T) {

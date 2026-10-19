@@ -441,6 +441,12 @@ type ChatMessage struct {
 	// the queue (edits create a new message without it) or when a server
 	// version that did not record the link created it.
 	QueuedMessageID *int64 `json:"queued_message_id,omitempty"`
+	// StructuredOutputRequestID is set on a user message that asked for a
+	// structured output: the ID its result reports in StructuredOutput.
+	StructuredOutputRequestID *uuid.UUID `json:"structured_output_request_id,omitempty" format:"uuid"`
+	// StructuredOutput is set on the assistant message that closed a
+	// structured output request, whose content holds a text fallback of it.
+	StructuredOutput *ChatStructuredOutput `json:"structured_output,omitempty"`
 }
 
 // ChatMessageUsage contains token usage information for a chat message.
@@ -490,6 +496,13 @@ const (
 	// either attached to a prompt or in its own row. It is excluded from model
 	// prompts and rejected in client-submitted content.
 	ChatMessagePartTypeHookNotice ChatMessagePartType = "hook-notice"
+	// ChatMessagePartTypeStructuredOutputRequest, Control and Outcome carry
+	// internal structured output metadata in StructuredOutputData. They are
+	// dropped from every client-facing conversion and never sent to the
+	// model. An outcome part is terminal: it closes its request.
+	ChatMessagePartTypeStructuredOutputRequest ChatMessagePartType = "structured-output-request"
+	ChatMessagePartTypeStructuredOutputControl ChatMessagePartType = "structured-output-control"
+	ChatMessagePartTypeStructuredOutputOutcome ChatMessagePartType = "structured-output-outcome"
 )
 
 // AllChatMessagePartTypes returns all known ChatMessagePartType values.
@@ -507,6 +520,9 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 		ChatMessagePartTypeWorkspaceFileReference,
 		ChatMessagePartTypeHookContext,
 		ChatMessagePartTypeHookNotice,
+		ChatMessagePartTypeStructuredOutputRequest,
+		ChatMessagePartTypeStructuredOutputControl,
+		ChatMessagePartTypeStructuredOutputOutcome,
 	}
 }
 
@@ -668,6 +684,10 @@ type ChatMessagePart struct {
 	// filesystem holds the uploaded bytes. References are only
 	// readable while the chat stays bound to that workspace.
 	WorkspaceFileWorkspaceID uuid.UUID `json:"workspace_file_workspace_id" format:"uuid" variants:"workspace-file-reference"`
+	// StructuredOutputData is the JSON payload of a structured output
+	// request, control or outcome part. Internal only: cleared by
+	// StripInternal, and db2sdk drops those parts entirely.
+	StructuredOutputData json.RawMessage `json:"structured_output_data,omitempty" typescript:"-"`
 }
 
 // StripInternal removes internal-only fields that must not be
@@ -692,6 +712,51 @@ func (p *ChatMessagePart) StripInternal() {
 	p.ContextFileDirectory = ""
 	p.SkillDir = ""
 	p.ContextFileSkillMetaFile = ""
+	p.StructuredOutputData = nil
+}
+
+// ChatStructuredOutputStatus is the terminal status of a structured output
+// request.
+type ChatStructuredOutputStatus string
+
+const (
+	ChatStructuredOutputStatusSucceeded ChatStructuredOutputStatus = "succeeded"
+	ChatStructuredOutputStatusFailed    ChatStructuredOutputStatus = "failed"
+	ChatStructuredOutputStatusCanceled  ChatStructuredOutputStatus = "canceled"
+)
+
+// ChatStructuredOutputErrorCode explains why a structured output request did
+// not succeed. Failed requests use not_produced, validation_exhausted,
+// generation_failed or configuration_error; canceled requests use
+// interrupted, superseded or queue_deleted.
+type ChatStructuredOutputErrorCode string
+
+const (
+	ChatStructuredOutputErrorCodeNotProduced         ChatStructuredOutputErrorCode = "not_produced"
+	ChatStructuredOutputErrorCodeValidationExhausted ChatStructuredOutputErrorCode = "validation_exhausted"
+	ChatStructuredOutputErrorCodeGenerationFailed    ChatStructuredOutputErrorCode = "generation_failed"
+	ChatStructuredOutputErrorCodeConfigurationError  ChatStructuredOutputErrorCode = "configuration_error"
+	ChatStructuredOutputErrorCodeInterrupted         ChatStructuredOutputErrorCode = "interrupted"
+	ChatStructuredOutputErrorCodeSuperseded          ChatStructuredOutputErrorCode = "superseded"
+	ChatStructuredOutputErrorCodeQueueDeleted        ChatStructuredOutputErrorCode = "queue_deleted"
+)
+
+// ChatStructuredOutput is the outcome of a structured output request.
+type ChatStructuredOutput struct {
+	RequestID uuid.UUID                  `json:"request_id" format:"uuid"`
+	Status    ChatStructuredOutputStatus `json:"status"`
+	// Value is the validated output of a succeeded request. The JSON null
+	// value is a valid output and is distinct from an absent value. It can
+	// be any JSON value: object is the closest Swagger type the generator
+	// supports, and the TypeScript type is unknown.
+	Value json.RawMessage            `json:"value,omitempty" swaggertype:"object"`
+	Error *ChatStructuredOutputError `json:"error,omitempty"`
+}
+
+// ChatStructuredOutputError describes why a request failed or was canceled.
+type ChatStructuredOutputError struct {
+	Code    ChatStructuredOutputErrorCode `json:"code"`
+	Message string                        `json:"message"`
 }
 
 // ChatMessageText builds a text chat message part.
@@ -858,6 +923,9 @@ type CreateChatRequest struct {
 	InlineMCPServers []InlineMCPServerRequest `json:"inline_mcp_servers,omitempty"`
 	PlanMode         ChatPlanMode             `json:"plan_mode,omitempty"`
 	ClientType       ChatClientType           `json:"client_type,omitempty"`
+	// ResponseFormat asks for a structured final answer to the first message.
+	// json_schema requires the chat-structured-output experiment, not plan mode.
+	ResponseFormat *ChatResponseFormat `json:"response_format,omitempty"`
 }
 
 // InlineMCPServerRequest declares a streamable HTTP MCP server by value on
@@ -886,6 +954,34 @@ type InlineMCPServer struct {
 	ForwardCoderHeaders bool      `json:"forward_coder_headers"`
 	CreatedAt           time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt           time.Time `json:"updated_at" format:"date-time"`
+}
+
+// ChatResponseFormatType selects the form of a turn's final answer.
+type ChatResponseFormatType string
+
+// ChatResponseFormatType enums.
+const (
+	ChatResponseFormatTypeText       ChatResponseFormatType = "text"
+	ChatResponseFormatTypeJSONSchema ChatResponseFormatType = "json_schema"
+)
+
+// ChatResponseFormat asks for the final answer of the turn a message starts.
+// The server parses it strictly and rejects unknown fields.
+type ChatResponseFormat struct {
+	Type       ChatResponseFormatType        `json:"type" enums:"text,json_schema"`
+	JSONSchema *ChatResponseFormatJSONSchema `json:"json_schema,omitempty"`
+}
+
+// ChatResponseFormatJSONSchema describes a structured final answer. The
+// turn ends with a receipt holding a value that satisfies Schema, or a
+// typed failure.
+type ChatResponseFormatJSONSchema struct {
+	// Name identifies the output and matches ^[A-Za-z0-9_-]{1,64}$.
+	Name string `json:"name"`
+	// Description tells the model what the output is for (1024 bytes max).
+	Description string `json:"description,omitempty"`
+	// Schema is the JSON Schema object the output must satisfy.
+	Schema json.RawMessage `json:"schema" swaggertype:"object"`
 }
 
 // UpdateChatRequest is the request to update a chat.
@@ -964,11 +1060,19 @@ type CreateChatMessageRequest struct {
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode        *ChatPlanMode `json:"plan_mode,omitempty"`
 	ReasoningEffort *string       `json:"reasoning_effort,omitempty"`
+	// ResponseFormat asks for a structured final answer to this message.
+	// json_schema requires the chat-structured-output experiment, a root
+	// chat outside plan mode, and no plan_mode switch in the same request.
+	ResponseFormat *ChatResponseFormat `json:"response_format,omitempty"`
 }
 
 // EditChatMessageRequest is the request to edit a user message in a chat.
 type EditChatMessageRequest struct {
 	Content []ChatInputPart `json:"content"`
+	// ResponseFormat sets the replacement's final answer format. Omitted
+	// or JSON null keeps the edited message's format under a new request
+	// ID; {"type":"text"} clears it; json_schema replaces it.
+	ResponseFormat *ChatResponseFormat `json:"response_format,omitempty"`
 	// ModelConfigID, when set, overrides the model used for the
 	// replacement user message and the assistant turn that follows.
 	// When nil the original message's model is preserved.
@@ -2040,6 +2144,9 @@ type ChatQueuedMessage struct {
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	Content       []ChatMessagePart `json:"content"`
 	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
+	// StructuredOutputRequestID is set when the queued message asks for a
+	// structured output; it keeps the ID once the message is sent.
+	StructuredOutputRequestID *uuid.UUID `json:"structured_output_request_id,omitempty" format:"uuid"`
 }
 
 // ChatStreamMessagePart is a streamed message part update.

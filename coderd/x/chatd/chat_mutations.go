@@ -1,10 +1,12 @@
 package chatd
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -116,6 +118,9 @@ func (p *Server) SendMessage(
 			return SendMessageResult{}, err
 		}
 	}
+	if opts.StructuredOutputRequest != nil {
+		contentParts = append(slices.Clone(contentParts), *opts.StructuredOutputRequest)
+	}
 
 	content, err := chatprompt.MarshalParts(contentParts)
 	if err != nil {
@@ -137,6 +142,16 @@ func (p *Server) SendMessage(
 			return ErrChatArchived
 		}
 
+		// Under the chat lock, a structured request never lands in a plan
+		// mode chat and plan mode never starts under pending structured work.
+		if opts.PlanMode != nil && opts.PlanMode.Valid {
+			if pending, err := hasPendingStructuredRequest(ctx, p.logger, store, opts.ChatID); err != nil || pending {
+				return cmp.Or(err, ErrStructuredOutputPending)
+			}
+		}
+		if opts.StructuredOutputRequest != nil && (lockedChat.PlanMode.Valid || lockedChat.Mode.Valid || lockedChat.ParentChatID.Valid) {
+			return ErrStructuredOutputMode
+		}
 		if opts.PlanMode != nil {
 			lockedChat, err = store.UpdateChatPlanModeByID(ctx, database.UpdateChatPlanModeByIDParams{
 				PlanMode: *opts.PlanMode,
@@ -187,11 +202,18 @@ func (p *Server) SendMessage(
 
 		// Queue capacity is enforced inside tx.SendMessage; this
 		// wrapper only propagates the typed error.
+		var interruptReceipts []chatstate.Message
+		if busyBehavior == SendMessageBusyBehaviorInterrupt {
+			if interruptReceipts, err = unownedInterruptReceipts(ctx, p.logger, store, opts.ChatID); err != nil {
+				return err
+			}
+		}
 		message := userMessage(content, modelConfigID, messageCreatedBy, opts.ReasoningEffort)
 		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
-			Message:      message,
-			BusyBehavior: busyBehaviorToChatState(busyBehavior),
-			MaxQueueSize: p.chatLimits.MaxQueuedMessagesPerChat,
+			Message:           message,
+			BusyBehavior:      busyBehaviorToChatState(busyBehavior),
+			MaxQueueSize:      p.chatLimits.MaxQueuedMessagesPerChat,
+			InterruptReceipts: interruptReceipts,
 		})
 		if err != nil {
 			return err
@@ -300,7 +322,11 @@ func (p *Server) EditMessage(
 		if chat.Archived {
 			return EditMessageResult{}, ErrChatArchived
 		}
-		if _, err := validateEditTarget(ctx, p.db, opts.ChatID, opts.EditedMessageID); err != nil {
+		target, err := validateEditTarget(ctx, p.db, opts.ChatID, opts.EditedMessageID)
+		if err != nil {
+			return EditMessageResult{}, err
+		}
+		if _, err := editStructuredRequest(chat, target, opts); err != nil {
 			return EditMessageResult{}, err
 		}
 		if _, err := validateModelConfigOverride(ctx, p.db, chat.OrganizationID, opts.ModelConfigID); err != nil {
@@ -345,6 +371,18 @@ func (p *Server) EditMessage(
 		target, err := validateEditTarget(ctx, store, opts.ChatID, opts.EditedMessageID)
 		if err != nil {
 			return err
+		}
+		// The replacement's format is decided from the target read under
+		// the lock.
+		structuredRequest, err := editStructuredRequest(lockedChat, target, opts)
+		if err != nil {
+			return err
+		}
+		editContent := content
+		if structuredRequest != nil {
+			if editContent, err = chatprompt.MarshalParts(append(slices.Clone(contentParts), *structuredRequest)); err != nil {
+				return xerrors.Errorf("marshal message content: %w", err)
+			}
 		}
 		editedMsg = target
 
@@ -392,11 +430,26 @@ func (p *Server) EditMessage(
 			reasoningEffortOverride = database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffort(*opts.ReasoningEffort), Valid: true}
 		}
 
+		// The edit discards the target, every later row and the whole queue.
+		discarded, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: opts.ChatID, AfterID: target.ID - 1})
+		if err != nil {
+			return xerrors.Errorf("load discarded messages: %w", err)
+		}
+		queued, err := store.GetChatQueuedMessagesByPosition(ctx, opts.ChatID)
+		if err != nil {
+			return xerrors.Errorf("load discarded queued messages: %w", err)
+		}
+		receipts, err := supersededRequestReceipts(ctx, p.logger, opts.ChatID, discarded, queued)
+		if err != nil {
+			return err
+		}
+
 		editResult, err := tx.EditMessage(chatstate.EditMessageInput{
 			MessageID:               opts.EditedMessageID,
+			Receipts:                receipts,
 			SuffixMessages:          suffixMessages,
 			CreatedBy:               opts.CreatedBy,
-			Content:                 content,
+			Content:                 editContent,
 			ModelConfigIDOverride:   modelOverride,
 			ReasoningEffortOverride: reasoningEffortOverride,
 		})
@@ -407,8 +460,9 @@ func (p *Server) EditMessage(
 			return err
 		}
 		result.Message = editResult.ReplacementMessage
-		inserted := make([]database.ChatMessage, 0, len(editResult.CancellationMessages)+len(editResult.SuffixMessages)+1)
+		inserted := make([]database.ChatMessage, 0, len(editResult.CancellationMessages)+len(editResult.Receipts)+len(editResult.SuffixMessages)+1)
 		inserted = append(inserted, editResult.CancellationMessages...)
+		inserted = append(inserted, editResult.Receipts...)
 		inserted = append(inserted, editResult.ReplacementMessage)
 		inserted = append(inserted, editResult.SuffixMessages...)
 		result.InsertedMessages = inserted
@@ -541,9 +595,19 @@ func (p *Server) DeleteQueued(
 		return xerrors.New("chat_id is required")
 	}
 
-	return p.newChatMachine(chatID).Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		_, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
+	return p.newChatMachine(chatID).Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		// A missing row gets no receipt; the transition reports it.
+		var receipts []chatstate.Message
+		queued, err := store.GetChatQueuedMessageByID(ctx, database.GetChatQueuedMessageByIDParams{ID: queuedMessageID, ChatID: chatID})
+		if err == nil {
+			receipts, err = queueDeletedRequestReceipts(ctx, p.logger, store, chatID, queued)
+		}
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("close deleted queued structured output request: %w", err)
+		}
+		_, err = tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
 			QueuedMessageID: queuedMessageID,
+			Receipts:        receipts,
 		})
 		return err
 	})
@@ -576,8 +640,23 @@ func (p *Server) PromoteQueued(
 			return ErrChatArchived
 		}
 
+		// Promoting out of requires_action ends the waiting turn, so its
+		// open structured output request closes as interrupted.
+		var receipts []chatstate.Message
+		if lockedChat.Status == database.ChatStatusRequiresAction {
+			history, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: opts.ChatID})
+			if err != nil {
+				return xerrors.Errorf("load history for promote: %w", err)
+			}
+			receipts, err = activeRequestReceipt(ctx, p.logger, store, opts.ChatID, history,
+				canceledStructuredOutput(uuid.Nil, codersdk.ChatStructuredOutputErrorCodeInterrupted, interruptedStructuredOutputMessage))
+			if err != nil {
+				return xerrors.Errorf("close structured output request on promote: %w", err)
+			}
+		}
 		promoteResult, err := tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
 			QueuedMessageID: opts.QueuedMessageID,
+			Receipts:        receipts,
 		})
 		if err != nil {
 			return err
@@ -720,10 +799,14 @@ func (p *Server) InterruptChat(
 	}
 
 	var result chatstate.InterruptResult
-	refreshed, err := p.updateChat(ctx, chat.ID, "interrupt", func(tx *chatstate.Tx, _ database.Store, _ *database.Chat) error {
-		var err error
+	refreshed, err := p.updateChat(ctx, chat.ID, "interrupt", func(tx *chatstate.Tx, store database.Store, _ *database.Chat) error {
+		receipts, err := unownedInterruptReceipts(ctx, p.logger, store, chat.ID)
+		if err != nil {
+			return err
+		}
 		result, err = tx.Interrupt(chatstate.InterruptInput{
-			Reason: "Tool execution interrupted by user",
+			Reason:   "Tool execution interrupted by user",
+			Receipts: receipts,
 		})
 		return err
 	})
@@ -890,8 +973,20 @@ func (p *Server) ReconcileInvalidStateChat(
 		return chat, xerrors.New("chat_id is required")
 	}
 
-	refreshed, err := p.updateChat(ctx, chat.ID, "reconcile", func(tx *chatstate.Tx, _ database.Store, _ *database.Chat) error {
-		_, err := tx.ReconcileInvalidState(chatstate.ReconcileInvalidStateInput{})
+	refreshed, err := p.updateChat(ctx, chat.ID, "reconcile", func(tx *chatstate.Tx, store database.Store, _ *database.Chat) error {
+		history, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+		if err != nil {
+			return xerrors.Errorf("load history for reconcile: %w", err)
+		}
+		// Queued requests stay open; only the latest turn's request closes.
+		receipts, err := activeRequestReceipt(ctx, p.logger, store, chat.ID, history, codersdk.ChatStructuredOutput{
+			Status: codersdk.ChatStructuredOutputStatusFailed,
+			Error:  &codersdk.ChatStructuredOutputError{Code: codersdk.ChatStructuredOutputErrorCodeGenerationFailed, Message: reconciledStructuredOutputMessage},
+		})
+		if err != nil {
+			return xerrors.Errorf("close structured output request on reconcile: %w", err)
+		}
+		_, err = tx.ReconcileInvalidState(chatstate.ReconcileInvalidStateInput{TerminalMessages: receipts})
 		return err
 	})
 	if err != nil {

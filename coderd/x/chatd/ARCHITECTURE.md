@@ -128,6 +128,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be either `queue` or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption, or cancels a pending dynamic-tool action and inserts the message directly.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
 - `DeleteQueuedMessage(qid)` removes one queued message without changing the active history.
+- TODO: `DeleteQueuedMessage` now inserts a `canceled`/`queue_deleted` receipt when the deleted row held a structured output request; the receipt-only insert keeps `history_version`, so a running turn is not disturbed. `EditMessage` inserts `canceled`/`superseded` receipts for every still-pending discarded request (target, later rows, then queued rows) after tool cancellations and before the replacement; requests with an existing receipt get none. Describe this here.
 - `PromoteQueuedMessage(qid)` makes a queued message the next message to process. It reorders the queue, interrupts active work, cancels pending dynamic-tool action, or promotes into history immediately as required by the input state.
 - `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog. When the chat is `running` and no worker owns it, nothing is generating, so the same transaction also applies `FinishInterruption` after inserting synthetic cancellation results for any outstanding tool calls.
 - `CompleteRequiresAction(results)` inserts submitted tool-result messages followed by any caller-provided suffix messages, clears `requires_action_deadline_at`, and lands in `running`. It preserves queued messages.
@@ -139,6 +140,11 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `Acquire(worker_id, runner_id)` locks the chat row, sets `chats.worker_id` and `chats.runner_id`, and inserts an initial heartbeat row for `(chat_id, runner_id)`.
 - `Abandon` clears `worker_id` and `runner_id` on the chat row.
 - `CommitStep(step)` inserts one durable message suffix while remaining `running`. A committed step may insert ordinary assistant/tool messages, and a compaction step may insert a compressed summary boundary plus visible compaction tool-call and tool-result messages, optionally followed by uncompressed model-only user rows replaying the pending-user segment (see [Manual compaction](#manual-compaction)).
+- TODO: while the latest user turn has an open structured output request, a generated step's `coder_structured_output` calls are screened before commit (envelope caps on the original argument bytes, and only `stop` or `tool-calls` finishes are eligible). A rejected call is committed with `{}` arguments, an error tool result, and one rejection control part on the step's assistant row, so it is never dispatched. Describe this here.
+- TODO: while the latest user turn has an open structured output request with a compiling schema, the generation turn offers `coder_structured_output` as an unnormalized provider tool with a local runner, exclusive in its step. When it executes alone in a step with no other tool call, the server commits a candidate control part (the exact output bytes) or a rejection on its tool result row together with the result; any mixed batch gets error results and one rejection per step. Describe this here.
+- TODO: generation preparation for an open structured output request fails the turn through `FinishError`, with no model call, when strict tool schemas are enabled, another tool, dynamic tool, provider tool or alias is named `coder_structured_output`, or the stored schema no longer compiles. The same transaction closes the request with one failed `configuration_error` receipt and fixed, sanitized text. Describe this here.
+- TODO: an open structured output request ends only through a receipt. When the turn would finish (complete, stop-after tool, max steps or an empty step) with a current candidate, `FinishTurn` commits one `succeeded` receipt holding the candidate bytes; the executor rejects a candidate whose receipt would not store. A text-only step or stop-after batch without a candidate is a rejected batch: its row gets one rejection control and, unless the budget is spent, a model-only corrective user row in the same commit, and the loop continues. The third persisted rejection, the step budget, or an unrepaired finish ends the turn through `FinishTurn` with a `failed` receipt, `validation_exhausted` when a rejection rides on a finalizer call or result row and `not_produced` otherwise; `FinishError` for any other cause adds a `failed`/`generation_failed` receipt. Describe this here.
+- TODO: a continuing stop hook appends one `invalidation` control for the open structured output request to its model-only context row, in the same commit, when the request has a candidate; the resumed turn must call `coder_structured_output` again, also after a restart. Readers of the candidate (generation preparation, this invalidation and the finish commit) load every row through `GetChatMessagesAllVisibilitiesByChatID`; readers that only need the request and whether it is open keep the user-visible load. The finish commit re-reads the request under the chat lock and never commits a success whose candidate changed since the decision. A fail-closed hook error after a committed step also adds the `failed`/`generation_failed` receipt. Describe this here.
 - `EnterRequiresAction` records a pending-action episode by relying on the committed assistant tool-call messages as the durable call set, sets `requires_action_deadline_at`, which is a timestamp 5 minutes in the future, and lands in `requires_action`.
 - `FinishInterruption(optionalPartialStep)` inserts one final interrupted assistant/tool suffix if present, or finalizes interruption without a suffix if none is available, clears the interrupting state, and lands in `waiting` if no queued message is promoted. If interrupt finalization also promotes the queue head, it inserts the promoted queued message into history and lands in `running`.
 - `RecordGenerationAttempt` verifies the chat is still `running`, increments `generation_attempt`, and returns the updated chat snapshot.
@@ -147,6 +153,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `FinishError(err)` parks the chat in `error` and persists `last_error = err`, replacing any previously stored error. It is allowed when an unarchived chat is waiting or running.
 - `CancelRequiresAction(reason)` closes pending dynamic tool calls with synthetic cancellation tool results, satisfies the pending-action projection, clears `requires_action_deadline_at`, and lands in `running`.
 - `ReconcileInvalidState` reconciles a chat in an invalid state by setting it to a valid state. Defined in the [Invalid states](#invalid-states) section.
+- TODO: `FinishTurn` and `FinishError` now accept terminal structured output receipt rows (assistant, visibility `user`, one outcome part), inserted in the same transaction before any queue promotion or status change, and `FinishInterruption` takes a receipt as its last partial message; outstanding tool calls are read from the latest non-receipt assistant row. Describe this here.
 
 Every transition that promotes a queued message into history stores the queue row's ID in `chat_messages.queued_message_id`, and fails if deleting that queue row doesn't remove exactly one row. Other messages leave it NULL.
 
@@ -286,6 +293,8 @@ Right after the refactor described in this document is complete, some chats may 
 4. Set `last_error` to an error message describing the chat was in an invalid state and a new message should be submitted or the message history should be edited to continue.
 5. Set `requires_action_deadline_at = null`.
 6. If the chat has pending dynamic tool calls, insert synthetic cancellation results for them.
+
+TODO: the reconcile endpoint also closes the latest user turn's open structured output request with a `failed`/`generation_failed` receipt inserted after the cancellations; queued requests stay open, and `ReconcileInvalidState` rejects terminal messages that are not receipts. Describe this here.
 
 This will land the chat in either `E0` or `E1`, depending on whether it has any queued messages.
 
@@ -498,6 +507,8 @@ A move to the chat's current project succeeds without a transition, even while t
 
 Setting `title` writes a `user` title. The write happens even when the text is unchanged, unless the title is already a `user` title.
 
+TODO: plan mode changes go through `UpdatePlanMode`, which takes the chat row lock that `SendMessage` also takes and refuses to enable plan mode while a structured output request is open or queued. The update runs before the other fields. Describe this here.
+
 ### `POST /api/v2/chats/{chat}/messages`
 
 For `busy_behavior=queue`, `SendMessage(m, queue)` supports:
@@ -533,6 +544,8 @@ From `I1`, the promoted head in `messages` carries the old head's queue ID in `q
 
 Other input states are not supported.
 
+TODO: a structured output request part from `response_format` is appended after lifecycle hooks, then inserted with the message when idle or stored on the queued row in the same transaction; promotion keeps its request ID. Under the chat row lock, `SendMessage` refuses a request part for a chat in plan mode, with a mode or with a parent, and refuses to enable plan mode while a structured output request is open or queued. Describe this here.
+
 ### `PATCH /api/v2/chats/{chat}/messages/{message}`
 
 This endpoint uses `EditMessage(k, replacement)`:
@@ -550,6 +563,8 @@ This endpoint uses `EditMessage(k, replacement)`:
 `EditMessage` clears queued messages, cancels or obsoletes active work without preserving partial output, clears pending dynamic-tool action if present, marks the truncated active-history suffix as deleted, inserts the replacement turn, and lands in `running`.
 
 Other input states are not supported.
+
+TODO: `response_format` on an edit decides the replacement's structured output request from the target read under the chat lock: omitted or `null` keeps the target's request under a new request ID after compiling its schema again, `{"type":"text"}` clears it, and `json_schema` replaces it. A kept or new request is refused in plan mode, mode and child chats. Discarded requests still get their `superseded` receipts. Describe this here.
 
 ### `DELETE /api/v2/chats/{chat}/queue/{queuedMessage}`
 
@@ -1147,6 +1162,10 @@ The goroutine does the following in order:
 4. It sends a cancel request to the workspace agent for each unresolved `execute`, `edit_files`, and `write_file` call, and waits up to 30 seconds for the responses.
 5. It applies the `FinishInterruption(partial?)` transition on the core state machine. If there are no buffered parts for that episode, or the episode is not found, it passes `nil` as the `partial` argument.
 
+TODO: when the latest user turn has an open structured output request, the interrupt goroutine appends a `canceled`/`interrupted` receipt as the last partial message (after buffered partials and committed tool cancellations, before any promotion). It never records a value. Unreadable or inconsistent structured metadata skips the receipt with a warning. Describe this here.
+
+TODO: buffered `coder_structured_output` calls for an open structured output request are persisted with `{}` arguments on interrupt, never their raw bytes. Describe this here.
+
 #### Dynamic tools timeout goroutine
 
 The dynamic tools timeout goroutine is responsible for waiting for the dynamic tool timeout to pass, which is determined by the `requires_action_deadline_at` field on the chat. It is spawned when the event indicates the core state machine is in `A0` or `A1` (status is `requires_action`). The goroutine fetches the deadline value from the database. When the timeout passes, it applies the `CancelRequiresAction` transition on the core state machine.
@@ -1180,6 +1199,8 @@ Each candidate is archived the same way as an archive through `PATCH /api/v2/cha
 Compaction reduces the LLM prompt size by summarizing older history into a compressed boundary. It normally runs automatically: while preparing a generation, the worker compares the latest known token usage against the binding compaction trigger (see [Compaction model selection](#compaction-model-selection)), and when usage reaches it the worker makes a non-streaming LLM call to produce a summary and commits it as a compressed message triplet (a hidden model-only summary boundary, a visible `chat_summarized` tool call, and its tool result). Prompt queries prune history at the newest boundary.
 
 Trailing user messages the assistant has not answered yet are not summarized: they are excluded from the summarizer's input and re-committed after the triplet as model-only user rows, so the pruned prompt keeps them verbatim instead of relying on summary fidelity.
+
+TODO: history scans now skip structured output receipt rows (assistant, visibility `user`, one outcome part). The generation decision (unresolved tool calls, history completeness, step count), compaction eligibility and usage, the status label text, titles, chat summaries, subagent reports and the `session_start` source all read around them. A receipt still ends the pending-user segment, so the rows replayed after a compaction stay user-only. Describe this here.
 
 Users can also request a compaction on demand via `POST /api/v2/chats/{chat}/compact` (surfaced in the web UI as the `/compact` slash command). Manual compaction is a durable one-shot request executed through the normal worker loop rather than synchronously in the HTTP handler. This reuses the worker's lock fencing, retry accounting, streamed "Summarizing..." progress parts, metrics, and debug runs, and it survives replica crashes. The flow:
 
@@ -1306,6 +1327,8 @@ The loop processes one operation at a time. It must not process another input ha
 3. If none of the above conditions indicate that local state may be stale, return no-op.
 4. Otherwise fetch from the database.
 
+TODO: `Sync` now fetches for any hint whose `snapshot_version` is newer than `local.snapshot_version`, because a message change is only visible through the snapshot watermark. Describe this here and in steps 2 and 3.
+
 After fetching, if `db.snapshot_version <= local.snapshot_version`, return no-op. Otherwise apply the database result.
 
 The endpoint's initial bootstrap fetch skips the hint check in steps 1 to 3, fetches unconditionally, and applies the database result the same way. Because it runs against the null local state, every database field is newer and the full state is emitted.
@@ -1313,6 +1336,7 @@ The endpoint's initial bootstrap fetch skips the hint check in steps 1 to 3, fet
 Applying the database result means, in deterministic order:
 
 1. If `db.history_version > local.history_version`, run message synchronization.
+    - TODO: message synchronization now runs whenever the database result is applied, emitting the fetched delta independently of `history_version`; the `preview_reset` rule in step 7 is unchanged. Describe this here.
 2. If `db.queue_version > local.queue_version`, run queue synchronization.
 3. If `db.status != local.status`, run status synchronization.
 4. If `db.status = error` and `db.history_version > local.error_history_version`, run error synchronization.
@@ -1373,6 +1397,8 @@ Flow:
 
 1. `Sync` observes `db.history_version > local.history_version`.
 2. Fetch rows from `chat_messages` where `revision > local.history_version`.
+
+TODO: message synchronization now runs whenever `db.snapshot_version > local.snapshot_version` and fetches rows where `revision > local.snapshot_version`, the last applied snapshot watermark, so message changes that do not advance `history_version` still reach the client. Describe this here.
 3. Inspect the fetched rows.
 
 If no fetched rows are soft-deleted:

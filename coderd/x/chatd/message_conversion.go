@@ -34,6 +34,12 @@ type buildCommitStepMessagesInput struct {
 	contentVersion         int16
 	hookRewrittenToolCalls map[string]json.RawMessage
 	reasoningProvenance    reasoningProvenance
+	// extraAssistantParts are appended to the assistant row, for example a
+	// structured output rejection control part.
+	extraAssistantParts []codersdk.ChatMessagePart
+	// extraToolResultParts are appended to the tool row of the keyed call,
+	// for example a structured output candidate control part.
+	extraToolResultParts map[string][]codersdk.ChatMessagePart
 }
 
 func stampReasoningProvenance(part *codersdk.ChatMessagePart, provenance reasoningProvenance) {
@@ -71,6 +77,9 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 	if !stamped && input.reasoningProvenance.Epoch > 0 && len(assistantParts) > 0 {
 		stampReasoningProvenance(&assistantParts[0], input.reasoningProvenance)
 	}
+	if len(assistantParts) > 0 {
+		assistantParts = append(assistantParts, input.extraAssistantParts...)
+	}
 
 	messages := make([]chatstate.Message, 0, 1+len(toolResults))
 	if len(assistantParts) > 0 {
@@ -89,7 +98,7 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 				part.CreatedAt = &ts
 			}
 		}
-		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{part})
+		content, err := chatprompt.MarshalParts(append([]codersdk.ChatMessagePart{part}, input.extraToolResultParts[part.ToolCallID]...))
 		if err != nil {
 			return stepMessagesForCommit{}, xerrors.Errorf("marshal tool result: %w", err)
 		}
@@ -505,7 +514,7 @@ func currentTurnStepCount(messages []database.ChatMessage) int {
 		if msg.Deleted || msg.Compressed {
 			continue
 		}
-		if msg.Role == database.ChatMessageRoleAssistant {
+		if msg.Role == database.ChatMessageRoleAssistant && !chatstate.IsReceiptRow(msg) {
 			count++
 		}
 	}
@@ -634,7 +643,7 @@ func pendingUserSegmentStart(promptRows []database.ChatMessage) int {
 func firstUncompressedAssistantAfter(messages []database.ChatMessage, index int) (database.ChatMessage, bool) {
 	for i := index + 1; i < len(messages); i++ {
 		msg := messages[i]
-		if msg.Deleted || msg.Compressed {
+		if msg.Deleted || msg.Compressed || chatstate.IsReceiptRow(msg) {
 			continue
 		}
 		if msg.Role == database.ChatMessageRoleAssistant {
@@ -647,7 +656,7 @@ func firstUncompressedAssistantAfter(messages []database.ChatMessage, index int)
 func hasUncompressedMessageAfter(messages []database.ChatMessage, index int) bool {
 	for i := index + 1; i < len(messages); i++ {
 		msg := messages[i]
-		if !msg.Deleted && !msg.Compressed {
+		if !msg.Deleted && !msg.Compressed && !chatstate.IsReceiptRow(msg) {
 			return true
 		}
 	}
@@ -718,7 +727,7 @@ func historyHasStopAfterToolResult(messages []database.ChatMessage, stopAfterToo
 }
 
 func currentHistoryComplete(messages []database.ChatMessage) (bool, error) {
-	idx := lastMessageIndex(messages, func(database.ChatMessage) bool { return true })
+	idx := lastMessageIndex(messages, func(msg database.ChatMessage) bool { return !chatstate.IsReceiptRow(msg) })
 	if idx == -1 || messages[idx].Role != database.ChatMessageRoleAssistant {
 		return false, nil
 	}
@@ -777,6 +786,9 @@ type bufferedPartsToPartialMessagesInput struct {
 	// runtime_ms on the first partial assistant message when the
 	// attempt streamed model-generated assistant content.
 	attemptRuntime time.Duration
+	// governingFinalizer replaces the arguments of finalizer calls for an
+	// open structured output request with the placeholder.
+	governingFinalizer bool
 }
 
 type partialToolCall struct {
@@ -923,6 +935,9 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 
 	durable := part
 	durable.ArgsDelta = ""
+	if s.input.governingFinalizer && isFinalizerCallPart(call.part) {
+		durable.Args = finalizerPlaceholderArgs
+	}
 	if len(durable.Args) > 0 && !json.Valid(durable.Args) {
 		call.valid = false
 		s.assistantParts[call.index] = codersdk.ChatMessagePart{}
@@ -1030,6 +1045,10 @@ func (s *partialMessageConversionState) finalizeToolCallPlaceholders() error {
 			continue
 		}
 		args := json.RawMessage(call.argsDelta.String())
+		// An interrupted attempt is never eligible to submit its arguments.
+		if s.input.governingFinalizer && isFinalizerCallPart(call.part) {
+			args = finalizerPlaceholderArgs
+		}
 		if len(args) == 0 || !json.Valid(args) {
 			s.assistantParts[call.index] = codersdk.ChatMessagePart{}
 			call.valid = false

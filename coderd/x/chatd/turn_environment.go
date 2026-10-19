@@ -33,6 +33,8 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstructured"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
@@ -76,6 +78,13 @@ type turnEnvironment struct {
 
 	MaxSteps   int
 	Compaction *generationCompaction
+	// StructuredRequestID is the open structured output request of the
+	// latest user turn, or uuid.Nil. FinalizerSchema is its compiled schema
+	// when the finalizer tool is offered.
+	// Structured is that request's state, or the zero state.
+	StructuredRequestID uuid.UUID
+	FinalizerSchema     *chatstructured.Schema
+	Structured          chatstructured.ActiveRequestState
 
 	Debug *generationDebug
 
@@ -865,6 +874,32 @@ func (p *Server) buildTurnEnvironment(
 		}
 	}
 
+	// The finalizer rides as a provider tool so its definition keeps the
+	// caller's schema unnormalized; it runs locally and alone in its step.
+	// Every preparation rechecks the settings and registries it could clash
+	// with, before deferred tool search hides any MCP tool.
+	var structured chatstructured.ActiveRequestState
+	var finalizerSchema *chatstructured.Schema
+	structuredHistory, err := structuredStateHistory(ctx, p.db, chat.ID, input.Messages)
+	if err == nil {
+		structured, finalizerSchema, err = structuredTurnFor(ctx, logger, chat.ID, structuredHistory)
+	}
+	if err == nil && finalizerSchema != nil {
+		if reason := finalizerConfigurationReason(resolved.providerOptions, tools, dynamicToolNames, providerTools, subagentToolNameAliases); reason != "" {
+			err = newStructuredConfigurationError(structured, reason)
+		}
+	}
+	if err != nil {
+		return turnEnvironment{}, err
+	}
+	if finalizerSchema != nil {
+		providerTools = append(providerTools, chatloop.ProviderTool{Definition: finalizerSchema.FinalizerDefinition(), Runner: finalizerSchema.FinalizerRunner()})
+		if exclusiveToolNames == nil {
+			exclusiveToolNames = make(map[string]bool)
+		}
+		exclusiveToolNames[chatstructured.FinalizerToolName] = true
+	}
+
 	activeToolNames := activeToolNamesForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 	if isExploreSubagent {
 		activeToolNames = allowedExploreToolNames(tools)
@@ -1029,6 +1064,9 @@ func (p *Server) buildTurnEnvironment(
 		BuiltinToolNames:     builtinToolNames,
 		ToolNameToConfigID:   toolNameToConfigID,
 		MaxSteps:             p.chatLimits.MaxStepsPerTurn,
+		StructuredRequestID:  structured.Request.RequestID,
+		FinalizerSchema:      finalizerSchema,
+		Structured:           structured,
 		Compaction: &generationCompaction{
 			Override:        compactionOverride,
 			TriggerSource:   bindingSource,
@@ -1236,7 +1274,7 @@ func (p *Server) deriveFinalTurnRunResult(
 // single source of truth for the turn status label input.
 func latestAssistantText(messages []database.ChatMessage) string {
 	for i := len(messages) - 1; i >= 0; i-- {
-		if messages[i].Role != database.ChatMessageRoleAssistant {
+		if messages[i].Role != database.ChatMessageRoleAssistant || chatstate.IsReceiptRow(messages[i]) {
 			continue
 		}
 		parts, err := chatprompt.ParseContent(messages[i])

@@ -20,6 +20,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstructured"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
@@ -842,6 +844,30 @@ func TestChatMessage_PreservesProviderExecutedOnToolResults(t *testing.T) {
 	require.True(t, result.Content[1].ProviderExecuted, "tool result should preserve ProviderExecuted")
 }
 
+func TestChatMessage_DropsStructuredOutputParts(t *testing.T) {
+	t.Parallel()
+
+	parts := []codersdk.ChatMessagePart{codersdk.ChatMessageText("visible")}
+	for _, typ := range []codersdk.ChatMessagePartType{
+		codersdk.ChatMessagePartTypeStructuredOutputRequest,
+		codersdk.ChatMessagePartTypeStructuredOutputControl,
+		codersdk.ChatMessagePartTypeStructuredOutputOutcome,
+	} {
+		parts = append(parts, codersdk.ChatMessagePart{Type: typ, Text: "hidden", StructuredOutputData: json.RawMessage(`{"a":1}`)})
+	}
+	content, err := json.Marshal(parts)
+	require.NoError(t, err)
+	want := []codersdk.ChatMessagePart{codersdk.ChatMessageText("visible")}
+
+	message := db2sdk.ChatMessage(database.ChatMessage{
+		ID: 1, ChatID: uuid.New(), Role: database.ChatMessageRoleUser, CreatedAt: time.Now(),
+		Content: pqtype.NullRawMessage{RawMessage: content, Valid: true}, ContentVersion: chatprompt.CurrentContentVersion,
+	})
+	require.Equal(t, want, message.Content)
+	queued := db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{ID: 1, ChatID: uuid.New(), Content: content, CreatedAt: time.Now()})
+	require.Equal(t, want, queued.Content)
+}
+
 func TestChatQueuedMessage_ParsesUserContentParts(t *testing.T) {
 	t.Parallel()
 
@@ -1269,4 +1295,88 @@ func TestConnectionLogType(t *testing.T) {
 			require.Equal(t, tc.want, db2sdk.ConnectionLogType(tc.method, tc.appName))
 		})
 	}
+}
+
+func TestChatMessage_StructuredOutput(t *testing.T) {
+	t.Parallel()
+	requestID := uuid.New()
+	marshal := func(parts ...codersdk.ChatMessagePart) json.RawMessage {
+		content, err := json.Marshal(parts)
+		require.NoError(t, err)
+		return content
+	}
+	request, err := chatstructured.EncodeRequestPart(chatstructured.Request{RequestID: requestID, Name: "report", Schema: json.RawMessage(`{}`)})
+	require.NoError(t, err)
+	text := codersdk.ChatMessageText("question")
+	receipt := func(out codersdk.ChatStructuredOutput) json.RawMessage {
+		parts, err := chatstructured.ReceiptParts(out)
+		require.NoError(t, err)
+		return marshal(parts...)
+	}
+	failed := &codersdk.ChatStructuredOutputError{Code: codersdk.ChatStructuredOutputErrorCodeNotProduced, Message: "none"}
+	outcomes := map[string]codersdk.ChatStructuredOutput{
+		"Succeeded": {RequestID: requestID, Status: codersdk.ChatStructuredOutputStatusSucceeded, Value: json.RawMessage(`{"a":1.50}`)},
+		"NullValue": {RequestID: requestID, Status: codersdk.ChatStructuredOutputStatusSucceeded, Value: json.RawMessage(`null`)},
+		"Failed":    {RequestID: requestID, Status: codersdk.ChatStructuredOutputStatusFailed, Error: failed},
+		"Canceled": {RequestID: requestID, Status: codersdk.ChatStructuredOutputStatusCanceled, Error: &codersdk.ChatStructuredOutputError{
+			Code: codersdk.ChatStructuredOutputErrorCodeInterrupted, Message: "stopped",
+		}},
+	}
+	row := func(role database.ChatMessageRole, visibility database.ChatMessageVisibility, version int16, content json.RawMessage) database.ChatMessage {
+		return database.ChatMessage{
+			ID: 1, ChatID: uuid.New(), Role: role, Visibility: visibility, CreatedAt: time.Now(),
+			Content: pqtype.NullRawMessage{RawMessage: content, Valid: true}, ContentVersion: version,
+		}
+	}
+	user := func(content json.RawMessage) database.ChatMessage {
+		return row(database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, chatprompt.CurrentContentVersion, content)
+	}
+
+	t.Run("Request", func(t *testing.T) {
+		t.Parallel()
+		msg := db2sdk.ChatMessage(user(marshal(text, request)))
+		require.Equal(t, &requestID, msg.StructuredOutputRequestID)
+		require.Nil(t, msg.StructuredOutput)
+		require.Equal(t, []codersdk.ChatMessagePart{text}, msg.Content)
+		queued := db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{ID: 1, Content: marshal(text, request)})
+		require.Equal(t, &requestID, queued.StructuredOutputRequestID)
+		require.Equal(t, []codersdk.ChatMessagePart{text}, queued.Content)
+	})
+	for name, out := range outcomes {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			msg := db2sdk.ChatMessage(row(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, chatprompt.ContentVersionV1, receipt(out)))
+			require.Nil(t, msg.StructuredOutputRequestID)
+			want, err := json.Marshal(out)
+			require.NoError(t, err)
+			got, err := json.Marshal(msg.StructuredOutput)
+			require.NoError(t, err)
+			require.Equal(t, string(want), string(got))
+			require.Len(t, msg.Content, 1)
+			require.Equal(t, codersdk.ChatMessagePartTypeText, msg.Content[0].Type)
+		})
+	}
+	// Ordinary, ambiguous and malformed metadata leaves both fields absent
+	// and keeps the message.
+	malformed := codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeStructuredOutputRequest, StructuredOutputData: json.RawMessage(`{"request_id":1}`)}
+	badOutcome := codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeStructuredOutputOutcome, StructuredOutputData: json.RawMessage(`{"status":"succeeded"}`)}
+	for name, m := range map[string]database.ChatMessage{
+		"Ordinary":         user(marshal(text)),
+		"DuplicateRequest": user(marshal(text, request, request)),
+		"MalformedRequest": user(marshal(text, malformed)),
+		"MalformedOutcome": row(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, chatprompt.ContentVersionV1, marshal(text, badOutcome)),
+		"ModelOnlyReceipt": row(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, chatprompt.ContentVersionV1, receipt(outcomes["Failed"])),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			msg := db2sdk.ChatMessage(m)
+			require.NotEmpty(t, msg.Content)
+			encoded, err := json.Marshal(msg)
+			require.NoError(t, err)
+			require.NotContains(t, string(encoded), "structured_output")
+		})
+	}
+	queued, err := json.Marshal(db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{ID: 1, Content: marshal(text)}))
+	require.NoError(t, err)
+	require.NotContains(t, string(queued), "structured_output")
 }

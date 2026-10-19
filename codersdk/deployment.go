@@ -5515,6 +5515,7 @@ const (
 	ExperimentChatInlineMCPServers      Experiment = "chat-inline-mcp-servers"     // Enables inline MCP servers declared on POST /chats.
 	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
 	ExperimentChatStageMetrics          Experiment = "chat-stage-metrics"          // Exposes chat lifecycle stage durations as Prometheus metrics.
+	ExperimentChatStructuredOutput      Experiment = "chat-structured-output"      // Accepts structured output response formats on agent chats.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5551,6 +5552,8 @@ func (e Experiment) DisplayName() string {
 		return "Chat Inline MCP Servers"
 	case ExperimentEnableAIWorkspaceDebug:
 		return "AI Workspace Debugging"
+	case ExperimentChatStructuredOutput:
+		return "Chat Structured Output"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5578,6 +5581,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentChatInlineMCPServers,
 	ExperimentEnableAIWorkspaceDebug,
 	ExperimentChatStageMetrics,
+	ExperimentChatStructuredOutput,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

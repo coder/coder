@@ -272,6 +272,21 @@ func TestChatMessagePart_StripInternal(t *testing.T) {
 		assert.True(t, part.ContextFileAgentID.Valid)
 	})
 
+	t.Run("StripsStructuredOutputData", func(t *testing.T) {
+		t.Parallel()
+		part := codersdk.ChatMessagePart{
+			Type:                 codersdk.ChatMessagePartTypeStructuredOutputControl,
+			StructuredOutputData: json.RawMessage(`{"kind":"candidate","value":9007199254740993}`),
+		}
+		encoded, err := json.Marshal(part)
+		require.NoError(t, err)
+		var decoded codersdk.ChatMessagePart
+		require.NoError(t, json.Unmarshal(encoded, &decoded))
+		require.Equal(t, part, decoded)
+		decoded.StripInternal()
+		assert.Nil(t, decoded.StructuredOutputData)
+	})
+
 	t.Run("NoopOnCleanPart", func(t *testing.T) {
 		t.Parallel()
 		part := codersdk.ChatMessageText("hello")
@@ -320,12 +335,16 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 		"context_file_directory":       "internal only, used during prompt expansion (typescript:\"-\")",
 		"skill_dir":                    "internal only, used by read_skill tools (typescript:\"-\")",
 		"context_file_skill_meta_file": "internal only, restored on subsequent turns (typescript:\"-\")",
+		"structured_output_data":       "internal only, structured output metadata cleared by StripInternal (typescript:\"-\")",
 	}
 	// Part types intentionally excluded from all generated variants.
 	// If you add a new part type, either reference it in a variants
 	// tag or add it here with a reason.
 	excludedTypes := map[codersdk.ChatMessagePartType]string{
-		codersdk.ChatMessagePartTypeHookContext: "internal only, stripped from client-facing conversions by db2sdk",
+		codersdk.ChatMessagePartTypeHookContext:             "internal only, stripped from client-facing conversions by db2sdk",
+		codersdk.ChatMessagePartTypeStructuredOutputRequest: "internal only, dropped by db2sdk and omitted from prompts",
+		codersdk.ChatMessagePartTypeStructuredOutputControl: "internal only, dropped by db2sdk and omitted from prompts",
+		codersdk.ChatMessagePartTypeStructuredOutputOutcome: "internal only, dropped by db2sdk and omitted from prompts",
 	}
 	knownTypes := make(map[codersdk.ChatMessagePartType]bool)
 	for _, pt := range codersdk.AllChatMessagePartTypes() {
@@ -784,4 +803,44 @@ func TestParseChatWorkspaceTTL(t *testing.T) {
 			require.Equal(t, tc.want, got)
 		})
 	}
+}
+
+func TestChatMessage_StructuredOutputJSON(t *testing.T) {
+	t.Parallel()
+	chatID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	requestID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	createdAt := time.Date(2026, 9, 25, 0, 0, 0, 0, time.UTC)
+	for _, tt := range []struct {
+		name string
+		msg  codersdk.ChatMessage
+		want string
+	}{
+		{
+			name: "Ordinary",
+			msg:  codersdk.ChatMessage{ID: 1, ChatID: chatID, CreatedAt: createdAt, Role: codersdk.ChatMessageRoleUser},
+			want: `{"id":1,"chat_id":"11111111-1111-1111-1111-111111111111","created_at":"2026-09-25T00:00:00Z","role":"user"}`,
+		},
+		{
+			name: "Request",
+			msg:  codersdk.ChatMessage{ID: 1, ChatID: chatID, CreatedAt: createdAt, Role: codersdk.ChatMessageRoleUser, StructuredOutputRequestID: &requestID},
+			want: `{"id":1,"chat_id":"11111111-1111-1111-1111-111111111111","created_at":"2026-09-25T00:00:00Z","role":"user","structured_output_request_id":"22222222-2222-2222-2222-222222222222"}`,
+		},
+		{
+			name: "NullValue",
+			msg: codersdk.ChatMessage{ID: 1, ChatID: chatID, CreatedAt: createdAt, Role: codersdk.ChatMessageRoleAssistant, StructuredOutput: &codersdk.ChatStructuredOutput{
+				RequestID: requestID, Status: codersdk.ChatStructuredOutputStatusSucceeded, Value: json.RawMessage(`null`),
+			}},
+			want: `{"id":1,"chat_id":"11111111-1111-1111-1111-111111111111","created_at":"2026-09-25T00:00:00Z","role":"assistant","structured_output":{"request_id":"22222222-2222-2222-2222-222222222222","status":"succeeded","value":null}}`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := json.Marshal(tt.msg)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, string(got))
+		})
+	}
+	queued, err := json.Marshal(codersdk.ChatQueuedMessage{ID: 1, ChatID: chatID, CreatedAt: createdAt, StructuredOutputRequestID: &requestID})
+	require.NoError(t, err)
+	require.Equal(t, `{"id":1,"chat_id":"11111111-1111-1111-1111-111111111111","content":null,"created_at":"2026-09-25T00:00:00Z","structured_output_request_id":"22222222-2222-2222-2222-222222222222"}`, string(queued))
 }

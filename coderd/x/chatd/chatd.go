@@ -390,6 +390,12 @@ var (
 	ErrEditedMessageNotFound = xerrors.New("edited message not found")
 	// ErrEditedMessageNotUser indicates a non-user message edit attempt.
 	ErrEditedMessageNotUser = xerrors.New("only user messages can be edited")
+	// ErrStructuredOutputPending indicates plan mode cannot be enabled
+	// while a structured output request is open or queued.
+	ErrStructuredOutputPending = xerrors.New("plan mode cannot be enabled while a structured output request is pending")
+	// ErrStructuredOutputMode indicates a structured output request for a
+	// child chat, a chat with a mode, or a chat in plan mode.
+	ErrStructuredOutputMode = xerrors.New("structured output requires a root chat outside plan mode")
 	// ErrChatArchived indicates the chat is archived and cannot
 	// accept modifications (messages, edits, promotions, or
 	// tool-result submissions).
@@ -432,10 +438,13 @@ type CreateOptions struct {
 	// chat is created idle (`waiting`) with system messages only and
 	// no worker processes it until the first SendMessage.
 	InitialUserContent []codersdk.ChatMessagePart
-	MCPServerIDs       []uuid.UUID
-	InlineMCPServers   []codersdk.InlineMCPServerRequest
-	Labels             database.StringMap
-	DynamicTools       json.RawMessage
+	// StructuredOutputRequest is a ParseResponseFormat part, appended after hooks
+	// compose the content. Only root chats outside plan mode accept it.
+	StructuredOutputRequest *codersdk.ChatMessagePart
+	MCPServerIDs            []uuid.UUID
+	InlineMCPServers        []codersdk.InlineMCPServerRequest
+	Labels                  database.StringMap
+	DynamicTools            json.RawMessage
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -462,6 +471,9 @@ type SendMessageOptions struct {
 	MCPServerIDs    *[]uuid.UUID
 	// InlineMCPServers replaces the inline MCP servers. nil: no change.
 	InlineMCPServers *[]codersdk.InlineMCPServerRequest
+	// StructuredOutputRequest is a ParseResponseFormat part, appended after
+	// hooks compose the content. Only root chats outside plan mode accept it.
+	StructuredOutputRequest *codersdk.ChatMessagePart
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -496,6 +508,13 @@ type EditMessageOptions struct {
 	// selection before the replacement turn runs. When nil the
 	// current selection is preserved.
 	MCPServerIDs *[]uuid.UUID
+	// StructuredOutputRequest replaces the target's format with a
+	// ParseResponseFormat part. When nil, PreserveStructuredOutput copies
+	// the target's request under a new ID; otherwise the replacement is
+	// ordinary. StructuredOutputEnabled reports the experiment.
+	StructuredOutputRequest  *codersdk.ChatMessagePart
+	PreserveStructuredOutput bool
+	StructuredOutputEnabled  bool
 }
 
 // EditMessageResult contains the replacement user message and chat status.
@@ -615,6 +634,13 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if len(opts.InitialUserContent) > 0 {
 		initialStatus = database.ChatStatusRunning
 	}
+	if opts.StructuredOutputRequest != nil && (opts.PlanMode.Valid || opts.ChatMode.Valid || opts.ParentChatID.Valid) {
+		return database.Chat{}, xerrors.New("structured output requires a root chat outside plan mode")
+	}
+	// A chat created without a first message has no turn to format.
+	if opts.StructuredOutputRequest != nil && len(opts.InitialUserContent) == 0 {
+		return database.Chat{}, xerrors.New("structured output requires an initial user message")
+	}
 	// Ensure MCPServerIDs is non-nil so pq.Array produces '{}'
 	// instead of SQL NULL, which violates the NOT NULL column
 	// constraint.
@@ -703,6 +729,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	})
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal workspace awareness: %w", err)
+	}
+	if opts.StructuredOutputRequest != nil {
+		contentParts = append(slices.Clone(contentParts), *opts.StructuredOutputRequest)
 	}
 	var initialMessages []chatstate.Message
 	if deploymentPrompt != "" {

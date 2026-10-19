@@ -1,6 +1,7 @@
 package chatstate
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -51,10 +52,7 @@ func synthesizePendingToolCancellations(
 		}
 	}
 
-	lastAssistant, err := store.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
-		ChatID: chat.ID,
-		Role:   database.ChatMessageRoleAssistant,
-	})
+	lastAssistant, err := lastGenerationAssistant(ctx, store, chat.ID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -178,10 +176,7 @@ func pendingAllToolCallIDs(ctx context.Context, store database.Store, chat datab
 // callback can be used to restrict the walk to a subset of tools
 // (e.g. dynamic-only).
 func outstandingToolCallIDs(ctx context.Context, store database.Store, chat database.Chat, accept func(toolName string) bool) (map[string]string, error) {
-	lastAssistant, err := store.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
-		ChatID: chat.ID,
-		Role:   database.ChatMessageRoleAssistant,
-	})
+	lastAssistant, err := lastGenerationAssistant(ctx, store, chat.ID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return map[string]string{}, nil
@@ -240,6 +235,34 @@ func outstandingToolCallIDs(ctx context.Context, store database.Store, chat data
 		out[p.ToolCallID] = p.ToolName
 	}
 	return out, nil
+}
+
+// lastGenerationAssistant returns the chat's latest assistant row that is
+// not a structured output receipt, or sql.ErrNoRows. Receipts close requests
+// without being model output, so tool-call bookkeeping looks past them.
+func lastGenerationAssistant(ctx context.Context, store database.Store, chatID uuid.UUID) (database.ChatMessage, error) {
+	last, err := store.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
+		ChatID: chatID,
+		Role:   database.ChatMessageRoleAssistant,
+	})
+	if _, receipt := receiptParts(last); err != nil || !receipt {
+		return last, err
+	}
+	for before := last.ID; ; {
+		page, err := store.GetChatMessagesByChatIDDescPaginated(ctx, database.GetChatMessagesByChatIDDescPaginatedParams{
+			ChatID:   chatID,
+			BeforeID: before,
+		})
+		if err != nil || len(page) == 0 {
+			return database.ChatMessage{}, cmp.Or(err, sql.ErrNoRows)
+		}
+		for _, msg := range page {
+			if _, receipt := receiptParts(msg); msg.Role == database.ChatMessageRoleAssistant && !receipt {
+				return msg, nil
+			}
+		}
+		before = page[len(page)-1].ID
+	}
 }
 
 // parseDynamicToolNamesFromRaw is a private mirror of
