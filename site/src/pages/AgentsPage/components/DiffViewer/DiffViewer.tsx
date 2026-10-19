@@ -79,6 +79,14 @@ const FILE_CARD_CSS = [
 	"  border-radius: 4px;",
 	"  overflow: hidden;",
 	"}",
+	// The library sets scrollbar-gutter: stable on the code and hides the
+	// vertical scrollbar with a zero-width ::-webkit-scrollbar. The inherited
+	// global scrollbar-color makes Chromium ignore that rule, so classic
+	// (always visible) scrollbars leave an empty strip on the right. The code
+	// only scrolls horizontally; the outer list owns vertical scrolling.
+	"[data-code] {",
+	"  scrollbar-gutter: auto !important;",
+	"}",
 ].join(" ");
 
 // Minimum width (px) of the diff container at which the file tree sidebar is
