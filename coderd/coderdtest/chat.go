@@ -97,7 +97,7 @@ func WaitForChatSettled(
 	require.NotNil(t, api)
 	waitForChatTerminalState(ctx, t, api.Database, chatID)
 
-	server := api.ChatDaemonForTest()
+	server := api.ChatDaemon()
 	require.NotNil(t, server)
 	chatd.WaitUntilIdleForTest(server)
 

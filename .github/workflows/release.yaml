@@ -245,7 +245,7 @@ jobs:
       - name: Build binaries
         run: |
           set -euo pipefail
-          ./.github/scripts/retry.sh -- go mod download
+          ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
           version="$(./scripts/version.sh)"
           make gen/mark-fresh

@@ -68,9 +68,9 @@ func TestProjectTemplateEnforcement(t *testing.T) {
 		tool := chattool.CreateWorkspace(db, org.ID, chat.ID, chattool.CreateWorkspaceOptions{
 			OwnerID:   user.ID,
 			ProjectID: projectID,
-			CreateFn: func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+			CreateFn: func(_ context.Context, _, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
 				captured = &req
-				return codersdk.Workspace{}, nil
+				return codersdk.Workspace{}, database.Chat{}, nil
 			},
 		})
 		return runTool(t, tool, input), captured

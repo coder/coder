@@ -28,12 +28,6 @@ FROM chat_projects
 WHERE id = @id::uuid
 FOR UPDATE;
 
--- name: GetChatProjectsByOwnerID :many
-SELECT *
-FROM chat_projects
-WHERE owner_id = @owner_id::uuid
-ORDER BY lower(name), id;
-
 -- name: GetChatProjectsOwnedOrSharedWithUserID :many
 -- Entries match regardless of the actions they grant, so callers must
 -- authorize each row.
@@ -62,7 +56,7 @@ WHERE chat_projects.owner_id = @user_id::uuid
     )
 ORDER BY lower(chat_projects.name), chat_projects.id;
 
--- name: IsChatProjectAccessibleByUserID :one
+-- name: IsChatProjectUsableByUserID :one
 SELECT EXISTS (
     SELECT 1
     FROM chat_projects
@@ -103,10 +97,13 @@ SET
     name = @name::text,
     description = @description::text,
     icon = @icon::text,
-    template_ids = @template_ids::uuid[],
-    default_template_id = sqlc.narg('default_template_id')::uuid,
-    default_template_version_preset_id = sqlc.narg('default_template_version_preset_id')::uuid,
-    default_parameters = @default_parameters::jsonb,
+    -- The template columns change together, and only when the request sets
+    -- templates, so a concurrent update that omits them cannot restore a
+    -- stale snapshot.
+    template_ids = CASE WHEN @update_templates::boolean THEN @template_ids::uuid[] ELSE template_ids END,
+    default_template_id = CASE WHEN @update_templates::boolean THEN sqlc.narg('default_template_id')::uuid ELSE default_template_id END,
+    default_template_version_preset_id = CASE WHEN @update_templates::boolean THEN sqlc.narg('default_template_version_preset_id')::uuid ELSE default_template_version_preset_id END,
+    default_parameters = CASE WHEN @update_templates::boolean THEN COALESCE(sqlc.narg('default_parameters')::jsonb, '{}'::jsonb) ELSE default_parameters END,
     updated_at = now()
 WHERE id = @id::uuid
 RETURNING *;
