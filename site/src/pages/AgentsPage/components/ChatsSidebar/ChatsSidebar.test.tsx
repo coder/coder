@@ -1099,7 +1099,11 @@ describe("ChatsSidebar project drops", () => {
 
 	// user-event's pointer API leaves dnd-kit's updates outside act, and its
 	// drop sends no request, so the gesture uses fireEvent.
-	const mouseDragRow = async (row: string, dropY: number) => {
+	const mouseDragRow = async (
+		row: string,
+		dropY: number,
+		beforeDrop?: () => void,
+	) => {
 		const pointer = { pointerId: 1, isPrimary: true, pointerType: "mouse" };
 		fireEvent.pointerDown(screen.getByRole("link", { name: new RegExp(row) }), {
 			...pointer,
@@ -1114,6 +1118,10 @@ describe("ChatsSidebar project drops", () => {
 			clientY: dropY,
 		});
 		await nextFrame();
+		if (beforeDrop) {
+			beforeDrop();
+			await nextFrame();
+		}
 		fireEvent.pointerUp(document, { ...pointer, clientX: 10, clientY: dropY });
 		// The request goes out after the mutation's async onMutate.
 		await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
@@ -1259,6 +1267,39 @@ describe("ChatsSidebar project drops", () => {
 		layoutDropTargets("Free chat", 220);
 
 		await mouseDragRow("Free chat", 102);
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				"Chat Free chat was dropped. It did not move.",
+			),
+		);
+
+		expect(update).not.toHaveBeenCalled();
+	});
+
+	// A wheel turn scrolls the list under a still pointer, so the drop must
+	// follow what is under the pointer after the scroll.
+	it("moves nothing when the list scrolls another organization's folder under the pointer", async () => {
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		renderSidebar(
+			[
+				buildChat({
+					id: "c1",
+					title: "Free chat",
+					organization_id: mockBillingProject.organization_id,
+				}),
+			],
+			[mockBillingProject, mockOpsProject],
+		);
+		await screen.findByRole("link", { name: "Billing" });
+		let scrollTop = 0;
+		layoutDropTargets("Free chat", 240, () => scrollTop);
+
+		await mouseDragRow("Free chat", 40, () => {
+			scrollTop = 80;
+			fireEvent.scroll(document);
+		});
 		await waitFor(() =>
 			expect(screen.getByRole("status")).toHaveTextContent(
 				"Chat Free chat was dropped. It did not move.",

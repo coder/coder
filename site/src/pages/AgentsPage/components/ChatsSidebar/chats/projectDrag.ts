@@ -1,4 +1,5 @@
-import type { Draggable, Droppable } from "@dnd-kit/dom";
+import { Plugin } from "@dnd-kit/abstract";
+import { type Draggable, type Droppable, Scroller } from "@dnd-kit/dom";
 import type {
 	DragDropManager,
 	DragEndEvent,
@@ -161,6 +162,66 @@ export const chatDragAnnouncements = {
 	},
 };
 
+const dropTargetsOf = (
+	manager: DragDropManager,
+	source: Draggable,
+): Droppable[] =>
+	[...manager.registry.droppables].filter(
+		(target) => !target.disabled && target.accepts(source),
+	);
+
+const isKeyboardRowDrag = ({ dragOperation }: DragDropManager): boolean =>
+	dragOperation.activatorEvent instanceof KeyboardEvent &&
+	movedChatOf(dragOperation.source) !== undefined;
+
+/**
+ * Checks the drag target again on each scrolled frame, since dnd-kit skips
+ * the check at an unchanged drag position. A keyboard row drag turns off
+ * Scroller, so dnd-kit's own scrolling does not move the list off the target.
+ */
+export class SyncDragTargetOnScroll extends Plugin<DragDropManager> {
+	constructor(manager: DragDropManager) {
+		super(manager);
+		this.registerEffect(() => {
+			const { source, status } = manager.dragOperation;
+			if (!source || !status.initialized) {
+				return;
+			}
+			let frame: number | undefined;
+			const checkTargets = () => {
+				frame = undefined;
+				for (const target of dropTargetsOf(manager, source)) {
+					target.refreshShape();
+				}
+				manager.collisionObserver.forceUpdate();
+			};
+			const handleScroll = () => {
+				frame ??= requestAnimationFrame(checkTargets);
+			};
+			const options = { capture: true, passive: true };
+			document.addEventListener("scroll", handleScroll, options);
+			return () => {
+				document.removeEventListener("scroll", handleScroll, options);
+				if (frame !== undefined) {
+					cancelAnimationFrame(frame);
+				}
+			};
+		});
+		this.registerEffect(() => {
+			const scroller = manager.registry.plugins.get(Scroller);
+			if (
+				!scroller ||
+				!manager.dragOperation.status.initialized ||
+				!isKeyboardRowDrag(manager)
+			) {
+				return;
+			}
+			scroller.disable();
+			return () => scroller.enable();
+		});
+	}
+}
+
 /**
  * Up and Down take a keyboard row drag to the next drop target that would
  * move the chat, where the keyboard sensor would step 10 pixels. Pin drags
@@ -184,9 +245,7 @@ export const moveKeyboardChatDrag = (
 		return;
 	}
 	const { x, y } = position.current;
-	const targets = [...manager.registry.droppables].filter(
-		(target) => !target.disabled && target.accepts(source),
-	);
+	const targets = dropTargetsOf(manager, source);
 	const next = targets
 		.map((target) => target.element)
 		.filter((element) => element !== undefined)

@@ -85,6 +85,7 @@ import {
 	moveKeyboardChatDrag,
 	projectIdForDrop,
 	refocusKeyboardPinDrag,
+	SyncDragTargetOnScroll,
 } from "./projectDrag";
 import { groupChatsByProject } from "./projectGrouping";
 import { SectionSwitcher } from "./SectionSwitcher";
@@ -587,9 +588,10 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						// The Accessibility plugin gives each drag handle role="button",
 						// aria-pressed, and aria-disabled, which would turn the chat links
 						// into buttons, so the panel announces drags itself.
-						plugins={(defaults) =>
-							defaults.filter((plugin) => plugin !== Accessibility)
-						}
+						plugins={(defaults) => [
+							...defaults.filter((plugin) => plugin !== Accessibility),
+							SyncDragTargetOnScroll,
+						]}
 						modifiers={[RestrictToVerticalAxis]}
 						onDragOver={(_event, manager) => refocusKeyboardPinDrag(manager)}
 						onDragMove={moveKeyboardChatDrag}
