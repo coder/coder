@@ -174,8 +174,10 @@ export const moveKeyboardChatDrag = (
 		return;
 	}
 	const { x, y } = position.current;
-	const next = [...manager.registry.droppables]
-		.filter((target) => !target.disabled && target.accepts(source))
+	const targets = [...manager.registry.droppables].filter(
+		(target) => !target.disabled && target.accepts(source),
+	);
+	const next = targets
 		.map((target) => target.element)
 		.filter((element) => element !== undefined)
 		.map((element) => ({ element, rect: element.getBoundingClientRect() }))
@@ -185,6 +187,12 @@ export const moveKeyboardChatDrag = (
 		return;
 	}
 	next.element.scrollIntoView({ block: "nearest" });
+	// dnd-kit measures the scrolled targets again only after this move, and it
+	// does not recheck a drag position that has not changed, so without a new
+	// measure the drag stays over nothing.
+	for (const target of targets) {
+		target.refreshShape();
+	}
 	const rect = next.element.getBoundingClientRect();
 	const rowHeight = shape?.current.boundingRectangle.height ?? rect.height;
 	// Put the row's top on the target's top, or the row's middle on the middle

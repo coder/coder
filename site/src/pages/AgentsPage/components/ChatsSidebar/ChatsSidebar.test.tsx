@@ -1063,14 +1063,23 @@ describe("ChatsSidebar project drops", () => {
 
 	// dnd-kit clips each target by its ancestors' boxes, so an ancestor of
 	// several targets gets a box around all of them.
-	const layoutDropTargets = (row: string, rowTop: number) => {
+	const layoutDropTargets = (
+		row: string,
+		rowTop: number,
+		scrollTop = () => 0,
+	) => {
 		const rowLink = screen.getByRole("link", { name: new RegExp(row) });
 		const targets = [
-			{ node: screen.getByRole("link", { name: "Billing" }), box: box(0, 80) },
-			{ node: screen.getByRole("link", { name: "Ops" }), box: box(100, 40) },
+			{
+				node: screen.getByRole("link", { name: "Billing" }),
+				top: 0,
+				height: 80,
+			},
+			{ node: screen.getByRole("link", { name: "Ops" }), top: 100, height: 40 },
 			{
 				node: screen.getByRole("heading", { name: "Chats" }),
-				box: box(200, 300),
+				top: 200,
+				height: 300,
 			},
 		];
 		mockLayout((element) => {
@@ -1079,9 +1088,11 @@ describe("ChatsSidebar project drops", () => {
 				return box(0, 600);
 			}
 			if (held.length === 1) {
-				return held[0].box;
+				return box(held[0].top - scrollTop(), held[0].height);
 			}
-			return element.contains(rowLink) ? box(rowTop, 40) : box(0, 0);
+			return element.contains(rowLink)
+				? box(rowTop - scrollTop(), 40)
+				: box(0, 0);
 		});
 	};
 
@@ -1226,6 +1237,36 @@ describe("ChatsSidebar project drops", () => {
 		expect(update).not.toHaveBeenCalled();
 	});
 
+	// The pointer picks the target, so a drop on a muted folder moves nothing.
+	it("moves nothing on a mouse drop on another organization's folder", async () => {
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		renderSidebar(
+			[
+				buildChat({
+					id: "c1",
+					title: "Free chat",
+					organization_id: mockBillingProject.organization_id,
+				}),
+			],
+			[mockBillingProject, mockOpsProject],
+		);
+		await screen.findByRole("link", { name: "Billing" });
+		// The press lands 30 pixels below the row's top, so with the pointer on
+		// Ops the dragged row reaches into Billing.
+		layoutDropTargets("Free chat", 220);
+
+		await mouseDragRow("Free chat", 102);
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				"Chat Free chat was dropped. It did not move.",
+			),
+		);
+
+		expect(update).not.toHaveBeenCalled();
+	});
+
 	it("keeps a row mounted when its chat starts running", async () => {
 		const user = userEvent.setup();
 		const chat = buildChat({ id: "c1", title: "Fix invoice dates" });
@@ -1312,6 +1353,48 @@ describe("ChatsSidebar project drops", () => {
 			expect(update).toHaveBeenCalledWith("c1", { project_id: body }),
 		);
 		expect(update).toHaveBeenCalledTimes(1);
+	});
+
+	// A long Chats section can start below the window, so the key scrolls it
+	// into view before the drag moves onto it.
+	it("drops a chat on Chats that the key scrolls into view", async () => {
+		const user = userEvent.setup();
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		renderSidebar(
+			[
+				buildChat({
+					id: "c1",
+					title: "Fix invoice dates",
+					organization_id: mockBillingProject.organization_id,
+					project_id: mockBillingProject.id,
+				}),
+			],
+			[mockBillingProject, mockOpsProject],
+		);
+		await user.click(
+			await screen.findByRole("button", { name: "Expand Billing" }),
+		);
+		let scrollTop = 0;
+		layoutDropTargets("Fix invoice dates", 40, () => scrollTop);
+		vi.spyOn(HTMLElement.prototype, "scrollIntoView").mockImplementation(() => {
+			scrollTop = 150;
+		});
+
+		screen.getByRole("link", { description: DRAG_INSTRUCTIONS }).focus();
+		await user.keyboard("[Space]");
+		await user.keyboard("[ArrowDown]");
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				"Chat Fix invoice dates is over Chats.",
+			),
+		);
+		await user.keyboard("[Space]");
+
+		await waitFor(() =>
+			expect(update).toHaveBeenCalledWith("c1", { project_id: NIL_UUID }),
+		);
 	});
 
 	// The chat link is the drag handle, so the row wrapper adds no tab stop

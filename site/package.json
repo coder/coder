@@ -41,6 +41,7 @@
 	},
 	"dependencies": {
 		"@dnd-kit/abstract": "0.5.1",
+		"@dnd-kit/collision": "0.5.1",
 		"@dnd-kit/dom": "0.5.1",
 		"@dnd-kit/react": "0.5.1",
 		"@emoji-mart/data": "1.2.1",

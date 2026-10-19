@@ -19,6 +19,9 @@ importers:
       '@dnd-kit/abstract':
         specifier: 0.5.1
         version: 0.5.1
+      '@dnd-kit/collision':
+        specifier: 0.5.1
+        version: 0.5.1
       '@dnd-kit/dom':
         specifier: 0.5.1
         version: 0.5.1
