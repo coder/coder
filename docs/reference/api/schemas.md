@@ -1572,7 +1572,7 @@ None
   "exit_code": 0,
   "stage": "init",
   "started_at": "2019-08-24T14:15:22Z",
-  "status": "string",
+  "status": "ok",
   "workspace_agent_id": "string",
   "workspace_agent_name": "string"
 }
@@ -1580,16 +1580,16 @@ None
 
 ### Properties
 
-| Name                   | Type                                         | Required | Restrictions | Description |
-|------------------------|----------------------------------------------|----------|--------------|-------------|
-| `display_name`         | string                                       | false    |              |             |
-| `ended_at`             | string                                       | false    |              |             |
-| `exit_code`            | integer                                      | false    |              |             |
-| `stage`                | [codersdk.TimingStage](#codersdktimingstage) | false    |              |             |
-| `started_at`           | string                                       | false    |              |             |
-| `status`               | string                                       | false    |              |             |
-| `workspace_agent_id`   | string                                       | false    |              |             |
-| `workspace_agent_name` | string                                       | false    |              |             |
+| Name                   | Type                                                                       | Required | Restrictions | Description |
+|------------------------|----------------------------------------------------------------------------|----------|--------------|-------------|
+| `display_name`         | string                                                                     | false    |              |             |
+| `ended_at`             | string                                                                     | false    |              |             |
+| `exit_code`            | integer                                                                    | false    |              |             |
+| `stage`                | [codersdk.TimingStage](#codersdktimingstage)                               | false    |              |             |
+| `started_at`           | string                                                                     | false    |              |             |
+| `status`               | [codersdk.WorkspaceAgentScriptStatus](#codersdkworkspaceagentscriptstatus) | false    |              |             |
+| `workspace_agent_id`   | string                                                                     | false    |              |             |
+| `workspace_agent_name` | string                                                                     | false    |              |             |
 
 ## codersdk.AgentSubsystem
 
@@ -14360,9 +14360,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_automation`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `chat_organization_system_prompt`, `chat_project`, `chat_project_instructions`, `chat_project_memory`, `convert_login`, `custom_role`, `experiment_rule`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `organization_skill`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_automation`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `chat_organization_system_prompt`, `chat_project`, `chat_project_instructions`, `chat_project_memory`, `chat_project_skill`, `convert_login`, `custom_role`, `experiment_rule`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `organization_skill`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -19645,9 +19645,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 #### Enumerated Values
 
-| Value(s)                                             |
-|------------------------------------------------------|
-| `exit_failure`, `ok`, `pipes_left_open`, `timed_out` |
+| Value(s)                                                                    |
+|-----------------------------------------------------------------------------|
+| `canceled`, `exit_failure`, `ok`, `pipes_left_open`, `skipped`, `timed_out` |
 
 ## codersdk.WorkspaceAgentStartupScriptBehavior
 
@@ -20155,7 +20155,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "exit_code": 0,
       "stage": "init",
       "started_at": "2019-08-24T14:15:22Z",
-      "status": "string",
+      "status": "ok",
       "workspace_agent_id": "string",
       "workspace_agent_name": "string"
     }
