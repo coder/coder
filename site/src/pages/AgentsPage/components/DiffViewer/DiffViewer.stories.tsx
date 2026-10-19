@@ -502,3 +502,67 @@ export const ReparseSamePathAfterEdit: StoryObj = {
 		await waitForDiffBody(canvasElement, "const v = 3");
 	},
 };
+
+const waitForNoDiffBody = (canvasElement: HTMLElement, text: string) =>
+	waitFor(() => {
+		const rendered = Array.from(
+			canvasElement.querySelectorAll("diffs-container"),
+		).some((host) => host.shadowRoot?.textContent?.includes(text));
+		if (rendered) {
+			throw new Error(`Diff body is still rendered: ${text}`);
+		}
+	});
+
+// A line from src/main.ts in sampleDiff.
+const firstFileLine = "Starting server...";
+
+export const CollapseAndExpandFile: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitForDiffBody(canvasElement, firstFileLine);
+
+		await userEvent.click(
+			await canvas.findByRole("button", { name: `Collapse ${firstFileName}` }),
+		);
+		await waitForNoDiffBody(canvasElement, firstFileLine);
+
+		await userEvent.click(
+			await canvas.findByRole("button", { name: `Expand ${firstFileName}` }),
+		);
+		await waitForDiffBody(canvasElement, firstFileLine);
+	},
+};
+
+const ScrollToCollapsedFile: React.FC<
+	React.ComponentProps<typeof DiffViewer>
+> = (props) => {
+	const [target, setTarget] = useState<string | null>(null);
+	return (
+		<div className="flex h-full flex-col">
+			<button type="button" onClick={() => setTarget(firstFileName)}>
+				jump to file
+			</button>
+			<DiffViewer
+				{...props}
+				scrollToFile={target}
+				onScrollToFileComplete={() => setTarget(null)}
+			/>
+		</div>
+	);
+};
+
+// A file reference jump must land on visible code, so it expands the file.
+export const ScrollToFileExpandsCollapsedFile: Story = {
+	render: (args) => <ScrollToCollapsedFile {...args} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitForDiffBody(canvasElement, firstFileLine);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: `Collapse ${firstFileName}` }),
+		);
+		await waitForNoDiffBody(canvasElement, firstFileLine);
+
+		await userEvent.click(canvas.getByRole("button", { name: "jump to file" }));
+		await waitForDiffBody(canvasElement, firstFileLine);
+	},
+};
