@@ -1928,6 +1928,20 @@ func TestParseContent_ErrorPaths(t *testing.T) {
 		_, err := chatprompt.ParseContent(testMsgV1(codersdk.ChatMessageRoleTool, nullRaw(json.RawMessage(`{not json`))))
 		require.Error(t, err)
 	})
+
+	for _, role := range []codersdk.ChatMessageRole{
+		codersdk.ChatMessageRoleSystem,
+		codersdk.ChatMessageRoleUser,
+		codersdk.ChatMessageRoleAssistant,
+		codersdk.ChatMessageRoleTool,
+	} {
+		t.Run("v0/"+string(role)+"/malformed_json", func(t *testing.T) {
+			t.Parallel()
+			_, err := chatprompt.ParseContent(testMsg(role, nullRaw(json.RawMessage(`{not json`))))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "parse "+string(role)+" content")
+		})
+	}
 }
 
 func mustJSON(t *testing.T, v any) json.RawMessage {
