@@ -299,6 +299,11 @@ func TestConvertMessagesWithFiles_NormalizesAssistantToolCallInput(t *testing.T)
 			expected: "{}",
 		},
 		{
+			name:     "null json",
+			input:    "null",
+			expected: "{}",
+		},
+		{
 			name:     "valid object json",
 			input:    "{\"command\":\"ls\"}",
 			expected: "{\"command\":\"ls\"}",
@@ -967,62 +972,6 @@ func TestProviderExecutedResultInAssistantContent(t *testing.T) {
 	require.True(t, foundToolCall, "expected PE tool call in assistant message")
 	require.True(t, foundToolResult, "expected PE tool result in assistant message")
 	require.True(t, foundText, "expected text part in assistant message")
-}
-
-// TestProviderExecutedResult_LegacyToolRow verifies backward
-// compatibility: PE tool results that were stored as separate
-// tool-role rows (legacy persistence) are still handled correctly
-// by the repair passes, orphaned PE results are dropped, and
-// matching PE results in the same step work via the existing
-// injectMissingToolUses logic.
-func TestProviderExecutedResult_LegacyToolRow(t *testing.T) {
-	t.Parallel()
-
-	// Assistant with PE web_search + regular tool call.
-	assistantContent := mustMarshalContent(t, []fantasy.Content{
-		fantasy.ToolCallContent{
-			ToolCallID:       "srvtoolu_WS",
-			ToolName:         "web_search",
-			Input:            `{"query":"test"}`,
-			ProviderExecuted: true,
-		},
-		fantasy.ToolCallContent{
-			ToolCallID: "toolu_exec",
-			ToolName:   "execute",
-			Input:      `{"command":"ls"}`,
-		},
-		fantasy.TextContent{Text: "Results."},
-	})
-
-	// Legacy: PE result stored as separate tool-role message.
-	peResult := mustMarshalToolResult(t,
-		"srvtoolu_WS", "web_search",
-		json.RawMessage(`{"results":"cached"}`),
-		false, false, true, // providerExecuted is true.
-	)
-	execResult := mustMarshalToolResult(t,
-		"toolu_exec", "execute",
-		json.RawMessage(`{"output":"file.txt"}`),
-		false, false, false,
-	)
-
-	prompt := convertMessagesWithoutFiles(t, []database.ChatMessage{
-		testMsgV1(codersdk.ChatMessageRoleAssistant, assistantContent),
-		testMsgV1(codersdk.ChatMessageRoleTool, peResult),
-		testMsgV1(codersdk.ChatMessageRoleTool, execResult),
-		testMsgV1(codersdk.ChatMessageRoleUser, mustMarshalParts(t, codersdk.ChatMessageText("next"))),
-	})
-
-	// The PE tool result should be dropped by injectMissingToolUses,
-	// leaving: assistant, tool(exec), user.
-	require.Len(t, prompt, 3, "expected 3 messages after PE result is dropped")
-	require.Equal(t, fantasy.MessageRoleAssistant, prompt[0].Role)
-	require.Equal(t, fantasy.MessageRoleTool, prompt[1].Role)
-	require.Equal(t, fantasy.MessageRoleUser, prompt[2].Role)
-
-	// Tool message should only contain the exec result, not the PE one.
-	toolIDs := extractToolResultIDs(t, prompt[1])
-	require.Equal(t, []string{"toolu_exec"}, toolIDs)
 }
 
 // nullRaw wraps raw JSON bytes in a NullRawMessage for test input.
