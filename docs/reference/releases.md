@@ -88,10 +88,10 @@ Best practices for installing Coder can be found on our [install](../install/ind
 |-------------------------------------------------------------------------------------------------|--------------------|--------------------------|------------------------------------------------------------------|
 | [2.29](https://coder.com/changelog/coder-2-29)                                                  | December 02, 2025  | Extended Support Release | [v2.29.22](https://github.com/coder/coder/releases/tag/v2.29.22) |
 | [2.33](https://coder.com/changelog/coder-2-33)                                                  | May 05, 2026       | Not Supported            | [v2.33.11](https://github.com/coder/coder/releases/tag/v2.33.11) |
-| [2.34](https://coder.com/changelog/coder-2-34)                                                  | June 02, 2026      | Extended Support Release | [v2.34.12](https://github.com/coder/coder/releases/tag/v2.34.12) |
-| [2.35](https://coder.com/changelog/coder-2-35-1)                                                | July 07, 2026      | Not Supported            | [v2.35.9](https://github.com/coder/coder/releases/tag/v2.35.9)   |
-| [2.36](https://coder.com/changelog/coder-2-36)                                                  | August 04, 2026    | Security Support         | [v2.36.7](https://github.com/coder/coder/releases/tag/v2.36.7)   |
-| [2.37](https://coder.com/changelog/coder-2-37)                                                  | September 01, 2026 | Stable                   | [v2.37.4](https://github.com/coder/coder/releases/tag/v2.37.4)   |
+| [2.34](https://coder.com/changelog/coder-2-34)                                                  | June 02, 2026      | Extended Support Release | [v2.34.13](https://github.com/coder/coder/releases/tag/v2.34.13) |
+| [2.35](https://coder.com/changelog/coder-2-35-1)                                                | July 07, 2026      | Not Supported            | [v2.35.10](https://github.com/coder/coder/releases/tag/v2.35.10)   |
+| [2.36](https://coder.com/changelog/coder-2-36)                                                  | August 04, 2026    | Security Support         | [v2.36.8](https://github.com/coder/coder/releases/tag/v2.36.8)   |
+| [2.37](https://coder.com/changelog/coder-2-37)                                                  | September 01, 2026 | Stable                   | [v2.37.5](https://github.com/coder/coder/releases/tag/v2.37.5)   |
 | [2.38](https://coder.com/changelog/broader-model-access-and-tighter-governance-controls-in-238) | October 06, 2026   | Mainline                 | [v2.38.0](https://github.com/coder/coder/releases/tag/v2.38.0)   |
 | 2.39                                                                                            |                    | Not Released             | N/A                                                              |
 <!-- RELEASE_CALENDAR_END -->
