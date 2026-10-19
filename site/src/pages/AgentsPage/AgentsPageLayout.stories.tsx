@@ -912,11 +912,17 @@ export const ArchiveWatchEventKeepsOpenChatMounted: Story = {
 	},
 };
 
+const mockProjectWatchedChat = watchedChat({ project_id: MockChatProject.id });
+const mockArchivedProjectWatchedChat = {
+	...mockProjectWatchedChat,
+	archived: true,
+};
+
 export const ProjectDeletedWatchEventRemovesOpenChat: Story = {
 	decorators: [withProxyProvider()],
 	beforeEach: () => {
 		spyOn(API.experimental, "getChats")
-			.mockResolvedValueOnce([watchedChat()])
+			.mockResolvedValueOnce([mockProjectWatchedChat])
 			.mockResolvedValue([]);
 		spyOn(API.experimental, "getChat").mockRejectedValue({
 			...mockApiError({ message: "Resource not found." }),
@@ -924,8 +930,8 @@ export const ProjectDeletedWatchEventRemovesOpenChat: Story = {
 		});
 		return mockAgentChatPageAPIs();
 	},
-	parameters: watchedChatPageParameters(watchedChat(), [
-		chatWatchEvent("project_deleted", watchedChat()),
+	parameters: watchedChatPageParameters(mockProjectWatchedChat, [
+		chatWatchEvent("project_deleted", mockArchivedProjectWatchedChat),
 	]),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

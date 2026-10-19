@@ -1,3 +1,4 @@
+import { MutationObserver, type QueryClient } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { MockChat } from "#/testHelpers/chatEntities";
@@ -73,39 +74,61 @@ describe("chat project mutations", () => {
 		expect(isInvalidated(queryClient, messagesKey)).toBe(false);
 	});
 
+	const mockProjectRootChat = {
+		...MockChat,
+		id: "root",
+		project_id: MockChatProject.id,
+	};
+	const mockProjectChildChat = {
+		...MockChat,
+		id: "child",
+		root_chat_id: mockProjectRootChat.id,
+		project_id: MockChatProject.id,
+	};
+	const mockOtherProjectChat = {
+		...MockChat,
+		id: "other",
+		project_id: "other-project",
+	};
+	const runDelete = (queryClient: QueryClient) =>
+		new MutationObserver(queryClient, deleteChatProject(queryClient)).mutate(
+			MockChatProject,
+		);
+
 	it("resets only the deleted project's chats once the delete succeeds", async () => {
 		const queryClient = createTestQueryClient();
-		const root = { ...MockChat, id: "root", project_id: MockChatProject.id };
-		const child = {
-			...MockChat,
-			id: "child",
-			root_chat_id: root.id,
-			project_id: MockChatProject.id,
-		};
-		const other = { ...MockChat, id: "other", project_id: "other-project" };
-		for (const chat of [root, child, other]) {
+		for (const chat of [
+			mockProjectRootChat,
+			mockProjectChildChat,
+			mockOtherProjectChat,
+		]) {
 			queryClient.setQueryData(chatEntityKey(chat.id), chat);
 		}
 		vi.spyOn(API.experimental, "deleteChatProject").mockResolvedValue();
-		await deleteChatProject(queryClient).mutationFn?.(MockChatProject);
-		expect(queryClient.getQueryData(chatEntityKey(root.id))).toBeUndefined();
-		expect(queryClient.getQueryData(chatEntityKey(child.id))).toBeUndefined();
-		expect(queryClient.getQueryData(chatEntityKey(other.id))).toEqual(other);
+		await runDelete(queryClient);
+		for (const chat of [mockProjectRootChat, mockProjectChildChat]) {
+			expect(queryClient.getQueryData(chatEntityKey(chat.id))).toBeUndefined();
+		}
+		expect(
+			queryClient.getQueryData(chatEntityKey(mockOtherProjectChat.id)),
+		).toEqual(mockOtherProjectChat);
 	});
 
 	it("keeps cached chat entities when the delete fails", async () => {
 		const queryClient = createTestQueryClient();
-		const root = { ...MockChat, id: "root", project_id: MockChatProject.id };
-		queryClient.setQueryDefaults(chatEntityKey(root.id), {
+		queryClient.setQueryDefaults(chatEntityKey(mockProjectRootChat.id), {
 			gcTime: Number.POSITIVE_INFINITY,
 		});
-		queryClient.setQueryData(chatEntityKey(root.id), root);
+		queryClient.setQueryData(
+			chatEntityKey(mockProjectRootChat.id),
+			mockProjectRootChat,
+		);
 		vi.spyOn(API.experimental, "deleteChatProject").mockRejectedValue(
 			new Error("deadlock"),
 		);
-		await expect(
-			deleteChatProject(queryClient).mutationFn?.(MockChatProject),
-		).rejects.toThrow("deadlock");
-		expect(queryClient.getQueryData(chatEntityKey(root.id))).toEqual(root);
+		await expect(runDelete(queryClient)).rejects.toThrow("deadlock");
+		expect(
+			queryClient.getQueryData(chatEntityKey(mockProjectRootChat.id)),
+		).toEqual(mockProjectRootChat);
 	});
 });

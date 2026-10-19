@@ -518,18 +518,7 @@ export const applyChatArchiveStateToCaches = (
 		});
 	}
 
-	const searchQueries = queryClient.getQueriesData<TypesGen.Chat[]>({
-		queryKey: chatSearchFamilyKey,
-	});
-	for (const [queryKey] of searchQueries) {
-		queryClient.setQueryData<TypesGen.Chat[]>(queryKey, (prev) => {
-			if (!prev) {
-				return prev;
-			}
-			const next = prev.filter((row) => row.id !== chatId);
-			return next.length === prev.length ? prev : next;
-		});
-	}
+	removeChatFromSearches(queryClient, chatId);
 };
 
 /**
@@ -566,25 +555,20 @@ export const applyWatchedChatProjectDeleted = (
 ) => {
 	const chatId = chat.id;
 	removeChildFromParentInCache(queryClient, chatId);
-	const withoutChat = (page: TypesGen.Chat[]) => {
+	updateInfiniteChatsCache(queryClient, (page) => {
 		const next = page.filter((row) => row.id !== chatId);
 		return next.length === page.length ? page : next;
-	};
-	updateInfiniteChatsCache(queryClient, withoutChat);
-	queryClient.setQueriesData<TypesGen.Chat[]>(
-		{ queryKey: chatSearchFamilyKey },
-		(prev) => (prev ? withoutChat(prev) : prev),
-	);
-	removeChatFromChatsByWorkspace(queryClient, chatId);
-	// Invalidating would keep the cached chat when the refetch 404s.
-	void queryClient.resetQueries({
-		queryKey: chatEntityKey(chatId),
-		exact: true,
 	});
+	removeChatFromSearches(queryClient, chatId);
+	removeChatFromChatsByWorkspace(queryClient, chatId);
+	void resetChatEntity(queryClient, chatId);
 	// A fetch that started before the delete can still return these chats,
 	// so the first event of a project delete restarts in-flight fetches.
 	// The rest of its burst, one event per chat, reuses those fetches.
-	const cancelRefetch = isFirstProjectDeleteEvent(queryClient, chat.project_id);
+	const cancelRefetch = claimFirstProjectDeleteEvent(
+		queryClient,
+		chat.project_id,
+	);
 	for (const queryKey of [
 		chatListFamilyKey,
 		chatProjectListFamilyKey,
@@ -598,7 +582,7 @@ export const applyWatchedChatProjectDeleted = (
 
 const seenProjectDeletes = new WeakMap<QueryClient, Set<string>>();
 
-const isFirstProjectDeleteEvent = (
+const claimFirstProjectDeleteEvent = (
 	queryClient: QueryClient,
 	projectId: string | undefined,
 ) => {
@@ -1197,6 +1181,28 @@ export const cancelChatMessages = (queryClient: QueryClient, chatId: string) =>
 		queryKey: chatMessagesKey(chatId),
 		exact: true,
 	});
+
+/**
+ * Clears the cached chat so observers refetch it. Invalidating would keep
+ * the cached chat when the refetch 404s.
+ */
+export const resetChatEntity = (queryClient: QueryClient, chatId: string) =>
+	queryClient.resetQueries({
+		queryKey: chatEntityKey(chatId),
+		exact: true,
+	});
+
+const removeChatFromSearches = (queryClient: QueryClient, chatId: string) =>
+	queryClient.setQueriesData<TypesGen.Chat[]>(
+		{ queryKey: chatSearchFamilyKey },
+		(prev) => {
+			if (!prev) {
+				return prev;
+			}
+			const next = prev.filter((row) => row.id !== chatId);
+			return next.length === prev.length ? prev : next;
+		},
+	);
 
 export const removeChatEntity = (queryClient: QueryClient, chatId: string) =>
 	queryClient.removeQueries({

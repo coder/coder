@@ -471,12 +471,17 @@ describe("ChatsSidebar projects", () => {
 		);
 
 		const queryClient = createTestQueryClient();
-		const projectChat = buildChat({ project_id: MockChatProject.id });
+		const mockDeletedProjectChat = buildChat({
+			project_id: MockChatProject.id,
+		});
 		// Nothing observes the entity, so keep it from being collected.
-		queryClient.setQueryDefaults(chatEntityKey(projectChat.id), {
+		queryClient.setQueryDefaults(chatEntityKey(mockDeletedProjectChat.id), {
 			gcTime: Number.POSITIVE_INFINITY,
 		});
-		queryClient.setQueryData(chatEntityKey(projectChat.id), projectChat);
+		queryClient.setQueryData(
+			chatEntityKey(mockDeletedProjectChat.id),
+			mockDeletedProjectChat,
+		);
 
 		render(
 			<Wrapper
@@ -509,7 +514,7 @@ describe("ChatsSidebar projects", () => {
 		});
 		expect(localStorage.getItem(draftKeys.attachments)).toBeNull();
 		expect(
-			queryClient.getQueryData(chatEntityKey(projectChat.id)),
+			queryClient.getQueryData(chatEntityKey(mockDeletedProjectChat.id)),
 		).toBeUndefined();
 		await waitFor(() =>
 			expect(screen.getByTestId("location-pathname")).toHaveTextContent(

@@ -40,11 +40,14 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 	const location = useLocation();
 
 	const updateMutation = useMutation(updateChatProject(queryClient));
+	const deleteOptions = deleteChatProject(queryClient);
 	// The project list refetch after a delete unmounts this page, so the
 	// toast and navigation run on the mutation itself rather than per call.
 	const deleteMutation = useMutation({
-		...deleteChatProject(queryClient),
-		onSuccess: (_data, deletedProject) => {
+		...deleteOptions,
+		onSuccess: (...args) => {
+			deleteOptions.onSuccess?.(...args);
+			const [, deletedProject] = args;
 			// Nothing can open the deleted project's composer again.
 			const draftKeys = draftStorageKeys(deletedProject.id);
 			localStorage.removeItem(draftKeys.text);

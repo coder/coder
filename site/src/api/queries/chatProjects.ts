@@ -3,10 +3,11 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	chatEntitiesFamilyKey,
-	chatEntityKey,
 	chatProjectsKey,
 	invalidateChatListQueries,
 	invalidateChatSearches,
+	invalidateChatsByWorkspace,
+	resetChatEntity,
 } from "./chats";
 
 /**
@@ -63,45 +64,31 @@ export const updateChatProject = (queryClient: QueryClient) =>
 			queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
 	});
 
+/** Callers that add an onSuccess must call this one first. */
 export const deleteChatProject = (queryClient: QueryClient) =>
 	mutationOptions({
-		// The reset runs here rather than in onSuccess, which callers replace.
-		mutationFn: async (project: TypesGen.ChatProject) => {
-			await API.experimental.deleteChatProject(
-				project.organization_id,
-				project.id,
-			);
-			resetDeletedProjectChats(queryClient, project.id);
+		mutationFn: (project: TypesGen.ChatProject) =>
+			API.experimental.deleteChatProject(project.organization_id, project.id),
+		onSuccess: (_data: void, project: TypesGen.ChatProject) => {
+			for (const [, chat] of queryClient.getQueriesData<TypesGen.Chat>({
+				queryKey: chatEntitiesFamilyKey,
+				predicate: ({ queryKey }) =>
+					queryKey.length === chatEntitiesFamilyKey.length + 1,
+			})) {
+				if (chat?.project_id === project.id) {
+					void resetChatEntity(queryClient, chat.id);
+				}
+			}
 		},
 		onSettled: () =>
 			Promise.all([
 				queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
 				invalidateChatListQueries(queryClient),
 				invalidateChatSearches(queryClient),
+				invalidateChatsByWorkspace(queryClient),
 			]),
 	});
 
-// Invalidating would keep cached chats when their refetch 404s.
-const resetDeletedProjectChats = (
-	queryClient: QueryClient,
-	projectId: string,
-) => {
-	const chats = queryClient
-		.getQueriesData<TypesGen.Chat>({
-			queryKey: chatEntitiesFamilyKey,
-			predicate: ({ queryKey }) =>
-				queryKey.length === chatEntitiesFamilyKey.length + 1,
-		})
-		.flatMap(([, chat]) => (chat ? [chat] : []));
-	for (const chat of chats) {
-		if (chat.project_id === projectId) {
-			void queryClient.resetQueries({
-				queryKey: chatEntityKey(chat.id),
-				exact: true,
-			});
-		}
-	}
-};
 export const chatProjectInstructionsKey = (projectId: string) =>
 	[...chatProjectsKey, projectId, "instructions"] as const;
 
