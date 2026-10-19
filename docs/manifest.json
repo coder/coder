@@ -1219,7 +1219,7 @@
 									"path": "./ai-coder/agent-firewall/rules-engine.md"
 								},
 								{
-									"title": "Example Policy",
+									"title": "Example policy",
 									"description": "Review a broad Agent Firewall allowlist policy for multi-language workspaces.",
 									"path": "./ai-coder/agent-firewall/example-policy.md"
 								},
