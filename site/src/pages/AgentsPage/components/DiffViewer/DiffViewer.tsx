@@ -74,6 +74,19 @@ const FILE_CARD_CSS = [
 	"[data-diffs-header]:not(:has(~ pre[data-diff])) {",
 	"  border-radius: 6px;",
 	"}",
+	// A stuck header sits on top of its own card, so the card background
+	// would fill in the rounded top corners. Paint the corners with the panel
+	// background instead: the spread shadow only covers the area outside the
+	// rounded shape, and the clip keeps it inside the header box.
+	"[data-diffs-header]::before {",
+	"  content: '';",
+	"  position: absolute;",
+	"  inset: 0;",
+	"  border-radius: inherit;",
+	"  box-shadow: 0 0 0 6px hsl(var(--surface-primary));",
+	"  clip-path: inset(0);",
+	"  pointer-events: none;",
+	"}",
 	"pre[data-diff] {",
 	"  margin: 0 4px 4px;",
 	"  border-radius: 4px;",
@@ -499,6 +512,10 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 	// enough horizontal room, rather than keying off the viewport width.
 	const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
 	const [containerWidth, setContainerWidth] = useState(0);
+	// Whether the file list shows a space-taking vertical scrollbar. The
+	// scrollbar then provides the right-hand spacing, so the list drops its
+	// right padding instead of stacking both.
+	const [hasScrollbar, setHasScrollbar] = useState(false);
 	useEffect(() => {
 		if (!containerEl) return;
 		setContainerWidth(containerEl.getBoundingClientRect().width);
@@ -506,6 +523,21 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 			setContainerWidth(entry.contentRect.width);
 		});
 		observer.observe(containerEl);
+		return () => observer.disconnect();
+	}, [containerEl]);
+	useEffect(() => {
+		const scroller = containerEl?.lastElementChild;
+		if (!(scroller instanceof HTMLElement)) return;
+		const update = () =>
+			setHasScrollbar(scroller.offsetWidth - scroller.clientWidth > 0);
+		update();
+		// Observe the content too: collapsing files changes its height,
+		// which can add or remove the scrollbar without resizing the list.
+		const observer = new ResizeObserver(update);
+		observer.observe(scroller);
+		if (scroller.firstElementChild) {
+			observer.observe(scroller.firstElementChild);
+		}
 		return () => observer.disconnect();
 	}, [containerEl]);
 
@@ -646,7 +678,10 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 				items={items}
 				options={options}
 				selectedLines={selectedLines}
-				className="h-full min-h-0 min-w-0 flex-1 overflow-auto px-2"
+				className={cn(
+					"h-full min-h-0 min-w-0 flex-1 overflow-auto pl-2",
+					hasScrollbar ? "pr-0" : "pr-2",
+				)}
 				style={diffViewerStyle}
 				onScroll={handleScroll}
 				renderCustomHeader={(item) =>
