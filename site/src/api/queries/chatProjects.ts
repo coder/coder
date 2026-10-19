@@ -69,7 +69,7 @@ export const deleteChatProject = (queryClient: QueryClient) =>
 	mutationOptions({
 		mutationFn: (project: TypesGen.ChatProject) =>
 			API.experimental.deleteChatProject(project.organization_id, project.id),
-		onSuccess: (_data: void, project: TypesGen.ChatProject) => {
+		onSuccess: (_data, project) => {
 			for (const [, chat] of queryClient.getQueriesData<TypesGen.Chat>({
 				queryKey: chatEntitiesFamilyKey,
 				predicate: ({ queryKey }) =>
