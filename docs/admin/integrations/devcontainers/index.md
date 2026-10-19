@@ -16,6 +16,7 @@ By adopting dev containers, organizations can:
 
 Coder supports two approaches for running dev containers.
 Choose based on your infrastructure and workflow requirements.
+To define workspaces as code without containers, see [Nix(OS)](../nixos.md).
 
 ## Dev Containers Integration
 
