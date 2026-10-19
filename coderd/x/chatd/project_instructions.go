@@ -24,21 +24,20 @@ func (p *Server) resolveProjectInstructions(ctx context.Context, logger slog.Log
 	if !p.experiments.Enabled(codersdk.ExperimentChatProjects) {
 		return ""
 	}
-	projectID := chat.ProjectID
-	if !projectID.Valid {
+	if !chat.ProjectID.Valid {
 		return ""
 	}
 
-	if _, ok := p.usableChatProject(ctx, logger, projectID.UUID, chat); !ok {
+	if _, ok := p.usableChatProject(ctx, logger, chat.ProjectID.UUID, chat); !ok {
 		return ""
 	}
 
-	row, err := p.db.GetChatProjectInstructionsByProjectID(ctx, projectID.UUID)
+	row, err := p.db.GetChatProjectInstructionsByProjectID(ctx, chat.ProjectID.UUID)
 	if err != nil {
 		// A project without a row has no instructions.
 		if !errors.Is(err, sql.ErrNoRows) {
 			logger.Warn(ctx, "failed to load chat project instructions",
-				slog.F("project_id", projectID.UUID),
+				slog.F("project_id", chat.ProjectID.UUID),
 				slog.Error(err),
 			)
 		}
