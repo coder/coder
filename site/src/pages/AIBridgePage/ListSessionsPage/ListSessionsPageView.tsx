@@ -106,7 +106,7 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 								</ThreadTooltip>
 							</TableHead>
 							<TableHead className="text-nowrap">
-								Last prompt (UTC{utcOffset})
+								Last active (UTC{utcOffset})
 							</TableHead>
 						</TableRow>
 					</TableHeader>
