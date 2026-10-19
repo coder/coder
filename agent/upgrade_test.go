@@ -168,6 +168,8 @@ func TestAgent_SSHUpgrade(t *testing.T) {
 			defer session.Close()
 			stdin, err := session.StdinPipe()
 			require.NoError(t, err)
+			output := make(chan struct{})
+			session.Stdout = &firstWriteNotifier{notify: output}
 			err = session.Shell()
 			require.NoError(t, err)
 
@@ -175,6 +177,9 @@ func TestAgent_SSHUpgrade(t *testing.T) {
 			// get a non-zero value for transferred bytes.
 			_, err = stdin.Write([]byte("echo test\n"))
 			require.NoError(t, err)
+			// Output means the agent has sent bytes, so a shutdown cannot report
+			// a session that transmitted nothing.
+			testutil.TryReceive(ctx, t, output)
 
 			assertSSHStats(t, stats)
 			reason := codersdk.DisconnectReasonGraceful
@@ -209,6 +214,10 @@ func TestAgent_SSHUpgrade(t *testing.T) {
 				},
 			)
 			requireDisconnectLog(t, sink, "ssh session closed", tc.expect, reason)
+			if tc.shutdown {
+				// Only a shutdown adds a disconnect reason to the connection log.
+				requireDisconnectLog(t, sink, "ssh connection complete", tc.expect, reason)
+			}
 		})
 	}
 }
@@ -353,7 +362,7 @@ func (w *firstWriteNotifier) Write(p []byte) (int, error) {
 
 // requireDisconnectLog requires exactly one agent log line with the given
 // message, carrying the client session ID and disconnect reason. Shutdowns
-// must also name the agent as the initiator.
+// must also name the agent as the initiator and mark the disconnect expected.
 func requireDisconnectLog(t *testing.T, sink *testutil.FakeSink, message, clientSessionID string, reason codersdk.DisconnectReason) {
 	t.Helper()
 	var entries []slog.SinkEntry
@@ -370,5 +379,6 @@ func requireDisconnectLog(t *testing.T, sink *testutil.FakeSink, message, client
 	require.Equal(t, reason, fields["disconnect_reason"])
 	if reason == codersdk.DisconnectReasonServerShutdown {
 		require.Equal(t, codersdk.DisconnectInitiatorAgent, fields["disconnect_initiator"])
+		require.Equal(t, true, fields["disconnect_expected"])
 	}
 }
