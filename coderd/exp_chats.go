@@ -6391,6 +6391,12 @@ func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if req.WorkspaceTTLMillis > ttlMaximum.Milliseconds() {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Workspace TTL must not exceed 30 days.",
+		})
+		return
+	}
 
 	// Convert milliseconds to duration.
 	d := time.Duration(req.WorkspaceTTLMillis) * time.Millisecond
@@ -6399,12 +6405,6 @@ func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	if d > 0 && d < ttlMinimum {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Workspace TTL must not be less than 1 minute.",
-		})
-		return
-	}
-	if d > ttlMaximum {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Workspace TTL must not exceed 30 days.",
 		})
 		return
 	}
