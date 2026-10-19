@@ -22,6 +22,10 @@ import { SEPARATOR_CSS } from "../ChatElements/tools/utils";
 import { useActiveFileTracking } from "./useActiveFileTracking";
 
 type DiffViewerProps = {
+	/**
+	 * Files from parseDiffString. DiffViewer uses each file's cacheKey to
+	 * detect content changes.
+	 */
 	parsedFiles: readonly FileDiffMetadata[];
 	isExpanded: boolean;
 	isLoading?: boolean;
@@ -152,12 +156,12 @@ export function compareTreePaths(a: string, b: string): number {
 	return compareTreeEntries(a.split("/"), false, b.split("/"), false);
 }
 
-// CodeView's syncItemRecord skips reusing a record when item.version is
-// unchanged, so the version must reflect annotation content rather than count.
-// Moving the active comment box to another line in the same file keeps the
-// count at 1 but must still re-render, so fold each annotation's side and line
-// into the version. The hash stays a 32-bit integer so later inputs are not
-// lost to floating-point precision. Exported for unit tests.
+const hashStep = (hash: number, value: number): number =>
+	(Math.imul(hash, 31) + value) | 0;
+
+// Folds each annotation's side and line, so moving the comment box to another
+// line changes the result even when the count stays the same. Exported for
+// unit tests.
 export function annotationsVersion(
 	annotations: readonly DiffLineAnnotation<string>[],
 ): number {
@@ -166,18 +170,18 @@ export function annotationsVersion(
 	}
 	return annotations.reduce(
 		(version, annotation) =>
-			(Math.imul(version, 31) +
-				annotation.lineNumber * 2 +
-				(annotation.side === "additions" ? 1 : 0)) |
-			0,
+			hashStep(
+				version,
+				annotation.lineNumber * 2 + (annotation.side === "additions" ? 1 : 0),
+			),
 		annotations.length,
 	);
 }
 
-// The full CodeView item version: it must change whenever anything that
-// affects rendering changes, including the diff content (cacheKey, a content
-// hash stamped by parseDiffString) and the collapsed flag. Exported for unit
-// tests.
+// CodeView's syncItemRecord re-syncs an item only when its version changes,
+// so every render input must feed it. cacheKey is the content hash
+// parseDiffString stamps. The hash stays a 32-bit integer so later inputs are
+// not lost to floating-point precision. Exported for unit tests.
 export function diffItemVersion(
 	fileDiff: FileDiffMetadata,
 	annotations: readonly DiffLineAnnotation<string>[],
@@ -185,9 +189,9 @@ export function diffItemVersion(
 ): number {
 	let version = annotationsVersion(annotations);
 	for (const char of fileDiff.cacheKey ?? "") {
-		version = (Math.imul(version, 31) + char.charCodeAt(0)) | 0;
+		version = hashStep(version, char.charCodeAt(0));
 	}
-	return (Math.imul(version, 31) + (collapsed ? 1 : 0)) | 0;
+	return hashStep(version, collapsed ? 1 : 0);
 }
 
 // The library forces classic, space-reserving scrollbars via
@@ -297,9 +301,7 @@ function DiffFileTree({
 		status: gitStatusForFile(file),
 	}));
 	// Tracks the row currently selected in the model so scroll-driven syncing
-	// can skip redundant selects. A null activePath clears the selection, so
-	// clicking the same row again counts as a change and fires
-	// onUserSelectPath.
+	// can skip redundant selects.
 	const selectedPathRef = useRef<string | null>(null);
 	// Set while we replace the selection programmatically. The model emits
 	// selection events synchronously, so this drops the echoes from our own
@@ -335,7 +337,9 @@ function DiffFileTree({
 	// Drive the tree selection from the active file. The @pierre/trees item
 	// handle's select() is additive, so a scrolled-past file stays
 	// highlighted unless its selection is cleared. Replace the whole
-	// selection with just the active file, suppressing the echoed events.
+	// selection with just the active file, suppressing the echoed events. A
+	// null activePath clears the selection, so clicking the same row again
+	// counts as a change and fires onUserSelectPath.
 	useEffect(() => {
 		if (selectedPathRef.current === activePath) return;
 		if (!activePath) {
@@ -494,19 +498,18 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 	};
 	const toggleFileCollapsed = (
 		fileName: string,
-		collapsed: boolean,
+		wasCollapsed: boolean,
 		button: HTMLButtonElement,
 	) => {
-		if (!collapsed) {
-			// A stuck header sits above the file's real top. Scroll the file to
-			// its start first, which leaves the header where it is on screen;
-			// otherwise CodeView keeps scrollTop and the collapsed header
-			// scrolls out of view.
-			const card = button.closest("diffs-container");
+		if (!wasCollapsed) {
+			// While the header is stuck, the file's top is above the viewport.
+			// Collapsing keeps scrollTop, so without aligning the file's top
+			// first, the collapsed header ends up above the viewport.
+			const host = button.closest("diffs-container");
 			if (
-				card &&
+				host &&
 				scrollerEl &&
-				card.getBoundingClientRect().top <
+				host.getBoundingClientRect().top <
 					scrollerEl.getBoundingClientRect().top
 			) {
 				codeViewRef.current?.scrollTo({
@@ -516,10 +519,8 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 					behavior: "instant",
 				});
 			}
-			// Clear the tree selection so clicking this file's row expands it.
-			setActiveFile(null);
 		}
-		setFileCollapsed(fileName, !collapsed);
+		setFileCollapsed(fileName, !wasCollapsed);
 	};
 
 	// Measure the diff container so the file tree only appears when there is
@@ -650,7 +651,13 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 				<aside className="h-full min-h-0 w-72 shrink-0 border-0 border-r border-solid border-border">
 					<DiffFileTree
 						files={sortedFiles}
-						activePath={activeFile}
+						// A collapsed file is never selected, so clicking its row
+						// fires onUserSelectPath and expands it.
+						activePath={
+							activeFile !== null && !collapsedFiles.has(activeFile)
+								? activeFile
+								: null
+						}
 						onUserSelectPath={(fileName) => {
 							setActiveFile(fileName);
 							setFileCollapsed(fileName, false);
