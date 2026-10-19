@@ -15,8 +15,8 @@ import {
 } from "vitest";
 import { AppProviders } from "#/App";
 import { API } from "#/api/api";
-import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
+	chatProjectsKey,
 	mcpServerConfigsKey,
 	organizationChatModelsKey,
 	userChatPersonalModelOverrides,

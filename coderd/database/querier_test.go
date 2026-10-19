@@ -2273,7 +2273,7 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	hiddenFile := linkFile(ownerChild.ID)
 	visibleFile := linkFile(unrelated.ID)
 
-	accessible, err := db.IsChatProjectAccessibleByUserID(ctx, database.IsChatProjectAccessibleByUserIDParams{ProjectID: project.ID, UserID: owner.ID})
+	accessible, err := db.IsChatProjectUsableByUserID(ctx, database.IsChatProjectUsableByUserIDParams{ProjectID: project.ID, UserID: owner.ID})
 	require.NoError(t, err)
 	require.True(t, accessible)
 
@@ -2312,6 +2312,8 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	}
 
 	dbgen.ChatProjectMemory(t, db, database.ChatProjectMemory{ProjectID: project.ID, OrganizationID: project.OrganizationID, CreatedBy: project.OwnerID})
+	skill, err := db.InsertProjectSkill(ctx, database.InsertProjectSkillParams{ID: uuid.New(), ProjectID: project.ID, Name: "deleted-project-skill", Description: "d", Content: "c"})
+	require.NoError(t, err)
 	deletedID, err := db.UpdateChatProjectDeletedByID(ctx, project.ID)
 	require.NoError(t, err)
 	require.Equal(t, project.ID, deletedID)
@@ -2320,6 +2322,9 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	memories, err := db.GetChatProjectMemoriesByProjectID(ctx, project.ID)
 	require.NoError(t, err)
 	require.Empty(t, memories, "the tombstone deletes the project's memories")
+	var skills int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM skills WHERE id = $1", skill.ID).Scan(&skills))
+	require.Zero(t, skills, "the tombstone deletes the project's skills")
 	pending, err = db.GetDeletedChatProjectIDsWithUnarchivedChats(ctx, 10)
 	require.NoError(t, err)
 	require.Equal(t, []uuid.UUID{project.ID}, pending)
@@ -2371,7 +2376,7 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	require.ErrorIs(t, err, sql.ErrNoRows)
 	_, err = db.UpdateChatProjectByID(ctx, database.UpdateChatProjectByIDParams{ID: project.ID, Name: "renamed"})
 	require.ErrorIs(t, err, sql.ErrNoRows)
-	accessible, err = db.IsChatProjectAccessibleByUserID(ctx, database.IsChatProjectAccessibleByUserIDParams{ProjectID: project.ID, UserID: owner.ID})
+	accessible, err = db.IsChatProjectUsableByUserID(ctx, database.IsChatProjectUsableByUserIDParams{ProjectID: project.ID, UserID: owner.ID})
 	require.NoError(t, err)
 	require.False(t, accessible)
 	count, err := db.CountChatProjectsByOwnerID(ctx, owner.ID)

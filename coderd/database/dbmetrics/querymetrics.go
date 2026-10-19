@@ -5809,6 +5809,14 @@ func (m queryMetricsStore) UpdateChatProjectDeletedByID(ctx context.Context, id 
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateChatProjectIDByID(ctx context.Context, arg database.UpdateChatProjectIDByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateChatProjectIDByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatProjectIDByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatProjectIDByID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateChatRetryState(ctx, arg)

@@ -57,7 +57,7 @@ Eviction means that a persisted message may reference a file that no longer exis
 
 TODO (#27079): messages can now carry a `workspace-file-reference` part (path, name, size, media type, workspace ID) for files uploaded into the chat's workspace. It is metadata only: no file link is written, coderd validates that the path is scoped to the chat's upload directory and that the workspace ID matches the chat's current binding, and prompt conversion renders the reference as text (`[workspace file: <name> (<size>) at <path>]`) so the bytes never reach the model. Describe this here.
 
-Project instructions are optional context injected into all chats in a project. Stored in `chat_project_instructions`. Subagents have no `project_id`, so they use the root chat's project.
+Project instructions are optional context injected into all chats in a project. Stored in `chat_project_instructions`. Subagents carry their root chat's `project_id`. A root chat can move into a project, between projects, or out of its project after it's created. The move is written inside the `SetProject` transition so that it happens only while no step of the chat runs.
 
 If the distinction isn't completely clear to you at this point, don't worry. It should become clearer as you learn more about the core state machine.
 
@@ -124,6 +124,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - TODO (#27111): `Create(initialMessages)` now lands in `waiting` instead of `running` when the initial history carries no user message (system messages only); such a chat enters `running` through its first `SendMessage`. The state diagram below needs the matching `N --> W: Create` edge. Describe this here.
 - When `Create(initialMessages)` creates a child chat, it first locks the family's root chat row with `FOR SHARE` and fails if the root is archived, so a new child never joins an archived family.
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
+- `SetProject(project)` sets or clears the project of one chat without changing its execution state. A move of a root chat applies it to the root and each descendant in one transaction, and fails without changing any chat if one of them isn't in `W`, `E0` or `E1`. Every member's `project_id` changes, so subagents stay in their root's project. As in a family archive, the root row is locked first, so a concurrent child creation either joins the move or waits for it. A move to the root's current project applies no transition. A move into a deleted project fails with `ErrChatProjectNotFound`; it holds the target `FOR SHARE` like root chat creation, so a concurrent delete waits for it and then archives the moved family. A move out of a deleted project fails as not found.
 - `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be either `queue` or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption, or cancels a pending dynamic-tool action and inserts the message directly.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
 - `DeleteQueuedMessage(qid)` removes one queued message without changing the active history.
@@ -169,12 +170,14 @@ stateDiagram-v2
     W --> W: ClearContext
     W --> E0: FinishError
     W --> XW: SetArchived(true)
+    W --> W: SetProject
 
     E0 --> R0: SendMessage
     E0 --> R0: EditMessage
     E0 --> R0: RequestCompaction
     E0 --> W: ClearContext
     E0 --> XE0: SetArchived(true)
+    E0 --> E0: SetProject
 
     E1 --> R1: SendMessage
     E1 --> R0: EditMessage
@@ -184,6 +187,7 @@ stateDiagram-v2
     E1 --> R0: PromoteQueuedMessage / promoted last queued
     E1 --> R1: PromoteQueuedMessage / queue still non-empty
     E1 --> XE1: SetArchived(true)
+    E1 --> E1: SetProject
 
     R0 --> R0: RecordGenerationAttempt
     R0 --> R0: RecordRetryState
@@ -1014,6 +1018,8 @@ Root chats in a project share durable memory; other chats have none. The agent s
 
 <!-- TODO(f0ssel): the memory index no longer lives in the `read_memory` tool description. At turn start the generation loop commits a model-only user row: a full `<project-memory-index>` snapshot when the prompt has none (first turn, or after compaction), otherwise a `<project-memory-index-update>` listing changes since the model last saw it. Tool definitions and the system prompt carry no memory state, so memory writes no longer invalidate the provider's cached prefix. Mid-turn only a snapshot dropped by compaction is restored, and never between an assistant step and its tool results. -->
 
+A moved root chat uses the instructions and memory of its new project from its next turn. The index it saw stays in its history, so that turn starts with an index update from the old index to the new project's. A chat that leaves its project, or whose project is deleted, has an empty index, and the update removes every memory it saw.
+
 Project instructions are loaded on every turn, so edits show up in existing chats on their next turn. They're loaded alongside the rest of the turn setup, sanitized again, and added to the system prompt by `buildSystemPrompt` as a `<project-instructions>` block, after the memory guidance and before the user prompt. Subagents get them from their root chat.
 
 ###### Project sharing
@@ -1033,11 +1039,11 @@ Chat creation checks `ChatProjectUsableBy` for the chat owner, and `resolveProje
 
 ###### Project deletion
 
-Deleting a project only tombstones it in the request: `UpdateChatProjectDeletedByID` sets `chat_projects.deleted` as the caller, so dbauthz requires `delete` on the project, and deletes the project's memories and instructions in the same statement. A second delete matches no row and returns 404. Its row lock waits for root chat creations holding the project `FOR SHARE`, and later ones fail with `ErrChatProjectNotFound`. The request takes no chat locks, so it cannot fail on them. Only the project delete is audited. From then on chat lists, `ExtractChatParam`, and file download hide the project's chats, and `SetFamilyArchived` refuses to unarchive them. Running chats keep generating until the cleanup runs, which then stops them mid-turn.
+Deleting a project only tombstones it in the request: `UpdateChatProjectDeletedByID` sets `chat_projects.deleted` as the caller, so dbauthz requires `delete` on the project, and deletes the project's memories, instructions and skills in the same statement. A second delete matches no row and returns 404. Its row lock waits for root chat creations and moves holding the project `FOR SHARE`, and later ones fail with `ErrChatProjectNotFound`. The request takes no chat locks, so it cannot fail on them. Only the project delete is audited. From then on chat lists, `ExtractChatParam`, and file download hide the project's chats, and `SetFamilyArchived` refuses to unarchive them. Running chats keep generating until the cleanup runs, which then stops them mid-turn.
 
 The handler then calls `Server.ScheduleDeletedChatProjectCleanup`, which runs `chatstate.ArchiveDeletedChatProject` in the background. In one transaction it locks the project's unarchived root chats, which waits for sub-chat creations holding a root `FOR SHARE`, moves every unarchived chat in the project from any execution state to XW (XE0 from error) with no worker or runner, and clears their queues. This is the one archive outside the `SetArchived` transitions above. It publishes a `chat:update` per chat after commit, so runners stop at once; after a failed publish, returned as `ErrChatUpdatePublishFailed`, they stop at their next heartbeat renewal because the chat no longer names their runner. It then schedules debug-data cleanup for the chats it archived and publishes a `project_deleted` watch event for every chat in the project, including ones archived before the delete. A cleanup that fails, for example on a deadlock with a chat purge, or that never ran because the replica stopped, is retried by each worker's sweep, which every minute picks up deleted projects with unarchived chats (`GetDeletedChatProjectIDsWithUnarchivedChats`).
 
-Sub-chats carry their root's `project_id`, set by an insert trigger, so project membership is that column alone, and it survives retention deleting a root before its sub-chats. Archived chats follow chat retention like any others (never while chat retention is 0), and dbpurge deletes the project row once none are left.
+Sub-chats carry their root's `project_id`, set by an insert trigger and by moves, so project membership is that column alone, and it survives retention deleting a root before its sub-chats. Archived chats follow chat retention like any others (never while chat retention is 0), and dbpurge deletes the project row once none are left.
 
 ##### Reasoning effort
 

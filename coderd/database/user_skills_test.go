@@ -282,7 +282,8 @@ func TestSkillOwners(t *testing.T) {
 		require.NoError(t, err)
 		_, err = sqlDB.ExecContext(ctx, "DELETE FROM organizations WHERE id = $1", deletedOrg)
 		require.NoError(t, err)
-		require.NoError(t, db.DeleteChatProjectByID(ctx, deletedProject))
+		_, err = db.UpdateChatProjectDeletedByID(ctx, deletedProject)
+		require.NoError(t, err)
 
 		require.Equal(t, 1, countSkills(ctx, "user_id", user))
 		require.Equal(t, 0, countSkills(ctx, "user_id", deletedUser))

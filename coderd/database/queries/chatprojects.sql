@@ -99,8 +99,8 @@ RETURNING *;
 
 -- name: UpdateChatProjectDeletedByID :one
 -- Irreversible. Waits for root chat creations holding
--- GetChatProjectByIDForShare. Deletes the project's memories and
--- instructions; its chats keep running until
+-- GetChatProjectByIDForShare. Deletes the project's memories,
+-- instructions and skills; its chats keep running until
 -- chatstate.ArchiveDeletedChatProject archives them.
 WITH project AS (
     UPDATE chat_projects
@@ -114,6 +114,10 @@ memories AS (
 ),
 instructions AS (
     DELETE FROM chat_project_instructions
+    WHERE project_id IN (SELECT id FROM project)
+),
+skills AS (
+    DELETE FROM skills
     WHERE project_id IN (SELECT id FROM project)
 )
 SELECT id FROM project;

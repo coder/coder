@@ -2,13 +2,10 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
-import {
-	chatProjects,
-	chatProjectsKey,
-	createChatProject,
-} from "#/api/queries/chatProjects";
+import { chatProjects, createChatProject } from "#/api/queries/chatProjects";
 import {
 	chatModels,
+	chatProjectsKey,
 	mcpServerConfigs,
 	userChatPersonalModelOverrides,
 } from "#/api/queries/chats";

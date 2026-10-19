@@ -8117,6 +8117,17 @@ func (q *querier) UpdateChatProjectDeletedByID(ctx context.Context, id uuid.UUID
 	return q.db.UpdateChatProjectDeletedByID(ctx, id)
 }
 
+func (q *querier) UpdateChatProjectIDByID(ctx context.Context, arg database.UpdateChatProjectIDByIDParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.UpdateChatProjectIDByID(ctx, arg)
+}
+
 func (q *querier) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
 	// UpdateChatRetryState is used by the chat processor to publish
 	// transient retry state. It should be called with system context.

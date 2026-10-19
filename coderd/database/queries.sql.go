@@ -8507,13 +8507,17 @@ memories AS (
 instructions AS (
     DELETE FROM chat_project_instructions
     WHERE project_id IN (SELECT id FROM project)
+),
+skills AS (
+    DELETE FROM skills
+    WHERE project_id IN (SELECT id FROM project)
 )
 SELECT id FROM project
 `
 
 // Irreversible. Waits for root chat creations holding
-// GetChatProjectByIDForShare. Deletes the project's memories and
-// instructions; its chats keep running until
+// GetChatProjectByIDForShare. Deletes the project's memories,
+// instructions and skills; its chats keep running until
 // chatstate.ArchiveDeletedChatProject archives them.
 func (q *sqlQuerier) UpdateChatProjectDeletedByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	row := q.db.QueryRowContext(ctx, updateChatProjectDeletedByID, id)
@@ -14986,6 +14990,28 @@ func (q *sqlQuerier) UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatP
 		&i.TitleUpdatedAt,
 	)
 	return i, err
+}
+
+const updateChatProjectIDByID = `-- name: UpdateChatProjectIDByID :exec
+UPDATE
+    chats
+SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid changing list ordering.
+    project_id = $1::uuid
+WHERE
+    id = $2::uuid
+`
+
+type UpdateChatProjectIDByIDParams struct {
+	ProjectID uuid.NullUUID `db:"project_id" json:"project_id"`
+	ID        uuid.UUID     `db:"id" json:"id"`
+}
+
+// Sets the project of one chat. A NULL project_id removes the chat from
+// its project.
+func (q *sqlQuerier) UpdateChatProjectIDByID(ctx context.Context, arg UpdateChatProjectIDByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateChatProjectIDByID, arg.ProjectID, arg.ID)
+	return err
 }
 
 const updateChatRetryState = `-- name: UpdateChatRetryState :one

@@ -45,9 +45,9 @@ var (
 	// no new chat may join one.
 	ErrChatFamilyArchived = xerrors.New("chat family is archived")
 
-	// ErrChatProjectNotFound is returned by [CreateChat] and
-	// [CreateChatWithID] when the new chat names a missing or deleted
-	// project.
+	// ErrChatProjectNotFound is returned by [CreateChat],
+	// [CreateChatWithID] and [SetFamilyProject] when the target project
+	// is missing or deleted.
 	ErrChatProjectNotFound = xerrors.New("chat project not found")
 
 	// ErrChatUpdatePublishFailed is returned by

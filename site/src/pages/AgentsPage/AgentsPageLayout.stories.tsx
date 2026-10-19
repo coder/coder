@@ -918,9 +918,10 @@ export const ProjectDeletedWatchEventRemovesOpenChat: Story = {
 		spyOn(API.experimental, "getChats")
 			.mockResolvedValueOnce([watchedChat()])
 			.mockResolvedValue([]);
-		spyOn(API.experimental, "getChat").mockRejectedValue(
-			mockApiError({ message: "Resource not found." }),
-		);
+		spyOn(API.experimental, "getChat").mockRejectedValue({
+			...mockApiError({ message: "Resource not found." }),
+			status: 404,
+		});
 		return mockAgentChatPageAPIs();
 	},
 	parameters: watchedChatPageParameters(watchedChat(), [
