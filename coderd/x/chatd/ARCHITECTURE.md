@@ -484,9 +484,17 @@ For `archived` updates, the supported input and output states are:
 - `XE0 -> SetArchived(false) -> E0`
 - `XE1 -> SetArchived(false) -> E1`
 
-If the request does not change `archived`, this endpoint doesn't emit any state transitions.
+If the request changes neither `archived` nor `project_id`, this endpoint doesn't emit any state transitions.
 
 Other execution-state classes are not supported for archive/unarchive.
+
+Setting `project_id` on a root chat moves it into that project, and the nil UUID moves it out of its project. The move applies `SetProject(project)` to the root and all descendants atomically, with the same root-first lock as an archive. It's the request's last write, so a refused move keeps the request's other changes. The supported input and output states are:
+
+- `W -> SetProject(project) -> W`
+- `E0 -> SetProject(project) -> E0`
+- `E1 -> SetProject(project) -> E1`
+
+A move to the chat's current project succeeds without a transition, even while the chat runs. Child chats and archived chats can't be moved, and neither can a chat that the same request archives.
 
 Setting `title` writes a `user` title. The write happens even when the text is unchanged, unless the title is already a `user` title.
 
