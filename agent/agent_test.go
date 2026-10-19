@@ -4763,14 +4763,17 @@ func requireEcho(t *testing.T, conn net.Conn) int {
 const (
 	wantSomeBytes   int64 = -1
 	wantIgnoreBytes int64 = -2
+	// wantNonZeroCode accepts any non-zero disconnect status code, for
+	// disconnects whose code depends on how the platform reports a killed
+	// process.
+	wantNonZeroCode = -1
 )
 
 // assertConnectionReport expects the provided connect and disconnect events
 // have been reported.  If the disconnection bytes are wantSomeBytes, assert the
 // bytes are > 0, if wantIgnoreBytes do not check the bytes, otherwise assert
-// they match exactly. A negative disconnect code accepts any non-zero status
-// code, for disconnects whose code depends on how the platform reports a
-// killed process.
+// they match exactly. If the disconnect code is wantNonZeroCode, assert the
+// status code is non-zero, otherwise assert it matches exactly.
 func assertConnectionReport(t testing.TB, agentClient *agenttest.Client,
 	connect proto.ConnectEvent, disconnect proto.DisconnectEvent,
 ) {
@@ -4799,7 +4802,7 @@ func assertConnectionReport(t testing.TB, agentClient *agenttest.Client,
 	assert.NotEmpty(t, reports[0].GetConnection().GetIp(), "connect ip should not be empty")
 	assert.NotEmpty(t, reports[1].GetConnection().GetIp(), "disconnect ip should not be empty")
 	assert.Equal(t, 0, int(reports[0].GetConnection().GetStatusCode()), "connect status code should be 0")
-	if disconnect.Code < 0 {
+	if disconnect.Code == wantNonZeroCode {
 		assert.NotZero(t, reports[1].GetConnection().GetStatusCode(), "disconnect status code should be non-zero")
 	} else {
 		assert.Equal(t, disconnect.Code, int(reports[1].GetConnection().GetStatusCode()), "disconnect status code should be %d", disconnect.Code)

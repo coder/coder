@@ -191,7 +191,7 @@ func TestAgent_SSHUpgrade(t *testing.T) {
 				require.NoError(t, agnt.Close())
 				reason = codersdk.DisconnectReasonServerShutdown
 				// The killed shell's exit code differs between platforms.
-				code = -1
+				code = wantNonZeroCode
 				rxBytes = 10 // send "echo test\n"
 			} else {
 				_, err = stdin.Write([]byte("exit 0\n"))
