@@ -24,7 +24,6 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link, type Location, NavLink } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { reorderPinnedChat } from "#/api/queries/chats";
 import type {
@@ -39,6 +38,7 @@ import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,
@@ -92,6 +92,8 @@ type ChatsPanelProps = {
 	readonly organizations: readonly Organization[];
 	readonly isProjectsLoading: boolean;
 	readonly projectsError: unknown;
+	/** True when the first projects load failed and no data is cached. */
+	readonly isProjectsLoadError: boolean;
 	readonly onRetryProjects: () => void;
 	readonly onOpenProjectDialog: OpenProjectDialog;
 	readonly onDeleteProject: DeleteProject;
@@ -128,6 +130,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	organizations,
 	isProjectsLoading,
 	projectsError,
+	isProjectsLoadError,
 	onRetryProjects,
 	onOpenProjectDialog,
 	onDeleteProject,
@@ -569,6 +572,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 					{chatProjectsEnabled && (
 						<ChatTreeContext value={chatTreeCtx}>
 							<ProjectFolders
+								currentUserId={currentUserId}
 								projects={projects}
 								organizations={organizations}
 								chatsByProjectId={chatsByProjectId}
@@ -584,6 +588,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 								onDelete={onDeleteProject}
 								isLoading={isProjectsLoading}
 								error={projectsError}
+								isLoadError={isProjectsLoadError}
 								onRetry={onRetryProjects}
 								emptyMessage={emptyStateMessage}
 							/>

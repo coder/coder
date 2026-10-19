@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { hashKey } from "react-query";
 import { Outlet, useNavigate } from "react-router";
-import { toast } from "sonner";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
 	reactRouterOutlet,
@@ -25,6 +24,7 @@ import {
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { workspaceByIdKey, workspacesKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import {
 	MockChat,
 	MockChatMessage,
@@ -2894,6 +2894,7 @@ export const SlashCompactCommandSubmits: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -2942,6 +2943,7 @@ export const SlashClearCommandSubmits: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -2991,6 +2993,7 @@ export const SlashClearCommandConflictShowsError: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -3050,10 +3053,12 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 				id: "5f3f847b-6e77-4be4-a591-6c04ee0e0e78",
 				name: "compact",
 				description: "Personal compact skill",
+				enabled: true,
 				created_at: "2024-01-01T00:00:00Z",
 				updated_at: "2024-01-01T00:00:00Z",
 			},
 		]);
+		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

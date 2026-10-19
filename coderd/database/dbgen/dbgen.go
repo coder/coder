@@ -424,6 +424,7 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		OAuth2AuthURL:           seed.OAuth2AuthURL,
 		OAuth2TokenURL:          seed.OAuth2TokenURL,
 		OAuth2RevocationURL:     seed.OAuth2RevocationURL,
+		OAuth2Resource:          seed.OAuth2Resource,
 		OAuth2Scopes:            seed.OAuth2Scopes,
 		APIKeyHeader:            seed.APIKeyHeader,
 		APIKeyValue:             seed.APIKeyValue,
@@ -526,6 +527,14 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 			Valid:  takeFirst(seed.ClientSessionID.Valid, false),
 		},
 		ConnectionStatus: takeFirst(seed.ConnectionStatus, database.ConnectionStatusConnected),
+		RxBytes: sql.NullInt64{
+			Int64: takeFirst(seed.RxBytes.Int64, 0),
+			Valid: takeFirst(seed.RxBytes.Valid, false),
+		},
+		TxBytes: sql.NullInt64{
+			Int64: takeFirst(seed.TxBytes.Int64, 0),
+			Valid: takeFirst(seed.TxBytes.Valid, false),
+		},
 	}
 
 	var disconnectTime sql.NullTime
@@ -552,6 +561,10 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		DisconnectReason: []string{arg.DisconnectReason.String},
 		DisconnectTime:   []time.Time{disconnectTime.Time},
 		ClientSessionID:  []string{arg.ClientSessionID.String},
+		RxBytes:          []int64{arg.RxBytes.Int64},
+		RxBytesValid:     []bool{arg.RxBytes.Valid},
+		TxBytes:          []int64{arg.TxBytes.Int64},
+		TxBytesValid:     []bool{arg.TxBytes.Valid},
 	})
 	require.NoError(t, err, "insert connection log")
 
@@ -828,6 +841,12 @@ func WorkspaceSubAgent(t testing.TB, db database.Store, parentAgent database.Wor
 }
 
 func WorkspaceAgentScript(t testing.TB, db database.Store, orig database.WorkspaceAgentScript) database.WorkspaceAgentScript {
+	// Casting an empty string to jsonb is a Postgres error, not an empty
+	// list, so the default has to be written out.
+	dependencies := orig.Dependencies
+	if len(dependencies) == 0 {
+		dependencies = json.RawMessage(`[]`)
+	}
 	scripts, err := db.InsertWorkspaceAgentScripts(genCtx, database.InsertWorkspaceAgentScriptsParams{
 		WorkspaceAgentID: takeFirst(orig.WorkspaceAgentID, uuid.New()),
 		CreatedAt:        takeFirst(orig.CreatedAt, dbtime.Now()),
@@ -841,6 +860,8 @@ func WorkspaceAgentScript(t testing.TB, db database.Store, orig database.Workspa
 		TimeoutSeconds:   []int32{takeFirst(orig.TimeoutSeconds, 0)},
 		DisplayName:      []string{takeFirst(orig.DisplayName, "")},
 		ID:               []uuid.UUID{takeFirst(orig.ID, uuid.New())},
+		ResourceAddress:  []string{takeFirst(orig.ResourceAddress, "")},
+		Dependencies:     []string{string(dependencies)},
 	})
 	require.NoError(t, err, "insert workspace agent script")
 	require.NotEmpty(t, scripts, "insert workspace agent script returned no scripts")
@@ -1165,6 +1186,27 @@ func Organization(t testing.TB, db database.Store, orig database.Organization) d
 	}
 
 	return org
+}
+
+// OrganizationSkill inserts a skill owned by seed.OrganizationID, which is
+// required. Inserted skills are enabled.
+func OrganizationSkill(t testing.TB, db database.Store, seed database.Skill) database.Skill {
+	t.Helper()
+
+	require.True(t, seed.OrganizationID.Valid, "organization skill requires an organization ID")
+	name := takeFirst(seed.Name, "skill-"+uuid.NewString())
+	description := takeFirst(seed.Description, "Organization skill fixture.")
+	skill, err := db.InsertOrganizationSkill(genCtx, database.InsertOrganizationSkillParams{
+		ID:             takeFirst(seed.ID, uuid.New()),
+		OrganizationID: seed.OrganizationID.UUID,
+		Name:           name,
+		Description:    description,
+		Content:        takeFirst(seed.Content, fmt.Sprintf("---\nname: %s\ndescription: %s\n---\n\nFixture instructions.\n", name, description)),
+		GroupACL:       seed.GroupACL,
+		UserACL:        seed.UserACL,
+	})
+	require.NoError(t, err, "insert organization skill")
+	return skill
 }
 
 func OrganizationMember(t testing.TB, db database.Store, orig database.OrganizationMember) database.OrganizationMember {
@@ -1650,6 +1692,14 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 				UpdatedAt:        dbtime.Now(),
 			}))
 		}
+		if orig.ScriptOrderDataSourceCount != 0 || orig.ScriptOrderRuleCount != 0 {
+			require.NoError(t, db.UpdateTemplateVersionScriptOrderUsageByJobID(genCtx, database.UpdateTemplateVersionScriptOrderUsageByJobIDParams{
+				JobID:                      jobID,
+				ScriptOrderDataSourceCount: orig.ScriptOrderDataSourceCount,
+				ScriptOrderRuleCount:       orig.ScriptOrderRuleCount,
+				UpdatedAt:                  dbtime.Now(),
+			}))
+		}
 
 		version, err = db.GetTemplateVersionByID(genCtx, versionID)
 		if err != nil {
@@ -2028,6 +2078,27 @@ func UserSecret(t testing.TB, db database.Store, seed database.UserSecret, mutat
 	userSecret, err := db.CreateUserSecret(genCtx, params)
 	require.NoError(t, err, "failed to insert user secret")
 	return userSecret
+}
+
+func WorkspaceSecret(t testing.TB, db database.Store, seed database.WorkspaceSecret) database.WorkspaceSecret {
+	value := seed.Value
+	if !value.Valid {
+		value = sql.NullString{String: "secret value", Valid: true}
+	}
+	secret, err := db.InsertWorkspaceSecret(genCtx, database.InsertWorkspaceSecretParams{
+		ID:               takeFirst(seed.ID, uuid.New()),
+		WorkspaceID:      takeFirst(seed.WorkspaceID, uuid.New()),
+		WorkspaceBuildID: takeFirst(seed.WorkspaceBuildID, uuid.New()),
+		Name:             takeFirst(seed.Name, "secret-name"),
+		Value:            value,
+		ValueKeyID:       seed.ValueKeyID,
+		EnvName:          takeFirst(seed.EnvName, "SECRET_ENV_NAME"),
+		FilePath:         seed.FilePath,
+		Ephemeral:        seed.Ephemeral,
+		Source:           takeFirst(seed.Source, database.WorkspaceSecretSourceRequest),
+	})
+	require.NoError(t, err, "failed to insert workspace secret")
+	return secret
 }
 
 func ClaimPrebuild(

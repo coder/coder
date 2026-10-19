@@ -231,9 +231,17 @@ type ChatProject struct {
 	Description string `json:"description"`
 	// Icon is a URL, typically an emoji image under /emojis, or empty for the
 	// default folder glyph.
-	Icon      string    `json:"icon"`
-	CreatedAt time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
+	Icon        string                 `json:"icon"`
+	CreatedAt   time.Time              `json:"created_at" format:"date-time"`
+	UpdatedAt   time.Time              `json:"updated_at" format:"date-time"`
+	Permissions ChatProjectPermissions `json:"permissions"`
+}
+
+// ChatProjectPermissions are the actions the caller may take on a project.
+type ChatProjectPermissions struct {
+	Update bool `json:"update"`
+	Delete bool `json:"delete"`
+	Share  bool `json:"share"`
 }
 
 // CreateChatProjectRequest creates a chat project in the organization named
@@ -249,6 +257,62 @@ type UpdateChatProjectRequest struct {
 	Name        *string `json:"name,omitempty"`
 	Description *string `json:"description,omitempty"`
 	Icon        *string `json:"icon,omitempty"`
+}
+
+// ChatProjectRole is the access a project ACL grants.
+type ChatProjectRole string
+
+const (
+	// ChatProjectRoleUse can start chats and read and write memories.
+	ChatProjectRoleUse ChatProjectRole = "use"
+	// ChatProjectRoleAdmin can also edit the project and its instructions,
+	// which every chat in the project gets as system prompt, and share it, but
+	// not delete it.
+	ChatProjectRoleAdmin   ChatProjectRole = "admin"
+	ChatProjectRoleDeleted ChatProjectRole = ""
+)
+
+type ChatProjectUser struct {
+	MinimalUser
+	Role ChatProjectRole `json:"role" enums:"use,admin"`
+}
+
+type ChatProjectGroup struct {
+	Group
+	Role ChatProjectRole `json:"role" enums:"use,admin"`
+}
+
+// ChatProjectACL lists who a chat project is shared with. The Everyone
+// group's ID is the organization ID.
+type ChatProjectACL struct {
+	Users  []ChatProjectUser  `json:"users"`
+	Groups []ChatProjectGroup `json:"groups"`
+}
+
+// UpdateChatProjectACL changes only the listed principals.
+// ChatProjectRoleDeleted removes an entry.
+type UpdateChatProjectACL struct {
+	UserRoles  map[string]ChatProjectRole `json:"user_roles,omitempty"`
+	GroupRoles map[string]ChatProjectRole `json:"group_roles,omitempty"`
+}
+
+// ChatProjectInstructions are instructions added to the system prompt of
+// every chat in a project, except chats whose owner can no longer use the
+// project. A project without instructions has an empty Instructions
+// string and nil UpdatedBy and UpdatedAt.
+type ChatProjectInstructions struct {
+	ProjectID    uuid.UUID `json:"project_id" format:"uuid"`
+	Instructions string    `json:"instructions"`
+	// UpdatedBy is the user who last changed the instructions. It is nil
+	// when the instructions are unset or the user was deleted.
+	UpdatedBy *MinimalUser `json:"updated_by"`
+	UpdatedAt *time.Time   `json:"updated_at" format:"date-time"`
+}
+
+// UpdateChatProjectInstructionsRequest sets a project's instructions. Use
+// DeleteChatProjectInstructions to clear them.
+type UpdateChatProjectInstructionsRequest struct {
+	Instructions string `json:"instructions"`
 }
 
 // ChatProjectMemory is a durable memory shared by chats in a project.
@@ -506,11 +570,35 @@ type ChatMessagePart struct {
 	// (e.g. Anthropic cache control hints) as raw JSON. Internal
 	// only: stripped by db2sdk before API responses.
 	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty" typescript:"-"`
+	// ProviderIdentity records the provider that produced a reasoning
+	// part, because a model config's provider can change after the
+	// message was written. Internal only: stripped before API responses.
+	ProviderIdentity string `json:"provider_identity,omitempty" typescript:"-" swaggerignore:"true"`
+	// ProviderModel records the model that produced a reasoning part,
+	// because a model config's model can change after the message was
+	// written. Internal only: stripped before API responses.
+	ProviderModel string `json:"provider_model,omitempty" typescript:"-" swaggerignore:"true"`
+	// ProviderCredential records whether a reasoning part was produced
+	// with the deployment's credential or the user's personal API key,
+	// because encrypted reasoning only decrypts for the organization
+	// behind that credential. Internal only: stripped before API responses.
+	ProviderCredential string `json:"provider_credential,omitempty" typescript:"-" swaggerignore:"true"`
+	// ReasoningEpoch records how many times the provider had rejected the
+	// chat's encrypted reasoning from this provider, model, and credential
+	// before this reasoning part was produced. A step that produced no
+	// reasoning after a rejection records its epoch, provider, model, and
+	// credential on its first part instead. Internal only: stripped before
+	// API responses.
+	ReasoningEpoch int `json:"reasoning_epoch,omitempty" typescript:"-" swaggerignore:"true"`
 	// ProviderExecuted indicates the tool call was executed by
 	// the provider (e.g. Anthropic computer use).
 	ProviderExecuted bool `json:"provider_executed,omitempty" variants:"tool-call?,tool-result?"`
 	// HookRewritten indicates that a lifecycle hook replaced model-proposed tool input.
 	HookRewritten bool `json:"hook_rewritten,omitempty" variants:"tool-call?"`
+	// Narration marks assistant text that the model labeled as commentary
+	// on its work rather than its answer. Only providers that label their
+	// output set it.
+	Narration bool `json:"narration,omitempty" variants:"text?"`
 	// CreatedAt is the timestamp this part carries. The semantics
 	// depend on the part type: for tool-call and tool-result parts
 	// it is the time the call was emitted or the result was
@@ -592,6 +680,10 @@ type ChatMessagePart struct {
 // the advisor streaming callbacks.
 func (p *ChatMessagePart) StripInternal() {
 	p.ProviderMetadata = nil
+	p.ProviderIdentity = ""
+	p.ProviderModel = ""
+	p.ProviderCredential = ""
+	p.ReasoningEpoch = 0
 	if p.FileID.Valid {
 		p.Data = nil
 	}
@@ -804,6 +896,14 @@ type UpdateChatRequest struct {
 	Title       *string    `json:"title,omitempty"`
 	Archived    *bool      `json:"archived,omitempty"`
 	WorkspaceID *uuid.UUID `json:"workspace_id,omitempty" format:"uuid"`
+	// ProjectID moves a root chat, and with it its subagent chats.
+	// - nil: no change.
+	// - uuid.Nil: remove the chat from its project.
+	// - other: move the chat into that project. The chat's owner must own
+	//   the project or have it shared with them, and the project must be
+	//   in the chat's organization.
+	// The server returns 409 while the chat or a subagent chat is not idle.
+	ProjectID *uuid.UUID `json:"project_id,omitempty" format:"uuid"`
 	// PinOrder controls the chat's pinned state and position.
 	// - nil: no change to pin state.
 	// - 0: unpin the chat.
@@ -837,10 +937,9 @@ const (
 	// ChatBusyBehaviorQueue queues the message for processing after
 	// the current run finishes.
 	ChatBusyBehaviorQueue ChatBusyBehavior = "queue"
-	// ChatBusyBehaviorInterrupt queues the message and interrupts
-	// the active run. The partial assistant response is persisted
-	// before the queued message is promoted, preserving correct
-	// conversation order.
+	// ChatBusyBehaviorInterrupt interrupts the active run. It persists
+	// the partial response before this message runs ahead of queued messages.
+	// Further messages join the queue tail while the interruption is pending.
 	ChatBusyBehaviorInterrupt ChatBusyBehavior = "interrupt"
 )
 
@@ -2139,6 +2238,10 @@ const (
 	// stays usable; a refresh re-pins a drifted chat to the latest
 	// snapshot.
 	ChatWatchEventKindContextDirty ChatWatchEventKind = "context_dirty"
+	// ChatWatchEventKindProjectChange is published for each chat of a
+	// family after its root chat moves into, between or out of projects.
+	// Take project_id only from this kind.
+	ChatWatchEventKindProjectChange ChatWatchEventKind = "project_change"
 )
 
 // ChatWatchEvent represents an event from the global chat watch stream.
@@ -2303,8 +2406,8 @@ func chatProjectPath(organizationID, projectID uuid.UUID) string {
 	return fmt.Sprintf("%s/%s", chatProjectsPath(organizationID), projectID)
 }
 
-// ListChatProjects lists the authenticated user's chat projects across all
-// organizations.
+// ListChatProjects lists projects the user owns or that are shared with them,
+// across all organizations.
 func (c *ExperimentalClient) ListChatProjects(ctx context.Context) ([]ChatProject, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/projects", nil)
 	if err != nil {
@@ -2363,6 +2466,76 @@ func (c *ExperimentalClient) UpdateChatProject(ctx context.Context, organization
 // DeleteChatProject deletes a chat project and detaches its chats.
 func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, organizationID, projectID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, chatProjectPath(organizationID, projectID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// ChatProjectACL returns who a chat project is shared with.
+func (c *ExperimentalClient) ChatProjectACL(ctx context.Context, organizationID, projectID uuid.UUID) (ChatProjectACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, chatProjectPath(organizationID, projectID)+"/acl", nil)
+	if err != nil {
+		return ChatProjectACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProjectACL{}, ReadBodyAsError(res)
+	}
+	var acl ChatProjectACL
+	return acl, ReadBodyAsJSON(res, &acl)
+}
+
+// UpdateChatProjectACL changes who a chat project is shared with.
+func (c *ExperimentalClient) UpdateChatProjectACL(ctx context.Context, organizationID, projectID uuid.UUID, req UpdateChatProjectACL) error {
+	res, err := c.Request(ctx, http.MethodPatch, chatProjectPath(organizationID, projectID)+"/acl", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// ChatProjectInstructions gets a chat project's instructions.
+func (c *ExperimentalClient) ChatProjectInstructions(ctx context.Context, organizationID, projectID uuid.UUID) (ChatProjectInstructions, error) {
+	res, err := c.Request(ctx, http.MethodGet, chatProjectPath(organizationID, projectID)+"/instructions", nil)
+	if err != nil {
+		return ChatProjectInstructions{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProjectInstructions{}, ReadBodyAsError(res)
+	}
+	var instructions ChatProjectInstructions
+	return instructions, ReadBodyAsJSON(res, &instructions)
+}
+
+// UpdateChatProjectInstructions creates or replaces a chat project's
+// instructions.
+func (c *ExperimentalClient) UpdateChatProjectInstructions(ctx context.Context, organizationID, projectID uuid.UUID, req UpdateChatProjectInstructionsRequest) (ChatProjectInstructions, error) {
+	res, err := c.Request(ctx, http.MethodPut, chatProjectPath(organizationID, projectID)+"/instructions", req)
+	if err != nil {
+		return ChatProjectInstructions{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProjectInstructions{}, ReadBodyAsError(res)
+	}
+	var instructions ChatProjectInstructions
+	return instructions, ReadBodyAsJSON(res, &instructions)
+}
+
+// DeleteChatProjectInstructions clears a chat project's instructions. It
+// succeeds when the project has no instructions.
+func (c *ExperimentalClient) DeleteChatProjectInstructions(ctx context.Context, organizationID, projectID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, chatProjectPath(organizationID, projectID)+"/instructions", nil)
 	if err != nil {
 		return err
 	}

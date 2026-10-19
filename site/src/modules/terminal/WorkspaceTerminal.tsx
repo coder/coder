@@ -15,7 +15,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { toast } from "sonner";
 import {
 	ExponentialBackoff,
 	type Websocket,
@@ -28,6 +27,7 @@ import {
 	ContextMenuItem,
 	ContextMenuTrigger,
 } from "#/components/ContextMenu/ContextMenu";
+import { toast } from "#/components/Toaster/toast";
 import { useClipboard } from "#/hooks/useClipboard";
 import { isMac } from "#/utils/platform";
 import { terminalWebsocketUrl } from "#/utils/terminal";
@@ -623,7 +623,7 @@ export const WorkspaceTerminal = ({
 
 				${terminalScopeSelector} .xterm-viewport::-webkit-scrollbar-thumb {
 					min-height: 20px;
-					background-color: hsl(var(--surface-invert-secondary));
+					background-color: hsl(var(--surface-scrollbar));
 				}
 			`}</style>
 			<ContextMenu onOpenChange={handleContextMenuOpenChange}>

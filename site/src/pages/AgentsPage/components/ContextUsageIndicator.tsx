@@ -673,15 +673,13 @@ export const ContextUsageIndicator: React.FC<{
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger asChild>
-				<div
-					className="flex"
-					onMouseEnter={handleMouseEnter}
-					onMouseLeave={scheduleClose}
-				>
-					{triggerButton}
-				</div>
-			</PopoverTrigger>
+			<div
+				className="flex"
+				onMouseEnter={handleMouseEnter}
+				onMouseLeave={scheduleClose}
+			>
+				<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
+			</div>
 			<PopoverContent
 				side="top"
 				className="w-auto max-w-72 px-3 py-2"

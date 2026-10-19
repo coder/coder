@@ -1,10 +1,9 @@
 import { useFormik } from "formik";
 import { useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
-import { toast } from "sonner";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { InvisibleCharactersAlert } from "#/components/Alert/InvisibleCharactersAlert";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
 import {
@@ -14,10 +13,10 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
+import { toast } from "#/components/Toaster/toast";
 import { TextPreviewDialog } from "#/pages/AgentsPage/components/TextPreviewDialog";
 import { OrganizationSettingsSection } from "#/pages/AISettingsPage/components/OrganizationSettingsSection";
 import { SettingsSection } from "#/pages/AISettingsPage/components/SettingsSection";
-import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 
 const TEXTAREA_MAX_ROWS = 9;
 
@@ -210,12 +209,6 @@ const InstructionsForm: React.FC<InstructionsFormProps> = ({
 		},
 	});
 
-	const systemInvisibleCharCount = countInvisibleCharacters(
-		form.values.system_prompt,
-	);
-	const planModeInvisibleCharCount = countInvisibleCharacters(
-		form.values.plan_mode_instructions,
-	);
 	const isDisabled = isSaving || form.isSubmitting;
 
 	return (
@@ -264,15 +257,10 @@ const InstructionsForm: React.FC<InstructionsFormProps> = ({
 					minRows={1}
 					maxRows={TEXTAREA_MAX_ROWS}
 				/>
-				{systemInvisibleCharCount > 0 && (
-					<Alert severity="warning" className="mt-2">
-						<AlertDescription>
-							This text contains {systemInvisibleCharCount} invisible Unicode{" "}
-							{systemInvisibleCharCount !== 1 ? "characters" : "character"} that
-							could hide content. These will be stripped on save.
-						</AlertDescription>
-					</Alert>
-				)}
+				<InvisibleCharactersAlert
+					text={form.values.system_prompt}
+					className="mt-2"
+				/>
 
 				<label
 					className="mt-8 mb-2 font-sans text-sm font-bold leading-6 text-content-primary"
@@ -291,15 +279,10 @@ const InstructionsForm: React.FC<InstructionsFormProps> = ({
 					minRows={4}
 					maxRows={TEXTAREA_MAX_ROWS}
 				/>
-				{planModeInvisibleCharCount > 0 && (
-					<Alert severity="warning" className="mt-2">
-						<AlertDescription>
-							This text contains {planModeInvisibleCharCount} invisible Unicode{" "}
-							{planModeInvisibleCharCount !== 1 ? "characters" : "character"}{" "}
-							that could hide content. These will be stripped on save.
-						</AlertDescription>
-					</Alert>
-				)}
+				<InvisibleCharactersAlert
+					text={form.values.plan_mode_instructions}
+					className="mt-2"
+				/>
 
 				{isSaveSystemPromptError && (
 					<p className="m-0 mt-4 text-xs text-content-destructive">
