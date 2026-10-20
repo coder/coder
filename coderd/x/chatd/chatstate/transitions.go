@@ -291,9 +291,6 @@ func (tx *Tx) clearQueue() ([]int64, error) {
 	return ids, nil
 }
 
-// insertQueuedMessage inserts a queued user message with the given
-// delivery mode. created_by falls back to chats.owner_id only when the
-// message does not supply one.
 func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message, busyBehavior database.ChatBusyBehavior) (database.ChatQueuedMessage, error) {
 	createdBy := ownerFallback
 	if m.CreatedBy.Valid {
