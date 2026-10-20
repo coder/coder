@@ -2603,7 +2603,7 @@ export const deleteChatQueuedMessage = (
 		try {
 			await API.experimental.deleteChatQueuedMessage(chatId, queuedMessageId);
 		} catch (error) {
-			// A 404 means the row was already delivered or deleted.
+			// Delivery or deletion can race this request, so tolerate a missing row.
 			if (getErrorStatus(error) !== 404) {
 				throw error;
 			}

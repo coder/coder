@@ -123,9 +123,8 @@ export type ChatStoreState = {
 	retryState: RetryState | null;
 	reconnectState: ReconnectState | null;
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[];
-	// IDs confirmed deleted from the queue because the send response
-	// contained their promoted user rows. They stay hidden until a
-	// queue snapshot taken after the deletion arrives.
+	// Send responses confirm these rows were delivered; retain their IDs to
+	// reject queue snapshots taken before delivery.
 	promotedQueuedMessageIDs: ReadonlySet<number>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 };
@@ -145,17 +144,15 @@ export type ChatStore = {
 	setQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[],
 	) => void;
-	// Server-truthful queue snapshot. Use for SSE queue_update and REST
-	// hydration; optimistic writes go through setQueuedMessages so they
-	// don't clear the promoted IDs.
+	// Optimistic writes use setQueuedMessages to preserve promoted IDs for
+	// rejecting stale server snapshots.
 	applyAuthoritativeQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 	) => void;
 	// Advances when an accepted snapshot or active-chat change invalidates an
 	// in-flight convergence request. Discarded snapshots do not advance it.
 	getQueueConvergenceFence: () => number;
-	// Applies a promotion refetch only while the chat and fence still match.
-	// Clears those IDs' markers and returns the filtered queue for cache mirroring.
+	// Return the filtered queue so cache hydration respects other in-flight sends.
 	applyPromoteRefetchQueuedMessages: (
 		chatID: string,
 		promotedIDs: readonly number[],

@@ -450,8 +450,6 @@ describe("settlePromotedQueuedMessages", () => {
 		store.setActiveChatID(chatID);
 		store.setQueuedMessages([b]);
 		store.markQueuedMessagePromoted(a.id);
-		// An overlapping send promoted C, but this refetch still lists it, so
-		// the caller must not cache it back.
 		store.markQueuedMessagePromoted(c.id);
 
 		const settled = await settlePromotedQueuedMessages(

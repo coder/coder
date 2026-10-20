@@ -325,8 +325,6 @@ export const useChatStore = (
 		pendingStatusResyncVersionRef.current = null;
 		setPendingStatusResync(false);
 		store.setQueuedMessages([]);
-		// Queue tracking is scoped to the current chat; reset it on chat
-		// change so it doesn't hide queued messages in another chat.
 		store.resetQueuedMessageTracking();
 	}, [chatID, store]);
 
@@ -589,9 +587,7 @@ export const useChatStore = (
 							store.applyAuthoritativeQueuedMessages(
 								streamEvent.queued_messages,
 							);
-							// Cache the store's queue, not the raw event, so a
-							// stale snapshot that the store dropped cannot
-							// reappear on REST re-hydration.
+							// Cache the accepted queue so REST hydration cannot restore stale rows.
 							writeQueuedMessagesToCache(
 								queryClient,
 								chatID,

@@ -25,8 +25,7 @@ export const restoreOptimisticRequestSnapshot = (
 	});
 };
 
-// The server lists steer rows before queue rows, so a row joins the end of
-// its own lane.
+// Match the server's steer-first order for the first row's Enter shortcut.
 const appendToLane = (
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[],
 	message: TypesGen.ChatQueuedMessage,
@@ -38,7 +37,6 @@ const appendToLane = (
 		: [...steer, ...queue, message];
 };
 
-// As on the server, a steer row keeps its place.
 const moveToSteerLane = (
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[],
 	id: number,
@@ -54,8 +52,7 @@ const moveToSteerLane = (
 };
 
 /**
- * Runs the optimistic "Send now" flow. A 404 means the row was already
- * delivered or deleted, so the row is removed and no error is reported.
+ * Tolerate a missing row because delivery or deletion can race "Send now".
  */
 export const runPromoteQueuedMessage = async (params: {
 	id: number;
@@ -101,8 +98,7 @@ export const runPromoteQueuedMessage = async (params: {
 		await promoteQueuedMessage(id);
 	} catch (error) {
 		const isGone = getErrorStatus(error) === 404;
-		// A server queue or status received during the request is newer
-		// than the snapshot and must win.
+		// Preserve server queue and status updates accepted during the request.
 		const queuedMessages =
 			store.getQueueConvergenceFence() === queueFenceBeforePromote
 				? previousSnapshot.queuedMessages
@@ -162,8 +158,7 @@ export const buildInactiveChatQueueReconciliation = (
 		() => false,
 	);
 
-// Queue updates may change the queue before the response arrives, so this
-// filters the current queue instead of the queue captured before the send.
+// Preserve queue updates received while the send was in flight.
 export const reconcilePromotedQueuedMessages = (
 	store: Pick<
 		ChatStore,
@@ -186,7 +181,6 @@ export const reconcilePromotedQueuedMessages = (
 		return undefined;
 	}
 	store.batch(() => {
-		// The promoted user rows prove the server deleted their queue rows.
 		for (const id of promotedIDs) {
 			store.markQueuedMessagePromoted(id);
 		}
@@ -195,8 +189,7 @@ export const reconcilePromotedQueuedMessages = (
 	return next;
 };
 
-// Promoted rows are hidden locally, but another tab can queue or
-// promote concurrently, so only the server knows the resulting queue.
+// Refetch after promotion to include concurrent queue changes from other clients.
 export const settlePromotedQueuedMessages = async (
 	store: Pick<
 		ChatStore,
