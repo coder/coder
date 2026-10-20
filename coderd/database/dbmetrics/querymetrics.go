@@ -3576,6 +3576,14 @@ func (m queryMetricsStore) GetUserByID(ctx context.Context, id uuid.UUID) (datab
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserChatCompactionStrategy(ctx context.Context, userID uuid.UUID) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserChatCompactionStrategy(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserChatCompactionStrategy").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserChatCompactionStrategy").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserChatCompactionThreshold(ctx context.Context, arg database.GetUserChatCompactionThresholdParams) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserChatCompactionThreshold(ctx, arg)
@@ -7063,6 +7071,14 @@ func (m queryMetricsStore) UpsertUserAIProviderKey(ctx context.Context, arg data
 	m.queryLatencies.WithLabelValues("UpsertUserAIProviderKey").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertUserAIProviderKey").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) UpsertUserChatCompactionStrategy(ctx context.Context, arg database.UpsertUserChatCompactionStrategyParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertUserChatCompactionStrategy(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertUserChatCompactionStrategy").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertUserChatCompactionStrategy").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) UpsertUserChatDebugLoggingEnabled(ctx context.Context, arg database.UpsertUserChatDebugLoggingEnabledParams) error {

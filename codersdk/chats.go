@@ -1269,6 +1269,37 @@ type UpdateUserChatCompactionThresholdRequest struct {
 	ThresholdPercent int32 `json:"threshold_percent" validate:"min=0,max=100"`
 }
 
+// ChatCompactionStrategy selects how chatd keeps a long chat within the
+// model's context window.
+//
+// EXPERIMENTAL: this type is experimental and is subject to change.
+type ChatCompactionStrategy string
+
+const (
+	// ChatCompactionStrategySummarize replaces older history with a
+	// summary at the compaction threshold.
+	ChatCompactionStrategySummarize ChatCompactionStrategy = "summarize"
+	// ChatCompactionStrategyTokenBudget asks the agent to save a
+	// checkpoint and starts a fresh context window instead of
+	// summarizing.
+	ChatCompactionStrategyTokenBudget ChatCompactionStrategy = "token_budget"
+)
+
+// ValidChatCompactionStrategies lists every accepted
+// ChatCompactionStrategy value.
+var ValidChatCompactionStrategies = []ChatCompactionStrategy{
+	ChatCompactionStrategySummarize,
+	ChatCompactionStrategyTokenBudget,
+}
+
+// UserChatCompactionStrategy is the request and response body for the
+// user chat compaction strategy endpoint.
+//
+// EXPERIMENTAL: this type is experimental and is subject to change.
+type UserChatCompactionStrategy struct {
+	Strategy ChatCompactionStrategy `json:"strategy" enums:"summarize,token_budget"`
+}
+
 // AdvisorConfig is the deployment-wide runtime configuration for the
 // experimental chat advisor.
 //
@@ -3240,6 +3271,40 @@ func (c *Client) DeleteUserChatCompactionThreshold(ctx context.Context, modelID 
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// GetUserChatCompactionStrategy fetches the user's chat compaction
+// strategy.
+//
+// EXPERIMENTAL: this method is experimental and is subject to change.
+func (c *ExperimentalClient) GetUserChatCompactionStrategy(ctx context.Context) (UserChatCompactionStrategy, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-compaction-strategy", nil)
+	if err != nil {
+		return UserChatCompactionStrategy{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserChatCompactionStrategy{}, ReadBodyAsError(res)
+	}
+	var resp UserChatCompactionStrategy
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// UpdateUserChatCompactionStrategy sets the user's chat compaction
+// strategy.
+//
+// EXPERIMENTAL: this method is experimental and is subject to change.
+func (c *ExperimentalClient) UpdateUserChatCompactionStrategy(ctx context.Context, req UserChatCompactionStrategy) (UserChatCompactionStrategy, error) {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/user-compaction-strategy", req)
+	if err != nil {
+		return UserChatCompactionStrategy{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserChatCompactionStrategy{}, ReadBodyAsError(res)
+	}
+	var resp UserChatCompactionStrategy
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // CreateChat creates a new chat.
