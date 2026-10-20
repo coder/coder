@@ -1,5 +1,5 @@
 import type React from "react";
-import { ScrollableMarkdown } from "./ScrollableMarkdown";
+import { MarkdownToolRow } from "./MarkdownToolRow";
 import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
 
@@ -27,42 +27,6 @@ const SecondaryLabel: React.FC<{ children: React.ReactNode }> = ({
 	</ToolCall.Label>
 );
 
-const MarkdownToolRow: React.FC<
-	ToolRowStatusProps & {
-		iconName: string;
-		label: string;
-		secondaryLabel?: React.ReactNode;
-		bodyLabel: string;
-		body: string;
-	}
-> = ({
-	iconName,
-	label,
-	secondaryLabel,
-	bodyLabel,
-	body,
-	status,
-	isError,
-	errorMessage,
-}) => (
-	<ToolCall.Root
-		className="w-full"
-		status={status}
-		isError={isError}
-		errorMessage={errorMessage}
-		hasContent={body.trim().length > 0}
-	>
-		<ToolCall.Header
-			iconName={iconName}
-			label={label}
-			secondaryLabel={secondaryLabel}
-		/>
-		<ToolCall.Content>
-			<ScrollableMarkdown ariaLabel={bodyLabel}>{body}</ScrollableMarkdown>
-		</ToolCall.Content>
-	</ToolCall.Root>
-);
-
 /**
  * Boundary row for a token budget rollover: a fresh context window that
  * starts from the latest checkpoint, when one was saved, instead of a
@@ -88,7 +52,7 @@ export const ContextRolloverTool: React.FC<
 
 /**
  * The prompt chatd sent when the window reached the handoff target, or the
- * final prompt near the usable limit.
+ * final prompt before chatd forces a rollover.
  */
 export const ContextHandoffTool: React.FC<
 	ToolRowStatusProps & { stage: string; prompt: string }

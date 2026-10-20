@@ -760,12 +760,19 @@ const ChatHistoryRenderer: React.FC<ToolRendererProps> = ({
 	const argsRec = parseArgs(args);
 	const rec = asRecord(result);
 	const results = rec?.windows ?? rec?.items;
+	// The server omits empty result lists from a successful lookup.
+	let resultCount: number | undefined;
+	if (Array.isArray(results)) {
+		resultCount = results.length;
+	} else if (rec?.success === true) {
+		resultCount = 0;
+	}
 	return (
 		<ChatHistoryTool
 			action={asString(argsRec?.action)}
 			searchQuery={asString(argsRec?.query)}
 			itemId={asString(argsRec?.item_id)}
-			resultCount={Array.isArray(results) ? results.length : undefined}
+			resultCount={resultCount}
 			hasMore={rec?.has_more === true}
 			errorCode={asString(rec?.error)}
 			status={status}

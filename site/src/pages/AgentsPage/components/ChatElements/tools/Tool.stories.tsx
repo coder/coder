@@ -224,7 +224,7 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 	{
 		name: "chat_history",
 		args: { action: "search", query: "settings" },
-		result: { success: true, items: [] },
+		result: { success: true },
 	},
 	{
 		name: "propose_plan",
@@ -1460,6 +1460,16 @@ export const NewContextRunning: Story = {
 		args: {},
 		status: "running",
 		result: undefined,
+	},
+};
+
+export const NewContextError: Story = {
+	args: {
+		name: "new_context",
+		args: {},
+		result: { error: "tool call was cancelled" },
+		status: "error",
+		isError: true,
 	},
 };
 
