@@ -436,10 +436,12 @@ func TestChatACLNoncanonicalIDs(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
+	notifyEnq := &notificationstest.FakeEnqueuer{}
 	store, pubsub := dbtestutil.NewDB(t)
 	client := newChatClient(t, func(opts *coderdtest.Options) {
 		opts.Database = store
 		opts.Pubsub = pubsub
+		opts.NotificationsEnqueuer = notifyEnq
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModel(t, client)
@@ -453,42 +455,71 @@ func TestChatACLNoncanonicalIDs(t *testing.T) {
 		codersdk.NewExperimentalClient(userClient),
 		codersdk.NewExperimentalClient(groupMemberClient),
 	}
-	uppercaseRoles := func(role codersdk.ChatRole) codersdk.UpdateChatACL {
+	roles := func(spell func(string) string, role codersdk.ChatRole) codersdk.UpdateChatACL {
 		return codersdk.UpdateChatACL{
-			UserRoles:  map[string]codersdk.ChatRole{strings.ToUpper(user.ID.String()): role},
-			GroupRoles: map[string]codersdk.ChatRole{strings.ToUpper(group.ID.String()): role},
+			UserRoles:  map[string]codersdk.ChatRole{spell(user.ID.String()): role},
+			GroupRoles: map[string]codersdk.ChatRole{spell(group.ID.String()): role},
 		}
 	}
+	canonical := func(id string) string { return id }
 
-	require.NoError(t, client.UpdateChatACL(ctx, chat.ID, uppercaseRoles(codersdk.ChatRoleRead)))
+	require.NoError(t, client.UpdateChatACL(ctx, chat.ID, roles(strings.ToUpper, codersdk.ChatRoleRead)))
 	for _, reader := range readers {
 		_, err := reader.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
 	}
 
-	require.NoError(t, client.UpdateChatACL(ctx, chat.ID, uppercaseRoles(codersdk.ChatRoleDeleted)))
+	require.NoError(t, client.UpdateChatACL(ctx, chat.ID, roles(strings.ToUpper, codersdk.ChatRoleDeleted)))
 	for _, reader := range readers {
 		_, err := reader.GetChat(ctx, chat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
 	}
 
-	// Older servers stored request keys as sent. Such an entry must be
-	// removable by its own spelling or by the canonical one.
+	// Older servers stored request keys as sent. A request that names a
+	// principal by any spelling must leave at most its canonical key.
 	readEntry := database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
-	err := store.UpdateChatACLByID(ctx, database.UpdateChatACLByIDParams{
-		ID:       chat.ID,
-		UserACL:  database.ChatACL{strings.ToUpper(user.ID.String()): readEntry},
-		GroupACL: database.ChatACL{strings.ToUpper(group.ID.String()): readEntry},
-	})
-	require.NoError(t, err)
-	require.NoError(t, client.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
-		UserRoles:  map[string]codersdk.ChatRole{strings.ToUpper(user.ID.String()): codersdk.ChatRoleDeleted},
-		GroupRoles: map[string]codersdk.ChatRole{group.ID.String(): codersdk.ChatRoleDeleted},
-	}))
-	acl, err := client.GetChatACL(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Empty(t, acl.Users)
-	require.Empty(t, acl.Groups)
+	seedLegacyKeys := func() {
+		t.Helper()
+		err := store.UpdateChatACLByID(ctx, database.UpdateChatACLByIDParams{
+			ID:       chat.ID,
+			UserACL:  database.ChatACL{strings.ToUpper(user.ID.String()): readEntry},
+			GroupACL: database.ChatACL{strings.ToUpper(group.ID.String()): readEntry},
+		})
+		require.NoError(t, err)
+	}
+	storedChat := func() database.Chat {
+		t.Helper()
+		stored, err := store.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		return stored
+	}
+	for _, spell := range []func(string) string{canonical, strings.ToUpper} {
+		seedLegacyKeys()
+		require.NoError(t, client.UpdateChatACL(ctx, chat.ID, roles(spell, codersdk.ChatRoleDeleted)))
+		stored := storedChat()
+		require.Empty(t, stored.UserACL)
+		require.Empty(t, stored.GroupACL)
+	}
+
+	seedLegacyKeys()
+	require.NoError(t, client.UpdateChatACL(ctx, chat.ID, roles(strings.ToUpper, codersdk.ChatRoleRead)))
+	stored := storedChat()
+	require.Equal(t, database.ChatACL{user.ID.String(): readEntry}, stored.UserACL)
+	require.Equal(t, database.ChatACL{group.ID.String(): readEntry}, stored.GroupACL)
+	for _, reader := range readers {
+		_, err := reader.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+	}
+	// The first share above notified the user once. The legacy entry granted
+	// nothing, so its replacement notifies the user again.
+	var sent []*notificationstest.FakeNotification
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateChatShared))
+		return len(sent) == 2
+	}, testutil.IntervalFast)
+	for _, notification := range sent {
+		require.Equal(t, user.ID, notification.UserID)
+	}
 }
 
 func TestSharedReaderStreamChat(t *testing.T) {
