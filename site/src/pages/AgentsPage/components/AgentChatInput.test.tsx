@@ -15,6 +15,7 @@ import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
+import { MockChatProject } from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
@@ -231,6 +232,9 @@ describe("AgentChatInput", () => {
 		const getChatProjectSkills = vi
 			.spyOn(API.experimental, "getChatProjectSkills")
 			.mockResolvedValue([{ ...MockSkill, name: "project-conventions" }]);
+		vi.spyOn(API.experimental, "getChatProjects").mockResolvedValue([
+			{ ...MockChatProject, id: "project-1" },
+		]);
 
 		render(
 			<AppProviders queryClient={createTestQueryClient()}>

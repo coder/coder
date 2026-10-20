@@ -35,8 +35,10 @@ import {
 import { useQuery } from "react-query";
 import {
 	chatProjectSkills,
-	isChatProjectAccessError,
+	chatProjectUsability,
+	usableChatProjectSkills,
 } from "#/api/queries/chatProjectSkills";
+import { chatProject } from "#/api/queries/chatProjects";
 import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -729,6 +731,25 @@ const ChatMessageInput = ({
 		chatProjectSkills(organizationId ?? "", projectId ?? ""),
 		{ hasSource: hasProject, isTriggerActive: hasSkillsTrigger },
 	);
+	const projectQuery = useQuery({
+		...chatProject(projectId),
+		enabled: hasProject && hasSkillsTrigger,
+		staleTime: 60_000,
+	});
+	const projectUsability = chatProjectUsability(
+		projectQuery,
+		projectSource.error,
+	);
+	// While the caller's project list is unsettled, the menu shows the
+	// project source as loading or failed, as it does for the skills request.
+	const isProjectUsabilityUnknown =
+		hasProject && projectUsability === "unknown";
+	const isProjectLoading =
+		projectSource.isLoading ||
+		(isProjectUsabilityUnknown && projectQuery.isFetching);
+	const isProjectError =
+		projectSource.isError ||
+		(isProjectUsabilityUnknown && projectQuery.isError);
 	// chatd skips disabled skills, so they never offer or collide.
 	const personalSkills = (personalSkillsOverride ?? skillsQuery.data)?.filter(
 		(skill) => skill.enabled,
@@ -738,16 +759,17 @@ const ChatMessageInput = ({
 	// A list stays undefined until its source loads, even after an error,
 	// which keeps triggers qualified and built-in commands hidden. A chat
 	// without an organization, project, or workspace has a known empty list.
-	// Losing access to the project is the exception: chatd then runs turns
-	// without project skills, so the list is known to be empty.
+	// Project skills also wait for the caller's project list, and losing the
+	// use of the project gives a known empty list, because chatd then runs
+	// turns without project skills.
 	const skillLists: SkillSourceList<SkillMetadata>[] = [
 		{ source: "personal", skills: personalSkills },
 		{ source: "org", skills: organizationSource.skills },
 		{
 			source: "project",
-			skills: isChatProjectAccessError(projectSource.error)
-				? []
-				: projectSource.skills,
+			skills: hasProject
+				? usableChatProjectSkills(projectUsability, projectSource.skills)
+				: [],
 		},
 		{ source: "workspace", skills: loadedWorkspaceSkills },
 	];
@@ -763,7 +785,9 @@ const ChatMessageInput = ({
 		personalSkills?.length === 0 &&
 		(hasPersonalSkillsOverride || !skillsQuery.isFetching) &&
 		organizationSource.isResolvedEmpty &&
-		projectSource.isResolvedEmpty &&
+		(!hasProject ||
+			projectUsability === "unusable" ||
+			(projectUsability === "usable" && projectSource.isResolvedEmpty)) &&
 		loadedWorkspaceSkills?.length === 0;
 	// Without built-in commands, "/" is plain text when every skills
 	// list resolves empty. When only the filtered result is empty,
@@ -1074,7 +1098,7 @@ const ChatMessageInput = ({
 					skillsLoading={
 						isPersonalSkillsLoading ||
 						organizationSource.isLoading ||
-						projectSource.isLoading ||
+						isProjectLoading ||
 						isWorkspaceSkillsLoading
 					}
 					selectedIndex={selectedSkillIndex}
@@ -1107,8 +1131,8 @@ const ChatMessageInput = ({
 					}
 					isOrganizationLoading={organizationSource.isLoading}
 					isOrganizationError={organizationSource.isError}
-					isProjectLoading={projectSource.isLoading}
-					isProjectError={projectSource.isError}
+					isProjectLoading={isProjectLoading}
+					isProjectError={isProjectError}
 					isWorkspaceLoading={isWorkspaceSkillsLoading}
 					selectedIndex={selectedSkillIndex}
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}

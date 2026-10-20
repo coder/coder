@@ -11,8 +11,10 @@ import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import {
 	chatProjectSkills,
-	isChatProjectAccessError,
+	chatProjectUsability,
+	usableChatProjectSkills,
 } from "#/api/queries/chatProjectSkills";
+import { chatProject } from "#/api/queries/chatProjects";
 import {
 	chatMessagesForInfiniteScroll,
 	chatModels,
@@ -339,6 +341,14 @@ const AgentChatPage: React.FC = () => {
 		enabled: hasChatProject,
 		staleTime: 60_000,
 	});
+	const chatProjectQuery = useQuery({
+		...chatProject(chatProjectId),
+		enabled: hasChatProject,
+	});
+	const projectUsability = chatProjectUsability(
+		chatProjectQuery,
+		projectSkillsQuery.error,
+	);
 	const chatWorkspaceSkills = workspaceSkillsFromChat(chatQuery.data);
 	const { mutateAsync: deleteQueuedMessage } = useMutation(
 		deleteChatQueuedMessage(queryClient, agentId),
@@ -650,13 +660,15 @@ const AgentChatPage: React.FC = () => {
 		organizationSkills: organizationSkillsQuery.data?.filter(
 			(skill) => skill.enabled,
 		),
-		// Unlike the lists above, losing access to the project means no
+		// Unlike the lists above, losing the use of the project means no
 		// project skills, even if some loaded earlier, because chatd then
 		// runs turns without them.
-		projectSkills:
-			hasChatProject && !isChatProjectAccessError(projectSkillsQuery.error)
-				? projectSkillsQuery.data?.filter((skill) => skill.enabled)
-				: [],
+		projectSkills: hasChatProject
+			? usableChatProjectSkills(
+					projectUsability,
+					projectSkillsQuery.data?.filter((skill) => skill.enabled),
+				)
+			: [],
 		workspaceSkills: chatWorkspaceSkills,
 		compact,
 		clearChatContext,

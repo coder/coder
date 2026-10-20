@@ -96,52 +96,6 @@ const (
 	CompactionSourceManual    CompactionSource = "manual"
 )
 
-type CompactionOptions struct {
-	ThresholdPercent    int32
-	ContextLimit        int64
-	SummaryPrompt       string
-	SummaryHint         string
-	SystemSummaryPrefix string
-	DebugSvc            *chatdebug.Service
-	ChatID              uuid.UUID
-	HistoryTipMessageID int64
-
-	ResolvedProvider string
-	ResolvedModel    string
-	ModelConfigID    uuid.UUID
-	SummaryCall      fantasy.Call
-	// ToolDefinitions is copied from the parent generation request so the
-	// summary call uses the exact same ordered definitions.
-	ToolDefinitions []fantasy.Tool
-
-	// Logger records summary requests the model rejects for their size.
-	Logger slog.Logger
-
-	// Clock and StreamSilenceTimeout guard the summary stream against a
-	// provider that opens the stream but stops yielding parts. Zero values
-	// fall back to a real clock and DefaultStreamSilenceTimeout.
-	Clock                quartz.Clock
-	StreamSilenceTimeout time.Duration
-
-	// Force skips the threshold gate (including the threshold=100
-	// disable and the zero-usage early return). Set for manual,
-	// user-requested compactions.
-	Force bool
-	// Source labels what triggered the compaction. Defaults to
-	// CompactionSourceAutomatic when empty.
-	Source CompactionSource
-
-	// ToolCallID and ToolName identify the synthetic tool call
-	// used to represent compaction in the message stream.
-	ToolCallID string
-	ToolName   string
-
-	// PublishMessagePart publishes streaming parts to connected
-	// clients so they see "Summarizing..." / "Summarized" UI
-	// transitions during compaction.
-	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
-}
-
 // CompactionResult is one generated summary. ThresholdPercent and
 // TriggerContextLimit echo the requested trigger, not the normalized one, so
 // chatd's summaryRecordedUnderOtherTrigger compares like with like;
@@ -295,30 +249,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 	return result, nil
 }
 
-func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (CompactionOptions, bool) {
-	config := CompactionOptions{
-		ThresholdPercent:     opts.ThresholdPercent,
-		ContextLimit:         opts.ContextLimit,
-		SummaryPrompt:        opts.SummaryPrompt,
-		SummaryHint:          opts.SummaryHint,
-		SystemSummaryPrefix:  opts.SystemSummaryPrefix,
-		DebugSvc:             opts.DebugSvc,
-		ChatID:               opts.ChatID,
-		HistoryTipMessageID:  opts.HistoryTipMessageID,
-		ResolvedProvider:     opts.ResolvedProvider,
-		ResolvedModel:        opts.ResolvedModel,
-		ModelConfigID:        opts.ModelConfigID,
-		SummaryCall:          opts.SummaryCall,
-		ToolDefinitions:      opts.ToolDefinitions,
-		Force:                opts.Force,
-		Source:               opts.Source,
-		ToolCallID:           opts.ToolCallID,
-		ToolName:             opts.ToolName,
-		PublishMessagePart:   opts.PublishMessagePart,
-		Clock:                opts.Clock,
-		StreamSilenceTimeout: opts.StreamSilenceTimeout,
-		Logger:               opts.Logger,
-	}
+func normalizedCompactionGenerateConfig(config GenerateCompactionOptions) (GenerateCompactionOptions, bool) {
 	if strings.TrimSpace(config.SummaryPrompt) == "" {
 		config.SummaryPrompt = defaultCompactionSummaryPrompt
 	}
@@ -335,14 +266,14 @@ func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (Compact
 	// threshold=100 disables automatic compaction; a forced run
 	// still proceeds because the user asked explicitly.
 	if config.ThresholdPercent == CompactionDisabledThresholdPercent && !config.Force {
-		return CompactionOptions{}, false
+		return GenerateCompactionOptions{}, false
 	}
 	return config, true
 }
 
 // publishCompactionError sends a tool-result error part so
 // connected clients see that compaction failed.
-func publishCompactionError(config CompactionOptions, msg string) {
+func publishCompactionError(config GenerateCompactionOptions, msg string) {
 	if config.PublishMessagePart == nil || config.ToolCallID == "" {
 		return
 	}
@@ -438,7 +369,7 @@ func shouldCompact(contextTokens, contextLimit int64, thresholdPercent int32) (f
 
 func startCompactionDebugRun(
 	ctx context.Context,
-	options CompactionOptions,
+	options GenerateCompactionOptions,
 ) (context.Context, func(error)) {
 	if options.DebugSvc == nil || options.ChatID == uuid.Nil {
 		return ctx, func(error) {}
@@ -537,7 +468,7 @@ func generateCompactionSummary(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	messages []fantasy.Message,
-	options CompactionOptions,
+	options GenerateCompactionOptions,
 ) (summary string, responseID string, err error) {
 	summaryParts := []fantasy.MessagePart{fantasy.TextPart{Text: options.SummaryPrompt}}
 	if strings.TrimSpace(options.SummaryHint) != "" {

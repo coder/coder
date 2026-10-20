@@ -4,13 +4,16 @@ import { createRef, useLayoutEffect, useRef, useState } from "react";
 import { type QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
+import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type {
 	AgentChatSendShortcut,
+	ChatProject,
 	SkillMetadata,
 } from "#/api/typesGenerated";
+import { MockChatProject } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
@@ -269,19 +272,23 @@ describe("ChatMessageInput", () => {
 			personal,
 			organization,
 			projectId,
+			projects = projectId ? [{ ...MockChatProject, id: projectId }] : [],
 			staleProject,
+			queryClient = createTestQueryClient(),
 		}: {
 			personal: SkillMetadata[];
 			organization?: SkillMetadata[];
 			projectId?: string;
+			projects?: ChatProject[];
 			// Project skills loaded long ago, so opening the menu refetches.
 			staleProject?: SkillMetadata[];
+			queryClient?: QueryClient;
 		}) => {
-			const queryClient = createTestQueryClient();
 			queryClient.setQueryData(userSkills().queryKey, personal);
+			vi.spyOn(API.experimental, "getChatProjects").mockResolvedValue(projects);
 			if (projectId && staleProject) {
 				queryClient.setQueryData(
-					chatProjectSkills(organizationId, projectId).queryKey,
+					chatProjectSkillsKey(projectId),
 					staleProject,
 					{ updatedAt: 0 },
 				);
@@ -378,20 +385,50 @@ describe("ChatMessageInput", () => {
 				isAxiosError: true,
 				response: { status: 404, data: { message: "Project not found." } },
 			});
+			const queryClient = createTestQueryClient();
 			const inputRef = renderWithSkills({
-				personal: [],
+				personal: [mockReviewerSkill],
 				organization: [],
 				projectId: "project-1",
-				staleProject: [
-					{ ...MockSkill, name: "compact", description: "Project compact" },
-				],
+				staleProject: [mockReviewerSkill],
+				queryClient,
 			});
-			const user = await pasteTrigger("/comp");
+			const user = await pasteTrigger("/rev");
 			await waitFor(() => {
-				expect(screen.queryByText("Project compact")).not.toBeInTheDocument();
+				expect(
+					queryClient.getQueryState(chatProjectSkillsKey("project-1"))?.status,
+				).toBe("error");
 			});
 			await user.keyboard("{Enter}");
-			expect(inputRef.current?.getValue()).toBe("/compact");
+			// Without a project reviewer to collide with, the trigger stays bare.
+			expect(inputRef.current?.getValue()).toBe("/reviewer");
+		});
+
+		it("drops project skills when the caller's project list lacks the project", async () => {
+			// An administrator role can read the skills of a project that is
+			// not shared with the caller, but chatd does not load them.
+			vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([
+				mockReviewerSkill,
+			]);
+			const queryClient = createTestQueryClient();
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [],
+				projectId: "project-1",
+				projects: [],
+				queryClient,
+			});
+			const user = await pasteTrigger("/rev");
+			await waitFor(() => {
+				expect(
+					queryClient.getQueryState(chatProjectSkillsKey("project-1"))?.status,
+				).toBe("success");
+				expect(queryClient.getQueryState(chatProjectsKey)?.status).toBe(
+					"success",
+				);
+			});
+			await user.keyboard("{Enter}");
+			expect(inputRef.current?.getValue()).toBe("/reviewer");
 		});
 
 		it("hides built-in commands when the project list fails transiently", async () => {
