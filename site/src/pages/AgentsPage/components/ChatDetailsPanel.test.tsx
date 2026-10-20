@@ -9,6 +9,7 @@ import {
 	MockChatContextClean,
 	MockChatContextDirty,
 } from "#/testHelpers/chatEntities";
+import { createChatStore } from "./ChatConversation/chatStore";
 import { ChatDetailsPanel } from "./ChatDetailsPanel";
 
 vi.mock("#/modules/dashboard/useFeatureVisibility", () => ({
@@ -28,6 +29,12 @@ const props: React.ComponentProps<typeof ChatDetailsPanel> = {
 		},
 		context: MockChatContextDirty,
 	},
+	store: createChatStore(),
+	hasMoreMessages: false,
+	isFetchingMoreMessages: false,
+	isHydratingMessages: false,
+	hasFetchMoreError: false,
+	onFetchMoreMessages: vi.fn(),
 };
 function setup(overrides: Partial<typeof props> = {}) {
 	const client = new QueryClient({

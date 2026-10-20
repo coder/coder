@@ -12,6 +12,7 @@ import type {
 	ChatProject,
 	ChatProjectInstructions,
 } from "#/api/typesGenerated";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import {
 	MockChatProject,
@@ -22,6 +23,23 @@ import {
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
 import { ProjectDetailsPanel } from "./ProjectDetailsPanel";
+
+vi.mock("#/hooks/useAuthenticated", async () => {
+	const { MockUserOwner } = await import("#/testHelpers/entities");
+	return {
+		useAuthenticated: () => ({ user: MockUserOwner, permissions: {} }),
+	};
+});
+
+vi.mock("#/modules/dashboard/useDashboard", async () => {
+	const { MockDefaultOrganization } = await import("#/testHelpers/entities");
+	return {
+		useDashboard: () => ({
+			organizations: [MockDefaultOrganization],
+			showOrganizations: true,
+		}),
+	};
+});
 
 const mockInstructions = (instructions: ChatProjectInstructions) =>
 	vi
@@ -57,16 +75,18 @@ const confirmDelete = async (user: ReturnType<typeof userEvent.setup>) => {
 	);
 };
 
-const renderPanel = (project: ChatProject = MockChatProject) => {
+const renderPanel = () => {
 	const queryClient = createTestQueryClient();
 	const panel = (project: ChatProject) => (
 		<ThemeOverride theme={themes[DEFAULT_THEME]}>
 			<QueryClientProvider client={queryClient}>
-				<ProjectDetailsPanel project={project} />
+				<TooltipProvider>
+					<ProjectDetailsPanel project={project} />
+				</TooltipProvider>
 			</QueryClientProvider>
 		</ThemeOverride>
 	);
-	const { rerender } = render(panel(project));
+	const { rerender } = render(panel(MockChatProject));
 	return {
 		user: userEvent.setup(),
 		queryClient,
@@ -91,7 +111,9 @@ describe("ProjectDetailsPanel", () => {
 		const getInstructions = mockInstructions(MockUnsetChatProjectInstructions);
 		const { user, queryClient } = renderPanel();
 
-		await user.click(await screen.findByRole("button", { name: "Create" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Create instructions" }),
+		);
 		await user.type(
 			screen.getByRole("textbox", { name: "Instructions" }),
 			text,
@@ -210,7 +232,9 @@ describe("ProjectDetailsPanel", () => {
 		mockInstructions(MockUnsetChatProjectInstructions);
 		const { user } = renderPanel();
 
-		await user.click(await screen.findByRole("button", { name: "Create" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Create instructions" }),
+		);
 		const textbox = screen.getByRole("textbox", { name: "Instructions" });
 		await user.type(textbox, "Too long");
 		await user.click(screen.getByRole("button", { name: "Save" }));
@@ -265,7 +289,9 @@ describe("ProjectDetailsPanel", () => {
 		mockInstructions(MockUnsetChatProjectInstructions);
 		const { user } = renderPanel();
 
-		await user.click(await screen.findByRole("button", { name: "Create" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Create instructions" }),
+		);
 		await user.type(
 			screen.getByRole("textbox", { name: "Instructions" }),
 			"Be brief.",
@@ -291,7 +317,9 @@ describe("ProjectDetailsPanel", () => {
 		mockInstructions(MockUnsetChatProjectInstructions);
 		const { user } = renderPanel();
 
-		await user.click(await screen.findByRole("button", { name: "Create" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Create instructions" }),
+		);
 		await user.type(
 			screen.getByRole("textbox", { name: "Instructions" }),
 			"Be brief.",

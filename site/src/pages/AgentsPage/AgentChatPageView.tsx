@@ -1,9 +1,7 @@
 import { cn } from "cn";
 import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
-import { invalidateChatDiffContents } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -30,8 +28,7 @@ import {
 import type { ChatDetailError } from "./components/ChatConversation/chatError";
 import {
 	selectChatStatus,
-	selectMessagesByID,
-	selectOrderedMessageIDs,
+	useChatMessages,
 	useChatSelector,
 	type useChatStore,
 } from "./components/ChatConversation/chatStore";
@@ -322,7 +319,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	onMCPAuthComplete,
 	desktopChatId,
 }) => {
-	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
 	const { entitlements } = useDashboard();
 	const { permissions, user: currentUser } = useAuthenticated();
@@ -331,12 +327,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const organizationId = chat.organization_id;
 	const isArchived = chat.archived;
 	const isOtherUserReadOnly = !isArchived && currentUser.id !== chat.owner_id;
-	const messagesByID = useChatSelector(store, selectMessagesByID);
-	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
-	const contextMessages = orderedMessageIDs.flatMap((id) => {
-		const message = messagesByID.get(id);
-		return message ? [message] : [];
-	});
+	const contextMessages = useChatMessages(store);
 	const contextState = useChatContext({
 		chat,
 		messages: contextMessages,
@@ -356,16 +347,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		useChatSelector(store, selectChatStatus) ?? chat.status;
 
 	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
-
-	// Wrap the git watcher refresh to also invalidate the cached
-	// remote/PR diff contents so the panel re-fetches from GitHub.
-	const handleRefresh = () => {
-		const sent = gitWatcher.refresh();
-		if (sent && agentId) {
-			void invalidateChatDiffContents(queryClient, agentId);
-		}
-		return sent;
-	};
 
 	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
 	// The turn already running when the page loaded must not anchor the
@@ -741,6 +722,12 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								: workspaceAgent?.status
 						}
 						isVisible={shouldShowSidebar && effectiveSidebarTabId === "summary"}
+						store={store}
+						hasMoreMessages={hasMoreMessages}
+						isFetchingMoreMessages={isFetchingMoreMessages}
+						isHydratingMessages={isHydratingMessages}
+						hasFetchMoreError={hasFetchMoreError}
+						onFetchMoreMessages={onFetchMoreMessages}
 					/>
 				);
 			case "git":
@@ -753,7 +740,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							workspaceAgent?.status === "connected" &&
 							!gitWatcher.hasReceivedChanges
 						}
-						onRefresh={handleRefresh}
+						onRefresh={gitWatcher.refresh}
 						isExpanded={visualExpanded}
 						remoteDiffStats={chat.diff_statuses}
 						primaryDiffStatus={chat.diff_status}

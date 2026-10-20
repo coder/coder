@@ -1329,8 +1329,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const content = (
 		<div
 			className={cn(
-				"mx-auto w-full pb-0 sm:pb-4",
-				fillWidth ? "max-w-full" : chatWidthClass(chatFullWidth),
+				"mx-auto w-full",
+				fillWidth
+					? "max-w-full"
+					: [chatWidthClass(chatFullWidth), "pb-0 sm:pb-4"],
 				isEditingHistoryMessage && "pt-1",
 			)}
 		>

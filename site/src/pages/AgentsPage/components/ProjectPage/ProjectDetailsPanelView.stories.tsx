@@ -1,10 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 import {
+	MockChatProject,
 	MockChatProjectInstructions,
 	MockUnsetChatProjectInstructions,
 	mockApiError,
 } from "#/testHelpers/entities";
+import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { ProjectDetailsPanelView } from "./ProjectDetailsPanelView";
 
 const meta: Meta<typeof ProjectDetailsPanelView> = {
@@ -12,12 +14,14 @@ const meta: Meta<typeof ProjectDetailsPanelView> = {
 	component: ProjectDetailsPanelView,
 	decorators: [
 		(Story) => (
-			<div className="max-w-[30rem]">
+			<div className="max-w-[310px]">
 				<Story />
 			</div>
 		),
 	],
 	args: {
+		ownerLabel: "You",
+		createdAt: MockChatProject.created_at,
 		instructions: MockChatProjectInstructions,
 		error: undefined,
 		onRetry: fn(),
@@ -27,6 +31,72 @@ const meta: Meta<typeof ProjectDetailsPanelView> = {
 
 export default meta;
 type Story = StoryObj<typeof ProjectDetailsPanelView>;
+
+export const Default: Story = {};
+
+/** Users without update permission, such as `use` sharees, cannot edit. */
+export const WithoutUpdatePermission: Story = {
+	args: { onEditInstructions: undefined },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText(/Run the linters before committing/);
+		expect(
+			canvas.queryByRole("button", { name: "Edit instructions" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const UnsetWithoutUpdatePermission: Story = {
+	args: {
+		instructions: MockUnsetChatProjectInstructions,
+		onEditInstructions: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("No instructions");
+		expect(
+			canvas.queryByRole("button", { name: "Create instructions" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const WithOrganization: Story = {
+	args: { organizationLabel: "Coder" },
+};
+
+export const OwnerLoading: Story = {
+	args: { ownerLabel: undefined },
+};
+
+export const OtherOwner: Story = {
+	args: { ownerLabel: "Jane Doe" },
+};
+
+export const OwnerUnknown: Story = {
+	args: { ownerLabel: "Unknown" },
+};
+
+/** Long owner and organization names wrap so they stay readable. */
+export const LongNames: Story = {
+	args: {
+		ownerLabel: "bartholomewmontgomeryfitzgerald1",
+		organizationLabel: "Platform-Infrastructure-Engineering-Europe",
+	},
+};
+
+/** Keyboard focus on the creation date shows the full timestamp. */
+export const CreatedDateFocused: Story = {
+	play: async ({ canvasElement }) => {
+		within(canvasElement)
+			.getByRole("button", {
+				name: formatDateTime(
+					MockChatProject.created_at,
+					DATE_FORMAT.MEDIUM_DATE,
+				),
+			})
+			.focus();
+	},
+};
 
 export const Unset: Story = {
 	args: { instructions: MockUnsetChatProjectInstructions },
@@ -53,6 +123,15 @@ export const Loading: Story = {
 export const LoadError: Story = {
 	args: {
 		instructions: undefined,
+		error: mockApiError({
+			message: "Failed to get chat project instructions.",
+		}),
+	},
+};
+
+/** A failed refetch keeps the cached instructions and shows the error. */
+export const RefetchError: Story = {
+	args: {
 		error: mockApiError({
 			message: "Failed to get chat project instructions.",
 		}),

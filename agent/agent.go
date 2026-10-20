@@ -128,10 +128,10 @@ type Options struct {
 }
 
 type Client interface {
-	// ConnectRPC212WithRole connects to the Agent API v2.12. The workspace
+	// ConnectRPC215WithRole connects to the Agent API v2.15. The workspace
 	// agent should use role "agent" to enable connection monitoring.
-	ConnectRPC212WithRole(ctx context.Context, role string) (
-		proto.DRPCAgentClient212, tailnetproto.DRPCTailnetClient28, error,
+	ConnectRPC215WithRole(ctx context.Context, role string) (
+		proto.DRPCAgentClient215, tailnetproto.DRPCTailnetClient28, error,
 	)
 	tailnet.DERPMapRewriter
 	agentsdk.RefreshableSessionTokenProvider
@@ -422,6 +422,7 @@ func (a *agent) init() {
 		LogDir:      a.logDir,
 		DataDirBase: a.scriptDataDir,
 		Logger:      a.logger,
+		Clock:       a.clock,
 		SSHServer:   sshSrv,
 		Filesystem:  a.filesystem,
 		GetScriptLogger: func(logSourceID uuid.UUID) agentscripts.ScriptLogger {
@@ -1008,7 +1009,7 @@ func (a *agent) run() (retErr error) {
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs.
 	// We pass role "agent" to enable connection monitoring on the server, which tracks
 	// the agent's connectivity state (first_connected_at, last_connected_at, disconnected_at).
-	aAPI, tAPI, err := a.client.ConnectRPC212WithRole(a.hardCtx, "agent")
+	aAPI, tAPI, err := a.client.ConnectRPC215WithRole(a.hardCtx, "agent")
 	if err != nil {
 		return err
 	}
@@ -1550,6 +1551,11 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 	// using its basepath to construct a path based port proxy.
 	if manifest.VSCodePortProxyURI != "" {
 		envs["VSCODE_PROXY_URI"] = manifest.VSCodePortProxyURI
+	}
+
+	// Older servers do not send the build ID.
+	if manifest.WorkspaceBuildID != uuid.Nil {
+		envs["CODER_WORKSPACE_BUILD_ID"] = manifest.WorkspaceBuildID.String()
 	}
 
 	// Allow any of the current env to override what we defined above.
@@ -2354,6 +2360,14 @@ lifecycleWaitLoop:
 	err = a.logSender.WaitUntilEmpty(a.hardCtx)
 	if err != nil {
 		a.logger.Warn(context.Background(), "timed out waiting for all logs to be sent", slog.Error(err))
+	}
+
+	// Wait for the connections closed by this shutdown to report their
+	// disconnects, and for those reports to be sent, so coderd can record why
+	// each connection closed.
+	err = a.connectionReporter.waitUntilReported(a.hardCtx)
+	if err != nil {
+		a.logger.Warn(context.Background(), "timed out waiting for all connection reports to be sent", slog.Error(err))
 	}
 
 	a.hardCancel()

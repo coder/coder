@@ -2,14 +2,19 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import { chat, chatCost } from "#/api/queries/chats";
+import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatContext, FeatureName } from "#/api/typesGenerated";
 import {
 	MockChat,
 	MockChatContextClean,
 	MockChatContextDirty,
+	MockChatFileMetadata,
+	MockChatMessage,
 } from "#/testHelpers/chatEntities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import type { ResolvedCompactionThreshold } from "../compactionTriggers";
+import { createChatStore } from "./ChatConversation/chatStore";
+import { attachmentStepMessages } from "./ChatConversation/storyFixtures";
 import { ChatDetailsPanel } from "./ChatDetailsPanel";
 
 const modelThreshold = (percent: number): ResolvedCompactionThreshold => ({
@@ -59,7 +64,13 @@ const meta: Meta<typeof ChatDetailsPanel> = {
 			context: MockChatContextClean,
 		},
 		onApplyContext: fn(),
+		hasMoreMessages: false,
+		isFetchingMoreMessages: false,
+		isHydratingMessages: false,
+		hasFetchMoreError: false,
+		onFetchMoreMessages: fn(),
 	},
+	render: (args) => <ChatDetailsPanel {...args} store={createChatStore()} />,
 };
 export default meta;
 type Story = StoryObj<typeof ChatDetailsPanel>;
@@ -349,5 +360,102 @@ export const KeyboardFocus: Story = {
 		const canvas = within(canvasElement);
 		canvas.getByRole("button", { name: "Summary" }).focus();
 		await userEvent.tab();
+	},
+};
+
+const mockAttachmentMessages: TypesGen.ChatMessage[] = [
+	{
+		...MockChatMessage,
+		id: 1,
+		role: "user",
+		content: [
+			{ type: "text", text: "Here is the failing log." },
+			{
+				type: "file",
+				media_type: "text/plain",
+				name: "uploaded-ci.log",
+				file_id: "upload-file",
+			},
+		],
+	},
+	...attachmentStepMessages({
+		id: 2,
+		toolCallId: "attach",
+		callAt: 1,
+		toolName: "attach_file",
+		args: { path: "/home/coder/flaky-runs.csv" },
+		file: {
+			type: "file",
+			media_type: "text/csv",
+			name: "flaky-runs.csv",
+			file_id: "runs-file",
+		},
+		result: { name: "flaky-runs.csv" },
+	}),
+	...attachmentStepMessages({
+		id: 5,
+		toolCallId: "screenshot",
+		callAt: 3,
+		toolName: "computer",
+		args: { action: "screenshot" },
+		file: {
+			type: "file",
+			media_type: "image/png",
+			name: "ci-dashboard.png",
+			file_id: "screenshot-file",
+		},
+		result: { data: "", mime_type: "image/png" },
+	}),
+];
+
+const createAttachmentStore = () => {
+	const store = createChatStore();
+	store.replaceMessages(mockAttachmentMessages);
+	return store;
+};
+
+export const WithAttachments: Story = {
+	render: (args) => (
+		<ChatDetailsPanel {...args} store={createAttachmentStore()} />
+	),
+};
+
+export const LoadingMessages: Story = {
+	args: { isHydratingMessages: true },
+};
+
+export const LiveMessageArriving: Story = {
+	args: { isHydratingMessages: true },
+	render: WithAttachments.render,
+};
+
+export const ExpiredAttachment: Story = {
+	render: WithAttachments.render,
+	parameters: {
+		queries: [
+			{
+				key: chat(MockChat.id).queryKey,
+				data: {
+					...MockChat,
+					files: [
+						{
+							...MockChatFileMetadata,
+							id: "screenshot-file",
+							name: "ci-dashboard.png",
+							mime_type: "image/png",
+						},
+					],
+				},
+			},
+			{
+				key: chatCost(MockChat.id).queryKey,
+				data: {
+					chat_id: MockChat.id,
+					total_cost_micros: 1_250_000,
+					request_count: 8,
+					unpriced_request_count: 0,
+				},
+			},
+		],
 	},
 };

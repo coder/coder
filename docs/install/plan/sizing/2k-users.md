@@ -12,7 +12,8 @@ If your needs exceed any of these limits, consider increasing deployment resourc
 |-------|-------------------------------|-------------------|
 | 2000  | 1200                          | 120               |
 
-**Observability**: Deploy monitoring solutions to gather Prometheus metrics and visualize them with Grafana to gain detailed insights into infrastructure and application behavior.
+**Observability**:
+Deploy monitoring solutions to gather Prometheus metrics and visualize them with Grafana to gain detailed insights into infrastructure and application behavior.
 This allows operators to respond quickly to incidents and continuously improve the reliability and performance of the platform.
 
 ## Hardware recommendations

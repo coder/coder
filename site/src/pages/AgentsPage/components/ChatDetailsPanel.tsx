@@ -14,13 +14,20 @@ import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { getContextInventory } from "../utils/chatDetails";
+import { ChatAttachments } from "./ChatAttachments";
 import { getChatCostTreeID } from "./ChatConversation/chatHelpers";
+import { type ChatStore, useChatMessages } from "./ChatConversation/chatStore";
+import {
+	deriveEvictedFileIds,
+	getLoadedAgentAttachments,
+} from "./ChatConversation/messageHelpers";
 import {
 	ContextResourceGroups,
 	ContextResourceIssues,
 	McpResourceList,
 } from "./ChatDetailsResources";
 import { ChatDetailsUsage } from "./ChatDetailsUsage";
+import type { EarlierMessagesProps } from "./ChatMessageScroller";
 import { ChatSummary } from "./ChatSummary";
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 
@@ -35,12 +42,34 @@ type ChatDetailsPanelProps = {
 	applySuccess?: boolean;
 	workspaceStatus?: string;
 	focusRef?: React.RefObject<HTMLDivElement | null>;
-};
+	store: ChatStore;
+} & Pick<
+	EarlierMessagesProps,
+	| "hasMoreMessages"
+	| "isFetchingMoreMessages"
+	| "isHydratingMessages"
+	| "hasFetchMoreError"
+	| "onFetchMoreMessages"
+>;
+
+type AttachmentProps =
+	| "store"
+	| "hasMoreMessages"
+	| "isFetchingMoreMessages"
+	| "isHydratingMessages"
+	| "hasFetchMoreError"
+	| "onFetchMoreMessages";
 
 export const ChatDetailsPanel: React.FC<ChatDetailsPanelProps> = ({
 	chatId,
 	isVisible,
 	focusRef,
+	store,
+	hasMoreMessages,
+	isFetchingMoreMessages,
+	isHydratingMessages,
+	hasFetchMoreError,
+	onFetchMoreMessages,
 	...props
 }) => {
 	const showCost = Boolean(useFeatureVisibility().aibridge);
@@ -69,6 +98,20 @@ export const ChatDetailsPanel: React.FC<ChatDetailsPanelProps> = ({
 			/>
 		);
 	else if (chatQuery.isError) summary = <ErrorAlert error={chatQuery.error} />;
+	const messages = useChatMessages(store);
+	const attachments = (
+		<ChatAttachments
+			attachments={getLoadedAgentAttachments(messages, isHydratingMessages)}
+			evictedFileIds={deriveEvictedFileIds(
+				messages.map((message) => ({ message })),
+				chatData?.files,
+			)}
+			hasMoreMessages={hasMoreMessages}
+			isFetchingMoreMessages={isFetchingMoreMessages}
+			hasFetchMoreError={hasFetchMoreError}
+			onFetchMoreMessages={onFetchMoreMessages}
+		/>
+	);
 	return (
 		<div
 			ref={focusRef}
@@ -77,7 +120,12 @@ export const ChatDetailsPanel: React.FC<ChatDetailsPanelProps> = ({
 			tabIndex={-1}
 			className="h-full min-h-0 overflow-y-auto outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link forced-colors:[&_*]:text-[CanvasText] forced-colors:focus-visible:outline forced-colors:focus-visible:outline-2 forced-colors:focus-visible:outline-[Highlight]"
 		>
-			<DetailsSections key={chatId} {...props} summary={summary} />
+			<DetailsSections
+				key={chatId}
+				{...props}
+				summary={summary}
+				attachments={attachments}
+			/>
 		</div>
 	);
 };
@@ -156,12 +204,17 @@ const DetailsSection: React.FC<{
 };
 
 const DetailsSections: React.FC<
-	Omit<ChatDetailsPanelProps, "chatId" | "isVisible" | "focusRef"> & {
+	Omit<
+		ChatDetailsPanelProps,
+		"chatId" | "isVisible" | "focusRef" | AttachmentProps
+	> & {
 		summary: React.ReactNode;
+		attachments: React.ReactNode;
 	}
 > = ({
 	usage,
 	summary,
+	attachments,
 	workspaceStatus,
 	onApplyContext,
 	isApplyingContext = false,
@@ -342,6 +395,9 @@ const DetailsSections: React.FC<
 						)}
 					/>
 				</DetailsSection>
+			</div>
+			<div className="border-0 border-t border-solid border-border p-4">
+				{attachments}
 			</div>
 		</>
 	);

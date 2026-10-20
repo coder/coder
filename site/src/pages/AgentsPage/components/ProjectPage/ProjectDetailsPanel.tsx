@@ -5,7 +5,10 @@ import {
 	deleteChatProjectInstructions,
 	updateChatProjectInstructions,
 } from "#/api/queries/chatProjects";
+import { user } from "#/api/queries/users";
 import type { ChatProject } from "#/api/typesGenerated";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { ProjectDetailsPanelView } from "./ProjectDetailsPanelView";
 import { ProjectInstructionsDialog } from "./ProjectInstructionsDialog";
 
@@ -27,6 +30,25 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	project,
 }) => {
 	const queryClient = useQueryClient();
+	const { user: me } = useAuthenticated();
+	const { organizations, showOrganizations } = useDashboard();
+	const isOwner = project.owner_id === me.id;
+	const ownerQuery = useQuery({ ...user(project.owner_id), enabled: !isOwner });
+	const ownerLabel = isOwner
+		? "You"
+		: ownerQuery.data
+			? ownerQuery.data.name || ownerQuery.data.username
+			: ownerQuery.isError
+				? "Unknown"
+				: undefined;
+	const organization = organizations.find(
+		(org) => org.id === project.organization_id,
+	);
+	const organizationLabel = showOrganizations
+		? organization
+			? organization.display_name || organization.name
+			: "Unknown"
+		: undefined;
 	const instructionsQuery = useQuery(chatProjectInstructions(project));
 	const updateMutation = useMutation(
 		updateChatProjectInstructions(queryClient, project),
@@ -64,10 +86,13 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	return (
 		<>
 			<ProjectDetailsPanelView
+				ownerLabel={ownerLabel}
+				createdAt={project.created_at}
+				organizationLabel={organizationLabel}
 				instructions={instructionsQuery.data}
 				error={instructionsQuery.error}
 				onRetry={() => void instructionsQuery.refetch()}
-				onEditInstructions={openEditor}
+				onEditInstructions={project.permissions.update ? openEditor : undefined}
 			/>
 			<ProjectInstructionsDialog
 				open={isEditorOpen}
