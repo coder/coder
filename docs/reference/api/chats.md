@@ -1421,7 +1421,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/chats/files?organization=497f6eca-6276-4993-bfeb-53cbbbba6f08 \
-  -H 'Content-Type: image/png' \
+  -H 'Content-Type: */*' \
   -H 'Accept: application/json' \
   -H 'Content-Disposition: attachment; filename="image.png"' \
   -H 'Coder-Session-Token: API_KEY' \
@@ -1432,12 +1432,12 @@ curl -X POST http://coder-server:8080/api/v2/chats/files?organization=497f6eca-6
 
 ### Parameters
 
-| Name                  | In     | Type         | Required | Description                                                                                                                             |
-|-----------------------|--------|--------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------|
-| `organization`        | query  | string(uuid) | true     | Organization ID                                                                                                                         |
-| `purpose`             | query  | string       | false    | File purpose. Workspace files accept any type up to 100 MiB and are copied into the chat's workspace instead of being sent to the model |
-| `Content-Disposition` | header | string       | true     | Attachment disposition carrying the file name                                                                                           |
-| `body`                | body   | string       | true     | Raw file binary data                                                                                                                    |
+| Name                  | In     | Type         | Required | Description                                                                                                                                                                                                                                                                                                      |
+|-----------------------|--------|--------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `organization`        | query  | string(uuid) | true     | Organization ID                                                                                                                                                                                                                                                                                                  |
+| `purpose`             | query  | string       | false    | File purpose. Prompt files accept image/png, image/jpeg, image/gif, image/webp, image/svg+xml, text/plain, text/markdown, text/csv, application/json and application/pdf up to 10 MiB. Workspace files accept any type up to 100 MiB and are copied into the chat's workspace instead of being sent to the model |
+| `Content-Disposition` | header | string       | true     | Attachment disposition carrying the file name                                                                                                                                                                                                                                                                    |
+| `body`                | body   | string       | true     | Raw file binary data                                                                                                                                                                                                                                                                                             |
 
 #### Enumerated Values
 

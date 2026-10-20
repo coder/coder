@@ -3751,16 +3751,7 @@ const docTemplate = `{
         "/api/v2/chats/files": {
             "post": {
                 "consumes": [
-                    "image/png",
-                    "image/jpeg",
-                    "image/gif",
-                    "image/webp",
-                    "image/svg+xml",
-                    "text/plain",
-                    "text/markdown",
-                    "text/csv",
-                    "application/json",
-                    "application/pdf"
+                    "*/*"
                 ],
                 "produces": [
                     "application/json"
@@ -3785,7 +3776,7 @@ const docTemplate = `{
                             "workspace"
                         ],
                         "type": "string",
-                        "description": "File purpose. Workspace files accept any type up to 100 MiB and are copied into the chat's workspace instead of being sent to the model",
+                        "description": "File purpose. Prompt files accept image/png, image/jpeg, image/gif, image/webp, image/svg+xml, text/plain, text/markdown, text/csv, application/json and application/pdf up to 10 MiB. Workspace files accept any type up to 100 MiB and are copied into the chat's workspace instead of being sent to the model",
                         "name": "purpose",
                         "in": "query"
                     },
