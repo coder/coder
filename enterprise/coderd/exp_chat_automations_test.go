@@ -157,8 +157,9 @@ func logEntryText(entry slog.SinkEntry) string {
 // TestChatAutomationsDeleteWithoutUpdate checks that deleting an
 // automation needs only read and delete permission: disabling it first is
 // part of the deletion, not a separate update. It also checks that a
-// delete denied to a user with update but no delete permission leaves the
-// automation unchanged, so the deletion never disables it partway.
+// delete denied to a user with disable but no delete permission leaves the
+// automation unchanged, so the deletion never disables it partway. Custom
+// roles cannot grant update on automations.
 func TestChatAutomationsDeleteWithoutUpdate(t *testing.T) {
 	t.Parallel()
 
@@ -201,10 +202,10 @@ func TestChatAutomationsDeleteWithoutUpdate(t *testing.T) {
 
 	//nolint:gocritic // Owner access isolates custom-role setup from the behavior under test.
 	updaterRole, err := client.CreateOrganizationRole(ctx, codersdk.Role{
-		Name:           "automation-updater",
+		Name:           "automation-disabler",
 		OrganizationID: owner.OrganizationID.String(),
 		OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
-			codersdk.ResourceChatAutomation: {codersdk.ActionRead, codersdk.ActionUpdate},
+			codersdk.ResourceChatAutomation: {codersdk.ActionRead, codersdk.ActionDisable},
 		}),
 	})
 	require.NoError(t, err)
