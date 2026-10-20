@@ -13,7 +13,7 @@ Refer to [Coder provider version](./index.md#coder-provider-version) for more in
 
 Different parameter types support different form types.
 You can specify the form type using the [`form_type`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#form_type-1) attribute.
-
+You can specify the form type with the [`form_type`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#form_type-1) attribute.
 The **Options** column in the table below indicates whether the form type supports options (**Yes**) or doesn't support them (**No**).
 When supported, you can specify options using one or more `option` blocks in your parameter definition, where each option has a `name` (displayed to the user) and a `value` (used in your template logic).
 
