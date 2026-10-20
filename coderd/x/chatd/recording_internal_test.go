@@ -145,7 +145,8 @@ func invokeWaitAgentTool(
 	parentChat, err := db.GetChatByID(ctx, parentID)
 	require.NoError(t, err)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	tools, err := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	require.NoError(t, err)
 	tool := findToolByName(tools, "wait_agent")
 	require.NotNil(t, tool, "wait_agent tool must be present")
 
@@ -563,7 +564,8 @@ func TestWaitAgentTimeoutLeavesRecordingRunning(t *testing.T) {
 	parentChat, err := db.GetChatByID(ctx, child.ParentChatID.UUID)
 	require.NoError(t, err)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	tools, err := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	require.NoError(t, err)
 	tool := findToolByName(tools, "wait_agent")
 	require.NotNil(t, tool, "wait_agent tool must be present")
 

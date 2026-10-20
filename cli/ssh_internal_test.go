@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -635,4 +636,110 @@ func TestRetryWithInterval(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, 1, attempts)
 	})
+}
+
+func TestWatchAndCloseShutdownReason(t *testing.T) {
+	t.Parallel()
+	for _, transition := range []codersdk.WorkspaceTransition{codersdk.WorkspaceTransitionStop, codersdk.WorkspaceTransitionDelete} {
+		t.Run(string(transition), func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			watchCtx, cancel := context.WithCancel(ctx)
+			defer cancel()
+			events := make(chan codersdk.Workspace)
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+				w.WriteHeader(http.StatusOK)
+				flusher := w.(http.Flusher)
+				flusher.Flush()
+				for {
+					select {
+					case event := <-events:
+						data, err := json.Marshal(event)
+						if err != nil {
+							return
+						}
+						_, _ = fmt.Fprintf(w, "event: data\ndata: %s\n\n", data)
+						flusher.Flush()
+					case <-r.Context().Done():
+						return
+					}
+				}
+			}))
+			t.Cleanup(srv.Close)
+			t.Cleanup(cancel)
+			serverURL, err := url.Parse(srv.URL)
+			require.NoError(t, err)
+			client := codersdk.New(serverURL)
+			workspace := codersdk.Workspace{ID: uuid.New(), LatestBuild: codersdk.WorkspaceBuild{
+				ID: uuid.New(), Transition: codersdk.WorkspaceTransitionStart,
+			}}
+			sink := testutil.NewFakeSink(t)
+			clientSessionID := "0123456789abcdef0123456789abcdef"
+			watchCtx = slog.With(watchCtx, slog.F("client_session_id", clientSessionID))
+			closed := make(chan struct{})
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				watchAndClose(watchCtx, func() error { close(closed); return nil },
+					sink.Logger(), client, workspace, nil)
+			}()
+			t.Cleanup(func() { cancel(); testutil.TryReceive(ctx, t, done) })
+			send := func(event codersdk.Workspace) {
+				t.Helper()
+				select {
+				case events <- event:
+				case <-ctx.Done():
+					t.Fatal("workspace watcher did not receive event")
+				}
+			}
+			send(workspace)
+			shutdown := workspace
+			shutdown.LatestBuild = codersdk.WorkspaceBuild{
+				ID: uuid.New(), Transition: transition, Reason: codersdk.BuildReasonAutostop,
+				Status: codersdk.WorkspaceStatusStopping,
+				Job:    codersdk.ProvisionerJob{Status: codersdk.ProvisionerJobPending},
+			}
+			if transition == codersdk.WorkspaceTransitionDelete {
+				shutdown.LatestBuild.Status = codersdk.WorkspaceStatusDeleting
+			}
+			// A queued job does not establish a shutdown cause.
+			queued := shutdown
+			queued.LatestBuild.ID = uuid.New()
+			send(queued)
+			shutdownLogs := func() []slog.SinkEntry {
+				return sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "workspace is shutting down" })
+			}
+			shutdown.LatestBuild.Job.Status = codersdk.ProvisionerJobRunning
+			send(shutdown)
+			require.Eventually(t, func() bool { return len(shutdownLogs()) == 1 }, testutil.WaitLong, testutil.IntervalFast)
+			select {
+			case <-closed:
+				t.Fatal("shutdown notification closed SSH before the agent could stop gracefully")
+			default:
+			}
+			// Repeated updates for the same build should not repeat the reason.
+			shutdown.LatestBuild.Job.Status = codersdk.ProvisionerJobSucceeded
+			send(shutdown)
+			failed := shutdown
+			failed.LatestBuild.ID = uuid.New()
+			failed.LatestBuild.Job.Status = codersdk.ProvisionerJobFailed
+			send(failed)
+			// A new START build ends this watch, after preceding events are handled.
+			restarted := workspace
+			restarted.LatestBuild.ID = uuid.New()
+			send(restarted)
+			testutil.TryReceive(ctx, t, done)
+			testutil.TryReceive(ctx, t, closed)
+			entries := shutdownLogs()
+			require.Len(t, entries, 1)
+			for _, field := range []slog.Field{
+				slog.F("client_session_id", clientSessionID), slog.F("workspace_id", workspace.ID),
+				slog.F("build_id", shutdown.LatestBuild.ID), slog.F("build_reason", codersdk.BuildReasonAutostop),
+				slog.F("transition", transition), codersdk.DisconnectReasonWorkspaceStopped.SlogField(),
+			} {
+				require.Contains(t, entries[0].Fields, field)
+			}
+		})
+	}
 }

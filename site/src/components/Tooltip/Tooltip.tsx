@@ -20,6 +20,11 @@ export const TooltipTrigger = TooltipPrimitive.Trigger;
 
 export const TooltipArrow = TooltipPrimitive.Arrow;
 
+/** The side of the trigger a tooltip opens on. */
+export type TooltipSide = NonNullable<
+	React.ComponentProps<typeof TooltipPrimitive.Content>["side"]
+>;
+
 type TooltipContentProps = React.ComponentProps<
 	typeof TooltipPrimitive.Content
 > & {

@@ -505,6 +505,30 @@ func (p *Server) setChatFamilyArchived(ctx context.Context, chat database.Chat, 
 	return nil
 }
 
+// MoveChatToProject moves a root chat into a project, or out of its
+// project when projectID is NULL. Its subagent chats follow because they
+// use the root's project. While the chat or a subagent chat is not idle,
+// it returns [chatstate.ErrTransitionNotAllowed], unless the chat is
+// already in that project, which changes nothing.
+func (p *Server) MoveChatToProject(ctx context.Context, chat database.Chat, projectID uuid.NullUUID) error {
+	if chat.ID == uuid.Nil {
+		return xerrors.New("chat_id is required")
+	}
+	if chat.ParentChatID.Valid {
+		return chatstate.ErrChatNotRoot
+	}
+
+	familyChats, err := chatstate.SetFamilyProject(ctx, p.db, p.pubsub, chatstate.SetFamilyProjectInput{
+		RootID:    chat.ID,
+		ProjectID: projectID,
+	})
+	if err != nil {
+		return err
+	}
+	p.publishChatPubsubEvents(familyChats, codersdk.ChatWatchEventKindProjectChange)
+	return nil
+}
+
 // DeleteQueued removes a queued user message through the chatstate
 // state machine. Stream side effects are handled by chat:update
 // consumers.

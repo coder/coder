@@ -74,7 +74,7 @@ runs:
 
     - name: Download Go modules
       shell: bash
-      run: ./.github/scripts/retry.sh -- go mod download
+      run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
     - name: Start PostgreSQL Docker container (Linux)
       if: runner.os == 'Linux'

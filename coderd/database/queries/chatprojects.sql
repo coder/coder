@@ -21,12 +21,6 @@ FROM chat_projects
 WHERE id = @id::uuid
 FOR UPDATE;
 
--- name: GetChatProjectsByOwnerID :many
-SELECT *
-FROM chat_projects
-WHERE owner_id = @owner_id::uuid
-ORDER BY lower(name), id;
-
 -- name: GetChatProjectsOwnedOrSharedWithUserID :many
 -- Entries match regardless of the actions they grant, so callers must
 -- authorize each row.
@@ -55,7 +49,7 @@ WHERE chat_projects.owner_id = @user_id::uuid
     )
 ORDER BY lower(chat_projects.name), chat_projects.id;
 
--- name: IsChatProjectAccessibleByUserID :one
+-- name: IsChatProjectUsableByUserID :one
 SELECT EXISTS (
     SELECT 1
     FROM chat_projects
