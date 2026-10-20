@@ -246,12 +246,22 @@ func TestHandleUploadChatFile_WriteOnceConcurrent(t *testing.T) {
 			wg.Wait()
 
 			wantPath := filepath.Join(chatfiles.WorkspaceUploadFileDir(home, uploadChatFileTestChatID, fileID), "archive.zip")
-			for _, rr := range responses {
-				require.Equal(t, wantPath, decodeUploadChatFileResponse(t, rr).Path)
-			}
 			contents, err := os.ReadFile(wantPath)
 			require.NoError(t, err)
 			require.Regexp(t, `^payload \d$`, string(contents))
+			acknowledged := 0
+			for _, rr := range responses {
+				// The fallback writer may answer an upload that races
+				// another's placeholder with 503, which coderd retries.
+				if rr.Code == http.StatusServiceUnavailable {
+					continue
+				}
+				resp := decodeUploadChatFileResponse(t, rr)
+				require.Equal(t, wantPath, resp.Path)
+				require.EqualValues(t, len(contents), resp.Size)
+				acknowledged++
+			}
+			require.NotZero(t, acknowledged)
 			entries, err := os.ReadDir(filepath.Dir(wantPath))
 			require.NoError(t, err)
 			require.Len(t, entries, 1)
@@ -266,17 +276,24 @@ func TestHandleUploadChatFile_WriteOnceRejectsNonRegularTarget(t *testing.T) {
 	}
 
 	targets := []struct {
-		name   string
-		create func(t *testing.T, target string)
+		name       string
+		create     func(t *testing.T, target string)
+		wantStatus int
+		wantSub    string
 	}{
 		{name: "Directory", create: func(t *testing.T, target string) {
 			require.NoError(t, os.Mkdir(target, 0o755))
-		}},
+		}, wantStatus: http.StatusConflict, wantSub: "not a regular file"},
 		{name: "Symlink", create: func(t *testing.T, target string) {
 			outside := filepath.Join(t.TempDir(), "outside.zip")
 			require.NoError(t, os.WriteFile(outside, []byte("original"), 0o600))
 			require.NoError(t, os.Symlink(outside, target))
-		}},
+		}, wantStatus: http.StatusConflict, wantSub: "not a regular file"},
+		// An empty file is what a concurrent upload's placeholder looks
+		// like before its rename, so it must not acknowledge this upload.
+		{name: "EmptyPlaceholder", create: func(t *testing.T, target string) {
+			require.NoError(t, os.WriteFile(target, nil, 0o600))
+		}, wantStatus: http.StatusServiceUnavailable, wantSub: "still being published"},
 	}
 	for _, tc := range uploadChatFileFilesystems {
 		for _, target := range targets {
@@ -292,8 +309,8 @@ func TestHandleUploadChatFile_WriteOnceRejectsNonRegularTarget(t *testing.T) {
 
 				rr := uploadChatFileOnce(t, r, fileID, "archive.zip", strings.NewReader("payload"))
 
-				require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
-				require.Contains(t, rr.Body.String(), "not a regular file")
+				require.Equal(t, target.wantStatus, rr.Code, rr.Body.String())
+				require.Contains(t, rr.Body.String(), target.wantSub)
 				entries, err := os.ReadDir(dir)
 				require.NoError(t, err)
 				require.Len(t, entries, 1, "temp files must not outlive a rejected upload")

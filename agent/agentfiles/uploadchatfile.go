@@ -154,6 +154,8 @@ func (api *API) HandleUploadChatFile(rw http.ResponseWriter, r *http.Request) {
 			status = http.StatusConflict
 		case errors.Is(err, errUploadDirSymlink), errors.Is(err, os.ErrPermission):
 			status = http.StatusForbidden
+		case errors.Is(err, errUploadPublishInProgress):
+			status = http.StatusServiceUnavailable
 		}
 		api.logger.Warn(ctx, "workspace chat file upload failed",
 			slog.F("chat_id", chatID),
@@ -184,6 +186,22 @@ var errUploadSecureUnsupported = xerrors.New("secure workspace upload unsupporte
 var errUploadCollisionExhausted = xerrors.New("too many existing files with the same name")
 
 var errUploadTargetNotRegular = xerrors.New("workspace upload target exists and is not a regular file")
+
+// errUploadPublishInProgress means a write-once upload found the empty
+// placeholder of a concurrent upload of the same file that has not
+// renamed its content into place yet.
+var errUploadPublishInProgress = xerrors.New("another upload of this file is still being published")
+
+// checkWriteOnceExisting rejects an existing empty file when this upload
+// has content, since the fallback writers publish through an empty
+// placeholder and acknowledging it could report a file that never gets
+// its content.
+func checkWriteOnceExisting(existingSize, uploadedSize int64) error {
+	if existingSize == 0 && uploadedSize > 0 {
+		return errUploadPublishInProgress
+	}
+	return nil
+}
 
 // uploadPublishMode selects how an upload claims its final name.
 type uploadPublishMode int
@@ -287,6 +305,9 @@ func (api *API) writeUploadExclusivePath(dir, name string, mode uploadPublishMod
 				if mode == uploadPublishWriteOnce {
 					existingSize, err := api.existingUploadSizePath(candidatePath)
 					if err != nil {
+						return "", "", 0, err
+					}
+					if err := checkWriteOnceExisting(existingSize, n); err != nil {
 						return "", "", 0, err
 					}
 					return candidate, candidatePath, existingSize, nil
