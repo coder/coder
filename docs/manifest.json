@@ -435,11 +435,6 @@
 							"title": "Customizing dev containers",
 							"description": "Configure custom agent names, apps, and display options in devcontainer.json.",
 							"path": "./user-guides/devcontainers/customizing-dev-containers.md"
-						},
-						{
-							"title": "Troubleshooting dev containers",
-							"description": "Diagnose and resolve common issues with dev containers in your Coder workspace.",
-							"path": "./user-guides/devcontainers/troubleshooting-dev-containers.md"
 						}
 					]
 				},
@@ -746,11 +741,6 @@
 											"path": "./admin/templates/startup-coordination/usage.md"
 										},
 										{
-											"title": "Troubleshooting",
-											"description": "Diagnose and resolve common problems with workspace startup coordination and coder exp sync.",
-											"path": "./admin/templates/startup-coordination/troubleshooting.md"
-										},
-										{
 											"title": "Examples",
 											"description": "A complete, production-ready example of coordinating workspace startup scripts with sync units.",
 											"path": "./admin/templates/startup-coordination/example.md"
@@ -769,11 +759,6 @@
 							"description": "Control which users and groups can use, edit, and administer each Coder template.",
 							"path": "./admin/templates/template-permissions.md",
 							"state": ["premium"]
-						},
-						{
-							"title": "Troubleshoot templates",
-							"description": "Troubleshoot common Coder template problems, from failed builds to misconfigured workspaces.",
-							"path": "./admin/templates/troubleshooting.md"
 						}
 					]
 				},
@@ -855,11 +840,6 @@
 									"path": "./admin/integrations/oauth2-provider/callback-url-schemes.md"
 								},
 								{
-									"title": "Troubleshooting",
-									"description": "Diagnose and fix OAuth2 provider errors by their exact error code or message.",
-									"path": "./admin/integrations/oauth2-provider/troubleshooting.md"
-								},
-								{
 									"title": "Security and limitations",
 									"description": "Security considerations and current limitations of the OAuth2 provider.",
 									"path": "./admin/integrations/oauth2-provider/security.md"
@@ -934,11 +914,6 @@
 							"title": "Wildcard access URLs",
 							"description": "Configure a wildcard access URL to enable port forwarding, web IDEs, and app previews.",
 							"path": "./admin/networking/wildcard-access-url.md"
-						},
-						{
-							"title": "Troubleshooting",
-							"description": "Diagnose and resolve Coder networking issues using coder ping and other built-in tools.",
-							"path": "./admin/networking/troubleshooting.md"
 						}
 					]
 				},
@@ -1540,6 +1515,39 @@
 							"path": "./tutorials/best-practices/speed-up-templates.md"
 						}
 					]
+				}
+			]
+		},
+		{
+			"title": "Troubleshooting",
+			"description": "Find and fix common problems with Coder workspaces, templates, networking, and integrations.",
+			"path": "./troubleshooting/index.md",
+			"icon_path": "./images/icons/health.svg",
+			"children": [
+				{
+					"title": "Templates",
+					"description": "Fix workspace agents that do not connect and startup scripts that fail, time out, or run slowly.",
+					"path": "./troubleshooting/templates.md"
+				},
+				{
+					"title": "Networking",
+					"description": "Diagnose slow or relayed workspace connections with coder ping and other built-in tools.",
+					"path": "./troubleshooting/networking.md"
+				},
+				{
+					"title": "Dev containers",
+					"description": "Fix dev containers that do not start or that you cannot connect to from SSH or VS Code.",
+					"path": "./troubleshooting/dev-containers.md"
+				},
+				{
+					"title": "Startup coordination",
+					"description": "Diagnose and resolve common problems with workspace startup coordination and coder exp sync.",
+					"path": "./troubleshooting/startup-coordination.md"
+				},
+				{
+					"title": "OAuth2 provider",
+					"description": "Diagnose and fix OAuth2 provider errors by their exact error code or message.",
+					"path": "./troubleshooting/oauth2-provider.md"
 				}
 			]
 		},

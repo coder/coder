@@ -404,4 +404,4 @@ You can upload the template through the CLI, or through the Coder dashboard:
 
 - [Setting up templates](../admin/templates/index.md)
 - [Customizing templates](../admin/templates/extending-templates/index.md)
-- [Troubleshooting template](../admin/templates/troubleshooting.md)
+- [Troubleshooting template](../troubleshooting/templates.md)

@@ -6,7 +6,7 @@ Occasionally, you may run into scenarios where a workspace is created, but the a
 
 ## Agent connection issues
 
-If the agent is not connected, it means the agent or [init script](../../../provisionersdk/scripts) has failed on the resource.
+If the agent is not connected, it means the agent or [init script](../../provisionersdk/scripts) has failed on the resource.
 
 ```console
 $ coder ssh myworkspace
@@ -16,13 +16,13 @@ $ coder ssh myworkspace
 While troubleshooting steps vary by resource, here are some general best practices:
 
 - Ensure the resource has `curl` installed (alternatively, `wget` or `busybox`)
-- Ensure the resource can `curl` your Coder [access URL](../../admin/setup/index.md#access-url)
+- Ensure the resource can `curl` your Coder [access URL](../admin/setup/index.md#access-url)
 - Manually connect to the resource and check the agent logs (e.g., `kubectl exec`, `docker exec` or AWS console)
   - The Coder agent logs are typically stored in `/tmp/coder-agent.log`
   - The Coder agent startup script logs are typically stored in `/tmp/coder-startup-script.log`
   - The Coder agent shutdown script logs are typically stored in `/tmp/coder-shutdown-script.log`
 - This can also happen if the websockets are not being forwarded correctly when running Coder behind a reverse proxy.
-  [Read our reverse-proxy docs](../../admin/setup/index.md#tls--reverse-proxy)
+  [Read our reverse-proxy docs](../admin/setup/index.md#tls--reverse-proxy)
 
 ## Startup script issues
 
@@ -111,18 +111,18 @@ Since we are manually checking the exit status here, we don't need `set -e` at t
 ## Slow workspace startup times
 
 If your workspaces are taking longer to start than expected, or longer than desired, you can diagnose which steps have the highest impact in the workspace build timings UI (available in v2.17 and beyond).
-Admins can can programmatically pull startup times for individual workspace builds using our [build timings API endpoint](../../reference/api/builds.md#get-workspace-build-timings-by-id).
+Admins can can programmatically pull startup times for individual workspace builds using our [build timings API endpoint](../reference/api/builds.md#get-workspace-build-timings-by-id).
 
-See our [guide on optimizing workspace build times](../../tutorials/best-practices/speed-up-templates.md) to optimize your templates based on this data.
+See our [guide on optimizing workspace build times](../tutorials/best-practices/speed-up-templates.md) to optimize your templates based on this data.
 
-![Workspace build timings UI](../../images/admin/templates/troubleshooting/workspace-build-timings-ui.png)
+![Workspace build timings UI](../images/admin/templates/troubleshooting/workspace-build-timings-ui.png)
 
 ## Cannot connect to the Docker daemon
 
 If a Docker-based template fails to provision with an error like `Cannot connect to the Docker daemon at unix:///var/run/docker.sock`, the Coder host cannot reach the Docker socket.
 Confirm that Docker is installed and running on the host.
 If you run Docker through rootless Docker, [Colima](https://colima.run), Podman, or a similar tool, the daemon may expose its socket at a non-default path, so set `DOCKER_HOST` to point at it.
-Refer to [Cannot connect to the Docker daemon](../../install/server/docker.md#cannot-connect-to-the-docker-daemon) for the full steps.
+Refer to [Cannot connect to the Docker daemon](../install/server/docker.md#cannot-connect-to-the-docker-daemon) for the full steps.
 
 ## Docker Workspaces on Raspberry Pi OS
 

@@ -53,5 +53,5 @@ The current implementation has these limitations:
 
 - Review [OAuth2 provider](./index.md) for enabling the provider and creating an application
 - Review [Integration patterns](./integration-patterns.md) for client authentication methods and flows
-- Check [Troubleshooting](./troubleshooting.md) if you hit an error
+- Check [Troubleshooting](../../../troubleshooting/oauth2-provider.md) if you hit an error
 - Refer to [Security Best Practices](../../security/index.md) for deployment security guidance

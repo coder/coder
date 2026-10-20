@@ -222,7 +222,7 @@ To improve latency and user experience:
 - **Check firewall rules**:
   Ensure they don't block necessary Coder connections.
 
-For help troubleshooting connection issues, including latency problems, refer to the [networking troubleshooting guide](./troubleshooting.md).
+For help troubleshooting connection issues, including latency problems, refer to the [networking troubleshooting guide](../../troubleshooting/networking.md).
 
 ## External Network Access
 
@@ -233,4 +233,4 @@ Learn how to configure Coder for [air-gapped environments](../../install/prepare
 ## Up next
 
 - Learn about [Port Forwarding](./port-forwarding.md)
-- Troubleshoot [Networking Issues](./troubleshooting.md)
+- Troubleshoot [Networking Issues](../../troubleshooting/networking.md)

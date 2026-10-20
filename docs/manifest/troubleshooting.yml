@@ -1,0 +1,20 @@
+title: Troubleshooting
+description: Find and fix common problems with Coder workspaces, templates, networking, and integrations.
+path: ./troubleshooting/index.md
+icon_path: ./images/icons/health.svg
+children:
+  - title: Templates
+    description: Fix workspace agents that do not connect and startup scripts that fail, time out, or run slowly.
+    path: ./troubleshooting/templates.md
+  - title: Networking
+    description: Diagnose slow or relayed workspace connections with coder ping and other built-in tools.
+    path: ./troubleshooting/networking.md
+  - title: Dev containers
+    description: Fix dev containers that do not start or that you cannot connect to from SSH or VS Code.
+    path: ./troubleshooting/dev-containers.md
+  - title: Startup coordination
+    description: Diagnose and resolve common problems with workspace startup coordination and coder exp sync.
+    path: ./troubleshooting/startup-coordination.md
+  - title: OAuth2 provider
+    description: Diagnose and fix OAuth2 provider errors by their exact error code or message.
+    path: ./troubleshooting/oauth2-provider.md

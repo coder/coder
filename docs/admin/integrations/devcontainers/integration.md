@@ -274,4 +274,4 @@ It includes the `devcontainers-cli` module, `git-clone` module, and the `coder_d
 - [Dev Containers Integration](../../../user-guides/devcontainers/index.md)
 - [Customizing Dev Containers](../../../user-guides/devcontainers/customizing-dev-containers.md)
 - [Working with Dev Containers](../../../user-guides/devcontainers/working-with-dev-containers.md)
-- [Troubleshooting Dev Containers](../../../user-guides/devcontainers/troubleshooting-dev-containers.md)
+- [Troubleshooting Dev Containers](../../../troubleshooting/dev-containers.md)

@@ -124,7 +124,7 @@ Then restart the control plane.
 ### Docker-based workspace is stuck in "Connecting..."
 
 Ensure you have an externally-reachable `CODER_ACCESS_URL` set.
-See [troubleshooting templates](../../admin/templates/troubleshooting.md) for more steps.
+See [troubleshooting templates](../../troubleshooting/templates.md) for more steps.
 
 ### Permission denied while trying to connect to the Docker daemon socket
 

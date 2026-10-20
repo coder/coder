@@ -1,1 +1,22 @@
-[]
+[
+  {
+    "source": "/docs/admin/networking/troubleshooting",
+    "destination": "/docs/troubleshooting/networking"
+  },
+  {
+    "source": "/docs/admin/templates/troubleshooting",
+    "destination": "/docs/troubleshooting/templates"
+  },
+  {
+    "source": "/docs/admin/templates/startup-coordination/troubleshooting",
+    "destination": "/docs/troubleshooting/startup-coordination"
+  },
+  {
+    "source": "/docs/admin/integrations/oauth2-provider/troubleshooting",
+    "destination": "/docs/troubleshooting/oauth2-provider"
+  },
+  {
+    "source": "/docs/user-guides/devcontainers/troubleshooting-dev-containers",
+    "destination": "/docs/troubleshooting/dev-containers"
+  }
+]

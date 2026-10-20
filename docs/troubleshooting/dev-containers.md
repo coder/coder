@@ -1,5 +1,5 @@
 ---
-title: Troubleshooting dev containers
+title: Troubleshoot dev containers
 ---
 
 ## Dev container not starting
@@ -49,7 +49,7 @@ coder show <workspace>
 ```
 
 The agent name is derived from the workspace folder path.
-For details on how names are generated, see [Agent naming](./index.md#agent-naming).
+For details on how names are generated, see [Agent naming](../user-guides/devcontainers/index.md#agent-naming).
 
 ## SSH connection issues
 

@@ -31,4 +31,4 @@ To start using workspace startup coordination, add calls to `coder exp sync (sta
   # Existing startup logic
   ```
 
-For more information, refer to the [usage documentation](./usage.md), [troubleshooting documentation](./troubleshooting.md), or view our [examples](./example.md).
+For more information, refer to the [usage documentation](./usage.md), [troubleshooting documentation](../../../troubleshooting/startup-coordination.md), or view our [examples](./example.md).

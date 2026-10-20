@@ -217,7 +217,7 @@ The admin `PUT` also validates the stored name, so a self-registered client whos
 
 <a id="common-issues"></a><a id="oauth2-endpoints-return-404"></a><a id="invalid-redirect_uri"></a><a id="invalid-callback-url-on-the-consent-page"></a><a id="invalid_scope-returned-to-your-callback"></a><a id="invalid_grant-for-a-scope-the-deployment-cannot-mint"></a><a id="invalid_scope-for-a-refresh-that-names-a-scope"></a><a id="invalid_client-for-a-refresh-or-a-revocation"></a><a id="invalid_request-for-client_secret-in-the-query-string"></a><a id="unsupported_response_type-returned-to-your-callback"></a><a id="invalid_request-for-code_challenge_method"></a><a id="invalid_request-for-a-rejected-parameter"></a><a id="invalid_request-from-post-oauth2tokens-for-a-repeated-parameter"></a><a id="invalid_target-for-a-rejected-resource"></a><a id="pkce-verification-failed"></a><a id="public-clients-may-not-use-the-mailtotelsms-scheme"></a>
 
-- [Troubleshooting](./troubleshooting.md): look up an error by its exact code or message
+- [Troubleshooting](../../../troubleshooting/oauth2-provider.md): look up an error by its exact code or message
 
 - [Security and limitations](./security.md): security considerations and current limitations
   - <a id="security-considerations"></a>[Security considerations](./security.md#security-considerations)

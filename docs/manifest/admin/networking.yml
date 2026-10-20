@@ -20,6 +20,3 @@ children:
   - title: Wildcard access URLs
     description: Configure a wildcard access URL to enable port forwarding, web IDEs, and app previews.
     path: ./admin/networking/wildcard-access-url.md
-  - title: Troubleshooting
-    description: Diagnose and resolve Coder networking issues using coder ping and other built-in tools.
-    path: ./admin/networking/troubleshooting.md

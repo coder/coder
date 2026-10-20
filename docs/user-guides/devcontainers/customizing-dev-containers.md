@@ -279,4 +279,4 @@ Coder creates `FEATURE_CODE_SERVER_OPTION_PORT=9090`, which you can reference in
 ## Next steps
 
 - [Working with dev containers](./working-with-dev-containers.md): SSH, IDE integration, and port forwarding
-- [Troubleshooting dev containers](./troubleshooting-dev-containers.md): Diagnose common issues
+- [Troubleshooting dev containers](../../troubleshooting/dev-containers.md): Diagnose common issues

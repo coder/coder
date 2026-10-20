@@ -33,4 +33,4 @@ These rules apply to every entry in `redirect_uris`, not only the first one.
 
 ## Learn more
 
-- Check [Troubleshooting](./troubleshooting.md) for "Invalid Callback URL" and related errors
+- Check [Troubleshooting](../../../troubleshooting/oauth2-provider.md) for "Invalid Callback URL" and related errors

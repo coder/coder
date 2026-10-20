@@ -14,9 +14,6 @@ children:
   - title: Callback URL schemes
     description: Which redirect URI schemes and hosts Coder accepts.
     path: ./admin/integrations/oauth2-provider/callback-url-schemes.md
-  - title: Troubleshooting
-    description: Diagnose and fix OAuth2 provider errors by their exact error code or message.
-    path: ./admin/integrations/oauth2-provider/troubleshooting.md
   - title: Security and limitations
     description: Security considerations and current limitations of the OAuth2 provider.
     path: ./admin/integrations/oauth2-provider/security.md

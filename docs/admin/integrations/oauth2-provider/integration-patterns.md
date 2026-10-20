@@ -24,7 +24,7 @@ Coder supports both methods, so existing integrations using `client_secret_post`
 
 Send `client_secret` in the request body or in the `Authorization` header.
 `POST /oauth2/tokens` and `POST /oauth2/revoke` reject a `client_secret` value in the URL query string with `invalid_request`, because OAuth 2.1 section 2.4.1 does not allow it there.
-Refer to ["invalid_request" for `client_secret` in the query string](./troubleshooting.md#invalid_request-for-client_secret-in-the-query-string) for the exceptions and the log line to search for.
+Refer to ["invalid_request" for `client_secret` in the query string](../../../troubleshooting/oauth2-provider.md#invalid_request-for-client_secret-in-the-query-string) for the exceptions and the log line to search for.
 
 Public clients suit native, mobile, and CLI applications that cannot keep a secret confidential.
 Note the redirect URI restrictions below before choosing one.
@@ -118,7 +118,7 @@ Coder enforces PKCE in compliance with the OAuth 2.1 specification, for both pub
    Send the access token in the `Authorization` header.
    Coder ignores an OAuth2 access token in the URL query string, as OAuth 2.1 section 5.1 requires.
    This endpoint requires a signed-in user, so it answers HTTP 401.
-   Refer to [HTTP 401 for an access token in the query string](./troubleshooting.md#http-401-for-an-access-token-in-the-query-string) for endpoints that behave differently.
+   Refer to [HTTP 401 for an access token in the query string](../../../troubleshooting/oauth2-provider.md#http-401-for-an-access-token-in-the-query-string) for endpoints that behave differently.
 
 ## Discovery endpoints
 
@@ -149,4 +149,4 @@ Coder enforces OAuth 2.1 requirements including mandatory PKCE for all authoriza
 
 - Review [Scopes](./scopes.md) for how access is bounded
 - Review [Token management](./token-management.md) for refresh, revocation, and deletion
-- Check [Troubleshooting](./troubleshooting.md) if a request fails
+- Check [Troubleshooting](../../../troubleshooting/oauth2-provider.md) if a request fails

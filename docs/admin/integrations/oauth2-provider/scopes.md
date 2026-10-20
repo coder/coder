@@ -6,7 +6,7 @@ An access token is bounded by the scope negotiated when the user authorized it, 
 A token can never do more than its user can.
 
 A grant also never exceeds the session that authorizes it: that session must hold every requested scope and an allow list of `*:*`, which every browser session has.
-Refer to ["invalid_scope" returned to your callback](./troubleshooting.md#invalid_scope-returned-to-your-callback).
+Refer to ["invalid_scope" returned to your callback](../../../troubleshooting/oauth2-provider.md#invalid_scope-returned-to-your-callback).
 
 Scope names come from the same vocabulary as [API key scopes](../../users/sessions-tokens.md#api-key-scopes): individual `resource:action` names such as `workspace:ssh`, and `coder:` composites such as `coder:workspaces.access` that stand for a set of them.
 `coder:all` records an unrestricted grant.
@@ -33,7 +33,7 @@ When [updating an application](../../../reference/api/enterprise.md#update-oauth
 Dynamic Client Registration keeps only the names this deployment offers, both on `POST /oauth2/register` and on `PUT /oauth2/clients/{client_id}`, and returns the stored list in the response.
 A non-empty `scope` that keeps no offered name is rejected with `400 invalid_client_metadata` and the request is not stored.
 An update that resends the stored `scope` unchanged keeps it as stored.
-An allowlist set through the web UI or the management API is stored as given; a name it holds that this deployment does not offer fails at authorization, as described under ["invalid_scope" returned to your callback](./troubleshooting.md#invalid_scope-returned-to-your-callback).
+An allowlist set through the web UI or the management API is stored as given; a name it holds that this deployment does not offer fails at authorization, as described under ["invalid_scope" returned to your callback](../../../troubleshooting/oauth2-provider.md#invalid_scope-returned-to-your-callback).
 
 Use caution when narrowing the scope allowlist of a self-registered application.
 Many clients request every scope Coder advertises in `scopes_supported` rather than selecting specific scopes; MCP clients that rely on discovery commonly work this way.
@@ -50,5 +50,5 @@ A refresh keeps the scope originally granted; a refresh that names a narrower `s
 
 ## Learn more
 
-- Refer to ["invalid_scope" for a refresh that names a scope](./troubleshooting.md#invalid_scope-for-a-refresh-that-names-a-scope) for how a refresh can narrow the access token it mints
-- Check [Troubleshooting](./troubleshooting.md) for scope-related errors
+- Refer to ["invalid_scope" for a refresh that names a scope](../../../troubleshooting/oauth2-provider.md#invalid_scope-for-a-refresh-that-names-a-scope) for how a refresh can narrow the access token it mints
+- Check [Troubleshooting](../../../troubleshooting/oauth2-provider.md) for scope-related errors

@@ -1,30 +1,30 @@
 ---
-title: OAuth2 provider troubleshooting
+title: Troubleshoot the OAuth2 provider
 ---
 
 This page collects the error conditions the OAuth2 provider returns, matched by the exact `error`, `error_description`, or log line you'll see.
 
-- [OAuth2 provider](./index.md): how to turn on and set up the provider
-- [Integration patterns](./integration-patterns.md): how a client is supposed to connect and log in
+- [OAuth2 provider](../admin/integrations/oauth2-provider/index.md): how to turn on and set up the provider
+- [Integration patterns](../admin/integrations/oauth2-provider/integration-patterns.md): how a client is supposed to connect and log in
 
 ## OAuth2 endpoints return 404
 
 The provider is off.
 Set `CODER_OAUTH2_PROVIDER_ENABLE=true` and restart the server.
-Refer to [Enable OAuth2 Provider](./index.md#enable-oauth2-provider).
+Refer to [Enable OAuth2 Provider](../admin/integrations/oauth2-provider/index.md#enable-oauth2-provider).
 
 ## "Invalid redirect_uri"
 
 Ensure the redirect URI in your request exactly matches one of the redirect URIs registered for your application.
 The one exception is the port of a loopback `http://` redirect URI (`localhost`, `127.0.0.1`, `[::1]`), which may differ from the registered one.
-Refer to [Callback URL schemes](./callback-url-schemes.md).
+Refer to [Callback URL schemes](../admin/integrations/oauth2-provider/callback-url-schemes.md).
 
 ## "Invalid Callback URL" on the consent page
 
 If you see this error when authorizing, one of the application's registered redirect URIs is not usable: either it does not parse as a URL, or it uses a blocked scheme (`javascript:`, `data:`, `file:`, or `ftp:`).
 The same cause answers `server_error` on `POST /oauth2/authorize`.
-Use `GET /api/v2/oauth2-provider/apps/{app}` to see every registered redirect URI, then update the application with a corrected `redirect_uris` list as shown under [Create an application with the API](./index.md#create-an-application-with-the-api).
-Refer to [Callback URL schemes](./callback-url-schemes.md) for which values are accepted.
+Use `GET /api/v2/oauth2-provider/apps/{app}` to see every registered redirect URI, then update the application with a corrected `redirect_uris` list as shown under [Create an application with the API](../admin/integrations/oauth2-provider/index.md#create-an-application-with-the-api).
+Refer to [Callback URL schemes](../admin/integrations/oauth2-provider/callback-url-schemes.md) for which values are accepted.
 
 The `coderd` log records the application ID and the stored value.
 The response does not, so a bad URL is never echoed back to a browser.
@@ -40,7 +40,7 @@ The `error_description` opens with the requested name that caused the rejection:
   Read the current list from `scopes_supported` in `GET /.well-known/oauth-authorization-server`.
 - `scope requests permissions beyond this app's allowed scopes`: the name is supported, but the application's `scope` allowlist does not cover it.
   Request less, or widen the allowlist.
-  If the application registered itself and an administrator has since narrowed its allowlist, refer to [Scopes](./scopes.md).
+  If the application registered itself and an administrator has since narrowed its allowlist, refer to [Scopes](../admin/integrations/oauth2-provider/scopes.md).
 - `none of the scopes registered for this app are supported by this deployment`: the application's `scope` allowlist names nothing this deployment offers, so no request against it can succeed, including one that omits `scope`.
   Update the allowlist with supported scopes.
   This description stands alone.
@@ -78,7 +78,7 @@ Two more descriptions can open the `error_description` here:
 
 A coverage comparison this deployment cannot decide answers HTTP 500 with `error=server_error` and `The requested scope could not be evaluated`; the scope that could not be compared is in the `coderd` logs, not the response.
 
-An application's `scope` allowlist can change through [Dynamic Client Registration](./index.md#dynamic-client-registration), by the application itself, or through the management API, by an administrator.
+An application's `scope` allowlist can change through [Dynamic Client Registration](../admin/integrations/oauth2-provider/index.md#dynamic-client-registration), by the application itself, or through the management API, by an administrator.
 An application that holds its registration access token can widen its own allowlist again before redeeming a code, so treat this re-check as reflecting the allowlist at redemption time rather than as a constraint on the client.
 
 A refresh is not re-checked against the registration.
@@ -117,7 +117,7 @@ Refresh without a `scope` to return to the composite.
 
 `POST /oauth2/tokens` with `grant_type=refresh_token` and `POST /oauth2/revoke` answer HTTP 401 with `error=invalid_client` when a confidential client does not authenticate.
 The usual causes are a `client_secret` that was omitted, a secret that belongs to a different client, or a secret that has since been deleted or rotated.
-Present the client's current secret, as HTTP Basic or as a form parameter, following [Refresh tokens](./token-management.md#refresh-tokens).
+Present the client's current secret, as HTTP Basic or as a form parameter, following [Refresh tokens](../admin/integrations/oauth2-provider/token-management.md#refresh-tokens).
 The refresh token is not consumed and nothing is revoked by the refusal, so the retry needs no new authorization.
 If the secret was deleted, the tokens issued under it were revoked with it, and the client must authorize again.
 Public clients have no secret and never receive this error for omitting one.
@@ -126,7 +126,7 @@ Public clients have no secret and never receive this error for omitting one.
 
 `POST /oauth2/tokens` and `POST /oauth2/revoke` answer HTTP 400 with `error=invalid_request` when `client_secret` appears in the URL query string.
 OAuth 2.1 section 2.4.1 allows the secret in the request body or the `Authorization` header only.
-Send it as a form parameter or as HTTP Basic, following [Client authentication methods](./integration-patterns.md#client-authentication-methods).
+Send it as a form parameter or as HTTP Basic, following [Client authentication methods](../admin/integrations/oauth2-provider/integration-patterns.md#client-authentication-methods).
 
 The rule covers `client_secret` only.
 Coder still reads `refresh_token`, `code`, and the revocation `token` from the query string.
@@ -169,7 +169,7 @@ Coder handles the request as if it carried no token at all.
 Most endpoints require a signed-in user, so they answer HTTP 401 with a `WWW-Authenticate: Bearer` header.
 That header carries no error code, since no token was accepted, and the JSON body says to send the token in the `Authorization` header instead.
 A few endpoints also work without a signed-in user, and those handle the request as an anonymous one and return no error.
-Send the token in the `Authorization` header instead, as shown under [Authorization code flow](./integration-patterns.md#authorization-code-flow).
+Send the token in the `Authorization` header instead, as shown under [Authorization code flow](../admin/integrations/oauth2-provider/integration-patterns.md#authorization-code-flow).
 
 The rule applies to tokens the OAuth2 provider issued.
 Coder session tokens and API tokens created from the dashboard or the CLI are still accepted in the query string, because browsers cannot set headers on WebSocket connections.
@@ -188,9 +188,9 @@ The ignored token stays valid and is not marked as used.
 A URL is recorded by reverse proxies, load balancers, CDN access logs, browser history, and `Referer` headers.
 Treat a token that was sent this way as exposed and end it in one of these ways:
 
-- The integration owner, who holds the token value and the client credentials, revokes it following [Revoke a token](./token-management.md#revoke-a-token).
-- The user named by `user_id` ends their own tokens for the application following [Revoke your authorization for an application](./token-management.md#revoke-your-authorization-for-an-application).
-- An administrator deletes the key with the two IDs from the log line, `DELETE /api/v2/users/{user_id}/keys/{api_key_id}`, or cuts off every user of the application by deleting it or one of its secrets following [Delete an application](./token-management.md#delete-an-application).
+- The integration owner, who holds the token value and the client credentials, revokes it following [Revoke a token](../admin/integrations/oauth2-provider/token-management.md#revoke-a-token).
+- The user named by `user_id` ends their own tokens for the application following [Revoke your authorization for an application](../admin/integrations/oauth2-provider/token-management.md#revoke-your-authorization-for-an-application).
+- An administrator deletes the key with the two IDs from the log line, `DELETE /api/v2/users/{user_id}/keys/{api_key_id}`, or cuts off every user of the application by deleting it or one of its secrets following [Delete an application](../admin/integrations/oauth2-provider/token-management.md#delete-an-application).
 
 Earlier releases accepted the token in the query string.
 An integration that relied on that has to move it into the `Authorization` header.
@@ -270,6 +270,6 @@ Register a redirect URI the client can actually receive control on instead, such
 
 ## Learn more
 
-- Review [OAuth2 provider](./index.md) for enabling the provider and creating an application
-- Review [Integration patterns](./integration-patterns.md) for client authentication methods and flows
-- Review [Security and limitations](./security.md) for security considerations and current limitations
+- Review [OAuth2 provider](../admin/integrations/oauth2-provider/index.md) for enabling the provider and creating an application
+- Review [Integration patterns](../admin/integrations/oauth2-provider/integration-patterns.md) for client authentication methods and flows
+- Review [Security and limitations](../admin/integrations/oauth2-provider/security.md) for security considerations and current limitations

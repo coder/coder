@@ -15,6 +15,3 @@ children:
     description: Control which users and groups can use, edit, and administer each Coder template.
     path: ./admin/templates/template-permissions.md
     state: [premium]
-  - title: Troubleshoot templates
-    description: Troubleshoot common Coder template problems, from failed builds to misconfigured workspaces.
-    path: ./admin/templates/troubleshooting.md

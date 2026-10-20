@@ -100,4 +100,4 @@ Turning the setting off stops new registrations; it does not remove the ones alr
 
 ## Learn more
 
-- Check [Troubleshooting](./troubleshooting.md) if a refresh or revocation fails
+- Check [Troubleshooting](../../../troubleshooting/oauth2-provider.md) if a refresh or revocation fails

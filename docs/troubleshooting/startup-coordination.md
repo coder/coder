@@ -1,5 +1,5 @@
 ---
-title: Workspace startup coordination troubleshooting
+title: Troubleshoot workspace startup coordination
 ---
 
 > [!NOTE]

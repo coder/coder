@@ -1,5 +1,5 @@
 ---
-title: Troubleshooting
+title: Troubleshoot networking
 ---
 
 `coder ping <workspace>` will ping the workspace agent and print diagnostics on the state of the connection.
@@ -51,7 +51,7 @@ However, if both sides are behind hard NATs, direct connections may take longer 
 
 `coder ping` will indicate if it's possible the client or agent is behind a hard NAT.
 
-Learn more about [STUN and NAT](./stun.md).
+Learn more about [STUN and NAT](../admin/networking/stun.md).
 
 ### No STUN Servers
 
@@ -68,7 +68,7 @@ If this is suspected, you may need to add an exception for Coder to the firewall
 ### VPNs
 
 If a VPN is the default route for all IP traffic, it may interfere with the ability for clients and agents to form direct connections.
-This happens if the NAT does not permit traffic to be ['hairpinned'](./stun.md#3-direct-connections-with-vpn-and-nat-hairpinning) from the public IP address of the NAT (determined via STUN) to the internal IP address of the agent.
+This happens if the NAT does not permit traffic to be ['hairpinned'](../admin/networking/stun.md#3-direct-connections-with-vpn-and-nat-hairpinning) from the public IP address of the NAT (determined via STUN) to the internal IP address of the agent.
 
 If this is the case, you may need to add exceptions to the VPN for Coder, modify the NAT configuration, or deploy an internal STUN server.
 
@@ -88,7 +88,7 @@ Possible client-side issues with direct connection:
 
 If another interface cannot be used, and the MTU cannot be changed, you should disable direct connections and relay all traffic via DERP instead, which will not be affected by the low MTU.
 
-To disable direct connections, set the [`--block-direct-connections`](../../reference/cli/server/index.md#--block-direct-connections) flag or `CODER_BLOCK_DIRECT` environment variable on the control plane.
+To disable direct connections, set the [`--block-direct-connections`](../reference/cli/server/index.md#--block-direct-connections) flag or `CODER_BLOCK_DIRECT` environment variable on the control plane.
 
 ## Throughput
 

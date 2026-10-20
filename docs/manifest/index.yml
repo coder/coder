@@ -24,4 +24,5 @@ sections:
   - admin.yml
   - ai-coder.yml
   - tutorials.yml
+  - troubleshooting.yml
   - reference.yml
