@@ -683,8 +683,10 @@ export const TreeClickExpandsFileCollapsedFromStickyHeader: Story = {
 			name: `Expand ${firstLongFileName}`,
 		});
 		await collapseScroll;
-		// The scroll handler picks the active file in a rAF queued before this
-		// one; the next frame comes after its commit and the tree's effect.
+		// useActiveFileTracking queued its rAF in the collapse's scroll event, so
+		// it runs in the first frame. In Chromium, React commits that
+		// setActiveFile and the DiffFileTree selection effect runs before the
+		// second frame.
 		await nextFrame();
 		await nextFrame();
 		await waitForScrollSettled(expandButton);
