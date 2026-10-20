@@ -53,7 +53,7 @@ resource "coder_agent" "dev" {
 > - `/home/coder/coder`
 > - `coder` (relative to the home directory)
 
-If you want the template to support any repository via [parameters](./extending-templates/parameters.md)
+If you want the template to support any repository via [parameters](./extending-templates/parameters/index.md)
 
 ```tf
 # Require external authentication to use this template

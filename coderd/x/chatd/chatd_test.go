@@ -57,6 +57,7 @@ import (
 	experimentrules "github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/experiments/experimentstest"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd"
@@ -3852,6 +3853,24 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	partialMessages := filterMessageEvents(partialSnapshot)
 	require.Len(t, partialMessages, 1, "afterMessageID=msg2.ID should return only messages after msg2")
 	require.Equal(t, codersdk.ChatMessageRoleUser, partialMessages[0].Message.Role)
+
+	err = db.SoftDeleteChatMessagesAfterID(ctx, database.SoftDeleteChatMessagesAfterIDParams{
+		ChatID:  chat.ID,
+		AfterID: msg2.ID - 1,
+	})
+	require.NoError(t, err)
+
+	resetSnapshot, _, cancelReset, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID)
+	require.True(t, ok)
+	cancelReset()
+
+	resets := slice.Filter(resetSnapshot, func(e codersdk.ChatStreamEvent) bool {
+		return e.Type == codersdk.ChatStreamEventTypeHistoryReset
+	})
+	require.Len(t, resets, 1, "deleted cursor should trigger a history reset")
+	resetMessages := filterMessageEvents(resetSnapshot)
+	require.Len(t, resetMessages, 1, "only the message before the truncation survives")
+	require.Equal(t, []codersdk.ChatMessagePart{codersdk.ChatMessageText("first")}, resetMessages[0].Message.Content)
 }
 
 func TestSubscribeAfterMessageIDWithEdit(t *testing.T) {
@@ -4676,8 +4695,8 @@ func highUsageTextResponse(text string) chattest.AnthropicResponse {
 func anthropicCompactionResponse(t testing.TB, req *chattest.AnthropicRequest, text string) chattest.AnthropicResponse {
 	t.Helper()
 	require.True(t, req.Stream)
-	// The summary cap is the configured cap with headroom bounded by
-	// the remaining context window, so it varies per test fixture; exact
+	// The summary cap is the configured cap bounded by the remaining
+	// context window, so it varies per test fixture; exact
 	// values are pinned in the chatloop unit tests and the hook test.
 	require.Positive(t, req.MaxTokens)
 	return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks(text)...)
@@ -5283,6 +5302,56 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 		require.False(t, chat.LastError.Valid)
 		require.Equal(t, int32(2), streamCount.Load())
+	})
+
+	t.Run("summary keeps the configured output cap", func(t *testing.T) {
+		t.Parallel()
+
+		// A cap configured at the provider maximum, as the known-model
+		// catalog seeds it, must not grow on the summary request: providers
+		// reject max_tokens above their output limit.
+		const maxOutputTokens = int64(128_000)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		requests := newAnthropicRequestRecorder()
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			body := anthropicRequestBody(t, *req)
+			if strings.Contains(body, "You are performing a context compaction") {
+				requests.record(req)
+				return anthropicCompactionResponse(t, req, compactionSummary)
+			}
+			if !req.Stream {
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			requests.record(req)
+			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunksWithCacheUsage(chattest.AnthropicUsage{
+				InputTokens:  10,
+				OutputTokens: 5,
+			}, "assistant answer")...)
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+		model = updateChatModelCompressionThreshold(t, db, model, 1_000_000, 80)
+		model = updateChatModelCallConfig(t, db, model, codersdk.ChatModelCallConfig{
+			MaxOutputTokens: ptr.Ref(maxOutputTokens),
+		})
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello from the user")
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		_, err := server.CompactChat(ctx, chat)
+		require.NoError(t, err)
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.False(t, chat.LastError.Valid)
+		require.False(t, chat.CompactionRequestedAt.Valid,
+			"compaction commit must consume the request marker")
+
+		recorded := requests.all()
+		require.Len(t, recorded, 2, "one chat turn and one summary request")
+		require.Equal(t, int(maxOutputTokens), recorded[0].MaxTokens, "chat turn max_tokens")
+		require.Equal(t, int(maxOutputTokens), recorded[1].MaxTokens, "summary max_tokens")
 	})
 
 	t.Run("compacts an errored chat and clears last_error", func(t *testing.T) {
@@ -11073,7 +11142,7 @@ func TestProcessChatPanicRecovery(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 
 	// Wrap the database so we can trigger a panic on the main
-	// goroutine of processChat. The chatloop's executeTools has
+	// goroutine of processChat. The chatloop's toolBatch has
 	// its own recover, so panicking inside a tool goroutine won't
 	// reach the processChat-level recovery. Instead, we panic
 	// during PersistStep's InTx call, which runs synchronously on
@@ -13140,11 +13209,11 @@ func TestChatTemplateAgentsAllowedEnforcement(t *testing.T) {
 		// template must be rejected before this function is called.
 		cfg.CreateWorkspace = func(
 			_ context.Context,
-			_ uuid.UUID,
+			_, _ uuid.UUID,
 			_ codersdk.CreateWorkspaceRequest,
-		) (codersdk.Workspace, error) {
+		) (codersdk.Workspace, database.Chat, error) {
 			t.Error("CreateWorkspace should not be called for a blocked template")
-			return codersdk.Workspace{}, xerrors.New("unexpected call")
+			return codersdk.Workspace{}, database.Chat{}, xerrors.New("unexpected call")
 		}
 	})
 
@@ -13293,10 +13362,11 @@ func TestChatAsksUserWhenListTemplatesRequiresSelection(t *testing.T) {
 		cfg.CreateWorkspace = func(
 			context.Context,
 			uuid.UUID,
+			uuid.UUID,
 			codersdk.CreateWorkspaceRequest,
-		) (codersdk.Workspace, error) {
+		) (codersdk.Workspace, database.Chat, error) {
 			t.Error("create_workspace should not be called when list_templates requires user selection")
-			return codersdk.Workspace{}, xerrors.New("unexpected create_workspace call")
+			return codersdk.Workspace{}, database.Chat{}, xerrors.New("unexpected create_workspace call")
 		}
 	})
 
