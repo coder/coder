@@ -184,7 +184,6 @@ export const AttachmentsOnly: Story = {
 	},
 };
 
-// Steer rows show under "Next step" and queue rows under "After turn".
 export const GroupedByLane: Story = {
 	args: {
 		messages: [
@@ -333,8 +332,6 @@ export const EndRequestPending: Story = {
 	},
 };
 
-// A pending "Send now" keeps the row visible with a spinner and disables
-// the other actions.
 export const SendNowPending: Story = {
 	args: {
 		messages: [
