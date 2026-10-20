@@ -16,7 +16,7 @@ import { useLatestAbortController } from "../../hooks/useLatestAbortController";
 import {
 	type AttachmentFailure,
 	attachmentFailureFromError,
-	getChatFileURL,
+	getAttachmentHref,
 	handleAttachmentDownloadClick,
 	isAbortError,
 	isRasterImageMediaType,
@@ -111,16 +111,6 @@ const getAttachmentExtension = (
 
 const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
 	TEXT_ATTACHMENT_MEDIA_TYPES.has(mediaType);
-
-const getAttachmentHref = (block: FileAttachmentBlock): string | null => {
-	if (block.file_id) {
-		return getChatFileURL(block.file_id);
-	}
-	if (block.data) {
-		return `data:${block.media_type};base64,${block.data}`;
-	}
-	return null;
-};
 
 const getAttachmentDisplayName = (
 	block: Pick<FileAttachmentBlock, "media_type" | "name">,
@@ -543,21 +533,26 @@ const RemoteImageBlock: React.FC<{
 	);
 };
 
-const FileCard: React.FC<{
+/**
+ * Download card for a chat file, or the expired tile. Callers decide expiry;
+ * the card never probes the file.
+ */
+export const FileCard: React.FC<{
 	block: FileAttachmentBlock;
 	href: string;
-}> = ({ block, href }) => {
-	const { hasExpired } = useFileProbes();
+	expired: boolean;
+	fullWidth?: boolean;
+}> = ({ block, href, expired, fullWidth = false }) => {
 	const displayName = getAttachmentDisplayName(block);
 	const downloadName = getAttachmentDownloadName(block);
 	const badgeLabel = getAttachmentBadgeLabel(block);
 
-	if (block.file_id !== undefined && hasExpired(block.file_id)) {
+	if (expired) {
 		return (
 			<AttachmentFallbackTile
 				state={{ kind: "expired" }}
 				labels={fileAttachmentFailureLabels}
-				className="h-16 w-28"
+				className={cn("h-16", fullWidth ? "w-full" : "w-28")}
 			/>
 		);
 	}
@@ -575,7 +570,10 @@ const FileCard: React.FC<{
 				});
 			}}
 			aria-label={`Download ${displayName}`}
-			className="inline-flex h-16 max-w-sm items-center gap-3 rounded-md border border-solid border-border bg-surface-tertiary px-3 py-2 no-underline transition-colors hover:bg-surface-quaternary"
+			className={cn(
+				"inline-flex h-16 items-center gap-3 rounded-md border border-solid border-border bg-surface-tertiary px-3 py-2 no-underline transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
+				fullWidth ? "w-full" : "max-w-sm",
+			)}
 		>
 			<div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-surface-secondary">
 				{badgeLabel ? (
@@ -610,6 +608,7 @@ export const AttachmentBlock: React.FC<{
 	framePreview?: boolean;
 }> = ({ block, onImageClick, onTextFileClick, framePreview = false }) => {
 	const [revealedInlineText, setRevealedInlineText] = useState(false);
+	const { hasExpired } = useFileProbes();
 	const href = getAttachmentHref(block);
 	const displayName = getAttachmentDisplayName(block);
 	const downloadName = getAttachmentDownloadName(block);
@@ -690,5 +689,11 @@ export const AttachmentBlock: React.FC<{
 		return null;
 	}
 
-	return <FileCard block={block} href={href} />;
+	return (
+		<FileCard
+			block={block}
+			href={href}
+			expired={block.file_id !== undefined && hasExpired(block.file_id)}
+		/>
+	);
 };

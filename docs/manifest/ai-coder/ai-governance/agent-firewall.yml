@@ -10,6 +10,9 @@ children:
   - title: Rules engine
     description: Learn how the Agent Firewall rules engine filters agent network requests with configurable rules.
     path: ./ai-coder/agent-firewall/rules-engine.md
+  - title: Example policy
+    description: Review a broad Agent Firewall allowlist policy for multi-language workspaces.
+    path: ./ai-coder/agent-firewall/example-policy.md
   - title: Version requirements
     description: Check the Coder and Claude Code module version requirements for running Agent Firewall.
     path: ./ai-coder/agent-firewall/version.md
