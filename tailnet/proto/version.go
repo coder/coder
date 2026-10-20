@@ -107,8 +107,8 @@ import (
 // API v2.15:
 //   - Added SKIPPED and CANCELED to Timing.Status on the Agent API, for a
 //     lifecycle script that never ran because of a prerequisite and one the
-//     agent shut down before it finished. Agents do not send either value
-//     yet.
+//     agent shut down before it finished.
+//   - A v2.15 agent reports skipped and canceled startup scripts.
 const (
 	CurrentMajor = 2
 	CurrentMinor = 15

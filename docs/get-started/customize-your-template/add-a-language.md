@@ -101,7 +101,8 @@ Update it to the version you just published, and add Ruby to its **Programming L
 
 1. From your workspace, open **Workspace settings** (top right), then select **Parameters**.
 2. Add **Ruby** to the **Programming Languages** parameter.
-3. Apply the change. Coder updates the workspace to the new template version and restarts it with Ruby selected.
+3. Apply the change.
+   Coder updates the workspace to the new template version and restarts it with Ruby selected.
 
 ### CLI
 
@@ -807,6 +808,6 @@ Now that you added a language, you can [install your own command-line tools](./i
 
 ## Learn more
 
-- [Parameters](../../admin/templates/extending-templates/parameters.md) in the Coder documentation
+- [Parameters](../../admin/templates/extending-templates/parameters/index.md) in the Coder documentation
 - [Terraform data sources](https://developer.hashicorp.com/terraform/language/data-sources)
 - [Terraform types](https://developer.hashicorp.com/terraform/language/expressions/types) for parameter values

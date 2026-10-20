@@ -1813,11 +1813,9 @@ func (q *querier) authorizeChatProjectMemories(ctx context.Context, action polic
 	return project, nil
 }
 
-// authorizeChatProjectInstructions authorizes an action on a project's
-// instructions. Instructions are part of the project's configuration, so
-// reading them requires reading the project and changing them requires
-// updating the project.
-func (q *querier) authorizeChatProjectInstructions(ctx context.Context, action policy.Action, projectID uuid.UUID) error {
+// authorizeChatProjectConfig authorizes an action on a project's
+// configuration, such as its instructions and skills.
+func (q *querier) authorizeChatProjectConfig(ctx context.Context, action policy.Action, projectID uuid.UUID) error {
 	project, err := q.db.GetChatProjectByID(ctx, projectID)
 	if err != nil {
 		return err
@@ -2366,7 +2364,7 @@ func (q *querier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error
 }
 
 func (q *querier) DeleteChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) error {
-	if err := q.authorizeChatProjectInstructions(ctx, policy.ActionUpdate, projectID); err != nil {
+	if err := q.authorizeChatProjectConfig(ctx, policy.ActionUpdate, projectID); err != nil {
 		return err
 	}
 	return q.db.DeleteChatProjectInstructionsByProjectID(ctx, projectID)
@@ -2677,6 +2675,13 @@ func (q *querier) DeleteOrganizationSkillByOrganizationIDAndName(ctx context.Con
 	return fetchAndQuery(q.log, q.auth, policy.ActionDelete, fetch, q.db.DeleteOrganizationSkillByOrganizationIDAndName)(ctx, arg)
 }
 
+func (q *querier) DeleteProjectSkillByProjectIDAndName(ctx context.Context, arg database.DeleteProjectSkillByProjectIDAndNameParams) (database.Skill, error) {
+	if err := q.authorizeChatProjectConfig(ctx, policy.ActionUpdate, arg.ProjectID); err != nil {
+		return database.Skill{}, err
+	}
+	return q.db.DeleteProjectSkillByProjectIDAndName(ctx, arg)
+}
+
 func (q *querier) DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error {
 	return deleteQ(q.log, q.auth, q.db.GetProvisionerKeyByID, q.db.DeleteProvisionerKey)(ctx, id)
 }
@@ -2968,14 +2973,6 @@ func (q *querier) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context, 
 	}
 
 	return q.db.FetchVolumesResourceMonitorsUpdatedAfter(ctx, updatedAt)
-}
-
-func (q *querier) FinalizeStaleChatDebugRows(ctx context.Context, updatedBefore database.FinalizeStaleChatDebugRowsParams) (database.FinalizeStaleChatDebugRowsRow, error) {
-	// Background sweep operates across all chats.
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
-		return database.FinalizeStaleChatDebugRowsRow{}, err
-	}
-	return q.db.FinalizeStaleChatDebugRows(ctx, updatedBefore)
 }
 
 func (q *querier) FindMatchingPresetID(ctx context.Context, arg database.FindMatchingPresetIDParams) (uuid.UUID, error) {
@@ -3630,6 +3627,19 @@ func (q *querier) GetChatMessageByID(ctx context.Context, id int64) (database.Ch
 	return msg, nil
 }
 
+func (q *querier) GetChatMessageByIDForStream(ctx context.Context, id int64) (database.ChatMessage, error) {
+	msg, err := q.db.GetChatMessageByIDForStream(ctx, id)
+	if err != nil {
+		return database.ChatMessage{}, err
+	}
+	// Authorize read on the parent chat.
+	_, err = q.GetChatByID(ctx, msg.ChatID)
+	if err != nil {
+		return database.ChatMessage{}, err
+	}
+	return msg, nil
+}
+
 func (q *querier) GetChatMessageSummariesPerChat(ctx context.Context, createdAfter time.Time) ([]database.GetChatMessageSummariesPerChatRow, error) {
 	// Telemetry queries are called from system contexts only.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
@@ -3790,7 +3800,7 @@ func (q *querier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID)
 }
 
 func (q *querier) GetChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) (database.GetChatProjectInstructionsByProjectIDRow, error) {
-	if err := q.authorizeChatProjectInstructions(ctx, policy.ActionRead, projectID); err != nil {
+	if err := q.authorizeChatProjectConfig(ctx, policy.ActionRead, projectID); err != nil {
 		return database.GetChatProjectInstructionsByProjectIDRow{}, err
 	}
 	return q.db.GetChatProjectInstructionsByProjectID(ctx, projectID)
@@ -3823,10 +3833,6 @@ func (q *querier) GetChatProjectMemoryByName(ctx context.Context, arg database.G
 		return database.GetChatProjectMemoryByNameRow{}, err
 	}
 	return row, nil
-}
-
-func (q *querier) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatProject, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectsByOwnerID)(ctx, ownerID)
 }
 
 func (q *querier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]database.ChatProject, error) {
@@ -4855,6 +4861,24 @@ func (q *querier) GetPreviousTemplateVersion(ctx context.Context, arg database.G
 		return database.TemplateVersion{}, err
 	}
 	return q.db.GetPreviousTemplateVersion(ctx, arg)
+}
+
+func (q *querier) GetProjectSkillByIDForUpdate(ctx context.Context, id uuid.UUID) (database.Skill, error) {
+	skill, err := q.db.GetProjectSkillByIDForUpdate(ctx, id)
+	if err != nil {
+		return database.Skill{}, err
+	}
+	if err := q.authorizeChatProjectConfig(ctx, policy.ActionRead, skill.ProjectID.UUID); err != nil {
+		return database.Skill{}, err
+	}
+	return skill, nil
+}
+
+func (q *querier) GetProjectSkillByProjectIDAndName(ctx context.Context, arg database.GetProjectSkillByProjectIDAndNameParams) (database.Skill, error) {
+	if err := q.authorizeChatProjectConfig(ctx, policy.ActionRead, arg.ProjectID); err != nil {
+		return database.Skill{}, err
+	}
+	return q.db.GetProjectSkillByProjectIDAndName(ctx, arg)
 }
 
 func (q *querier) GetProvisionerDaemons(ctx context.Context) ([]database.ProvisionerDaemon, error) {
@@ -6745,6 +6769,13 @@ func (q *querier) InsertPresetPrebuildSchedule(ctx context.Context, arg database
 	return q.db.InsertPresetPrebuildSchedule(ctx, arg)
 }
 
+func (q *querier) InsertProjectSkill(ctx context.Context, arg database.InsertProjectSkillParams) (database.Skill, error) {
+	if err := q.authorizeChatProjectConfig(ctx, policy.ActionUpdate, arg.ProjectID); err != nil {
+		return database.Skill{}, err
+	}
+	return q.db.InsertProjectSkill(ctx, arg)
+}
+
 func (q *querier) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
 	// TODO: Remove this once we have a proper rbac check for provisioner jobs.
 	// Details in https://github.com/coder/coder/issues/16160
@@ -7172,9 +7203,9 @@ func (q *querier) IsChatHeartbeatStale(ctx context.Context, arg database.IsChatH
 	return q.db.IsChatHeartbeatStale(ctx, arg)
 }
 
-// IsChatProjectAccessibleByUserID answers for another user, so it requires
+// IsChatProjectUsableByUserID answers for another user, so it requires
 // reading every project.
-func (q *querier) IsChatProjectAccessibleByUserID(ctx context.Context, arg database.IsChatProjectAccessibleByUserIDParams) (bool, error) {
+func (q *querier) IsChatProjectUsableByUserID(ctx context.Context, arg database.IsChatProjectUsableByUserIDParams) (bool, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatProject); err != nil {
 		return false, err
 	}
@@ -7188,7 +7219,7 @@ func (q *querier) IsChatProjectAccessibleByUserID(ctx context.Context, arg datab
 		}
 		return project.OwnerID == arg.UserID, nil
 	}
-	return q.db.IsChatProjectAccessibleByUserID(ctx, arg)
+	return q.db.IsChatProjectUsableByUserID(ctx, arg)
 }
 
 func (q *querier) LinkChatFilesAfterLock(ctx context.Context, arg database.LinkChatFilesAfterLockParams) (int32, error) {
@@ -7324,6 +7355,13 @@ func (q *querier) ListOrganizationSkillMetadataByOrganizationID(ctx context.Cont
 		return nil, xerrors.Errorf("prepare sql filter: %w", err)
 	}
 	return q.db.GetAuthorizedOrganizationSkillMetadata(ctx, organizationID, prepared)
+}
+
+func (q *querier) ListProjectSkillMetadataByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.ListProjectSkillMetadataByProjectIDRow, error) {
+	if err := q.authorizeChatProjectConfig(ctx, policy.ActionRead, projectID); err != nil {
+		return nil, err
+	}
+	return q.db.ListProjectSkillMetadataByProjectID(ctx, projectID)
 }
 
 func (q *querier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
@@ -7692,28 +7730,6 @@ func (q *querier) SyncAgentChatsContextMCPResources(ctx context.Context, agentID
 	return q.db.SyncAgentChatsContextMCPResources(ctx, agentID)
 }
 
-func (q *querier) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {
-	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
-	}
-	return q.db.TouchChatDebugRunUpdatedAt(ctx, arg)
-}
-
-func (q *querier) TouchChatDebugStepAndRun(ctx context.Context, arg database.TouchChatDebugStepAndRunParams) error {
-	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
-	}
-	return q.db.TouchChatDebugStepAndRun(ctx, arg)
-}
-
 func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {
 	return q.db.TryAcquireLock(ctx, id)
 }
@@ -8017,6 +8033,17 @@ func (q *querier) UpdateChatProjectByID(ctx context.Context, arg database.Update
 	return updateWithReturn(q.log, q.auth, func(ctx context.Context, arg database.UpdateChatProjectByIDParams) (database.ChatProject, error) {
 		return q.db.GetChatProjectByID(ctx, arg.ID)
 	}, q.db.UpdateChatProjectByID)(ctx, arg)
+}
+
+func (q *querier) UpdateChatProjectIDByID(ctx context.Context, arg database.UpdateChatProjectIDByIDParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.UpdateChatProjectIDByID(ctx, arg)
 }
 
 func (q *querier) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
@@ -8427,6 +8454,13 @@ func (q *querier) UpdatePresetsLastInvalidatedAt(ctx context.Context, arg databa
 	}
 
 	return q.db.UpdatePresetsLastInvalidatedAt(ctx, arg)
+}
+
+func (q *querier) UpdateProjectSkillByProjectIDAndName(ctx context.Context, arg database.UpdateProjectSkillByProjectIDAndNameParams) (database.Skill, error) {
+	if err := q.authorizeChatProjectConfig(ctx, policy.ActionUpdate, arg.ProjectID); err != nil {
+		return database.Skill{}, err
+	}
+	return q.db.UpdateProjectSkillByProjectIDAndName(ctx, arg)
 }
 
 func (q *querier) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
@@ -9546,7 +9580,7 @@ func (q *querier) UpsertChatPlanModeInstructions(ctx context.Context, value stri
 }
 
 func (q *querier) UpsertChatProjectInstructions(ctx context.Context, arg database.UpsertChatProjectInstructionsParams) (database.ChatProjectInstruction, error) {
-	if err := q.authorizeChatProjectInstructions(ctx, policy.ActionUpdate, arg.ProjectID); err != nil {
+	if err := q.authorizeChatProjectConfig(ctx, policy.ActionUpdate, arg.ProjectID); err != nil {
 		return database.ChatProjectInstruction{}, err
 	}
 	return q.db.UpsertChatProjectInstructions(ctx, arg)

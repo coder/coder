@@ -96,7 +96,9 @@ func StopWorkspace(db database.Store, chatID uuid.UUID, options StopWorkspaceOpt
 			case database.ProvisionerJobStatusPending,
 				database.ProvisionerJobStatusRunning,
 				database.ProvisionerJobStatusCanceling:
-				publishBuildBinding(ctx, db, options.Logger, chatID, ws.ID, build.ID, options.OnChatUpdated)
+				if err := publishBuildBinding(ctx, db, chatID, ws.ID, build.ID, options.OnChatUpdated); err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
 
 				waitErr := waitForBuild(ctx, db, build.ID)
 				// Re-read after waiting because another transition may
@@ -127,6 +129,11 @@ func StopWorkspace(db database.Store, chatID uuid.UUID, options StopWorkspaceOpt
 
 			if job.JobStatus == database.ProvisionerJobStatusSucceeded &&
 				build.Transition == database.WorkspaceTransitionStop {
+				if chat.BuildID.UUID != build.ID {
+					if err := publishBuildBinding(ctx, db, chatID, ws.ID, build.ID, options.OnChatUpdated); err != nil {
+						return fantasy.NewTextErrorResponse(err.Error()), nil
+					}
+				}
 				result := map[string]any{
 					"stopped":        true,
 					"workspace_name": ws.Name,
@@ -153,7 +160,9 @@ func StopWorkspace(db database.Store, chatID uuid.UUID, options StopWorkspaceOpt
 				), nil
 			}
 
-			publishBuildBinding(ctx, db, options.Logger, chatID, ws.ID, stopBuild.ID, options.OnChatUpdated)
+			if err := publishBuildBinding(ctx, db, chatID, ws.ID, stopBuild.ID, options.OnChatUpdated); err != nil {
+				return fantasy.NewTextErrorResponse(err.Error()), nil
+			}
 			if err := waitForBuild(ctx, db, stopBuild.ID); err != nil {
 				return buildToolResponse(newBuildError(
 					xerrors.Errorf("workspace stop build failed: %w", err).Error(),
@@ -162,9 +171,13 @@ func StopWorkspace(db database.Store, chatID uuid.UUID, options StopWorkspaceOpt
 			}
 
 			if options.OnChatUpdated != nil {
-				if latest, err := db.GetChatByID(ctx, chatID); err == nil {
-					options.OnChatUpdated(latest)
+				latest, err := db.GetChatByID(ctx, chatID)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(
+						xerrors.Errorf("load chat: %w", err).Error(),
+					), nil
 				}
+				options.OnChatUpdated(latest)
 			}
 
 			result := map[string]any{

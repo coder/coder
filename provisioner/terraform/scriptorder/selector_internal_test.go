@@ -161,6 +161,21 @@ func TestResolveSelector(t *testing.T) {
 			}},
 		},
 		{
+			name: "AllMatchingManagedForEachInstances",
+			modules: []*tfjson.StateModule{{
+				Resources: []*tfjson.StateResource{
+					managedCoderScript(`coder_script.setup["worker"]`, "setup"),
+					managedCoderScript("coder_script.other", "other"),
+					managedCoderScript(`coder_script.setup["api"]`, "setup"),
+				},
+			}},
+			selector: "coder_script.setup",
+			expected: selectorResolution{addresses: []string{
+				`coder_script.setup["api"]`,
+				`coder_script.setup["worker"]`,
+			}},
+		},
+		{
 			name: "OneMatchingCountInstance",
 			modules: []*tfjson.StateModule{{
 				Resources: []*tfjson.StateResource{
