@@ -219,10 +219,9 @@ func TestGraph(t *testing.T) {
 	}
 
 	for testName, testFunc := range testFuncs {
-		var graph *testGraph
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
-			graph = testFunc(t)
+			graph := testFunc(t)
 			assertDOTGraph(t, graph, testName)
 		})
 	}
