@@ -13136,8 +13136,9 @@ func TestChatWorkspaceAttachments(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		workspaceFileID := uploadWorkspaceFile(ctx, t, "photo.png", append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...))
-		promptFile, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "photo.png", bytes.NewReader(append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)))
+		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		workspaceFileID := uploadWorkspaceFile(ctx, t, "photo.png", pngData)
+		promptFile, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "photo.png", bytes.NewReader(pngData))
 		require.NoError(t, err)
 
 		for _, tc := range []struct {
