@@ -101,12 +101,14 @@ pre[data-diff] {
   border-radius: ${FILE_CODE_INSET}px;
   overflow: hidden;
 }
-/* The library sets scrollbar-gutter: stable on the code and hides its
-   vertical scrollbar with a zero-width ::-webkit-scrollbar. The global
-   scrollbar-color makes Chromium ignore that rule, so classic scrollbars
-   leave an empty strip on the right. The code only scrolls horizontally. */
-[data-code] {
-  scrollbar-gutter: auto !important;
+/* The global scrollbar-color makes Chromium ignore the library's
+   ::-webkit-scrollbar rules for the code, which hide its vertical scrollbar
+   and size the horizontal one to --diffs-scrollbar-gutter. Firefox styles
+   the code with scrollbar-color, so it keeps the library's value. */
+@supports not (-moz-appearance: none) {
+  [data-code] {
+    scrollbar-color: auto;
+  }
 }
 `;
 
@@ -120,6 +122,11 @@ const diffViewerStyle = {
 	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
 	"--diffs-font-size": "11px",
 	"--diffs-line-height": `${DIFF_VIEWER_LINE_HEIGHT}px`,
+	// Height of the code's horizontal scrollbar, which the library subtracts
+	// from the code's bottom padding. The library measures it once, before the
+	// FILE_CARD_CSS scrollbar rules apply, so a classic 15px scrollbar would
+	// make each card taller than its metrics. Matches the library's fallback.
+	"--diffs-scrollbar-gutter-override": "6px",
 } satisfies React.CSSProperties;
 
 const diffViewerMetrics: Partial<VirtualFileMetrics> = {
@@ -613,11 +620,6 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 		update();
 		const observer = new ResizeObserver(update);
 		observer.observe(scrollerEl);
-		// Collapsing files changes the content height without resizing the
-		// scroller, which can add or remove the scrollbar.
-		if (scrollerEl.firstElementChild) {
-			observer.observe(scrollerEl.firstElementChild);
-		}
 		return () => observer.disconnect();
 	}, [scrollerEl]);
 
