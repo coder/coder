@@ -142,6 +142,7 @@ export const AttachmentPreview: React.FC<{
 					const hasTextAttachment =
 						file.type === "text/plain" &&
 						(textContent !== undefined || textFileId !== undefined);
+					const isForWorkspace = uploadState?.purpose === "workspace";
 					return (
 						<div
 							// Key combines file metadata with index as a fallback for
@@ -149,7 +150,9 @@ export const AttachmentPreview: React.FC<{
 							key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
 							className="group relative"
 						>
-							{isRasterImageMediaType(file.type) && previewUrl ? (
+							{!isForWorkspace &&
+							isRasterImageMediaType(file.type) &&
+							previewUrl ? (
 								<button
 									type="button"
 									className="border-0 bg-transparent p-0 cursor-pointer transition-opacity hover:opacity-80"
@@ -177,8 +180,20 @@ export const AttachmentPreview: React.FC<{
 									</span>
 								</button>
 							) : (
-								<div className="flex size-16 items-center justify-center rounded-md border border-border bg-surface-secondary text-xs text-content-secondary">
-									{file.name.split(".").pop()?.toUpperCase() || "FILE"}
+								<div
+									className={cn(
+										"flex size-16 items-center justify-center rounded-md border border-border bg-surface-secondary text-xs text-content-secondary",
+										isForWorkspace && "flex-col gap-0.5 px-1 text-center",
+									)}
+								>
+									<span className="max-w-full truncate">
+										{file.name.split(".").pop()?.toUpperCase() || "FILE"}
+									</span>
+									{isForWorkspace && (
+										<span className="text-2xs leading-tight">
+											For the workspace
+										</span>
+									)}
 								</div>
 							)}
 							{hasTextAttachment && (

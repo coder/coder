@@ -42,7 +42,7 @@ import {
 	MockWorkspace,
 	MockWorkspaceBuildLogs,
 } from "#/testHelpers/entities";
-import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
+import { withDashboardProvider } from "#/testHelpers/storybook";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
 import {
 	getReasoningEffortForModel,
@@ -2342,20 +2342,19 @@ export const WorkspaceFileQueuedForDeferredUpload: Story = {
 	},
 };
 
-export const WorkspaceFileWithoutWorkspaceShowsSelectToast: Story = {
+export const WorkspaceFileWithoutWorkspaceIsStaged: Story = {
 	args: {
 		workspaceOptions: mockWorkspaces,
 		workspaceCount: mockWorkspaces.length,
 	},
-	decorators: [withToaster],
 	beforeEach: () => {
 		localStorage.clear();
+		spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
+			id: "staged-workspace-file",
+		});
 	},
 	play: async ({ canvasElement }) => {
 		await attachZipFile(canvasElement);
-		await within(canvasElement.ownerDocument.body).findByText(
-			"This file type is uploaded into the chat's workspace. Select a running workspace, then try again.",
-		);
 	},
 };
 
@@ -2383,28 +2382,5 @@ export const WorkspaceFileSubmissionLocksScopeControls: Story = {
 	play: async ({ canvasElement }) => {
 		await attachZipFile(canvasElement);
 		await submitMessage(canvasElement, "inspect this archive");
-	},
-};
-
-export const DetachingWorkspaceDropsQueuedFiles: Story = {
-	args: {
-		workspaceOptions: mockWorkspaces,
-		workspaceCount: mockWorkspaces.length,
-	},
-	decorators: [withToaster],
-	beforeEach: () => {
-		localStorage.clear();
-		localStorage.setItem("agents.selected-workspace-id", "ws-1");
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await attachZipFile(canvasElement);
-		await canvas.findByText("bundle.zip");
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Remove workspace my-project" }),
-		);
-		await within(canvasElement.ownerDocument.body).findByText(
-			"Removed 1 file that uploads to the workspace",
-		);
 	},
 };

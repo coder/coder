@@ -13,7 +13,6 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
-import { getWorkspaceAgents } from "#/utils/workspace";
 import { resolveChatCompactionThreshold } from "../compactionTriggers";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
@@ -651,20 +650,11 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 
 	const isStreaming = hasStreamState || isActiveChatStatus(chatStatus);
 
-	// The workspace upload affordance requires an existing chat bound
-	// to a workspace whose agent is connected; the agent writes the
-	// bytes into its home directory. A freshly attached or rebound
-	// workspace has no bound agent until the next generation, and the
-	// upload handler then selects one itself, so any connected root
-	// agent qualifies in that case (mirrors the new-chat page).
-	const uploadAgentConnected = workspaceAgent
-		? workspaceAgent.status === "connected"
-		: workspace !== undefined &&
-			getWorkspaceAgents(workspace).some(
-				(agent) => !agent.parent_id && agent.status === "connected",
-			);
-	const canUploadWorkspaceFiles = Boolean(
-		chatId && workspace && uploadAgentConnected,
+	// Direct uploads go only through the chat's bound agent, which writes
+	// the bytes into its home directory. Without a connected one,
+	// workspace files stage in Coder until the workspace starts.
+	const canStreamWorkspaceFiles = Boolean(
+		chatId && workspace && workspaceAgent?.status === "connected",
 	);
 	const modeWorkspaceUploads = isEditing
 		? editWorkspaceUploads
@@ -712,6 +702,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 							pendingAttachments.push({
 								fileId: state.fileId,
 								mediaType: file.type || "application/octet-stream",
+								purpose: state.purpose,
 							});
 						}
 					}
@@ -776,9 +767,12 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			textContents={textContents}
 			workspaceUploads={{
 				uploads: visibleWorkspaceUploads,
-				onAttach: canUploadWorkspaceFiles
+				onAttach: canStreamWorkspaceFiles
 					? modeWorkspaceUploads.attach
 					: undefined,
+				onStage: canStreamWorkspaceFiles
+					? undefined
+					: (files) => handleAttach(files, "workspace"),
 				onRemove: handleRemoveWorkspaceUpload,
 			}}
 			inputRef={inputRef}

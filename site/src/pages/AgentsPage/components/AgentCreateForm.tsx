@@ -67,17 +67,15 @@ export const selectedOrganizationIdStorageKey =
 	"agents.selected-organization-id";
 /** @internal Exported for testing. */
 export const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
-// Deferred uploads need a selected workspace with a connected agent;
-// the same copy covers attaching without one and submitting after a
-// same-workspace status flap.
-const workspaceUploadUnavailableMessage =
-	"This file type is uploaded into the chat's workspace. Select a running workspace, then try again.";
 const attachDuringSubmitMessage =
 	"Wait for the current message to finish sending, then add the file again.";
 
 export type CreateChatOptions = {
 	message: string;
 	fileIDs?: string[];
+	// Files stored in Coder and copied into the chat's workspace once
+	// it starts, sent as workspace-attachment parts.
+	workspaceAttachmentFileIDs?: string[];
 	workspaceId?: string;
 	model?: string;
 	reasoningEffort?: string;
@@ -733,17 +731,13 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		saveReasoningEffortForModel(selectedModel, value);
 	};
 
-	// Deferred uploads eventually hit the same agent endpoint as the
-	// chat view, which rejects unless the agent is connected. No chat
-	// exists yet to carry the server-selected agent ID, so gate the
-	// affordance on any connected root agent: a stopped workspace then
-	// fails at attach time instead of after creating a chat destined
-	// for an upload failure, and the rare mismatch with the server's
-	// pick still surfaces as an upload error on submit.
+	// No chat exists yet to name the server-selected agent, so direct
+	// streaming gates on any connected root agent; otherwise workspace
+	// files stage in Coder.
 	const selectedWorkspace = filteredWorkspaces.find(
 		(ws) => ws.id === effectiveWorkspaceId,
 	);
-	const canUploadWorkspaceFiles =
+	const canStreamWorkspaceFiles =
 		selectedWorkspace !== undefined &&
 		getWorkspaceAgents(selectedWorkspace).some(
 			(agent) => !agent.parent_id && agent.status === "connected",
@@ -752,12 +746,14 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 	const handleSend = async (
 		message: string,
 		fileIDs?: string[],
+		workspaceAttachmentFileIDs?: string[],
 		uploadWorkspaceFiles?: CreateChatOptions["uploadWorkspaceFiles"],
 	) => {
 		submitDraft();
 		await onCreateChat({
 			message,
 			fileIDs,
+			workspaceAttachmentFileIDs,
 			workspaceId: effectiveWorkspaceId ?? undefined,
 			model: submittedModel,
 			reasoningEffort: effectiveReasoningEffort,
@@ -777,9 +773,10 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 
 	// Deferred workspace uploads: no chat exists yet, so files queue
 	// locally and upload during submit against the just-created chat.
-	// Scope arguments stay undefined so workspace switches never drop
-	// the queue; queued files carry no uploaded bytes and target
-	// whichever workspace is bound at submit time.
+	// Scope arguments stay undefined so the queue is not tied to one
+	// workspace: queued files carry no uploaded bytes and target
+	// whichever workspace is bound at submit time. A switch to a scope
+	// that cannot stream stages the queue instead.
 	const workspaceUploads = useWorkspaceFileUploads(undefined, undefined);
 	const {
 		uploads: workspaceUploadEntries,
@@ -794,14 +791,17 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 	const submitInFlightRef = useRef(false);
 	const isSubmitPending = isCreating || isSubmitSequencePending;
 
-	// Workspace files can only upload into a workspace whose agent is
-	// connected. An explicit scope change that loses that (deselecting,
-	// an org change, or switching to a stopped workspace) drops the
-	// queued files; keeping them would let a submit create an idle chat
-	// whose uploads are guaranteed to fail. A status flap on the same
-	// workspace (a passive refetch reporting the agent disconnected)
-	// keeps the queue and only blocks submit until it reconnects: the
-	// queued File objects cannot be restored once dropped.
+	const stageQueuedWorkspaceFiles = () => {
+		const files = workspaceUploadEntries.map((upload) => upload.file);
+		resetWorkspaceUploads();
+		handleAttach(files, "workspace");
+	};
+	const stageQueuedWorkspaceFilesOnScopeChange = useEffectEvent(
+		stageQueuedWorkspaceFiles,
+	);
+	// A status flap on the same workspace (a passive refetch reporting
+	// the agent disconnected) keeps the queue, and a submit during the
+	// flap stages it.
 	const workspaceUploadCount = workspaceUploadEntries.length;
 	const workspaceUploadScopeKey = `${organizationId}/${effectiveWorkspaceId ?? ""}`;
 	const previousWorkspaceUploadScopeKeyRef = useRef(workspaceUploadScopeKey);
@@ -812,41 +812,38 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 			return;
 		}
 		previousWorkspaceUploadScopeKeyRef.current = workspaceUploadScopeKey;
-		if (canUploadWorkspaceFiles || workspaceUploadCount === 0) {
+		if (canStreamWorkspaceFiles || workspaceUploadCount === 0) {
 			return;
 		}
-		resetWorkspaceUploads();
-		toast.warning(
-			workspaceUploadCount === 1
-				? "Removed 1 file that uploads to the workspace"
-				: `Removed ${workspaceUploadCount} files that upload to the workspace`,
-		);
-	}, [
-		workspaceUploadScopeKey,
-		canUploadWorkspaceFiles,
-		workspaceUploadCount,
-		resetWorkspaceUploads,
-	]);
+		stageQueuedWorkspaceFilesOnScopeChange();
+	}, [workspaceUploadScopeKey, canStreamWorkspaceFiles, workspaceUploadCount]);
 
-	const handleAttachWhenIdle = (files: File[]) => {
+	const handleAttachWhenIdle = (
+		files: File[],
+		purpose?: TypesGen.ChatFilePurpose,
+	) => {
 		if (submitInFlightRef.current) {
 			toast.error(attachDuringSubmitMessage);
 			return;
 		}
-		handleAttach(files);
+		handleAttach(files, purpose);
 	};
 
 	const handleSendWithAttachments = async (message: string) => {
 		if (submitInFlightRef.current) {
 			return;
 		}
-		if (workspaceUploadCount > 0 && !canUploadWorkspaceFiles) {
-			toast.error(workspaceUploadUnavailableMessage);
+		if (workspaceUploadCount > 0 && !canStreamWorkspaceFiles) {
+			stageQueuedWorkspaceFiles();
+			toast.info(
+				"The workspace agent is not connected, so Coder now stores these files and copies them into the workspace once it starts. Send again when they finish uploading.",
+			);
 			return;
 		}
 		submitInFlightRef.current = true;
 		setIsSubmitSequencePending(true);
 		const fileIds: string[] = [];
+		const workspaceAttachmentFileIds: string[] = [];
 		let skippedErrors = 0;
 		for (const file of attachments) {
 			const state = uploadStates.get(file);
@@ -855,7 +852,11 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 				continue;
 			}
 			if (state?.status === "uploaded" && state.fileId) {
-				fileIds.push(state.fileId);
+				if (state.purpose === "workspace") {
+					workspaceAttachmentFileIds.push(state.fileId);
+				} else {
+					fileIds.push(state.fileId);
+				}
 			}
 		}
 		if (skippedErrors > 0) {
@@ -864,6 +865,10 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 			);
 		}
 		const fileArg = fileIds.length > 0 ? fileIds : undefined;
+		const workspaceAttachmentFileArg =
+			workspaceAttachmentFileIds.length > 0
+				? workspaceAttachmentFileIds
+				: undefined;
 		// Deferred workspace files ride along: hand the page an upload
 		// callback bound to this hook. It re-uploads every entry, so a
 		// retry after failure targets the fresh chat.
@@ -872,7 +877,12 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 				? uploadQueuedWorkspaceFiles
 				: undefined;
 		try {
-			await handleSend(message, fileArg, uploadWorkspaceFiles);
+			await handleSend(
+				message,
+				fileArg,
+				workspaceAttachmentFileArg,
+				uploadWorkspaceFiles,
+			);
 		} catch {
 			// Attachments and queued files preserved for retry.
 			submitInFlightRef.current = false;
@@ -981,10 +991,8 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 								disabled={isSubmitPending}
 								onChange={(newOrg) => {
 									const orgChanged = newOrg.id !== effectiveOrg?.id;
-									// Queued workspace files are dropped alongside DB
-									// attachments when the org changes (the workspace
-									// deselect effect clears them), so they get the
-									// same confirmation.
+									// Queued workspace files get the same confirmation:
+									// the scope-change effect stages them in the new org.
 									if (
 										orgChanged &&
 										(attachments.length > 0 || workspaceUploadCount > 0)
@@ -1067,11 +1075,16 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 					textContents={textContents}
 					workspaceUploads={{
 						uploads: workspaceUploadEntries,
-						onAttach: canUploadWorkspaceFiles
+						onAttach: canStreamWorkspaceFiles
 							? workspaceUploads.attach
 							: undefined,
+						onStage:
+							canStreamWorkspaceFiles || !organizationAdopted
+								? undefined
+								: (files) => handleAttachWhenIdle(files, "workspace"),
 						onRemove: workspaceUploads.remove,
-						unavailableMessage: workspaceUploadUnavailableMessage,
+						unavailableMessage:
+							"This file type is uploaded into the chat's workspace. Wait for the page to finish loading, then try again.",
 						deferred: true,
 					}}
 					mcpServers={mcpServers}

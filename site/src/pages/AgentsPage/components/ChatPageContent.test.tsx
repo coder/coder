@@ -1,8 +1,10 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
+import { MockWorkspace } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { ChatPageInput } from "./ChatPageContent";
@@ -70,6 +72,11 @@ const workspaceFileReference = (
 });
 
 describe("ChatPageInput", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+		localStorage.clear();
+	});
+
 	it("routes Stop to onInterrupt while the chat requires action", async () => {
 		const user = userEvent.setup();
 		const onInterrupt = vi.fn();
@@ -115,5 +122,52 @@ describe("ChatPageInput", () => {
 				workspaceId: "ws-1",
 			},
 		]);
+	});
+
+	it("stages workspace files when the chat has no server-picked agent", async () => {
+		const user = userEvent.setup();
+		const onSend = vi.fn();
+		const uploadChatFile = vi
+			.spyOn(API.experimental, "uploadChatFile")
+			.mockResolvedValue({ id: "staged-zip" });
+		const uploadChatWorkspaceFile = vi.spyOn(
+			API.experimental,
+			"uploadChatWorkspaceFile",
+		);
+		const zip = new File(["PK"], "bundle.zip", { type: "application/zip" });
+
+		// The workspace has a connected root agent, but direct uploads go
+		// only through the chat's bound agent_id, which is unset here.
+		renderChatPageInput(createChatStore(), {
+			chat: {
+				...MockChat,
+				id: "chat-staging",
+				workspace_id: MockWorkspace.id,
+			},
+			workspace: MockWorkspace,
+			onSend,
+		});
+		await user.upload(
+			await screen.findByTestId("chat-attachment-file-input"),
+			zip,
+		);
+		await waitFor(() =>
+			expect(uploadChatFile).toHaveBeenCalledWith(
+				zip,
+				MockChat.organization_id,
+				"workspace",
+			),
+		);
+		await user.click(await screen.findByRole("button", { name: "Send" }));
+
+		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+		expect(onSend.mock.calls[0][0].attachments).toEqual([
+			{
+				fileId: "staged-zip",
+				mediaType: "application/zip",
+				purpose: "workspace",
+			},
+		]);
+		expect(uploadChatWorkspaceFile).not.toHaveBeenCalled();
 	});
 });
