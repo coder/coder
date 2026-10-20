@@ -40,7 +40,7 @@ func (p *Server) updateChat(
 		if updated.ID != uuid.Nil {
 			return nil
 		}
-		chat, err := store.GetChatByID(ctx, chatID)
+		chat, err := store.GetChatByID(tx.Ctx(), chatID)
 		if err != nil {
 			return xerrors.Errorf("reload chat after %s: %w", operation, err)
 		}
@@ -128,7 +128,7 @@ func (p *Server) SendMessage(
 		finishedInterruption bool
 	)
 	refreshed, err := p.updateChat(ctx, opts.ChatID, "send", func(tx *chatstate.Tx, store database.Store, _ *database.Chat) error {
-		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
+		lockedChat, err := store.GetChatByID(tx.Ctx(), opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
@@ -138,7 +138,7 @@ func (p *Server) SendMessage(
 		}
 
 		if opts.PlanMode != nil {
-			lockedChat, err = store.UpdateChatPlanModeByID(ctx, database.UpdateChatPlanModeByIDParams{
+			lockedChat, err = store.UpdateChatPlanModeByID(tx.Ctx(), database.UpdateChatPlanModeByIDParams{
 				PlanMode: *opts.PlanMode,
 				ID:       opts.ChatID,
 			})
@@ -148,7 +148,7 @@ func (p *Server) SendMessage(
 		}
 
 		modelConfigID, err := resolveSendMessageModelConfigID(
-			ctx,
+			tx.Ctx(),
 			store,
 			lockedChat,
 			opts.ModelConfigID,
@@ -157,13 +157,13 @@ func (p *Server) SendMessage(
 			return err
 		}
 
-		lockedChat, err = p.applyRequestedMCPServerIDs(ctx, store, lockedChat, opts.MCPServerIDs)
+		lockedChat, err = p.applyRequestedMCPServerIDs(tx.Ctx(), store, lockedChat, opts.MCPServerIDs)
 		if err != nil {
 			return err
 		}
 
 		if opts.InlineMCPServers != nil {
-			if err := chatstate.ReplaceInlineMCPServers(ctx, store, lockedChat.ID, *opts.InlineMCPServers); err != nil {
+			if err := chatstate.ReplaceInlineMCPServers(tx.Ctx(), store, lockedChat.ID, *opts.InlineMCPServers); err != nil {
 				return xerrors.Errorf("replace inline MCP servers: %w", err)
 			}
 		}
@@ -175,7 +175,7 @@ func (p *Server) SendMessage(
 
 		firstUserTurn := false
 		if lockedChat.Title == chatprompt.DefaultChatTitle {
-			visible, err := store.GetChatMessagesByChatIDAscPaginated(ctx, database.GetChatMessagesByChatIDAscPaginatedParams{
+			visible, err := store.GetChatMessagesByChatIDAscPaginated(tx.Ctx(), database.GetChatMessagesByChatIDAscPaginatedParams{
 				ChatID:   opts.ChatID,
 				LimitVal: 1,
 			})
@@ -214,7 +214,7 @@ func (p *Server) SendMessage(
 		finishedInterruption = sendResult.FinishedInterruption
 
 		// File-link errors must roll back the message.
-		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
+		if err := chatstate.LinkFiles(tx.Ctx(), store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
 			return err
 		}
 		if firstUserTurn && !result.Queued {
@@ -222,12 +222,12 @@ func (p *Server) SendMessage(
 			// Persist the fallback title with the message so a failed
 			// async title call cannot leave the placeholder forever.
 			firstMessage := []database.ChatMessage{result.Message}
-			pasteText, err := titlePasteText(ctx, store, firstMessage)
+			pasteText, err := titlePasteText(tx.Ctx(), store, firstMessage)
 			if err != nil {
 				return err
 			}
 			if titleText, ok := titleInput(lockedChat, firstMessage, pasteText); ok {
-				if _, err := store.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+				if _, err := store.UpdateChatTitleByID(tx.Ctx(), database.UpdateChatTitleByIDParams{
 					ID:          opts.ChatID,
 					Title:       chatprompt.FallbackTitle(titleText),
 					TitleSource: database.ChatTitleSourceFallback,
@@ -333,7 +333,7 @@ func (p *Server) EditMessage(
 		editedMsg database.ChatMessage
 	)
 	refreshed, err := p.updateChat(ctx, opts.ChatID, "edit", func(tx *chatstate.Tx, store database.Store, _ *database.Chat) error {
-		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
+		lockedChat, err := store.GetChatByID(tx.Ctx(), opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
@@ -342,18 +342,18 @@ func (p *Server) EditMessage(
 		}
 		// The target feeds the post-commit debug cleanup below; the
 		// transition itself revalidates ownership and role.
-		target, err := validateEditTarget(ctx, store, opts.ChatID, opts.EditedMessageID)
+		target, err := validateEditTarget(tx.Ctx(), store, opts.ChatID, opts.EditedMessageID)
 		if err != nil {
 			return err
 		}
 		editedMsg = target
 
-		lockedChat, err = p.applyRequestedMCPServerIDs(ctx, store, lockedChat, opts.MCPServerIDs)
+		lockedChat, err = p.applyRequestedMCPServerIDs(tx.Ctx(), store, lockedChat, opts.MCPServerIDs)
 		if err != nil {
 			return err
 		}
 
-		modelOverride, err := validateModelConfigOverride(ctx, store, lockedChat.OrganizationID, opts.ModelConfigID)
+		modelOverride, err := validateModelConfigOverride(tx.Ctx(), store, lockedChat.OrganizationID, opts.ModelConfigID)
 		if err != nil {
 			return err
 		}
@@ -365,7 +365,7 @@ func (p *Server) EditMessage(
 			if target.ModelConfigID.Valid {
 				preserved = target.ModelConfigID.UUID
 			}
-			resolved, err := resolveFallbackModelConfigID(ctx, store, lockedChat, preserved)
+			resolved, err := resolveFallbackModelConfigID(tx.Ctx(), store, lockedChat, preserved)
 			if err != nil {
 				return err
 			}
@@ -413,7 +413,7 @@ func (p *Server) EditMessage(
 		inserted = append(inserted, editResult.SuffixMessages...)
 		result.InsertedMessages = inserted
 		result.DeletedMessageIDs = editResult.DeletedMessageIDs
-		return chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat)
+		return chatstate.LinkFiles(tx.Ctx(), store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat)
 	})
 	if err != nil {
 		return EditMessageResult{}, err
@@ -568,7 +568,7 @@ func (p *Server) PromoteQueued(
 		promotedQueuedAt time.Time
 	)
 	refreshed, err := p.updateChat(ctx, opts.ChatID, "promote", func(tx *chatstate.Tx, store database.Store, _ *database.Chat) error {
-		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
+		lockedChat, err := store.GetChatByID(tx.Ctx(), opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
@@ -623,7 +623,7 @@ func (p *Server) SubmitToolResults(
 	}
 
 	_, err := p.updateChat(ctx, opts.ChatID, "tool results", func(tx *chatstate.Tx, store database.Store, _ *database.Chat) error {
-		locked, err := store.GetChatByID(ctx, opts.ChatID)
+		locked, err := store.GetChatByID(tx.Ctx(), opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
@@ -775,7 +775,7 @@ func (p *Server) CompactChat(
 	}
 
 	refreshed, err := p.updateChat(ctx, chat.ID, "compact", func(tx *chatstate.Tx, store database.Store, updated *database.Chat) error {
-		lockedChat, err := store.GetChatByID(ctx, chat.ID)
+		lockedChat, err := store.GetChatByID(tx.Ctx(), chat.ID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
@@ -792,7 +792,7 @@ func (p *Server) CompactChat(
 		// transaction (rolling back the transition) so no LLM call
 		// is ever started for an empty or already-compacted chat.
 		// This also covers a double-/compact.
-		messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		messages, err := store.GetChatMessagesByChatID(tx.Ctx(), database.GetChatMessagesByChatIDParams{
 			ChatID:  chat.ID,
 			AfterID: 0,
 		})
@@ -828,7 +828,7 @@ func (p *Server) ClearChat(
 	}
 
 	refreshed, err := p.updateChat(ctx, chat.ID, "clear", func(tx *chatstate.Tx, store database.Store, updated *database.Chat) error {
-		lockedChat, err := store.GetChatByID(ctx, chat.ID)
+		lockedChat, err := store.GetChatByID(tx.Ctx(), chat.ID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
@@ -838,7 +838,7 @@ func (p *Server) ClearChat(
 		// Read the pre-clear history before the transition inserts the
 		// boundary rows; eligibility is evaluated afterwards so busy
 		// chats surface the state conflict first.
-		messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		messages, err := store.GetChatMessagesByChatID(tx.Ctx(), database.GetChatMessagesByChatIDParams{
 			ChatID:  chat.ID,
 			AfterID: 0,
 		})

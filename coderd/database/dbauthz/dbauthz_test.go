@@ -8452,3 +8452,164 @@ func TestAsExternalAuthChecker(t *testing.T) {
 		}
 	})
 }
+
+func TestChatAuthorization_CachedRBAC(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.New()
+	orgID := uuid.New()
+	chat := database.Chat{ID: uuid.New(), OwnerID: ownerID, OrganizationID: orgID}
+
+	actor := rbac.Subject{
+		ID:     ownerID.String(),
+		Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
+		Groups: []string{orgID.String()},
+		Scope:  rbac.ScopeAll,
+	}
+	allowAll := &coderdtest.RecordingAuthorizer{
+		Wrapped: (&coderdtest.FakeAuthorizer{}).AlwaysReturn(nil),
+	}
+
+	t.Run("CachedSkipsRead", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := dbauthz.As(context.Background(), actor)
+		ctx, err := dbauthz.WithChatRBAC(ctx, dbauthz.CacheableChatRBAC(chat))
+		require.NoError(t, err)
+
+		ctrl := gomock.NewController(t)
+		dbm := dbmock.NewMockStore(ctrl)
+		// No GetChatByID expectation: the cached object must authorize
+		// every chat-scoped call.
+		dbm.EXPECT().Wrappers().Return([]string{})
+		dbm.EXPECT().LockChatAndBumpSnapshotVersion(gomock.Any(), chat.ID).Return(chat, nil)
+		dbm.EXPECT().UpdateChatExecutionState(gomock.Any(), gomock.Any()).Return(chat, nil)
+		dbm.EXPECT().UpdateChatRetryState(gomock.Any(), gomock.Any()).Return(chat, nil)
+		dbm.EXPECT().IncrementChatGenerationAttempt(gomock.Any(), chat.ID).Return(int64(1), nil)
+		dbm.EXPECT().InsertChatMessages(gomock.Any(), gomock.Any()).Return(nil, nil)
+		dbm.EXPECT().CountChatQueuedMessages(gomock.Any(), chat.ID).Return(int64(0), nil)
+		dbm.EXPECT().IsChatHeartbeatStale(gomock.Any(), gomock.Any()).Return(false, nil)
+		dbm.EXPECT().UpsertChatHeartbeat(gomock.Any(), gomock.Any()).Return(nil)
+		dbm.EXPECT().GetLastChatMessageByRole(gomock.Any(), gomock.Any()).Return(database.ChatMessage{}, nil)
+		dbm.EXPECT().GetChatMessagesByChatID(gomock.Any(), gomock.Any()).Return(nil, nil)
+		dbm.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return(nil, nil)
+		dbm.EXPECT().UpdateChatLastTurnSummary(gomock.Any(), gomock.Any()).Return(int64(1), nil)
+		dbm.EXPECT().UpdateChatSummary(gomock.Any(), gomock.Any()).Return(int64(1), nil)
+		dbm.EXPECT().GetChatTurnStartID(gomock.Any(), gomock.Any()).Return(int64(1), nil)
+		q := dbauthz.New(dbm, allowAll, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+		_, err = q.LockChatAndBumpSnapshotVersion(ctx, chat.ID)
+		require.NoError(t, err)
+		_, err = q.UpdateChatExecutionState(ctx, database.UpdateChatExecutionStateParams{ID: chat.ID})
+		require.NoError(t, err)
+		_, err = q.UpdateChatRetryState(ctx, database.UpdateChatRetryStateParams{ID: chat.ID})
+		require.NoError(t, err)
+		_, err = q.IncrementChatGenerationAttempt(ctx, chat.ID)
+		require.NoError(t, err)
+		_, err = q.InsertChatMessages(ctx, database.InsertChatMessagesParams{ChatID: chat.ID})
+		require.NoError(t, err)
+		_, err = q.CountChatQueuedMessages(ctx, chat.ID)
+		require.NoError(t, err)
+		_, err = q.IsChatHeartbeatStale(ctx, database.IsChatHeartbeatStaleParams{ChatID: chat.ID})
+		require.NoError(t, err)
+		require.NoError(t, q.UpsertChatHeartbeat(ctx, database.UpsertChatHeartbeatParams{ChatID: chat.ID}))
+		_, err = q.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{ChatID: chat.ID})
+		require.NoError(t, err)
+		_, err = q.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+		require.NoError(t, err)
+		_, err = q.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		_, err = q.UpdateChatLastTurnSummary(ctx, database.UpdateChatLastTurnSummaryParams{ID: chat.ID})
+		require.NoError(t, err)
+		_, err = q.UpdateChatSummary(ctx, database.UpdateChatSummaryParams{ID: chat.ID})
+		require.NoError(t, err)
+		_, err = q.GetChatTurnStartID(ctx, database.GetChatTurnStartIDParams{ChatID: chat.ID})
+		require.NoError(t, err)
+	})
+
+	t.Run("CachedForDifferentChatReads", func(t *testing.T) {
+		t.Parallel()
+
+		other := database.Chat{ID: uuid.New(), OwnerID: ownerID, OrganizationID: orgID}
+		ctx := dbauthz.As(context.Background(), actor)
+		ctx, err := dbauthz.WithChatRBAC(ctx, dbauthz.CacheableChatRBAC(other))
+		require.NoError(t, err)
+
+		ctrl := gomock.NewController(t)
+		dbm := dbmock.NewMockStore(ctrl)
+		dbm.EXPECT().Wrappers().Return([]string{})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil)
+		dbm.EXPECT().LockChatAndBumpSnapshotVersion(gomock.Any(), chat.ID).Return(chat, nil)
+		q := dbauthz.New(dbm, allowAll, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+		_, err = q.LockChatAndBumpSnapshotVersion(ctx, chat.ID)
+		require.NoError(t, err)
+	})
+
+	t.Run("CachedDeniedFallsBackToRead", func(t *testing.T) {
+		t.Parallel()
+
+		// Only the fetched row carries ACLs, so an ACL-only grant must
+		// still authorize through the slow path.
+		shared := chat
+		shared.UserACL = database.ChatACL{uuid.NewString(): {Permissions: []policy.Action{policy.ActionUpdate}}}
+		authz := &coderdtest.FakeAuthorizer{
+			ConditionalReturn: func(_ context.Context, _ rbac.Subject, _ policy.Action, obj rbac.Object) error {
+				if len(obj.ACLUserList) == 0 {
+					return xerrors.New("denied")
+				}
+				return nil
+			},
+		}
+
+		ctx := dbauthz.As(context.Background(), actor)
+		ctx, err := dbauthz.WithChatRBAC(ctx, dbauthz.CacheableChatRBAC(chat))
+		require.NoError(t, err)
+
+		ctrl := gomock.NewController(t)
+		dbm := dbmock.NewMockStore(ctrl)
+		dbm.EXPECT().Wrappers().Return([]string{})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(shared, nil)
+		dbm.EXPECT().UpdateChatExecutionState(gomock.Any(), gomock.Any()).Return(shared, nil)
+		q := dbauthz.New(dbm, authz, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+		_, err = q.UpdateChatExecutionState(ctx, database.UpdateChatExecutionStateParams{ID: chat.ID})
+		require.NoError(t, err)
+	})
+}
+
+func TestWithChatRBAC(t *testing.T) {
+	t.Parallel()
+
+	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), OrganizationID: uuid.New()}
+
+	t.Run("Valid", func(t *testing.T) {
+		t.Parallel()
+		ctx, err := dbauthz.WithChatRBAC(context.Background(), dbauthz.CacheableChatRBAC(chat))
+		require.NoError(t, err)
+		got, ok := dbauthz.ChatRBACFromContext(ctx)
+		require.True(t, ok)
+		require.Equal(t, chat.ID.String(), got.ID)
+	})
+
+	t.Run("RejectsWrongType", func(t *testing.T) {
+		t.Parallel()
+		_, err := dbauthz.WithChatRBAC(context.Background(), rbac.ResourceWorkspace.WithID(chat.ID).WithOwner(chat.OwnerID.String()).InOrg(chat.OrganizationID))
+		require.Error(t, err)
+	})
+
+	t.Run("RejectsEmptyOwner", func(t *testing.T) {
+		t.Parallel()
+		_, err := dbauthz.WithChatRBAC(context.Background(), rbac.ResourceChat.WithID(chat.ID).InOrg(chat.OrganizationID))
+		require.Error(t, err)
+	})
+
+	t.Run("RejectsACLs", func(t *testing.T) {
+		t.Parallel()
+		obj := dbauthz.CacheableChatRBAC(chat).WithACLUserList(map[string][]policy.Action{
+			uuid.NewString(): {policy.ActionRead},
+		})
+		_, err := dbauthz.WithChatRBAC(context.Background(), obj)
+		require.Error(t, err)
+	})
+}

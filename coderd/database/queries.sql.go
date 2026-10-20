@@ -10904,7 +10904,9 @@ candidates AS (
 SELECT
     chats.id,
     chats.status,
-    chats.parent_chat_id
+    chats.parent_chat_id,
+    chats.owner_id,
+    chats.organization_id
 FROM candidates
 JOIN chats ON chats.id = candidates.id
 ORDER BY
@@ -10920,9 +10922,11 @@ type GetChatWorkerAcquisitionCandidatesParams struct {
 }
 
 type GetChatWorkerAcquisitionCandidatesRow struct {
-	ID           uuid.UUID     `db:"id" json:"id"`
-	Status       ChatStatus    `db:"status" json:"status"`
-	ParentChatID uuid.NullUUID `db:"parent_chat_id" json:"parent_chat_id"`
+	ID             uuid.UUID     `db:"id" json:"id"`
+	Status         ChatStatus    `db:"status" json:"status"`
+	ParentChatID   uuid.NullUUID `db:"parent_chat_id" json:"parent_chat_id"`
+	OwnerID        uuid.UUID     `db:"owner_id" json:"owner_id"`
+	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
 }
 
 // Returns a bounded, pool-interleaved set of chats that workers may acquire.
@@ -10940,7 +10944,13 @@ func (q *sqlQuerier) GetChatWorkerAcquisitionCandidates(ctx context.Context, arg
 	var items []GetChatWorkerAcquisitionCandidatesRow
 	for rows.Next() {
 		var i GetChatWorkerAcquisitionCandidatesRow
-		if err := rows.Scan(&i.ID, &i.Status, &i.ParentChatID); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Status,
+			&i.ParentChatID,
+			&i.OwnerID,
+			&i.OrganizationID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

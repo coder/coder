@@ -9,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 )
 
@@ -118,6 +119,11 @@ func (r *runner) bootstrap() bool {
 		r.opts.Logger.Warn(r.ctx, "chatworker runner bootstrap failed", slogError(err))
 		r.mgr.requestCleanup(r.ctx, r.rec.key)
 		return false
+	}
+	// Every transition this runner performs derives from r.ctx, so they
+	// all authorize against this cached object instead of reading the chat.
+	if rbacCtx, err := dbauthz.WithChatRBAC(r.ctx, dbauthz.CacheableChatRBAC(chat)); err == nil {
+		r.ctx = rbacCtx
 	}
 	// Apply the database snapshot directly instead of routing it through
 	// the manager. Routing fans out through stateCh, where a stale hint
