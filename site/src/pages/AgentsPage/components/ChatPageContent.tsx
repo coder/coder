@@ -6,7 +6,6 @@ import {
 	chatPromptsQuery,
 	organizationChatModelOverrides,
 	refreshChatContext,
-	userCompactionStrategy,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { workspaces } from "#/api/queries/workspaces";
@@ -14,12 +13,12 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { getWorkspaceAgents } from "#/utils/workspace";
 import { resolveChatCompactionThreshold } from "../compactionTriggers";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
+import { useUserCompactionStrategy } from "../hooks/useUserCompactionStrategy";
 import {
 	isWorkspaceUploadInProgress,
 	useWorkspaceFileUploads,
@@ -377,7 +376,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	folder,
 }) => {
 	const { user: currentUser } = useAuthenticated();
-	const { experiments } = useDashboard();
 	const organizationId = chat.organization_id;
 	const chatId = chat.id;
 	const chatContext = chat.context;
@@ -394,15 +392,8 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const modelOverridesQuery = useQuery(
 		organizationChatModelOverrides(organizationId),
 	);
-	const isTokenBudgetAvailable = experiments.includes("chat-token-budget");
-	const strategyQuery = useQuery({
-		...userCompactionStrategy(),
-		enabled: isTokenBudgetAvailable,
-	});
 	// A strategy that has not loaded is unknown, so no threshold is shown.
-	const compactionStrategy = isTokenBudgetAvailable
-		? strategyQuery.data?.strategy
-		: "summarize";
+	const { strategy: compactionStrategy } = useUserCompactionStrategy();
 	const compactionThreshold =
 		modelOverridesQuery.isPending || compactionStrategy === undefined
 			? undefined

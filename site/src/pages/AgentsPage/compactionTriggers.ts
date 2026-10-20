@@ -59,11 +59,11 @@ const compactionTriggerPoint = (trigger: CompactionTrigger) =>
 
 // Mirrors chatd newContextWindowBudget (keep in sync with
 // TestNewContextWindowBudget).
-export const defaultChatMaxOutputTokens = 32_000;
+const defaultChatMaxOutputTokens = 32_000;
 const finalHandoffReserveTokens = 16_000;
 const minHandoffThresholdPercent = 10;
 
-export const handoffTargetPoint = (
+const handoffTargetPoint = (
 	contextLimit: number,
 	thresholdPercent: number,
 	outputCap: number,
@@ -81,6 +81,10 @@ export const handoffTargetPoint = (
 	return Math.min(Math.floor(thresholdPoint), finalPoint);
 };
 
+/**
+ * Token count at which chatd asks the agent to hand off under token budget,
+ * or undefined when the model's window is unknown.
+ */
 export const modelHandoffTargetPoint = (
 	model: TypesGen.ChatModel,
 	thresholdPercent: number,

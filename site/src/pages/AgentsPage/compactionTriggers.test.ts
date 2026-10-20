@@ -11,9 +11,8 @@ import {
 	compactionOverrideWindowPercent,
 	compactionPointAsPercent,
 	compactionThresholdLabel,
-	defaultChatMaxOutputTokens,
-	handoffTargetPoint,
 	isCompactionPointBeyondWindow,
+	modelHandoffTargetPoint,
 	type OrganizationCompactionTrigger,
 	type ResolvedCompactionThreshold,
 	resolveChatCompactionThreshold,
@@ -445,18 +444,30 @@ describe("compaction triggers", () => {
 		"places the handoff target of a %i-token window with threshold %i at %i tokens",
 		(contextLimit, thresholdPercent, expected) => {
 			expect(
-				handoffTargetPoint(
-					contextLimit,
+				modelHandoffTargetPoint(
+					{
+						...mockChatModel,
+						context_limit: contextLimit,
+						model_config: undefined,
+					},
 					thresholdPercent,
-					defaultChatMaxOutputTokens,
 				),
 			).toBe(expected);
 		},
 	);
 
-	it("shrinks the usable limit with a smaller output cap", () => {
+	it("shrinks the usable limit with the model's smaller output cap", () => {
 		// 200k window, 8,192 output cap: usable 191,808, final zone 175,808.
-		expect(handoffTargetPoint(200_000, 95, 8_192)).toBe(175_808);
+		expect(
+			modelHandoffTargetPoint(
+				{
+					...mockChatModel,
+					context_limit: 200_000,
+					model_config: { max_output_tokens: 8_192 },
+				},
+				95,
+			),
+		).toBe(175_808);
 	});
 
 	it.each<[ResolvedCompactionThreshold, number, string | undefined]>([

@@ -161,6 +161,7 @@ export const CompactionStrategyOptions: Story = {
 };
 
 export const CompactionStrategyLoadError: Story = {
+	args: { compactionStrategy: undefined },
 	parameters: { experiments: ["chat-token-budget"] },
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserChatCompactionStrategy").mockRejectedValue(
@@ -195,6 +196,7 @@ export const CompactionStrategySaveError: Story = {
 };
 
 export const CompactionStrategyLoading: Story = {
+	args: { compactionStrategy: undefined },
 	parameters: { experiments: ["chat-token-budget"] },
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserChatCompactionStrategy").mockReturnValue(

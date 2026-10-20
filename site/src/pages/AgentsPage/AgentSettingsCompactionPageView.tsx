@@ -1,5 +1,4 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import type {
 	CompactionTriggerLoadError,
 	OrganizationCompactionTrigger,
@@ -27,7 +26,8 @@ export type AgentSettingsCompactionPageViewProps = {
 		thresholdPercent: number,
 	) => Promise<unknown>;
 	onResetThreshold: (modelId: string) => Promise<unknown>;
-	compactionStrategy: TypesGen.ChatCompactionStrategy;
+	/** Undefined until the user's strategy loads, which hides the thresholds. */
+	compactionStrategy: TypesGen.ChatCompactionStrategy | undefined;
 };
 
 export const AgentSettingsCompactionPageView: React.FC<
@@ -47,31 +47,32 @@ export const AgentSettingsCompactionPageView: React.FC<
 	onResetThreshold,
 	compactionStrategy,
 }) => {
-	const { experiments } = useDashboard();
 	return (
 		<div className="flex flex-col gap-8">
 			<SectionHeader
 				label="Compaction"
 				description="Customize when conversations with models are automatically compacted."
 			/>
-			{experiments.includes("chat-token-budget") && (
-				<CompactionStrategySettings />
+			<CompactionStrategySettings />
+			{compactionStrategy !== undefined && (
+				<UserCompactionThresholdSettings
+					models={models}
+					providerTypeByID={providerTypeByID}
+					organizations={organizations}
+					compactionTriggersByOrganizationID={
+						compactionTriggersByOrganizationID
+					}
+					modelsError={modelsError}
+					compactionTriggerLoadErrors={compactionTriggerLoadErrors}
+					isLoadingModels={isLoadingModels}
+					thresholds={thresholds}
+					isThresholdsLoading={isThresholdsLoading}
+					thresholdsError={thresholdsError}
+					onSaveThreshold={onSaveThreshold}
+					onResetThreshold={onResetThreshold}
+					compactionStrategy={compactionStrategy}
+				/>
 			)}
-			<UserCompactionThresholdSettings
-				models={models}
-				providerTypeByID={providerTypeByID}
-				organizations={organizations}
-				compactionTriggersByOrganizationID={compactionTriggersByOrganizationID}
-				modelsError={modelsError}
-				compactionTriggerLoadErrors={compactionTriggerLoadErrors}
-				isLoadingModels={isLoadingModels}
-				thresholds={thresholds}
-				isThresholdsLoading={isThresholdsLoading}
-				thresholdsError={thresholdsError}
-				onSaveThreshold={onSaveThreshold}
-				onResetThreshold={onResetThreshold}
-				compactionStrategy={compactionStrategy}
-			/>
 		</div>
 	);
 };

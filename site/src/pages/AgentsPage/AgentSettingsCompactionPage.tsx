@@ -4,7 +4,6 @@ import {
 	organizationChatModelOverrides,
 	updateUserCompactionThreshold,
 	userChatProviderConfigs,
-	userCompactionStrategy,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -14,6 +13,7 @@ import {
 	resolveCompactionTriggersByOrganization,
 } from "./compactionTriggers";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
+import { useUserCompactionStrategy } from "./hooks/useUserCompactionStrategy";
 import {
 	providerInfoByIDFromDescriptors,
 	providerTypeByIDFromUserConfigs,
@@ -21,16 +21,13 @@ import {
 
 const AgentSettingsCompactionPage: React.FC = () => {
 	const queryClient = useQueryClient();
-	const { organizations, experiments } = useDashboard();
+	const { organizations } = useDashboard();
 	const organizationModels = useOrganizationChatModels(
 		organizations.map((organization) => organization.id),
 	);
 	const providerConfigsQuery = useQuery(userChatProviderConfigs());
 	const thresholdsQuery = useQuery(userCompactionThresholds());
-	const strategyQuery = useQuery({
-		...userCompactionStrategy(),
-		enabled: experiments.includes("chat-token-budget"),
-	});
+	const { strategy: compactionStrategy } = useUserCompactionStrategy();
 	const modelOverrideQueries = useQueries({
 		queries: organizations.map((organization) =>
 			organizationChatModelOverrides(organization.id),
@@ -55,7 +52,6 @@ const AgentSettingsCompactionPage: React.FC = () => {
 	const providerTypeByID = providerTypeByIDFromUserConfigs(
 		providerConfigsQuery.data,
 	);
-	const compactionStrategy = strategyQuery.data?.strategy ?? "summarize";
 	// chatd ignores the organization override under token budget.
 	const compactionTriggers =
 		compactionStrategy === "token_budget"
@@ -91,8 +87,8 @@ const AgentSettingsCompactionPage: React.FC = () => {
 			}
 			compactionTriggerLoadErrors={compactionTriggers.loadErrors}
 			thresholds={thresholdsQuery.data?.thresholds}
-			isThresholdsLoading={thresholdsQuery.isLoading || strategyQuery.isLoading}
-			thresholdsError={thresholdsQuery.error ?? strategyQuery.error}
+			isThresholdsLoading={thresholdsQuery.isLoading}
+			thresholdsError={thresholdsQuery.error}
 			onSaveThreshold={handleSaveThreshold}
 			onResetThreshold={handleResetThreshold}
 			compactionStrategy={compactionStrategy}
