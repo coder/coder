@@ -1152,14 +1152,6 @@ func (m queryMetricsStore) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.
 	return r0, r1
 }
 
-func (m queryMetricsStore) FinalizeStaleChatDebugRows(ctx context.Context, updatedBefore database.FinalizeStaleChatDebugRowsParams) (database.FinalizeStaleChatDebugRowsRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.FinalizeStaleChatDebugRows(ctx, updatedBefore)
-	m.queryLatencies.WithLabelValues("FinalizeStaleChatDebugRows").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "FinalizeStaleChatDebugRows").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) FindMatchingPresetID(ctx context.Context, arg database.FindMatchingPresetIDParams) (uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.FindMatchingPresetID(ctx, arg)

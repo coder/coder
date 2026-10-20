@@ -305,19 +305,6 @@ type sqlcQuerier interface {
 	FetchNewMessageMetadata(ctx context.Context, arg FetchNewMessageMetadataParams) (FetchNewMessageMetadataRow, error)
 	FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceAgentVolumeResourceMonitor, error)
 	FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]WorkspaceAgentVolumeResourceMonitor, error)
-	// Marks orphaned in-progress rows as interrupted so they do not stay
-	// in a non-terminal state forever. The NOT IN list must match the
-	// terminal statuses defined by ChatDebugStatus in codersdk/chats.go.
-	//
-	// The steps CTE also catches steps whose parent run was just finalized
-	// (via run_id IN), because PostgreSQL data-modifying CTEs share the
-	// same snapshot and cannot see each other's row updates. Without this,
-	// a step with a recent updated_at would survive its run's finalization
-	// and remain in 'in_progress' state permanently.
-	//
-	// @now is the caller's clock timestamp so that mock-clock tests stay
-	// consistent with the @updated_before cutoff.
-	FinalizeStaleChatDebugRows(ctx context.Context, arg FinalizeStaleChatDebugRowsParams) (FinalizeStaleChatDebugRowsRow, error)
 	// FindMatchingPresetID finds a preset ID that is the largest exact subset of the provided parameters.
 	// It returns the preset ID if a match is found, or NULL if no match is found.
 	// The query finds presets where all preset parameters are present in the provided parameters,

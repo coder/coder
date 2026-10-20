@@ -2004,21 +2004,6 @@ func (mr *MockStoreMockRecorder) FetchVolumesResourceMonitorsUpdatedAfter(ctx, u
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchVolumesResourceMonitorsUpdatedAfter", reflect.TypeOf((*MockStore)(nil).FetchVolumesResourceMonitorsUpdatedAfter), ctx, updatedAt)
 }
 
-// FinalizeStaleChatDebugRows mocks base method.
-func (m *MockStore) FinalizeStaleChatDebugRows(ctx context.Context, arg database.FinalizeStaleChatDebugRowsParams) (database.FinalizeStaleChatDebugRowsRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FinalizeStaleChatDebugRows", ctx, arg)
-	ret0, _ := ret[0].(database.FinalizeStaleChatDebugRowsRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FinalizeStaleChatDebugRows indicates an expected call of FinalizeStaleChatDebugRows.
-func (mr *MockStoreMockRecorder) FinalizeStaleChatDebugRows(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FinalizeStaleChatDebugRows", reflect.TypeOf((*MockStore)(nil).FinalizeStaleChatDebugRows), ctx, arg)
-}
-
 // FindMatchingPresetID mocks base method.
 func (m *MockStore) FindMatchingPresetID(ctx context.Context, arg database.FindMatchingPresetIDParams) (uuid.UUID, error) {
 	m.ctrl.T.Helper()
