@@ -67,14 +67,17 @@ const AttachFileLabel: React.FC<ToolLabelProps> = ({ args, result }) => {
 	);
 };
 
-const CopyAttachmentsLabel: React.FC<ToolLabelProps> = ({ status }) => {
-	const labels: Record<ToolStatus, string> = {
-		running: "Copying attachments to the workspace…",
-		completed: "Checked workspace attachments",
-		error: "Failed to check workspace attachments",
-	};
-	return <span className="truncate text-[13px]">{labels[status]}</span>;
-};
+const CopyAttachmentsLabel: React.FC<ToolLabelProps> = ({ status }) => (
+	<span className="truncate text-[13px]">
+		{
+			{
+				running: "Copying attachments to the workspace…",
+				completed: "Checked workspace attachments",
+				error: "Failed to check workspace attachments",
+			}[status]
+		}
+	</span>
+);
 
 export const genericToolLabels: Partial<
 	Record<string, React.FC<ToolLabelProps>>
