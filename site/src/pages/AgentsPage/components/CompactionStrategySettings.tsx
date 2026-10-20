@@ -19,10 +19,7 @@ const strategyOptions = ChatCompactionStrategies.map((value) => ({
 	label: strategyLabels[value],
 }));
 
-/**
- * Lets the user choose how chatd keeps long chats within the context
- * window. Renders nothing while the chat-token-budget experiment is off.
- */
+/** Lets the user choose how chatd keeps long chats within the context window. */
 export const CompactionStrategySettings: React.FC = () => {
 	const queryClient = useQueryClient();
 	const { isExperimentEnabled, query } = useUserCompactionStrategy();

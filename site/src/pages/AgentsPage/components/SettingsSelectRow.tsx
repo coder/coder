@@ -6,7 +6,7 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 
-/** One choice in a `SettingsSelectRow`. */
+/** `label` is the visible text; `value` is what `onValueChange` receives. */
 export type SettingsSelectOption<T extends string> = {
 	value: T;
 	label: string;
@@ -26,9 +26,8 @@ type SettingsSelectRowProps<T extends string> = {
 };
 
 /**
- * A titled preference row: the description sits beside the select, `alert`
- * renders between the title and that row, and `errorMessage` renders below
- * it as an alert.
+ * A titled preference row with a select. `errorMessage` renders as an alert
+ * below the select unless it is undefined.
  */
 export const SettingsSelectRow = <T extends string>({
 	title,

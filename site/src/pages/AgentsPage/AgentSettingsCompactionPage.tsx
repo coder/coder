@@ -8,10 +8,7 @@ import {
 } from "#/api/queries/chats";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { AgentSettingsCompactionPageView } from "./AgentSettingsCompactionPageView";
-import {
-	type OrganizationCompactionTrigger,
-	resolveCompactionTriggersByOrganization,
-} from "./compactionTriggers";
+import { resolveCompactionTriggersByOrganization } from "./compactionTriggers";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
 import { useUserCompactionStrategy } from "./hooks/useUserCompactionStrategy";
 import {
@@ -52,25 +49,17 @@ const AgentSettingsCompactionPage: React.FC = () => {
 	const providerTypeByID = providerTypeByIDFromUserConfigs(
 		providerConfigsQuery.data,
 	);
-	// chatd ignores the organization override under token budget.
-	const compactionTriggers =
+	const compactionTriggers = resolveCompactionTriggersByOrganization(
 		compactionStrategy === "token_budget"
-			? {
-					triggersByOrganizationID: new Map<
-						string,
-						OrganizationCompactionTrigger
-					>(),
-					loadErrors: [],
-				}
-			: resolveCompactionTriggersByOrganization(
-					organizations.map((organization, index) => ({
-						organizationID: organization.id,
-						data: modelOverrideQueries[index].data,
-						error: modelOverrideQueries[index].error,
-					})),
-					organizationModels.models,
-					providerInfoByIDFromDescriptors(organizationModels.providers),
-				);
+			? []
+			: organizations.map((organization, index) => ({
+					organizationID: organization.id,
+					data: modelOverrideQueries[index].data,
+					error: modelOverrideQueries[index].error,
+				})),
+		organizationModels.models,
+		providerInfoByIDFromDescriptors(organizationModels.providers),
+	);
 
 	return (
 		<AgentSettingsCompactionPageView

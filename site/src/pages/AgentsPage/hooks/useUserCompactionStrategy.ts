@@ -6,7 +6,8 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 /**
  * Resolves the compaction strategy chatd applies to the current user's
  * chats. The strategy is `summarize` while the chat-token-budget experiment
- * is off, and `undefined` until the user's saved choice has loaded.
+ * is off, and `undefined` until the user's saved choice loads or after it fails to
+ * load.
  */
 export const useUserCompactionStrategy = () => {
 	const { experiments } = useDashboard();
