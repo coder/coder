@@ -2474,3 +2474,26 @@ export const UserMessageWithWorkspaceFileReference: Story = {
 		]),
 	},
 };
+
+export const UserMessageWithWorkspaceAttachment: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "Unzip this once the workspace starts" },
+					{
+						type: "workspace-attachment",
+						file_id: "workspace-attachment-file",
+						name: "dataset.zip",
+						size: 4096,
+						media_type: "application/zip",
+					},
+				],
+			},
+		]),
+	},
+};

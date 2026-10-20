@@ -124,6 +124,37 @@ describe("ChatPageInput", () => {
 		]);
 	});
 
+	it("keeps edited workspace attachments as workspace files", async () => {
+		const user = userEvent.setup();
+		const onSend = vi.fn();
+
+		renderChatPageInput(createChatStore(), {
+			onSend,
+			isEditing: true,
+			initialValue: "edited",
+			editingFileBlocks: [
+				{
+					type: "workspace-attachment",
+					file_id: "delivered-zip",
+					name: "bundle.zip",
+					media_type: "application/zip",
+					size: 2,
+				},
+			],
+		});
+
+		await user.click(await screen.findByRole("button", { name: "Save Edit" }));
+
+		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+		expect(onSend.mock.calls[0][0].attachments).toEqual([
+			{
+				fileId: "delivered-zip",
+				mediaType: "application/zip",
+				purpose: "workspace",
+			},
+		]);
+	});
+
 	it("stages workspace files when the chat has no server-picked agent", async () => {
 		const user = userEvent.setup();
 		const onSend = vi.fn();

@@ -11,9 +11,16 @@ const buildOptimisticEditedContent = ({
 	attachmentMediaTypes?: ReadonlyMap<string, string>;
 }): readonly TypesGen.ChatMessagePart[] => {
 	const existingFilePartsByID = new Map<string, TypesGen.ChatFilePart>();
+	const existingWorkspaceAttachmentsByID = new Map<
+		string,
+		TypesGen.ChatWorkspaceAttachmentPart
+	>();
 	for (const part of originalMessage.content ?? []) {
 		if (part.type === "file" && part.file_id) {
 			existingFilePartsByID.set(part.file_id, part);
+		}
+		if (part.type === "workspace-attachment") {
+			existingWorkspaceAttachmentsByID.set(part.file_id, part);
 		}
 	}
 
@@ -41,6 +48,16 @@ const buildOptimisticEditedContent = ({
 			};
 		}
 		const fileId = part.file_id ?? "";
+		if (part.type === "workspace-attachment") {
+			return (
+				existingWorkspaceAttachmentsByID.get(fileId) ?? {
+					type: "workspace-attachment",
+					file_id: fileId,
+					media_type:
+						attachmentMediaTypes?.get(fileId) ?? "application/octet-stream",
+				}
+			);
+		}
 		return (
 			existingFilePartsByID.get(fileId) ?? {
 				type: "file",

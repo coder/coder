@@ -68,6 +68,11 @@ export const genericToolLabels: Partial<
 		<span className="truncate text-[13px]">Listing processes</span>
 	),
 	attach_file: AttachFileLabel,
+	copy_attachments_to_workspace: () => (
+		<span className="truncate text-[13px]">
+			Copying attachments to the workspace
+		</span>
+	),
 	advisor: () => (
 		<span className="truncate text-[13px] leading-4 text-content-secondary">
 			Advisor

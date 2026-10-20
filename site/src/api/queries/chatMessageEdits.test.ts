@@ -45,6 +45,33 @@ describe("buildOptimisticEditedMessage", () => {
 
 		expect(message.content).toEqual([existingFilePart]);
 	});
+
+	it("keeps workspace attachments as workspace-attachment parts", () => {
+		const existingAttachment: TypesGen.ChatWorkspaceAttachmentPart = {
+			type: "workspace-attachment",
+			file_id: "existing-zip",
+			name: "bundle.zip",
+			media_type: "application/zip",
+			size: 2048,
+		};
+		const message = buildOptimisticEditedMessage({
+			requestContent: [
+				{ type: "workspace-attachment", file_id: "existing-zip" },
+				{ type: "workspace-attachment", file_id: "new-tar" },
+			],
+			originalMessage: makeUserMessage([existingAttachment]),
+			attachmentMediaTypes: new Map([["new-tar", "application/x-tar"]]),
+		});
+
+		expect(message.content).toEqual([
+			existingAttachment,
+			{
+				type: "workspace-attachment",
+				file_id: "new-tar",
+				media_type: "application/x-tar",
+			},
+		]);
+	});
 });
 
 describe("reconcileEditedMessageInCache", () => {

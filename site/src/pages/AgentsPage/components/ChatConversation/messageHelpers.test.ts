@@ -349,7 +349,7 @@ describe("deriveMessageDisplayState", () => {
 
 		const state = getDisplayState(message);
 		expect(state.shouldHide).toBe(false);
-		expect(state.hasWorkspaceFileReferences).toBe(true);
+		expect(state.hasWorkspaceFileChips).toBe(true);
 		expect(state.workspaceFileReferenceCount).toBe(1);
 		expect(state.hasCopyableContent).toBe(false);
 	});
@@ -369,7 +369,7 @@ describe("deriveMessageDisplayState", () => {
 		const state = getDisplayState(message);
 		expect(state.shouldHide).toBe(false);
 		expect(state.hasUserMessageBody).toBe(true);
-		expect(state.hasWorkspaceFileReferences).toBe(true);
+		expect(state.hasWorkspaceFileChips).toBe(true);
 		expect(state.hasCopyableContent).toBe(false);
 	});
 
