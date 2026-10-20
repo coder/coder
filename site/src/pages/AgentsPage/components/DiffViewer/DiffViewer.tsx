@@ -108,8 +108,9 @@ pre[data-diff] {
    so give it the app's scrollbar color. The library measures the gutter
    before these rules apply (15px with classic scrollbars), so pin it to the
    library's fallback: the styled scrollbar height on desktop, 0 on iOS.
-   Firefox styles the code with scrollbar-color, so it keeps the library's
-   value. */
+   Firefox ignores ::-webkit-scrollbar and sizes the code scrollbar with the
+   library's scrollbar-width rule, which is in effect when the library
+   measures, so it keeps the measured value. */
 @supports not (-moz-appearance: none) {
   :host {
     --diffs-scrollbar-gutter-override: var(--diffs-scrollbar-gutter-fallback);
@@ -121,10 +122,12 @@ pre[data-diff] {
     background-color: hsl(var(--surface-scrollbar));
   }
 }
-/* The library's Firefox rule keeps the full bottom padding under the code's
-   thin horizontal scrollbar, which makes the card taller than its metrics
-   whenever scrollbars take space. Subtract the measured gutter as the
-   WebKit rule does; it is 0 with overlay scrollbars. */
+/* The library's Firefox rule replaces its base [data-code] padding-bottom
+   with the full gap, so the code's horizontal scrollbar makes cards taller
+   than their metrics when scrollbars take space. Restore the base rule; the
+   measured gutter is 0 with overlay scrollbars. The library measures once
+   per page, so switching between overlay and classic scrollbars needs a
+   reload to correct the heights. */
 @supports (-moz-appearance: none) {
   [data-code] {
     padding-bottom: max(
