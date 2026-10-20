@@ -4,7 +4,7 @@ path: ./reference/index.md
 icon_path: ./images/icons/notes.svg
 children:
   - title: Glossary
-    description: Definitions of Coder terms and product names
+    description: Definitions of Coder terms and product names.
     path: ./reference/glossary.md
   - title: Releases
     description: Learn about Coder's release channels, versioning, and schedule so you can plan upgrades.
