@@ -38,25 +38,46 @@ func (p *Server) resolveChatProjectID(ctx context.Context, logger slog.Logger, c
 	return root.ProjectID
 }
 
+// resolveUsableChatProjectID returns the chat's project, as resolved by
+// resolveChatProjectID, when the chat owner can use it. Otherwise it returns
+// an invalid ID, and the chat runs without the project's instructions,
+// skills, and memory.
+func (p *Server) resolveUsableChatProjectID(ctx context.Context, logger slog.Logger, chat database.Chat) uuid.NullUUID {
+	projectID := p.resolveChatProjectID(ctx, logger, chat)
+	if !projectID.Valid {
+		return uuid.NullUUID{}
+	}
+	if _, ok := p.usableChatProject(ctx, logger, projectID.UUID, chat); !ok {
+		return uuid.NullUUID{}
+	}
+	return projectID
+}
+
 // resolveProjectInstructions returns the system prompt block holding the
 // instructions of the chat's project, or "" when there are none.
 // Instructions are read on every turn so edits reach existing chats on their
 // next turn.
 //
-// Lookups fail open: a chat keeps working without project instructions when
-// they cannot be loaded.
+// A chat runs without project instructions when the project or its
+// instructions cannot be loaded, when the access check fails, or when the
+// chat owner can no longer use the project.
 func (p *Server) resolveProjectInstructions(ctx context.Context, logger slog.Logger, chat database.Chat) string {
-	projectID := p.resolveChatProjectID(ctx, logger, chat)
+	projectID := p.resolveUsableChatProjectID(ctx, logger, chat)
 	if !projectID.Valid {
 		return ""
 	}
+	return p.loadProjectInstructions(ctx, logger, projectID.UUID)
+}
 
-	row, err := p.db.GetChatProjectInstructionsByProjectID(ctx, projectID.UUID)
+// loadProjectInstructions returns the instructions block of a project the
+// chat owner can use, or "" when it has none or they cannot be loaded.
+func (p *Server) loadProjectInstructions(ctx context.Context, logger slog.Logger, projectID uuid.UUID) string {
+	row, err := p.db.GetChatProjectInstructionsByProjectID(ctx, projectID)
 	if err != nil {
 		// A project without a row has no instructions.
 		if !errors.Is(err, sql.ErrNoRows) {
 			logger.Warn(ctx, "failed to load chat project instructions",
-				slog.F("project_id", projectID.UUID),
+				slog.F("project_id", projectID),
 				slog.Error(err),
 			)
 		}

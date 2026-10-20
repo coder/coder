@@ -146,7 +146,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				instructions={instructionsQuery.data}
 				error={instructionsQuery.error}
 				onRetry={() => void instructionsQuery.refetch()}
-				onEditInstructions={openEditor}
+				onEditInstructions={project.permissions.update ? openEditor : undefined}
 			/>
 			<ProjectInstructionsDialog
 				open={isEditorOpen}

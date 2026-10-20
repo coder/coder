@@ -9,7 +9,10 @@ import { useOutletContext, useParams } from "react-router";
 import type { UrlTransform } from "streamdown";
 import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
-import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
+import {
+	chatProjectSkills,
+	isChatProjectAccessError,
+} from "#/api/queries/chatProjectSkills";
 import {
 	chatMessagesForInfiniteScroll,
 	chatModels,
@@ -76,7 +79,6 @@ import { isChatAgentBindingUnresolved } from "./components/ChatConversation/watc
 import { workspaceSkillsFromChat } from "./components/ChatPageContent";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
-import { useChatProjectId } from "./hooks/useChatProjectId";
 import {
 	type SendChatTurnOptions,
 	useConversationEditingState,
@@ -328,8 +330,9 @@ const AgentChatPage: React.FC = () => {
 		enabled: Boolean(chatOrganizationId),
 		staleTime: 60_000,
 	});
-	const { projectId: chatProjectId, isResolved: isChatProjectResolved } =
-		useChatProjectId(chatQuery.data, experiments.includes("chat-projects"));
+	const chatProjectId = experiments.includes("chat-projects")
+		? chatQuery.data?.project_id
+		: undefined;
 	const hasChatProject = Boolean(chatOrganizationId && chatProjectId);
 	const projectSkillsQuery = useQuery({
 		...chatProjectSkills(chatOrganizationId, chatProjectId ?? ""),
@@ -647,11 +650,13 @@ const AgentChatPage: React.FC = () => {
 		organizationSkills: organizationSkillsQuery.data?.filter(
 			(skill) => skill.enabled,
 		),
-		projectSkills: hasChatProject
-			? projectSkillsQuery.data?.filter((skill) => skill.enabled)
-			: isChatProjectResolved
-				? []
-				: undefined,
+		// Unlike the lists above, losing access to the project means no
+		// project skills, even if some loaded earlier, because chatd then
+		// runs turns without them.
+		projectSkills:
+			hasChatProject && !isChatProjectAccessError(projectSkillsQuery.error)
+				? projectSkillsQuery.data?.filter((skill) => skill.enabled)
+				: [],
 		workspaceSkills: chatWorkspaceSkills,
 		compact,
 		clearChatContext,

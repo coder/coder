@@ -33,7 +33,10 @@ import {
 	useState,
 } from "react";
 import { useQuery } from "react-query";
-import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
+import {
+	chatProjectSkills,
+	isChatProjectAccessError,
+} from "#/api/queries/chatProjectSkills";
 import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -559,11 +562,6 @@ type ChatMessageInputProps = Omit<
 	/** Project, in organizationId, whose skills the chat loads, if any. */
 	projectId?: string;
 	/**
-	 * True while the chat's project is still unknown, such as a subagent
-	 * chat whose root chat is loading. Project skills then stay loading.
-	 */
-	isProjectPending?: boolean;
-	/**
 	 * Story and test seam for deterministic personal skill menu data.
 	 */
 	personalSkillsOverride?: readonly TypesGen.SkillMetadata[];
@@ -641,13 +639,8 @@ const useStoredSkillSource = (
 	queryOptions: SkillsScope["list"],
 	{
 		hasSource,
-		isSourcePending = false,
 		isTriggerActive,
-	}: {
-		hasSource: boolean;
-		isSourcePending?: boolean;
-		isTriggerActive: boolean;
-	},
+	}: { hasSource: boolean; isTriggerActive: boolean },
 ) => {
 	const queryEnabled = isTriggerActive && hasSource;
 	const query = useQuery({
@@ -655,14 +648,6 @@ const useStoredSkillSource = (
 		enabled: queryEnabled,
 		staleTime: 60_000,
 	});
-	if (isSourcePending) {
-		return {
-			skills: undefined,
-			isResolvedEmpty: false,
-			isLoading: isTriggerActive,
-			isError: false,
-		};
-	}
 	const skills = hasSource ? query.data?.filter((skill) => skill.enabled) : [];
 	const isUnresolved = queryEnabled && query.data === undefined;
 	return {
@@ -670,6 +655,7 @@ const useStoredSkillSource = (
 		isResolvedEmpty: skills?.length === 0 && !query.isFetching,
 		isLoading: isUnresolved && query.isFetching,
 		isError: isUnresolved && query.isError,
+		error: query.error,
 	};
 };
 
@@ -690,7 +676,6 @@ const ChatMessageInput = ({
 	hasWorkspace,
 	organizationId,
 	projectId,
-	isProjectPending = false,
 	personalSkillsOverride,
 	workspaceSkills,
 	slashCommands,
@@ -742,11 +727,7 @@ const ChatMessageInput = ({
 	const hasProject = Boolean(organizationId && projectId);
 	const projectSource = useStoredSkillSource(
 		chatProjectSkills(organizationId ?? "", projectId ?? ""),
-		{
-			hasSource: hasProject,
-			isSourcePending: isProjectPending,
-			isTriggerActive: hasSkillsTrigger,
-		},
+		{ hasSource: hasProject, isTriggerActive: hasSkillsTrigger },
 	);
 	// chatd skips disabled skills, so they never offer or collide.
 	const personalSkills = (personalSkillsOverride ?? skillsQuery.data)?.filter(
@@ -757,10 +738,17 @@ const ChatMessageInput = ({
 	// A list stays undefined until its source loads, even after an error,
 	// which keeps triggers qualified and built-in commands hidden. A chat
 	// without an organization, project, or workspace has a known empty list.
+	// Losing access to the project is the exception: chatd then runs turns
+	// without project skills, so the list is known to be empty.
 	const skillLists: SkillSourceList<SkillMetadata>[] = [
 		{ source: "personal", skills: personalSkills },
 		{ source: "org", skills: organizationSource.skills },
-		{ source: "project", skills: projectSource.skills },
+		{
+			source: "project",
+			skills: isChatProjectAccessError(projectSource.error)
+				? []
+				: projectSource.skills,
+		},
 		{ source: "workspace", skills: loadedWorkspaceSkills },
 	];
 	const availableSlashCommands = (slashCommands ?? []).filter(
@@ -1109,7 +1097,7 @@ const ChatMessageInput = ({
 					projectSkills={projectSkillItems}
 					workspaceSkills={workspaceSkillItems}
 					organizationSkillsEnabled={Boolean(organizationId)}
-					projectSkillsEnabled={hasProject || isProjectPending}
+					projectSkillsEnabled={hasProject}
 					workspaceSkillsEnabled={hasWorkspace}
 					isPersonalLoading={isPersonalSkillsLoading}
 					isPersonalError={

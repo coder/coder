@@ -264,6 +264,9 @@ type GenerateCompactionOptions struct {
 	// OnModelStreamStart runs immediately before the summary model call,
 	// at the instant CompactionResult.Runtime starts measuring.
 	OnModelStreamStart func()
+
+	// Logger records summary requests the model rejects for their size.
+	Logger slog.Logger
 }
 
 // ProviderTool pairs a provider-native tool definition with an

@@ -3852,6 +3852,24 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	partialMessages := filterMessageEvents(partialSnapshot)
 	require.Len(t, partialMessages, 1, "afterMessageID=msg2.ID should return only messages after msg2")
 	require.Equal(t, codersdk.ChatMessageRoleUser, partialMessages[0].Message.Role)
+
+	err = db.SoftDeleteChatMessagesAfterID(ctx, database.SoftDeleteChatMessagesAfterIDParams{
+		ChatID:  chat.ID,
+		AfterID: msg2.ID - 1,
+	})
+	require.NoError(t, err)
+
+	resetSnapshot, _, cancelReset, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID)
+	require.True(t, ok)
+	cancelReset()
+
+	resets := slice.Filter(resetSnapshot, func(e codersdk.ChatStreamEvent) bool {
+		return e.Type == codersdk.ChatStreamEventTypeHistoryReset
+	})
+	require.Len(t, resets, 1, "deleted cursor should trigger a history reset")
+	resetMessages := filterMessageEvents(resetSnapshot)
+	require.Len(t, resetMessages, 1, "only the message before the truncation survives")
+	require.Equal(t, []codersdk.ChatMessagePart{codersdk.ChatMessageText("first")}, resetMessages[0].Message.Content)
 }
 
 func TestSubscribeAfterMessageIDWithEdit(t *testing.T) {
@@ -13120,11 +13138,11 @@ func TestChatTemplateAgentsAllowedEnforcement(t *testing.T) {
 		// template must be rejected before this function is called.
 		cfg.CreateWorkspace = func(
 			_ context.Context,
-			_ uuid.UUID,
+			_, _ uuid.UUID,
 			_ codersdk.CreateWorkspaceRequest,
-		) (codersdk.Workspace, error) {
+		) (codersdk.Workspace, database.Chat, error) {
 			t.Error("CreateWorkspace should not be called for a blocked template")
-			return codersdk.Workspace{}, xerrors.New("unexpected call")
+			return codersdk.Workspace{}, database.Chat{}, xerrors.New("unexpected call")
 		}
 	})
 
@@ -13273,10 +13291,11 @@ func TestChatAsksUserWhenListTemplatesRequiresSelection(t *testing.T) {
 		cfg.CreateWorkspace = func(
 			context.Context,
 			uuid.UUID,
+			uuid.UUID,
 			codersdk.CreateWorkspaceRequest,
-		) (codersdk.Workspace, error) {
+		) (codersdk.Workspace, database.Chat, error) {
 			t.Error("create_workspace should not be called when list_templates requires user selection")
-			return codersdk.Workspace{}, xerrors.New("unexpected create_workspace call")
+			return codersdk.Workspace{}, database.Chat{}, xerrors.New("unexpected create_workspace call")
 		}
 	})
 
