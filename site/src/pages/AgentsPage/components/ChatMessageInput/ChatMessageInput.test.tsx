@@ -343,18 +343,12 @@ describe("ChatMessageInput", () => {
 			expect(inputRef.current?.getValue()).toBe("/personal/compactor");
 		});
 
-		it.each([
-			[403, "/compact"],
-			[404, "/compact"],
-			// A transient failure leaves the project list unknown, so /compact
-			// stays hidden and Enter picks the qualified personal match.
-			[500, "/personal/compactor"],
-		])(
-			"handles a project list that fails with %i",
-			async (status, expected) => {
+		it.each([403, 404])(
+			"offers built-in commands when the project list fails with %i",
+			async (status) => {
 				vi.spyOn(API.experimental, "getChatProjectSkills").mockRejectedValue({
 					isAxiosError: true,
-					response: { status, data: { message: "Project skills failed." } },
+					response: { status, data: { message: "Project not found." } },
 				});
 				const inputRef = renderWithSkills({
 					personal: [mockCompactorSkill],
@@ -364,9 +358,36 @@ describe("ChatMessageInput", () => {
 				const user = await pasteTrigger("/comp");
 				await screen.findByText(/Could not load project skills/);
 				await user.keyboard("{Enter}");
-				expect(inputRef.current?.getValue()).toBe(expected);
+				expect(inputRef.current?.getValue()).toBe("/compact");
 			},
 		);
+
+		it("hides built-in commands when the project list fails transiently", async () => {
+			// Fake timers skip the delays of the query's retries.
+			vi.useFakeTimers({ shouldAdvanceTime: true });
+			try {
+				const getChatProjectSkills = vi
+					.spyOn(API.experimental, "getChatProjectSkills")
+					.mockRejectedValue({
+						isAxiosError: true,
+						response: { status: 500, data: { message: "Internal error." } },
+					});
+				const inputRef = renderWithSkills({
+					personal: [mockCompactorSkill],
+					organization: [],
+					projectId: "project-1",
+				});
+				const user = await pasteTrigger("/comp");
+				await vi.advanceTimersByTimeAsync(10_000);
+				await screen.findByText(/Could not load project skills/);
+				expect(getChatProjectSkills).toHaveBeenCalledTimes(4);
+				// With /compact hidden, Enter picks the qualified personal match.
+				await user.keyboard("{Enter}");
+				expect(inputRef.current?.getValue()).toBe("/personal/compactor");
+			} finally {
+				vi.useRealTimers();
+			}
+		});
 
 		it("keeps triggers qualified when the organization list fails", async () => {
 			const inputRef = renderWithSkills({ personal: [mockReviewerSkill] });

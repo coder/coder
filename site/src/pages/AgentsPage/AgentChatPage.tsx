@@ -338,10 +338,6 @@ const AgentChatPage: React.FC = () => {
 		...chatProjectSkills(chatOrganizationId, chatProjectId ?? ""),
 		enabled: hasChatProject,
 		staleTime: 60_000,
-		// An unknown list keeps /clear and /compact pending, so retry
-		// failures that may be transient.
-		retry: (failureCount, error) =>
-			failureCount < 3 && !isChatProjectAccessError(error),
 	});
 	const chatWorkspaceSkills = workspaceSkillsFromChat(chatQuery.data);
 	const { mutateAsync: deleteQueuedMessage } = useMutation(
@@ -655,11 +651,12 @@ const AgentChatPage: React.FC = () => {
 			(skill) => skill.enabled,
 		),
 		// Unlike the lists above, losing access to the project means no
-		// project skills, because chatd then runs turns without them.
-		projectSkills: hasChatProject
-			? (projectSkillsQuery.data?.filter((skill) => skill.enabled) ??
-				(isChatProjectAccessError(projectSkillsQuery.error) ? [] : undefined))
-			: [],
+		// project skills, even if some loaded earlier, because chatd then
+		// runs turns without them.
+		projectSkills:
+			hasChatProject && !isChatProjectAccessError(projectSkillsQuery.error)
+				? projectSkillsQuery.data?.filter((skill) => skill.enabled)
+				: [],
 		workspaceSkills: chatWorkspaceSkills,
 		compact,
 		clearChatContext,

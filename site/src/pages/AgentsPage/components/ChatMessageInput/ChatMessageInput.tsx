@@ -745,10 +745,9 @@ const ChatMessageInput = ({
 		{ source: "org", skills: organizationSource.skills },
 		{
 			source: "project",
-			skills:
-				projectSource.isError && isChatProjectAccessError(projectSource.error)
-					? []
-					: projectSource.skills,
+			skills: isChatProjectAccessError(projectSource.error)
+				? []
+				: projectSource.skills,
 		},
 		{ source: "workspace", skills: loadedWorkspaceSkills },
 	];

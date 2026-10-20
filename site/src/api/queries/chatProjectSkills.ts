@@ -13,14 +13,15 @@ export const chatProjectSkills = (
 	queryKey: chatProjectSkillsKey(projectId),
 	queryFn: (): Promise<TypesGen.SkillMetadata[]> =>
 		API.experimental.getChatProjectSkills(organizationId, projectId),
+	// An unknown list keeps /clear and /compact pending, so failures that
+	// may be transient are retried.
+	retry: (failureCount: number, error: unknown) =>
+		failureCount < 3 && !isChatProjectAccessError(error),
 });
 
 /**
- * Reports whether a project skills request failed because the caller can no
- * longer read the project, for example after its share was removed. chatd
- * runs a turn without the skills of a project the chat owner cannot use, so
- * this failure means no project skills. Other failures may be transient and
- * leave the skills unknown.
+ * Reports whether a project skills request failed with 403 or 404, meaning
+ * the caller lost access to the project. Other failures may be transient.
  */
 export const isChatProjectAccessError = (error: unknown): boolean => {
 	const status = isAxiosError(error) ? error.response?.status : undefined;
