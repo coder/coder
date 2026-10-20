@@ -1,0 +1,526 @@
+package chatd
+
+import (
+	"context"
+	"database/sql"
+	"io"
+	"net/http"
+	"path"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/wspubsub"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
+)
+
+// fakeUploadAgent stands in for a workspace agent's write-once chat file
+// upload: the first upload of a file ID stores its content, later ones
+// report the stored file.
+type fakeUploadAgent struct {
+	workspacesdk.AgentConn
+
+	mu       sync.Mutex
+	fail     func(req workspacesdk.UploadChatFileRequest) error
+	afterPut func()
+	requests []workspacesdk.UploadChatFileRequest
+	files    map[uuid.UUID][]byte
+}
+
+func newFakeUploadAgent() *fakeUploadAgent {
+	return &fakeUploadAgent{files: map[uuid.UUID][]byte{}}
+}
+
+func (*fakeUploadAgent) SetExtraHeaders(http.Header) {}
+
+func (a *fakeUploadAgent) UploadChatFile(_ context.Context, req workspacesdk.UploadChatFileRequest) (workspacesdk.AgentUploadChatFileResponse, error) {
+	data, err := io.ReadAll(req.Body)
+	if err != nil {
+		return workspacesdk.AgentUploadChatFileResponse{}, err
+	}
+	a.mu.Lock()
+	req.Body = nil
+	a.requests = append(a.requests, req)
+	fail, afterPut := a.fail, a.afterPut
+	a.mu.Unlock()
+	if fail != nil {
+		if err := fail(req); err != nil {
+			return workspacesdk.AgentUploadChatFileResponse{}, err
+		}
+	}
+
+	a.mu.Lock()
+	if _, ok := a.files[req.FileID]; !ok {
+		a.files[req.FileID] = data
+	}
+	stored := a.files[req.FileID]
+	a.mu.Unlock()
+	if afterPut != nil {
+		afterPut()
+	}
+	return workspacesdk.AgentUploadChatFileResponse{
+		Path: path.Join("/home/coder/.coder/chats", req.ChatID, "files", req.FileID.String(), req.Name),
+		Name: req.Name,
+		Size: int64(len(stored)),
+	}, nil
+}
+
+func (a *fakeUploadAgent) storedFiles() map[uuid.UUID][]byte {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	files := make(map[uuid.UUID][]byte, len(a.files))
+	for id, data := range a.files {
+		files[id] = data
+	}
+	return files
+}
+
+func (a *fakeUploadAgent) uploadRequests() []workspacesdk.UploadChatFileRequest {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]workspacesdk.UploadChatFileRequest(nil), a.requests...)
+}
+
+func agentStatusError(status int) error {
+	return codersdk.ReadBodyAsError(&http.Response{
+		StatusCode: status,
+		Header:     http.Header{"Content-Type": {"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(`{"message":"agent says no"}`)),
+		Request:    &http.Request{Method: http.MethodPost},
+	})
+}
+
+type workspaceFileDeliveryFixture struct {
+	*workerTestFixture
+	clock *quartz.Mock
+	agent *fakeUploadAgent
+}
+
+func newWorkspaceFileDeliveryFixture(t *testing.T) workspaceFileDeliveryFixture {
+	t.Helper()
+	clock := quartz.NewMock(t)
+	clock.Set(dbtime.Now())
+	return workspaceFileDeliveryFixture{
+		workerTestFixture: newWorkerTestFixture(t),
+		clock:             clock,
+		agent:             newFakeUploadAgent(),
+	}
+}
+
+// worker returns a worker that delivers through the fake agent. Workers
+// of one fixture share its database, like replicas.
+func (f workspaceFileDeliveryFixture) worker(t *testing.T) *chatWorker {
+	t.Helper()
+	// Delivery reads only the worker clock. The server's own tickers
+	// stay on a real clock so they cannot block Advance.
+	server := newUnstartedServer(t, f.pubsub, f.db)
+	server.agentInactiveDisconnectTimeout = time.Hour
+	server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		return f.agent, func() {}, nil
+	}
+	opts := testOptions(t, f.workerTestFixture, nil)
+	opts.Clock = f.clock
+	worker, err := newChatWorker(server, opts)
+	require.NoError(t, err)
+	return worker
+}
+
+// workspaceChat creates a running chat bound to a started workspace with
+// one connected agent. The seed sets the agent's lifecycle state and may
+// mark it disconnected.
+func (f workspaceFileDeliveryFixture) workspaceChat(ctx context.Context, t *testing.T, seed database.WorkspaceAgent) (database.Chat, database.WorkspaceAgent) {
+	t.Helper()
+	build := dbfake.WorkspaceBuild(t, f.db, database.WorkspaceTable{
+		OwnerID:        f.user.ID,
+		OrganizationID: f.org.ID,
+	}).Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStart}).Do()
+	resource := dbgen.WorkspaceResource(t, f.db, database.WorkspaceResource{JobID: build.Build.JobID})
+	connectedAt := sql.NullTime{Time: dbtime.Now(), Valid: true}
+	agent := dbgen.WorkspaceAgent(t, f.db, database.WorkspaceAgent{
+		ResourceID:       resource.ID,
+		Name:             "dev",
+		FirstConnectedAt: connectedAt,
+		LastConnectedAt:  connectedAt,
+		DisconnectedAt:   seed.DisconnectedAt,
+	})
+	f.setLifecycle(ctx, t, agent.ID, seed.LifecycleState)
+
+	res, err := chatstate.CreateChat(ctx, f.db, f.pubsub, chatstate.CreateChatInput{
+		OrganizationID:    f.org.ID,
+		OwnerID:           f.user.ID,
+		WorkspaceID:       uuid.NullUUID{UUID: build.Workspace.ID, Valid: true},
+		LastModelConfigID: f.model.ID,
+		Title:             "test",
+		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusRunning,
+		InitialMessages: []chatstate.Message{
+			userTextMessage(t, "hello", f.user.ID, f.model.ID, f.apiKey.ID),
+		},
+	})
+	require.NoError(t, err)
+	return res.Chat, agent
+}
+
+func (f workspaceFileDeliveryFixture) setLifecycle(ctx context.Context, t *testing.T, agentID uuid.UUID, state database.WorkspaceAgentLifecycleState) {
+	t.Helper()
+	require.NoError(t, f.db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+		ID:             agentID,
+		LifecycleState: state,
+	}))
+}
+
+func (f workspaceFileDeliveryFixture) workspaceFile(ctx context.Context, t *testing.T, chatID uuid.UUID, data string) database.InsertChatFileRow {
+	t.Helper()
+	file, err := f.db.InsertChatFile(ctx, database.InsertChatFileParams{
+		OwnerID:        f.user.ID,
+		OrganizationID: f.org.ID,
+		Name:           "report.zip",
+		Mimetype:       "application/zip",
+		Data:           []byte(data),
+		Purpose:        database.NullChatFilePurpose{ChatFilePurpose: database.ChatFilePurposeWorkspace, Valid: true},
+	})
+	require.NoError(t, err)
+	_, err = f.db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chatID,
+		FileIds:      []uuid.UUID{file.ID},
+		MaxFileLinks: 10,
+	})
+	require.NoError(t, err)
+	return file
+}
+
+func (f workspaceFileDeliveryFixture) fileState(ctx context.Context, t *testing.T, chatID, fileID uuid.UUID) database.GetChatFileMetadataByChatIDRow {
+	t.Helper()
+	files, err := f.db.GetChatFileMetadataByChatID(ctx, chatID)
+	require.NoError(t, err)
+	for _, file := range files {
+		if file.ID == fileID {
+			return file
+		}
+	}
+	t.Fatalf("file %s is not linked to chat %s", fileID, chatID)
+	return database.GetChatFileMetadataByChatIDRow{}
+}
+
+func (f workspaceFileDeliveryFixture) requireDelivered(ctx context.Context, t *testing.T, chat database.Chat, fileID uuid.UUID) database.GetChatFileMetadataByChatIDRow {
+	t.Helper()
+	var state database.GetChatFileMetadataByChatIDRow
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		state = f.fileState(ctx, t, chat.ID, fileID)
+		return state.WorkspaceDeliveredAt.Valid
+	}, testutil.IntervalFast)
+	require.Equal(t, int64(len("zip bytes")), state.SizeBytes)
+	require.Equal(t, path.Join("~/.coder/chats", chat.ID.String(), "files", fileID.String(), "report.zip"), state.WorkspaceDeliveredPath.String)
+	require.Equal(t, chat.WorkspaceID, state.WorkspaceDeliveredWorkspaceID)
+	return state
+}
+
+func TestWorkspaceFileDeliveryLoop(t *testing.T) {
+	t.Parallel()
+
+	// The loop sweeps every chat in its database, so each case gets its
+	// own fixture.
+	start := func(ctx context.Context, t *testing.T, f workspaceFileDeliveryFixture) {
+		t.Helper()
+		trap := f.clock.Trap().NewTicker("chatworker", "workspace-file-delivery")
+		defer trap.Close()
+		loopCtx, cancel := context.WithCancel(ctx)
+		worker := f.worker(t)
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			worker.workspaceFileDeliveryLoop(loopCtx)
+		}()
+		t.Cleanup(func() {
+			cancel()
+			<-done
+		})
+		// The ticker starts after the catch-up sweep.
+		trap.MustWait(ctx).MustRelease(ctx)
+	}
+
+	t.Run("StartupEventDelivers", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, agent := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateStarting})
+		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+		before, err := f.db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		messagesBefore, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+		require.NoError(t, err)
+
+		start(ctx, t, f)
+		require.Empty(t, f.agent.uploadRequests())
+
+		f.setLifecycle(ctx, t, agent.ID, database.WorkspaceAgentLifecycleStateReady)
+		require.NoError(t, wspubsub.PublishAgentStartupFinished(ctx, f.pubsub, wspubsub.AgentStartupFinishedEvent{
+			WorkspaceID: chat.WorkspaceID.UUID,
+			AgentID:     agent.ID,
+		}))
+		f.requireDelivered(ctx, t, chat, file.ID)
+		require.Equal(t, map[uuid.UUID][]byte{file.ID: []byte("zip bytes")}, f.agent.storedFiles())
+
+		// Delivery during a running turn must not touch the transcript:
+		// a history change cancels the turn.
+		after, err := f.db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusRunning, after.Status)
+		require.Equal(t, before.HistoryVersion, after.HistoryVersion)
+		messagesAfter, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+		require.NoError(t, err)
+		require.Equal(t, messagesBefore, messagesAfter)
+	})
+
+	t.Run("SweepCatchesMissedEvent", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, agent := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateStarting})
+		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+
+		start(ctx, t, f)
+		f.setLifecycle(ctx, t, agent.ID, database.WorkspaceAgentLifecycleStateReady)
+		f.clock.Advance(defaultWorkspaceFileDeliveryInterval).MustWait(ctx)
+		f.requireDelivered(ctx, t, chat, file.ID)
+	})
+
+	t.Run("SendToRunningWorkspaceDelivers", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// The send pokes its server's own worker, so the loop runs there.
+		server := newUnstartedServer(t, f.pubsub, f.db, withInternalTestServerClock(f.clock))
+		server.agentInactiveDisconnectTimeout = time.Hour
+		server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return f.agent, func() {}, nil
+		}
+		chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		file, err := f.db.InsertChatFile(ctx, database.InsertChatFileParams{
+			OwnerID:        f.user.ID,
+			OrganizationID: f.org.ID,
+			Name:           "report.zip",
+			Mimetype:       "application/zip",
+			Data:           []byte("zip bytes"),
+			Purpose:        database.NullChatFilePurpose{ChatFilePurpose: database.ChatFilePurposeWorkspace, Valid: true},
+		})
+		require.NoError(t, err)
+
+		trap := f.clock.Trap().NewTicker("chatworker", "workspace-file-delivery")
+		loopCtx, cancel := context.WithCancel(ctx)
+		loopDone := make(chan struct{})
+		go func() {
+			defer close(loopDone)
+			server.chatWorker.workspaceFileDeliveryLoop(loopCtx)
+		}()
+		t.Cleanup(func() {
+			cancel()
+			<-loopDone
+		})
+		trap.MustWait(ctx).MustRelease(ctx)
+		trap.Close()
+
+		// The workspace already finished starting, so no startup event
+		// follows and the clock never reaches the sweep: only the send
+		// can wake the loop.
+		_, err = server.SendMessage(ctx, SendMessageOptions{
+			ChatID:    chat.ID,
+			CreatedBy: f.user.ID,
+			Content: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageWorkspaceAttachment(file.ID, "application/zip", "report.zip", int64(len("zip bytes"))),
+			},
+		})
+		require.NoError(t, err)
+		f.requireDelivered(ctx, t, chat, file.ID)
+	})
+}
+
+func TestWorkspaceFileDeliveryOutcomes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ServerErrorsRetryThenPark", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		f.agent.fail = func(workspacesdk.UploadChatFileRequest) error {
+			return agentStatusError(http.StatusInternalServerError)
+		}
+		chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+		worker := f.worker(t)
+
+		for attempt := int32(1); attempt <= database.ChatWorkspaceFileMaxDeliveryAttempts; attempt++ {
+			worker.deliverWorkspaceFiles(ctx)
+			state := f.fileState(ctx, t, chat.ID, file.ID)
+			require.Equal(t, attempt, state.WorkspaceDeliveryAttempts)
+			require.Contains(t, state.WorkspaceDeliveryError.String, "agent says no")
+			require.WithinDuration(t, f.clock.Now().Add(workspaceFileDeliveryRetryDelay), state.WorkspaceDeliveryNextAttemptAt.Time, time.Second)
+
+			// Not due again until the retry delay passes.
+			worker.deliverWorkspaceFiles(ctx)
+			require.Len(t, f.agent.uploadRequests(), int(attempt))
+			f.clock.Advance(workspaceFileDeliveryRetryDelay)
+		}
+
+		f.clock.Advance(time.Hour)
+		worker.deliverWorkspaceFiles(ctx)
+		require.Len(t, f.agent.uploadRequests(), int(database.ChatWorkspaceFileMaxDeliveryAttempts))
+		require.False(t, f.fileState(ctx, t, chat.ID, file.ID).WorkspaceDeliveredAt.Valid)
+	})
+
+	t.Run("AgentRejectionParks", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name      string
+			status    int
+			wantError string
+		}{
+			// An agent without write-once uploads answers 400 to file_id.
+			{name: "OutdatedAgent", status: http.StatusBadRequest, wantError: "update the workspace agent"},
+			// An unwritable chat files directory answers 403.
+			{name: "Forbidden", status: http.StatusForbidden, wantError: "status 403"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				f := newWorkspaceFileDeliveryFixture(t)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				f.agent.fail = func(workspacesdk.UploadChatFileRequest) error {
+					return agentStatusError(tc.status)
+				}
+				chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+				file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+				worker := f.worker(t)
+
+				worker.deliverWorkspaceFiles(ctx)
+				state := f.fileState(ctx, t, chat.ID, file.ID)
+				require.Equal(t, database.ChatWorkspaceFileMaxDeliveryAttempts, state.WorkspaceDeliveryAttempts)
+				require.Contains(t, state.WorkspaceDeliveryError.String, tc.wantError)
+
+				f.clock.Advance(time.Hour)
+				worker.deliverWorkspaceFiles(ctx)
+				require.Len(t, f.agent.uploadRequests(), 1)
+			})
+		}
+	})
+
+	t.Run("DifferentExistingFileParks", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+		// The write-once target already holds an unrelated file, so the
+		// agent reports that file instead of storing this one.
+		f.agent.files[file.ID] = []byte("junk")
+		worker := f.worker(t)
+
+		worker.deliverWorkspaceFiles(ctx)
+		state := f.fileState(ctx, t, chat.ID, file.ID)
+		require.False(t, state.WorkspaceDeliveredAt.Valid)
+		require.Equal(t, database.ChatWorkspaceFileMaxDeliveryAttempts, state.WorkspaceDeliveryAttempts)
+		require.Contains(t, state.WorkspaceDeliveryError.String, path.Join("/home/coder/.coder/chats", chat.ID.String(), "files", file.ID.String(), "report.zip"))
+		require.Contains(t, state.WorkspaceDeliveryError.String, "(4 bytes, expected 9 bytes)")
+		stored, err := f.db.GetChatFileByID(ctx, file.ID)
+		require.NoError(t, err)
+		require.Equal(t, []byte("zip bytes"), stored.Data)
+
+		f.clock.Advance(time.Hour)
+		worker.deliverWorkspaceFiles(ctx)
+		require.Len(t, f.agent.uploadRequests(), 1)
+	})
+
+	t.Run("DisconnectedAgentRefunds", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+			DisconnectedAt: sql.NullTime{Time: dbtime.Now().Add(time.Second), Valid: true},
+		})
+		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+		worker := f.worker(t)
+
+		for range database.ChatWorkspaceFileMaxDeliveryAttempts + 1 {
+			worker.deliverWorkspaceFiles(ctx)
+			state := f.fileState(ctx, t, chat.ID, file.ID)
+			require.Zero(t, state.WorkspaceDeliveryAttempts)
+			require.Contains(t, state.WorkspaceDeliveryError.String, "not connected")
+			f.clock.Advance(workspaceFileDeliveryRetryDelay)
+		}
+		require.Empty(t, f.agent.uploadRequests())
+	})
+
+	t.Run("CrashAfterAgentWriteRedeliversToSamePath", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+
+		// The replica dies after the agent stored the file and before it
+		// records the delivery.
+		crashCtx, crash := context.WithCancel(ctx)
+		f.agent.afterPut = crash
+		f.worker(t).deliverWorkspaceFiles(crashCtx)
+		state := f.fileState(ctx, t, chat.ID, file.ID)
+		require.False(t, state.WorkspaceDeliveredAt.Valid)
+		require.False(t, state.WorkspaceDeliveryError.Valid)
+
+		f.agent.mu.Lock()
+		f.agent.afterPut = nil
+		f.agent.mu.Unlock()
+		f.clock.Advance(workspaceFileDeliveryLease)
+		f.worker(t).deliverWorkspaceFiles(ctx)
+		f.requireDelivered(ctx, t, chat, file.ID)
+
+		requests := f.agent.uploadRequests()
+		require.Len(t, requests, 2)
+		for _, req := range requests {
+			require.Equal(t, file.ID, req.FileID)
+			require.Equal(t, "report.zip", req.Name)
+		}
+		require.Equal(t, map[uuid.UUID][]byte{file.ID: []byte("zip bytes")}, f.agent.storedFiles())
+	})
+}
+
+func TestWorkspaceFileDeliveryTwoReplicas(t *testing.T) {
+	t.Parallel()
+	f := newWorkspaceFileDeliveryFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+	var files []database.InsertChatFileRow
+	for range 3 {
+		files = append(files, f.workspaceFile(ctx, t, chat.ID, "zip bytes"))
+	}
+
+	replicas := []*chatWorker{f.worker(t), f.worker(t)}
+	var wg sync.WaitGroup
+	for _, replica := range replicas {
+		wg.Go(func() { replica.deliverWorkspaceFiles(ctx) })
+	}
+	wg.Wait()
+
+	for _, file := range files {
+		f.requireDelivered(ctx, t, chat, file.ID)
+	}
+	uploads := map[uuid.UUID]int{}
+	for _, req := range f.agent.uploadRequests() {
+		uploads[req.FileID]++
+	}
+	require.Len(t, uploads, len(files))
+	for fileID, count := range uploads {
+		require.Equal(t, 1, count, "file %s uploaded more than once", fileID)
+	}
+}

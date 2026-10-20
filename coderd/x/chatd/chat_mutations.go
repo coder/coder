@@ -243,6 +243,9 @@ func (p *Server) SendMessage(
 	}
 
 	result.Chat = refreshed
+	if result.Chat.WorkspaceID.Valid && linksWorkspaceAttachments(contentParts) {
+		p.wakeWorkspaceFileDelivery()
+	}
 	if result.FirstUserTurn && result.Chat.Title != chatprompt.DefaultChatTitle {
 		p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindTitleChange, nil)
 	}
@@ -419,6 +422,9 @@ func (p *Server) EditMessage(
 		return EditMessageResult{}, err
 	}
 	result.Chat = refreshed
+	if result.Chat.WorkspaceID.Valid && linksWorkspaceAttachments(contentParts) {
+		p.wakeWorkspaceFileDelivery()
+	}
 
 	// An interrupted worker may still flush debug rows after the edit;
 	// a short bounded retry converges without waiting for the much
