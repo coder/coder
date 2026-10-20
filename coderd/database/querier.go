@@ -1230,8 +1230,7 @@ type sqlcQuerier interface {
 	// Set it on every write to keep retention semantics correct.
 	InsertChatDebugRun(ctx context.Context, arg InsertChatDebugRunParams) (ChatDebugRun, error)
 	// The CTE atomically locks the parent run via UPDATE, bumps its
-	// updated_at (eliminating a separate TouchChatDebugRunUpdatedAt
-	// call), and enforces the finalization guard: if the run is already
+	// updated_at, and enforces the finalization guard: if the run is already
 	// finished, the UPDATE returns zero rows, the INSERT gets no source
 	// rows, and sql.ErrNoRows is returned. The UPDATE also serializes
 	// with concurrent FinalizeStale under READ COMMITTED isolation.
@@ -1538,31 +1537,6 @@ type sqlcQuerier interface {
 	// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 	// cannot interleave with the replacement.
 	SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error)
-	// Overrides updated_at on the parent run without touching any
-	// other column. Used by tests that need to stamp a run with a
-	// specific timestamp after the InsertChatDebugStep CTE has
-	// already bumped it to NOW(), so stale-row finalization paths
-	// can be exercised deterministically. The chatdebug service
-	// itself does not call this: heartbeats go through
-	// TouchChatDebugStepAndRun, and step creation updates the parent
-	// run via the InsertChatDebugStep CTE.
-	TouchChatDebugRunUpdatedAt(ctx context.Context, arg TouchChatDebugRunUpdatedAtParams) error
-	// Atomically bumps updated_at on both the step and its parent run
-	// in a single statement. This prevents FinalizeStale from
-	// interleaving between the two touches and finalizing a run whose
-	// step heartbeat was just written.
-	//
-	// The step UPDATE joins through touched_run (via FROM) and reads
-	// its RETURNING rows. Per the PostgreSQL WITH semantics, RETURNING
-	// is the only way to communicate values between a data-modifying
-	// CTE and the main query, and consuming those rows forces the run
-	// UPDATE to complete before the step UPDATE. That matches the
-	// lock order used by FinalizeStaleChatDebugRows and avoids a
-	// deadlock between concurrent heartbeats and stale sweeps. The
-	// join also constrains the step update to the specified run so a
-	// mismatched (run_id, step_id) pair cannot silently refresh an
-	// unrelated step.
-	TouchChatDebugStepAndRun(ctx context.Context, arg TouchChatDebugStepAndRunParams) error
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.
 	//
 	// This must be called from within a transaction. The lock will be automatically

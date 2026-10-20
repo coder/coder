@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -20,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/quartz"
 )
 
 type testError struct{ message string }
@@ -70,9 +68,6 @@ func expectCreateStepNumberWithRequestValidity(
 				Status:     params.Status,
 			}, nil
 		})
-
-	// The INSERT CTE atomically bumps the parent run's updated_at,
-	// so no separate TouchChatDebugRunUpdatedAt call is needed.
 
 	return stepID
 }
@@ -1181,170 +1176,3 @@ func TestWrapStreamSeq_DroppedStreamFinalizedOnCtxCancel(t *testing.T) {
 func int64Ptr(v int64) *int64 { return &v }
 
 func float64Ptr(v float64) *float64 { return &v }
-
-func TestLaunchHeartbeat(t *testing.T) {
-	t.Parallel()
-
-	t.Run("fires_touch_step_on_tick", func(t *testing.T) {
-		t.Parallel()
-
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		mClock := quartz.NewMock(t)
-
-		// Use a small stale threshold so the heartbeat interval is
-		// short enough to test easily (threshold/2 = 5s, clamped ≥1s).
-		svc := NewService(db, testutil.Logger(t), nil,
-			WithClock(mClock),
-		)
-		svc.SetStaleAfter(10 * time.Second)
-
-		stepID := uuid.New()
-		runID := uuid.New()
-		chatID := uuid.New()
-
-		done := make(chan struct{})
-		defer close(done)
-
-		// Trap the ticker creation so we can control it.
-		tickerTrap := mClock.Trap().NewTicker("chatdebug", "heartbeat")
-		defer tickerTrap.Close()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		// Expect atomic TouchStep calls via TouchChatDebugStepAndRun.
-		touchCalled := make(chan struct{}, 5)
-		db.EXPECT().
-			TouchChatDebugStepAndRun(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, params database.TouchChatDebugStepAndRunParams) error {
-				require.Equal(t, stepID, params.StepID)
-				require.Equal(t, runID, params.RunID)
-				require.Equal(t, chatID, params.ChatID)
-				select {
-				case touchCalled <- struct{}{}:
-				default:
-				}
-				return nil
-			}).
-			AnyTimes()
-
-		launchHeartbeat(ctx, svc, stepID, runID, chatID, done)
-
-		// Wait for the ticker to be created.
-		tickerTrap.MustWait(ctx).MustRelease(ctx)
-
-		// Advance the clock past one heartbeat interval (5s for a
-		// 10s stale threshold) and verify TouchStep fires.
-		mClock.Advance(5 * time.Second).MustWait(ctx)
-
-		select {
-		case <-touchCalled:
-		case <-ctx.Done():
-			t.Fatal("timed out waiting for first heartbeat touch")
-		}
-
-		// Advance again to verify repeated heartbeats.
-		mClock.Advance(5 * time.Second).MustWait(ctx)
-
-		select {
-		case <-touchCalled:
-		case <-ctx.Done():
-			t.Fatal("timed out waiting for second heartbeat touch")
-		}
-	})
-
-	t.Run("stops_on_done_channel", func(t *testing.T) {
-		t.Parallel()
-
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		mClock := quartz.NewMock(t)
-
-		svc := NewService(db, testutil.Logger(t), nil,
-			WithClock(mClock),
-		)
-		svc.SetStaleAfter(10 * time.Second)
-
-		stepID := uuid.New()
-		runID := uuid.New()
-		chatID := uuid.New()
-
-		done := make(chan struct{})
-
-		tickerTrap := mClock.Trap().NewTicker("chatdebug", "heartbeat")
-		defer tickerTrap.Close()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		launchHeartbeat(ctx, svc, stepID, runID, chatID, done)
-		tickerTrap.MustWait(ctx).MustRelease(ctx)
-
-		// Close done to signal the heartbeat to stop.
-		close(done)
-
-		// Give the goroutine a moment to observe the close.
-		// No TouchStep calls should happen after done is closed.
-		// (gomock would fail if TouchChatDebugStepAndRun was
-		// called without a matching expectation.)
-	})
-
-	t.Run("nil_service_noop", func(t *testing.T) {
-		t.Parallel()
-
-		done := make(chan struct{})
-		defer close(done)
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		// Should not panic.
-		launchHeartbeat(ctx, nil, uuid.New(), uuid.New(), uuid.New(), done)
-	})
-
-	t.Run("resets_ticker_on_threshold_change", func(t *testing.T) {
-		t.Parallel()
-
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		mClock := quartz.NewMock(t)
-
-		svc := NewService(db, testutil.Logger(t), nil,
-			WithClock(mClock),
-		)
-		svc.SetStaleAfter(60 * time.Second)
-
-		stepID := uuid.New()
-		runID := uuid.New()
-		chatID := uuid.New()
-
-		done := make(chan struct{})
-		defer close(done)
-
-		tickerTrap := mClock.Trap().NewTicker("chatdebug", "heartbeat")
-		defer tickerTrap.Close()
-		resetTrap := mClock.Trap().TickerReset("chatdebug", "heartbeat")
-		defer resetTrap.Close()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		launchHeartbeat(ctx, svc, stepID, runID, chatID, done)
-
-		// Confirm the ticker was created with the original
-		// threshold/2 interval.
-		newCall := tickerTrap.MustWait(ctx)
-		require.Equal(t, 30*time.Second, newCall.Duration)
-
-		// Reduce the threshold while NewTicker is trapped. This
-		// simulates SetStaleAfter racing with heartbeat startup before
-		// the goroutine can select on thresholdCh.
-		svc.SetStaleAfter(10 * time.Second)
-		newCall.MustRelease(ctx)
-
-		// The heartbeat must still reset to newThreshold/2 without
-		// advancing the mock clock.
-		resetCall := resetTrap.MustWait(ctx)
-		require.Equal(t, 5*time.Second, resetCall.Duration,
-			"ticker should reset to newThreshold/2 when SetStaleAfter"+
-				" shrinks the threshold")
-		resetCall.MustRelease(ctx)
-	})
-}

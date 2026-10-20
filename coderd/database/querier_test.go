@@ -16879,7 +16879,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	// The InsertChatDebugStep CTE atomically bumps the parent run's
 	// updated_at to NOW(). Reset it back to staleTime so the run is
 	// still caught by the age predicate in FinalizeStaleChatDebugRows.
-	err = store.TouchChatDebugRunUpdatedAt(ctx, database.TouchChatDebugRunUpdatedAtParams{
+	_, err = store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
 		ID:     cascadeRun.ID,
 		ChatID: chat.ID,
 		Now:    staleTime,
