@@ -76,7 +76,6 @@ import { isChatAgentBindingUnresolved } from "./components/ChatConversation/watc
 import { workspaceSkillsFromChat } from "./components/ChatPageContent";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
-import { useChatProjectId } from "./hooks/useChatProjectId";
 import {
 	type SendChatTurnOptions,
 	useConversationEditingState,
@@ -328,8 +327,9 @@ const AgentChatPage: React.FC = () => {
 		enabled: Boolean(chatOrganizationId),
 		staleTime: 60_000,
 	});
-	const { projectId: chatProjectId, isResolved: isChatProjectResolved } =
-		useChatProjectId(chatQuery.data, experiments.includes("chat-projects"));
+	const chatProjectId = experiments.includes("chat-projects")
+		? chatQuery.data?.project_id
+		: undefined;
 	const hasChatProject = Boolean(chatOrganizationId && chatProjectId);
 	const projectSkillsQuery = useQuery({
 		...chatProjectSkills(chatOrganizationId, chatProjectId ?? ""),
@@ -649,9 +649,7 @@ const AgentChatPage: React.FC = () => {
 		),
 		projectSkills: hasChatProject
 			? projectSkillsQuery.data?.filter((skill) => skill.enabled)
-			: isChatProjectResolved
-				? []
-				: undefined,
+			: [],
 		workspaceSkills: chatWorkspaceSkills,
 		compact,
 		clearChatContext,

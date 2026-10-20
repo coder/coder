@@ -13,12 +13,10 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { getWorkspaceAgents } from "#/utils/workspace";
 import { resolveChatCompactionThreshold } from "../compactionTriggers";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
-import { useChatProjectId } from "../hooks/useChatProjectId";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import {
 	isWorkspaceUploadInProgress,
@@ -394,9 +392,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	folder,
 }) => {
 	const { user: currentUser } = useAuthenticated();
-	const { experiments } = useDashboard();
-	const { projectId: chatProjectId, isResolved: isChatProjectResolved } =
-		useChatProjectId(chat, experiments.includes("chat-projects"));
 	const organizationId = chat.organization_id;
 	const chatId = chat.id;
 	const chatContext = chat.context;
@@ -848,8 +843,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			isModelCatalogLoading={isModelCatalogLoading}
 			workspaceOptions={workspaceOptions}
 			chatOrganizationId={organizationId}
-			chatProjectId={chatProjectId}
-			isChatProjectPending={!isChatProjectResolved}
+			chatProjectId={chat.project_id}
 			selectedWorkspaceId={selectedWorkspaceId}
 			onWorkspaceChange={onWorkspaceChange}
 			isWorkspaceLoading={workspacesQuery.isLoading || isWorkspaceLoading}
