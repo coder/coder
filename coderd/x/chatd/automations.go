@@ -332,7 +332,11 @@ func (p *Server) UpdateAutomation(ctx context.Context, id uuid.UUID, req codersd
 	disabling := req.Enabled != nil && !*req.Enabled
 	disableOnly := disabling && req == codersdk.UpdateChatAutomationRequest{Enabled: req.Enabled}
 	err = p.db.InTx(func(tx database.Store) error {
-		row, err := lockAutomationForChange(ctx, tx, id, disableOnly)
+		lock := lockAutomationForChange
+		if disableOnly {
+			lock = lockAutomationForDisable
+		}
+		row, err := lock(ctx, tx, id)
 		if err != nil {
 			return err
 		}
@@ -565,22 +569,23 @@ func (p *Server) DeleteAutomation(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// lockAutomationForChange locks the automation as the caller in ctx. A
-// change that only disables it locks the row with read, and the disable
-// query then requires the disable action. Every other change locks the
-// row with update, so a caller without update is refused before the
-// change is validated.
-func lockAutomationForChange(ctx context.Context, tx database.Store, id uuid.UUID, disableOnly bool) (database.ChatAutomation, error) {
-	if disableOnly {
-		rows, err := tx.GetChatAutomationsByIDsForUpdate(ctx, []uuid.UUID{id})
-		if err != nil {
-			return database.ChatAutomation{}, xerrors.Errorf("lock chat automation: %w", err)
-		}
-		if len(rows) == 0 {
-			return database.ChatAutomation{}, ErrAutomationNotFound
-		}
-		return rows[0], nil
+// lockAutomationForDisable locks the automation as the caller in ctx with
+// read only. The disable query then requires the disable action.
+func lockAutomationForDisable(ctx context.Context, tx database.Store, id uuid.UUID) (database.ChatAutomation, error) {
+	rows, err := tx.GetChatAutomationsByIDsForUpdate(ctx, []uuid.UUID{id})
+	if err != nil {
+		return database.ChatAutomation{}, xerrors.Errorf("lock chat automation: %w", err)
 	}
+	if len(rows) == 0 {
+		return database.ChatAutomation{}, ErrAutomationNotFound
+	}
+	return rows[0], nil
+}
+
+// lockAutomationForChange locks the automation as the caller in ctx with
+// update, so a caller without update, which only the owner holds, is
+// refused before the change is validated.
+func lockAutomationForChange(ctx context.Context, tx database.Store, id uuid.UUID) (database.ChatAutomation, error) {
 	row, err := tx.GetChatAutomationByIDForUpdate(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return database.ChatAutomation{}, ErrAutomationNotFound
@@ -678,7 +683,7 @@ func (p *Server) RotateAutomationSecret(ctx context.Context, id uuid.UUID) (data
 		secret  string
 	)
 	err := p.db.InTx(func(tx database.Store) error {
-		row, err := lockAutomationForChange(ctx, tx, id, false)
+		row, err := lockAutomationForChange(ctx, tx, id)
 		if err != nil {
 			return err
 		}
@@ -724,7 +729,7 @@ func (p *Server) RotateAutomationSecret(ctx context.Context, id uuid.UUID) (data
 func (p *Server) RunAutomation(ctx context.Context, id uuid.UUID, guard AutomationGuard) (PublishAutomationResult, error) {
 	// The lock only authorizes the caller and ends with the statement.
 	// Admission locks the row again and rechecks it.
-	row, err := lockAutomationForChange(ctx, p.db, id, false)
+	row, err := lockAutomationForChange(ctx, p.db, id)
 	if err != nil {
 		return PublishAutomationResult{}, err
 	}
