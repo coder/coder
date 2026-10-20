@@ -198,33 +198,32 @@ func (p *Server) waitForChatWorkspaceFiles(
 }
 
 // workspaceFilesOutstanding reports whether any of fileIDs is due or in
-// flight. A claim clears the last error and leases the file, so a future
-// next attempt without an error is in flight and one with an error is
-// waiting to retry.
+// flight. A claim counts the attempt, clears the last error and leases
+// the file, so a future next attempt without an error is in flight, even
+// on the last attempt, and one with an error is waiting to retry.
 func (p *Server) workspaceFilesOutstanding(files []database.GetChatFileMetadataByChatIDRow, fileIDs map[uuid.UUID]struct{}) bool {
 	now := p.clock.Now("chatd", "await-workspace-files")
 	for _, file := range files {
 		if _, ok := fileIDs[file.ID]; !ok {
 			continue
 		}
-		if file.Purpose != database.ChatFilePurposeWorkspace ||
-			file.WorkspaceDeliveredAt.Valid ||
-			file.WorkspaceDeliveryAttempts >= database.ChatWorkspaceFileMaxDeliveryAttempts {
+		if file.Purpose != database.ChatFilePurposeWorkspace || file.WorkspaceDeliveredAt.Valid {
 			continue
 		}
-		waitingToRetry := file.WorkspaceDeliveryError.Valid &&
-			file.WorkspaceDeliveryNextAttemptAt.Valid &&
+		scheduled := file.WorkspaceDeliveryNextAttemptAt.Valid &&
 			file.WorkspaceDeliveryNextAttemptAt.Time.After(now)
-		if !waitingToRetry {
+		inFlight := scheduled && !file.WorkspaceDeliveryError.Valid
+		due := !scheduled && file.WorkspaceDeliveryAttempts < database.ChatWorkspaceFileMaxDeliveryAttempts
+		if inFlight || due {
 			return true
 		}
 	}
 	return false
 }
 
-// workspaceAttachmentStatus reports the attachment part refers to. file is
-// nil when the file is no longer stored. undelivered is the status of a
-// file that is neither copied nor failed.
+// workspaceAttachmentStatus reports the status of the file that part
+// refers to. file is nil when the file is no longer stored. undelivered
+// is the status of a file that is neither copied nor failed.
 func workspaceAttachmentStatus(
 	part codersdk.ChatMessagePart,
 	file *database.GetChatFileMetadataByChatIDRow,

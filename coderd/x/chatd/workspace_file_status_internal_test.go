@@ -202,20 +202,35 @@ func TestAwaitChatWorkspaceFiles(t *testing.T) {
 		failed := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
 		server.chatWorker.deliverWorkspaceFiles(ctx)
 
-		// Another replica holds this file's lease when the wait ends.
+		// Another replica holds this file's lease on its last attempt
+		// when the wait ends.
 		copying := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
 		now := f.clock.Now()
-		claimed, err := f.db.AcquireChatWorkspaceFileDeliveries(ctx, database.AcquireChatWorkspaceFileDeliveriesParams{
-			Now:             now,
-			LeaseExpiresAt:  now.Add(workspaceFileDeliveryLease),
-			ChatAgentSuffix: agentselect.Suffix,
-			MaxAttempts:     database.ChatWorkspaceFileMaxDeliveryAttempts,
-			ChatID:          uuid.NullUUID{UUID: chat.ID, Valid: true},
-			LimitVal:        1,
-		})
-		require.NoError(t, err)
-		require.Len(t, claimed, 1)
-		require.Equal(t, copying.ID, claimed[0].ID)
+		for attempt := int32(1); attempt <= database.ChatWorkspaceFileMaxDeliveryAttempts; attempt++ {
+			claimed, err := f.db.AcquireChatWorkspaceFileDeliveries(ctx, database.AcquireChatWorkspaceFileDeliveriesParams{
+				Now:             now,
+				LeaseExpiresAt:  now.Add(workspaceFileDeliveryLease),
+				ChatAgentSuffix: agentselect.Suffix,
+				MaxAttempts:     database.ChatWorkspaceFileMaxDeliveryAttempts,
+				ChatID:          uuid.NullUUID{UUID: chat.ID, Valid: true},
+				LimitVal:        1,
+			})
+			require.NoError(t, err)
+			require.Len(t, claimed, 1)
+			require.Equal(t, copying.ID, claimed[0].ID)
+			require.Equal(t, attempt, claimed[0].WorkspaceDeliveryAttempts)
+			if attempt == database.ChatWorkspaceFileMaxDeliveryAttempts {
+				break
+			}
+			_, err = f.db.FailChatWorkspaceFileDelivery(ctx, database.FailChatWorkspaceFileDeliveryParams{
+				ID:            copying.ID,
+				Error:         "agent unavailable",
+				NextAttemptAt: now,
+				Mode:          database.ChatWorkspaceFileDeliveryFailureRetry,
+				MaxAttempts:   database.ChatWorkspaceFileMaxDeliveryAttempts,
+			})
+			require.NoError(t, err)
+		}
 
 		evicted := uuid.New()
 		f.attach(t, chat.ID, copied.ID, failed.ID, copying.ID, evicted)
