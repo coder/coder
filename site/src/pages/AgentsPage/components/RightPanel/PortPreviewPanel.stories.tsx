@@ -112,13 +112,5 @@ export const AnnotateUnavailable: Story = {
 			.getByTitle<HTMLIFrameElement>("Preview :3000")
 			.dispatchEvent(new Event("load"));
 		await new Promise((resolve) => setTimeout(resolve, 50));
-		// The disabled button has pointer-events: none; its wrapper span is
-		// the tooltip trigger.
-		const wrapper = canvas.getByRole("button", {
-			name: "Annotate elements",
-		}).parentElement;
-		if (wrapper) {
-			await userEvent.hover(wrapper);
-		}
 	},
 };
