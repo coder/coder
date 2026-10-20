@@ -199,6 +199,34 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		result: { source: "manual" },
 	},
 	{
+		name: "chat_context_rollover",
+		args: { reason: "model", requested_by: "model" },
+		result: {
+			reason: "model",
+			requested_by: "model",
+			checkpoint: "Goal: ship the settings page.",
+		},
+	},
+	{
+		name: "chat_context_handoff",
+		args: { stage: "handoff" },
+		result: { stage: "handoff", prompt: "Save a checkpoint." },
+	},
+	{
+		name: "save_checkpoint",
+		args: { checkpoint: "Goal: ship the settings page." },
+		result: { saved: true, bytes: 29 },
+	},
+	{
+		name: "new_context",
+		result: { status: "scheduled" },
+	},
+	{
+		name: "chat_history",
+		args: { action: "search", query: "settings" },
+		result: { success: true, items: [] },
+	},
+	{
 		name: "propose_plan",
 		args: { path: "/home/coder/.coder/plans/PLAN-example.md" },
 		result: { path: "/home/coder/.coder/plans/PLAN-example.md" },
@@ -1271,6 +1299,236 @@ export const ChatClearedError: Story = {
 		result: { error: "chat is archived" },
 		status: "error",
 		isError: true,
+	},
+};
+
+// ---------------------------------------------------------------------------
+// Token budget context window stories
+// ---------------------------------------------------------------------------
+
+const rolloverCheckpoint = `## Goal
+Port the token budget strategy to the settings page (item 412 in w:0).
+
+## Progress
+- Added the compaction strategy select.
+- Mirrored the handoff target math.
+
+## Next steps
+1. Render the transcript rows.
+2. Run the Storybook checks.`;
+
+const rolloverPayload = {
+	requested_by: "system",
+	previous_window_id: "w:0",
+	context_tokens: 168_000,
+	budget_tokens: 168_000,
+};
+
+export const ChatContextRollover: Story = {
+	args: {
+		name: "chat_context_rollover",
+		args: { ...rolloverPayload, reason: "limit" },
+		result: {
+			...rolloverPayload,
+			reason: "limit",
+			checkpoint: rolloverCheckpoint,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: /Context window rollover/,
+			}),
+		);
+	},
+};
+
+export const ChatContextRolloverRequestedByAgent: Story = {
+	args: {
+		name: "chat_context_rollover",
+		args: { ...rolloverPayload, reason: "model", requested_by: "model" },
+		result: {
+			...rolloverPayload,
+			reason: "model",
+			requested_by: "model",
+			checkpoint: rolloverCheckpoint,
+		},
+	},
+};
+
+export const ChatContextRolloverWithoutCheckpoint: Story = {
+	args: {
+		name: "chat_context_rollover",
+		args: { ...rolloverPayload, reason: "overflow" },
+		result: { ...rolloverPayload, reason: "overflow" },
+	},
+};
+
+export const ChatContextHandoff: Story = {
+	args: {
+		name: "chat_context_handoff",
+		args: {
+			stage: "handoff",
+			context_tokens: 100_800,
+			budget_tokens: 168_000,
+		},
+		result: {
+			stage: "handoff",
+			prompt:
+				"Context budget ~60% used (100800 of 168000 tokens before Coder forces a rollover at the usable limit).\nThe context handoff target has been reached. Finish the current small unit of work and start no substantial new work in this window.",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: /Context handoff requested/,
+			}),
+		);
+	},
+};
+
+export const ChatContextHandoffFinal: Story = {
+	args: {
+		name: "chat_context_handoff",
+		args: {
+			stage: "final",
+			context_tokens: 152_000,
+			budget_tokens: 168_000,
+		},
+		result: {
+			stage: "final",
+			prompt:
+				"The current context window is exhausted. Save your checkpoint with save_checkpoint now. After the result returns, call new_context.",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: /Context window ending: final handoff/,
+			}),
+		);
+	},
+};
+
+export const SaveCheckpoint: Story = {
+	args: {
+		name: "save_checkpoint",
+		args: { checkpoint: rolloverCheckpoint },
+		result: { saved: true, bytes: rolloverCheckpoint.length },
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: /Saved checkpoint/ }),
+		);
+	},
+};
+
+export const SaveCheckpointRunning: Story = {
+	args: {
+		name: "save_checkpoint",
+		args: { checkpoint: rolloverCheckpoint },
+		status: "running",
+		result: undefined,
+	},
+};
+
+export const SaveCheckpointError: Story = {
+	args: {
+		name: "save_checkpoint",
+		args: { checkpoint: "" },
+		result: "checkpoint must not be empty",
+		status: "error",
+		isError: true,
+	},
+};
+
+export const NewContext: Story = {
+	args: {
+		name: "new_context",
+		args: {},
+		result: {
+			status: "scheduled",
+			message:
+				"A new context window will start without summarizing conversation history.",
+		},
+	},
+};
+
+export const NewContextRunning: Story = {
+	args: {
+		name: "new_context",
+		args: {},
+		status: "running",
+		result: undefined,
+	},
+};
+
+export const NewContextRefused: Story = {
+	args: {
+		name: "new_context",
+		args: {},
+		result: {
+			code: "rollover_disabled",
+			error:
+				"Automatic rollover is disabled (compaction threshold 100%), so no new context window can start. Continue in this window.",
+		},
+	},
+};
+
+export const ChatHistorySearch: Story = {
+	args: {
+		name: "chat_history",
+		args: { action: "search", query: "settings page" },
+		result: {
+			success: true,
+			has_more: true,
+			items: [
+				{ itemId: "412", windowId: "w:0", role: "user", text: "settings" },
+				{ itemId: "418", windowId: "w:0", role: "assistant", text: "page" },
+			],
+		},
+	},
+};
+
+export const ChatHistoryListWindows: Story = {
+	args: {
+		name: "chat_history",
+		args: { action: "list_windows" },
+		result: {
+			success: true,
+			windows: [
+				{ windowId: "w:0", boundaryKind: "root" },
+				{ windowId: "w:431", boundaryKind: "rollover" },
+			],
+		},
+	},
+};
+
+export const ChatHistoryReadItem: Story = {
+	args: {
+		name: "chat_history",
+		args: { action: "read_item", item_id: "412" },
+		result: {
+			success: true,
+			items: [{ itemId: "412", windowId: "w:0", role: "user", text: "..." }],
+		},
+	},
+};
+
+export const ChatHistoryRunning: Story = {
+	args: {
+		name: "chat_history",
+		args: { action: "search", query: "settings page" },
+		status: "running",
+		result: undefined,
+	},
+};
+
+export const ChatHistoryTimeout: Story = {
+	args: {
+		name: "chat_history",
+		args: { action: "search", query: "settings" },
+		result: { success: false, error: "history_timeout" },
 	},
 };
 

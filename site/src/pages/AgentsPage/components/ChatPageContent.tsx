@@ -394,12 +394,17 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const modelOverridesQuery = useQuery(
 		organizationChatModelOverrides(organizationId),
 	);
+	const isTokenBudgetAvailable = experiments.includes("chat-token-budget");
 	const strategyQuery = useQuery({
 		...userCompactionStrategy(),
-		enabled: experiments.includes("chat-token-budget"),
+		enabled: isTokenBudgetAvailable,
 	});
+	// A strategy that has not loaded is unknown, so no threshold is shown.
+	const compactionStrategy = isTokenBudgetAvailable
+		? strategyQuery.data?.strategy
+		: "summarize";
 	const compactionThreshold =
-		modelOverridesQuery.isPending || strategyQuery.isLoading
+		modelOverridesQuery.isPending || compactionStrategy === undefined
 			? undefined
 			: resolveChatCompactionThreshold(
 					chat.last_model_config_id,
@@ -407,7 +412,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 					modelCatalog?.models,
 					providerInfoByIDFromDescriptors(modelCatalog?.providers),
 					modelOverridesQuery,
-					strategyQuery.data?.strategy,
+					compactionStrategy,
 				);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
 	const chatStatus = useChatSelector(store, selectChatStatus);

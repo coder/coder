@@ -4,7 +4,10 @@ import {
 	updateUserCompactionStrategy,
 	userCompactionStrategy,
 } from "#/api/queries/chats";
-import type { ChatCompactionStrategy } from "#/api/typesGenerated";
+import {
+	ChatCompactionStrategies,
+	type ChatCompactionStrategy,
+} from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import {
 	Select,
@@ -14,11 +17,15 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 
-const strategyOptions: { value: ChatCompactionStrategy; label: string }[] = [
-	{ value: "summarize", label: "Summarize" },
-	{ value: "token_budget", label: "Token budget" },
-];
+const strategyLabels: Record<ChatCompactionStrategy, string> = {
+	summarize: "Summarize",
+	token_budget: "Token budget",
+};
 
+/**
+ * Lets the user choose how chatd keeps long chats within the context
+ * window. Render it only when the chat-token-budget experiment is enabled.
+ */
 export const CompactionStrategySettings: React.FC = () => {
 	const queryClient = useQueryClient();
 	const query = useQuery(userCompactionStrategy());
@@ -39,24 +46,28 @@ export const CompactionStrategySettings: React.FC = () => {
 					window that starts from that checkpoint.
 				</p>
 				<Select
-					value={query.data?.strategy ?? "summarize"}
+					value={query.data?.strategy ?? ""}
 					disabled={!query.data || mutation.isPending}
 					onValueChange={(value: string) => {
-						const selected = strategyOptions.find((opt) => opt.value === value);
-						if (!selected) return;
-						mutation.mutate({ strategy: selected.value });
+						const strategy = ChatCompactionStrategies.find(
+							(candidate) => candidate === value,
+						);
+						if (!strategy) return;
+						mutation.mutate({ strategy });
 					}}
 				>
 					<SelectTrigger
 						className="w-44 shrink-0"
 						aria-label="Compaction strategy"
 					>
-						<SelectValue />
+						<SelectValue
+							placeholder={query.error != null ? "Unavailable" : "Loading…"}
+						/>
 					</SelectTrigger>
 					<SelectContent>
-						{strategyOptions.map((opt) => (
-							<SelectItem key={opt.value} value={opt.value}>
-								{opt.label}
+						{ChatCompactionStrategies.map((strategy) => (
+							<SelectItem key={strategy} value={strategy}>
+								{strategyLabels[strategy]}
 							</SelectItem>
 						))}
 					</SelectContent>

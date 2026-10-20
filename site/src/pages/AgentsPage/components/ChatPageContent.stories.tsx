@@ -3,6 +3,7 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import {
 	chatPromptsKey,
 	organizationChatModelOverridesKey,
+	userCompactionStrategyKey,
 	userCompactionThresholdsKey,
 } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
@@ -562,4 +563,47 @@ export const CompactsAtHistoricalModelDefault: Story = {
 		],
 	},
 	render: () => <CompactionChatPageInput />,
+};
+
+export const HandoffTargetUnderTokenBudget: Story = {
+	parameters: {
+		experiments: ["chat-token-budget"],
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: mockUserChatCompactionThresholdsWithOverride,
+			},
+			{
+				key: userCompactionStrategyKey,
+				data: { strategy: "token_budget" },
+			},
+			{
+				key: organizationChatModelOverridesKey(MockChat.organization_id),
+				data: { overrides: [] },
+			},
+			{
+				key: chatPromptsKey(MockChat.id),
+				data: { prompts: [] } satisfies TypesGen.ChatPromptsResponse,
+			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
+			},
+		],
+	},
+	render: () => <CompactionChatPageInput />,
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			await within(canvasElement).findByRole("button", {
+				name: /Context usage/i,
+			}),
+		);
+	},
 };

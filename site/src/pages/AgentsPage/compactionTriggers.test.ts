@@ -299,6 +299,7 @@ describe("compaction triggers", () => {
 				models,
 				providers,
 				overrides,
+				"summarize",
 			);
 
 		it("returns the organization point when its trigger binds", () => {
@@ -377,6 +378,7 @@ describe("compaction triggers", () => {
 					undefined,
 					providers,
 					{ data: mockCompactionOverrides, error: null },
+					"summarize",
 				),
 			).toBeUndefined();
 		});

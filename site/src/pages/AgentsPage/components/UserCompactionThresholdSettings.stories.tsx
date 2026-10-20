@@ -560,10 +560,22 @@ export const PartialModelLoadError: Story = {
 export const TokenBudgetHandoffTargets: Story = {
 	args: {
 		compactionStrategy: "token_budget",
-		compactionTriggersByOrganizationID: mockCompactionTriggersByOrganizationID,
 		thresholds: [
 			{ model_config_id: "model-1", threshold_percent: 95 },
 			{ model_config_id: "model-2", threshold_percent: 100 },
 		],
+	},
+};
+
+export const TokenBudgetDisableRolloverWarning: Story = {
+	args: { compactionStrategy: "token_budget" },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const gpt4oInput = await canvas.findByRole("textbox", {
+			name: /GPT-4o handoff target/i,
+		});
+
+		await userEvent.type(gpt4oInput, "100");
+		await reopenTooltip(gpt4oInput);
 	},
 };

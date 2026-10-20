@@ -11,6 +11,13 @@ import {
 import { ChatClearedTool } from "./ChatClearedTool";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
+import {
+	ChatHistoryTool,
+	ContextHandoffTool,
+	ContextRolloverTool,
+	NewContextTool,
+	SaveCheckpointTool,
+} from "./ContextWindowTools";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
 import { DiffFileHeader } from "./DiffFileHeader";
 import { EditFilesTool } from "./EditFilesTool";
@@ -662,12 +669,7 @@ const ChatSummarizedRenderer: React.FC<ToolRendererProps> = ({
 	const summary =
 		(rec ? asString(rec.summary) : "") ||
 		(typeof result === "string" ? result : "");
-	// The result carries the source once committed; while streaming,
-	// only the call args are available.
-	const argsRec = parseArgs(args);
-	const source =
-		(rec ? asString(rec.source) : "") ||
-		(argsRec ? asString(argsRec.source) : "");
+	const source = resultOrArgsString(result, args, "source");
 
 	return (
 		<ChatSummarizedTool
@@ -676,6 +678,110 @@ const ChatSummarizedRenderer: React.FC<ToolRendererProps> = ({
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
 			source={source || undefined}
+		/>
+	);
+};
+
+// The committed result carries the field; while the call streams, only the
+// args do.
+const resultOrArgsString = (result: unknown, args: unknown, key: string) =>
+	asString(asRecord(result)?.[key]) || asString(parseArgs(args)?.[key]);
+
+const toolErrorMessage = (result: unknown): string | undefined => {
+	if (typeof result === "string") {
+		return result;
+	}
+	const rec = asRecord(result);
+	return rec ? asString(rec.error || rec.message) || undefined : undefined;
+};
+
+const ChatContextRolloverRenderer: React.FC<ToolRendererProps> = ({
+	status,
+	args,
+	result,
+	isError,
+}) => (
+	<ContextRolloverTool
+		reason={resultOrArgsString(result, args, "reason")}
+		checkpoint={asString(asRecord(result)?.checkpoint)}
+		status={status}
+		isError={isError}
+		errorMessage={toolErrorMessage(result)}
+	/>
+);
+
+const ChatContextHandoffRenderer: React.FC<ToolRendererProps> = ({
+	status,
+	args,
+	result,
+	isError,
+}) => (
+	<ContextHandoffTool
+		stage={resultOrArgsString(result, args, "stage")}
+		prompt={asString(asRecord(result)?.prompt)}
+		status={status}
+		isError={isError}
+		errorMessage={toolErrorMessage(result)}
+	/>
+);
+
+const SaveCheckpointRenderer: React.FC<ToolRendererProps> = ({
+	status,
+	args,
+	result,
+	isError,
+}) => (
+	<SaveCheckpointTool
+		checkpoint={asString(parseArgs(args)?.checkpoint)}
+		status={status}
+		isError={isError}
+		errorMessage={isError ? toolErrorMessage(result) : undefined}
+	/>
+);
+
+const NewContextRenderer: React.FC<ToolRendererProps> = ({
+	status,
+	result,
+	isError,
+}) => (
+	<NewContextTool
+		refused={asRecord(result)?.code === "rollover_disabled"}
+		status={status}
+		isError={isError}
+		errorMessage={toolErrorMessage(result)}
+	/>
+);
+
+const chatHistoryErrorMessages: Partial<Record<string, string>> = {
+	history_timeout: "Reading chat history timed out.",
+	item_not_found: "The requested history item was not found.",
+	window_not_found: "The requested context window was not found.",
+};
+
+const ChatHistoryRenderer: React.FC<ToolRendererProps> = ({
+	status,
+	args,
+	result,
+	isError,
+}) => {
+	const argsRec = parseArgs(args);
+	const rec = asRecord(result);
+	const errorCode = asString(rec?.error);
+	const results = rec?.windows ?? rec?.items;
+	return (
+		<ChatHistoryTool
+			action={asString(argsRec?.action)}
+			searchQuery={asString(argsRec?.query)}
+			itemId={asString(argsRec?.item_id)}
+			resultCount={Array.isArray(results) ? results.length : undefined}
+			hasMore={rec?.has_more === true}
+			status={status}
+			isError={isError || errorCode !== ""}
+			errorMessage={
+				(Object.hasOwn(chatHistoryErrorMessages, errorCode)
+					? chatHistoryErrorMessages[errorCode]
+					: undefined) ?? toolErrorMessage(result)
+			}
 		/>
 	);
 };
@@ -1191,6 +1297,11 @@ export const toolRenderers: Record<string, React.FC<ToolRendererProps>> = {
 	read_skill_file: ReadSkillFileRenderer,
 	chat_cleared: ChatClearedRenderer,
 	chat_summarized: ChatSummarizedRenderer,
+	chat_context_rollover: ChatContextRolloverRenderer,
+	chat_context_handoff: ChatContextHandoffRenderer,
+	save_checkpoint: SaveCheckpointRenderer,
+	new_context: NewContextRenderer,
+	chat_history: ChatHistoryRenderer,
 	ask_user_question: AskUserQuestionRenderer,
 	propose_plan: ProposePlanRenderer,
 	advisor: AdvisorRenderer,

@@ -55,7 +55,8 @@ export const getLatestContextUsage = (
 			(part) =>
 				(part.type === "tool-call" || part.type === "tool-result") &&
 				(part.tool_name === "chat_summarized" ||
-					part.tool_name === "chat_cleared"),
+					part.tool_name === "chat_cleared" ||
+					part.tool_name === "chat_context_rollover"),
 		);
 		if (contextBoundary) {
 			if (

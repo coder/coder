@@ -1,5 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	fn,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { API } from "#/api/api";
 import { userCompactionStrategyKey } from "#/api/queries/chats";
 import { MockChatModel } from "#/testHelpers/chatModels";
@@ -181,9 +189,40 @@ export const CompactionStrategySaveError: Story = {
 			}),
 		);
 		await userEvent.click(
-			await within(document.body).findByRole("option", {
-				name: "Token budget",
+			await screen.findByRole("option", { name: "Token budget" }),
+		);
+	},
+};
+
+export const CompactionStrategyLoading: Story = {
+	parameters: { experiments: ["chat-token-budget"] },
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserChatCompactionStrategy").mockReturnValue(
+			new Promise(() => undefined),
+		);
+	},
+};
+
+export const CompactionStrategySaving: Story = {
+	parameters: {
+		experiments: ["chat-token-budget"],
+		queries: [
+			{ key: userCompactionStrategyKey, data: { strategy: "summarize" } },
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "updateUserChatCompactionStrategy").mockReturnValue(
+			new Promise(() => undefined),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", {
+				name: "Compaction strategy",
 			}),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", { name: "Token budget" }),
 		);
 	},
 };

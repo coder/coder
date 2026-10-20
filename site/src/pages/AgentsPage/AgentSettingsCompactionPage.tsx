@@ -9,7 +9,10 @@ import {
 } from "#/api/queries/chats";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { AgentSettingsCompactionPageView } from "./AgentSettingsCompactionPageView";
-import { resolveCompactionTriggersByOrganization } from "./compactionTriggers";
+import {
+	type OrganizationCompactionTrigger,
+	resolveCompactionTriggersByOrganization,
+} from "./compactionTriggers";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
 import {
 	providerInfoByIDFromDescriptors,
@@ -19,7 +22,6 @@ import {
 const AgentSettingsCompactionPage: React.FC = () => {
 	const queryClient = useQueryClient();
 	const { organizations, experiments } = useDashboard();
-	const isTokenBudgetAvailable = experiments.includes("chat-token-budget");
 	const organizationModels = useOrganizationChatModels(
 		organizations.map((organization) => organization.id),
 	);
@@ -27,7 +29,7 @@ const AgentSettingsCompactionPage: React.FC = () => {
 	const thresholdsQuery = useQuery(userCompactionThresholds());
 	const strategyQuery = useQuery({
 		...userCompactionStrategy(),
-		enabled: isTokenBudgetAvailable,
+		enabled: experiments.includes("chat-token-budget"),
 	});
 	const modelOverrideQueries = useQueries({
 		queries: organizations.map((organization) =>
@@ -53,15 +55,26 @@ const AgentSettingsCompactionPage: React.FC = () => {
 	const providerTypeByID = providerTypeByIDFromUserConfigs(
 		providerConfigsQuery.data,
 	);
-	const compactionTriggers = resolveCompactionTriggersByOrganization(
-		organizations.map((organization, index) => ({
-			organizationID: organization.id,
-			data: modelOverrideQueries[index].data,
-			error: modelOverrideQueries[index].error,
-		})),
-		organizationModels.models,
-		providerInfoByIDFromDescriptors(organizationModels.providers),
-	);
+	const compactionStrategy = strategyQuery.data?.strategy ?? "summarize";
+	// chatd ignores the organization override under token budget.
+	const compactionTriggers =
+		compactionStrategy === "token_budget"
+			? {
+					triggersByOrganizationID: new Map<
+						string,
+						OrganizationCompactionTrigger
+					>(),
+					loadErrors: [],
+				}
+			: resolveCompactionTriggersByOrganization(
+					organizations.map((organization, index) => ({
+						organizationID: organization.id,
+						data: modelOverrideQueries[index].data,
+						error: modelOverrideQueries[index].error,
+					})),
+					organizationModels.models,
+					providerInfoByIDFromDescriptors(organizationModels.providers),
+				);
 
 	return (
 		<AgentSettingsCompactionPageView
@@ -78,11 +91,11 @@ const AgentSettingsCompactionPage: React.FC = () => {
 			}
 			compactionTriggerLoadErrors={compactionTriggers.loadErrors}
 			thresholds={thresholdsQuery.data?.thresholds}
-			isThresholdsLoading={thresholdsQuery.isLoading}
-			thresholdsError={thresholdsQuery.error}
+			isThresholdsLoading={thresholdsQuery.isLoading || strategyQuery.isLoading}
+			thresholdsError={thresholdsQuery.error ?? strategyQuery.error}
 			onSaveThreshold={handleSaveThreshold}
 			onResetThreshold={handleResetThreshold}
-			compactionStrategy={strategyQuery.data?.strategy ?? "summarize"}
+			compactionStrategy={compactionStrategy}
 		/>
 	);
 };

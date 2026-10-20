@@ -38,44 +38,6 @@ export type ResolvedCompactionThreshold =
 
 export const compactionDisabledThresholdPercent = 100;
 
-// Mirrors chatd newContextWindowBudget (keep in sync with
-// TestNewContextWindowBudget).
-export const defaultChatMaxOutputTokens = 32_000;
-const finalHandoffReserveTokens = 16_000;
-const minHandoffThresholdPercent = 10;
-
-export const handoffTargetPoint = (
-	contextLimit: number,
-	thresholdPercent: number,
-	outputCap: number,
-): number => {
-	const usableLimit =
-		contextLimit - Math.min(outputCap, Math.floor(contextLimit / 4));
-	const finalPoint = Math.max(
-		usableLimit - finalHandoffReserveTokens,
-		Math.ceil(usableLimit / 2),
-	);
-	return Math.min(
-		Math.floor(
-			(contextLimit * Math.max(thresholdPercent, minHandoffThresholdPercent)) /
-				100,
-		),
-		finalPoint,
-	);
-};
-
-export const modelHandoffTargetPoint = (
-	model: TypesGen.ChatModel,
-	thresholdPercent: number,
-): number | undefined =>
-	model.context_limit > 0
-		? handoffTargetPoint(
-				model.context_limit,
-				thresholdPercent,
-				model.model_config?.max_output_tokens ?? defaultChatMaxOutputTokens,
-			)
-		: undefined;
-
 // Mirrors chatd compactionOverrideWindowPercent. The remaining 20% is target
 // headroom for the summary prompt and summary, not a guaranteed fit.
 export const compactionOverrideWindowPercent = 80;
@@ -94,6 +56,42 @@ const isCompactionTriggerEnabled = (trigger: CompactionTrigger) =>
 
 const compactionTriggerPoint = (trigger: CompactionTrigger) =>
 	(trigger.contextLimit * trigger.thresholdPercent) / 100;
+
+// Mirrors chatd newContextWindowBudget (keep in sync with
+// TestNewContextWindowBudget).
+export const defaultChatMaxOutputTokens = 32_000;
+const finalHandoffReserveTokens = 16_000;
+const minHandoffThresholdPercent = 10;
+
+export const handoffTargetPoint = (
+	contextLimit: number,
+	thresholdPercent: number,
+	outputCap: number,
+): number => {
+	const usableLimit =
+		contextLimit - Math.min(outputCap, Math.floor(contextLimit / 4));
+	const finalPoint = Math.max(
+		usableLimit - finalHandoffReserveTokens,
+		Math.ceil(usableLimit / 2),
+	);
+	const thresholdPoint = compactionTriggerPoint({
+		contextLimit,
+		thresholdPercent: Math.max(thresholdPercent, minHandoffThresholdPercent),
+	});
+	return Math.min(Math.floor(thresholdPoint), finalPoint);
+};
+
+export const modelHandoffTargetPoint = (
+	model: TypesGen.ChatModel,
+	thresholdPercent: number,
+): number | undefined =>
+	model.context_limit > 0
+		? handoffTargetPoint(
+				model.context_limit,
+				thresholdPercent,
+				model.model_config?.max_output_tokens ?? defaultChatMaxOutputTokens,
+			)
+		: undefined;
 
 // Mirrors chatd (keep in sync with TestBindingCompactionTriggerSource): a
 // disabled organization trigger yields chat, a disabled chat trigger yields
@@ -233,15 +231,15 @@ export const isCompactionPointBeyondWindow = (
 	contextLimit: number,
 ) => contextLimit > 0 && point > contextLimit;
 
-// An initial overrides failure keeps the chat threshold but flags it; a failed
-// background refetch keeps using the cached overrides.
+// Under summarize, an initial overrides failure keeps the chat threshold but
+// flags it; a failed background refetch keeps using the cached overrides.
 export const resolveChatCompactionThreshold = (
 	modelID: string,
 	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
 	models: readonly TypesGen.ChatModel[] | undefined,
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
 	overrides: OverridesQueryState,
-	strategy: TypesGen.ChatCompactionStrategy = "summarize",
+	strategy: TypesGen.ChatCompactionStrategy,
 ): ResolvedCompactionThreshold | undefined => {
 	if (!models) {
 		return undefined;

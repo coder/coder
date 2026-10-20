@@ -151,7 +151,7 @@ const CompactionContextCell: React.FC<CompactionContextCellProps> = ({
 				)}
 				{isCompactionPointReachable && (
 					<span className="text-2xs text-content-secondary">
-						{handoffPoint === undefined ? "Compacts" : "Hands off"} at ~
+						{handoffPoint === undefined ? "Compacts" : "Handoff target"} at ~
 						{formatContextLimit(compactionPoint)}
 					</span>
 				)}
@@ -253,21 +253,18 @@ const EffectiveCompactionThreshold: React.FC<
 
 	// The handoff target is floored and clamped, so it can differ from the
 	// typed threshold.
-	const handoffPercent =
+	const effectivePercent =
 		handoffPoint === undefined
-			? undefined
-			: compactionPointAsPercent(handoffPoint, modelConfig.context_limit);
-	const effectivePercentLabel =
-		handoffPercent === undefined
 			? chatTrigger?.thresholdPercent
-			: formatCompactionPercent(handoffPercent);
+			: compactionPointAsPercent(handoffPoint, modelConfig.context_limit);
 
 	return (
 		<TableCell className="w-0 whitespace-nowrap tabular-nums">
 			{chatTrigger &&
 				(chatTrigger.thresholdPercent >= compactionDisabledThresholdPercent
 					? off
-					: `${effectivePercentLabel}%`)}
+					: effectivePercent !== undefined &&
+						`${formatCompactionPercent(effectivePercent)}%`)}
 		</TableCell>
 	);
 };
@@ -504,12 +501,6 @@ export const UserCompactionThresholdSettings: React.FC<
 	compactionStrategy,
 }) => {
 	const isTokenBudget = compactionStrategy === "token_budget";
-	// chatd ignores the organization override under token budget.
-	const organizationTriggers: ReadonlyMap<
-		string,
-		OrganizationCompactionTrigger
-	> = isTokenBudget ? new Map() : compactionTriggersByOrganizationID;
-	const triggerLoadErrors = isTokenBudget ? [] : compactionTriggerLoadErrors;
 	const [drafts, setDrafts] = useState<Record<string, string>>({});
 	const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 	const [pendingModels, setPendingModels] = useState<Set<string>>(new Set());
@@ -526,7 +517,7 @@ export const UserCompactionThresholdSettings: React.FC<
 		]),
 	);
 	const organizationIDsWithLoadErrors = new Set(
-		triggerLoadErrors.map(({ organizationID }) => organizationID),
+		compactionTriggerLoadErrors.map(({ organizationID }) => organizationID),
 	);
 	const organizationOptions = organizations.filter((organization) =>
 		enabledModels.some((config) => config.organization_id === organization.id),
@@ -691,22 +682,22 @@ export const UserCompactionThresholdSettings: React.FC<
 			<ContextCompactionHeader
 				mayHaveOrganizationCompactionOverride={
 					isLoadingModels ||
-					organizationTriggers.size > 0 ||
-					triggerLoadErrors.length > 0
+					compactionTriggersByOrganizationID.size > 0 ||
+					compactionTriggerLoadErrors.length > 0
 				}
 				isTokenBudget={isTokenBudget}
 			/>
 			{thresholdsError != null && <ErrorAlert error={thresholdsError} />}
 			{modelsError != null && <ErrorAlert error={modelsError} />}
-			{showRows && triggerLoadErrors.length > 0 && (
+			{showRows && compactionTriggerLoadErrors.length > 0 && (
 				<p className="m-0 text-xs text-content-destructive">
 					{getErrorMessage(
-						triggerLoadErrors[0]?.error,
+						compactionTriggerLoadErrors[0]?.error,
 						"Failed to load organization compaction settings.",
 					)}
 					<span className="block">
 						Effective values in{" "}
-						{triggerLoadErrors
+						{compactionTriggerLoadErrors
 							.map(
 								({ organizationID }) =>
 									organizationNameByID.get(organizationID) ?? organizationID,
@@ -771,7 +762,7 @@ export const UserCompactionThresholdSettings: React.FC<
 										organizationNameByID.get(modelConfig.organization_id) ??
 										modelConfig.organization_id
 									}
-									organizationTrigger={organizationTriggers.get(
+									organizationTrigger={compactionTriggersByOrganizationID.get(
 										modelConfig.organization_id,
 									)}
 									organizationOverrideNotLoaded={organizationIDsWithLoadErrors.has(
