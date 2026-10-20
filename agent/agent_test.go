@@ -133,8 +133,8 @@ type eofClient struct {
 	*agenttest.Client
 }
 
-func (*eofClient) ConnectRPC214WithRole(context.Context, string) (
-	proto.DRPCAgentClient214, tailnetproto.DRPCTailnetClient28, error,
+func (*eofClient) ConnectRPC215WithRole(context.Context, string) (
+	proto.DRPCAgentClient215, tailnetproto.DRPCTailnetClient28, error,
 ) {
 	return nil, nil, io.EOF
 }
@@ -469,85 +469,107 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		)
 	})
 
-	t.Run("TracksJetBrains", func(t *testing.T) {
-		t.Parallel()
-		if runtime.GOOS != "linux" {
-			t.Skip("JetBrains tracking is only supported on Linux")
+	for _, shutdown := range []bool{false, true} {
+		name := "TracksJetBrains"
+		if shutdown {
+			name = "TracksJetBrainsAgentShutdown"
 		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if runtime.GOOS != "linux" {
+				t.Skip("JetBrains tracking is only supported on Linux")
+			}
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+			ctx := testutil.Context(t, testutil.WaitLong)
 
-		// JetBrains tracking works by looking at the process name listening on the
-		// forwarded port.  If the process's command line includes the magic string
-		// we are looking for, then we assume it is a JetBrains editor.  So when we
-		// connect to the port we must ensure the process includes that magic string
-		// to fool the agent into thinking this is JetBrains.  To do this we need to
-		// spawn an external process (in this case a simple echo server) so we can
-		// control the process name.  The -D here is just to mimic how Java options
-		// are set but is not necessary as the agent looks only for the magic
-		// string itself anywhere in the command.
-		_, b, _, ok := runtime.Caller(0)
-		require.True(t, ok)
-		dir := filepath.Join(filepath.Dir(b), "../scripts/echoserver/main.go")
-		echoServerCmd := exec.Command("go", "run", dir,
-			"-D", agentssh.MagicProcessCmdlineJetBrains)
-		stdout, err := echoServerCmd.StdoutPipe()
-		require.NoError(t, err)
-		err = echoServerCmd.Start()
-		require.NoError(t, err)
-		defer echoServerCmd.Process.Kill()
+			// JetBrains tracking works by looking at the process name listening on the
+			// forwarded port.  If the process's command line includes the magic string
+			// we are looking for, then we assume it is a JetBrains editor.  So when we
+			// connect to the port we must ensure the process includes that magic string
+			// to fool the agent into thinking this is JetBrains.  To do this we need to
+			// spawn an external process (in this case a simple echo server) so we can
+			// control the process name.  The -D here is just to mimic how Java options
+			// are set but is not necessary as the agent looks only for the magic
+			// string itself anywhere in the command.
+			_, b, _, ok := runtime.Caller(0)
+			require.True(t, ok)
+			dir := filepath.Join(filepath.Dir(b), "../scripts/echoserver/main.go")
+			echoServerCmd := exec.Command("go", "run", dir,
+				"-D", agentssh.MagicProcessCmdlineJetBrains)
+			stdout, err := echoServerCmd.StdoutPipe()
+			require.NoError(t, err)
+			err = echoServerCmd.Start()
+			require.NoError(t, err)
+			defer echoServerCmd.Process.Kill()
 
-		// The echo server prints its port as the first line.
-		sc := bufio.NewScanner(stdout)
-		sc.Scan()
-		remotePort := sc.Text()
+			// The echo server prints its port as the first line.
+			sc := bufio.NewScanner(stdout)
+			sc.Scan()
+			remotePort := sc.Text()
 
-		//nolint:dogsled
-		conn, agentClient, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
-		sshClient, err := conn.SSHClient(ctx)
-		require.NoError(t, err)
+			sink := testutil.NewFakeSink(t)
+			conn, agentClient, stats, _, agnt := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+				o.Logger = sink.Logger()
+			})
+			sshClient, err := conn.SSHClient(ctx)
+			require.NoError(t, err)
 
-		tunneledConn, err := sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%s", remotePort))
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			// always close on failure of test
-			_ = conn.Close()
+			tunneledConn, err := sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%s", remotePort))
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				// always close on failure of test
+				_ = conn.Close()
+				_ = tunneledConn.Close()
+			})
+
+			require.Eventuallyf(t, func() bool {
+				s, ok := <-stats
+				t.Logf("got stats with conn open: ok=%t, ConnectionCount=%d, SessionCountJetBrains=%d",
+					ok, s.ConnectionCount, s.SessionCounts["jetbrains"])
+				return ok && s.SessionCounts["jetbrains"] == 1
+			}, testutil.WaitLong, testutil.IntervalFast,
+				"never saw stats with conn open",
+			)
+
+			written := requireEcho(t, tunneledConn)
+			if shutdown {
+				require.NoError(t, agnt.Close())
+				assertConnectionReport(t, agentClient,
+					proto.ConnectEvent{Method: proto.Connection_METHOD_SSH, AppName: string(codersdk.AppFamilyJetBrains)},
+					proto.DisconnectEvent{
+						Reason:  string(codersdk.DisconnectReasonServerShutdown),
+						RxBytes: int64(written),
+						TxBytes: int64(written),
+					},
+				)
+				requireDisconnectLog(t, sink, "JetBrains channel closed", "", codersdk.DisconnectReasonServerShutdown)
+				return
+			}
+
+			// Kill the server and connection after checking for the echo.
+			_ = echoServerCmd.Process.Kill()
 			_ = tunneledConn.Close()
+
+			require.Eventuallyf(t, func() bool {
+				s, ok := <-stats
+				t.Logf("got stats after disconnect %t, %d",
+					ok, s.SessionCounts["jetbrains"])
+				return ok &&
+					s.SessionCounts["jetbrains"] == 0
+			}, testutil.WaitLong, testutil.IntervalFast,
+				"never saw stats after conn closes",
+			)
+
+			assertConnectionReport(t, agentClient,
+				proto.ConnectEvent{Method: proto.Connection_METHOD_SSH, AppName: string(codersdk.AppFamilyJetBrains)},
+				proto.DisconnectEvent{
+					Reason:  "normal close",
+					RxBytes: int64(written),
+					TxBytes: int64(written),
+				},
+			)
 		})
-
-		require.Eventuallyf(t, func() bool {
-			s, ok := <-stats
-			t.Logf("got stats with conn open: ok=%t, ConnectionCount=%d, SessionCountJetBrains=%d",
-				ok, s.ConnectionCount, s.SessionCounts["jetbrains"])
-			return ok && s.SessionCounts["jetbrains"] == 1
-		}, testutil.WaitLong, testutil.IntervalFast,
-			"never saw stats with conn open",
-		)
-
-		// Kill the server and connection after checking for the echo.
-		written := requireEcho(t, tunneledConn)
-		_ = echoServerCmd.Process.Kill()
-		_ = tunneledConn.Close()
-
-		require.Eventuallyf(t, func() bool {
-			s, ok := <-stats
-			t.Logf("got stats after disconnect %t, %d",
-				ok, s.SessionCounts["jetbrains"])
-			return ok &&
-				s.SessionCounts["jetbrains"] == 0
-		}, testutil.WaitLong, testutil.IntervalFast,
-			"never saw stats after conn closes",
-		)
-
-		assertConnectionReport(t, agentClient,
-			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH, AppName: string(codersdk.AppFamilyJetBrains)},
-			proto.DisconnectEvent{
-				Reason:  "normal close",
-				RxBytes: int64(written),
-				TxBytes: int64(written),
-			},
-		)
-	})
+	}
 }
 
 func TestAgent_SessionExec(t *testing.T) {
@@ -2120,6 +2142,113 @@ func TestAgentMetadata_Timing(t *testing.T) {
 			t.Fatalf("too few greetings: %d < %d", numGreetings, lowerBound)
 		}
 	}
+}
+
+func TestAgent_OrderedStartupScripts(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("shell scripts")
+	}
+
+	scripts := func(cloneScript, installScript string) (clone, install codersdk.WorkspaceAgentScript) {
+		clone = codersdk.WorkspaceAgentScript{
+			ID: uuid.New(), LogSourceID: uuid.New(), DisplayName: "Clone repo",
+			ResourceAddress: "coder_script.clone_repo", RunOnStart: true,
+			Script: cloneScript,
+		}
+		install = codersdk.WorkspaceAgentScript{
+			ID: uuid.New(), LogSourceID: uuid.New(), DisplayName: "Install tools",
+			ResourceAddress: "coder_script.install_tools", RunOnStart: true,
+			Script: installScript,
+			Dependencies: []codersdk.WorkspaceAgentScriptDependency{{
+				PrerequisiteResourceAddress: "coder_script.clone_repo",
+				Requirement:                 codersdk.WorkspaceAgentScriptDependencyRequirementSuccess,
+			}},
+		}
+		return clone, install
+	}
+	timingFor := func(client *agenttest.Client, id uuid.UUID) *proto.Timing {
+		for _, timing := range client.GetTimings() {
+			if bytes.Equal(timing.ScriptId, id[:]) {
+				return timing
+			}
+		}
+		return nil
+	}
+	// collectLines drains the batches delivered so far and keeps the lines
+	// written to one script's log.
+	collectLines := func(logsCh <-chan *proto.BatchCreateLogsRequest, logSourceID uuid.UUID, lines *[]string) {
+		for {
+			select {
+			case batch := <-logsCh:
+				if !bytes.Equal(batch.LogSourceId, logSourceID[:]) {
+					continue
+				}
+				for _, log := range batch.Logs {
+					*lines = append(*lines, log.Output)
+				}
+			default:
+				return
+			}
+		}
+	}
+	startAgent := func(t *testing.T, clone, install codersdk.WorkspaceAgentScript) (*agenttest.Client, <-chan *proto.BatchCreateLogsRequest) {
+		t.Helper()
+		logsCh := make(chan *proto.BatchCreateLogsRequest, 256)
+		//nolint:dogsled // only the client is needed
+		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
+			Scripts: []codersdk.WorkspaceAgentScript{clone, install},
+		}, 0, func(cl *agenttest.Client, _ *agent.Options) {
+			cl.SetLogsChannel(logsCh)
+		})
+		return client, logsCh
+	}
+	waitForLifecycle := func(t *testing.T, client *agenttest.Client, want codersdk.WorkspaceAgentLifecycle) {
+		t.Helper()
+		require.Eventually(t, func() bool {
+			return slices.Contains(client.GetLifecycleStates(), want)
+		}, testutil.WaitLong, testutil.IntervalMedium)
+	}
+
+	t.Run("WaitsThenRuns", func(t *testing.T) {
+		t.Parallel()
+		marker := filepath.Join(t.TempDir(), "cloned")
+		// install_tools exits 1 if it runs before clone_repo has finished.
+		clone, install := scripts("sleep 0.5 && touch "+marker, "test -f "+marker)
+		client, logsCh := startAgent(t, clone, install)
+
+		waitForLifecycle(t, client, codersdk.WorkspaceAgentLifecycleReady)
+		require.FileExists(t, marker)
+		var installLines []string
+		collectLines(logsCh, install.LogSourceID, &installLines)
+		require.Empty(t, installLines)
+		require.Eventually(t, func() bool {
+			timing := timingFor(client, install.ID)
+			return timing != nil && timing.Status == proto.Timing_OK
+		}, testutil.WaitShort, testutil.IntervalFast)
+	})
+
+	t.Run("SkipsAfterFailure", func(t *testing.T) {
+		t.Parallel()
+		marker := filepath.Join(t.TempDir(), "cloned")
+		clone, install := scripts("exit 128", "touch "+marker)
+		client, logsCh := startAgent(t, clone, install)
+
+		waitForLifecycle(t, client, codersdk.WorkspaceAgentLifecycleStartError)
+		require.NoFileExists(t, marker)
+		var installLines []string
+		require.Eventually(t, func() bool {
+			collectLines(logsCh, install.LogSourceID, &installLines)
+			return len(installLines) > 0
+		}, testutil.WaitShort, testutil.IntervalFast)
+		require.Equal(t, []string{`Skipping script: dependency "Clone repo" failed.`}, installLines)
+		require.Eventually(t, func() bool {
+			timing := timingFor(client, install.ID)
+			return timing != nil &&
+				timing.Status == proto.Timing_SKIPPED &&
+				timing.Start.AsTime().Equal(timing.End.AsTime())
+		}, testutil.WaitShort, testutil.IntervalFast, "the skipped dependent reports one zero-duration timing")
+	})
 }
 
 func TestAgent_Lifecycle(t *testing.T) {
@@ -4634,12 +4763,17 @@ func requireEcho(t *testing.T, conn net.Conn) int {
 const (
 	wantSomeBytes   int64 = -1
 	wantIgnoreBytes int64 = -2
+	// wantNonZeroCode accepts any non-zero disconnect status code, for
+	// disconnects whose code depends on how the platform reports a killed
+	// process.
+	wantNonZeroCode = -1
 )
 
 // assertConnectionReport expects the provided connect and disconnect events
 // have been reported.  If the disconnection bytes are wantSomeBytes, assert the
 // bytes are > 0, if wantIgnoreBytes do not check the bytes, otherwise assert
-// they match exactly.
+// they match exactly. If the disconnect code is wantNonZeroCode, assert the
+// status code is non-zero, otherwise assert it matches exactly.
 func assertConnectionReport(t testing.TB, agentClient *agenttest.Client,
 	connect proto.ConnectEvent, disconnect proto.DisconnectEvent,
 ) {
@@ -4668,7 +4802,11 @@ func assertConnectionReport(t testing.TB, agentClient *agenttest.Client,
 	assert.NotEmpty(t, reports[0].GetConnection().GetIp(), "connect ip should not be empty")
 	assert.NotEmpty(t, reports[1].GetConnection().GetIp(), "disconnect ip should not be empty")
 	assert.Equal(t, 0, int(reports[0].GetConnection().GetStatusCode()), "connect status code should be 0")
-	assert.Equal(t, disconnect.Code, int(reports[1].GetConnection().GetStatusCode()), "disconnect status code should be %d", disconnect.Code)
+	if disconnect.Code == wantNonZeroCode {
+		assert.NotZero(t, reports[1].GetConnection().GetStatusCode(), "disconnect status code should be non-zero")
+	} else {
+		assert.Equal(t, disconnect.Code, int(reports[1].GetConnection().GetStatusCode()), "disconnect status code should be %d", disconnect.Code)
+	}
 	assert.Equal(t, "", reports[0].GetConnection().GetReason(), "connect reason should be empty")
 	if disconnect.Reason != "" {
 		assert.Contains(t, reports[1].GetConnection().GetReason(), disconnect.Reason, "disconnect reason should contain %s", disconnect.Reason)

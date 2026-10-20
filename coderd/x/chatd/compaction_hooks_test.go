@@ -235,10 +235,10 @@ func startCompactionHookChat(
 		if strings.Contains(body, "You are performing a context compaction") {
 			compactionCalls.Add(1)
 			inspectCompaction(t, body)
-			// The 32000 default cap with 50% headroom. The remaining
-			// window (100 limit - 80 input - trigger output - summary
-			// prompt reserve) is non-positive, so the cap is unchanged.
-			require.Equal(t, 48000, req.MaxTokens)
+			// The 32000 default cap. The remaining window (100 limit -
+			// 80 input - trigger output - summary prompt reserve) is
+			// non-positive, so the cap is unchanged.
+			require.Equal(t, 32000, req.MaxTokens)
 			return anthropicCompactionResponse(t, req, "hook compaction summary")
 		}
 		if !req.Stream {
