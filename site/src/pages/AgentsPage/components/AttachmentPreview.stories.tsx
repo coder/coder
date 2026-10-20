@@ -329,4 +329,8 @@ export const WorkspaceFiles: Story = {
 			]),
 		};
 	})(),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(canvas.getByLabelText("Upload error"));
+	},
 };

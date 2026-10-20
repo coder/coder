@@ -695,6 +695,7 @@ describe("AgentChatInput", () => {
 	it("refuses workspace files while the composer is disabled", () => {
 		const onAttach = vi.fn();
 		const onWorkspaceAttach = vi.fn();
+		const onStage = vi.fn();
 		const toastError = vi.spyOn(toast, "error");
 
 		renderInput(
@@ -705,6 +706,7 @@ describe("AgentChatInput", () => {
 				workspaceUploads={{
 					uploads: [],
 					onAttach: onWorkspaceAttach,
+					onStage,
 					onRemove: vi.fn(),
 				}}
 				isDisabled
@@ -730,9 +732,10 @@ describe("AgentChatInput", () => {
 		});
 
 		expect(onWorkspaceAttach).not.toHaveBeenCalled();
+		expect(onStage).not.toHaveBeenCalled();
 		expect(onAttach).not.toHaveBeenCalled();
 		expect(toastError).toHaveBeenCalledWith(
-			"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
+			"Files for the workspace can't be added right now.",
 		);
 	});
 
@@ -832,7 +835,7 @@ describe("AgentChatInput", () => {
 		);
 	});
 
-	it("asks for a workspace when workspace uploads are wired but unavailable", () => {
+	it("refuses workspace files when neither streaming nor staging is available", () => {
 		const onAttach = vi.fn();
 		const toastError = vi.spyOn(toast, "error");
 
@@ -869,7 +872,7 @@ describe("AgentChatInput", () => {
 
 		expect(onAttach).not.toHaveBeenCalled();
 		expect(toastError).toHaveBeenCalledWith(
-			"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
+			"Files for the workspace can't be added right now.",
 		);
 	});
 });

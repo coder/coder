@@ -116,25 +116,20 @@ export type { AgentContextUsage } from "./ContextUsageIndicator";
 
 type WorkspaceUploadsProps = {
 	uploads: readonly WorkspaceFileUpload[];
-	// Present only when a connected agent can take direct uploads: the
-	// chat's bound agent, or on the new-chat page the selected
-	// workspace's connected root agent.
+	// Present only when a connected agent can take direct uploads.
 	onAttach?: (files: File[]) => void;
 	// Stores workspace-routed files in Coder, which copies them into the
 	// workspace once it starts. Used when onAttach is unavailable.
 	onStage?: (files: File[]) => void;
 	onRemove: (id: string) => void;
-	// Toast shown when a workspace-routed file arrives while neither
-	// onAttach nor onStage can take it.
-	unavailableMessage?: string;
 	// Deferred mode (new-chat page): entries upload during submit and
 	// every entry re-uploads on the next send after a failure, so
 	// error chips still count as sendable content.
 	deferred?: boolean;
 };
 
-const workspaceRequiredAttachmentMessage =
-	"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.";
+const workspaceAttachUnavailableMessage =
+	"Files for the workspace can't be added right now.";
 const workspaceUploadPendingSendMessage =
 	"Wait for the current message to finish sending, then add the file again.";
 
@@ -954,14 +949,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	// A disabled (read-only) or sending composer must not route files to
 	// workspace uploads or staging: the post-send reset would drop the
 	// chip after the bytes already landed, or a staged file unsent.
-	const workspaceAttachBlockedBySend =
-		isLoading &&
-		(workspaceUploads?.onAttach !== undefined ||
-			workspaceUploads?.onStage !== undefined);
-	const onWorkspaceAttach =
-		isDisabled || isLoading ? undefined : workspaceUploads?.onAttach;
-	const onWorkspaceStage =
-		isDisabled || isLoading ? undefined : workspaceUploads?.onStage;
+	const workspaceSink = workspaceUploads?.onAttach ?? workspaceUploads?.onStage;
+	const workspaceAttachBlockedBySend = isLoading && workspaceSink !== undefined;
+	const onWorkspaceAttach = isDisabled || isLoading ? undefined : workspaceSink;
 
 	// Splits files between the attachment pipeline and the workspace
 	// upload path by declared MIME type. Unknown or octet-stream files
@@ -969,33 +959,27 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	// Returns whether any file was routed.
 	const routeFiles = (files: File[]): boolean => {
 		const attachable: File[] = [];
-		const streamed: File[] = [];
-		const staged: File[] = [];
+		const forWorkspace: File[] = [];
 		const rejected: File[] = [];
-		// Workspace-routable files that arrived while the workspace
-		// upload feature is wired but currently unavailable (read-only
-		// composer, pending send). They need a workspace, not a
-		// different file type, so they get their own toast.
-		const workspaceRequired: File[] = [];
+		// Workspace-routable files that arrived with no direct upload or
+		// staging path, a read-only composer, or a pending send.
+		const workspaceUnavailable: File[] = [];
 		for (const file of files) {
 			if (onWorkspaceAttach && shouldRouteFileToWorkspace(file)) {
-				streamed.push(file);
-			} else if (onWorkspaceStage && shouldRouteFileToWorkspace(file)) {
-				staged.push(file);
+				forWorkspace.push(file);
 			} else if (isChatAttachmentFile(file)) {
 				attachable.push(file);
 			} else if (workspaceUploads && shouldRouteFileToWorkspace(file)) {
-				workspaceRequired.push(file);
+				workspaceUnavailable.push(file);
 			} else {
 				rejected.push(file);
 			}
 		}
-		if (workspaceRequired.length > 0) {
+		if (workspaceUnavailable.length > 0) {
 			toast.error(
 				workspaceAttachBlockedBySend
 					? workspaceUploadPendingSendMessage
-					: (workspaceUploads?.unavailableMessage ??
-							workspaceRequiredAttachmentMessage),
+					: workspaceAttachUnavailableMessage,
 			);
 		}
 		if (rejected.length > 0) {
@@ -1003,22 +987,15 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				`Unsupported file type: ${rejected.map((file) => file.name).join(", ")}`,
 			);
 		}
-		if (
-			attachable.length === 0 &&
-			streamed.length === 0 &&
-			staged.length === 0
-		) {
+		if (attachable.length === 0 && forWorkspace.length === 0) {
 			return false;
 		}
 		resetPromptCycle();
 		if (attachable.length > 0) {
 			onAttach?.(attachable);
 		}
-		if (streamed.length > 0) {
-			onWorkspaceAttach?.(streamed);
-		}
-		if (staged.length > 0) {
-			onWorkspaceStage?.(staged);
+		if (forWorkspace.length > 0) {
+			onWorkspaceAttach?.(forWorkspace);
 		}
 		return true;
 	};

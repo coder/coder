@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
-import { MockWorkspace } from "#/testHelpers/entities";
+import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { ChatPageInput } from "./ChatPageContent";
@@ -167,8 +167,6 @@ describe("ChatPageInput", () => {
 		);
 		const zip = new File(["PK"], "bundle.zip", { type: "application/zip" });
 
-		// The workspace has a connected root agent, but direct uploads go
-		// only through the chat's bound agent_id, which is unset here.
 		renderChatPageInput(createChatStore(), {
 			chat: {
 				...MockChat,
@@ -200,5 +198,44 @@ describe("ChatPageInput", () => {
 			},
 		]);
 		expect(uploadChatWorkspaceFile).not.toHaveBeenCalled();
+	});
+
+	it("streams workspace files through the chat's connected agent", async () => {
+		const user = userEvent.setup();
+		const uploadChatFile = vi.spyOn(API.experimental, "uploadChatFile");
+		const uploadChatWorkspaceFile = vi
+			.spyOn(API.experimental, "uploadChatWorkspaceFile")
+			.mockResolvedValue({
+				path: "/home/coder/.coder/chats/chat-streaming/files/bundle.zip",
+				name: "bundle.zip",
+				size: 2,
+				media_type: "application/zip",
+				workspace_id: MockWorkspace.id,
+			});
+		const zip = new File(["PK"], "bundle.zip", { type: "application/zip" });
+
+		renderChatPageInput(createChatStore(), {
+			chat: {
+				...MockChat,
+				id: "chat-streaming",
+				workspace_id: MockWorkspace.id,
+				agent_id: MockWorkspaceAgent.id,
+			},
+			workspace: MockWorkspace,
+			workspaceAgent: MockWorkspaceAgent,
+		});
+		await user.upload(
+			await screen.findByTestId("chat-attachment-file-input"),
+			zip,
+		);
+
+		await waitFor(() =>
+			expect(uploadChatWorkspaceFile).toHaveBeenCalledWith(
+				"chat-streaming",
+				zip,
+				expect.anything(),
+			),
+		);
+		expect(uploadChatFile).not.toHaveBeenCalled();
 	});
 });

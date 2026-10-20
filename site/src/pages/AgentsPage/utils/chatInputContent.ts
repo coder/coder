@@ -1,4 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import type { UploadState } from "../components/AttachmentPreview";
 import type {
 	PendingAttachment,
 	PendingWorkspaceUpload,
@@ -15,6 +16,30 @@ export type ChatComposerContentPart =
 				readonly content: string;
 			};
 	  };
+
+/** Failed uploads are skipped and counted; uploads still in flight are left out uncounted. */
+export const collectSendableAttachments = (
+	files: readonly File[],
+	uploadStates: ReadonlyMap<File, UploadState>,
+): { attachments: PendingAttachment[]; skippedErrors: number } => {
+	const attachments: PendingAttachment[] = [];
+	let skippedErrors = 0;
+	for (const file of files) {
+		const state = uploadStates.get(file);
+		if (state?.status === "error") {
+			skippedErrors++;
+			continue;
+		}
+		if (state?.status === "uploaded" && state.fileId) {
+			attachments.push({
+				fileId: state.fileId,
+				mediaType: file.type || "application/octet-stream",
+				purpose: state.purpose,
+			});
+		}
+	}
+	return { attachments, skippedErrors };
+};
 
 export const buildAttachmentMediaTypes = (
 	attachments?: readonly PendingAttachment[],
