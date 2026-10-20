@@ -29,8 +29,9 @@ type headerCell struct {
 // checkTables returns a finding for every table header cell with no text, in
 // both GFM pipe tables (the header row) and raw HTML tables (any <th>). Text is
 // whatever a reader would hear: entities such as &nbsp; are decoded and
-// whitespace is trimmed, so <th>&nbsp;</th> and <th><br></th> count as empty.
-// Tables inside code blocks and code spans are ignored.
+// whitespace is trimmed, so <th>&nbsp;</th> and <th><br></th> count as empty,
+// while an image's alt text, an autolink, and code count as text. Tables
+// inside code blocks and code spans are ignored.
 func checkTables(src []byte) []finding {
 	doc := goldmark.New(goldmark.WithExtensions(extension.Table)).Parser().Parse(text.NewReader(src))
 	t := &tableChecker{c: checker{src: src, lineStarts: lineStarts(src)}}
@@ -51,9 +52,15 @@ func checkTables(src []byte) []finding {
 		case *ast.Text:
 			// Markdown between the raw-HTML blocks of an open <th>, such as
 			// <th>\n\n**Feature**\n\n</th>, is that cell's text.
-			t.addText(string(node.Segment.Value(src)))
+			t.addText(textValue(node, src))
 		case *ast.String:
 			t.addText(string(node.Value))
+		case *ast.AutoLink:
+			t.addText(string(node.Label(src)))
+		case *ast.FencedCodeBlock, *ast.CodeBlock:
+			for _, seg := range segmentsOf(n.Lines()) {
+				t.addText(string(seg.Value(src)))
+			}
 		}
 		return true
 	})
@@ -97,15 +104,50 @@ func inlineText(n ast.Node, src []byte) string {
 	preorder(n, func(n ast.Node) bool {
 		switch node := n.(type) {
 		case *ast.Text:
-			b = append(b, node.Segment.Value(src)...)
+			b = append(b, textValue(node, src)...)
 		case *ast.String:
 			b = append(b, node.Value...)
 		case *ast.AutoLink:
 			b = append(b, node.Label(src)...)
+		case *ast.RawHTML:
+			tokenizeSegments(src, segmentsOf(node.Segments), func(int) int { return 0 }, func(z *html.Tokenizer, tt html.TokenType, raw []byte, _ int) {
+				if (tt == html.StartTagToken || tt == html.SelfClosingTagToken) && strings.EqualFold(rawTagName(raw), "img") {
+					b = append(b, ' ')
+					b = append(b, imgAlt(z)...)
+				}
+			})
 		}
 		return true
 	})
 	return string(b)
+}
+
+// textValue returns the text of a Markdown text node with entities decoded.
+// goldmark keeps &nbsp; as literal source text until it renders, so without
+// decoding a cell holding only &nbsp; would look non-empty. Text in a code
+// span renders literally, so `&nbsp;` there stays six visible characters.
+func textValue(n *ast.Text, src []byte) string {
+	v := string(n.Segment.Value(src))
+	if _, ok := n.Parent().(*ast.CodeSpan); ok {
+		return v
+	}
+	return html.UnescapeString(v)
+}
+
+// imgAlt returns the alt attribute of the img start tag z is on, which a
+// screen reader announces as the image's text. It must run after rawTagName
+// has read the raw token, because the tokenizer lowercases attribute names
+// in place.
+func imgAlt(z *html.Tokenizer) string {
+	for {
+		key, val, more := z.TagAttr()
+		if string(key) == "alt" {
+			return string(val)
+		}
+		if !more {
+			return ""
+		}
+	}
 }
 
 // preorder visits n and its descendants in document order. visit returns
@@ -130,6 +172,8 @@ func (t *tableChecker) scanHTML(segs []text.Segment) {
 			t.addText(string(z.Text()))
 		case html.StartTagToken, html.SelfClosingTagToken:
 			switch strings.ToLower(rawTagName(raw)) {
+			case "img":
+				t.addText(imgAlt(z))
 			case "table":
 				t.inTH = false
 				t.tables = append(t.tables, nil)

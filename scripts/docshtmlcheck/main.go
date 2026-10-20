@@ -202,71 +202,84 @@ func run(roots []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	var htmlIssues, tableIssues, guardIssues, staleIssues int
+	var total issueCounts
 	for _, path := range files {
 		src, err := os.ReadFile(path)
 		if err != nil {
 			_, _ = fmt.Fprintf(stderr, "docshtmlcheck: %v\n", err)
 			return 2
 		}
-		tables := checkTables(src)
-		findings := append(filterAllowed(path, checkSource(src), allowedUnknownTags), tables...)
-		slices.SortStableFunc(findings, func(a, b finding) int {
-			return cmp.Compare(a.line, b.line)
-		})
-		guarded := 0
-		for _, f := range findings {
-			if f.kind == kindDisallowedElement || f.kind == kindDisallowedAttribute {
-				guarded++
-			}
-		}
-		h, s := reportFindings(path, findings, allowedUnknownTags, stdout)
-		htmlIssues += h - len(tables) - guarded
-		tableIssues += len(tables)
-		guardIssues += guarded
-		staleIssues += s
+		findings := append(filterAllowed(path, checkSource(src), allowedUnknownTags), checkTables(src)...)
+		sortFindings(findings)
+		total = total.add(reportFindings(path, findings, allowedUnknownTags, stdout))
 	}
 
-	if htmlIssues > 0 {
+	if total.html > 0 {
 		_, _ = fmt.Fprintf(stderr, "\ndocshtmlcheck: found %d invalid inline HTML issue(s).\n"+
 			"Wrap angle-bracket placeholders in backticks so they render as inline code\n"+
 			"(see contributing/documentation.md), fix void-element end tags\n"+
-			"like </br>, use registered components for custom tags, and close container tags.\n", htmlIssues)
+			"like </br>, use registered components for custom tags, and close container tags.\n", total.html)
 	}
-	if tableIssues > 0 {
+	if total.table > 0 {
 		_, _ = fmt.Fprintf(stderr, "\ndocshtmlcheck: found %d empty table header cell(s).\n"+
 			"Give every header cell text that names its column or row, including the\n"+
 			"top-left corner cell of a matrix; screen readers announce an empty one\n"+
-			"with no name.\n", tableIssues)
+			"with no name.\n", total.table)
 	}
-	if guardIssues > 0 {
+	if total.guard > 0 {
 		_, _ = fmt.Fprintf(stderr, "\ndocshtmlcheck: found %d disallowed element(s) or attribute(s).\n"+
 			"Docs pages don't use ARIA, role, tabindex, or lang attributes, or iframe, object,\n"+
 			"area, form control, or meta elements. Each brings accessibility requirements\n"+
-			"that no docs check verifies; write the content in Markdown instead.\n", guardIssues)
+			"that no docs check verifies; write the content in Markdown instead.\n", total.guard)
 	}
-	if staleIssues > 0 {
+	if total.stale > 0 {
 		_, _ = fmt.Fprintf(stderr, "\ndocshtmlcheck: found %d stale allowlist entry(ies); "+
-			"remove them from allowedUnknownTags in %s.\n", staleIssues, docshtmlcheckSource)
+			"remove them from allowedUnknownTags in %s.\n", total.stale, docshtmlcheckSource)
 	}
-	if htmlIssues+tableIssues+guardIssues+staleIssues > 0 {
+	if total.html+total.table+total.guard+total.stale > 0 {
 		return 1
 	}
 	return 0
 }
 
-// reportFindings writes one file's findings to out and returns the count of
-// invalid-HTML findings and stale-allowlist findings. A stale-allowlist finding
-// is reported against the linter source (its fix lives in allowedUnknownTags,
-// not the scanned doc) and with no line. When the file has a real content
-// finding, is generated, and is not allowlisted, a trailing note points the
-// author at the generator source instead of the throwaway output.
+// issueCounts holds the number of findings of each class, which run reports
+// under separate summary footers.
+type issueCounts struct {
+	html, table, guard, stale int
+}
+
+func (c issueCounts) add(o issueCounts) issueCounts {
+	return issueCounts{html: c.html + o.html, table: c.table + o.table, guard: c.guard + o.guard, stale: c.stale + o.stale}
+}
+
+// sortFindings orders findings by line. A finding with no line belongs to the
+// linter's allowlist rather than to the scanned doc, so it sorts after every
+// content finding.
+func sortFindings(findings []finding) {
+	slices.SortStableFunc(findings, func(a, b finding) int {
+		if (a.line == 0) != (b.line == 0) {
+			if a.line == 0 {
+				return 1
+			}
+			return -1
+		}
+		return cmp.Compare(a.line, b.line)
+	})
+}
+
+// reportFindings writes one file's findings to out and returns how many it
+// wrote of each class: invalid HTML, empty table headers, disallowed elements
+// and attributes, and stale allowlist entries. A stale-allowlist finding is reported against the linter source
+// (its fix lives in allowedUnknownTags, not the scanned doc) and with no line.
+// When the file has a content finding, is generated, and is not allowlisted, a
+// trailing note points the author at the generator source instead of the
+// throwaway output.
 //
 // The allowlist skip is file-scoped: a genuinely new invalid tag on an
 // allowlisted generated page is still reported, but without the
 // generator-source hint, because that page's source is external.
-func reportFindings(path string, findings []finding, allowlist map[string]map[string]bool, out io.Writer) (htmlIssues, staleIssues int) {
-	realFinding := false
+func reportFindings(path string, findings []finding, allowlist map[string]map[string]bool, out io.Writer) issueCounts {
+	var counts issueCounts
 	for _, f := range findings {
 		loc := path
 		if f.kind == kindStaleAllowlist {
@@ -279,19 +292,33 @@ func reportFindings(path string, findings []finding, allowlist map[string]map[st
 		} else {
 			_, _ = fmt.Fprintf(out, "%s: %s: %s\n", loc, f.kind, f.msg)
 		}
-		if f.kind == kindStaleAllowlist {
-			staleIssues++
-		} else {
-			htmlIssues++
-			realFinding = true
+		switch f.kind {
+		case kindStaleAllowlist:
+			counts.stale++
+		case kindEmptyTableHeader:
+			counts.table++
+		case kindDisallowedElement, kindDisallowedAttribute:
+			counts.guard++
+		default:
+			counts.html++
 		}
 	}
-	if realFinding && isGeneratedDoc(path) && allowlist[canonicalPath(path)] == nil {
+	if counts.html+counts.table+counts.guard > 0 && isGeneratedDoc(path) && allowlist[canonicalPath(path)] == nil {
 		_, _ = fmt.Fprintf(out, "%s: note: this page is generated by `make gen`; fix the source "+
-			"(codersdk/*.go doc comments, CLI --help text, or swagger annotations) and "+
-			"regenerate; edits to this file will not persist\n", path)
+			"(%s) and regenerate; edits to this file will not persist\n", path, generatorSource(path))
 	}
-	return htmlIssues, staleIssues
+	return counts
+}
+
+// generatorSource names where a generated page's content comes from. A CLI
+// page is rendered from the command's --help text through a page template, so
+// a structural problem such as an empty option-table header lives in the
+// template.
+func generatorSource(path string) string {
+	if strings.HasPrefix(canonicalPath(path), "docs/reference/cli/") {
+		return "CLI --help text, or the page template scripts/clidocgen/command.tpl"
+	}
+	return "codersdk/*.go doc comments, CLI --help text, or swagger annotations"
 }
 
 // collectMarkdown expands the given roots (files or directories) into a sorted
