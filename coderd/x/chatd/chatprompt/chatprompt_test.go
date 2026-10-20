@@ -2774,7 +2774,6 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 	// verify the fantasy message parts are identical after the
 	// round-trip.
 	db, _ := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
 
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -2846,6 +2845,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 	// path used by runChat, and converts them to fantasy messages.
 	loadPrompt := func(t *testing.T, chat database.Chat) []fantasy.Message {
 		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitShort)
 		dbMsgs, loadErr := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 		require.NoError(t, loadErr)
 		prompt, convErr := chatprompt.ConvertMessagesWithFiles(

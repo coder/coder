@@ -4,12 +4,16 @@ import { createRef, useLayoutEffect, useRef, useState } from "react";
 import { type QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type {
 	AgentChatSendShortcut,
+	ChatProject,
 	SkillMetadata,
 } from "#/api/typesGenerated";
+import { MockChatProject } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
@@ -258,16 +262,37 @@ describe("ChatMessageInput", () => {
 			id: "skill-reviewer",
 			name: "reviewer",
 		};
+		const mockCompactorSkill: SkillMetadata = {
+			...MockSkill,
+			id: "skill-compactor",
+			name: "compactor",
+		};
 
 		const renderWithSkills = ({
 			personal,
 			organization,
+			projectId,
+			projects = projectId ? [{ ...MockChatProject, id: projectId }] : [],
+			staleProject,
+			queryClient = createTestQueryClient(),
 		}: {
 			personal: SkillMetadata[];
 			organization?: SkillMetadata[];
+			projectId?: string;
+			projects?: ChatProject[];
+			// Project skills loaded long ago, so opening the menu refetches.
+			staleProject?: SkillMetadata[];
+			queryClient?: QueryClient;
 		}) => {
-			const queryClient = createTestQueryClient();
 			queryClient.setQueryData(userSkills().queryKey, personal);
+			vi.spyOn(API.experimental, "getChatProjects").mockResolvedValue(projects);
+			if (projectId && staleProject) {
+				queryClient.setQueryData(
+					chatProjectSkillsKey(projectId),
+					staleProject,
+					{ updatedAt: 0 },
+				);
+			}
 			if (organization) {
 				queryClient.setQueryData(
 					organizationSkills(organizationId).queryKey,
@@ -285,6 +310,7 @@ describe("ChatMessageInput", () => {
 					ref={inputRef}
 					aria-label="Chat message input"
 					organizationId={organizationId}
+					projectId={projectId}
 					slashCommands={[COMPACT_SLASH_COMMAND]}
 				/>,
 				queryClient,
@@ -327,12 +353,109 @@ describe("ChatMessageInput", () => {
 		it("hides built-in commands when the organization list fails", async () => {
 			// With /compact hidden, Enter picks the qualified personal match.
 			const inputRef = renderWithSkills({
-				personal: [{ ...MockSkill, id: "skill-compactor", name: "compactor" }],
+				personal: [mockCompactorSkill],
 			});
 			const user = await pasteTrigger("/comp");
 			await screen.findByText(/Could not load organization skills/);
 			await user.keyboard("{Enter}");
 			expect(inputRef.current?.getValue()).toBe("/personal/compactor");
+		});
+
+		it.each([403, 404])(
+			"offers built-in commands when the project list fails with %i",
+			async (status) => {
+				vi.spyOn(API.experimental, "getChatProjectSkills").mockRejectedValue({
+					isAxiosError: true,
+					response: { status, data: { message: "Project not found." } },
+				});
+				const inputRef = renderWithSkills({
+					personal: [mockCompactorSkill],
+					organization: [],
+					projectId: "project-1",
+				});
+				const user = await pasteTrigger("/comp");
+				await screen.findByText(/Could not load project skills/);
+				await user.keyboard("{Enter}");
+				expect(inputRef.current?.getValue()).toBe("/compact");
+			},
+		);
+
+		it("drops loaded project skills when a refetch shows lost access", async () => {
+			vi.spyOn(API.experimental, "getChatProjectSkills").mockRejectedValue({
+				isAxiosError: true,
+				response: { status: 404, data: { message: "Project not found." } },
+			});
+			const queryClient = createTestQueryClient();
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [],
+				projectId: "project-1",
+				staleProject: [mockReviewerSkill],
+				queryClient,
+			});
+			const user = await pasteTrigger("/rev");
+			await waitFor(() => {
+				expect(
+					queryClient.getQueryState(chatProjectSkillsKey("project-1"))?.status,
+				).toBe("error");
+			});
+			await user.keyboard("{Enter}");
+			// Without a project reviewer to collide with, the trigger stays bare.
+			expect(inputRef.current?.getValue()).toBe("/reviewer");
+		});
+
+		it("drops project skills when the caller's project list lacks the project", async () => {
+			// An administrator role can read the skills of a project that is
+			// not shared with the caller, but chatd does not load them.
+			vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([
+				mockReviewerSkill,
+			]);
+			const queryClient = createTestQueryClient();
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [],
+				projectId: "project-1",
+				projects: [],
+				queryClient,
+			});
+			const user = await pasteTrigger("/rev");
+			await waitFor(() => {
+				expect(
+					queryClient.getQueryState(chatProjectSkillsKey("project-1"))?.status,
+				).toBe("success");
+				expect(queryClient.getQueryState(chatProjectsKey)?.status).toBe(
+					"success",
+				);
+			});
+			await user.keyboard("{Enter}");
+			expect(inputRef.current?.getValue()).toBe("/reviewer");
+		});
+
+		it("hides built-in commands when the project list fails transiently", async () => {
+			// Fake timers skip the delays of the query's retries.
+			vi.useFakeTimers({ shouldAdvanceTime: true });
+			try {
+				const getChatProjectSkills = vi
+					.spyOn(API.experimental, "getChatProjectSkills")
+					.mockRejectedValue({
+						isAxiosError: true,
+						response: { status: 500, data: { message: "Internal error." } },
+					});
+				const inputRef = renderWithSkills({
+					personal: [mockCompactorSkill],
+					organization: [],
+					projectId: "project-1",
+				});
+				const user = await pasteTrigger("/comp");
+				await vi.advanceTimersByTimeAsync(10_000);
+				await screen.findByText(/Could not load project skills/);
+				expect(getChatProjectSkills).toHaveBeenCalledTimes(4);
+				// With /compact hidden, Enter picks the qualified personal match.
+				await user.keyboard("{Enter}");
+				expect(inputRef.current?.getValue()).toBe("/personal/compactor");
+			} finally {
+				vi.useRealTimers();
+			}
 		});
 
 		it("keeps triggers qualified when the organization list fails", async () => {
