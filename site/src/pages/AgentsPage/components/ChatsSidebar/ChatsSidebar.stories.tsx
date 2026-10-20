@@ -730,12 +730,15 @@ export const SectionHeadersCollapse: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// Exercise both section toggles: collapse then re-expand Pinned,
-		// then collapse Today and leave it collapsed so the capture shows
-		// a collapsed section alongside the expanded ones.
+		// Collapse then re-expand Pinned and Chats, then collapse Today and
+		// leave it collapsed so the capture shows a collapsed section
+		// alongside the expanded ones.
 		const pinnedToggle = canvas.getByRole("button", { name: "Pinned" });
 		await userEvent.click(pinnedToggle);
 		await userEvent.click(pinnedToggle);
+		const chatsToggle = canvas.getByRole("button", { name: "Chats" });
+		await userEvent.click(chatsToggle);
+		await userEvent.click(chatsToggle);
 
 		// Collapse Today and leave it collapsed so the capture shows a
 		// collapsed section alongside the expanded ones.
@@ -3404,5 +3407,14 @@ export const PinnedAboveProjects: Story = {
 	parameters: {
 		experiments: ["chat-projects"],
 		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+};
+
+export const ChatsSectionCollapsed: Story = {
+	args: { chats: sectionHeaderChats },
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Chats" }),
+		);
 	},
 };
