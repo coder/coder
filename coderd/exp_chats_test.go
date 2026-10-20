@@ -13037,6 +13037,9 @@ func TestChatWorkspaceAttachments(t *testing.T) {
 
 		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "application/zip", "archive.zip", bytes.NewReader(archive))
 		requireSDKError(t, err, http.StatusBadRequest)
+		_, err = client.UploadChatFileWithPurpose(ctx, firstUser.OrganizationID, codersdk.ChatFilePurpose("bogus"), "application/zip", "archive.zip", bytes.NewReader(archive[:4096]))
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid purpose query parameter.", sdkErr.Message)
 
 		// The server may close the connection before the client finishes
 		// sending, so only the failure is asserted, as in TestPostChatFile.
@@ -13085,6 +13088,8 @@ func TestChatWorkspaceAttachments(t *testing.T) {
 		require.NotZero(t, userMessage.ID)
 		wantPart := codersdk.ChatMessageWorkspaceAttachment(fileID, "application/zip", "my_report_.zip", int64(len(data)))
 		require.Equal(t, wantPart, attachmentPart(t, userMessage.Content))
+		signed, err := client.ChatFileDownloadURL(ctx, fileID)
+		require.NoError(t, err)
 
 		//nolint:gocritic // Test simulates the chatd delivery loop.
 		completed, err := db.CompleteChatWorkspaceFileDelivery(dbauthz.AsChatd(ctx), database.CompleteChatWorkspaceFileDeliveryParams{
@@ -13098,6 +13103,15 @@ func TestChatWorkspaceAttachments(t *testing.T) {
 
 		_, _, err = client.GetChatFile(ctx, fileID)
 		requireSDKError(t, err, http.StatusGone)
+		_, err = client.ChatFileDownloadURL(ctx, fileID)
+		requireSDKError(t, err, http.StatusGone)
+		// A URL signed before delivery must not serve an empty body.
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, signed.URL, nil)
+		require.NoError(t, err)
+		res, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusGone, res.StatusCode)
 
 		edited, err := client.EditChatMessage(ctx, chat.ID, userMessage.ID, codersdk.EditChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
