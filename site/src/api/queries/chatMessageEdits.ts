@@ -55,8 +55,8 @@ const buildOptimisticEditedContent = ({
 			};
 		}
 		const fileId = part.file_id ?? "";
+		const pending = pendingAttachments?.get(fileId);
 		if (part.type === "workspace-attachment") {
-			const pending = pendingAttachments?.get(fileId);
 			return (
 				existingWorkspaceAttachmentsByID.get(fileId) ?? {
 					type: "workspace-attachment",
@@ -71,9 +71,7 @@ const buildOptimisticEditedContent = ({
 			existingFilePartsByID.get(fileId) ?? {
 				type: "file",
 				file_id: part.file_id,
-				media_type:
-					pendingAttachments?.get(fileId)?.mediaType ??
-					"application/octet-stream",
+				media_type: pending?.mediaType ?? "application/octet-stream",
 			}
 		);
 	});
