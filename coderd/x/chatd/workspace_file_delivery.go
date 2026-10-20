@@ -163,6 +163,7 @@ func (w *chatWorker) deliverWorkspaceFile(ctx context.Context, row database.Acqu
 	}
 
 	now := w.opts.Clock.Now("chatworker", "workspace-file-delivery")
+	nextAttemptAt := now.Add(workspaceFileDeliveryRetryDelay)
 	if failure == nil {
 		// Record the home-relative path the prompt names, not the
 		// absolute path, which depends on the agent's home directory.
@@ -180,18 +181,22 @@ func (w *chatWorker) deliverWorkspaceFile(ctx context.Context, row database.Acqu
 			logger.Error(ctx, "record workspace chat file delivery", slogError(err))
 			return
 		}
-		if completed == 0 {
-			logger.Info(ctx, "workspace chat file delivery outcome dropped, the file is no longer under this claim", slog.F("path", resp.Path))
+		if completed > 0 {
+			logger.Info(ctx, "delivered workspace chat file", slog.F("path", resp.Path))
 			return
 		}
-		logger.Info(ctx, "delivered workspace chat file", slog.F("path", resp.Path))
-		return
+		// Either another replica claimed the file after this lease
+		// expired, which fences the refund below too, or the chat moved
+		// to another workspace during the upload and the file is due for
+		// that workspace now.
+		failure = refundWorkspaceFileDelivery(xerrors.Errorf("the chat left workspace %s while the file was copied to %s", row.WorkspaceID.UUID, resp.Path))
+		nextAttemptAt = now
 	}
 
 	logger.Warn(ctx, "workspace chat file delivery failed", slog.F("mode", failure.mode), slogError(failure.err))
 	failed, err := w.opts.Store.FailChatWorkspaceFileDelivery(ctx, database.FailChatWorkspaceFileDeliveryParams{
 		Error:          failure.err.Error(),
-		NextAttemptAt:  now.Add(workspaceFileDeliveryRetryDelay),
+		NextAttemptAt:  nextAttemptAt,
 		Mode:           failure.mode,
 		MaxAttempts:    database.ChatWorkspaceFileMaxDeliveryAttempts,
 		ID:             row.ID,

@@ -451,6 +451,31 @@ func TestWorkspaceFileDeliveryOutcomes(t *testing.T) {
 		require.Len(t, f.agent.uploadRequests(), 1)
 	})
 
+	t.Run("RebindDuringUploadDeliversToTheNewWorkspace", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		other, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+		var rebound database.Chat
+		f.agent.afterPut = func() {
+			f.agent.mu.Lock()
+			f.agent.afterPut = nil
+			f.agent.mu.Unlock()
+			var err error
+			rebound, err = f.db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+				ID:          chat.ID,
+				WorkspaceID: other.WorkspaceID,
+			})
+			require.NoError(t, err)
+		}
+
+		f.worker(t).deliverWorkspaceFiles(ctx)
+		f.requireDelivered(ctx, t, rebound, file.ID)
+		require.Len(t, f.agent.uploadRequests(), 2)
+	})
+
 	t.Run("AttemptDeadlineCoversTheUpload", func(t *testing.T) {
 		t.Parallel()
 		f := newWorkspaceFileDeliveryFixture(t)
