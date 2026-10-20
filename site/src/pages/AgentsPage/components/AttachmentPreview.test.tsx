@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createMockFile } from "#/testHelpers/files";
 import { AttachmentPreview, type UploadState } from "./AttachmentPreview";
 
 afterEach(() => {
@@ -16,7 +17,7 @@ describe("AttachmentPreview", () => {
 		const onRemove = vi.fn();
 		const onTextPreview = vi.fn();
 		const onInlineText = vi.fn();
-		const file = new File([], "build.log", { type: "text/plain" });
+		const file = createMockFile("build.log", "text/plain");
 
 		render(
 			<AttachmentPreview
