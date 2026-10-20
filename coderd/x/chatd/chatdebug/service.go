@@ -211,6 +211,71 @@ func (s *Service) CreateRun(
 	return run, nil
 }
 
+// createRunTimeout limits how long best-effort debug persistence can delay
+// the call being recorded.
+const createRunTimeout = 5 * time.Second
+
+// BeginRun creates a run independently of ctx's cancellation, bounded by
+// createRunTimeout. Insert failures are logged and reported as false.
+func (s *Service) BeginRun(ctx context.Context, params CreateRunParams) (RunContext, bool) {
+	createCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), createRunTimeout)
+	defer cancel()
+	run, err := s.CreateRun(createCtx, params)
+	if err != nil {
+		s.log.Warn(ctx, "failed to create debug run",
+			slog.F("chat_id", params.ChatID),
+			slog.F("run_kind", params.Kind),
+			slog.F("provider", params.Provider),
+			slog.F("model", params.Model),
+			slog.Error(err),
+		)
+		return RunContext{}, false
+	}
+	return RunContext{
+		RunID:               run.ID,
+		ChatID:              params.ChatID,
+		RootChatID:          params.RootChatID,
+		ParentChatID:        params.ParentChatID,
+		ModelConfigID:       params.ModelConfigID,
+		TriggerMessageID:    params.TriggerMessageID,
+		HistoryTipMessageID: params.HistoryTipMessageID,
+		Provider:            params.Provider,
+		Model:               params.Model,
+	}, true
+}
+
+// StartRun returns ctx carrying the run and a finalizer for the call's error.
+// Finalization is detached from ctx's cancellation. If creation fails, it
+// returns the original ctx and a no-op finalizer.
+func (s *Service) StartRun(
+	ctx context.Context,
+	params CreateRunParams,
+	seedSummary map[string]any,
+	finalizeTimeout time.Duration,
+) (context.Context, func(error)) {
+	params.Summary = seedSummary
+	runContext, ok := s.BeginRun(ctx, params)
+	if !ok {
+		return ctx, func(error) {}
+	}
+	return ContextWithRun(ctx, &runContext), func(runErr error) {
+		if err := s.FinalizeRun(ctx, FinalizeRunParams{
+			RunID:       runContext.RunID,
+			ChatID:      runContext.ChatID,
+			Status:      ClassifyError(runErr),
+			SeedSummary: seedSummary,
+			Timeout:     finalizeTimeout,
+		}); err != nil {
+			s.log.Warn(ctx, "failed to finalize debug run",
+				slog.F("chat_id", runContext.ChatID),
+				slog.F("run_kind", params.Kind),
+				slog.F("run_id", runContext.RunID),
+				slog.Error(err),
+			)
+		}
+	}
+}
+
 // UpdateRun updates an existing debug run and emits a run update event.
 // When a terminal status is set without an explicit FinishedAt, the
 // service auto-fills the timestamp so the row is immediately visible
