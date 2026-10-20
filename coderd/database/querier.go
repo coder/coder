@@ -294,6 +294,14 @@ type sqlcQuerier interface {
 	// agents are never hard-deleted, so the rows would otherwise orphan
 	// forever.
 	DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UUID) error
+	// Turns an automation off. It bumps queue_generation, so the messages the
+	// automation queued before the change become stale, and clears the
+	// schedule cursor. A schedule that was on also starts a new revision, so a
+	// publish that saw the old cursor fails its recheck. updated_at changes
+	// only when a reader can see a change. No other column changes, so the
+	// disable action, which administrators hold on automations they do not
+	// own, cannot change what an automation does.
+	DisableChatAutomationByID(ctx context.Context, arg DisableChatAutomationByIDParams) (ChatAutomation, error)
 	// Disable foreign keys and triggers for all tables.
 	// Deprecated: disable foreign keys was created to aid in migrating off
 	// of the test-only in-memory database. Do not use this in new code.
@@ -487,6 +495,10 @@ type sqlcQuerier interface {
 	// Auto-archive window in days. 0 disables.
 	GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error)
 	GetChatAutomationByID(ctx context.Context, id uuid.UUID) (ChatAutomation, error)
+	// Locks one automation for a change. dbauthz requires update on it, so a
+	// caller that may only read, disable, or delete the automation is refused
+	// before the change is validated.
+	GetChatAutomationByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatAutomation, error)
 	// Returns the id, name and kind of each automation that delivered into
 	// the chat: the automation that created the chat, the automations of its
 	// visible non-deleted user messages and the automations of its queued

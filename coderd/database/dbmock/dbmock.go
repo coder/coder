@@ -1860,6 +1860,21 @@ func (mr *MockStoreMockRecorder) DeleteWorkspaceSubAgentByID(ctx, id any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkspaceSubAgentByID", reflect.TypeOf((*MockStore)(nil).DeleteWorkspaceSubAgentByID), ctx, id)
 }
 
+// DisableChatAutomationByID mocks base method.
+func (m *MockStore) DisableChatAutomationByID(ctx context.Context, arg database.DisableChatAutomationByIDParams) (database.ChatAutomation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DisableChatAutomationByID", ctx, arg)
+	ret0, _ := ret[0].(database.ChatAutomation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DisableChatAutomationByID indicates an expected call of DisableChatAutomationByID.
+func (mr *MockStoreMockRecorder) DisableChatAutomationByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DisableChatAutomationByID", reflect.TypeOf((*MockStore)(nil).DisableChatAutomationByID), ctx, arg)
+}
+
 // DisableForeignKeysAndTriggers mocks base method.
 func (m *MockStore) DisableForeignKeysAndTriggers(ctx context.Context) error {
 	m.ctrl.T.Helper()
@@ -2949,6 +2964,21 @@ func (m *MockStore) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (da
 func (mr *MockStoreMockRecorder) GetChatAutomationByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAutomationByID", reflect.TypeOf((*MockStore)(nil).GetChatAutomationByID), ctx, id)
+}
+
+// GetChatAutomationByIDForUpdate mocks base method.
+func (m *MockStore) GetChatAutomationByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatAutomation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatAutomationByIDForUpdate", ctx, id)
+	ret0, _ := ret[0].(database.ChatAutomation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatAutomationByIDForUpdate indicates an expected call of GetChatAutomationByIDForUpdate.
+func (mr *MockStoreMockRecorder) GetChatAutomationByIDForUpdate(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAutomationByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetChatAutomationByIDForUpdate), ctx, id)
 }
 
 // GetChatAutomationReferencesByChatID mocks base method.

@@ -114,7 +114,7 @@ func TestAutomationRunAudit(t *testing.T) {
 		_, err := f.sqlDB.ExecContext(ctx, "UPDATE chat_model_configs SET enabled = false WHERE id = $1", f.model.ID)
 		require.NoError(t, err)
 
-		_, err = server.RunAutomation(f.asOwner(ctx, t), f.owner.ID, automation.ID, nil)
+		_, err = server.RunAutomation(f.asOwner(ctx, t), automation.ID, nil)
 		require.ErrorIs(t, err, ErrAutomationModelUnavailable)
 		logs, fields := f.runAudits(t, automation.ID)
 		require.Len(t, logs, 1)

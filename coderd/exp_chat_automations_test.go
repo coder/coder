@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -305,9 +306,22 @@ func TestChatAutomations(t *testing.T) {
 		rename := codersdk.UpdateChatAutomationRequest{Name: ptr.Ref("Renamed")}
 		disable := codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}
 		enable := codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(true)}
+		// RBAC decides: administrators hold read, disable, and delete on
+		// automations they do not own, but not update, so every other
+		// change gets 403 with a message that names the owner rule.
+		requireOwnerOnly := func(t *testing.T, err error, message string) {
+			t.Helper()
+			requireSDKError(t, err, http.StatusForbidden)
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, message, sdkErr.Message)
+		}
 		for name, client := range map[string]*codersdk.ExperimentalClient{"OrgAdmin": orgAdmin, "SiteOwner": env.owner} {
 			_, err := client.UpdateChatAutomation(ctx, env.orgID, id, rename)
-			requireSDKError(t, err, http.StatusForbidden)
+			requireOwnerOnly(t, err, "Only the owner of a chat automation can change it.")
+			// Run now sends the prompt as the owner, so it needs update.
+			_, err = client.RunChatAutomation(ctx, env.orgID, id)
+			requireOwnerOnly(t, err, "Only the owner of a chat automation can run it.")
 			// Administrators can only disable: combining it with any other
 			// change, or enabling again, stays with the owner.
 			_, err = client.UpdateChatAutomation(ctx, env.orgID, id, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false), Name: ptr.Ref("Renamed")})
@@ -316,9 +330,9 @@ func TestChatAutomations(t *testing.T) {
 			require.NoError(t, err, name)
 			require.False(t, disabled.Enabled, name)
 			_, err = client.UpdateChatAutomation(ctx, env.orgID, id, enable)
-			requireSDKError(t, err, http.StatusForbidden)
+			requireOwnerOnly(t, err, "Only the owner of a chat automation can change it.")
 			_, err = client.RotateChatAutomationSecret(ctx, env.orgID, webhook.Automation.ID)
-			requireSDKError(t, err, http.StatusForbidden)
+			requireOwnerOnly(t, err, "Only the owner of a chat automation can change it.")
 
 			list, err := client.ChatAutomations(ctx, env.orgID, codersdk.ChatAutomationsFilter{})
 			require.NoError(t, err, name)
@@ -873,13 +887,10 @@ func TestChatAutomations(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, created.Automation.ScheduleNextRunAt)
 		overdue := created.Automation.ScheduleNextRunAt.AddDate(0, -3, 0)
-		ownerCtx := dbauthz.As(ctx, rbac.Subject{
-			ID:     uuid.NewString(),
-			Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
-			Groups: []string{},
-			Scope:  rbac.ScopeAll,
-		})
-		_, err = env.db.UpdateChatAutomationByID(ownerCtx, database.UpdateChatAutomationByIDParams{
+		// Only the automation's owner holds update on it.
+		owner, _, err := httpmw.UserRBACSubject(ctx, env.db, row.OwnerID, rbac.ScopeAll)
+		require.NoError(t, err)
+		_, err = env.db.UpdateChatAutomationByID(dbauthz.As(ctx, owner), database.UpdateChatAutomationByIDParams{
 			ID:                   row.ID,
 			Name:                 row.Name,
 			Prompt:               row.Prompt,
@@ -946,13 +957,10 @@ func TestChatAutomations(t *testing.T) {
 		// schedule.
 		row, err := env.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), id)
 		require.NoError(t, err)
-		ownerCtx := dbauthz.As(ctx, rbac.Subject{
-			ID:     uuid.NewString(),
-			Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
-			Groups: []string{},
-			Scope:  rbac.ScopeAll,
-		})
-		_, err = env.db.UpdateChatAutomationByID(ownerCtx, database.UpdateChatAutomationByIDParams{
+		// Only the automation's owner holds update on it.
+		owner, _, err := httpmw.UserRBACSubject(ctx, env.db, row.OwnerID, rbac.ScopeAll)
+		require.NoError(t, err)
+		_, err = env.db.UpdateChatAutomationByID(dbauthz.As(ctx, owner), database.UpdateChatAutomationByIDParams{
 			ID:                   row.ID,
 			Name:                 row.Name,
 			Prompt:               row.Prompt,

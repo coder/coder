@@ -52,6 +52,24 @@ var genCtx = dbauthz.As(context.Background(), rbac.Subject{
 	Scope:  rbac.ExpandableScope(rbac.ScopeAll),
 })
 
+// chatAutomationGenCtx adds every chat automation action to genCtx. Site
+// owners cannot create an automation as another user, because it runs as
+// that user, so the generator needs this to insert one for any owner.
+var chatAutomationGenCtx = dbauthz.As(context.Background(), rbac.Subject{
+	ID: "owner",
+	Roles: rbac.Roles(append(must(rbac.RoleIdentifiers{rbac.RoleOwner()}.Expand()), rbac.Role{
+		Identifier:  rbac.RoleIdentifier{Name: "dbgen-chat-automation"},
+		DisplayName: "dbgen chat automation",
+		Site: rbac.Permissions(map[string][]policy.Action{
+			rbac.ResourceChatAutomation.Type: {policy.WildcardSymbol},
+		}),
+		User:    []rbac.Permission{},
+		ByOrgID: map[string]rbac.OrgPermissions{},
+	})),
+	Groups: []string{},
+	Scope:  rbac.ExpandableScope(rbac.ScopeAll),
+})
+
 func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.AuditLog {
 	log, err := db.InsertAuditLog(genCtx, database.InsertAuditLogParams{
 		ID:     takeFirst(seed.ID, uuid.New()),
@@ -181,7 +199,7 @@ func ChatAutomation(t testing.TB, db database.Store, seed database.ChatAutomatio
 		whenBusy = database.NullChatAutomationWhenBusy{ChatAutomationWhenBusy: database.ChatAutomationWhenBusyQueue, Valid: true}
 	}
 
-	automation, err := db.InsertChatAutomation(genCtx, database.InsertChatAutomationParams{
+	automation, err := db.InsertChatAutomation(chatAutomationGenCtx, database.InsertChatAutomationParams{
 		ID:                   takeFirst(seed.ID, uuid.New()),
 		OrganizationID:       takeFirst(seed.OrganizationID, uuid.New()),
 		OwnerID:              takeFirst(seed.OwnerID, uuid.New()),

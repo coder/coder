@@ -418,7 +418,7 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 		return p.manageAutomationsRun(ctx, ownerCtx, chat, row)
 	case "disable":
 		disabled := false
-		old, updated, err := p.UpdateAutomation(ownerCtx, chat.OwnerID, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: &disabled}, nil)
+		old, updated, err := p.UpdateAutomation(ownerCtx, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: &disabled}, nil)
 		if err != nil {
 			return nil, p.manageAutomationsError(ctx, logger, action, err)
 		}
@@ -581,7 +581,7 @@ func (p *Server) manageAutomationsUpdate(ctx, ownerCtx context.Context, chat dat
 	if err := p.manageAutomationsContained(ownerCtx, p.db, chat, after); err != nil {
 		return nil, err
 	}
-	old, updated, err := p.UpdateAutomation(ownerCtx, chat.OwnerID, row.ID, req, p.manageAutomationsGuard(ownerCtx, chat))
+	old, updated, err := p.UpdateAutomation(ownerCtx, row.ID, req, p.manageAutomationsGuard(ownerCtx, chat))
 	if err != nil {
 		logger := p.logger.With(slog.F("chat_id", chat.ID), slog.F("action", action), slog.F("automation_id", row.ID))
 		return nil, p.manageAutomationsError(ctx, logger, action, err)
@@ -598,7 +598,7 @@ func (p *Server) manageAutomationsRun(ctx, ownerCtx context.Context, chat databa
 	if err := p.manageAutomationsContained(ownerCtx, p.db, chat, automationTargetOf(row)); err != nil {
 		return nil, err
 	}
-	result, err := p.RunAutomation(ownerCtx, chat.OwnerID, row.ID, p.manageAutomationsGuard(ownerCtx, chat))
+	result, err := p.RunAutomation(ownerCtx, row.ID, p.manageAutomationsGuard(ownerCtx, chat))
 	if err != nil {
 		logger := p.logger.With(slog.F("chat_id", chat.ID), slog.F("action", "run_now"), slog.F("automation_id", row.ID))
 		return nil, p.manageAutomationsError(ctx, logger, "run", err)
@@ -787,8 +787,6 @@ func (p *Server) manageAutomationsError(ctx context.Context, logger slog.Logger,
 		return containmentErr.err
 	case errors.Is(err, ErrAutomationNotFound), dbauthz.IsNotAuthorizedError(err):
 		return errManageAutomationsNotFound
-	case errors.Is(err, ErrAutomationOwnerOnly):
-		return xerrors.New("only the automation owner can change it")
 	case errors.As(err, &validationErr):
 		return validationErr
 	case errors.As(err, &denied):

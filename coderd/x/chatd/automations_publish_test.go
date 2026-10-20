@@ -129,7 +129,7 @@ func (f publishFixture) newChatWebhook(ctx context.Context, t *testing.T, use co
 func (f publishFixture) inProject(ctx context.Context, t *testing.T, automation database.ChatAutomation) (database.ChatAutomation, database.ChatProject) {
 	t.Helper()
 	project := dbgen.ChatProject(t, f.db, database.ChatProject{OrganizationID: f.org.ID, OwnerID: f.owner.ID})
-	_, updated, err := f.server.UpdateAutomation(ctx, f.owner.ID, automation.ID, codersdk.UpdateChatAutomationRequest{ProjectID: &project.ID}, nil)
+	_, updated, err := f.server.UpdateAutomation(ctx, automation.ID, codersdk.UpdateChatAutomationRequest{ProjectID: &project.ID}, nil)
 	require.NoError(t, err)
 	require.Equal(t, uuid.NullUUID{UUID: project.ID, Valid: true}, updated.ProjectID)
 	return updated, project
@@ -283,7 +283,7 @@ func TestPublishAutomationWebhook(t *testing.T) {
 				})
 				ctx := testutil.Context(t, testutil.WaitLong)
 				automation := f.singleUseWebhook(ctx, t, targetMode)
-				_, _, err := f.server.RotateAutomationSecret(ctx, f.owner.ID, automation.ID)
+				_, _, err := f.server.RotateAutomationSecret(ctx, automation.ID)
 				require.NoError(t, err)
 
 				// automation still carries the version the request was
@@ -310,7 +310,7 @@ func TestPublishAutomationWebhook(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		automation := f.webhook(ctx, t, codersdk.ChatAutomationWebhookUseSingle, codersdk.ChatAutomationWhenBusyQueue)
 		rotate = func() {
-			_, _, err := f.server.RotateAutomationSecret(ctx, f.owner.ID, automation.ID)
+			_, _, err := f.server.RotateAutomationSecret(ctx, automation.ID)
 			assert.NoError(t, err)
 		}
 
@@ -921,7 +921,7 @@ func TestRotateAutomationSecret(t *testing.T) {
 				ctx := testutil.Context(t, testutil.WaitLong)
 				automation := f.webhook(ctx, t, use, codersdk.ChatAutomationWhenBusyQueue)
 
-				rotated, secret, err := f.server.RotateAutomationSecret(ctx, f.owner.ID, automation.ID)
+				rotated, secret, err := f.server.RotateAutomationSecret(ctx, automation.ID)
 				require.NoError(t, err)
 				require.NotEmpty(t, secret)
 				require.Equal(t, automation.WebhookSecretVersion+1, rotated.WebhookSecretVersion)
@@ -943,7 +943,7 @@ func TestRotateAutomationSecret(t *testing.T) {
 		consumed, err := f.db.GetChatAutomationByID(ctx, automation.ID)
 		require.NoError(t, err)
 
-		_, secret, err := f.server.RotateAutomationSecret(ctx, f.owner.ID, automation.ID)
+		_, secret, err := f.server.RotateAutomationSecret(ctx, automation.ID)
 		require.ErrorIs(t, err, chatd.ErrAutomationWebhookConsumed)
 		require.Empty(t, secret)
 		stored, err := f.db.GetChatAutomationByID(ctx, automation.ID)
@@ -984,7 +984,7 @@ func TestRotateAutomationSecret(t *testing.T) {
 
 		rotateErr := make(chan error, 1)
 		go func() {
-			_, _, err := f.server.RotateAutomationSecret(ctx, f.owner.ID, automation.ID)
+			_, _, err := f.server.RotateAutomationSecret(ctx, automation.ID)
 			rotateErr <- err
 		}()
 		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
@@ -1137,7 +1137,7 @@ func TestUpdateAutomationProjectDeletedBeforeWrite(t *testing.T) {
 		}
 		return nil
 	}
-	_, _, err := f.server.UpdateAutomation(ctx, f.owner.ID, automation.ID, codersdk.UpdateChatAutomationRequest{ProjectID: &project.ID}, guard)
+	_, _, err := f.server.UpdateAutomation(ctx, automation.ID, codersdk.UpdateChatAutomationRequest{ProjectID: &project.ID}, guard)
 	var validation *chatd.AutomationValidationError
 	require.ErrorAs(t, err, &validation)
 	require.Equal(t, "project_id", validation.Field)

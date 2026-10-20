@@ -729,7 +729,7 @@ func TestManageAutomationsTool(t *testing.T) {
 
 		// enable follows the same rules.
 		for _, row := range []database.ChatAutomation{heartbeat, elsewhere} {
-			_, _, err := f.server.UpdateAutomation(f.asOwner(ctx, t), f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}, nil)
+			_, _, err := f.server.UpdateAutomation(f.asOwner(ctx, t), row.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}, nil)
 			require.NoError(t, err)
 		}
 		content, isError = f.call(ctx, t, f.chat.ID, "enable", elsewhere.ID)
@@ -1133,7 +1133,7 @@ func TestManageAutomationsToolConcurrentRetarget(t *testing.T) {
 			}
 			if tc.disabled {
 				var err error
-				_, row, err = f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}, nil)
+				_, row, err = f.server.UpdateAutomation(ownerCtx, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}, nil)
 				require.NoError(t, err)
 			}
 
@@ -1142,7 +1142,7 @@ func TestManageAutomationsToolConcurrentRetarget(t *testing.T) {
 				retargetErr error
 			)
 			reads.arm(row.ID, func() {
-				_, retargeted, retargetErr = f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, retarget, nil)
+				_, retargeted, retargetErr = f.server.UpdateAutomation(ownerCtx, row.ID, retarget, nil)
 			})
 			chats := len(f.createdChats(ctx, t))
 			inputs := f.ownerInputs(ctx, t)
@@ -1221,12 +1221,12 @@ func TestManageAutomationsToolAuditsLockedRow(t *testing.T) {
 			row := f.existingChat(ctx, t, f.server, "0 9 * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
 			if tc.disabled {
 				var err error
-				_, row, err = f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}, nil)
+				_, row, err = f.server.UpdateAutomation(ownerCtx, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}, nil)
 				require.NoError(t, err)
 			}
 			var renameErr error
 			reads.arm(row.ID, func() {
-				_, _, renameErr = f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{Name: ptr.Ref("Renamed")}, nil)
+				_, _, renameErr = f.server.UpdateAutomation(ownerCtx, row.ID, codersdk.UpdateChatAutomationRequest{Name: ptr.Ref("Renamed")}, nil)
 			})
 			f.auditor.ResetLogs()
 
@@ -1278,7 +1278,7 @@ func TestAutomationGuard(t *testing.T) {
 		row := f.existingChat(ctx, t, f.server, "0 9 * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
 
 		var seen []uuid.NullUUID
-		_, _, err := f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{TargetChatID: &other.ID},
+		_, _, err := f.server.UpdateAutomation(ownerCtx, row.ID, codersdk.UpdateChatAutomationRequest{TargetChatID: &other.ID},
 			func(_ database.Store, automation database.ChatAutomation) error {
 				seen = append(seen, automation.TargetChatID)
 				if automation.TargetChatID.UUID == other.ID {
@@ -1301,11 +1301,11 @@ func TestAutomationGuard(t *testing.T) {
 		inputs := f.ownerInputs(ctx, t)
 
 		var seen []uuid.NullUUID
-		_, err := f.server.RunAutomation(ownerCtx, f.owner.ID, row.ID, func(_ database.Store, automation database.ChatAutomation) error {
+		_, err := f.server.RunAutomation(ownerCtx, row.ID, func(_ database.Store, automation database.ChatAutomation) error {
 			seen = append(seen, automation.TargetChatID)
 			if len(seen) == 1 {
 				// Retarget after the read before the send.
-				_, _, err := f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{TargetChatID: &other.ID}, nil)
+				_, _, err := f.server.UpdateAutomation(ownerCtx, row.ID, codersdk.UpdateChatAutomationRequest{TargetChatID: &other.ID}, nil)
 				return err
 			}
 			return errRefused

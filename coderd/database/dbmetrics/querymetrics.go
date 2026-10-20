@@ -1072,6 +1072,14 @@ func (m queryMetricsStore) DeleteWorkspaceSubAgentByID(ctx context.Context, id u
 	return r0
 }
 
+func (m queryMetricsStore) DisableChatAutomationByID(ctx context.Context, arg database.DisableChatAutomationByIDParams) (database.ChatAutomation, error) {
+	start := time.Now()
+	r0, r1 := m.s.DisableChatAutomationByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("DisableChatAutomationByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DisableChatAutomationByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) DisableForeignKeysAndTriggers(ctx context.Context) error {
 	start := time.Now()
 	r0 := m.s.DisableForeignKeysAndTriggers(ctx)
@@ -1565,6 +1573,14 @@ func (m queryMetricsStore) GetChatAutomationByID(ctx context.Context, id uuid.UU
 	r0, r1 := m.s.GetChatAutomationByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetChatAutomationByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatAutomationByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatAutomationByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatAutomation, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatAutomationByIDForUpdate(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatAutomationByIDForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatAutomationByIDForUpdate").Inc()
 	return r0, r1
 }
 

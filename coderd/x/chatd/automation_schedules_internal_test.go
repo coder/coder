@@ -904,6 +904,44 @@ WHERE id = $1`, automation.ID, edited)
 		require.Equal(t, 1, f.inputs(ctx, t))
 	})
 
+	// A disable-only request goes through DisableChatAutomationByID, which
+	// computes the off state in SQL. It must match what a general update
+	// would write.
+	t.Run("DisableWritesOnlyTheOffState", func(t *testing.T) {
+		t.Parallel()
+		f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		server := f.newServer(t, Limits{})
+		automation := f.existingChat(ctx, t, server, "* * * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+		before, err := f.db.GetChatAutomationByID(ctx, automation.ID)
+		require.NoError(t, err)
+		require.True(t, before.Enabled)
+		require.True(t, before.ScheduleNextRunAt.Valid)
+
+		ownerCtx := f.asOwner(ctx, t)
+		f.clock.Advance(time.Second)
+		old, disabled, err := server.UpdateAutomation(ownerCtx, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}, nil)
+		require.NoError(t, err)
+		require.Equal(t, before, old)
+		want := before
+		want.Enabled = false
+		want.ScheduleNextRunAt = sql.NullTime{}
+		want.ScheduleRevision = before.ScheduleRevision + 1
+		want.QueueGeneration = before.QueueGeneration + 1
+		want.UpdatedAt = disabled.UpdatedAt
+		require.Equal(t, want, disabled)
+		require.True(t, disabled.UpdatedAt.After(before.UpdatedAt))
+
+		// Disabling again retries the queue cleanup with a new cutoff but
+		// changes nothing a reader can see.
+		f.clock.Advance(time.Second)
+		_, again, err := server.UpdateAutomation(ownerCtx, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}, nil)
+		require.NoError(t, err)
+		want = disabled
+		want.QueueGeneration = disabled.QueueGeneration + 1
+		require.Equal(t, want, again)
+	})
+
 	t.Run("ReEnableInvalidatesInFlightOccurrence", func(t *testing.T) {
 		t.Parallel()
 		f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
@@ -917,9 +955,9 @@ WHERE id = $1`, automation.ID, edited)
 		// Disable and re-enable before the cursor is due: the re-enable
 		// computes the same cursor, but a new revision.
 		ownerCtx := f.asOwner(ctx, t)
-		_, _, err = server.UpdateAutomation(ownerCtx, f.owner.ID, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}, nil)
+		_, _, err = server.UpdateAutomation(ownerCtx, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}, nil)
 		require.NoError(t, err)
-		_, reEnabled, err := server.UpdateAutomation(ownerCtx, f.owner.ID, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(true)}, nil)
+		_, reEnabled, err := server.UpdateAutomation(ownerCtx, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(true)}, nil)
 		require.NoError(t, err)
 		require.True(t, reEnabled.ScheduleNextRunAt.Time.Equal(observed.ScheduleNextRunAt.Time))
 		require.Equal(t, observed.ScheduleRevision+2, reEnabled.ScheduleRevision)
@@ -963,8 +1001,10 @@ WHERE id = $1`, automation.ID, edited)
 		reasons, err = server.AutomationPausedReasons(sysCtx, []database.ChatAutomation{automation})
 		require.NoError(t, err)
 		require.Equal(t, []codersdk.ChatAutomationPausedReason{codersdk.ChatAutomationPausedReasonOwnerNotMember}, reasons[automation.ID])
-		_, err = server.RunAutomation(ctx, f.owner.ID, automation.ID, nil)
-		require.ErrorIs(t, err, ErrAutomationForbidden)
+		// A former member no longer holds update on the automation, so RBAC
+		// refuses run now before publishing.
+		_, err = server.RunAutomation(f.asOwner(ctx, t), automation.ID, nil)
+		require.True(t, dbauthz.IsNotAuthorizedError(err), "run now: %v", err)
 		f.advanceTo(ctx, t, automation.ScheduleNextRunAt.Time.UTC())
 		server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
 		require.Zero(t, f.inputs(ctx, t))

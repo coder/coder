@@ -30,7 +30,7 @@ func TestAutomationMetrics(t *testing.T) {
 	busy := f.existingChat(ctx, t, server, "* * * * *", "UTC", codersdk.ChatAutomationWhenBusySkip)
 	f.advanceTo(ctx, t, busy.ScheduleNextRunAt.Time)
 	server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
-	_, err := server.RunAutomation(f.asOwner(ctx, t), f.owner.ID, newChat.ID, nil)
+	_, err := server.RunAutomation(f.asOwner(ctx, t), newChat.ID, nil)
 	require.NoError(t, err)
 
 	runs := server.automationMetrics.runs

@@ -45,9 +45,6 @@ var (
 	// ErrAutomationNotFound is returned when the automation does not exist
 	// or the caller cannot read it.
 	ErrAutomationNotFound = xerrors.New("chat automation not found")
-	// ErrAutomationOwnerOnly is returned when someone other than the owner
-	// tries to change an automation.
-	ErrAutomationOwnerOnly = xerrors.New("only the owner of a chat automation can change it")
 	// ErrAutomationLimitReached is returned when the owner already owns the
 	// maximum number of automations.
 	ErrAutomationLimitReached = xerrors.New("chat automation limit reached")
@@ -306,12 +303,14 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 // changes nothing, and is returned unchanged.
 type AutomationGuard func(store database.Store, automation database.ChatAutomation) error
 
-// UpdateAutomation applies the set fields of req to the automation. Only
-// the owner can update an automation, even when actorID has broader
-// permissions, with one exception: anyone allowed to update it may send a
-// request that only disables it. Each set field is validated like on
-// create, and fields that do not apply to the automation's kind or target
-// mode are rejected.
+// UpdateAutomation applies the set fields of req to the automation. RBAC
+// decides who may make the change, through the caller's subject in ctx: a
+// request that only disables the automation needs the disable action,
+// which administrators also hold on automations they do not own, and
+// every other request needs update, which only the owner holds. A denied
+// request returns a dbauthz.NotAuthorizedError. Each set field is
+// validated like on create, and fields that do not apply to the
+// automation's kind or target mode are rejected.
 //
 // Disabling bumps the automation's queue generation in the update
 // transaction, which touches no chat rows, and then removes the messages
@@ -323,33 +322,24 @@ type AutomationGuard func(store database.Store, automation database.ChatAutomati
 // automation already queued keep the prompt they were sent with, and only
 // disabling or deleting the automation removes them.
 //
-// guard, when set, runs after the owner check on the locked stored row
-// and again on the row as the update would leave it, before the write.
+// guard, when set, runs on the locked stored row and again on the row as
+// the update would leave it, before the write.
 //
 // old is the row as read under the lock before the change. Callers record
 // it as the audit before-image, because a row read before the call can be
 // stale by the time the lock is held.
-func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, req codersdk.UpdateChatAutomationRequest, guard AutomationGuard) (old, updated database.ChatAutomation, err error) {
+func (p *Server) UpdateAutomation(ctx context.Context, id uuid.UUID, req codersdk.UpdateChatAutomationRequest, guard AutomationGuard) (old, updated database.ChatAutomation, err error) {
 	disabling := req.Enabled != nil && !*req.Enabled
+	disableOnly := disabling && req == codersdk.UpdateChatAutomationRequest{Enabled: req.Enabled}
 	err = p.db.InTx(func(tx database.Store) error {
-		rows, err := tx.GetChatAutomationsByIDsForUpdate(ctx, []uuid.UUID{id})
+		row, err := lockAutomationForChange(ctx, tx, id, disableOnly)
 		if err != nil {
-			return xerrors.Errorf("lock chat automation: %w", err)
+			return err
 		}
-		if len(rows) == 0 {
-			return ErrAutomationNotFound
-		}
-		row := rows[0]
 		old = row
 		// Read the time after the lock wait, so a cursor computed below is
 		// never already in the past when the update commits.
 		now := dbtime.Time(p.clock.Now())
-		// Administrators can stop someone else's automation, but every
-		// other change, including enabling it again, is the owner's.
-		disableOnly := disabling && req == codersdk.UpdateChatAutomationRequest{Enabled: req.Enabled}
-		if actorID != row.OwnerID && !disableOnly {
-			return ErrAutomationOwnerOnly
-		}
 		if guard != nil {
 			if err := guard(tx, row); err != nil {
 				return err
@@ -521,6 +511,15 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 				return err
 			}
 		}
+		if disableOnly {
+			// The disable query writes the same values as arg, computed in
+			// SQL, so the disable action cannot change anything else.
+			updated, err = tx.DisableChatAutomationByID(ctx, database.DisableChatAutomationByIDParams{ID: row.ID, UpdatedAt: now})
+			if err != nil {
+				return xerrors.Errorf("disable chat automation: %w", err)
+			}
+			return nil
+		}
 		// A request that changes nothing a reader can see keeps updated_at,
 		// so clients and agents do not read a change into it. Disabling a
 		// disabled automation still bumps the queue generation to retry
@@ -556,14 +555,40 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 // queued. Deleting the row is the cutoff: the queue promotion guard
 // discards every queued message whose automation no longer exists, so a
 // message that survives the cleanup, for example because the server
-// stopped between the steps, never runs. Unlike disabling, deleting needs
-// no update permission on the automation.
+// stopped between the steps, never runs. Deleting needs the delete
+// action, which administrators also hold.
 func (p *Server) DeleteAutomation(ctx context.Context, id uuid.UUID) error {
 	if err := p.db.DeleteChatAutomationByID(ctx, id); err != nil {
 		return xerrors.Errorf("delete chat automation: %w", err)
 	}
 	p.deleteStaleAutomationQueuedMessages(ctx, id, math.MaxInt64)
 	return nil
+}
+
+// lockAutomationForChange locks the automation as the caller in ctx. A
+// change that only disables it locks the row with read, and the disable
+// query then requires the disable action. Every other change locks the
+// row with update, so a caller without update is refused before the
+// change is validated.
+func lockAutomationForChange(ctx context.Context, tx database.Store, id uuid.UUID, disableOnly bool) (database.ChatAutomation, error) {
+	if disableOnly {
+		rows, err := tx.GetChatAutomationsByIDsForUpdate(ctx, []uuid.UUID{id})
+		if err != nil {
+			return database.ChatAutomation{}, xerrors.Errorf("lock chat automation: %w", err)
+		}
+		if len(rows) == 0 {
+			return database.ChatAutomation{}, ErrAutomationNotFound
+		}
+		return rows[0], nil
+	}
+	row, err := tx.GetChatAutomationByIDForUpdate(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return database.ChatAutomation{}, ErrAutomationNotFound
+	}
+	if err != nil {
+		return database.ChatAutomation{}, xerrors.Errorf("lock chat automation: %w", err)
+	}
+	return row, nil
 }
 
 // automationUpdateParams returns update parameters that leave row
@@ -644,24 +669,18 @@ func (p *Server) deleteStaleAutomationQueuedMessages(ctx context.Context, automa
 
 // RotateAutomationSecret replaces the webhook secret of a webhook
 // automation and returns the new plaintext secret, which is not stored.
-// The previous secret stops matching when the rotation commits. Only the
-// owner can rotate the secret, even when actorID has broader permissions.
-func (p *Server) RotateAutomationSecret(ctx context.Context, actorID, id uuid.UUID) (database.ChatAutomation, string, error) {
+// The previous secret stops matching when the rotation commits. Rotating
+// needs update on the automation, which only the owner holds; a denied
+// caller gets a dbauthz.NotAuthorizedError.
+func (p *Server) RotateAutomationSecret(ctx context.Context, id uuid.UUID) (database.ChatAutomation, string, error) {
 	var (
 		rotated database.ChatAutomation
 		secret  string
 	)
 	err := p.db.InTx(func(tx database.Store) error {
-		rows, err := tx.GetChatAutomationsByIDsForUpdate(ctx, []uuid.UUID{id})
+		row, err := lockAutomationForChange(ctx, tx, id, false)
 		if err != nil {
-			return xerrors.Errorf("lock chat automation: %w", err)
-		}
-		if len(rows) == 0 {
-			return ErrAutomationNotFound
-		}
-		row := rows[0]
-		if actorID != row.OwnerID {
-			return ErrAutomationOwnerOnly
+			return err
 		}
 		if row.Kind != database.ChatAutomationKindWebhook {
 			return automationFieldError("kind", "only webhook automations have a secret")
@@ -695,22 +714,19 @@ func (p *Server) RotateAutomationSecret(ctx context.Context, actorID, id uuid.UU
 
 // RunAutomation publishes the saved prompt of an enabled schedule
 // automation now, through the same admission as a scheduled occurrence
-// but without one: the schedule cursor and revision do not change. Only
-// the owner can run it, even when actorID has broader permissions.
+// but without one: the schedule cursor and revision do not change. The
+// run sends the prompt as the owner, so the caller in ctx needs update on
+// the automation, which only the owner holds; a denied caller gets a
+// dbauthz.NotAuthorizedError.
 //
 // guard, when set, runs on the automation read before the send and again
 // at admission on the locked row whose input is accepted.
-func (p *Server) RunAutomation(ctx context.Context, actorID, id uuid.UUID, guard AutomationGuard) (PublishAutomationResult, error) {
-	//nolint:gocritic // The owner check below decides; callers load the row as themselves first.
-	row, err := p.db.GetChatAutomationByID(dbauthz.AsChatd(ctx), id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return PublishAutomationResult{}, ErrAutomationNotFound
-	}
+func (p *Server) RunAutomation(ctx context.Context, id uuid.UUID, guard AutomationGuard) (PublishAutomationResult, error) {
+	// The lock only authorizes the caller and ends with the statement.
+	// Admission locks the row again and rechecks it.
+	row, err := lockAutomationForChange(ctx, p.db, id, false)
 	if err != nil {
-		return PublishAutomationResult{}, xerrors.Errorf("get chat automation: %w", err)
-	}
-	if actorID != row.OwnerID {
-		return PublishAutomationResult{}, ErrAutomationOwnerOnly
+		return PublishAutomationResult{}, err
 	}
 	if row.Kind != database.ChatAutomationKindSchedule {
 		return PublishAutomationResult{}, automationFieldError("kind", "only schedule automations can run now")

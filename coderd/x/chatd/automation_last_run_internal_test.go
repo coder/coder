@@ -62,7 +62,7 @@ func TestAutomationLastRun(t *testing.T) {
 		server := f.newServer(t, Limits{})
 		automation := f.newChat(ctx, t, server, "* * * * *", "UTC")
 
-		result, err := server.RunAutomation(f.asOwner(ctx, t), f.owner.ID, automation.ID, nil)
+		result, err := server.RunAutomation(f.asOwner(ctx, t), automation.ID, nil)
 		require.NoError(t, err)
 		row := f.lastRun(ctx, t, automation.ID)
 		requireLastRun(t, row, database.ChatAutomationRunOutcomeAccepted, "", uuid.NullUUID{UUID: result.ChatID, Valid: true})
@@ -110,7 +110,7 @@ func TestAutomationLastRun(t *testing.T) {
 		_, err := f.sqlDB.ExecContext(ctx, "UPDATE users SET status = 'suspended' WHERE id = $1", f.owner.ID)
 		require.NoError(t, err)
 
-		_, err = server.RunAutomation(ownerCtx, f.owner.ID, automation.ID, nil)
+		_, err = server.RunAutomation(ownerCtx, automation.ID, nil)
 		require.ErrorIs(t, err, ErrAutomationOwnerInactive)
 		requireLastRun(t, f.lastRun(ctx, t, automation.ID), database.ChatAutomationRunOutcomeRefused, codersdk.ChatAutomationRunReasonOwnerInactive, uuid.NullUUID{UUID: f.chat.ID, Valid: true})
 	})

@@ -79,13 +79,17 @@ When the experiment is off for a user:
 
 ## Who can manage automations
 
-The **Coder Agents User** (`agents-access`) organization role lets members create, read, update, and delete their own automations in that organization.
+The **Coder Agents User** (`agents-access`) organization role lets members create, read, update, turn off, and delete their own automations in that organization.
 Refer to [Getting started](./getting-started.md) for how members get this role.
-Users with the Owner role can read every automation, and organization admins can read every automation in their organization.
+Users with the Owner role can read, turn off, and delete every automation.
+Organization admins can do the same for every automation in their organization.
 
-Only the automation's owner can edit it, turn it back on, rotate its secret, or run it.
-Other users who can update an automation, such as an organization admin, can only turn it off.
-Users with delete permission can delete it.
+An automation runs as its owner, so only the owner can create it, edit it, turn it back on, rotate its secret, or run it.
+Coder enforces this in its role-based access control: the `create` and `update` permissions on automations apply only to automations the user owns.
+Turning an automation off uses a separate `disable` permission.
+Other users get `403 Forbidden` for any other change.
+A custom organization role can't grant `create` or `update` on automations.
+Coder rejects such a role with `400 Bad Request`.
 On the **Automations** page, only the owner sees the delete button on the automation's row.
 Deleting an automation removes the messages it queued that haven't started yet.
 

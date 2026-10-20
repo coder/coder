@@ -79,6 +79,18 @@ ORDER BY
     id
 FOR UPDATE;
 
+-- name: GetChatAutomationByIDForUpdate :one
+-- Locks one automation for a change. dbauthz requires update on it, so a
+-- caller that may only read, disable, or delete the automation is refused
+-- before the change is validated.
+SELECT
+    *
+FROM
+    chat_automations
+WHERE
+    id = @id::uuid
+FOR UPDATE;
+
 -- name: GetChatAutomationRunStatusesByIDs :many
 -- Returns, for each given automation, whether its owner is active and
 -- still a member of the automation's organization, and whether its
@@ -174,6 +186,33 @@ SET
     queue_generation = @queue_generation,
     project_id = @project_id,
     updated_at = @updated_at
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
+-- name: DisableChatAutomationByID :one
+-- Turns an automation off. It bumps queue_generation, so the messages the
+-- automation queued before the change become stale, and clears the
+-- schedule cursor. A schedule that was on also starts a new revision, so a
+-- publish that saw the old cursor fails its recheck. updated_at changes
+-- only when a reader can see a change. No other column changes, so the
+-- disable action, which administrators hold on automations they do not
+-- own, cannot change what an automation does.
+UPDATE
+    chat_automations
+SET
+    enabled = false,
+    queue_generation = queue_generation + 1,
+    schedule_next_run_at = NULL,
+    schedule_revision = CASE
+        WHEN kind = 'schedule' AND enabled THEN schedule_revision + 1
+        ELSE schedule_revision
+    END,
+    updated_at = CASE
+        WHEN enabled OR schedule_next_run_at IS NOT NULL THEN @updated_at::timestamptz
+        ELSE updated_at
+    END
 WHERE
     id = @id::uuid
 RETURNING

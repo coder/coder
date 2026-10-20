@@ -373,7 +373,6 @@ func (api *API) chatAutomation(rw http.ResponseWriter, r *http.Request) {
 // @x-apidocgen {"skip": true}
 func (api *API) patchChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	apiKey := httpmw.APIKey(r)
 	automation, ok := api.chatAutomationParam(rw, r)
 	if !ok {
 		return
@@ -395,9 +394,9 @@ func (api *API) patchChatAutomation(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	old, updated, err := api.chatDaemon.UpdateAutomation(ctx, apiKey.UserID, automation.ID, req, nil)
+	old, updated, err := api.chatDaemon.UpdateAutomation(ctx, automation.ID, req, nil)
 	if err != nil {
-		api.writeChatAutomationError(ctx, rw, err)
+		api.writeChatAutomationChangeError(ctx, rw, err, "Only the owner of a chat automation can change it.")
 		return
 	}
 	// The row read under the update's lock is the accurate before-image;
@@ -532,7 +531,6 @@ func (api *API) deleteChatAutomation(rw http.ResponseWriter, r *http.Request) {
 // @x-apidocgen {"skip": true}
 func (api *API) postChatAutomationSecretRotate(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	apiKey := httpmw.APIKey(r)
 	automation, ok := api.chatAutomationParam(rw, r)
 	if !ok {
 		return
@@ -549,9 +547,9 @@ func (api *API) postChatAutomationSecretRotate(rw http.ResponseWriter, r *http.R
 	aReq.Old = automation
 	defer commitAudit()
 
-	rotated, secret, err := api.chatDaemon.RotateAutomationSecret(ctx, apiKey.UserID, automation.ID)
+	rotated, secret, err := api.chatDaemon.RotateAutomationSecret(ctx, automation.ID)
 	if err != nil {
-		api.writeChatAutomationError(ctx, rw, err)
+		api.writeChatAutomationChangeError(ctx, rw, err, "Only the owner of a chat automation can change it.")
 		return
 	}
 	aReq.New = rotated
@@ -583,12 +581,11 @@ func (api *API) postChatAutomationSecretRotate(rw http.ResponseWriter, r *http.R
 // @x-apidocgen {"skip": true}
 func (api *API) postChatAutomationRun(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	apiKey := httpmw.APIKey(r)
 	automation, ok := api.chatAutomationParam(rw, r)
 	if !ok {
 		return
 	}
-	result, err := api.chatDaemon.RunAutomation(ctx, apiKey.UserID, automation.ID, nil)
+	result, err := api.chatDaemon.RunAutomation(ctx, automation.ID, nil)
 	if err != nil {
 		api.writeChatAutomationRunError(ctx, rw, err)
 		return
@@ -665,10 +662,6 @@ func (api *API) writeChatAutomationError(ctx context.Context, rw http.ResponseWr
 			Message:     "Invalid chat automation.",
 			Validations: []codersdk.ValidationError{{Field: validationErr.Field, Detail: validationErr.Detail}},
 		})
-	case errors.Is(err, chatd.ErrAutomationOwnerOnly):
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Only the owner of a chat automation can change it.",
-		})
 	case errors.Is(err, chatd.ErrAutomationLimitReached):
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: "Chat automation limit reached.",
@@ -693,6 +686,18 @@ func (api *API) writeChatAutomationError(ctx context.Context, rw http.ResponseWr
 	}
 }
 
+// writeChatAutomationChangeError maps the errors of a change to an
+// automation the caller can read. RBAC refuses a change that needs update,
+// which only the owner holds, so a NotAuthorized error gets 403 with
+// ownerOnly as the message.
+func (api *API) writeChatAutomationChangeError(ctx context.Context, rw http.ResponseWriter, err error, ownerOnly string) {
+	if dbauthz.IsNotAuthorizedError(err) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: ownerOnly})
+		return
+	}
+	api.writeChatAutomationError(ctx, rw, err)
+}
+
 // writeChatAutomationRunError maps RunAutomation errors to responses.
 // Refusals reuse the webhook responses, except that a disabled
 // automation gets 409 instead of 403 and a missing one 404 instead of 401.
@@ -702,7 +707,8 @@ func (api *API) writeChatAutomationRunError(ctx context.Context, rw http.Respons
 	}
 	var validationErr *chatd.AutomationValidationError
 	switch {
-	case errors.Is(err, chatd.ErrAutomationOwnerOnly):
+	case dbauthz.IsNotAuthorizedError(err):
+		// Running needs update, which only the owner holds.
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the owner of a chat automation can run it.",
 		})

@@ -815,8 +815,8 @@ var (
 					rbac.ResourceAIProvider.Type: {policy.ActionRead},
 					rbac.ResourceChat.Type:       {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					// Update lets the schedule loop move automation cursors
-					// (AdvanceChatAutomationScheduleCursor). Owner-only
-					// changes are enforced by the chatd automation service.
+					// (AdvanceChatAutomationScheduleCursor). User-facing
+					// changes run as the user, not as chatd.
 					rbac.ResourceChatAutomation.Type:    {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceChatProject.Type:       {policy.ActionRead},
 					rbac.ResourceChatProjectMemory.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
@@ -2855,6 +2855,17 @@ func (q *querier) DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UUID)
 	return q.db.DeleteWorkspaceSubAgentByID(ctx, id)
 }
 
+// DisableChatAutomationByID authorizes the disable action, which
+// organization admins and site owners hold on automations they do not
+// own. The query can only turn the automation off, so this action never
+// lets them change what an automation does.
+func (q *querier) DisableChatAutomationByID(ctx context.Context, arg database.DisableChatAutomationByIDParams) (database.ChatAutomation, error) {
+	fetch := func(ctx context.Context, arg database.DisableChatAutomationByIDParams) (database.ChatAutomation, error) {
+		return q.db.GetChatAutomationByID(ctx, arg.ID)
+	}
+	return fetchAndQuery(q.log, q.auth, policy.ActionDisable, fetch, q.db.DisableChatAutomationByID)(ctx, arg)
+}
+
 func (q *querier) DisableForeignKeysAndTriggers(ctx context.Context) error {
 	if flag.Lookup("test.v") == nil {
 		return xerrors.Errorf("DisableForeignKeysAndTriggers is only allowed in tests")
@@ -3326,6 +3337,13 @@ func (q *querier) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchive
 
 func (q *querier) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (database.ChatAutomation, error) {
 	return fetch(q.log, q.auth, q.db.GetChatAutomationByID)(ctx, id)
+}
+
+// GetChatAutomationByIDForUpdate locks the automation and requires update
+// on it, which only the owner holds, so other callers are refused before
+// their change is validated.
+func (q *querier) GetChatAutomationByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatAutomation, error) {
+	return fetchWithAction(q.log, q.auth, policy.ActionUpdate, q.db.GetChatAutomationByIDForUpdate)(ctx, id)
 }
 
 func (q *querier) GetChatAutomationReferencesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.GetChatAutomationReferencesByChatIDRow, error) {
@@ -7834,11 +7852,9 @@ func (q *querier) UpdateChatACLByID(ctx context.Context, arg database.UpdateChat
 // or model config or project (read). Unchanged references are not checked
 // again.
 //
-// This authorizes only RBAC update, which organization admins and site
-// owners also hold. The rule that only the owner can change an automation,
-// other than disabling it, lives only in chatd UpdateAutomation, so every
-// caller (HTTP handlers, the manage_automations tool) must go through that
-// service. The schedule scanner writes only through
+// Update is member-level only in the built-in roles, so only the owner
+// holds it; administrators disable automations through
+// DisableChatAutomationByID. The schedule scanner writes only through
 // AdvanceChatAutomationScheduleCursor.
 func (q *querier) UpdateChatAutomationByID(ctx context.Context, arg database.UpdateChatAutomationByIDParams) (database.ChatAutomation, error) {
 	automation, err := q.db.GetChatAutomationByID(ctx, arg.ID)
@@ -7892,10 +7908,8 @@ func (q *querier) UpdateChatAutomationLastRunByID(ctx context.Context, arg datab
 	return q.db.UpdateChatAutomationLastRunByID(ctx, arg)
 }
 
-// UpdateChatAutomationWebhookSecretByID authorizes only RBAC update, which
-// organization admins and site owners also hold. The rule that only the
-// owner can rotate the webhook secret lives only in chatd
-// RotateAutomationSecret, so every caller must go through that service.
+// UpdateChatAutomationWebhookSecretByID authorizes update, which only the
+// owner holds.
 func (q *querier) UpdateChatAutomationWebhookSecretByID(ctx context.Context, arg database.UpdateChatAutomationWebhookSecretByIDParams) (database.ChatAutomation, error) {
 	fetch := func(ctx context.Context, arg database.UpdateChatAutomationWebhookSecretByIDParams) (database.ChatAutomation, error) {
 		return q.db.GetChatAutomationByID(ctx, arg.ID)

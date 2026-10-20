@@ -88,12 +88,12 @@ func TestAutomationPreviousRunActive(t *testing.T) {
 		automation := f.newChat(ctx, t, server, "* * * * *", "UTC")
 		ownerCtx := f.asOwner(ctx, t)
 
-		first, err := server.RunAutomation(ownerCtx, f.owner.ID, automation.ID, nil)
+		first, err := server.RunAutomation(ownerCtx, automation.ID, nil)
 		require.NoError(t, err)
 		f.setChatStatus(ctx, t, first.ChatID, database.ChatStatusRunning)
 		// A person asked for this run, so it starts although the first
 		// one is still running.
-		second, err := server.RunAutomation(ownerCtx, f.owner.ID, automation.ID, nil)
+		second, err := server.RunAutomation(ownerCtx, automation.ID, nil)
 		require.NoError(t, err)
 		require.NotEqual(t, first.ChatID, second.ChatID)
 	})
