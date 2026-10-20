@@ -30,7 +30,7 @@ import { type ChatDetailError, normalizeChatErrorPayload } from "./chatError";
 import {
 	type ChatStore,
 	type ChatStoreState,
-	chatQueuedMessagesEqualByID,
+	chatQueuedMessagesEqual,
 	createChatStore,
 	isActiveChatStatus,
 } from "./chatStore";
@@ -49,7 +49,7 @@ const writeQueuedMessagesToCache = (
 		}
 		const firstPage = currentData.pages[0];
 		if (
-			chatQueuedMessagesEqualByID(firstPage.queued_messages, nextQueuedMessages)
+			chatQueuedMessagesEqual(firstPage.queued_messages, nextQueuedMessages)
 		) {
 			return currentData;
 		}
@@ -325,10 +325,9 @@ export const useChatStore = (
 		pendingStatusResyncVersionRef.current = null;
 		setPendingStatusResync(false);
 		store.setQueuedMessages([]);
-		// Suppression entries are scoped to the current chat; clear
-		// them on chat change so a stale promote suppression doesn't
-		// hide queued messages in another chat.
-		store.clearSuppressedQueuedMessageIDs();
+		// Queue tracking is scoped to the current chat; reset it on chat
+		// change so it doesn't hide queued messages in another chat.
+		store.resetQueuedMessageTracking();
 	}, [chatID, store]);
 
 	useEffect(() => {
@@ -347,10 +346,10 @@ export const useChatStore = (
 			return;
 		}
 		queuedMessagesHydratedChatIDRef.current = chatID;
-		// An optimistic promotion cache write must not clear suppression before
-		// a stale pre-promotion queue_update arrives.
+		// An optimistic promotion cache write must not clear the promoted IDs
+		// before a stale pre-promotion queue_update arrives.
 		if (
-			chatQueuedMessagesEqualByID(
+			chatQueuedMessagesEqual(
 				store.getSnapshot().queuedMessages,
 				chatQueuedMessages ?? [],
 			)
@@ -590,9 +589,9 @@ export const useChatStore = (
 							store.applyAuthoritativeQueuedMessages(
 								streamEvent.queued_messages,
 							);
-							// Cache the store's filtered queue, not the raw
-							// event, so a promoted message suppressed by the
-							// store cannot reappear on REST re-hydration.
+							// Cache the store's queue, not the raw event, so a
+							// stale snapshot that the store dropped cannot
+							// reappear on REST re-hydration.
 							writeQueuedMessagesToCache(
 								queryClient,
 								chatID,

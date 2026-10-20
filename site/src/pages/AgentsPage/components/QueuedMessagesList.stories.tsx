@@ -176,10 +176,44 @@ export const AttachmentsOnly: Story = {
 	},
 };
 
+// Steer rows show under "Next step" and queue rows under "After turn".
+export const GroupedByLane: Story = {
+	args: {
+		messages: [
+			{
+				...buildMessage(1, textContent("Also check the error logs")),
+				busy_behavior: "steer",
+			},
+			{
+				...buildMessage(2, textContent("Skip the flaky test")),
+				busy_behavior: "steer",
+			},
+			buildMessage(3, textContent("Then open a pull request")),
+		],
+	},
+};
+
 // Queued messages retain send and delete actions without exposing edit.
 export const ActionsExcludeEdit: Story = {
 	args: {
 		messages: [buildMessage(1, textContent("Run the linter"))],
+	},
+};
+
+// A pending "Send now" keeps the row visible with a spinner and disables
+// the other actions.
+export const SendNowPending: Story = {
+	args: {
+		messages: [
+			buildMessage(1, textContent("First queued")),
+			buildMessage(2, textContent("Second queued")),
+		],
+		onPromote: () => new Promise<void>(() => {}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sendNowButtons = canvas.getAllByRole("button", { name: "Send now" });
+		await userEvent.click(sendNowButtons[0]);
 	},
 };
 

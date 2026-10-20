@@ -3165,6 +3165,7 @@ export const QueuedSendPromotesPreviousHead: Story = {
 			role: "user",
 			created_at: "2024-01-01T00:01:00Z",
 			content: [{ type: "text", text: "Queued head prompt" }],
+			queued_message_id: 41,
 		};
 		const followUp: TypesGen.ChatQueuedMessage = {
 			...MockChatQueuedMessage,
