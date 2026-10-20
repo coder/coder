@@ -1,0 +1,2 @@
+DROP TRIGGER IF EXISTS trigger_delete_chat_project_user_acl_on_org_member_delete ON organization_members;
+DROP FUNCTION IF EXISTS delete_chat_project_user_acl_on_org_member_delete();

@@ -24,7 +24,7 @@ type Story = StoryObj<typeof UserEngagementChart>;
 export const Loaded: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const chart = await canvas.findByRole("group", { name: "User engagement" });
+		const chart = await canvas.findByRole("group", { name: "User Engagement" });
 		expect(chart).toHaveAttribute("aria-roledescription", "chart");
 		// dom-accessibility-api doesn't compute descriptions from SVG <desc>
 		// (browsers do, per SVG-AAM), so check the element itself.

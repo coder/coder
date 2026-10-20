@@ -785,4 +785,21 @@ export const useChatSelector = <T>(
 	return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
 };
 
+/** The store's durable messages, oldest first. */
+export const useChatMessages = (store: ChatStore): TypesGen.ChatMessage[] => {
+	const messagesByID = useChatSelector(store, selectMessagesByID);
+	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
+	return orderedMessageIDs.flatMap((messageID) => {
+		const message = messagesByID.get(messageID);
+		if (!message && process.env.NODE_ENV !== "production") {
+			console.warn(
+				`[useChatMessages] orderedMessageIDs contains ID ${messageID} ` +
+					"not found in messagesByID. This may indicate a store/cache " +
+					"desync bug.",
+			);
+		}
+		return message ? [message] : [];
+	});
+};
+
 export { useChatStore } from "./useChatStore";
