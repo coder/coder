@@ -514,117 +514,115 @@ func TestManageAutomationsTool(t *testing.T) {
 		}
 	})
 
-	t.Run("ScopedToChatOwnerAndOrganization", func(t *testing.T) {
+	// RBAC decides what the tool may do, through the chat owner's roles.
+	// A turn that an automation reached gets the same permissions as a
+	// human turn: the trigger only labels audit entries. An organization
+	// admin's chat can read, disable, and delete another member's
+	// automation, because the admin can, but cannot change, enable, or run
+	// it, because update is the owner's alone.
+	t.Run("RBACDecidesEveryAction", func(t *testing.T) {
 		t.Parallel()
-		f := newManageAutomationsFixture(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
-		// The chat owner administers the organization, so it could read,
-		// disable, and delete other members' automations directly.
-		_, err := f.db.UpdateMemberRoles(ctx, database.UpdateMemberRolesParams{
-			GrantedRoles: []string{rbac.RoleAgentsAccess(), rbac.RoleOrgAdmin()},
-			UserID:       f.owner.ID,
-			OrgID:        f.org.ID,
-		})
-		require.NoError(t, err)
-		member := dbgen.User(t, f.db, database.User{})
-		dbgen.OrganizationMember(t, f.db, database.OrganizationMember{UserID: member.ID, OrganizationID: f.org.ID})
-		otherOrg := dbgen.Organization(t, f.db, database.Organization{})
-		dbgen.OrganizationMember(t, f.db, database.OrganizationMember{UserID: f.owner.ID, OrganizationID: otherOrg.ID})
-		otherModel := dbgen.ChatModelConfig(t, f.db, database.ChatModelConfig{OrganizationID: otherOrg.ID})
-
-		own := newChatAutomation(t, f.db, f.org.ID, f.owner.ID, f.model.ID)
-		otherOwner := newChatAutomation(t, f.db, f.org.ID, member.ID, f.model.ID)
-		otherOrgOwn := newChatAutomation(t, f.db, otherOrg.ID, f.owner.ID, otherModel.ID)
-
-		require.Equal(t, []uuid.UUID{own.ID}, f.listIDs(ctx, t, f.chat.ID))
-		for _, automation := range []database.ChatAutomation{otherOwner, otherOrgOwn} {
-			for _, action := range []string{"get", "update", "enable", "disable", "delete", "run_now"} {
-				args := manageAutomationsArgs{Action: action, AutomationID: automation.ID.String()}
-				if action == "update" {
-					args.Prompt = ptr.Ref("Changed.")
-				}
-				content, isError := f.callArgs(ctx, t, f.chat.ID, args)
-				require.True(t, isError)
-				require.Equal(t, errManageAutomationsNotFound.Error(), content)
-			}
-			f.requireUnchanged(ctx, t, automation)
-		}
-		require.Empty(t, f.changeAudits())
-	})
-
-	t.Run("AutomationReachedTurn", func(t *testing.T) {
-		t.Parallel()
-		f := newManageAutomationsFixture(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		targetsChat := f.existingChat(ctx, t, f.server, "0 9 * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
-		createdChat := newChatAutomation(t, f.db, f.org.ID, f.owner.ID, f.model.ID)
-		unrelated := newChatAutomation(t, f.db, f.org.ID, f.owner.ID, f.model.ID)
-		_, err := f.db.UpdateChatAutomationIDByID(ctx, database.UpdateChatAutomationIDByIDParams{
-			ID:           f.chat.ID,
-			AutomationID: createdChat.ID,
-		})
-		require.NoError(t, err)
-
-		// A human turn sees every automation of the owner.
-		dbgen.ChatMessage(t, f.db, database.ChatMessage{ChatID: f.chat.ID, Role: database.ChatMessageRoleUser})
-		require.ElementsMatch(t, []uuid.UUID{targetsChat.ID, createdChat.ID, unrelated.ID}, f.listIDs(ctx, t, f.chat.ID))
-
-		dbgen.ChatMessage(t, f.db, database.ChatMessage{ChatID: f.chat.ID, Role: database.ChatMessageRoleAssistant})
-		inputID := uuid.New()
-		dbgen.ChatMessage(t, f.db, database.ChatMessage{
-			ChatID:       f.chat.ID,
-			Role:         database.ChatMessageRoleUser,
-			AutomationID: uuid.NullUUID{UUID: targetsChat.ID, Valid: true},
-			InputID:      uuid.NullUUID{UUID: inputID, Valid: true},
-		})
-
-		// Write actions are refused before any other work, even for an
-		// automation this turn sees and that targets this chat.
-		inputs := f.inputs(ctx, t)
-		for _, args := range []manageAutomationsArgs{
-			heartbeatArgs(),
-			{Action: "update", AutomationID: targetsChat.ID.String(), Prompt: ptr.Ref("Changed.")},
-			{Action: "enable", AutomationID: targetsChat.ID.String()},
-			{Action: "run_now", AutomationID: targetsChat.ID.String()},
+		for _, tc := range []struct {
+			name string
+			// setup returns the automation the actions use and the audit
+			// fields a change records.
+			setup  func(ctx context.Context, t *testing.T, f manageAutomationsFixture) (database.ChatAutomation, map[string]string)
+			denied []string
+		}{
+			{
+				name: "OwnerHumanTurn",
+				setup: func(ctx context.Context, t *testing.T, f manageAutomationsFixture) (database.ChatAutomation, map[string]string) {
+					row := f.existingChat(ctx, t, f.server, "0 9 * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+					dbgen.ChatMessage(t, f.db, database.ChatMessage{ChatID: f.chat.ID, Role: database.ChatMessageRoleUser})
+					return row, map[string]string{"chat_id": f.chat.ID.String()}
+				},
+			},
+			{
+				name: "OwnerAutomationTurn",
+				setup: func(ctx context.Context, t *testing.T, f manageAutomationsFixture) (database.ChatAutomation, map[string]string) {
+					row := f.existingChat(ctx, t, f.server, "0 9 * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+					inputID := uuid.New()
+					dbgen.ChatMessage(t, f.db, database.ChatMessage{
+						ChatID:       f.chat.ID,
+						Role:         database.ChatMessageRoleUser,
+						AutomationID: uuid.NullUUID{UUID: row.ID, Valid: true},
+						InputID:      uuid.NullUUID{UUID: inputID, Valid: true},
+					})
+					return row, map[string]string{
+						"chat_id":       f.chat.ID.String(),
+						"automation_id": row.ID.String(),
+						"input_id":      inputID.String(),
+					}
+				},
+			},
+			{
+				name: "OrgAdminOtherMember",
+				setup: func(ctx context.Context, t *testing.T, f manageAutomationsFixture) (database.ChatAutomation, map[string]string) {
+					_, err := f.db.UpdateMemberRoles(ctx, database.UpdateMemberRolesParams{
+						GrantedRoles: []string{rbac.RoleAgentsAccess(), rbac.RoleOrgAdmin()},
+						UserID:       f.owner.ID,
+						OrgID:        f.org.ID,
+					})
+					require.NoError(t, err)
+					member := dbgen.User(t, f.db, database.User{})
+					dbgen.OrganizationMember(t, f.db, database.OrganizationMember{UserID: member.ID, OrganizationID: f.org.ID})
+					// A new_chat automation without a project passes the
+					// tool's target checks, so RBAC makes every decision.
+					row := newChatAutomation(t, f.db, f.org.ID, member.ID, f.model.ID)
+					dbgen.ChatMessage(t, f.db, database.ChatMessage{ChatID: f.chat.ID, Role: database.ChatMessageRoleUser})
+					return row, map[string]string{"chat_id": f.chat.ID.String()}
+				},
+				denied: []string{"update", "enable", "run_now"},
+			},
 		} {
-			content, isError := f.callArgs(ctx, t, f.chat.ID, args)
-			require.True(t, isError, content)
-			require.Contains(t, content, "not available in a turn that an automation started")
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				f := newManageAutomationsFixture(t)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				row, auditFields := tc.setup(ctx, t, f)
+				f.auditor.ResetLogs()
+
+				// disable comes before enable, so enable has work to do,
+				// and delete comes last.
+				for _, action := range []string{"list", "get", "create", "update", "disable", "enable", "run_now", "delete"} {
+					args := manageAutomationsArgs{Action: action, AutomationID: row.ID.String()}
+					switch action {
+					case "list":
+						args.AutomationID = ""
+					case "create":
+						args = heartbeatArgs()
+					case "update":
+						args.Prompt = ptr.Ref("Changed.")
+					}
+					before, err := f.db.GetChatAutomationByID(ctx, row.ID)
+					require.NoError(t, err)
+					audits := len(f.changeAudits())
+					content, isError := f.callArgs(ctx, t, f.chat.ID, args)
+					if slices.Contains(tc.denied, action) {
+						require.True(t, isError, "%s: %s", action, content)
+						require.Equal(t, errManageAutomationsOwnerOnly.Error(), content, action)
+						f.requireUnchanged(ctx, t, before)
+						require.Len(t, f.changeAudits(), audits, action)
+						continue
+					}
+					require.False(t, isError, "%s: %s", action, content)
+					switch action {
+					case "list":
+						// list reads the chat owner's own automations.
+						ids := f.listIDs(ctx, t, f.chat.ID)
+						require.Equal(t, row.OwnerID == f.owner.ID, slices.Contains(ids, row.ID))
+					case "disable":
+						logs := f.changeAudits()
+						require.Len(t, logs, audits+1, action)
+						requireAuditFields(t, logs[len(logs)-1], auditFields)
+					case "delete":
+						require.Len(t, f.changeAudits(), audits+1, action)
+					}
+				}
+				_, err := f.db.GetChatAutomationByID(ctx, row.ID)
+				require.ErrorIs(t, err, sql.ErrNoRows)
+			})
 		}
-		f.requireUnchanged(ctx, t, targetsChat)
-		require.Len(t, f.ownerAutomations(ctx, t), 3)
-		require.Equal(t, inputs, f.inputs(ctx, t))
-		require.Empty(t, f.changeAudits())
-
-		require.ElementsMatch(t, []uuid.UUID{targetsChat.ID, createdChat.ID}, f.listIDs(ctx, t, f.chat.ID))
-		for _, action := range []string{"get", "disable", "delete"} {
-			content, isError := f.call(ctx, t, f.chat.ID, action, unrelated.ID)
-			require.True(t, isError)
-			require.Equal(t, errManageAutomationsNotFound.Error(), content)
-		}
-
-		content, isError := f.call(ctx, t, f.chat.ID, "disable", createdChat.ID)
-		require.False(t, isError, content)
-		logs := f.changeAudits()
-		require.Len(t, logs, 1)
-		requireAuditFields(t, logs[0], map[string]string{
-			"chat_id":       f.chat.ID.String(),
-			"automation_id": targetsChat.ID.String(),
-			"input_id":      inputID.String(),
-		})
-
-		// Only the triggering automation can be deleted.
-		content, isError = f.call(ctx, t, f.chat.ID, "delete", createdChat.ID)
-		require.True(t, isError)
-		require.Contains(t, content, "delete only removes that automation")
-		_, err = f.db.GetChatAutomationByID(ctx, createdChat.ID)
-		require.NoError(t, err)
-		content, isError = f.call(ctx, t, f.chat.ID, "delete", targetsChat.ID)
-		require.False(t, isError, content)
-		_, err = f.db.GetChatAutomationByID(ctx, targetsChat.ID)
-		require.ErrorIs(t, err, sql.ErrNoRows)
-		require.Len(t, f.changeAudits(), 2)
 	})
 
 	t.Run("CreateContainment", func(t *testing.T) {
@@ -662,21 +660,24 @@ func TestManageAutomationsTool(t *testing.T) {
 		sameConfig, _ := f.mustCreate(ctx, t, searchChat.ID, newChatArgs(&search.ID))
 		require.Equal(t, uuid.NullUUID{UUID: search.ID, Valid: true}, sameConfig.NewChatModelConfigID)
 
+		// Tool selection belongs to tool sets, so a chat may give new chats
+		// a model config with provider tools it does not have.
+		withSearch, _ := f.mustCreate(ctx, t, f.chat.ID, newChatArgs(&search.ID))
+		require.Equal(t, uuid.NullUUID{UUID: search.ID, Valid: true}, withSearch.NewChatModelConfigID)
+
 		elsewhere := heartbeatArgs()
 		elsewhere.TargetChatID = ptr.Ref(other.ID.String())
-		for _, args := range []manageAutomationsArgs{elsewhere, newChatArgs(&search.ID)} {
-			content, isError := f.callArgs(ctx, t, f.chat.ID, args)
-			require.True(t, isError, content)
-			require.Contains(t, content, errNotContained)
-		}
-		require.Len(t, f.ownerAutomations(ctx, t), 4)
+		content, isError := f.callArgs(ctx, t, f.chat.ID, elsewhere)
+		require.True(t, isError, content)
+		require.Contains(t, content, errNotContained)
+		require.Len(t, f.ownerAutomations(ctx, t), 5)
 
 		logs := f.changeAudits()
-		require.Len(t, logs, 4)
+		require.Len(t, logs, 5)
 		for i, want := range []struct {
 			automation database.ChatAutomation
 			chatID     uuid.UUID
-		}{{heartbeat, f.chat.ID}, {defaulted, f.chat.ID}, {withoutTools, f.chat.ID}, {sameConfig, searchChat.ID}} {
+		}{{heartbeat, f.chat.ID}, {defaulted, f.chat.ID}, {withoutTools, f.chat.ID}, {sameConfig, searchChat.ID}, {withSearch, f.chat.ID}} {
 			require.Equal(t, database.AuditActionCreate, logs[i].Action)
 			require.Equal(t, want.automation.ID, logs[i].ResourceID)
 			requireAuditFields(t, logs[i], map[string]string{"chat_id": want.chatID.String()})
@@ -688,7 +689,6 @@ func TestManageAutomationsTool(t *testing.T) {
 		f := newManageAutomationsFixture(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
 		other := f.otherChat(t, f.model.ID)
-		search := f.modelConfig(t, true)
 		heartbeat, _ := f.mustCreate(ctx, t, f.chat.ID, heartbeatArgs())
 		// Created through the management API, so it already targets
 		// another chat.
@@ -696,7 +696,6 @@ func TestManageAutomationsTool(t *testing.T) {
 			TargetMode:   codersdk.ChatAutomationTargetModeExistingChat,
 			TargetChatID: &other.ID,
 		}, "0 9 * * *", "UTC")
-		newChat := f.newChat(ctx, t, f.server, "0 9 * * *", "UTC")
 		f.auditor.ResetLogs()
 
 		for _, tc := range []struct {
@@ -708,7 +707,6 @@ func TestManageAutomationsTool(t *testing.T) {
 			{"StoredTargetElsewhere", manageAutomationsArgs{AutomationID: elsewhere.ID.String(), Prompt: ptr.Ref("Changed.")}, elsewhere, errNotContained},
 			{"StoredTargetMovedHere", manageAutomationsArgs{AutomationID: elsewhere.ID.String(), TargetChatID: ptr.Ref(f.chat.ID.String())}, elsewhere, errNotContained},
 			{"TargetMovesElsewhere", manageAutomationsArgs{AutomationID: heartbeat.ID.String(), TargetChatID: ptr.Ref(other.ID.String())}, heartbeat, errNotContained},
-			{"ModelGainsProviderTools", manageAutomationsArgs{AutomationID: newChat.ID.String(), NewChatModelConfigID: ptr.Ref(search.ID.String())}, newChat, errNotContained},
 			{"KindIsFixed", manageAutomationsArgs{AutomationID: heartbeat.ID.String(), Kind: ptr.Ref("webhook")}, heartbeat, "cannot be changed"},
 		} {
 			tc.args.Action = "update"
@@ -855,24 +853,17 @@ func TestManageAutomationsTool(t *testing.T) {
 		f := newManageAutomationsFixture(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
 		other := f.otherChat(t, f.model.ID)
-		search := f.modelConfig(t, true)
 		heartbeat := f.existingChat(ctx, t, f.server, "0 9 * * *", "UTC", codersdk.ChatAutomationWhenBusySkip)
 		elsewhere := f.create(ctx, t, f.server, codersdk.CreateChatAutomationRequest{
 			TargetMode:   codersdk.ChatAutomationTargetModeExistingChat,
 			TargetChatID: &other.ID,
 		}, "0 9 * * *", "UTC")
-		withSearch := f.create(ctx, t, f.server, codersdk.CreateChatAutomationRequest{
-			TargetMode:           codersdk.ChatAutomationTargetModeNewChat,
-			NewChatModelConfigID: &search.ID,
-		}, "0 9 * * *", "UTC")
 		contained := f.newChat(ctx, t, f.server, "0 9 * * *", "UTC")
 		chats := len(f.createdChats(ctx, t))
 
-		for _, automation := range []database.ChatAutomation{elsewhere, withSearch} {
-			content, isError := f.call(ctx, t, f.chat.ID, "run_now", automation.ID)
-			require.True(t, isError, content)
-			require.Contains(t, content, errNotContained)
-		}
+		content, isError := f.call(ctx, t, f.chat.ID, "run_now", elsewhere.ID)
+		require.True(t, isError, content)
+		require.Contains(t, content, errNotContained)
 		var otherMessages int
 		require.NoError(t, f.sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM chat_messages WHERE chat_id = $1", other.ID).Scan(&otherMessages))
 		require.Zero(t, otherMessages)
@@ -882,7 +873,7 @@ func TestManageAutomationsTool(t *testing.T) {
 			InputID uuid.UUID `json:"input_id"`
 			ChatID  uuid.UUID `json:"chat_id"`
 		}
-		content, isError := f.call(ctx, t, f.chat.ID, "run_now", contained.ID)
+		content, isError = f.call(ctx, t, f.chat.ID, "run_now", contained.ID)
 		require.False(t, isError, content)
 		require.NoError(t, json.Unmarshal([]byte(content), &result))
 		require.Len(t, f.createdChats(ctx, t), chats+1)
@@ -1128,8 +1119,10 @@ func TestManageAutomationsToolConcurrentRetarget(t *testing.T) {
 				retarget.TargetChatID = &other.ID
 			} else {
 				row = f.newChat(ctx, t, f.server, "0 9 * * *", "UTC")
-				search := f.modelConfig(t, true)
-				retarget.NewChatModelConfigID = &search.ID
+				// The calling chat has no project, so another project is
+				// not contained.
+				project := dbgen.ChatProject(t, f.db, database.ChatProject{OrganizationID: f.org.ID, OwnerID: f.owner.ID})
+				retarget.ProjectID = &project.ID
 			}
 			if tc.disabled {
 				var err error

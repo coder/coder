@@ -488,25 +488,23 @@ The agent receives the tool only when all of these are true:
 The tool supports the `list`, `get`, `create`, `update`, `enable`, `disable`, `delete`, and `run_now` actions.
 The agent acts as you, so its automations count toward your limit and appear on your **Automations** page with a **Created by agent in** link to the chat.
 
-In a turn that you start, the agent can list, read, turn off, and delete any of your automations in the chat's organization, including automations that target other chats.
-Listing automations shows their prompts in the chat, cut to 2,000 characters.
+The agent has your permissions, in every turn.
+A turn that an automation started gets the same permissions as a turn that you start.
+The agent can list, read, turn off, and delete any of your automations in the chat's organization, including automations that target other chats.
+If you are an organization admin, the agent can also read, turn off, and delete other members' automations by ID, because you can.
+Only the owner of an automation can create, update, enable, or run it, so the agent can't do these things to other members' automations.
+Listing automations shows your own automations and their prompts in the chat, cut to 2,000 characters.
 Reading one automation shows its full prompt.
 
 The agent can create, update, enable, or run only automations that stay close to its own chat:
 
 - An existing chat automation must target the calling chat.
-- A new chat automation must use the chat's model, or a model without provider tools such as web search.
 - A new chat automation must use the chat's project or no project.
-  When the agent creates one, it uses the chat's project by default if the `chat-projects` experiment is on.
+  When the agent creates one, it uses the chat's model by default, and the chat's project by default if the `chat-projects` experiment is on.
 
 Coder checks these rules again when it applies the change.
 
-In a turn that an automation started, the agent can't create, update, enable, or run automations.
-It sees only automations that target the chat or that created it, and it can delete only the automation that started the turn.
-The newest message of the turn decides.
-If you send a message after an automation message, even before the agent responds, the turn becomes yours and these limits don't apply.
-
-When the agent creates a webhook in a turn that you start, the result shows the endpoint and the secret once, so the agent can hand them to the sender.
+When the agent creates a webhook, the result shows the endpoint and the secret once, so the agent can hand them to the sender.
 For a multi-use webhook, the agent can store the secret in the sending system, for example as a CI secret.
 For a single-use webhook, the agent can pass the secret to a job or another agent as a callback, and the secret stops working after one delivery.
 The tool result stays in the chat, so anyone who can read the chat can use the secret: a multi-use secret until you rotate it, a single-use secret until its first delivery.

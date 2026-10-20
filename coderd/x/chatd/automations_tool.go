@@ -35,7 +35,7 @@ const manageAutomationsNextRunCount = 5
 const manageAutomationsDescription = "Manage the chat owner's automations in this chat's organization. " +
 	"An automation sends its saved prompt on a trigger, a schedule (cron) or a webhook, either to an existing chat or to a new chat per run. " +
 	"Use it for recurring or later work: the automation handles the timing, and you do the work when its message arrives. " +
-	"Actions: list returns every visible automation with its prompt (long prompts are cut; get returns the full one); get returns one automation; " +
+	"Actions: list returns the chat owner's automations with their prompts (long prompts are cut; get returns the full one); get returns one automation; " +
 	"create adds an enabled automation; update changes only the fields you pass; enable turns an automation on again; " +
 	"disable stops an automation until it is enabled again; delete removes an automation permanently; " +
 	"run_now sends the prompt of an enabled schedule automation now. " +
@@ -47,12 +47,10 @@ const manageAutomationsDescription = "Manage the chat owner's automations in thi
 	"Store a multi-use secret in the system that sends events, such as a CI secret. " +
 	"A callback is a single-use webhook on this chat (webhook_use single), whose secret works for one delivery: hand it to the job or agent that calls back. " +
 	"No other action returns a secret: the owner rotates it in the automations UI to get a new one. " +
-	"An existing_chat automation can only target this chat. A new_chat automation uses this chat's model config " +
-	"unless new_chat_model_config_id names a model config without provider tools such as web search. " +
+	"An existing_chat automation can only target this chat. A new_chat automation uses this chat's model config unless new_chat_model_config_id names another. " +
 	"A new_chat automation puts its chats into this chat's project, if this chat has one, unless project_id is empty; it cannot use another project. " +
 	"update, enable, and run_now work only on automations that follow these rules. " +
-	"When an automation sent the newest message of the turn, create, update, enable, and run_now are refused; " +
-	"only automations that target this chat or that created this chat are visible, and delete only removes the automation that sent the message."
+	"Only the owner of an automation can create, update, enable, or run it; an administrator's chat can also get, disable, and delete other members' automations."
 
 // manageAutomationsListPromptMax and manageAutomationsGetPromptMax cap,
 // in runes, the prompt text list and get return, so a tool result stays
@@ -73,17 +71,14 @@ const manageAutomationsStopGuidance = "Automations have no run limit or end time
 
 var manageAutomationsActions = []string{"list", "get", "create", "update", "enable", "disable", "delete", "run_now"}
 
-// manageAutomationsWriteActions are refused in a turn an automation
-// reached, because they can add or widen what automations do.
-var manageAutomationsWriteActions = []string{"create", "update", "enable", "run_now"}
+var errManageAutomationsNotFound = xerrors.New("automation not found: call list for the chat owner's automations")
 
-var errManageAutomationsNotFound = xerrors.New("automation not found: call list for the automations this turn can use")
-
-// manageAutomationsSecretNotShown replaces a webhook secret the tool does
-// not return.
-//
-//nolint:gosec // Explains that a secret is withheld; it is not a credential.
-const manageAutomationsSecretNotShown = "The webhook secret is not shown in a turn that an automation started. The owner can rotate the secret in the automations UI to get a new one."
+// errManageAutomationsOwnerOnly replaces a NotAuthorized error from RBAC.
+// The tool runs as the chat owner, who can read the automation but lacks
+// the permission the action needs, which only the automation's owner
+// holds.
+var errManageAutomationsOwnerOnly = xerrors.New("only the owner of this automation can create, update, enable, or run it; " +
+	"ask the owner to make the change on the Automations page")
 
 // manageAutomationsMultiUseSecretNote explains how to use a returned
 // multi-use secret.
@@ -246,7 +241,8 @@ func manageAutomationsArgNames() []string {
 }
 
 // automationTurnTrigger identifies the automation input that reached the
-// current turn. An invalid AutomationID means a human reached it.
+// current turn. An invalid AutomationID means a human reached it. It only
+// labels audit entries; RBAC decides what the tool may do.
 type automationTurnTrigger struct {
 	AutomationID uuid.NullUUID
 	InputID      uuid.NullUUID
@@ -333,7 +329,8 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 	}
 
 	// Owner and organization always come from the chat, and every read
-	// and write runs as the owner.
+	// and write runs as the owner, so the owner's roles decide what the
+	// tool may do.
 	owner, err := automationOwnerSubject(ctx, p.db, chat.OwnerID)
 	if err != nil {
 		// An inactive owner is an expected refusal; anything else is a
@@ -348,18 +345,14 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 	ownerCtx := dbauthz.As(ctx, owner)
 
 	// Only the current turn's user rows decide the trigger, so the tool
-	// does not load the full history.
+	// does not load the full history. The trigger is recorded in audit
+	// entries only.
 	history, err := p.db.GetChatMessagesForAutomationTurnTrigger(chatdCtx, chat.ID)
 	if err != nil {
 		logger.Warn(ctx, "manage_automations failed to load chat history", slog.Error(err))
 		return nil, xerrors.New("failed to load chat history")
 	}
 	trigger := automationTurnTriggerFromHistory(history)
-	if trigger.AutomationID.Valid && slices.Contains(manageAutomationsWriteActions, action) {
-		return nil, xerrors.Errorf("%s is not available in a turn that an automation started: an automation sent this turn's message, "+
-			"so only list, get, disable, and delete work. Ask the owner to make the change; "+
-			"a new message from the owner starts a turn without this limit", action)
-	}
 
 	switch action {
 	case "list":
@@ -373,12 +366,10 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 		}
 		automations := make([]manageAutomationsAutomation, 0, len(rows))
 		for _, row := range rows {
-			if manageAutomationsVisible(chat, trigger, row) {
-				// Prompts are not secrets, and an empty prompt reads as
-				// "no prompt set", so list returns them, cut to a size that
-				// keeps the result small.
-				automations = append(automations, p.manageAutomationsView(row, manageAutomationsListPromptMax))
-			}
+			// Prompts are not secrets, and an empty prompt reads as "no
+			// prompt set", so list returns them, cut to a size that keeps
+			// the result small.
+			automations = append(automations, p.manageAutomationsView(row, manageAutomationsListPromptMax))
 		}
 		return map[string]any{"automations": automations}, nil
 	case "create":
@@ -398,10 +389,6 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 		logger.Warn(ctx, "manage_automations failed to load automation", slog.Error(err))
 		return nil, xerrors.New("failed to load automation")
 	}
-	if !manageAutomationsVisible(chat, trigger, row) {
-		return nil, errManageAutomationsNotFound
-	}
-
 	switch action {
 	case "get":
 		return map[string]any{"automation": p.manageAutomationsView(row, manageAutomationsGetPromptMax)}, nil
@@ -425,11 +412,6 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 		p.auditManageAutomations(ctx, chat, trigger, database.AuditActionWrite, old, updated)
 		return map[string]any{"automation": p.manageAutomationsView(updated, manageAutomationsListPromptMax)}, nil
 	default: // delete
-		// Input from one automation must not remove another one for good;
-		// disabling it stays possible and is undone by enabling it.
-		if trigger.AutomationID.Valid && trigger.AutomationID.UUID != row.ID {
-			return nil, xerrors.New("in a turn an automation started, delete only removes that automation; use disable for others")
-		}
 		if err := p.DeleteAutomation(ownerCtx, row.ID); err != nil {
 			return nil, p.manageAutomationsError(ctx, logger, action, err)
 		}
@@ -496,16 +478,15 @@ func (p *Server) manageAutomationsCreate(ctx, ownerCtx context.Context, chat dat
 	}
 	target := automationTarget{mode: database.ChatAutomationTargetMode(req.TargetMode)}.
 		with(req.TargetChatID, req.NewChatModelConfigID, req.ProjectID)
-	if err := p.manageAutomationsContained(ownerCtx, p.db, chat, target); err != nil {
+	if err := manageAutomationsContained(chat, target); err != nil {
 		return nil, err
 	}
 
-	// The secret is returned once, in a turn no automation reached
-	// (create is refused in the others), because an agent must hand it
-	// to the sender: a CI secret for a multi-use webhook or a callback
-	// job for a single-use one. Tool results stay in the chat, where
-	// read-shared users, the model provider, and compaction can see
-	// them, so the note warns about that.
+	// The secret is returned once, because an agent must hand it to the
+	// sender: a CI secret for a multi-use webhook or a callback job for a
+	// single-use one. Tool results stay in the chat, where read-shared
+	// users, the model provider, and compaction can see them, so the note
+	// warns about that.
 	row, secret, err := p.CreateAutomation(ownerCtx, CreateAutomationParams{
 		OrganizationID:  chat.OrganizationID,
 		OwnerID:         chat.OwnerID,
@@ -520,10 +501,6 @@ func (p *Server) manageAutomationsCreate(ctx, ownerCtx context.Context, chat dat
 	result := map[string]any{"automation": p.manageAutomationsView(row, manageAutomationsListPromptMax)}
 	switch {
 	case row.Kind != database.ChatAutomationKindWebhook:
-	case trigger.AutomationID.Valid:
-		// Unreachable while create is refused in automation turns; kept
-		// so a change there cannot leak a secret into such a turn.
-		result["webhook_secret_note"] = manageAutomationsSecretNotShown
 	case isSingleUseWebhook(row):
 		result["webhook_secret"] = secret
 		result["webhook_secret_note"] = manageAutomationsSingleUseSecretNote
@@ -574,14 +551,14 @@ func (a manageAutomationsArgs) updateRequest() (codersdk.UpdateChatAutomationReq
 // concurrent change by the owner cannot slip past the checks here.
 func (p *Server) manageAutomationsUpdate(ctx, ownerCtx context.Context, chat database.Chat, trigger automationTurnTrigger, action string, row database.ChatAutomation, req codersdk.UpdateChatAutomationRequest) (map[string]any, error) {
 	before := automationTargetOf(row)
-	if err := p.manageAutomationsContained(ownerCtx, p.db, chat, before); err != nil {
+	if err := manageAutomationsContained(chat, before); err != nil {
 		return nil, err
 	}
 	after := before.with(req.TargetChatID, req.NewChatModelConfigID, req.ProjectID)
-	if err := p.manageAutomationsContained(ownerCtx, p.db, chat, after); err != nil {
+	if err := manageAutomationsContained(chat, after); err != nil {
 		return nil, err
 	}
-	old, updated, err := p.UpdateAutomation(ownerCtx, row.ID, req, p.manageAutomationsGuard(ownerCtx, chat))
+	old, updated, err := p.UpdateAutomation(ownerCtx, row.ID, req, manageAutomationsGuard(chat))
 	if err != nil {
 		logger := p.logger.With(slog.F("chat_id", chat.ID), slog.F("action", action), slog.F("automation_id", row.ID))
 		return nil, p.manageAutomationsError(ctx, logger, action, err)
@@ -595,10 +572,10 @@ func (p *Server) manageAutomationsUpdate(ctx, ownerCtx context.Context, chat dat
 // whose input it accepts. Like the run endpoint, it audits only a chat it
 // creates, and that entry also names the calling chat.
 func (p *Server) manageAutomationsRun(ctx, ownerCtx context.Context, chat database.Chat, row database.ChatAutomation) (map[string]any, error) {
-	if err := p.manageAutomationsContained(ownerCtx, p.db, chat, automationTargetOf(row)); err != nil {
+	if err := manageAutomationsContained(chat, automationTargetOf(row)); err != nil {
 		return nil, err
 	}
-	result, err := p.RunAutomation(ownerCtx, row.ID, p.manageAutomationsGuard(ownerCtx, chat))
+	result, err := p.RunAutomation(ownerCtx, row.ID, manageAutomationsGuard(chat))
 	if err != nil {
 		logger := p.logger.With(slog.F("chat_id", chat.ID), slog.F("action", "run_now"), slog.F("automation_id", row.ID))
 		return nil, p.manageAutomationsError(ctx, logger, "run", err)
@@ -649,9 +626,9 @@ func (e *manageAutomationsContainmentError) Unwrap() error { return e.err }
 
 // manageAutomationsGuard returns the service guard that requires the
 // locked automation row to be contained.
-func (p *Server) manageAutomationsGuard(ownerCtx context.Context, chat database.Chat) AutomationGuard {
-	return func(store database.Store, row database.ChatAutomation) error {
-		if err := p.manageAutomationsContained(ownerCtx, store, chat, automationTargetOf(row)); err != nil {
+func manageAutomationsGuard(chat database.Chat) AutomationGuard {
+	return func(_ database.Store, row database.ChatAutomation) error {
+		if err := manageAutomationsContained(chat, automationTargetOf(row)); err != nil {
 			return &manageAutomationsContainmentError{err: err}
 		}
 		return nil
@@ -660,11 +637,10 @@ func (p *Server) manageAutomationsGuard(ownerCtx context.Context, chat database.
 
 // manageAutomationsContained reports whether the tool may send runs to
 // target: an existing_chat target must be the calling chat, and a new_chat
-// target must use the calling chat's project or no project and must not
-// get more tools than the calling chat has. Only the model config's
-// provider tools can differ, so the config must be the calling chat's or
-// have no provider tools. The model config is read through store.
-func (*Server) manageAutomationsContained(ownerCtx context.Context, store database.Store, chat database.Chat, target automationTarget) error {
+// target must use the calling chat's project or no project and name a
+// model config. The service validates the model config as the owner.
+// Which tools new chats get belongs to tool sets, not to this check.
+func manageAutomationsContained(chat database.Chat, target automationTarget) error {
 	switch target.mode {
 	case database.ChatAutomationTargetModeExistingChat:
 		if !target.chatID.Valid || target.chatID.UUID != chat.ID {
@@ -679,20 +655,6 @@ func (*Server) manageAutomationsContained(ownerCtx context.Context, store databa
 		}
 		if !target.modelConfigID.Valid {
 			return automationFieldError("new_chat_model_config_id", "is required for new_chat automations")
-		}
-		if target.modelConfigID.UUID == chat.LastModelConfigID {
-			return nil
-		}
-		config, err := store.GetChatModelConfigByID(ownerCtx, target.modelConfigID.UUID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) || dbauthz.IsNotAuthorizedError(err) {
-				return automationFieldError("new_chat_model_config_id", "model config not found")
-			}
-			return xerrors.New("failed to load model config")
-		}
-		callConfig, err := parseModelConfigOptions(config.Options)
-		if err != nil || len(buildProviderTools(callConfig.ProviderOptions)) > 0 {
-			return xerrors.New("a new_chat automation managed by this tool must use this chat's model config or a model config without provider tools such as web search")
 		}
 		return nil
 	default:
@@ -719,23 +681,6 @@ func parseManageAutomationsProjectID(value *string) (*uuid.UUID, error) {
 		return &none, nil
 	}
 	return parseManageAutomationsUUID("project_id", value)
-}
-
-// manageAutomationsVisible reports whether the tool may see row. Rows of
-// other owners or organizations are never visible, even when the owner
-// could read them as an administrator. In a turn an automation reached,
-// only automations that target this chat or that created it are visible.
-func manageAutomationsVisible(chat database.Chat, trigger automationTurnTrigger, row database.ChatAutomation) bool {
-	if row.OwnerID != chat.OwnerID || row.OrganizationID != chat.OrganizationID {
-		return false
-	}
-	if !trigger.AutomationID.Valid {
-		return true
-	}
-	targetsChat := row.TargetMode == database.ChatAutomationTargetModeExistingChat &&
-		row.TargetChatID.Valid && row.TargetChatID.UUID == chat.ID
-	createdChat := chat.AutomationID.Valid && chat.AutomationID.UUID == row.ID
-	return targetsChat || createdChat
 }
 
 // manageAutomationsAutomation is the tool's view of an automation: the
@@ -785,8 +730,10 @@ func (p *Server) manageAutomationsError(ctx context.Context, logger slog.Logger,
 	switch {
 	case errors.As(err, &containmentErr):
 		return containmentErr.err
-	case errors.Is(err, ErrAutomationNotFound), dbauthz.IsNotAuthorizedError(err):
+	case errors.Is(err, ErrAutomationNotFound):
 		return errManageAutomationsNotFound
+	case dbauthz.IsNotAuthorizedError(err):
+		return errManageAutomationsOwnerOnly
 	case errors.As(err, &validationErr):
 		return validationErr
 	case errors.As(err, &denied):
