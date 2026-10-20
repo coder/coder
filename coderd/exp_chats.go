@@ -7310,8 +7310,9 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 	api.serveChatFile(r.Context(), rw, chatFile)
 }
 
-// servableChatFile loads a chat file for a download route. Workspace files are refused from their metadata, before their bytes are
-// loaded: they may be 100 MiB and exist only to be copied into the chat's
+// servableChatFile loads a chat file for a download route. Workspace
+// files are refused from their metadata, before their bytes are loaded:
+// they may be 100 MiB and exist only to be copied into the chat's
 // workspace. ok is false when a refusal was written; err reports a failed
 // lookup for the caller to answer.
 func (api *API) servableChatFile(ctx context.Context, rw http.ResponseWriter, fileID uuid.UUID) (chatFile database.ChatFile, ok bool, err error) {
