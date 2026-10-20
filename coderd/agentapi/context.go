@@ -31,8 +31,8 @@ import (
 // cannot trust a workspace process, so pushes are re-validated here
 // with headroom above the agent caps:
 //
-//   - maxContextResourcesPerPush allows excluded stub entries past
-//     the agent's 500-resource cap.
+//   - workspacesdk.MaxContextResources allows excluded stub entries
+//     past the agent's 500-resource cap.
 //   - maxContextResourceBodyBytes covers protojson and base64
 //     expansion of a 64KiB payload.
 //   - maxContextAggregateBodyBytes matches the 4MiB DRPC message
@@ -41,11 +41,8 @@ import (
 //     source doubles as a btree primary key column, which PostgreSQL
 //     limits to roughly 2704 bytes per index entry.
 const (
-	maxContextResourcesPerPush   = 1000
 	maxContextResourceBodyBytes  = 256 * 1024
 	maxContextAggregateBodyBytes = 4 * 1024 * 1024
-	maxContextSourceBytes        = 1024
-	maxContextErrorBytes         = 4096
 	maxContextHashBytes          = 64
 )
 
@@ -271,11 +268,11 @@ func validateContextPushRequest(req *agentproto.PushContextStateRequest) error {
 	if len(req.AggregateHash) > maxContextHashBytes {
 		return xerrors.Errorf("agentapi: PushContextState aggregate hash is %d bytes, exceeds %d byte cap", len(req.AggregateHash), maxContextHashBytes)
 	}
-	if len(req.SnapshotError) > maxContextErrorBytes {
-		return xerrors.Errorf("agentapi: PushContextState snapshot error is %d bytes, exceeds %d byte cap", len(req.SnapshotError), maxContextErrorBytes)
+	if len(req.SnapshotError) > workspacesdk.MaxContextErrorBytes {
+		return xerrors.Errorf("agentapi: PushContextState snapshot error is %d bytes, exceeds %d byte cap", len(req.SnapshotError), workspacesdk.MaxContextErrorBytes)
 	}
-	if n := contextResourceCount(req.Resources); n > maxContextResourcesPerPush {
-		return xerrors.Errorf("agentapi: PushContextState has %d resources, exceeds %d resource cap", n, maxContextResourcesPerPush)
+	if n := contextResourceCount(req.Resources); n > workspacesdk.MaxContextResources {
+		return xerrors.Errorf("agentapi: PushContextState has %d resources, exceeds %d resource cap", n, workspacesdk.MaxContextResources)
 	}
 	return nil
 }
@@ -366,19 +363,19 @@ func (c *contextRowConverter) add(r *agentproto.ContextResource, location, plugi
 	if r.Source == "" {
 		return xerrors.Errorf("agentapi: PushContextState %s has empty source", location)
 	}
-	if len(r.Source) > maxContextSourceBytes {
-		return xerrors.Errorf("agentapi: PushContextState %s has %d byte source, exceeds %d byte cap", location, len(r.Source), maxContextSourceBytes)
+	if len(r.Source) > workspacesdk.MaxContextSourceBytes {
+		return xerrors.Errorf("agentapi: PushContextState %s has %d byte source, exceeds %d byte cap", location, len(r.Source), workspacesdk.MaxContextSourceBytes)
 	}
 	if _, ok := c.seen[r.Source]; ok {
 		return xerrors.Errorf("agentapi: PushContextState duplicate source %q", r.Source)
 	}
 	c.seen[r.Source] = struct{}{}
 
-	if len(r.GetSourcePath()) > maxContextSourceBytes {
-		return xerrors.Errorf("resource %q: source path is %d bytes, exceeds %d byte cap", r.Source, len(r.GetSourcePath()), maxContextSourceBytes)
+	if len(r.GetSourcePath()) > workspacesdk.MaxContextSourceBytes {
+		return xerrors.Errorf("resource %q: source path is %d bytes, exceeds %d byte cap", r.Source, len(r.GetSourcePath()), workspacesdk.MaxContextSourceBytes)
 	}
-	if len(r.Error) > maxContextErrorBytes {
-		return xerrors.Errorf("resource %q: error is %d bytes, exceeds %d byte cap", r.Source, len(r.Error), maxContextErrorBytes)
+	if len(r.Error) > workspacesdk.MaxContextErrorBytes {
+		return xerrors.Errorf("resource %q: error is %d bytes, exceeds %d byte cap", r.Source, len(r.Error), workspacesdk.MaxContextErrorBytes)
 	}
 	if len(r.ContentHash) > maxContextHashBytes {
 		return xerrors.Errorf("resource %q: content hash is %d bytes, exceeds %d byte cap", r.Source, len(r.ContentHash), maxContextHashBytes)
