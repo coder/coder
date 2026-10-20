@@ -13,8 +13,7 @@ Refer to [Database management of providers](./providers.md#database-management-o
 
 ## Activation
 
-The AI Gateway feature must be enabled in the Coder deployment configuration before
-embedded or standalone gateway instances can serve authenticated traffic.
+The AI Gateway feature must be enabled in the Coder deployment configuration before embedded or standalone gateway instances can serve authenticated traffic.
 
 _AI Gateway is enabled by default as of v2.34._
 
@@ -33,9 +32,9 @@ It is required for gateway key management endpoints to work and for standalone r
 
 Configure at least one provider before exposing AI Gateway to end users.
 
-Providers are deployment-scoped. Add them from the dashboard or the
-[AI Providers API](../../reference/api/aiproviders.md). Changes take effect
-without restarting `coderd`.
+Providers are deployment-scoped.
+Add them from the dashboard or the [AI Providers API](../../reference/api/aiproviders.md).
+Changes take effect without restarting `coderd`.
 
 ### Dashboard
 
@@ -46,28 +45,24 @@ without restarting `coderd`.
 1. Enter a unique lowercase name, the upstream endpoint, and the credentials
 1. Save the provider
 
-Each provider gets its own AI Gateway route at
-`/api/v2/ai-gateway/<provider-name>/`.
+Each provider gets its own AI Gateway route at `/api/v2/ai-gateway/<provider-name>/`.
 
 > [!NOTE]
-> Provider names must be unique and use lowercase, hyphen-separated identifiers
-> such as `anthropic-corp` or `azure-openai`. Once deleted, another provider
-> may reuse the name.
+> Provider names must be unique and use lowercase, hyphen-separated identifiers such as `anthropic-corp` or `azure-openai`.
+> Once deleted, another provider may reuse the name.
 
 ![AI Providers list page](../../images/aibridge/providers-list.png)
 
 ![Add Anthropic provider form](../../images/aibridge/provider-add-anthropic.png)
 
-Open an existing provider to rotate credentials, update its endpoint, or
-disable it without restarting `coderd`.
+Open an existing provider to rotate credentials, update its endpoint, or disable it without restarting `coderd`.
 
 ![Edit Anthropic provider form](../../images/aibridge/provider-edit-anthropic.png)
 
 ## API Dumps
 
 AI Gateway can dump provider request and response pairs to disk for debugging.
-Configure the dump directory with `--ai-gateway-dump-dir` or
-`CODER_AI_GATEWAY_DUMP_DIR`:
+Configure the dump directory with `--ai-gateway-dump-dir` or `CODER_AI_GATEWAY_DUMP_DIR`:
 
 ```sh
 coder server --ai-gateway-dump-dir=/var/lib/coder/ai-gateway-dumps
@@ -81,22 +76,18 @@ ai_gateway:
 ```
 
 This top-level setting replaces the previous per-provider `DUMP_DIR` field.
-For each provider, AI Gateway writes dumps under `<base>/<provider_name>`, where
-`<base>` is the configured dump directory and `<provider_name>` is the provider
-instance name used in the route. For example, a provider named `anthropic-corp`
-with `/var/lib/coder/ai-gateway-dumps` configured writes to
-`/var/lib/coder/ai-gateway-dumps/anthropic-corp`.
+For each provider, AI Gateway writes dumps under `<base>/<provider_name>`, where `<base>` is the configured dump directory and `<provider_name>` is the provider instance name used in the route.
+For example, a provider named `anthropic-corp` with `/var/lib/coder/ai-gateway-dumps` configured writes to `/var/lib/coder/ai-gateway-dumps/anthropic-corp`.
 
-Sensitive headers are redacted before dumps are written. Leave the value empty
-to disable dumping.
+Sensitive headers are redacted before dumps are written.
+Leave the value empty to disable dumping.
 
 Each [standalone gateway](./standalone.md) replica accepts the same API dump settings and writes optional dumps to its own local disk.
 
 > [!WARNING]
-> API dumps are intended for short diagnostic sessions only. Dump files contain
-> raw request and response data, which may include proprietary or sensitive
-> information such as prompts, completions, and tool inputs. Protect the target
-> directory and disable dumping when diagnostics are complete.
+> API dumps are intended for short diagnostic sessions only.
+> Dump files contain raw request and response data, which may include proprietary or sensitive information such as prompts, completions, and tool inputs.
+> Protect the target directory and disable dumping when diagnostics are complete.
 
 ## Send actor headers
 
@@ -126,8 +117,8 @@ For defaults, precedence, and privacy considerations, refer to [Actor header for
 
 ## Data Retention
 
-AI Gateway records prompts, token usage, tool invocations, and model reasoning for auditing and
-monitoring purposes. By default, this data is retained for **60 days**.
+AI Gateway records prompts, token usage, tool invocations, and model reasoning for auditing and monitoring purposes.
+By default, this data is retained for **60 days**.
 
 Configure retention using `--ai-gateway-retention` or `CODER_AI_GATEWAY_RETENTION`:
 
@@ -144,13 +135,11 @@ ai_gateway:
 
 Set to `0` to retain data indefinitely.
 
-For duration formats, how retention works, and best practices, see the
-[Data Retention](../../admin/setup/data-retention.md) documentation.
+For duration formats, how retention works, and best practices, see the [Data Retention](../../admin/setup/data-retention.md) documentation.
 
 ## Structured Logging
 
-AI Gateway can emit structured logs for every interception record, making it
-straightforward to export data to external SIEM or observability platforms.
+AI Gateway can emit structured logs for every interception record, making it straightforward to export data to external SIEM or observability platforms.
 
 Enable with `--ai-gateway-structured-logging` or `CODER_AI_GATEWAY_STRUCTURED_LOGGING`:
 
@@ -165,12 +154,8 @@ ai_gateway:
   structured_logging: true
 ```
 
-These logs are written to the same output stream as all other `coderd` logs,
-using the format configured by
-[`--log-human`](../../reference/cli/server/index.md#--log-human) (default, writes to
-stderr) or [`--log-json`](../../reference/cli/server/index.md#--log-json). For machine
-ingestion, set `--log-json` to a file path or `/dev/stderr` so that records are
-emitted as JSON.
+These logs are written to the same output stream as all other `coderd` logs, using the format configured by [`--log-human`](../../reference/cli/server/index.md#--log-human) (default, writes to stderr) or [`--log-json`](../../reference/cli/server/index.md#--log-json).
+For machine ingestion, set `--log-json` to a file path or `/dev/stderr` so that records are emitted as JSON.
 
 ### Choose which process emits the records
 
@@ -243,9 +228,8 @@ Disabling content recording is a governance trade-off, not only a storage saving
 
 Token counts, spend, model and provider attribution, and request volume are all unaffected, as are the [Prometheus metrics](./monitoring.md) for prompt and tool call counts.
 
-Filter for AI Gateway records in your logging pipeline by matching on the
-`"interception log"` message. Each log line includes a `record_type` field that
-indicates the kind of event captured:
+Filter for AI Gateway records in your logging pipeline by matching on the `"interception log"` message.
+Each log line includes a `record_type` field that indicates the kind of event captured:
 
 | `record_type`        | Description                             | Key fields                                                                     |
 |----------------------|-----------------------------------------|--------------------------------------------------------------------------------|

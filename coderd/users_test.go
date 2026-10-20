@@ -24,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
@@ -3076,129 +3075,6 @@ func TestDormantUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, users.Users, 1)
 	require.Equal(t, codersdk.UserStatusActive, users.Users[0].Status)
-}
-
-func TestUserAutofillParameters(t *testing.T) {
-	t.Parallel()
-	t.Run("NotSelf", func(t *testing.T) {
-		t.Parallel()
-		client1, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
-
-		u1 := coderdtest.CreateFirstUser(t, client1)
-
-		client2, u2 := coderdtest.CreateAnotherUser(t, client1, u1.OrganizationID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		db := api.Database
-
-		version := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
-			CreatedBy:      u1.UserID,
-			OrganizationID: u1.OrganizationID,
-		}).Params(database.TemplateVersionParameter{
-			Name:     "param",
-			Required: true,
-		}).Do()
-
-		_, err := client2.UserAutofillParameters(
-			ctx,
-			u1.UserID.String(),
-			version.Template.ID,
-		)
-
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
-
-		// u1 should be able to read u2's parameters as u1 is site admin.
-		_, err = client1.UserAutofillParameters(
-			ctx,
-			u2.ID.String(),
-			version.Template.ID,
-		)
-		require.NoError(t, err)
-	})
-
-	t.Run("FindsParameters", func(t *testing.T) {
-		t.Parallel()
-		client1, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
-
-		u1 := coderdtest.CreateFirstUser(t, client1)
-
-		client2, u2 := coderdtest.CreateAnotherUser(t, client1, u1.OrganizationID)
-
-		db := api.Database
-
-		version := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
-			CreatedBy:      u1.UserID,
-			OrganizationID: u1.OrganizationID,
-		}).Params(database.TemplateVersionParameter{
-			Name:     "param",
-			Required: true,
-		},
-			database.TemplateVersionParameter{
-				Name:      "param2",
-				Ephemeral: true,
-			},
-		).Do()
-
-		dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OwnerID:        u2.ID,
-			TemplateID:     version.Template.ID,
-			OrganizationID: u1.OrganizationID,
-		}).Params(
-			database.WorkspaceBuildParameter{
-				Name:  "param",
-				Value: "foo",
-			},
-			database.WorkspaceBuildParameter{
-				Name:  "param2",
-				Value: "bar",
-			},
-		).Do()
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		// Use client2 since client1 is site admin, so
-		// we don't get good coverage on RBAC working.
-		params, err := client2.UserAutofillParameters(
-			ctx,
-			u2.ID.String(),
-			version.Template.ID,
-		)
-		require.NoError(t, err)
-
-		require.Equal(t, 1, len(params))
-
-		require.Equal(t, "param", params[0].Name)
-		require.Equal(t, "foo", params[0].Value)
-
-		// Verify that latest parameter value is returned.
-		dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: u1.OrganizationID,
-			OwnerID:        u2.ID,
-			TemplateID:     version.Template.ID,
-		}).Params(
-			database.WorkspaceBuildParameter{
-				Name:  "param",
-				Value: "foo_new",
-			},
-		).Do()
-
-		params, err = client2.UserAutofillParameters(
-			ctx,
-			u2.ID.String(),
-			version.Template.ID,
-		)
-		require.NoError(t, err)
-
-		require.Equal(t, 1, len(params))
-
-		require.Equal(t, "param", params[0].Name)
-		require.Equal(t, "foo_new", params[0].Value)
-	})
 }
 
 // TestPaginatedUsers creates a list of users, then tries to paginate through

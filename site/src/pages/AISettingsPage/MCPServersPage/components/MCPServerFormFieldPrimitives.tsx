@@ -61,9 +61,9 @@ export const CollapsibleSection: React.FC<{
 		>
 			<CollapsibleTrigger className="flex w-full cursor-pointer items-start gap-2 border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary">
 				{open ? (
-					<ChevronDownIcon className="mt-0.5 size-4 shrink-0 text-content-primary" />
+					<ChevronDownIcon className="mt-1 size-4 shrink-0 text-content-primary" />
 				) : (
-					<ChevronRightIcon className="mt-0.5 size-4 shrink-0 text-content-primary" />
+					<ChevronRightIcon className="mt-1 size-4 shrink-0 text-content-primary" />
 				)}
 				<div>
 					<h3 className="m-0 text-sm font-medium text-content-primary">

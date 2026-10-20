@@ -286,7 +286,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 						onKeyDown={handleQuickPickKeyDown}
 						className={cn(
 							"flex flex-col gap-0.5 p-2 text-sm",
-							customExpanded && "border-r border-border-default",
+							customExpanded && "border-r border-border",
 						)}
 					>
 						{quickPresets.map((preset, index) => (
@@ -336,7 +336,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 							</div>
 
 							{/* From/To time fields */}
-							<div className="flex flex-col gap-2 border-t border-border-default px-3 py-3">
+							<div className="flex flex-col gap-2 border-t border-border px-3 py-3">
 								<TimeRow
 									id={fromTimeId}
 									label="From"
@@ -391,7 +391,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 							</div>
 
 							{/* Apply footer */}
-							<div className="flex items-center justify-end gap-2 border-t border-border-default px-3 py-2">
+							<div className="flex items-center justify-end gap-2 border-t border-border px-3 py-2">
 								<Button
 									variant="subtle"
 									size="sm"

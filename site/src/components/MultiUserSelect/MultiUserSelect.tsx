@@ -39,7 +39,7 @@ export const MultiUserSelect: React.FC<UserAutocompleteProps> = ({
 }) => {
 	const usersQuery = useQuery({
 		...users({
-			q: prepareQuery(encodeURI(filter ?? "")),
+			q: prepareQuery(filter ?? ""),
 			limit: 25,
 		}),
 		placeholderData: keepPreviousData,
@@ -68,7 +68,7 @@ export const MultiMemberSelect: React.FC<MemberAutocompleteProps> = ({
 }) => {
 	const membersQuery = useQuery({
 		...organizationMembers(organizationId, {
-			q: prepareQuery(encodeURI(filter ?? "")),
+			q: prepareQuery(filter ?? ""),
 			limit: 25,
 		}),
 		placeholderData: keepPreviousData,

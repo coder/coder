@@ -47,6 +47,10 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"file:create": {},
 	"file:*":      {},
 
+	// Inbox notifications. No wildcard: it would grant create, which stays internal.
+	"inbox_notification:read":   {},
+	"inbox_notification:update": {},
+
 	// Users
 	"user:read":            {},
 	"user:read_personal":   {},
@@ -66,6 +70,14 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"user_skill:update": {},
 	"user_skill:delete": {},
 	"user_skill:*":      {},
+
+	// Organization skills
+	"organization_skill:read":   {},
+	"organization_skill:create": {},
+	"organization_skill:update": {},
+	"organization_skill:delete": {},
+	"organization_skill:share":  {},
+	"organization_skill:*":      {},
 
 	// Organizations
 	"organization:read":   {},

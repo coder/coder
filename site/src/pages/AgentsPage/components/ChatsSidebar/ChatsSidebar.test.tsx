@@ -1,28 +1,46 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
+import { useState } from "react";
 import { QueryClientProvider } from "react-query";
-import { MemoryRouter, useLocation } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
+	MockChatProject,
 	MockDefaultOrganization,
 	MockEntitlements,
+	MockOrganization2,
 	MockUserOwner,
+	mockApiError,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import themes, { DEFAULT_THEME } from "#/theme";
 import {
 	AGENT_CHAT_STATUS_ORDER,
 	type AgentSidebarFilters,
 } from "../../utils/agentSidebarFilters";
+import { NIL_UUID } from "../../utils/modelOptions";
+import { projectsSectionCollapsedStorageKey } from "../../utils/projectsSectionStorage";
+import { draftStorageKeys } from "../AgentCreateForm";
 import { ChatsSidebar } from "./ChatsSidebar";
 
 // ---- IntersectionObserver mock ----
@@ -68,31 +86,33 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...overrides,
 });
 
-const dashboardValue = {
-	entitlements: MockEntitlements,
-	experiments: [] as TypesGen.Experiment[],
-	appearance: MockAppearanceConfig,
-	buildInfo: MockBuildInfo,
-	organizations: [MockDefaultOrganization],
-	showOrganizations: false,
-	canViewOrganizationSettings: false,
-};
-
-type WrapperProps = {
-	children: React.ReactNode;
-	initialPath?: string;
-};
+type WrapperProps = React.PropsWithChildren<{
+	experiments?: TypesGen.Experiment[];
+	organizations?: TypesGen.Organization[];
+	initialEntry?: string;
+}>;
 
 const Wrapper: React.FC<WrapperProps> = ({
 	children,
-	initialPath = "/agents",
+	experiments = [],
+	organizations = [MockDefaultOrganization],
+	initialEntry = "/agents",
 }) => {
 	const queryClient = createTestQueryClient();
+	const dashboardValue = {
+		entitlements: MockEntitlements,
+		experiments,
+		appearance: MockAppearanceConfig,
+		buildInfo: MockBuildInfo,
+		organizations,
+		showOrganizations: false,
+		canViewOrganizationSettings: false,
+	};
 	return (
 		<QueryClientProvider client={queryClient}>
 			<ThemeOverride theme={themes[DEFAULT_THEME]}>
 				<TooltipProvider>
-					<MemoryRouter initialEntries={[initialPath]}>
+					<MemoryRouter initialEntries={[initialEntry]}>
 						<DashboardContext.Provider value={dashboardValue}>
 							{children}
 						</DashboardContext.Provider>
@@ -101,6 +121,11 @@ const Wrapper: React.FC<WrapperProps> = ({
 			</ThemeOverride>
 		</QueryClientProvider>
 	);
+};
+
+const ProjectLocationProbe: React.FC = () => {
+	const location = useLocation();
+	return <div data-testid="location-pathname">{location.pathname}</div>;
 };
 
 const defaultSidebarFilters: AgentSidebarFilters = {
@@ -116,13 +141,7 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	chats: [buildChat({ id: "chat-1", title: "Chat One" })],
 	chatErrorReasons: {},
 	modelConfigs: [],
-	onArchiveAgent: vi.fn(),
-	onUnarchiveAgent: vi.fn(),
-	onArchiveAndDeleteWorkspace: vi.fn(),
-	onPinAgent: vi.fn(),
-	onUnpinAgent: vi.fn(),
-	onMarkChatRead: vi.fn(),
-	onMarkChatUnread: vi.fn(),
+	navigateAfterArchive: vi.fn(),
 	onRenameTitle: vi.fn(async () => {}),
 	onBeforeNewAgent: vi.fn(),
 	isSearchDialogOpen: false,
@@ -133,7 +152,532 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	currentUserId: MockUserOwner.id,
 };
 
-// ---- Tests ----
+describe("ChatsSidebar projects", () => {
+	it("keeps a newer delete dialog open when an earlier delete finishes", async () => {
+		const user = userEvent.setup();
+		const mockOtherProject = {
+			...MockChatProject,
+			id: "other-project",
+			name: "Other",
+		};
+		let finishDelete: () => void = () => {};
+		const deleteFinished = new Promise<void>((resolve) => {
+			finishDelete = resolve;
+		});
+		const deletedProjectIds: string[] = [];
+		let projectListRequests = 0;
+		server.use(
+			http.get("/api/experimental/chats/projects", () => {
+				projectListRequests += 1;
+				return HttpResponse.json([MockChatProject, mockOtherProject]);
+			}),
+			http.delete(
+				"/api/experimental/organizations/:organization/chats/projects/:project",
+				async ({ params }) => {
+					deletedProjectIds.push(String(params.project));
+					if (params.project === MockChatProject.id) {
+						await deleteFinished;
+					}
+					return new HttpResponse(null, { status: 204 });
+				},
+			),
+		);
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		const deleteProject = async (name: string) => {
+			await user.click(
+				await screen.findByRole("button", {
+					name: `Open project actions for ${name}`,
+				}),
+			);
+			await user.click(
+				screen.getByRole("menuitem", { name: "Delete project" }),
+			);
+			await user.type(await screen.findByRole("textbox"), name);
+		};
+
+		await deleteProject(MockChatProject.name);
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+		await waitFor(() =>
+			expect(deletedProjectIds).toEqual([MockChatProject.id]),
+		);
+		await user.keyboard("{Escape}");
+		await deleteProject(mockOtherProject.name);
+		// One delete runs at a time, so the earlier one keeps its callbacks.
+		expect(screen.getByRole("button", { name: /Delete$/ })).toBeDisabled();
+
+		const requestsBeforeFinish = projectListRequests;
+		finishDelete();
+		// The finished delete refetches the project list.
+		await waitFor(() =>
+			expect(projectListRequests).toBeGreaterThan(requestsBeforeFinish),
+		);
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+		await waitFor(() =>
+			expect(deletedProjectIds).toEqual([
+				MockChatProject.id,
+				mockOtherProject.id,
+			]),
+		);
+	});
+
+	it("shows the Chats empty state once every chat is known to be in a project", async () => {
+		let resolveProjects: () => void = () => {};
+		const projectsLoaded = new Promise<void>((resolve) => {
+			resolveProjects = resolve;
+		});
+		let projectsRequested = false;
+		server.use(
+			http.get("/api/experimental/chats/projects", async () => {
+				projectsRequested = true;
+				await projectsLoaded;
+				return HttpResponse.json([MockChatProject]);
+			}),
+		);
+		const mockProjectChat = buildChat({
+			id: "project-chat",
+			title: "Project chat",
+			organization_id: MockChatProject.organization_id,
+			project_id: MockChatProject.id,
+		});
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar {...defaultProps} chats={[mockProjectChat]} />
+			</Wrapper>,
+		);
+
+		// The chat's project is still loading, so its chat may yet be unfiled.
+		await waitFor(() => expect(projectsRequested).toBe(true));
+		expect(screen.queryByText("No agents yet")).toBeNull();
+
+		resolveProjects();
+		await screen.findByRole("link", { name: MockChatProject.name });
+		expect(screen.getByText("No agents yet")).toBeInTheDocument();
+		expect(screen.queryByRole("link", { name: /Project chat/ })).toBeNull();
+	});
+
+	it("keeps project chats out of the chat sections while projects load", async () => {
+		let resolveProjects: () => void = () => {};
+		const projectsLoaded = new Promise<void>((resolve) => {
+			resolveProjects = resolve;
+		});
+		let projectsRequested = false;
+		server.use(
+			http.get("/api/experimental/chats/projects", async () => {
+				projectsRequested = true;
+				await projectsLoaded;
+				return HttpResponse.json([MockChatProject]);
+			}),
+		);
+		const mockProjectChat = buildChat({
+			id: "project-chat",
+			title: "Project chat",
+			organization_id: MockChatProject.organization_id,
+			project_id: MockChatProject.id,
+		});
+		const mockLooseChat = buildChat({ id: "loose-chat", title: "Loose chat" });
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[mockProjectChat, mockLooseChat]}
+				/>
+			</Wrapper>,
+		);
+
+		await waitFor(() => expect(projectsRequested).toBe(true));
+		await screen.findByRole("link", { name: /Loose chat/ });
+		expect(screen.queryByRole("link", { name: /Project chat/ })).toBeNull();
+
+		resolveProjects();
+		await screen.findByRole("link", { name: MockChatProject.name });
+		expect(screen.queryByRole("link", { name: /Project chat/ })).toBeNull();
+	});
+
+	it.each([false, true])(
+		"creates a project when there are no chats (select another organization: %s)",
+		async (selectAnotherOrganization) => {
+			const user = userEvent.setup();
+			let requestBody: unknown;
+			let requestOrganizationID: string | undefined;
+			let isProjectCreated = false;
+			server.use(
+				http.get("/api/experimental/chats/projects", () =>
+					HttpResponse.json(isProjectCreated ? [MockChatProject] : []),
+				),
+				http.post(
+					"/api/experimental/organizations/:organizationId/chats/projects",
+					async ({ request, params }) => {
+						requestOrganizationID = String(params.organizationId);
+						requestBody = await request.json();
+						isProjectCreated = true;
+						return HttpResponse.json(MockChatProject);
+					},
+				),
+			);
+
+			render(
+				<Wrapper
+					experiments={["chat-projects"]}
+					organizations={[MockOrganization2, MockDefaultOrganization]}
+				>
+					<ChatsSidebar {...defaultProps} chats={[]} />
+					<ProjectLocationProbe />
+				</Wrapper>,
+			);
+
+			await user.click(
+				await screen.findByRole("button", { name: "New project" }),
+			);
+			const dialog = await screen.findByRole("dialog", {
+				name: "Create a project",
+			});
+			await user.type(
+				within(dialog).getByRole("textbox", { name: /Project name/ }),
+				"New project name",
+			);
+			await user.type(
+				within(dialog).getByRole("textbox", { name: "Description" }),
+				"Project description",
+			);
+			if (selectAnotherOrganization) {
+				await user.click(
+					within(dialog).getByRole("combobox", { name: /Organization/ }),
+				);
+				await user.click(
+					screen.getByRole("option", {
+						name: new RegExp(MockOrganization2.display_name),
+					}),
+				);
+			}
+			await user.click(screen.getByRole("button", { name: "Create project" }));
+
+			await waitFor(() => {
+				expect(requestOrganizationID).toBe(
+					selectAnotherOrganization
+						? MockOrganization2.id
+						: MockDefaultOrganization.id,
+				);
+				expect(requestBody).toEqual({
+					name: "New project name",
+					description: "Project description",
+					icon: "",
+				});
+			});
+			await waitFor(() =>
+				expect(screen.getByTestId("location-pathname")).toHaveTextContent(
+					`/agents/projects/${MockChatProject.id}`,
+				),
+			);
+			expect(
+				await screen.findByRole("link", { name: MockChatProject.name }),
+			).toHaveAttribute("aria-current", "page");
+		},
+	);
+
+	it("uses the first accessible organization when no default is available", async () => {
+		const user = userEvent.setup();
+		let requestBody: unknown;
+		let requestOrganizationID: string | undefined;
+		server.use(
+			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
+			http.post(
+				"/api/experimental/organizations/:organizationId/chats/projects",
+				async ({ request, params }) => {
+					requestOrganizationID = String(params.organizationId);
+					requestBody = await request.json();
+					return HttpResponse.json({
+						...MockChatProject,
+						organization_id: MockOrganization2.id,
+					});
+				},
+			),
+		);
+
+		render(
+			<Wrapper
+				experiments={["chat-projects"]}
+				organizations={[MockOrganization2]}
+			>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", { name: "New project" }),
+		);
+		const dialog = await screen.findByRole("dialog", {
+			name: "Create a project",
+		});
+		await user.type(
+			within(dialog).getByRole("textbox", { name: /Project name/ }),
+			"Accessible project",
+		);
+		await user.click(screen.getByRole("button", { name: "Create project" }));
+
+		await waitFor(() => {
+			expect(requestOrganizationID).toBe(MockOrganization2.id);
+			expect(requestBody).toMatchObject({ name: "Accessible project" });
+		});
+	});
+
+	it("retries a failed projects request", async () => {
+		const user = userEvent.setup();
+		let requestCount = 0;
+		server.use(
+			http.get("/api/experimental/chats/projects", () => {
+				requestCount++;
+				return requestCount === 1
+					? HttpResponse.json(
+							{ message: "Projects unavailable" },
+							{ status: 500 },
+						)
+					: HttpResponse.json([]);
+			}),
+		);
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await user.click(await screen.findByRole("button", { name: "Retry" }));
+
+		await waitFor(() => expect(requestCount).toBe(2));
+	});
+
+	it("deletes the viewed project and its drafts, then leaves its page", async () => {
+		const user = userEvent.setup();
+		const draftKeys = draftStorageKeys(MockChatProject.id);
+		localStorage.setItem(draftKeys.text, "project draft");
+		localStorage.setItem(draftKeys.attachments, "[]");
+		let deletedProjectID: string | undefined;
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			http.delete(
+				"/api/experimental/organizations/:organizationId/chats/projects/:projectId",
+				({ params }) => {
+					deletedProjectID = String(params.projectId);
+					return new HttpResponse(null, { status: 204 });
+				},
+			),
+		);
+
+		render(
+			<Wrapper
+				experiments={["chat-projects"]}
+				initialEntry={`/agents/projects/${MockChatProject.id}`}
+			>
+				<ChatsSidebar {...defaultProps} />
+				<ProjectLocationProbe />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Open project actions for ${MockChatProject.name}`,
+			}),
+		);
+		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+		await user.type(
+			screen.getByLabelText("Name of the project to delete"),
+			MockChatProject.name,
+		);
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+
+		await waitFor(() => {
+			expect(deletedProjectID).toBe(MockChatProject.id);
+		});
+		await waitFor(() => {
+			expect(localStorage.getItem(draftKeys.text)).toBeNull();
+		});
+		expect(localStorage.getItem(draftKeys.attachments)).toBeNull();
+		await waitFor(() =>
+			expect(screen.getByTestId("location-pathname")).toHaveTextContent(
+				/^\/agents$/,
+			),
+		);
+	});
+
+	it("reports a failed project deletion", async () => {
+		const user = userEvent.setup();
+		const toastError = vi.spyOn(toast, "error");
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			http.delete(
+				"/api/experimental/organizations/:organizationId/chats/projects/:projectId",
+				() =>
+					HttpResponse.json({ message: "Project is locked" }, { status: 500 }),
+			),
+		);
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Open project actions for ${MockChatProject.name}`,
+			}),
+		);
+		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+		await user.type(
+			screen.getByLabelText("Name of the project to delete"),
+			MockChatProject.name,
+		);
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+
+		await waitFor(() => {
+			expect(toastError).toHaveBeenCalledWith("Project is locked");
+		});
+	});
+
+	it("names the organization when deleting a project whose name is shared", async () => {
+		const user = userEvent.setup();
+		const mockOtherProject = {
+			...MockChatProject,
+			id: "other-project",
+			organization_id: MockOrganization2.id,
+		};
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject, mockOtherProject]),
+			),
+		);
+
+		render(
+			<Wrapper
+				experiments={["chat-projects"]}
+				organizations={[MockDefaultOrganization, MockOrganization2]}
+			>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Open project actions for ${MockChatProject.name} (${MockOrganization2.display_name})`,
+			}),
+		);
+		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+
+		expect(
+			await screen.findByRole("dialog", {
+				name: `Delete "${MockChatProject.name}" from ${MockOrganization2.display_name}`,
+			}),
+		).toBeInTheDocument();
+	});
+
+	it("opens the folder of the project being viewed until the user collapses it", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+		);
+
+		render(
+			<Wrapper
+				experiments={["chat-projects"]}
+				initialEntry={`/agents/projects/${MockChatProject.id}`}
+			>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Collapse ${MockChatProject.name}`,
+			}),
+		);
+		await user.click(
+			screen.getByRole("button", { name: `Expand ${MockChatProject.name}` }),
+		);
+		expect(
+			screen.getByRole("link", { name: MockChatProject.name }),
+		).toHaveAttribute("aria-current", "page");
+		expect(screen.getByRole("link", { name: "New chat" })).not.toHaveAttribute(
+			"aria-current",
+		);
+	});
+
+	it("keeps other folders open when opening a chat in another project", async () => {
+		const user = userEvent.setup();
+		const mockOtherProject = {
+			...MockChatProject,
+			id: "chat-project-2",
+			name: "Research",
+		};
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject, mockOtherProject]),
+			),
+		);
+		const mockFirstProjectChat = buildChat({
+			id: "first-project-chat",
+			title: "First project chat",
+			organization_id: MockChatProject.organization_id,
+			project_id: MockChatProject.id,
+		});
+		const mockOtherProjectChat = buildChat({
+			id: "other-project-chat",
+			title: "Other project chat",
+			organization_id: mockOtherProject.organization_id,
+			project_id: mockOtherProject.id,
+		});
+
+		render(
+			<Wrapper
+				experiments={["chat-projects"]}
+				initialEntry={`/agents/${mockFirstProjectChat.id}`}
+			>
+				<Routes>
+					<Route
+						path="/agents/:agentId"
+						element={
+							<ChatsSidebar
+								{...defaultProps}
+								chats={[mockFirstProjectChat, mockOtherProjectChat]}
+							/>
+						}
+					/>
+				</Routes>
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Expand ${mockOtherProject.name}`,
+			}),
+		);
+		await user.click(screen.getByRole("link", { name: /Other project chat/ }));
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("link", { name: /Other project chat/ }),
+			).toHaveAttribute("aria-current", "page"),
+		);
+		expect(
+			screen.getByRole("button", { name: `Collapse ${MockChatProject.name}` }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: `Collapse ${mockOtherProject.name}` }),
+		).toBeInTheDocument();
+	});
+});
 
 describe("ChatsSidebar section switcher", () => {
 	const LocationProbe: React.FC = () => {
@@ -149,7 +693,7 @@ describe("ChatsSidebar section switcher", () => {
 		const user = userEvent.setup();
 
 		render(
-			<Wrapper initialPath="/agents/chat-1">
+			<Wrapper initialEntry="/agents/chat-1">
 				<ChatsSidebar {...defaultProps} />
 				<LocationProbe />
 			</Wrapper>,
@@ -245,25 +789,844 @@ describe("ChatsSidebar sections", () => {
 	});
 });
 
+describe("ChatsSidebar pin actions", () => {
+	afterEach(() => vi.restoreAllMocks());
+
+	it.each([
+		{ action: "Pin agent", pinOrder: 0, expectedOrder: 1 },
+		{ action: "Unpin agent", pinOrder: 1, expectedOrder: 0 },
+	])(
+		"$action updates the chat",
+		async ({ action, pinOrder, expectedOrder }) => {
+			const user = userEvent.setup();
+			const update = vi
+				.spyOn(API.experimental, "updateChat")
+				.mockResolvedValue(undefined);
+			render(
+				<Wrapper>
+					<ChatsSidebar
+						{...defaultProps}
+						chats={[
+							buildChat({
+								id: "pin-chat",
+								title: "Pin chat",
+								pin_order: pinOrder,
+							}),
+						]}
+					/>
+				</Wrapper>,
+			);
+			await user.click(
+				screen.getByRole("button", { name: "Open actions for Pin chat" }),
+			);
+			await user.click(await screen.findByRole("menuitem", { name: action }));
+			await waitFor(() =>
+				expect(update).toHaveBeenCalledWith("pin-chat", {
+					pin_order: expectedOrder,
+				}),
+			);
+		},
+	);
+});
+
+const DRAG_INSTRUCTIONS = /pick up a chat/i;
+
+describe("ChatsSidebar move to project", () => {
+	const mockBillingProject = {
+		...MockChatProject,
+		id: "billing-project",
+		name: "Billing",
+	};
+
+	const renderSidebar = (chats: Chat[]) =>
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar {...defaultProps} chats={chats} />
+			</Wrapper>,
+		);
+
+	let projectRequests = 0;
+	beforeEach(() => {
+		projectRequests = 0;
+		server.use(
+			http.get("/api/experimental/chats/projects", () => {
+				projectRequests += 1;
+				return HttpResponse.json([MockChatProject, mockBillingProject]);
+			}),
+		);
+	});
+
+	afterEach(() => vi.restoreAllMocks());
+
+	const selectMoveTarget = async (user: MenuUser, target: string) => {
+		await user.click(
+			await screen.findByRole("button", {
+				name: "Open actions for Fix invoice dates",
+			}),
+		);
+		await selectSubmenuItem(user, "Move to project", "menuitem", target);
+	};
+
+	it.each([
+		{ target: "Billing", projectId: mockBillingProject.id },
+		{ target: "Remove from project", projectId: NIL_UUID },
+	])("moves a chat with $target", async ({ target, projectId }) => {
+		const user = userEvent.setup();
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		renderSidebar([
+			buildChat({
+				id: "c1",
+				title: "Fix invoice dates",
+				organization_id: MockChatProject.organization_id,
+				project_id: MockChatProject.id,
+			}),
+		]);
+
+		// Folders start closed, and MockChatProject is the Launch folder.
+		await user.click(
+			await screen.findByRole("button", { name: "Expand Launch" }),
+		);
+		await selectMoveTarget(user, target);
+
+		await waitFor(() =>
+			expect(update).toHaveBeenCalledWith("c1", { project_id: projectId }),
+		);
+		expect(projectRequests).toBe(1);
+	});
+
+	it("shows the server message when the server refuses a move", async () => {
+		const user = userEvent.setup();
+		const toastError = vi.spyOn(toast, "error");
+		let refuseMove: (error: unknown) => void = () => {};
+		vi.spyOn(API.experimental, "updateChat").mockReturnValue(
+			new Promise((_, reject) => {
+				refuseMove = reject;
+			}),
+		);
+		renderSidebar([
+			buildChat({
+				id: "c1",
+				title: "Fix invoice dates",
+				organization_id: MockChatProject.organization_id,
+			}),
+		]);
+
+		await selectMoveTarget(user, "Billing");
+		// The menu closed on select, so the toast must outlive it.
+		refuseMove(mockApiError({ message: "Cannot move an active chat." }));
+
+		await waitFor(() =>
+			expect(toastError).toHaveBeenCalledWith("Cannot move an active chat."),
+		);
+	});
+
+	it("sends no request for the current project", async () => {
+		const user = userEvent.setup();
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		renderSidebar([
+			buildChat({
+				id: "c1",
+				title: "Fix invoice dates",
+				organization_id: MockChatProject.organization_id,
+				project_id: MockChatProject.id,
+			}),
+		]);
+
+		await user.click(
+			await screen.findByRole("button", { name: "Expand Launch" }),
+		);
+		await selectMoveTarget(user, "Launch");
+		await selectMoveTarget(user, "Billing");
+
+		// A request from Launch would come first and fail the exact call list.
+		await waitFor(() => expect(update).toHaveBeenCalled());
+		expect(update.mock.calls).toEqual([
+			["c1", { project_id: mockBillingProject.id }],
+		]);
+	});
+
+	it("lets keyboard users reach a blocked move and read why", async () => {
+		const user = userEvent.setup();
+		renderSidebar([
+			buildChat({
+				id: "c1",
+				title: "Fix invoice dates",
+				organization_id: MockChatProject.organization_id,
+				status: "running",
+			}),
+		]);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: "Open actions for Fix invoice dates",
+			}),
+		);
+		await focusMenuItem(user, "menuitem", "Move to project");
+		const trigger = screen.getByRole("menuitem", { name: "Move to project" });
+		expect(trigger).toHaveAccessibleDescription(
+			"Interrupt or wait for the agent to finish first.",
+		);
+		await user.keyboard("{ArrowRight}{Enter}");
+		expect(trigger).toHaveAttribute("aria-expanded", "false");
+	});
+});
+
+// dnd-kit uses browser APIs that jsdom lacks. spyOn cannot stub a missing
+// member, so stubDragDom adds them and removes them after each test.
+const stubDragDom = () => {
+	vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
+	const stubs = [
+		[document, { getAnimations: () => [], elementFromPoint: () => null }],
+		[
+			Element.prototype,
+			{
+				getAnimations: () => [],
+				animate: () => ({ finished: Promise.resolve() }),
+			},
+		],
+	] as const;
+	for (const [target, members] of stubs) {
+		Object.assign(target, members);
+	}
+	return () => {
+		for (const [target, members] of stubs) {
+			for (const key of Object.keys(members)) {
+				Reflect.deleteProperty(target, key);
+			}
+		}
+		vi.unstubAllGlobals();
+	};
+};
+
+const nextFrame = () =>
+	act(
+		() =>
+			new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+	);
+
+// jsdom has no layout. dnd-kit measures the dragged element on each move to
+// find the target under it, so its box follows dnd-kit's --dnd-* properties.
+const mockLayout = (layout: (element: Element) => DOMRect) => {
+	vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+		function (this: Element) {
+			if (!(this instanceof HTMLElement) || !this.dataset.dndDragging) {
+				return layout(this);
+			}
+			const px = (name: string) =>
+				Number.parseFloat(this.style.getPropertyValue(`--dnd-${name}`)) || 0;
+			const [, translateY = "0"] = this.style
+				.getPropertyValue("--dnd-translate")
+				.split(" ");
+			return DOMRect.fromRect({
+				x: px("left"),
+				y: px("top") + Number.parseFloat(translateY),
+				width: px("width"),
+				height: px("height"),
+			});
+		},
+	);
+};
+
+describe("ChatsSidebar project drops", () => {
+	beforeEach(stubDragDom);
+
+	const mockBillingProject = {
+		...MockChatProject,
+		id: "billing",
+		name: "Billing",
+	};
+	const mockOpsProject = {
+		...mockBillingProject,
+		id: "ops",
+		name: "Ops",
+		organization_id: "other-org",
+	};
+
+	const renderSidebar = (chats: Chat[], projects: TypesGen.ChatProject[]) => {
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json(projects),
+			),
+		);
+		return render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar {...defaultProps} chats={chats} />
+			</Wrapper>,
+		);
+	};
+
+	const box = (y: number, height: number) =>
+		DOMRect.fromRect({ x: 0, y, width: 300, height });
+
+	// dnd-kit clips each target by its ancestors' boxes, so an ancestor of
+	// several targets gets a box around all of them.
+	const layoutDropTargets = (
+		row: string,
+		rowTop: number,
+		scrollTop = () => 0,
+	) => {
+		const rowLink = screen.getByRole("link", { name: new RegExp(row) });
+		const targets = [
+			{
+				node: screen.getByRole("link", { name: "Billing" }),
+				top: 0,
+				height: 80,
+			},
+			{ node: screen.getByRole("link", { name: "Ops" }), top: 100, height: 40 },
+			{
+				node: screen.getByRole("heading", { name: "Chats" }),
+				top: 200,
+				height: 300,
+			},
+		];
+		mockLayout((element) => {
+			const held = targets.filter(({ node }) => element.contains(node));
+			if (held.length > 1) {
+				return box(0, 600);
+			}
+			if (held.length === 1) {
+				return box(held[0].top - scrollTop(), held[0].height);
+			}
+			return element.contains(rowLink)
+				? box(rowTop - scrollTop(), 40)
+				: box(0, 0);
+		});
+	};
+
+	// user-event's pointer API leaves dnd-kit's updates outside act, and its
+	// drop sends no request, so the gesture uses fireEvent.
+	const mouseDragRow = async (
+		row: string,
+		dropY: number,
+		beforeDrop?: () => void,
+	) => {
+		const pointer = { pointerId: 1, isPrimary: true, pointerType: "mouse" };
+		fireEvent.pointerDown(screen.getByRole("link", { name: new RegExp(row) }), {
+			...pointer,
+			clientX: 10,
+			clientY: 250,
+		});
+		fireEvent.pointerMove(document, { ...pointer, clientX: 10, clientY: 260 });
+		await nextFrame();
+		fireEvent.pointerMove(document, {
+			...pointer,
+			clientX: 10,
+			clientY: dropY,
+		});
+		await nextFrame();
+		if (beforeDrop) {
+			beforeDrop();
+			await nextFrame();
+		}
+		fireEvent.pointerUp(document, { ...pointer, clientX: 10, clientY: dropY });
+		// The request goes out after the mutation's async onMutate.
+		await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+	};
+
+	const dragRowOntoBilling = async (row: string) => {
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		layoutDropTargets(row, 240);
+		await mouseDragRow(row, 40);
+		return update.mock.calls;
+	};
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it.each<{ outcome: string; row: string; chat: Partial<Chat>; body?: string }>(
+		[
+			{
+				outcome: "moves",
+				row: "Free chat",
+				chat: {},
+				body: mockBillingProject.id,
+			},
+			{
+				outcome: "moves nothing",
+				row: "Pinned chat",
+				// A pinned row drags only to reorder the pins.
+				chat: { pin_order: 1 },
+			},
+			{
+				outcome: "moves nothing",
+				row: "Shared chat",
+				chat: { owner_id: "sharing-user-id", shared: true },
+			},
+			{
+				outcome: "moves nothing",
+				row: "Busy chat",
+				chat: { status: "running" },
+			},
+			{
+				outcome: "moves nothing",
+				row: "Archived chat",
+				chat: { archived: true },
+			},
+			{
+				outcome: "moves nothing",
+				row: "Parent chat",
+				// A running subagent blocks the move, as it blocks archiving.
+				chat: {
+					children: [
+						buildChat({ id: "c2", parent_chat_id: "c1", status: "running" }),
+					],
+				},
+			},
+		],
+	)("$outcome on a mouse drag of $row", async ({ row, chat, body }) => {
+		renderSidebar(
+			[
+				buildChat({
+					id: "c1",
+					title: row,
+					organization_id: mockBillingProject.organization_id,
+					...chat,
+				}),
+			],
+			[mockBillingProject, mockOpsProject],
+		);
+		await screen.findByRole("link", { name: "Billing" });
+
+		expect(await dragRowOntoBilling(row)).toEqual(
+			body ? [["c1", { project_id: body }]] : [],
+		);
+	});
+
+	// A failed projects request shows project chats under Chats, where a drop
+	// would remove them from their project.
+	it("moves nothing on a mouse drag into Chats of a chat whose project did not load", async () => {
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json({ message: "Projects unavailable" }, { status: 500 }),
+			),
+		);
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "c1",
+							title: "Fix invoice dates",
+							project_id: mockBillingProject.id,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+		await screen.findByRole("button", { name: "Retry" });
+		const chatLink = screen.getByRole("link", { name: /Fix invoice dates/ });
+		const chatsHeading = screen.getByRole("heading", { name: "Chats" });
+		// Chats holds the row here and needs its own box, and the folder links
+		// that layoutDropTargets needs do not render.
+		mockLayout((element) => {
+			if (element.contains(chatsHeading)) {
+				return box(200, 300);
+			}
+			return element.contains(chatLink) ? box(240, 40) : box(0, 0);
+		});
+
+		// The drop lands in the Chats box, and the announcement proves that it
+		// ran, so the no-request check cannot pass without reaching the rule.
+		await mouseDragRow("Fix invoice dates", 270);
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(/was dropped/),
+		);
+
+		expect(update).not.toHaveBeenCalled();
+	});
+
+	// The pointer picks the target, so a drop on a muted folder moves nothing.
+	it("moves nothing on a mouse drop on another organization's folder", async () => {
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		renderSidebar(
+			[
+				buildChat({
+					id: "c1",
+					title: "Free chat",
+					organization_id: mockBillingProject.organization_id,
+				}),
+			],
+			[mockBillingProject, mockOpsProject],
+		);
+		await screen.findByRole("link", { name: "Billing" });
+		// The press lands 30 pixels below the row's top, so with the pointer on
+		// Ops the dragged row reaches into Billing.
+		layoutDropTargets("Free chat", 220);
+
+		await mouseDragRow("Free chat", 102);
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				"Chat Free chat was dropped. It did not move.",
+			),
+		);
+
+		expect(update).not.toHaveBeenCalled();
+	});
+
+	// A wheel turn scrolls the list under a still pointer, so the drop must
+	// follow what is under the pointer after the scroll.
+	it("moves nothing when the list scrolls another organization's folder under the pointer", async () => {
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		renderSidebar(
+			[
+				buildChat({
+					id: "c1",
+					title: "Free chat",
+					organization_id: mockBillingProject.organization_id,
+				}),
+			],
+			[mockBillingProject, mockOpsProject],
+		);
+		await screen.findByRole("link", { name: "Billing" });
+		let scrollTop = 0;
+		layoutDropTargets("Free chat", 240, () => scrollTop);
+
+		await mouseDragRow("Free chat", 40, () => {
+			scrollTop = 80;
+			fireEvent.scroll(document);
+		});
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				"Chat Free chat was dropped. It did not move.",
+			),
+		);
+
+		expect(update).not.toHaveBeenCalled();
+	});
+
+	it("keeps a row mounted when its chat starts running", async () => {
+		const user = userEvent.setup();
+		const chat = buildChat({ id: "c1", title: "Fix invoice dates" });
+		const StatusChange: React.FC = () => {
+			const [status, setStatus] = useState<TypesGen.ChatStatus>("waiting");
+			return (
+				<>
+					<button type="button" onClick={() => setStatus("running")}>
+						Start
+					</button>
+					<ChatsSidebar {...defaultProps} chats={[{ ...chat, status }]} />
+				</>
+			);
+		};
+		server.use(
+			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
+		);
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<StatusChange />
+			</Wrapper>,
+		);
+		const link = await screen.findByRole("link", { name: /Fix invoice dates/ });
+
+		await user.click(screen.getByRole("button", { name: "Start" }));
+
+		expect(screen.getByRole("link", { name: /Fix invoice dates/ })).toBe(link);
+	});
+
+	// Ops sits between Billing and Chats but belongs to another organization,
+	// so each key must skip it.
+	it.each([
+		{
+			rowTop: 240,
+			key: "[ArrowUp]",
+			projectId: undefined,
+			body: mockBillingProject.id,
+			to: "project Billing",
+		},
+		{
+			rowTop: 40,
+			key: "[ArrowDown]",
+			projectId: mockBillingProject.id,
+			body: NIL_UUID,
+			to: "Chats",
+		},
+	])("drops a chat with $key", async ({ rowTop, key, projectId, body, to }) => {
+		const user = userEvent.setup();
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		renderSidebar(
+			[
+				buildChat({
+					id: "c1",
+					title: "Fix invoice dates",
+					organization_id: mockBillingProject.organization_id,
+					project_id: projectId,
+				}),
+			],
+			[mockBillingProject, mockOpsProject],
+		);
+		await user.click(
+			await screen.findByRole("button", { name: "Expand Billing" }),
+		);
+		layoutDropTargets("Fix invoice dates", rowTop);
+
+		screen.getByRole("link", { description: DRAG_INSTRUCTIONS }).focus();
+		await user.keyboard("[Space]");
+		await user.keyboard(key);
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				`Chat Fix invoice dates is over ${to}.`,
+			),
+		);
+		await user.keyboard("[Space]");
+
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				`Chat Fix invoice dates was dropped on ${to}.`,
+			),
+		);
+		await waitFor(() =>
+			expect(update).toHaveBeenCalledWith("c1", { project_id: body }),
+		);
+		expect(update).toHaveBeenCalledTimes(1);
+	});
+
+	// A long Chats section can start below the window, so the key scrolls it
+	// into view before the drag moves onto it.
+	it("drops a chat on Chats that the key scrolls into view", async () => {
+		const user = userEvent.setup();
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		renderSidebar(
+			[
+				buildChat({
+					id: "c1",
+					title: "Fix invoice dates",
+					organization_id: mockBillingProject.organization_id,
+					project_id: mockBillingProject.id,
+				}),
+			],
+			[mockBillingProject, mockOpsProject],
+		);
+		await user.click(
+			await screen.findByRole("button", { name: "Expand Billing" }),
+		);
+		let scrollTop = 0;
+		layoutDropTargets("Fix invoice dates", 40, () => scrollTop);
+		vi.spyOn(HTMLElement.prototype, "scrollIntoView").mockImplementation(() => {
+			scrollTop = 150;
+		});
+
+		screen.getByRole("link", { description: DRAG_INSTRUCTIONS }).focus();
+		await user.keyboard("[Space]");
+		await user.keyboard("[ArrowDown]");
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				"Chat Fix invoice dates is over Chats.",
+			),
+		);
+		await user.keyboard("[Space]");
+
+		await waitFor(() =>
+			expect(update).toHaveBeenCalledWith("c1", { project_id: NIL_UUID }),
+		);
+	});
+
+	// A drag over the collapsed Projects section opens it, so that its folders
+	// can take the drop.
+	describe("with Projects collapsed", () => {
+		const collapsedKey = projectsSectionCollapsedStorageKey(MockUserOwner.id);
+		beforeEach(() => {
+			localStorage.setItem(collapsedKey, "true");
+			return () => localStorage.removeItem(collapsedKey);
+		});
+
+		const renderCollapsedProjects = async () => {
+			const update = vi
+				.spyOn(API.experimental, "updateChat")
+				.mockResolvedValue(undefined);
+			renderSidebar(
+				[
+					buildChat({
+						id: "c1",
+						title: "Free chat",
+						organization_id: mockBillingProject.organization_id,
+					}),
+				],
+				[mockBillingProject],
+			);
+			const sectionToggle = await screen.findByRole("button", {
+				name: "Projects",
+			});
+			const chatsHeading = screen.getByRole("heading", { name: "Chats" });
+			const rowLink = screen.getByRole("link", { name: /Free chat/ });
+			// The Billing folder renders only once the section opens.
+			mockLayout((element) => {
+				const billing = screen.queryByRole("link", { name: "Billing" });
+				const held = [sectionToggle, billing, chatsHeading].filter(
+					(node) => node && element.contains(node),
+				);
+				if (held.length > 1) {
+					return box(0, 600);
+				}
+				if (element.contains(sectionToggle)) {
+					return box(0, 50);
+				}
+				if (billing && element.contains(billing)) {
+					return box(60, 40);
+				}
+				if (element.contains(chatsHeading)) {
+					return box(200, 300);
+				}
+				return element.contains(rowLink) ? box(240, 40) : box(0, 0);
+			});
+			return { update, sectionToggle };
+		};
+
+		it("opens on a mouse drag over its header, where a drop moves nothing", async () => {
+			const { update, sectionToggle } = await renderCollapsedProjects();
+
+			await mouseDragRow("Free chat", 25);
+			await waitFor(() =>
+				expect(screen.getByRole("status")).toHaveTextContent(
+					"Chat Free chat was dropped. It did not move.",
+				),
+			);
+
+			expect(sectionToggle).toHaveAttribute("aria-expanded", "true");
+			expect(localStorage.getItem(collapsedKey)).toBeNull();
+			expect(update).not.toHaveBeenCalled();
+		});
+
+		it("lets a keyboard drag reach a folder through its header", async () => {
+			const user = userEvent.setup();
+			const { update, sectionToggle } = await renderCollapsedProjects();
+
+			screen.getByRole("link", { description: DRAG_INSTRUCTIONS }).focus();
+			await user.keyboard("[Space]");
+			await user.keyboard("[ArrowUp]");
+			await waitFor(() =>
+				expect(screen.getByRole("status")).toHaveTextContent(
+					"Chat Free chat is over Projects.",
+				),
+			);
+			expect(sectionToggle).toHaveAttribute("aria-expanded", "true");
+			await user.keyboard("[ArrowDown]");
+			await waitFor(() =>
+				expect(screen.getByRole("status")).toHaveTextContent(
+					"Chat Free chat is over project Billing.",
+				),
+			);
+			await user.keyboard("[Space]");
+
+			await waitFor(() =>
+				expect(update).toHaveBeenCalledWith("c1", {
+					project_id: mockBillingProject.id,
+				}),
+			);
+		});
+	});
+
+	// The chat link is the drag handle, so the row wrapper adds no tab stop
+	// and Enter opens the chat instead of picking it up.
+	it("opens the next chat with Tab and Enter", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
+		);
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({ id: "c1", title: "Fix invoice dates" }),
+						buildChat({ id: "c2", title: "Draft release notes" }),
+					]}
+				/>
+				<ProjectLocationProbe />
+			</Wrapper>,
+		);
+
+		(await screen.findByRole("link", { name: /Fix invoice dates/ })).focus();
+		// The first Tab stops on the row's actions button.
+		await user.tab();
+		await user.tab();
+		await user.keyboard("[Enter]");
+
+		await waitFor(() =>
+			expect(screen.getByTestId("location-pathname")).toHaveTextContent(
+				"/agents/c2",
+			),
+		);
+	});
+
+	// Subagent chats follow their root's project, so only the root row drags.
+	it.each([
+		{
+			row: "Spawner chat",
+			outcome: "moves",
+			body: mockBillingProject.id,
+		},
+		{
+			row: "Simple task",
+			outcome: "moves nothing",
+			body: undefined,
+		},
+	])("$outcome on a mouse drag of $row", async ({ row, body }) => {
+		const user = userEvent.setup();
+		const child = buildChat({
+			id: "c2",
+			title: "Simple task",
+			parent_chat_id: "c1",
+			organization_id: mockBillingProject.organization_id,
+		});
+		renderSidebar(
+			[
+				buildChat({
+					id: "c1",
+					title: "Spawner chat",
+					organization_id: mockBillingProject.organization_id,
+					children: [child],
+				}),
+			],
+			[mockBillingProject, mockOpsProject],
+		);
+		await user.click(await screen.findByRole("button", { name: "Expand" }));
+
+		expect(await dragRowOntoBilling(row)).toEqual(
+			body ? [["c1", { project_id: body }]] : [],
+		);
+	});
+});
+
 describe("ChatsSidebar pinned reordering", () => {
-	const SORTABLE_INSTRUCTIONS = /pick up a draggable item/i;
+	beforeEach(stubDragDom);
+
 	const ROW_HEIGHT = 40;
 
-	// dnd-kit's keyboard sensor picks the drop target from measured
-	// rects, which jsdom reports as all zeros. Lay the sortable rows out
-	// vertically in document order so ArrowDown resolves to the next row.
+	// dnd-kit's keyboard sensor picks the drop target from measured rects, so
+	// the rows stack in document order and ArrowDown reaches the next row.
 	const layoutSortableRows = () => {
-		const rows = screen.getAllByRole("button", {
-			description: SORTABLE_INSTRUCTIONS,
+		const rows = screen.getAllByRole("link", {
+			description: DRAG_INSTRUCTIONS,
 		});
-		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
-			function (this: Element) {
-				const index = rows.findIndex((row) => row.contains(this));
-				const top = index === -1 ? 0 : index * ROW_HEIGHT;
-				const height = index === -1 ? 0 : ROW_HEIGHT;
-				return DOMRect.fromRect({ x: 0, y: top, width: 300, height });
-			},
-		);
+		mockLayout((element) => {
+			const held = rows.filter((row) => element.contains(row));
+			if (held.length > 1) {
+				return DOMRect.fromRect({ width: 300, height: 600 });
+			}
+			const index = held.length === 1 ? rows.indexOf(held[0]) : -1;
+			const top = index === -1 ? 0 : index * ROW_HEIGHT;
+			const height = index === -1 ? 0 : ROW_HEIGHT;
+			return DOMRect.fromRect({ x: 0, y: top, width: 300, height });
+		});
 		return rows;
 	};
 
@@ -271,51 +1634,69 @@ describe("ChatsSidebar pinned reordering", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("reorders only the viewer's own pinned chats", async () => {
-		const user = userEvent.setup();
-		const onReorderPinnedAgent = vi.fn();
-		render(
-			<Wrapper>
-				<ChatsSidebar
-					{...defaultProps}
-					onReorderPinnedAgent={onReorderPinnedAgent}
-					chats={[
-						buildChat({
-							id: "shared-chat-pinned-by-owner",
-							title: "Shared chat pinned by its owner",
-							owner_id: "sharing-user-id",
-							shared: true,
-							pin_order: 1,
-						}),
-						buildChat({
-							id: "own-first",
-							title: "Own first pinned chat",
-							pin_order: 1,
-						}),
-						buildChat({
-							id: "own-second",
-							title: "Own second pinned chat",
-							pin_order: 2,
-						}),
-					]}
-				/>
-			</Wrapper>,
-		);
+	it.each([false, true])(
+		"reorders only the viewer's own pinned chats (failure: %s)",
+		async (fails) => {
+			const user = userEvent.setup();
+			const update = vi.spyOn(API.experimental, "updateChat");
+			const errorToast = vi.spyOn(toast, "error");
+			if (fails) {
+				update.mockRejectedValue(new Error("Reorder rejected"));
+			} else {
+				update.mockResolvedValue(undefined);
+			}
+			render(
+				<Wrapper>
+					<ChatsSidebar
+						{...defaultProps}
+						chats={[
+							buildChat({
+								id: "shared-chat-pinned-by-owner",
+								title: "Shared chat pinned by its owner",
+								owner_id: "sharing-user-id",
+								shared: true,
+								pin_order: 1,
+							}),
+							buildChat({
+								id: "own-first",
+								title: "Own first pinned chat",
+								pin_order: 1,
+							}),
+							buildChat({
+								id: "own-second",
+								title: "Own second pinned chat",
+								pin_order: 2,
+							}),
+						]}
+					/>
+				</Wrapper>,
+			);
 
-		const sortableRows = layoutSortableRows();
-		expect(sortableRows.map((row) => row.textContent)).toEqual([
-			expect.stringContaining("Own first pinned chat"),
-			expect.stringContaining("Own second pinned chat"),
-		]);
+			const sortableRows = layoutSortableRows();
 
-		sortableRows[0].focus();
-		await user.keyboard("[Space]");
-		await user.keyboard("[ArrowDown]");
-		await user.keyboard("[Space]");
+			sortableRows[0].focus();
+			await user.keyboard("[Space]");
+			await user.keyboard("[ArrowDown]");
+			await waitFor(() =>
+				expect(screen.getByRole("status")).toHaveTextContent(
+					"Chat Own first pinned chat is at position 2 of 2.",
+				),
+			);
+			// dnd-kit moves the dragged pin's element, which drops its focus.
+			await waitFor(() => expect(sortableRows[0]).toHaveFocus());
+			await user.keyboard("[Space]");
 
-		expect(onReorderPinnedAgent).toHaveBeenCalledTimes(1);
-		expect(onReorderPinnedAgent).toHaveBeenCalledWith("own-first", 2);
-	});
+			await waitFor(() =>
+				expect(update).toHaveBeenCalledWith("own-first", { pin_order: 2 }),
+			);
+			expect(update).toHaveBeenCalledTimes(1);
+			if (fails) {
+				await waitFor(() =>
+					expect(errorToast).toHaveBeenCalledWith("Reorder rejected"),
+				);
+			}
+		},
+	);
 });
 
 type MenuUser = ReturnType<typeof userEvent.setup>;
@@ -340,16 +1721,25 @@ const focusMenuItem = async (
 	expect(item).toHaveFocus();
 };
 
+const selectSubmenuItem = async (
+	user: MenuUser,
+	submenu: string | RegExp,
+	role: "menuitem" | "menuitemcheckbox",
+	name: string,
+) => {
+	await focusMenuItem(user, "menuitem", submenu);
+	await user.keyboard("{ArrowRight}");
+	await focusMenuItem(user, role, name);
+	await user.keyboard("{Enter}");
+};
+
 const toggleSubmenuOption = async (
 	user: MenuUser,
 	submenu: string | RegExp,
 	name: string,
 ) => {
 	await openFilterMenu(user);
-	await focusMenuItem(user, "menuitem", submenu);
-	await user.keyboard("{ArrowRight}");
-	await focusMenuItem(user, "menuitemcheckbox", name);
-	await user.keyboard("{Enter}");
+	await selectSubmenuItem(user, submenu, "menuitemcheckbox", name);
 	await user.keyboard("{Escape}{Escape}");
 };
 
@@ -834,6 +2224,192 @@ describe("ChatsSidebar load-more behavior", () => {
 	});
 });
 
+describe("ChatsSidebar pull requests", () => {
+	const mockMultiPRChat = buildChat({
+		id: "multi-pr",
+		title: "Multiple pull requests",
+		diff_statuses: [
+			{
+				...MockChatDiffStatus,
+				chat_id: "multi-pr",
+				git_branch: "feat/one",
+				url: "https://github.com/coder/coder/pull/1",
+				pr_number: 1,
+				pull_request_state: "open",
+				pull_request_title: "feat: add login page",
+			},
+			{
+				...MockChatDiffStatus,
+				chat_id: "multi-pr",
+				git_branch: "feat/two",
+				url: "https://github.com/coder/coder/pull/2",
+				pr_number: 2,
+				pull_request_state: "merged",
+				pull_request_title: "feat: add login tests",
+			},
+		],
+	});
+
+	it("announces the pull request state when the chat tracks one pull request", () => {
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "one-pr",
+							title: "One pull request",
+							diff_statuses: [
+								{
+									...MockChatDiffStatus,
+									chat_id: "one-pr",
+									url: "https://github.com/coder/coder/pull/1",
+									pull_request_state: "open",
+									pull_request_title: "",
+									additions: 0,
+									deletions: 0,
+									changed_files: 0,
+								},
+							],
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		expect(
+			screen.getByRole("img", { name: /pull request/i }),
+		).toHaveAccessibleName("Pull request open");
+	});
+
+	it("announces the tracked pull request count when the chat tracks several", () => {
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} chats={[mockMultiPRChat]} />
+			</Wrapper>,
+		);
+
+		// The count and the glyph are one named image, so the link
+		// does not announce the count twice.
+		expect(
+			screen.getByRole("img", { name: /pull request/i }),
+		).toHaveAccessibleName("2 pull requests");
+		const link = screen.getByRole("link", {
+			name: /multiple pull requests/i,
+		});
+		expect(link).toHaveAccessibleName(
+			/Multiple pull requests.*2 pull requests/,
+		);
+		expect(link).not.toHaveAccessibleName(/2 pull requests.*2 pull requests/);
+	});
+
+	it("links every pull request from the actions menu of a multi-PR chat", async () => {
+		const user = userEvent.setup();
+
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} chats={[mockMultiPRChat]} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Open actions for Multiple pull requests",
+			}),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: "2 PRs" }));
+
+		const links = await screen.findAllByRole("menuitem", { name: /PR #/ });
+		expect(links.map((link) => link.getAttribute("href"))).toEqual([
+			"https://github.com/coder/coder/pull/1",
+			"https://github.com/coder/coder/pull/2",
+		]);
+		expect(links[1]).toHaveAccessibleName(/Pull request merged/);
+	});
+
+	it("leaves pull requests without a URL out of the actions menu", async () => {
+		const user = userEvent.setup();
+
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "unlinked-pr",
+							title: "Unlinked pull request",
+							diff_statuses: [
+								{
+									...MockChatDiffStatus,
+									chat_id: "unlinked-pr",
+									git_branch: "feat/one",
+									url: "https://github.com/coder/coder/pull/1",
+									pr_number: 1,
+								},
+								{
+									...MockChatDiffStatus,
+									chat_id: "unlinked-pr",
+									git_branch: "feat/two",
+									url: "",
+									pr_number: 2,
+								},
+							],
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Open actions for Unlinked pull request",
+			}),
+		);
+
+		// One linkable PR is left, so the menu links it directly.
+		expect(
+			await screen.findByRole("menuitem", { name: /PR #1/ }),
+		).toHaveAttribute("href", "https://github.com/coder/coder/pull/1");
+	});
+
+	it("links the pull request for viewers of a shared chat", async () => {
+		const user = userEvent.setup();
+
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "shared-pr",
+							title: "Shared pull request",
+							owner_id: "sharing-user",
+							diff_statuses: [
+								{
+									...MockChatDiffStatus,
+									chat_id: "shared-pr",
+									url: "https://github.com/coder/coder/pull/7",
+									pr_number: 7,
+								},
+							],
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Open actions for Shared pull request",
+			}),
+		);
+
+		expect(
+			await screen.findByRole("menuitem", { name: /PR #7/ }),
+		).toHaveAttribute("href", "https://github.com/coder/coder/pull/7");
+	});
+});
+
 describe("ChatsSidebar subtitles", () => {
 	const modelConfigs: TypesGen.ChatModel[] = [
 		{
@@ -938,63 +2514,178 @@ describe("ChatsSidebar subtitles", () => {
 });
 
 describe("ChatsSidebar read state actions", () => {
-	const openActionsMenu = async (title: string) => {
-		const user = userEvent.setup();
+	afterEach(() => vi.restoreAllMocks());
+
+	it.each([
+		{ action: "Mark as read", read: true, fails: false },
+		{ action: "Mark as unread", read: false, fails: false },
+		{ action: "Mark as read", read: true, fails: true },
+		{ action: "Mark as unread", read: false, fails: true },
+	])(
+		"$action persists the read state (failure: $fails)",
+		async ({ action, read, fails }) => {
+			const user = userEvent.setup();
+			const update = vi.spyOn(API.experimental, "updateChat");
+			const errorToast = vi.spyOn(toast, "error");
+			if (fails) {
+				update.mockRejectedValue(new Error("Read state rejected"));
+			} else {
+				update.mockResolvedValue(undefined);
+			}
+			render(
+				<Wrapper>
+					<ChatsSidebar
+						{...defaultProps}
+						chats={[
+							buildChat({
+								id: "read-state-chat",
+								title: "Read state chat",
+								has_unread: read,
+							}),
+						]}
+					/>
+				</Wrapper>,
+			);
+			await user.click(
+				screen.getByRole("button", {
+					name: "Open actions for Read state chat",
+				}),
+			);
+			await user.click(await screen.findByRole("menuitem", { name: action }));
+			await waitFor(() =>
+				expect(update).toHaveBeenCalledWith("read-state-chat", { read }),
+			);
+			if (fails) {
+				await waitFor(() =>
+					expect(errorToast).toHaveBeenCalledWith("Read state rejected"),
+				);
+			}
+		},
+	);
+});
+
+describe("ChatsSidebar copy actions", () => {
+	// Radix submenu items do not react to userEvent clicks in jsdom, so the
+	// selection itself uses fireEvent.
+	const openCopySubmenu = async (
+		user: ReturnType<typeof userEvent.setup>,
+		title: string,
+	) => {
 		await user.click(
 			screen.getByRole("button", { name: `Open actions for ${title}` }),
 		);
-		return user;
+		await user.click(await screen.findByRole("menuitem", { name: "Copy" }));
 	};
 
-	it("marks a read chat as unread", async () => {
-		const onMarkChatUnread = vi.fn();
+	it.each(["dropdown", "context"])(
+		"copies the chat ID directly from the %s menu without a branch",
+		async (menu) => {
+			// userEvent.setup() swaps in its own clipboard stub, so the spy has to
+			// come after it.
+			const user = userEvent.setup();
+			const writeText = vi
+				.spyOn(navigator.clipboard, "writeText")
+				.mockResolvedValue();
+			render(
+				<Wrapper>
+					<ChatsSidebar
+						{...defaultProps}
+						chats={[buildChat({ id: "copy-chat", title: "Copy chat" })]}
+					/>
+				</Wrapper>,
+			);
+
+			if (menu === "dropdown") {
+				await user.click(
+					screen.getByRole("button", { name: "Open actions for Copy chat" }),
+				);
+			} else {
+				await user.pointer({
+					target: screen.getByTestId("agents-tree-node-copy-chat"),
+					keys: "[MouseRight]",
+				});
+			}
+			await user.click(
+				await screen.findByRole("menuitem", { name: "Copy ID" }),
+			);
+
+			await waitFor(() => {
+				expect(writeText).toHaveBeenCalledWith("copy-chat");
+			});
+		},
+	);
+
+	it.each([
+		["Copy ID", "branch-chat"],
+		["Copy branch", "jakehwll/copy-branch"],
+	])(
+		"copies %s from the submenu when a branch is available",
+		async (label, value) => {
+			const user = userEvent.setup();
+			const writeText = vi
+				.spyOn(navigator.clipboard, "writeText")
+				.mockResolvedValue();
+			render(
+				<Wrapper>
+					<ChatsSidebar
+						{...defaultProps}
+						chats={[
+							buildChat({
+								id: "branch-chat",
+								title: "Branch chat",
+								diff_status: {
+									chat_id: "branch-chat",
+									pull_request_title: "",
+									pull_request_draft: false,
+									changes_requested: false,
+									additions: 0,
+									deletions: 0,
+									changed_files: 0,
+									head_branch: "jakehwll/copy-branch",
+								},
+							}),
+						]}
+					/>
+				</Wrapper>,
+			);
+
+			await openCopySubmenu(user, "Branch chat");
+			fireEvent.click(await screen.findByRole("menuitem", { name: label }));
+
+			await waitFor(() => {
+				expect(writeText).toHaveBeenCalledWith(value);
+			});
+		},
+	);
+
+	it("copies the ID of a chat the user does not own", async () => {
+		const user = userEvent.setup();
+		const writeText = vi
+			.spyOn(navigator.clipboard, "writeText")
+			.mockResolvedValue();
 		render(
 			<Wrapper>
 				<ChatsSidebar
 					{...defaultProps}
 					chats={[
 						buildChat({
-							id: "read-chat",
-							title: "Read chat",
-							has_unread: false,
+							id: "shared-copy-chat",
+							title: "Shared copy chat",
+							owner_id: "sharing-user-id",
+							shared: true,
 						}),
 					]}
-					onMarkChatUnread={onMarkChatUnread}
 				/>
 			</Wrapper>,
 		);
 
-		const user = await openActionsMenu("Read chat");
 		await user.click(
-			await screen.findByRole("menuitem", { name: "Mark as unread" }),
+			screen.getByRole("button", { name: "Open actions for Shared copy chat" }),
 		);
+		await user.click(await screen.findByRole("menuitem", { name: "Copy ID" }));
 
-		expect(onMarkChatUnread).toHaveBeenCalledWith("read-chat");
-	});
-
-	it("marks an unread chat as read", async () => {
-		const onMarkChatRead = vi.fn();
-		render(
-			<Wrapper>
-				<ChatsSidebar
-					{...defaultProps}
-					chats={[
-						buildChat({
-							id: "unread-chat",
-							title: "Unread chat",
-							has_unread: true,
-						}),
-					]}
-					onMarkChatRead={onMarkChatRead}
-				/>
-			</Wrapper>,
-		);
-
-		const user = await openActionsMenu("Unread chat");
-		await user.click(
-			await screen.findByRole("menuitem", { name: "Mark as read" }),
-		);
-
-		expect(onMarkChatRead).toHaveBeenCalledWith("unread-chat");
+		await waitFor(() => {
+			expect(writeText).toHaveBeenCalledWith("shared-copy-chat");
+		});
 	});
 });

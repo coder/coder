@@ -150,6 +150,24 @@ func (api *API) registerExperimentalOrganizationChatRoutes(r chi.Router) {
 			r.Get("/", api.getChatProject)
 			r.Patch("/", api.patchChatProject)
 			r.Delete("/", api.deleteChatProject)
+			r.Route("/acl", func(r chi.Router) {
+				r.Get("/", api.getChatProjectACL)
+				r.Patch("/", api.patchChatProjectACL)
+			})
+			r.Route("/instructions", func(r chi.Router) {
+				r.Get("/", api.getChatProjectInstructions)
+				r.Put("/", api.putChatProjectInstructions)
+				r.Delete("/", api.deleteChatProjectInstructions)
+			})
+			r.Route("/skills", func(r chi.Router) {
+				r.Get("/", api.listChatProjectSkills)
+				r.Post("/", api.postChatProjectSkill)
+				r.Route("/{skillName}", func(r chi.Router) {
+					r.Get("/", api.getChatProjectSkill)
+					r.Patch("/", api.patchChatProjectSkill)
+					r.Delete("/", api.deleteChatProjectSkill)
+				})
+			})
 			r.Route("/memories", func(r chi.Router) {
 				r.Get("/", api.listChatProjectMemories)
 				r.Post("/", api.postChatProjectMemory)
@@ -194,6 +212,10 @@ func (api *API) registerOrganizationChatRoutes(r chi.Router) {
 			r.With(httpmw.ExtractMCPServerConfigParam(api.Database, api.HTTPAuth.Authorize,
 				policy.ActionRead)).Get("/oauth2/connect", api.mcpServerOAuth2Connect)
 		})
+	})
+	r.Route("/chats/config/system-prompt", func(r chi.Router) {
+		r.Get("/", api.getOrganizationChatSystemPrompt)
+		r.Put("/", api.putOrganizationChatSystemPrompt)
 	})
 	r.Route("/chats/model-overrides", func(r chi.Router) {
 		r.Get("/", api.getOrganizationChatModelOverrides)

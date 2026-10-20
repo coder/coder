@@ -71,6 +71,13 @@ describe("Tool workspace lifecycle rows", () => {
 							name={name}
 							status={status}
 							result={isRunning ? undefined : { build_id: buildId }}
+							organizationId="organization-id"
+							mcpServers={[]}
+							isError={false}
+							subagentTitles={new Map()}
+							subagentVariants={new Map()}
+							shellToolDisplayMode="auto"
+							codeDiffDisplayMode="auto"
 						/>
 					</ChatWorkspaceContext>
 				</QueryClientProvider>,
@@ -98,24 +105,26 @@ describe("Tool workspace lifecycle rows", () => {
 	);
 });
 
-describe("Tool manage_automations label", () => {
-	it.each([
-		"constructor",
-		"toString",
-		"__proto__",
-		"hasOwnProperty",
-		"unknown_action",
-	])("falls back to the generic label for action %s", (action) => {
+describe("Tool generic rows", () => {
+	it("falls back to the tool name when the model intent is whitespace", () => {
 		renderComponent(
-			<Tool
-				name="manage_automations"
-				status="error"
-				isError
-				args={{ action }}
-				result={{ error: "unknown action" }}
-			/>,
+			<QueryClientProvider client={createTestQueryClient()}>
+				<Tool
+					name="custom_tool"
+					organizationId="organization-id"
+					mcpServers={[]}
+					status="completed"
+					args={{ query: "value" }}
+					isError={false}
+					modelIntent="   "
+					subagentTitles={new Map()}
+					subagentVariants={new Map()}
+					shellToolDisplayMode="auto"
+					codeDiffDisplayMode="auto"
+				/>
+			</QueryClientProvider>,
 		);
 
-		screen.getByText("Manage automations");
+		expect(screen.getByRole("button")).toHaveAccessibleName("custom_tool");
 	});
 });

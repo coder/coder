@@ -7,6 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentgit"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
@@ -116,7 +120,9 @@ func TestSubscribeEmptyPaths(t *testing.T) {
 
 	ctx := context.Background()
 	msg := h.Scan(ctx)
-	require.Nil(t, msg, "scan should return nil with no repos")
+	require.NotNil(t, msg, "first scan should report the empty state")
+	require.Empty(t, msg.Repositories)
+	require.Nil(t, h.Scan(ctx), "later scans should return nil with no repos")
 }
 
 func TestScanReturnsRepoChanges(t *testing.T) {
@@ -145,6 +151,50 @@ func TestScanReturnsRepoChanges(t *testing.T) {
 
 	// Verify the new file appears in the unified diff.
 	require.Contains(t, repo.UnifiedDiff, "new.go")
+}
+
+// recordingExecer records every command it builds and delegates to
+// agentexec.DefaultExecer.
+type recordingExecer struct {
+	agentexec.Execer
+
+	mu       sync.Mutex
+	commands []string
+}
+
+func (r *recordingExecer) CommandContext(ctx context.Context, cmd string, args ...string) *exec.Cmd {
+	r.mu.Lock()
+	r.commands = append(r.commands, strings.Join(append([]string{cmd}, args...), " "))
+	r.mu.Unlock()
+	return r.Execer.CommandContext(ctx, cmd, args...)
+}
+
+func (r *recordingExecer) recorded() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.commands)
+}
+
+func TestWithExecerRunsGit(t *testing.T) {
+	t.Parallel()
+
+	repoDir := initTestRepo(t)
+	logger := slogtest.Make(t, nil)
+	execer := &recordingExecer{Execer: agentexec.DefaultExecer}
+
+	h := agentgit.NewHandler(logger, agentgit.WithExecer(execer))
+
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "new.go"), []byte("package main\n"), 0o600))
+	require.True(t, h.Subscribe([]string{filepath.Join(repoDir, "new.go")}))
+	msg := h.Scan(context.Background())
+	require.NotNil(t, msg)
+	require.Len(t, msg.Repositories, 1)
+	require.Contains(t, msg.Repositories[0].UnifiedDiff, "new.go")
+
+	commands := execer.recorded()
+	require.Contains(t, commands, "git rev-parse --show-toplevel")
+	require.Contains(t, commands, "git -C "+repoDir+" diff HEAD")
+	require.Contains(t, commands, "git -C "+repoDir+" ls-files --others --exclude-standard")
 }
 
 func TestScanRespectsGitignore(t *testing.T) {
@@ -308,10 +358,10 @@ func TestScanHeartbeatOnCleanRepo(t *testing.T) {
 }
 
 // TestScanNoHeartbeatWithoutSubscribedRoots pins that the heartbeat
-// only fires when there is at least one subscribed repo. Before any
-// subscribe call, Scan() must still short-circuit to nil so the
-// WebSocket handler does not spam empty messages to a client that
-// has not registered any paths yet.
+// only fires when there is at least one subscribed repo. The first
+// scan reports the empty state once; after that Scan() short-circuits
+// to nil so the WebSocket handler does not spam empty messages to a
+// client that has not registered any paths yet.
 func TestScanNoHeartbeatWithoutSubscribedRoots(t *testing.T) {
 	t.Parallel()
 
@@ -319,6 +369,10 @@ func TestScanNoHeartbeatWithoutSubscribedRoots(t *testing.T) {
 	h := agentgit.NewHandler(logger)
 
 	msg := h.Scan(context.Background())
+	require.NotNil(t, msg, "first scan should report the empty state")
+	require.Empty(t, msg.Repositories)
+
+	msg = h.Scan(context.Background())
 	require.Nil(t, msg, "no subscribed roots should mean no heartbeat")
 }
 
@@ -856,12 +910,55 @@ func TestWebSocketRefreshTriggersChanges(t *testing.T) {
 	require.NotEmpty(t, msg.Repositories)
 }
 
+// TestWebSocketRefreshResolvesNewRepo pins that refresh re-resolves
+// the chat's paths, so a repo initialized after its path was recorded
+// appears on refresh just as it would on a new connection.
+func TestWebSocketRefreshResolvesNewRepo(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	dir := testutil.TempDirResolved(t)
+	file := filepath.Join(dir, "main.go")
+	require.NoError(t, os.WriteFile(file, []byte("package main\n"), 0o600))
+
+	ps := agentgit.NewPathStore()
+	chatID := uuid.New()
+	ps.AddPaths([]uuid.UUID{chatID}, []string{file})
+
+	mClock := quartz.NewMock(t)
+	stream := dialGitWatchWithPathStore(t, ps, chatID, agentgit.WithClock(mClock))
+	ch := stream.Chan()
+
+	// The path is not in a repo yet, but the connection still reports
+	// its initial empty state.
+	msg := recvMsg(ctx, t, ch)
+	require.Equal(t, codersdk.WorkspaceAgentGitServerMessageTypeChanges, msg.Type)
+	require.Empty(t, msg.Repositories)
+
+	gitCmd(t, dir, "init")
+	mClock.Advance(2 * time.Second).MustWait(ctx)
+
+	err := stream.Send(codersdk.WorkspaceAgentGitClientMessage{
+		Type: codersdk.WorkspaceAgentGitClientMessageTypeRefresh,
+	})
+	require.NoError(t, err)
+
+	msg = recvMsg(ctx, t, ch)
+	require.Len(t, msg.Repositories, 1)
+	require.Equal(t, dir, msg.Repositories[0].RepoRoot)
+}
+
 func TestWebSocketUnknownMessageType(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	stream := dialGitWatch(t)
 	ch := stream.Chan()
+
+	// Every connection starts with its initial state, even with no repos.
+	initial := recvMsg(ctx, t, ch)
+	require.Equal(t, codersdk.WorkspaceAgentGitServerMessageTypeChanges, initial.Type)
+	require.Empty(t, initial.Repositories)
 
 	err := stream.Send(codersdk.WorkspaceAgentGitClientMessage{
 		Type: "bogus",
@@ -1276,6 +1373,12 @@ func TestE2E_WriteFileTriggersGitWatch(t *testing.T) {
 	stream := dialGitWatchWithPathStore(t, ps, chatID, agentgit.WithClock(mClock))
 	ch := stream.Chan()
 
+	// The connection reports its initial empty state first. Advance
+	// past the scan cooldown so the path update scans immediately.
+	initial := recvMsg(ctx, t, ch)
+	require.Empty(t, initial.Repositories)
+	mClock.Advance(2 * time.Second).MustWait(ctx)
+
 	// Simulate what HandleWriteFile does: add a path to the
 	// PathStore. This triggers a notification → subscribe → scan.
 	ps.AddPaths([]uuid.UUID{chatID}, []string{filepath.Join(repoDir, "newfile.go")})
@@ -1313,6 +1416,12 @@ func TestE2E_SubagentAncestorWatch(t *testing.T) {
 	// Connect a git watch WebSocket for the PARENT chat.
 	stream := dialGitWatchWithPathStore(t, ps, parentChatID, agentgit.WithClock(mClock))
 	ch := stream.Chan()
+
+	// The connection reports its initial empty state first. Advance
+	// past the scan cooldown so the path update scans immediately.
+	initial := recvMsg(ctx, t, ch)
+	require.Empty(t, initial.Repositories)
+	mClock.Advance(2 * time.Second).MustWait(ctx)
 
 	// Simulate a tool call from the CHILD chat with the parent as
 	// ancestor. The PathStore propagates the paths to all ancestor
@@ -1477,7 +1586,7 @@ func TestE2E_RepoDeletionEmitsRemoved(t *testing.T) {
 }
 
 // TestRunLoopExitsPromptlyOnCancel_DuringPoll pins that RunLoop
-// returns quickly when its context is cancelled while it is blocked
+// returns quickly when its context is canceled while it is blocked
 // on the fallback poll ticker. Regression guard for the fallback
 // interval: if a future change introduces a non-cancellable wait
 // here, this test will hang and fail.
@@ -1519,7 +1628,7 @@ func TestRunLoopExitsPromptlyOnCancel_DuringPoll(t *testing.T) {
 }
 
 // TestRunLoopExitsPromptlyOnCancel_DuringCooldown pins that RunLoop
-// returns quickly when its context is cancelled while a
+// returns quickly when its context is canceled while a
 // rateLimitedScan is sleeping out the cooldown between scans.
 // Regression guard: all waits inside the cooldown path must select
 // on ctx.Done().
@@ -1592,7 +1701,7 @@ func TestRunLoopExitsPromptlyOnCancel_DuringCooldown(t *testing.T) {
 	// Release the trap; rateLimitedScan then enters the select on
 	// the cooldown timer vs. ctx.Done(), and ctx.Done() is already
 	// ready so it wins. MustRelease uses Background because the
-	// test ctx is the one we just cancelled.
+	// test ctx is the one we just canceled.
 	releaseCtx, releaseCancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer releaseCancel()
 	cancel()

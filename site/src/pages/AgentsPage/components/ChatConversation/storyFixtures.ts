@@ -1,4 +1,6 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockChatMessage } from "#/testHelpers/chatEntities";
+import { MockUserPreferenceSettings } from "#/testHelpers/entities";
 import {
 	type DeriveLiveStatusParams,
 	deriveLiveStatus,
@@ -11,11 +13,18 @@ import type {
 	RetryState,
 	StreamState,
 } from "./types";
+import type { WorkingBlock } from "./workingBlockGrouping";
 
 export type StoryStreamRenderState = {
 	streamState: StreamState | null;
 	streamTools: readonly MergedTool[];
 	liveStatus: LiveStatusModel;
+};
+
+export const MockCollapsedStepsPreferences: TypesGen.UserPreferenceSettings = {
+	...MockUserPreferenceSettings,
+	shell_tool_display_mode: "always_collapsed",
+	collapse_assistant_steps: true,
 };
 
 /**
@@ -97,6 +106,334 @@ export const buildStreamRenderState = (
  */
 export const FIXTURE_NOW = new Date("2026-03-10T00:00:00.000Z").getTime();
 
+/**
+ * Start of the working-block fixtures. Their tool work begins one second in,
+ * so under the pinned clock a live block has been working for 12 seconds.
+ */
+export const WORKING_FIXTURE_START = FIXTURE_NOW - 13_000;
+export const workingFixtureTime = (seconds: number) =>
+	new Date(WORKING_FIXTURE_START + seconds * 1000).toISOString();
+
+/** Two completed steps that ran for the twelve seconds before the pinned clock. */
+export const MockWorkingBlock: WorkingBlock = {
+	key: "working:through:message:5",
+	liveKey: "working:live:message:1:0",
+	rowIndices: [0, 1],
+	memberIds: [2, 4],
+	startedAt: FIXTURE_NOW - 12_000,
+	endedAt: FIXTURE_NOW,
+	stepCount: 2,
+	endsWithAnswer: false,
+	isLive: false,
+	isPartial: false,
+};
+
+type ToolStep = {
+	toolName: string;
+	args: NonNullable<TypesGen.ChatToolCallPart["args"]>;
+	result: TypesGen.ChatToolResultPart["result"];
+};
+
+const workingStepMessages = (
+	id: number,
+	toolCallId: string,
+	callAt: number,
+	resultAt: number,
+	{
+		toolName = "execute",
+		args = { command: `echo ${toolCallId}` },
+		result = { output: `${toolCallId} output`, exit_code: "0" },
+	}: Partial<ToolStep> = {},
+): TypesGen.ChatMessage[] => [
+	{
+		...MockChatMessage,
+		id,
+		role: "assistant",
+		created_at: workingFixtureTime(callAt),
+		content: [
+			{
+				type: "tool-call",
+				tool_call_id: toolCallId,
+				tool_name: toolName,
+				args,
+				created_at: workingFixtureTime(callAt),
+			},
+		],
+	},
+	{
+		...MockChatMessage,
+		id: id + 1,
+		role: "tool",
+		created_at: workingFixtureTime(resultAt),
+		content: [
+			{
+				type: "tool-result",
+				tool_call_id: toolCallId,
+				tool_name: toolName,
+				result,
+				created_at: workingFixtureTime(resultAt),
+			},
+		],
+	},
+];
+
+/** A tool step that attaches `file`, in the message shape the server stores. */
+export const attachmentStepMessages = ({
+	id,
+	toolCallId,
+	callAt,
+	file,
+	...step
+}: ToolStep & {
+	id: number;
+	toolCallId: string;
+	callAt: number;
+	file: TypesGen.ChatFilePart;
+}): TypesGen.ChatMessage[] => {
+	const [callMessage, resultMessage] = workingStepMessages(
+		id,
+		toolCallId,
+		callAt,
+		callAt + 1,
+		step,
+	);
+	return [
+		callMessage,
+		{
+			...MockChatMessage,
+			id: id + 1,
+			role: "assistant",
+			created_at: workingFixtureTime(callAt + 1),
+			content: [file],
+		},
+		{ ...resultMessage, id: id + 2 },
+	];
+};
+
+/**
+ * One completed turn of two shell steps with part timestamps: prompt at 0s,
+ * tool work from 1s to 13s, answer at 14s.
+ */
+export const MockWorkingMessages: TypesGen.ChatMessage[] = [
+	{
+		...MockChatMessage,
+		id: 1,
+		created_at: workingFixtureTime(0),
+		content: [{ type: "text", text: "Inspect the workspace" }],
+	},
+	...workingStepMessages(2, "first", 1, 4),
+	...workingStepMessages(4, "second", 5, 13),
+	{
+		...MockChatMessage,
+		id: 6,
+		role: "assistant",
+		created_at: workingFixtureTime(14),
+		content: [{ type: "text", text: "Workspace inspection complete." }],
+	},
+];
+
+/**
+ * MockWorkingMessages whose final answer also reasoned, narrated, and searched
+ * the web from 13s to 16s before writing its text.
+ */
+export const MockWebSearchAnswerMessages: TypesGen.ChatMessage[] = [
+	...MockWorkingMessages.slice(0, 5),
+	{
+		...MockChatMessage,
+		id: 6,
+		role: "assistant",
+		created_at: workingFixtureTime(16),
+		content: [
+			{
+				type: "reasoning",
+				text: "Checking the release notes",
+				created_at: workingFixtureTime(13),
+				completed_at: workingFixtureTime(14),
+			},
+			{ type: "text", text: "Looking up the release notes." },
+			{
+				type: "tool-call",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				args: { query: "coder release notes" },
+				provider_executed: true,
+				created_at: workingFixtureTime(14),
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				result: {},
+				provider_executed: true,
+				created_at: workingFixtureTime(15),
+			},
+			{
+				type: "source",
+				url: "https://changelog.example.com",
+				title: "Coder changelog",
+			},
+			{
+				type: "source",
+				url: "https://releases.example.com",
+				title: "Coder releases",
+			},
+			{
+				type: "reasoning",
+				text: "Comparing the two sources",
+				created_at: workingFixtureTime(15),
+				completed_at: workingFixtureTime(16),
+			},
+			{
+				type: "text",
+				text: "The workspace runs the latest Coder release.",
+			},
+		],
+	},
+];
+
+/**
+ * MockWorkingMessages whose final answer searched the web from 14s to 15s and
+ * cited nothing.
+ */
+export const MockUncitedSearchAnswerMessages: TypesGen.ChatMessage[] = [
+	...MockWorkingMessages.slice(0, 5),
+	{
+		...MockChatMessage,
+		id: 6,
+		role: "assistant",
+		created_at: workingFixtureTime(16),
+		content: [
+			{
+				type: "tool-call",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				args: { query: "coder release notes" },
+				provider_executed: true,
+				created_at: workingFixtureTime(14),
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				result: {},
+				provider_executed: true,
+				created_at: workingFixtureTime(15),
+			},
+			{ type: "text", text: "No release notes mention the workspace." },
+		],
+	},
+];
+
+/**
+ * A turn without tools whose answer narrates, then searches the web from 1s to
+ * 3s before writing its text, with no reasoning.
+ */
+export const MockLeadInSearchMessages: TypesGen.ChatMessage[] = [
+	MockWorkingMessages[0],
+	{
+		...MockChatMessage,
+		id: 2,
+		role: "assistant",
+		created_at: workingFixtureTime(4),
+		content: [
+			{ type: "text", text: "I'll look up the latest Coder release." },
+			{
+				type: "tool-call",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				args: { query: "latest coder release" },
+				provider_executed: true,
+				created_at: workingFixtureTime(1),
+			},
+			{
+				type: "source",
+				url: "https://releases.example.com",
+				title: "Coder releases",
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				result: {},
+				provider_executed: true,
+				created_at: workingFixtureTime(3),
+			},
+			{ type: "text", text: "The latest Coder release is v2.30." },
+		],
+	},
+];
+
+/** MockWorkingMessages with an attach_file step between its two shell steps. */
+export const MockAttachmentWorkingMessages: TypesGen.ChatMessage[] = [
+	...MockWorkingMessages.slice(0, 3),
+	...attachmentStepMessages({
+		id: 4,
+		toolCallId: "attach",
+		callAt: 5,
+		toolName: "attach_file",
+		args: { path: "/home/coder/report.pdf" },
+		file: {
+			type: "file",
+			media_type: "application/pdf",
+			name: "report.pdf",
+			file_id: "report-file",
+		},
+		result: { name: "report.pdf" },
+	}),
+	...workingStepMessages(7, "second", 7, 13),
+	{
+		...MockChatMessage,
+		id: 9,
+		role: "assistant",
+		created_at: workingFixtureTime(14),
+		content: [{ type: "text", text: "Workspace inspection complete." }],
+	},
+];
+
+const planPath = "/home/coder/.coder/plans/PLAN.md";
+
+/** A turn that proposes a plan file after the first step of MockWorkingMessages. */
+export const MockPlanAttachmentMessages: TypesGen.ChatMessage[] = [
+	...MockWorkingMessages.slice(0, 3),
+	...attachmentStepMessages({
+		id: 4,
+		toolCallId: "plan",
+		callAt: 5,
+		toolName: "propose_plan",
+		args: { path: planPath },
+		file: {
+			type: "file",
+			media_type: "text/markdown",
+			name: "PLAN.md",
+			file_id: "plan-file",
+		},
+		result: {
+			ok: true,
+			path: planPath,
+			kind: "plan",
+			file_id: "plan-file",
+			media_type: "text/markdown",
+		},
+	}),
+];
+
+/** A question the agent asks after the first step of MockWorkingMessages. */
+export const MockQuestionCallMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 4,
+	role: "assistant",
+	created_at: workingFixtureTime(5),
+	content: [
+		{
+			type: "tool-call",
+			tool_call_id: "question",
+			tool_name: "ask_user_question",
+			args: {},
+			created_at: workingFixtureTime(5),
+		},
+	],
+};
+
 export const buildReconnectState = (
 	overrides: Partial<ReconnectState> = {},
 ): ReconnectState => ({
@@ -105,6 +442,28 @@ export const buildReconnectState = (
 	retryingAt: "2026-03-10T00:00:01.000Z",
 	...overrides,
 });
+
+const MockLongTurn = Array.from({ length: 60 }, (_, index) =>
+	workingStepMessages(100 + index * 2, `step-${index}`, index, index),
+).flat();
+
+/**
+ * The loaded transcript of a 60-step turn after each of its three history
+ * pages, newest first, so the prompt row only arrives with the final page.
+ */
+export const MockLongTurnPageLoads: TypesGen.ChatMessage[][] = [
+	MockLongTurn.slice(60),
+	MockLongTurn.slice(30),
+	[
+		{
+			...MockChatMessage,
+			id: 99,
+			created_at: workingFixtureTime(-1),
+			content: [{ type: "text", text: "Run every step" }],
+		},
+		...MockLongTurn,
+	],
+];
 
 export const buildRetryState = (
 	overrides: Partial<RetryState> = {},

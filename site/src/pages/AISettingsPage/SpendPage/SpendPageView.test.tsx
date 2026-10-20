@@ -47,7 +47,7 @@ it("reports the organization picked from the switcher", async () => {
 	const { onOrganizationChange } = renderView(MockOrganization);
 
 	await user.click(
-		screen.getByRole("button", {
+		screen.getByRole("combobox", {
 			name: `Organization ${MockOrganization.display_name}`,
 		}),
 	);
@@ -62,9 +62,7 @@ it("reports the organization picked to recover from a denied one", async () => {
 	const user = userEvent.setup();
 	const { onOrganizationChange } = renderView(undefined);
 
-	await user.click(
-		screen.getByRole("button", { name: /Select an organization/ }),
-	);
+	await user.click(screen.getByRole("combobox", { name: "Organization" }));
 	await user.click(
 		await screen.findByRole("option", { name: /My Organization 2/ }),
 	);

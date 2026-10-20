@@ -6,11 +6,9 @@ import {
 	userChatDebugLogging,
 } from "#/api/queries/chats";
 import { AgentSettingsGeneralPageView } from "./AgentSettingsGeneralPageView";
-import { useChatBoardAvailable } from "./exp/chatBoard/chatBoardFlag";
 
 const AgentSettingsGeneralPage: React.FC = () => {
 	const queryClient = useQueryClient();
-	const chatBoardAvailable = useChatBoardAvailable();
 	const userPromptQuery = useQuery(chatUserCustomPrompt());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
 	const saveUserPromptMutation = useMutation(
@@ -23,6 +21,8 @@ const AgentSettingsGeneralPage: React.FC = () => {
 	return (
 		<AgentSettingsGeneralPageView
 			userPromptData={userPromptQuery.data}
+			isLoadingUserPrompt={userPromptQuery.isLoading}
+			userPromptError={userPromptQuery.error}
 			onSaveUserPrompt={saveUserPromptMutation.mutate}
 			isSavingUserPrompt={saveUserPromptMutation.isPending}
 			isSaveUserPromptError={saveUserPromptMutation.isError}
@@ -30,7 +30,6 @@ const AgentSettingsGeneralPage: React.FC = () => {
 			onSaveUserDebugLogging={saveUserDebugLoggingMutation.mutate}
 			isSavingUserDebugLogging={saveUserDebugLoggingMutation.isPending}
 			isSaveUserDebugLoggingError={saveUserDebugLoggingMutation.isError}
-			chatBoardAvailable={chatBoardAvailable}
 		/>
 	);
 };

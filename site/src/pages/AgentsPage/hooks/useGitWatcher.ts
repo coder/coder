@@ -22,7 +22,7 @@ const _repoFieldGuard: Record<keyof _ComparedRepoFields, true> = {
 };
 
 type UseGitWatcherOptions = {
-	chatId: string | undefined;
+	chatId: string;
 	agentStatus: WorkspaceAgentStatus | undefined;
 };
 
@@ -60,7 +60,7 @@ export function useGitWatcher({
 	// Chat-scoped state (everDirty) resets on chatId change but
 	// must survive agentStatus flaps on the same chat.
 	// https://react.dev/reference/react/useState#storing-information-from-previous-renders
-	const [lastChatId, setLastChatId] = useState<string | undefined>(chatId);
+	const [lastChatId, setLastChatId] = useState(chatId);
 	if (lastChatId !== chatId) {
 		setLastChatId(chatId);
 		setEverDirty((prev) => (prev.size === 0 ? prev : new Set()));
@@ -80,16 +80,18 @@ export function useGitWatcher({
 	};
 
 	useEffect(() => {
-		if (!chatId || agentStatus !== "connected") {
+		if (agentStatus !== "connected") {
 			return;
 		}
 
-		const activeChatId = chatId;
-
 		const dispose = createReconnectingWebSocket({
 			connect() {
-				const socket = watchChatGit(activeChatId);
+				const socket = watchChatGit(chatId);
 				socketRef.current = socket;
+				// The agent sends the full state as the first message of each
+				// connection. It replaces whatever an earlier connection left
+				// behind, such as repos deleted while disconnected.
+				let isFirstChanges = true;
 
 				socket.addEventListener("message", (event) => {
 					// Ignore messages from superseded connections.
@@ -108,6 +110,10 @@ export function useGitWatcher({
 
 					if (data.type === "changes") {
 						setHasReceivedChanges(true);
+						if (isFirstChanges) {
+							isFirstChanges = false;
+							setRepositories((prev) => (prev.size === 0 ? prev : new Map()));
+						}
 						if (data.repositories) {
 							setRepositories((prev) => {
 								let changed = false;
