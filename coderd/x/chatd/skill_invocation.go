@@ -11,6 +11,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
@@ -92,15 +93,14 @@ func (p *Server) resolveSkillInvocations(
 			parsed, err := p.loadOrganizationSkillBody(ctx, owner, chat.OrganizationID, part.SkillName)
 			return parsed.Body, err
 		case codersdk.ChatSkillSourceProject:
-			projectID := p.resolveChatProjectID(ctx, p.logger, chat)
+			// Read as chatd behind the chat owner's project usability check,
+			// like project skill loading for turns.
+			chatdCtx := dbauthz.AsChatd(ctx)
+			projectID := p.resolveUsableChatProjectID(chatdCtx, p.logger, chat)
 			if !projectID.Valid {
 				return "", skillspkg.ErrSkillNotFound
 			}
-			owner, err := loadOwner()
-			if err != nil {
-				return "", err
-			}
-			parsed, err := p.loadProjectSkillBody(ctx, owner, projectID.UUID, part.SkillName)
+			parsed, err := p.loadProjectSkillBody(chatdCtx, projectID.UUID, part.SkillName)
 			return parsed.Body, err
 		case codersdk.ChatSkillSourceWorkspace:
 			skills, err := loadWorkspaceSkills()
