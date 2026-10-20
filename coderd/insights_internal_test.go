@@ -351,12 +351,16 @@ func TestConvertTemplateInsightsApps(t *testing.T) {
 
 		sharedTemplateID, cursorTemplateID := uuid.New(), uuid.New()
 		apps, err := convertTemplateInsightsApps(database.GetTemplateInsightsRow{
-			SessionAppUsageSeconds: json.RawMessage(`{"vscode": 300, "cursor": 120, "some_new_ide": 60, "overflow": 120, "unknown": 60, "reconnecting_pty": 90, "port_forwarding": 30}`),
-			SessionAppTemplateIds: json.RawMessage(`{
+			SessionAppUsageSeconds: json.RawMessage(`{
+				"ssh": {"vscode": 300, "cursor": 120, "some_new_ide": 60, "overflow": 120, "unknown": 60},
+				"reconnecting_pty": {"reconnecting_pty": 90},
+				"port_forwarding": {"port_forwarding": 30, "vscode": 15}
+			}`),
+			SessionAppTemplateIds: json.RawMessage(`{"ssh": {
 				"vscode": ["` + sharedTemplateID.String() + `"],
 				"cursor": ["` + sharedTemplateID.String() + `", "` + cursorTemplateID.String() + `"],
 				"some_new_ide": ["` + cursorTemplateID.String() + `"]
-			}`),
+			}}`),
 		}, []database.GetTemplateAppInsightsRow{{
 			TemplateIDs:  []uuid.UUID{sharedTemplateID},
 			Slug:         "filebrowser",
@@ -365,6 +369,29 @@ func TestConvertTemplateInsightsApps(t *testing.T) {
 		}})
 		require.NoError(t, err)
 		require.Equal(t, []codersdk.TemplateAppUsage{
+			{
+				TemplateIDs: []uuid.UUID{},
+				Method:      codersdk.ConnectionLogMethodPortForwarding,
+				DisplayName: "Port Forwarding",
+				Slug:        "port_forwarding",
+				Seconds:     30,
+			},
+			{
+				TemplateIDs: []uuid.UUID{},
+				Method:      codersdk.ConnectionLogMethodPortForwarding,
+				DisplayName: "VS Code",
+				Slug:        "vscode",
+				Icon:        "/icon/code.svg",
+				Seconds:     15,
+			},
+			{
+				TemplateIDs: []uuid.UUID{},
+				Method:      codersdk.ConnectionLogMethodReconnectingPTY,
+				DisplayName: "Web Terminal",
+				Slug:        "reconnecting_pty",
+				Icon:        "/icon/terminal.svg",
+				Seconds:     90,
+			},
 			{
 				TemplateIDs: []uuid.UUID{sharedTemplateID, cursorTemplateID},
 				Method:      codersdk.ConnectionLogMethodSSH,
@@ -379,21 +406,6 @@ func TestConvertTemplateInsightsApps(t *testing.T) {
 				DisplayName: "Other apps",
 				Slug:        codersdk.AppNameOverflow,
 				Seconds:     120,
-			},
-			{
-				TemplateIDs: []uuid.UUID{},
-				Method:      codersdk.ConnectionLogMethodPortForwarding,
-				DisplayName: "Port Forwarding",
-				Slug:        "port_forwarding",
-				Seconds:     30,
-			},
-			{
-				TemplateIDs: []uuid.UUID{},
-				Method:      codersdk.ConnectionLogMethodReconnectingPTY,
-				DisplayName: "Web Terminal",
-				Slug:        "reconnecting_pty",
-				Icon:        "/icon/terminal.svg",
-				Seconds:     90,
 			},
 			{
 				TemplateIDs: []uuid.UUID{cursorTemplateID},
@@ -435,9 +447,12 @@ func TestConvertTemplateInsightsApps(t *testing.T) {
 		// slug, and it is not an accounting row.
 		templateID := uuid.New()
 		apps, err := convertTemplateInsightsApps(database.GetTemplateInsightsRow{
-			SessionAppUsageSeconds: json.RawMessage(`{"overflow": 120, "unknown": 60, "future_ide": 30}`),
-			SessionAppTemplateIds:  json.RawMessage(`{}`),
-			SessionFoldedAppCount:  2,
+			SessionAppUsageSeconds: json.RawMessage(`{
+				"ssh": {"overflow": 120, "unknown": 60, "future_ide": 30},
+				"port_forwarding": {"overflow": 10}
+			}`),
+			SessionAppTemplateIds: json.RawMessage(`{}`),
+			SessionFoldedMethods:  []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
 		}, []database.GetTemplateAppInsightsRow{{
 			TemplateIDs:  []uuid.UUID{templateID},
 			Slug:         codersdk.AppNameOverflow,
@@ -450,10 +465,11 @@ func TestConvertTemplateInsightsApps(t *testing.T) {
 			upperBound[string(app.Method)+"/"+app.Slug] = app.SecondsIsUpperBound
 		}
 		require.Equal(t, map[string]bool{
-			"ssh/future_ide":         false,
-			"ssh/overflow":           true,
-			"ssh/unknown":            false,
-			"workspace_app/overflow": false,
+			"port_forwarding/overflow": false,
+			"ssh/future_ide":           false,
+			"ssh/overflow":             true,
+			"ssh/unknown":              false,
+			"workspace_app/overflow":   false,
 		}, upperBound)
 	})
 
@@ -462,12 +478,12 @@ func TestConvertTemplateInsightsApps(t *testing.T) {
 
 		for name, usage := range map[string]database.GetTemplateInsightsRow{
 			"UsageSeconds": {
-				SessionAppUsageSeconds: json.RawMessage(`{"vscode": {}}`),
+				SessionAppUsageSeconds: json.RawMessage(`{"ssh": {"vscode": {}}}`),
 				SessionAppTemplateIds:  json.RawMessage(`{}`),
 			},
 			"TemplateIDs": {
 				SessionAppUsageSeconds: json.RawMessage(`{}`),
-				SessionAppTemplateIds:  json.RawMessage(`{"vscode": "not-a-uuid"}`),
+				SessionAppTemplateIds:  json.RawMessage(`{"ssh": {"vscode": "not-a-uuid"}}`),
 			},
 		} {
 			t.Run(name, func(t *testing.T) {

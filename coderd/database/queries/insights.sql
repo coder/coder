@@ -135,6 +135,7 @@ WITH
 		-- grouping. FILTER, not WHERE: the excluded buckets' minutes belong to
 		-- app_usage_capped, but their templates still belong in the list.
 		SELECT
+			sessions.method,
 			sessions.app_name,
 			sessions.template_id,
 			SUM(sessions.usage_mins) FILTER (
@@ -149,10 +150,11 @@ WITH
 			AND sessions.start_time <= (@end_time::timestamptz) - '30 minutes'::interval
 			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN sessions.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
 		GROUP BY
-			sessions.app_name, sessions.template_id
+			sessions.method, sessions.app_name, sessions.template_id
 	),
 	app_usage_capped AS (
 		SELECT
+			sessions.method,
 			sessions.app_name,
 			LEAST(SUM(sessions.usage_mins), 30) AS usage_mins
 		FROM
@@ -168,46 +170,53 @@ WITH
 					AND buckets.user_id = sessions.user_id
 			)
 		GROUP BY
-			sessions.start_time, sessions.user_id, sessions.app_name
+			sessions.start_time, sessions.user_id, sessions.method, sessions.app_name
 	),
 	app_usage AS (
 		SELECT
+			method,
 			app_name,
 			(SUM(usage_mins) * 60)::bigint AS usage_seconds
 		FROM (
-			SELECT app_name, usage_mins FROM app_usage_by_template
+			SELECT method, app_name, usage_mins FROM app_usage_by_template
 			UNION ALL
-			SELECT app_name, usage_mins FROM app_usage_capped
+			SELECT method, app_name, usage_mins FROM app_usage_capped
 		) AS parts
 		GROUP BY
-			app_name
+			method, app_name
 	),
 	app_templates AS (
 		SELECT
+			method,
 			app_name,
 			array_agg(DISTINCT template_id) AS template_ids
 		FROM
 			app_usage_by_template
 		GROUP BY
-			app_name
+			method, app_name
 	),
 	folded_apps AS (
 		SELECT
+			method,
 			app_name
 		FROM
 			app_usage
 		WHERE
 			NOT (app_name = ANY(COALESCE(@registered_app_names::text[], '{}'::text[])))
 			AND app_name NOT IN ('unknown', 'overflow')
+		-- Same order as codersdk.FoldUnregisteredSessionApps.
 		ORDER BY
-			usage_seconds DESC, app_name COLLATE "C"
+			usage_seconds DESC, method::text COLLATE "C", app_name COLLATE "C"
 		OFFSET GREATEST(@max_unregistered_apps::bigint, 0)
 	),
-	-- The overflow row is only rebuilt when something folds into it.
+	folded_methods AS (
+		SELECT DISTINCT method FROM folded_apps
+	),
+	-- A method's overflow row is only rebuilt when something folds into it.
 	folded_names AS (
-		SELECT app_name FROM folded_apps
+		SELECT method, app_name FROM folded_apps
 		UNION ALL
-		SELECT 'overflow' WHERE EXISTS (SELECT 1 FROM folded_apps)
+		SELECT method, 'overflow' FROM folded_methods
 	),
 	-- Overlap between folded apps is not stored. Cap their summed minutes at
 	-- each user's active time to bound overflow, and skip the scan if none fold.
@@ -215,6 +224,7 @@ WITH
 		SELECT
 			sessions.start_time,
 			sessions.user_id,
+			sessions.method,
 			SUM(sessions.usage_mins) AS usage_mins
 		FROM
 			template_usage_stats_session_apps AS sessions
@@ -223,47 +233,72 @@ WITH
 			AND sessions.start_time >= @start_time::timestamptz
 			AND sessions.start_time <= (@end_time::timestamptz) - '30 minutes'::interval
 			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN sessions.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
-			AND sessions.app_name IN (SELECT app_name FROM folded_names)
+			AND (sessions.method, sessions.app_name) IN (SELECT method, app_name FROM folded_names)
 		GROUP BY
-			sessions.start_time, sessions.user_id
+			sessions.start_time, sessions.user_id, sessions.method
 	),
 	response_apps AS (
 		SELECT
+			app_usage.method,
 			app_usage.app_name,
 			app_usage.usage_seconds,
 			app_templates.template_ids
 		FROM
 			app_usage
 		JOIN
-			app_templates USING (app_name)
+			app_templates USING (method, app_name)
 		WHERE
-			app_usage.app_name NOT IN (SELECT app_name FROM folded_names)
+			(app_usage.method, app_usage.app_name) NOT IN (SELECT method, app_name FROM folded_names)
 		UNION ALL
 		SELECT
+			method,
 			'overflow',
-			(
-				SELECT (SUM(LEAST(folded.usage_mins, users.usage_mins)) * 60)::bigint
-				FROM folded_minutes AS folded
-				JOIN users
-				ON users.start_time = folded.start_time
-					AND users.user_id = folded.user_id
-			),
-			(
-				SELECT array_agg(DISTINCT template_id)
-				FROM app_usage_by_template
-				WHERE app_name IN (SELECT app_name FROM folded_names)
-			)
-		WHERE
-			EXISTS (SELECT 1 FROM folded_apps)
+			overflow_minutes.usage_seconds,
+			overflow_templates.template_ids
+		FROM
+			folded_methods
+		-- Grouped joins, not per-method subqueries: the planner cannot tell how
+		-- few methods fold and costs each subquery as if hundreds did, which
+		-- makes Postgres JIT-compile the query on every call.
+		LEFT JOIN (
+			SELECT folded.method, (SUM(LEAST(folded.usage_mins, users.usage_mins)) * 60)::bigint AS usage_seconds
+			FROM folded_minutes AS folded
+			JOIN users
+			ON users.start_time = folded.start_time
+				AND users.user_id = folded.user_id
+			GROUP BY folded.method
+		) AS overflow_minutes USING (method)
+		LEFT JOIN (
+			SELECT method, array_agg(DISTINCT template_id) AS template_ids
+			FROM app_usage_by_template
+			WHERE (method, app_name) IN (SELECT method, app_name FROM folded_names)
+			GROUP BY method
+		) AS overflow_templates USING (method)
 	)
 
 SELECT
 	COALESCE((SELECT array_agg(DISTINCT template_id) FROM base WHERE NOT is_user_row), '{}')::uuid[] AS template_ids, -- Includes app usage.
 	COALESCE(COUNT(DISTINCT user_id), 0)::bigint AS active_users, -- Includes app usage.
 	COALESCE(SUM(usage_mins) * 60, 0)::bigint AS usage_total_seconds, -- Includes app usage.
-	COALESCE((SELECT jsonb_object_agg(app_name, usage_seconds) FILTER (WHERE usage_seconds IS NOT NULL) FROM response_apps), '{}'::jsonb)::jsonb AS session_app_usage_seconds,
-	COALESCE((SELECT jsonb_object_agg(app_name, template_ids) FILTER (WHERE template_ids IS NOT NULL) FROM response_apps), '{}'::jsonb)::jsonb AS session_app_template_ids,
-	(SELECT COUNT(*) FROM folded_apps)::bigint AS session_folded_app_count
+	COALESCE((
+		SELECT jsonb_object_agg(method, apps)
+		FROM (
+			SELECT method, jsonb_object_agg(app_name, usage_seconds) AS apps
+			FROM response_apps
+			WHERE usage_seconds IS NOT NULL
+			GROUP BY method
+		) AS by_method
+	), '{}'::jsonb)::jsonb AS session_app_usage_seconds,
+	COALESCE((
+		SELECT jsonb_object_agg(method, apps)
+		FROM (
+			SELECT method, jsonb_object_agg(app_name, template_ids) AS apps
+			FROM response_apps
+			WHERE template_ids IS NOT NULL
+			GROUP BY method
+		) AS by_method
+	), '{}'::jsonb)::jsonb AS session_app_template_ids,
+	COALESCE((SELECT array_agg(method) FROM folded_methods), '{}')::connection_log_method[] AS session_folded_methods
 FROM
 	users;
 
@@ -308,8 +343,11 @@ WITH
 			COUNT(DISTINCT date_trunc('minute', was.created_at)) AS usage_mins
 		FROM
 			workspace_agent_stats AS was
+		-- One set-returning call over every method's app names. Nesting
+		-- jsonb_each and jsonb_object_keys makes the planner expect 100 x 100
+		-- rows per stat row, enough to JIT-compile the query on every call.
 		CROSS JOIN
-			jsonb_object_keys(was.session_counts) AS app_name
+			jsonb_array_elements_text(jsonb_path_query_array(was.session_counts, '$.*.keyvalue().key')) AS app_name
 		JOIN
 			connected AS c
 		ON
@@ -772,7 +810,8 @@ WITH
 			agent_stats.time_bucket,
 			agent_stats.template_id,
 			agent_stats.user_id,
-			app_name,
+			apps.method,
+			apps.app_name,
 			COUNT(DISTINCT agent_stats.minute_bucket)::smallint AS usage_mins
 		FROM
 			agent_stats_rows AS agent_stats
@@ -785,10 +824,13 @@ WITH
 			-- Same gate as the union below, so an app-stats-only bucket
 			-- records no session usage.
 			AND buckets.has_connection
+		-- The function's row estimate, unlike nested jsonb_each and
+		-- jsonb_object_keys, keeps the NOT IN below hashed. sqlc can't resolve
+		-- its result columns, hence the alias list.
 		CROSS JOIN
-			jsonb_object_keys(agent_stats.session_counts) AS app_name
+			session_count_apps(agent_stats.session_counts) AS apps(method, app_name)
 		GROUP BY
-			agent_stats.time_bucket, agent_stats.template_id, agent_stats.user_id, app_name
+			agent_stats.time_bucket, agent_stats.template_id, agent_stats.user_id, apps.method, apps.app_name
 	),
 	stats AS (
 		SELECT
@@ -909,18 +951,21 @@ WITH
 	--
 	-- NOT IN, not NOT EXISTS: the planner has no statistics for the CTE and
 	-- turns NOT EXISTS into a nested loop that rescans it per row, 20 seconds
-	-- per rollup. Every column is non-null, so both delete the same rows.
+	-- per rollup. Every column is non-null, so both delete the same rows. The
+	-- start_time bound is implied by the buckets but keeps the scan on recent
+	-- rows instead of every bucket ever rolled up.
 	delete_apps AS (
 		DELETE FROM
 			template_usage_stats_session_apps AS apps
 		USING
 			agent_stats_buckets AS buckets
 		WHERE
-			apps.start_time = buckets.time_bucket
+			apps.start_time >= (SELECT t FROM latest_start)
+			AND apps.start_time = buckets.time_bucket
 			AND apps.template_id = buckets.template_id
 			AND apps.user_id = buckets.user_id
-			AND (apps.start_time, apps.template_id, apps.user_id, apps.app_name) NOT IN (
-				SELECT time_bucket, template_id, user_id, app_name
+			AND (apps.start_time, apps.template_id, apps.user_id, apps.method, apps.app_name) NOT IN (
+				SELECT time_bucket, template_id, user_id, method, app_name
 				FROM agent_stats_session_minutes
 			)
 	)
@@ -929,6 +974,7 @@ INSERT INTO template_usage_stats_session_apps AS apps (
 	start_time,
 	template_id,
 	user_id,
+	method,
 	app_name,
 	usage_mins
 ) (
@@ -936,13 +982,14 @@ INSERT INTO template_usage_stats_session_apps AS apps (
 		time_bucket,
 		template_id,
 		user_id,
+		method,
 		app_name,
 		usage_mins
 	FROM
 		agent_stats_session_minutes
 )
 ON CONFLICT
-	(start_time, template_id, user_id, app_name)
+	(start_time, user_id, template_id, method, app_name)
 DO UPDATE
 SET
 	usage_mins = EXCLUDED.usage_mins

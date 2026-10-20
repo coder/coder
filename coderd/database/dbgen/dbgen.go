@@ -1812,14 +1812,19 @@ func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.Workspace
 	}
 }
 
-// SessionCounts marshals counts for the SessionCounts seed field of
-// WorkspaceAgentStat.
+// SessionCounts marshals per-app counts for the SessionCounts seed field of
+// WorkspaceAgentStat, deriving each app's method from its name.
 func SessionCounts(t testing.TB, counts map[string]int64) json.RawMessage {
 	t.Helper()
-	if counts == nil {
-		counts = map[string]int64{}
+	nested := map[codersdk.ConnectionLogMethod]map[string]int64{}
+	for app, count := range counts {
+		method := codersdk.SessionAppMethod(app)
+		if nested[method] == nil {
+			nested[method] = map[string]int64{}
+		}
+		nested[method][app] = count
 	}
-	raw, err := json.Marshal(counts)
+	raw, err := json.Marshal(nested)
 	require.NoError(t, err, "marshal session counts")
 	return raw
 }

@@ -624,7 +624,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 					agentStatsConnectionMedianLatencyGauge.WithLabelValues(VectorOperationSet, agentStat.ConnectionMedianLatencyMS/1000.0 /* (to seconds) */, labelValues...)
 
 					// A malformed payload leaves this agent's other gauges intact.
-					appCounts, err := codersdk.DecodeAppMap[int64](agentStat.SessionCounts)
+					appCounts, err := codersdk.SumSessionCounts(agentStat.SessionCounts)
 					if err != nil {
 						logger.Error(ctx, "can't decode agent session counts",
 							slog.F("agent_name", agentStat.AgentName),
