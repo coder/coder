@@ -43,11 +43,16 @@ func (p *Server) resolveChatProjectID(ctx context.Context, logger slog.Logger, c
 // Instructions are read on every turn so edits reach existing chats on their
 // next turn.
 //
-// Lookups fail open: a chat keeps working without project instructions when
-// they cannot be loaded.
+// A chat runs without project instructions when the project or its
+// instructions cannot be loaded, when the access check fails, or when the
+// chat owner can no longer use the project.
 func (p *Server) resolveProjectInstructions(ctx context.Context, logger slog.Logger, chat database.Chat) string {
 	projectID := p.resolveChatProjectID(ctx, logger, chat)
 	if !projectID.Valid {
+		return ""
+	}
+
+	if _, ok := p.usableChatProject(ctx, logger, projectID.UUID, chat); !ok {
 		return ""
 	}
 
