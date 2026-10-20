@@ -227,6 +227,8 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 					s.config.ConnectionReporter,
 					newChan,
 					s.startSession,
+					s.isClosing,
+					s.trackChannel,
 					clientSessionIDFromContext(ctx),
 				)
 				ssh.DirectTCPIPHandler(srv, conn, wrapped, ctx)
@@ -575,11 +577,18 @@ func (s *Server) sessionHandler(session ssh.Session) {
 			ClientSessionID: clientSessionID,
 		})
 		defer func() {
+			fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField(), slog.F("exit_code", st.exitCode())}
+			if s.isClosing() {
+				if reason != "" && reason != codersdk.DisconnectReasonGraceful {
+					fields = append(fields, codersdk.SlogDisconnectDetail(string(reason)))
+				}
+				reason = codersdk.DisconnectReasonServerShutdown
+				fields = append(fields, serverShutdownFields()...)
+			} else {
+				fields = append(fields, reason.SlogField(), reason.SlogExpectedField())
+			}
 			logger.Info(ctx, "ssh session closed",
-				codersdk.ConnectionDirectionAgentToClient.SlogField(),
-				reason.SlogField(),
-				reason.SlogExpectedField(),
-				slog.F("exit_code", st.exitCode()),
+				fields...,
 			)
 			connReporter.Disconnect(proto.DisconnectEvent{
 				Code:    st.exitCode(),
@@ -1188,17 +1197,28 @@ func (s *Server) handleConn(l net.Listener, c net.Conn) {
 		slog.F("listen_addr", l.Addr()),
 		slog.F("client_session_id", clientSessionID))
 
-	defer logger.Info(context.Background(), "ssh connection complete")
+	registered := s.trackConn(l, c, true)
+	if registered {
+		// Close must wait for the completion log, including forwarding-only
+		// connections that have no separate session completion report.
+		defer s.trackConn(l, c, false)
+	}
+	defer func() {
+		fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField()}
+		if s.isClosing() {
+			fields = append(fields, serverShutdownFields()...)
+		}
+		logger.Info(context.Background(), "ssh connection complete", fields...)
+	}()
 
 	defer c.Close()
 
-	if !s.trackConn(l, c, true) {
+	if !registered {
 		// Server is closed or we no longer want
 		// connections from this listener.
 		logger.Info(context.Background(), "received connection after server closed")
 		return
 	}
-	defer s.trackConn(l, c, false)
 	logger.Info(context.Background(), "started serving ssh connection")
 	s.srv.HandleConn(c)
 }
@@ -1274,6 +1294,25 @@ func (s *Server) trackSession(ss ssh.Session, add bool) (ok bool) {
 	}
 	s.wg.Done()
 	delete(s.sessions, ss)
+	return true
+}
+
+// trackChannel registers a channel whose handler outlives its connection's
+// tracking, such as a forwarded JetBrains channel. If the server is closing,
+// the channel is not registered.
+//
+//nolint:revive // add is a control flag, matching trackConn and trackSession.
+func (s *Server) trackChannel(add bool) (ok bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if add {
+		if s.closing != nil {
+			return false
+		}
+		s.wg.Add(1)
+		return true
+	}
+	s.wg.Done()
 	return true
 }
 

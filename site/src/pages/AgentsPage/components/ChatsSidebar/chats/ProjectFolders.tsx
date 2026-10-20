@@ -26,8 +26,10 @@ import {
 	savePersistedProjectsSectionExpanded,
 } from "../../../utils/projectsSectionStorage";
 import { ChatProjectIcon } from "../../ChatProjectIcon";
-import { ChatTreeNode } from "../tree/ChatTreeNode";
+import { DraggableChatTreeNode } from "../tree/DraggableChatTreeNode";
+import { ChatDropArea } from "./ChatDropArea";
 import { ProjectActionsMenuItems } from "./ProjectActionsMenuItems";
+import { ProjectsSectionDropArea } from "./ProjectsSectionDropArea";
 import { getOrganizationLabels } from "./projectGrouping";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
 
@@ -78,10 +80,9 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	const [isExpanded, setIsExpanded] = useState(() =>
 		getPersistedProjectsSectionExpanded(currentUserId),
 	);
-	const toggleExpanded = () => {
-		const next = !isExpanded;
-		setIsExpanded(next);
-		savePersistedProjectsSectionExpanded(currentUserId, next);
+	const setExpanded = (expanded: boolean) => {
+		setIsExpanded(expanded);
+		savePersistedProjectsSectionExpanded(currentUserId, expanded);
 	};
 	const openCreateDialog = () => onOpenProjectDialog({ mode: "create" });
 	const isShowingEmptyState =
@@ -94,26 +95,31 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 
 	return (
 		<div>
-			<SidebarSectionHeader
-				title="Projects"
-				collapsible={{
-					expanded: isExpanded,
-					onToggle: toggleExpanded,
-				}}
-				actions={
-					isShowingHeaderNewProject && (
-						<Button
-							variant="subtle"
-							size="icon"
-							className="size-7"
-							aria-label="New project"
-							onClick={openCreateDialog}
-						>
-							<PlusIcon />
-						</Button>
-					)
-				}
-			/>
+			<ProjectsSectionDropArea
+				isExpanded={isExpanded}
+				onExpand={() => setExpanded(true)}
+			>
+				<SidebarSectionHeader
+					title="Projects"
+					collapsible={{
+						expanded: isExpanded,
+						onToggle: () => setExpanded(!isExpanded),
+					}}
+					actions={
+						isShowingHeaderNewProject && (
+							<Button
+								variant="subtle"
+								size="icon"
+								className="size-7"
+								aria-label="New project"
+								onClick={openCreateDialog}
+							>
+								<PlusIcon />
+							</Button>
+						)
+					}
+				/>
+			</ProjectsSectionDropArea>
 			{isExpanded && (
 				<div className="px-2">
 					{Boolean(error) && (
@@ -194,10 +200,17 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 		? `${project.name} (${organizationLabel})`
 		: project.name;
 	return (
-		<div>
+		<ChatDropArea
+			target={{
+				kind: "project",
+				projectId: project.id,
+				organizationId: project.organization_id,
+				label: projectLabel,
+			}}
+		>
 			<ContextMenu>
 				<ContextMenuTrigger asChild>
-					<div className="group relative flex items-center gap-1 rounded-md pl-1 pr-2 text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary">
+					<div className="group relative flex items-center gap-1 rounded-md pl-1 pr-2 text-content-secondary group-data-[drop=unavailable]/drop:opacity-50 hover:bg-surface-tertiary/50 hover:text-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary">
 						<Button
 							variant="subtle"
 							size="icon"
@@ -222,11 +235,6 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 								className="size-4"
 							/>
 							<span className="flex-1 truncate">{project.name}</span>
-							{organizationLabel && (
-								<span className="max-w-[40%] shrink-0 truncate text-xs text-content-secondary">
-									{organizationLabel}
-								</span>
-							)}
 						</NavLink>
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
@@ -270,6 +278,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 									Item={DropdownMenuItem}
 									Separator={DropdownMenuSeparator}
 									projectPath={projectPath}
+									permissions={project.permissions}
 									onEdit={onEdit}
 									onDelete={onDelete}
 								/>
@@ -282,6 +291,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 						Item={ContextMenuItem}
 						Separator={ContextMenuSeparator}
 						projectPath={projectPath}
+						permissions={project.permissions}
 						onEdit={onEdit}
 						onDelete={onDelete}
 					/>
@@ -296,10 +306,12 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 							{emptyMessage}
 						</p>
 					) : (
-						chats.map((chat) => <ChatTreeNode key={chat.id} chat={chat} />)
+						chats.map((chat) => (
+							<DraggableChatTreeNode key={chat.id} chat={chat} />
+						))
 					)}
 				</div>
 			)}
-		</div>
+		</ChatDropArea>
 	);
 };
