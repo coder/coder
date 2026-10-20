@@ -23,3 +23,16 @@ func PluginDataDir(home, name, installDir string) (string, error) {
 	sum := sha256.Sum256([]byte(filepath.Clean(installDir)))
 	return filepath.Join(home, ".coder", "plugin-data", name+"-"+hex.EncodeToString(sum[:])[:pluginDataHashLen]), nil
 }
+
+// PluginSource returns the ConfigSource for the mcp.json of the plugin
+// named name installed at installDir, with its PluginDataDir under home.
+func PluginSource(home, name, installDir string) (ConfigSource, error) {
+	dataDir, err := PluginDataDir(home, name, installDir)
+	if err != nil {
+		return ConfigSource{}, err
+	}
+	return ConfigSource{
+		Path:   filepath.Join(installDir, pluginMCPFileName),
+		Plugin: &PluginScope{Name: name, Root: installDir, DataDir: dataDir},
+	}, nil
+}

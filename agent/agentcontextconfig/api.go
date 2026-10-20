@@ -75,6 +75,9 @@ type Config struct {
 	SkillsDirs       string
 	SkillMetaFile    string
 	MCPConfigFiles   string
+	// MCPConfigFilesSet reports whether MCPConfigFiles was set
+	// explicitly, even to DefaultMCPConfigFile.
+	MCPConfigFilesSet bool
 }
 
 // applyDefaults fills zero-valued fields with their defaults.
@@ -90,12 +93,14 @@ func (c Config) applyDefaults() Config {
 // ReadEnvConfig reads the CODER_AGENT_EXP_* environment
 // variables, falling back to defaults for unset values.
 func ReadEnvConfig() Config {
+	mcpConfigFiles := strings.TrimSpace(os.Getenv(EnvMCPConfigFiles))
 	return Config{
-		InstructionsDirs: strings.TrimSpace(os.Getenv(EnvInstructionsDirs)),
-		InstructionsFile: strings.TrimSpace(os.Getenv(EnvInstructionsFile)),
-		SkillsDirs:       strings.TrimSpace(os.Getenv(EnvSkillsDirs)),
-		SkillMetaFile:    strings.TrimSpace(os.Getenv(EnvSkillMetaFile)),
-		MCPConfigFiles:   strings.TrimSpace(os.Getenv(EnvMCPConfigFiles)),
+		InstructionsDirs:  strings.TrimSpace(os.Getenv(EnvInstructionsDirs)),
+		InstructionsFile:  strings.TrimSpace(os.Getenv(EnvInstructionsFile)),
+		SkillsDirs:        strings.TrimSpace(os.Getenv(EnvSkillsDirs)),
+		SkillMetaFile:     strings.TrimSpace(os.Getenv(EnvSkillMetaFile)),
+		MCPConfigFiles:    mcpConfigFiles,
+		MCPConfigFilesSet: mcpConfigFiles != "",
 	}.applyDefaults()
 }
 
@@ -203,6 +208,12 @@ func ContextPartsFromDir(dir string) []codersdk.ChatMessagePart {
 func (api *API) MCPConfigFiles() []string {
 	_, mcpFiles := Resolve(api.workingDir(), api.cfg)
 	return mcpFiles
+}
+
+// MCPConfigFilesSet reports whether the MCP configuration file list
+// was set explicitly rather than defaulted.
+func (api *API) MCPConfigFilesSet() bool {
+	return api.cfg.MCPConfigFilesSet
 }
 
 // Routes returns the HTTP handler for the context config
