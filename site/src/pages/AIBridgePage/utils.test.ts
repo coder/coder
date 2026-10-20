@@ -1,5 +1,40 @@
 import { describe, expect, it } from "vitest";
-import { getProviderDisplayName } from "./utils";
+import {
+	getProviderDisplayName,
+	roundTokenDisplay,
+	truncatePromptPreview,
+} from "./utils";
+
+describe("truncatePromptPreview", () => {
+	it("keeps prompts up to 500 characters unchanged", () => {
+		const prompt = "a".repeat(500);
+		expect(truncatePromptPreview(prompt)).toBe(prompt);
+	});
+
+	it("cuts longer prompts to 500 characters and adds an ellipsis", () => {
+		expect(truncatePromptPreview("a".repeat(501))).toBe(`${"a".repeat(500)}…`);
+	});
+
+	it("does not split a character made of two UTF-16 code units", () => {
+		const prompt = `${"a".repeat(499)}😀😀`;
+		expect(truncatePromptPreview(prompt)).toBe(`${"a".repeat(499)}😀…`);
+	});
+});
+
+describe("roundTokenDisplay", () => {
+	it.each([
+		[0, "0"],
+		[950, "950"],
+		[111_700, "111.7K"],
+		[999_950, "1M"],
+		[1_249_808, "1.2M"],
+		[1_978_100, "2M"],
+		[22_526_137, "22.5M"],
+		[3_400_000_000, "3.4B"],
+	])("formats %d as %s", (input, expected) => {
+		expect(roundTokenDisplay(input)).toBe(expected);
+	});
+});
 
 describe("getProviderDisplayName", () => {
 	it.each([

@@ -1,8 +1,25 @@
-export const roundTokenDisplay = (tokens: number) => {
-	if (tokens >= 1000) {
-		return `${(tokens / 1000).toFixed(1)}k`;
+const compactTokenFormatter = new Intl.NumberFormat("en-US", {
+	notation: "compact",
+	maximumFractionDigits: 1,
+});
+
+/** Formats a token count compactly, such as `22.5M`. */
+export const roundTokenDisplay = (tokens: number) =>
+	compactTokenFormatter.format(tokens);
+
+const PROMPT_PREVIEW_MAX_CHARS = 500;
+
+/** Cuts a prompt to a short preview for the sessions list. */
+export const truncatePromptPreview = (prompt: string) => {
+	if (prompt.length <= PROMPT_PREVIEW_MAX_CHARS) {
+		return prompt;
 	}
-	return tokens.toString();
+	// Slice by code point to avoid splitting emoji.
+	const codePoints = Array.from(prompt);
+	if (codePoints.length <= PROMPT_PREVIEW_MAX_CHARS) {
+		return prompt;
+	}
+	return `${codePoints.slice(0, PROMPT_PREVIEW_MAX_CHARS).join("").trimEnd()}…`;
 };
 
 export const roundDurationDisplay = (duration: number) => {

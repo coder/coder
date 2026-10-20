@@ -5,7 +5,7 @@ import { docs } from "#/utils/docs";
 
 export const AIBridgeHelpPopover: React.FC = () => {
 	return (
-		<InfoTooltip>
+		<InfoTooltip side="top">
 			<TooltipTitle>What is AI Gateway?</TooltipTitle>
 			<TooltipMessage>
 				AI Gateway is a smart gateway for AI that provides centralized
