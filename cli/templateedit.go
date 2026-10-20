@@ -8,6 +8,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
@@ -22,19 +23,22 @@ const defaultAutostopRequirementWeeks = 1
 // existing workspaces without a new build (dormancy, failure TTL, active
 // version, autostop and autostart requirements, and TTL overrides when user
 // autostop is disabled), so they need confirmation. Settings that only affect
-// future builds or new workspaces are excluded.
+// future builds or new workspaces are excluded. A nil field in req leaves the
+// setting unchanged, so it falls back to the template's current value.
 func templateEditWorkspaceImpactingChanges(template codersdk.Template, req codersdk.UpdateTemplateMeta) []string {
+	autostopRequirement := ptr.NilToDefault(req.AutostopRequirement, template.AutostopRequirement)
+	autostartRequirement := ptr.NilToDefault(req.AutostartRequirement, template.AutostartRequirement)
 	var (
 		changes                       []string
-		failureTTL                    = time.Duration(*req.FailureTTLMillis) * time.Millisecond
-		dormancyThreshold             = time.Duration(*req.TimeTilDormantMillis) * time.Millisecond
-		dormancyAutoDeletion          = time.Duration(*req.TimeTilDormantAutoDeleteMillis) * time.Millisecond
-		requireActiveVersion          = *req.RequireActiveVersion
-		autostopRequirementDaysOfWeek = req.AutostopRequirement.DaysOfWeek
-		autostopRequirementWeeks      = req.AutostopRequirement.Weeks
-		autostartDaysOfWeek           = req.AutostartRequirement.DaysOfWeek
-		defaultTTL                    = time.Duration(*req.DefaultTTLMillis) * time.Millisecond
-		allowUserAutostop             = *req.AllowUserAutostop
+		failureTTL                    = time.Duration(ptr.NilToDefault(req.FailureTTLMillis, template.FailureTTLMillis)) * time.Millisecond
+		dormancyThreshold             = time.Duration(ptr.NilToDefault(req.TimeTilDormantMillis, template.TimeTilDormantMillis)) * time.Millisecond
+		dormancyAutoDeletion          = time.Duration(ptr.NilToDefault(req.TimeTilDormantAutoDeleteMillis, template.TimeTilDormantAutoDeleteMillis)) * time.Millisecond
+		requireActiveVersion          = ptr.NilToDefault(req.RequireActiveVersion, template.RequireActiveVersion)
+		autostopRequirementDaysOfWeek = autostopRequirement.DaysOfWeek
+		autostopRequirementWeeks      = autostopRequirement.Weeks
+		autostartDaysOfWeek           = autostartRequirement.DaysOfWeek
+		defaultTTL                    = time.Duration(ptr.NilToDefault(req.DefaultTTLMillis, template.DefaultTTLMillis)) * time.Millisecond
+		allowUserAutostop             = ptr.NilToDefault(req.AllowUserAutostop, template.AllowUserAutostop)
 	)
 
 	// The server normalizes a nonpositive value to defaultAutostopRequirementWeeks,
