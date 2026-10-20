@@ -150,9 +150,6 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				project={project}
 				open={isSkillsDialogOpen}
 				onOpenChange={setIsSkillsDialogOpen}
-				// The server computes permissions with the project's ACL, so
-				// sharees with the admin role can edit skills too. Role-only
-				// checks such as /authcheck cannot see the ACL.
 				canEdit={project.permissions.update}
 				onCloseAutoFocus={skillsFocusReturn.restoreFocus}
 			/>

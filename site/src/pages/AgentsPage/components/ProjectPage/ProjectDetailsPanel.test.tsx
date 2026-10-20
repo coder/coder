@@ -18,6 +18,7 @@ import {
 	MockChatProject,
 	MockChatProjectInstructions,
 	MockUnsetChatProjectInstructions,
+	MockUserMember,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
@@ -472,7 +473,7 @@ describe("ProjectDetailsPanel", () => {
 		await screen.findByRole("button", { name: "Edit instructions" });
 	});
 
-	it("lets a user who can update the project edit its skills", async () => {
+	it("opens the project skills from the Skills row", async () => {
 		mockInstructions(MockChatProjectInstructions);
 		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([
 			MockSkills[0],
@@ -505,29 +506,40 @@ describe("ProjectDetailsPanel", () => {
 		);
 	});
 
-	it("takes skill edit access from the project's permissions", async () => {
+	it("lets a sharee with update access turn a project skill off", async () => {
 		mockInstructions(MockChatProjectInstructions);
-		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([]);
-		const checkAuthorization = vi.spyOn(API, "checkAuthorization");
-		const { user, rerenderWithProject } = renderPanel({
+		vi.spyOn(API, "getUser").mockResolvedValue(MockUserMember);
+		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([
+			MockSkills[0],
+		]);
+		const updateSkill = vi
+			.spyOn(API.experimental, "updateChatProjectSkill")
+			.mockResolvedValue({ ...MockSkills[0], content: "", enabled: false });
+		// The admin role grants update through the project's ACL, which only
+		// the server's computed permissions reflect.
+		const { user } = renderPanel({
 			...MockChatProject,
-			permissions: { update: false, delete: false, share: false },
+			owner_id: MockUserMember.id,
+			permissions: { update: true, delete: false, share: true },
 		});
 
 		await user.click(
-			await screen.findByRole("button", { name: "Skills: None" }),
+			await screen.findByRole("button", { name: "Skills: 1 skill" }),
 		);
-		await screen.findByRole("dialog");
-		expect(screen.queryByRole("button", { name: "New" })).toBeNull();
+		await user.click(
+			await screen.findByRole("switch", {
+				name: `Enable ${MockSkills[0].name}`,
+			}),
+		);
 
-		// A sharee with the admin role gets update through the project's ACL,
-		// which only the server's computed permissions reflect.
-		rerenderWithProject({
-			...MockChatProject,
-			permissions: { update: true, delete: false, share: true },
-		});
-		await screen.findByRole("button", { name: "New" });
-		expect(checkAuthorization).not.toHaveBeenCalled();
+		await waitFor(() =>
+			expect(updateSkill).toHaveBeenCalledWith(
+				MockChatProject.organization_id,
+				MockChatProject.id,
+				MockSkills[0].name,
+				{ enabled: false },
+			),
+		);
 	});
 
 	it("returns focus to the Skills row when the skills dialog closes", async () => {
