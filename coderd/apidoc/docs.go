@@ -25901,12 +25901,14 @@ const docTemplate = `{
                 "chat-inline-mcp-servers",
                 "enable-ai-workspace-debug",
                 "chat-stage-metrics",
-                "chat-acp-subagents"
+                "chat-acp-subagents",
+                "agent-plugins"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
+                "ExperimentAgentPlugins": "Enables skills and MCP servers from Agent Plugins (agent-plugins.org) in workspaces.",
                 "ExperimentChatACPSubagents": "Enables workspace-local ACP subagent tools in root chats.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
@@ -25941,7 +25943,8 @@ const docTemplate = `{
                 "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents.",
                 "Exposes chat lifecycle stage durations as Prometheus metrics.",
-                "Enables workspace-local ACP subagent tools in root chats."
+                "Enables workspace-local ACP subagent tools in root chats.",
+                "Enables skills and MCP servers from Agent Plugins (agent-plugins.org) in workspaces."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -25961,7 +25964,8 @@ const docTemplate = `{
                 "ExperimentChatInlineMCPServers",
                 "ExperimentEnableAIWorkspaceDebug",
                 "ExperimentChatStageMetrics",
-                "ExperimentChatACPSubagents"
+                "ExperimentChatACPSubagents",
+                "ExperimentAgentPlugins"
             ]
         },
         "codersdk.ExperimentRule": {
