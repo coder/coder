@@ -67,8 +67,8 @@ export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 	const showValidationError = hasError(error) && isApiValidationError(error);
 
 	return (
-		<div className="flex flex-wrap items-start gap-2 lg:flex-nowrap">
-			<div className="flex min-w-0 flex-1 basis-full flex-col gap-2 lg:basis-auto">
+		<div className="flex flex-wrap items-start gap-2">
+			<div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:max-w-full">
 				<FilterCombobox
 					value={withoutTimeRange(filter.query)}
 					onChange={(search) =>
@@ -76,7 +76,9 @@ export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 					}
 					categories={categories}
 					placeholder="Search and filter sessions…"
-					className="w-full min-w-0"
+					// Full width on mobile. From `sm` up it starts at a compact width
+					// and widens to fit chips before wrapping.
+					className="w-full min-w-0 sm:w-auto sm:min-w-lg sm:max-w-full"
 					errorMessage={
 						showValidationError ? getValidationErrorMessage(error) : undefined
 					}
