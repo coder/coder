@@ -2,6 +2,7 @@ package chatdebug_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"testing"
 	"time"
