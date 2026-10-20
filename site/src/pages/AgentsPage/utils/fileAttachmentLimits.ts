@@ -5,7 +5,7 @@ import {
 	MaxChatWorkspaceFileSizeBytes,
 } from "#/api/typesGenerated";
 
-/** The upload size cap for a chat file with the given purpose. */
+/** The upload endpoint's size limit in bytes; provider image budgets are a separate check. */
 export const maxAgentAttachmentBytes = (purpose: ChatFilePurpose): number =>
 	purpose === "workspace"
 		? MaxChatWorkspaceFileSizeBytes

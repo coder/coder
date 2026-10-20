@@ -38,6 +38,8 @@ const maxTextPreviewSize = 1024 * 1024;
 
 const pendingDraftWarning =
 	"This file is attached for now, but it could not be saved as a draft. If you leave this chat before it uploads or sends, it may be lost.";
+const unsavedWorkspaceFileWarning =
+	"This file is saved as a draft once it uploads. If you leave this chat before then, it is lost.";
 const uploadedDraftWarning =
 	"This file is usable in this session, but it could not be saved as a draft.";
 
@@ -267,12 +269,12 @@ const beginUpload = (entry: UploadRegistryEntry) => {
 	entry.uploadStarted = true;
 	const generation = entry.generation;
 	entry.status = "uploading";
-	// Workspace files can exceed what localStorage holds, so only their
-	// uploaded record is saved and a reload before then loses them.
 	if (entry.purpose) {
-		entry.draftWarning = pendingDraftWarning;
+		entry.draftWarning = unsavedWorkspaceFileWarning;
 	}
 	notifySubscribers(entry);
+	// Workspace files can exceed what localStorage holds, so only their
+	// uploaded record is saved and a reload before then loses them.
 	if (!entry.purpose) {
 		void persistUploadPayload(entry, generation);
 	}
@@ -732,8 +734,6 @@ export function useChatDraftAttachments(
 		// can't relabel the error with the new provider.
 		const providerSnapshot = providerRef.current;
 		const budget = imageBudgetForProvider(providerSnapshot);
-		// Workspace files never reach the model provider, so its image
-		// budget does not apply to them.
 		const viewPurpose = stagedFilePurpose(purpose);
 		const maxBytes = maxAgentAttachmentBytes(purpose);
 		const entriesToStart: UploadRegistryEntry[] = [];
@@ -747,7 +747,7 @@ export function useChatDraftAttachments(
 				status: "pending",
 				purpose: viewPurpose,
 			};
-			const needsResize = !viewPurpose && imageNeedsResize(file, budget);
+			const needsResize = imageNeedsResize(file, budget, purpose);
 			// Files over the upload cap are rejected, except oversized
 			// prompt images, which take the resize pipeline; the
 			// post-resize check validates the result.

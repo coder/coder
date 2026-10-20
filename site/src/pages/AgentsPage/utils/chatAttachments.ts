@@ -249,14 +249,10 @@ export const isRasterImageMediaType = (mediaType: string): boolean =>
 export const shouldRouteFileToWorkspace = (file: File): boolean =>
 	!isChatAttachmentFile(file);
 
-/** The purpose attachment state records: only workspace files carry one. */
+/** The purpose attachment state stores; prompt files store none. */
 export type StagedFilePurpose = Extract<TypesGen.ChatFilePurpose, "workspace">;
 
-/**
- * Narrows an upload purpose to the value attachment state stores. Prompt
- * files map to undefined so their state matches records saved before
- * purposes existed.
- */
+/** Any value other than "workspace", including state saved before purposes existed, reads as a prompt file. */
 export const stagedFilePurpose = (
 	purpose: unknown,
 ): StagedFilePurpose | undefined =>

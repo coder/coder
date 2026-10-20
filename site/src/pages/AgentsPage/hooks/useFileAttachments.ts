@@ -177,7 +177,7 @@ type UseFileAttachmentsReturn = {
 	previewUrls: Map<File, string>;
 	handleAttach: (files: File[], purpose?: ChatFilePurpose) => void;
 	handleRemoveAttachment: (attachment: number | File) => void;
-	startUpload: (file: File, purpose?: ChatFilePurpose) => void;
+	startUpload: (file: File) => void;
 	resetAttachments: () => void;
 	setAttachments: React.Dispatch<React.SetStateAction<File[]>>;
 	setPreviewUrls: React.Dispatch<React.SetStateAction<Map<File, string>>>;
@@ -449,20 +449,18 @@ export function useFileAttachments(
 		// relabel the error with the new provider.
 		const providerSnapshot = providerRef.current;
 		const budget = imageBudgetForProvider(providerSnapshot);
-		// Workspace files never reach the model provider, so its image
-		// budget does not apply to them.
 		const statePurpose = stagedFilePurpose(purpose);
 		const maxBytes = maxAgentAttachmentBytes(purpose);
 		const items: AttachItem[] = files.map((file) => ({
 			file,
-			needsResize: !statePurpose && imageNeedsResize(file, budget),
+			needsResize: imageNeedsResize(file, budget, purpose),
 		}));
 
 		setAttachments((prev) => [...prev, ...files]);
 		setPreviewUrls((prev) => {
 			const next = new Map(prev);
 			for (const { file } of items) {
-				if (file.type !== "text/plain") {
+				if (!statePurpose && file.type !== "text/plain") {
 					next.set(file, URL.createObjectURL(file));
 				}
 			}

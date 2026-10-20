@@ -771,6 +771,28 @@ describe("api.ts", () => {
 		});
 	});
 
+	describe("uploadChatFile", () => {
+		it.each(["prompt", "workspace"] as const)(
+			"sends the %s purpose with the organization",
+			async (purpose) => {
+				vi.spyOn(axiosInstance, "post").mockResolvedValueOnce({
+					data: { id: "file-1" },
+				});
+				const file = new File(["PK"], "bundle.zip", {
+					type: "application/zip",
+				});
+
+				await API.experimental.uploadChatFile(file, "org-1", purpose);
+
+				expect(axiosInstance.post).toHaveBeenCalledWith(
+					`/api/v2/chats/files?organization=org-1&purpose=${purpose}`,
+					file,
+					expect.anything(),
+				);
+			},
+		);
+	});
+
 	describe("oauth2 provider settings", () => {
 		const settings: TypesGen.OAuth2ProviderSettings = {
 			dynamic_client_registration_enabled: true,
