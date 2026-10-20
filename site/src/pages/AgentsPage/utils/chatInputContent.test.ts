@@ -1,25 +1,36 @@
 import { describe, expect, it } from "vitest";
+import type { PendingAttachment } from "../components/ChatPageContent";
 import {
-	buildAttachmentMediaTypes,
 	buildChatInputContent,
+	buildPendingAttachmentsByID,
 } from "./chatInputContent";
 
-describe("buildAttachmentMediaTypes", () => {
+const mockImageAttachment: PendingAttachment = {
+	fileId: "file-1",
+	mediaType: "image/png",
+	name: "image.png",
+	size: 1,
+};
+const mockTextAttachment: PendingAttachment = {
+	fileId: "file-2",
+	mediaType: "text/plain",
+	name: "notes.txt",
+	size: 1,
+};
+
+describe("buildPendingAttachmentsByID", () => {
 	it("returns undefined when attachments are missing or empty", () => {
-		expect(buildAttachmentMediaTypes()).toBeUndefined();
-		expect(buildAttachmentMediaTypes([])).toBeUndefined();
+		expect(buildPendingAttachmentsByID()).toBeUndefined();
+		expect(buildPendingAttachmentsByID([])).toBeUndefined();
 	});
 
-	it("maps file IDs to media types", () => {
+	it("keys attachments by file ID", () => {
 		expect(
-			buildAttachmentMediaTypes([
-				{ fileId: "a", mediaType: "image/png" },
-				{ fileId: "b", mediaType: "text/plain" },
-			]),
+			buildPendingAttachmentsByID([mockImageAttachment, mockTextAttachment]),
 		).toEqual(
 			new Map([
-				["a", "image/png"],
-				["b", "text/plain"],
+				["file-1", mockImageAttachment],
+				["file-2", mockTextAttachment],
 			]),
 		);
 	});
@@ -91,10 +102,7 @@ describe("buildChatInputContent", () => {
 		expect(
 			buildChatInputContent({
 				message: "see files",
-				attachments: [
-					{ fileId: "file-1", mediaType: "image/png" },
-					{ fileId: "file-2", mediaType: "text/plain" },
-				],
+				attachments: [mockImageAttachment, mockTextAttachment],
 			}),
 		).toEqual({
 			content: [
@@ -110,7 +118,7 @@ describe("buildChatInputContent", () => {
 		expect(
 			buildChatInputContent({
 				message: "  ",
-				attachments: [{ fileId: "file-1", mediaType: "image/png" }],
+				attachments: [mockImageAttachment],
 			}),
 		).toEqual({
 			content: [{ type: "file", file_id: "file-1" }],
@@ -123,17 +131,19 @@ describe("buildChatInputContent", () => {
 			buildChatInputContent({
 				message: "",
 				attachments: [
-					{ fileId: "file-1", mediaType: "image/png" },
+					mockImageAttachment,
 					{
-						fileId: "file-2",
+						fileId: "file-3",
 						mediaType: "application/zip",
+						name: "bundle.zip",
+						size: 1,
 						purpose: "workspace",
 					},
 				],
 			}).content,
 		).toEqual([
 			{ type: "file", file_id: "file-1" },
-			{ type: "workspace-attachment", file_id: "file-2" },
+			{ type: "workspace-attachment", file_id: "file-3" },
 		]);
 	});
 
@@ -141,7 +151,7 @@ describe("buildChatInputContent", () => {
 		expect(
 			buildChatInputContent({
 				message: "",
-				attachments: [{ fileId: "file-1", mediaType: "image/png" }],
+				attachments: [mockImageAttachment],
 				workspaceUploads: [
 					{
 						path: "/home/coder/uploads/data.zip",

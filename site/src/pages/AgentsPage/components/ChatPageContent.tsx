@@ -251,6 +251,8 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 export type PendingAttachment = {
 	fileId: string;
 	mediaType: string;
+	name: string;
+	size: number;
 	purpose?: StagedFilePurpose;
 };
 
@@ -515,31 +517,37 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			return;
 		}
 		const fileBlocks = editingFileBlocks.filter(
-			(b): b is TypesGen.ChatFilePart => b.type === "file",
+			(b): b is TypesGen.ChatFilePart | TypesGen.ChatWorkspaceAttachmentPart =>
+				b.type === "file" || b.type === "workspace-attachment",
 		);
 		const files = fileBlocks.map((block, i) => {
 			const mt = block.media_type;
-			const ext = mt === "text/plain" ? "txt" : (mt.split("/")[1] ?? "png");
 			// Empty File used as a Map key only, its content is never
 			// read because the existing file_id is reused at send time.
+			if (block.type === "workspace-attachment") {
+				return new File([], block.name || `attachment-${i}`, { type: mt });
+			}
+			const ext = mt === "text/plain" ? "txt" : (mt.split("/")[1] ?? "png");
 			return new File([], `attachment-${i}.${ext}`, { type: mt });
 		});
 		setEditAttachments(files);
-		setEditPreviewUrls(
-			new Map(
-				files.map((f, i) => [f, getChatFileURL(fileBlocks[i].file_id ?? "")]),
-			),
-		);
+		const newPreviewUrls = new Map<File, string>();
 		const newUploadStates = new Map<File, UploadState>();
 		for (const [i, file] of files.entries()) {
 			const block = fileBlocks[i];
+			if (block.type === "file") {
+				newPreviewUrls.set(file, getChatFileURL(block.file_id ?? ""));
+			}
 			if (block.file_id) {
 				newUploadStates.set(file, {
 					status: "uploaded",
 					fileId: block.file_id,
+					purpose:
+						block.type === "workspace-attachment" ? "workspace" : undefined,
 				});
 			}
 		}
+		setEditPreviewUrls(newPreviewUrls);
 		setEditUploadStates(newUploadStates);
 	}, [
 		isEditing,

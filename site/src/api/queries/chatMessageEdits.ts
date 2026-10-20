@@ -1,19 +1,33 @@
 import type { InfiniteData } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 
+/** Local metadata for an attachment the server has not echoed back yet. */
+type OptimisticAttachment = {
+	mediaType: string;
+	name: string;
+	size: number;
+};
+
 const buildOptimisticEditedContent = ({
 	requestContent,
 	originalMessage,
-	attachmentMediaTypes,
+	pendingAttachments,
 }: {
 	requestContent: readonly TypesGen.ChatInputPart[];
 	originalMessage: TypesGen.ChatMessage;
-	attachmentMediaTypes?: ReadonlyMap<string, string>;
+	pendingAttachments?: ReadonlyMap<string, OptimisticAttachment>;
 }): readonly TypesGen.ChatMessagePart[] => {
 	const existingFilePartsByID = new Map<string, TypesGen.ChatFilePart>();
+	const existingWorkspaceAttachmentsByID = new Map<
+		string,
+		TypesGen.ChatWorkspaceAttachmentPart
+	>();
 	for (const part of originalMessage.content ?? []) {
 		if (part.type === "file" && part.file_id) {
 			existingFilePartsByID.set(part.file_id, part);
+		}
+		if (part.type === "workspace-attachment") {
+			existingWorkspaceAttachmentsByID.set(part.file_id, part);
 		}
 	}
 
@@ -41,12 +55,23 @@ const buildOptimisticEditedContent = ({
 			};
 		}
 		const fileId = part.file_id ?? "";
+		const pending = pendingAttachments?.get(fileId);
+		if (part.type === "workspace-attachment") {
+			return (
+				existingWorkspaceAttachmentsByID.get(fileId) ?? {
+					type: "workspace-attachment",
+					file_id: fileId,
+					name: pending?.name,
+					size: pending?.size,
+					media_type: pending?.mediaType ?? "application/octet-stream",
+				}
+			);
+		}
 		return (
 			existingFilePartsByID.get(fileId) ?? {
 				type: "file",
 				file_id: part.file_id,
-				media_type:
-					attachmentMediaTypes?.get(fileId) ?? "application/octet-stream",
+				media_type: pending?.mediaType ?? "application/octet-stream",
 			}
 		);
 	});
@@ -55,17 +80,17 @@ const buildOptimisticEditedContent = ({
 export const buildOptimisticEditedMessage = ({
 	requestContent,
 	originalMessage,
-	attachmentMediaTypes,
+	pendingAttachments,
 }: {
 	requestContent: readonly TypesGen.ChatInputPart[];
 	originalMessage: TypesGen.ChatMessage;
-	attachmentMediaTypes?: ReadonlyMap<string, string>;
+	pendingAttachments?: ReadonlyMap<string, OptimisticAttachment>;
 }): TypesGen.ChatMessage => ({
 	...originalMessage,
 	content: buildOptimisticEditedContent({
 		requestContent,
 		originalMessage,
-		attachmentMediaTypes,
+		pendingAttachments,
 	}),
 });
 

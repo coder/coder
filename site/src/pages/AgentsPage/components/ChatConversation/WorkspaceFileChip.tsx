@@ -7,16 +7,14 @@ import {
 } from "#/components/Tooltip/Tooltip";
 
 /**
- * Timeline chip for a workspace-file-reference message part. The
- * bytes live on the workspace filesystem, so unlike attachments there
- * is nothing to preview or download here; the tooltip surfaces the
- * absolute path the agent can read. The trigger is a button so the
- * path is reachable from the keyboard, not only on hover.
+ * Timeline chip for a workspace file, whose bytes live in the workspace or in
+ * Coder until it copies them there, so there is nothing to preview or
+ * download. The trigger is a button so the tooltip is keyboard-reachable.
  */
 export const WorkspaceFileChip: React.FC<{
 	name: string;
-	path: string;
-	size: number;
+	path?: string;
+	size?: number;
 }> = ({ name, path, size }) => (
 	<Tooltip>
 		<TooltipTrigger asChild>
@@ -31,15 +29,20 @@ export const WorkspaceFileChip: React.FC<{
 				<span className="truncate font-medium text-content-primary">
 					{name}
 				</span>
-				{size > 0 && (
+				{size !== undefined && size > 0 && (
 					<span className="shrink-0 text-content-secondary">
 						{prettyBytes(size)}
+					</span>
+				)}
+				{!path && (
+					<span className="shrink-0 text-content-secondary">
+						For the workspace
 					</span>
 				)}
 			</button>
 		</TooltipTrigger>
 		<TooltipContent side="top">
-			<p className="max-w-xs break-all font-mono text-xs">{path}</p>
+			<p className="max-w-xs break-all font-mono text-xs">{path ?? name}</p>
 		</TooltipContent>
 	</Tooltip>
 );

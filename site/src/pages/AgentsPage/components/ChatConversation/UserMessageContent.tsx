@@ -9,6 +9,7 @@ import {
 } from "../ChatMessageInput/fileReferenceDisplay";
 import {
 	AttachmentBlock,
+	getAttachmentDisplayName,
 	type PreviewTextAttachment,
 } from "./AttachmentBlocks";
 import type {
@@ -103,7 +104,7 @@ export const UserMessageContent: React.FC<{
 							))}
 						</div>
 					)}
-					{displayState.hasWorkspaceFileReferences && (
+					{displayState.hasWorkspaceFileChips && (
 						<div
 							className={cn(
 								displayState.hasUserMessageBody && "mt-2",
@@ -116,6 +117,13 @@ export const UserMessageContent: React.FC<{
 									name={block.workspace_file_name}
 									path={block.workspace_file_path}
 									size={block.workspace_file_size}
+								/>
+							))}
+							{displayState.workspaceAttachmentBlocks.map((block) => (
+								<WorkspaceFileChip
+									key={`workspace-attachment-${block.file_id}`}
+									name={getAttachmentDisplayName(block)}
+									size={block.size}
 								/>
 							))}
 						</div>

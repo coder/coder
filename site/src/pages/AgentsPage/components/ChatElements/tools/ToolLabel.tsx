@@ -60,6 +60,17 @@ const AttachFileLabel: React.FC<ToolLabelProps> = ({ args, result }) => {
 	);
 };
 
+const CopyAttachmentsLabel: React.FC<ToolLabelProps> = ({ result }) => {
+	const hasResult = result !== undefined && result !== null;
+	return (
+		<span className="truncate text-[13px]">
+			{hasResult
+				? "Checked workspace attachments"
+				: "Copying attachments to the workspace…"}
+		</span>
+	);
+};
+
 export const genericToolLabels: Partial<
 	Record<string, React.FC<ToolLabelProps>>
 > = {
@@ -68,6 +79,7 @@ export const genericToolLabels: Partial<
 		<span className="truncate text-[13px]">Listing processes</span>
 	),
 	attach_file: AttachFileLabel,
+	copy_attachments_to_workspace: CopyAttachmentsLabel,
 	advisor: () => (
 		<span className="truncate text-[13px] leading-4 text-content-secondary">
 			Advisor

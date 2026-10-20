@@ -18,16 +18,21 @@ type WorkspaceFileReferenceBlock = Extract<
 	RenderBlock,
 	{ type: "workspace-file-reference" }
 >;
+type WorkspaceAttachmentBlock = Extract<
+	RenderBlock,
+	{ type: "workspace-attachment" }
+>;
 
 export type MessageDisplayState = {
 	shouldHide: boolean;
 	userInlineContent: UserInlineRenderBlock[];
 	userFileBlocks: FileRenderBlock[];
 	workspaceFileBlocks: WorkspaceFileReferenceBlock[];
+	workspaceAttachmentBlocks: WorkspaceAttachmentBlock[];
 	workspaceFileReferenceCount: number;
 	hasUserMessageBody: boolean;
 	hasFileBlocks: boolean;
-	hasWorkspaceFileReferences: boolean;
+	hasWorkspaceFileChips: boolean;
 	hasCopyableContent: boolean;
 	needsAssistantBottomSpacer: boolean;
 };
@@ -55,6 +60,10 @@ const isWorkspaceFileReferenceBlock = (
 ): block is WorkspaceFileReferenceBlock =>
 	block.type === "workspace-file-reference";
 
+const isWorkspaceAttachmentBlock = (
+	block: RenderBlock,
+): block is WorkspaceAttachmentBlock => block.type === "workspace-attachment";
+
 export const isProviderToolResult = (part: TypesGen.ChatMessagePart): boolean =>
 	part.type === "tool-result" && part.provider_executed === true;
 
@@ -81,11 +90,12 @@ export const getVisibleContent = (
 		}),
 	);
 	const visibleToolIds = new Set(visibleTools.map((tool) => tool.id));
-	// Workspace file references render as chips from the display
-	// state, not as standalone timeline blocks.
+	// Workspace files render as chips from the display state, not as
+	// standalone timeline blocks.
 	const visibleBlocks = blocks.filter(
 		(block) =>
 			block.type !== "workspace-file-reference" &&
+			block.type !== "workspace-attachment" &&
 			(block.type !== "tool" || visibleToolIds.has(block.id)),
 	);
 
@@ -175,8 +185,12 @@ export const deriveMessageDisplayState = ({
 	const workspaceFileBlocks = isUser
 		? parsed.blocks.filter(isWorkspaceFileReferenceBlock)
 		: [];
+	const workspaceAttachmentBlocks = isUser
+		? parsed.blocks.filter(isWorkspaceAttachmentBlock)
+		: [];
 	const workspaceFileReferenceCount = workspaceFileBlocks.length;
-	const hasWorkspaceFileReferences = workspaceFileReferenceCount > 0;
+	const hasWorkspaceFileChips =
+		workspaceFileReferenceCount > 0 || workspaceAttachmentBlocks.length > 0;
 	const hasFileAttachments = parsed.blocks.some(isFileRenderBlock);
 	const hasUserMessageBody =
 		userInlineContent.length > 0 || Boolean(parsed.markdown.trim());
@@ -190,7 +204,7 @@ export const deriveMessageDisplayState = ({
 	const hasCopyableContent =
 		Boolean(parsed.markdown.trim()) &&
 		!hasFileAttachments &&
-		!hasWorkspaceFileReferences &&
+		!hasWorkspaceFileChips &&
 		(isUser || endsWithResponseBlock);
 	const needsAssistantBottomSpacer =
 		!hideActions &&
@@ -204,10 +218,11 @@ export const deriveMessageDisplayState = ({
 		userInlineContent,
 		userFileBlocks,
 		workspaceFileBlocks,
+		workspaceAttachmentBlocks,
 		workspaceFileReferenceCount,
 		hasUserMessageBody,
 		hasFileBlocks,
-		hasWorkspaceFileReferences,
+		hasWorkspaceFileChips,
 		hasCopyableContent,
 		needsAssistantBottomSpacer,
 	};

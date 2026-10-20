@@ -7,8 +7,8 @@ import { toast } from "#/components/Toaster/toast";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { BuiltInCommandPendingError } from "../../hooks/useConversationEditingState";
 import {
-	buildAttachmentMediaTypes,
 	buildChatInputContent,
+	buildPendingAttachmentsByID,
 	type ChatComposerContentPart,
 } from "../../utils/chatInputContent";
 import { isUnavailableHistoricalModelID } from "../../utils/modelOptions";
@@ -341,7 +341,7 @@ export async function submitChatTurn(
 			? buildOptimisticEditedMessage({
 					requestContent: request.content,
 					originalMessage: originalEditedMessage,
-					attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
+					pendingAttachments: buildPendingAttachmentsByID(attachments),
 				})
 			: undefined;
 		const previousSnapshot = store.getSnapshot();

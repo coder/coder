@@ -2474,3 +2474,46 @@ export const UserMessageWithWorkspaceFileReference: Story = {
 		]),
 	},
 };
+
+export const UserMessageWithWorkspaceAttachment: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "Unzip this once the workspace starts" },
+					{
+						type: "workspace-attachment",
+						file_id: "workspace-attachment-file",
+						name: "dataset.zip",
+						size: 4096,
+						media_type: "application/zip",
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "user",
+				content: [
+					{
+						type: "workspace-attachment",
+						file_id: "workspace-attachment-only-file",
+						name: "release-build-artifacts-with-a-long-name.tar.gz",
+						size: 62 * 1024 * 1024,
+						media_type: "application/gzip",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await hoverAttachmentTile(
+			await canvas.findByRole("button", { name: /release-build-artifacts/ }),
+		);
+	},
+};

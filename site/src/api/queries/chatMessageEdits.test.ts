@@ -23,7 +23,9 @@ describe("buildOptimisticEditedMessage", () => {
 		const message = buildOptimisticEditedMessage({
 			requestContent: [{ type: "file", file_id: "image-1" }],
 			originalMessage: makeUserMessage(),
-			attachmentMediaTypes: new Map([["image-1", "image/png"]]),
+			pendingAttachments: new Map([
+				["image-1", { mediaType: "image/png", name: "image.png", size: 1 }],
+			]),
 		});
 
 		expect(message.content).toEqual([
@@ -40,10 +42,46 @@ describe("buildOptimisticEditedMessage", () => {
 		const message = buildOptimisticEditedMessage({
 			requestContent: [{ type: "file", file_id: "existing-1" }],
 			originalMessage: makeUserMessage([existingFilePart]),
-			attachmentMediaTypes: new Map([["existing-1", "text/plain"]]),
+			pendingAttachments: new Map([
+				["existing-1", { mediaType: "text/plain", name: "notes.txt", size: 1 }],
+			]),
 		});
 
 		expect(message.content).toEqual([existingFilePart]);
+	});
+
+	it("keeps workspace attachments as workspace-attachment parts", () => {
+		const mockExistingAttachment: TypesGen.ChatWorkspaceAttachmentPart = {
+			type: "workspace-attachment",
+			file_id: "existing-zip",
+			name: "bundle.zip",
+			media_type: "application/zip",
+			size: 2048,
+		};
+		const message = buildOptimisticEditedMessage({
+			requestContent: [
+				{ type: "workspace-attachment", file_id: "existing-zip" },
+				{ type: "workspace-attachment", file_id: "new-tar" },
+			],
+			originalMessage: makeUserMessage([mockExistingAttachment]),
+			pendingAttachments: new Map([
+				[
+					"new-tar",
+					{ mediaType: "application/x-tar", name: "logs.tar", size: 4096 },
+				],
+			]),
+		});
+
+		expect(message.content).toEqual([
+			mockExistingAttachment,
+			{
+				type: "workspace-attachment",
+				file_id: "new-tar",
+				name: "logs.tar",
+				size: 4096,
+				media_type: "application/x-tar",
+			},
+		]);
 	});
 });
 

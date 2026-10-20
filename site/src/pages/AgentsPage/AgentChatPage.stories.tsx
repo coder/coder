@@ -755,6 +755,29 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			result: {},
 		},
 
+		// copy_attachments_to_workspace: generic renderer with copy label
+		{
+			type: "tool-call",
+			tool_call_id: "every-copy-attachments",
+			tool_name: "copy_attachments_to_workspace",
+			args: {},
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "every-copy-attachments",
+			tool_name: "copy_attachments_to_workspace",
+			result: {
+				attachments: [
+					{
+						file_id: "file-dataset",
+						name: "dataset.zip",
+						status: "copied",
+						path: "/home/coder/.coder/chats/story-chat/files/dataset.zip",
+					},
+				],
+			},
+		},
+
 		// generic / MCP fallback -- unknown tool name with no server
 		{
 			type: "tool-call",
