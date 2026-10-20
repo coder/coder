@@ -3780,6 +3780,16 @@ const docTemplate = `{
                         "required": true
                     },
                     {
+                        "enum": [
+                            "prompt",
+                            "workspace"
+                        ],
+                        "type": "string",
+                        "description": "File purpose. Workspace files accept any type up to 100 MiB and are copied into the chat's workspace instead of being sent to the model",
+                        "name": "purpose",
+                        "in": "query"
+                    },
+                    {
                         "type": "string",
                         "example": "attachment; filename=\"image.png\"",
                         "description": "Attachment disposition carrying the file name",
@@ -3805,7 +3815,7 @@ const docTemplate = `{
                         }
                     },
                     "413": {
-                        "description": "Request body exceeds 10 MiB",
+                        "description": "Request body exceeds 10 MiB, or 100 MiB for workspace files",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
@@ -22108,13 +22118,15 @@ const docTemplate = `{
                 "text",
                 "file",
                 "file-reference",
-                "workspace-file-reference"
+                "workspace-file-reference",
+                "workspace-attachment"
             ],
             "x-enum-varnames": [
                 "ChatInputPartTypeText",
                 "ChatInputPartTypeFile",
                 "ChatInputPartTypeFileReference",
-                "ChatInputPartTypeWorkspaceFileReference"
+                "ChatInputPartTypeWorkspaceFileReference",
+                "ChatInputPartTypeWorkspaceAttachment"
             ]
         },
         "codersdk.ChatMessage": {
@@ -22288,6 +22300,10 @@ const docTemplate = `{
                 "result_reset": {
                     "type": "boolean"
                 },
+                "size": {
+                    "description": "Size is the byte size of a workspace attachment, filled in by the\nserver.",
+                    "type": "integer"
+                },
                 "skill_description": {
                     "description": "SkillDescription is the short description from the skill's\nSKILL.md frontmatter.",
                     "type": "string"
@@ -22360,6 +22376,7 @@ const docTemplate = `{
                 "context-file",
                 "skill",
                 "workspace-file-reference",
+                "workspace-attachment",
                 "hook-context",
                 "hook-notice"
             ],
@@ -22374,6 +22391,7 @@ const docTemplate = `{
                 "ChatMessagePartTypeContextFile",
                 "ChatMessagePartTypeSkill",
                 "ChatMessagePartTypeWorkspaceFileReference",
+                "ChatMessagePartTypeWorkspaceAttachment",
                 "ChatMessagePartTypeHookContext",
                 "ChatMessagePartTypeHookNotice"
             ]

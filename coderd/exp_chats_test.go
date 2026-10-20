@@ -12999,6 +12999,173 @@ This arrived as octet-stream.
 	})
 }
 
+func TestChatWorkspaceAttachments(t *testing.T) {
+	t.Parallel()
+
+	client, db := newChatClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModel(t, client)
+
+	zipBytes := func(size int) []byte {
+		data := make([]byte, size)
+		copy(data, "PK\x03\x04")
+		return data
+	}
+	uploadWorkspaceFile := func(ctx context.Context, t *testing.T, name string, data []byte) uuid.UUID {
+		t.Helper()
+		uploaded, err := client.UploadChatFileWithPurpose(ctx, firstUser.OrganizationID, codersdk.ChatFilePurposeWorkspace, "application/zip", name, bytes.NewReader(data))
+		require.NoError(t, err)
+		return uploaded.ID
+	}
+	attachmentPart := func(t *testing.T, parts []codersdk.ChatMessagePart) codersdk.ChatMessagePart {
+		t.Helper()
+		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeWorkspaceAttachment {
+				return part
+			}
+		}
+		require.FailNow(t, "message has no workspace-attachment part")
+		return codersdk.ChatMessagePart{}
+	}
+
+	t.Run("UploadLimits", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+		data := zipBytes(codersdk.MaxChatWorkspaceFileSizeBytes + 1)
+		archive := data[:60<<20]
+
+		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "application/zip", "archive.zip", bytes.NewReader(archive))
+		requireSDKError(t, err, http.StatusBadRequest)
+
+		// The server may close the connection before the client finishes
+		// sending, so only the failure is asserted, as in TestPostChatFile.
+		_, err = client.UploadChatFileWithPurpose(ctx, firstUser.OrganizationID, codersdk.ChatFilePurposeWorkspace, "application/zip", "huge.zip", bytes.NewReader(data))
+		require.Error(t, err)
+
+		fileID := uploadWorkspaceFile(ctx, t, "archive.zip", archive)
+		res, err := client.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/chats/files/%s", fileID), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Equal(t, "application/zip", res.Header.Get("Content-Type"))
+		require.Equal(t, "no-store", res.Header.Get("Cache-Control"))
+		got, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.Equal(t, archive, got)
+	})
+
+	t.Run("CreateDeliverEdit", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		data := zipBytes(4096)
+		fileID := uploadWorkspaceFile(ctx, t, "my report?.zip", data)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "unpack this"},
+				{Type: codersdk.ChatInputPartTypeWorkspaceAttachment, FileID: fileID},
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, chat.Files, 1)
+		require.Equal(t, fileID, chat.Files[0].ID)
+		require.Equal(t, "my_report_.zip", chat.Files[0].Name)
+
+		messages, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		var userMessage codersdk.ChatMessage
+		for _, message := range messages.Messages {
+			if message.Role == codersdk.ChatMessageRoleUser {
+				userMessage = message
+				break
+			}
+		}
+		require.NotZero(t, userMessage.ID)
+		wantPart := codersdk.ChatMessageWorkspaceAttachment(fileID, "application/zip", "my_report_.zip", int64(len(data)))
+		require.Equal(t, wantPart, attachmentPart(t, userMessage.Content))
+
+		//nolint:gocritic // Test simulates the chatd delivery loop.
+		completed, err := db.CompleteChatWorkspaceFileDelivery(dbauthz.AsChatd(ctx), database.CompleteChatWorkspaceFileDeliveryParams{
+			ID:                   fileID,
+			DeliveredAt:          dbtime.Now(),
+			DeliveredPath:        "~/.coder/chats/" + chat.ID.String() + "/files/" + fileID.String() + "/my_report_.zip",
+			DeliveredWorkspaceID: uuid.New(),
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, completed)
+
+		_, _, err = client.GetChatFile(ctx, fileID)
+		requireSDKError(t, err, http.StatusGone)
+
+		edited, err := client.EditChatMessage(ctx, chat.ID, userMessage.ID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "unpack this again"},
+				{Type: codersdk.ChatInputPartTypeWorkspaceAttachment, FileID: fileID},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, wantPart, attachmentPart(t, edited.Message.Content))
+	})
+
+	t.Run("SendLinksFile", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+		})
+		require.NoError(t, err)
+		require.Empty(t, chat.Files)
+
+		fileID := uploadWorkspaceFile(ctx, t, "tools.tar.gz", zipBytes(128))
+		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeWorkspaceAttachment, FileID: fileID}},
+		})
+		require.NoError(t, err)
+
+		chat, err = client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, chat.Files, 1)
+		require.Equal(t, fileID, chat.Files[0].ID)
+	})
+
+	t.Run("RejectsMismatchedPurpose", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		workspaceFileID := uploadWorkspaceFile(ctx, t, "photo.png", append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...))
+		promptFile, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "photo.png", bytes.NewReader(append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)))
+		require.NoError(t, err)
+
+		for _, tc := range []struct {
+			name   string
+			part   codersdk.ChatInputPart
+			detail string
+		}{
+			{
+				name:   "FilePartWithWorkspaceFile",
+				part:   codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeFile, FileID: workspaceFileID},
+				detail: "references a workspace file",
+			},
+			{
+				name:   "WorkspaceAttachmentWithPromptFile",
+				part:   codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeWorkspaceAttachment, FileID: promptFile.ID},
+				detail: `uploaded with purpose "workspace"`,
+			},
+		} {
+			_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+				OrganizationID: firstUser.OrganizationID,
+				Content:        []codersdk.ChatInputPart{tc.part},
+			})
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Contains(t, sdkErr.Detail, tc.detail, tc.name)
+		}
+	})
+}
+
 func TestGetChatFile(t *testing.T) {
 	t.Parallel()
 

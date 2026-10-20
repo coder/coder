@@ -56,6 +56,23 @@ const (
 // attachments.
 const MaxChatFileSizeBytes = 10 * 1024 * 1024
 
+// MaxChatWorkspaceFileSizeBytes is the upload-endpoint cap for chat files
+// uploaded with ChatFilePurposeWorkspace.
+const MaxChatWorkspaceFileSizeBytes = 100 << 20
+
+// ChatFilePurpose is how a stored chat file is used.
+type ChatFilePurpose string
+
+const (
+	// ChatFilePurposePrompt files are sent to the model provider in file
+	// parts.
+	ChatFilePurposePrompt ChatFilePurpose = "prompt"
+	// ChatFilePurposeWorkspace files are never sent to the model provider.
+	// Coder copies them into the chat's workspace once it is running, and
+	// messages reference them in workspace-attachment parts.
+	ChatFilePurposeWorkspace ChatFilePurpose = "workspace"
+)
+
 // Inline MCP server declaration caps. Clients can validate before sending.
 const (
 	MaxInlineMCPServers                = 5
@@ -481,6 +498,10 @@ const (
 	ChatMessagePartTypeContextFile            ChatMessagePartType = "context-file"
 	ChatMessagePartTypeSkill                  ChatMessagePartType = "skill"
 	ChatMessagePartTypeWorkspaceFileReference ChatMessagePartType = "workspace-file-reference"
+	// ChatMessagePartTypeWorkspaceAttachment references a chat file
+	// uploaded with ChatFilePurposeWorkspace. Coder copies the file into
+	// the chat's workspace; its bytes never reach the model provider.
+	ChatMessagePartTypeWorkspaceAttachment ChatMessagePartType = "workspace-attachment"
 	// ChatMessagePartTypeHookContext is model context injected into a user
 	// prompt by a lifecycle hook. It is included in model prompt assembly
 	// and stripped from every client-facing conversion; the server rejects
@@ -505,6 +526,7 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 		ChatMessagePartTypeContextFile,
 		ChatMessagePartTypeSkill,
 		ChatMessagePartTypeWorkspaceFileReference,
+		ChatMessagePartTypeWorkspaceAttachment,
 		ChatMessagePartTypeHookContext,
 		ChatMessagePartTypeHookNotice,
 	}
@@ -557,10 +579,10 @@ type ChatMessagePart struct {
 	SourceID       string          `json:"source_id,omitempty" variants:"source?"`
 	URL            string          `json:"url" variants:"source"`
 	Title          string          `json:"title,omitempty" variants:"source?"`
-	MediaType      string          `json:"media_type" variants:"file"`
-	Name           string          `json:"name,omitempty" variants:"file?"`
+	MediaType      string          `json:"media_type" variants:"file,workspace-attachment"`
+	Name           string          `json:"name,omitempty" variants:"file?,workspace-attachment?"`
 	Data           []byte          `json:"data,omitempty" variants:"file?"`
-	FileID         uuid.NullUUID   `json:"file_id,omitempty" format:"uuid" variants:"file?"`
+	FileID         uuid.NullUUID   `json:"file_id" format:"uuid" variants:"file?,workspace-attachment"`
 	FileName       string          `json:"file_name" variants:"file-reference"`
 	StartLine      int             `json:"start_line" variants:"file-reference"`
 	EndLine        int             `json:"end_line" variants:"file-reference"`
@@ -668,6 +690,9 @@ type ChatMessagePart struct {
 	// filesystem holds the uploaded bytes. References are only
 	// readable while the chat stays bound to that workspace.
 	WorkspaceFileWorkspaceID uuid.UUID `json:"workspace_file_workspace_id" format:"uuid" variants:"workspace-file-reference"`
+	// Size is the byte size of a workspace attachment, filled in by the
+	// server.
+	Size int64 `json:"size,omitempty" variants:"workspace-attachment?"`
 }
 
 // StripInternal removes internal-only fields that must not be
@@ -764,6 +789,18 @@ func ChatMessageWorkspaceFileReference(workspaceID uuid.UUID, path, name string,
 	}
 }
 
+// ChatMessageWorkspaceAttachment builds a workspace-attachment chat
+// message part for a chat file stored with ChatFilePurposeWorkspace.
+func ChatMessageWorkspaceAttachment(fileID uuid.UUID, mediaType, name string, size int64) ChatMessagePart {
+	return ChatMessagePart{
+		Type:      ChatMessagePartTypeWorkspaceAttachment,
+		FileID:    uuid.NullUUID{UUID: fileID, Valid: true},
+		MediaType: mediaType,
+		Name:      name,
+		Size:      size,
+	}
+}
+
 // ChatMessageSource builds a source chat message part.
 func ChatMessageSource(sourceID, sourceURL, title string) ChatMessagePart {
 	return ChatMessagePart{
@@ -782,6 +819,9 @@ const (
 	ChatInputPartTypeFile                   ChatInputPartType = "file"
 	ChatInputPartTypeFileReference          ChatInputPartType = "file-reference"
 	ChatInputPartTypeWorkspaceFileReference ChatInputPartType = "workspace-file-reference"
+	// ChatInputPartTypeWorkspaceAttachment references, by FileID, a chat
+	// file uploaded with ChatFilePurposeWorkspace.
+	ChatInputPartTypeWorkspaceAttachment ChatInputPartType = "workspace-attachment"
 )
 
 // ChatInputPart is a single user input part for creating a chat.
@@ -3781,7 +3821,18 @@ func WithChatDiffStatusRef(ref DiffStatusRef) RequestOption {
 
 // UploadChatFile uploads a file for use in chat messages.
 func (c *Client) UploadChatFile(ctx context.Context, organizationID uuid.UUID, contentType string, filename string, rd io.Reader) (UploadChatFileResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/chats/files?organization=%s", organizationID), rd, func(r *http.Request) {
+	return c.UploadChatFileWithPurpose(ctx, organizationID, ChatFilePurposePrompt, contentType, filename, rd)
+}
+
+// UploadChatFileWithPurpose uploads a chat file stored for the given
+// purpose. ChatFilePurposeWorkspace files may be up to
+// MaxChatWorkspaceFileSizeBytes and of any type.
+func (c *Client) UploadChatFileWithPurpose(ctx context.Context, organizationID uuid.UUID, purpose ChatFilePurpose, contentType string, filename string, rd io.Reader) (UploadChatFileResponse, error) {
+	query := url.Values{"organization": {organizationID.String()}}
+	if purpose != "" {
+		query.Set("purpose", string(purpose))
+	}
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/chats/files?"+query.Encode(), rd, func(r *http.Request) {
 		r.Header.Set("Content-Type", contentType)
 		if filename != "" {
 			r.Header.Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))

@@ -97,11 +97,17 @@ func ExtractFileID(raw json.RawMessage) (uuid.UUID, error) {
 	return uuid.Parse(envelope.Data.FileID)
 }
 
-// FileIDs returns the valid file IDs referenced by file parts.
+// FileIDs returns the valid file IDs referenced by file and
+// workspace-attachment parts, which are the files a message links to its
+// chat.
 func FileIDs(parts []codersdk.ChatMessagePart) []uuid.UUID {
 	var ids []uuid.UUID
 	for _, part := range parts {
-		if part.Type != codersdk.ChatMessagePartTypeFile || !part.FileID.Valid {
+		if part.Type != codersdk.ChatMessagePartTypeFile &&
+			part.Type != codersdk.ChatMessagePartTypeWorkspaceAttachment {
+			continue
+		}
+		if !part.FileID.Valid {
 			continue
 		}
 		ids = append(ids, part.FileID.UUID)
@@ -129,8 +135,9 @@ func ConvertMessagesWithFiles(
 	// resolution. Assistant-side file attachments remain persisted
 	// chat metadata and are intentionally not replayed to the model.
 	type parsedMessage struct {
-		role  codersdk.ChatMessageRole
-		parts []codersdk.ChatMessagePart
+		chatID uuid.UUID
+		role   codersdk.ChatMessageRole
+		parts  []codersdk.ChatMessagePart
 	}
 	parsed := make([]parsedMessage, len(messages))
 	var allFileIDs []uuid.UUID
@@ -150,7 +157,7 @@ func ConvertMessagesWithFiles(
 		if err != nil {
 			return nil, err
 		}
-		parsed[i] = parsedMessage{role: codersdk.ChatMessageRole(msg.Role), parts: parts}
+		parsed[i] = parsedMessage{chatID: msg.ChatID, role: codersdk.ChatMessageRole(msg.Role), parts: parts}
 
 		// Collect file IDs from user messages for resolution.
 		if resolver != nil && msg.Role == database.ChatMessageRoleUser {
@@ -206,6 +213,7 @@ func ConvertMessagesWithFiles(
 				userMissingFilePolicy,
 				acceptsFilePart,
 				chatWorkspaceID,
+				pm.chatID,
 			)
 			if len(userParts) == 0 {
 				continue
@@ -216,7 +224,7 @@ func ConvertMessagesWithFiles(
 			})
 		case codersdk.ChatMessageRoleAssistant:
 			fantasyParts := normalizeAssistantToolCallInputs(
-				partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles, nil, chatWorkspaceID),
+				partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles, nil, chatWorkspaceID, pm.chatID),
 			)
 			for _, toolCall := range ExtractToolCalls(fantasyParts) {
 				if toolCall.ToolCallID == "" || strings.TrimSpace(toolCall.ToolName) == "" {
@@ -240,7 +248,7 @@ func ConvertMessagesWithFiles(
 					}
 				}
 			}
-			toolParts := partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles, nil, chatWorkspaceID)
+			toolParts := partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles, nil, chatWorkspaceID, pm.chatID)
 			if len(toolParts) == 0 {
 				continue
 			}
@@ -1335,6 +1343,29 @@ func workspaceFilePartToText(part codersdk.ChatMessagePart, chatWorkspaceID uuid
 	return sb.String()
 }
 
+// workspaceAttachmentPartToText describes a workspace-attachment part to
+// the model. The text depends only on the part and the chat ID, never on
+// delivery state or the chat's current workspace, so the prompt stays
+// byte-identical across turns and keeps the provider's prompt cache warm.
+func workspaceAttachmentPartToText(part codersdk.ChatMessagePart, chatID uuid.UUID) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintf(&sb, "[The user attached %s", part.Name)
+	var details []string
+	if part.MediaType != "" {
+		details = append(details, part.MediaType)
+	}
+	if part.Size > 0 {
+		details = append(details, humanize.IBytes(uint64(part.Size)))
+	}
+	if len(details) > 0 {
+		_, _ = fmt.Fprintf(&sb, " (%s)", strings.Join(details, ", "))
+	}
+	_, _ = sb.WriteString(" for the workspace. Its contents are not included here. Coder copies it to ")
+	_, _ = sb.WriteString(chatfiles.WorkspaceUploadFileHomePath(chatID.String(), part.FileID.UUID.String(), part.Name))
+	_, _ = sb.WriteString(" when the chat's workspace is running; call copy_attachments_to_workspace to check or retry.]")
+	return sb.String()
+}
+
 // toolResultPartToMessagePart converts an SDK tool-result part
 // into a fantasy ToolResultPart for LLM dispatch.
 func toolResultPartToMessagePart(logger slog.Logger, part codersdk.ChatMessagePart) fantasy.ToolResultPart {
@@ -1467,7 +1498,8 @@ const (
 // bytes, policy controls whether missing file-backed parts are dropped
 // or replaced with text placeholders, and acceptsFilePart (when non-nil)
 // gates whether text-family file parts are inlined as text for providers
-// that would drop them.
+// that would drop them. chatID names the workspace path of
+// workspace-attachment parts.
 func partsToMessageParts(
 	ctx context.Context,
 	logger slog.Logger,
@@ -1476,6 +1508,7 @@ func partsToMessageParts(
 	policy missingFilePolicy,
 	acceptsFilePart func(mediaType string) bool,
 	chatWorkspaceID uuid.NullUUID,
+	chatID uuid.UUID,
 ) []fantasy.MessagePart {
 	result := make([]fantasy.MessagePart, 0, len(parts))
 	for _, part := range parts {
@@ -1597,6 +1630,10 @@ func partsToMessageParts(
 		case codersdk.ChatMessagePartTypeWorkspaceFileReference:
 			result = append(result, fantasy.TextPart{
 				Text: workspaceFilePartToText(part, chatWorkspaceID),
+			})
+		case codersdk.ChatMessagePartTypeWorkspaceAttachment:
+			result = append(result, fantasy.TextPart{
+				Text: workspaceAttachmentPartToText(part, chatID),
 			})
 		case codersdk.ChatMessagePartTypeContextFile:
 			if part.ContextFileContent == "" {
