@@ -214,6 +214,7 @@ export const EditLoadError: Story = {
 		await userEvent.click(
 			await screen.findByRole("menuitem", { name: "Edit" }),
 		);
+		await screen.findByText("Failed to get project skill.");
 	},
 };
 
