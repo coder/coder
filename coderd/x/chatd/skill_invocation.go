@@ -95,6 +95,7 @@ func (p *Server) resolveSkillInvocations(
 		case codersdk.ChatSkillSourceProject:
 			// Read as chatd behind the chat owner's project usability check,
 			// like project skill loading for turns.
+			//nolint:gocritic // Access is gated on ChatProjectUsableBy for the chat owner.
 			chatdCtx := dbauthz.AsChatd(ctx)
 			projectID := p.resolveUsableChatProjectID(chatdCtx, p.logger, chat)
 			if !projectID.Valid {
