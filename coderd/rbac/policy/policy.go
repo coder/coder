@@ -30,6 +30,8 @@ const (
 	ActionUpdateAgent Action = "update_agent"
 
 	ActionShare Action = "share"
+
+	ActionDisable Action = "disable"
 )
 
 type PermissionDefinition struct {
@@ -82,7 +84,11 @@ var chatAutomationActions = map[Action]ActionDefinition{
 	ActionCreate: "create a new chat automation",
 	ActionRead:   "read chat automations",
 	ActionUpdate: "update a chat automation",
-	ActionDelete: "delete a chat automation",
+	// Disable is separate from update so that administrators can stop
+	// another member's automation without being able to change what it
+	// does or turn it on again.
+	ActionDisable: "disable a chat automation",
+	ActionDelete:  "delete a chat automation",
 }
 
 var chatProjectActions = map[Action]ActionDefinition{

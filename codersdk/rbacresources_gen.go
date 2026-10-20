@@ -70,6 +70,7 @@ const (
 	ActionCreateAgent        RBACAction = "create_agent"
 	ActionDelete             RBACAction = "delete"
 	ActionDeleteAgent        RBACAction = "delete_agent"
+	ActionDisable            RBACAction = "disable"
 	ActionRead               RBACAction = "read"
 	ActionReadPersonal       RBACAction = "read_personal"
 	ActionSSH                RBACAction = "ssh"
@@ -100,7 +101,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceBoundaryLog:                   {ActionCreate, ActionDelete, ActionRead},
 	ResourceBoundaryUsage:                 {ActionDelete, ActionRead, ActionUpdate},
 	ResourceChat:                          {ActionCreate, ActionDelete, ActionRead, ActionShare, ActionUpdate},
-	ResourceChatAutomation:                {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceChatAutomation:                {ActionCreate, ActionDelete, ActionDisable, ActionRead, ActionUpdate},
 	ResourceChatModelConfig:               {ActionCreate, ActionDelete, ActionRead, ActionShare, ActionUpdate},
 	ResourceChatProject:                   {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceChatProjectMemory:             {ActionCreate, ActionDelete, ActionRead},

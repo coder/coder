@@ -760,6 +760,7 @@ export type APIKeyScope =
 	| "chat_automation:*"
 	| "chat_automation:create"
 	| "chat_automation:delete"
+	| "chat_automation:disable"
 	| "chat_automation:read"
 	| "chat_automation:update"
 	| "chat:create"
@@ -1021,6 +1022,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"chat_automation:*",
 	"chat_automation:create",
 	"chat_automation:delete",
+	"chat_automation:disable",
 	"chat_automation:read",
 	"chat_automation:update",
 	"chat:create",
@@ -9135,6 +9137,7 @@ export type RBACAction =
 	| "create_agent"
 	| "delete"
 	| "delete_agent"
+	| "disable"
 	| "read"
 	| "read_personal"
 	| "ssh"
@@ -9155,6 +9158,7 @@ export const RBACActions: RBACAction[] = [
 	"create_agent",
 	"delete",
 	"delete_agent",
+	"disable",
 	"read",
 	"read_personal",
 	"ssh",
