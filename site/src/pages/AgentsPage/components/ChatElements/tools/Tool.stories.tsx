@@ -2001,7 +2001,14 @@ export const AttachFileLabelFallsBackToPathBasename: Story = {
 	},
 };
 
-// An interrupted turn persists the call without a result.
+export const CopyAttachmentsRunning: Story = {
+	args: {
+		name: "copy_attachments_to_workspace",
+		status: "running",
+		args: {},
+	},
+};
+
 export const CopyAttachmentsWithoutResult: Story = {
 	args: {
 		name: "copy_attachments_to_workspace",
