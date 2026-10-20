@@ -1,6 +1,6 @@
 # docshtmlcheck
 
-`docshtmlcheck` fails CI when Markdown under `docs/` contains invalid inline HTML that the documentation site's renderer silently drops or mangles, or a table header cell with no text.
+`docshtmlcheck` fails CI when Markdown under `docs/` contains invalid inline HTML that the documentation site's renderer silently drops or mangles, a table header cell with no text, or an element or attribute that docs pages don't use.
 It runs as `make lint/docs-html` (part of `make lint`).
 
 ## What it catches
