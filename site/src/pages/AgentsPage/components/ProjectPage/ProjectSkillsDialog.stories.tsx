@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type FC, type PropsWithChildren, useEffect } from "react";
+import { useEffect } from "react";
 import { useQueryClient } from "react-query";
 import { fn, screen, spyOn, userEvent } from "storybook/test";
 import { API } from "#/api/api";
@@ -106,11 +106,17 @@ export const LoadError: Story = {
 	},
 };
 
+type RefetchSkillsOnMountProps = {
+	children: React.ReactNode;
+};
+
 /**
  * Refetches the cached skill list once on mount. Retries are off so a
  * rejected request settles at once instead of after the query's backoff.
  */
-const RefetchSkillsOnMount: FC<PropsWithChildren> = ({ children }) => {
+const RefetchSkillsOnMount: React.FC<RefetchSkillsOnMountProps> = ({
+	children,
+}) => {
 	const queryClient = useQueryClient();
 	useEffect(() => {
 		void queryClient.prefetchQuery({
