@@ -750,16 +750,33 @@ const sortedOverflowFiles = [...overflowFiles]
 	.map((file) => file.name);
 const lastOverflowLine = `context line ${overflowLinesPerFile} in ${sortedOverflowFiles.at(-1)}`;
 
+// Whether the browser hides the code's horizontal scrollbar, as headless test
+// runs do.
+const codeScrollbarHidden = (canvasElement: HTMLElement) => {
+	const code = canvasElement
+		.querySelector("diffs-container")
+		?.shadowRoot?.querySelector<HTMLElement>("[data-code]");
+	if (!code) {
+		throw new Error("Code block not rendered");
+	}
+	return code.offsetHeight === code.clientHeight;
+};
+
 // File heights come from itemMetrics, so they must match the rendered card,
-// code inset included. At maximum scroll the last card then ends exactly the
-// list padding above the bottom of the list.
+// code inset and horizontal scrollbar included. At maximum scroll the last
+// card then ends exactly the list padding above the bottom of the list. Where
+// the browser hides scrollbars the code has no scrollbar to fill its gutter,
+// so the story zeroes the gutter there.
 export const OverflowScrollsToLastCard: Story = {
 	args: {
 		parsedFiles: overflowFiles,
 	},
 	play: async ({ canvasElement }) => {
-		await waitFor(() => findScroller(canvasElement));
+		await waitForDiffBody(canvasElement, `in ${sortedOverflowFiles[0]}`);
 		const scroller = findScroller(canvasElement);
+		if (codeScrollbarHidden(canvasElement)) {
+			scroller.style.setProperty("--diffs-scrollbar-gutter-override", "0px");
+		}
 
 		await waitFor(() => {
 			scroller.scrollTop = scroller.scrollHeight;
@@ -768,54 +785,54 @@ export const OverflowScrollsToLastCard: Story = {
 			if (!lastCard?.shadowRoot?.textContent?.includes(lastOverflowLine)) {
 				throw new Error("Last file has not rendered yet");
 			}
-			const gap =
+			const spaceBelowLastCard =
 				scroller.getBoundingClientRect().bottom -
 				lastCard.getBoundingClientRect().bottom;
-			if (Math.abs(gap - listPadding) > 0.5) {
+			if (Math.abs(spaceBelowLastCard - listPadding) > 0.5) {
 				throw new Error(
-					`Last card ends ${gap}px above the list bottom, want ${listPadding}px`,
+					`Last card ends ${spaceBelowLastCard}px above the list bottom, want ${listPadding}px`,
 				);
 			}
 		});
 	},
 };
 
-// Headless Chromium has no classic scrollbars, so the story fakes one by
-// making the scroll root report a wider offsetWidth, then collapses a file so
-// the content resize re-runs the scrollbar check.
+// The scrollbar check reads offsetWidth - clientWidth, so the story stubs
+// offsetWidth for each state instead of depending on the browser's scrollbars.
+// Changing the scroller's width fires the ResizeObserver that re-runs it.
 export const ClassicScrollbarDropsRightPadding: Story = {
 	args: {
 		parsedFiles: overflowFiles,
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
 		const firstName = sortedOverflowFiles[0] ?? "";
 		await waitForDiffBody(canvasElement, `in ${firstName}`);
 		const scroller = findScroller(canvasElement);
 		const paddingRight = () => getComputedStyle(scroller).paddingRight;
-		if (paddingRight() !== `${listPadding}px`) {
-			throw new Error(
-				`padding-right is ${paddingRight()} without a scrollbar, want ${listPadding}px`,
-			);
-		}
-
-		Object.defineProperty(scroller, "offsetWidth", {
-			configurable: true,
-			get: () => scroller.clientWidth + 12,
-		});
-		try {
-			await userEvent.click(
-				await canvas.findByRole("button", { name: `Collapse ${firstName}` }),
-			);
-			await waitFor(() => {
-				if (paddingRight() !== "0px") {
+		const setScrollbarWidth = (width: number) => {
+			Object.defineProperty(scroller, "offsetWidth", {
+				configurable: true,
+				get: () => scroller.clientWidth + width,
+			});
+			scroller.style.maxWidth = `${scroller.getBoundingClientRect().width - 1}px`;
+		};
+		const expectPaddingRight = (want: string, state: string) =>
+			waitFor(() => {
+				if (paddingRight() !== want) {
 					throw new Error(
-						`padding-right is ${paddingRight()} with a classic scrollbar, want 0px`,
+						`padding-right is ${paddingRight()} ${state}, want ${want}`,
 					);
 				}
 			});
+
+		try {
+			setScrollbarWidth(0);
+			await expectPaddingRight(`${listPadding}px`, "without a scrollbar");
+			setScrollbarWidth(12);
+			await expectPaddingRight("0px", "with a classic scrollbar");
 		} finally {
 			Reflect.deleteProperty(scroller, "offsetWidth");
+			scroller.style.maxWidth = "";
 		}
 	},
 };
@@ -866,15 +883,23 @@ export const CollapsedHeaderIsFullyRounded: Story = {
 	},
 };
 
-// Scrolls partway into a long file so its header is stuck, which renders the
-// rounded-corner mask for the visual snapshot.
+// At the 16.5px line height in the 500px frame, line 60 of the first file is
+// not rendered at scrollTop 0 and is rendered at this offset.
+const stickyHeaderScrollTop = 600;
+const stickyHeaderWaitLine = 60;
+
+// Scrolls partway into a long file so its stuck header covers the card body,
+// the case the corner mask in FILE_CARD_CSS exists for.
 export const StickyHeaderCorners: Story = {
 	args: {
 		parsedFiles: longFiles,
 	},
 	play: async ({ canvasElement }) => {
-		await waitForDiffBody(canvasElement, `in ${firstLongFile}`);
-		findScroller(canvasElement).scrollTop = 600;
-		await waitForDiffBody(canvasElement, `context line 60 in ${firstLongFile}`);
+		await waitForDiffBody(canvasElement, `in ${firstLongFileName}`);
+		findScroller(canvasElement).scrollTop = stickyHeaderScrollTop;
+		await waitForDiffBody(
+			canvasElement,
+			`context line ${stickyHeaderWaitLine} in ${firstLongFileName}`,
+		);
 	},
 };
