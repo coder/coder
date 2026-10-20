@@ -506,7 +506,7 @@ describe("ProjectDetailsPanel", () => {
 		);
 	});
 
-	it("lets a sharee with update access turn a project skill off", async () => {
+	it("lets a non-owner turn a skill off when the project permits update", async () => {
 		mockInstructions(MockChatProjectInstructions);
 		vi.spyOn(API, "getUser").mockResolvedValue(MockUserMember);
 		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([
@@ -515,8 +515,8 @@ describe("ProjectDetailsPanel", () => {
 		const updateSkill = vi
 			.spyOn(API.experimental, "updateChatProjectSkill")
 			.mockResolvedValue({ ...MockSkills[0], content: "", enabled: false });
-		// The admin role grants update through the project's ACL, which only
-		// the server's computed permissions reflect.
+		// An admin-role sharee gets update only through the project's ACL,
+		// which /authcheck cannot see but project.permissions reflects.
 		const { user } = renderPanel({
 			...MockChatProject,
 			owner_id: MockUserMember.id,
