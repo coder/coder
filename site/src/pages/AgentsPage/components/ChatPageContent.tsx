@@ -251,6 +251,8 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 export type PendingAttachment = {
 	fileId: string;
 	mediaType: string;
+	name: string;
+	size: number;
 	purpose?: StagedFilePurpose;
 };
 
@@ -533,7 +535,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		const newUploadStates = new Map<File, UploadState>();
 		for (const [i, file] of files.entries()) {
 			const block = fileBlocks[i];
-			// AttachmentPreview never previews workspace files.
 			if (block.type === "file") {
 				newPreviewUrls.set(file, getChatFileURL(block.file_id ?? ""));
 			}

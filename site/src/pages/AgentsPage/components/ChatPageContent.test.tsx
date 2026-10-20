@@ -147,11 +147,11 @@ describe("ChatPageInput", () => {
 
 		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
 		expect(onSend.mock.calls[0][0].attachments).toEqual([
-			{
+			expect.objectContaining({
 				fileId: "delivered-zip",
 				mediaType: "application/zip",
 				purpose: "workspace",
-			},
+			}),
 		]);
 	});
 
@@ -191,11 +191,11 @@ describe("ChatPageInput", () => {
 
 		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
 		expect(onSend.mock.calls[0][0].attachments).toEqual([
-			{
+			expect.objectContaining({
 				fileId: "staged-zip",
 				mediaType: "application/zip",
 				purpose: "workspace",
-			},
+			}),
 		]);
 		expect(uploadChatWorkspaceFile).not.toHaveBeenCalled();
 	});

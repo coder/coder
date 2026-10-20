@@ -163,7 +163,7 @@ describe("getEditableUserMessagePayload", () => {
 			workspace_file_size: 42,
 			workspace_file_workspace_id: "ws-1",
 		} as const;
-		const attachmentPart = {
+		const mockAttachmentPart = {
 			type: "workspace-attachment",
 			file_id: "zip-file",
 			name: "archive.zip",
@@ -178,13 +178,13 @@ describe("getEditableUserMessagePayload", () => {
 			content: [
 				{ type: "text", text: "Please use these files." },
 				workspacePart,
-				attachmentPart,
+				mockAttachmentPart,
 			],
 		};
 
 		const payload = getEditableUserMessagePayload(message);
 		expect(payload?.text).toBe("Please use these files.");
-		expect(payload?.fileBlocks).toEqual([workspacePart, attachmentPart]);
+		expect(payload?.fileBlocks).toEqual([workspacePart, mockAttachmentPart]);
 	});
 
 	it("preserves whitespace-only text parts when concatenating", () => {

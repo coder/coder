@@ -354,6 +354,24 @@ describe("deriveMessageDisplayState", () => {
 		expect(state.hasCopyableContent).toBe(false);
 	});
 
+	it("keeps workspace-attachment-only user messages visible as chips", () => {
+		const message = buildMessage([
+			{
+				type: "workspace-attachment",
+				file_id: "file-1",
+				name: "bundle.zip",
+				size: 2048,
+				media_type: "application/zip",
+			},
+		]);
+
+		const state = getDisplayState(message);
+		expect(state.shouldHide).toBe(false);
+		expect(state.hasWorkspaceFileChips).toBe(true);
+		expect(state.workspaceAttachmentBlocks).toHaveLength(1);
+		expect(state.hasCopyableContent).toBe(false);
+	});
+
 	it("keeps text with workspace file references visible but not copyable", () => {
 		const message = buildMessage([
 			{ type: "text", text: "Use this file." },

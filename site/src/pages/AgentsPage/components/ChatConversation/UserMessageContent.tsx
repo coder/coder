@@ -123,7 +123,7 @@ export const UserMessageContent: React.FC<{
 								<WorkspaceFileChip
 									key={`workspace-attachment-${block.file_id}`}
 									name={getAttachmentDisplayName(block)}
-									size={block.size ?? 0}
+									size={block.size}
 								/>
 							))}
 						</div>
