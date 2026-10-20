@@ -760,21 +760,28 @@ const lastOverflowLine = `context line ${overflowLinesPerFile} in ${sortedOverfl
 
 // Whether the browser hides the code's horizontal scrollbar, as headless test
 // runs do.
-const codeScrollbarHidden = (canvasElement: HTMLElement) => {
+const codeScrollbarHidden = (code: HTMLElement) =>
+	code.offsetHeight === code.clientHeight;
+
+const firstCodeBlock = (canvasElement: HTMLElement): HTMLElement => {
 	const code = canvasElement
 		.querySelector("diffs-container")
 		?.shadowRoot?.querySelector<HTMLElement>("[data-code]");
 	if (!code) {
 		throw new Error("Code block not rendered");
 	}
-	return code.offsetHeight === code.clientHeight;
+	return code;
 };
 
 // File heights come from itemMetrics, so they must match the rendered card,
 // code inset and horizontal scrollbar included. At maximum scroll the last
-// card then ends exactly the list padding above the bottom of the list. Where
-// the browser hides scrollbars the code has no scrollbar to fill its gutter,
-// so the story zeroes the gutter there.
+// card then ends exactly the list padding above the bottom of the list.
+//
+// CI runs headless Chromium, which hides scrollbars, so there the height
+// check only covers the hidden-scrollbar case: the story zeroes the gutter
+// because no scrollbar fills it. The style checks before that hold in Chromium
+// whether or not scrollbars are shown, and fail if the FILE_CARD_CSS scrollbar
+// rules are dropped.
 export const OverflowScrollsToLastCard: Story = {
 	args: {
 		parsedFiles: overflowFiles,
@@ -782,26 +789,46 @@ export const OverflowScrollsToLastCard: Story = {
 	play: async ({ canvasElement }) => {
 		await waitForDiffBody(canvasElement, `in ${sortedOverflowFiles[0]}`);
 		const scroller = findScroller(canvasElement);
-		if (codeScrollbarHidden(canvasElement)) {
-			scroller.style.setProperty("--diffs-scrollbar-gutter-override", "0px");
+		const code = firstCodeBlock(canvasElement);
+		const codeStyle = getComputedStyle(code);
+		if (codeStyle.scrollbarColor !== "auto") {
+			throw new Error(
+				`Code scrollbar-color is ${codeStyle.scrollbarColor}, want auto`,
+			);
+		}
+		const gutter = codeStyle.getPropertyValue("--diffs-scrollbar-gutter");
+		if (gutter !== "6px") {
+			throw new Error(`Code scrollbar gutter is ${gutter}, want 6px`);
 		}
 
-		await waitFor(() => {
-			scroller.scrollTop = scroller.scrollHeight;
-			const cards = canvasElement.querySelectorAll("diffs-container");
-			const lastCard = cards[cards.length - 1];
-			if (!lastCard?.shadowRoot?.textContent?.includes(lastOverflowLine)) {
-				throw new Error("Last file has not rendered yet");
-			}
-			const spaceBelowLastCard =
-				scroller.getBoundingClientRect().bottom -
-				lastCard.getBoundingClientRect().bottom;
-			if (Math.abs(spaceBelowLastCard - listPadding) > 0.5) {
-				throw new Error(
-					`Last card ends ${spaceBelowLastCard}px above the list bottom, want ${listPadding}px`,
-				);
-			}
-		});
+		// A document rule on the host beats the :host rule in FILE_CARD_CSS.
+		const zeroGutter = document.createElement("style");
+		zeroGutter.textContent =
+			"diffs-container { --diffs-scrollbar-gutter-override: 0px; }";
+		if (codeScrollbarHidden(code)) {
+			document.head.appendChild(zeroGutter);
+		}
+
+		try {
+			await waitFor(() => {
+				scroller.scrollTop = scroller.scrollHeight;
+				const cards = canvasElement.querySelectorAll("diffs-container");
+				const lastCard = cards[cards.length - 1];
+				if (!lastCard?.shadowRoot?.textContent?.includes(lastOverflowLine)) {
+					throw new Error("Last file has not rendered yet");
+				}
+				const spaceBelowLastCard =
+					scroller.getBoundingClientRect().bottom -
+					lastCard.getBoundingClientRect().bottom;
+				if (Math.abs(spaceBelowLastCard - listPadding) > 0.5) {
+					throw new Error(
+						`Last card ends ${spaceBelowLastCard}px above the list bottom, want ${listPadding}px`,
+					);
+				}
+			});
+		} finally {
+			zeroGutter.remove();
+		}
 	},
 };
 
