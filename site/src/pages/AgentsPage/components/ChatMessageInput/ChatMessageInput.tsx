@@ -33,7 +33,10 @@ import {
 	useState,
 } from "react";
 import { useQuery } from "react-query";
-import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
+import {
+	chatProjectSkills,
+	isChatProjectAccessError,
+} from "#/api/queries/chatProjectSkills";
 import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -652,6 +655,7 @@ const useStoredSkillSource = (
 		isResolvedEmpty: skills?.length === 0 && !query.isFetching,
 		isLoading: isUnresolved && query.isFetching,
 		isError: isUnresolved && query.isError,
+		error: query.error,
 	};
 };
 
@@ -734,14 +738,17 @@ const ChatMessageInput = ({
 	// A list stays undefined until its source loads, even after an error,
 	// which keeps triggers qualified and built-in commands hidden. A chat
 	// without an organization, project, or workspace has a known empty list.
-	// Project skills are the exception: chatd runs a turn without project
-	// skills it cannot load, so a failed request with no data counts as none.
+	// Losing access to the project is the exception: chatd then runs turns
+	// without project skills, so the list is known to be empty.
 	const skillLists: SkillSourceList<SkillMetadata>[] = [
 		{ source: "personal", skills: personalSkills },
 		{ source: "org", skills: organizationSource.skills },
 		{
 			source: "project",
-			skills: projectSource.isError ? [] : projectSource.skills,
+			skills:
+				projectSource.isError && isChatProjectAccessError(projectSource.error)
+					? []
+					: projectSource.skills,
 		},
 		{ source: "workspace", skills: loadedWorkspaceSkills },
 	];

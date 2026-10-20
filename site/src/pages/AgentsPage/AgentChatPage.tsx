@@ -9,7 +9,10 @@ import { useOutletContext, useParams } from "react-router";
 import type { UrlTransform } from "streamdown";
 import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
-import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
+import {
+	chatProjectSkills,
+	isChatProjectAccessError,
+} from "#/api/queries/chatProjectSkills";
 import {
 	chatMessagesForInfiniteScroll,
 	chatModels,
@@ -335,6 +338,10 @@ const AgentChatPage: React.FC = () => {
 		...chatProjectSkills(chatOrganizationId, chatProjectId ?? ""),
 		enabled: hasChatProject,
 		staleTime: 60_000,
+		// An unknown list keeps /clear and /compact pending, so retry
+		// failures that may be transient.
+		retry: (failureCount, error) =>
+			failureCount < 3 && !isChatProjectAccessError(error),
 	});
 	const chatWorkspaceSkills = workspaceSkillsFromChat(chatQuery.data);
 	const { mutateAsync: deleteQueuedMessage } = useMutation(
@@ -647,11 +654,11 @@ const AgentChatPage: React.FC = () => {
 		organizationSkills: organizationSkillsQuery.data?.filter(
 			(skill) => skill.enabled,
 		),
-		// Unlike the lists above, chatd runs a turn without project skills it
-		// cannot load, so a failed request with no data counts as none.
+		// Unlike the lists above, losing access to the project means no
+		// project skills, because chatd then runs turns without them.
 		projectSkills: hasChatProject
 			? (projectSkillsQuery.data?.filter((skill) => skill.enabled) ??
-				(projectSkillsQuery.isError ? [] : undefined))
+				(isChatProjectAccessError(projectSkillsQuery.error) ? [] : undefined))
 			: [],
 		workspaceSkills: chatWorkspaceSkills,
 		compact,

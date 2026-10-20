@@ -1,3 +1,4 @@
+import { isAxiosError } from "axios";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 
@@ -13,3 +14,15 @@ export const chatProjectSkills = (
 	queryFn: (): Promise<TypesGen.SkillMetadata[]> =>
 		API.experimental.getChatProjectSkills(organizationId, projectId),
 });
+
+/**
+ * Reports whether a project skills request failed because the caller can no
+ * longer read the project, for example after its share was removed. chatd
+ * runs a turn without the skills of a project the chat owner cannot use, so
+ * this failure means no project skills. Other failures may be transient and
+ * leave the skills unknown.
+ */
+export const isChatProjectAccessError = (error: unknown): boolean => {
+	const status = isAxiosError(error) ? error.response?.status : undefined;
+	return status === 403 || status === 404;
+};

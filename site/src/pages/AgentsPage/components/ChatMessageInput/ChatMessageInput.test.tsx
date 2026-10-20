@@ -343,20 +343,30 @@ describe("ChatMessageInput", () => {
 			expect(inputRef.current?.getValue()).toBe("/personal/compactor");
 		});
 
-		it("offers built-in commands when the project list fails", async () => {
-			vi.spyOn(API.experimental, "getChatProjectSkills").mockRejectedValue(
-				new Error("Failed to load project skills."),
-			);
-			const inputRef = renderWithSkills({
-				personal: [mockCompactorSkill],
-				organization: [],
-				projectId: "project-1",
-			});
-			const user = await pasteTrigger("/comp");
-			await screen.findByText(/Could not load project skills/);
-			await user.keyboard("{Enter}");
-			expect(inputRef.current?.getValue()).toBe("/compact");
-		});
+		it.each([
+			[403, "/compact"],
+			[404, "/compact"],
+			// A transient failure leaves the project list unknown, so /compact
+			// stays hidden and Enter picks the qualified personal match.
+			[500, "/personal/compactor"],
+		])(
+			"handles a project list that fails with %i",
+			async (status, expected) => {
+				vi.spyOn(API.experimental, "getChatProjectSkills").mockRejectedValue({
+					isAxiosError: true,
+					response: { status, data: { message: "Project skills failed." } },
+				});
+				const inputRef = renderWithSkills({
+					personal: [mockCompactorSkill],
+					organization: [],
+					projectId: "project-1",
+				});
+				const user = await pasteTrigger("/comp");
+				await screen.findByText(/Could not load project skills/);
+				await user.keyboard("{Enter}");
+				expect(inputRef.current?.getValue()).toBe(expected);
+			},
+		);
 
 		it("keeps triggers qualified when the organization list fails", async () => {
 			const inputRef = renderWithSkills({ personal: [mockReviewerSkill] });
