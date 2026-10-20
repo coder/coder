@@ -31,7 +31,10 @@ type StartWorkspaceOptions struct {
 	AgentConnFn   AgentConnFunc
 	WorkspaceMu   *sync.Mutex
 	OnChatUpdated func(database.Chat)
-	Logger        slog.Logger
+	// AwaitAttachments, when set, reports the chat's workspace
+	// attachments in results that return a started workspace.
+	AwaitAttachments AwaitWorkspaceAttachmentsFn
+	Logger           slog.Logger
 }
 
 type startWorkspaceArgs struct {
@@ -120,6 +123,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
+				addWorkspaceAttachments(ctx, result, options.AwaitAttachments)
 				// Re-fire after the agent is fully ready so
 				// callers can load instruction files (AGENTS.md).
 				// This must happen after waitForAgentAndRespond —
@@ -147,6 +151,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 					if err != nil {
 						return fantasy.NewTextErrorResponse(err.Error()), nil
 					}
+					addWorkspaceAttachments(ctx, result, options.AwaitAttachments)
 					return toolResponse(result), nil
 				}
 				// Otherwise it is stopped (or deleted) — proceed
@@ -220,6 +225,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				result["update_reason"] = "template requires active versions"
 				result["message"] = "Workspace started and was updated to the active template version because the template requires active versions."
 			}
+			addWorkspaceAttachments(ctx, result, options.AwaitAttachments)
 
 			// Re-fire after the agent is fully ready so
 			// callers can load instruction files (AGENTS.md).
