@@ -465,6 +465,48 @@ describe("AgentCreateForm workspace file uploads", () => {
 		});
 	});
 
+	it("drops queued files when an organization change is confirmed", async () => {
+		dashboard.showOrganizations = true;
+		localStorage.setItem(selectedWorkspaceIdStorageKey, mockWorkspace.id);
+		const queryClient = createQueryClient();
+		const organization2ModelCatalog: TypesGen.OrganizationChatModelsResponse = {
+			...mockModelCatalog,
+			models: mockModelCatalog.models.map((model) => ({
+				...model,
+				organization_id: MockOrganization2.id,
+			})),
+		};
+		queryClient.setQueryData(
+			organizationChatModelsKey(MockOrganization2.id),
+			organization2ModelCatalog,
+		);
+		queryClient.setQueryData(
+			userChatPersonalModelOverrides(MockOrganization2.id).queryKey,
+			mockPersonalModelOverrides,
+		);
+		queryClient.setQueryData(mcpServerConfigsKey(MockOrganization2.id), []);
+		const uploadSpy = mockStagedUpload();
+		const { onCreateChat } = renderForm({}, { queryClient });
+
+		await attachZipFile();
+		await user().click(screen.getByRole("button", { name: /^Organization:/ }));
+		await user().click(
+			await screen.findByRole("option", {
+				name: MockOrganization2.display_name,
+			}),
+		);
+		await user().click(await screen.findByRole("button", { name: "Continue" }));
+		await submitMessage("start over in another organization");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(uploadSpy).not.toHaveBeenCalled();
+		expect(submittedOptions(onCreateChat)).toMatchObject({
+			organizationId: MockOrganization2.id,
+			workspaceAttachmentFileIDs: [],
+			uploadWorkspaceFiles: undefined,
+		});
+	});
+
 	it("keeps queued files across an agent status flap on the same workspace", async () => {
 		localStorage.setItem("agents.selected-workspace-id", mockWorkspace.id);
 		const uploadSpy = mockStagedUpload();

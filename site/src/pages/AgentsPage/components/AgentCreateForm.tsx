@@ -1124,6 +1124,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 						return;
 					}
 					resetAttachments();
+					resetWorkspaceUploads();
 					setSelectedWorkspaceId(null);
 					selectOrganization(pendingOrgChange);
 				}}
