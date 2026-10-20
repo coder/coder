@@ -156,6 +156,8 @@ export function compareTreePaths(a: string, b: string): number {
 	return compareTreeEntries(a.split("/"), false, b.split("/"), false);
 }
 
+// Stays a 32-bit integer so later inputs are not lost to floating-point
+// precision.
 const hashStep = (hash: number, value: number): number =>
 	(Math.imul(hash, 31) + value) | 0;
 
@@ -180,8 +182,7 @@ export function annotationsVersion(
 
 // CodeView's syncItemRecord re-syncs an item only when its version changes,
 // so every render input must feed it. cacheKey is the content hash
-// parseDiffString stamps. The hash stays a 32-bit integer so later inputs are
-// not lost to floating-point precision. Exported for unit tests.
+// parseDiffString stamps. Exported for unit tests.
 export function diffItemVersion(
 	fileDiff: FileDiffMetadata,
 	annotations: readonly DiffLineAnnotation<string>[],
