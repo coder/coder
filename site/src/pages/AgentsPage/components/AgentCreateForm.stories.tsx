@@ -2355,6 +2355,7 @@ export const WorkspaceFileWithoutWorkspaceIsStaged: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		await attachZipFile(canvasElement);
+		await within(canvasElement).findByText("For the workspace");
 	},
 };
 
