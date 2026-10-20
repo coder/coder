@@ -1,8 +1,8 @@
-import { screen, within } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage } from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
@@ -452,5 +452,218 @@ describe("ConversationTimeline live working blocks", () => {
 			liveStatus: idleLive,
 		});
 		expect(copyCommand).toHaveFocus();
+	});
+});
+
+type FakeAnimation = {
+	element: Element;
+	keyframes: Keyframe[];
+	options: KeyframeAnimationOptions;
+	finish: () => void;
+};
+
+// jsdom has no Web Animations API; stub it the way test/setup/domStubs.ts
+// stubs other missing element methods.
+const trackAnimations = () => {
+	const animations: FakeAnimation[] = [];
+	HTMLElement.prototype.animate = vi.fn().mockImplementation(function (
+		this: Element,
+		keyframes: Keyframe[],
+		options: KeyframeAnimationOptions,
+	) {
+		const animation: { onfinish: (() => void) | null; cancel: () => void } = {
+			onfinish: null,
+			cancel: vi.fn(),
+		};
+		animations.push({
+			element: this,
+			keyframes,
+			options,
+			finish: () => act(() => animation.onfinish?.()),
+		});
+		return animation;
+	});
+	return animations;
+};
+
+const mockReplyText =
+	"I'll start by listing the workspace files so I can see how the project is laid out, then read the main entry point.";
+
+const mockReplyPart = { type: "text", text: mockReplyText } as const;
+
+const mockFirstToolCallPart = {
+	type: "tool-call",
+	tool_call_id: "first",
+	tool_name: "execute",
+	args: { command: "echo first" },
+	created_at: workingFixtureTime(1),
+} as const;
+
+const mockSecondToolCallPart = {
+	...mockFirstToolCallPart,
+	tool_call_id: "second",
+	args: { command: "echo second" },
+	created_at: workingFixtureTime(5),
+} as const;
+
+const liveStage = (
+	messages: ChatMessage[],
+	parts: Parameters<typeof buildStreamRenderState>[0],
+): TimelineStage => ({
+	messages,
+	chatStatus: "running",
+	...buildStreamRenderState(parts),
+});
+
+const entersLabel = ({ keyframes }: FakeAnimation) =>
+	keyframes[0].opacity === 0 && keyframes[0].height === "0px";
+
+describe("ConversationTimeline reply folding", () => {
+	afterEach(() => {
+		Reflect.deleteProperty(HTMLElement.prototype, "animate");
+		vi.useRealTimers();
+	});
+
+	it("slides the label in, pauses, then folds the reply under it", () => {
+		vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+		const animations = trackAnimations();
+		const prompt = MockWorkingMessages.slice(0, 1);
+		const { rerenderStage } = renderTimeline(
+			liveStage(prompt, [mockReplyPart]),
+		);
+		expect(animations).toHaveLength(0);
+
+		rerenderStage(liveStage(prompt, [mockReplyPart, mockFirstToolCallPart]));
+		expect(animations).toHaveLength(1);
+		const [label] = animations;
+		expect(entersLabel(label)).toBe(true);
+		expect(label.options.duration).toBe(300);
+		expect(label.element.textContent).not.toContain(mockReplyText);
+		expect(screen.getByRole("status")).toHaveTextContent("");
+
+		label.finish();
+		expect(screen.getByRole("status")).toHaveTextContent("Working");
+		act(() => vi.advanceTimersByTime(59));
+		expect(animations).toHaveLength(1);
+
+		act(() => vi.advanceTimersByTime(1));
+		const [, collapse, fade] = animations;
+		expect(collapse.element.textContent).toContain(mockReplyText);
+		expect(collapse.keyframes.at(-1)?.height).toBe("0px");
+		expect(fade.keyframes.at(-1)?.opacity).toBe(0);
+		expect(fade.options.duration).toBeLessThan(
+			Number(collapse.options.duration),
+		);
+	});
+
+	it("folds into a label that is already showing", () => {
+		const animations = trackAnimations();
+		const firstStep = MockWorkingMessages.slice(0, 3);
+		const { rerenderStage } = renderTimeline(
+			liveStage(firstStep, [mockReplyPart]),
+		);
+
+		rerenderStage(
+			liveStage(firstStep, [mockReplyPart, mockSecondToolCallPart]),
+		);
+		expect(animations.some(entersLabel)).toBe(false);
+		expect(animations[0].element.textContent).toContain(mockReplyText);
+	});
+
+	it("folds reply text when a web search follows it", () => {
+		const animations = trackAnimations();
+		const firstStep = MockWorkingMessages.slice(0, 3);
+		const { rerenderStage } = renderTimeline(
+			liveStage(firstStep, [mockReplyPart]),
+		);
+
+		rerenderStage(
+			liveStage(firstStep, [
+				mockReplyPart,
+				{
+					type: "tool-call",
+					tool_call_id: "search",
+					tool_name: "web_search",
+					provider_executed: true,
+					created_at: workingFixtureTime(5),
+				},
+			]),
+		);
+		expect(animations.some(entersLabel)).toBe(false);
+		expect(animations[0]?.element.textContent).toContain(mockReplyText);
+	});
+
+	it("enters the label without a fold when a tool call starts first", () => {
+		const animations = trackAnimations();
+		const prompt = MockWorkingMessages.slice(0, 1);
+		const { rerenderStage } = renderTimeline({
+			messages: prompt,
+			chatStatus: "running",
+			liveStatus: { phase: "starting", hasAccumulatedOutput: false },
+		});
+
+		rerenderStage(liveStage(prompt, [mockFirstToolCallPart]));
+		expect(animations).toHaveLength(1);
+		expect(entersLabel(animations[0])).toBe(true);
+
+		animations[0].finish();
+		expect(animations).toHaveLength(1);
+	});
+
+	it("queues a second fold until the first finishes", () => {
+		vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+		const animations = trackAnimations();
+		const prompt = MockWorkingMessages.slice(0, 1);
+		const { rerenderStage } = renderTimeline(
+			liveStage(prompt, [mockReplyPart]),
+		);
+		rerenderStage(liveStage(prompt, [mockReplyPart, mockFirstToolCallPart]));
+		animations[0].finish();
+		act(() => vi.advanceTimersByTime(60));
+		expect(animations).toHaveLength(3);
+
+		const nextReply = "Now I'll read the configuration file.";
+		const firstStep = MockWorkingMessages.slice(0, 3);
+		rerenderStage(liveStage(firstStep, [{ type: "text", text: nextReply }]));
+		rerenderStage(
+			liveStage(firstStep, [
+				{ type: "text", text: nextReply },
+				mockSecondToolCallPart,
+			]),
+		);
+		expect(animations).toHaveLength(3);
+
+		animations[1].finish();
+		animations[2].finish();
+		expect(animations).toHaveLength(5);
+		expect(animations[3].element.textContent).toContain(nextReply);
+	});
+
+	it("crossfades without moving anything under reduced motion", () => {
+		vi.spyOn(window, "matchMedia").mockImplementation((query) => ({
+			matches: query === "(prefers-reduced-motion: reduce)",
+			media: query,
+			onchange: null,
+			addListener: vi.fn(),
+			removeListener: vi.fn(),
+			addEventListener: vi.fn(),
+			removeEventListener: vi.fn(),
+			dispatchEvent: vi.fn(),
+		}));
+		const animations = trackAnimations();
+		const prompt = MockWorkingMessages.slice(0, 1);
+		const { rerenderStage } = renderTimeline(
+			liveStage(prompt, [mockReplyPart]),
+		);
+
+		rerenderStage(liveStage(prompt, [mockReplyPart, mockFirstToolCallPart]));
+		expect(animations).toHaveLength(2);
+		for (const animation of animations) {
+			expect(animation.options.duration).toBe(150);
+			for (const keyframe of animation.keyframes) {
+				expect(keyframe.height).toBeUndefined();
+			}
+		}
+		expect(animations[1].element.textContent).toContain(mockReplyText);
 	});
 });
