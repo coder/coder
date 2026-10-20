@@ -61,6 +61,32 @@ describe("chatProjectUsability", () => {
 			usability: "unknown",
 		},
 		{
+			when: "a cached project list being refetched has the project",
+			projectQuery: {
+				...listQuery,
+				isFetching: true,
+				isFetchedAfterMount: false,
+			},
+			skillsError: null,
+			usability: "unknown",
+		},
+		{
+			when: "the refetch of a cached project list with the project failed",
+			projectQuery: {
+				...listQuery,
+				error: httpError(500),
+				isFetchedAfterMount: false,
+			},
+			skillsError: null,
+			usability: "unknown",
+		},
+		{
+			when: "a project list fetched since mount and refetching has the project",
+			projectQuery: { ...listQuery, isFetching: true },
+			skillsError: null,
+			usability: "usable",
+		},
+		{
 			when: "the project list is loading",
 			projectQuery: {
 				...listQuery,

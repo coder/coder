@@ -39,9 +39,9 @@ type ChatProjectUsability = "usable" | "unusable" | "unknown";
 /**
  * Classifies whether chatd loads a chat project's skills for the caller's
  * chats. chatProjects() holds only owned and shared projects, the check chatd
- * runs, so a role grant does not count. A cached list can predate a share, so
- * a missing project counts once the list was fetched since mount, or is not
- * being refetched and its last refetch succeeded.
+ * runs, so a role grant does not count. A cached list can predate a share or
+ * its revocation, so the list counts once it was fetched since mount, or is
+ * not being refetched and its last refetch succeeded.
  */
 export const chatProjectUsability = (
 	projectQuery: Pick<
@@ -53,16 +53,13 @@ export const chatProjectUsability = (
 	if (isChatProjectAccessError(skillsError)) {
 		return "unusable";
 	}
-	if (projectQuery.data === undefined) {
-		return "unknown";
-	}
-	if (projectQuery.data !== null) {
-		return "usable";
-	}
 	const isListCurrent =
 		projectQuery.isFetchedAfterMount ||
 		(!projectQuery.isFetching && !projectQuery.error);
-	return isListCurrent ? "unusable" : "unknown";
+	if (projectQuery.data === undefined || !isListCurrent) {
+		return "unknown";
+	}
+	return projectQuery.data === null ? "unusable" : "usable";
 };
 
 /**
