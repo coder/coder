@@ -5,6 +5,7 @@ import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
+	type TooltipSide,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
@@ -16,7 +17,7 @@ type InfoTooltipProps = {
 	type?: InfoTooltipType;
 	size?: InfoTooltipSize;
 	ariaLabel?: string;
-	side?: React.ComponentProps<typeof TooltipContent>["side"];
+	side?: TooltipSide;
 	children: React.ReactNode;
 };
 

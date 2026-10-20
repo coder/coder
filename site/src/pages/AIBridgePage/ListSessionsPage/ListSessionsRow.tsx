@@ -9,12 +9,14 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { clampContent } from "#/utils/text";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { ClientsBadge } from "../ClientsBadge";
 import { NetworkCallBadges } from "../NetworkCallBadges";
 import { ProvidersBadge } from "../ProvidersBadge";
 import { TokenBadges } from "../TokenBadges";
-import { truncatePromptPreview } from "../utils";
+
+const PROMPT_PREVIEW_MAX_CHARS = 500;
 
 type ListSessionsRowProps = {
 	session: AIBridgeSession;
@@ -30,7 +32,10 @@ export const ListSessionsRow: React.FC<ListSessionsRowProps> = ({
 	)
 		.trim()
 		.split(/\s+/);
-	const promptPreview = truncatePromptPreview(session.last_prompt ?? "");
+	const promptPreview = clampContent(
+		session.last_prompt ?? "",
+		PROMPT_PREVIEW_MAX_CHARS,
+	);
 
 	return (
 		<TableRow
