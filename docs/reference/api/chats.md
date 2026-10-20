@@ -1432,11 +1432,18 @@ curl -X POST http://coder-server:8080/api/v2/chats/files?organization=497f6eca-6
 
 ### Parameters
 
-| Name                  | In     | Type         | Required | Description                                   |
-|-----------------------|--------|--------------|----------|-----------------------------------------------|
-| `organization`        | query  | string(uuid) | true     | Organization ID                               |
-| `Content-Disposition` | header | string       | true     | Attachment disposition carrying the file name |
-| `body`                | body   | string       | true     | Raw file binary data                          |
+| Name                  | In     | Type         | Required | Description                                                                                                                             |
+|-----------------------|--------|--------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| `organization`        | query  | string(uuid) | true     | Organization ID                                                                                                                         |
+| `purpose`             | query  | string       | false    | File purpose. Workspace files accept any type up to 100 MiB and are copied into the chat's workspace instead of being sent to the model |
+| `Content-Disposition` | header | string       | true     | Attachment disposition carrying the file name                                                                                           |
+| `body`                | body   | string       | true     | Raw file binary data                                                                                                                    |
+
+#### Enumerated Values
+
+| Parameter | Value(s)              |
+|-----------|-----------------------|
+| `purpose` | `prompt`, `workspace` |
 
 ### Example responses
 
@@ -1450,10 +1457,10 @@ curl -X POST http://coder-server:8080/api/v2/chats/files?organization=497f6eca-6
 
 ### Responses
 
-| Status | Meaning                                                                 | Description                 | Schema                                                                       |
-|--------|-------------------------------------------------------------------------|-----------------------------|------------------------------------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                     | [codersdk.UploadChatFileResponse](schemas.md#codersdkuploadchatfileresponse) |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 10 MiB | [codersdk.Response](schemas.md#codersdkresponse)                             |
+| Status | Meaning                                                                 | Description                                                 | Schema                                                                       |
+|--------|-------------------------------------------------------------------------|-------------------------------------------------------------|------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                                                     | [codersdk.UploadChatFileResponse](schemas.md#codersdkuploadchatfileresponse) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 10 MiB, or 100 MiB for workspace files | [codersdk.Response](schemas.md#codersdkresponse)                             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1464,6 +1471,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/chats/files/{file} \
+  -H 'Accept: */*' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -1475,11 +1483,16 @@ curl -X GET http://coder-server:8080/api/v2/chats/files/{file} \
 |--------|------|--------------|----------|-------------|
 | `file` | path | string(uuid) | true     | File ID     |
 
+### Example responses
+
+> 410 Response
+
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema |
-|--------|---------------------------------------------------------|-------------|--------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+| Status | Meaning                                                   | Description                                                                 | Schema                                           |
+|--------|-----------------------------------------------------------|-----------------------------------------------------------------------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)   | OK                                                                          |                                                  |
+| 410    | [Gone](https://tools.ietf.org/html/rfc7231#section-6.5.9) | Workspace file was copied into the chat's workspace and is no longer stored | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2915,6 +2928,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           ],
           "result_delta": "string",
           "result_reset": true,
+          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -2997,6 +3011,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           ],
           "result_delta": "string",
           "result_reset": true,
+          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3153,6 +3168,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         ],
         "result_delta": "string",
         "result_reset": true,
+        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -3234,6 +3250,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           ],
           "result_delta": "string",
           "result_reset": true,
+          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3316,6 +3333,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         ],
         "result_delta": "string",
         "result_reset": true,
+        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -3457,6 +3475,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
         ],
         "result_delta": "string",
         "result_reset": true,
+        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -3538,6 +3557,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
           ],
           "result_delta": "string",
           "result_reset": true,
+          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -4130,6 +4150,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           ],
           "result_delta": "string",
           "result_reset": true,
+          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -4210,6 +4231,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
         ],
         "result_delta": "string",
         "result_reset": true,
+        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -4277,6 +4299,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             ],
             "result_delta": "string",
             "result_reset": true,
+            "size": 0,
             "skill_description": "string",
             "skill_dir": "string",
             "skill_name": "string",
@@ -4376,6 +4399,7 @@ Status Code **200**
 | `»»» result`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» result_delta`                 | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» result_reset`                 | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» size`                         | integer                                                                          | false    |              | Size is the byte size of a workspace attachment, filled in by the server.                                                                                                                                                                                                                                                                                                                                  |
 | `»»» skill_description`            | string                                                                           | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
 | `»»» skill_dir`                    | string                                                                           | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                                                                                                      |
 | `»»» skill_name`                   | string                                                                           | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                                                                                                    |
@@ -4432,12 +4456,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property | Value(s)                                                                                                                                                                                                                                                                                            |
-|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `kind`   | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                                            |
-| `type`   | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `source`, `status`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
-| `role`   | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                               |
-| `status` | `error`, `interrupting`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                                    |
+| Property | Value(s)                                                                                                                                                                                                                                                                                                                    |
+|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `kind`   | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                                                                    |
+| `type`   | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `source`, `status`, `text`, `tool-call`, `tool-result`, `workspace-attachment`, `workspace-file-reference` |
+| `role`   | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                                                       |
+| `status` | `error`, `interrupting`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                                                            |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

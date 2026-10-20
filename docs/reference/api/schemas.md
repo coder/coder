@@ -3196,9 +3196,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                     |
-|--------------------------------------------------------------|
-| `file`, `file-reference`, `text`, `workspace-file-reference` |
+| Value(s)                                                                             |
+|--------------------------------------------------------------------------------------|
+| `file`, `file-reference`, `text`, `workspace-attachment`, `workspace-file-reference` |
 
 ## codersdk.ChatMessage
 
@@ -3249,6 +3249,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "result_delta": "string",
       "result_reset": true,
+      "size": 0,
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -3345,6 +3346,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "result_delta": "string",
   "result_reset": true,
+  "size": 0,
   "skill_description": "string",
   "skill_dir": "string",
   "skill_name": "string",
@@ -3398,6 +3400,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `result`                       | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_reset`                 | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `size`                         | integer                                                      | false    |              | Size is the byte size of a workspace attachment, filled in by the server.                                                                                                                                                                                                                                                                                                                                  |
 | `skill_description`            | string                                                       | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
 | `skill_dir`                    | string                                                       | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                                                                                                      |
 | `skill_name`                   | string                                                       | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                                                                                                    |
@@ -3425,9 +3428,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
+| Value(s)                                                                                                                                                                                        |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result`, `workspace-attachment`, `workspace-file-reference` |
 
 ## codersdk.ChatMessageRole
 
@@ -3521,6 +3524,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ],
           "result_delta": "string",
           "result_reset": true,
+          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3603,6 +3607,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ],
           "result_delta": "string",
           "result_reset": true,
+          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -5187,6 +5192,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "result_delta": "string",
       "result_reset": true,
+      "size": 0,
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -5351,6 +5357,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ],
         "result_delta": "string",
         "result_reset": true,
+        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -5431,6 +5438,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "result_delta": "string",
       "result_reset": true,
+      "size": 0,
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -5498,6 +5506,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ],
           "result_delta": "string",
           "result_reset": true,
+          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -5614,6 +5623,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "result_delta": "string",
     "result_reset": true,
+    "size": 0,
     "skill_description": "string",
     "skill_dir": "string",
     "skill_name": "string",
@@ -6473,6 +6483,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ],
         "result_delta": "string",
         "result_reset": true,
+        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -6554,6 +6565,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ],
           "result_delta": "string",
           "result_reset": true,
+          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -6636,6 +6648,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ],
         "result_delta": "string",
         "result_reset": true,
+        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -9584,6 +9597,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         ],
         "result_delta": "string",
         "result_reset": true,
+        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -9665,6 +9679,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           ],
           "result_delta": "string",
           "result_reset": true,
+          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",

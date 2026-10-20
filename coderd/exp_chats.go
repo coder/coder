@@ -81,6 +81,8 @@ const (
 	// creation and tool result requests.
 	maxChatRequestBodyBytes = 256 * 1024
 
+	maxConcurrentChatWorkspaceFileUploads = 4
+
 	defaultChatContextCompressionThreshold = int32(70)
 	// Large-context models (1M) compact earlier; 70% of a 1M window
 	// carries too much stale context.
@@ -6925,15 +6927,30 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 // @Accept image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Produce json
 // @Param organization query string true "Organization ID" format(uuid)
+// @Param purpose query string false "File purpose. Workspace files accept any type up to 100 MiB and are copied into the chat's workspace instead of being sent to the model" Enums(prompt,workspace)
 // @Param Content-Disposition header string true "Attachment disposition carrying the file name" example(attachment; filename="image.png")
 // @Param request body string true "Raw file binary data"
 // @x-apidocgen {"rawBodyFile": "image.png"}
 // @Success 201 {object} codersdk.UploadChatFileResponse
-// @Failure 413 {object} codersdk.Response "Request body exceeds 10 MiB"
+// @Failure 413 {object} codersdk.Response "Request body exceeds 10 MiB, or 100 MiB for workspace files"
 // @Router /api/v2/chats/files [post]
 func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+
+	purpose := codersdk.ChatFilePurpose(r.URL.Query().Get("purpose"))
+	switch purpose {
+	case "":
+		purpose = codersdk.ChatFilePurposePrompt
+	case codersdk.ChatFilePurposePrompt, codersdk.ChatFilePurposeWorkspace:
+	default:
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid purpose query parameter.",
+			Detail:  fmt.Sprintf("Purpose must be %q or %q.", codersdk.ChatFilePurposePrompt, codersdk.ChatFilePurposeWorkspace),
+		})
+		return
+	}
+	forWorkspace := purpose == codersdk.ChatFilePurposeWorkspace
 
 	orgIDStr := r.URL.Query().Get("organization")
 	if orgIDStr == "" {
@@ -6968,7 +6985,7 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	}
 	// application/octet-stream means the client could not classify the file
 	// ahead of time, so we defer to byte classification below.
-	if contentType != "application/octet-stream" && !chatfiles.IsAllowedPromptInputMediaType(contentType) {
+	if !forWorkspace && contentType != "application/octet-stream" && !chatfiles.IsAllowedPromptInputMediaType(contentType) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Unsupported file type.",
 			Detail:  fmt.Sprintf("Allowed types: %s.", chatfiles.AllowedPromptInputMediaTypesString()),
@@ -6978,16 +6995,43 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 
 	// Extract filename from Content-Disposition header if provided.
 	filename := chatFilenameFromContentDisposition(r.Header.Get("Content-Disposition"))
+	maxBytes := int64(codersdk.MaxChatFileSizeBytes)
+	if forWorkspace {
+		// Store the name the agent writes, so delivery never fails on
+		// naming and the prompt can state the exact workspace path.
+		sanitized, err := chatfiles.SanitizeWorkspaceUploadName(filename)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Filename is required.",
+				Detail:  "Provide a filename in the Content-Disposition header.",
+			})
+			return
+		}
+		filename = sanitized
+		maxBytes = codersdk.MaxChatWorkspaceFileSizeBytes
+		// The whole body is buffered, so bound the memory that concurrent
+		// workspace uploads hold on this replica.
+		select {
+		case api.chatWorkspaceFileUploadSem <- struct{}{}:
+			defer func() { <-api.chatWorkspaceFileUploadSem }()
+		case <-ctx.Done():
+			httpapi.Write(ctx, rw, http.StatusServiceUnavailable, codersdk.Response{
+				Message: "Request canceled while waiting to upload.",
+				Detail:  ctx.Err().Error(),
+			})
+			return
+		}
+	}
 
-	r.Body = http.MaxBytesReader(rw, r.Body, codersdk.MaxChatFileSizeBytes)
+	r.Body = http.MaxBytesReader(rw, r.Body, maxBytes)
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
-			httpapi.RecordRequestBodyLimit(ctx, codersdk.MaxChatFileSizeBytes)
+			httpapi.RecordRequestBodyLimit(ctx, maxBytes)
 			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
 				Message: "File too large.",
-				Detail:  fmt.Sprintf("Maximum file size is %d bytes.", codersdk.MaxChatFileSizeBytes),
+				Detail:  fmt.Sprintf("Maximum file size is %d bytes.", maxBytes),
 			})
 			return
 		}
@@ -7016,7 +7060,9 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	if !chatfiles.IsAllowedPromptInputMediaType(detected) {
+	// Workspace files never reach the model provider, so any sniffed type
+	// is stored for them.
+	if !forWorkspace && !chatfiles.IsAllowedPromptInputMediaType(detected) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Unsupported file type.",
 			Detail:  fmt.Sprintf("Allowed types: %s.", chatfiles.AllowedPromptInputMediaTypesString()),
@@ -7030,7 +7076,7 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	// Markdown. Combined with the X-Content-Type-Options: nosniff header
 	// applied globally, this still prevents clients from smuggling binary
 	// or active content under a safer declared Content-Type.
-	if !chatfiles.IsCompatibleUploadMediaType(contentType, detected) {
+	if !forWorkspace && !chatfiles.IsCompatibleUploadMediaType(contentType, detected) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "File content type does not match Content-Type header.",
 			Detail:  fmt.Sprintf("Header declared %q but file content was detected as %q.", contentType, detected),
@@ -7043,7 +7089,7 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		Name:           filename,
 		Mimetype:       detected,
 		Data:           data,
-		Purpose:        database.NullChatFilePurpose{ChatFilePurpose: database.ChatFilePurposePrompt, Valid: true},
+		Purpose:        database.NullChatFilePurpose{ChatFilePurpose: database.ChatFilePurpose(purpose), Valid: true},
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -7083,6 +7129,7 @@ func (c ChatFileDownloadClaims) Validate(expected jwt.Expected) error {
 // @Produce json
 // @Param file path string true "File ID" format(uuid)
 // @Success 200 {object} codersdk.ChatFileDownloadURLResponse
+// @Failure 410 {object} codersdk.Response "Workspace file was copied into the chat's workspace and is no longer stored"
 // @Router /api/v2/chats/files/{file}/download-url [post]
 // @x-apidocgen {"skip": true}
 func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request) {
@@ -7105,6 +7152,9 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 			Message: "Failed to get chat file.",
 			Detail:  err.Error(),
 		})
+		return
+	}
+	if writeChatFileGoneIfDelivered(ctx, rw, chatFile) {
 		return
 	}
 
@@ -7145,10 +7195,10 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 // @Summary Download chat file with signed token
 // @ID download-chat-file-with-signed-token
 // @Tags Chats
-// @Produce image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Param file path string true "File ID" format(uuid)
 // @Param token query string true "Signed download token"
 // @Success 200
+// @Failure 410 {object} codersdk.Response "Workspace file was copied into the chat's workspace and is no longer stored"
 // @Router /api/v2/chats/files/{file}/download [get]
 // @x-apidocgen {"skip": true}
 func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
@@ -7188,6 +7238,9 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 	// Never let private caches replay a signed URL past its expiry;
 	// revocation is re-checked only when the request reaches coderd.
 	rw.Header().Set("Cache-Control", "no-store")
+	if writeChatFileGoneIfDelivered(ctx, rw, chatFile) {
+		return
+	}
 	api.serveChatFile(ctx, rw, chatFile)
 }
 
@@ -7195,9 +7248,9 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 // @ID get-chat-file
 // @Security CoderSessionToken
 // @Tags Chats
-// @Produce image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Param file path string true "File ID" format(uuid)
 // @Success 200
+// @Failure 410 {object} codersdk.Response "Workspace file was copied into the chat's workspace and is no longer stored"
 // @Router /api/v2/chats/files/{file} [get]
 func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -7224,8 +7277,29 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rw.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
+	if chatFile.Purpose == database.ChatFilePurposeWorkspace {
+		// The bytes are dropped once the file reaches the workspace, so
+		// a cached copy would outlive the stored file.
+		rw.Header().Set("Cache-Control", "no-store")
+	} else {
+		rw.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
+	}
+	if writeChatFileGoneIfDelivered(ctx, rw, chatFile) {
+		return
+	}
 	api.serveChatFile(r.Context(), rw, chatFile)
+}
+
+// writeChatFileGoneIfDelivered answers 410 Gone for a workspace file whose
+// bytes were dropped after delivery, instead of serving an empty body.
+func writeChatFileGoneIfDelivered(ctx context.Context, rw http.ResponseWriter, chatFile database.ChatFile) bool {
+	if chatFile.Purpose != database.ChatFilePurposeWorkspace || !chatFile.WorkspaceDeliveredAt.Valid {
+		return false
+	}
+	httpapi.Write(ctx, rw, http.StatusGone, codersdk.Response{
+		Message: "Chat file was copied into the chat's workspace and is no longer stored.",
+	})
+	return true
 }
 
 // serveChatFile writes the file body and content headers; callers set
@@ -7738,21 +7812,18 @@ func createChatInputFromParts(
 					Detail:  fmt.Sprintf("%s[%d].file_id is required for file parts.", fieldName, i),
 				}
 			}
-			// Validate that the file exists and get its media type.
-			// The loaded file data is only retained for synthetic
-			// pastes below; LLM dispatch re-resolves file content via
-			// chatFileResolver.
-			chatFile, err := db.GetChatFileByID(ctx, part.FileID)
-			if err != nil {
-				if httpapi.Is404Error(err) {
-					return nil, nil, &codersdk.Response{
-						Message: "Invalid input part.",
-						Detail:  fmt.Sprintf("%s[%d].file_id references a file that does not exist.", fieldName, i),
-					}
-				}
+			// LLM dispatch resolves file content via chatFileResolver,
+			// so only metadata is loaded here.
+			chatFile, inputErr := chatInputFileMetadata(ctx, db, part.FileID, fieldName, i)
+			if inputErr != nil {
+				return nil, nil, inputErr
+			}
+			// Workspace files may be any type and up to 100 MiB, so they
+			// must never reach a provider through a file part.
+			if chatFile.Purpose == database.ChatFilePurposeWorkspace {
 				return nil, nil, &codersdk.Response{
-					Message: "Internal error.",
-					Detail:  fmt.Sprintf("Failed to retrieve file for %s[%d].", fieldName, i),
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].file_id references a workspace file. Use a %s part instead.", fieldName, i, codersdk.ChatInputPartTypeWorkspaceAttachment),
 				}
 			}
 			if !chatfiles.IsAllowedPromptInputMediaType(chatFile.Mimetype) {
@@ -7765,11 +7836,36 @@ func createChatInputFromParts(
 			// Retain blob references for create-time title derivation;
 			// send and edit paths discard the map.
 			if chatprompt.IsSyntheticPaste(chatFile.Name, chatFile.Mimetype) {
+				paste, err := db.GetChatFileByID(ctx, part.FileID)
+				if err != nil {
+					return nil, nil, &codersdk.Response{
+						Message: "Internal error.",
+						Detail:  fmt.Sprintf("Failed to retrieve file for %s[%d].", fieldName, i),
+					}
+				}
 				if pasteData == nil {
 					pasteData = make(map[uuid.UUID][]byte)
 				}
-				pasteData[part.FileID] = chatFile.Data
+				pasteData[part.FileID] = paste.Data
 			}
+		case string(codersdk.ChatInputPartTypeWorkspaceAttachment):
+			if part.FileID == uuid.Nil {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].file_id is required for workspace-attachment parts.", fieldName, i),
+				}
+			}
+			chatFile, inputErr := chatInputFileMetadata(ctx, db, part.FileID, fieldName, i)
+			if inputErr != nil {
+				return nil, nil, inputErr
+			}
+			if chatFile.Purpose != database.ChatFilePurposeWorkspace {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].file_id must reference a file uploaded with purpose %q.", fieldName, i, codersdk.ChatFilePurposeWorkspace),
+				}
+			}
+			content = append(content, codersdk.ChatMessageWorkspaceAttachment(part.FileID, chatFile.Mimetype, chatFile.Name, chatFile.SizeBytes))
 		// file-reference parts carry inline code snippets, not uploaded
 		// files. They have no FileID and are excluded from file tracking.
 		case string(codersdk.ChatInputPartTypeFileReference):
@@ -7869,6 +7965,33 @@ func createChatInputFromParts(
 		}
 	}
 	return content, pasteData, nil
+}
+
+// chatInputFileMetadata loads the metadata of a file referenced by an
+// input part through the caller's authorized store. Uploads stay unlinked
+// until a message references them, and chat creation has no chat ID yet,
+// so files are looked up by ID.
+func chatInputFileMetadata(
+	ctx context.Context,
+	db database.Store,
+	fileID uuid.UUID,
+	fieldName string,
+	index int,
+) (database.GetChatFilesMetadataByIDsRow, *codersdk.Response) {
+	rows, err := db.GetChatFilesMetadataByIDs(ctx, []uuid.UUID{fileID})
+	if err != nil && !httpapi.Is404Error(err) {
+		return database.GetChatFilesMetadataByIDsRow{}, &codersdk.Response{
+			Message: "Internal error.",
+			Detail:  fmt.Sprintf("Failed to retrieve file for %s[%d].", fieldName, index),
+		}
+	}
+	if err != nil || len(rows) == 0 {
+		return database.GetChatFilesMetadataByIDsRow{}, &codersdk.Response{
+			Message: "Invalid input part.",
+			Detail:  fmt.Sprintf("%s[%d].file_id references a file that does not exist.", fieldName, index),
+		}
+	}
+	return rows[0], nil
 }
 
 // maxPromptRequestBodyBytes allows twice the prompt limit for JSON escaping

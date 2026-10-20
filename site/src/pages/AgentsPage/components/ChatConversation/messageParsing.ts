@@ -353,6 +353,11 @@ export const parseMessageContent = (
 				parsed.blocks.push(part);
 				break;
 			}
+			case "workspace-attachment": {
+				// Workspace attachments are not rendered in the conversation
+				// timeline.
+				break;
+			}
 			default: {
 				const _exhaustive: never = part;
 				break;

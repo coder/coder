@@ -1,12 +1,16 @@
 package chatprompt_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -104,4 +108,53 @@ func TestWorkspaceFilePartToTextStaleWorkspace(t *testing.T) {
 		require.Contains(t, got, "/home/coder/.coder/chats/abcd1234/files/archive.zip")
 		require.NotContains(t, got, "no longer accessible")
 	})
+}
+
+func TestWorkspaceAttachmentPromptText(t *testing.T) {
+	t.Parallel()
+
+	chatID := uuid.New()
+	attachmentID := uuid.New()
+	promptFileID := uuid.New()
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("unpack this"),
+		codersdk.ChatMessageWorkspaceAttachment(attachmentID, "application/zip", "report.zip", 62<<20),
+		codersdk.ChatMessageFile(promptFileID, "image/png", "screen.png"),
+	})
+	require.NoError(t, err)
+	messages := []database.ChatMessage{{
+		ChatID:         chatID,
+		Role:           database.ChatMessageRoleUser,
+		Visibility:     database.ChatMessageVisibilityBoth,
+		Content:        content,
+		ContentVersion: chatprompt.CurrentContentVersion,
+	}}
+
+	var resolvedIDs [][]uuid.UUID
+	resolver := func(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+		resolvedIDs = append(resolvedIDs, ids)
+		return map[uuid.UUID]chatprompt.FileData{
+			promptFileID: {Name: "screen.png", Data: []byte("png"), MediaType: "image/png"},
+		}, nil
+	}
+	attachmentText := func(chatWorkspaceID uuid.NullUUID) string {
+		t.Helper()
+		prompt, err := chatprompt.ConvertMessagesWithFiles(
+			context.Background(), messages, resolver, slogtest.Make(t, nil), nil, chatWorkspaceID,
+		)
+		require.NoError(t, err)
+		require.Len(t, prompt, 1)
+		require.Len(t, prompt[0].Content, 3)
+		text, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[1])
+		require.True(t, ok)
+		return text.Text
+	}
+
+	unbound := attachmentText(uuid.NullUUID{})
+	bound := attachmentText(uuid.NullUUID{UUID: testChatWorkspaceID, Valid: true})
+	require.Equal(t, unbound, bound, "the text must not depend on the chat's workspace")
+	require.Contains(t, unbound, "report.zip (application/zip, 62 MiB)")
+	require.Contains(t, unbound, "~/.coder/chats/"+chatID.String()+"/files/"+attachmentID.String()+"/report.zip")
+	require.Equal(t, [][]uuid.UUID{{promptFileID}, {promptFileID}}, resolvedIDs,
+		"workspace attachment bytes must never be loaded into the prompt")
 }
