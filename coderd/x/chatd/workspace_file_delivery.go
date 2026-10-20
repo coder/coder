@@ -23,13 +23,17 @@ import (
 
 const (
 	// workspaceFileDeliveryLease is how long a claimed file stays leased
-	// to this replica.
+	// to this replica, plus the time its upload takes at
+	// workspaceFileDeliveryMinUploadBytesPerSecond.
 	workspaceFileDeliveryLease = 5 * time.Minute
-	// workspaceFileDeliveryAttemptTimeout ends an attempt early enough
-	// to record its outcome before the lease expires, so no other replica
+	// workspaceFileDeliveryMinUploadBytesPerSecond is the slowest upload
+	// rate a lease leaves time for.
+	workspaceFileDeliveryMinUploadBytesPerSecond = 128 << 10
+	// workspaceFileDeliveryLeaseMargin ends an attempt early enough to
+	// record its outcome before the lease expires, so no other replica
 	// works on the file at the same time.
-	workspaceFileDeliveryAttemptTimeout = workspaceFileDeliveryLease - time.Minute
-	workspaceFileDeliveryRetryDelay     = time.Minute
+	workspaceFileDeliveryLeaseMargin = time.Minute
+	workspaceFileDeliveryRetryDelay  = time.Minute
 )
 
 // workspaceFileDeliveryFailure is a failed delivery attempt and how the
@@ -117,12 +121,13 @@ func (w *chatWorker) deliverWorkspaceFiles(ctx context.Context) {
 	for ctx.Err() == nil {
 		now := w.opts.Clock.Now("chatworker", "workspace-file-delivery")
 		rows, err := w.opts.Store.AcquireChatWorkspaceFileDeliveries(ctx, database.AcquireChatWorkspaceFileDeliveriesParams{
-			Now:             now,
-			LeaseExpiresAt:  now.Add(workspaceFileDeliveryLease),
-			ChatAgentSuffix: agentselect.Suffix,
-			MaxAttempts:     database.ChatWorkspaceFileMaxDeliveryAttempts,
-			ChatID:          uuid.NullUUID{},
-			LimitVal:        1,
+			Now:                     now,
+			LeaseExpiresAt:          now.Add(workspaceFileDeliveryLease),
+			MinUploadBytesPerSecond: workspaceFileDeliveryMinUploadBytesPerSecond,
+			ChatAgentSuffix:         agentselect.Suffix,
+			MaxAttempts:             database.ChatWorkspaceFileMaxDeliveryAttempts,
+			ChatID:                  uuid.NullUUID{},
+			LimitVal:                1,
 		})
 		if err != nil {
 			if ctx.Err() == nil {
@@ -144,7 +149,8 @@ func (w *chatWorker) deliverWorkspaceFile(ctx context.Context, row database.Acqu
 		slog.F("workspace_id", row.WorkspaceID.UUID),
 		slog.F("attempt", row.WorkspaceDeliveryAttempts),
 	)
-	attemptCtx, cancel := context.WithTimeout(ctx, workspaceFileDeliveryAttemptTimeout)
+	claimedAt := w.opts.Clock.Now("chatworker", "workspace-file-delivery")
+	attemptCtx, cancel := context.WithTimeout(ctx, row.LeaseExpiresAt.Sub(claimedAt)-workspaceFileDeliveryLeaseMargin)
 	resp, failure := w.copyWorkspaceFile(attemptCtx, row)
 	cancel()
 	if ctx.Err() != nil {
@@ -161,11 +167,12 @@ func (w *chatWorker) deliverWorkspaceFile(ctx context.Context, row database.Acqu
 		// Record the home-relative path the prompt names, not the
 		// absolute path, which depends on the agent's home directory.
 		deliveredPath := chatfiles.WorkspaceUploadFileHomePath(row.ChatID.String(), row.ID.String(), resp.Name)
-		_, err := w.opts.Store.CompleteChatWorkspaceFileDelivery(ctx, database.CompleteChatWorkspaceFileDeliveryParams{
+		completed, err := w.opts.Store.CompleteChatWorkspaceFileDelivery(ctx, database.CompleteChatWorkspaceFileDeliveryParams{
 			DeliveredAt:          now,
 			DeliveredPath:        deliveredPath,
 			DeliveredWorkspaceID: row.WorkspaceID.UUID,
 			ID:                   row.ID,
+			LeaseExpiresAt:       row.LeaseExpiresAt,
 		})
 		if err != nil {
 			// The agent upload is write-once by file ID, so the
@@ -173,20 +180,29 @@ func (w *chatWorker) deliverWorkspaceFile(ctx context.Context, row database.Acqu
 			logger.Error(ctx, "record workspace chat file delivery", slogError(err))
 			return
 		}
+		if completed == 0 {
+			logger.Info(ctx, "workspace chat file delivery outcome dropped, the file is no longer under this claim", slog.F("path", resp.Path))
+			return
+		}
 		logger.Info(ctx, "delivered workspace chat file", slog.F("path", resp.Path))
 		return
 	}
 
 	logger.Warn(ctx, "workspace chat file delivery failed", slog.F("mode", failure.mode), slogError(failure.err))
-	_, err := w.opts.Store.FailChatWorkspaceFileDelivery(ctx, database.FailChatWorkspaceFileDeliveryParams{
-		Error:         failure.err.Error(),
-		NextAttemptAt: now.Add(workspaceFileDeliveryRetryDelay),
-		Mode:          failure.mode,
-		MaxAttempts:   database.ChatWorkspaceFileMaxDeliveryAttempts,
-		ID:            row.ID,
+	failed, err := w.opts.Store.FailChatWorkspaceFileDelivery(ctx, database.FailChatWorkspaceFileDeliveryParams{
+		Error:          failure.err.Error(),
+		NextAttemptAt:  now.Add(workspaceFileDeliveryRetryDelay),
+		Mode:           failure.mode,
+		MaxAttempts:    database.ChatWorkspaceFileMaxDeliveryAttempts,
+		ID:             row.ID,
+		LeaseExpiresAt: row.LeaseExpiresAt,
 	})
 	if err != nil {
 		logger.Error(ctx, "record failed workspace chat file delivery", slogError(err))
+		return
+	}
+	if failed == 0 {
+		logger.Info(ctx, "workspace chat file delivery outcome dropped, the file is no longer under this claim")
 	}
 }
 
