@@ -51,6 +51,22 @@ func Test_templateEditWorkspaceImpactingChanges(t *testing.T) {
 		assert.Empty(t, changes)
 	})
 
+	t.Run("NilFieldsAreUnchanged", func(t *testing.T) {
+		t.Parallel()
+
+		tmpl := template
+		tmpl.FailureTTLMillis = 60000
+		tmpl.TimeTilDormantMillis = 120000
+		tmpl.TimeTilDormantAutoDeleteMillis = 180000
+		tmpl.RequireActiveVersion = true
+		tmpl.DefaultTTLMillis = 3600000
+		tmpl.AllowUserAutostop = false
+		tmpl.AutostopRequirement.Weeks = 2
+
+		changes := templateEditWorkspaceImpactingChanges(tmpl, codersdk.UpdateTemplateMeta{})
+		assert.Empty(t, changes)
+	})
+
 	t.Run("ZeroWeeksMatchesNormalizedTemplate", func(t *testing.T) {
 		t.Parallel()
 
