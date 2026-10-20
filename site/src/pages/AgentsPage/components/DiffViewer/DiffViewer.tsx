@@ -103,11 +103,22 @@ pre[data-diff] {
 }
 /* The global scrollbar-color makes Chromium ignore the library's
    ::-webkit-scrollbar rules for the code, which hide its vertical scrollbar
-   and size the horizontal one to --diffs-scrollbar-gutter. Firefox styles
-   the code with scrollbar-color, so it keeps the library's value. */
+   and size the horizontal one to --diffs-scrollbar-gutter. Resetting it
+   brings those rules back. The library's thumb is transparent until hover,
+   so give it the app's scrollbar color. The library measures the gutter
+   before these rules apply (15px with classic scrollbars), so pin it to the
+   library's fallback: the styled scrollbar height on desktop, 0 on iOS.
+   Firefox styles the code with scrollbar-color, so it keeps the library's
+   value. */
 @supports not (-moz-appearance: none) {
+  :host {
+    --diffs-scrollbar-gutter-override: var(--diffs-scrollbar-gutter-fallback);
+  }
   [data-code] {
     scrollbar-color: auto;
+  }
+  [data-code]::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--surface-scrollbar));
   }
 }
 `;
@@ -122,11 +133,6 @@ const diffViewerStyle = {
 	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
 	"--diffs-font-size": "11px",
 	"--diffs-line-height": `${DIFF_VIEWER_LINE_HEIGHT}px`,
-	// Height of the code's horizontal scrollbar, which the library subtracts
-	// from the code's bottom padding. The library measures it once, before the
-	// FILE_CARD_CSS scrollbar rules apply, so a classic 15px scrollbar would
-	// make each card taller than its metrics. Matches the library's fallback.
-	"--diffs-scrollbar-gutter-override": "6px",
 } satisfies React.CSSProperties;
 
 const diffViewerMetrics: Partial<VirtualFileMetrics> = {
