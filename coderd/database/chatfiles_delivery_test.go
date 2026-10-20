@@ -163,7 +163,10 @@ func TestAcquireChatWorkspaceFileDeliveries(t *testing.T) {
 			{name: "StoppedAfterReadyStart", chat: func(ctx context.Context, t *testing.T) database.Chat {
 				workspace, build := f.build(t, database.WorkspaceTable{}, 1, database.WorkspaceTransitionStart)
 				f.agent(ctx, t, build, database.WorkspaceAgent{Name: "dev", LifecycleState: database.WorkspaceAgentLifecycleStateReady})
-				f.build(t, workspace, 2, database.WorkspaceTransitionStop)
+				_, stop := f.build(t, workspace, 2, database.WorkspaceTransitionStop)
+				// Only the transition tells this build apart from a
+				// started one, since its agent row also reports ready.
+				f.agent(ctx, t, stop, database.WorkspaceAgent{Name: "dev", LifecycleState: database.WorkspaceAgentLifecycleStateReady})
 				return f.chat(t, workspace.ID, uuid.Nil)
 			}},
 			{name: "RestartingAfterReadyStart", chat: func(ctx context.Context, t *testing.T) database.Chat {
