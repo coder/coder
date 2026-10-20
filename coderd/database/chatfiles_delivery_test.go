@@ -20,6 +20,10 @@ import (
 
 const chatFileDeliveryLease = 5 * time.Minute
 
+// chatFileDeliveryFastUpload makes the size share of a lease negligible,
+// so a test's lease is chatFileDeliveryLease.
+const chatFileDeliveryFastUpload = 1e18
+
 type chatFileDeliveryFixture struct {
 	db    database.Store
 	owner database.User
@@ -113,12 +117,13 @@ func (f chatFileDeliveryFixture) linkedFile(ctx context.Context, t *testing.T, c
 func acquireChatFiles(ctx context.Context, t *testing.T, db database.Store, chatID uuid.NullUUID, now time.Time, limit int32) []database.AcquireChatWorkspaceFileDeliveriesRow {
 	t.Helper()
 	rows, err := db.AcquireChatWorkspaceFileDeliveries(ctx, database.AcquireChatWorkspaceFileDeliveriesParams{
-		Now:             now,
-		LeaseExpiresAt:  now.Add(chatFileDeliveryLease),
-		ChatAgentSuffix: agentselect.Suffix,
-		MaxAttempts:     database.ChatWorkspaceFileMaxDeliveryAttempts,
-		ChatID:          chatID,
-		LimitVal:        limit,
+		Now:                     now,
+		LeaseExpiresAt:          now.Add(chatFileDeliveryLease),
+		MinUploadBytesPerSecond: chatFileDeliveryFastUpload,
+		ChatAgentSuffix:         agentselect.Suffix,
+		MaxAttempts:             database.ChatWorkspaceFileMaxDeliveryAttempts,
+		ChatID:                  chatID,
+		LimitVal:                limit,
 	})
 	require.NoError(t, err)
 	return rows
@@ -283,21 +288,28 @@ func TestAcquireChatWorkspaceFileDeliveries(t *testing.T) {
 		f.linkedFile(ctx, t, chat.ID, "", []byte("prompt"))
 		delivered := f.linkedFile(ctx, t, chat.ID, database.ChatFilePurposeWorkspace, []byte("delivered"))
 		parked := f.linkedFile(ctx, t, chat.ID, database.ChatFilePurposeWorkspace, []byte("parked"))
-		require.Len(t, acquireChatFilesFor(ctx, t, f.db, chat.ID, now), 2)
+		claims := acquireChatFilesFor(ctx, t, f.db, chat.ID, now)
+		require.Len(t, claims, 2)
+		leases := make(map[uuid.UUID]time.Time, len(claims))
+		for _, claim := range claims {
+			leases[claim.ID] = claim.LeaseExpiresAt
+		}
 		completed, err := f.db.CompleteChatWorkspaceFileDelivery(ctx, database.CompleteChatWorkspaceFileDeliveryParams{
 			ID:                   delivered.ID,
 			DeliveredAt:          now,
 			DeliveredPath:        "~/report.zip",
 			DeliveredWorkspaceID: chat.WorkspaceID.UUID,
+			LeaseExpiresAt:       leases[delivered.ID],
 		})
 		require.NoError(t, err)
 		require.EqualValues(t, 1, completed)
 		failed, err := f.db.FailChatWorkspaceFileDelivery(ctx, database.FailChatWorkspaceFileDeliveryParams{
-			ID:            parked.ID,
-			Error:         "agent rejected the file",
-			NextAttemptAt: now,
-			Mode:          database.ChatWorkspaceFileDeliveryFailurePark,
-			MaxAttempts:   database.ChatWorkspaceFileMaxDeliveryAttempts,
+			ID:             parked.ID,
+			Error:          "agent rejected the file",
+			NextAttemptAt:  now,
+			Mode:           database.ChatWorkspaceFileDeliveryFailurePark,
+			MaxAttempts:    database.ChatWorkspaceFileMaxDeliveryAttempts,
+			LeaseExpiresAt: leases[parked.ID],
 		})
 		require.NoError(t, err)
 		require.EqualValues(t, 1, failed)
@@ -365,13 +377,15 @@ func TestChatWorkspaceFileDeliveryOutcomes(t *testing.T) {
 				now := dbtime.Now()
 				chat := f.readyChat(ctx, t)
 				file := f.linkedFile(ctx, t, chat.ID, database.ChatFilePurposeWorkspace, tc.data)
-				require.Len(t, acquireChatFilesFor(ctx, t, f.db, chat.ID, now), 1)
+				claimed := acquireChatFilesFor(ctx, t, f.db, chat.ID, now)
+				require.Len(t, claimed, 1)
 
 				params := database.CompleteChatWorkspaceFileDeliveryParams{
 					ID:                   file.ID,
 					DeliveredAt:          now,
 					DeliveredPath:        "~/.coder/chats/" + chat.ID.String() + "/files/" + file.ID.String() + "/report.zip",
 					DeliveredWorkspaceID: chat.WorkspaceID.UUID,
+					LeaseExpiresAt:       claimed[0].LeaseExpiresAt,
 				}
 				completed, err := f.db.CompleteChatWorkspaceFileDelivery(ctx, params)
 				require.NoError(t, err)
@@ -405,6 +419,7 @@ func TestChatWorkspaceFileDeliveryOutcomes(t *testing.T) {
 					DeliveredAt:          now.Add(time.Minute),
 					DeliveredPath:        "~/elsewhere",
 					DeliveredWorkspaceID: uuid.New(),
+					LeaseExpiresAt:       claimed[0].LeaseExpiresAt,
 				})
 				require.NoError(t, err)
 				require.Zero(t, again)
@@ -422,15 +437,27 @@ func TestChatWorkspaceFileDeliveryOutcomes(t *testing.T) {
 		chat := f.readyChat(ctx, t)
 		file := f.linkedFile(ctx, t, chat.ID, database.ChatFilePurposeWorkspace, []byte("payload"))
 
+		var lease time.Time
+		claim := func(now time.Time) database.AcquireChatWorkspaceFileDeliveriesRow {
+			t.Helper()
+			claimed := acquireChatFilesFor(ctx, t, f.db, chat.ID, now)
+			require.Len(t, claimed, 1)
+			lease = claimed[0].LeaseExpiresAt
+			return claimed[0]
+		}
+		failParams := func(mode string, next time.Time) database.FailChatWorkspaceFileDeliveryParams {
+			return database.FailChatWorkspaceFileDeliveryParams{
+				ID:             file.ID,
+				Error:          mode + " failure",
+				NextAttemptAt:  next,
+				Mode:           mode,
+				MaxAttempts:    database.ChatWorkspaceFileMaxDeliveryAttempts,
+				LeaseExpiresAt: lease,
+			}
+		}
 		fail := func(mode string, next time.Time) {
 			t.Helper()
-			failed, err := f.db.FailChatWorkspaceFileDelivery(ctx, database.FailChatWorkspaceFileDeliveryParams{
-				ID:            file.ID,
-				Error:         mode + " failure",
-				NextAttemptAt: next,
-				Mode:          mode,
-				MaxAttempts:   database.ChatWorkspaceFileMaxDeliveryAttempts,
-			})
+			failed, err := f.db.FailChatWorkspaceFileDelivery(ctx, failParams(mode, next))
 			require.NoError(t, err)
 			require.EqualValues(t, 1, failed)
 		}
@@ -442,7 +469,7 @@ func TestChatWorkspaceFileDeliveryOutcomes(t *testing.T) {
 			return rows[0]
 		}
 
-		require.Len(t, acquireChatFilesFor(ctx, t, f.db, chat.ID, now), 1)
+		claim(now)
 		fail(database.ChatWorkspaceFileDeliveryFailureRetry, now.Add(time.Minute))
 		got := metadata()
 		require.Equal(t, int32(1), got.WorkspaceDeliveryAttempts)
@@ -450,39 +477,79 @@ func TestChatWorkspaceFileDeliveryOutcomes(t *testing.T) {
 		require.Empty(t, acquireChatFilesFor(ctx, t, f.db, chat.ID, now.Add(time.Minute-time.Second)))
 
 		now = now.Add(time.Minute)
-		claimed := acquireChatFilesFor(ctx, t, f.db, chat.ID, now)
-		require.Len(t, claimed, 1)
-		require.Equal(t, int32(2), claimed[0].WorkspaceDeliveryAttempts)
+		require.Equal(t, int32(2), claim(now).WorkspaceDeliveryAttempts)
 		require.False(t, metadata().WorkspaceDeliveryError.Valid)
 		fail(database.ChatWorkspaceFileDeliveryFailureRefund, now.Add(time.Minute))
 		require.Equal(t, int32(1), metadata().WorkspaceDeliveryAttempts)
 
 		now = now.Add(time.Minute)
-		require.Len(t, acquireChatFilesFor(ctx, t, f.db, chat.ID, now), 1)
+		claim(now)
+		_, err := f.db.FailChatWorkspaceFileDelivery(ctx, failParams("unknown", now))
+		require.Error(t, err)
 		fail(database.ChatWorkspaceFileDeliveryFailurePark, now)
 		require.Equal(t, database.ChatWorkspaceFileMaxDeliveryAttempts, metadata().WorkspaceDeliveryAttempts)
 		require.Empty(t, acquireChatFilesFor(ctx, t, f.db, chat.ID, now.Add(time.Hour)))
 
-		_, err := f.db.FailChatWorkspaceFileDelivery(ctx, database.FailChatWorkspaceFileDeliveryParams{
-			ID:            file.ID,
-			Error:         "unknown",
-			NextAttemptAt: now,
-			Mode:          "unknown",
-			MaxAttempts:   database.ChatWorkspaceFileMaxDeliveryAttempts,
-		})
-		require.Error(t, err)
-
 		f.linkedFile(ctx, t, chat.ID, database.ChatFilePurposeWorkspace, []byte("in flight"))
 		require.Len(t, acquireChatFilesFor(ctx, t, f.db, chat.ID, now), 1)
 
-		retried, err := f.db.RetryChatWorkspaceFileDeliveries(ctx, chat.ID)
+		retried, err := f.db.RetryChatWorkspaceFileDeliveries(ctx, database.RetryChatWorkspaceFileDeliveriesParams{ChatID: chat.ID, Now: now})
 		require.NoError(t, err)
 		require.EqualValues(t, 1, retried)
 
-		claimed = acquireChatFilesFor(ctx, t, f.db, chat.ID, now)
+		claimed := acquireChatFilesFor(ctx, t, f.db, chat.ID, now)
 		require.Len(t, claimed, 1)
 		require.Equal(t, file.ID, claimed[0].ID)
 		require.Equal(t, int32(1), claimed[0].WorkspaceDeliveryAttempts)
+	})
+
+	t.Run("OutcomesRequireTheClaim", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		now := dbtime.Now()
+		chat := f.readyChat(ctx, t)
+		file := f.linkedFile(ctx, t, chat.ID, database.ChatFilePurposeWorkspace, []byte("payload"))
+		stale := acquireChatFilesFor(ctx, t, f.db, chat.ID, now)
+		require.Len(t, stale, 1)
+		// The first lease expires and another worker claims the file.
+		current := acquireChatFilesFor(ctx, t, f.db, chat.ID, now.Add(chatFileDeliveryLease))
+		require.Len(t, current, 1)
+
+		failed, err := f.db.FailChatWorkspaceFileDelivery(ctx, database.FailChatWorkspaceFileDeliveryParams{
+			ID:             file.ID,
+			Error:          "stale failure",
+			NextAttemptAt:  now.Add(time.Minute),
+			Mode:           database.ChatWorkspaceFileDeliveryFailurePark,
+			MaxAttempts:    database.ChatWorkspaceFileMaxDeliveryAttempts,
+			LeaseExpiresAt: stale[0].LeaseExpiresAt,
+		})
+		require.NoError(t, err)
+		require.Zero(t, failed)
+		completeParams := database.CompleteChatWorkspaceFileDeliveryParams{
+			ID:                   file.ID,
+			DeliveredAt:          now,
+			DeliveredPath:        "~/report.zip",
+			DeliveredWorkspaceID: chat.WorkspaceID.UUID,
+			LeaseExpiresAt:       stale[0].LeaseExpiresAt,
+		}
+		completed, err := f.db.CompleteChatWorkspaceFileDelivery(ctx, completeParams)
+		require.NoError(t, err)
+		require.Zero(t, completed)
+
+		stored, err := f.db.GetChatFileByID(ctx, file.ID)
+		require.NoError(t, err)
+		require.Equal(t, []byte("payload"), stored.Data)
+		rows, err := f.db.GetChatFileMetadataByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		require.Equal(t, int32(2), rows[0].WorkspaceDeliveryAttempts)
+		require.False(t, rows[0].WorkspaceDeliveryError.Valid)
+		require.Equal(t, current[0].LeaseExpiresAt, rows[0].WorkspaceDeliveryNextAttemptAt.Time)
+
+		completeParams.LeaseExpiresAt = current[0].LeaseExpiresAt
+		completed, err = f.db.CompleteChatWorkspaceFileDelivery(ctx, completeParams)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, completed)
 	})
 
 	t.Run("RetryRecoversUnrecordedLastAttempt", func(t *testing.T) {
@@ -501,13 +568,133 @@ func TestChatWorkspaceFileDeliveryOutcomes(t *testing.T) {
 		}
 		require.Empty(t, acquireChatFilesFor(ctx, t, f.db, chat.ID, dbtime.Now()))
 
-		retried, err := f.db.RetryChatWorkspaceFileDeliveries(ctx, chat.ID)
+		retried, err := f.db.RetryChatWorkspaceFileDeliveries(ctx, database.RetryChatWorkspaceFileDeliveriesParams{ChatID: chat.ID, Now: dbtime.Now()})
 		require.NoError(t, err)
 		require.EqualValues(t, 1, retried)
 		claimed := acquireChatFilesFor(ctx, t, f.db, chat.ID, dbtime.Now())
 		require.Len(t, claimed, 1)
 		require.Equal(t, file.ID, claimed[0].ID)
 		require.Equal(t, int32(1), claimed[0].WorkspaceDeliveryAttempts)
+	})
+
+	t.Run("CompleteRequiresTheBoundWorkspace", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		now := dbtime.Now()
+		chat := f.readyChat(ctx, t)
+		file := f.linkedFile(ctx, t, chat.ID, database.ChatFilePurposeWorkspace, []byte("payload"))
+		claimed := acquireChatFilesFor(ctx, t, f.db, chat.ID, now)
+		require.Len(t, claimed, 1)
+
+		// The chat moves to another workspace while the upload runs.
+		other, _ := f.build(t, database.WorkspaceTable{}, 1, database.WorkspaceTransitionStart)
+		_, err := f.db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+			ID:          chat.ID,
+			WorkspaceID: uuid.NullUUID{UUID: other.ID, Valid: true},
+		})
+		require.NoError(t, err)
+		completed, err := f.db.CompleteChatWorkspaceFileDelivery(ctx, database.CompleteChatWorkspaceFileDeliveryParams{
+			ID:                   file.ID,
+			DeliveredAt:          now,
+			DeliveredPath:        "~/report.zip",
+			DeliveredWorkspaceID: claimed[0].WorkspaceID.UUID,
+			LeaseExpiresAt:       claimed[0].LeaseExpiresAt,
+		})
+		require.NoError(t, err)
+		require.Zero(t, completed)
+
+		stored, err := f.db.GetChatFileByID(ctx, file.ID)
+		require.NoError(t, err)
+		require.Equal(t, []byte("payload"), stored.Data)
+		require.False(t, stored.WorkspaceDeliveredAt.Valid)
+	})
+
+	t.Run("RetryComparesLeasesWithTheCallerClock", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// The caller's clock runs an hour ahead of the database's.
+		now := dbtime.Now().Add(time.Hour)
+		chat := f.readyChat(ctx, t)
+		f.linkedFile(ctx, t, chat.ID, database.ChatFilePurposeWorkspace, []byte("payload"))
+		require.Len(t, acquireChatFilesFor(ctx, t, f.db, chat.ID, now), 1)
+
+		retry := func(now time.Time) int64 {
+			t.Helper()
+			retried, err := f.db.RetryChatWorkspaceFileDeliveries(ctx, database.RetryChatWorkspaceFileDeliveriesParams{ChatID: chat.ID, Now: now})
+			require.NoError(t, err)
+			return retried
+		}
+		require.Zero(t, retry(now.Add(chatFileDeliveryLease-time.Second)))
+		require.EqualValues(t, 1, retry(now.Add(chatFileDeliveryLease)))
+	})
+
+	t.Run("LeaseCoversTheUpload", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		now := dbtime.Now()
+		chat := f.readyChat(ctx, t)
+		f.linkedFile(ctx, t, chat.ID, database.ChatFilePurposeWorkspace, make([]byte, 90))
+
+		claimed, err := f.db.AcquireChatWorkspaceFileDeliveries(ctx, database.AcquireChatWorkspaceFileDeliveriesParams{
+			Now:                     now,
+			LeaseExpiresAt:          now.Add(chatFileDeliveryLease),
+			MinUploadBytesPerSecond: 2,
+			ChatAgentSuffix:         agentselect.Suffix,
+			MaxAttempts:             database.ChatWorkspaceFileMaxDeliveryAttempts,
+			ChatID:                  uuid.NullUUID{UUID: chat.ID, Valid: true},
+			LimitVal:                1,
+		})
+		require.NoError(t, err)
+		require.Len(t, claimed, 1)
+		require.WithinDuration(t, now.Add(chatFileDeliveryLease+45*time.Second), claimed[0].LeaseExpiresAt, time.Millisecond)
+	})
+
+	t.Run("RetryByWorkspace", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		now := dbtime.Now()
+		park := func(chat database.Chat) database.InsertChatFileRow {
+			t.Helper()
+			file := f.linkedFile(ctx, t, chat.ID, database.ChatFilePurposeWorkspace, []byte("payload"))
+			claimed := acquireChatFilesFor(ctx, t, f.db, chat.ID, now)
+			require.Len(t, claimed, 1)
+			failed, err := f.db.FailChatWorkspaceFileDelivery(ctx, database.FailChatWorkspaceFileDeliveryParams{
+				ID:             file.ID,
+				Error:          "update the workspace agent",
+				NextAttemptAt:  now.Add(time.Minute),
+				Mode:           database.ChatWorkspaceFileDeliveryFailurePark,
+				MaxAttempts:    database.ChatWorkspaceFileMaxDeliveryAttempts,
+				LeaseExpiresAt: claimed[0].LeaseExpiresAt,
+			})
+			require.NoError(t, err)
+			require.EqualValues(t, 1, failed)
+			return file
+		}
+		chat := f.readyChat(ctx, t)
+		parked := park(chat)
+		// A file in flight on the same workspace keeps its lease.
+		f.linkedFile(ctx, t, chat.ID, database.ChatFilePurposeWorkspace, []byte("in flight"))
+		require.Len(t, acquireChatFilesFor(ctx, t, f.db, chat.ID, now), 1)
+		otherChat := f.readyChat(ctx, t)
+		otherParked := park(otherChat)
+
+		retried, err := f.db.RetryChatWorkspaceFileDeliveriesByWorkspaceID(ctx, database.RetryChatWorkspaceFileDeliveriesByWorkspaceIDParams{
+			WorkspaceID: chat.WorkspaceID.UUID,
+			Now:         now,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, retried)
+
+		claimed := acquireChatFilesFor(ctx, t, f.db, chat.ID, now)
+		require.Len(t, claimed, 1)
+		require.Equal(t, parked.ID, claimed[0].ID)
+		require.Equal(t, int32(1), claimed[0].WorkspaceDeliveryAttempts)
+		require.Empty(t, acquireChatFilesFor(ctx, t, f.db, otherChat.ID, now.Add(time.Hour)))
+		rows, err := f.db.GetChatFileMetadataByChatID(ctx, otherChat.ID)
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		require.Equal(t, otherParked.ID, rows[0].ID)
+		require.Equal(t, database.ChatWorkspaceFileMaxDeliveryAttempts, rows[0].WorkspaceDeliveryAttempts)
 	})
 
 	t.Run("PromptFileDefault", func(t *testing.T) {
