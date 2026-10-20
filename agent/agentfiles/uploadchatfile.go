@@ -192,15 +192,26 @@ var errUploadTargetNotRegular = xerrors.New("workspace upload target exists and 
 // renamed its content into place yet.
 var errUploadPublishInProgress = xerrors.New("another upload of this file is still being published")
 
-// checkWriteOnceExisting rejects an existing empty file when this upload
-// has content, since the fallback writers publish through an empty
-// placeholder and acknowledging it could report a file that never gets
-// its content.
-func checkWriteOnceExisting(existingSize, uploadedSize int64) error {
-	if existingSize == 0 && uploadedSize > 0 {
-		return errUploadPublishInProgress
+// abandonedUploadPlaceholderAge is how old an empty write-once target must
+// be before an upload with content replaces it. A placeholder only exists
+// between creating it and renaming the finished temp file over it, so an
+// older one was left by an upload that crashed while publishing.
+const abandonedUploadPlaceholderAge = uploadChatFileIdleTimeout
+
+// checkWriteOnceExisting reports whether a write-once upload of
+// uploadedSize bytes replaces the regular file it found at its target
+// instead of acknowledging it. The fallback writers publish through an
+// empty placeholder, so an empty file never acknowledges an upload with
+// content: a recent one may still get a concurrent upload's content, and
+// an older one is replaced.
+func checkWriteOnceExisting(existingSize int64, existingModTime time.Time, uploadedSize int64) (replace bool, err error) {
+	if existingSize > 0 || uploadedSize == 0 {
+		return false, nil
 	}
-	return nil
+	if time.Since(existingModTime) <= abandonedUploadPlaceholderAge {
+		return false, errUploadPublishInProgress
+	}
+	return true, nil
 }
 
 // uploadPublishMode selects how an upload claims its final name.
@@ -274,6 +285,21 @@ func (api *API) rejectSymlinkedUploadDir(target uploadTarget) error {
 func (api *API) writeUploadExclusivePath(dir, name string, mode uploadPublishMode, r io.Reader) (finalName, finalPath string, size int64, err error) {
 	api.sweepStaleUploadTempsPath(dir)
 
+	// A retry of a published write-once upload is acknowledged without
+	// reading its body, which may fail or need disk space the workspace no
+	// longer has. An empty target may be a placeholder, so that upload
+	// streams and decides after the copy.
+	if mode == uploadPublishWriteOnce {
+		targetPath := filepath.Join(dir, name)
+		size, err := api.publishedUploadSizePath(targetPath)
+		if err != nil {
+			return "", "", 0, err
+		}
+		if size > 0 {
+			return name, targetPath, size, nil
+		}
+	}
+
 	tmp, err := uploadTempName(name)
 	if err != nil {
 		return "", "", 0, err
@@ -303,14 +329,21 @@ func (api *API) writeUploadExclusivePath(dir, name string, mode uploadPublishMod
 		if err != nil {
 			if errors.Is(err, os.ErrExist) {
 				if mode == uploadPublishWriteOnce {
-					existingSize, err := api.existingUploadSizePath(candidatePath)
+					existing, err := api.existingUploadPath(candidatePath)
 					if err != nil {
 						return "", "", 0, err
 					}
-					if err := checkWriteOnceExisting(existingSize, n); err != nil {
+					replace, err := checkWriteOnceExisting(existing.Size(), existing.ModTime(), n)
+					if err != nil {
 						return "", "", 0, err
 					}
-					return candidate, candidatePath, existingSize, nil
+					if !replace {
+						return candidate, candidatePath, existing.Size(), nil
+					}
+					if err := api.filesystem.Rename(tmpPath, candidatePath); err != nil {
+						return "", "", 0, xerrors.Errorf("replace abandoned upload placeholder: %w", err)
+					}
+					return candidate, candidatePath, n, nil
 				}
 				continue
 			}
@@ -329,9 +362,22 @@ func (api *API) writeUploadExclusivePath(dir, name string, mode uploadPublishMod
 	return "", "", 0, errUploadCollisionExhausted
 }
 
-// existingUploadSizePath returns the size of the regular file a write-once
-// upload found at its target path.
-func (api *API) existingUploadSizePath(p string) (int64, error) {
+// publishedUploadSizePath returns the size of the regular file at a
+// write-once upload's target path, or 0 when the path is absent.
+func (api *API) publishedUploadSizePath(p string) (int64, error) {
+	info, err := api.existingUploadPath(p)
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	return info.Size(), nil
+}
+
+// existingUploadPath describes the regular file a write-once upload found
+// at its target path.
+func (api *API) existingUploadPath(p string) (os.FileInfo, error) {
 	var info os.FileInfo
 	var err error
 	if lstater, ok := api.filesystem.(afero.Lstater); ok {
@@ -340,12 +386,12 @@ func (api *API) existingUploadSizePath(p string) (int64, error) {
 		info, err = api.filesystem.Stat(p)
 	}
 	if err != nil {
-		return 0, xerrors.Errorf("check existing upload: %w", err)
+		return nil, xerrors.Errorf("check existing upload: %w", err)
 	}
 	if !info.Mode().IsRegular() {
-		return 0, xerrors.Errorf("%w: %s", errUploadTargetNotRegular, p)
+		return nil, xerrors.Errorf("%w: %s", errUploadTargetNotRegular, p)
 	}
-	return info.Size(), nil
+	return info, nil
 }
 
 func (api *API) sweepStaleUploadTempsPath(dir string) {
