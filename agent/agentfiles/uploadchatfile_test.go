@@ -392,6 +392,33 @@ func TestHandleUploadChatFile_WriteOnceOldEmptyTarget(t *testing.T) {
 	}
 }
 
+func TestHandleUploadChatFile_WriteOnceRetrySkipsBody(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range uploadChatFileFilesystems {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			home := t.TempDir()
+			r := newUploadChatFileRouter(t, tc.fs, home)
+			fileID := uuid.NewString()
+			first := decodeUploadChatFileResponse(t, uploadChatFileOnce(t, r, fileID, "archive.zip", strings.NewReader("first")))
+
+			// A retry of a published file must succeed without reading a
+			// body that may fail or need disk space the workspace lacks.
+			retry := uploadChatFileOnce(t, r, fileID, "archive.zip", iotest.ErrReader(io.ErrUnexpectedEOF))
+
+			require.Equal(t, first, decodeUploadChatFileResponse(t, retry))
+			contents, err := os.ReadFile(first.Path)
+			require.NoError(t, err)
+			require.Equal(t, "first", string(contents))
+			entries, err := os.ReadDir(filepath.Dir(first.Path))
+			require.NoError(t, err)
+			require.Len(t, entries, 1, "temp files must not outlive a write-once upload")
+		})
+	}
+}
+
 func TestHandleUploadChatFile_RejectsSymlinkedUploadDir(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {

@@ -35,6 +35,16 @@ func (api *API) writeUploadExclusiveSecure(target uploadTarget, name string, r i
 
 	sweepStaleUploadTempsAt(filesFD)
 
+	if target.mode() == uploadPublishWriteOnce {
+		size, err = publishedUploadSizeAt(filesFD, name)
+		if err != nil {
+			return "", "", 0, err
+		}
+		if size > 0 {
+			return name, filepath.Join(target.dir, name), size, nil
+		}
+	}
+
 	tmp, err := uploadTempName(name)
 	if err != nil {
 		return "", "", 0, err
@@ -124,12 +134,9 @@ func publishUploadAt(dirFD int, tmp, name string, size int64, mode uploadPublish
 // write-once upload of size bytes found at name, without following a
 // symlink there. An abandoned placeholder at name is replaced by tmp.
 func existingUploadAt(dirFD int, tmp, name string, size int64) (string, int64, error) {
-	var st unix.Stat_t
-	if err := unix.Fstatat(dirFD, name, &st, unix.AT_SYMLINK_NOFOLLOW); err != nil {
-		return "", 0, xerrors.Errorf("check existing upload: %w", err)
-	}
-	if st.Mode&unix.S_IFMT != unix.S_IFREG {
-		return "", 0, xerrors.Errorf("%w: %s", errUploadTargetNotRegular, name)
+	st, err := statUploadAt(dirFD, name)
+	if err != nil {
+		return "", 0, err
 	}
 	replace, err := checkWriteOnceExisting(st.Size, time.Unix(st.Mtim.Unix()), size)
 	if err != nil {
@@ -142,6 +149,32 @@ func existingUploadAt(dirFD int, tmp, name string, size int64) (string, int64, e
 		return "", 0, xerrors.Errorf("replace abandoned upload placeholder: %w", err)
 	}
 	return name, size, nil
+}
+
+// publishedUploadSizeAt returns the size of the regular file at a
+// write-once upload's target name, or 0 when the name is absent.
+func publishedUploadSizeAt(dirFD int, name string) (int64, error) {
+	st, err := statUploadAt(dirFD, name)
+	if errors.Is(err, unix.ENOENT) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	return st.Size, nil
+}
+
+// statUploadAt describes the regular file at name without following a
+// symlink there.
+func statUploadAt(dirFD int, name string) (unix.Stat_t, error) {
+	var st unix.Stat_t
+	if err := unix.Fstatat(dirFD, name, &st, unix.AT_SYMLINK_NOFOLLOW); err != nil {
+		return st, xerrors.Errorf("check existing upload: %w", err)
+	}
+	if st.Mode&unix.S_IFMT != unix.S_IFREG {
+		return st, xerrors.Errorf("%w: %s", errUploadTargetNotRegular, name)
+	}
+	return st, nil
 }
 
 func sweepStaleUploadTempsAt(dirFD int) {

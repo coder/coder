@@ -285,6 +285,21 @@ func (api *API) rejectSymlinkedUploadDir(target uploadTarget) error {
 func (api *API) writeUploadExclusivePath(dir, name string, mode uploadPublishMode, r io.Reader) (finalName, finalPath string, size int64, err error) {
 	api.sweepStaleUploadTempsPath(dir)
 
+	// A retry of a published write-once upload is acknowledged without
+	// reading its body, which may fail or need disk space the workspace no
+	// longer has. An empty target may be a placeholder, so that upload
+	// streams and decides after the copy.
+	if mode == uploadPublishWriteOnce {
+		targetPath := filepath.Join(dir, name)
+		size, err := api.publishedUploadSizePath(targetPath)
+		if err != nil {
+			return "", "", 0, err
+		}
+		if size > 0 {
+			return name, targetPath, size, nil
+		}
+	}
+
 	tmp, err := uploadTempName(name)
 	if err != nil {
 		return "", "", 0, err
@@ -345,6 +360,19 @@ func (api *API) writeUploadExclusivePath(dir, name string, mode uploadPublishMod
 		return candidate, candidatePath, n, nil
 	}
 	return "", "", 0, errUploadCollisionExhausted
+}
+
+// publishedUploadSizePath returns the size of the regular file at a
+// write-once upload's target path, or 0 when the path is absent.
+func (api *API) publishedUploadSizePath(p string) (int64, error) {
+	info, err := api.existingUploadPath(p)
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	return info.Size(), nil
 }
 
 // existingUploadPath describes the regular file a write-once upload found
