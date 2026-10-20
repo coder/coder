@@ -34,7 +34,7 @@ export const TokenBadges: React.FC<TokenBadgesProps> = ({
 								{roundTokenDisplay(inputTokens)}
 							</span>
 						</Badge>
-						<Badge className="gap-0.5 border-surface-tertiary bg-surface-tertiary rounded-s-none">
+						<Badge className="gap-0.5 bg-surface-tertiary rounded-s-none">
 							<ArrowUpIcon className="size-icon-xs shrink-0" />
 							<span className="truncate min-w-0">
 								{roundTokenDisplay(outputTokens)}
