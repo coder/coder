@@ -1362,7 +1362,7 @@ func workspaceAttachmentPartToText(part codersdk.ChatMessagePart, chatID uuid.UU
 	}
 	_, _ = sb.WriteString(" for the workspace. Its contents are not included here. Coder copies it to ")
 	_, _ = sb.WriteString(chatfiles.WorkspaceUploadFileHomePath(chatID.String(), part.FileID.UUID.String(), part.Name))
-	_, _ = sb.WriteString(" when the chat's workspace is running.]")
+	_, _ = sb.WriteString(" when the chat's workspace is running; call copy_attachments_to_workspace to check or retry.]")
 	return sb.String()
 }
 
