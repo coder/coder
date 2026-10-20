@@ -249,7 +249,8 @@ Each project can have up to 100 skills, and skills that are turned off count tow
 
 Anyone who can edit a project can add, change, turn on or off, and delete its skills.
 To manage them, open the project page and select the **Skills** row in the **Details** panel.
-A chat in the project can use the project's skills while the chat owner can view the project.
+A chat in the project can use the project's skills while the chat owner owns the project or the project is shared with them, the same rule as for project instructions and memory.
+An administrator role that can view every project does not count.
 A sub-agent chat uses the skills of the project its top-level chat belongs to.
 
 The project skill API lives under `/api/experimental/organizations/{organization}/chats/projects/{project}/skills`.
@@ -259,7 +260,7 @@ It is experimental and might change.
 
 Personal, organization, and project skills are stored in Coder, not in the workspace.
 At each step, a chat loads the personal skills of the chat owner that are turned on, and the organization skills of the chat's organization that are turned on and that the chat owner can use.
-A chat in a project also loads the project's skills that are turned on, as long as the chat owner can view the project.
+A chat in a project also loads the project's skills that are turned on, as long as the chat owner owns the project or the project is shared with them.
 Workspace skills come from the chat's pinned context snapshot.
 
 Because stored skills are read again at each step, a change takes effect on the chat's next step.

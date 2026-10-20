@@ -13,7 +13,8 @@
 //   - Organization skill: An organization-owned skill stored by Coder and
 //     shared with organization members through a per-skill ACL.
 //   - Project skill: A skill stored by Coder on a chat project. Chats in the
-//     project can use it when the chat owner can read the project.
+//     project can use it when the chat owner owns the project or the project
+//     is shared with them.
 //   - Skill alias: A chat or tool lookup name for a skill. Bare aliases use the
 //     skill name. Qualified aliases use personal/<name>, org/<name>,
 //     project/<name>, or workspace/<name>.

@@ -208,6 +208,10 @@ func TestStopWorkspace(t *testing.T) {
 		require.Equal(t, ws.Name, result["workspace_name"])
 		require.Equal(t, true, result["no_build"])
 		require.Nil(t, result["build_id"])
+
+		bound, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, uuid.NullUUID{UUID: wsResp.Build.ID, Valid: true}, bound.BuildID, "a stale binding must be repaired to the latest build")
 	})
 
 	t.Run("RunningWorkspaceStops", func(t *testing.T) {
