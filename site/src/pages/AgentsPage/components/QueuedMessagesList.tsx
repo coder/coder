@@ -135,7 +135,6 @@ type QueuedMessageItem = QueuedMessageInfo & {
 	badge: QueuedMessageBadge | undefined;
 };
 
-// Steer rows are delivered before queue rows.
 const lanes: readonly { busyBehavior: ChatBusyBehavior; label: string }[] = [
 	{ busyBehavior: "steer", label: "Next step" },
 	{ busyBehavior: "queue", label: "After turn" },

@@ -445,10 +445,6 @@ describe("setQueuedMessages", () => {
 	});
 });
 
-// ---------------------------------------------------------------------------
-// applyAuthoritativeQueuedMessages
-// ---------------------------------------------------------------------------
-
 describe("applyAuthoritativeQueuedMessages", () => {
 	it("applies a snapshot that only moves a row to another lane", () => {
 		const store = createChatStore();
@@ -723,8 +719,6 @@ describe("applyAuthoritativeQueuedMessages", () => {
 		const a = makeQueuedMessage(1, "A");
 
 		store.markQueuedMessagePromoted(99);
-		// Optimistic writes must not clear the promoted IDs, or a stale
-		// snapshot that still lists a promoted row could show it again.
 		store.setQueuedMessages([a]);
 		expect(store.getSnapshot().promotedQueuedMessageIDs.has(99)).toBe(true);
 	});
