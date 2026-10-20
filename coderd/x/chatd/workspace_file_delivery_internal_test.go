@@ -307,6 +307,33 @@ func TestWorkspaceFileDeliveryLoop(t *testing.T) {
 		f.requireDelivered(ctx, t, chat, file.ID)
 	})
 
+	t.Run("AgentStartupRetriesParkedFile", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// An agent without write-once uploads rejects the file until the
+		// workspace restarts with an updated agent.
+		f.agent.fail = func(workspacesdk.UploadChatFileRequest) error {
+			return agentStatusError(http.StatusBadRequest)
+		}
+		chat, agent := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+
+		start(ctx, t, f)
+		state := f.fileState(ctx, t, chat.ID, file.ID)
+		require.Equal(t, database.ChatWorkspaceFileMaxDeliveryAttempts, state.WorkspaceDeliveryAttempts)
+		require.Contains(t, state.WorkspaceDeliveryError.String, "update the workspace agent")
+
+		f.agent.mu.Lock()
+		f.agent.fail = nil
+		f.agent.mu.Unlock()
+		require.NoError(t, wspubsub.PublishAgentStartupFinished(ctx, f.pubsub, wspubsub.AgentStartupFinishedEvent{
+			WorkspaceID: chat.WorkspaceID.UUID,
+			AgentID:     agent.ID,
+		}))
+		f.requireDelivered(ctx, t, chat, file.ID)
+	})
+
 	t.Run("SendToRunningWorkspaceDelivers", func(t *testing.T) {
 		t.Parallel()
 		f := newWorkspaceFileDeliveryFixture(t)
