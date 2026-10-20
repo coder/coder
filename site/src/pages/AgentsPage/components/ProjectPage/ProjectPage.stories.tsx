@@ -189,6 +189,10 @@ export const ChatMovedToAnotherProject: Story = {
 				key: chatProjectInstructionsKey(MockChatProject.id),
 				data: MockChatProjectInstructions,
 			},
+			{
+				key: chatProjectSkillsKey(MockChatProject.id),
+				data: MockSkills,
+			},
 		],
 	},
 };
