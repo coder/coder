@@ -845,8 +845,7 @@ func TestGetTemplateInsightsByTemplate(t *testing.T) {
 	insertStat(40*time.Second, templateID, userID, otherWorkspaceID, 0, map[string]int64{"reconnecting_pty": 1, "vscode": 1})
 	insertStat(time.Minute+5*time.Second, templateID, userID, otherWorkspaceID, 1, map[string]int64{"ssh": 1, "vscode": 1})
 
-	// An app outside every family is still activity, so its user counts as
-	// active even though the session lands in no usage bucket.
+	// A session without an app name is still activity.
 	unattributedUserID := uuid.New()
 	insertStat(10*time.Second, templateID, unattributedUserID, uuid.New(), 1, map[string]int64{"unknown": 1})
 
@@ -857,7 +856,7 @@ func TestGetTemplateInsightsByTemplate(t *testing.T) {
 	insertStat(15*time.Second, sharedConnectionTemplateID, sharedConnectionUserID, uuid.New(), 0, map[string]int64{"vscode": 1})
 	insertStat(30*time.Second, sharedConnectionTemplateID, sharedConnectionUserID, uuid.New(), 1, map[string]int64{"unknown": 1})
 
-	// Apps of one family open in the same minute count that minute once.
+	// Each app counts its own minutes, even when apps overlap.
 	overlapTemplateID := uuid.New()
 	overlapUserID := uuid.New()
 	insertStat(5*time.Second, overlapTemplateID, overlapUserID, uuid.New(), 1, map[string]int64{"vscode": 1, "cursor": 1, "zed": 1, "ssh": 1})
@@ -872,18 +871,16 @@ func TestGetTemplateInsightsByTemplate(t *testing.T) {
 	}
 	require.Len(t, byTemplate, 3)
 	require.EqualValues(t, 2, byTemplate[templateID].ActiveUsers)
-	require.Equal(t, database.StringMapOfInt{"vscode": 120, "jetbrains": 60, "reconnecting_pty": 60, "ssh": 120, "unknown": 60}, byTemplate[templateID].SessionFamilyUsageSeconds)
+	require.Equal(t, database.StringMapOfInt{"vscode": 120, "jetbrains": 60, "ssh": 120, "unknown": 60, "reconnecting_pty": 60}, byTemplate[templateID].SessionAppUsageSeconds)
 	require.EqualValues(t, 1, byTemplate[sharedConnectionTemplateID].ActiveUsers)
-	require.Equal(t, database.StringMapOfInt{"vscode": 60, "unknown": 60}, byTemplate[sharedConnectionTemplateID].SessionFamilyUsageSeconds)
+	require.Equal(t, database.StringMapOfInt{"vscode": 60, "unknown": 60}, byTemplate[sharedConnectionTemplateID].SessionAppUsageSeconds)
 	require.EqualValues(t, 1, byTemplate[overlapTemplateID].ActiveUsers)
-	require.Equal(t, database.StringMapOfInt{"vscode": 120, "ssh": 60, "port_forwarding": 60, "unknown": 60}, byTemplate[overlapTemplateID].SessionFamilyUsageSeconds)
+	require.Equal(t, database.StringMapOfInt{"vscode": 60, "cursor": 120, "zed": 60, "ssh": 60, "some_new_ide": 60, "overflow": 60, "port_forwarding": 60}, byTemplate[overlapTemplateID].SessionAppUsageSeconds)
 }
 
 func templateInsightsByTemplateParams(t *testing.T, startTime, endTime time.Time) database.GetTemplateInsightsByTemplateParams {
 	t.Helper()
-	appFamilies, err := json.Marshal(codersdk.SessionCountAppFamilies())
-	require.NoError(t, err)
-	return database.GetTemplateInsightsByTemplateParams{StartTime: startTime, EndTime: endTime, AppFamilies: appFamilies}
+	return database.GetTemplateInsightsByTemplateParams{StartTime: startTime, EndTime: endTime}
 }
 
 func TestGetWorkspaceAgentUsageStats(t *testing.T) {
@@ -19638,25 +19635,19 @@ func TestSessionCountsAttributeByFamily(t *testing.T) {
 	db := database.New(sqlDB)
 	ctx := context.Background()
 
-	cursorTemplate := uuid.New()
-	zedTemplate := uuid.New()
-	unknownTemplate := uuid.New()
-	for _, tc := range []struct {
-		templateID uuid.UUID
-		counts     map[string]int64
-	}{
-		{cursorTemplate, map[string]int64{"cursor": 2}},
-		{zedTemplate, map[string]int64{"zed": 1}},
-		{unknownTemplate, map[string]int64{"some_new_ide": 5}},
+	for _, counts := range []map[string]int64{
+		{"cursor": 2},
+		{"zed": 1},
+		{"some_new_ide": 5},
 	} {
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-			TemplateID:                tc.templateID,
+			TemplateID:                uuid.New(),
 			UserID:                    uuid.New(),
 			AgentID:                   uuid.New(),
 			ConnectionCount:           1,
 			ConnectionMedianLatencyMS: 1,
 			Usage:                     true,
-			SessionCounts:             dbgen.SessionCounts(t, tc.counts),
+			SessionCounts:             dbgen.SessionCounts(t, counts),
 		})
 	}
 
@@ -19667,22 +19658,6 @@ func TestSessionCountsAttributeByFamily(t *testing.T) {
 	require.Equal(t, int64(1), sessionFamilyCounts(t, stats.SessionCounts)["ssh"])
 	require.Zero(t, sessionFamilyCounts(t, stats.SessionCounts)["jetbrains"])
 	require.Zero(t, sessionFamilyCounts(t, stats.SessionCounts)["reconnecting_pty"])
-
-	insights, err := db.GetTemplateInsightsByTemplate(ctx, templateInsightsByTemplateParams(t, dbtime.Now().Add(-time.Hour), dbtime.Now().Add(time.Hour)))
-	require.NoError(t, err)
-
-	byTemplate := make(map[uuid.UUID]database.GetTemplateInsightsByTemplateRow, len(insights))
-	for _, row := range insights {
-		byTemplate[row.TemplateID] = row
-	}
-	require.Equal(t, database.StringMapOfInt{"vscode": 60}, byTemplate[cursorTemplate].SessionFamilyUsageSeconds)
-	require.Equal(t, database.StringMapOfInt{"ssh": 60}, byTemplate[zedTemplate].SessionFamilyUsageSeconds)
-
-	// An app with no family is still activity, so the user is not counted idle.
-	unknown, ok := byTemplate[unknownTemplate]
-	require.True(t, ok, "a session with no family must still appear as usage")
-	require.Equal(t, int64(1), unknown.ActiveUsers)
-	require.Equal(t, database.StringMapOfInt{"unknown": 60}, unknown.SessionFamilyUsageSeconds)
 }
 
 // The rollup stores the app name the agent reported, whether or not the

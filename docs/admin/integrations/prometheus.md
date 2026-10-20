@@ -267,7 +267,7 @@ The `coder_ai_gateway_cost_control_*` metrics are exported only by `coderd`.
 | `coderd_dbpurge_iteration_duration_seconds`                              | histogram | Duration of each dbpurge iteration in seconds.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | `success`                                                                                             |
 | `coderd_dbpurge_records_purged_total`                                    | counter   | Total number of records purged by type.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | `record_type`                                                                                         |
 | `coderd_experiments`                                                     | gauge     | Indicates whether each experiment is enabled (1) or not (0)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | `experiment`                                                                                          |
-| `coderd_insights_applications_usage_seconds`                             | gauge     | The application usage per template. Built-in apps are grouped by app family, such as Visual Studio Code, JetBrains, Web Terminal, or SSH, with an empty slug. A user-minute counts once per family.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `application_name` `organization_name` `slug` `template_name`                                         |
+| `coderd_insights_applications_usage_seconds`                             | gauge     | The app usage per template. connection_method is workspace_app for template apps, or ssh, reconnecting_pty, or port_forwarding for built-in apps, which have one series per app name in slug. Overlapping apps each count their own minutes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | `connection_method` `display_name` `organization_name` `slug` `template_name`                         |
 | `coderd_insights_parameters`                                             | gauge     | The parameter usage per template.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `organization_name` `parameter_name` `parameter_type` `parameter_value` `template_name`               |
 | `coderd_insights_templates_active_users`                                 | gauge     | The number of active users of the template.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | `organization_name` `template_name`                                                                   |
 | `coderd_license_active_users`                                            | gauge     | The number of active users.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |                                                                                                       |
@@ -370,21 +370,70 @@ The `coder_ai_gateway_cost_control_*` metrics are exported only by `coderd`.
 
 <!-- End generated by 'make docs/admin/integrations/prometheus.md'. -->
 
+### Application usage by template
+
+`coderd_insights_applications_usage_seconds` reports app usage per template over the last five minutes.
+The `connection_method` label distinguishes template apps from built-in apps:
+
+| `connection_method`                          | Apps                                                               | `slug`            | `display_name`                              |
+|----------------------------------------------|--------------------------------------------------------------------|-------------------|---------------------------------------------|
+| `workspace_app`                              | Apps defined in the template, opened through Coder                 | Slug or port      | The app's display name                      |
+| `ssh`, `reconnecting_pty`, `port_forwarding` | Built-in apps that connect through the agent, such as desktop IDEs | Reported app name | Registered name, or the app name if unknown |
+
+A template app can share a slug with a built-in app, such as `vscode`, so identify an app by `connection_method` and `slug`.
+`display_name` can change between releases.
+
+Built-in apps have one series per app name, such as `vscode`, `cursor`, or `goland`, and only for apps used in the window.
+Each app counts its own minutes, so a user with VS Code and Cursor open in the same minute counts in both series.
+`slug="unknown"` holds sessions reported without an app name.
+
+Per template, every built-in app Coder recognizes gets a series, and so do the 64 busiest other apps.
+The same app name under two connection methods counts as two apps.
+The rest add up under `slug="overflow"` of their connection method, which can count a minute more than once.
+The template insights page in the dashboard uses the same limit.
+
+#### Upgrade from the family series
+
+This metric changed in three ways:
+
+- `application_name` is now `display_name`.
+- Every series has the new `connection_method` label.
+- Built-in apps report one series per app instead of one per app family. The family series had `slug=""` and were reported even at zero.
+
+Selectors with a value for `application_name`, or with `slug=""`, return nothing.
+These queries still return data, with different values:
+
+- A template app query by `slug` also matches a built-in app with the same name. Add `connection_method="workspace_app"`.
+- A total without a `slug` selector now includes every built-in app, including `port_forwarding`, `sftp`, and `unknown`.
+
+Update Grafana dashboards, alerting rules, and recording rules:
+
+| Old series                                         | Closest new series                                                            |
+|----------------------------------------------------|-------------------------------------------------------------------------------|
+| `{slug="", application_name="Visual Studio Code"}` | `{connection_method="ssh", slug="vscode"}`, plus its forks such as `cursor`   |
+| `{slug="", application_name="JetBrains"}`          | `{connection_method="ssh", slug="jetbrains"}`, plus its IDEs such as `goland` |
+| `{slug="", application_name="Web Terminal"}`       | `{connection_method="reconnecting_pty", slug="reconnecting_pty"}`             |
+| `{slug="", application_name="SSH"}`                | `{connection_method="ssh", slug="ssh"}`, plus `zed`                           |
+| `{application_name="<app>"}` for a template app    | `{connection_method="workspace_app", display_name="<app>"}`                   |
+
+To total a family, sum its apps, for example `sum by (template_name) (coderd_insights_applications_usage_seconds{connection_method="ssh", slug=~"vscode|cursor|windsurf"})`.
+The sum counts a minute twice if two of the apps were open at once.
+
 ### Note on Prometheus native histogram support
 
 The following metrics support native histograms:
 
-* `coderd_workspace_creation_duration_seconds`
-* `coderd_prebuilt_workspace_claim_duration_seconds`
-* `coderd_template_workspace_build_duration_seconds`
-* `coder_pubsub_send_duration_seconds`
-* `coder_pubsub_receive_duration_seconds`
+- `coderd_workspace_creation_duration_seconds`
+- `coderd_prebuilt_workspace_claim_duration_seconds`
+- `coderd_template_workspace_build_duration_seconds`
+- `coder_pubsub_send_duration_seconds`
+- `coder_pubsub_receive_duration_seconds`
 
 Native histograms are an **experimental** Prometheus feature that removes the need to predefine bucket boundaries and allows higher-resolution buckets that adapt to deployment characteristics.
 Whether a metric is exposed as classic or native depends entirely on the Prometheus server configuration (see [Prometheus docs](https://prometheus.io/docs/specs/native_histograms/) for details):
 
-* If native histograms are enabled, Prometheus ingests the high-resolution histogram.
-* If not, it falls back to the predefined buckets.
+- If native histograms are enabled, Prometheus ingests the high-resolution histogram.
+- If not, it falls back to the predefined buckets.
 
 ⚠️ Important: classic and native histograms cannot be aggregated together. If Prometheus is switched from classic to native at a certain point in time, dashboards may need to account for that transition.
 For this reason, it’s recommended to follow [Prometheus’ migration guidelines](https://prometheus.io/docs/specs/native_histograms/#migration-considerations) when moving from classic to native histograms.

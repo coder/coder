@@ -448,9 +448,9 @@ coderd_dbpurge_records_purged_total{record_type=""} 0
 # HELP coderd_experiments Indicates whether each experiment is enabled (1) or not (0)
 # TYPE coderd_experiments gauge
 coderd_experiments{experiment=""} 0
-# HELP coderd_insights_applications_usage_seconds The application usage per template. Built-in apps are grouped by app family, such as Visual Studio Code, JetBrains, Web Terminal, or SSH, with an empty slug. A user-minute counts once per family.
+# HELP coderd_insights_applications_usage_seconds The app usage per template. connection_method is workspace_app for template apps, or ssh, reconnecting_pty, or port_forwarding for built-in apps, which have one series per app name in slug. Overlapping apps each count their own minutes.
 # TYPE coderd_insights_applications_usage_seconds gauge
-coderd_insights_applications_usage_seconds{template_name="",application_name="",slug="",organization_name=""} 0
+coderd_insights_applications_usage_seconds{template_name="",display_name="",slug="",connection_method="",organization_name=""} 0
 # HELP coderd_insights_parameters The parameter usage per template.
 # TYPE coderd_insights_parameters gauge
 coderd_insights_parameters{template_name="",parameter_name="",parameter_type="",parameter_value="",organization_name=""} 0
