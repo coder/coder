@@ -1348,6 +1348,14 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return(msgs, nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(msgs)
 	}))
+	s.Run("GetLatestSuccessfulChatToolCallArgs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.GetLatestSuccessfulChatToolCallArgsParams{ChatID: chat.ID, ToolName: "save_checkpoint"}
+		args := json.RawMessage(`{"checkpoint":"goal"}`)
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().GetLatestSuccessfulChatToolCallArgs(gomock.Any(), arg).Return(args, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(args)
+	}))
 	s.Run("GetChatModelConfigByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		config := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
 		dbm.EXPECT().GetChatModelConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()

@@ -5,6 +5,7 @@ package dbmetrics
 
 import (
 	"context"
+	"encoding/json"
 	"slices"
 	"time"
 
@@ -2517,6 +2518,14 @@ func (m queryMetricsStore) GetLatestCryptoKeyByFeature(ctx context.Context, feat
 	r0, r1 := m.s.GetLatestCryptoKeyByFeature(ctx, feature)
 	m.queryLatencies.WithLabelValues("GetLatestCryptoKeyByFeature").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLatestCryptoKeyByFeature").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetLatestSuccessfulChatToolCallArgs(ctx context.Context, arg database.GetLatestSuccessfulChatToolCallArgsParams) (json.RawMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLatestSuccessfulChatToolCallArgs(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetLatestSuccessfulChatToolCallArgs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLatestSuccessfulChatToolCallArgs").Inc()
 	return r0, r1
 }
 

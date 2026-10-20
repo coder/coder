@@ -11903,6 +11903,70 @@ func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastCh
 	return i, err
 }
 
+const getLatestSuccessfulChatToolCallArgs = `-- name: GetLatestSuccessfulChatToolCallArgs :one
+WITH privacy_floor AS (
+    SELECT
+        COALESCE(MAX(id), 0)::bigint AS id
+    FROM
+        chat_messages
+    WHERE
+        chat_id = $1::uuid
+        AND deleted = false
+        AND compressed = true
+        AND role = 'assistant'
+        AND content @> '[{"type": "tool-call", "tool_name": "chat_cleared"}]'::jsonb
+)
+SELECT
+    (call_part.part->'args')::jsonb AS args
+FROM
+    chat_messages call_msg,
+    jsonb_array_elements(call_msg.content) WITH ORDINALITY AS call_part(part, ordinality)
+WHERE
+    call_msg.chat_id = $1::uuid
+    AND call_msg.deleted = false
+    AND call_msg.role = 'assistant'
+    AND call_msg.id > (SELECT id FROM privacy_floor)
+    AND jsonb_typeof(call_msg.content) = 'array'
+    AND call_part.part->>'type' = 'tool-call'
+    AND call_part.part->>'tool_name' = $2::text
+    AND EXISTS (
+        SELECT
+            1
+        FROM
+            chat_messages result_msg,
+            jsonb_array_elements(result_msg.content) AS result_part(part)
+        WHERE
+            result_msg.chat_id = call_msg.chat_id
+            AND result_msg.deleted = false
+            AND result_msg.role = 'tool'
+            AND result_msg.id > call_msg.id
+            AND jsonb_typeof(result_msg.content) = 'array'
+            AND result_part.part->>'type' = 'tool-result'
+            AND result_part.part->>'tool_call_id' = call_part.part->>'tool_call_id'
+            AND COALESCE((result_part.part->>'is_error')::boolean, false) = false
+    )
+ORDER BY
+    call_msg.id DESC,
+    call_part.ordinality DESC
+LIMIT
+    1
+`
+
+type GetLatestSuccessfulChatToolCallArgsParams struct {
+	ChatID   uuid.UUID `db:"chat_id" json:"chat_id"`
+	ToolName string    `db:"tool_name" json:"tool_name"`
+}
+
+// Returns the arguments of the newest non-deleted call to the named tool
+// that has a successful result. Calls before the newest chat_cleared
+// boundary are ignored, so a clear hides them.
+func (q *sqlQuerier) GetLatestSuccessfulChatToolCallArgs(ctx context.Context, arg GetLatestSuccessfulChatToolCallArgsParams) (json.RawMessage, error) {
+	row := q.db.QueryRowContext(ctx, getLatestSuccessfulChatToolCallArgs, arg.ChatID, arg.ToolName)
+	var args json.RawMessage
+	err := row.Scan(&args)
+	return args, err
+}
+
 const getStaleChats = `-- name: GetStaleChats :many
 SELECT
     id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at, title_source, title_updated_at

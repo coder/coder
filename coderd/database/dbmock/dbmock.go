@@ -11,6 +11,7 @@ package dbmock
 
 import (
 	context "context"
+	json "encoding/json"
 	reflect "reflect"
 	time "time"
 
@@ -4732,6 +4733,21 @@ func (m *MockStore) GetLatestCryptoKeyByFeature(ctx context.Context, feature dat
 func (mr *MockStoreMockRecorder) GetLatestCryptoKeyByFeature(ctx, feature any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestCryptoKeyByFeature", reflect.TypeOf((*MockStore)(nil).GetLatestCryptoKeyByFeature), ctx, feature)
+}
+
+// GetLatestSuccessfulChatToolCallArgs mocks base method.
+func (m *MockStore) GetLatestSuccessfulChatToolCallArgs(ctx context.Context, arg database.GetLatestSuccessfulChatToolCallArgsParams) (json.RawMessage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLatestSuccessfulChatToolCallArgs", ctx, arg)
+	ret0, _ := ret[0].(json.RawMessage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLatestSuccessfulChatToolCallArgs indicates an expected call of GetLatestSuccessfulChatToolCallArgs.
+func (mr *MockStoreMockRecorder) GetLatestSuccessfulChatToolCallArgs(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestSuccessfulChatToolCallArgs", reflect.TypeOf((*MockStore)(nil).GetLatestSuccessfulChatToolCallArgs), ctx, arg)
 }
 
 // GetLatestWorkspaceAgentContextSnapshot mocks base method.

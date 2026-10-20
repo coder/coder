@@ -4419,6 +4419,15 @@ func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature datab
 	return q.db.GetLatestCryptoKeyByFeature(ctx, feature)
 }
 
+func (q *querier) GetLatestSuccessfulChatToolCallArgs(ctx context.Context, arg database.GetLatestSuccessfulChatToolCallArgsParams) (json.RawMessage, error) {
+	// Authorize read on the parent chat.
+	_, err := q.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetLatestSuccessfulChatToolCallArgs(ctx, arg)
+}
+
 func (q *querier) GetLatestWorkspaceAgentContextSnapshot(ctx context.Context, workspaceAgentID uuid.UUID) (database.WorkspaceAgentContextSnapshot, error) {
 	if err := q.authorizeWorkspaceByAgentID(ctx, workspaceAgentID, policy.ActionRead); err != nil {
 		return database.WorkspaceAgentContextSnapshot{}, err

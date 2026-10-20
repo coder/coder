@@ -610,6 +610,57 @@ WHERE
 ORDER BY
     id ASC;
 
+-- name: GetLatestSuccessfulChatToolCallArgs :one
+-- Returns the arguments of the newest non-deleted call to the named tool
+-- that has a successful result. Calls before the newest chat_cleared
+-- boundary are ignored, so a clear hides them.
+WITH privacy_floor AS (
+    SELECT
+        COALESCE(MAX(id), 0)::bigint AS id
+    FROM
+        chat_messages
+    WHERE
+        chat_id = @chat_id::uuid
+        AND deleted = false
+        AND compressed = true
+        AND role = 'assistant'
+        AND content @> '[{"type": "tool-call", "tool_name": "chat_cleared"}]'::jsonb
+)
+SELECT
+    (call_part.part->'args')::jsonb AS args
+FROM
+    chat_messages call_msg,
+    jsonb_array_elements(call_msg.content) WITH ORDINALITY AS call_part(part, ordinality)
+WHERE
+    call_msg.chat_id = @chat_id::uuid
+    AND call_msg.deleted = false
+    AND call_msg.role = 'assistant'
+    AND call_msg.id > (SELECT id FROM privacy_floor)
+    AND jsonb_typeof(call_msg.content) = 'array'
+    AND call_part.part->>'type' = 'tool-call'
+    AND call_part.part->>'tool_name' = @tool_name::text
+    AND EXISTS (
+        SELECT
+            1
+        FROM
+            chat_messages result_msg,
+            jsonb_array_elements(result_msg.content) AS result_part(part)
+        WHERE
+            result_msg.chat_id = call_msg.chat_id
+            AND result_msg.deleted = false
+            AND result_msg.role = 'tool'
+            AND result_msg.id > call_msg.id
+            AND jsonb_typeof(result_msg.content) = 'array'
+            AND result_part.part->>'type' = 'tool-result'
+            AND result_part.part->>'tool_call_id' = call_part.part->>'tool_call_id'
+            AND COALESCE((result_part.part->>'is_error')::boolean, false) = false
+    )
+ORDER BY
+    call_msg.id DESC,
+    call_part.ordinality DESC
+LIMIT
+    1;
+
 -- name: GetChats :many
 WITH cursor_chat AS (
     SELECT
