@@ -305,8 +305,9 @@ export const WorkspaceFiles: Story = {
 		const archive = createMockFile("report.zip", "application/zip");
 		const scan = createMockFile("scan.tiff", "image/tiff");
 		const tooLarge = createMockFile("dataset.tar", "application/x-tar");
+		const log = createMockFile("build.log", "text/plain");
 		return {
-			attachments: [image, archive, scan, tooLarge],
+			attachments: [image, archive, scan, tooLarge, log],
 			uploadStates: new Map<File, UploadState>([
 				[image, { status: "uploaded", fileId: "file-image" }],
 				[
@@ -322,6 +323,7 @@ export const WorkspaceFiles: Story = {
 						purpose: "workspace",
 					},
 				],
+				[log, { status: "uploaded", fileId: "file-log", purpose: "workspace" }],
 			]),
 			previewUrls: new Map<File, string>([
 				[image, TINY_PNG],

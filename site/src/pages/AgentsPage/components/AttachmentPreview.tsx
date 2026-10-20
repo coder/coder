@@ -158,10 +158,11 @@ export const AttachmentPreview: React.FC<{
 					const textContent = textContents?.get(file);
 					const textFileId =
 						uploadState?.status === "uploaded" ? uploadState.fileId : undefined;
+					const isForWorkspace = uploadState?.purpose === "workspace";
 					const hasTextAttachment =
+						!isForWorkspace &&
 						file.type === "text/plain" &&
 						(textContent !== undefined || textFileId !== undefined);
-					const isForWorkspace = uploadState?.purpose === "workspace";
 					const hasImagePreview =
 						!isForWorkspace &&
 						isRasterImageMediaType(file.type) &&
