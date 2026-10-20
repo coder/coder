@@ -8,9 +8,14 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { chatProjectInstructionsKey } from "#/api/queries/chatProjects";
+import {
+	richParametersKey,
+	templateVersionPresetsKey,
+} from "#/api/queries/templates";
 import type {
 	ChatProject,
 	ChatProjectInstructions,
+	Preset,
 	Template,
 } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
@@ -19,6 +24,7 @@ import {
 	MockChatProject,
 	MockChatProjectInstructions,
 	MockTemplate,
+	MockTemplateVersionParameter1,
 	MockUnsetChatProjectInstructions,
 	mockApiError,
 } from "#/testHelpers/entities";
@@ -594,4 +600,73 @@ describe("ProjectDetailsPanel templates", () => {
 			),
 		);
 	});
+
+	it.each([
+		{
+			kind: "presets",
+			templates: { default_preset_id: "preset-small" },
+			key: templateVersionPresetsKey(dockerTemplate.active_version_id),
+			cached: [
+				{
+					ID: "preset-small",
+					Name: "Small",
+					Parameters: [],
+					Default: false,
+					DesiredPrebuildInstances: null,
+					Description: "",
+					Icon: "",
+				},
+			] satisfies Preset[],
+			cachedLabel: "Default preset",
+			mockFailure: () =>
+				vi
+					.spyOn(API, "getTemplateVersionPresets")
+					.mockRejectedValue(
+						mockApiError({ message: "Presets are unavailable." }),
+					),
+			message: "Presets are unavailable.",
+		},
+		{
+			kind: "parameters",
+			templates: {
+				default_parameters: { [MockTemplateVersionParameter1.name]: "x" },
+			},
+			key: richParametersKey(dockerTemplate.active_version_id),
+			cached: [MockTemplateVersionParameter1],
+			cachedLabel: MockTemplateVersionParameter1.name,
+			mockFailure: () =>
+				vi
+					.spyOn(API, "getTemplateVersionRichParameters")
+					.mockRejectedValue(
+						mockApiError({ message: "Parameters are unavailable." }),
+					),
+			message: "Parameters are unavailable.",
+		},
+	])(
+		"shows a failed $kind refetch alongside the cached values",
+		async ({ templates, key, cached, cachedLabel, mockFailure, message }) => {
+			const { user, queryClient, rerenderWithProject } = setup();
+			const fetchDefaults = mockFailure();
+			// The test client drops unobserved queries at once, so keep the
+			// cached values around until the editor mounts.
+			queryClient.setQueryDefaults(key, { gcTime: Number.POSITIVE_INFINITY });
+			queryClient.setQueryData(key, cached);
+			rerenderWithProject({
+				...MockChatProject,
+				templates: {
+					template_ids: [dockerTemplate.id],
+					default_template_id: dockerTemplate.id,
+					...templates,
+				},
+			});
+
+			await user.click(
+				screen.getByRole("button", { name: "Edit templates: 1 template" }),
+			);
+
+			await waitFor(() => expect(fetchDefaults).toHaveBeenCalled());
+			expect(screen.getByLabelText(cachedLabel)).toBeInTheDocument();
+			expect(await screen.findByRole("alert")).toHaveTextContent(message);
+		},
+	);
 });
