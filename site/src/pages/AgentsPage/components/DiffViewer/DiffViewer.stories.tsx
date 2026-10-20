@@ -802,6 +802,13 @@ export const OverflowScrollsToLastCard: Story = {
 		if (gutter !== "6px") {
 			throw new Error(`Code scrollbar gutter is ${gutter}, want 6px`);
 		}
+		const thumb = getComputedStyle(
+			code,
+			"::-webkit-scrollbar-thumb",
+		).backgroundColor;
+		if (thumb === "rgba(0, 0, 0, 0)") {
+			throw new Error("Code scrollbar thumb is transparent");
+		}
 
 		// A document rule on the host beats the :host rule in FILE_CARD_CSS.
 		const zeroGutter = document.createElement("style");
