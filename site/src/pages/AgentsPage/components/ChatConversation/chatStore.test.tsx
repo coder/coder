@@ -1866,7 +1866,7 @@ describe("useChatStore", () => {
 		expect(cachedData?.pages[0]?.queued_messages).toEqual([]);
 	});
 
-	it("caches the filtered queue when a queue_update still contains a suppressed message", async () => {
+	it("caches the store queue when a queue_update still lists a promoted message", async () => {
 		const chatID = "chat-1";
 		const existingMessage = buildMessage(chatID, 1, "user", "hello");
 		const queuedMessage = buildQueuedMessage(chatID, 10, "queued");
@@ -1922,7 +1922,8 @@ describe("useChatStore", () => {
 		});
 
 		act(() => {
-			result.current.store.suppressQueuedMessageID(queuedMessage.id);
+			result.current.store.markQueuedMessagePromoted(queuedMessage.id);
+			result.current.store.setQueuedMessages([]);
 		});
 		act(() => {
 			mockSocket.emitData({

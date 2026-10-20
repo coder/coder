@@ -6,8 +6,9 @@ import {
 	PaperclipIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useId, useState } from "react";
 import type {
+	ChatBusyBehavior,
 	ChatQueuedMessage,
 	ChatSkillInvocationPart,
 	ChatTextPart,
@@ -111,22 +112,36 @@ const QueuedMessagePreview: React.FC<{
 	);
 };
 
+type QueuedMessageItem = QueuedMessageInfo & {
+	id: number;
+	busyBehavior: ChatBusyBehavior;
+};
+
+type QueuedMessageAction = "delete" | "promote";
+
+// Steer rows are delivered before queue rows.
+const lanes: readonly { busyBehavior: ChatBusyBehavior; label: string }[] = [
+	{ busyBehavior: "steer", label: "Next step" },
+	{ busyBehavior: "queue", label: "After turn" },
+];
+
 export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	messages,
 	onDelete,
 	onPromote,
 	className,
 }) => {
-	const items = messages.map((message) => ({
-		id: message.id,
+	const items: QueuedMessageItem[] = messages.map((message) => ({
 		...getQueuedMessageInfo(message),
+		id: message.id,
+		busyBehavior: message.busy_behavior,
 	}));
 
 	const [hoveredID, setHoveredID] = useState<number | null>(null);
 	// Tracks which item has an async action in flight and what kind.
 	const [busyItem, setBusyItem] = useState<{
 		id: number;
-		action: "delete" | "promote";
+		action: QueuedMessageAction;
 	} | null>(null);
 	const [optimisticallyHiddenIDs, setOptimisticallyHiddenIDs] = useState<
 		ReadonlySet<number>
@@ -187,12 +202,10 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 
 	const handlePromote = async (id: number) => {
 		setBusyItem({ id, action: "promote" });
-		hideItemOptimistically(id);
 		try {
 			await onPromote(id);
 			setBusyItem((current) => (current?.id === id ? null : current));
 		} catch {
-			restoreHiddenItem(id);
 			setBusyItem((current) => (current?.id === id ? null : current));
 		}
 	};
@@ -205,6 +218,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 		return null;
 	}
 
+	const firstItemID = visibleItems[0].id;
 	const isBusy = busyItem !== null;
 
 	return (
@@ -214,112 +228,185 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 				className,
 			)}
 		>
-			{visibleItems.map((item, index) => {
-				const isFirst = index === 0;
-				const isItemBusy = busyItem !== null && busyItem.id === item.id;
-				const isHovered = hoveredID === item.id;
-				const showActions = isHovered || (isFirst && hoveredID === null);
-
+			{lanes.map(({ busyBehavior, label }) => {
+				const laneItems = visibleItems.filter(
+					(item) => item.busyBehavior === busyBehavior,
+				);
+				if (laneItems.length === 0) {
+					return null;
+				}
 				return (
-					<div
-						key={item.id}
-						className="my-1 opacity-40 transition-opacity hover:opacity-80"
-						onMouseEnter={() => setHoveredID(item.id)}
-						onMouseLeave={() =>
-							setHoveredID((current) => (current === item.id ? null : current))
-						}
-					>
-						<div className="flex items-center gap-2 rounded-lg border border-solid border-border bg-surface-secondary px-3 py-2 font-sans text-sm leading-relaxed text-content-primary shadow-xs">
-							<span className="min-w-0 flex-1 truncate">
-								<QueuedMessagePreview parts={item.previewParts} />
-							</span>
-							{item.attachmentCount > 0 && (
-								<span
-									role="img"
-									aria-label={`${item.attachmentCount} attachment${item.attachmentCount !== 1 ? "s" : ""}`}
-									className="flex shrink-0 items-center gap-1 text-xs text-content-secondary"
-								>
-									<PaperclipIcon className="size-3" aria-hidden="true" />
-									<span aria-hidden="true">{item.attachmentCount}</span>
-								</span>
-							)}
-							{item.hookNotices.length > 0 && (
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<button
-											type="button"
-											aria-label={`Lifecycle hook notice: ${item.hookNotices.join(" ")}`}
-											className="flex shrink-0 cursor-default items-center border-none bg-transparent p-0 text-highlight-sky"
-										>
-											<InfoIcon className="size-3" aria-hidden="true" />
-										</button>
-									</TooltipTrigger>
-									<TooltipContent side="top">
-										{item.hookNotices.join(" ")}
-									</TooltipContent>
-								</Tooltip>
-							)}
-							{isFirst && (
-								<span
-									className={cn(
-										"hidden shrink-0 items-center gap-1 text-xs text-content-secondary transition-opacity sm:flex",
-										showActions ? "opacity-100" : "opacity-0",
-									)}
-								>
-									<CornerDownLeftIcon className="size-3" aria-hidden="true" />
-									<span className="sr-only">Enter</span>
-									to send
-								</span>
-							)}
-							<div
-								className={cn(
-									"flex shrink-0 items-center gap-0.5 transition-opacity",
-									showActions ? "opacity-100" : "opacity-0",
-								)}
-							>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											variant="subtle"
-											size="icon"
-											aria-label="Send now"
-											disabled={isBusy}
-											onClick={() => void handlePromote(item.id)}
-											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
-										>
-											{isItemBusy && busyItem.action === "promote" ? (
-												<Spinner className="h-3.5 w-3.5" loading />
-											) : (
-												<ArrowUpIcon className="size-3.5" />
-											)}
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent side="top">Send now</TooltipContent>
-								</Tooltip>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											variant="subtle"
-											size="icon"
-											aria-label="Remove from queue"
-											disabled={isBusy}
-											onClick={() => void handleDelete(item.id)}
-											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-destructive"
-										>
-											{isItemBusy && busyItem.action === "delete" ? (
-												<Spinner className="h-3.5 w-3.5" loading />
-											) : (
-												<Trash2Icon className="size-3.5" />
-											)}
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent side="top">Remove</TooltipContent>
-								</Tooltip>
-							</div>
-						</div>
-					</div>
+					<QueuedMessageGroup key={busyBehavior} label={label}>
+						{laneItems.map((item) => {
+							const isFirst = item.id === firstItemID;
+							return (
+								<QueuedMessageRow
+									key={item.id}
+									item={item}
+									isFirst={isFirst}
+									showActions={
+										hoveredID === item.id || (isFirst && hoveredID === null)
+									}
+									busyAction={
+										busyItem?.id === item.id ? busyItem.action : undefined
+									}
+									disabled={isBusy}
+									onMouseEnter={() => setHoveredID(item.id)}
+									onMouseLeave={() =>
+										setHoveredID((current) =>
+											current === item.id ? null : current,
+										)
+									}
+									onPromote={() => void handlePromote(item.id)}
+									onDelete={() => void handleDelete(item.id)}
+								/>
+							);
+						})}
+					</QueuedMessageGroup>
 				);
 			})}
 		</div>
 	);
 };
+
+type QueuedMessageGroupProps = {
+	label: string;
+	children: React.ReactNode;
+};
+
+const QueuedMessageGroup: React.FC<QueuedMessageGroupProps> = ({
+	label,
+	children,
+}) => {
+	const labelID = useId();
+	return (
+		<div role="group" aria-labelledby={labelID} className="mt-2 first:mt-0">
+			<p
+				id={labelID}
+				className="m-0 text-xs font-medium text-content-secondary"
+			>
+				{label}
+			</p>
+			{children}
+		</div>
+	);
+};
+
+type QueuedMessageRowProps = {
+	item: QueuedMessageItem;
+	isFirst: boolean;
+	showActions: boolean;
+	busyAction: QueuedMessageAction | undefined;
+	disabled: boolean;
+	onMouseEnter: () => void;
+	onMouseLeave: () => void;
+	onPromote: () => void;
+	onDelete: () => void;
+};
+
+const QueuedMessageRow: React.FC<QueuedMessageRowProps> = ({
+	item,
+	isFirst,
+	showActions,
+	busyAction,
+	disabled,
+	onMouseEnter,
+	onMouseLeave,
+	onPromote,
+	onDelete,
+}) => (
+	<div
+		className="my-1 opacity-40 transition-opacity focus-within:opacity-80 hover:opacity-80"
+		onMouseEnter={onMouseEnter}
+		onMouseLeave={onMouseLeave}
+	>
+		<div className="flex items-center gap-2 rounded-lg border border-solid border-border bg-surface-secondary px-3 py-2 font-sans text-sm leading-relaxed text-content-primary shadow-xs">
+			<span className="min-w-0 flex-1 truncate">
+				<QueuedMessagePreview parts={item.previewParts} />
+			</span>
+			{item.attachmentCount > 0 && (
+				<span
+					role="img"
+					aria-label={`${item.attachmentCount} attachment${item.attachmentCount !== 1 ? "s" : ""}`}
+					className="flex shrink-0 items-center gap-1 text-xs text-content-secondary"
+				>
+					<PaperclipIcon className="size-3" aria-hidden="true" />
+					<span aria-hidden="true">{item.attachmentCount}</span>
+				</span>
+			)}
+			{item.hookNotices.length > 0 && (
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<button
+							type="button"
+							aria-label={`Lifecycle hook notice: ${item.hookNotices.join(" ")}`}
+							className="flex shrink-0 cursor-default items-center border-none bg-transparent p-0 text-highlight-sky"
+						>
+							<InfoIcon className="size-3" aria-hidden="true" />
+						</button>
+					</TooltipTrigger>
+					<TooltipContent side="top">
+						{item.hookNotices.join(" ")}
+					</TooltipContent>
+				</Tooltip>
+			)}
+			{isFirst && (
+				<span
+					className={cn(
+						"hidden shrink-0 items-center gap-1 text-xs text-content-secondary transition-opacity sm:flex",
+						showActions ? "opacity-100" : "opacity-0",
+					)}
+				>
+					<CornerDownLeftIcon className="size-3" aria-hidden="true" />
+					<span className="sr-only">Enter</span>
+					to send
+				</span>
+			)}
+			<div
+				className={cn(
+					"flex shrink-0 items-center gap-0.5 transition-opacity focus-within:opacity-100",
+					showActions ? "opacity-100" : "opacity-0",
+				)}
+			>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant="subtle"
+							size="icon"
+							aria-label="Send now"
+							disabled={disabled}
+							onClick={onPromote}
+							className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
+						>
+							{busyAction === "promote" ? (
+								<Spinner className="size-3.5" loading />
+							) : (
+								<ArrowUpIcon className="size-3.5" />
+							)}
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent side="top">Send now</TooltipContent>
+				</Tooltip>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant="subtle"
+							size="icon"
+							aria-label="Remove from queue"
+							disabled={disabled}
+							onClick={onDelete}
+							className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-destructive"
+						>
+							{busyAction === "delete" ? (
+								<Spinner className="size-3.5" loading />
+							) : (
+								<Trash2Icon className="size-3.5" />
+							)}
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent side="top">Remove</TooltipContent>
+				</Tooltip>
+			</div>
+		</div>
+	</div>
+);

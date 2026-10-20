@@ -15,6 +15,7 @@ import {
 } from "#/pages/AgentsPage/components/RightPanel/DebugPanel/debugPanelUtils";
 import {
 	MockChatMessage,
+	MockChatQueuedMessageNotFoundError,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
@@ -26,6 +27,7 @@ import {
 	MockMCPServerConfigACLAvailable,
 	MockWorkspaceBuildDelete,
 	MockWorkspaceQuota,
+	mockApiError,
 } from "#/testHelpers/entities";
 import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
@@ -2501,6 +2503,27 @@ describe("mutation invalidation scope", () => {
 				?.isInvalidated,
 			"by-workspace entry should NOT be invalidated",
 		).not.toBe(true);
+	});
+});
+
+describe("deleteChatQueuedMessage", () => {
+	it("treats a missing row as deleted", async () => {
+		vi.mocked(API.experimental.deleteChatQueuedMessage).mockRejectedValue(
+			MockChatQueuedMessageNotFoundError,
+		);
+		const mutation = deleteChatQueuedMessage(createTestQueryClient(), "chat-1");
+
+		await expect(mutation.mutationFn(7)).resolves.toBeUndefined();
+	});
+
+	it("rethrows other errors", async () => {
+		const serverError = mockApiError({ message: "Internal error." });
+		vi.mocked(API.experimental.deleteChatQueuedMessage).mockRejectedValue(
+			serverError,
+		);
+		const mutation = deleteChatQueuedMessage(createTestQueryClient(), "chat-1");
+
+		await expect(mutation.mutationFn(7)).rejects.toBe(serverError);
 	});
 });
 
