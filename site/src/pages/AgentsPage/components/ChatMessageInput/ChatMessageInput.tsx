@@ -735,7 +735,7 @@ const ChatMessageInput = ({
 	// which keeps triggers qualified and built-in commands hidden. A chat
 	// without an organization, project, or workspace has a known empty list.
 	// Project skills are the exception: chatd runs a turn without project
-	// skills it cannot load, so a failed request counts as none.
+	// skills it cannot load, so a failed request with no data counts as none.
 	const skillLists: SkillSourceList<SkillMetadata>[] = [
 		{ source: "personal", skills: personalSkills },
 		{ source: "org", skills: organizationSource.skills },
