@@ -2,6 +2,7 @@ package chatd_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -120,6 +121,12 @@ func TestActiveServer_ContextRollover(t *testing.T) {
 			require.False(t, chat.LastError.Valid)
 			require.Equal(t, int32(2), streamCount.Load())
 
+			first := filterAnthropicStreamingRequests(requests.all())[0]
+			tokenBudget := !tc.wantSummary
+			require.Equal(t, tokenBudget, slices.Contains(anthropicToolNames(first), "new_context"))
+			require.Equal(t, tokenBudget, slices.Contains(anthropicToolNames(first), "save_checkpoint"))
+			require.Equal(t, tokenBudget, strings.Contains(anthropicSystemText(t, first), "<context_window>"))
+
 			messages := chatMessages(ctx, t, db, chat.ID)
 			promptRows, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 			require.NoError(t, err)
@@ -211,6 +218,112 @@ func TestActiveServer_ManualCompactionUnderTokenBudget(t *testing.T) {
 	require.NoError(t, json.Unmarshal(resultPart.Result, &result))
 	require.Equal(t, "manual", result["source"])
 	require.Equal(t, "manual summary", result["summary"])
+}
+
+func TestActiveServer_NewContextRollover(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	requests := newAnthropicRequestRecorder()
+	var streamCount atomic.Int32
+	anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		if !req.Stream {
+			return chattest.AnthropicNonStreamingResponse("title")
+		}
+		requests.record(req)
+		if streamCount.Add(1) == 1 {
+			chunks := []chattest.AnthropicChunk{anthropicMessageStartChunk("msg-checkpoint")}
+			chunks = append(chunks, anthropicToolUseChunksWithoutMessageEnvelope(0, "toolu_save", "save_checkpoint", `{"checkpoint":"goal: ship it"}`)...)
+			chunks = append(chunks, anthropicToolUseChunksWithoutMessageEnvelope(1, "toolu_new", "new_context", `{}`)...)
+			chunks = append(chunks,
+				chattest.AnthropicChunk{Type: "message_delta", StopReason: "tool_use", Usage: chattest.AnthropicUsage{InputTokens: 10, OutputTokens: 5}},
+				chattest.AnthropicChunk{Type: "message_stop"},
+			)
+			return chattest.AnthropicStreamingResponse(chunks...)
+		}
+		return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunksWithCacheUsage(chattest.AnthropicUsage{
+			InputTokens:  20,
+			OutputTokens: 5,
+		}, "continued")...)
+	})
+	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+	model = updateChatModelCompressionThreshold(t, db, model, 200_000, 70)
+	require.NoError(t, db.UpsertUserChatCompactionStrategy(ctx, database.UpsertUserChatCompactionStrategyParams{
+		UserID:             user.ID,
+		CompactionStrategy: string(codersdk.ChatCompactionStrategyTokenBudget),
+	}))
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+	})
+
+	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "first request")
+	chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+	require.False(t, chat.LastError.Valid)
+	require.Equal(t, int32(2), streamCount.Load(), "the receipt rolls over once, then the fresh window answers")
+
+	messages := chatMessages(ctx, t, db, chat.ID)
+	calls, results := rolloverBoundaryParts(t, messages)
+	require.Len(t, calls, 1)
+	require.Len(t, results, 1)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(results[0].Result, &payload))
+	require.Equal(t, "model", payload["reason"])
+	require.Equal(t, "model", payload["requested_by"])
+	require.Equal(t, "w:0", payload["previous_window_id"])
+	require.Equal(t, "goal: ship it", payload["checkpoint"])
+	requireTextPart(t, messages[len(messages)-1], "continued")
+
+	promptRows, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	var anchor database.ChatMessage
+	for _, row := range promptRows {
+		if row.Compressed {
+			anchor = row
+		}
+	}
+	require.Contains(t, messageText(t, anchor), "You requested this fresh window with new_context")
+	require.Contains(t, messageText(t, anchor), "<checkpoint>\ngoal: ship it\n</checkpoint>")
+
+	var userRequest database.ChatMessage
+	for _, msg := range messages {
+		if msg.Role == database.ChatMessageRoleUser && msg.Visibility == database.ChatMessageVisibilityBoth {
+			userRequest = msg
+		}
+	}
+	streams := filterAnthropicStreamingRequests(requests.all())
+	require.Len(t, streams, 2)
+	firstSystem := anthropicSystemText(t, streams[0])
+	require.Contains(t, firstSystem, "<context-window-guidance>")
+	require.Contains(t, firstSystem, "<context_window>\nCurrent context window id: w:0\n</context_window>")
+	require.Contains(t, anthropicRequestBody(t, streams[0]), fmt.Sprintf(`first request\n[id: %d]`, userRequest.ID))
+	require.Contains(t, anthropicSystemText(t, streams[1]),
+		fmt.Sprintf("<context_window>\nCurrent context window id: w:%d\nPrevious context window id: w:0\n</context_window>", anchor.ID))
+	second := anthropicRequestBody(t, streams[1])
+	require.Contains(t, second, "goal: ship it")
+	require.NotContains(t, second, "first request")
+	require.Equal(t, anthropicToolNames(streams[0]), anthropicToolNames(streams[1]))
+}
+
+func anthropicToolNames(req chattest.AnthropicRequest) []string {
+	names := make([]string, 0, len(req.Tools))
+	for _, tool := range req.Tools {
+		names = append(names, tool.Name)
+	}
+	return names
+}
+
+func anthropicSystemText(t *testing.T, req chattest.AnthropicRequest) string {
+	t.Helper()
+	var blocks []struct {
+		Text string `json:"text"`
+	}
+	require.NoError(t, json.Unmarshal(req.System, &blocks))
+	texts := make([]string, 0, len(blocks))
+	for _, block := range blocks {
+		texts = append(texts, block.Text)
+	}
+	return strings.Join(texts, "\n")
 }
 
 func rolloverBoundaryParts(t *testing.T, messages []database.ChatMessage) (calls, results []codersdk.ChatMessagePart) {

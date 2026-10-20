@@ -439,6 +439,36 @@ func (p *Server) buildTurnEnvironment(
 	promptRows = append(sanitizedHead[:len(sanitizedHead):len(sanitizedHead)], promptRows[pendingRowsStart:]...)
 	pendingRowsStart = len(sanitizedHead)
 
+	effectiveThreshold := modelConfig.CompressionThreshold
+	thresholdOverride, ok, err := p.resolveUserCompactionThreshold(ctx, chat.OwnerID, modelConfig.ID)
+	if err != nil {
+		return turnEnvironment{}, err
+	}
+	if ok {
+		effectiveThreshold = thresholdOverride
+	}
+	tokenBudget := false
+	if p.experiments.Enabled(codersdk.ExperimentChatTokenBudget) {
+		strategy, err := p.resolveUserCompactionStrategy(ctx, chat.OwnerID)
+		if err != nil {
+			return turnEnvironment{}, err
+		}
+		tokenBudget = strategy == codersdk.ChatCompactionStrategyTokenBudget
+	}
+	conversionRows := promptRows
+	var contextWindowBlock string
+	if tokenBudget {
+		conversionRows, err = tagUserRowsWithItemIDs(promptRows)
+		if err != nil {
+			return turnEnvironment{}, err
+		}
+		previousWindowID, err := previousContextWindowID(promptRows)
+		if err != nil {
+			return turnEnvironment{}, err
+		}
+		contextWindowBlock = contextWindowPrompt(contextWindowID(promptRows), previousWindowID)
+	}
+
 	if chat.WorkspaceID.Valid {
 		// Resolve the workspace agent so the chat row's AgentID and
 		// BuildID bindings are up to date before the chatworker
@@ -503,13 +533,13 @@ func (p *Server) buildTurnEnvironment(
 		// accepts a file part is the one for model.Provider().
 		acceptsFilePart := model.AcceptsFilePartMediaType
 		providerType := string(modelRoute.Provider.Type)
-		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[:pendingRowsStart], p.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
+		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, conversionRows[:pendingRowsStart], p.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
 		if err != nil {
 			return xerrors.Errorf("build chat prompt: %w", err)
 		}
 		prompt = replaceUnsupportedToolMedia(ctx, logger, prompt, model, providerType)
 		if pendingRowsStart < len(promptRows) {
-			pendingPrompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[pendingRowsStart:], p.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
+			pendingPrompt, err = chatprompt.ConvertMessagesWithFiles(ctx, conversionRows[pendingRowsStart:], p.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
 			if err != nil {
 				return xerrors.Errorf("build pending chat prompt tail: %w", err)
 			}
@@ -674,6 +704,7 @@ func (p *Server) buildTurnEnvironment(
 			chatMode:             chat.Mode,
 			planModeInstructions: planModeInstructions,
 			isRootChat:           isRootChat,
+			contextWindow:        contextWindowBlock,
 		},
 	)
 	if advisorRuntime != nil {
@@ -777,6 +808,11 @@ func (p *Server) buildTurnEnvironment(
 	tools, _ = appendCurrentSkillTools(tools)
 	if hasMemory {
 		tools = append(tools, chattool.ReadMemory(memoryStore), chattool.SaveMemory(memoryStore, memoryProjectName), chattool.DeleteMemory(memoryStore, memoryProjectName), chattool.ConsolidateMemory(memoryStore, memoryProjectName))
+	}
+	if tokenBudget {
+		tools = append(tools, chattool.SaveCheckpoint(), chattool.NewContext(chattool.NewContextOptions{
+			RolloverDisabled: effectiveThreshold >= chatloop.CompactionDisabledThresholdPercent,
+		}))
 	}
 	if advisorRuntime != nil {
 		tools = append(tools, chatadvisor.Tool(chatadvisor.ToolOptions{
@@ -940,14 +976,6 @@ func (p *Server) buildTurnEnvironment(
 	}
 
 	compactionToolCallID := "chat_summarized_" + uuid.NewString()
-	effectiveThreshold := modelConfig.CompressionThreshold
-	thresholdOverride, ok, err := p.resolveUserCompactionThreshold(ctx, chat.OwnerID, modelConfig.ID)
-	if err != nil {
-		return turnEnvironment{}, err
-	}
-	if ok {
-		effectiveThreshold = thresholdOverride
-	}
 	chatTrigger := compactionTrigger{
 		thresholdPercent: effectiveThreshold,
 		contextLimit:     modelConfig.ContextLimit,
@@ -978,23 +1006,17 @@ func (p *Server) buildTurnEnvironment(
 		}
 	}
 	var rollover *generationRollover
-	if p.experiments.Enabled(codersdk.ExperimentChatTokenBudget) {
-		strategy, err := p.resolveUserCompactionStrategy(ctx, chat.OwnerID)
-		if err != nil {
-			return turnEnvironment{}, err
-		}
-		if strategy == codersdk.ChatCompactionStrategyTokenBudget {
-			rollover = &generationRollover{
-				Budget: newContextWindowBudget(
-					modelConfig.ContextLimit,
-					ptr.NilToDefault(resolved.callConfig.MaxOutputTokens, defaultChatMaxOutputTokens),
-					effectiveThreshold,
-				),
-				WindowID:        contextWindowID(promptRows),
-				MetricProvider:  model.LanguageModel().Provider(),
-				MetricModel:     model.LanguageModel().Model(),
-				PendingUserRows: pendingUserRows,
-			}
+	if tokenBudget {
+		rollover = &generationRollover{
+			Budget: newContextWindowBudget(
+				modelConfig.ContextLimit,
+				ptr.NilToDefault(resolved.callConfig.MaxOutputTokens, defaultChatMaxOutputTokens),
+				effectiveThreshold,
+			),
+			WindowID:        contextWindowID(promptRows),
+			MetricProvider:  model.LanguageModel().Provider(),
+			MetricModel:     model.LanguageModel().Model(),
+			PendingUserRows: pendingUserRows,
 		}
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)
@@ -2000,7 +2022,8 @@ func filterExternalMCPConfigsForTurn(
 
 func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 	switch name {
-	case "read_file", "execute", "process_output", "read_skill", "read_skill_file":
+	case "read_file", "execute", "process_output", "read_skill", "read_skill_file",
+		chattool.SaveCheckpointToolName, chattool.NewContextToolName:
 		return true
 	case "write_file", "edit_files", "list_templates", "read_template",
 		"create_workspace", "start_workspace", "stop_workspace", "propose_plan", "spawn_agent",
@@ -2097,6 +2120,8 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 		"read_skill":           true,
 		"read_skill_file":      true,
 		"ask_user_question":    false,
+		"save_checkpoint":      true,
+		"new_context":          true,
 	}
 
 	toolNames := make([]string, 0, len(allTools))
@@ -2151,6 +2176,9 @@ type systemPromptBehaviorContext struct {
 	chatMode             database.NullChatMode
 	planModeInstructions string
 	isRootChat           bool
+	// contextWindow is the token budget strategy's guidance and window
+	// IDs, appended last.
+	contextWindow string
 }
 
 func workspaceSkillsForResolution(workspaceSkills []chattool.SkillMeta) []skillspkg.Skill {
@@ -2182,7 +2210,8 @@ func mergeTurnSkills(
 
 // buildSystemPrompt applies system-level prompt injections in a fixed
 // order: subagent instruction, chat instruction, skill index, memory index,
-// project instructions, user prompt, then mode overlay prompts. Project
+// project instructions, user prompt, mode overlay prompts, then the context
+// window block of the token budget strategy. Project
 // instructions precede the user prompt so personal instructions keep the
 // last word.
 func buildSystemPrompt(
@@ -2215,7 +2244,7 @@ func buildSystemPrompt(
 	}
 	if isExploreSubagentMode(behaviorContext.chatMode) {
 		prompt = chatprompt.InsertSystem(prompt, ExploreSubagentOverlayPrompt)
-		return prompt
+		return chatprompt.InsertSystem(prompt, behaviorContext.contextWindow)
 	}
 	isPlanModeTurn := behaviorContext.planMode.Valid && behaviorContext.planMode.ChatPlanMode == database.ChatPlanModePlan
 	if isPlanModeTurn {
@@ -2228,7 +2257,7 @@ func buildSystemPrompt(
 			prompt = chatprompt.InsertSystem(prompt, PlanningSubagentOverlayPrompt)
 		}
 	}
-	return prompt
+	return chatprompt.InsertSystem(prompt, behaviorContext.contextWindow)
 }
 
 type rootChatToolsOptions struct {

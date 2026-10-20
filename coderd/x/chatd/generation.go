@@ -269,7 +269,11 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 		return generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonMaxSteps}, nil
 	}
 	if input.rollover != nil {
-		rollover := decideRollover(windowContextTokens(input.messages), *input.rollover, rolloverStageState{})
+		receipt, err := hasNewContextReceipt(input.messages)
+		if err != nil {
+			return generationDecision{}, err
+		}
+		rollover := decideRollover(windowContextTokens(input.messages), *input.rollover, rolloverStageState{receipt: receipt})
 		if rollover.action == rolloverActionRollover {
 			return generationDecision{kind: generationActionContextRollover, rolloverReason: rollover.reason}, nil
 		}
@@ -1393,6 +1397,10 @@ func (s *taskStarter) rollOverContextWindow(
 	if reason == rolloverReasonModel {
 		requestedBy = rolloverRequestedByModel
 	}
+	checkpoint, err := s.server.latestChatCheckpoint(ctx, input.ChatID)
+	if err != nil {
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+	}
 	messages, err := buildRolloverMessages(buildRolloverMessagesInput{
 		modelConfigID: prepared.ModelConfigID,
 		toolCallID:    rolloverToolName + "_" + uuid.NewString(),
@@ -1402,6 +1410,7 @@ func (s *taskStarter) rollOverContextWindow(
 			PreviousWindowID: rollover.WindowID,
 			ContextTokens:    windowContextTokens(prepared.Messages),
 			BudgetTokens:     rollover.Budget.usableLimit,
+			Checkpoint:       checkpoint,
 		},
 		requestItemID:       latestRequestItemID(prepared.Messages),
 		pendingUserMessages: rollover.PendingUserRows,

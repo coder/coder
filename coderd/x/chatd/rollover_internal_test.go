@@ -3,6 +3,7 @@ package chatd //nolint:testpackage // Exercises unexported rollover helpers.
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -137,6 +139,22 @@ func TestDecideGenerationActionContextRollover(t *testing.T) {
 	prompt := func(t *testing.T, id int64, text string) []database.ChatMessage {
 		return []database.ChatMessage{dbMessage(t, id, database.ChatMessageRoleUser, false, codersdk.ChatMessageText(text))}
 	}
+	scheduled := json.RawMessage(`{"status":"scheduled","message":"A new context window will start without summarizing conversation history."}`)
+	// checkpointStep calls save_checkpoint and new_context in one step and
+	// records the given results.
+	checkpointStep := func(t *testing.T, id int64, results ...codersdk.ChatMessagePart) []database.ChatMessage {
+		rows := []database.ChatMessage{withUsage(dbMessage(t, id, database.ChatMessageRoleAssistant, false,
+			codersdk.ChatMessageToolCall("save", chattool.SaveCheckpointToolName, json.RawMessage(`{"checkpoint":"goal"}`)),
+			codersdk.ChatMessageToolCall("new", chattool.NewContextToolName, json.RawMessage(`{}`)),
+		), 10, 100)}
+		for i, result := range results {
+			rows = append(rows, dbMessage(t, id+1+int64(i), database.ChatMessageRoleTool, false, result))
+		}
+		return rows
+	}
+	saveResult := codersdk.ChatMessageToolResult("save", chattool.SaveCheckpointToolName, json.RawMessage(`{"saved":true,"bytes":4}`), false, false)
+	newContextResult := codersdk.ChatMessageToolResult("new", chattool.NewContextToolName, scheduled, false, false)
+	unknownWindow := newContextWindowBudget(0, 32_000, 70)
 
 	tests := []struct {
 		name     string
@@ -144,6 +162,8 @@ func TestDecideGenerationActionContextRollover(t *testing.T) {
 		budget   *contextWindowBudget
 		maxSteps int
 		want     generationActionKind
+		// wantReason defaults to the usable-limit reason.
+		wantReason rolloverReason
 	}{
 		{name: "RollsOverAtUsableLimit", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 75)), budget: &budget, want: generationActionContextRollover},
 		{name: "GeneratesBelowUsableLimit", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 74)), budget: &budget, want: generationActionGenerateAssistant},
@@ -156,6 +176,15 @@ func TestDecideGenerationActionContextRollover(t *testing.T) {
 		{name: "RollsOverWhenNewWindowFills", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 80), rolloverBoundary(t, 4), toolStep(t, 7, 80)), budget: &budget, want: generationActionContextRollover},
 		{name: "DisabledAtHundredPercent", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 99)), budget: new(newContextWindowBudget(100, 32_000, 100)), want: generationActionGenerateAssistant},
 		{name: "SummarizeStrategyIgnoresLimit", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 99)), want: generationActionGenerateAssistant},
+		{name: "NewContextReceiptWithUnknownWindow", messages: history(prompt(t, 1, "go"), checkpointStep(t, 2, saveResult, newContextResult)), budget: &unknownWindow, want: generationActionContextRollover, wantReason: rolloverReasonModel},
+		{name: "SiblingToolsSettleBeforeReceipt", messages: history(prompt(t, 1, "go"), checkpointStep(t, 2, newContextResult)), budget: &budget, want: generationActionExecuteLocalTools},
+		{name: "ReceiptHonoredOncePerWindow", messages: history(prompt(t, 1, "go"), checkpointStep(t, 2, saveResult, newContextResult), rolloverBoundary(t, 5)), budget: &budget, want: generationActionGenerateAssistant},
+		{name: "RefusedNewContextIsNoReceipt", messages: history(prompt(t, 1, "go"), checkpointStep(t, 2, saveResult,
+			codersdk.ChatMessageToolResult("new", chattool.NewContextToolName, json.RawMessage(`{"code":"rollover_disabled","error":"disabled"}`), false, false),
+		)), budget: &budget, want: generationActionGenerateAssistant},
+		{name: "FailedNewContextIsNoReceipt", messages: history(prompt(t, 1, "go"), checkpointStep(t, 2, saveResult,
+			codersdk.ChatMessageToolResult("new", chattool.NewContextToolName, scheduled, true, false),
+		)), budget: &budget, want: generationActionGenerateAssistant},
 		{name: "MaxStepsFinishesFirst", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 80)), budget: &budget, maxSteps: 1, want: generationActionFinishTurn},
 	}
 	for _, tc := range tests {
@@ -173,7 +202,11 @@ func TestDecideGenerationActionContextRollover(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tc.want, decision.kind)
 			if tc.want == generationActionContextRollover {
-				require.Equal(t, rolloverReasonLimit, decision.rolloverReason)
+				wantReason := tc.wantReason
+				if wantReason == "" {
+					wantReason = rolloverReasonLimit
+				}
+				require.Equal(t, wantReason, decision.rolloverReason)
 			}
 		})
 	}
@@ -249,4 +282,39 @@ func TestBuildRolloverMessages(t *testing.T) {
 		require.NoError(t, err)
 		require.NotContains(t, parts[0].Text, "interrupted", "a rollover before answering a new prompt interrupted nothing")
 	})
+}
+
+func TestTagUserRowsWithItemIDs(t *testing.T) {
+	t.Parallel()
+
+	request := dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("first"), codersdk.ChatMessageText("second"))
+	fileOnly := dbMessage(t, 2, database.ChatMessageRoleUser, false, codersdk.ChatMessageFile(uuid.New(), "image/png", "screenshot.png"))
+	answer := dbMessage(t, 3, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("answer"))
+	anchor := dbMessage(t, 4, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("lead-in"))
+	anchor.Visibility = database.ChatMessageVisibilityModel
+	replay := dbMessage(t, 5, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("pending"))
+	replay.Visibility = database.ChatMessageVisibilityModel
+	rows := []database.ChatMessage{request, fileOnly, answer, anchor, replay}
+	original := slices.Clone(rows)
+
+	tagged, err := tagUserRowsWithItemIDs(rows)
+	require.NoError(t, err)
+	require.Equal(t, original, rows, "the input rows are persisted elsewhere and must stay untagged")
+
+	texts := func(msg database.ChatMessage) []string {
+		parts, err := chatprompt.ParseContent(msg)
+		require.NoError(t, err)
+		var out []string
+		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeText {
+				out = append(out, part.Text)
+			}
+		}
+		return out
+	}
+	require.Equal(t, []string{"first", "second\n[id: 1]"}, texts(tagged[0]))
+	require.Equal(t, []string{"[id: 2]"}, texts(tagged[1]))
+	for _, i := range []int{2, 3, 4} {
+		require.Equal(t, rows[i], tagged[i], "row %d is not a user request", rows[i].ID)
+	}
 }
