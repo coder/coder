@@ -481,7 +481,7 @@ checksum = "sha256:d722201a9c0c086d1610e111c48203009af690892ed708072bd5ae20160e7
 url = "https://dl.google.com/go/go1.26.9.windows-amd64.zip"
 
 [[tools."go:github.com/coder/paralleltestctx/cmd/paralleltestctx"]]
-version = "0.0.2"
+version = "95009df793fb85bcbe71628e6dded30e5cfdb3c3"
 backend = "go:github.com/coder/paralleltestctx/cmd/paralleltestctx"
 
 [[tools."go:github.com/coder/sqlc/cmd/sqlc"]]
