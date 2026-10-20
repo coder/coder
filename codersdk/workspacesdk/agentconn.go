@@ -1291,6 +1291,10 @@ type UploadChatFileRequest struct {
 	// agent sanitizes again as defense in depth for direct tailnet
 	// callers.
 	Name string
+	// FileID, when set, makes the upload write-once: the agent writes
+	// files/<file-id>/<name> only if it is absent, and otherwise returns
+	// the existing file's path and size.
+	FileID uuid.UUID
 	// Body must remain readable until UploadChatFile returns.
 	Body io.Reader
 }
@@ -1310,10 +1314,14 @@ func (c *agentConn) UploadChatFile(ctx context.Context, req UploadChatFileReques
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	res, err := c.apiRequest(ctx, http.MethodPost, agentAPIPath("/api/v0/upload-chat-file", neturl.Values{
+	query := neturl.Values{
 		"chat_id": []string{req.ChatID},
 		"name":    []string{req.Name},
-	}), req.Body)
+	}
+	if req.FileID != uuid.Nil {
+		query.Set("file_id", req.FileID.String())
+	}
+	res, err := c.apiRequest(ctx, http.MethodPost, agentAPIPath("/api/v0/upload-chat-file", query), req.Body)
 	if err != nil {
 		return AgentUploadChatFileResponse{}, xerrors.Errorf("upload chat file: %w", err)
 	}

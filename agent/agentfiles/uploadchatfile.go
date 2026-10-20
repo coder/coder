@@ -93,6 +93,7 @@ func (api *API) HandleUploadChatFile(rw http.ResponseWriter, r *http.Request) {
 		RequiredNotEmpty("name")
 	chatID := parser.UUID(query, uuid.Nil, "chat_id")
 	rawName := parser.String(query, "", "name")
+	fileID := parser.UUID(query, uuid.Nil, "file_id")
 	parser.ErrorExcessParams(query)
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -130,24 +131,35 @@ func (api *API) HandleUploadChatFile(rw http.ResponseWriter, r *http.Request) {
 	// Workspace uploads intentionally stream without a MaxBytesReader cap.
 	// The uploaded bytes land in the user's workspace filesystem rather than
 	// coderd storage, so workspace disk limits are the enforcement boundary.
-	dir := chatfiles.WorkspaceUploadDir(home, chatID.String())
-	finalName, finalPath, size, err := api.writeUploadExclusiveSecure(home, chatID.String(), dir, name, body)
+	target := uploadTarget{
+		homeDir: home,
+		chatID:  chatID.String(),
+		dir:     chatfiles.WorkspaceUploadDir(home, chatID.String()),
+	}
+	if fileID != uuid.Nil {
+		target.fileID = fileID.String()
+		target.dir = chatfiles.WorkspaceUploadFileDir(home, target.chatID, target.fileID)
+	}
+	finalName, finalPath, size, err := api.writeUploadExclusiveSecure(target, name, body)
 	if errors.Is(err, errUploadSecureUnsupported) {
-		err = api.prepareUploadDirPath(home, chatID.String(), dir)
+		err = api.prepareUploadDirPath(target)
 		if err == nil {
-			finalName, finalPath, size, err = api.writeUploadExclusivePath(dir, name, body)
+			finalName, finalPath, size, err = api.writeUploadExclusivePath(target.dir, name, target.mode(), body)
 		}
 	}
 	if err != nil {
 		status := http.StatusInternalServerError
 		switch {
-		case errors.Is(err, errUploadCollisionExhausted):
+		case errors.Is(err, errUploadCollisionExhausted), errors.Is(err, errUploadTargetNotRegular):
 			status = http.StatusConflict
 		case errors.Is(err, errUploadDirSymlink), errors.Is(err, os.ErrPermission):
 			status = http.StatusForbidden
+		case errors.Is(err, errUploadPublishInProgress):
+			status = http.StatusServiceUnavailable
 		}
 		api.logger.Warn(ctx, "workspace chat file upload failed",
 			slog.F("chat_id", chatID),
+			slog.F("file_id", fileID),
 			slog.F("name", name),
 			slog.F("bytes_received", body.received),
 			slog.F("duration", time.Since(start)),
@@ -173,27 +185,78 @@ var errUploadSecureUnsupported = xerrors.New("secure workspace upload unsupporte
 
 var errUploadCollisionExhausted = xerrors.New("too many existing files with the same name")
 
-func (api *API) prepareUploadDirPath(homeDir, chatID, dir string) error {
-	if err := api.rejectSymlinkedUploadDir(homeDir, chatID); err != nil {
-		return err
+var errUploadTargetNotRegular = xerrors.New("workspace upload target exists and is not a regular file")
+
+// errUploadPublishInProgress means a write-once upload found the empty
+// placeholder of a concurrent upload of the same file that has not
+// renamed its content into place yet.
+var errUploadPublishInProgress = xerrors.New("another upload of this file is still being published")
+
+// checkWriteOnceExisting rejects an existing empty file when this upload
+// has content, since the fallback writers publish through an empty
+// placeholder and acknowledging it could report a file that never gets
+// its content.
+func checkWriteOnceExisting(existingSize, uploadedSize int64) error {
+	if existingSize == 0 && uploadedSize > 0 {
+		return errUploadPublishInProgress
 	}
-	if err := api.filesystem.MkdirAll(dir, 0o755); err != nil {
-		return xerrors.Errorf("create upload directory: %w", err)
-	}
-	return api.rejectSymlinkedUploadDir(homeDir, chatID)
+	return nil
 }
 
-func (api *API) rejectSymlinkedUploadDir(homeDir, chatID string) error {
+// uploadPublishMode selects how an upload claims its final name.
+type uploadPublishMode int
+
+const (
+	// uploadPublishUniqueName adds a collision suffix until the name is free.
+	uploadPublishUniqueName uploadPublishMode = iota
+	// uploadPublishWriteOnce publishes only under the exact name and treats
+	// an existing regular file there as the result of an earlier identical
+	// upload, so retried deliveries of one chat file are idempotent.
+	uploadPublishWriteOnce
+)
+
+// uploadTarget is the upload directory below the agent home directory.
+type uploadTarget struct {
+	homeDir string
+	chatID  string
+	// fileID is empty unless the upload is write-once, in which case dir
+	// is the per-file directory below the chat's files directory.
+	fileID string
+	dir    string
+}
+
+func (t uploadTarget) mode() uploadPublishMode {
+	if t.fileID != "" {
+		return uploadPublishWriteOnce
+	}
+	return uploadPublishUniqueName
+}
+
+func (api *API) prepareUploadDirPath(target uploadTarget) error {
+	if err := api.rejectSymlinkedUploadDir(target); err != nil {
+		return err
+	}
+	if err := api.filesystem.MkdirAll(target.dir, 0o755); err != nil {
+		return xerrors.Errorf("create upload directory: %w", err)
+	}
+	return api.rejectSymlinkedUploadDir(target)
+}
+
+func (api *API) rejectSymlinkedUploadDir(target uploadTarget) error {
 	lstater, ok := api.filesystem.(afero.Lstater)
 	if !ok {
 		return nil
 	}
-	for _, dir := range []string{
-		filepath.Join(homeDir, ".coder"),
-		filepath.Join(homeDir, chatfiles.WorkspaceChatsDir),
-		chatfiles.WorkspaceChatDir(homeDir, chatID),
-		chatfiles.WorkspaceUploadDir(homeDir, chatID),
-	} {
+	dirs := []string{
+		filepath.Join(target.homeDir, ".coder"),
+		filepath.Join(target.homeDir, chatfiles.WorkspaceChatsDir),
+		chatfiles.WorkspaceChatDir(target.homeDir, target.chatID),
+		chatfiles.WorkspaceUploadDir(target.homeDir, target.chatID),
+	}
+	if target.fileID != "" {
+		dirs = append(dirs, chatfiles.WorkspaceUploadFileDir(target.homeDir, target.chatID, target.fileID))
+	}
+	for _, dir := range dirs {
 		info, _, err := lstater.LstatIfPossible(dir)
 		if errors.Is(err, os.ErrNotExist) {
 			continue
@@ -208,7 +271,7 @@ func (api *API) rejectSymlinkedUploadDir(homeDir, chatID string) error {
 	return nil
 }
 
-func (api *API) writeUploadExclusivePath(dir, name string, r io.Reader) (finalName, finalPath string, size int64, err error) {
+func (api *API) writeUploadExclusivePath(dir, name string, mode uploadPublishMode, r io.Reader) (finalName, finalPath string, size int64, err error) {
 	api.sweepStaleUploadTempsPath(dir)
 
 	tmp, err := uploadTempName(name)
@@ -239,6 +302,16 @@ func (api *API) writeUploadExclusivePath(dir, name string, r io.Reader) (finalNa
 		placeholder, err := api.filesystem.OpenFile(candidatePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 		if err != nil {
 			if errors.Is(err, os.ErrExist) {
+				if mode == uploadPublishWriteOnce {
+					existingSize, err := api.existingUploadSizePath(candidatePath)
+					if err != nil {
+						return "", "", 0, err
+					}
+					if err := checkWriteOnceExisting(existingSize, n); err != nil {
+						return "", "", 0, err
+					}
+					return candidate, candidatePath, existingSize, nil
+				}
 				continue
 			}
 			return "", "", 0, xerrors.Errorf("create upload target: %w", err)
@@ -254,6 +327,25 @@ func (api *API) writeUploadExclusivePath(dir, name string, r io.Reader) (finalNa
 		return candidate, candidatePath, n, nil
 	}
 	return "", "", 0, errUploadCollisionExhausted
+}
+
+// existingUploadSizePath returns the size of the regular file a write-once
+// upload found at its target path.
+func (api *API) existingUploadSizePath(p string) (int64, error) {
+	var info os.FileInfo
+	var err error
+	if lstater, ok := api.filesystem.(afero.Lstater); ok {
+		info, _, err = lstater.LstatIfPossible(p)
+	} else {
+		info, err = api.filesystem.Stat(p)
+	}
+	if err != nil {
+		return 0, xerrors.Errorf("check existing upload: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return 0, xerrors.Errorf("%w: %s", errUploadTargetNotRegular, p)
+	}
+	return info.Size(), nil
 }
 
 func (api *API) sweepStaleUploadTempsPath(dir string) {
