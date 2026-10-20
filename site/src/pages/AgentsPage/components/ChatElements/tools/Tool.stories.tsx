@@ -2017,6 +2017,16 @@ export const CopyAttachmentsWithoutResult: Story = {
 	},
 };
 
+export const CopyAttachmentsFailed: Story = {
+	args: {
+		name: "copy_attachments_to_workspace",
+		status: "error",
+		args: {},
+		result: { error: "workspace agent is not connected" },
+		isError: true,
+	},
+};
+
 // ---------------------------------------------------------------------------
 // Tool failure display stories
 // ---------------------------------------------------------------------------
