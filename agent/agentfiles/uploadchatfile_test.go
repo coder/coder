@@ -348,6 +348,50 @@ func TestHandleUploadChatFile_WriteOnceRejectsSymlinkedFileDir(t *testing.T) {
 	}
 }
 
+func TestHandleUploadChatFile_WriteOnceOldEmptyTarget(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		body     string
+		wantBody string
+	}{
+		// A crash between creating the placeholder and renaming the
+		// content over it leaves an empty file that retries must replace.
+		{name: "AbandonedPlaceholder", body: "payload", wantBody: "payload"},
+		// An empty upload publishes an empty file, which its retries
+		// acknowledge.
+		{name: "EmptyUpload", body: "", wantBody: ""},
+	}
+	for _, tc := range uploadChatFileFilesystems {
+		for _, tt := range tests {
+			t.Run(tc.name+"/"+tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				home := t.TempDir()
+				r := newUploadChatFileRouter(t, tc.fs, home)
+				fileID := uuid.NewString()
+				dir := chatfiles.WorkspaceUploadFileDir(home, uploadChatFileTestChatID, fileID)
+				require.NoError(t, os.MkdirAll(dir, 0o755))
+				target := filepath.Join(dir, "archive.zip")
+				require.NoError(t, os.WriteFile(target, nil, 0o600))
+				old := time.Now().Add(-2 * time.Hour)
+				require.NoError(t, os.Chtimes(target, old, old))
+
+				resp := decodeUploadChatFileResponse(t, uploadChatFileOnce(t, r, fileID, "archive.zip", strings.NewReader(tt.body)))
+
+				require.Equal(t, workspacesdk.AgentUploadChatFileResponse{Path: target, Name: "archive.zip", Size: int64(len(tt.wantBody))}, resp)
+				contents, err := os.ReadFile(target)
+				require.NoError(t, err)
+				require.Equal(t, tt.wantBody, string(contents))
+				entries, err := os.ReadDir(dir)
+				require.NoError(t, err)
+				require.Len(t, entries, 1, "temp files must not outlive a write-once upload")
+			})
+		}
+	}
+}
+
 func TestHandleUploadChatFile_RejectsSymlinkedUploadDir(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {

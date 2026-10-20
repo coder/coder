@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
@@ -96,6 +97,23 @@ func TestPublishUploadAt_WriteOnceWithoutHardLinks(t *testing.T) {
 				require.NoError(t, os.Mkdir(target, 0o755))
 			},
 			wantErr: errUploadTargetNotRegular,
+		},
+		{
+			name: "PublishingPlaceholder",
+			existing: func(t *testing.T, target string) {
+				require.NoError(t, os.WriteFile(target, nil, 0o600))
+			},
+			wantErr: errUploadPublishInProgress,
+		},
+		{
+			name: "AbandonedPlaceholder",
+			existing: func(t *testing.T, target string) {
+				require.NoError(t, os.WriteFile(target, nil, 0o600))
+				old := time.Now().Add(-2 * time.Hour)
+				require.NoError(t, os.Chtimes(target, old, old))
+			},
+			wantSize: int64(len("payload")),
+			wantBody: "payload",
 		},
 	}
 	for _, tc := range tests {
