@@ -3,9 +3,11 @@ import type { TimeRange } from "./timeRange";
 import {
 	defaultTimeRange,
 	parseTimeRange,
+	queryWithSearch,
 	queryWithTimeRange,
 	toRFC3339,
 	withDefaultTimeRange,
+	withoutTimeRange,
 } from "./timeRange";
 
 const now = new Date(2026, 7, 13, 15, 0, 0);
@@ -39,8 +41,8 @@ describe("withDefaultTimeRange", () => {
 	});
 
 	it("appends the default range alongside other filters", () => {
-		expect(withDefaultTimeRange("initiator:me", range)).toBe(
-			'initiator:me started_after:"2026-08-12T15:00:00Z" started_before:"2026-08-13T15:00:00Z"',
+		expect(withDefaultTimeRange("initiator:me claude", range)).toBe(
+			'initiator:me claude started_after:"2026-08-12T15:00:00Z" started_before:"2026-08-13T15:00:00Z"',
 		);
 	});
 
@@ -67,18 +69,48 @@ describe("queryWithTimeRange", () => {
 		end: new Date(Date.UTC(2026, 7, 13, 15, 0, 0)),
 	};
 
-	it("preserves other filters and replaces the time range", () => {
+	it("preserves other filters and search text and replaces the time range", () => {
 		expect(
 			queryWithTimeRange(
-				{
-					initiator: "me",
-					started_after: "2026-01-01T00:00:00Z",
-					started_before: "2026-01-02T00:00:00Z",
-				},
+				'initiator:me started_after:"2026-01-01T00:00:00Z" started_before:"2026-01-02T00:00:00Z" claude',
 				range,
 			),
 		).toBe(
-			'initiator:me started_after:"2026-08-12T15:00:00Z" started_before:"2026-08-13T15:00:00Z"',
+			'initiator:me claude started_after:"2026-08-12T15:00:00Z" started_before:"2026-08-13T15:00:00Z"',
+		);
+	});
+});
+
+describe("withoutTimeRange", () => {
+	it("strips both bounds and keeps everything else", () => {
+		expect(
+			withoutTimeRange(
+				'initiator:me started_after:"2026-01-01T00:00:00Z" model:"a:0" started_before:"2026-01-02T00:00:00Z"',
+			),
+		).toBe('initiator:me model:"a:0"');
+	});
+});
+
+describe("queryWithSearch", () => {
+	const current =
+		'initiator:me started_after:"2026-01-01T00:00:00Z" started_before:"2026-01-02T00:00:00Z"';
+
+	it("keeps the current time range alongside the new search", () => {
+		expect(queryWithSearch(current, 'model:"a:0"')).toBe(
+			'model:"a:0" started_after:"2026-01-01T00:00:00Z" started_before:"2026-01-02T00:00:00Z"',
+		);
+	});
+
+	it("keeps only the time range when the search is cleared", () => {
+		expect(queryWithSearch(current, "")).toBe(
+			'started_after:"2026-01-01T00:00:00Z" started_before:"2026-01-02T00:00:00Z"',
+		);
+	});
+
+	it("lets a typed time bound override only that bound", () => {
+		const search = 'client:cursor started_after:"2026-01-01T12:00:00Z"';
+		expect(queryWithSearch(current, search)).toBe(
+			'client:cursor started_after:"2026-01-01T12:00:00Z" started_before:"2026-01-02T00:00:00Z"',
 		);
 	});
 });

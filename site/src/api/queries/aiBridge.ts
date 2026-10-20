@@ -30,6 +30,29 @@ export const paginatedSessions = (
 	};
 };
 
+export const aiBridgeProvidersKey = ["aiBridgeProviders"] as const;
+
+export const aiBridgeProviders = () => ({
+	queryKey: aiBridgeProvidersKey,
+	queryFn: () => API.getAIBridgeProviders(),
+});
+
+export const aiBridgeClientsKey = (q: string, limit: number) =>
+	["aiBridgeClients", q, limit] as const;
+
+export const aiBridgeClients = (q: string, limit: number) => ({
+	queryKey: aiBridgeClientsKey(q, limit),
+	queryFn: () => API.getAIBridgeClients({ q, limit }),
+});
+
+export const aiBridgeModelsKey = (model: string, limit: number) =>
+	["aiBridgeModels", model, limit] as const;
+
+export const aiBridgeModels = (model: string, limit: number) => ({
+	queryKey: aiBridgeModelsKey(model, limit),
+	queryFn: () => API.getAIBridgeModels({ model, limit }),
+});
+
 // The spend endpoints authorize on reading the organization's group members,
 // so this lists exactly the organizations they would serve.
 export const aiSpendOrganizations = () =>

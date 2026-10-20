@@ -1,6 +1,8 @@
 import { cn } from "cn";
 import { InfoIcon } from "lucide-react";
+import { hasError, isApiValidationError } from "#/api/errors";
 import type { AIBridgeSession } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import {
 	PaginationContainer,
 	type PaginationResult,
@@ -150,15 +152,21 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 
 	return (
 		<>
-			<div className="flex items-start gap-2">
-				<div className="min-w-0 flex-1">
-					<ListSessionsFilter {...filterProps} />
+			<div className="mb-4 flex flex-col gap-4">
+				{hasError(filterProps.error) &&
+					!isApiValidationError(filterProps.error) && (
+						<ErrorAlert error={filterProps.error} />
+					)}
+				<div className="flex items-start gap-2">
+					<div className="min-w-0 flex-1">
+						<ListSessionsFilter {...filterProps} />
+					</div>
+					<ColumnsMenu
+						settings={columnSettings}
+						onSettingsChange={updateColumnSettings}
+						fittingCount={fittingCount}
+					/>
 				</div>
-				<ColumnsMenu
-					settings={columnSettings}
-					onSettingsChange={updateColumnSettings}
-					fittingCount={fittingCount}
-				/>
 			</div>
 
 			<PaginationContainer

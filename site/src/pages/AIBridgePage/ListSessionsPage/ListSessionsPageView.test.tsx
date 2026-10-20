@@ -1,10 +1,9 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { UseFilterMenuResult } from "#/components/Filter/menu";
 import { mockSuccessResult } from "#/components/PaginationWidget/PaginationContainer.mocks";
 import { MockSession } from "#/testHelpers/entities";
-import { renderComponent } from "#/testHelpers/renderHelpers";
+import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { MockResizeObserver } from "#/testHelpers/resizeObserver";
 import { ListSessionsPageView } from "./ListSessionsPageView";
 import { sessionColumnViews } from "./sessionColumns";
@@ -12,19 +11,8 @@ import { sessionColumnsStorageKey } from "./useSessionColumns";
 
 const userId = "user-1";
 
-const menu: UseFilterMenuResult = {
-	initialOption: undefined,
-	isInitializing: false,
-	isSearching: false,
-	query: "",
-	searchOptions: [],
-	selectedOption: undefined,
-	selectOption: vi.fn(),
-	setQuery: vi.fn(),
-};
-
 const renderView = (viewUserId = userId) =>
-	renderComponent(
+	renderWithAuth(
 		<ListSessionsPageView
 			userId={viewUserId}
 			isLoading={false}
@@ -42,7 +30,6 @@ const renderView = (viewUserId = userId) =>
 					debounceUpdate: vi.fn(),
 					cancelDebounce: vi.fn(),
 				},
-				menus: { user: menu, provider: menu, client: menu, model: menu },
 				timeRange: {
 					start: new Date("2026-08-12T15:00:00Z"),
 					end: new Date("2026-08-13T15:00:00Z"),
@@ -58,7 +45,7 @@ const savedSettings = (id: string) =>
 
 const openColumnsMenu = async () => {
 	const user = userEvent.setup();
-	await user.click(screen.getByRole("button", { name: "Columns" }));
+	await user.click(await screen.findByRole("button", { name: "Columns" }));
 	return user;
 };
 
