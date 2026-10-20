@@ -45,6 +45,7 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { toast } from "#/components/Toaster/toast";
 import { useClipboard } from "#/hooks/useClipboard";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
 	type ArchiveAndDeleteAction,
 	fetchArchiveAndDeleteAction,
@@ -56,6 +57,7 @@ import { clearPersistedSidebarTabId } from "../utils/sidebarTabStorage";
 import { ArchiveAndDeleteWorkspaceDialog } from "./ArchiveAndDeleteWorkspaceDialog";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
 import { ChatPRMenuItems } from "./ChatsSidebar/tree/ChatPRMenuItems";
+import { MoveToProjectMenuItems } from "./MoveToProjectMenuItems";
 
 // Backend chatstate permits archive only from W, E0, and E1. Unknown status
 // stays fail-open so the server conflict response remains the backstop.
@@ -327,6 +329,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	SubContent,
 }) => {
 	const { copyToClipboard } = useClipboard();
+	const { experiments } = useDashboard();
 	const isArchived = chat.archived;
 	const isPinned = chat.pin_order > 0;
 	const isChildChat = getParentChatID(chat) !== undefined;
@@ -338,10 +341,13 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	// child chats expose neither archive nor unarchive.
 	const showArchiveActions = canManage && !isArchived && !isChildChat;
 	const showUnarchiveAction = canManage && isArchived && !isChildChat;
+	const showMoveToProject =
+		showArchiveActions && experiments.includes("chat-projects");
 	const hasActionsAboveCopy = canManage
 		? showUnarchiveAction ||
 			(!isArchived &&
 				(Boolean(onOpenRenameDialog) ||
+					showMoveToProject ||
 					showPinAction ||
 					showSubagentsToggle ||
 					showReadToggle))
@@ -475,6 +481,18 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 							<SquarePenIcon className="size-3.5" />
 							Rename chat
 						</Item>
+					)}
+					{showMoveToProject && (
+						<MoveToProjectMenuItems
+							chat={chat}
+							blocked={isArchiveBlocked}
+							describedBy={archiveBlockedDescribedBy}
+							Item={Item}
+							Separator={Separator}
+							Sub={Sub}
+							SubTrigger={SubTrigger}
+							SubContent={SubContent}
+						/>
 					)}
 					{subagentToggle}
 					{readToggle}

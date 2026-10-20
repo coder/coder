@@ -186,7 +186,6 @@ type AgentChatInputProps = {
 	chatOrganizationId?: string;
 	// Project of the chat, whose skills the "/" menu offers.
 	chatProjectId?: string;
-	isChatProjectPending?: boolean;
 	isWorkspaceLoading?: boolean;
 	// Opts in to project action skills above the composer, which also need
 	// the chat-projects experiment and a composer the user can send from.
@@ -534,7 +533,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	onWorkspaceChange,
 	chatOrganizationId,
 	chatProjectId,
-	isChatProjectPending,
 	isWorkspaceLoading,
 	showProjectActions = false,
 	queuedMessages = [],
@@ -1495,9 +1493,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						organizationId={chatOrganizationId}
 						projectId={
 							experiments.includes("chat-projects") ? chatProjectId : undefined
-						}
-						isProjectPending={
-							experiments.includes("chat-projects") && isChatProjectPending
 						}
 						workspaceSkills={workspaceSkills}
 						slashCommands={slashCommands}

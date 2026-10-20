@@ -69,7 +69,7 @@ export type RowSection = "work" | "answer";
  * Sources fold without splitting the answer, since OpenAI streams citations
  * between the deltas of one text part.
  */
-export const splitRowBlocks = (
+const splitRowBlocks = (
 	blocks: readonly RenderBlock[],
 	tools: readonly MergedTool[],
 ) => {
@@ -89,7 +89,9 @@ export const splitRowBlocks = (
 		if (
 			index <= lastWorkIndex ||
 			!visible.has(block) ||
-			block.type === "sources"
+			block.type === "sources" ||
+			// A file belongs to the step that attached it.
+			block.type === "file"
 		) {
 			work.push(block);
 		} else if (block.type === "response" && previous?.type === "response") {
@@ -103,6 +105,44 @@ export const splitRowBlocks = (
 	}
 
 	return { work, answer } satisfies Record<RowSection, RenderBlock[]>;
+};
+
+type GetRowBlocksOptions = {
+	section: RowSection | undefined;
+	hideAttachments: boolean;
+};
+
+/**
+ * A row's blocks, or its work or answer section when the row ends a working
+ * block. Files that hideAttachments drops from agent rows are listed under
+ * Attachments once their step persists.
+ */
+export const getRowBlocks = (
+	blocks: readonly RenderBlock[],
+	tools: readonly MergedTool[],
+	{ section, hideAttachments }: GetRowBlocksOptions,
+): readonly RenderBlock[] => {
+	const sectionBlocks =
+		section === undefined ? blocks : splitRowBlocks(blocks, tools)[section];
+	return hideAttachments
+		? sectionBlocks.filter((block) => block.type !== "file")
+		: sectionBlocks;
+};
+
+/** True for an agent message row left empty once its attachments are hidden. */
+export const isAgentAttachmentOnlyRow = (row: TimelineRow): boolean => {
+	if (row.type !== "message") {
+		return false;
+	}
+	const { message, parsed } = row.entry;
+	if (message.role !== "assistant" || parsed.hookNotices.length > 0) {
+		return false;
+	}
+	const { visibleBlocks } = getVisibleContent(parsed.blocks, parsed.tools);
+	return (
+		visibleBlocks.length > 0 &&
+		visibleBlocks.every((block) => block.type === "file")
+	);
 };
 
 type RowContent = ReturnType<typeof getVisibleContent>;

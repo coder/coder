@@ -176,17 +176,17 @@
 
         paralleltestctx = unstablePkgs.buildGo126Module {
           pname = "paralleltestctx";
-          version = "0.0.2";
+          version = "0.0.2-unstable-2026-10-20";
 
           src = pkgs.fetchFromGitHub {
             owner = "coder";
             repo = "paralleltestctx";
-            rev = "v0.0.2";
-            sha256 = "sha256-qFQ4LZR2IwqscypD0URSZKXTlhUcz/axDb8NTH5CxLw=";
+            rev = "95009df793fb85bcbe71628e6dded30e5cfdb3c3";
+            sha256 = "sha256-8uvRRSDPgXGtSL5YFdd5gxPAt0d9jXZ+kPivrkkgI7c=";
           };
 
           subPackages = [ "cmd/paralleltestctx" ];
-          vendorHash = "sha256-OuQWmZmofdJKq1hvk43RPkILQwAuFzqhmB22Xf6Z3lA=";
+          vendorHash = "sha256-gWFc1Cm+UMNcvBxUgyVrreFXbwR8rwac4L2QBUDKo6M=";
         };
 
         # Keep this pin aligned with mise.toml when updating Terraform.

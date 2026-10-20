@@ -73,18 +73,11 @@ const workspaceFileReference = (
 	workspace_file_media_type: "text/csv",
 });
 
-const mockRootChat: TypesGen.Chat = {
+const mockProjectChat: TypesGen.Chat = {
 	...MockChat,
-	id: "root-chat",
+	id: "project-chat",
 	organization_id: "org-1",
 	project_id: "project-1",
-};
-const mockSubagentChat: TypesGen.Chat = {
-	...MockChat,
-	id: "subagent-chat",
-	organization_id: "org-1",
-	parent_chat_id: mockRootChat.id,
-	root_chat_id: mockRootChat.id,
 };
 
 const mockSkillRequests = () => {
@@ -111,54 +104,6 @@ afterEach(() => {
 });
 
 describe("ChatPageInput", () => {
-	it("keeps a subagent chat's project skills unknown while its root chat loads", async () => {
-		const user = userEvent.setup();
-		const getChatProjectSkills = mockSkillRequests();
-		vi.spyOn(API.experimental, "getChat").mockReturnValue(
-			new Promise(() => {}),
-		);
-		const inputRef = createRef<ChatMessageInputRef>();
-
-		renderChatPageInput(createChatStore(), {
-			chat: mockSubagentChat,
-			inputRef,
-		});
-
-		await user.click(
-			await screen.findByRole("textbox", { name: "Chat message" }),
-		);
-		await user.paste("/comp");
-		// An inherited project skill may shadow /compact, so the command
-		// stays hidden and Enter picks the qualified personal skill.
-		await screen.findByRole("option", { name: /^\/personal\/compactor/ });
-		await user.keyboard("{Enter}");
-		expect(inputRef.current?.getContentParts()).toContainEqual({
-			type: "skill-invocation",
-			source: "personal",
-			name: "compactor",
-		});
-		expect(getChatProjectSkills).not.toHaveBeenCalled();
-	});
-
-	it("loads the root chat's project skills for a subagent chat", async () => {
-		const user = userEvent.setup();
-		const getChatProjectSkills = mockSkillRequests();
-		const getChat = vi
-			.spyOn(API.experimental, "getChat")
-			.mockResolvedValue(mockRootChat);
-
-		renderChatPageInput(createChatStore(), { chat: mockSubagentChat });
-
-		await user.click(
-			await screen.findByRole("textbox", { name: "Chat message" }),
-		);
-		await user.paste("/");
-		await waitFor(() => {
-			expect(getChatProjectSkills).toHaveBeenCalledWith("org-1", "project-1");
-		});
-		expect(getChat).toHaveBeenCalledWith(mockRootChat.id, expect.anything());
-	});
-
 	it("inserts a project action from More into the chat's composer", async () => {
 		const user = userEvent.setup();
 		const getChatProjectSkills = mockSkillRequests();
@@ -172,7 +117,7 @@ describe("ChatPageInput", () => {
 		);
 		const inputRef = createRef<ChatMessageInputRef>();
 
-		renderChatPageInput(createChatStore(), { chat: mockRootChat, inputRef });
+		renderChatPageInput(createChatStore(), { chat: mockProjectChat, inputRef });
 
 		await user.click(
 			await screen.findByRole("button", { name: "More project actions" }),

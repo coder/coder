@@ -401,6 +401,16 @@ WHERE
     id = @id::bigint
     AND deleted = false;
 
+-- name: GetChatMessageByIDForStream :one
+-- Includes deleted rows so the stream can resolve which chat a deleted cursor
+-- belongs to.
+SELECT
+    *
+FROM
+    chat_messages
+WHERE
+    id = @id::bigint;
+
 -- name: GetChatMessagesByChatID :many
 -- Ordered by id to match the @after_id cursor. created_at is the transaction
 -- start time, so it can disagree with append order when a transaction takes the
@@ -1216,6 +1226,17 @@ chats_expanded AS (
 )
 SELECT *
 FROM chats_expanded;
+
+-- name: UpdateChatProjectIDByID :exec
+-- Sets the project of one chat. A NULL project_id removes the chat from
+-- its project.
+UPDATE
+    chats
+SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid changing list ordering.
+    project_id = sqlc.narg('project_id')::uuid
+WHERE
+    id = @id::uuid;
 
 -- name: UpdateChatLastModelConfigByID :one
 WITH updated_chat AS (

@@ -1,7 +1,5 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { getErrorDetail } from "#/api/errors";
-import { checkAuthorization } from "#/api/queries/authCheck";
 import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
 import {
 	chatProjectInstructions,
@@ -10,7 +8,6 @@ import {
 } from "#/api/queries/chatProjects";
 import { user } from "#/api/queries/users";
 import type { ChatProject } from "#/api/typesGenerated";
-import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useDialogFocusReturn } from "../useDialogFocusReturn";
@@ -59,20 +56,6 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	const skillsQuery = useQuery(
 		chatProjectSkills(project.organization_id, project.id),
 	);
-	const permissionsQuery = useQuery(
-		checkAuthorization({
-			checks: {
-				updateProject: {
-					object: {
-						resource_type: "chat_project",
-						owner_id: project.owner_id,
-						organization_id: project.organization_id,
-					},
-					action: "update",
-				},
-			},
-		}),
-	);
 	const [isSkillsDialogOpen, setIsSkillsDialogOpen] = useState(false);
 	const skillsFocusReturn = useDialogFocusReturn();
 	const updateMutation = useMutation(
@@ -94,26 +77,6 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	const openEditor = () => {
 		resetErrors();
 		setIsEditorOpen(true);
-	};
-
-	// Read during render so react-query tracks these for the click handler.
-	const { isSuccess: hasAccessResult, isFetching: isCheckingAccess } =
-		permissionsQuery;
-	const openSkills = async () => {
-		// Opening before a successful, settled check could show the wrong
-		// access. A check still in flight is awaited rather than restarted.
-		if (!hasAccessResult || isCheckingAccess) {
-			const { error } = await permissionsQuery.refetch({
-				cancelRefetch: false,
-			});
-			if (error) {
-				toast.error("Could not check your access to project skills.", {
-					description: getErrorDetail(error),
-				});
-				return;
-			}
-		}
-		setIsSkillsDialogOpen(true);
 	};
 
 	const runMutation = (mutate: (onSettled: () => void) => void) => {
@@ -141,12 +104,12 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				skillsError={skillsQuery.error}
 				onOpenSkills={(event) => {
 					skillsFocusReturn.rememberTrigger(event);
-					void openSkills();
+					setIsSkillsDialogOpen(true);
 				}}
 				instructions={instructionsQuery.data}
 				error={instructionsQuery.error}
 				onRetry={() => void instructionsQuery.refetch()}
-				onEditInstructions={openEditor}
+				onEditInstructions={project.permissions.update ? openEditor : undefined}
 			/>
 			<ProjectInstructionsDialog
 				open={isEditorOpen}
@@ -187,7 +150,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				project={project}
 				open={isSkillsDialogOpen}
 				onOpenChange={setIsSkillsDialogOpen}
-				canEdit={permissionsQuery.data?.updateProject ?? false}
+				canEdit={project.permissions.update}
 				onCloseAutoFocus={skillsFocusReturn.restoreFocus}
 			/>
 		</>
