@@ -234,7 +234,9 @@ function HeaderContent({
 	const { additions, deletions } = countChangedLines(fileDiff);
 	return (
 		<div className="flex h-8 min-w-0 items-center justify-between gap-3 border-0 border-b border-solid border-border bg-surface-secondary py-2 pr-1.5 pl-1 font-sans text-sm">
-			<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+			{/* Not overflow-hidden: it would clip the button's focus ring. The
+			    name container below does the truncation. */}
+			<div className="flex min-w-0 items-center gap-1.5">
 				<Button
 					variant="subtle"
 					size="icon"
