@@ -3388,3 +3388,21 @@ export const MoveToProjectOffWhileSubagentRuns: Story = {
 		(await screen.findByRole("menuitem", { name: "Move to project" })).focus();
 	},
 };
+
+export const PinnedAboveProjects: Story = {
+	args: {
+		chats: [
+			...mockProjectChats,
+			buildChat({
+				id: "pinned-chat",
+				title: "Pinned chat",
+				pin_order: 1,
+				organization_id: MockChatProject.organization_id,
+			}),
+		],
+	},
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+};
