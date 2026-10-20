@@ -432,9 +432,11 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	// are held back, so the section is not known to be empty yet.
 	const isWithholdingProjectChats =
 		isProjectsLoading && unpinnedOwnedChats.some((chat) => chat.project_id);
+	const isShowingPinnedSection =
+		!isLoading && !loadError && pinnedChats.length > 0;
+	const isPinnedSectionExpanded = !collapsedSections[PINNED_SECTION_KEY];
 	const isShowingEmptyState =
 		!isWithholdingProjectChats &&
-		pinnedChats.length === 0 &&
 		sharedWithYouChats.length === 0 &&
 		chatSections.length === 0;
 	const isViewingArchived = sidebarFilters.archiveStatus === "archived";
@@ -444,8 +446,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		: isViewingArchived
 			? "No archived agents"
 			: "No agents yet";
-	// Without projects the header stays pinned above the scrolling list, as
-	// before; with projects it scrolls below the folders.
+	// Scrolls with the list, below the Pinned and Projects sections.
 	const chatsHeader = (
 		<SidebarSectionHeader
 			title={chatsHeadingLabel}
@@ -569,7 +570,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 				)}
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
-				{!chatProjectsEnabled && chatsHeader}
 				<ScrollArea
 					className="min-h-0 flex-1 [&_[data-radix-scroll-area-viewport]>div]:block!"
 					scrollBarClassName="w-1.5"
@@ -597,6 +597,32 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						onDragMove={moveKeyboardChatDrag}
 						onDragEnd={handleDragEnd}
 					>
+						{isShowingPinnedSection && (
+							<ChatTreeContext value={chatTreeCtx}>
+								<SidebarSectionHeader
+									title={PINNED_SECTION_KEY}
+									collapsible={{
+										expanded: isPinnedSectionExpanded,
+										onToggle: () => toggleSection(PINNED_SECTION_KEY),
+									}}
+								/>
+								{isPinnedSectionExpanded && (
+									<div className="flex flex-col gap-0.5 px-2">
+										{disablePinnedReordering
+											? sortedPinnedChats.map((chat) => (
+													<ChatTreeNode key={chat.id} chat={chat} />
+												))
+											: sortedPinnedChats.map((chat, index) => (
+													<SortableChatTreeNode
+														key={chat.id}
+														chat={chat}
+														index={index}
+													/>
+												))}
+									</div>
+								)}
+							</ChatTreeContext>
+						)}
 						{/* Projects share the chat list's scroll area, so expanding a folder
 					    pushes the Chats section down instead of scrolling on its own. */}
 						{chatProjectsEnabled && (
@@ -625,11 +651,9 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 							</ChatTreeContext>
 						)}
 						<ChatDropArea target={{ kind: "unfiled", folderProjectIds }}>
-							{chatProjectsEnabled && (
-								<div className="group-data-[drop=unavailable]/drop:opacity-50">
-									{chatsHeader}
-								</div>
-							)}
+							<div className="group-data-[drop=unavailable]/drop:opacity-50">
+								{chatsHeader}
+							</div>
 							<div className="flex flex-col gap-2 px-2 pb-3">
 								{loadError ? (
 									<div className="space-y-3 px-1">
@@ -679,41 +703,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 												</div>
 											) : (
 												<>
-													{pinnedChats.length > 0 && (
-														<div className="not-first:mt-3">
-															<ChatSectionHeader
-																label={PINNED_SECTION_KEY}
-																count={pinnedChats.length}
-																expanded={
-																	!collapsedSections[PINNED_SECTION_KEY]
-																}
-																onToggle={() =>
-																	toggleSection(PINNED_SECTION_KEY)
-																}
-																testId={getSectionToggleTestId(
-																	PINNED_SECTION_KEY,
-																)}
-															/>
-															{!collapsedSections[PINNED_SECTION_KEY] &&
-																(disablePinnedReordering ? (
-																	<div className="flex flex-col gap-0.5">
-																		{sortedPinnedChats.map((chat) => (
-																			<ChatTreeNode key={chat.id} chat={chat} />
-																		))}
-																	</div>
-																) : (
-																	<div className="flex flex-col gap-0.5">
-																		{sortedPinnedChats.map((chat, index) => (
-																			<SortableChatTreeNode
-																				key={chat.id}
-																				chat={chat}
-																				index={index}
-																			/>
-																		))}
-																	</div>
-																))}
-														</div>
-													)}
 													{sharedWithYouChats.length > 0 && (
 														<div className="not-first:mt-3">
 															<ChatSectionHeader

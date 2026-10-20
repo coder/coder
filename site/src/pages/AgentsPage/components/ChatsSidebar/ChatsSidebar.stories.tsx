@@ -733,13 +733,9 @@ export const SectionHeadersCollapse: Story = {
 		// Exercise both section toggles: collapse then re-expand Pinned,
 		// then collapse Today and leave it collapsed so the capture shows
 		// a collapsed section alongside the expanded ones.
-		const pinnedToggle = canvas.getByRole("button", {
-			name: "Collapse Pinned section",
-		});
+		const pinnedToggle = canvas.getByRole("button", { name: "Pinned" });
 		await userEvent.click(pinnedToggle);
-		await userEvent.click(
-			await canvas.findByRole("button", { name: "Expand Pinned section" }),
-		);
+		await userEvent.click(pinnedToggle);
 
 		// Collapse Today and leave it collapsed so the capture shows a
 		// collapsed section alongside the expanded ones.

@@ -752,10 +752,11 @@ describe("ChatsSidebar sections", () => {
 			</Wrapper>,
 		);
 
-		const pinnedSection = screen.getByTestId("agents-section-toggle-Pinned");
+		const pinnedSection = screen.getByRole("button", { name: "Pinned" });
 		const pinnedSharedNode = screen.getByTestId(
 			"agents-tree-node-pinned-shared-chat",
 		);
+		const chatsHeading = screen.getByRole("heading", { name: "Chats" });
 		const sharedSection = screen.getByTestId(
 			"agents-section-toggle-Shared-with-you",
 		);
@@ -763,7 +764,6 @@ describe("ChatsSidebar sections", () => {
 		const todaySection = screen.getByTestId("agents-section-toggle-Today");
 		const ownedNode = screen.getByTestId("agents-tree-node-owned-chat");
 
-		expect(pinnedSection).toHaveTextContent("Pinned (1)");
 		expect(sharedSection).toHaveTextContent("Shared with you (2)");
 		expect(todaySection).toHaveTextContent("Today (2)");
 		expect(
@@ -771,7 +771,11 @@ describe("ChatsSidebar sections", () => {
 				Node.DOCUMENT_POSITION_FOLLOWING,
 		).toBeTruthy();
 		expect(
-			pinnedSharedNode.compareDocumentPosition(sharedSection) &
+			pinnedSharedNode.compareDocumentPosition(chatsHeading) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(
+			chatsHeading.compareDocumentPosition(sharedSection) &
 				Node.DOCUMENT_POSITION_FOLLOWING,
 		).toBeTruthy();
 		expect(
@@ -2687,5 +2691,44 @@ describe("ChatsSidebar copy actions", () => {
 		await waitFor(() => {
 			expect(writeText).toHaveBeenCalledWith("shared-copy-chat");
 		});
+	});
+});
+
+describe("ChatsSidebar pinned section", () => {
+	it("lists pinned chats above the Projects and Chats sections", async () => {
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+		);
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "pinned-chat",
+							title: "Pinned chat",
+							pin_order: 1,
+						}),
+						buildChat({ id: "unpinned-chat", title: "Unpinned chat" }),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		const pinnedRow = screen.getByRole("link", { name: /Pinned chat/ });
+		const projectsHeading = await screen.findByRole("heading", {
+			name: "Projects",
+		});
+		const chatsHeading = screen.getByRole("heading", { name: "Chats" });
+		expect(
+			pinnedRow.compareDocumentPosition(projectsHeading) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(
+			projectsHeading.compareDocumentPosition(chatsHeading) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
 	});
 });
