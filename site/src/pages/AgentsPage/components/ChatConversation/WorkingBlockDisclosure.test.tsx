@@ -261,7 +261,7 @@ describe("WorkingBlockDisclosure in a MessageScroller", () => {
 
 	it.each([
 		["", [], 140],
-		[" above its attached files", [row("files", 40)], 100],
+		[" above a later row of its turn", [row("narration", 40)], 100],
 	])(
 		"follows new output after the last block of an anchored turn expands in view%s",
 		async (_name, rowsBelow, replyHeight) => {

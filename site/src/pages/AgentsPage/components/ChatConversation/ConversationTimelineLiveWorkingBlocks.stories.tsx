@@ -95,7 +95,7 @@ export const RunningBetweenSteps: Story = {
 };
 
 // The block keeps working while only an attached file follows its last step.
-export const AttachedFilesRenderBelowLiveBlock: Story = {
+export const AttachmentFoldsIntoLiveBlock: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockAttachedFileMessages),
 		liveStatus: buildLiveStatus(),

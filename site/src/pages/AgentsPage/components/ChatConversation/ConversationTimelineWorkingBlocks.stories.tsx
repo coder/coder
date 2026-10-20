@@ -11,11 +11,12 @@ import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
 	buildLiveStatus,
-	MockAttachedFileMessages,
+	MockAttachmentWorkingMessages,
 	MockCollapsedStepsPreferences,
 	MockLeadInSearchMessages,
 	MockLongTurnPageLoads,
 	MockPageFromAttachedFileMessages,
+	MockPlanAttachmentMessages,
 	MockQuestionCallMessage,
 	MockUncitedSearchAnswerMessages,
 	MockWebSearchAnswerMessages,
@@ -191,37 +192,6 @@ export const TextBetweenStepsSplitsBlocks: Story = {
 	},
 };
 
-// The answer's reasoning after the attached file stays in the block.
-export const AttachedFilesRenderBelowBlock: Story = {
-	args: {
-		parsedMessages: parseMessagesWithMergedTools([
-			...MockAttachedFileMessages,
-			{
-				...MockChatMessage,
-				id: 5,
-				role: "assistant",
-				created_at: workingFixtureTime(4),
-				content: [
-					{
-						type: "reasoning",
-						text: "Summarizing the report",
-						created_at: workingFixtureTime(2),
-						completed_at: workingFixtureTime(3),
-					},
-					{ type: "text", text: "The inspection report is attached." },
-				],
-			},
-		]),
-	},
-	play: async ({ canvasElement }) => {
-		await userEvent.click(
-			within(canvasElement).getByRole("button", {
-				name: "Worked for 2s (1 step)",
-			}),
-		);
-	},
-};
-
 export const Paginated: Story = {
 	args: {
 		hasMoreMessages: true,
@@ -236,8 +206,8 @@ export const Paginated: Story = {
 	},
 };
 
-// The page's block may continue from older history, so it renders above the
-// attached file, where it stays once that history loads.
+// The page starts at an attached file, so its block may continue from older
+// history.
 export const PaginatedFromAttachedFile: Story = {
 	args: {
 		hasMoreMessages: true,
@@ -248,7 +218,7 @@ export const PaginatedFromAttachedFile: Story = {
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
 			within(canvasElement).getByRole("button", {
-				name: "Worked for at least 8s (1 step or more)",
+				name: "Worked for at least 11s (1 step or more)",
 			}),
 		);
 	},

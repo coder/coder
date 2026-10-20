@@ -11,8 +11,9 @@ import { assignTimelineRows, type TimelineRow } from "./timelineRows";
 import type { RenderBlock } from "./types";
 import {
 	type GroupWorkingBlocksOptions,
-	getRowBlocks,
+	getSliceContent,
 	groupWorkingBlocks,
+	isAgentAttachmentOnlyRow,
 	type RowSlice,
 	splitRowPieces,
 	type WorkingBlockLayout,
@@ -355,16 +356,13 @@ describe("groupWorkingBlocks", () => {
 			...step("c", 5, 6),
 		];
 		const answer = message("assistant", [text("Done.")], at(7));
-		const { rows, blocks } = group([prompt, ...steps, answer]);
+		const layout = group([prompt, ...steps, answer]);
 
-		expect(blocks).toHaveLength(1);
-		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([
-			steps[0].id,
-			steps[2].id,
-			steps[3].id,
-			steps[5].id,
+		expect(layoutOf(layout)).toEqual([
+			`${prompt.id}`,
+			[`${steps[0].id}`, `${steps[2].id}`, `${steps[3].id}`, `${steps[5].id}`],
+			`${answer.id}`,
 		]);
-		expect(blocks[0].endsWithAnswer).toBe(false);
 	});
 
 	it("treats an answer whose citations trail its text as the block's answer", () => {
@@ -518,38 +516,6 @@ describe("groupWorkingBlocks", () => {
 			[`${first[0].id}`, `${interlude.id}[0]`],
 			`${interlude.id}[1]`,
 			[`${second[0].id}`],
-		]);
-	});
-
-	it("renders attached files below their block and keeps the work after them in it", () => {
-		const prompt = user("Report");
-		const [attachCall, files, attachResult] = attachStep("a", 1, 2);
-		const steps = step("b", 3, 4);
-		const answer = message("assistant", [
-			reasoning("Wrap up", at(5), at(6)),
-			text("Done."),
-		]);
-		const layout = group([
-			prompt,
-			attachCall,
-			files,
-			attachResult,
-			...steps,
-			answer,
-		]);
-
-		expect(layoutOf(layout)).toEqual([
-			`${prompt.id}`,
-			[`${attachCall.id}`, `${steps[0].id}`, `${answer.id}[0]`],
-			`${files.id}`,
-			`${answer.id}[1]`,
-		]);
-		expect(layout.blocks).toMatchObject([
-			{
-				stepCount: 2,
-				startedAt: WORKING_FIXTURE_START + 1000,
-				endedAt: WORKING_FIXTURE_START + 6000,
-			},
 		]);
 	});
 
@@ -737,7 +703,7 @@ describe("groupWorkingBlocks", () => {
 		expect(complete.blocks[0].key).toBe(newest.blocks[0].key);
 	});
 
-	it("renders a partial block above the attached files that start the loaded history", () => {
+	it("opens a partial block at the attached files that start the loaded history", () => {
 		const prompt = user("Report");
 		const [attachCall, files, attachResult] = attachStep("a", 1, 2);
 		const steps = step("b", 3, 4);
@@ -746,16 +712,14 @@ describe("groupWorkingBlocks", () => {
 
 		const newest = group(all.slice(2), { hasMoreMessages: true });
 		expect(layoutOf(newest)).toEqual([
-			[`${steps[0].id}`],
-			`${files.id}`,
+			[`${files.id}`, `${steps[0].id}`],
 			`${answer.id}`,
 		]);
 		expect(newest.blocks[0]).toMatchObject({ isPartial: true, stepCount: 1 });
 
 		expect(layoutOf(group(all))).toEqual([
 			`${prompt.id}`,
-			[`${attachCall.id}`, `${steps[0].id}`],
-			`${files.id}`,
+			[`${attachCall.id}`, `${files.id}`, `${steps[0].id}`],
 			`${answer.id}`,
 		]);
 	});
@@ -1221,7 +1185,7 @@ describe("groupWorkingBlocks", () => {
 			});
 		});
 
-		it("stays live while files attached after its last step render below it", () => {
+		it("stays live while only files attached after its last step follow it", () => {
 			const entries = parseMessagesWithMergedTools([
 				user("Go"),
 				...attachStep("a", 1, 2),
@@ -1482,20 +1446,28 @@ describe("splitRowPieces", () => {
 			output(said("Checked the logs."), said("The fix is in.")),
 		]);
 	});
+});
 
-	it("drops a row's files only when attachments are hidden", () => {
-		const [{ parsed }] = parseMessagesWithMergedTools([
-			message("assistant", [text("Report:"), mockAttachment]),
-		]);
-		const blockTypes = (hideAttachments: boolean) =>
-			getRowBlocks(parsed.blocks, parsed.tools, {
-				section: undefined,
-				hideAttachments,
-			}).map((block) => block.type);
+describe("getSliceContent", () => {
+	it.each([
+		{ name: "whole row", pieceRange: undefined },
+		{ name: "slice", pieceRange: { start: 0, end: 2 } },
+	])(
+		"drops a $name's files only when attachments are hidden",
+		({ pieceRange }) => {
+			const [{ parsed }] = parseMessagesWithMergedTools([
+				message("assistant", [text("Report:"), mockAttachment]),
+			]);
+			const blockTypes = (hideAttachments: boolean) =>
+				getSliceContent(parsed.blocks, parsed.tools, {
+					pieceRange,
+					hideAttachments,
+				}).blocks.map((block) => block.type);
 
-		expect(blockTypes(false)).toEqual(["response", "file"]);
-		expect(blockTypes(true)).toEqual(["response"]);
-	});
+			expect(blockTypes(false)).toEqual(["response", "file"]);
+			expect(blockTypes(true)).toEqual(["response"]);
+		},
+	);
 });
 
 describe("isAgentAttachmentOnlyRow", () => {

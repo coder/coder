@@ -95,8 +95,8 @@ const UNCOLLAPSIBLE_TOOLS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Work (reasoning, tool calls, citations) folds into a working block. Output
- * (text, files) renders in the transcript.
+ * Work (reasoning, tool calls, citations, attached files) folds into a working
+ * block. Output (text) renders in the transcript.
  */
 type RowPiece = {
 	kind: "work" | "output";
@@ -170,7 +170,9 @@ export const splitRowPieces = (
 		} else if (
 			block.type === "sources" ||
 			block.type === "thinking" ||
-			block.type === "tool"
+			block.type === "tool" ||
+			// A file belongs to the step that attached it.
+			block.type === "file"
 		) {
 			push("work", { block, indices: [index] });
 		} else if (
@@ -204,6 +206,67 @@ export const splitRowPieces = (
 		})),
 		pieceOfBlock,
 	};
+};
+
+type GetSliceContentOptions = {
+	pieceRange: RowSlice["pieceRange"];
+	hideAttachments: boolean;
+};
+
+/**
+ * The blocks and tools a slice renders: its pieces, or the whole row. Files
+ * that hideAttachments drops from agent rows are listed under Attachments once
+ * their step persists.
+ */
+export const getSliceContent = (
+	blocks: readonly RenderBlock[],
+	tools: readonly MergedTool[],
+	{ pieceRange, hideAttachments }: GetSliceContentOptions,
+) => {
+	const shownBlocks = (pieceBlocks: readonly RenderBlock[]) =>
+		hideAttachments
+			? pieceBlocks.filter((block) => block.type !== "file")
+			: pieceBlocks;
+	if (!pieceRange) {
+		return {
+			blocks: shownBlocks(blocks),
+			tools,
+			endsRow: true,
+			coversRow: true,
+		};
+	}
+
+	const { pieces } = splitRowPieces(blocks, tools);
+	const sliceBlocks = pieces
+		.slice(pieceRange.start, pieceRange.end)
+		.flatMap((piece) => shownBlocks(piece.blocks));
+	return {
+		blocks: sliceBlocks,
+		// The row's other tools would render again as block-less tools.
+		tools: tools.filter((tool) =>
+			sliceBlocks.some(
+				(block) => block.type === "tool" && block.id === tool.id,
+			),
+		),
+		endsRow: pieceRange.end === pieces.length,
+		coversRow: pieceRange.start === 0 && pieceRange.end === pieces.length,
+	};
+};
+
+/** True for an agent message row left empty once its attachments are hidden. */
+export const isAgentAttachmentOnlyRow = (row: TimelineRow): boolean => {
+	if (row.type !== "message") {
+		return false;
+	}
+	const { message, parsed } = row.entry;
+	if (message.role !== "assistant" || parsed.hookNotices.length > 0) {
+		return false;
+	}
+	const { visibleBlocks } = getVisibleContent(parsed.blocks, parsed.tools);
+	return (
+		visibleBlocks.length > 0 &&
+		visibleBlocks.every((block) => block.type === "file")
+	);
 };
 
 /**
@@ -312,8 +375,7 @@ export const groupWorkingBlocks = (
 	const draftOfTool = new Map<string, Draft>();
 	let open: Draft | undefined;
 	// Until assistant text or a row that never folds loads, the loaded rows may
-	// continue a block that older history opened, since attached files leave a
-	// block open.
+	// continue a block that older history opened.
 	let mayContinueOlderBlock = options.hasMoreMessages;
 	let anchorKey: string | undefined;
 	let ordinal = 0;
@@ -347,10 +409,7 @@ export const groupWorkingBlocks = (
 		let workOrdinal = 0;
 		for (const [pieceIndex, piece] of split.pieces.entries()) {
 			if (piece.kind === "output") {
-				// Attached files do not close the block, so later work stays in it.
-				if (piece.blocks.some((block) => block.type === "response")) {
-					closeAnyBlock(row);
-				}
+				closeAnyBlock(row);
 				continue;
 			}
 
@@ -606,13 +665,9 @@ export const groupWorkingBlocks = (
 		return block;
 	});
 
-	// A partial block renders above the attached files that can precede its
-	// first loaded step, where it stays once the older rows load.
-	const items: TimelineItem[] = blocks
-		.filter((block) => block.isPartial)
-		.map((block) => ({ type: "block", block }));
 	// A row in a block renders its other pieces around the block in order,
 	// each run of them as one slice.
+	const items: TimelineItem[] = [];
 	for (const [rowIndex, row] of rows.entries()) {
 		const split = rowPieces[rowIndex];
 		if (!rowInBlock[rowIndex] || !split) {
@@ -649,7 +704,6 @@ export const groupWorkingBlocks = (
 			endRun(pieceIndex);
 			const first = block.slices[0];
 			if (
-				!block.isPartial &&
 				first.rowIndex === rowIndex &&
 				first.pieceRange.start === pieceIndex
 			) {

@@ -53,10 +53,10 @@ import type {
 import { UserMessageContent } from "./UserMessageContent";
 import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
 import {
-	getRowBlocks,
+	getSliceContent,
 	groupWorkingBlocks,
+	isAgentAttachmentOnlyRow,
 	type RowSlice,
-	splitRowPieces,
 	wholeRowItem,
 } from "./workingBlockGrouping";
 
@@ -104,32 +104,6 @@ const LifecycleHookNotice: React.FC<{
 	</TimelineNotice>
 );
 
-const getSliceContent = (
-	blocks: readonly RenderBlock[],
-	tools: readonly MergedTool[],
-	range: RowSlice["pieceRange"],
-) => {
-	if (!range) {
-		return { blocks, tools, endsRow: true, coversRow: true };
-	}
-
-	const { pieces } = splitRowPieces(blocks, tools);
-	const sliceBlocks = pieces
-		.slice(range.start, range.end)
-		.flatMap((piece) => piece.blocks);
-	return {
-		blocks: sliceBlocks,
-		// The row's other tools would render again as block-less tools.
-		tools: tools.filter((tool) =>
-			sliceBlocks.some(
-				(block) => block.type === "tool" && block.id === tool.id,
-			),
-		),
-		endsRow: range.end === pieces.length,
-		coversRow: range.start === 0 && range.end === pieces.length,
-	};
-};
-
 const ChatMessageItem = memo<{
 	organizationId: string;
 	renderKey: string;
@@ -141,6 +115,7 @@ const ChatMessageItem = memo<{
 	pieceStart?: number;
 	pieceEnd?: number;
 	inWorkingBlock: boolean;
+	hideAttachments: boolean;
 	parsed?: ParsedMessageContent;
 	liveStatus?: LiveStatusModel;
 	// Live blocks and tools are normalized at the live row callsite, so this
@@ -186,6 +161,7 @@ const ChatMessageItem = memo<{
 		pieceStart,
 		pieceEnd,
 		inWorkingBlock,
+		hideAttachments,
 		parsed,
 		liveStatus,
 		liveBlocks = [],
@@ -222,9 +198,13 @@ const ChatMessageItem = memo<{
 		const { blocks, tools, endsRow, coversRow } = getSliceContent(
 			parsed?.blocks ?? liveBlocks,
 			parsed?.tools ?? liveTools,
-			pieceStart === undefined || pieceEnd === undefined
-				? undefined
-				: { start: pieceStart, end: pieceEnd },
+			{
+				pieceRange:
+					pieceStart === undefined || pieceEnd === undefined
+						? undefined
+						: { start: pieceStart, end: pieceEnd },
+				hideAttachments,
+			},
 		);
 		// The actions act on the whole message and live status trails the
 		// stream, so only the slice that ends the row shows them.
@@ -541,7 +521,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const liveBlocks = showsStreamOutput ? (streamState?.blocks ?? []) : [];
 		const liveTools = showsStreamOutput ? streamTools : [];
 
-		const layout = preferences.data?.collapse_assistant_steps
+		const collapseSteps = Boolean(preferences.data?.collapse_assistant_steps);
+		const layout = collapseSteps
 			? groupWorkingBlocks(renderRows, parsedMessages, {
 					hasMoreMessages,
 					// requires_action is the agent waiting on the user, not working.
@@ -659,6 +640,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				pieceStart: slice.pieceRange?.start,
 				pieceEnd: slice.pieceRange?.end,
 				inWorkingBlock,
+				hideAttachments: collapseSteps && !inWorkingBlock,
 			};
 			if (row.type === "live") {
 				return (
@@ -777,6 +759,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 
 					const { slice } = item;
 					const row = renderRows[slice.rowIndex];
+					if (collapseSteps && isAgentAttachmentOnlyRow(row)) {
+						return null;
+					}
 					const suppressInitialAnchor =
 						row.type === "message" &&
 						initialActiveTurnMaxMessageId !== undefined &&
