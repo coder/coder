@@ -316,7 +316,7 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 		contentVersion: chatprompt.CurrentContentVersion,
 		toolCallID:     "summary-1",
 		toolName:       "chat_summarized",
-		compaction: compactionOutcome{
+		compaction: chatloop.CompactionResult{
 			SystemSummary:          "system summary",
 			SummaryReport:          "user report",
 			ThresholdPercent:       70,
@@ -376,7 +376,7 @@ func TestBuildCompactionMessages_ZeroRuntimeLeavesRuntimeNull(t *testing.T) {
 		contentVersion: chatprompt.CurrentContentVersion,
 		toolCallID:     "summary-1",
 		toolName:       "chat_summarized",
-		compaction: compactionOutcome{
+		compaction: chatloop.CompactionResult{
 			SystemSummary:    "system summary",
 			SummaryReport:    "user report",
 			ThresholdPercent: 70,
@@ -529,7 +529,7 @@ func TestBuildCompactionMessages_ManualSource(t *testing.T) {
 		contentVersion: chatprompt.CurrentContentVersion,
 		toolCallID:     "summary-1",
 		toolName:       "chat_summarized",
-		compaction: compactionOutcome{
+		compaction: chatloop.CompactionResult{
 			SystemSummary:          "system summary",
 			SummaryReport:          "user report",
 			Source:                 chatloop.CompactionSourceManual,
@@ -1385,7 +1385,7 @@ func TestBuildCompactionMessages_ReplaysPendingUserMessages(t *testing.T) {
 		contentVersion: chatprompt.CurrentContentVersion,
 		toolCallID:     "summary-1",
 		toolName:       "chat_summarized",
-		compaction: compactionOutcome{
+		compaction: chatloop.CompactionResult{
 			SystemSummary:    "system summary",
 			SummaryReport:    "user report",
 			ThresholdPercent: 70,
