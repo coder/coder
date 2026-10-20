@@ -301,8 +301,8 @@ export const OAuth2AppForm: React.FC<OAuth2AppFormProps> = ({
 			: undefined;
 	const formDisabled = disabled || isUpdating;
 	const editing = Boolean(app);
-	// The Scopes section of docs/admin/integrations/oauth2-provider.md explains
-	// why narrowing a self-registered application's allowlist can break it.
+	// docs/admin/integrations/oauth2-provider/scopes.md explains why narrowing
+	// a self-registered application's allowlist can break it.
 	const narrowsSelfRegisteredScopes =
 		app?.dynamically_registered === true &&
 		scopesQuery.data !== undefined &&
@@ -423,7 +423,7 @@ export const OAuth2AppForm: React.FC<OAuth2AppFormProps> = ({
 							severity="warning"
 							actions={
 								<Link
-									href={docs("/admin/integrations/oauth2-provider#scopes")}
+									href={docs("/admin/integrations/oauth2-provider/scopes")}
 									target="_blank"
 									rel="noreferrer"
 								>
@@ -434,10 +434,11 @@ export const OAuth2AppForm: React.FC<OAuth2AppFormProps> = ({
 						>
 							<AlertTitle>This change can block new authorizations</AlertTitle>
 							<AlertDescription>
-								If this application requests every available scope, limiting its
-								allowed scopes makes all new authorizations fail. To limit it
-								safely, first configure the application to request fewer scopes.
-								Existing tokens keep their scopes.
+								This application registered itself and may request every scope
+								Coder offers. If it does, limiting its allowed scopes makes new
+								authorizations fail with <code>invalid_scope</code>. Only the
+								client's owner can make it request fewer scopes. Existing tokens
+								keep their scopes.
 							</AlertDescription>
 						</Alert>
 					)}
