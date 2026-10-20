@@ -35,7 +35,12 @@ import {
 	useState,
 } from "react";
 import { useQuery } from "react-query";
-import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
+import {
+	chatProjectSkills,
+	chatProjectUsability,
+	usableChatProjectSkills,
+} from "#/api/queries/chatProjectSkills";
+import { chatProject } from "#/api/queries/chatProjects";
 import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -620,11 +625,6 @@ type ChatMessageInputProps = Omit<
 	/** Project, in organizationId, whose skills the chat loads, if any. */
 	projectId?: string;
 	/**
-	 * True while the chat's project is still unknown, such as a subagent
-	 * chat whose root chat is loading. Project skills then stay loading.
-	 */
-	isProjectPending?: boolean;
-	/**
 	 * Story and test seam for deterministic personal skill menu data.
 	 */
 	personalSkillsOverride?: readonly TypesGen.SkillMetadata[];
@@ -702,13 +702,8 @@ const useStoredSkillSource = (
 	queryOptions: SkillsScope["list"],
 	{
 		hasSource,
-		isSourcePending = false,
 		isTriggerActive,
-	}: {
-		hasSource: boolean;
-		isSourcePending?: boolean;
-		isTriggerActive: boolean;
-	},
+	}: { hasSource: boolean; isTriggerActive: boolean },
 ) => {
 	const queryEnabled = isTriggerActive && hasSource;
 	const query = useQuery({
@@ -716,14 +711,6 @@ const useStoredSkillSource = (
 		enabled: queryEnabled,
 		staleTime: 60_000,
 	});
-	if (isSourcePending) {
-		return {
-			skills: undefined,
-			isResolvedEmpty: false,
-			isLoading: isTriggerActive,
-			isError: false,
-		};
-	}
 	const skills = hasSource ? query.data?.filter((skill) => skill.enabled) : [];
 	const isUnresolved = queryEnabled && query.data === undefined;
 	return {
@@ -731,6 +718,7 @@ const useStoredSkillSource = (
 		isResolvedEmpty: skills?.length === 0 && !query.isFetching,
 		isLoading: isUnresolved && query.isFetching,
 		isError: isUnresolved && query.isError,
+		error: query.error,
 	};
 };
 
@@ -751,7 +739,6 @@ const ChatMessageInput = ({
 	hasWorkspace,
 	organizationId,
 	projectId,
-	isProjectPending = false,
 	personalSkillsOverride,
 	workspaceSkills,
 	slashCommands,
@@ -803,12 +790,27 @@ const ChatMessageInput = ({
 	const hasProject = Boolean(organizationId && projectId);
 	const projectSource = useStoredSkillSource(
 		chatProjectSkills(organizationId ?? "", projectId ?? ""),
-		{
-			hasSource: hasProject,
-			isSourcePending: isProjectPending,
-			isTriggerActive: hasSkillsTrigger,
-		},
+		{ hasSource: hasProject, isTriggerActive: hasSkillsTrigger },
 	);
+	const projectQuery = useQuery({
+		...chatProject(projectId),
+		enabled: hasProject && hasSkillsTrigger,
+		staleTime: 60_000,
+	});
+	const projectUsability = chatProjectUsability(
+		projectQuery,
+		projectSource.error,
+	);
+	// While the caller's project list is unsettled, the menu shows the
+	// project source as loading or failed, as it does for the skills request.
+	const isProjectUsabilityUnknown =
+		hasProject && projectUsability === "unknown";
+	const isProjectLoading =
+		projectSource.isLoading ||
+		(isProjectUsabilityUnknown && projectQuery.isFetching);
+	const isProjectError =
+		projectSource.isError ||
+		(isProjectUsabilityUnknown && projectQuery.isError);
 	// chatd skips disabled skills, so they never offer or collide.
 	const personalSkills = (personalSkillsOverride ?? skillsQuery.data)?.filter(
 		(skill) => skill.enabled,
@@ -818,10 +820,18 @@ const ChatMessageInput = ({
 	// A list stays undefined until its source loads, even after an error,
 	// which keeps triggers qualified and built-in commands hidden. A chat
 	// without an organization, project, or workspace has a known empty list.
+	// Project skills also wait for the caller's project list, and losing the
+	// use of the project gives a known empty list, because chatd then runs
+	// turns without project skills.
 	const skillLists: SkillSourceList<SkillMetadata>[] = [
 		{ source: "personal", skills: personalSkills },
 		{ source: "org", skills: organizationSource.skills },
-		{ source: "project", skills: projectSource.skills },
+		{
+			source: "project",
+			skills: hasProject
+				? usableChatProjectSkills(projectUsability, projectSource.skills)
+				: [],
+		},
 		{ source: "workspace", skills: loadedWorkspaceSkills },
 	];
 	// A skill whose source list has not loaded stays a chip when pasted.
@@ -841,7 +851,9 @@ const ChatMessageInput = ({
 		personalSkills?.length === 0 &&
 		(hasPersonalSkillsOverride || !skillsQuery.isFetching) &&
 		organizationSource.isResolvedEmpty &&
-		projectSource.isResolvedEmpty &&
+		(!hasProject ||
+			projectUsability === "unusable" ||
+			(projectUsability === "usable" && projectSource.isResolvedEmpty)) &&
 		loadedWorkspaceSkills?.length === 0;
 	// Without built-in commands, "/" is plain text when every skills
 	// list resolves empty. When only the filtered result is empty,
@@ -1181,7 +1193,7 @@ const ChatMessageInput = ({
 					skillsLoading={
 						isPersonalSkillsLoading ||
 						organizationSource.isLoading ||
-						projectSource.isLoading ||
+						isProjectLoading ||
 						isWorkspaceSkillsLoading
 					}
 					selectedIndex={selectedSkillIndex}
@@ -1204,7 +1216,7 @@ const ChatMessageInput = ({
 					projectSkills={projectSkillItems}
 					workspaceSkills={workspaceSkillItems}
 					organizationSkillsEnabled={Boolean(organizationId)}
-					projectSkillsEnabled={hasProject || isProjectPending}
+					projectSkillsEnabled={hasProject}
 					workspaceSkillsEnabled={hasWorkspace}
 					isPersonalLoading={isPersonalSkillsLoading}
 					isPersonalError={
@@ -1214,8 +1226,8 @@ const ChatMessageInput = ({
 					}
 					isOrganizationLoading={organizationSource.isLoading}
 					isOrganizationError={organizationSource.isError}
-					isProjectLoading={projectSource.isLoading}
-					isProjectError={projectSource.isError}
+					isProjectLoading={isProjectLoading}
+					isProjectError={isProjectError}
 					isWorkspaceLoading={isWorkspaceSkillsLoading}
 					selectedIndex={selectedSkillIndex}
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}
