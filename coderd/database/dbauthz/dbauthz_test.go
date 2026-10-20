@@ -239,6 +239,24 @@ func TestChatFilesAllowLinkedChatReads(t *testing.T) {
 		require.Equal(t, []database.ChatFile{file}, got)
 	})
 
+	t.Run("GetChatFilesMetadataByIDs", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		row := testutil.Fake(t, gofakeit.New(0), database.GetChatFilesMetadataByIDsRow{})
+
+		db.EXPECT().Wrappers().Return([]string{}).AnyTimes()
+		db.EXPECT().GetChatFilesMetadataByIDs(gomock.Any(), []uuid.UUID{row.ID}).Return([]database.GetChatFilesMetadataByIDsRow{row}, nil)
+		db.EXPECT().GetAuthorizedChatsByChatFileID(gomock.Any(), row.ID, gomock.Any()).Return([]database.Chat{{ID: uuid.New()}}, nil)
+
+		q := dbauthz.New(db, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+		got, err := q.GetChatFilesMetadataByIDs(ctx, []uuid.UUID{row.ID})
+
+		require.NoError(t, err)
+		require.Equal(t, []database.GetChatFilesMetadataByIDsRow{row}, got)
+	})
+
 	t.Run("GetChatFileDataPrefixesByIDs", func(t *testing.T) {
 		t.Parallel()
 
@@ -1176,6 +1194,34 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatFileDataPrefixesByIDs(gomock.Any(), arg).Return([]database.GetChatFileDataPrefixesByIDsRow{row}, nil).AnyTimes()
 		dbm.EXPECT().GetAuthorizedChatsByChatFileID(gomock.Any(), row.ID, gomock.Any()).Return([]database.Chat{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(row.OwnerID.String()).InOrg(row.OrganizationID).WithID(row.ID), policy.ActionRead).Returns([]database.GetChatFileDataPrefixesByIDsRow{row})
+	}))
+	s.Run("GetChatFilesMetadataByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		row := testutil.Fake(s.T(), faker, database.GetChatFilesMetadataByIDsRow{})
+		dbm.EXPECT().GetChatFilesMetadataByIDs(gomock.Any(), []uuid.UUID{row.ID}).Return([]database.GetChatFilesMetadataByIDsRow{row}, nil).AnyTimes()
+		dbm.EXPECT().GetAuthorizedChatsByChatFileID(gomock.Any(), row.ID, gomock.Any()).Return([]database.Chat{}, nil).AnyTimes()
+		check.Args([]uuid.UUID{row.ID}).Asserts(rbac.ResourceChat.WithOwner(row.OwnerID.String()).InOrg(row.OrganizationID).WithID(row.ID), policy.ActionRead).Returns([]database.GetChatFilesMetadataByIDsRow{row})
+	}))
+	s.Run("AcquireChatWorkspaceFileDeliveries", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.AcquireChatWorkspaceFileDeliveriesParams{})
+		rows := []database.AcquireChatWorkspaceFileDeliveriesRow{testutil.Fake(s.T(), faker, database.AcquireChatWorkspaceFileDeliveriesRow{})}
+		dbm.EXPECT().AcquireChatWorkspaceFileDeliveries(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(rows)
+	}))
+	s.Run("CompleteChatWorkspaceFileDelivery", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.CompleteChatWorkspaceFileDeliveryParams{})
+		dbm.EXPECT().CompleteChatWorkspaceFileDelivery(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(int64(1))
+	}))
+	s.Run("FailChatWorkspaceFileDelivery", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.FailChatWorkspaceFileDeliveryParams{})
+		dbm.EXPECT().FailChatWorkspaceFileDelivery(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(int64(1))
+	}))
+	s.Run("RetryChatWorkspaceFileDeliveries", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().RetryChatWorkspaceFileDeliveries(gomock.Any(), chat.ID).Return(int64(1), nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
 	}))
 	s.Run("GetChatFileMetadataByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})

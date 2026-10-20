@@ -6218,6 +6218,182 @@ func (q *sqlQuerier) UpdateChatDebugStep(ctx context.Context, arg UpdateChatDebu
 	return i, err
 }
 
+const acquireChatWorkspaceFileDeliveries = `-- name: AcquireChatWorkspaceFileDeliveries :many
+WITH candidates AS (
+	SELECT cf.id, c.id AS chat_id, c.workspace_id
+	FROM chat_files cf
+	JOIN chat_file_links cfl ON cfl.file_id = cf.id
+	JOIN chats c ON c.id = cfl.chat_id
+	JOIN LATERAL (
+		SELECT wb.job_id, wb.transition
+		FROM workspace_builds wb
+		WHERE wb.workspace_id = c.workspace_id
+		ORDER BY wb.build_number DESC
+		LIMIT 1
+	) latest_build ON TRUE
+	JOIN LATERAL (
+		SELECT wa.lifecycle_state
+		FROM workspace_agents wa
+		JOIN workspace_resources wr ON wr.id = wa.resource_id
+		WHERE wr.job_id = latest_build.job_id
+			AND wa.deleted = FALSE
+			AND (wa.parent_id IS NULL OR wa.id = c.agent_id)
+		ORDER BY
+			(wa.id = c.agent_id) IS TRUE DESC,
+			(right(lower(wa.name), char_length($2::text)) = lower($2::text)) DESC,
+			wa.display_order ASC,
+			lower(wa.name) COLLATE "C" ASC,
+			wa.name COLLATE "C" ASC,
+			wa.id ASC
+		LIMIT 1
+	) selected_agent ON TRUE
+	WHERE cf.purpose = 'workspace'::chat_file_purpose
+		AND cf.workspace_delivered_at IS NULL
+		AND (cf.workspace_delivery_next_attempt_at IS NULL OR cf.workspace_delivery_next_attempt_at <= $3::timestamptz)
+		AND cf.workspace_delivery_attempts < $4::int
+		AND c.archived = FALSE
+		AND ($5::uuid IS NULL OR c.id = $5::uuid)
+		AND latest_build.transition = 'start'::workspace_transition
+		AND selected_agent.lifecycle_state IN (
+			'ready'::workspace_agent_lifecycle_state,
+			'start_error'::workspace_agent_lifecycle_state,
+			'start_timeout'::workspace_agent_lifecycle_state
+		)
+	ORDER BY cf.workspace_delivery_next_attempt_at ASC NULLS FIRST, cf.created_at ASC, cf.id ASC
+	LIMIT $6::int
+	FOR UPDATE OF cf SKIP LOCKED
+)
+UPDATE chat_files cf
+SET
+	workspace_delivery_attempts = cf.workspace_delivery_attempts + 1,
+	workspace_delivery_next_attempt_at = $1::timestamptz,
+	workspace_delivery_error = NULL
+FROM candidates
+WHERE cf.id = candidates.id
+RETURNING
+	cf.id,
+	cf.owner_id,
+	cf.organization_id,
+	cf.name,
+	cf.mimetype,
+	octet_length(cf.data)::bigint AS size_bytes,
+	cf.workspace_delivery_attempts,
+	candidates.chat_id,
+	candidates.workspace_id
+`
+
+type AcquireChatWorkspaceFileDeliveriesParams struct {
+	LeaseExpiresAt  time.Time     `db:"lease_expires_at" json:"lease_expires_at"`
+	ChatAgentSuffix string        `db:"chat_agent_suffix" json:"chat_agent_suffix"`
+	Now             time.Time     `db:"now" json:"now"`
+	MaxAttempts     int32         `db:"max_attempts" json:"max_attempts"`
+	ChatID          uuid.NullUUID `db:"chat_id" json:"chat_id"`
+	LimitVal        int32         `db:"limit_val" json:"limit_val"`
+}
+
+type AcquireChatWorkspaceFileDeliveriesRow struct {
+	ID                        uuid.UUID     `db:"id" json:"id"`
+	OwnerID                   uuid.UUID     `db:"owner_id" json:"owner_id"`
+	OrganizationID            uuid.UUID     `db:"organization_id" json:"organization_id"`
+	Name                      string        `db:"name" json:"name"`
+	Mimetype                  string        `db:"mimetype" json:"mimetype"`
+	SizeBytes                 int64         `db:"size_bytes" json:"size_bytes"`
+	WorkspaceDeliveryAttempts int32         `db:"workspace_delivery_attempts" json:"workspace_delivery_attempts"`
+	ChatID                    uuid.UUID     `db:"chat_id" json:"chat_id"`
+	WorkspaceID               uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+}
+
+// AcquireChatWorkspaceFileDeliveries claims due workspace files whose
+// chat's workspace finished starting: the workspace's latest build is a
+// start build and the agent a delivery would use reports ready,
+// start_error or start_timeout. That agent is picked like
+// agentselect.FindChatAgent over the latest build's agents, after the
+// chat's bound agent: the bound agent when it is in the latest build,
+// else the single root agent whose name ends with chat_agent_suffix,
+// else the first root agent by display order, then name, then ID. When
+// several root agents match the suffix, the first is checked here and
+// the caller's selection reports the ambiguity. A claim counts an
+// attempt, clears the last error and leases the file until
+// lease_expires_at. File content is not returned so a batch claim does
+// not load blobs.
+func (q *sqlQuerier) AcquireChatWorkspaceFileDeliveries(ctx context.Context, arg AcquireChatWorkspaceFileDeliveriesParams) ([]AcquireChatWorkspaceFileDeliveriesRow, error) {
+	rows, err := q.db.QueryContext(ctx, acquireChatWorkspaceFileDeliveries,
+		arg.LeaseExpiresAt,
+		arg.ChatAgentSuffix,
+		arg.Now,
+		arg.MaxAttempts,
+		arg.ChatID,
+		arg.LimitVal,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AcquireChatWorkspaceFileDeliveriesRow
+	for rows.Next() {
+		var i AcquireChatWorkspaceFileDeliveriesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.OrganizationID,
+			&i.Name,
+			&i.Mimetype,
+			&i.SizeBytes,
+			&i.WorkspaceDeliveryAttempts,
+			&i.ChatID,
+			&i.WorkspaceID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const completeChatWorkspaceFileDelivery = `-- name: CompleteChatWorkspaceFileDelivery :execrows
+UPDATE chat_files
+SET
+	data = ''::bytea,
+	workspace_delivered_size_bytes = octet_length(data),
+	workspace_delivered_at = $1::timestamptz,
+	workspace_delivered_path = $2::text,
+	workspace_delivered_workspace_id = $3::uuid,
+	workspace_delivery_error = NULL,
+	workspace_delivery_next_attempt_at = NULL
+WHERE id = $4::uuid
+	AND purpose = 'workspace'::chat_file_purpose
+	AND workspace_delivered_at IS NULL
+`
+
+type CompleteChatWorkspaceFileDeliveryParams struct {
+	DeliveredAt          time.Time `db:"delivered_at" json:"delivered_at"`
+	DeliveredPath        string    `db:"delivered_path" json:"delivered_path"`
+	DeliveredWorkspaceID uuid.UUID `db:"delivered_workspace_id" json:"delivered_workspace_id"`
+	ID                   uuid.UUID `db:"id" json:"id"`
+}
+
+// CompleteChatWorkspaceFileDelivery records the receipt and drops the
+// file content. Metadata stays so messages that reference the file keep
+// validating.
+func (q *sqlQuerier) CompleteChatWorkspaceFileDelivery(ctx context.Context, arg CompleteChatWorkspaceFileDeliveryParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, completeChatWorkspaceFileDelivery,
+		arg.DeliveredAt,
+		arg.DeliveredPath,
+		arg.DeliveredWorkspaceID,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteUnlinkedChatFilesByIDs = `-- name: DeleteUnlinkedChatFilesByIDs :execrows
 DELETE FROM chat_files cf
 WHERE cf.id = ANY($1::uuid[])
@@ -6240,8 +6416,51 @@ func (q *sqlQuerier) DeleteUnlinkedChatFilesByIDs(ctx context.Context, arg Delet
 	return result.RowsAffected()
 }
 
+const failChatWorkspaceFileDelivery = `-- name: FailChatWorkspaceFileDelivery :execrows
+UPDATE chat_files
+SET
+	workspace_delivery_error = $1::text,
+	workspace_delivery_next_attempt_at = $2::timestamptz,
+	workspace_delivery_attempts = CASE $3::text
+		WHEN 'retry' THEN workspace_delivery_attempts
+		WHEN 'refund' THEN GREATEST(workspace_delivery_attempts - 1, 0)
+		WHEN 'park' THEN GREATEST(workspace_delivery_attempts, $4::int)
+		ELSE NULL
+	END
+WHERE id = $5::uuid
+	AND purpose = 'workspace'::chat_file_purpose
+	AND workspace_delivered_at IS NULL
+`
+
+type FailChatWorkspaceFileDeliveryParams struct {
+	Error         string    `db:"error" json:"error"`
+	NextAttemptAt time.Time `db:"next_attempt_at" json:"next_attempt_at"`
+	Mode          string    `db:"mode" json:"mode"`
+	MaxAttempts   int32     `db:"max_attempts" json:"max_attempts"`
+	ID            uuid.UUID `db:"id" json:"id"`
+}
+
+// FailChatWorkspaceFileDelivery records a failed attempt. The mode
+// decides the claimed attempt: 'retry' keeps it counted, 'refund' gives
+// it back for failures that never reached the agent, and 'park' sets the
+// attempts to max_attempts so the file waits for an explicit retry. Any
+// other mode fails on the NOT NULL attempts column.
+func (q *sqlQuerier) FailChatWorkspaceFileDelivery(ctx context.Context, arg FailChatWorkspaceFileDeliveryParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, failChatWorkspaceFileDelivery,
+		arg.Error,
+		arg.NextAttemptAt,
+		arg.Mode,
+		arg.MaxAttempts,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getChatFileByID = `-- name: GetChatFileByID :one
-SELECT id, owner_id, organization_id, created_at, name, mimetype, data FROM chat_files WHERE id = $1::uuid
+SELECT id, owner_id, organization_id, created_at, name, mimetype, data, purpose, workspace_delivery_attempts, workspace_delivery_next_attempt_at, workspace_delivery_error, workspace_delivered_at, workspace_delivered_path, workspace_delivered_workspace_id, workspace_delivered_size_bytes FROM chat_files WHERE id = $1::uuid
 `
 
 func (q *sqlQuerier) GetChatFileByID(ctx context.Context, id uuid.UUID) (ChatFile, error) {
@@ -6255,6 +6474,14 @@ func (q *sqlQuerier) GetChatFileByID(ctx context.Context, id uuid.UUID) (ChatFil
 		&i.Name,
 		&i.Mimetype,
 		&i.Data,
+		&i.Purpose,
+		&i.WorkspaceDeliveryAttempts,
+		&i.WorkspaceDeliveryNextAttemptAt,
+		&i.WorkspaceDeliveryError,
+		&i.WorkspaceDeliveredAt,
+		&i.WorkspaceDeliveredPath,
+		&i.WorkspaceDeliveredWorkspaceID,
+		&i.WorkspaceDeliveredSizeBytes,
 	)
 	return i, err
 }
@@ -6310,7 +6537,14 @@ func (q *sqlQuerier) GetChatFileDataPrefixesByIDs(ctx context.Context, arg GetCh
 
 const getChatFileMetadataByChatID = `-- name: GetChatFileMetadataByChatID :many
 SELECT cf.id, cf.owner_id, cf.organization_id, cf.name, cf.mimetype, cf.created_at,
-	octet_length(cf.data)::bigint AS size_bytes
+	COALESCE(cf.workspace_delivered_size_bytes, octet_length(cf.data))::bigint AS size_bytes,
+	cf.purpose,
+	cf.workspace_delivery_attempts,
+	cf.workspace_delivery_next_attempt_at,
+	cf.workspace_delivery_error,
+	cf.workspace_delivered_at,
+	cf.workspace_delivered_path,
+	cf.workspace_delivered_workspace_id
 FROM chat_files cf
 JOIN chat_file_links cfl ON cfl.file_id = cf.id
 WHERE cfl.chat_id = $1::uuid
@@ -6318,13 +6552,20 @@ ORDER BY cf.created_at ASC
 `
 
 type GetChatFileMetadataByChatIDRow struct {
-	ID             uuid.UUID `db:"id" json:"id"`
-	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	Name           string    `db:"name" json:"name"`
-	Mimetype       string    `db:"mimetype" json:"mimetype"`
-	CreatedAt      time.Time `db:"created_at" json:"created_at"`
-	SizeBytes      int64     `db:"size_bytes" json:"size_bytes"`
+	ID                             uuid.UUID       `db:"id" json:"id"`
+	OwnerID                        uuid.UUID       `db:"owner_id" json:"owner_id"`
+	OrganizationID                 uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Name                           string          `db:"name" json:"name"`
+	Mimetype                       string          `db:"mimetype" json:"mimetype"`
+	CreatedAt                      time.Time       `db:"created_at" json:"created_at"`
+	SizeBytes                      int64           `db:"size_bytes" json:"size_bytes"`
+	Purpose                        ChatFilePurpose `db:"purpose" json:"purpose"`
+	WorkspaceDeliveryAttempts      int32           `db:"workspace_delivery_attempts" json:"workspace_delivery_attempts"`
+	WorkspaceDeliveryNextAttemptAt sql.NullTime    `db:"workspace_delivery_next_attempt_at" json:"workspace_delivery_next_attempt_at"`
+	WorkspaceDeliveryError         sql.NullString  `db:"workspace_delivery_error" json:"workspace_delivery_error"`
+	WorkspaceDeliveredAt           sql.NullTime    `db:"workspace_delivered_at" json:"workspace_delivered_at"`
+	WorkspaceDeliveredPath         sql.NullString  `db:"workspace_delivered_path" json:"workspace_delivered_path"`
+	WorkspaceDeliveredWorkspaceID  uuid.NullUUID   `db:"workspace_delivered_workspace_id" json:"workspace_delivered_workspace_id"`
 }
 
 // GetChatFileMetadataByChatID returns lightweight file metadata for
@@ -6347,6 +6588,13 @@ func (q *sqlQuerier) GetChatFileMetadataByChatID(ctx context.Context, chatID uui
 			&i.Mimetype,
 			&i.CreatedAt,
 			&i.SizeBytes,
+			&i.Purpose,
+			&i.WorkspaceDeliveryAttempts,
+			&i.WorkspaceDeliveryNextAttemptAt,
+			&i.WorkspaceDeliveryError,
+			&i.WorkspaceDeliveredAt,
+			&i.WorkspaceDeliveredPath,
+			&i.WorkspaceDeliveredWorkspaceID,
 		); err != nil {
 			return nil, err
 		}
@@ -6362,7 +6610,7 @@ func (q *sqlQuerier) GetChatFileMetadataByChatID(ctx context.Context, chatID uui
 }
 
 const getChatFilesByIDs = `-- name: GetChatFilesByIDs :many
-SELECT id, owner_id, organization_id, created_at, name, mimetype, data FROM chat_files WHERE id = ANY($1::uuid[])
+SELECT id, owner_id, organization_id, created_at, name, mimetype, data, purpose, workspace_delivery_attempts, workspace_delivery_next_attempt_at, workspace_delivery_error, workspace_delivered_at, workspace_delivered_path, workspace_delivered_workspace_id, workspace_delivered_size_bytes FROM chat_files WHERE id = ANY($1::uuid[])
 `
 
 func (q *sqlQuerier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]ChatFile, error) {
@@ -6382,6 +6630,77 @@ func (q *sqlQuerier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]
 			&i.Name,
 			&i.Mimetype,
 			&i.Data,
+			&i.Purpose,
+			&i.WorkspaceDeliveryAttempts,
+			&i.WorkspaceDeliveryNextAttemptAt,
+			&i.WorkspaceDeliveryError,
+			&i.WorkspaceDeliveredAt,
+			&i.WorkspaceDeliveredPath,
+			&i.WorkspaceDeliveredWorkspaceID,
+			&i.WorkspaceDeliveredSizeBytes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatFilesMetadataByIDs = `-- name: GetChatFilesMetadataByIDs :many
+SELECT id, owner_id, organization_id, created_at, name, mimetype,
+	COALESCE(workspace_delivered_size_bytes, octet_length(data))::bigint AS size_bytes,
+	purpose,
+	workspace_delivered_at,
+	workspace_delivered_path,
+	workspace_delivered_workspace_id
+FROM chat_files
+WHERE id = ANY($1::uuid[])
+`
+
+type GetChatFilesMetadataByIDsRow struct {
+	ID                            uuid.UUID       `db:"id" json:"id"`
+	OwnerID                       uuid.UUID       `db:"owner_id" json:"owner_id"`
+	OrganizationID                uuid.UUID       `db:"organization_id" json:"organization_id"`
+	CreatedAt                     time.Time       `db:"created_at" json:"created_at"`
+	Name                          string          `db:"name" json:"name"`
+	Mimetype                      string          `db:"mimetype" json:"mimetype"`
+	SizeBytes                     int64           `db:"size_bytes" json:"size_bytes"`
+	Purpose                       ChatFilePurpose `db:"purpose" json:"purpose"`
+	WorkspaceDeliveredAt          sql.NullTime    `db:"workspace_delivered_at" json:"workspace_delivered_at"`
+	WorkspaceDeliveredPath        sql.NullString  `db:"workspace_delivered_path" json:"workspace_delivered_path"`
+	WorkspaceDeliveredWorkspaceID uuid.NullUUID   `db:"workspace_delivered_workspace_id" json:"workspace_delivered_workspace_id"`
+}
+
+// GetChatFilesMetadataByIDs returns file metadata without loading file
+// content. Owner and organization columns support row-level authorization.
+// Delivered workspace files report the size they had before delivery.
+func (q *sqlQuerier) GetChatFilesMetadataByIDs(ctx context.Context, ids []uuid.UUID) ([]GetChatFilesMetadataByIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatFilesMetadataByIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatFilesMetadataByIDsRow
+	for rows.Next() {
+		var i GetChatFilesMetadataByIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.OrganizationID,
+			&i.CreatedAt,
+			&i.Name,
+			&i.Mimetype,
+			&i.SizeBytes,
+			&i.Purpose,
+			&i.WorkspaceDeliveredAt,
+			&i.WorkspaceDeliveredPath,
+			&i.WorkspaceDeliveredWorkspaceID,
 		); err != nil {
 			return nil, err
 		}
@@ -6438,28 +6757,38 @@ func (q *sqlQuerier) GetOldUnlinkedChatFileIDs(ctx context.Context, arg GetOldUn
 }
 
 const insertChatFile = `-- name: InsertChatFile :one
-INSERT INTO chat_files (owner_id, organization_id, name, mimetype, data)
-VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::bytea)
-RETURNING id, owner_id, organization_id, created_at, name, mimetype
+INSERT INTO chat_files (owner_id, organization_id, name, mimetype, data, purpose)
+VALUES (
+	$1::uuid,
+	$2::uuid,
+	$3::text,
+	$4::text,
+	$5::bytea,
+	COALESCE($6::chat_file_purpose, 'prompt'::chat_file_purpose)
+)
+RETURNING id, owner_id, organization_id, created_at, name, mimetype, purpose
 `
 
 type InsertChatFileParams struct {
-	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	Name           string    `db:"name" json:"name"`
-	Mimetype       string    `db:"mimetype" json:"mimetype"`
-	Data           []byte    `db:"data" json:"data"`
+	OwnerID        uuid.UUID           `db:"owner_id" json:"owner_id"`
+	OrganizationID uuid.UUID           `db:"organization_id" json:"organization_id"`
+	Name           string              `db:"name" json:"name"`
+	Mimetype       string              `db:"mimetype" json:"mimetype"`
+	Data           []byte              `db:"data" json:"data"`
+	Purpose        NullChatFilePurpose `db:"purpose" json:"purpose"`
 }
 
 type InsertChatFileRow struct {
-	ID             uuid.UUID `db:"id" json:"id"`
-	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	CreatedAt      time.Time `db:"created_at" json:"created_at"`
-	Name           string    `db:"name" json:"name"`
-	Mimetype       string    `db:"mimetype" json:"mimetype"`
+	ID             uuid.UUID       `db:"id" json:"id"`
+	OwnerID        uuid.UUID       `db:"owner_id" json:"owner_id"`
+	OrganizationID uuid.UUID       `db:"organization_id" json:"organization_id"`
+	CreatedAt      time.Time       `db:"created_at" json:"created_at"`
+	Name           string          `db:"name" json:"name"`
+	Mimetype       string          `db:"mimetype" json:"mimetype"`
+	Purpose        ChatFilePurpose `db:"purpose" json:"purpose"`
 }
 
+// A NULL purpose stores a prompt file.
 func (q *sqlQuerier) InsertChatFile(ctx context.Context, arg InsertChatFileParams) (InsertChatFileRow, error) {
 	row := q.db.QueryRowContext(ctx, insertChatFile,
 		arg.OwnerID,
@@ -6467,6 +6796,7 @@ func (q *sqlQuerier) InsertChatFile(ctx context.Context, arg InsertChatFileParam
 		arg.Name,
 		arg.Mimetype,
 		arg.Data,
+		arg.Purpose,
 	)
 	var i InsertChatFileRow
 	err := row.Scan(
@@ -6476,8 +6806,40 @@ func (q *sqlQuerier) InsertChatFile(ctx context.Context, arg InsertChatFileParam
 		&i.CreatedAt,
 		&i.Name,
 		&i.Mimetype,
+		&i.Purpose,
 	)
 	return i, err
+}
+
+const retryChatWorkspaceFileDeliveries = `-- name: RetryChatWorkspaceFileDeliveries :execrows
+UPDATE chat_files cf
+SET
+	workspace_delivery_attempts = 0,
+	workspace_delivery_next_attempt_at = NULL,
+	workspace_delivery_error = NULL
+FROM chat_file_links cfl
+WHERE cfl.file_id = cf.id
+	AND cfl.chat_id = $1::uuid
+	AND cf.purpose = 'workspace'::chat_file_purpose
+	AND cf.workspace_delivered_at IS NULL
+	AND (
+		cf.workspace_delivery_error IS NOT NULL
+		OR cf.workspace_delivery_next_attempt_at IS NULL
+		OR cf.workspace_delivery_next_attempt_at <= NOW()
+	)
+`
+
+// RetryChatWorkspaceFileDeliveries makes a chat's undelivered workspace
+// files due again with a fresh attempt budget. Only a file in flight
+// under an unexpired lease is left alone. An expired lease without an
+// error means an attempt never recorded its outcome, for example because
+// its replica stopped, and may have used the last attempt.
+func (q *sqlQuerier) RetryChatWorkspaceFileDeliveries(ctx context.Context, chatID uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, retryChatWorkspaceFileDeliveries, chatID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const deleteChatMCPServersByChatIDExcludingSlugs = `-- name: DeleteChatMCPServersByChatIDExcludingSlugs :exec

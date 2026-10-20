@@ -1543,6 +1543,64 @@ func AllChatClientTypeValues() []ChatClientType {
 	}
 }
 
+type ChatFilePurpose string
+
+const (
+	ChatFilePurposePrompt    ChatFilePurpose = "prompt"
+	ChatFilePurposeWorkspace ChatFilePurpose = "workspace"
+)
+
+func (e *ChatFilePurpose) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatFilePurpose(s)
+	case string:
+		*e = ChatFilePurpose(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatFilePurpose: %T", src)
+	}
+	return nil
+}
+
+type NullChatFilePurpose struct {
+	ChatFilePurpose ChatFilePurpose `json:"chat_file_purpose"`
+	Valid           bool            `json:"valid"` // Valid is true if ChatFilePurpose is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatFilePurpose) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatFilePurpose, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatFilePurpose.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatFilePurpose) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatFilePurpose), nil
+}
+
+func (e ChatFilePurpose) Valid() bool {
+	switch e {
+	case ChatFilePurposePrompt,
+		ChatFilePurposeWorkspace:
+		return true
+	}
+	return false
+}
+
+func AllChatFilePurposeValues() []ChatFilePurpose {
+	return []ChatFilePurpose{
+		ChatFilePurposePrompt,
+		ChatFilePurposeWorkspace,
+	}
+}
+
 type ChatMessageRole string
 
 const (
@@ -5383,6 +5441,22 @@ type ChatFile struct {
 	Name           string    `db:"name" json:"name"`
 	Mimetype       string    `db:"mimetype" json:"mimetype"`
 	Data           []byte    `db:"data" json:"data"`
+	// Where the file goes: prompt files are sent to the model provider, workspace files are copied into the chat's workspace and never sent to the provider.
+	Purpose ChatFilePurpose `db:"purpose" json:"purpose"`
+	// Counted delivery attempts for a workspace file. Delivery stops at the configured maximum until a retry resets it.
+	WorkspaceDeliveryAttempts int32 `db:"workspace_delivery_attempts" json:"workspace_delivery_attempts"`
+	// When a workspace file may be claimed next. NULL means due now. A claim sets it to the lease expiry, so a future value without an error means a delivery is in flight.
+	WorkspaceDeliveryNextAttemptAt sql.NullTime `db:"workspace_delivery_next_attempt_at" json:"workspace_delivery_next_attempt_at"`
+	// Error from the last failed delivery attempt. Cleared when the file is claimed again.
+	WorkspaceDeliveryError sql.NullString `db:"workspace_delivery_error" json:"workspace_delivery_error"`
+	// When the file was written into the workspace. Once set, data is empty and only metadata and the receipt remain.
+	WorkspaceDeliveredAt sql.NullTime `db:"workspace_delivered_at" json:"workspace_delivered_at"`
+	// Home-relative path the workspace agent wrote the file to.
+	WorkspaceDeliveredPath sql.NullString `db:"workspace_delivered_path" json:"workspace_delivered_path"`
+	// Workspace the file was delivered to.
+	WorkspaceDeliveredWorkspaceID uuid.NullUUID `db:"workspace_delivered_workspace_id" json:"workspace_delivered_workspace_id"`
+	// Byte size of the delivered file, kept after data is emptied.
+	WorkspaceDeliveredSizeBytes sql.NullInt64 `db:"workspace_delivered_size_bytes" json:"workspace_delivered_size_bytes"`
 }
 
 type ChatFileLink struct {
