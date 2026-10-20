@@ -1,8 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { type FC, type PropsWithChildren, useEffect } from "react";
+import { useQueryClient } from "react-query";
 import { fn, screen, spyOn, userEvent } from "storybook/test";
 import { API } from "#/api/api";
 import {
 	chatProjectSkillKey,
+	chatProjectSkills,
 	chatProjectSkillsKey,
 } from "#/api/queries/chatProjectSkills";
 import type { Skill, SkillMetadata } from "#/api/typesGenerated";
@@ -95,6 +98,47 @@ export const LoadError: Story = {
 			mockApiError({ message: "Failed to list project skills." }),
 		);
 	},
+	play: async () => {
+		// The list query retries this error three times with backoff (about 7s).
+		await screen.findByText("Failed to list project skills.", undefined, {
+			timeout: 10_000,
+		});
+	},
+};
+
+/**
+ * Refetches the cached skill list once on mount. Retries are off so a
+ * rejected request settles at once instead of after the query's backoff.
+ */
+const RefetchSkillsOnMount: FC<PropsWithChildren> = ({ children }) => {
+	const queryClient = useQueryClient();
+	useEffect(() => {
+		void queryClient.prefetchQuery({
+			...chatProjectSkills(MockChatProject.organization_id, MockChatProject.id),
+			staleTime: 0,
+			retry: false,
+		});
+	}, [queryClient]);
+	return children;
+};
+
+/** A background refresh fails after the list loaded, so rows stay visible. */
+export const RefetchError: Story = {
+	decorators: [
+		(Story) => (
+			<RefetchSkillsOnMount>
+				<Story />
+			</RefetchSkillsOnMount>
+		),
+	],
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjectSkills").mockRejectedValue(
+			mockApiError({ message: "Failed to list project skills." }),
+		);
+	},
+	play: async () => {
+		await screen.findByText("Failed to list project skills.");
+	},
 };
 
 export const New: Story = {
@@ -186,6 +230,10 @@ export const DeleteConfirmation: Story = {
 
 export const DeleteError: Story = {
 	beforeEach: () => {
+		// The delete settles only after the list refetch it triggers.
+		spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue(
+			mockSkills,
+		);
 		spyOn(API.experimental, "deleteChatProjectSkill").mockRejectedValue(
 			mockApiError({ message: "Failed to delete project skill." }),
 		);
