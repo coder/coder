@@ -317,7 +317,7 @@ type buildCompactionMessagesInput struct {
 	modelConfigID       uuid.UUID
 	toolCallID          string
 	toolName            string
-	compaction          compactionOutcome
+	compaction          chatloop.CompactionResult
 	contentVersion      int16
 	pendingUserMessages []database.ChatMessage
 }
