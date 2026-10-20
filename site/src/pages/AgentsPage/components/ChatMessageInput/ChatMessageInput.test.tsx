@@ -262,9 +262,11 @@ describe("ChatMessageInput", () => {
 		const renderWithSkills = ({
 			personal,
 			organization,
+			projectId,
 		}: {
 			personal: SkillMetadata[];
 			organization?: SkillMetadata[];
+			projectId?: string;
 		}) => {
 			const queryClient = createTestQueryClient();
 			queryClient.setQueryData(userSkills().queryKey, personal);
@@ -285,6 +287,7 @@ describe("ChatMessageInput", () => {
 					ref={inputRef}
 					aria-label="Chat message input"
 					organizationId={organizationId}
+					projectId={projectId}
 					slashCommands={[COMPACT_SLASH_COMMAND]}
 				/>,
 				queryClient,
@@ -333,6 +336,24 @@ describe("ChatMessageInput", () => {
 			await screen.findByText(/Could not load organization skills/);
 			await user.keyboard("{Enter}");
 			expect(inputRef.current?.getValue()).toBe("/personal/compactor");
+		});
+
+		it("offers built-in commands when the project list fails", async () => {
+			// chatd runs a turn without project skills it cannot load, so the
+			// failed list must not hide /compact the way an organization
+			// failure does.
+			vi.spyOn(API.experimental, "getChatProjectSkills").mockRejectedValue(
+				new Error("Failed to load project skills."),
+			);
+			const inputRef = renderWithSkills({
+				personal: [{ ...MockSkill, id: "skill-compactor", name: "compactor" }],
+				organization: [],
+				projectId: "project-1",
+			});
+			const user = await pasteTrigger("/comp");
+			await screen.findByText(/Could not load project skills/);
+			await user.keyboard("{Enter}");
+			expect(inputRef.current?.getValue()).toBe("/compact");
 		});
 
 		it("keeps triggers qualified when the organization list fails", async () => {

@@ -647,9 +647,14 @@ const AgentChatPage: React.FC = () => {
 		organizationSkills: organizationSkillsQuery.data?.filter(
 			(skill) => skill.enabled,
 		),
-		projectSkills: hasChatProject
-			? projectSkillsQuery.data?.filter((skill) => skill.enabled)
-			: [],
+		// chatd runs a turn without project skills it cannot load, for example
+		// after the project stops being shared with the chat owner, so a
+		// failed request counts as none instead of leaving /clear and /compact
+		// pending.
+		projectSkills:
+			hasChatProject && !projectSkillsQuery.isError
+				? projectSkillsQuery.data?.filter((skill) => skill.enabled)
+				: [],
 		workspaceSkills: chatWorkspaceSkills,
 		compact,
 		clearChatContext,

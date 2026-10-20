@@ -734,10 +734,15 @@ const ChatMessageInput = ({
 	// A list stays undefined until its source loads, even after an error,
 	// which keeps triggers qualified and built-in commands hidden. A chat
 	// without an organization, project, or workspace has a known empty list.
+	// Project skills are the exception: chatd runs a turn without project
+	// skills it cannot load, so a failed request counts as none.
 	const skillLists: SkillSourceList<SkillMetadata>[] = [
 		{ source: "personal", skills: personalSkills },
 		{ source: "org", skills: organizationSource.skills },
-		{ source: "project", skills: projectSource.skills },
+		{
+			source: "project",
+			skills: projectSource.isError ? [] : projectSource.skills,
+		},
 		{ source: "workspace", skills: loadedWorkspaceSkills },
 	];
 	const availableSlashCommands = (slashCommands ?? []).filter(

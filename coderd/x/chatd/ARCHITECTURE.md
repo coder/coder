@@ -59,8 +59,6 @@ Files uploaded into the chat's workspace through `POST /api/v2/chats/{chat}/work
 
 Project instructions are optional context injected into all chats in a project. Stored in `chat_project_instructions`. Subagents have no `project_id`, so they use the root chat's project. A root chat can move into a project, between projects, or out of its project after it's created. The move is written inside the `SetProject` transition so that it happens only while no step of the chat runs.
 
-TODO (project-skills): chats in a project now also get the project's enabled skills as a `project` skill source next to personal, organization, and workspace skills. They are read each turn as the chat owner, subagents use the root chat's project, and a failed read continues the turn without them. Describe this here.
-
 If the distinction isn't completely clear to you at this point, don't worry. It should become clearer as you learn more about the core state machine.
 
 ## Execution states

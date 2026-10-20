@@ -23,17 +23,17 @@ func (p *Server) usableChatProject(ctx context.Context, logger slog.Logger, proj
 	if err != nil {
 		// A project deleted mid-turn is expected.
 		if !errors.Is(err, sql.ErrNoRows) {
-			logger.Warn(ctx, "failed to load chat project, turn runs without project memory or instructions", slog.Error(err))
+			logger.Warn(ctx, "failed to load chat project, turn runs without project memory, instructions, or skills", slog.Error(err))
 		}
 		return database.ChatProject{}, false
 	}
 	usable, err := ChatProjectUsableBy(ctx, p.db, project, chat.OwnerID)
 	if err != nil {
-		logger.Warn(ctx, "failed to check chat project access, turn runs without project memory or instructions", slog.Error(err))
+		logger.Warn(ctx, "failed to check chat project access, turn runs without project memory, instructions, or skills", slog.Error(err))
 		return database.ChatProject{}, false
 	}
 	if !usable {
-		logger.Debug(ctx, "chat owner cannot use chat project, turn runs without project memory or instructions",
+		logger.Debug(ctx, "chat owner cannot use chat project, turn runs without project memory, instructions, or skills",
 			slog.F("project_owner_id", project.OwnerID))
 		return database.ChatProject{}, false
 	}
@@ -41,9 +41,10 @@ func (p *Server) usableChatProject(ctx context.Context, logger slog.Logger, proj
 }
 
 // ChatProjectUsableBy reports whether userID owns project or has an ACL
-// grant on it. Role grants do not count, because the chat would read memory
-// and instructions the project owner did not share. Memory tools and
-// instruction loading run as chatd, so they must use this check, not dbauthz.
+// grant on it. Role grants do not count, because the chat would read memory,
+// instructions, and skills the project owner did not share. Memory tools and
+// instruction and skill loading run as chatd, so they must use this check,
+// not dbauthz.
 func ChatProjectUsableBy(ctx context.Context, db database.Store, project database.ChatProject, userID uuid.UUID) (bool, error) {
 	if project.OwnerID == userID {
 		return true, nil

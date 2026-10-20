@@ -2444,7 +2444,7 @@ func TestLoadOrganizationSkillBody(t *testing.T) {
 
 // TestLoadProjectSkillBody covers the loader directly because a turn only
 // reaches it for skills it already listed, so the not-found mapping for
-// unshared, disabled, and missing skills is otherwise unreachable.
+// disabled and missing skills is otherwise unreachable.
 func TestLoadProjectSkillBody(t *testing.T) {
 	t.Parallel()
 
@@ -2454,17 +2454,11 @@ func TestLoadProjectSkillBody(t *testing.T) {
 	server := &Server{
 		db:     authzDB,
 		logger: slogtest.Make(t, nil),
-		modelConfigContext: func(ctx context.Context, ownerID uuid.UUID) (context.Context, error) {
-			return callerModelConfigContext(ctx, authzDB, ownerID)
-		},
 	}
 
 	org := dbgen.Organization(t, db, database.Organization{})
 	owner := dbgen.User(t, db, database.User{})
-	outsider := dbgen.User(t, db, database.User{})
-	for _, user := range []database.User{owner, outsider} {
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
-	}
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
 	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
 	for _, name := range []string{"project-review", "disabled-review"} {
 		_, err := db.InsertProjectSkill(ctx, database.InsertProjectSkillParams{
@@ -2482,28 +2476,22 @@ func TestLoadProjectSkillBody(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	subject := func(userID uuid.UUID) rbac.Subject {
-		t.Helper()
-		got, err := server.chatOwnerSubject(dbauthz.AsChatd(ctx), userID)
-		require.NoError(t, err)
-		return got
-	}
-
-	got, err := server.loadProjectSkillBody(ctx, subject(owner.ID), project.ID, "project-review")
+	chatdCtx := dbauthz.AsChatd(ctx)
+	got, err := server.loadProjectSkillBody(chatdCtx, project.ID, "project-review")
 	require.NoError(t, err)
 	require.Equal(t, skillspkg.SourceProject, got.Source)
 	require.Equal(t, "Project instructions.", got.Body)
 
 	for _, tc := range []struct {
-		name   string
-		reader uuid.UUID
-		skill  string
+		name      string
+		projectID uuid.UUID
+		skill     string
 	}{
-		{name: "NotShared", reader: outsider.ID, skill: "project-review"},
-		{name: "Disabled", reader: owner.ID, skill: "disabled-review"},
-		{name: "Missing", reader: owner.ID, skill: "missing-review"},
+		{name: "Disabled", projectID: project.ID, skill: "disabled-review"},
+		{name: "Missing", projectID: project.ID, skill: "missing-review"},
+		{name: "MissingProject", projectID: uuid.New(), skill: "project-review"},
 	} {
-		_, err := server.loadProjectSkillBody(ctx, subject(tc.reader), project.ID, tc.skill)
+		_, err := server.loadProjectSkillBody(chatdCtx, tc.projectID, tc.skill)
 		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound, tc.name)
 	}
 }
