@@ -1,3 +1,4 @@
+import { DEFAULT_CODE_VIEW_FILE_METRICS } from "@pierre/diffs";
 import type {
 	CodeViewHandle,
 	CodeViewItem,
@@ -11,7 +12,7 @@ import type { FileTreeSortComparator, GitStatusEntry } from "@pierre/trees";
 import { FileTree, useFileTree } from "@pierre/trees/react";
 import { cn } from "cn";
 import { ChevronDownIcon } from "lucide-react";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
@@ -58,6 +59,87 @@ const DIFF_STYLE_KEY = "agents.diff-view-style";
 const DIFF_VIEWER_LINE_HEIGHT = 16.5;
 const DIFF_HEADER_HEIGHT = 32;
 const HUNK_SEPARATOR_HEIGHT = 28;
+// Vertical gap between file cards, in pixels.
+const FILE_CARD_GAP = 2;
+// Padding around the file list, in pixels. The right side is 0 while a
+// classic scrollbar is shown.
+const FILE_LIST_PADDING = 8;
+const FILE_CARD_RADIUS = 6;
+// Inset of the code block from the card's sides and bottom, in pixels.
+const FILE_CODE_INSET = 4;
+
+// The code block is inset so its horizontal scrollbar stays inside the card.
+// A collapsed file renders no <pre>, so its header takes the full radius.
+const FILE_CARD_CSS = `
+:host {
+  display: block;
+  border-radius: ${FILE_CARD_RADIUS}px;
+  background-color: hsl(var(--surface-secondary));
+}
+[data-diffs-header] {
+  border-radius: ${FILE_CARD_RADIUS}px ${FILE_CARD_RADIUS}px 0 0;
+  background-color: hsl(var(--surface-secondary)) !important;
+}
+[data-diffs-header]:not(:has(~ pre[data-diff])) {
+  border-radius: ${FILE_CARD_RADIUS}px;
+}
+/* A stuck header covers its own card, which would fill in its rounded top
+   corners. Mask the corners with the panel background. This assumes the
+   panel behind the list is surface-primary; on another surface the corners
+   would show the wrong color. The spread must be at least the radius. */
+[data-diffs-header]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 ${FILE_CARD_RADIUS}px hsl(var(--surface-primary));
+  clip-path: inset(0);
+  pointer-events: none;
+}
+pre[data-diff] {
+  margin: 0 ${FILE_CODE_INSET}px ${FILE_CODE_INSET}px;
+  border-radius: ${FILE_CODE_INSET}px;
+  overflow: hidden;
+}
+/* The global scrollbar-color makes Chromium ignore the library's
+   ::-webkit-scrollbar rules for the code, which hide its vertical scrollbar
+   and size the horizontal one to --diffs-scrollbar-gutter. Resetting it
+   brings those rules back. The library's thumb is transparent until hover,
+   so give it the app's scrollbar color. The library measures the gutter
+   before these rules apply (15px with classic scrollbars), so pin it to the
+   library's fallback: the styled scrollbar height on desktop, 0 on iOS.
+   Firefox ignores ::-webkit-scrollbar and sizes the code scrollbar with the
+   library's scrollbar-width rule, which is in effect when the library
+   measures, so it keeps the measured value. */
+@supports not (-moz-appearance: none) {
+  :host {
+    --diffs-scrollbar-gutter-override: var(--diffs-scrollbar-gutter-fallback);
+  }
+  [data-code] {
+    scrollbar-color: auto;
+  }
+  [data-code]::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--surface-scrollbar));
+  }
+}
+/* The library's Firefox rule replaces its base [data-code] padding-bottom
+   with the full gap, so the code's horizontal scrollbar makes cards taller
+   than their metrics when scrollbars take space. Restore the base rule; the
+   measured gutter is 0 with overlay scrollbars. The library measures once
+   per page, so switching between overlay and classic scrollbars needs a
+   reload to correct the heights. */
+@supports (-moz-appearance: none) {
+  [data-code] {
+    padding-bottom: max(
+      0px,
+      calc(
+        var(--diffs-gap-block, var(--diffs-gap-fallback)) -
+          var(--diffs-scrollbar-gutter)
+      )
+    );
+  }
+}
+`;
 
 // Minimum width (px) of the diff container at which the file tree sidebar is
 // shown alongside the diff. Below this the diff takes the full width unless the
@@ -75,6 +157,9 @@ const diffViewerMetrics: Partial<VirtualFileMetrics> = {
 	diffHeaderHeight: DIFF_HEADER_HEIGHT,
 	hunkSeparatorHeight: HUNK_SEPARATOR_HEIGHT,
 	lineHeight: DIFF_VIEWER_LINE_HEIGHT,
+	// CodeView computes file heights from these metrics, so they must include
+	// the code block's bottom inset from FILE_CARD_CSS.
+	paddingBottom: DEFAULT_CODE_VIEW_FILE_METRICS.spacing + FILE_CODE_INSET,
 };
 
 const fileTreeStyle = {
@@ -233,7 +318,7 @@ function HeaderContent({
 }) {
 	const { additions, deletions } = countChangedLines(fileDiff);
 	return (
-		<div className="flex h-8 min-w-0 items-center justify-between gap-3 border-0 border-b border-solid border-border bg-surface-secondary py-2 pr-1.5 pl-1 font-sans text-sm">
+		<div className="flex h-8 min-w-0 items-center justify-between gap-3 px-1 font-sans text-sm">
 			<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
 				<Button
 					variant="subtle"
@@ -270,16 +355,12 @@ function HeaderContent({
 				</div>
 			</div>
 			{(additions > 0 || deletions > 0) && (
-				<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border font-mono text-xs font-medium leading-5">
-					{deletions > 0 && (
-						<span className="flex items-center bg-surface-git-deleted px-1 text-git-deleted-bright">
-							&minus;{deletions}
-						</span>
-					)}
+				<span className="flex shrink-0 items-center gap-1.5 pr-1 text-xs font-medium tabular-nums">
 					{additions > 0 && (
-						<span className="flex items-center bg-surface-git-added px-1 text-git-added-bright">
-							+{additions}
-						</span>
+						<span className="text-git-added-bright">+{additions}</span>
+					)}
+					{deletions > 0 && (
+						<span className="text-git-deleted-bright">&minus;{deletions}</span>
 					)}
 				</span>
 			)}
@@ -386,10 +467,8 @@ export function saveDiffStyle(style: DiffStyle): void {
 	localStorage.setItem(DIFF_STYLE_KEY, style);
 }
 
-// The loading state mirrors the real diff layout: flat, full-width
-// file headers with a change badge and stat pill, gutter-aligned code
-// lines, and centered hunk separators. Keeping the same shape avoids a
-// jarring swap when the parsed diff replaces the placeholder.
+// The loading state mirrors the real file card layout so the parsed diff
+// replaces it without a visible jump. Change both together.
 function SkeletonLine({ width }: { width: string }) {
 	return (
 		<div
@@ -414,16 +493,25 @@ function SkeletonSeparator() {
 
 function SkeletonFile({ groups }: { groups: readonly (readonly string[])[] }) {
 	return (
-		<div>
-			<div className="flex h-8 items-center justify-between gap-3 border-0 border-b border-solid border-border bg-surface-secondary py-2 pr-1.5 pl-1">
+		<div
+			className="overflow-hidden bg-surface-secondary"
+			style={{ borderRadius: FILE_CARD_RADIUS }}
+		>
+			<div className="flex h-8 items-center justify-between gap-3 px-1">
 				<div className="flex items-center gap-1.5">
 					<div className="size-5 shrink-0" />
 					<Skeleton className="size-3 rounded-[2px]" />
 					<Skeleton className="h-3 w-44" />
 				</div>
-				<Skeleton className="h-5 w-14 rounded-[3px]" />
+				<Skeleton className="h-3 w-14" />
 			</div>
-			<div className="py-1">
+			<div
+				className="bg-surface-primary py-1"
+				style={{
+					margin: `0 ${FILE_CODE_INSET}px ${FILE_CODE_INSET}px`,
+					borderRadius: FILE_CODE_INSET,
+				}}
+			>
 				{groups.map((lines, groupIndex) => (
 					<Fragment key={groupIndex}>
 						{groupIndex > 0 && <SkeletonSeparator />}
@@ -450,7 +538,13 @@ const DIFF_SKELETON_FILES = [
 
 function DiffViewerSkeleton() {
 	return (
-		<div role="status" aria-label="Loading diff" aria-busy>
+		<div
+			role="status"
+			aria-label="Loading diff"
+			aria-busy
+			className="flex flex-col"
+			style={{ gap: FILE_CARD_GAP, padding: FILE_LIST_PADDING }}
+		>
 			{DIFF_SKELETON_FILES.map((groups, fileIndex) => (
 				<SkeletonFile key={fileIndex} groups={groups} />
 			))}
@@ -538,6 +632,21 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 		return () => observer.disconnect();
 	}, [containerEl]);
 
+	// A classic scrollbar already separates the cards from the panel edge, so
+	// the list drops its right padding while one is shown.
+	const [hasClassicScrollbar, setHasClassicScrollbar] = useState(false);
+	useLayoutEffect(() => {
+		if (!scrollerEl) return;
+		const update = () =>
+			setHasClassicScrollbar(
+				scrollerEl.offsetWidth - scrollerEl.clientWidth > 0,
+			);
+		update();
+		const observer = new ResizeObserver(update);
+		observer.observe(scrollerEl);
+		return () => observer.disconnect();
+	}, [scrollerEl]);
+
 	const showTree = isExpanded || containerWidth >= FILE_TREE_THRESHOLD;
 	const handleScroll = useActiveFileTracking({
 		enabled: showTree,
@@ -550,10 +659,14 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 		diffIndicators: "bars",
 		overflow: "scroll",
 		stickyHeaders: true,
-		layout: { paddingTop: 0, paddingBottom: 0, gap: 0 },
+		layout: {
+			paddingTop: FILE_LIST_PADDING,
+			paddingBottom: FILE_LIST_PADDING,
+			gap: FILE_CARD_GAP,
+		},
 		hunkSeparators: "line-info",
 		itemMetrics: diffViewerMetrics,
-		unsafeCSS: SEPARATOR_CSS,
+		unsafeCSS: `${SEPARATOR_CSS} ${FILE_CARD_CSS}`,
 		themeType: isDark ? "dark" : "light",
 		theme: isDark ? "github-dark-high-contrast" : "github-light",
 		enableLineSelection: true,
@@ -679,7 +792,11 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 				options={options}
 				selectedLines={selectedLines}
 				className="h-full min-h-0 min-w-0 flex-1 overflow-auto"
-				style={diffViewerStyle}
+				style={{
+					...diffViewerStyle,
+					paddingLeft: FILE_LIST_PADDING,
+					paddingRight: hasClassicScrollbar ? 0 : FILE_LIST_PADDING,
+				}}
 				onScroll={handleScroll}
 				renderCustomHeader={(item) =>
 					item.type === "diff" ? (
