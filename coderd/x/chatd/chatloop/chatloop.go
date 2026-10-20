@@ -229,8 +229,10 @@ type GenerateCompactionOptions struct {
 	DebugSvc            *chatdebug.Service
 	ChatID              uuid.UUID
 	HistoryTipMessageID int64
-	ToolCallID          string
-	ToolName            string
+	// ToolCallID and ToolName identify the synthetic tool call
+	// used to represent compaction in the message stream.
+	ToolCallID string
+	ToolName   string
 
 	// ResolvedProvider, ResolvedModel, and ModelConfigID identify the
 	// summary model, which can differ from the chat model when a
@@ -252,6 +254,9 @@ type GenerateCompactionOptions struct {
 	// summary call uses the exact same ordered definitions.
 	ToolDefinitions []fantasy.Tool
 
+	// PublishMessagePart publishes streaming parts to connected
+	// clients so they see "Summarizing..." / "Summarized" UI
+	// transitions during compaction.
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 
 	// Clock measures the summary call duration. Required.
