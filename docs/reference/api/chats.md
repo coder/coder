@@ -1485,14 +1485,15 @@ curl -X GET http://coder-server:8080/api/v2/chats/files/{file} \
 
 ### Example responses
 
-> 410 Response
+> 403 Response
 
 ### Responses
 
-| Status | Meaning                                                   | Description                                                                 | Schema                                           |
-|--------|-----------------------------------------------------------|-----------------------------------------------------------------------------|--------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)   | OK                                                                          |                                                  |
-| 410    | [Gone](https://tools.ietf.org/html/rfc7231#section-6.5.9) | Workspace file was copied into the chat's workspace and is no longer stored | [codersdk.Response](schemas.md#codersdkresponse) |
+| Status | Meaning                                                        | Description                                                                   | Schema                                           |
+|--------|----------------------------------------------------------------|-------------------------------------------------------------------------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)        | OK                                                                            |                                                  |
+| 403    | [Forbidden](https://tools.ietf.org/html/rfc7231#section-6.5.3) | Workspace files are copied into the chat's workspace and cannot be downloaded | [codersdk.Response](schemas.md#codersdkresponse) |
+| 410    | [Gone](https://tools.ietf.org/html/rfc7231#section-6.5.9)      | Workspace file was copied into the chat's workspace and is no longer stored   | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

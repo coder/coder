@@ -7129,6 +7129,7 @@ func (c ChatFileDownloadClaims) Validate(expected jwt.Expected) error {
 // @Produce json
 // @Param file path string true "File ID" format(uuid)
 // @Success 200 {object} codersdk.ChatFileDownloadURLResponse
+// @Failure 403 {object} codersdk.Response "Workspace files are copied into the chat's workspace and cannot be downloaded"
 // @Failure 410 {object} codersdk.Response "Workspace file was copied into the chat's workspace and is no longer stored"
 // @Router /api/v2/chats/files/{file}/download-url [post]
 // @x-apidocgen {"skip": true}
@@ -7142,7 +7143,7 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	chatFile, err := api.Database.GetChatFileByID(ctx, fileID)
+	chatFile, ok, err := api.servableChatFile(ctx, rw, fileID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
@@ -7154,7 +7155,7 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
-	if writeChatFileGoneIfDelivered(ctx, rw, chatFile) {
+	if !ok {
 		return
 	}
 
@@ -7198,6 +7199,7 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 // @Param file path string true "File ID" format(uuid)
 // @Param token query string true "Signed download token"
 // @Success 200
+// @Failure 403 {object} codersdk.Response "Workspace files are copied into the chat's workspace and cannot be downloaded"
 // @Failure 410 {object} codersdk.Response "Workspace file was copied into the chat's workspace and is no longer stored"
 // @Router /api/v2/chats/files/{file}/download [get]
 // @x-apidocgen {"skip": true}
@@ -7221,7 +7223,10 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chatFile, err := api.Database.GetChatFileByID(dbauthz.As(ctx, subject), fileID)
+	// Never let private caches replay a signed URL past its expiry;
+	// revocation is re-checked only when the request reaches coderd.
+	rw.Header().Set("Cache-Control", "no-store")
+	chatFile, ok, err := api.servableChatFile(dbauthz.As(ctx, subject), rw, fileID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
@@ -7235,10 +7240,7 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	// Never let private caches replay a signed URL past its expiry;
-	// revocation is re-checked only when the request reaches coderd.
-	rw.Header().Set("Cache-Control", "no-store")
-	if writeChatFileGoneIfDelivered(ctx, rw, chatFile) {
+	if !ok {
 		return
 	}
 	api.serveChatFile(ctx, rw, chatFile)
@@ -7250,6 +7252,7 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 // @Tags Chats
 // @Param file path string true "File ID" format(uuid)
 // @Success 200
+// @Failure 403 {object} codersdk.Response "Workspace files are copied into the chat's workspace and cannot be downloaded"
 // @Failure 410 {object} codersdk.Response "Workspace file was copied into the chat's workspace and is no longer stored"
 // @Router /api/v2/chats/files/{file} [get]
 func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
@@ -7264,7 +7267,7 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chatFile, err := api.Database.GetChatFileByID(ctx, fileID)
+	chatFile, ok, err := api.servableChatFile(ctx, rw, fileID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
@@ -7276,30 +7279,45 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
-	if chatFile.Purpose == database.ChatFilePurposeWorkspace {
-		// The bytes are dropped once the file reaches the workspace, so
-		// a cached copy would outlive the stored file.
-		rw.Header().Set("Cache-Control", "no-store")
-	} else {
-		rw.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
-	}
-	if writeChatFileGoneIfDelivered(ctx, rw, chatFile) {
+	if !ok {
 		return
 	}
+
+	rw.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
 	api.serveChatFile(r.Context(), rw, chatFile)
 }
 
-// writeChatFileGoneIfDelivered answers 410 Gone for a workspace file whose
-// bytes were dropped after delivery, instead of serving an empty body.
-func writeChatFileGoneIfDelivered(ctx context.Context, rw http.ResponseWriter, chatFile database.ChatFile) bool {
-	if chatFile.Purpose != database.ChatFilePurposeWorkspace || !chatFile.WorkspaceDeliveredAt.Valid {
-		return false
+// servableChatFile loads a chat file for a download route. Workspace files are refused from their metadata, before their bytes are
+// loaded: they may be 100 MiB and exist only to be copied into the chat's
+// workspace. ok is false when a refusal was written; err reports a failed
+// lookup for the caller to answer.
+func (api *API) servableChatFile(ctx context.Context, rw http.ResponseWriter, fileID uuid.UUID) (chatFile database.ChatFile, ok bool, err error) {
+	rows, err := api.Database.GetChatFilesMetadataByIDs(ctx, []uuid.UUID{fileID})
+	if err != nil {
+		return database.ChatFile{}, false, err
 	}
-	httpapi.Write(ctx, rw, http.StatusGone, codersdk.Response{
-		Message: "Chat file was copied into the chat's workspace and is no longer stored.",
-	})
-	return true
+	if len(rows) == 0 {
+		return database.ChatFile{}, false, sql.ErrNoRows
+	}
+	if rows[0].Purpose == database.ChatFilePurposeWorkspace {
+		rw.Header().Set("Cache-Control", "no-store")
+		if rows[0].WorkspaceDeliveredAt.Valid {
+			httpapi.Write(ctx, rw, http.StatusGone, codersdk.Response{
+				Message: "Chat file was copied into the chat's workspace and is no longer stored.",
+			})
+			return database.ChatFile{}, false, nil
+		}
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Workspace chat files cannot be downloaded.",
+			Detail:  "Coder copies the file into the chat's workspace once the workspace is running.",
+		})
+		return database.ChatFile{}, false, nil
+	}
+	chatFile, err = api.Database.GetChatFileByID(ctx, fileID)
+	if err != nil {
+		return database.ChatFile{}, false, err
+	}
+	return chatFile, true, nil
 }
 
 // serveChatFile writes the file body and content headers; callers set

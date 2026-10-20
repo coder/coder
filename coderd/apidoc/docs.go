@@ -3852,6 +3852,12 @@ const docTemplate = `{
                     "200": {
                         "description": "OK"
                     },
+                    "403": {
+                        "description": "Workspace files are copied into the chat's workspace and cannot be downloaded",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
                     "410": {
                         "description": "Workspace file was copied into the chat's workspace and is no longer stored",
                         "schema": {
@@ -3894,6 +3900,12 @@ const docTemplate = `{
                     "200": {
                         "description": "OK"
                     },
+                    "403": {
+                        "description": "Workspace files are copied into the chat's workspace and cannot be downloaded",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
                     "410": {
                         "description": "Workspace file was copied into the chat's workspace and is no longer stored",
                         "schema": {
@@ -3931,6 +3943,12 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ChatFileDownloadURLResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Workspace files are copied into the chat's workspace and cannot be downloaded",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     },
                     "410": {

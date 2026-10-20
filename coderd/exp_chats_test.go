@@ -13002,7 +13002,10 @@ This arrived as octet-stream.
 func TestChatWorkspaceAttachments(t *testing.T) {
 	t.Parallel()
 
-	client, db := newChatClientWithDatabase(t)
+	key := jwtutils.StaticKey{ID: "1", Key: []byte(strings.Repeat("k", 64))}
+	client, db := newChatClientWithDatabase(t, func(options *coderdtest.Options) {
+		options.ChatFileTokenKeyCache = key
+	})
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModel(t, client)
 
@@ -13016,6 +13019,28 @@ func TestChatWorkspaceAttachments(t *testing.T) {
 		uploaded, err := client.UploadChatFileWithPurpose(ctx, firstUser.OrganizationID, codersdk.ChatFilePurposeWorkspace, "application/zip", name, bytes.NewReader(data))
 		require.NoError(t, err)
 		return uploaded.ID
+	}
+	// Minting refuses workspace files, so sign a token directly to reach
+	// the signed download route.
+	signedDownload := func(ctx context.Context, t *testing.T, fileID uuid.UUID) (int, http.Header) {
+		t.Helper()
+		token, err := jwtutils.Sign(ctx, key, coderd.ChatFileDownloadClaims{
+			RegisteredClaims: jwtutils.RegisteredClaims{
+				Expiry:   jwt.NewNumericDate(time.Now().Add(time.Minute)),
+				IssuedAt: jwt.NewNumericDate(time.Now()),
+			},
+			FileID: fileID,
+			UserID: firstUser.UserID,
+		})
+		require.NoError(t, err)
+		downloadURL := client.URL.JoinPath("api", "v2", "chats", "files", fileID.String(), "download")
+		downloadURL.RawQuery = url.Values{"token": {token}}.Encode()
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadURL.String(), nil)
+		require.NoError(t, err)
+		res, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		return res.StatusCode, res.Header
 	}
 	attachmentPart := func(t *testing.T, parts []codersdk.ChatMessagePart) codersdk.ChatMessagePart {
 		t.Helper()
@@ -13047,15 +13072,26 @@ func TestChatWorkspaceAttachments(t *testing.T) {
 		require.Error(t, err)
 
 		fileID := uploadWorkspaceFile(ctx, t, "archive.zip", archive)
-		res, err := client.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/chats/files/%s", fileID), nil)
+		//nolint:gocritic // Reads the stored bytes, which no user route serves.
+		stored, err := db.GetChatFileByID(dbauthz.AsSystemRestricted(ctx), fileID)
 		require.NoError(t, err)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusOK, res.StatusCode)
-		require.Equal(t, "application/zip", res.Header.Get("Content-Type"))
-		require.Equal(t, "no-store", res.Header.Get("Cache-Control"))
-		got, err := io.ReadAll(res.Body)
-		require.NoError(t, err)
-		require.Equal(t, archive, got)
+		require.Equal(t, database.ChatFilePurposeWorkspace, stored.Purpose)
+		require.Equal(t, "application/zip", stored.Mimetype)
+		require.Equal(t, archive, stored.Data)
+	})
+
+	t.Run("RefusesDownloadsBeforeDelivery", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		fileID := uploadWorkspaceFile(ctx, t, "archive.zip", zipBytes(4096))
+		_, _, err := client.GetChatFile(ctx, fileID)
+		requireSDKError(t, err, http.StatusForbidden)
+		_, err = client.ChatFileDownloadURL(ctx, fileID)
+		requireSDKError(t, err, http.StatusForbidden)
+		status, header := signedDownload(ctx, t, fileID)
+		require.Equal(t, http.StatusForbidden, status)
+		require.Equal(t, "no-store", header.Get("Cache-Control"))
 	})
 
 	t.Run("CreateDeliverEdit", func(t *testing.T) {
@@ -13088,8 +13124,6 @@ func TestChatWorkspaceAttachments(t *testing.T) {
 		require.NotZero(t, userMessage.ID)
 		wantPart := codersdk.ChatMessageWorkspaceAttachment(fileID, "application/zip", "my_report_.zip", int64(len(data)))
 		require.Equal(t, wantPart, attachmentPart(t, userMessage.Content))
-		signed, err := client.ChatFileDownloadURL(ctx, fileID)
-		require.NoError(t, err)
 
 		//nolint:gocritic // Test simulates the chatd delivery loop.
 		completed, err := db.CompleteChatWorkspaceFileDelivery(dbauthz.AsChatd(ctx), database.CompleteChatWorkspaceFileDeliveryParams{
@@ -13105,13 +13139,8 @@ func TestChatWorkspaceAttachments(t *testing.T) {
 		requireSDKError(t, err, http.StatusGone)
 		_, err = client.ChatFileDownloadURL(ctx, fileID)
 		requireSDKError(t, err, http.StatusGone)
-		// A URL signed before delivery must not serve an empty body.
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, signed.URL, nil)
-		require.NoError(t, err)
-		res, err := http.DefaultClient.Do(req)
-		require.NoError(t, err)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusGone, res.StatusCode)
+		status, _ := signedDownload(ctx, t, fileID)
+		require.Equal(t, http.StatusGone, status)
 
 		edited, err := client.EditChatMessage(ctx, chat.ID, userMessage.ID, codersdk.EditChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
