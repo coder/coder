@@ -1348,6 +1348,13 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return(msgs, nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(msgs)
 	}))
+	s.Run("GetChatContextBoundaryMessages", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		rows := []database.GetChatContextBoundaryMessagesRow{{ID: 2, AnchorID: 1, ToolName: "chat_context_rollover"}}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().GetChatContextBoundaryMessages(gomock.Any(), chat.ID).Return(rows, nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(rows)
+	}))
 	s.Run("GetLatestSuccessfulChatToolCallArgs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.GetLatestSuccessfulChatToolCallArgsParams{ChatID: chat.ID, ToolName: "save_checkpoint"}

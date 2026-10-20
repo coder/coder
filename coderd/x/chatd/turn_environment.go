@@ -812,6 +812,11 @@ func (p *Server) buildTurnEnvironment(
 	if tokenBudget {
 		tools = append(tools, chattool.SaveCheckpoint(), chattool.NewContext(chattool.NewContextOptions{
 			RolloverDisabled: effectiveThreshold >= chatloop.CompactionDisabledThresholdPercent,
+		}), chattool.ChatHistory(chattool.ChatHistoryOptions{
+			DB:           p.db,
+			ChatID:       chat.ID,
+			ParseContent: chatprompt.ParseContent,
+			Clock:        p.clock,
 		}))
 	}
 	if advisorRuntime != nil {
@@ -2023,7 +2028,7 @@ func filterExternalMCPConfigsForTurn(
 func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 	switch name {
 	case "read_file", "execute", "process_output", "read_skill", "read_skill_file",
-		chattool.SaveCheckpointToolName, chattool.NewContextToolName:
+		chattool.SaveCheckpointToolName, chattool.NewContextToolName, chattool.ChatHistoryToolName:
 		return true
 	case "write_file", "edit_files", "list_templates", "read_template",
 		"create_workspace", "start_workspace", "stop_workspace", "propose_plan", "spawn_agent",
@@ -2122,6 +2127,7 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 		"ask_user_question":    false,
 		"save_checkpoint":      true,
 		"new_context":          true,
+		"chat_history":         true,
 	}
 
 	toolNames := make([]string, 0, len(allTools))

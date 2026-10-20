@@ -1585,6 +1585,14 @@ func (m queryMetricsStore) GetChatComputerUseProvider(ctx context.Context) (stri
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatContextBoundaryMessages(ctx context.Context, chatID uuid.UUID) ([]database.GetChatContextBoundaryMessagesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatContextBoundaryMessages(ctx, chatID)
+	m.queryLatencies.WithLabelValues("GetChatContextBoundaryMessages").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatContextBoundaryMessages").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatDebugLoggingAllowUsers(ctx context.Context) (bool, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatDebugLoggingAllowUsers(ctx)
