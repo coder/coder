@@ -298,3 +298,39 @@ export const MixedStates: Story = {
 		};
 	})(),
 };
+
+export const WorkspaceFiles: Story = {
+	args: (() => {
+		const image = createMockFile("photo.png", "image/png");
+		const archive = createMockFile("report.zip", "application/zip");
+		const scan = createMockFile("scan.tiff", "image/tiff");
+		const tooLarge = createMockFile("dataset.tar", "application/x-tar");
+		return {
+			attachments: [image, archive, scan, tooLarge],
+			uploadStates: new Map<File, UploadState>([
+				[image, { status: "uploaded", fileId: "file-image" }],
+				[
+					archive,
+					{ status: "uploaded", fileId: "file-zip", purpose: "workspace" },
+				],
+				[scan, { status: "uploading", purpose: "workspace" }],
+				[
+					tooLarge,
+					{
+						status: "error",
+						error: "File too large (120.0 MiB). Maximum is 100 MiB.",
+						purpose: "workspace",
+					},
+				],
+			]),
+			previewUrls: new Map<File, string>([
+				[image, TINY_PNG],
+				[scan, TINY_PNG],
+			]),
+		};
+	})(),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(canvas.getByLabelText("Upload error"));
+	},
+};

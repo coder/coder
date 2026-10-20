@@ -75,9 +75,6 @@ vi.mock("#/modules/dashboard/useDashboard", async () => {
 	};
 });
 
-const workspaceUploadUnavailableMessage =
-	"This file type is uploaded into the chat's workspace. Select a running workspace, then try again.";
-const removedQueuedFileMessage = "Removed 1 file that uploads to the workspace";
 const attachDuringSubmitMessage =
 	"Wait for the current message to finish sending, then add the file again.";
 
@@ -244,6 +241,18 @@ const submitMessage = async (message: string) => {
 	await clickSend();
 };
 
+const mockStagedUpload = () =>
+	vi
+		.spyOn(API.experimental, "uploadChatFile")
+		.mockResolvedValue({ id: "staged-zip" });
+
+const expectZipStaged = (uploadSpy: ReturnType<typeof mockStagedUpload>) =>
+	expect(uploadSpy).toHaveBeenCalledWith(
+		expect.objectContaining({ name: "bundle.zip" }),
+		MockDefaultOrganization.id,
+		"workspace",
+	);
+
 const submittedOptions = (
 	onCreateChat: ReturnType<typeof renderForm>["onCreateChat"],
 ): CreateChatOptions => {
@@ -266,7 +275,7 @@ describe("AgentCreateForm workspace file uploads", () => {
 		localStorage.clear();
 		dashboard.showOrganizations = false;
 		vi.spyOn(toast, "error");
-		vi.spyOn(toast, "warning");
+		vi.spyOn(toast, "info");
 	});
 
 	afterEach(() => {
@@ -298,22 +307,14 @@ describe("AgentCreateForm workspace file uploads", () => {
 		expect(submittedOptions(onCreateChat).uploadWorkspaceFiles).toBeUndefined();
 	});
 
-	it("rejects workspace files when no workspace is selected", async () => {
-		const { onCreateChat } = renderForm();
-
-		await attachZipFile();
-		await submitMessage("inspect this archive");
-
-		expect(toast.error).toHaveBeenCalledWith(workspaceUploadUnavailableMessage);
-		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(submittedOptions(onCreateChat).uploadWorkspaceFiles).toBeUndefined();
-	});
-
-	it("rejects workspace files when the selected agent is disconnected", async () => {
-		localStorage.setItem(
-			"agents.selected-workspace-id",
-			mockStoppedWorkspace.id,
-		);
+	it.each([
+		{ name: "no workspace", workspaceId: undefined },
+		{ name: "a stopped workspace", workspaceId: mockStoppedWorkspace.id },
+	])("stages workspace files with $name", async ({ workspaceId }) => {
+		if (workspaceId) {
+			localStorage.setItem(selectedWorkspaceIdStorageKey, workspaceId);
+		}
+		const uploadSpy = mockStagedUpload();
 		const { onCreateChat } = renderForm({
 			workspaceOptions: [mockStoppedWorkspace],
 		});
@@ -321,9 +322,13 @@ describe("AgentCreateForm workspace file uploads", () => {
 		await attachZipFile();
 		await submitMessage("inspect this archive");
 
-		expect(toast.error).toHaveBeenCalledWith(workspaceUploadUnavailableMessage);
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(submittedOptions(onCreateChat).uploadWorkspaceFiles).toBeUndefined();
+		expectZipStaged(uploadSpy);
+		expect(submittedOptions(onCreateChat)).toMatchObject({
+			fileIDs: undefined,
+			workspaceAttachmentFileIDs: ["staged-zip"],
+			uploadWorkspaceFiles: undefined,
+		});
 	});
 
 	it("locks the scope controls while the upload submit is pending", async () => {
@@ -403,25 +408,29 @@ describe("AgentCreateForm workspace file uploads", () => {
 		expect(toast.error).toHaveBeenCalledWith(attachDuringSubmitMessage);
 	});
 
-	it("drops queued files when the workspace is detached", async () => {
+	it("stages queued files when the workspace is detached", async () => {
 		localStorage.setItem("agents.selected-workspace-id", mockWorkspace.id);
+		const uploadSpy = mockStagedUpload();
 		const { onCreateChat } = renderForm();
 
 		await attachZipFile();
+		expect(uploadSpy).not.toHaveBeenCalled();
 		await user().click(
 			screen.getByRole("button", { name: "Remove workspace my-project" }),
 		);
+		await submitMessage("inspect this archive");
 
-		await waitFor(() =>
-			expect(toast.warning).toHaveBeenCalledWith(removedQueuedFileMessage),
-		);
-		await submitMessage("plain text message");
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(submittedOptions(onCreateChat).uploadWorkspaceFiles).toBeUndefined();
+		expectZipStaged(uploadSpy);
+		expect(submittedOptions(onCreateChat)).toMatchObject({
+			workspaceAttachmentFileIDs: ["staged-zip"],
+			uploadWorkspaceFiles: undefined,
+		});
 	});
 
-	it("drops queued files when switching to a stopped workspace", async () => {
+	it("stages queued files when switching to a stopped workspace", async () => {
 		localStorage.setItem("agents.selected-workspace-id", mockWorkspace.id);
+		const uploadSpy = mockStagedUpload();
 		renderForm({
 			workspaceCount: 2,
 			workspaceOptions: [mockWorkspace, mockStoppedWorkspace],
@@ -434,9 +443,7 @@ describe("AgentCreateForm workspace file uploads", () => {
 		);
 		await user().click(await screen.findByText("stopped-project"));
 
-		await waitFor(() =>
-			expect(toast.warning).toHaveBeenCalledWith(removedQueuedFileMessage),
-		);
+		await waitFor(() => expectZipStaged(uploadSpy));
 	});
 
 	it("keeps queued files when an organization change is cancelled", async () => {
@@ -460,23 +467,42 @@ describe("AgentCreateForm workspace file uploads", () => {
 
 	it("keeps queued files across an agent status flap on the same workspace", async () => {
 		localStorage.setItem("agents.selected-workspace-id", mockWorkspace.id);
+		const uploadSpy = mockStagedUpload();
+		const { onCreateChat, rerender } = renderForm();
+
+		await attachZipFile();
+		rerender({ workspaceOptions: [mockDisconnectedWorkspace] });
+		rerender({ workspaceOptions: [mockWorkspace] });
+		await submitMessage("inspect this archive");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(uploadSpy).not.toHaveBeenCalled();
+		expect(submittedOptions(onCreateChat).uploadWorkspaceFiles).toEqual(
+			expect.any(Function),
+		);
+	});
+
+	it("stages queued files when submitting while the agent is disconnected", async () => {
+		localStorage.setItem(selectedWorkspaceIdStorageKey, mockWorkspace.id);
+		const uploadSpy = mockStagedUpload();
 		const { onCreateChat, rerender } = renderForm();
 
 		await attachZipFile();
 		rerender({ workspaceOptions: [mockDisconnectedWorkspace] });
 		await submitMessage("inspect this archive");
 
-		expect(toast.error).toHaveBeenCalledWith(workspaceUploadUnavailableMessage);
-		expect(onCreateChat).not.toHaveBeenCalled();
-
-		rerender({ workspaceOptions: [mockWorkspace] });
-		await clickSend();
-
-		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(submittedOptions(onCreateChat).uploadWorkspaceFiles).toEqual(
-			expect.any(Function),
+		expect(toast.info).toHaveBeenCalledWith(
+			"The workspace agent is not connected, so Coder now stores these files and copies them into the workspace once it starts. Send again when they finish uploading.",
 		);
-		expect(toast.warning).not.toHaveBeenCalledWith(removedQueuedFileMessage);
+		expect(onCreateChat).not.toHaveBeenCalled();
+		expectZipStaged(uploadSpy);
+
+		await clickSend();
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat)).toMatchObject({
+			workspaceAttachmentFileIDs: ["staged-zip"],
+			uploadWorkspaceFiles: undefined,
+		});
 	});
 });
 
