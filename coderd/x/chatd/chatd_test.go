@@ -57,6 +57,7 @@ import (
 	experimentrules "github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/experiments/experimentstest"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd"
@@ -4694,8 +4695,8 @@ func highUsageTextResponse(text string) chattest.AnthropicResponse {
 func anthropicCompactionResponse(t testing.TB, req *chattest.AnthropicRequest, text string) chattest.AnthropicResponse {
 	t.Helper()
 	require.True(t, req.Stream)
-	// The summary cap is the configured cap with headroom bounded by
-	// the remaining context window, so it varies per test fixture; exact
+	// The summary cap is the configured cap bounded by the remaining
+	// context window, so it varies per test fixture; exact
 	// values are pinned in the chatloop unit tests and the hook test.
 	require.Positive(t, req.MaxTokens)
 	return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks(text)...)
@@ -5301,6 +5302,56 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 		require.False(t, chat.LastError.Valid)
 		require.Equal(t, int32(2), streamCount.Load())
+	})
+
+	t.Run("summary keeps the configured output cap", func(t *testing.T) {
+		t.Parallel()
+
+		// A cap configured at the provider maximum, as the known-model
+		// catalog seeds it, must not grow on the summary request: providers
+		// reject max_tokens above their output limit.
+		const maxOutputTokens = int64(128_000)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		requests := newAnthropicRequestRecorder()
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			body := anthropicRequestBody(t, *req)
+			if strings.Contains(body, "You are performing a context compaction") {
+				requests.record(req)
+				return anthropicCompactionResponse(t, req, compactionSummary)
+			}
+			if !req.Stream {
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			requests.record(req)
+			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunksWithCacheUsage(chattest.AnthropicUsage{
+				InputTokens:  10,
+				OutputTokens: 5,
+			}, "assistant answer")...)
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+		model = updateChatModelCompressionThreshold(t, db, model, 1_000_000, 80)
+		model = updateChatModelCallConfig(t, db, model, codersdk.ChatModelCallConfig{
+			MaxOutputTokens: ptr.Ref(maxOutputTokens),
+		})
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello from the user")
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		_, err := server.CompactChat(ctx, chat)
+		require.NoError(t, err)
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.False(t, chat.LastError.Valid)
+		require.False(t, chat.CompactionRequestedAt.Valid,
+			"compaction commit must consume the request marker")
+
+		recorded := requests.all()
+		require.Len(t, recorded, 2, "one chat turn and one summary request")
+		require.Equal(t, int(maxOutputTokens), recorded[0].MaxTokens, "chat turn max_tokens")
+		require.Equal(t, int(maxOutputTokens), recorded[1].MaxTokens, "summary max_tokens")
 	})
 
 	t.Run("compacts an errored chat and clears last_error", func(t *testing.T) {
