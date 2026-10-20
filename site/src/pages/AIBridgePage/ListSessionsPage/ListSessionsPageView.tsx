@@ -124,7 +124,7 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 											<TooltipContent
 												side="top"
 												align="end"
-												className="max-w-48 text-sm font-normal"
+												className="max-w-60 text-sm font-normal"
 											>
 												Times are shown in your local timezone{" "}
 												<span className="whitespace-nowrap">
