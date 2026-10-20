@@ -782,7 +782,7 @@ const firstCodeBlock = (canvasElement: HTMLElement): HTMLElement => {
 // CI runs headless Chromium, which hides scrollbars, so there the height
 // check only covers the hidden-scrollbar case: the story zeroes the gutter
 // because no scrollbar fills it. The style checks before that hold in Chromium
-// whether or not scrollbars are shown, and fail if the Chromium scrollbar
+// whether or not scrollbars are shown, and fail if the non-Firefox scrollbar
 // rules in FILE_CARD_CSS are dropped. No CI test covers the Firefox rule,
 // because the runner is Chromium only.
 export const OverflowScrollsToLastCard: Story = {
