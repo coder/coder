@@ -21,7 +21,7 @@ Instead, they have their own reconciliation loop that handles prebuild-specific 
 
 ## Relationship to workspace presets
 
-Prebuilt workspaces are tightly integrated with [workspace presets](./parameters.md#workspace-presets):
+Prebuilt workspaces are tightly integrated with [workspace presets](./parameters/workspace-presets.md):
 
 1. Each prebuilt workspace is associated with a specific template preset.
 1. The preset must define all required parameters needed to build the workspace.
