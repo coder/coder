@@ -22,7 +22,7 @@ import {
 } from "./timeRange";
 
 const AISessionListPage: React.FC = () => {
-	const { permissions } = useAuthenticated();
+	const { user, permissions } = useAuthenticated();
 	const { entitlements } = useDashboard();
 	const navigate = useNavigate();
 
@@ -118,6 +118,9 @@ const AISessionListPage: React.FC = () => {
 			<title>{pageTitle("Sessions", "AI Gateway")}</title>
 
 			<ListSessionsPageView
+				// Remount per user so column settings load from the new user's key.
+				key={user.id}
+				userId={user.id}
 				isLoading={sessionsQuery.isLoading}
 				isFetching={sessionsQuery.isFetching}
 				isAISessionsEntitled={isEntitled}
