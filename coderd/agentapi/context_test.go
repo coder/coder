@@ -391,7 +391,7 @@ func TestPushContextState(t *testing.T) {
 		gotKinds := map[database.WorkspaceAgentContextBodyKind][]byte{}
 		gotSources := map[string]database.UpsertWorkspaceAgentContextResourceParams{}
 		dbm.EXPECT().UpsertWorkspaceAgentContextResource(gomock.Any(), gomock.Any()).
-			Times(6).
+			Times(7).
 			DoAndReturn(func(_ context.Context, arg database.UpsertWorkspaceAgentContextResourceParams) (database.WorkspaceAgentContextResource, error) {
 				gotKinds[arg.BodyKind] = arg.Body
 				gotSources[arg.Source] = arg
@@ -401,7 +401,10 @@ func TestPushContextState(t *testing.T) {
 		dbm.EXPECT().DeleteStaleWorkspaceAgentContextResources(gomock.Any(), gomock.Any()).Return(nil)
 
 		mcpServer := mcpServerResource("/srv/mcp/echo", "echo", "echo server")
-		pluginServer := withServerPlugin(mcpServerResource("acme/echo", "echo", "plugin echo"), "acme")
+		plugin := nestServers(
+			nestSkills(pluginResource("/a/.agents/plugins/acme", "acme", "1.0.0"),
+				skillResource("/a/.agents/plugins/acme/skills/deploy", "deploy", "deploys")),
+			mcpServerResource("acme/echo", "echo", "plugin echo"))
 		resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
 			Version: 1,
 			Initial: true,
@@ -410,8 +413,7 @@ func TestPushContextState(t *testing.T) {
 				skillResource("/a/.agents/skills/example/SKILL.md", "example", "an example"),
 				mcpConfigResource("/a/.mcp.json"),
 				mcpServer,
-				pluginResource("/a/.agents/plugins/acme", "acme", "1.0.0"),
-				pluginServer,
+				plugin,
 			},
 		})
 		require.NoError(t, err)
@@ -423,6 +425,14 @@ func TestPushContextState(t *testing.T) {
 		require.NoError(t, json.Unmarshal(gotSources["acme/echo"].Body, &pluginServerBody))
 		require.Equal(t, "acme", pluginServerBody["plugin_name"])
 		require.Equal(t, "echo", pluginServerBody["server_name"])
+
+		const pluginSkillSource = "/a/.agents/plugins/acme/skills/deploy"
+		require.Contains(t, gotSources, pluginSkillSource)
+		require.Equal(t, database.WorkspaceAgentContextBodyKindSkill, gotSources[pluginSkillSource].BodyKind)
+		var pluginSkillBody map[string]any
+		require.NoError(t, json.Unmarshal(gotSources[pluginSkillSource].Body, &pluginSkillBody))
+		require.Equal(t, "acme", pluginSkillBody["plugin_name"])
+		require.Empty(t, plugin.GetPlugin().GetSkills()[0].GetSkill().GetPluginName(), "the request must not be modified")
 
 		require.Contains(t, gotKinds, database.WorkspaceAgentContextBodyKindInstructionFile)
 		require.Contains(t, gotKinds, database.WorkspaceAgentContextBodyKindSkill)
@@ -464,8 +474,10 @@ func TestPushContextState(t *testing.T) {
 			ActiveSources:    []string{"/a/.agents/skills/example/SKILL.md", "/srv/mcp/echo"},
 		}).Return(nil)
 
-		pluginSkill := withSkillPlugin(skillResource("/a/.agents/plugins/acme/skills/deploy/SKILL.md", "deploy", "deploys"), "acme")
-		pluginServer := withServerPlugin(mcpServerResource("acme/echo", "echo", "plugin echo"), "acme")
+		plugin := nestServers(
+			nestSkills(pluginResource("/a/.agents/plugins/acme", "acme", "1.0.0"),
+				skillResource("/a/.agents/plugins/acme/skills/deploy", "deploy", "deploys")),
+			mcpServerResource("acme/echo", "echo", "plugin echo"))
 		namelessPlugin := pluginResource("/a/.agents/plugins/broken", "", "")
 		namelessPlugin.Status = agentproto.ContextResource_INVALID
 		resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
@@ -474,9 +486,7 @@ func TestPushContextState(t *testing.T) {
 			Resources: []*agentproto.ContextResource{
 				skillResource("/a/.agents/skills/example/SKILL.md", "example", "an example"),
 				mcpServerResource("/srv/mcp/echo", "echo", "echo server"),
-				pluginResource("/a/.agents/plugins/acme", "acme", "1.0.0"),
-				pluginSkill,
-				pluginServer,
+				plugin,
 				namelessPlugin,
 			},
 		})
@@ -505,10 +515,10 @@ func TestPushContextState(t *testing.T) {
 
 		const acmeRoot = "/a/.agents/plugins/acme"
 		const winRoot = `C:\Users\u\.agents\plugins\winacme`
+		acme := func() *agentproto.ContextResource { return pluginResource(acmeRoot, "acme", "1.0.0") }
+		echo := func() *agentproto.ContextResource { return mcpServerResource("acme/echo", "echo", "plugin echo") }
 		broken := pluginResource("/b/.agents/plugins/broken", "broken", "1.0.0")
 		broken.Status = agentproto.ContextResource_INVALID
-		shadowed := pluginResource("/b/.agents/plugins/acme", "acme", "2.0.0")
-		shadowed.Status = agentproto.ContextResource_EXCLUDED
 		// hugeLen exceeds every per-field string cap but not the
 		// per-resource body cap, so the plugin checks reject it. An error
 		// that quotes huge exceeds maxErrLen.
@@ -518,30 +528,33 @@ func TestPushContextState(t *testing.T) {
 		)
 		huge := strings.Repeat("a", hugeLen)
 		for name, tc := range map[string]struct {
-			// resources precede the base plugins in the push.
 			resources []*agentproto.ContextResource
 			err       string
 		}{
-			"PluginInvalidName":                      {resources: []*agentproto.ContextResource{pluginResource("/z/.agents/plugins/bad", "acme..x", "1.0.0")}, err: "plugin name"},
-			"PluginNameTooLong":                      {resources: []*agentproto.ContextResource{pluginResource("/z/.agents/plugins/long", huge, "1.0.0")}, err: fmt.Sprintf("plugin name is %d bytes", hugeLen)},
-			"SkillInvalidName":                       {resources: []*agentproto.ContextResource{withSkillPlugin(skillResource(acmeRoot+"/skills/deploy/SKILL.md", "deploy", "deploys"), "Bad--Name")}, err: "plugin name"},
-			"MCPInvalidName":                         {resources: []*agentproto.ContextResource{withServerPlugin(mcpServerResource("acme/echo", "echo", "plugin echo"), "-acme")}, err: "plugin name"},
-			"OKPluginNoName":                         {resources: []*agentproto.ContextResource{pluginResource("/z/.agents/plugins/noname", "", "1.0.0")}, err: "plugin name is required on an OK plugin resource"},
-			"DuplicateOKPluginName":                  {resources: []*agentproto.ContextResource{pluginResource("/b/.agents/plugins/acme", "acme", "2.0.0")}, err: `OK plugin name "acme" is used by both "/b/.agents/plugins/acme" and "/a/.agents/plugins/acme"`},
-			"SkillOfDuplicateOKPluginName":           {resources: []*agentproto.ContextResource{withSkillPlugin(skillResource(acmeRoot+"/skills/x/SKILL.md", "x", "x"), "acme"), pluginResource("/b/.agents/plugins/acme", "acme", "2.0.0")}, err: `OK plugin name "acme" is used by both`},
-			"MCPSourceFormat":                        {resources: []*agentproto.ContextResource{withServerPlugin(mcpServerResource("echo", "echo", "plugin echo"), "acme")}, err: `plugin MCP server source must be "acme/<server_name>"`},
-			"MCPSourceFormatLongServerName":          {resources: []*agentproto.ContextResource{withServerPlugin(mcpServerResource("acme/echo", huge, "plugin echo"), "acme")}, err: `plugin MCP server source must be "acme/<server_name>"`},
-			"MCPEmptyServerName":                     {resources: []*agentproto.ContextResource{withServerPlugin(mcpServerResource("acme/", "", "plugin echo"), "acme")}, err: "server_name is required"},
-			"MCPOfNonOKPluginSharingSource":          {resources: []*agentproto.ContextResource{shadowed, withServerPlugin(mcpServerResource("acme/echo", "echo", "plugin echo"), "acme"), withServerPlugin(mcpServerResource("acme/echo", "echo", "shadowed echo"), "acme")}, err: `duplicate source "acme/echo"`},
-			"SkillWithoutPlugin":                     {resources: []*agentproto.ContextResource{withSkillPlugin(skillResource("/c/.agents/plugins/ghost/skills/x/SKILL.md", "x", "x"), "ghost")}, err: `plugin_name "ghost" names no OK plugin resource`},
-			"SkillBeforeOKPluginWithOversizedSource": {resources: []*agentproto.ContextResource{withSkillPlugin(skillResource("/c/.agents/plugins/big/skills/x/SKILL.md", "x", "x"), "big"), pluginResource("/c/"+huge, "big", "1.0.0")}, err: fmt.Sprintf("resource at index 1 has %d byte source", hugeLen+len("/c/"))},
-			"SkillBeforeOKPluginWithEmptySource":     {resources: []*agentproto.ContextResource{withSkillPlugin(skillResource("/c/.agents/plugins/big/skills/x/SKILL.md", "x", "x"), "big"), pluginResource("", "big", "1.0.0")}, err: "resource at index 1 has empty source"},
-			"MCPWithoutPlugin":                       {resources: []*agentproto.ContextResource{withServerPlugin(mcpServerResource("ghost/echo", "echo", "echo"), "ghost")}, err: `plugin_name "ghost" names no OK plugin resource`},
-			"SkillOfNonOKPlugin":                     {resources: []*agentproto.ContextResource{withSkillPlugin(skillResource("/b/.agents/plugins/broken/skills/x/SKILL.md", "x", "x"), "broken")}, err: `plugin_name "broken" names no OK plugin resource`},
-			"SkillOutsidePlugin":                     {resources: []*agentproto.ContextResource{withSkillPlugin(skillResource("/home/u/.agents/skills/x/SKILL.md", "x", "x"), "acme")}, err: `plugin skill source must be under "/a/.agents/plugins/acme/skills/"`},
-			"SkillUnderOtherPluginRoot":              {resources: []*agentproto.ContextResource{withSkillPlugin(skillResource("/b/.agents/plugins/acme/skills/x/SKILL.md", "x", "x"), "acme")}, err: `plugin skill source must be under "/a/.agents/plugins/acme/skills/"`},
-			"SkillUnderRootNotSkills":                {resources: []*agentproto.ContextResource{withSkillPlugin(skillResource(acmeRoot+"/other/x/SKILL.md", "x", "x"), "acme")}, err: `plugin skill source must be under "/a/.agents/plugins/acme/skills/"`},
-			"SkillUnderBackslashRootNotSkills":       {resources: []*agentproto.ContextResource{withSkillPlugin(skillResource(winRoot+`\docs\x`, "x", "x"), "winacme")}, err: "plugin skill source must be under"},
+			"PluginInvalidName":     {resources: []*agentproto.ContextResource{pluginResource("/z/.agents/plugins/bad", "acme..x", "1.0.0")}, err: "plugin name"},
+			"PluginNameTooLong":     {resources: []*agentproto.ContextResource{pluginResource("/z/.agents/plugins/long", huge, "1.0.0")}, err: fmt.Sprintf("plugin name is %d bytes", hugeLen)},
+			"OKPluginNoName":        {resources: []*agentproto.ContextResource{pluginResource("/z/.agents/plugins/noname", "", "1.0.0")}, err: "plugin name is required on an OK plugin resource"},
+			"DuplicateOKPluginName": {resources: []*agentproto.ContextResource{pluginResource("/b/.agents/plugins/acme", "acme", "2.0.0"), acme()}, err: `OK plugin name "acme" is used by both "/b/.agents/plugins/acme" and "/a/.agents/plugins/acme"`},
+			"SkillPluginName":       {resources: []*agentproto.ContextResource{acme(), withSkillPlugin(skillResource(acmeRoot+"/skills/x", "x", "x"), "acme")}, err: "plugin_name must be empty"},
+			"MCPPluginName":         {resources: []*agentproto.ContextResource{acme(), withServerPlugin(echo(), "acme")}, err: "plugin_name must be empty"},
+			"NestedSkillPluginName": {resources: []*agentproto.ContextResource{nestSkills(acme(), withSkillPlugin(skillResource(acmeRoot+"/skills/x", "x", "x"), "acme"))}, err: "plugin_name must be empty"},
+			"NestedInNonOKPlugin":   {resources: []*agentproto.ContextResource{nestSkills(broken, skillResource("/b/.agents/plugins/broken/skills/x", "x", "x"))}, err: "a plugin whose status is not OK must not nest resources"},
+			"NestedNilSkill":        {resources: []*agentproto.ContextResource{nestSkills(acme(), nil)}, err: "skills[0] must carry a skill body"},
+			"NestedServerAsSkill":   {resources: []*agentproto.ContextResource{nestSkills(acme(), echo())}, err: "skills[0] must carry a skill body"},
+			"NestedPlugin":          {resources: []*agentproto.ContextResource{nestSkills(acme(), pluginResource(acmeRoot+"/skills/inner", "inner", "1.0.0"))}, err: "skills[0] must carry a skill body"},
+			"NestedSkillAsServer":   {resources: []*agentproto.ContextResource{nestServers(acme(), skillResource(acmeRoot+"/skills/x", "x", "x"))}, err: "mcp_servers[0] must carry an mcp_server body"},
+			"NestedEmptySource":     {resources: []*agentproto.ContextResource{echo(), nestSkills(acme(), skillResource("", "x", "x"))}, err: "resource at index 1 skills[0] has empty source"},
+			"NestedOversizedSource": {resources: []*agentproto.ContextResource{nestServers(acme(), mcpServerResource("acme/"+huge, huge, "plugin echo"))}, err: fmt.Sprintf("resource at index 0 mcp_servers[0] has %d byte source", hugeLen+len("acme/"))},
+			"NestedDuplicateSource": {resources: []*agentproto.ContextResource{nestServers(acme(), echo(), echo())}, err: `duplicate source "acme/echo"`},
+			// A workspace server can take the source of a plugin server.
+			"NestedSourceOfWorkspaceServer":    {resources: []*agentproto.ContextResource{mcpServerResource("acme/echo", "acme/echo", "workspace"), nestServers(acme(), echo())}, err: `duplicate source "acme/echo"`},
+			"MCPSourceFormat":                  {resources: []*agentproto.ContextResource{nestServers(acme(), mcpServerResource("echo", "echo", "plugin echo"))}, err: `plugin MCP server source must be "acme/<server_name>"`},
+			"MCPSourceFormatLongServerName":    {resources: []*agentproto.ContextResource{nestServers(acme(), mcpServerResource("acme/echo", huge, "plugin echo"))}, err: `plugin MCP server source must be "acme/<server_name>"`},
+			"MCPEmptyServerName":               {resources: []*agentproto.ContextResource{nestServers(acme(), mcpServerResource("acme/", "", "plugin echo"))}, err: "server_name is required"},
+			"SkillOutsidePlugin":               {resources: []*agentproto.ContextResource{nestSkills(acme(), skillResource("/home/u/.agents/skills/x", "x", "x"))}, err: `plugin skill source must be under "/a/.agents/plugins/acme/skills/"`},
+			"SkillUnderOtherPluginRoot":        {resources: []*agentproto.ContextResource{nestSkills(acme(), skillResource("/b/.agents/plugins/acme/skills/x", "x", "x"))}, err: `plugin skill source must be under "/a/.agents/plugins/acme/skills/"`},
+			"SkillUnderRootNotSkills":          {resources: []*agentproto.ContextResource{nestSkills(acme(), skillResource(acmeRoot+"/other/x", "x", "x"))}, err: `plugin skill source must be under "/a/.agents/plugins/acme/skills/"`},
+			"SkillUnderBackslashRootNotSkills": {resources: []*agentproto.ContextResource{nestSkills(pluginResource(winRoot, "winacme", "1.0.0"), skillResource(winRoot+`\docs\x`, "x", "x"))}, err: "plugin skill source must be under"},
 		} {
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
@@ -549,18 +562,28 @@ func TestPushContextState(t *testing.T) {
 				api, _ := makeAPI(t)
 				api.Experiments = codersdk.Experiments{codersdk.ExperimentAgentPlugins}
 				_, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
-					Version: 1,
-					Initial: true,
-					Resources: append(slices.Clone(tc.resources),
-						pluginResource(acmeRoot, "acme", "1.0.0"),
-						pluginResource(winRoot, "winacme", "1.0.0"),
-						broken,
-					),
+					Version:   1,
+					Initial:   true,
+					Resources: tc.resources,
 				})
 				require.ErrorContains(t, err, tc.err)
 				require.Less(t, len(err.Error()), maxErrLen, "error must not quote uncapped input")
 			})
 		}
+	})
+
+	t.Run("RejectsPluginNameWithoutExperiment", func(t *testing.T) {
+		t.Parallel()
+
+		api, _ := makeAPI(t)
+		_, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+			Version: 1,
+			Initial: true,
+			Resources: []*agentproto.ContextResource{
+				withSkillPlugin(skillResource("/a/.agents/plugins/acme/skills/x", "x", "x"), "acme"),
+			},
+		})
+		require.ErrorContains(t, err, "plugin_name must be empty")
 	})
 
 	t.Run("AcceptsValidPluginData", func(t *testing.T) {
@@ -576,29 +599,30 @@ func TestPushContextState(t *testing.T) {
 		for name, resources := range map[string][]*agentproto.ContextResource{
 			"NonOKPluginWithoutName": {nameless},
 			"PluginSkillWithBackslashSource": {
-				pluginResource(winRoot, "acme", "1.0.0"),
-				withSkillPlugin(skillResource(winRoot+`\skills\deploy`, "deploy", "deploys"), "acme"),
-			},
-			"PluginResourcesBeforeTheirPlugin": {
-				withSkillPlugin(skillResource("/a/.agents/plugins/acme/skills/deploy/SKILL.md", "deploy", "deploys"), "acme"),
-				withServerPlugin(mcpServerResource("acme/echo", "echo", "plugin echo"), "acme"),
-				pluginResource("/a/.agents/plugins/acme", "acme", "1.0.0"),
+				nestSkills(pluginResource(winRoot, "acme", "1.0.0"), skillResource(winRoot+`\skills\deploy`, "deploy", "deploys")),
 			},
 			"NonOKPluginSharingOKPluginName": {
 				pluginResource("/a/.agents/plugins/acme", "acme", "1.0.0"),
 				shadowed,
 			},
-			// coderd cannot tell the shadowed plugin's acme/other from a
-			// server of the OK plugin.
-			"MCPOfNonOKPluginWithUniqueSource": {
-				pluginResource("/a/.agents/plugins/acme", "acme", "1.0.0"),
-				shadowed,
-				withServerPlugin(mcpServerResource("acme/echo", "echo", "plugin echo"), "acme"),
-				withServerPlugin(mcpServerResource("acme/other", "other", "shadowed other"), "acme"),
+			"NestedResourcesAfterTheirPlugin": {
+				nestServers(
+					nestSkills(pluginResource("/a/.agents/plugins/acme", "acme", "1.0.0"),
+						skillResource("/a/.agents/plugins/acme/skills/deploy", "deploy", "deploys")),
+					mcpServerResource("acme/echo", "echo", "plugin echo")),
+				skillResource("/a/.agents/skills/plain", "plain", "plain"),
 			},
 		} {
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
+
+				var wantSources []string
+				for _, r := range resources {
+					wantSources = append(wantSources, r.Source)
+					for _, nested := range slices.Concat(r.GetPlugin().GetSkills(), r.GetPlugin().GetMcpServers()) {
+						wantSources = append(wantSources, nested.Source)
+					}
+				}
 
 				api, dbm := makeAPI(t)
 				api.Experiments = codersdk.Experiments{codersdk.ExperimentAgentPlugins}
@@ -610,7 +634,7 @@ func TestPushContextState(t *testing.T) {
 					Return(database.WorkspaceAgentContextSnapshot{}, nil)
 				var gotSources []string
 				dbm.EXPECT().UpsertWorkspaceAgentContextResource(gomock.Any(), gomock.Any()).
-					Times(len(resources)).
+					Times(len(wantSources)).
 					DoAndReturn(func(_ context.Context, arg database.UpsertWorkspaceAgentContextResourceParams) (database.WorkspaceAgentContextResource, error) {
 						gotSources = append(gotSources, arg.Source)
 						return database.WorkspaceAgentContextResource{}, nil
@@ -624,10 +648,6 @@ func TestPushContextState(t *testing.T) {
 				})
 				require.NoError(t, err)
 				require.True(t, resp.GetAccepted())
-				wantSources := make([]string, 0, len(resources))
-				for _, r := range resources {
-					wantSources = append(wantSources, r.Source)
-				}
 				require.Equal(t, wantSources, gotSources)
 			})
 		}
@@ -776,6 +796,23 @@ func TestPushContextState(t *testing.T) {
 			require.Error(t, err)
 			require.Nil(t, resp)
 			require.Contains(t, err.Error(), "resource cap")
+		})
+
+		t.Run("TooManyNestedResources", func(t *testing.T) {
+			t.Parallel()
+			api, _ := makeAPI(t)
+			plugin := pluginResource("/p/acme", "acme", "1.0.0")
+			for i := 0; i < 1000; i++ {
+				plugin = nestSkills(plugin, skillResource(fmt.Sprintf("/p/acme/skills/s%d", i), "s", "s"))
+			}
+			resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+				Version:   1,
+				Initial:   true,
+				Resources: []*agentproto.ContextResource{plugin},
+			})
+			require.Error(t, err)
+			require.Nil(t, resp)
+			require.Contains(t, err.Error(), "has 1001 resources, exceeds 1000 resource cap")
 		})
 
 		t.Run("VersionOverflowsInt64", func(t *testing.T) {
@@ -954,6 +991,16 @@ func withSkillPlugin(r *agentproto.ContextResource, name string) *agentproto.Con
 func withServerPlugin(r *agentproto.ContextResource, name string) *agentproto.ContextResource {
 	r.GetMcpServer().PluginName = name
 	return r
+}
+
+func nestSkills(plugin *agentproto.ContextResource, skills ...*agentproto.ContextResource) *agentproto.ContextResource {
+	plugin.GetPlugin().Skills = append(plugin.GetPlugin().Skills, skills...)
+	return plugin
+}
+
+func nestServers(plugin *agentproto.ContextResource, servers ...*agentproto.ContextResource) *agentproto.ContextResource {
+	plugin.GetPlugin().McpServers = append(plugin.GetPlugin().McpServers, servers...)
+	return plugin
 }
 
 // fakeDirtyMarker is a test double for agentapi.ContextDirtyMarker. It records

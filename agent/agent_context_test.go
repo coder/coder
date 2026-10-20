@@ -76,11 +76,10 @@ func TestAgent_ContextStatePushed(t *testing.T) {
 	}
 }
 
-// hasPluginData reports whether req carries a plugin resource or a
-// resource attributed to a plugin.
+// hasPluginData reports whether req carries a plugin resource.
 func hasPluginData(req *agentproto.PushContextStateRequest) bool {
 	return slices.ContainsFunc(req.GetResources(), func(r *agentproto.ContextResource) bool {
-		return r.GetPlugin() != nil || r.GetSkill().GetPluginName() != "" || r.GetMcpServer().GetPluginName() != ""
+		return r.GetPlugin() != nil
 	})
 }
 
@@ -156,7 +155,7 @@ func TestAgent_ContextStatePushedWithoutRejectedPlugins(t *testing.T) {
 }
 
 // The declared command does not exist, so the server is unreadable;
-// only the attribution and plugin-prefixed source are checked.
+// only the nesting and plugin-prefixed source are checked.
 func TestAgent_PluginMCPServersLoaded(t *testing.T) {
 	t.Parallel()
 
@@ -191,11 +190,12 @@ func TestAgent_PluginMCPServersLoaded(t *testing.T) {
 		plugin, server = nil, nil
 		for _, push := range client.ContextStatePushes() {
 			for _, r := range push.GetResources() {
-				if r.GetPlugin() != nil {
-					plugin = r
+				if r.GetPlugin().GetName() != "acme" {
+					continue
 				}
-				if r.GetMcpServer() != nil && r.GetMcpServer().GetPluginName() == "acme" {
-					server = r
+				plugin = r
+				if servers := r.GetPlugin().GetMcpServers(); len(servers) > 0 {
+					server = servers[0]
 				}
 			}
 		}
@@ -235,8 +235,10 @@ func TestAgent_PluginMCPServersFollowPluginChanges(t *testing.T) {
 			return false, false
 		}
 		for _, r := range pushes[len(pushes)-1].GetResources() {
-			if r.GetMcpServer() != nil && r.GetSource() == "acme/srv" {
-				return true, true
+			for _, server := range r.GetPlugin().GetMcpServers() {
+				if server.GetMcpServer() != nil && server.GetSource() == "acme/srv" {
+					return true, true
+				}
 			}
 		}
 		return true, false
@@ -291,7 +293,13 @@ func TestAgent_PluginMCPServersFollowPluginChanges(t *testing.T) {
 func describePushes(pushes []*agentproto.PushContextStateRequest) string {
 	var sb strings.Builder
 	for _, push := range pushes {
+		var resources []*agentproto.ContextResource
 		for _, r := range push.GetResources() {
+			resources = append(resources, r)
+			resources = append(resources, r.GetPlugin().GetSkills()...)
+			resources = append(resources, r.GetPlugin().GetMcpServers()...)
+		}
+		for _, r := range resources {
 			kind := "other"
 			switch {
 			case r.GetPlugin() != nil:

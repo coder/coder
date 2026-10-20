@@ -557,9 +557,9 @@ message UpdateAppStatusResponse {}
 // must not emit a new variant to a coderd that predates it.
 message ContextResource {
 	// source is the resource's own locator and must be unique within
-	// a push: a canonical file path for file-backed kinds, the
-	// canonical plugin root directory for plugin resources, the MCP
-	// server name for mcp_server resources, or
+	// a push, nested resources included: a canonical file path for
+	// file-backed kinds, the canonical plugin root directory for plugin
+	// resources, the MCP server name for mcp_server resources, or
 	// "<plugin_name>/<server_name>" for servers a plugin declares.
 	string source = 1;
 	// source_path is the user-declared scan root that produced
@@ -621,26 +621,30 @@ message SkillMetaBody {
 	bytes meta = 1;
 	string name = 2;
 	string description = 3;
-	// plugin_name is the owning Agent Plugin, or empty for a workspace skill.
+	// plugin_name must be empty on the wire. coderd sets it to the
+	// owning plugin's name when it stores a skill nested in a PluginBody.
 	string plugin_name = 4;
 }
 
 // PluginBody carries the validated fields of an Agent Plugins
-// (agent-plugins.org) plugin.json manifest. The plugin's skills and
-// MCP servers are separate resources that set plugin_name.
+// (agent-plugins.org) plugin.json manifest and the plugin's skills and
+// MCP servers. coderd stores each nested resource as its own resource,
+// and stores the plugin without them.
 //
-// Plugin names, here and in plugin_name fields, must pass
-// workspacesdk.ValidatePluginName. name may be empty only when the
-// status is not OK, and must be unique among OK plugin resources in a
-// push. coderd rejects the whole push when a plugin rule is broken.
-//
-// Agents must not send skills or servers of non-OK plugins. coderd
-// does not catch every violation; such resources may be stored as
-// workspace resources or attributed to an OK plugin of the same name.
+// Plugin names must pass workspacesdk.ValidatePluginName. name may be
+// empty only when the status is not OK, and must be unique among OK
+// plugin resources in a push. Only an OK plugin may nest resources.
+// coderd rejects the whole push when a plugin rule is broken.
 message PluginBody {
 	string name = 1;
 	string version = 2;
 	string description = 3;
+	// skills must each carry a skill body, with a source under
+	// "<plugin source>/skills/".
+	repeated ContextResource skills = 4;
+	// mcp_servers must each carry an mcp_server body with a non-empty
+	// server_name, with the source "<name>/<server_name>".
+	repeated ContextResource mcp_servers = 5;
 }
 
 // MCPConfigBody is intentionally empty: the .mcp.json content
@@ -657,7 +661,8 @@ message MCPServerBody {
 	string server_name = 1;
 	string description = 2;
 	repeated MCPTool tools = 3;
-	// plugin_name is the owning Agent Plugin, or empty for a workspace server.
+	// plugin_name must be empty on the wire. coderd sets it to the
+	// owning plugin's name when it stores a server nested in a PluginBody.
 	string plugin_name = 4;
 }
 

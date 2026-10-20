@@ -261,18 +261,40 @@ func pluginPushRequest() *agentcontext.PushRequest {
 	}
 }
 
-func TestDRPCPusher_EncodesPluginData(t *testing.T) {
+func TestDRPCPusher_NestsPluginResourcesInTheirPlugin(t *testing.T) {
 	t.Parallel()
 	client := &fakeDRPCClient{}
 	pusher := agentcontext.NewDRPCPusher(client)
 
-	_, err := pusher.PushContextState(context.Background(), pluginPushRequest())
+	req := pluginPushRequest()
+	shadowedPlugin := agentcontext.Resource{
+		ID:     "plugin:/tmp/shadowed/p",
+		Kind:   agentcontext.KindPlugin,
+		Source: "/tmp/shadowed/p",
+		Name:   "p",
+		Status: agentcontext.StatusExcluded,
+	}
+	orphan := agentcontext.Resource{
+		ID:         "skill:/tmp/plugins/gone/skills/s",
+		Kind:       agentcontext.KindSkill,
+		Source:     "/tmp/plugins/gone/skills/s",
+		Name:       "s",
+		PluginName: "gone",
+		Status:     agentcontext.StatusOK,
+	}
+	req.Resources = append(append([]agentcontext.Resource{shadowedPlugin}, req.Resources...), orphan)
+	_, err := pusher.PushContextState(context.Background(), req)
 	require.NoError(t, err)
 
 	pb := client.lastReq
-	require.Len(t, pb.Resources, 4)
+	require.Len(t, pb.Resources, 3, "plugin resources must be nested, and orphans dropped")
 
-	plugin := pb.Resources[0]
+	shadowed := pb.Resources[0]
+	require.Equal(t, "/tmp/shadowed/p", shadowed.Source)
+	require.Empty(t, shadowed.GetPlugin().GetSkills())
+	require.Empty(t, shadowed.GetPlugin().GetMcpServers())
+
+	plugin := pb.Resources[1]
 	require.Equal(t, "/tmp/plugins/p", plugin.Source)
 	require.Equal(t, agentproto.ContextResource_OK, plugin.Status)
 	require.Equal(t, uint64(42), plugin.SizeBytes)
@@ -282,26 +304,27 @@ func TestDRPCPusher_EncodesPluginData(t *testing.T) {
 	require.Equal(t, "1.0.0", body.GetVersion())
 	require.Equal(t, "A plugin", body.GetDescription())
 
-	skill := pb.Resources[1].GetSkill()
-	require.NotNil(t, skill)
-	require.Equal(t, "s", skill.GetName())
-	require.Equal(t, "p", skill.GetPluginName())
+	require.Len(t, body.GetSkills(), 1)
+	skill := body.GetSkills()[0]
+	require.Equal(t, "/tmp/plugins/p/skills/s", skill.Source)
+	require.Equal(t, "s", skill.GetSkill().GetName())
+	require.Empty(t, skill.GetSkill().GetPluginName())
 
-	srv := pb.Resources[2].GetMcpServer()
-	require.NotNil(t, srv)
-	require.Equal(t, "srv", srv.GetServerName())
-	require.Equal(t, "p", srv.GetPluginName())
+	require.Len(t, body.GetMcpServers(), 1)
+	srv := body.GetMcpServers()[0]
+	require.Equal(t, "p/srv", srv.Source)
+	require.Equal(t, "srv", srv.GetMcpServer().GetServerName())
+	require.Empty(t, srv.GetMcpServer().GetPluginName())
 
-	plain := pb.Resources[3].GetSkill()
-	require.NotNil(t, plain)
-	require.Empty(t, plain.GetPluginName())
+	require.Equal(t, "/tmp/skills/plain", pb.Resources[2].Source)
+	require.NotNil(t, pb.Resources[2].GetSkill())
 }
 
 const pluginNotice = "Agent Plugins could not be loaded. Check the workspace agent logs for details."
 
 func hasPluginData(req *agentproto.PushContextStateRequest) bool {
 	return slices.ContainsFunc(req.GetResources(), func(r *agentproto.ContextResource) bool {
-		return r.GetPlugin() != nil || r.GetSkill().GetPluginName() != "" || r.GetMcpServer().GetPluginName() != ""
+		return r.GetPlugin() != nil
 	})
 }
 

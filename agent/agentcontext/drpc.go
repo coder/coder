@@ -127,6 +127,9 @@ func withoutPluginData(req *PushRequest) *PushRequest {
 // replaced, since proto3 strings must be valid UTF-8 or the whole
 // request fails to marshal, and is truncated to
 // workspacesdk.MaxContextErrorBytes.
+//
+// A resource with a PluginName is nested in the StatusOK KindPlugin
+// resource of that name, and dropped when there is none.
 func pushRequestToProto(req *PushRequest) *agentproto.PushContextStateRequest {
 	pb := &agentproto.PushContextStateRequest{
 		Version:       req.Version,
@@ -135,23 +138,46 @@ func pushRequestToProto(req *PushRequest) *agentproto.PushContextStateRequest {
 		SnapshotError: req.SnapshotError,
 		Resources:     make([]*agentproto.ContextResource, 0, len(req.Resources)),
 	}
-	for i := range req.Resources {
-		r := req.Resources[i]
-		entry := &agentproto.ContextResource{
-			Source:      r.Source,
-			ContentHash: append([]byte(nil), r.ContentHash[:]...),
-			Status:      resourceStatusToProto(r.Status),
-			SizeBytes:   r.SizeBytes,
-			Error:       truncateUTF8Bytes(strings.ToValidUTF8(r.Error, "\uFFFD"), workspacesdk.MaxContextErrorBytes),
+	plugins := make(map[string]*agentproto.PluginBody)
+	for _, r := range req.Resources {
+		if r.PluginName != "" {
+			continue
 		}
-		setResourceBody(entry, r)
-		if r.SourcePath != "" {
-			sp := r.SourcePath
-			entry.SourcePath = &sp
-		}
+		entry := resourceToProto(r)
 		pb.Resources = append(pb.Resources, entry)
+		if _, ok := plugins[r.Name]; !ok && r.Kind == KindPlugin && r.Status == StatusOK {
+			plugins[r.Name] = entry.GetPlugin()
+		}
+	}
+	for _, r := range req.Resources {
+		plugin, ok := plugins[r.PluginName]
+		if r.PluginName == "" || !ok {
+			continue
+		}
+		switch r.Kind {
+		case KindSkill:
+			plugin.Skills = append(plugin.Skills, resourceToProto(r))
+		case KindMCPServer:
+			plugin.McpServers = append(plugin.McpServers, resourceToProto(r))
+		}
 	}
 	return pb
+}
+
+func resourceToProto(r Resource) *agentproto.ContextResource {
+	entry := &agentproto.ContextResource{
+		Source:      r.Source,
+		ContentHash: append([]byte(nil), r.ContentHash[:]...),
+		Status:      resourceStatusToProto(r.Status),
+		SizeBytes:   r.SizeBytes,
+		Error:       truncateUTF8Bytes(strings.ToValidUTF8(r.Error, "\uFFFD"), workspacesdk.MaxContextErrorBytes),
+	}
+	setResourceBody(entry, r)
+	if r.SourcePath != "" {
+		sp := r.SourcePath
+		entry.SourcePath = &sp
+	}
+	return entry
 }
 
 // truncateUTF8Bytes cuts s to at most limit bytes without splitting a
@@ -186,7 +212,6 @@ func setResourceBody(entry *agentproto.ContextResource, r Resource) {
 				Meta:        append([]byte(nil), r.Payload...),
 				Name:        r.Name,
 				Description: r.Description,
-				PluginName:  r.PluginName,
 			},
 		}
 	case KindMCPConfig:
@@ -201,7 +226,6 @@ func setResourceBody(entry *agentproto.ContextResource, r Resource) {
 				ServerName:  serverNameOrSource(r),
 				Description: r.Description,
 				Tools:       mcpToolsToProto(r.Tools),
-				PluginName:  r.PluginName,
 			},
 		}
 	case KindPlugin:
