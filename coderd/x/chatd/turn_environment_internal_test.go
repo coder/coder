@@ -196,7 +196,7 @@ func TestBuildTurnEnvironmentClampsRequestedReasoningEffortToMax(t *testing.T) {
 	require.NotNil(t, summaryCall.ToolChoice)
 	require.Equal(t, fantasy.ToolChoiceNone, *summaryCall.ToolChoice)
 	require.NotNil(t, summaryCall.MaxOutputTokens)
-	require.Equal(t, 3*defaultChatMaxOutputTokens/2, *summaryCall.MaxOutputTokens)
+	require.Equal(t, *prepared.CallTemplate.MaxOutputTokens, *summaryCall.MaxOutputTokens)
 }
 
 func TestBuildTurnEnvironmentSplitsPendingUserRowsFromCompactionPrompt(t *testing.T) {
