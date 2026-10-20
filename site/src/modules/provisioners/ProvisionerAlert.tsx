@@ -18,7 +18,7 @@ export enum AlertVariant {
 }
 
 type ProvisionerAlertProps = {
-	title: string;
+	title?: string;
 	detail: string;
 	severity: AlertColor;
 	tags: Record<string, string>;
@@ -51,7 +51,7 @@ export const ProvisionerAlert: React.FC<ProvisionerAlertProps> = ({
 }) => {
 	return (
 		<Alert severity={severity} className={getAlertClassName(variant, severity)}>
-			<AlertTitle>{title}</AlertTitle>
+			{title && <AlertTitle>{title}</AlertTitle>}
 			<AlertDescription>
 				<div>{detail}</div>
 				<div className="flex items-center gap-2 flex-wrap mt-2">

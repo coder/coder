@@ -62,7 +62,8 @@ export const SecurityForm: React.FC<SecurityFormProps> = ({
 	if (disabled) {
 		return (
 			<Alert severity="info">
-				Password changes are only allowed for password based accounts.
+				Your account signs in without a Coder password, so there&apos;s no
+				password to change here.
 			</Alert>
 		);
 	}

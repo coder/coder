@@ -52,7 +52,9 @@ export const WorkspaceBuildFailedAlert: React.FC<
 			}
 		>
 			<AlertTitle>Workspace build failed</AlertTitle>
-			<AlertDescription>{build.job.error}</AlertDescription>
+			<AlertDescription>
+				{build.job.error} Check the build logs for the full output.
+			</AlertDescription>
 		</Alert>
 	);
 };

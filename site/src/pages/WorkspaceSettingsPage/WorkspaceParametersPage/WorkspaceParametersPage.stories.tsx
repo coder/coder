@@ -177,7 +177,7 @@ export const RequireActiveVersionBlocked: Story = {
 		const canvas = within(canvasElement);
 		await waitFor(() =>
 			expect(
-				canvas.getByText(/requires automatic updates/),
+				canvas.getByText(/requires workspaces to use the active version/),
 			).toBeInTheDocument(),
 		);
 		const submitButton = canvas.getByRole("button", {
@@ -202,7 +202,7 @@ export const RequireActiveVersionBlockedRunning: Story = {
 		const canvas = within(canvasElement);
 		await waitFor(() =>
 			expect(
-				canvas.getByText(/requires automatic updates/),
+				canvas.getByText(/requires workspaces to use the active version/),
 			).toBeInTheDocument(),
 		);
 		const submitButton = canvas.getByRole("button", {
@@ -230,7 +230,7 @@ export const RequireActiveVersionEditable: Story = {
 			name: "Update and start",
 		});
 		expect(
-			canvas.queryByText(/requires automatic updates/),
+			canvas.queryByText(/requires workspaces to use the active version/),
 		).not.toBeInTheDocument();
 		expect(submitButton).not.toBeDisabled();
 	},

@@ -68,17 +68,19 @@ const DebugWorkspaceBuildAlert: React.FC<DebugWorkspaceBuildAlertProps> = ({
 	const alert =
 		error != null ? (
 			<Alert severity="error" prominent>
-				<AlertTitle>Could not load the workspace build or its logs</AlertTitle>
+				<AlertTitle>
+					Couldn&apos;t load the workspace build or its logs
+				</AlertTitle>
 				<AlertDescription>
-					{getErrorMessage(error, "The request failed.")}
+					{getErrorMessage(error, "The request failed.")} You can still start a
+					chat without them.
 				</AlertDescription>
 			</Alert>
 		) : build && build.job.status !== "failed" ? (
-			<Alert severity="info">
-				<AlertTitle>Nothing to debug</AlertTitle>
+			<Alert severity="info" dismissible>
 				<AlertDescription>
-					Build #{build.build_number} of workspace {build.workspace_owner_name}/
-					{build.workspace_name} has not failed (status: {build.job.status}).
+					Build #{build.build_number} of {build.workspace_owner_name}/
+					{build.workspace_name} hasn't failed, so there's nothing to debug.
 				</AlertDescription>
 			</Alert>
 		) : null;

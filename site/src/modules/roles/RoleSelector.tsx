@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { useId } from "react";
-import { getErrorMessage } from "#/api/errors";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { AssignableRoles } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
@@ -46,9 +46,11 @@ export const RoleSelector: React.FC<RoleSelectorProps> = ({
 		return (
 			<RoleSelectorLayout>
 				<Alert severity="error">
-					<AlertTitle>
-						{getErrorMessage(error, "Failed to load roles.")}
-					</AlertTitle>
+					<AlertTitle>Couldn&apos;t load roles</AlertTitle>
+					<AlertDescription>
+						{getErrorDetail(error) ??
+							getErrorMessage(error, "Refresh the page to try again.")}
+					</AlertDescription>
 				</Alert>
 			</RoleSelectorLayout>
 		);

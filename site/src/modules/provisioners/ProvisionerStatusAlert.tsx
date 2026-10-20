@@ -14,26 +14,24 @@ export const ProvisionerStatusAlert: React.FC<ProvisionerStatusAlertProps> = ({
 	tags,
 	variant = AlertVariant.Standalone,
 }) => {
-	let title: string;
+	let title: string | undefined;
 	let detail: string;
 	let severity: AlertColor;
 	switch (true) {
 		case matchingProvisioners === 0:
-			title = "Build pending provisioner deployment";
+			title = "No provisioner can run this build";
 			detail =
-				"Your build has been enqueued, but there are no provisioners that accept the required tags. Once a compatible provisioner becomes available, your build will continue. Please contact your administrator.";
+				"The build is queued, but no provisioner accepts these tags. Ask your administrator to add one.";
 			severity = "warning";
 			break;
 		case availableProvisioners === 0:
 			title = "Build delayed";
 			detail =
-				"Provisioners that accept the required tags have not responded for longer than expected. This may delay your build. Please contact your administrator if your build does not complete.";
+				"Provisioners with these tags haven't responded. Ask your administrator if the build doesn't start.";
 			severity = "warning";
 			break;
 		default:
-			title = "Build enqueued";
-			detail =
-				"Your build has been enqueued and will begin once a provisioner becomes available to process it.";
+			detail = "The build is queued and starts when a provisioner is free.";
 			severity = "info";
 	}
 

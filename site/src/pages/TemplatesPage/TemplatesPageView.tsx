@@ -63,40 +63,42 @@ const CompatibilityModeAlert: React.FC<{ templates: readonly Template[] }> = ({
 			severity="warning"
 			className="mt-6"
 			actions={
-				<Button asChild variant="outline" size="sm">
-					<RouterLink
-						to={
-							singleTemplate
-								? `/templates/${singleTemplate.organization_name}/${singleTemplate.name}/settings/parameters`
-								: `/templates?filter=${encodeURIComponent(CLASSIC_PARAMETER_FLOW_FILTER)}`
-						}
+				<>
+					<Button asChild variant="outline" size="sm">
+						<RouterLink
+							to={
+								singleTemplate
+									? `/templates/${singleTemplate.organization_name}/${singleTemplate.name}/settings/parameters`
+									: `/templates?filter=${encodeURIComponent(CLASSIC_PARAMETER_FLOW_FILTER)}`
+							}
+						>
+							{singleTemplate ? "Update template" : "Review templates"}
+						</RouterLink>
+					</Button>
+					<Link
+						href={docs(
+							"/admin/templates/extending-templates/dynamic-parameters#upgrade-from-parameter-compatibility-mode",
+						)}
+						target="_blank"
+						rel="noreferrer"
 					>
-						{singleTemplate ? "Update template" : "Review templates"}
-					</RouterLink>
-				</Button>
+						How to upgrade
+						<span className="sr-only"> (opens in new tab)</span>
+					</Link>
+				</>
 			}
 		>
 			<AlertTitle>
 				{singleTemplate
-					? "1 template is using parameter compatibility mode"
-					: `${templates.length} templates are using parameter compatibility mode`}
+					? "1 template uses compatibility mode"
+					: `${templates.length} templates use compatibility mode`}
 			</AlertTitle>
 			<AlertDescription>
 				Compatibility mode keeps{" "}
-				{singleTemplate ? "this template" : "these templates"} on the legacy
-				parameter flow, which will be removed in a future release. Switching to
-				dynamic parameters takes one click in the template&apos;s parameter
-				settings.{" "}
-				<Link
-					href={docs(
-						"/admin/templates/extending-templates/dynamic-parameters#upgrade-from-parameter-compatibility-mode",
-					)}
-					target="_blank"
-					rel="noreferrer"
-				>
-					How to upgrade
-					<span className="sr-only"> (opens in new tab)</span>
-				</Link>
+				{singleTemplate ? "this template" : "these templates"} on legacy
+				parameters, which will be removed in a future release. Switch to dynamic
+				parameters in {singleTemplate ? "its" : "each template's"} parameter
+				settings.
 			</AlertDescription>
 		</Alert>
 	);

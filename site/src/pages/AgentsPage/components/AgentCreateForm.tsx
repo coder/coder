@@ -54,7 +54,6 @@ import {
 	isChatHookDeniedResponse,
 	isChatHookDispatchFailedResponse,
 } from "./ChatConversation/chatError";
-import { getErrorTitle } from "./ChatConversation/chatStatusHelpers";
 import { CompactOrgSelector } from "./ChatElements/CompactOrgSelector";
 import { CompactProjectSelector } from "./ChatElements/CompactProjectSelector";
 import { ChatProjectDialog } from "./ChatsSidebar/dialogs/ChatProjectDialog";
@@ -274,14 +273,17 @@ export const draftStorageKeys = (projectId: string | undefined) => {
 	};
 };
 
-const lockedOrgDenialDescription = (
+const lockedOrgDenialTitle = (
 	organization: TypesGen.Organization | undefined,
 ) => {
 	const target = organization
 		? `the ${organization.display_name || organization.name} organization`
-		: "the organization";
-	return `You don't have permission to create chats in ${target}, which this project belongs to. Ask your Coder administrator for access, then refresh this page.`;
+		: "this organization";
+	return `You can't create chats in ${target}`;
 };
+
+const lockedOrgDenialDescription =
+	"This project belongs to that organization. Ask your Coder administrator for access, then refresh.";
 
 type AgentCreateFormProps = {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
@@ -921,13 +923,18 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 			<div className="flex w-full flex-col gap-2">
 				{isForbidden ? (
 					<ChatAccessDeniedAlert
-						description={
+						title={
 							denial === "locked-organization"
-								? lockedOrgDenialDescription(
+								? lockedOrgDenialTitle(
 										organizations.find(
 											(org) => org.id === lockedOrganizationId,
 										),
 									)
+								: undefined
+						}
+						description={
+							denial === "locked-organization"
+								? lockedOrgDenialDescription
 								: undefined
 						}
 					/>
@@ -935,12 +942,12 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 					isApiError(createError) &&
 					createError.response.status === 502 &&
 					isChatHookDispatchFailedResponse(createError.response.data) ? (
-						<Alert severity="error">
-							<AlertTitle>
-								{getErrorTitle("hook_dispatch_failed", "error")}
-							</AlertTitle>
+						<Alert severity="error" prominent dismissible>
+							<AlertTitle>Couldn't start this chat</AlertTitle>
 							<AlertDescription>
-								<span>{createError.response.data.message}</span>
+								<span>
+									A lifecycle hook failed. {createError.response.data.message}
+								</span>
 								{createError.response.data.detail && (
 									<span className="mt-1 block text-content-secondary">
 										{createError.response.data.detail}
@@ -951,9 +958,9 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 					) : isApiError(createError) &&
 						createError.response.status === 403 &&
 						isChatHookDeniedResponse(createError.response.data) ? (
-						<Alert severity="info">
+						<Alert severity="warning" dismissible>
 							<AlertDescription>
-								{createError.response.data.message}
+								A policy blocked this chat. {createError.response.data.message}
 							</AlertDescription>
 						</Alert>
 					) : (

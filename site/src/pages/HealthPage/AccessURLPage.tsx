@@ -1,6 +1,6 @@
 import { useOutletContext } from "react-router";
 import type { HealthcheckReport } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { pageTitle } from "#/utils/page";
 import {
 	GridData,
@@ -31,7 +31,12 @@ const AccessURLPage = () => {
 			</Header>
 
 			<Main>
-				{accessUrl.error && <Alert severity="error">{accessUrl.error}</Alert>}
+				{accessUrl.error && (
+					<Alert severity="error" prominent>
+						<AlertTitle>The access URL check failed</AlertTitle>
+						<AlertDescription>{accessUrl.error}</AlertDescription>
+					</Alert>
+				)}
 
 				{accessUrl.warnings.map((warning) => {
 					return (
@@ -39,8 +44,6 @@ const AccessURLPage = () => {
 							actions={<HealthMessageDocsLink {...warning} />}
 							key={warning.code}
 							severity="warning"
-							prominent
-							dismissible
 						>
 							{warning.message}
 						</Alert>

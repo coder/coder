@@ -99,25 +99,25 @@ export const AgentSettingsUserAgentsPageView: React.FC<
 			{!personalOverridesEnabled && (
 				<Alert severity="info">
 					<AlertDescription>
-						Personal model overrides are disabled by an administrator. Saved
-						values are shown for reference, but changes cannot be saved.
+						An administrator turned off personal model overrides. Your saved
+						values are shown, but you can't change them.
 					</AlertDescription>
 				</Alert>
 			)}
 			{!selectedOrganization && (
 				<Alert severity="info">
 					<AlertDescription>
-						You do not have access to any organizations. Personal model
-						overrides cannot be changed.
+						You aren't in any organizations, so you can't set personal model
+						overrides. Ask an administrator to add you to one.
 					</AlertDescription>
 				</Alert>
 			)}
 			{hasNoOrganizationModels && (
 				<Alert severity="info">
 					<AlertDescription>
-						The selected organization has no available chat models. Default
-						options can still be saved. Ask an organization administrator to add
-						and enable a model before you choose a specific model.
+						This organization has no chat models yet. You can still save default
+						options. To pick a specific model, ask an organization administrator
+						to add one.
 					</AlertDescription>
 				</Alert>
 			)}

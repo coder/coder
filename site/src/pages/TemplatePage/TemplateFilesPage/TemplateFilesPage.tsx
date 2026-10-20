@@ -54,38 +54,43 @@ const TemplateFilesPage: React.FC = () => {
 			<title>{getTemplatePageTitle("Source Code", template)}</title>
 
 			{justCreated && (
-				<Alert severity="info" dismissible className="mb-6">
-					<AlertTitle className="font-semibold">
-						Awesome, you just created a new template!
-					</AlertTitle>
+				<Alert
+					severity="success"
+					dismissible
+					className="mb-6"
+					actions={
+						<>
+							<Button asChild size="sm" variant="outline">
+								<a
+									href="https://registry.coder.com/skills/coder-templates"
+									target="_blank"
+									rel="noopener noreferrer"
+								>
+									Open template skill
+									<ExternalLinkIcon />
+									<span className="sr-only"> (opens in new tab)</span>
+								</a>
+							</Button>
+							<Button asChild size="sm" variant="outline">
+								<a
+									href={docs("/admin/templates/creating-templates")}
+									target="_blank"
+									rel="noopener noreferrer"
+								>
+									View docs
+									<ExternalLinkIcon />
+									<span className="sr-only"> (opens in new tab)</span>
+								</a>
+							</Button>
+						</>
+					}
+				>
+					<AlertTitle className="font-semibold">Template created</AlertTitle>
 					<AlertDescription>
-						To customize it further you can edit the Terraform or Coder Template
-						directly. You can use our template agent skill to help you.
+						Edit the Terraform files below to customize{" "}
+						{template.display_name || template.name}, or use the template agent
+						skill to make changes for you.
 					</AlertDescription>
-					<div className="flex items-center gap-2 mt-4">
-						<Button asChild size="sm" variant="default">
-							<a
-								href="https://registry.coder.com/skills/coder-templates"
-								target="_blank"
-								rel="noopener noreferrer"
-								className="flex items-center"
-							>
-								View agent skill
-								<ExternalLinkIcon className="size-icon-sm ml-1" />
-							</a>
-						</Button>
-						<Button asChild size="sm" variant="outline">
-							<a
-								href={docs("/admin/templates/creating-templates")}
-								target="_blank"
-								rel="noopener noreferrer"
-								className="flex items-center"
-							>
-								View docs
-								<ExternalLinkIcon className="size-icon-sm ml-1" />
-							</a>
-						</Button>
-					</div>
 				</Alert>
 			)}
 

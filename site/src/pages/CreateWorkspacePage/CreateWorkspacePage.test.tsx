@@ -864,7 +864,7 @@ describe("CreateWorkspacePage", () => {
 			).toBeInTheDocument();
 			expect(
 				screen.getByText(
-					/preset "missing" not found on template version "test-version"/i,
+					/couldn't find the preset "missing" in template version "test-version"/i,
 				),
 			).toBeInTheDocument();
 			expect(API.createWorkspace).not.toHaveBeenCalled();
@@ -890,7 +890,9 @@ describe("CreateWorkspacePage", () => {
 				screen.getByText(/auto-creation has been disabled/i),
 			).toBeInTheDocument();
 			expect(
-				screen.getByText(/failed to load presets: presets unavailable/i),
+				screen.getByText(
+					/couldn't load this template's presets\. presets unavailable/i,
+				),
 			).toBeInTheDocument();
 			expect(API.createWorkspace).not.toHaveBeenCalled();
 		});

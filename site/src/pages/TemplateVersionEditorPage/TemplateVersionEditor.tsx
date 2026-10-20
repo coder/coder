@@ -90,7 +90,6 @@ type TemplateVersionEditorProps = {
 	onCancelPublish: () => void;
 	publishingError?: unknown;
 	publishedVersion?: TemplateVersion;
-	createWorkspaceUrl: string | undefined;
 	isAskingPublishParameters: boolean;
 	isPromptingMissingVariables: boolean;
 	isPublishing: boolean;
@@ -119,7 +118,6 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 	isPublishing,
 	publishingError,
 	publishedVersion,
-	createWorkspaceUrl,
 	buildLogs,
 	resources,
 	isPromptingMissingVariables,
@@ -306,21 +304,8 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 							key={publishedVersion.id}
 							className="absolute w-full flex justify-center p-3 z-10"
 						>
-							<Alert
-								severity="success"
-								prominent
-								dismissible
-								actions={
-									<Button asChild size="sm">
-										<RouterLink to={createWorkspaceUrl ?? ""}>
-											Create a workspace
-										</RouterLink>
-									</Button>
-								}
-							>
-								<AlertTitle>
-									Successfully published {publishedVersion.name}!
-								</AlertTitle>
+							<Alert severity="success" dismissible>
+								<AlertTitle>Template published</AlertTitle>
 							</Alert>
 						</div>
 					)}
@@ -515,7 +500,7 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 									{templateVersion.job.error ? (
 										<div className="sticky top-0 z-10">
 											<ProvisionerAlert
-												title="Error during the build"
+												title="Couldn't build this version"
 												detail={templateVersion.job.error}
 												severity="error"
 												tags={templateVersion.job.tags}

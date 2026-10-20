@@ -95,20 +95,24 @@ const WorkspaceSchedulePage: React.FC = () => {
 
 			{template &&
 				(workspace.is_prebuild ? (
-					<Alert severity="info">
-						Prebuilt workspaces ignore workspace-level scheduling until they are
-						claimed. For prebuilt workspace specific scheduling refer to the{" "}
-						<Link
-							title="Prebuilt Workspaces Scheduling"
-							href={docs(
-								"/admin/templates/extending-templates/prebuilt-workspaces#scheduling",
-							)}
-							target="_blank"
-							rel="noreferrer"
-						>
-							Prebuilt Workspaces Scheduling
-						</Link>{" "}
-						documentation page.
+					<Alert
+						severity="info"
+						actions={
+							<Link
+								href={docs(
+									"/admin/templates/extending-templates/prebuilt-workspaces#scheduling",
+								)}
+								target="_blank"
+								rel="noreferrer"
+							>
+								Go to prebuild scheduling docs
+								<span className="sr-only"> (opens in new tab)</span>
+							</Link>
+						}
+					>
+						Prebuilt workspaces don&apos;t follow this schedule until
+						they&apos;re claimed. Their schedule comes from the template&apos;s
+						presets.
 					</Alert>
 				) : (
 					<WorkspaceScheduleForm

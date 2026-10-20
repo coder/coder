@@ -1,5 +1,5 @@
 import { Link as RouterLink } from "react-router";
-import { Alert, AlertDescription } from "#/components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
 import { docs } from "#/utils/docs";
 
@@ -63,9 +63,10 @@ export const QueuedForCapacityCallout: React.FC<
 
 	return (
 		<Alert severity="warning" className="mt-2">
+			<AlertTitle>This agent is queued</AlertTitle>
 			<AlertDescription>
-				{limitMessage} This agent is queued and will start automatically when
-				capacity is available. {action}
+				{limitMessage} It starts automatically when capacity is available.{" "}
+				{action}
 			</AlertDescription>
 		</Alert>
 	);

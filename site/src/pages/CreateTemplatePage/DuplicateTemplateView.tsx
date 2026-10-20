@@ -79,9 +79,8 @@ export const DuplicateTemplateView: React.FC<CreateTemplatePageViewProps> = ({
 		<>
 			{totalPrebuilds > 0 && (
 				<Alert severity="warning" className="mb-4">
-					This template has prebuilds configured. Duplicating this template will
-					automatically cause {totalPrebuilds}{" "}
-					{totalPrebuilds === 1 ? "prebuild" : "prebuilds"} to be created.
+					Duplicating this template also creates {totalPrebuilds} prebuilt{" "}
+					{totalPrebuilds === 1 ? "workspace" : "workspaces"} from its presets.
 				</Alert>
 			)}
 			<CreateTemplateForm

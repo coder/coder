@@ -360,7 +360,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 				{canShareWorkspace && addMemberForm}
 				{showRestartWarning && (
 					<Alert severity="warning">
-						Workspace restart required for the removal to take effect.
+						Removed users and groups keep access until this workspace restarts.
 					</Alert>
 				)}
 				<div>
@@ -379,7 +379,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 			{canShareWorkspace && addMemberForm}
 			{showRestartWarning && (
 				<Alert severity="warning">
-					Workspace restart required for the removal to take effect.
+					Removed users and groups keep access until this workspace restarts.
 				</Alert>
 			)}
 			<Table>

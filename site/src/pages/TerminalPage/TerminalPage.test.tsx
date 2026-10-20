@@ -173,7 +173,9 @@ describe("TerminalPage", () => {
 		const { container } = await renderTerminal();
 
 		await waitFor(() => {
-			expect(container.textContent).toContain("Trying to connect...");
+			expect(container.textContent).toContain(
+				"Reconnecting to your workspace.",
+			);
 		});
 	});
 

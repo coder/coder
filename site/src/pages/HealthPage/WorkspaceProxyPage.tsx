@@ -2,7 +2,7 @@ import { cn } from "cn";
 import { GlobeIcon, HashIcon } from "lucide-react";
 import { useOutletContext } from "react-router";
 import type { HealthcheckReport } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Tooltip,
@@ -42,7 +42,8 @@ const WorkspaceProxyPage: React.FC = () => {
 			<Main>
 				{workspace_proxy.error && (
 					<Alert severity="error" prominent>
-						{workspace_proxy.error}
+						<AlertTitle>The workspace proxy check failed</AlertTitle>
+						<AlertDescription>{workspace_proxy.error}</AlertDescription>
 					</Alert>
 				)}
 				{workspace_proxy.warnings.map((warning) => {
@@ -51,8 +52,6 @@ const WorkspaceProxyPage: React.FC = () => {
 							actions={<HealthMessageDocsLink {...warning} />}
 							key={warning.code}
 							severity="warning"
-							prominent
-							dismissible
 						>
 							{warning.message}
 						</Alert>
