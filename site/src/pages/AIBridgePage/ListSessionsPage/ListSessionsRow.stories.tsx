@@ -3,11 +3,13 @@ import { fn, screen, userEvent, within } from "storybook/test";
 import { Table, TableBody } from "#/components/Table/Table";
 import { MockSession } from "#/testHelpers/entities";
 import { ListSessionsRow } from "./ListSessionsRow";
+import { sessionColumnIds } from "./sessionColumns";
 
 const meta: Meta<typeof ListSessionsRow> = {
 	title: "pages/AIBridgePage/ListSessionsRow",
 	component: ListSessionsRow,
 	args: {
+		columns: sessionColumnIds,
 		onClick: fn(),
 	},
 	decorators: [

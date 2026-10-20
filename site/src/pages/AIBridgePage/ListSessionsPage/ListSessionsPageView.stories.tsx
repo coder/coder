@@ -1,16 +1,24 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { fn, screen, userEvent } from "storybook/test";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
-import {
-	getDefaultFilterProps,
-	MockMenu,
-} from "#/components/Filter/storyHelpers";
+import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
 import {
 	mockInitialRenderResult,
 	mockSuccessResult,
 } from "#/components/PaginationWidget/PaginationContainer.mocks";
-import { MockSession } from "#/testHelpers/entities";
+import {
+	MockPermissions,
+	MockSession,
+	MockUserOwner,
+	mockApiError,
+} from "#/testHelpers/entities";
+import { withAuthProvider } from "#/testHelpers/storybook";
 import { ListSessionsPageView } from "./ListSessionsPageView";
+import {
+	type SessionColumnSettings,
+	sessionColumnViews,
+} from "./sessionColumns";
+import { sessionColumnsStorageKey } from "./useSessionColumns";
 
 type FilterProps = React.ComponentProps<
 	typeof ListSessionsPageView
@@ -24,26 +32,20 @@ const timeRange: DateTimeRangeValue = {
 
 const defaultFilterProps: FilterProps = {
 	...getDefaultFilterProps<FilterProps>({
-		query: "owner:me",
-		values: {
-			username: undefined,
-			provider: undefined,
-		},
-		menus: {
-			user: MockMenu,
-			provider: MockMenu,
-			client: MockMenu,
-			model: MockMenu,
-		},
+		query: "initiator:me",
+		values: { initiator: "me" },
 	}),
 	timeRange,
 	onTimeRangeChange: fn(),
 };
 
+const storageKey = sessionColumnsStorageKey(MockUserOwner.id);
+
 const meta: Meta<typeof ListSessionsPageView> = {
 	title: "pages/AIBridgePage/ListSessionsPageView",
 	component: ListSessionsPageView,
 	args: {
+		userId: MockUserOwner.id,
 		isLoading: false,
 		isFetching: false,
 		isAISessionsEntitled: true,
@@ -51,6 +53,16 @@ const meta: Meta<typeof ListSessionsPageView> = {
 		filterProps: defaultFilterProps,
 		sessionsQuery: mockSuccessResult,
 		onSessionRowClick: fn(),
+	},
+	parameters: {
+		user: MockUserOwner,
+		permissions: MockPermissions,
+	},
+	decorators: [withAuthProvider],
+	// Column settings persist in local storage, so isolate each story.
+	beforeEach: () => {
+		localStorage.removeItem(storageKey);
+		return () => localStorage.removeItem(storageKey);
 	},
 };
 
@@ -127,4 +139,90 @@ export const MultipleSessions: Story = {
 			][i],
 		})),
 	},
+};
+
+export const WithError: Story = {
+	args: {
+		sessions: undefined,
+		filterProps: {
+			...defaultFilterProps,
+			error: mockApiError({ message: "Failed to load sessions." }),
+		},
+	},
+};
+
+const withColumnSettings = (settings: SessionColumnSettings) => () => {
+	localStorage.setItem(storageKey, JSON.stringify(settings));
+	return () => localStorage.removeItem(storageKey);
+};
+
+const openColumnsMenu = async () => {
+	await userEvent.click(screen.getByRole("button", { name: "Columns" }));
+};
+
+export const ColumnsMenuOpen: Story = {
+	args: MultipleSessions.args,
+	play: openColumnsMenu,
+};
+
+export const SecurityView: Story = {
+	args: MultipleSessions.args,
+	beforeEach: withColumnSettings(sessionColumnViews[1].settings),
+	play: openColumnsMenu,
+};
+
+export const CostView: Story = {
+	args: MultipleSessions.args,
+	beforeEach: withColumnSettings(sessionColumnViews[2].settings),
+	play: openColumnsMenu,
+};
+
+export const CustomizedColumns: Story = {
+	args: MultipleSessions.args,
+	beforeEach: withColumnSettings({
+		shown: ["user", "last_prompt", "model", "threads"],
+		notShown: [
+			"provider",
+			"client",
+			"tokens",
+			"cost",
+			"network",
+			"last_active",
+		],
+	}),
+	play: openColumnsMenu,
+};
+
+export const LastShownColumn: Story = {
+	args: MultipleSessions.args,
+	beforeEach: withColumnSettings({
+		shown: ["last_prompt"],
+		notShown: [
+			"user",
+			"client",
+			"tokens",
+			"cost",
+			"last_active",
+			"provider",
+			"model",
+			"threads",
+			"network",
+		],
+	}),
+	play: async () => {
+		await openColumnsMenu();
+		await userEvent.hover(screen.getByRole("switch", { name: "Last prompt" }));
+	},
+};
+
+export const ColumnsHiddenAtNarrowWidth: Story = {
+	args: MultipleSessions.args,
+	decorators: [
+		(Story) => (
+			<div className="w-225">
+				<Story />
+			</div>
+		),
+	],
+	play: openColumnsMenu,
 };

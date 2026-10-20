@@ -16,7 +16,11 @@ const renderMultiProviderRow = () => {
 	renderComponent(
 		<Table>
 			<TableBody>
-				<ListSessionsRow session={mockMultiProviderSession} onClick={onClick} />
+				<ListSessionsRow
+					session={mockMultiProviderSession}
+					columns={["last_prompt", "provider"]}
+					onClick={onClick}
+				/>
 			</TableBody>
 		</Table>,
 	);
