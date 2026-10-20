@@ -16,7 +16,6 @@ type InfoTooltipProps = {
 	type?: InfoTooltipType;
 	size?: InfoTooltipSize;
 	ariaLabel?: string;
-	/** Which side of the icon the tooltip opens on. Defaults to `right`. */
 	side?: React.ComponentProps<typeof TooltipContent>["side"];
 	children: React.ReactNode;
 };

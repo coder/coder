@@ -3,25 +3,18 @@ const compactTokenFormatter = new Intl.NumberFormat("en-US", {
 	maximumFractionDigits: 1,
 });
 
-/**
- * Formats a token count compactly for badges, such as `950`, `111.7K`, or
- * `22.5M`. Badges pair this with a tooltip that shows the exact count.
- */
+/** Formats a token count compactly, such as `22.5M`. */
 export const roundTokenDisplay = (tokens: number) =>
 	compactTokenFormatter.format(tokens);
 
 const PROMPT_PREVIEW_MAX_CHARS = 500;
 
-/**
- * Shortens a prompt to a preview that is long enough to recognize a session.
- * Prompts can be tens of thousands of characters; the session page shows them
- * in full.
- */
+/** Cuts a prompt to a short preview for the sessions list. */
 export const truncatePromptPreview = (prompt: string) => {
 	if (prompt.length <= PROMPT_PREVIEW_MAX_CHARS) {
 		return prompt;
 	}
-	// Slice by code point so an emoji or other astral character is never split.
+	// Slice by code point to avoid splitting emoji.
 	const codePoints = Array.from(prompt);
 	if (codePoints.length <= PROMPT_PREVIEW_MAX_CHARS) {
 		return prompt;

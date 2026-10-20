@@ -25,7 +25,6 @@ export const ListSessionsRow: React.FC<ListSessionsRowProps> = ({
 	session,
 	onClick,
 }) => {
-	// The first name and the rest stack on two lines to keep the column narrow.
 	const [firstName, ...otherNames] = (
 		session.initiator.name ?? session.initiator.username
 	)
@@ -51,8 +50,7 @@ export const ListSessionsRow: React.FC<ListSessionsRowProps> = ({
 							className="max-w-64 max-h-80 overflow-y-auto"
 							side="top"
 							align="start"
-							// Scrolling a long prompt must not open the row: the portal
-							// still bubbles React clicks up to it.
+							// The portal still bubbles React clicks up to the row.
 							onClick={(event) => event.stopPropagation()}
 						>
 							<div className="font-bold">Last prompt</div>
