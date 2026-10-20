@@ -24,6 +24,13 @@ export const ListSessionsRow: React.FC<ListSessionsRowProps> = ({
 	session,
 	onClick,
 }) => {
+	// The first name and the rest stack on two lines to keep the column narrow.
+	const [firstName, ...otherNames] = (
+		session.initiator.name ?? session.initiator.username
+	)
+		.trim()
+		.split(/\s+/);
+
 	return (
 		<TableRow
 			hover
@@ -32,11 +39,13 @@ export const ListSessionsRow: React.FC<ListSessionsRowProps> = ({
 				onClick?.();
 			}}
 		>
-			<TableCell className="max-w-32 flex-1 overflow-auto font-normal">
+			<TableCell className="font-normal">
 				<TooltipProvider>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<p className="truncate">{session.last_prompt}</p>
+							<p className="m-0 line-clamp-2 wrap-anywhere">
+								{session.last_prompt}
+							</p>
 						</TooltipTrigger>
 						<TooltipContent
 							className="max-w-64 max-h-80 overflow-y-auto"
@@ -52,18 +61,19 @@ export const ListSessionsRow: React.FC<ListSessionsRowProps> = ({
 					</Tooltip>
 				</TooltipProvider>
 			</TableCell>
-			<TableCell className="w-48 max-w-48">
-				<div className="w-full min-w-0 overflow-hidden">
-					<div className="flex items-center gap-3 min-w-0">
-						<Avatar
-							fallback={session.initiator.username}
-							src={session.initiator.avatar_url}
-							size="lg"
-							className="shrink-0"
-						/>
-						<div className="font-normal truncate min-w-0 flex-1 overflow-hidden">
-							{session.initiator.name ?? session.initiator.username}
-						</div>
+			<TableCell className="w-40 max-w-40">
+				<div className="flex items-center gap-3 min-w-0">
+					<Avatar
+						fallback={session.initiator.username}
+						src={session.initiator.avatar_url}
+						size="lg"
+						className="shrink-0"
+					/>
+					<div className="flex min-w-0 flex-1 flex-col font-normal">
+						<span className="truncate">{firstName}</span>
+						{otherNames.length > 0 && (
+							<span className="truncate">{otherNames.join(" ")}</span>
+						)}
 					</div>
 				</div>
 			</TableCell>
@@ -93,7 +103,7 @@ export const ListSessionsRow: React.FC<ListSessionsRowProps> = ({
 					{session.threads}
 				</Badge>
 			</TableCell>
-			<TableCell className="w-48 whitespace-nowrap font-normal">
+			<TableCell className="w-36 whitespace-nowrap font-normal">
 				<div className="flex items-center justify-between">
 					<div className="flex flex-col">
 						<span>
