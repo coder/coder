@@ -7690,15 +7690,25 @@ func (q *querier) ReorderChatQueuedMessageToHead(ctx context.Context, arg databa
 	return q.db.ReorderChatQueuedMessageToHead(ctx, arg)
 }
 
-func (q *querier) RetryChatWorkspaceFileDeliveries(ctx context.Context, chatID uuid.UUID) (int64, error) {
-	chat, err := q.db.GetChatByID(ctx, chatID)
+func (q *querier) RetryChatWorkspaceFileDeliveries(ctx context.Context, arg database.RetryChatWorkspaceFileDeliveriesParams) (int64, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
 		return 0, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
 		return 0, err
 	}
-	return q.db.RetryChatWorkspaceFileDeliveries(ctx, chatID)
+	return q.db.RetryChatWorkspaceFileDeliveries(ctx, arg)
+}
+
+func (q *querier) RetryChatWorkspaceFileDeliveriesByWorkspaceID(ctx context.Context, arg database.RetryChatWorkspaceFileDeliveriesByWorkspaceIDParams) (int64, error) {
+	// System-level reset used by the chatd delivery loop when a
+	// workspace agent finishes starting; callers must use AsChatd
+	// context.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return 0, err
+	}
+	return q.db.RetryChatWorkspaceFileDeliveriesByWorkspaceID(ctx, arg)
 }
 
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {

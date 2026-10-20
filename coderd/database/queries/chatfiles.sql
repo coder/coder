@@ -68,7 +68,9 @@ WHERE id = ANY(@ids::uuid[]);
 -- several root agents match the suffix, the first is checked here and
 -- the caller's selection reports the ambiguity. A claim counts an
 -- attempt, clears the last error and leases the file until
--- lease_expires_at. The returned lease_expires_at identifies the claim:
+-- lease_expires_at plus the time the content takes to upload at
+-- min_upload_bytes_per_second, so the lease of a large file covers its
+-- upload. The returned lease_expires_at identifies the claim:
 -- the outcome queries take it back so a worker whose lease expired and
 -- was claimed again cannot record an outcome. File content is not
 -- returned so a batch claim does not load blobs.
@@ -119,7 +121,7 @@ WITH candidates AS (
 UPDATE chat_files cf
 SET
 	workspace_delivery_attempts = cf.workspace_delivery_attempts + 1,
-	workspace_delivery_next_attempt_at = @lease_expires_at::timestamptz,
+	workspace_delivery_next_attempt_at = make_interval(secs => octet_length(cf.data) / @min_upload_bytes_per_second::float8) + @lease_expires_at::timestamptz,
 	workspace_delivery_error = NULL
 FROM candidates
 WHERE cf.id = candidates.id
@@ -139,7 +141,9 @@ RETURNING
 -- CompleteChatWorkspaceFileDelivery records the receipt and drops the
 -- file content. Metadata stays so messages that reference the file keep
 -- validating. It applies only under the claim that lease_expires_at
--- identifies.
+-- identifies and while the file's chat is still bound to the delivered
+-- workspace, so a chat that moved to another workspace during the upload
+-- keeps the file for the new workspace.
 UPDATE chat_files
 SET
 	data = ''::bytea,
@@ -152,7 +156,14 @@ SET
 WHERE id = @id::uuid
 	AND purpose = 'workspace'::chat_file_purpose
 	AND workspace_delivered_at IS NULL
-	AND workspace_delivery_next_attempt_at = @lease_expires_at::timestamptz;
+	AND workspace_delivery_next_attempt_at = @lease_expires_at::timestamptz
+	AND EXISTS (
+		SELECT 1
+		FROM chat_file_links cfl
+		JOIN chats c ON c.id = cfl.chat_id
+		WHERE cfl.file_id = chat_files.id
+			AND c.workspace_id = @delivered_workspace_id::uuid
+	);
 
 -- name: FailChatWorkspaceFileDelivery :execrows
 -- FailChatWorkspaceFileDelivery records a failed attempt. The mode
@@ -179,9 +190,10 @@ WHERE id = @id::uuid
 -- name: RetryChatWorkspaceFileDeliveries :execrows
 -- RetryChatWorkspaceFileDeliveries makes a chat's undelivered workspace
 -- files due again with a fresh attempt budget. Only a file in flight
--- under an unexpired lease is left alone. An expired lease without an
--- error means an attempt never recorded its outcome, for example because
--- its replica stopped, and may have used the last attempt.
+-- under a lease that has not expired at now is left alone. An expired
+-- lease without an error means an attempt never recorded its outcome,
+-- for example because its replica stopped, and may have used the last
+-- attempt.
 UPDATE chat_files cf
 SET
 	workspace_delivery_attempts = 0,
@@ -195,7 +207,29 @@ WHERE cfl.file_id = cf.id
 	AND (
 		cf.workspace_delivery_error IS NOT NULL
 		OR cf.workspace_delivery_next_attempt_at IS NULL
-		OR cf.workspace_delivery_next_attempt_at <= NOW()
+		OR cf.workspace_delivery_next_attempt_at <= @now::timestamptz
+	);
+
+-- name: RetryChatWorkspaceFileDeliveriesByWorkspaceID :execrows
+-- RetryChatWorkspaceFileDeliveriesByWorkspaceID resets the undelivered
+-- workspace files of every chat bound to the workspace like
+-- RetryChatWorkspaceFileDeliveries, for a workspace agent that finished
+-- starting and may now accept files it failed or rejected before.
+UPDATE chat_files cf
+SET
+	workspace_delivery_attempts = 0,
+	workspace_delivery_next_attempt_at = NULL,
+	workspace_delivery_error = NULL
+FROM chat_file_links cfl
+JOIN chats c ON c.id = cfl.chat_id
+WHERE cfl.file_id = cf.id
+	AND c.workspace_id = @workspace_id::uuid
+	AND cf.purpose = 'workspace'::chat_file_purpose
+	AND cf.workspace_delivered_at IS NULL
+	AND (
+		cf.workspace_delivery_error IS NOT NULL
+		OR cf.workspace_delivery_next_attempt_at IS NULL
+		OR cf.workspace_delivery_next_attempt_at <= @now::timestamptz
 	);
 
 -- name: GetOldUnlinkedChatFileIDs :many

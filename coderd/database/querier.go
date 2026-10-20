@@ -23,7 +23,9 @@ type sqlcQuerier interface {
 	// several root agents match the suffix, the first is checked here and
 	// the caller's selection reports the ambiguity. A claim counts an
 	// attempt, clears the last error and leases the file until
-	// lease_expires_at. The returned lease_expires_at identifies the claim:
+	// lease_expires_at plus the time the content takes to upload at
+	// min_upload_bytes_per_second, so the lease of a large file covers its
+	// upload. The returned lease_expires_at identifies the claim:
 	// the outcome queries take it back so a worker whose lease expired and
 	// was claimed again cannot record an outcome. File content is not
 	// returned so a batch claim does not load blobs.
@@ -122,7 +124,9 @@ type sqlcQuerier interface {
 	// CompleteChatWorkspaceFileDelivery records the receipt and drops the
 	// file content. Metadata stays so messages that reference the file keep
 	// validating. It applies only under the claim that lease_expires_at
-	// identifies.
+	// identifies and while the file's chat is still bound to the delivered
+	// workspace, so a chat that moved to another workspace during the upload
+	// keeps the file for the new workspace.
 	CompleteChatWorkspaceFileDelivery(ctx context.Context, arg CompleteChatWorkspaceFileDeliveryParams) (int64, error)
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
@@ -1531,10 +1535,16 @@ type sqlcQuerier interface {
 	ReorderChatQueuedMessageToHead(ctx context.Context, arg ReorderChatQueuedMessageToHeadParams) (int64, error)
 	// RetryChatWorkspaceFileDeliveries makes a chat's undelivered workspace
 	// files due again with a fresh attempt budget. Only a file in flight
-	// under an unexpired lease is left alone. An expired lease without an
-	// error means an attempt never recorded its outcome, for example because
-	// its replica stopped, and may have used the last attempt.
-	RetryChatWorkspaceFileDeliveries(ctx context.Context, chatID uuid.UUID) (int64, error)
+	// under a lease that has not expired at now is left alone. An expired
+	// lease without an error means an attempt never recorded its outcome,
+	// for example because its replica stopped, and may have used the last
+	// attempt.
+	RetryChatWorkspaceFileDeliveries(ctx context.Context, arg RetryChatWorkspaceFileDeliveriesParams) (int64, error)
+	// RetryChatWorkspaceFileDeliveriesByWorkspaceID resets the undelivered
+	// workspace files of every chat bound to the workspace like
+	// RetryChatWorkspaceFileDeliveries, for a workspace agent that finished
+	// starting and may now accept files it failed or rejected before.
+	RetryChatWorkspaceFileDeliveriesByWorkspaceID(ctx context.Context, arg RetryChatWorkspaceFileDeliveriesByWorkspaceIDParams) (int64, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct
