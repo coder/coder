@@ -76,6 +76,9 @@ type rolloverReason string
 const (
 	rolloverReasonModel rolloverReason = "model"
 	rolloverReasonLimit rolloverReason = "limit"
+	// rolloverReasonOverflow follows a provider rejecting the prompt as
+	// too large for the window.
+	rolloverReasonOverflow rolloverReason = "overflow"
 )
 
 type rolloverDecision struct {
@@ -129,6 +132,16 @@ func windowContextTokens(messages []database.ChatMessage) int64 {
 		}
 	}
 	return 0
+}
+
+// windowHasAssistantStep reports whether the current context window
+// holds an assistant step. A fresh window that overflows cannot shrink
+// by rolling over again, so it must fail instead.
+func windowHasAssistantStep(messages []database.ChatMessage) bool {
+	boundary := latestContextBoundaryIndex(messages)
+	return slices.ContainsFunc(messages[boundary+1:], func(msg database.ChatMessage) bool {
+		return !msg.Deleted && !msg.Compressed && msg.Role == database.ChatMessageRoleAssistant
+	})
 }
 
 // hasNewContextReceipt reports whether the current context window holds
