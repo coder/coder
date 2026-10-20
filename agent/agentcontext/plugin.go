@@ -1,6 +1,7 @@
 package agentcontext
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -409,6 +410,7 @@ func (r *Resolver) discoverPlugin(dir string, root ScanRoot, out *[]Resource, se
 	}
 
 	res.Error = strings.Join(warnings, "; ")
+	res.pluginOrder = len(pluginNames)
 	if !r.appendResource(out, seenSource, res) {
 		return pluginShadowed
 	}
@@ -571,4 +573,35 @@ func (r *Resolver) pluginSkills(pluginRoot string, root ScanRoot, pluginName str
 		skills = append(skills, res)
 	}
 	return skills, warning
+}
+
+// PluginInfo describes a validated plugin present in a Snapshot.
+type PluginInfo struct {
+	// Name is the manifest name.
+	Name string
+	// Root is the canonical plugin root directory.
+	Root string
+}
+
+// Plugins returns the StatusOK plugins in s in the order the resolver
+// claimed their names, not by resource ID.
+func (s Snapshot) Plugins() []PluginInfo {
+	var plugins []Resource
+	for _, r := range s.Resources {
+		if r.Kind != KindPlugin || r.Status != StatusOK {
+			continue
+		}
+		plugins = append(plugins, r)
+	}
+	slices.SortStableFunc(plugins, func(a, b Resource) int {
+		return cmp.Compare(a.pluginOrder, b.pluginOrder)
+	})
+	out := make([]PluginInfo, 0, len(plugins))
+	for _, r := range plugins {
+		out = append(out, PluginInfo{
+			Name: r.Name,
+			Root: r.Source,
+		})
+	}
+	return out
 }

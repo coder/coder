@@ -3,11 +3,13 @@ package agentmcp
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,6 +21,13 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+// reloadWith registers sources as the Manager's current sources and
+// reloads them.
+func reloadWith(ctx context.Context, m *Manager, sources []ConfigSource) error {
+	m.SetSources(func() []ConfigSource { return sources })
+	return m.ReloadCurrent(ctx)
+}
 
 // catalogTool is a flattened (server, tool) pair taken from the
 // Manager's per-server catalog. Tests assert on these pairs instead of
@@ -192,7 +201,7 @@ func TestSnapshotChanged(t *testing.T) {
 			m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 			t.Cleanup(func() { _ = m.Close() })
 
-			err := m.Reload(ctx, paths)
+			err := reloadWith(ctx, m, LegacySources(paths))
 			require.NoError(t, err)
 
 			if tc.mutate != nil {
@@ -234,7 +243,7 @@ func TestSnapshotChanged_MultipleConfigFiles(t *testing.T) {
 	t.Cleanup(func() { _ = m.Close() })
 
 	// Initial reload with both config files.
-	err := m.Reload(ctx, paths)
+	err := reloadWith(ctx, m, LegacySources(paths))
 	require.NoError(t, err)
 
 	// Both files unchanged.
@@ -248,8 +257,8 @@ func TestSnapshotChanged_MultipleConfigFiles(t *testing.T) {
 	assert.True(t, m.SnapshotChanged(LegacySources(paths)),
 		"snapshot should change when second file is mutated")
 
-	// Reload picks up the mutation.
-	err = m.Reload(ctx, paths)
+	// The reload picks up the mutation.
+	err = reloadWith(ctx, m, LegacySources(paths))
 	require.NoError(t, err)
 
 	// Tools from both files should be present.
@@ -261,7 +270,7 @@ func TestSnapshotChanged_MultipleConfigFiles(t *testing.T) {
 		"second tool should be from second config")
 }
 
-func TestReload(t *testing.T) {
+func TestReloadCurrent(t *testing.T) {
 	t.Parallel()
 
 	t.Run("SingleReloadUpdatesSnapshot", func(t *testing.T) {
@@ -276,7 +285,7 @@ func TestReload(t *testing.T) {
 		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 		t.Cleanup(func() { _ = m.Close() })
 
-		err := m.Reload(ctx, []string{configPath})
+		err := reloadWith(ctx, m, LegacySources([]string{configPath}))
 		require.NoError(t, err)
 
 		tools := m.connectedTools()
@@ -295,7 +304,7 @@ func TestReload(t *testing.T) {
 		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 		require.NoError(t, m.Close())
 
-		err := m.Reload(ctx, []string{"/nonexistent"})
+		err := reloadWith(ctx, m, LegacySources([]string{"/nonexistent"}))
 		require.Error(t, err, "reload after close should fail")
 	})
 
@@ -317,7 +326,7 @@ func TestReload(t *testing.T) {
 		errs := make([]error, numCallers)
 		for i := range numCallers {
 			wg.Go(func() {
-				errs[i] = m.Reload(ctx, []string{configPath})
+				errs[i] = reloadWith(ctx, m, LegacySources([]string{configPath}))
 			})
 		}
 		wg.Wait()
@@ -344,8 +353,8 @@ func TestReload(t *testing.T) {
 		callerCtx, cancel := context.WithCancel(mgrCtx)
 		cancel() // Cancel immediately.
 
-		err := m.Reload(callerCtx, paths)
-		// The caller context is already canceled, so Reload should
+		err := reloadWith(callerCtx, m, LegacySources(paths))
+		// The caller context is already canceled, so ReloadCurrent should
 		// return the caller's context error after starting the sync.
 		require.Error(t, err)
 		assert.ErrorIs(t, err, context.Canceled)
@@ -371,7 +380,7 @@ func TestReload(t *testing.T) {
 		t.Cleanup(func() { _ = m.Close() })
 
 		// First reload.
-		err := m.Reload(ctx, []string{configPath})
+		err := reloadWith(ctx, m, LegacySources([]string{configPath}))
 		require.NoError(t, err)
 		tools1 := m.connectedTools()
 		require.Len(t, tools1, 1)
@@ -383,7 +392,7 @@ func TestReload(t *testing.T) {
 
 		// Second reload detects the change.
 		assert.True(t, m.SnapshotChanged(LegacySources([]string{configPath})))
-		err = m.Reload(ctx, []string{configPath})
+		err = reloadWith(ctx, m, LegacySources([]string{configPath}))
 		require.NoError(t, err)
 		tools2 := m.connectedTools()
 		require.Len(t, tools2, 1)
@@ -404,9 +413,9 @@ func TestReload(t *testing.T) {
 		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 		t.Cleanup(func() { _ = m.Close() })
 
-		// Reload should succeed (per-server failures are logged and
+		// ReloadCurrent should succeed (per-server failures are logged and
 		// swallowed) and snapshot should update.
-		err := m.Reload(ctx, []string{path})
+		err := reloadWith(ctx, m, LegacySources([]string{path}))
 		require.NoError(t, err)
 		assert.False(t, m.SnapshotChanged(LegacySources([]string{path})),
 			"snapshot should be updated even on per-server connect failure")
@@ -424,14 +433,14 @@ func TestReload(t *testing.T) {
 		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 		t.Cleanup(func() { _ = m.Close() })
 
-		err := m.Reload(ctx, []string{configPath})
+		err := reloadWith(ctx, m, LegacySources([]string{configPath}))
 		require.NoError(t, err)
 		require.Len(t, m.connectedTools(), 1)
 
 		// Delete config file.
 		require.NoError(t, os.Remove(configPath))
 
-		err = m.Reload(ctx, []string{configPath})
+		err = reloadWith(ctx, m, LegacySources([]string{configPath}))
 		require.NoError(t, err)
 		assert.Empty(t, m.connectedTools(), "tools should be empty after config deleted")
 
@@ -459,7 +468,7 @@ func TestDifferentialReload(t *testing.T) {
 		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 		t.Cleanup(func() { _ = m.Close() })
 
-		err := m.Reload(ctx, []string{configPath})
+		err := reloadWith(ctx, m, LegacySources([]string{configPath}))
 		require.NoError(t, err)
 
 		// Capture the client pointer.
@@ -473,7 +482,7 @@ func TestDifferentialReload(t *testing.T) {
 		cfgMap := map[string]mcpServerEntry{"srv": entry, "srv2": entry2}
 		writeMCPConfig(t, dir, cfgMap)
 
-		err = m.Reload(ctx, []string{configPath})
+		err = reloadWith(ctx, m, LegacySources([]string{configPath}))
 		require.NoError(t, err)
 
 		// The unchanged server should reuse the same client.
@@ -500,7 +509,7 @@ func TestDifferentialReload(t *testing.T) {
 		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 		t.Cleanup(func() { _ = m.Close() })
 
-		err := m.Reload(ctx, []string{configPath})
+		err := reloadWith(ctx, m, LegacySources([]string{configPath}))
 		require.NoError(t, err)
 
 		m.mu.RLock()
@@ -512,7 +521,7 @@ func TestDifferentialReload(t *testing.T) {
 		entry.Env["EXTRA_DIFF_TRIGGER"] = "1"
 		writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
 
-		err = m.Reload(ctx, []string{configPath})
+		err = reloadWith(ctx, m, LegacySources([]string{configPath}))
 		require.NoError(t, err)
 
 		m.mu.RLock()
@@ -537,7 +546,7 @@ func TestDifferentialReload(t *testing.T) {
 		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 		t.Cleanup(func() { _ = m.Close() })
 
-		err := m.Reload(ctx, []string{configPath})
+		err := reloadWith(ctx, m, LegacySources([]string{configPath}))
 		require.NoError(t, err)
 		require.Len(t, m.connectedTools(), 2)
 
@@ -550,7 +559,7 @@ func TestDifferentialReload(t *testing.T) {
 		// Remove srvB from the config.
 		writeMCPConfig(t, dir, map[string]mcpServerEntry{"srvA": entryA})
 
-		err = m.Reload(ctx, []string{configPath})
+		err = reloadWith(ctx, m, LegacySources([]string{configPath}))
 		require.NoError(t, err)
 
 		tools := m.connectedTools()
@@ -577,7 +586,7 @@ func TestDifferentialReload(t *testing.T) {
 		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 		t.Cleanup(func() { _ = m.Close() })
 
-		err := m.Reload(ctx, []string{configPath})
+		err := reloadWith(ctx, m, LegacySources([]string{configPath}))
 		require.NoError(t, err)
 		require.Len(t, m.connectedTools(), 1)
 
@@ -590,7 +599,7 @@ func TestDifferentialReload(t *testing.T) {
 		data := `{"mcpServers":{"srv":{"command":"/nonexistent/binary","args":[]}}}`
 		require.NoError(t, os.WriteFile(path, []byte(data), 0o600))
 
-		err = m.Reload(ctx, []string{configPath})
+		err = reloadWith(ctx, m, LegacySources([]string{configPath}))
 		require.NoError(t, err)
 
 		// The old client should be retained because the new connect
@@ -618,7 +627,7 @@ func TestDifferentialReload(t *testing.T) {
 		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 		t.Cleanup(func() { _ = m.Close() })
 
-		err := m.Reload(ctx, []string{configPath})
+		err := reloadWith(ctx, m, LegacySources([]string{configPath}))
 		require.NoError(t, err)
 		tools := m.connectedTools()
 		require.Len(t, tools, 1)
@@ -630,7 +639,7 @@ func TestDifferentialReload(t *testing.T) {
 			"srv": entry, "srv2": entry2,
 		})
 
-		err = m.Reload(ctx, []string{configPath})
+		err = reloadWith(ctx, m, LegacySources([]string{configPath}))
 		require.NoError(t, err)
 
 		// A tool call to the kept server should reach it.
@@ -644,9 +653,9 @@ func TestDifferentialReload(t *testing.T) {
 	})
 }
 
-// TestReload_FirstBootPath verifies that the first-boot call site
-// (agent.go) can be routed through Reload without behavioral change.
-func TestReload_FirstBootPath(t *testing.T) {
+// TestReloadCurrent_FirstBootPath verifies that the first-boot call site
+// (agent.go) can be routed through ReloadCurrent without behavioral change.
+func TestReloadCurrent_FirstBootPath(t *testing.T) {
 	t.Parallel()
 
 	if os.Getenv("TEST_MCP_FAKE_SERVER") == "1" {
@@ -664,8 +673,8 @@ func TestReload_FirstBootPath(t *testing.T) {
 	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 	t.Cleanup(func() { _ = m.Close() })
 
-	// Simulate first-boot: Reload with the initial config.
-	err := m.Reload(ctx, []string{configPath})
+	// Simulate first-boot: reload with the initial config.
+	err := reloadWith(ctx, m, LegacySources([]string{configPath}))
 	require.NoError(t, err)
 
 	tools := m.connectedTools()
@@ -673,9 +682,9 @@ func TestReload_FirstBootPath(t *testing.T) {
 	assert.Equal(t, "echo", tools[0].tool)
 }
 
-// TestReload_NoopWhenUnchanged verifies that Reload returns
+// TestReloadCurrent_NoopWhenUnchanged verifies that ReloadCurrent returns
 // immediately without reconnecting when the snapshot is fresh.
-func TestReload_NoopWhenUnchanged(t *testing.T) {
+func TestReloadCurrent_NoopWhenUnchanged(t *testing.T) {
 	t.Parallel()
 
 	if os.Getenv("TEST_MCP_FAKE_SERVER") == "1" {
@@ -693,7 +702,7 @@ func TestReload_NoopWhenUnchanged(t *testing.T) {
 	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 	t.Cleanup(func() { _ = m.Close() })
 
-	err := m.Reload(ctx, []string{configPath})
+	err := reloadWith(ctx, m, LegacySources([]string{configPath}))
 	require.NoError(t, err)
 
 	m.mu.RLock()
@@ -701,12 +710,12 @@ func TestReload_NoopWhenUnchanged(t *testing.T) {
 	m.mu.RUnlock()
 
 	// Second reload with no changes should be a no-op.
-	err = m.Reload(ctx, []string{configPath})
+	err = reloadWith(ctx, m, LegacySources([]string{configPath}))
 	require.NoError(t, err)
 
 	callerCtx, cancel := context.WithCancel(ctx)
 	cancel()
-	err = m.Reload(callerCtx, []string{configPath})
+	err = reloadWith(callerCtx, m, LegacySources([]string{configPath}))
 	require.NoError(t, err)
 
 	m.mu.RLock()
@@ -738,7 +747,7 @@ func TestClose_SuppressesSubprocessExitError(t *testing.T) {
 	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 	t.Cleanup(func() { _ = m.Close() })
 
-	err := m.Reload(ctx, []string{configPath})
+	err := reloadWith(ctx, m, LegacySources([]string{configPath}))
 	require.NoError(t, err)
 	require.Len(t, m.connectedTools(), 1, "server should be connected")
 
@@ -746,4 +755,105 @@ func TestClose_SuppressesSubprocessExitError(t *testing.T) {
 	// suppress the "signal: killed" error.
 	err = m.Close()
 	assert.NoError(t, err, "Close should not propagate subprocess kill errors")
+}
+
+// A caller that joins an in-flight reload started for other sources
+// must not return before its own sources are applied.
+func TestReloadCurrent_ReadsSourcesOnEachAttempt(t *testing.T) {
+	t.Parallel()
+
+	if os.Getenv("TEST_MCP_FAKE_SERVER") == "1" {
+		runFakeMCPServer()
+		return
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	_, entryA := fakeMCPServerConfig(t, "alpha")
+	pathA := writeMCPConfig(t, t.TempDir(), map[string]mcpServerEntry{"alpha": entryA})
+	_, entryB := fakeMCPServerConfig(t, "beta")
+	pathB := writeMCPConfig(t, t.TempDir(), map[string]mcpServerEntry{"beta": entryB})
+
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
+	t.Cleanup(func() { _ = m.Close() })
+
+	var current atomic.Pointer[[]ConfigSource]
+	current.Store(&[]ConfigSource{{Path: pathA}})
+	m.SetSources(func() []ConfigSource { return *current.Load() })
+
+	reached := make(chan struct{})
+	release := make(chan struct{})
+	var hookOnce sync.Once
+	m.mu.Lock()
+	m.connectStartedHook = func() {
+		hookOnce.Do(func() { close(reached) })
+		<-release
+	}
+	m.mu.Unlock()
+
+	done := make(chan error, 1)
+	go func() { done <- m.ReloadCurrent(ctx) }()
+	testutil.TryReceive(ctx, t, reached)
+
+	// The first attempt was started for pathA only.
+	current.Store(&[]ConfigSource{{Path: pathA}, {Path: pathB}})
+	close(release)
+	require.NoError(t, testutil.RequireReceive(ctx, t, done))
+
+	require.Equal(t, []catalogTool{
+		{server: "alpha", tool: "echo"},
+		{server: "beta", tool: "echo"},
+	}, m.connectedTools())
+}
+
+func TestReloadCurrent_FailsWhenSourcesKeepChanging(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
+	t.Cleanup(func() { _ = m.Close() })
+
+	dir := t.TempDir()
+	var calls atomic.Int64
+	m.SetSources(func() []ConfigSource {
+		return []ConfigSource{{Path: filepath.Join(dir, fmt.Sprintf("%d.json", calls.Add(1)))}}
+	})
+
+	err := m.ReloadCurrent(ctx)
+	require.ErrorContains(t, err, "MCP config sources still changing")
+}
+
+func TestWatchedConfigChange_ReadsRegisteredSources(t *testing.T) {
+	t.Parallel()
+
+	if os.Getenv("TEST_MCP_FAKE_SERVER") == "1" {
+		runFakeMCPServer()
+		return
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	_, entryA := fakeMCPServerConfig(t, "alpha")
+	pathA := writeMCPConfig(t, t.TempDir(), map[string]mcpServerEntry{"alpha": entryA})
+	_, entryB := fakeMCPServerConfig(t, "beta")
+	pathB := writeMCPConfig(t, t.TempDir(), map[string]mcpServerEntry{"beta": entryB})
+
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
+	t.Cleanup(func() { _ = m.Close() })
+
+	var current atomic.Pointer[[]ConfigSource]
+	current.Store(&[]ConfigSource{{Path: pathA}})
+	m.SetSources(func() []ConfigSource { return *current.Load() })
+	require.NoError(t, m.ReloadCurrent(ctx))
+	require.Equal(t, []catalogTool{{server: "alpha", tool: "echo"}}, m.connectedTools())
+
+	current.Store(&[]ConfigSource{{Path: pathA}, {Path: pathB}})
+	m.handleWatchedConfigChange()
+	require.Equal(t, []catalogTool{
+		{server: "alpha", tool: "echo"},
+		{server: "beta", tool: "echo"},
+	}, m.connectedTools())
 }
