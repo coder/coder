@@ -296,6 +296,55 @@ func TestWorkspaceFileDeliveryLoop(t *testing.T) {
 		f.clock.Advance(defaultWorkspaceFileDeliveryInterval).MustWait(ctx)
 		f.requireDelivered(ctx, t, chat, file.ID)
 	})
+
+	t.Run("SendToRunningWorkspaceDelivers", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// The send pokes its server's own worker, so the loop runs there.
+		server := newUnstartedServer(t, f.pubsub, f.db, withInternalTestServerClock(f.clock))
+		server.agentInactiveDisconnectTimeout = time.Hour
+		server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return f.agent, func() {}, nil
+		}
+		chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		file, err := f.db.InsertChatFile(ctx, database.InsertChatFileParams{
+			OwnerID:        f.user.ID,
+			OrganizationID: f.org.ID,
+			Name:           "report.zip",
+			Mimetype:       "application/zip",
+			Data:           []byte("zip bytes"),
+			Purpose:        database.NullChatFilePurpose{ChatFilePurpose: database.ChatFilePurposeWorkspace, Valid: true},
+		})
+		require.NoError(t, err)
+
+		trap := f.clock.Trap().NewTicker("chatworker", "workspace-file-delivery")
+		loopCtx, cancel := context.WithCancel(ctx)
+		loopDone := make(chan struct{})
+		go func() {
+			defer close(loopDone)
+			server.chatWorker.workspaceFileDeliveryLoop(loopCtx)
+		}()
+		t.Cleanup(func() {
+			cancel()
+			<-loopDone
+		})
+		trap.MustWait(ctx).MustRelease(ctx)
+		trap.Close()
+
+		// The workspace already finished starting, so no startup event
+		// follows and the clock never reaches the sweep: only the send
+		// can wake the loop.
+		_, err = server.SendMessage(ctx, SendMessageOptions{
+			ChatID:    chat.ID,
+			CreatedBy: f.user.ID,
+			Content: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageWorkspaceAttachment(file.ID, "application/zip", "report.zip", int64(len("zip bytes"))),
+			},
+		})
+		require.NoError(t, err)
+		f.requireDelivered(ctx, t, chat, file.ID)
+	})
 }
 
 func TestWorkspaceFileDeliveryOutcomes(t *testing.T) {
@@ -333,24 +382,37 @@ func TestWorkspaceFileDeliveryOutcomes(t *testing.T) {
 
 	t.Run("AgentRejectionParks", func(t *testing.T) {
 		t.Parallel()
-		f := newWorkspaceFileDeliveryFixture(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
-		// An agent without write-once uploads answers 400 to file_id.
-		f.agent.fail = func(workspacesdk.UploadChatFileRequest) error {
-			return agentStatusError(http.StatusBadRequest)
+		for _, tc := range []struct {
+			name      string
+			status    int
+			wantError string
+		}{
+			// An agent without write-once uploads answers 400 to file_id.
+			{name: "OutdatedAgent", status: http.StatusBadRequest, wantError: "update the workspace agent"},
+			// An unwritable chat files directory answers 403.
+			{name: "Forbidden", status: http.StatusForbidden, wantError: "status 403"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				f := newWorkspaceFileDeliveryFixture(t)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				f.agent.fail = func(workspacesdk.UploadChatFileRequest) error {
+					return agentStatusError(tc.status)
+				}
+				chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+				file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+				worker := f.worker(t)
+
+				worker.deliverWorkspaceFiles(ctx)
+				state := f.fileState(ctx, t, chat.ID, file.ID)
+				require.Equal(t, database.ChatWorkspaceFileMaxDeliveryAttempts, state.WorkspaceDeliveryAttempts)
+				require.Contains(t, state.WorkspaceDeliveryError.String, tc.wantError)
+
+				f.clock.Advance(time.Hour)
+				worker.deliverWorkspaceFiles(ctx)
+				require.Len(t, f.agent.uploadRequests(), 1)
+			})
 		}
-		chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
-		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
-		worker := f.worker(t)
-
-		worker.deliverWorkspaceFiles(ctx)
-		state := f.fileState(ctx, t, chat.ID, file.ID)
-		require.Equal(t, database.ChatWorkspaceFileMaxDeliveryAttempts, state.WorkspaceDeliveryAttempts)
-		require.Contains(t, state.WorkspaceDeliveryError.String, "update the workspace agent")
-
-		f.clock.Advance(time.Hour)
-		worker.deliverWorkspaceFiles(ctx)
-		require.Len(t, f.agent.uploadRequests(), 1)
 	})
 
 	t.Run("DifferentExistingFileParks", func(t *testing.T) {
