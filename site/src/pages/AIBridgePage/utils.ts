@@ -1,9 +1,14 @@
-export const roundTokenDisplay = (tokens: number) => {
-	if (tokens >= 1000) {
-		return `${(tokens / 1000).toFixed(1)}k`;
-	}
-	return tokens.toString();
-};
+const compactTokenFormatter = new Intl.NumberFormat("en-US", {
+	notation: "compact",
+	maximumFractionDigits: 1,
+});
+
+/**
+ * Formats a token count compactly for badges, such as `950`, `111.7K`, or
+ * `22.5M`. Badges pair this with a tooltip that shows the exact count.
+ */
+export const roundTokenDisplay = (tokens: number) =>
+	compactTokenFormatter.format(tokens);
 
 export const roundDurationDisplay = (duration: number) => {
 	if (duration >= 1000) {
