@@ -64,6 +64,8 @@ func TestPing(t *testing.T) {
 		})
 
 		stdout.ExpectMatch(ctx, "pong from "+workspace.Name)
+		// The default table output prints the summary after the last ping.
+		stdout.ExpectRegexMatch(ctx, `(?i)successful`)
 		cancel()
 		<-cmdDone
 	})

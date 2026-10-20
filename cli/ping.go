@@ -2,10 +2,8 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/netip"
 	"strings"
@@ -72,17 +70,52 @@ func (s *pingSummary) finalize() {
 	}
 }
 
-// Write finalizes the summary and writes it
-func (s *pingSummary) Write(w io.Writer) {
-	s.finalize()
-	out, err := cliui.DisplayTable([]*pingSummary{s}, "", nil)
+// pingResult is the data handed to the output formatter once pinging ends.
+// pongs is only populated in JSON mode.
+type pingResult struct {
+	summary *pingSummary
+	pongs   []PingJSONPong
+}
+
+// pingTableFormat renders the summary table under a dashed rule that
+// separates it from the per-attempt lines above.
+type pingTableFormat struct {
+	cliui.OutputFormat
+}
+
+func (f pingTableFormat) Format(ctx context.Context, data any) (string, error) {
+	out, err := f.OutputFormat.Format(ctx, data)
 	if err != nil {
-		_, _ = fmt.Fprintf(w, "Failed to display ping summary: %v\n", err)
-		return
+		return "", err
 	}
 	width := len(strings.Split(out, "\n")[0])
-	_, _ = fmt.Println(strings.Repeat("-", width))
-	_, _ = fmt.Fprint(w, out)
+	return strings.Repeat("-", width) + "\n" + out, nil
+}
+
+func newPingFormatter() *cliui.OutputFormatter {
+	return cliui.NewOutputFormatter(
+		pingTableFormat{cliui.ChangeFormatterData(
+			cliui.TableFormat([]*pingSummary{}, nil),
+			func(data any) (any, error) {
+				res, ok := data.(pingResult)
+				if !ok {
+					return nil, xerrors.Errorf("expected pingResult, got %T", data)
+				}
+				return []*pingSummary{res.summary}, nil
+			},
+		)},
+		cliui.ChangeFormatterData(cliui.JSONFormat(), func(data any) (any, error) {
+			res, ok := data.(pingResult)
+			if !ok {
+				return nil, xerrors.Errorf("expected pingResult, got %T", data)
+			}
+			return PingJSONOutput{
+				Workspace: res.summary.Workspace,
+				Pongs:     res.pongs,
+				Summary:   res.summary.jsonSummary(),
+			}, nil
+		}),
+	)
 }
 
 // PingJSONPong is one ping attempt. Error is set when the attempt failed.
@@ -135,12 +168,12 @@ func (s *pingSummary) jsonSummary() PingJSONSummary {
 
 func (r *RootCmd) ping() *serpent.Command {
 	var (
-		pingNum          int64
-		pingTimeout      time.Duration
-		pingWait         time.Duration
-		pingTimeLocal    bool
-		pingTimeUTC      bool
-		pingOutputFormat string
+		pingNum       int64
+		pingTimeout   time.Duration
+		pingWait      time.Duration
+		pingTimeLocal bool
+		pingTimeUTC   bool
+		formatter     = newPingFormatter()
 	)
 
 	cmd := &serpent.Command{
@@ -154,7 +187,8 @@ func (r *RootCmd) ping() *serpent.Command {
 			// JSON output is a single document printed when pinging ends. Without
 			// --num, pinging continues until interrupted, so stdout would stay
 			// empty and every pong would be held in memory until then.
-			if pingOutputFormat == "json" && pingNum <= 0 {
+			jsonOutput := formatter.FormatID() == "json"
+			if jsonOutput && pingNum <= 0 {
 				return xerrors.New("--output json requires --num, because pings continue until interrupted without it")
 			}
 
@@ -172,7 +206,6 @@ func (r *RootCmd) ping() *serpent.Command {
 			// end. Diagnostic and per-attempt lines that would otherwise go
 			// to stdout are redirected to stderr so they cannot corrupt the
 			// JSON output. Default (table) output is unaffected.
-			jsonOutput := pingOutputFormat == "json"
 			diagOut := inv.Stdout
 			if jsonOutput {
 				diagOut = inv.Stderr
@@ -274,15 +307,30 @@ func (r *RootCmd) ping() *serpent.Command {
 				Workspace: workspaceName,
 			}
 			var pongs []PingJSONPong
-			emitJSON := func() error {
+			// Pongs are only kept for JSON output, where --num bounds them.
+			// Table mode can run until interrupted, so it keeps nothing.
+			recordPong := func(p PingJSONPong) {
+				if jsonOutput {
+					pongs = append(pongs, p)
+				}
+			}
+			writeResult := func() error {
 				results.finalize()
-				enc := json.NewEncoder(inv.Stdout)
-				enc.SetIndent("", "  ")
-				return enc.Encode(PingJSONOutput{
-					Workspace: workspaceName,
-					Pongs:     pongs,
-					Summary:   results.jsonSummary(),
-				})
+				out, err := formatter.Format(inv.Context(), pingResult{summary: results, pongs: pongs})
+				if err != nil {
+					return xerrors.Errorf("format ping result: %w", err)
+				}
+				_, err = fmt.Fprintln(inv.Stdout, out)
+				return err
+			}
+			// finishEarly ends pinging when the last attempt fails or the
+			// context is canceled. Table output skips the summary in these
+			// cases, but JSON output always prints its document.
+			finishEarly := func() error {
+				if jsonOutput {
+					return writeResult()
+				}
+				return nil
 			}
 			var (
 				pong *ipnstate.PingResult
@@ -309,52 +357,37 @@ func (r *RootCmd) ping() *serpent.Command {
 				if err != nil {
 					if xerrors.Is(err, context.DeadlineExceeded) {
 						_, _ = fmt.Fprintf(diagOut, "ping to %q timed out \n", workspaceName)
-						if jsonOutput {
-							pongs = append(pongs, PingJSONPong{
-								Sequence: n,
-								Time:     &pongTime,
-								Error:    "timed out",
-							})
-						}
+						recordPong(PingJSONPong{
+							Sequence: n,
+							Time:     &pongTime,
+							Error:    "timed out",
+						})
 						if n == int(pingNum) {
-							if jsonOutput {
-								return emitJSON()
-							}
-							return nil
+							return finishEarly()
 						}
 						continue
 					}
 					if xerrors.Is(err, context.Canceled) {
-						if jsonOutput {
-							return emitJSON()
-						}
-						return nil
+						return finishEarly()
 					}
 
 					if err.Error() == "no matching peer" {
-						if jsonOutput {
-							pongs = append(pongs, PingJSONPong{
-								Sequence: n,
-								Time:     &pongTime,
-								Error:    err.Error(),
-							})
-						}
-						continue
-					}
-
-					_, _ = fmt.Fprintf(diagOut, "ping to %q failed %s\n", workspaceName, err.Error())
-					if jsonOutput {
-						pongs = append(pongs, PingJSONPong{
+						recordPong(PingJSONPong{
 							Sequence: n,
 							Time:     &pongTime,
 							Error:    err.Error(),
 						})
+						continue
 					}
+
+					_, _ = fmt.Fprintf(diagOut, "ping to %q failed %s\n", workspaceName, err.Error())
+					recordPong(PingJSONPong{
+						Sequence: n,
+						Time:     &pongTime,
+						Error:    err.Error(),
+					})
 					if n == int(pingNum) {
-						if jsonOutput {
-							return emitJSON()
-						}
-						return nil
+						return finishEarly()
 					}
 					continue
 				}
@@ -400,16 +433,14 @@ func (r *RootCmd) ping() *serpent.Command {
 					pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, dispDur.String()),
 				)
 
-				if jsonOutput {
-					latencyMS := float64(dur) / float64(time.Millisecond)
-					pongs = append(pongs, PingJSONPong{
-						Sequence:   n,
-						Time:       &pongTime,
-						LatencyMS:  &latencyMS,
-						Direct:     &direct,
-						DERPRegion: derpRegionName,
-					})
-				}
+				latencyMS := float64(dur) / float64(time.Millisecond)
+				recordPong(PingJSONPong{
+					Sequence:   n,
+					Time:       &pongTime,
+					LatencyMS:  &latencyMS,
+					Direct:     &direct,
+					DERPRegion: derpRegionName,
+				})
 
 				select {
 				case <-notifyCtx.Done():
@@ -432,13 +463,7 @@ func (r *RootCmd) ping() *serpent.Command {
 					"   %s#common-problems-with-direct-connections\n", connDiags.TroubleshootingURL)
 			}
 
-			if jsonOutput {
-				return emitJSON()
-			}
-
-			results.Write(inv.Stdout)
-
-			return nil
+			return writeResult()
 		},
 	}
 
@@ -459,7 +484,7 @@ func (r *RootCmd) ping() *serpent.Command {
 		{
 			Flag:          "num",
 			FlagShorthand: "n",
-			Description:   "Specifies the number of pings to perform. By default, pings will continue until interrupted.",
+			Description:   "Specifies the number of pings to perform. By default, pings will continue until interrupted. Required with --output json.",
 			Value:         serpent.Int64Of(&pingNum),
 		},
 		{
@@ -472,14 +497,8 @@ func (r *RootCmd) ping() *serpent.Command {
 			Description: "Show the response time of each pong in UTC (implies --time).",
 			Value:       serpent.BoolOf(&pingTimeUTC),
 		},
-		{
-			Flag:          "output",
-			FlagShorthand: "o",
-			Default:       "table",
-			Description:   "Output format. Available formats: table, json. JSON output requires --num.",
-			Value:         serpent.EnumOf(&pingOutputFormat, "table", "json"),
-		},
 	}
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
 

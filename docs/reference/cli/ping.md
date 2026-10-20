@@ -40,7 +40,7 @@ Specifies how long to wait for a ping to complete.
 |------|------------------|
 | Type | <code>int</code> |
 
-Specifies the number of pings to perform. By default, pings will continue until interrupted.
+Specifies the number of pings to perform. By default, pings will continue until interrupted. Required with --output json.
 
 ### --time
 
@@ -58,6 +58,15 @@ Show the response time of each pong in local time.
 
 Show the response time of each pong in UTC (implies --time).
 
+### -c, --column
+
+|         |                                                                      |
+|---------|----------------------------------------------------------------------|
+| Type    | <code>[workspace\|total\|successful\|min\|avg\|max\|variance]</code> |
+| Default | <code>workspace,total,successful,min,avg,max,variance</code>         |
+
+Columns to display in table output.
+
 ### -o, --output
 
 |         |                          |
@@ -65,4 +74,4 @@ Show the response time of each pong in UTC (implies --time).
 | Type    | <code>table\|json</code> |
 | Default | <code>table</code>       |
 
-Output format. Available formats: table, json. JSON output requires --num.
+Output format.
