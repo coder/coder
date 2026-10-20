@@ -38,6 +38,9 @@ export type ResolvedCompactionThreshold =
 
 export const compactionDisabledThresholdPercent = 100;
 
+/** Shown for a 100% handoff target, where chatd never rolls over on its own. */
+export const rolloverDisabledLabel = "Automatic rollover disabled";
+
 // Mirrors chatd compactionOverrideWindowPercent. The remaining 20% is target
 // headroom for the summary prompt and summary, not a guaranteed fit.
 export const compactionOverrideWindowPercent = 80;
@@ -309,7 +312,7 @@ export const compactionThresholdLabel = (
 ): string | undefined => {
 	if (compaction.source === "handoff") {
 		if (compaction.percent >= compactionDisabledThresholdPercent) {
-			return "Automatic rollover disabled";
+			return rolloverDisabledLabel;
 		}
 		const { pointTokens } = compaction;
 		if (

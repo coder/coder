@@ -10,13 +10,13 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
  */
 export const useUserCompactionStrategy = () => {
 	const { experiments } = useDashboard();
-	const isAvailable = experiments.includes("chat-token-budget");
+	const isExperimentEnabled = experiments.includes("chat-token-budget");
 	const query = useQuery({
 		...userCompactionStrategy(),
-		enabled: isAvailable,
+		enabled: isExperimentEnabled,
 	});
-	const strategy: ChatCompactionStrategy | undefined = isAvailable
+	const strategy: ChatCompactionStrategy | undefined = isExperimentEnabled
 		? query.data?.strategy
 		: "summarize";
-	return { isAvailable, strategy, query };
+	return { isExperimentEnabled, strategy, query };
 };

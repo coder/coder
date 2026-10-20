@@ -26,7 +26,7 @@ export type AgentSettingsCompactionPageViewProps = {
 		thresholdPercent: number,
 	) => Promise<unknown>;
 	onResetThreshold: (modelId: string) => Promise<unknown>;
-	/** Undefined until the user's strategy loads, which hides the thresholds. */
+	/** Undefined while the user's strategy loads or after it fails to load, which hides the thresholds. */
 	compactionStrategy: TypesGen.ChatCompactionStrategy | undefined;
 };
 

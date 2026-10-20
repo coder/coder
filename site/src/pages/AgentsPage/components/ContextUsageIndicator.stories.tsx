@@ -155,6 +155,26 @@ export const TokenBudgetRolloverDisabled: Story = {
 	},
 };
 
+export const TokenBudgetHandoffBeyondReportedLimit: Story = {
+	args: {
+		usage: {
+			usedTokens: 5_200,
+			contextLimitTokens: 10_000,
+			compactionThreshold: {
+				source: "handoff",
+				percent: 30,
+				pointTokens: 38_400,
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			canvas.getByRole("button", { name: /Context usage 52%/i }),
+		);
+	},
+};
+
 // A pinned resource issue flags the ring and appears under Issues.
 export const ResourceIssue: Story = {
 	args: {

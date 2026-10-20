@@ -456,7 +456,7 @@ describe("compaction triggers", () => {
 		},
 	);
 
-	it("shrinks the usable limit with the model's smaller output cap", () => {
+	it("derives the usable limit from the model's output cap", () => {
 		// 200k window, 8,192 output cap: usable 191,808, final zone 175,808.
 		expect(
 			modelHandoffTargetPoint(

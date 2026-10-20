@@ -7,7 +7,7 @@ import {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useUserCompactionStrategy } from "../hooks/useUserCompactionStrategy";
-import { SettingsSelectRow } from "./DisplayModeSettings";
+import { SettingsSelectRow } from "./SettingsSelectRow";
 
 const strategyLabels: Record<ChatCompactionStrategy, string> = {
 	summarize: "Summarize",
@@ -25,17 +25,17 @@ const strategyOptions = ChatCompactionStrategies.map((value) => ({
  */
 export const CompactionStrategySettings: React.FC = () => {
 	const queryClient = useQueryClient();
-	const { isAvailable, query } = useUserCompactionStrategy();
+	const { isExperimentEnabled, query } = useUserCompactionStrategy();
 	const mutation = useMutation(updateUserCompactionStrategy(queryClient));
 
-	if (!isAvailable) {
+	if (!isExperimentEnabled) {
 		return null;
 	}
 
 	return (
 		<SettingsSelectRow
 			title="Compaction strategy"
-			description="How long conversations stay within the model's context window. 'Summarize' replaces older history with a summary at the compaction threshold. 'Token budget' asks the agent to save a checkpoint at the handoff target, then continues in a fresh context window that starts from that checkpoint."
+			description="How conversations stay within the model's context window. 'Summarize' replaces older history with a summary at the compaction threshold. 'Token budget' asks the agent to save a checkpoint at the handoff target, then continues in a fresh context window that starts from that checkpoint."
 			ariaLabel="Compaction strategy"
 			value={query.data?.strategy}
 			placeholder={query.error != null ? "Unavailable" : "Loading…"}

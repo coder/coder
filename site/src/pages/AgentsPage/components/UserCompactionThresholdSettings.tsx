@@ -52,6 +52,7 @@ import {
 	isCompactionPointBeyondWindow,
 	modelHandoffTargetPoint,
 	type OrganizationCompactionTrigger,
+	rolloverDisabledLabel,
 } from "../compactionTriggers";
 import { getModelLabel } from "../utils/modelOptions";
 
@@ -183,7 +184,7 @@ const EffectiveCompactionThreshold: React.FC<
 }) => {
 	const off = (
 		<span className="text-content-secondary">
-			{isTokenBudget ? "Automatic rollover disabled" : "Off"}
+			{isTokenBudget ? rolloverDisabledLabel : "Off"}
 		</span>
 	);
 

@@ -392,7 +392,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const modelOverridesQuery = useQuery(
 		organizationChatModelOverrides(organizationId),
 	);
-	// A strategy that has not loaded is unknown, so no threshold is shown.
 	const { strategy: compactionStrategy } = useUserCompactionStrategy();
 	const compactionThreshold =
 		modelOverridesQuery.isPending || compactionStrategy === undefined

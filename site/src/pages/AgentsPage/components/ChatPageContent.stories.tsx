@@ -18,6 +18,7 @@ import {
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
+	MockCompactionChatModel,
 } from "#/testHelpers/chatModels";
 import {
 	MockUserChatCompactionThresholds,
@@ -96,7 +97,10 @@ const mockUserChatCompactionThresholdsWithOverride: TypesGen.UserChatCompactionT
 	};
 
 const mockCompactionModelCatalog: TypesGen.OrganizationChatModelsResponse = {
-	models: [{ ...MockChatModel, id: MockChat.last_model_config_id }],
+	models: [
+		{ ...MockChatModel, id: MockChat.last_model_config_id },
+		MockCompactionChatModel,
+	],
 	providers: [MockChatModelProviderDescriptor],
 	unsupported_providers: [],
 };
@@ -583,7 +587,14 @@ export const HandoffTargetUnderTokenBudget: Story = {
 			},
 			{
 				key: organizationChatModelOverridesKey(MockChat.organization_id),
-				data: { overrides: [] },
+				data: {
+					overrides: [
+						{
+							context: "compaction",
+							model_config_id: MockCompactionChatModel.id,
+						},
+					],
+				} satisfies TypesGen.ChatModelOverridesResponse,
 			},
 			{
 				key: chatPromptsKey(MockChat.id),
