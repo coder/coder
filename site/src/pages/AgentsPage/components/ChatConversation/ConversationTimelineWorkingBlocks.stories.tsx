@@ -206,8 +206,7 @@ export const Paginated: Story = {
 	},
 };
 
-// The page starts at an attached file, so its block may continue from older
-// history.
+// The file's block may continue from older history.
 export const PaginatedFromAttachedFile: Story = {
 	args: {
 		hasMoreMessages: true,
