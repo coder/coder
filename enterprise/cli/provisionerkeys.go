@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	agpl "github.com/coder/coder/v2/cli"
@@ -86,23 +85,14 @@ func (r *RootCmd) provisionerKeysCreate() *serpent.Command {
 				return xerrors.Errorf("create provisioner key: %w", err)
 			}
 
-			// CreateProvisionerKey only returns the secret, so list keys for the metadata.
-			// The key already exists, so never fail here and lose the one-time secret.
-			// If the lookup fails, fall back to the values this command sent.
-			key := codersdk.ProvisionerKey{Name: inv.Args[0], OrganizationID: org.ID, Tags: tags}
-			keys, listErr := client.ListProvisionerKeys(ctx, org.ID)
-			for _, k := range keys {
-				if strings.EqualFold(k.Name, inv.Args[0]) {
-					key = k
-					break
-				}
-			}
-			if key.ID == uuid.Nil {
-				reason := "the key was not in the list of provisioner keys"
-				if listErr != nil {
-					reason = listErr.Error()
-				}
-				cliui.Warnf(inv.Stderr, "Could not fetch metadata for the created provisioner key, so its id and created_at are unset: %s", reason)
+			// CreateProvisionerKey only returns the secret, so use it to fetch the
+			// key's metadata. The key already exists, so never fail here and lose
+			// the one-time secret. If the lookup fails, fall back to the values
+			// this command sent.
+			key, err := client.GetProvisionerKey(ctx, res.Key)
+			if err != nil {
+				key = codersdk.ProvisionerKey{Name: inv.Args[0], OrganizationID: org.ID, Tags: tags}
+				cliui.Warnf(inv.Stderr, "Could not fetch metadata for the created provisioner key, so its id and created_at are unset: %s", err)
 			}
 
 			return formatter.WriteLine(ctx, inv.Stdout, createProvisionerKeyResponse{

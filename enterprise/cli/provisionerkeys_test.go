@@ -153,12 +153,12 @@ func TestProvisionerKeys(t *testing.T) {
 		})
 		orgAdminClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
 
-		// Fail only the list call, so the key is created but its metadata
-		// lookup fails.
+		// Fail only the metadata lookup, so the key is created but its
+		// metadata is unavailable.
 		proxy := httputil.NewSingleHostReverseProxy(client.URL)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/provisionerkeys") {
-				http.Error(w, "list unavailable", http.StatusInternalServerError)
+			if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v2/provisionerkeys/") {
+				http.Error(w, "metadata unavailable", http.StatusInternalServerError)
 				return
 			}
 			proxy.ServeHTTP(w, r)
