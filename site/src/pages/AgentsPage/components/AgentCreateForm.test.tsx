@@ -154,21 +154,33 @@ const mockStoppedWorkspace: TypesGen.Workspace = {
 	},
 };
 
+const seedOrganizationQueries = (
+	queryClient: QueryClient,
+	organizationId: string,
+	modelCatalog: TypesGen.OrganizationChatModelsResponse,
+) => {
+	queryClient.setQueryData(
+		organizationChatModelsKey(organizationId),
+		modelCatalog,
+	);
+	queryClient.setQueryData(
+		userChatPersonalModelOverrides(organizationId).queryKey,
+		mockPersonalModelOverrides,
+	);
+	queryClient.setQueryData(mcpServerConfigsKey(organizationId), []);
+};
+
 const createQueryClient = () => {
 	const queryClient = new QueryClient({
 		defaultOptions: {
 			queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
 		},
 	});
-	queryClient.setQueryData(
-		organizationChatModelsKey(MockDefaultOrganization.id),
+	seedOrganizationQueries(
+		queryClient,
+		MockDefaultOrganization.id,
 		mockModelCatalog,
 	);
-	queryClient.setQueryData(
-		userChatPersonalModelOverrides(MockDefaultOrganization.id).queryKey,
-		mockPersonalModelOverrides,
-	);
-	queryClient.setQueryData(mcpServerConfigsKey(MockDefaultOrganization.id), []);
 	queryClient.setQueryData(preferenceSettingsKey, MockUserPreferenceSettings);
 	queryClient.setQueryData(
 		permittedOrganizationsKey({
@@ -178,18 +190,6 @@ const createQueryClient = () => {
 		[MockDefaultOrganization, MockOrganization2],
 	);
 	return queryClient;
-};
-
-const seedOrganization2Queries = (queryClient: QueryClient) => {
-	queryClient.setQueryData(
-		organizationChatModelsKey(MockOrganization2.id),
-		mockOrganization2ModelCatalog,
-	);
-	queryClient.setQueryData(
-		userChatPersonalModelOverrides(MockOrganization2.id).queryKey,
-		mockPersonalModelOverrides,
-	);
-	queryClient.setQueryData(mcpServerConfigsKey(MockOrganization2.id), []);
 };
 
 type FormProps = React.ComponentProps<typeof AgentCreateForm>;
@@ -494,7 +494,11 @@ describe("AgentCreateForm workspace file uploads", () => {
 		dashboard.showOrganizations = true;
 		localStorage.setItem(selectedWorkspaceIdStorageKey, mockWorkspace.id);
 		const queryClient = createQueryClient();
-		seedOrganization2Queries(queryClient);
+		seedOrganizationQueries(
+			queryClient,
+			MockOrganization2.id,
+			mockOrganization2ModelCatalog,
+		);
 		const uploadSpy = mockStagedUpload();
 		const { onCreateChat } = renderForm({}, { queryClient });
 
@@ -991,7 +995,11 @@ describe("AgentCreateForm project picker", () => {
 	it("clears the picked project when the organization changes", async () => {
 		dashboard.showOrganizations = true;
 		const queryClient = createProjectQueryClient();
-		seedOrganization2Queries(queryClient);
+		seedOrganizationQueries(
+			queryClient,
+			MockOrganization2.id,
+			mockOrganization2ModelCatalog,
+		);
 		const { onCreateChat } = renderForm({}, { queryClient });
 
 		await pickProject(MockChatProject.name);
