@@ -1,9 +1,16 @@
 import type React from "react";
 import { getPathBasename } from "../../../utils/path";
-import { asRecord, asString, humanizeMCPToolName, parseArgs } from "./utils";
+import {
+	asRecord,
+	asString,
+	humanizeMCPToolName,
+	parseArgs,
+	type ToolStatus,
+} from "./utils";
 
 type ToolLabelProps = {
 	name: string;
+	status: ToolStatus;
 	args: unknown;
 	result: unknown;
 	mcpSlug?: string;
@@ -60,16 +67,13 @@ const AttachFileLabel: React.FC<ToolLabelProps> = ({ args, result }) => {
 	);
 };
 
-const CopyAttachmentsLabel: React.FC<ToolLabelProps> = ({ result }) => {
-	const hasResult = result !== undefined && result !== null;
-	return (
-		<span className="truncate text-[13px]">
-			{hasResult
-				? "Checked workspace attachments"
-				: "Copying attachments to the workspace…"}
-		</span>
-	);
-};
+const CopyAttachmentsLabel: React.FC<ToolLabelProps> = ({ status }) => (
+	<span className="truncate text-[13px]">
+		{status === "running"
+			? "Copying attachments to the workspace…"
+			: "Checked workspace attachments"}
+	</span>
+);
 
 export const genericToolLabels: Partial<
 	Record<string, React.FC<ToolLabelProps>>
