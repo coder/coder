@@ -82,8 +82,11 @@ export const buildChatInputContent = ({
 	}
 
 	if (attachments && attachments.length > 0) {
-		for (const { fileId } of attachments) {
-			content.push({ type: "file", file_id: fileId });
+		for (const { fileId, purpose } of attachments) {
+			content.push({
+				type: purpose === "workspace" ? "workspace-attachment" : "file",
+				file_id: fileId,
+			});
 		}
 	}
 
