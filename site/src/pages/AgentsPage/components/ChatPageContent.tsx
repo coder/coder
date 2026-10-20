@@ -6,6 +6,7 @@ import {
 	chatPromptsQuery,
 	organizationChatModelOverrides,
 	refreshChatContext,
+	userCompactionStrategy,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { workspaces } from "#/api/queries/workspaces";
@@ -13,6 +14,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { getWorkspaceAgents } from "#/utils/workspace";
 import { resolveChatCompactionThreshold } from "../compactionTriggers";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
@@ -375,6 +377,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	folder,
 }) => {
 	const { user: currentUser } = useAuthenticated();
+	const { experiments } = useDashboard();
 	const organizationId = chat.organization_id;
 	const chatId = chat.id;
 	const chatContext = chat.context;
@@ -391,15 +394,21 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const modelOverridesQuery = useQuery(
 		organizationChatModelOverrides(organizationId),
 	);
-	const compactionThreshold = modelOverridesQuery.isPending
-		? undefined
-		: resolveChatCompactionThreshold(
-				chat.last_model_config_id,
-				thresholdsQuery.data?.thresholds,
-				modelCatalog?.models,
-				providerInfoByIDFromDescriptors(modelCatalog?.providers),
-				modelOverridesQuery,
-			);
+	const strategyQuery = useQuery({
+		...userCompactionStrategy(),
+		enabled: experiments.includes("chat-token-budget"),
+	});
+	const compactionThreshold =
+		modelOverridesQuery.isPending || strategyQuery.isLoading
+			? undefined
+			: resolveChatCompactionThreshold(
+					chat.last_model_config_id,
+					thresholdsQuery.data?.thresholds,
+					modelCatalog?.models,
+					providerInfoByIDFromDescriptors(modelCatalog?.providers),
+					modelOverridesQuery,
+					strategyQuery.data?.strategy,
+				);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const queuedMessages = useChatSelector(store, selectQueuedMessages);

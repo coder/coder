@@ -11,6 +11,8 @@ import {
 	compactionOverrideWindowPercent,
 	compactionPointAsPercent,
 	compactionThresholdLabel,
+	defaultChatMaxOutputTokens,
+	handoffTargetPoint,
 	isCompactionPointBeyondWindow,
 	type OrganizationCompactionTrigger,
 	type ResolvedCompactionThreshold,
@@ -414,6 +416,45 @@ describe("compaction triggers", () => {
 				organizationOverrideNotLoaded: false,
 			});
 		});
+
+		it("resolves the handoff target under token budget, ignoring the organization override", () => {
+			expect(
+				resolveChatCompactionThreshold(
+					mockChatModel.id,
+					[{ model_config_id: mockChatModel.id, threshold_percent: 30 }],
+					[mockChatModel, MockCompactionChatModel],
+					providers,
+					{ data: mockCompactionOverrides, error: null },
+					"token_budget",
+				),
+			).toEqual({ source: "handoff", percent: 30, pointTokens: 38_400 });
+		});
+	});
+
+	// Mirrors chatd (keep in sync with TestNewContextWindowBudget).
+	it.each([
+		[128_000, 30, 38_400],
+		[128_000, 95, 80_000],
+		[200_000, 0, 20_000],
+		[32_000, 30, 9_600],
+		[8_000, 70, 3_000],
+		[8_001, 5, 800],
+	])(
+		"places the handoff target of a %i-token window with threshold %i at %i tokens",
+		(contextLimit, thresholdPercent, expected) => {
+			expect(
+				handoffTargetPoint(
+					contextLimit,
+					thresholdPercent,
+					defaultChatMaxOutputTokens,
+				),
+			).toBe(expected);
+		},
+	);
+
+	it("shrinks the usable limit with a smaller output cap", () => {
+		// 200k window, 8,192 output cap: usable 191,808, final zone 175,808.
+		expect(handoffTargetPoint(200_000, 95, 8_192)).toBe(175_808);
 	});
 
 	it.each<[ResolvedCompactionThreshold, number, string | undefined]>([
@@ -453,6 +494,17 @@ describe("compaction triggers", () => {
 			200_000,
 			"Compaction off (organization override not loaded)",
 		],
+		[
+			{ source: "handoff", percent: 95, pointTokens: 80_000 },
+			128_000,
+			"Handoff target: 62.5%",
+		],
+		[
+			{ source: "handoff", percent: 100, pointTokens: 80_000 },
+			128_000,
+			"Automatic rollover disabled",
+		],
+		[{ source: "handoff", percent: 30, pointTokens: undefined }, 0, undefined],
 	])("labels %o in a %i-token window", (compaction, contextLimit, expected) => {
 		expect(compactionThresholdLabel(compaction, contextLimit)).toBe(expected);
 	});

@@ -115,6 +115,26 @@ export const ChatModelCompactionBinding: Story = {
 	},
 };
 
+export const TokenBudgetHandoffTarget: Story = {
+	args: {
+		usage: {
+			usedTokens: 64_000,
+			contextLimitTokens: 128_000,
+			compactionThreshold: {
+				source: "handoff",
+				percent: 95,
+				pointTokens: 80_000,
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			canvas.getByRole("button", { name: /Context usage 50%/i }),
+		);
+	},
+};
+
 // A pinned resource issue flags the ring and appears under Issues.
 export const ResourceIssue: Story = {
 	args: {

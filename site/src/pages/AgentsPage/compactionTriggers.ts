@@ -28,9 +28,53 @@ export type ResolvedCompactionThreshold =
 			readonly source: "organization";
 			// Token count that triggers organization compaction.
 			readonly pointTokens: number;
+	  }
+	| {
+			readonly source: "handoff";
+			readonly percent: number;
+			// Undefined when the model's window is unknown, so no handoff fires.
+			readonly pointTokens: number | undefined;
 	  };
 
 export const compactionDisabledThresholdPercent = 100;
+
+// Mirrors chatd newContextWindowBudget (keep in sync with
+// TestNewContextWindowBudget).
+export const defaultChatMaxOutputTokens = 32_000;
+const finalHandoffReserveTokens = 16_000;
+const minHandoffThresholdPercent = 10;
+
+export const handoffTargetPoint = (
+	contextLimit: number,
+	thresholdPercent: number,
+	outputCap: number,
+): number => {
+	const usableLimit =
+		contextLimit - Math.min(outputCap, Math.floor(contextLimit / 4));
+	const finalPoint = Math.max(
+		usableLimit - finalHandoffReserveTokens,
+		Math.ceil(usableLimit / 2),
+	);
+	return Math.min(
+		Math.floor(
+			(contextLimit * Math.max(thresholdPercent, minHandoffThresholdPercent)) /
+				100,
+		),
+		finalPoint,
+	);
+};
+
+export const modelHandoffTargetPoint = (
+	model: TypesGen.ChatModel,
+	thresholdPercent: number,
+): number | undefined =>
+	model.context_limit > 0
+		? handoffTargetPoint(
+				model.context_limit,
+				thresholdPercent,
+				model.model_config?.max_output_tokens ?? defaultChatMaxOutputTokens,
+			)
+		: undefined;
 
 // Mirrors chatd compactionOverrideWindowPercent. The remaining 20% is target
 // headroom for the summary prompt and summary, not a guaranteed fit.
@@ -197,6 +241,7 @@ export const resolveChatCompactionThreshold = (
 	models: readonly TypesGen.ChatModel[] | undefined,
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
 	overrides: OverridesQueryState,
+	strategy: TypesGen.ChatCompactionStrategy = "summarize",
 ): ResolvedCompactionThreshold | undefined => {
 	if (!models) {
 		return undefined;
@@ -211,6 +256,15 @@ export const resolveChatCompactionThreshold = (
 	);
 	const thresholdPercent =
 		userOverride?.threshold_percent ?? config.compression_threshold;
+	// chatd never compacts automatically under token budget, so the
+	// organization override does not apply.
+	if (strategy === "token_budget") {
+		return {
+			source: "handoff",
+			percent: thresholdPercent,
+			pointTokens: modelHandoffTargetPoint(config, thresholdPercent),
+		};
+	}
 	const organizationTrigger = resolveOrganizationCompactionTrigger(
 		compactionOverrideModelConfigID(overrides.data),
 		models,
@@ -251,6 +305,22 @@ export const compactionThresholdLabel = (
 	compaction: ResolvedCompactionThreshold,
 	contextLimit: number,
 ): string | undefined => {
+	if (compaction.source === "handoff") {
+		if (compaction.percent >= compactionDisabledThresholdPercent) {
+			return "Automatic rollover disabled";
+		}
+		const { pointTokens } = compaction;
+		if (
+			pointTokens === undefined ||
+			isCompactionPointBeyondWindow(pointTokens, contextLimit)
+		) {
+			return undefined;
+		}
+		const percent = compactionPointAsPercent(pointTokens, contextLimit);
+		return percent === undefined
+			? undefined
+			: `Handoff target: ${formatCompactionPercent(percent)}%`;
+	}
 	if (compaction.source === "organization") {
 		const percent = compactionPointAsPercent(
 			compaction.pointTokens,

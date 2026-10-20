@@ -2957,6 +2957,26 @@ export const deleteUserCompactionThreshold = (queryClient: QueryClient) => ({
 	},
 });
 
+export const userCompactionStrategyKey = [
+	...chatConfigKey,
+	"compaction-strategy",
+	"me",
+] as const;
+
+export const userCompactionStrategy = () => ({
+	queryKey: userCompactionStrategyKey,
+	queryFn: () => API.experimental.getUserChatCompactionStrategy(),
+});
+
+export const updateUserCompactionStrategy = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateUserChatCompactionStrategy,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: userCompactionStrategyKey,
+		});
+	},
+});
+
 const chatModelsKey = [...chatConfigKey, "models"] as const;
 
 export const organizationChatModelsKey = (organizationId: string) =>

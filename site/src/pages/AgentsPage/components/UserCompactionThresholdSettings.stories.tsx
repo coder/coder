@@ -105,6 +105,7 @@ const meta = {
 		thresholdsError: undefined,
 		onSaveThreshold: fn(async () => undefined),
 		onResetThreshold: fn(async () => undefined),
+		compactionStrategy: "summarize",
 	},
 	parameters: {
 		user: MockUserOwner,
@@ -553,5 +554,16 @@ export const PartialModelLoadError: Story = {
 		modelsError: new globalThis.Error(
 			"Failed to load models from one organization",
 		),
+	},
+};
+
+export const TokenBudgetHandoffTargets: Story = {
+	args: {
+		compactionStrategy: "token_budget",
+		compactionTriggersByOrganizationID: mockCompactionTriggersByOrganizationID,
+		thresholds: [
+			{ model_config_id: "model-1", threshold_percent: 95 },
+			{ model_config_id: "model-2", threshold_percent: 100 },
+		],
 	},
 };

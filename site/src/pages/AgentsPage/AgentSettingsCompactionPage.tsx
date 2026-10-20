@@ -4,6 +4,7 @@ import {
 	organizationChatModelOverrides,
 	updateUserCompactionThreshold,
 	userChatProviderConfigs,
+	userCompactionStrategy,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -17,12 +18,17 @@ import {
 
 const AgentSettingsCompactionPage: React.FC = () => {
 	const queryClient = useQueryClient();
-	const { organizations } = useDashboard();
+	const { organizations, experiments } = useDashboard();
+	const isTokenBudgetAvailable = experiments.includes("chat-token-budget");
 	const organizationModels = useOrganizationChatModels(
 		organizations.map((organization) => organization.id),
 	);
 	const providerConfigsQuery = useQuery(userChatProviderConfigs());
 	const thresholdsQuery = useQuery(userCompactionThresholds());
+	const strategyQuery = useQuery({
+		...userCompactionStrategy(),
+		enabled: isTokenBudgetAvailable,
+	});
 	const modelOverrideQueries = useQueries({
 		queries: organizations.map((organization) =>
 			organizationChatModelOverrides(organization.id),
@@ -76,6 +82,7 @@ const AgentSettingsCompactionPage: React.FC = () => {
 			thresholdsError={thresholdsQuery.error}
 			onSaveThreshold={handleSaveThreshold}
 			onResetThreshold={handleResetThreshold}
+			compactionStrategy={strategyQuery.data?.strategy ?? "summarize"}
 		/>
 	);
 };

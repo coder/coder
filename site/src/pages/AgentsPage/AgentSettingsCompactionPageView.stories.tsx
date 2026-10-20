@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
+import { userCompactionStrategyKey } from "#/api/queries/chats";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import { MockDefaultOrganization } from "#/testHelpers/entities";
+import { withDashboardProvider } from "#/testHelpers/storybook";
 import {
 	AgentSettingsCompactionPageView,
 	type AgentSettingsCompactionPageViewProps,
@@ -36,11 +39,13 @@ const baseArgs: AgentSettingsCompactionPageViewProps = {
 	thresholdsError: undefined,
 	onSaveThreshold: fn(async () => undefined),
 	onResetThreshold: fn(async () => undefined),
+	compactionStrategy: "summarize",
 };
 
 const meta = {
 	title: "pages/AgentsPage/AgentSettingsCompactionPageView",
 	component: AgentSettingsCompactionPageView,
+	decorators: [withDashboardProvider],
 	args: baseArgs,
 } satisfies Meta<typeof AgentSettingsCompactionPageView>;
 
@@ -106,5 +111,79 @@ export const InvalidThresholdIsRejected: Story = {
 		await waitFor(() => {
 			expect(thresholdInput).toHaveAttribute("aria-invalid", "true");
 		});
+	},
+};
+
+export const SummarizeStrategy: Story = {
+	parameters: {
+		experiments: ["chat-token-budget"],
+		queries: [
+			{ key: userCompactionStrategyKey, data: { strategy: "summarize" } },
+		],
+	},
+};
+
+export const TokenBudgetStrategy: Story = {
+	args: {
+		compactionStrategy: "token_budget",
+		thresholds: [{ model_config_id: "model-config-1", threshold_percent: 98 }],
+	},
+	parameters: {
+		experiments: ["chat-token-budget"],
+		queries: [
+			{ key: userCompactionStrategyKey, data: { strategy: "token_budget" } },
+		],
+	},
+};
+
+export const CompactionStrategyOptions: Story = {
+	parameters: {
+		experiments: ["chat-token-budget"],
+		queries: [
+			{ key: userCompactionStrategyKey, data: { strategy: "summarize" } },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", {
+				name: "Compaction strategy",
+			}),
+		);
+	},
+};
+
+export const CompactionStrategyLoadError: Story = {
+	parameters: { experiments: ["chat-token-budget"] },
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserChatCompactionStrategy").mockRejectedValue(
+			new Error("Failed to load the compaction strategy."),
+		);
+	},
+};
+
+export const CompactionStrategySaveError: Story = {
+	parameters: {
+		experiments: ["chat-token-budget"],
+		queries: [
+			{ key: userCompactionStrategyKey, data: { strategy: "summarize" } },
+		],
+	},
+	beforeEach: () => {
+		spyOn(
+			API.experimental,
+			"updateUserChatCompactionStrategy",
+		).mockRejectedValue(new Error("Failed to save the compaction strategy."));
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", {
+				name: "Compaction strategy",
+			}),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("option", {
+				name: "Token budget",
+			}),
+		);
 	},
 };
