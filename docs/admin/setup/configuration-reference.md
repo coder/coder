@@ -71,8 +71,9 @@ Chat requests that include unsafe_dynamic_tools or inline_mcp_servers are reject
 
 ### Disable chat sharing
 
-Disable chat sharing.
-Chat ACL checking is disabled and only owners can access their chats.
+Disable chat and chat project sharing.
+Existing shares stop granting access and new shares are rejected.
+Owners keep access to their own chats and projects, and administrators keep only the access their roles grant.
 
 - Type: `bool`
 - Environment variable: `CODER_DISABLE_CHAT_SHARING`

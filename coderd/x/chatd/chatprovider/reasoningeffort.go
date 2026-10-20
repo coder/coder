@@ -258,8 +258,9 @@ var googleThinkingLevelsAscending = []fantasygoogle.ThinkingLevel{
 // but 3.7 dropped MINIMAL, and image models accept only HIGH (plus MINIMAL
 // for flash). Versionless "-latest" aliases track the newest release of their
 // family, which has been Gemini 3+ since the aliases were introduced.
-// Only the Pro and Flash chat families qualify; specialized variants such
-// as live, TTS, and audio models reject thinking_level or generateContent
+// Gemini 4 Argon accepts the same levels as 3.1 Pro (live-verified 2026-10-14).
+// Only the Pro, Argon, and Flash chat families qualify; specialized variants
+// such as live, TTS, and audio models reject thinking_level or generateContent
 // entirely (verified live), so unrecognized name tokens fail closed and
 // keep the previous request shape, matching googleSupportsThinkingBudget.
 func googleSupportedThinkingLevels(modelID string) []fantasygoogle.ThinkingLevel {
@@ -286,7 +287,7 @@ func googleSupportedThinkingLevels(modelID string) []fantasygoogle.ThinkingLevel
 	isPro, isFlash, isImage := false, false, false
 	for _, segment := range family {
 		switch segment {
-		case "pro":
+		case "pro", "argon":
 			isPro = true
 		case "flash":
 			isFlash = true
