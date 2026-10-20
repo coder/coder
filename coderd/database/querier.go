@@ -440,8 +440,9 @@ type sqlcQuerier interface {
 	// GetAuthenticatedWorkspaceAgentAndBuildByAuthToken returns an authenticated
 	// workspace agent and its associated build. During normal operation, this is
 	// the latest build. During shutdown, this may be the previous START build while
-	// the STOP build is executing, allowing shutdown scripts to authenticate (see
-	// issue #19467).
+	// the STOP or DELETE build is executing, allowing shutdown scripts and final
+	// connection reports to authenticate (see issue #19467). The agent connection
+	// monitor in coderd/workspaceagentsrpc.go applies the same rule.
 	GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error)
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
@@ -519,6 +520,9 @@ type sqlcQuerier interface {
 	GetChatMCPServersByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMCPServer, error)
 	GetChatMCPServersByChatOwnerID(ctx context.Context, ownerID uuid.UUID) ([]ChatMCPServer, error)
 	GetChatMessageByID(ctx context.Context, id int64) (ChatMessage, error)
+	// Includes deleted rows so the stream can resolve which chat a deleted cursor
+	// belongs to.
+	GetChatMessageByIDForStream(ctx context.Context, id int64) (ChatMessage, error)
 	// Aggregates message-level metrics per chat for messages created
 	// after the given timestamp. Uses message created_at so that
 	// ongoing activity in long-running chats is captured each window.
@@ -913,17 +917,12 @@ type sqlcQuerier interface {
 	GetTemplateAverageBuildTime(ctx context.Context, templateID uuid.NullUUID) (GetTemplateAverageBuildTimeRow, error)
 	GetTemplateByID(ctx context.Context, id uuid.UUID) (Template, error)
 	GetTemplateByOrganizationAndName(ctx context.Context, arg GetTemplateByOrganizationAndNameParams) (Template, error)
-	// GetTemplateInsights returns the aggregate user-produced usage of all
-	// workspaces in a given timeframe. The template IDs, active users, and
-	// usage_seconds all reflect any usage in the template, including apps.
+	// GetTemplateInsights aggregates workspace usage, including apps.
+	// Session apps are reported individually; excess unregistered apps fold into
+	// overflow. Registered apps and accounting rows do not count toward the limit.
 	//
-	// Session usage comes out per app name; callers group the names into families.
-	//
-	// When combining data from multiple templates, we must make a guess at
-	// how the user behaved for the 30 minute interval. In this case we make
-	// the assumption that if the user used two workspaces for 15 minutes,
-	// they did so sequentially, thus we sum the usage up to a maximum of
-	// 30 minutes with LEAST(SUM(n), 30).
+	// Per-user minutes are summed across templates and capped at 30 per half hour,
+	// assuming workspaces were used sequentially rather than concurrently.
 	GetTemplateInsights(ctx context.Context, arg GetTemplateInsightsParams) (GetTemplateInsightsRow, error)
 	// GetTemplateInsightsByInterval returns all intervals between start and end
 	// time, if end time is a partial interval, it will be included in the results and

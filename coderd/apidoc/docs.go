@@ -31152,14 +31152,28 @@ const docTemplate = `{
             "properties": {
                 "display_name": {
                     "type": "string",
-                    "example": "Visual Studio Code"
+                    "example": "VS Code"
                 },
                 "icon": {
                     "type": "string"
                 },
+                "method": {
+                    "description": "Method is how the app connected. Method and Slug identify an app.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ConnectionLogMethod"
+                        }
+                    ],
+                    "example": "ssh"
+                },
                 "seconds": {
                     "type": "integer",
                     "example": 80500
+                },
+                "seconds_is_upper_bound": {
+                    "description": "SecondsIsUpperBound marks overflow usage that includes folded apps.\nTheir overlap is not stored, so Seconds may overestimate active time.",
+                    "type": "boolean",
+                    "example": false
                 },
                 "slug": {
                     "type": "string",
@@ -31175,27 +31189,8 @@ const docTemplate = `{
                 "times_used": {
                     "type": "integer",
                     "example": 2
-                },
-                "type": {
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.TemplateAppsType"
-                        }
-                    ],
-                    "example": "builtin"
                 }
             }
-        },
-        "codersdk.TemplateAppsType": {
-            "type": "string",
-            "enum": [
-                "builtin",
-                "app"
-            ],
-            "x-enum-varnames": [
-                "TemplateAppsTypeBuiltin",
-                "TemplateAppsTypeApp"
-            ]
         },
         "codersdk.TemplateAutostartRequirement": {
             "type": "object",
@@ -31711,6 +31706,11 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid"
                     }
+                },
+                "usage_total_seconds": {
+                    "description": "UsageTotalSeconds counts each user's active minutes once, even when apps\noverlap. Summed per-app seconds can exceed this total.",
+                    "type": "integer",
+                    "example": 120000
                 }
             }
         },
@@ -32482,6 +32482,11 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ChatPlanMode"
                         }
                     ]
+                },
+                "project_id": {
+                    "description": "ProjectID moves a root chat, and with it its subagent chats.\n- nil: no change.\n- uuid.Nil: remove the chat from its project.\n- other: move the chat into that project. The chat's owner must own\n  the project or have it shared with them, and the project must be\n  in the chat's organization.\nThe server returns 409 while the chat or a subagent chat is not idle.",
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "read": {
                     "description": "Read moves the owner's read cursor, which drives HasUnread.\n- nil: no change.\n- true: mark every existing message as read.\n- false: clear the cursor so the chat reads as unread again.\n\nThe cursor is owner-scoped, so only the chat owner may set this.\nOpening a chat's stream marks it read, so marking the chat the\nowner is currently viewing as unread does not persist.",
