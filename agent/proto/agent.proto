@@ -626,7 +626,8 @@ message SkillMetaBody {
 // PluginBody carries the validated fields of an Agent Plugins
 // (agent-plugins.org) plugin.json manifest and the plugin's skills and
 // MCP servers. Each nested entry follows the same rules and caps as a
-// top-level resource and may have any status.
+// top-level resource, counts toward the push's resource cap, and may
+// have any status.
 //
 // Plugin names must pass workspacesdk.ValidatePluginName. name may be
 // empty only when the status is not OK, and must be unique among OK

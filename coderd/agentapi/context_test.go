@@ -901,6 +901,21 @@ func TestPushContextState(t *testing.T) {
 	})
 }
 
+// TestPluginBodyHasKnownFields fails when PluginBody gains a field. The
+// stored plugin row body copies the scalar fields one by one and leaves out
+// the nested lists, so a new field is dropped until the copy handles it.
+func TestPluginBodyHasKnownFields(t *testing.T) {
+	t.Parallel()
+
+	fields := (&agentproto.PluginBody{}).ProtoReflect().Descriptor().Fields()
+	var names []string
+	for i := range fields.Len() {
+		names = append(names, string(fields.Get(i).Name()))
+	}
+	require.ElementsMatch(t, []string{"name", "version", "description", "skills", "mcp_servers"}, names,
+		"update the plugin case in marshalContextResourceBody to store or drop the new field")
+}
+
 // errNoRows returns the database "no rows" sentinel for the mocks;
 // the handler uses errors.Is(err, sql.ErrNoRows) to recognize first
 // pushes vs. updates.

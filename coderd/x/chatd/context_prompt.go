@@ -312,8 +312,6 @@ func (server *Server) ContextResources(
 //     dropped from the prompt instead of silently omitting it. Their
 //     body-specific fields are empty.
 //
-// PluginName comes from the row's plugin_name.
-//
 // OK-but-empty instruction files, OK skills with an invalid skill name, and
 // untracked kinds (reserved hook/subagent/command) are skipped. Input order
 // (source ASC from the query) is preserved.

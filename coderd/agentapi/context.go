@@ -545,13 +545,11 @@ func marshalContextResourceBody(r *agentproto.ContextResource) (kind database.Wo
 		body, err = marshalBody(payload)
 		return database.WorkspaceAgentContextBodyKindMcpServer, body, err
 	case *agentproto.ContextResource_Plugin:
-		payload := &agentproto.PluginBody{}
-		if b.Plugin != nil {
-			payload = proto.CloneOf(b.Plugin)
-			payload.Skills = nil
-			payload.McpServers = nil
-		}
-		body, err = marshalBody(payload)
+		body, err = marshalBody(&agentproto.PluginBody{
+			Name:        b.Plugin.GetName(),
+			Version:     b.Plugin.GetVersion(),
+			Description: b.Plugin.GetDescription(),
+		})
 		return database.WorkspaceAgentContextBodyKindPlugin, body, err
 	case nil:
 		return "", nil, xerrors.Errorf("missing body variant; status %s requires a typed body", r.Status)

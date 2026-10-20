@@ -1720,6 +1720,7 @@ changed AS (
                         AND ccr.content_hash = m.content_hash
                         AND ccr.status = m.status
                         AND ccr.error = m.error
+                        AND ccr.plugin_name = m.plugin_name
                 )
             )
             OR EXISTS (
@@ -1733,6 +1734,7 @@ changed AS (
                             AND m.content_hash = ccr.content_hash
                             AND m.status = ccr.status
                             AND m.error = ccr.error
+                            AND m.plugin_name = ccr.plugin_name
                     )
             )
         )

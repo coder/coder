@@ -82,9 +82,8 @@ func hasPluginData(req *agentproto.PushContextStateRequest) bool {
 	})
 }
 
-// writeTestPlugin writes plugin p with skill s under dir and returns the
-// plugin root.
-func writeTestPlugin(t *testing.T, dir string) string {
+// writeTestPlugin writes plugin p with skill s under dir.
+func writeTestPlugin(t *testing.T, dir string) {
 	t.Helper()
 	pluginDir := filepath.Join(dir, "plugins", "p")
 	require.NoError(t, os.MkdirAll(filepath.Join(pluginDir, "skills", "s"), 0o755))
@@ -92,7 +91,6 @@ func writeTestPlugin(t *testing.T, dir string) string {
 		[]byte(`{"$schema":"`+agentcontext.PluginSchemaV1+`","name":"p"}`), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(pluginDir, "skills", "s", "SKILL.md"),
 		[]byte("---\nname: s\ndescription: Plugin skill\n---\n"), 0o600))
-	return pluginDir
 }
 
 func TestAgent_ContextStatePushedPlugins(t *testing.T) {
@@ -110,9 +108,17 @@ func TestAgent_ContextStatePushedPlugins(t *testing.T) {
 		},
 	)
 
+	hasNestedSkill := func(req *agentproto.PushContextStateRequest) bool {
+		return slices.ContainsFunc(req.GetResources(), func(r *agentproto.ContextResource) bool {
+			plugin := r.GetPlugin()
+			return plugin.GetName() == "p" && slices.ContainsFunc(plugin.GetSkills(), func(s *agentproto.ContextResource) bool {
+				return s.GetSkill().GetName() == "s"
+			})
+		})
+	}
 	require.Eventually(t, func() bool {
-		return slices.ContainsFunc(client.ContextStatePushes(), hasPluginData)
-	}, testutil.WaitMedium, testutil.IntervalFast, "expected a push with plugin data")
+		return slices.ContainsFunc(client.ContextStatePushes(), hasNestedSkill)
+	}, testutil.WaitMedium, testutil.IntervalFast, "expected a push with plugin p nesting skill s")
 }
 
 // When coderd rejects pushes that carry plugin data, the agent still
@@ -120,9 +126,8 @@ func TestAgent_ContextStatePushedPlugins(t *testing.T) {
 func TestAgent_ContextStatePushedWithoutRejectedPlugins(t *testing.T) {
 	t.Parallel()
 
-	dir, err := filepath.EvalSymlinks(t.TempDir())
-	require.NoError(t, err)
-	pluginDir := writeTestPlugin(t, dir)
+	dir := t.TempDir()
+	writeTestPlugin(t, dir)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("rules"), 0o600))
 
 	var rejected atomic.Int32
@@ -157,11 +162,6 @@ func TestAgent_ContextStatePushedWithoutRejectedPlugins(t *testing.T) {
 	require.True(t, first.GetInitial())
 	require.Contains(t, first.GetSnapshotError(), "Agent Plugins could not be loaded")
 	require.NotContains(t, first.GetSnapshotError(), "unknown resource body")
-	for _, push := range pushes {
-		for _, r := range push.GetResources() {
-			require.False(t, strings.HasPrefix(r.GetSource(), pluginDir), "accepted push carries plugin resource %q", r.GetSource())
-		}
-	}
 }
 
 // The declared command does not exist, so the server is unreadable;

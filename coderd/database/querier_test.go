@@ -1692,7 +1692,7 @@ func TestChatContextResourcesCopyPluginName(t *testing.T) {
 		Status:            database.ChatStatusRunning,
 	})
 
-	upsert := func(source string, kind database.WorkspaceAgentContextBodyKind, pluginName string) {
+	upsert := func(source string, kind database.WorkspaceAgentContextBodyKind, status database.WorkspaceAgentContextResourceStatus, pluginName string) {
 		t.Helper()
 		_, err := db.UpsertWorkspaceAgentContextResource(ctx, database.UpsertWorkspaceAgentContextResourceParams{
 			WorkspaceAgentID: agent.ID,
@@ -1700,7 +1700,7 @@ func TestChatContextResourcesCopyPluginName(t *testing.T) {
 			BodyKind:         kind,
 			Body:             []byte(`{}`),
 			ContentHash:      []byte(source),
-			Status:           database.WorkspaceAgentContextResourceStatusOk,
+			Status:           status,
 			PluginName:       pluginName,
 			Now:              dbtime.Now(),
 		})
@@ -1717,10 +1717,11 @@ func TestChatContextResourcesCopyPluginName(t *testing.T) {
 		return got
 	}
 
-	upsert("/w/plugins/acme", database.WorkspaceAgentContextBodyKindPlugin, "acme")
-	upsert("/w/plugins/acme/skills/deploy", database.WorkspaceAgentContextBodyKindSkill, "acme")
-	upsert("acme/echo", database.WorkspaceAgentContextBodyKindMcpServer, "acme")
-	upsert("/w/AGENTS.md", database.WorkspaceAgentContextBodyKindInstructionFile, "")
+	statusOK := database.WorkspaceAgentContextResourceStatusOk
+	upsert("/w/plugins/acme", database.WorkspaceAgentContextBodyKindPlugin, statusOK, "acme")
+	upsert("/w/plugins/acme/skills/deploy", database.WorkspaceAgentContextBodyKindSkill, statusOK, "acme")
+	upsert("acme/echo", database.WorkspaceAgentContextBodyKindMcpServer, statusOK, "acme")
+	upsert("/w/AGENTS.md", database.WorkspaceAgentContextBodyKindInstructionFile, statusOK, "")
 	want := map[string]string{
 		"/w/plugins/acme":               "acme",
 		"/w/plugins/acme/skills/deploy": "acme",
@@ -1735,11 +1736,21 @@ func TestChatContextResourcesCopyPluginName(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, want, pinnedPluginNames(), "hydrate")
 
-	upsert("acme/other", database.WorkspaceAgentContextBodyKindMcpServer, "acme")
+	upsert("acme/other", database.WorkspaceAgentContextBodyKindMcpServer, statusOK, "acme")
 	_, err = db.SyncAgentChatsContextMCPResources(ctx, agent.ID)
 	require.NoError(t, err)
 	want["acme/other"] = "acme"
 	require.Equal(t, want, pinnedPluginNames(), "MCP sync")
+
+	// Same source, content hash, and status: only plugin_name differs.
+	upsert("acme/echo", database.WorkspaceAgentContextBodyKindMcpServer, statusOK, "renamed")
+	_, err = db.SyncAgentChatsContextMCPResources(ctx, agent.ID)
+	require.NoError(t, err)
+	want["acme/echo"] = "renamed"
+	require.Equal(t, want, pinnedPluginNames(), "MCP sync of a plugin_name change")
+
+	upsert("/w/plugins/acme", database.WorkspaceAgentContextBodyKindPlugin, database.WorkspaceAgentContextResourceStatusExcluded, "")
+	want["/w/plugins/acme"] = ""
 
 	require.NoError(t, db.DeleteChatContextResourcesByChatID(ctx, chat.ID))
 	require.NoError(t, db.InsertAgentContextResourcesIntoChat(ctx, database.InsertAgentContextResourcesIntoChatParams{
