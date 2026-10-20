@@ -119,7 +119,6 @@ type QueuedMessageItem = QueuedMessageInfo & {
 
 type QueuedMessageAction = "delete" | "promote";
 
-// Steer rows are delivered before queue rows.
 const lanes: readonly { busyBehavior: ChatBusyBehavior; label: string }[] = [
 	{ busyBehavior: "steer", label: "Next step" },
 	{ busyBehavior: "queue", label: "After turn" },
