@@ -56,7 +56,7 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		ws = database.WorkspaceIdentityFromWorkspace(w)
 	}
 
-	// The payload is unnormalized and unbounded until the batcher caps it, so
+	// The payload is unnormalized and unbounded until the batcher folds it, so
 	// log scalars rather than its contents.
 	a.Log.Debug(ctx, "read stats report",
 		slog.F("interval", a.AgentStatsRefreshInterval),

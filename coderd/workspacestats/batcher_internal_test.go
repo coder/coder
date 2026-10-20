@@ -150,9 +150,9 @@ func TestBatchStats(t *testing.T) {
 	require.Equal(t, defaultBufferSize, cap(b.buf.ID), "buffer grew beyond expected capacity")
 }
 
-// TestBatchStatsSessionCountFold asserts that a report over the session count
-// cap folds the excess into the overflow counter and logs it at debug, never
-// at warn, so one misbehaving agent cannot flood the logs.
+// TestBatchStatsSessionCountFold asserts that a report with too many
+// unregistered apps folds the excess into the overflow counter and logs it at
+// debug, never at warn, so one misbehaving agent cannot flood the logs.
 func TestBatchStatsSessionCountFold(t *testing.T) {
 	t.Parallel()
 
@@ -175,8 +175,8 @@ func TestBatchStatsSessionCountFold(t *testing.T) {
 
 	const extra = 6
 	st := randStats(t, func(s *agentproto.Stats) {
-		s.SessionCounts = make(map[string]int64, maxSessionCountEntries+extra)
-		for i := range maxSessionCountEntries + extra {
+		s.SessionCounts = make(map[string]int64, codersdk.TemplateInsightsMaxUnregisteredApps+extra)
+		for i := range codersdk.TemplateInsightsMaxUnregisteredApps + extra {
 			s.SessionCounts[fmt.Sprintf("app_%d", i)] = 1
 		}
 	})
@@ -290,7 +290,7 @@ func mustRandInt64n(t *testing.T, n int64) int64 {
 
 func sessionFamilyCounts(t *testing.T, data json.RawMessage) map[codersdk.AppFamilyName]int64 {
 	t.Helper()
-	counts, err := codersdk.DecodeAppMap[int64](data)
+	counts, err := codersdk.SumSessionCounts(data)
 	require.NoError(t, err)
 	return codersdk.SumByFamily(counts)
 }

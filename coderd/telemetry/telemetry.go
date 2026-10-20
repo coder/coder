@@ -1188,7 +1188,7 @@ func ConvertWorkspaceAgentVolumeResourceMonitor(monitor database.WorkspaceAgentV
 
 // ConvertWorkspaceAgentStat reports raw per-app counts beside family totals.
 func ConvertWorkspaceAgentStat(stat database.GetWorkspaceAgentStatsRow) (WorkspaceAgentStat, error) {
-	sessionCounts, err := codersdk.DecodeAppMap[int64](stat.SessionCounts)
+	sessionCounts, err := codersdk.SumSessionCounts(stat.SessionCounts)
 	if err != nil {
 		return WorkspaceAgentStat{}, xerrors.Errorf("decode session counts: %w", err)
 	}

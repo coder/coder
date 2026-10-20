@@ -6382,6 +6382,8 @@ type TemplateUsageStatsSessionApp struct {
 	AppName string `db:"app_name" json:"app_name"`
 	// Total minutes the user has been using the app. A minute counts once however many sessions were open.
 	UsageMins int16 `db:"usage_mins" json:"usage_mins"`
+	// How the app connected, derived from the app name.
+	Method ConnectionLogMethod `db:"method" json:"method"`
 }
 
 // Joins in the username + avatar url of the created by user.
@@ -6905,7 +6907,7 @@ type WorkspaceAgentStat struct {
 	TxBytes                   int64           `db:"tx_bytes" json:"tx_bytes"`
 	ConnectionMedianLatencyMS float64         `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
 	Usage                     bool            `db:"usage" json:"usage"`
-	// Positive session counts keyed by the canonical app name reported by the agent.
+	// Positive session counts keyed by connection method, then by the canonical app name reported by the agent.
 	SessionCounts json.RawMessage `db:"session_counts" json:"session_counts"`
 }
 

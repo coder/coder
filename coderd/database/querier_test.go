@@ -1342,13 +1342,22 @@ func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Len(t, stats, 2)
+		// jsonb_agg does not order the rows, so compare the decoded counts.
+		sessions := map[string]map[string]int64{}
+		for i := range stats {
+			sessions[stats[i].Username] = sessionCountsByApp(t, stats[i].SessionCounts)
+			stats[i].SessionCounts = nil
+		}
+		require.Equal(t, map[string]map[string]int64{
+			user1.Username: {"jetbrains": 1, "reconnecting_pty": 1},
+			user2.Username: {"ssh": 1, "vscode": 1},
+		}, sessions)
 		require.Contains(t, stats, database.GetWorkspaceAgentUsageStatsAndLabelsRow{
 			Username:                  user1.Username,
 			AgentName:                 agent1.Name,
 			WorkspaceName:             workspace1.Name,
 			TxBytes:                   3,
 			RxBytes:                   3,
-			SessionCounts:             json.RawMessage(`{"jetbrains": 1, "reconnecting_pty": 1}`),
 			ConnectionMedianLatencyMS: 1,
 		})
 
@@ -1358,7 +1367,6 @@ func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 			WorkspaceName:             workspace2.Name,
 			RxBytes:                   8,
 			TxBytes:                   4,
-			SessionCounts:             json.RawMessage(`{"ssh": 1, "vscode": 1}`),
 			ConnectionMedianLatencyMS: 1,
 		})
 	})
@@ -1413,7 +1421,7 @@ func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 			WorkspaceName:             workspace.Name,
 			RxBytes:                   4,
 			TxBytes:                   5,
-			SessionCounts:             json.RawMessage(`{}`),
+			SessionCounts:             json.RawMessage(`[]`),
 			ConnectionMedianLatencyMS: 1,
 		})
 	})
@@ -19758,7 +19766,7 @@ func TestUpsertTemplateUsageStatsStoresReportedAppNames(t *testing.T) {
 
 func sessionFamilyCounts(t *testing.T, data json.RawMessage) map[codersdk.AppFamilyName]int64 {
 	t.Helper()
-	counts, err := codersdk.DecodeAppMap[int64](data)
+	counts, err := codersdk.SumSessionCounts(data)
 	require.NoError(t, err)
 	return codersdk.SumByFamily(counts)
 }

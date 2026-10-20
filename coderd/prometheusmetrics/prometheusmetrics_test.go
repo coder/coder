@@ -903,8 +903,8 @@ func TestAgentStatsSessionCounts(t *testing.T) {
 			}
 
 			poll(sessionStatsResponse{rows: []database.GetWorkspaceAgentStatsAndLabelsRow{
-				row(`{"cursor":2,"vscode":1,"future_ide":4}`),
-				row(`{"cursor":3}`),
+				row(`[{"ssh":{"cursor":2,"vscode":1,"future_ide":4}}]`),
+				row(`[{"ssh":{"cursor":1},"port_forwarding":{"cursor":2}}]`),
 				row(`not-json`),
 			}})
 			expected := map[string]float64{"cursor": 5, "vscode": 1, "future_ide": 4}
@@ -917,7 +917,7 @@ func TestAgentStatsSessionCounts(t *testing.T) {
 			require.Equal(t, expected, counts(), "empty window must retain the last snapshot")
 			require.Equal(t, codersdk.SessionCountAppFamilies(), appInfo(), "statistics must not change registry metadata")
 
-			poll(sessionStatsResponse{rows: []database.GetWorkspaceAgentStatsAndLabelsRow{row(`{"vscode":7}`)}})
+			poll(sessionStatsResponse{rows: []database.GetWorkspaceAgentStatsAndLabelsRow{row(`[{"ssh":{"vscode":7}}]`)}})
 			require.Equal(t, map[string]float64{"vscode": 7}, counts(), "apps no longer reported must be dropped")
 		})
 	}

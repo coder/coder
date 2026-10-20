@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
@@ -40,7 +41,7 @@ type DBBatcher struct {
 	buf *database.InsertWorkspaceAgentStatsParams
 	// These objects are marshaled into positional arrays on flush.
 	connectionsByProto []map[string]int64
-	sessionCounts      []map[string]int64
+	sessionCounts      []map[codersdk.ConnectionLogMethod]map[string]int64
 	batchSize          int
 
 	// tickCh is used to periodically flush the buffer.
@@ -155,15 +156,15 @@ func (b *DBBatcher) Add(
 	st *agentproto.Stats,
 	usage bool,
 ) {
-	// Normalize and cap outside the lock.
-	sessionCounts, overflow := capSessionCounts(normalizedSessionCounts(st))
-	if overflow > 0 {
+	// Normalize and fold outside the lock.
+	sessionCounts := normalizedSessionCounts(st)
+	if overflow := codersdk.FoldUnregisteredSessionApps(sessionCounts); overflow > 0 {
 		// A misbehaving agent hits this on every report, so alert on the
 		// counter and keep the log at debug.
 		b.log.Debug(context.Background(), "too many distinct session types, excess counted under overflow",
 			slog.F("agent_id", agentID),
 			slog.F("overflow", overflow),
-			slog.F("max", maxSessionCountEntries),
+			slog.F("max", codersdk.TemplateInsightsMaxUnregisteredApps),
 		)
 		b.metrics.SessionCountsOverflowTotal.Add(float64(overflow))
 	}
@@ -312,7 +313,7 @@ func (b *DBBatcher) initBuf(size int) {
 	}
 
 	b.connectionsByProto = make([]map[string]int64, 0, size)
-	b.sessionCounts = make([]map[string]int64, 0, size)
+	b.sessionCounts = make([]map[codersdk.ConnectionLogMethod]map[string]int64, 0, size)
 }
 
 func (b *DBBatcher) resetBuf() {

@@ -150,7 +150,7 @@ func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
 		}
 	}
 
-	appCounts, err := codersdk.DecodeAppMap[int64](agentStats.SessionCounts)
+	appCounts, err := codersdk.SumSessionCounts(agentStats.SessionCounts)
 	if err != nil {
 		return xerrors.Errorf("decode deployment session counts: %w", err)
 	}

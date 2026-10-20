@@ -2,6 +2,7 @@ package codersdk_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"path"
 	"path/filepath"
 	"slices"
@@ -264,32 +265,28 @@ func TestSumByFamilyCoversEveryRegisteredFamily(t *testing.T) {
 	require.Equal(t, want, codersdk.SumByFamily(appCounts))
 }
 
-func TestDecodeAppMap(t *testing.T) {
+func TestDecodeMethodAppMap(t *testing.T) {
 	t.Parallel()
 
 	for name, raw := range map[string]json.RawMessage{
 		"NotJSON":     json.RawMessage(`{`),
 		"NotAnObject": json.RawMessage(`[1, 2]`),
-		"WrongValue":  json.RawMessage(`{"vscode": "sixty"}`),
+		"Flat":        json.RawMessage(`{"vscode": 60}`),
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
 			// A malformed payload must not decode to zero usage, or an
 			// encoding bug would look like an idle deployment.
-			got, err := codersdk.DecodeAppMap[int64](raw)
+			got, err := codersdk.DecodeMethodAppMap[int64](raw)
 			require.Error(t, err)
 			require.Nil(t, got)
 		})
 	}
 
-	t.Run("UsageSeconds", func(t *testing.T) {
-		t.Parallel()
-
-		got, err := codersdk.DecodeAppMap[int64](json.RawMessage(`{"cursor": 60}`))
-		require.NoError(t, err)
-		require.Equal(t, map[string]int64{"cursor": 60}, got)
-	})
+	got, err := codersdk.DecodeMethodAppMap[int64](json.RawMessage(`{"ssh": {"cursor": 60}}`))
+	require.NoError(t, err)
+	require.Equal(t, map[codersdk.ConnectionLogMethod]map[string]int64{codersdk.ConnectionLogMethodSSH: {"cursor": 60}}, got)
 
 	// A query with no rows aggregates to SQL NULL: no usage, not an error.
 	for name, raw := range map[string]json.RawMessage{
@@ -300,12 +297,58 @@ func TestDecodeAppMap(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := codersdk.DecodeAppMap[int64](raw)
+			got, err := codersdk.DecodeMethodAppMap[int64](raw)
 			require.NoError(t, err)
-			require.Equal(t, map[string]int64{}, got)
-			require.Zero(t, got["ssh"])
+			require.Empty(t, got)
+			require.NotNil(t, got)
 		})
 	}
+}
+
+func TestFoldUnregisteredSessionApps(t *testing.T) {
+	t.Parallel()
+
+	const (
+		ssh = codersdk.ConnectionLogMethodSSH
+		pf  = codersdk.ConnectionLogMethodPortForwarding
+	)
+	limit := codersdk.TemplateInsightsMaxUnregisteredApps
+	// Exempt names carry the lowest values, so only the exemption keeps them.
+	byMethod := map[codersdk.ConnectionLogMethod]map[string]int64{
+		ssh: {"vscode": 1, "unknown": 1, codersdk.AppNameOverflow: 1},
+		pf:  {"port_forwarding": 1},
+	}
+	// limit-1 busy apps, then two ties at the cutoff: port_forwarding sorts
+	// before ssh in byte order, so it keeps its entry.
+	for i := range limit - 1 {
+		byMethod[ssh][fmt.Sprintf("tool_%03d", i)] = 10
+	}
+	byMethod[pf]["tie"] = 5
+	byMethod[ssh]["tie"] = 5
+	byMethod[ssh]["quiet"] = 2
+
+	require.Equal(t, 2, codersdk.FoldUnregisteredSessionApps(byMethod))
+	require.Equal(t, map[string]int64{"port_forwarding": 1, "tie": 5}, byMethod[pf])
+	require.NotContains(t, byMethod[ssh], "tie")
+	require.NotContains(t, byMethod[ssh], "quiet")
+	require.EqualValues(t, 1+5+2, byMethod[ssh][codersdk.AppNameOverflow])
+	require.EqualValues(t, 1, byMethod[ssh]["vscode"])
+	require.EqualValues(t, 1, byMethod[ssh]["unknown"])
+
+	// Under the limit, nothing folds.
+	require.Zero(t, codersdk.FoldUnregisteredSessionApps(map[codersdk.ConnectionLogMethod]map[string]int64{ssh: {"a": 1}}))
+}
+
+func TestSumSessionCounts(t *testing.T) {
+	t.Parallel()
+
+	got, err := codersdk.SumSessionCounts(json.RawMessage(`[{"ssh": {"vscode": 2}}, {"ssh": {"vscode": 1, "cursor": 1}, "port_forwarding": {"vscode": 1}}]`))
+	require.NoError(t, err)
+	require.Equal(t, map[string]int64{"vscode": 4, "cursor": 1}, got)
+
+	// A flat payload is not method-keyed and must not read as zero usage.
+	_, err = codersdk.SumSessionCounts(json.RawMessage(`[{"vscode": 2}]`))
+	require.Error(t, err)
 }
 
 func TestSessionCountApps(t *testing.T) {

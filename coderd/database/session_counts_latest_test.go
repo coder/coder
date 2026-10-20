@@ -23,16 +23,13 @@ import (
 // contribution from older rows and no row multiplication in the aggregates
 // beside it.
 
-// sessionCountsByApp decodes the per-app session count object a session count
-// query returns. Comparing the decoded map rather than the raw bytes keeps the
-// assertion about the counts instead of about jsonb key ordering.
+// sessionCountsByApp sums a session count query's array per app, so
+// assertions ignore jsonb key and row order.
 func sessionCountsByApp(t *testing.T, data json.RawMessage) map[string]int64 {
 	t.Helper()
 
-	counts := map[string]int64{}
-	if len(data) > 0 {
-		require.NoError(t, json.Unmarshal(data, &counts))
-	}
+	counts, err := codersdk.SumSessionCounts(data)
+	require.NoError(t, err)
 	return counts
 }
 

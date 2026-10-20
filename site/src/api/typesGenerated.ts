@@ -1713,7 +1713,7 @@ export interface AppHostResponse {
 
 // From codersdk/appname.go
 /**
- * AppNameOverflow sums the app names past the per-report cap.
+ * AppNameOverflow sums the app names that FoldUnregisteredSessionApps folds.
  */
 export const AppNameOverflow = "overflow";
 
