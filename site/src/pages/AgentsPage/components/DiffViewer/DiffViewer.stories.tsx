@@ -624,6 +624,9 @@ const nextScrollEvent = (scroller: HTMLElement) =>
 		scroller.addEventListener("scroll", () => resolve(), { once: true }),
 	);
 
+const nextFrame = () =>
+	new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
 // CodeView disables pointer events while a scroll is in progress.
 const waitForScrollSettled = (element: HTMLElement) =>
 	waitFor(() => {
@@ -637,12 +640,13 @@ const clickAfterScroll = async (element: HTMLElement) => {
 	await userEvent.click(element);
 };
 
-const longFiles = parseDiffString(generateLargeDiff(4, 300));
+const longFileLineCount = 300;
+const longFiles = parseDiffString(generateLargeDiff(4, longFileLineCount));
 const firstLongFileName =
 	[...longFiles].sort((a, b) => compareTreePaths(a.name, b.name))[0]?.name ??
 	"";
 
-// Inside the first file's 300 lines, so its header is stuck.
+// Inside the first file's longFileLineCount lines, so its header is stuck.
 const insideFirstLongFileScrollTop = 2000;
 
 // The sticky-header collapse calls scrollTo, and its scroll event makes the
@@ -664,9 +668,9 @@ export const TreeClickExpandsFileCollapsedFromStickyHeader: Story = {
 		const bodyText = `in ${firstLongFileName}`;
 		await waitForDiffBody(canvasElement, bodyText);
 		const scroller = findScroller(canvasElement);
-		const stuck = nextScrollEvent(scroller);
+		const initialScroll = nextScrollEvent(scroller);
 		scroller.scrollTop = insideFirstLongFileScrollTop;
-		await stuck;
+		await initialScroll;
 
 		const collapseScroll = nextScrollEvent(scroller);
 		await clickAfterScroll(
@@ -679,6 +683,10 @@ export const TreeClickExpandsFileCollapsedFromStickyHeader: Story = {
 			name: `Expand ${firstLongFileName}`,
 		});
 		await collapseScroll;
+		// The scroll handler picks the active file in a rAF queued before this
+		// one; the next frame comes after its commit and the tree's effect.
+		await nextFrame();
+		await nextFrame();
 		await waitForScrollSettled(expandButton);
 		await waitFor(() => {
 			if (selectedTreePaths(canvasElement).includes(firstLongFileName)) {
