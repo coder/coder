@@ -1656,11 +1656,11 @@ WITH hydrated AS (
 ),
 copied AS (
     INSERT INTO chat_context_resources (
-        chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+        chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, plugin_name
     )
     SELECT
         hydrated.id, r.source, r.body_kind, r.body, r.content_hash,
-        r.size_bytes, r.status, r.error, r.source_path
+        r.size_bytes, r.status, r.error, r.source_path, r.plugin_name
     FROM hydrated
     CROSS JOIN workspace_agent_context_resources r
     WHERE r.workspace_agent_id = @agent_id::uuid
@@ -1672,6 +1672,7 @@ copied AS (
         status = EXCLUDED.status,
         error = EXCLUDED.error,
         source_path = EXCLUDED.source_path,
+        plugin_name = EXCLUDED.plugin_name,
         updated_at = now()
 )
 SELECT id FROM hydrated;
@@ -1697,7 +1698,7 @@ RETURNING id, owner_id;
 -- Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 -- cannot interleave with the replacement.
 WITH agent_mcp AS (
-    SELECT source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    SELECT source, body_kind, body, content_hash, size_bytes, status, error, source_path, plugin_name
     FROM workspace_agent_context_resources
     WHERE workspace_agent_id = @agent_id::uuid
         AND body_kind IN ('mcp_config', 'mcp_server')
@@ -1751,11 +1752,11 @@ deleted AS (
 ),
 upserted AS (
     INSERT INTO chat_context_resources (
-        chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+        chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, plugin_name
     )
     SELECT
         locked.id, m.source, m.body_kind, m.body, m.content_hash,
-        m.size_bytes, m.status, m.error, m.source_path
+        m.size_bytes, m.status, m.error, m.source_path, m.plugin_name
     FROM locked
     CROSS JOIN agent_mcp m
     ON CONFLICT (chat_id, source) DO UPDATE SET
@@ -1766,6 +1767,7 @@ upserted AS (
         status = EXCLUDED.status,
         error = EXCLUDED.error,
         source_path = EXCLUDED.source_path,
+        plugin_name = EXCLUDED.plugin_name,
         updated_at = now()
 )
 SELECT id FROM locked;
@@ -1776,11 +1778,11 @@ SELECT id FROM locked;
 -- transaction) to re-pin a chat to its agent's latest snapshot from the
 -- refresh endpoint and on agent rebinding.
 INSERT INTO chat_context_resources (
-    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, plugin_name
 )
 SELECT
     @chat_id::uuid, r.source, r.body_kind, r.body, r.content_hash,
-    r.size_bytes, r.status, r.error, r.source_path
+    r.size_bytes, r.status, r.error, r.source_path, r.plugin_name
 FROM workspace_agent_context_resources r
 WHERE r.workspace_agent_id = @agent_id::uuid;
 

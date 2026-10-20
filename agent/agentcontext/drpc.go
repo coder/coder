@@ -128,8 +128,10 @@ func withoutPluginData(req *PushRequest) *PushRequest {
 // request fails to marshal, and is truncated to
 // workspacesdk.MaxContextErrorBytes.
 //
-// A resource with a PluginName is nested in the StatusOK KindPlugin
-// resource of that name, and dropped when there is none.
+// Each resource with a PluginName is nested in the StatusOK KindPlugin
+// resource of that name. req must hold such a plugin for every
+// PluginName: a resource without one is dropped, but AggregateHash
+// still covers it.
 func pushRequestToProto(req *PushRequest) *agentproto.PushContextStateRequest {
 	pb := &agentproto.PushContextStateRequest{
 		Version:       req.Version,
@@ -145,7 +147,7 @@ func pushRequestToProto(req *PushRequest) *agentproto.PushContextStateRequest {
 		}
 		entry := resourceToProto(r)
 		pb.Resources = append(pb.Resources, entry)
-		if _, ok := plugins[r.Name]; !ok && r.Kind == KindPlugin && r.Status == StatusOK {
+		if r.Kind == KindPlugin && r.Status == StatusOK {
 			plugins[r.Name] = entry.GetPlugin()
 		}
 	}

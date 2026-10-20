@@ -391,7 +391,7 @@ func TestPushContextState(t *testing.T) {
 		gotKinds := map[database.WorkspaceAgentContextBodyKind][]byte{}
 		gotSources := map[string]database.UpsertWorkspaceAgentContextResourceParams{}
 		dbm.EXPECT().UpsertWorkspaceAgentContextResource(gomock.Any(), gomock.Any()).
-			Times(7).
+			Times(8).
 			DoAndReturn(func(_ context.Context, arg database.UpsertWorkspaceAgentContextResourceParams) (database.WorkspaceAgentContextResource, error) {
 				gotKinds[arg.BodyKind] = arg.Body
 				gotSources[arg.Source] = arg
@@ -405,6 +405,8 @@ func TestPushContextState(t *testing.T) {
 			nestSkills(pluginResource("/a/.agents/plugins/acme", "acme", "1.0.0"),
 				skillResource("/a/.agents/plugins/acme/skills/deploy", "deploy", "deploys")),
 			mcpServerResource("acme/echo", "echo", "plugin echo"))
+		shadowed := pluginResource("/b/.agents/plugins/acme", "acme", "2.0.0")
+		shadowed.Status = agentproto.ContextResource_EXCLUDED
 		resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
 			Version: 1,
 			Initial: true,
@@ -414,32 +416,35 @@ func TestPushContextState(t *testing.T) {
 				mcpConfigResource("/a/.mcp.json"),
 				mcpServer,
 				plugin,
+				shadowed,
 			},
 		})
 		require.NoError(t, err)
 		require.True(t, resp.GetAccepted())
 
-		require.Contains(t, gotSources, "acme/echo")
 		require.Equal(t, database.WorkspaceAgentContextBodyKindMcpServer, gotSources["acme/echo"].BodyKind)
-		var pluginServerBody map[string]any
-		require.NoError(t, json.Unmarshal(gotSources["acme/echo"].Body, &pluginServerBody))
-		require.Equal(t, "acme", pluginServerBody["plugin_name"])
-		require.Equal(t, "echo", pluginServerBody["server_name"])
-
-		const pluginSkillSource = "/a/.agents/plugins/acme/skills/deploy"
-		require.Contains(t, gotSources, pluginSkillSource)
-		require.Equal(t, database.WorkspaceAgentContextBodyKindSkill, gotSources[pluginSkillSource].BodyKind)
-		var pluginSkillBody map[string]any
-		require.NoError(t, json.Unmarshal(gotSources[pluginSkillSource].Body, &pluginSkillBody))
-		require.Equal(t, "acme", pluginSkillBody["plugin_name"])
-		require.Empty(t, plugin.GetPlugin().GetSkills()[0].GetSkill().GetPluginName(), "the request must not be modified")
+		require.Equal(t, database.WorkspaceAgentContextBodyKindSkill, gotSources["/a/.agents/plugins/acme/skills/deploy"].BodyKind)
+		gotPluginNames := map[string]string{}
+		for source, row := range gotSources {
+			gotPluginNames[source] = row.PluginName
+		}
+		require.Equal(t, map[string]string{
+			"/a/AGENTS.md":                          "",
+			"/a/.agents/skills/example/SKILL.md":    "",
+			"/a/.mcp.json":                          "",
+			"/srv/mcp/echo":                         "",
+			"/a/.agents/plugins/acme":               "acme",
+			"/a/.agents/plugins/acme/skills/deploy": "acme",
+			"acme/echo":                             "acme",
+			"/b/.agents/plugins/acme":               "",
+		}, gotPluginNames)
 
 		require.Contains(t, gotKinds, database.WorkspaceAgentContextBodyKindInstructionFile)
 		require.Contains(t, gotKinds, database.WorkspaceAgentContextBodyKindSkill)
 		require.Contains(t, gotKinds, database.WorkspaceAgentContextBodyKindMcpConfig)
 		require.Contains(t, gotKinds, database.WorkspaceAgentContextBodyKindMcpServer)
 		require.Contains(t, gotKinds, database.WorkspaceAgentContextBodyKindPlugin)
-		require.JSONEq(t, `{"name":"acme","version":"1.0.0"}`, string(gotKinds[database.WorkspaceAgentContextBodyKindPlugin]))
+		require.JSONEq(t, `{"name":"acme","version":"1.0.0"}`, string(gotSources["/a/.agents/plugins/acme"].Body))
 
 		// Confirm each body deserializes as JSON; the actual proto
 		// roundtrip is exercised by the resolver tests on the agent
@@ -517,11 +522,14 @@ func TestPushContextState(t *testing.T) {
 		const winRoot = `C:\Users\u\.agents\plugins\winacme`
 		acme := func() *agentproto.ContextResource { return pluginResource(acmeRoot, "acme", "1.0.0") }
 		echo := func() *agentproto.ContextResource { return mcpServerResource("acme/echo", "echo", "plugin echo") }
-		broken := pluginResource("/b/.agents/plugins/broken", "broken", "1.0.0")
-		broken.Status = agentproto.ContextResource_INVALID
+		broken := func() *agentproto.ContextResource {
+			r := pluginResource("/b/.agents/plugins/broken", "broken", "1.0.0")
+			r.Status = agentproto.ContextResource_INVALID
+			return r
+		}
 		// hugeLen exceeds every per-field string cap but not the
-		// per-resource body cap, so the plugin checks reject it. An error
-		// that quotes huge exceeds maxErrLen.
+		// per-resource body cap. An error that quotes huge exceeds
+		// maxErrLen.
 		const (
 			hugeLen   = 200 * 1024
 			maxErrLen = 4096
@@ -535,19 +543,17 @@ func TestPushContextState(t *testing.T) {
 			"PluginNameTooLong":     {resources: []*agentproto.ContextResource{pluginResource("/z/.agents/plugins/long", huge, "1.0.0")}, err: fmt.Sprintf("plugin name is %d bytes", hugeLen)},
 			"OKPluginNoName":        {resources: []*agentproto.ContextResource{pluginResource("/z/.agents/plugins/noname", "", "1.0.0")}, err: "plugin name is required on an OK plugin resource"},
 			"DuplicateOKPluginName": {resources: []*agentproto.ContextResource{pluginResource("/b/.agents/plugins/acme", "acme", "2.0.0"), acme()}, err: `OK plugin name "acme" is used by both "/b/.agents/plugins/acme" and "/a/.agents/plugins/acme"`},
-			"SkillPluginName":       {resources: []*agentproto.ContextResource{acme(), withSkillPlugin(skillResource(acmeRoot+"/skills/x", "x", "x"), "acme")}, err: "plugin_name must be empty"},
-			"MCPPluginName":         {resources: []*agentproto.ContextResource{acme(), withServerPlugin(echo(), "acme")}, err: "plugin_name must be empty"},
-			"NestedSkillPluginName": {resources: []*agentproto.ContextResource{nestSkills(acme(), withSkillPlugin(skillResource(acmeRoot+"/skills/x", "x", "x"), "acme"))}, err: "plugin_name must be empty"},
-			"NestedInNonOKPlugin":   {resources: []*agentproto.ContextResource{nestSkills(broken, skillResource("/b/.agents/plugins/broken/skills/x", "x", "x"))}, err: "a plugin whose status is not OK must not nest resources"},
+			"SkillInNonOKPlugin":    {resources: []*agentproto.ContextResource{nestSkills(broken(), skillResource("/b/.agents/plugins/broken/skills/x", "x", "x"))}, err: "a plugin whose status is not OK must not nest resources"},
+			"ServerInNonOKPlugin":   {resources: []*agentproto.ContextResource{nestServers(broken(), mcpServerResource("broken/echo", "echo", "x"))}, err: "a plugin whose status is not OK must not nest resources"},
 			"NestedNilSkill":        {resources: []*agentproto.ContextResource{nestSkills(acme(), nil)}, err: "skills[0] must carry a skill body"},
 			"NestedServerAsSkill":   {resources: []*agentproto.ContextResource{nestSkills(acme(), echo())}, err: "skills[0] must carry a skill body"},
 			"NestedPlugin":          {resources: []*agentproto.ContextResource{nestSkills(acme(), pluginResource(acmeRoot+"/skills/inner", "inner", "1.0.0"))}, err: "skills[0] must carry a skill body"},
 			"NestedSkillAsServer":   {resources: []*agentproto.ContextResource{nestServers(acme(), skillResource(acmeRoot+"/skills/x", "x", "x"))}, err: "mcp_servers[0] must carry an mcp_server body"},
-			"NestedEmptySource":     {resources: []*agentproto.ContextResource{echo(), nestSkills(acme(), skillResource("", "x", "x"))}, err: "resource at index 1 skills[0] has empty source"},
+			"NestedEmptySource":     {resources: []*agentproto.ContextResource{skillResource("/a/.agents/skills/plain", "plain", "plain"), nestSkills(acme(), skillResource("", "x", "x"))}, err: "resource at index 1 skills[0] has empty source"},
 			"NestedOversizedSource": {resources: []*agentproto.ContextResource{nestServers(acme(), mcpServerResource("acme/"+huge, huge, "plugin echo"))}, err: fmt.Sprintf("resource at index 0 mcp_servers[0] has %d byte source", hugeLen+len("acme/"))},
 			"NestedDuplicateSource": {resources: []*agentproto.ContextResource{nestServers(acme(), echo(), echo())}, err: `duplicate source "acme/echo"`},
-			// A workspace server can take the source of a plugin server.
-			"NestedSourceOfWorkspaceServer":    {resources: []*agentproto.ContextResource{mcpServerResource("acme/echo", "acme/echo", "workspace"), nestServers(acme(), echo())}, err: `duplicate source "acme/echo"`},
+			// A workspace server named "acme/echo" has the same source as acme's echo server.
+			"NestedServerDuplicatesWorkspaceServerSource": {resources: []*agentproto.ContextResource{mcpServerResource("acme/echo", "acme/echo", "workspace"), nestServers(acme(), echo())}, err: `duplicate source "acme/echo"`},
 			"MCPSourceFormat":                  {resources: []*agentproto.ContextResource{nestServers(acme(), mcpServerResource("echo", "echo", "plugin echo"))}, err: `plugin MCP server source must be "acme/<server_name>"`},
 			"MCPSourceFormatLongServerName":    {resources: []*agentproto.ContextResource{nestServers(acme(), mcpServerResource("acme/echo", huge, "plugin echo"))}, err: `plugin MCP server source must be "acme/<server_name>"`},
 			"MCPEmptyServerName":               {resources: []*agentproto.ContextResource{nestServers(acme(), mcpServerResource("acme/", "", "plugin echo"))}, err: "server_name is required"},
@@ -572,20 +578,6 @@ func TestPushContextState(t *testing.T) {
 		}
 	})
 
-	t.Run("RejectsPluginNameWithoutExperiment", func(t *testing.T) {
-		t.Parallel()
-
-		api, _ := makeAPI(t)
-		_, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
-			Version: 1,
-			Initial: true,
-			Resources: []*agentproto.ContextResource{
-				withSkillPlugin(skillResource("/a/.agents/plugins/acme/skills/x", "x", "x"), "acme"),
-			},
-		})
-		require.ErrorContains(t, err, "plugin_name must be empty")
-	})
-
 	t.Run("AcceptsValidPluginData", func(t *testing.T) {
 		t.Parallel()
 
@@ -605,7 +597,7 @@ func TestPushContextState(t *testing.T) {
 				pluginResource("/a/.agents/plugins/acme", "acme", "1.0.0"),
 				shadowed,
 			},
-			"NestedResourcesAfterTheirPlugin": {
+			"StoresNestedRowsAfterTheirPlugin": {
 				nestServers(
 					nestSkills(pluginResource("/a/.agents/plugins/acme", "acme", "1.0.0"),
 						skillResource("/a/.agents/plugins/acme/skills/deploy", "deploy", "deploys")),
@@ -802,8 +794,9 @@ func TestPushContextState(t *testing.T) {
 			t.Parallel()
 			api, _ := makeAPI(t)
 			plugin := pluginResource("/p/acme", "acme", "1.0.0")
-			for i := 0; i < 1000; i++ {
+			for i := 0; i < 500; i++ {
 				plugin = nestSkills(plugin, skillResource(fmt.Sprintf("/p/acme/skills/s%d", i), "s", "s"))
+				plugin = nestServers(plugin, mcpServerResource(fmt.Sprintf("acme/s%d", i), fmt.Sprintf("s%d", i), "s"))
 			}
 			resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
 				Version:   1,
@@ -981,16 +974,6 @@ func pluginResource(source, name, version string) *agentproto.ContextResource {
 			},
 		},
 	}
-}
-
-func withSkillPlugin(r *agentproto.ContextResource, name string) *agentproto.ContextResource {
-	r.GetSkill().PluginName = name
-	return r
-}
-
-func withServerPlugin(r *agentproto.ContextResource, name string) *agentproto.ContextResource {
-	r.GetMcpServer().PluginName = name
-	return r
 }
 
 func nestSkills(plugin *agentproto.ContextResource, skills ...*agentproto.ContextResource) *agentproto.ContextResource {

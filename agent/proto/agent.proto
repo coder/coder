@@ -560,7 +560,7 @@ message ContextResource {
 	// a push, nested resources included: a canonical file path for
 	// file-backed kinds, the canonical plugin root directory for plugin
 	// resources, the MCP server name for mcp_server resources, or
-	// "<plugin_name>/<server_name>" for servers a plugin declares.
+	// "<plugin name>/<server_name>" for servers nested in a plugin.
 	string source = 1;
 	// source_path is the user-declared scan root that produced
 	// this resource (empty for built-in roots, set to the owning
@@ -621,15 +621,12 @@ message SkillMetaBody {
 	bytes meta = 1;
 	string name = 2;
 	string description = 3;
-	// plugin_name must be empty on the wire. coderd sets it to the
-	// owning plugin's name when it stores a skill nested in a PluginBody.
-	string plugin_name = 4;
 }
 
 // PluginBody carries the validated fields of an Agent Plugins
 // (agent-plugins.org) plugin.json manifest and the plugin's skills and
-// MCP servers. coderd stores each nested resource as its own resource,
-// and stores the plugin without them.
+// MCP servers. Each nested entry follows the same rules and caps as a
+// top-level resource and may have any status.
 //
 // Plugin names must pass workspacesdk.ValidatePluginName. name may be
 // empty only when the status is not OK, and must be unique among OK
@@ -661,9 +658,6 @@ message MCPServerBody {
 	string server_name = 1;
 	string description = 2;
 	repeated MCPTool tools = 3;
-	// plugin_name must be empty on the wire. coderd sets it to the
-	// owning plugin's name when it stores a server nested in a PluginBody.
-	string plugin_name = 4;
 }
 
 // MCPTool mirrors the MCP server-reported tool surface. The

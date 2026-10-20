@@ -69,15 +69,17 @@ func pluginSkillResource(t *testing.T, source, pluginName, name, description str
 			Meta:        []byte("# " + name),
 			Name:        name,
 			Description: description,
-			PluginName:  pluginName,
 		}),
-		Status: database.WorkspaceAgentContextResourceStatusOk,
+		Status:     database.WorkspaceAgentContextResourceStatusOk,
+		PluginName: pluginName,
 	}
 }
 
+// pluginResource returns a stored plugin row, which carries its own name
+// in plugin_name only when it is OK.
 func pluginResource(t *testing.T, source, name string, status database.WorkspaceAgentContextResourceStatus) database.ChatContextResource {
 	t.Helper()
-	return database.ChatContextResource{
+	r := database.ChatContextResource{
 		Source:   source,
 		BodyKind: database.WorkspaceAgentContextBodyKindPlugin,
 		Body: mustMarshalContextBody(t, &agentproto.PluginBody{
@@ -87,6 +89,10 @@ func pluginResource(t *testing.T, source, name string, status database.Workspace
 		}),
 		Status: status,
 	}
+	if status == database.WorkspaceAgentContextResourceStatusOk {
+		r.PluginName = name
+	}
+	return r
 }
 
 func mcpServerResource(t *testing.T, source string, body *agentproto.MCPServerBody, status database.WorkspaceAgentContextResourceStatus) database.ChatContextResource {
@@ -97,6 +103,11 @@ func mcpServerResource(t *testing.T, source string, body *agentproto.MCPServerBo
 		Body:     mustMarshalContextBody(t, body),
 		Status:   status,
 	}
+}
+
+func withPluginName(r database.ChatContextResource, pluginName string) database.ChatContextResource {
+	r.PluginName = pluginName
+	return r
 }
 
 func mustStruct(t *testing.T, m map[string]any) *structpb.Struct {
@@ -699,10 +710,9 @@ func TestPinnedContextResources(t *testing.T) {
 		escapedSkill := pluginSkillResource(t, "/home/coder/.coder/plugins/acme/skills/badmd", "acme", "badmd", "")
 		escapedSkill.Status = database.WorkspaceAgentContextResourceStatusInvalid
 		escapedSkill.Error = "symlink target escapes scan root"
-		collision := mcpServerResource(t, "acme/tools", &agentproto.MCPServerBody{
+		collision := withPluginName(mcpServerResource(t, "acme/tools", &agentproto.MCPServerBody{
 			ServerName: "tools",
-			PluginName: "acme",
-		}, database.WorkspaceAgentContextResourceStatusUnreadable)
+		}, database.WorkspaceAgentContextResourceStatusUnreadable), "acme")
 		collision.Error = "server name already in use by an earlier config"
 		brokenManifest := pluginResource(t, "/home/coder/.coder/plugins/broken", "", database.WorkspaceAgentContextResourceStatusInvalid)
 		brokenManifest.Error = "unsupported schema version"
@@ -816,11 +826,10 @@ func TestPinnedContextResources(t *testing.T) {
 			pluginResource(t, "/home/coder/.coder/plugins/acme", "acme", database.WorkspaceAgentContextResourceStatusOk),
 			invalidPlugin,
 			pluginSkillResource(t, "/home/coder/.coder/plugins/acme/skills/deploy", "acme", "deploy", "Deploy via acme"),
-			mcpServerResource(t, "acme/tools", &agentproto.MCPServerBody{
+			withPluginName(mcpServerResource(t, "acme/tools", &agentproto.MCPServerBody{
 				ServerName: "tools",
-				PluginName: "acme",
 				Tools:      []*agentproto.MCPTool{{Name: "ping"}},
-			}, database.WorkspaceAgentContextResourceStatusOk),
+			}, database.WorkspaceAgentContextResourceStatusOk), "acme"),
 			skillResource(t, "/home/coder/.coder/skills/review", "review", "Review code", database.WorkspaceAgentContextResourceStatusOk),
 		}
 
@@ -1015,11 +1024,10 @@ func TestWorkspaceMCPToolInfosFromResources(t *testing.T) {
 				ServerName: "github",
 				Tools:      []*agentproto.MCPTool{{Name: "create_issue"}},
 			}, database.WorkspaceAgentContextResourceStatusOk),
-			mcpServerResource(t, "acme/tools", &agentproto.MCPServerBody{
+			withPluginName(mcpServerResource(t, "acme/tools", &agentproto.MCPServerBody{
 				ServerName: "tools",
-				PluginName: "acme",
 				Tools:      []*agentproto.MCPTool{{Name: "ping"}},
-			}, database.WorkspaceAgentContextResourceStatusOk),
+			}, database.WorkspaceAgentContextResourceStatusOk), "acme"),
 		}
 
 		infos := workspaceMCPToolInfosFromResources(resources)

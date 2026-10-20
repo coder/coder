@@ -274,6 +274,13 @@ func TestDRPCPusher_NestsPluginResourcesInTheirPlugin(t *testing.T) {
 		Name:   "p",
 		Status: agentcontext.StatusExcluded,
 	}
+	namesake := agentcontext.Resource{
+		ID:     "skill:/tmp/skills/p",
+		Kind:   agentcontext.KindSkill,
+		Source: "/tmp/skills/p",
+		Name:   "p",
+		Status: agentcontext.StatusOK,
+	}
 	orphan := agentcontext.Resource{
 		ID:         "skill:/tmp/plugins/gone/skills/s",
 		Kind:       agentcontext.KindSkill,
@@ -282,12 +289,12 @@ func TestDRPCPusher_NestsPluginResourcesInTheirPlugin(t *testing.T) {
 		PluginName: "gone",
 		Status:     agentcontext.StatusOK,
 	}
-	req.Resources = append(append([]agentcontext.Resource{shadowedPlugin}, req.Resources...), orphan)
+	req.Resources = append(append([]agentcontext.Resource{shadowedPlugin}, req.Resources...), namesake, orphan)
 	_, err := pusher.PushContextState(context.Background(), req)
 	require.NoError(t, err)
 
 	pb := client.lastReq
-	require.Len(t, pb.Resources, 3, "plugin resources must be nested, and orphans dropped")
+	require.Len(t, pb.Resources, 4, "plugin resources must be nested, and orphans dropped")
 
 	shadowed := pb.Resources[0]
 	require.Equal(t, "/tmp/shadowed/p", shadowed.Source)
@@ -308,16 +315,17 @@ func TestDRPCPusher_NestsPluginResourcesInTheirPlugin(t *testing.T) {
 	skill := body.GetSkills()[0]
 	require.Equal(t, "/tmp/plugins/p/skills/s", skill.Source)
 	require.Equal(t, "s", skill.GetSkill().GetName())
-	require.Empty(t, skill.GetSkill().GetPluginName())
 
 	require.Len(t, body.GetMcpServers(), 1)
 	srv := body.GetMcpServers()[0]
 	require.Equal(t, "p/srv", srv.Source)
 	require.Equal(t, "srv", srv.GetMcpServer().GetServerName())
-	require.Empty(t, srv.GetMcpServer().GetPluginName())
 
 	require.Equal(t, "/tmp/skills/plain", pb.Resources[2].Source)
 	require.NotNil(t, pb.Resources[2].GetSkill())
+
+	require.Equal(t, "/tmp/skills/p", pb.Resources[3].Source)
+	require.NotNil(t, pb.Resources[3].GetSkill())
 }
 
 const pluginNotice = "Agent Plugins could not be loaded. Check the workspace agent logs for details."

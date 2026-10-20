@@ -1662,6 +1662,93 @@ func TestChatContextHydration(t *testing.T) {
 	require.False(t, gotOther.ContextDirtySince.Valid)
 }
 
+func TestChatContextResourcesCopyPluginName(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:                "test-model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		IsDefault:            true,
+		CompressionThreshold: 80,
+	})
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{OrganizationID: org.ID})
+	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
+	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
+		Status:            database.ChatStatusRunning,
+	})
+
+	upsert := func(source string, kind database.WorkspaceAgentContextBodyKind, pluginName string) {
+		t.Helper()
+		_, err := db.UpsertWorkspaceAgentContextResource(ctx, database.UpsertWorkspaceAgentContextResourceParams{
+			WorkspaceAgentID: agent.ID,
+			Source:           source,
+			BodyKind:         kind,
+			Body:             []byte(`{}`),
+			ContentHash:      []byte(source),
+			Status:           database.WorkspaceAgentContextResourceStatusOk,
+			PluginName:       pluginName,
+			Now:              dbtime.Now(),
+		})
+		require.NoError(t, err)
+	}
+	pinnedPluginNames := func() map[string]string {
+		t.Helper()
+		rows, err := db.ListChatContextResourcesByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		got := make(map[string]string, len(rows))
+		for _, r := range rows {
+			got[r.Source] = r.PluginName
+		}
+		return got
+	}
+
+	upsert("/w/plugins/acme", database.WorkspaceAgentContextBodyKindPlugin, "acme")
+	upsert("/w/plugins/acme/skills/deploy", database.WorkspaceAgentContextBodyKindSkill, "acme")
+	upsert("acme/echo", database.WorkspaceAgentContextBodyKindMcpServer, "acme")
+	upsert("/w/AGENTS.md", database.WorkspaceAgentContextBodyKindInstructionFile, "")
+	want := map[string]string{
+		"/w/plugins/acme":               "acme",
+		"/w/plugins/acme/skills/deploy": "acme",
+		"acme/echo":                     "acme",
+		"/w/AGENTS.md":                  "",
+	}
+
+	_, err := db.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
+		AgentID:       agent.ID,
+		AggregateHash: []byte{0x01},
+	})
+	require.NoError(t, err)
+	require.Equal(t, want, pinnedPluginNames(), "hydrate")
+
+	upsert("acme/other", database.WorkspaceAgentContextBodyKindMcpServer, "acme")
+	_, err = db.SyncAgentChatsContextMCPResources(ctx, agent.ID)
+	require.NoError(t, err)
+	want["acme/other"] = "acme"
+	require.Equal(t, want, pinnedPluginNames(), "MCP sync")
+
+	require.NoError(t, db.DeleteChatContextResourcesByChatID(ctx, chat.ID))
+	require.NoError(t, db.InsertAgentContextResourcesIntoChat(ctx, database.InsertAgentContextResourcesIntoChatParams{
+		ChatID:  chat.ID,
+		AgentID: agent.ID,
+	}))
+	require.Equal(t, want, pinnedPluginNames(), "re-pin")
+}
+
 func TestGetAuthorizedChats(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {

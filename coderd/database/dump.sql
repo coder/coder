@@ -1975,7 +1975,8 @@ CREATE TABLE chat_context_resources (
     error text DEFAULT ''::text NOT NULL,
     source_path text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    plugin_name text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON TABLE chat_context_resources IS 'Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.';
@@ -1995,6 +1996,8 @@ COMMENT ON COLUMN chat_context_resources.status IS 'Per-resource status. ok carr
 COMMENT ON COLUMN chat_context_resources.error IS 'Per-resource error or warning string. Populated whenever status is non-ok; may also carry a non-fatal warning when status is ok.';
 
 COMMENT ON COLUMN chat_context_resources.source_path IS 'User-declared scan root that produced this resource. Empty for built-in scan roots.';
+
+COMMENT ON COLUMN chat_context_resources.plugin_name IS 'Agent Plugin name: the plugin''s own name on an OK plugin row, the owning plugin''s name on a skill or mcp_server row the plugin ships, and empty otherwise.';
 
 CREATE TABLE chat_debug_runs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3701,7 +3704,8 @@ CREATE TABLE workspace_agent_context_resources (
     error text DEFAULT ''::text NOT NULL,
     source_path text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    plugin_name text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON TABLE workspace_agent_context_resources IS 'Per-resource state for the latest pushed workspace agent context snapshot.';
@@ -3721,6 +3725,8 @@ COMMENT ON COLUMN workspace_agent_context_resources.status IS 'Per-resource stat
 COMMENT ON COLUMN workspace_agent_context_resources.error IS 'Per-resource error or warning string. Populated whenever status is non-ok; may also carry a non-fatal warning when status is ok.';
 
 COMMENT ON COLUMN workspace_agent_context_resources.source_path IS 'User-declared scan root that produced this resource. Empty for built-in scan roots.';
+
+COMMENT ON COLUMN workspace_agent_context_resources.plugin_name IS 'Agent Plugin name: the plugin''s own name on an OK plugin row, the owning plugin''s name on a skill or mcp_server row the plugin ships, and empty otherwise.';
 
 CREATE TABLE workspace_agent_context_snapshots (
     workspace_agent_id uuid NOT NULL,

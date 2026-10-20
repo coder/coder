@@ -299,11 +299,11 @@ func contextResourceCount(resources []*agentproto.ContextResource) int {
 //   - per-resource and aggregate body sizes past the server caps.
 //
 // A plugin resource becomes one row for the plugin and one row per
-// nested skill and MCP server, whose stored body carries the plugin's
-// name. With the agent-plugins experiment off, plugin resources and
-// their nested resources are dropped without validation. The plugin
-// name uniqueness check runs only after every resource passes its own
-// checks.
+// nested skill and MCP server. plugin_name is the plugin's name on each
+// nested row and on the row of an OK plugin. With the agent-plugins
+// experiment off, plugin resources and their nested resources are
+// dropped without validation. The plugin name uniqueness check runs
+// only after every resource passes its own checks.
 //
 // Validation is deliberately strict here so a misbehaving agent
 // cannot poison the snapshot table. Phase 2 readers can then trust
@@ -327,7 +327,11 @@ func validateAndConvertContextResources(resources []*agentproto.ContextResource,
 			continue
 		}
 		location := fmt.Sprintf("resource at index %d", i)
-		if err := c.add(r, location, ""); err != nil {
+		var pluginName string
+		if isPlugin && r.Status == agentproto.ContextResource_OK {
+			pluginName = r.GetPlugin().GetName()
+		}
+		if err := c.add(r, location, pluginName); err != nil {
 			return nil, err
 		}
 		if !isPlugin {
@@ -346,17 +350,16 @@ func validateAndConvertContextResources(resources []*agentproto.ContextResource,
 	return c.rows, nil
 }
 
-// contextRowConverter holds the rows of a push and the state that
-// checks across its resources share.
+// contextRowConverter accumulates a push's rows, the sources seen so
+// far, and the aggregate body size.
 type contextRowConverter struct {
 	rows               []database.UpsertWorkspaceAgentContextResourceParams
 	seen               map[string]struct{}
 	aggregateBodyBytes int
 }
 
-// add validates r and appends its row. location names r in errors
-// that cannot quote its source. pluginName is the name of the plugin
-// r is nested in, or empty.
+// add validates r and appends its row with pluginName as its
+// plugin_name. location names r in errors that cannot quote its source.
 func (c *contextRowConverter) add(r *agentproto.ContextResource, location, pluginName string) error {
 	if r.Source == "" {
 		return xerrors.Errorf("agentapi: PushContextState %s has empty source", location)
@@ -382,14 +385,14 @@ func (c *contextRowConverter) add(r *agentproto.ContextResource, location, plugi
 		return xerrors.Errorf("resource %q: size %d exceeds int64 range", r.Source, r.SizeBytes)
 	}
 
-	kind, body, err := marshalContextResourceBody(r, pluginName)
+	kind, body, err := marshalContextResourceBody(r)
 	if err != nil {
 		return xerrors.Errorf("resource %q: %w", r.Source, err)
 	}
 	if len(body) > maxContextResourceBodyBytes {
 		return xerrors.Errorf("resource %q: body is %d bytes, exceeds %d byte cap", r.Source, len(body), maxContextResourceBodyBytes)
 	}
-	if err := validatePluginFields(r); err != nil {
+	if err := validatePluginName(r); err != nil {
 		return xerrors.Errorf("resource %q: %w", r.Source, err)
 	}
 	c.aggregateBodyBytes += len(body)
@@ -409,9 +412,10 @@ func (c *contextRowConverter) add(r *agentproto.ContextResource, location, plugi
 		Body:        body,
 		ContentHash: append([]byte(nil), r.ContentHash...),
 		//nolint:gosec // Bounded above.
-		SizeBytes: int64(r.SizeBytes),
-		Status:    status,
-		Error:     r.Error,
+		SizeBytes:  int64(r.SizeBytes),
+		Status:     status,
+		Error:      r.Error,
+		PluginName: pluginName,
 	})
 	return nil
 }
@@ -466,34 +470,23 @@ func (c *contextRowConverter) addNested(r *agentproto.ContextResource, location 
 	return nil
 }
 
-// validatePluginFields checks the plugin fields of r: an OK plugin
-// resource must carry a name, a non-empty plugin name must pass
-// workspacesdk.ValidatePluginName, and skills and MCP servers must not
-// set plugin_name.
-func validatePluginFields(r *agentproto.ContextResource) error {
-	switch b := r.Body.(type) {
-	case *agentproto.ContextResource_Plugin:
-		name := b.Plugin.GetName()
-		if name == "" {
-			if r.Status == agentproto.ContextResource_OK {
-				return xerrors.New("plugin name is required on an OK plugin resource")
-			}
-			return nil
-		}
-		return workspacesdk.ValidatePluginName(name)
-	case *agentproto.ContextResource_Skill:
-		if b.Skill.GetPluginName() != "" {
-			return errWirePluginName
-		}
-	case *agentproto.ContextResource_McpServer:
-		if b.McpServer.GetPluginName() != "" {
-			return errWirePluginName
-		}
+// validatePluginName checks the name of a plugin resource: an OK plugin
+// must have one, and a non-empty name must pass
+// workspacesdk.ValidatePluginName.
+func validatePluginName(r *agentproto.ContextResource) error {
+	plugin, ok := r.Body.(*agentproto.ContextResource_Plugin)
+	if !ok {
+		return nil
 	}
-	return nil
+	name := plugin.Plugin.GetName()
+	if name == "" {
+		if r.Status == agentproto.ContextResource_OK {
+			return xerrors.New("plugin name is required on an OK plugin resource")
+		}
+		return nil
+	}
+	return workspacesdk.ValidatePluginName(name)
 }
-
-var errWirePluginName = xerrors.New("plugin_name must be empty; nest plugin skills and MCP servers in their plugin resource")
 
 // validateUniquePluginNames rejects two OK plugin resources with the
 // same name.
@@ -519,12 +512,9 @@ func validateUniquePluginNames(plugins []*agentproto.ContextResource) error {
 // Body is always populated, even on non-OK statuses: the wire
 // guarantees the oneof variant is set so coderd can still attribute
 // the failure to a known kind. For variants with no content fields
-// (mcp_config), an empty JSON object is stored.
-//
-// A non-empty pluginName is stored as the plugin_name of a skill or
-// MCP server body. A plugin body is stored without its nested
-// resources, which get their own rows.
-func marshalContextResourceBody(r *agentproto.ContextResource, pluginName string) (kind database.WorkspaceAgentContextBodyKind, body []byte, err error) {
+// (mcp_config), an empty JSON object is stored. A plugin body is stored
+// without skills and mcp_servers.
+func marshalContextResourceBody(r *agentproto.ContextResource) (kind database.WorkspaceAgentContextBodyKind, body []byte, err error) {
 	switch b := r.Body.(type) {
 	case *agentproto.ContextResource_InstructionFile:
 		payload := b.InstructionFile
@@ -537,10 +527,6 @@ func marshalContextResourceBody(r *agentproto.ContextResource, pluginName string
 		payload := b.Skill
 		if payload == nil {
 			payload = &agentproto.SkillMetaBody{}
-		}
-		if pluginName != "" {
-			payload = proto.CloneOf(payload)
-			payload.PluginName = pluginName
 		}
 		body, err = marshalBody(payload)
 		return database.WorkspaceAgentContextBodyKindSkill, body, err
@@ -556,18 +542,16 @@ func marshalContextResourceBody(r *agentproto.ContextResource, pluginName string
 		if payload == nil {
 			payload = &agentproto.MCPServerBody{}
 		}
-		if pluginName != "" {
-			payload = proto.CloneOf(payload)
-			payload.PluginName = pluginName
-		}
 		body, err = marshalBody(payload)
 		return database.WorkspaceAgentContextBodyKindMcpServer, body, err
 	case *agentproto.ContextResource_Plugin:
-		body, err = marshalBody(&agentproto.PluginBody{
-			Name:        b.Plugin.GetName(),
-			Version:     b.Plugin.GetVersion(),
-			Description: b.Plugin.GetDescription(),
-		})
+		payload := &agentproto.PluginBody{}
+		if b.Plugin != nil {
+			payload = proto.CloneOf(b.Plugin)
+			payload.Skills = nil
+			payload.McpServers = nil
+		}
+		body, err = marshalBody(payload)
 		return database.WorkspaceAgentContextBodyKindPlugin, body, err
 	case nil:
 		return "", nil, xerrors.Errorf("missing body variant; status %s requires a typed body", r.Status)

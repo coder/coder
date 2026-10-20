@@ -315,6 +315,7 @@ func TestWorkspaceAgentRPCStoresPluginContextOnlyWithExperiment(t *testing.T) {
 			if enabled {
 				require.Len(t, resources, 1)
 				require.Equal(t, database.WorkspaceAgentContextBodyKindPlugin, resources[0].BodyKind)
+				require.Equal(t, "acme", resources[0].PluginName)
 			} else {
 				require.Empty(t, resources)
 			}

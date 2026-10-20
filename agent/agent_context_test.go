@@ -76,19 +76,23 @@ func TestAgent_ContextStatePushed(t *testing.T) {
 	}
 }
 
-// hasPluginData reports whether req carries a plugin resource.
 func hasPluginData(req *agentproto.PushContextStateRequest) bool {
 	return slices.ContainsFunc(req.GetResources(), func(r *agentproto.ContextResource) bool {
 		return r.GetPlugin() != nil
 	})
 }
 
-func writeTestPlugin(t *testing.T, dir string) {
+// writeTestPlugin writes plugin p with skill s under dir and returns the
+// plugin root.
+func writeTestPlugin(t *testing.T, dir string) string {
 	t.Helper()
 	pluginDir := filepath.Join(dir, "plugins", "p")
-	require.NoError(t, os.MkdirAll(pluginDir, 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(pluginDir, "skills", "s"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(pluginDir, "plugin.json"),
 		[]byte(`{"$schema":"`+agentcontext.PluginSchemaV1+`","name":"p"}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(pluginDir, "skills", "s", "SKILL.md"),
+		[]byte("---\nname: s\ndescription: Plugin skill\n---\n"), 0o600))
+	return pluginDir
 }
 
 func TestAgent_ContextStatePushedPlugins(t *testing.T) {
@@ -116,8 +120,9 @@ func TestAgent_ContextStatePushedPlugins(t *testing.T) {
 func TestAgent_ContextStatePushedWithoutRejectedPlugins(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	writeTestPlugin(t, dir)
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	pluginDir := writeTestPlugin(t, dir)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("rules"), 0o600))
 
 	var rejected atomic.Int32
@@ -152,6 +157,11 @@ func TestAgent_ContextStatePushedWithoutRejectedPlugins(t *testing.T) {
 	require.True(t, first.GetInitial())
 	require.Contains(t, first.GetSnapshotError(), "Agent Plugins could not be loaded")
 	require.NotContains(t, first.GetSnapshotError(), "unknown resource body")
+	for _, push := range pushes {
+		for _, r := range push.GetResources() {
+			require.False(t, strings.HasPrefix(r.GetSource(), pluginDir), "accepted push carries plugin resource %q", r.GetSource())
+		}
+	}
 }
 
 // The declared command does not exist, so the server is unreadable;
@@ -187,19 +197,15 @@ func TestAgent_PluginMCPServersLoaded(t *testing.T) {
 		server *agentproto.ContextResource
 	)
 	pushed := assert.Eventually(t, func() bool {
-		plugin, server = nil, nil
 		for _, push := range client.ContextStatePushes() {
 			for _, r := range push.GetResources() {
-				if r.GetPlugin().GetName() != "acme" {
-					continue
-				}
-				plugin = r
-				if servers := r.GetPlugin().GetMcpServers(); len(servers) > 0 {
-					server = servers[0]
+				if servers := r.GetPlugin().GetMcpServers(); r.GetPlugin().GetName() == "acme" && len(servers) > 0 {
+					plugin, server = r, servers[0]
+					return true
 				}
 			}
 		}
-		return plugin != nil && server != nil
+		return false
 	}, testutil.WaitSuperLong, testutil.IntervalFast)
 	if !pushed {
 		t.Fatalf("expected plugin and plugin MCP server resources to be pushed; got %s",

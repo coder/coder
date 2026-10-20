@@ -807,8 +807,7 @@ func (r *Resolver) applyCaps(resources []Resource) ([]Resource, uint64) {
 
 // withoutOrphanedPluginResources drops skills and MCP servers whose
 // PluginName names no StatusOK plugin in resources, such as those of
-// a plugin excluded by a cap. A push carries them only nested in their
-// plugin.
+// a plugin excluded by a cap.
 func withoutOrphanedPluginResources(resources []Resource) []Resource {
 	okPlugins := make(map[string]struct{})
 	for _, r := range resources {

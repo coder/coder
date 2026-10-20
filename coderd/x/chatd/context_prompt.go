@@ -25,7 +25,7 @@ var contextBodyUnmarshalOptions = protojson.UnmarshalOptions{DiscardUnknown: tru
 // pinnedSkillMeta converts a decoded skill body into prompt skill metadata.
 // ok is false when the name is not a valid kebab-case skill name; the
 // agent API does not validate skill names on ingest.
-func pinnedSkillMeta(dir string, body *agentproto.SkillMetaBody) (meta chattool.SkillMeta, ok bool) {
+func pinnedSkillMeta(dir, pluginName string, body *agentproto.SkillMetaBody) (meta chattool.SkillMeta, ok bool) {
 	name := body.GetName()
 	if !workspacesdk.SkillNamePattern.MatchString(name) {
 		return chattool.SkillMeta{}, false
@@ -33,7 +33,7 @@ func pinnedSkillMeta(dir string, body *agentproto.SkillMetaBody) (meta chattool.
 	return chattool.SkillMeta{
 		Name:        name,
 		Description: body.GetDescription(),
-		PluginName:  body.GetPluginName(),
+		PluginName:  pluginName,
 		Dir:         dir,
 		Meta:        body.GetMeta(),
 	}, true
@@ -258,7 +258,7 @@ func contextResourcesToPrompt(
 				malformed++
 				continue
 			}
-			meta, ok := pinnedSkillMeta(r.Source, &decodedBody)
+			meta, ok := pinnedSkillMeta(r.Source, r.PluginName, &decodedBody)
 			if !ok {
 				invalidNameSources = append(invalidNameSources, r.Source)
 				continue
@@ -305,13 +305,14 @@ func (server *Server) ContextResources(
 // inventory the user can act on, each stamped with its Status:
 //
 //   - OK instruction files with non-empty (sanitized) content, OK skills with
-//     a valid name, OK MCP configs/servers (mcp_server carries its tools and
-//     plugin name), and OK plugin manifests.
+//     a valid name, OK MCP configs/servers (mcp_server carries its tools),
+//     and OK plugin manifests.
 //   - Non-OK rows (invalid, unreadable, oversize, excluded) of a tracked kind,
 //     carrying Status and Error so the UI can explain why the resource was
 //     dropped from the prompt instead of silently omitting it. Their
-//     body-specific fields are empty, except PluginName on skill and
-//     mcp_server rows.
+//     body-specific fields are empty.
+//
+// PluginName comes from the row's plugin_name.
 //
 // OK-but-empty instruction files, OK skills with an invalid skill name, and
 // untracked kinds (reserved hook/subagent/command) are skipped. Input order
@@ -332,7 +333,7 @@ func pinnedContextResources(resources []database.ChatContextResource) []codersdk
 				SizeBytes:  r.SizeBytes,
 				Status:     codersdk.ChatContextResourceStatus(r.Status),
 				Error:      r.Error,
-				PluginName: attributedPluginName(r),
+				PluginName: r.PluginName,
 			})
 			continue
 		}
@@ -354,7 +355,7 @@ func pinnedContextResources(resources []database.ChatContextResource) []codersdk
 			if err := contextBodyUnmarshalOptions.Unmarshal(r.Body, &decodedBody); err != nil {
 				continue
 			}
-			meta, ok := pinnedSkillMeta(r.Source, &decodedBody)
+			meta, ok := pinnedSkillMeta(r.Source, r.PluginName, &decodedBody)
 			if !ok {
 				continue
 			}
@@ -378,30 +379,26 @@ func pinnedContextResources(resources []database.ChatContextResource) []codersdk
 			})
 		case database.WorkspaceAgentContextBodyKindMcpServer:
 			resource := codersdk.ChatContextResource{
-				Source:    r.Source,
-				Kind:      kind,
-				SizeBytes: r.SizeBytes,
-				Status:    codersdk.ChatContextResourceStatusOK,
-				Error:     r.Error,
+				Source:     r.Source,
+				Kind:       kind,
+				SizeBytes:  r.SizeBytes,
+				Status:     codersdk.ChatContextResourceStatusOK,
+				Error:      r.Error,
+				PluginName: r.PluginName,
 			}
 			var decodedBody agentproto.MCPServerBody
 			if err := contextBodyUnmarshalOptions.Unmarshal(r.Body, &decodedBody); err == nil {
 				resource.Tools = mcpToolsFromServerBody(r.Source, &decodedBody)
-				resource.PluginName = decodedBody.GetPluginName()
 			}
 			out = append(out, resource)
 		case database.WorkspaceAgentContextBodyKindPlugin:
-			var decodedBody agentproto.PluginBody
-			if err := contextBodyUnmarshalOptions.Unmarshal(r.Body, &decodedBody); err != nil {
-				continue
-			}
 			out = append(out, codersdk.ChatContextResource{
 				Source:     r.Source,
 				Kind:       kind,
 				SizeBytes:  r.SizeBytes,
 				Status:     codersdk.ChatContextResourceStatusOK,
 				Error:      r.Error,
-				PluginName: decodedBody.GetName(),
+				PluginName: r.PluginName,
 			})
 		}
 	}
@@ -426,27 +423,5 @@ func contextResourceKind(kind database.WorkspaceAgentContextBodyKind) (codersdk.
 		return codersdk.ChatContextResourceKindPlugin, true
 	default:
 		return "", false
-	}
-}
-
-// attributedPluginName returns the plugin name a skill or mcp_server body
-// carries. Manifest rows are skipped: the agent names a manifest only when
-// it is OK.
-func attributedPluginName(r database.ChatContextResource) string {
-	switch r.BodyKind {
-	case database.WorkspaceAgentContextBodyKindSkill:
-		var decoded agentproto.SkillMetaBody
-		if err := contextBodyUnmarshalOptions.Unmarshal(r.Body, &decoded); err != nil {
-			return ""
-		}
-		return decoded.GetPluginName()
-	case database.WorkspaceAgentContextBodyKindMcpServer:
-		var decoded agentproto.MCPServerBody
-		if err := contextBodyUnmarshalOptions.Unmarshal(r.Body, &decoded); err != nil {
-			return ""
-		}
-		return decoded.GetPluginName()
-	default:
-		return ""
 	}
 }
