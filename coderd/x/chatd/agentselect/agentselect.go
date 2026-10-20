@@ -90,3 +90,20 @@ func FindChatAgent(
 		)
 	}
 }
+
+// ForChat picks the agent that serves chat among agents, the agents of the
+// chat's workspace's latest build. It prefers the chat's bound agent when
+// it is still among agents, so callers land on the agent generation uses.
+// Otherwise it falls back to FindChatAgent without persisting a binding;
+// binding remains a generation-path concern, and determinism makes both
+// converge.
+func ForChat(chat database.Chat, agents []database.WorkspaceAgent) (database.WorkspaceAgent, error) {
+	if chat.AgentID.Valid {
+		for _, agent := range agents {
+			if agent.ID == chat.AgentID.UUID {
+				return agent, nil
+			}
+		}
+	}
+	return FindChatAgent(agents)
+}

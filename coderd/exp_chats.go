@@ -7525,7 +7525,7 @@ func (api *API) postChatWorkspaceFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	selectedAgent, err := chatWorkspaceUploadAgent(chat, agents)
+	selectedAgent, err := agentselect.ForChat(chat, agents)
 	if err != nil {
 		failure = err
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
@@ -7615,22 +7615,6 @@ func (api *API) postChatWorkspaceFile(rw http.ResponseWriter, r *http.Request) {
 		MediaType:   contentType,
 		WorkspaceID: workspace.ID,
 	})
-}
-
-// chatWorkspaceUploadAgent prefers the chat's bound agent when it is
-// still part of the latest build so uploads land on the same agent the
-// generation path uses. Otherwise it falls back to the deterministic
-// chat agent selection without persisting a binding; binding remains a
-// generation-path concern, and determinism makes both converge.
-func chatWorkspaceUploadAgent(chat database.Chat, agents []database.WorkspaceAgent) (database.WorkspaceAgent, error) {
-	if chat.AgentID.Valid {
-		for _, agent := range agents {
-			if agent.ID == chat.AgentID.UUID {
-				return agent, nil
-			}
-		}
-	}
-	return agentselect.FindChatAgent(agents)
 }
 
 // chatWorkspaceUploadUsageInterval bounds how often a streaming upload

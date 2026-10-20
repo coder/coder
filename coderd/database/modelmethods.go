@@ -762,6 +762,20 @@ func (a GetOAuth2ProviderAppsByUserIDRow) RBACObject() rbac.Object {
 	return a.OAuth2ProviderApp.RBACObject()
 }
 
+// StartupFinished reports whether an agent in this state finished its
+// startup scripts, successfully or not. AcquireChatWorkspaceFileDeliveries
+// checks the same states in SQL.
+func (s WorkspaceAgentLifecycleState) StartupFinished() bool {
+	switch s {
+	case WorkspaceAgentLifecycleStateReady,
+		WorkspaceAgentLifecycleStateStartError,
+		WorkspaceAgentLifecycleStateStartTimeout:
+		return true
+	default:
+		return false
+	}
+}
+
 type WorkspaceAgentConnectionStatus struct {
 	Status           WorkspaceAgentStatus `json:"status"`
 	FirstConnectedAt *time.Time           `json:"first_connected_at"`

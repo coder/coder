@@ -229,3 +229,45 @@ func TestIsChatAgent(t *testing.T) {
 		})
 	}
 }
+
+func TestForChat(t *testing.T) {
+	t.Parallel()
+
+	main := database.WorkspaceAgent{ID: uuid.New(), Name: "main", DisplayOrder: 0}
+	chatAgent := database.WorkspaceAgent{ID: uuid.New(), Name: "dev" + agentselect.Suffix, DisplayOrder: 1}
+	child := database.WorkspaceAgent{
+		ID:       uuid.New(),
+		Name:     "child" + agentselect.Suffix,
+		ParentID: uuid.NullUUID{UUID: main.ID, Valid: true},
+	}
+	otherChatAgent := database.WorkspaceAgent{ID: uuid.New(), Name: "other" + agentselect.Suffix, DisplayOrder: 2}
+	bound := func(id uuid.UUID) uuid.NullUUID { return uuid.NullUUID{UUID: id, Valid: true} }
+
+	tests := []struct {
+		name    string
+		agentID uuid.NullUUID
+		agents  []database.WorkspaceAgent
+		want    uuid.UUID
+		wantErr error
+	}{
+		{name: "UnboundPicksSuffixedRootOverMain", agents: []database.WorkspaceAgent{main, chatAgent, child}, want: chatAgent.ID},
+		{name: "BoundAgentPreferred", agentID: bound(main.ID), agents: []database.WorkspaceAgent{main, chatAgent}, want: main.ID},
+		{name: "BoundChildAgentPreferred", agentID: bound(child.ID), agents: []database.WorkspaceAgent{main, chatAgent, child}, want: child.ID},
+		{name: "StaleBindingFallsBack", agentID: bound(uuid.New()), agents: []database.WorkspaceAgent{main, chatAgent}, want: chatAgent.ID},
+		{name: "StoppedWorkspaceHasNoAgent", agentID: bound(main.ID), wantErr: agentselect.ErrNoEligibleAgents},
+		{name: "AmbiguousSuffixedRoots", agents: []database.WorkspaceAgent{main, chatAgent, otherChatAgent}, wantErr: agentselect.ErrMultipleChatAgents},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := agentselect.ForChat(database.Chat{AgentID: tt.agentID}, tt.agents)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got.ID)
+		})
+	}
+}

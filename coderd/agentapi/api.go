@@ -204,12 +204,13 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 	}
 
 	api.LifecycleAPI = &LifecycleAPI{
-		AgentFn:                  api.agent,
-		WorkspaceID:              opts.WorkspaceID,
-		Database:                 opts.Database,
-		Log:                      opts.Log,
-		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
-		Metrics:                  opts.LifecycleMetrics,
+		AgentFn:                       api.agent,
+		WorkspaceID:                   opts.WorkspaceID,
+		Database:                      opts.Database,
+		Log:                           opts.Log,
+		PublishWorkspaceUpdateFn:      api.publishWorkspaceUpdate,
+		PublishAgentStartupFinishedFn: api.publishAgentStartupFinished,
+		Metrics:                       opts.LifecycleMetrics,
 	}
 
 	api.AppsAPI = &AppsAPI{
@@ -397,6 +398,13 @@ func (a *API) startCacheRefreshLoop(ctx context.Context) {
 		slog.F("owner_id", a.cachedWorkspaceFields.identity.OwnerUsername),
 		slog.F("name", a.cachedWorkspaceFields.identity.Name))
 	a.cachedWorkspaceFields.Clear()
+}
+
+func (a *API) publishAgentStartupFinished(ctx context.Context, agentID uuid.UUID) error {
+	return wspubsub.PublishAgentStartupFinished(ctx, a.opts.Pubsub, wspubsub.AgentStartupFinishedEvent{
+		WorkspaceID: a.opts.WorkspaceID,
+		AgentID:     agentID,
+	})
 }
 
 func (a *API) publishWorkspaceUpdate(ctx context.Context, agentID uuid.UUID, kind wspubsub.WorkspaceEventKind) error {

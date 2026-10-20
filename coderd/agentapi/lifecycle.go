@@ -33,6 +33,9 @@ type LifecycleAPI struct {
 	Database                 database.Store
 	Log                      slog.Logger
 	PublishWorkspaceUpdateFn func(context.Context, uuid.UUID, wspubsub.WorkspaceEventKind) error
+	// PublishAgentStartupFinishedFn, when set, announces deployment-wide
+	// that the agent with the given ID finished its startup scripts.
+	PublishAgentStartupFinishedFn func(ctx context.Context, agentID uuid.UUID) error
 
 	TimeNowFn       func() time.Time // defaults to dbtime.Now()
 	Metrics         *LifecycleMetrics
@@ -131,6 +134,13 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 		err = a.PublishWorkspaceUpdateFn(ctx, workspaceAgent.ID, wspubsub.WorkspaceEventKindAgentLifecycleUpdate)
 		if err != nil {
 			return nil, xerrors.Errorf("publish workspace update: %w", err)
+		}
+	}
+	// Subscribers rescan the database periodically, so a lost event only
+	// delays them and does not fail the update.
+	if a.PublishAgentStartupFinishedFn != nil && lifecycleState.StartupFinished() {
+		if err := a.PublishAgentStartupFinishedFn(ctx, workspaceAgent.ID); err != nil {
+			logger.Warn(ctx, "failed to publish agent startup finished", slog.Error(err))
 		}
 	}
 

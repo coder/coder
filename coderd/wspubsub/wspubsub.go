@@ -21,6 +21,17 @@ const AllWorkspaceEventChannel = "workspace_updates:all"
 // processes pending workspace build orchestration rows.
 const WorkspaceBuildOrchestrationWakeChannel = "workspace_build_orchestrations:wake"
 
+// AgentStartupFinishedChannel is a deployment-wide channel that receives an
+// AgentStartupFinishedEvent whenever a workspace agent finishes its startup
+// scripts, successfully or not.
+const AgentStartupFinishedChannel = "workspace_agents:startup_finished"
+
+// AgentStartupFinishedEvent identifies the agent whose startup finished.
+type AgentStartupFinishedEvent struct {
+	WorkspaceID uuid.UUID `json:"workspace_id"`
+	AgentID     uuid.UUID `json:"agent_id"`
+}
+
 // HandleWorkspaceBuildUpdate wraps a callback to parse WorkspaceBuildUpdate
 // messages from the pubsub.
 func HandleWorkspaceBuildUpdate(cb func(ctx context.Context, payload codersdk.WorkspaceBuildUpdate, err error)) func(ctx context.Context, message []byte, err error) {
@@ -60,6 +71,37 @@ func PublishWorkspaceBuildOrchestrationWake(_ context.Context, ps pubsub.Pubsub)
 		return xerrors.Errorf("publish workspace build orchestration wake: %w", err)
 	}
 	return nil
+}
+
+// PublishAgentStartupFinished publishes event on
+// AgentStartupFinishedChannel.
+func PublishAgentStartupFinished(_ context.Context, ps pubsub.Pubsub, event AgentStartupFinishedEvent) error {
+	msg, err := json.Marshal(event)
+	if err != nil {
+		return xerrors.Errorf("marshal agent startup finished event: %w", err)
+	}
+	if err := ps.Publish(AgentStartupFinishedChannel, msg); err != nil {
+		return xerrors.Errorf("publish agent startup finished event: %w", err)
+	}
+	return nil
+}
+
+// HandleAgentStartupFinished wraps a callback to parse
+// AgentStartupFinishedEvent messages from the pubsub. Subscription errors,
+// such as pubsub.ErrDroppedMessages, reach the callback wrapped.
+func HandleAgentStartupFinished(cb func(ctx context.Context, event AgentStartupFinishedEvent, err error)) func(ctx context.Context, message []byte, err error) {
+	return func(ctx context.Context, message []byte, err error) {
+		if err != nil {
+			cb(ctx, AgentStartupFinishedEvent{}, xerrors.Errorf("agent startup finished pubsub: %w", err))
+			return
+		}
+		var event AgentStartupFinishedEvent
+		if err := json.Unmarshal(message, &event); err != nil {
+			cb(ctx, AgentStartupFinishedEvent{}, xerrors.Errorf("unmarshal agent startup finished event: %w", err))
+			return
+		}
+		cb(ctx, event, nil)
+	}
 }
 
 // WorkspaceEventChannel can be used to subscribe to events for
