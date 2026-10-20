@@ -10369,18 +10369,33 @@ func (mr *MockStoreMockRecorder) ReorderChatQueuedMessageToHead(ctx, arg any) *g
 }
 
 // RetryChatWorkspaceFileDeliveries mocks base method.
-func (m *MockStore) RetryChatWorkspaceFileDeliveries(ctx context.Context, chatID uuid.UUID) (int64, error) {
+func (m *MockStore) RetryChatWorkspaceFileDeliveries(ctx context.Context, arg database.RetryChatWorkspaceFileDeliveriesParams) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RetryChatWorkspaceFileDeliveries", ctx, chatID)
+	ret := m.ctrl.Call(m, "RetryChatWorkspaceFileDeliveries", ctx, arg)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // RetryChatWorkspaceFileDeliveries indicates an expected call of RetryChatWorkspaceFileDeliveries.
-func (mr *MockStoreMockRecorder) RetryChatWorkspaceFileDeliveries(ctx, chatID any) *gomock.Call {
+func (mr *MockStoreMockRecorder) RetryChatWorkspaceFileDeliveries(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetryChatWorkspaceFileDeliveries", reflect.TypeOf((*MockStore)(nil).RetryChatWorkspaceFileDeliveries), ctx, chatID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetryChatWorkspaceFileDeliveries", reflect.TypeOf((*MockStore)(nil).RetryChatWorkspaceFileDeliveries), ctx, arg)
+}
+
+// RetryChatWorkspaceFileDeliveriesByWorkspaceID mocks base method.
+func (m *MockStore) RetryChatWorkspaceFileDeliveriesByWorkspaceID(ctx context.Context, arg database.RetryChatWorkspaceFileDeliveriesByWorkspaceIDParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RetryChatWorkspaceFileDeliveriesByWorkspaceID", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RetryChatWorkspaceFileDeliveriesByWorkspaceID indicates an expected call of RetryChatWorkspaceFileDeliveriesByWorkspaceID.
+func (mr *MockStoreMockRecorder) RetryChatWorkspaceFileDeliveriesByWorkspaceID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetryChatWorkspaceFileDeliveriesByWorkspaceID", reflect.TypeOf((*MockStore)(nil).RetryChatWorkspaceFileDeliveriesByWorkspaceID), ctx, arg)
 }
 
 // RevokeDBCryptKey mocks base method.

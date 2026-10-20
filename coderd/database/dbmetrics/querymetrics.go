@@ -5456,11 +5456,19 @@ func (m queryMetricsStore) ReorderChatQueuedMessageToHead(ctx context.Context, a
 	return r0, r1
 }
 
-func (m queryMetricsStore) RetryChatWorkspaceFileDeliveries(ctx context.Context, chatID uuid.UUID) (int64, error) {
+func (m queryMetricsStore) RetryChatWorkspaceFileDeliveries(ctx context.Context, chatID database.RetryChatWorkspaceFileDeliveriesParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.RetryChatWorkspaceFileDeliveries(ctx, chatID)
 	m.queryLatencies.WithLabelValues("RetryChatWorkspaceFileDeliveries").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RetryChatWorkspaceFileDeliveries").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) RetryChatWorkspaceFileDeliveriesByWorkspaceID(ctx context.Context, arg database.RetryChatWorkspaceFileDeliveriesByWorkspaceIDParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.RetryChatWorkspaceFileDeliveriesByWorkspaceID(ctx, arg)
+	m.queryLatencies.WithLabelValues("RetryChatWorkspaceFileDeliveriesByWorkspaceID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RetryChatWorkspaceFileDeliveriesByWorkspaceID").Inc()
 	return r0, r1
 }
 

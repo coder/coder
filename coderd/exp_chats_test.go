@@ -53,6 +53,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -13053,6 +13054,52 @@ func TestChatWorkspaceAttachments(t *testing.T) {
 		return codersdk.ChatMessagePart{}
 	}
 
+	// deliverWorkspaceFile binds the chat to a started workspace and
+	// records the file's delivery the way the chatd delivery loop does.
+	deliverWorkspaceFile := func(ctx context.Context, t *testing.T, chatID, fileID uuid.UUID, deliveredPath string) {
+		t.Helper()
+		//nolint:gocritic // Test simulates the chatd delivery loop.
+		chatdCtx := dbauthz.AsChatd(ctx)
+		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        firstUser.UserID,
+		}).WithAgent().Do()
+		//nolint:gocritic // Test marks the agent's startup finished.
+		require.NoError(t, db.UpdateWorkspaceAgentLifecycleStateByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+			ID:             workspaceBuild.Agents[0].ID,
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		}))
+		_, err := db.UpdateChatWorkspaceBinding(chatdCtx, database.UpdateChatWorkspaceBindingParams{
+			ID:          chatID,
+			WorkspaceID: uuid.NullUUID{UUID: workspaceBuild.Workspace.ID, Valid: true},
+		})
+		require.NoError(t, err)
+		// Claim as of an hour ahead so a claim the server's own delivery
+		// loop may hold has expired and cannot record an outcome.
+		now := dbtime.Now().Add(time.Hour)
+		claimed, err := db.AcquireChatWorkspaceFileDeliveries(chatdCtx, database.AcquireChatWorkspaceFileDeliveriesParams{
+			Now:                     now,
+			LeaseExpiresAt:          now.Add(time.Hour),
+			MinUploadBytesPerSecond: 1 << 20,
+			ChatAgentSuffix:         agentselect.Suffix,
+			MaxAttempts:             database.ChatWorkspaceFileMaxDeliveryAttempts,
+			ChatID:                  uuid.NullUUID{UUID: chatID, Valid: true},
+			LimitVal:                1,
+		})
+		require.NoError(t, err)
+		require.Len(t, claimed, 1)
+		require.Equal(t, fileID, claimed[0].ID)
+		completed, err := db.CompleteChatWorkspaceFileDelivery(chatdCtx, database.CompleteChatWorkspaceFileDeliveryParams{
+			ID:                   fileID,
+			DeliveredAt:          now,
+			DeliveredPath:        deliveredPath,
+			DeliveredWorkspaceID: workspaceBuild.Workspace.ID,
+			LeaseExpiresAt:       claimed[0].LeaseExpiresAt,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, completed)
+	}
+
 	t.Run("UploadLimits", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
@@ -13125,15 +13172,7 @@ func TestChatWorkspaceAttachments(t *testing.T) {
 		wantPart := codersdk.ChatMessageWorkspaceAttachment(fileID, "application/zip", "my_report_.zip", int64(len(data)))
 		require.Equal(t, wantPart, attachmentPart(t, userMessage.Content))
 
-		//nolint:gocritic // Test simulates the chatd delivery loop.
-		completed, err := db.CompleteChatWorkspaceFileDelivery(dbauthz.AsChatd(ctx), database.CompleteChatWorkspaceFileDeliveryParams{
-			ID:                   fileID,
-			DeliveredAt:          dbtime.Now(),
-			DeliveredPath:        "~/.coder/chats/" + chat.ID.String() + "/files/" + fileID.String() + "/my_report_.zip",
-			DeliveredWorkspaceID: uuid.New(),
-		})
-		require.NoError(t, err)
-		require.EqualValues(t, 1, completed)
+		deliverWorkspaceFile(ctx, t, chat.ID, fileID, "~/.coder/chats/"+chat.ID.String()+"/files/"+fileID.String()+"/my_report_.zip")
 
 		_, _, err = client.GetChatFile(ctx, fileID)
 		requireSDKError(t, err, http.StatusGone)
