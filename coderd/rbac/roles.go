@@ -597,7 +597,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 								// Like site owners, organization admins can stop or
 								// remove any automation in the organization but not
 								// create or change one as another member.
-								ResourceChatAutomation.Type: chatAutomationAdminActions,
+								ResourceChatAutomation.Type:   chatAutomationAdminActions,
 								ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
 								ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
 								// PrebuiltWorkspaces are a subset of Workspaces.
