@@ -1,23 +1,32 @@
+---
+title: Example policy
+description: Review a broad Agent Firewall allowlist policy for multi-language workspaces.
+---
+
+> [!NOTE]
+> Agent Firewall is part of [AI Governance](../ai-governance.md), which is included with a Premium license.
+
+This page contains a broad Agent Firewall policy for workspaces where agents build software in many languages.
+It allows the domains an agent needs to fetch dependencies, read source repositories, and pull container images, and blocks everything else.
+
+Coder uses a policy of this shape on its own deployment.
+Treat it as a starting point: allow only the domains your workspaces actually need, and add your own Coder deployment domain.
+Most entries come from the [default allowed domains for Claude Code on the web](https://code.claude.com/docs/en/claude-code-on-the-web#default-allowed-domains).
+
+For the syntax of each entry, including method filters and wildcards, refer to the [rules engine docs](rules-engine.md).
+To load this policy in a template, pass it to the module's `agent_firewall_config` argument as described in [Agent Firewall](index.md).
+
+```yaml
 allowlist:
-  # Test domains
-  - method=GET domain=typicode.com
-  - method=GET domain=*.typicode.com
+  # Your Coder deployment.
+  - domain=coder.example.com
 
-  # Coder Dogfood Deployment
-  - domain=dogfood.cdr.dev
-
-  # Domain used in coder workspaces
-  - method=POST domain=http-intake.logs.datadoghq.com
-  - method=POST domain=http-intake.logs.us5.datadoghq.com
-
-  # Default allowed domains from Claude Code on the web
-  # Source: https://code.claude.com/docs/en/claude-code-on-the-web#default-allowed-domains
-  # Anthropic Services
+  # Anthropic services.
   - domain=api.anthropic.com
   - domain=statsig.anthropic.com
   - domain=claude.ai
 
-  # Version Control
+  # Version control.
   - domain=github.com
   - domain=www.github.com
   - domain=api.github.com
@@ -34,7 +43,7 @@ allowlist:
   - domain=www.bitbucket.org
   - domain=api.bitbucket.org
 
-  # Container Registries
+  # Container registries.
   - domain=registry-1.docker.io
   - domain=auth.docker.io
   - domain=index.docker.io
@@ -47,7 +56,7 @@ allowlist:
   - domain=mcr.microsoft.com
   - domain=*.data.mcr.microsoft.com
 
-  # Cloud Platforms
+  # Cloud platforms.
   - domain=cloud.google.com
   - domain=accounts.google.com
   - domain=gcloud.google.com
@@ -74,7 +83,7 @@ allowlist:
   - domain=download.oracle.com
   - domain=yum.oracle.com
 
-  # Package Managers - JavaScript/Node
+  # Package managers, JavaScript/Node.
   - domain=registry.npmjs.org
   - domain=www.npmjs.com
   - domain=www.npmjs.org
@@ -83,7 +92,7 @@ allowlist:
   - domain=yarnpkg.com
   - domain=registry.yarnpkg.com
 
-  # Package Managers - Python
+  # Package managers, Python.
   - domain=pypi.org
   - domain=www.pypi.org
   - domain=files.pythonhosted.org
@@ -93,7 +102,7 @@ allowlist:
   - domain=pypa.io
   - domain=www.pypa.io
 
-  # Package Managers - Ruby
+  # Package managers, Ruby.
   - domain=rubygems.org
   - domain=www.rubygems.org
   - domain=api.rubygems.org
@@ -107,7 +116,7 @@ allowlist:
   - domain=rvm.io
   - domain=get.rvm.io
 
-  # Package Managers - Rust
+  # Package managers, Rust.
   - domain=crates.io
   - domain=www.crates.io
   - domain=static.crates.io
@@ -115,7 +124,7 @@ allowlist:
   - domain=static.rust-lang.org
   - domain=www.rust-lang.org
 
-  # Package Managers - Go
+  # Package managers, Go.
   - domain=proxy.golang.org
   - domain=sum.golang.org
   - domain=index.golang.org
@@ -126,7 +135,7 @@ allowlist:
   - domain=goproxy.io
   - domain=pkg.go.dev
 
-  # Package Managers - JVM
+  # Package managers, JVM.
   - domain=maven.org
   - domain=repo.maven.org
   - domain=central.maven.org
@@ -138,7 +147,7 @@ allowlist:
   - domain=spring.io
   - domain=repo.spring.io
 
-  # Package Managers - Other Languages
+  # Package managers, other languages.
   - domain=packagist.org
   - domain=www.packagist.org
   - domain=repo.packagist.org
@@ -163,7 +172,7 @@ allowlist:
   - domain=swift.org
   - domain=www.swift.org
 
-  # Linux Distributions
+  # Linux distributions.
   - domain=archive.ubuntu.com
   - domain=security.ubuntu.com
   - domain=ubuntu.com
@@ -173,7 +182,7 @@ allowlist:
   - domain=launchpad.net
   - domain=www.launchpad.net
 
-  # Development Tools & Platforms
+  # Development tools and platforms.
   - domain=dl.k8s.io
   - domain=pkgs.k8s.io
   - domain=k8s.io
@@ -200,18 +209,18 @@ allowlist:
   - domain=nodejs.org
   - domain=www.nodejs.org
 
-  # Cloud Services & Monitoring
+  # Cloud services and monitoring.
   - domain=statsig.com
   - domain=www.statsig.com
   - domain=api.statsig.com
   - domain=*.sentry.io
 
-  # Content Delivery & Mirrors
+  # Content delivery and mirrors.
   - domain=*.sourceforge.net
   - domain=packagecloud.io
   - domain=*.packagecloud.io
 
-  # Schema & Configuration
+  # Schema and configuration.
   - domain=json-schema.org
   - domain=www.json-schema.org
   - domain=json.schemastore.org
@@ -219,3 +228,4 @@ allowlist:
 log_dir: /tmp/boundary_logs
 log_level: warn
 proxy_port: 8087
+```
