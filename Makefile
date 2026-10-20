@@ -844,9 +844,11 @@ lint/emdash:
 # Fails when docs Markdown contains invalid inline HTML the docs site drops or
 # mangles: swallowed angle-bracket placeholders (e.g. <region>), void-element
 # end tags (</br>), capitalized or unregistered component tags (e.g. <Image>),
-# and unclosed container tags. Also fails on table header cells with no text.
+# and unclosed container tags. Also fails on table header cells with no text,
+# and on ARIA, role, tabindex, and lang attributes and iframe, object, area,
+# form control, and meta elements.
 lint/docs-html:
-	echo "--- check for invalid inline HTML and empty table headers in docs"
+	echo "--- check for invalid inline HTML, empty table headers, and disallowed elements in docs"
 	go run ./scripts/docshtmlcheck
 .PHONY: lint/docs-html
 

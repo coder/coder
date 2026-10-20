@@ -413,8 +413,10 @@ func TestReportFindings(t *testing.T) {
 				{line: 2, kind: kindUnknownElement, tag: "foo", msg: "swallowed"},
 				{line: 4, kind: kindEmptyTableHeader, tag: "th", msg: "empty"},
 				{line: 5, kind: kindEmptyTableHeader, tag: "th", msg: "empty"},
+				{line: 6, kind: kindDisallowedElement, tag: "iframe", msg: "disallowed"},
+				{line: 7, kind: kindDisallowedAttribute, tag: "div", msg: "disallowed"},
 			},
-			want: issueCounts{html: 1, table: 2},
+			want: issueCounts{html: 1, table: 2, guard: 2},
 		},
 		{
 			// A stale-allowlist finding is reported against the linter source
