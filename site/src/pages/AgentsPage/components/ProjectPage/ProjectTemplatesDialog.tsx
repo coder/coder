@@ -27,12 +27,18 @@ type ProjectTemplatesDialogProps = {
 	readonly isSaving: boolean;
 	readonly error: unknown;
 	readonly onSave: (templates: ChatProjectTemplates) => void;
+	/**
+	 * Called when focus would return after closing. The dialog has no
+	 * trigger, so without this focus lands on the document body.
+	 */
+	readonly onCloseAutoFocus?: (event: Event) => void;
 };
 
 /** Edits the templates a project's chats may use, and their defaults. */
 export const ProjectTemplatesDialog: React.FC<ProjectTemplatesDialogProps> = ({
 	open,
 	onOpenChange,
+	onCloseAutoFocus,
 	...formProps
 }) => {
 	const handleOpenChange = (nextOpen: boolean) => {
@@ -43,7 +49,10 @@ export const ProjectTemplatesDialog: React.FC<ProjectTemplatesDialogProps> = ({
 
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
-			<DialogContent aria-describedby={undefined}>
+			<DialogContent
+				aria-describedby={undefined}
+				onCloseAutoFocus={onCloseAutoFocus}
+			>
 				<ProjectTemplatesForm
 					{...formProps}
 					onCancel={() => handleOpenChange(false)}
@@ -55,7 +64,7 @@ export const ProjectTemplatesDialog: React.FC<ProjectTemplatesDialogProps> = ({
 
 type ProjectTemplatesFormProps = Omit<
 	ProjectTemplatesDialogProps,
-	"open" | "onOpenChange"
+	"open" | "onOpenChange" | "onCloseAutoFocus"
 > & {
 	readonly onCancel: () => void;
 };
@@ -75,16 +84,24 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	const [value, setValue] = useState(initialValue);
 	const templatesQuery = useQuery(agentTemplates(project.organization_id));
 	const eligibleTemplates = templatesQuery.data;
-	const isUnchanged = JSON.stringify(value) === JSON.stringify(initialValue);
-	const canSave = eligibleTemplates !== undefined && !isUnchanged && !isSaving;
+	const request =
+		eligibleTemplates && chatProjectTemplatesRequest(value, eligibleTemplates);
+	// Saving drops templates that are no longer eligible, so a draft that
+	// still holds any differs from the saved templates even when untouched.
+	const dropsIneligible =
+		request !== undefined &&
+		request.template_ids.length < value.templateIds.length;
+	const isUnchanged =
+		!dropsIneligible && JSON.stringify(value) === JSON.stringify(initialValue);
+	const canSave = request !== undefined && !isUnchanged && !isSaving;
 
 	return (
 		<form
 			className="flex flex-col gap-4"
 			onSubmit={(event) => {
 				event.preventDefault();
-				if (canSave) {
-					onSave(chatProjectTemplatesRequest(value, eligibleTemplates));
+				if (request && canSave) {
+					onSave(request);
 				}
 			}}
 		>

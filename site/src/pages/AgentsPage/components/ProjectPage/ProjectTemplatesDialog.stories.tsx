@@ -153,6 +153,19 @@ export const DefaultParameters: Story = {
 	},
 };
 
+export const TemplatesRefetchError: Story = {
+	...DefaultPreset,
+	decorators: [withRefetch(agentTemplates(MockChatProject.organization_id))],
+	beforeEach: () => {
+		spyOn(API, "getTemplates").mockRejectedValue(
+			mockApiError({ message: "Failed to load templates." }),
+		);
+	},
+	play: async () => {
+		await screen.findByText("Failed to load templates.");
+	},
+};
+
 export const DefaultPresetRefetchError: Story = {
 	...DefaultPreset,
 	decorators: [

@@ -569,6 +569,42 @@ describe("ProjectDetailsPanel templates", () => {
 		);
 	});
 
+	it("saves the removal of templates that are no longer eligible", async () => {
+		const { user, updateProject, rerenderWithProject } = setup();
+		vi.spyOn(API, "getTemplates").mockResolvedValue([]);
+		rerenderWithProject({
+			...MockChatProject,
+			templates: { template_ids: [dockerTemplate.id] },
+		});
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 1 template" }),
+		);
+		const save = await screen.findByRole("button", { name: "Save" });
+		await waitFor(() => expect(save).toBeEnabled());
+		await user.click(save);
+
+		await waitFor(() =>
+			expect(updateProject).toHaveBeenCalledWith(
+				MockChatProject.organization_id,
+				MockChatProject.id,
+				{ templates: { template_ids: [] } },
+			),
+		);
+	});
+
+	it("returns focus to the edit button when the editor closes", async () => {
+		const { user } = setup();
+		const editButton = screen.getByRole("button", {
+			name: "Edit templates: 0 templates",
+		});
+
+		await user.click(editButton);
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+		await waitFor(() => expect(editButton).toHaveFocus());
+	});
+
 	it("keeps the draft when the project refetches while editing", async () => {
 		const { user, updateProject, rerenderWithProject } = setup();
 

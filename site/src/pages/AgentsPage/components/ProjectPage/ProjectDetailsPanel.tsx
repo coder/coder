@@ -64,6 +64,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	// isPending reaches the dialog only after a render, so a fast double
 	// click could otherwise submit the same change twice.
 	const isMutationInFlight = useRef(false);
+	const editTemplatesButtonRef = useRef<HTMLButtonElement>(null);
 
 	const resetErrors = () => {
 		updateMutation.reset();
@@ -103,6 +104,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 							}
 						: undefined
 				}
+				editTemplatesButtonRef={editTemplatesButtonRef}
 				instructions={instructionsQuery.data}
 				error={instructionsQuery.error}
 				onRetry={() => void instructionsQuery.refetch()}
@@ -112,6 +114,10 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				project={project}
 				open={isTemplatesEditorOpen}
 				onOpenChange={setIsTemplatesEditorOpen}
+				onCloseAutoFocus={(event) => {
+					event.preventDefault();
+					editTemplatesButtonRef.current?.focus();
+				}}
 				isSaving={updateTemplatesMutation.isPending}
 				error={updateTemplatesMutation.error}
 				onSave={(templates) =>

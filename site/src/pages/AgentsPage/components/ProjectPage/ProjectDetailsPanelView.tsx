@@ -22,6 +22,8 @@ type ProjectDetailsPanelViewProps = {
 	readonly templateCount: number;
 	/** Opens the templates editor. Omit when the caller cannot edit. */
 	readonly onEditTemplates?: () => void;
+	/** The button that opens the templates editor, for restoring focus. */
+	readonly editTemplatesButtonRef?: React.Ref<HTMLButtonElement>;
 	/** `undefined` until the instructions load. */
 	readonly instructions: ChatProjectInstructions | undefined;
 	readonly error: unknown;
@@ -39,6 +41,7 @@ export const ProjectDetailsPanelView: React.FC<
 	organizationLabel,
 	templateCount,
 	onEditTemplates,
+	editTemplatesButtonRef,
 	instructions,
 	error,
 	onRetry,
@@ -100,6 +103,7 @@ export const ProjectDetailsPanelView: React.FC<
 						{onEditTemplates ? (
 							<Link asChild showExternalIcon={false}>
 								<button
+									ref={editTemplatesButtonRef}
 									type="button"
 									className="cursor-pointer border-0 bg-transparent p-0 font-sans"
 									onClick={onEditTemplates}
