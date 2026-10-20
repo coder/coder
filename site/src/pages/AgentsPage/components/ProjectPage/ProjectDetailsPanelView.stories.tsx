@@ -102,6 +102,15 @@ export const CreatedDateFocused: Story = {
 	},
 };
 
+/** Focus returns to the Skills row after the skills dialog closes. */
+export const SkillsFocused: Story = {
+	play: async ({ canvasElement }) => {
+		within(canvasElement)
+			.getByRole("button", { name: /^Skills:/ })
+			.focus();
+	},
+};
+
 export const OneSkill: Story = {
 	args: { skillCount: 1 },
 };
