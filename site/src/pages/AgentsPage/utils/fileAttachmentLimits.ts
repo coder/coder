@@ -1,8 +1,21 @@
 import { getErrorMessage, isApiError, isApiErrorResponse } from "#/api/errors";
-import { MaxChatFileSizeBytes } from "#/api/typesGenerated";
+import {
+	type ChatFilePurpose,
+	MaxChatFileSizeBytes,
+	MaxChatWorkspaceFileSizeBytes,
+} from "#/api/typesGenerated";
 
-export const formatAgentAttachmentTooLargeError = (fileSize: number): string =>
-	`File too large (${(fileSize / 1024 / 1024).toFixed(1)} MiB). Maximum is ${MaxChatFileSizeBytes / 1024 / 1024} MiB.`;
+/** The upload size cap for a chat file with the given purpose. */
+export const maxAgentAttachmentBytes = (purpose: ChatFilePurpose): number =>
+	purpose === "workspace"
+		? MaxChatWorkspaceFileSizeBytes
+		: MaxChatFileSizeBytes;
+
+export const formatAgentAttachmentTooLargeError = (
+	fileSize: number,
+	purpose: ChatFilePurpose = "prompt",
+): string =>
+	`File too large (${(fileSize / 1024 / 1024).toFixed(1)} MiB). Maximum is ${maxAgentAttachmentBytes(purpose) / 1024 / 1024} MiB.`;
 
 // Unlike getErrorDetail, never fall back to the developer console hint:
 // upload errors render on compact chips next to the file.

@@ -1,15 +1,21 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { API } from "#/api/api";
-import { MaxChatFileSizeBytes } from "#/api/typesGenerated";
+import {
+	type ChatFilePurpose,
+	MaxChatFileSizeBytes,
+} from "#/api/typesGenerated";
 import type { UploadState } from "../components/AgentChatInput";
 import {
 	getChatFileURL,
 	isRasterImageMediaType,
 	renameChatFileForUpload,
+	type StagedFilePurpose,
+	stagedFilePurpose,
 } from "../utils/chatAttachments";
 import {
 	formatAgentAttachmentTooLargeError,
 	formatAgentAttachmentUploadError,
+	maxAgentAttachmentBytes,
 } from "../utils/fileAttachmentLimits";
 import {
 	imageBudgetForProvider,
@@ -31,6 +37,8 @@ type PersistedAttachment = {
 	fileType: string;
 	lastModified: number;
 	organizationId: string;
+	// Absent for prompt files, including entries saved before purposes existed.
+	purpose?: StagedFilePurpose;
 };
 
 /**
@@ -90,8 +98,13 @@ function restorePersistedAttachments(
 				lastModified: p.lastModified,
 			});
 			attachments.push(file);
-			uploadStates.set(file, { status: "uploaded", fileId: p.fileId });
-			if (isRasterImageMediaType(p.fileType)) {
+			const purpose = stagedFilePurpose(p.purpose);
+			uploadStates.set(file, {
+				status: "uploaded",
+				fileId: p.fileId,
+				purpose,
+			});
+			if (!purpose && isRasterImageMediaType(p.fileType)) {
 				previewUrls.set(file, getChatFileURL(p.fileId));
 			}
 		}
@@ -110,6 +123,7 @@ function addPersistedAttachment(
 	file: File,
 	fileId: string,
 	organizationId: string,
+	purpose: StagedFilePurpose | undefined,
 ) {
 	const stored = localStorage.getItem(storageKey);
 	let persisted: PersistedAttachment[];
@@ -124,6 +138,7 @@ function addPersistedAttachment(
 		fileType: file.type,
 		lastModified: file.lastModified,
 		organizationId,
+		purpose,
 	});
 	localStorage.setItem(storageKey, JSON.stringify(persisted));
 }
@@ -160,9 +175,9 @@ type UseFileAttachmentsReturn = {
 	textContents: Map<File, string>;
 	uploadStates: Map<File, UploadState>;
 	previewUrls: Map<File, string>;
-	handleAttach: (files: File[]) => void;
+	handleAttach: (files: File[], purpose?: ChatFilePurpose) => void;
 	handleRemoveAttachment: (attachment: number | File) => void;
-	startUpload: (file: File) => void;
+	startUpload: (file: File, purpose?: ChatFilePurpose) => void;
 	resetAttachments: () => void;
 	setAttachments: React.Dispatch<React.SetStateAction<File[]>>;
 	setPreviewUrls: React.Dispatch<React.SetStateAction<Map<File, string>>>;
@@ -231,16 +246,24 @@ export function useFileAttachments(
 		}
 		setUploadStates((prev) => new Map(prev).set(file, state));
 		if (persist && state.status === "uploaded" && state.fileId) {
-			addPersistedAttachment(storageKey, file, state.fileId, uploadOrgId);
+			addPersistedAttachment(
+				storageKey,
+				file,
+				state.fileId,
+				uploadOrgId,
+				state.purpose,
+			);
 		}
 	};
 
-	const startUpload = (file: File) => {
+	const startUpload = (file: File, purpose: ChatFilePurpose = "prompt") => {
+		const statePurpose = stagedFilePurpose(purpose);
 		if (!organizationId) {
 			setUploadStates((prev) =>
 				new Map(prev).set(file, {
 					status: "error",
 					error: "Unable to upload: no organization context.",
+					purpose: statePurpose,
 				}),
 			);
 			return;
@@ -248,17 +271,24 @@ export function useFileAttachments(
 
 		const uploadOrgId = organizationId;
 		const uploadEpoch = adoptionEpochRef.current;
-		const isImage = isRasterImageMediaType(file.type);
+		const isPromptImage = !statePurpose && isRasterImageMediaType(file.type);
 
-		setUploadStates((prev) => new Map(prev).set(file, { status: "uploading" }));
+		setUploadStates((prev) =>
+			new Map(prev).set(file, { status: "uploading", purpose: statePurpose }),
+		);
 		void (async () => {
 			try {
-				const result = await API.experimental.uploadChatFile(file, uploadOrgId);
+				const result = await API.experimental.uploadChatFile(
+					file,
+					uploadOrgId,
+					purpose,
+				);
 				commitUploadOutcome(file, uploadOrgId, uploadEpoch, {
 					status: "uploaded",
 					fileId: result.id,
+					purpose: statePurpose,
 				});
-				if (isImage) {
+				if (isPromptImage) {
 					// Pre-warm the HTTP cache so the timeline can
 					// render the image instantly after send. Text
 					// content is already local in the composer.
@@ -268,6 +298,7 @@ export function useFileAttachments(
 				commitUploadOutcome(file, uploadOrgId, uploadEpoch, {
 					status: "error",
 					error: formatAgentAttachmentUploadError(err),
+					purpose: statePurpose,
 				});
 			}
 		})();
@@ -401,7 +432,10 @@ export function useFileAttachments(
 		}
 	};
 
-	const handleAttach = (incomingFiles: File[]) => {
+	const handleAttach = (
+		incomingFiles: File[],
+		purpose: ChatFilePurpose = "prompt",
+	) => {
 		// Sanitize filenames at the boundary so chip labels, the
 		// persisted-attachment localStorage record, the upload
 		// header, and any downstream LLM prompt all see safe names.
@@ -415,9 +449,13 @@ export function useFileAttachments(
 		// relabel the error with the new provider.
 		const providerSnapshot = providerRef.current;
 		const budget = imageBudgetForProvider(providerSnapshot);
+		// Workspace files never reach the model provider, so its image
+		// budget does not apply to them.
+		const statePurpose = stagedFilePurpose(purpose);
+		const maxBytes = maxAgentAttachmentBytes(purpose);
 		const items: AttachItem[] = files.map((file) => ({
 			file,
-			needsResize: imageNeedsResize(file, budget),
+			needsResize: !statePurpose && imageNeedsResize(file, budget),
 		}));
 
 		setAttachments((prev) => [...prev, ...files]);
@@ -433,10 +471,11 @@ export function useFileAttachments(
 		setUploadStates((prev) => {
 			const next = new Map(prev);
 			for (const { file, needsResize } of items) {
-				if (file.size > MaxChatFileSizeBytes && !needsResize) {
+				if (file.size > maxBytes && !needsResize) {
 					next.set(file, {
 						status: "error" as const,
-						error: formatAgentAttachmentTooLargeError(file.size),
+						error: formatAgentAttachmentTooLargeError(file.size, purpose),
+						purpose: statePurpose,
 					});
 				} else if (needsResize) {
 					next.set(file, { status: "processing" });
@@ -468,8 +507,8 @@ export function useFileAttachments(
 
 		for (const { file, needsResize } of items) {
 			if (needsResize) continue;
-			if (file.size > MaxChatFileSizeBytes) continue; // already marked as error above
-			startUpload(file);
+			if (file.size > maxBytes) continue; // already marked as error above
+			startUpload(file, purpose);
 		}
 
 		void processResizes(items, budget, providerSnapshot);

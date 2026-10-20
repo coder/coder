@@ -249,6 +249,19 @@ export const isRasterImageMediaType = (mediaType: string): boolean =>
 export const shouldRouteFileToWorkspace = (file: File): boolean =>
 	!isChatAttachmentFile(file);
 
+/** The purpose attachment state records: only workspace files carry one. */
+export type StagedFilePurpose = Extract<TypesGen.ChatFilePurpose, "workspace">;
+
+/**
+ * Narrows an upload purpose to the value attachment state stores. Prompt
+ * files map to undefined so their state matches records saved before
+ * purposes existed.
+ */
+export const stagedFilePurpose = (
+	purpose: unknown,
+): StagedFilePurpose | undefined =>
+	purpose === "workspace" ? purpose : undefined;
+
 export const isWorkspaceFileReferencePart = (
 	part: TypesGen.ChatMessagePart,
 ): part is TypesGen.ChatWorkspaceFileReferencePart =>

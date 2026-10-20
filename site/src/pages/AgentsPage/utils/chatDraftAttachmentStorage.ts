@@ -1,3 +1,4 @@
+import { type StagedFilePurpose, stagedFilePurpose } from "./chatAttachments";
 import { decodeDataURL } from "./dataUrls";
 
 type ChatDraftAttachmentRecord = {
@@ -17,6 +18,8 @@ type ChatDraftAttachmentRecord = {
 	| {
 			status: "uploaded";
 			fileId: string;
+			// Absent for prompt files.
+			purpose?: StagedFilePurpose;
 	  }
 );
 
@@ -127,7 +130,7 @@ const validateRecord = (
 		};
 	}
 	if (status === "uploaded") {
-		const { fileId } = value;
+		const { fileId, purpose } = value;
 		if (!isString(fileId)) {
 			return null;
 		}
@@ -135,6 +138,7 @@ const validateRecord = (
 			status,
 			clientId,
 			fileId,
+			purpose: stagedFilePurpose(purpose),
 			fileName,
 			fileType,
 			lastModified,
