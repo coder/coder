@@ -232,6 +232,15 @@ func (w *chatWorker) copyWorkspaceFile(ctx context.Context, row database.Acquire
 	if err != nil {
 		return workspacesdk.AgentUploadChatFileResponse{}, classifyWorkspaceFileUploadError(err)
 	}
+	// A write-once upload reports a file that already exists at the target
+	// instead of replacing it, so a size mismatch means the workspace holds
+	// a different file and the stored bytes must survive.
+	if resp.Size != int64(len(file.Data)) {
+		return workspacesdk.AgentUploadChatFileResponse{}, parkWorkspaceFileDelivery(xerrors.Errorf(
+			"the workspace already has a different file at %s (%d bytes, expected %d bytes); remove that file from the workspace, then retry",
+			resp.Path, resp.Size, len(file.Data),
+		))
+	}
 	return resp, nil
 }
 

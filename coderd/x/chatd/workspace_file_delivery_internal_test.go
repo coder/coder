@@ -353,6 +353,32 @@ func TestWorkspaceFileDeliveryOutcomes(t *testing.T) {
 		require.Len(t, f.agent.uploadRequests(), 1)
 	})
 
+	t.Run("DifferentExistingFileParks", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+		// The write-once target already holds an unrelated file, so the
+		// agent reports that file instead of storing this one.
+		f.agent.files[file.ID] = []byte("junk")
+		worker := f.worker(t)
+
+		worker.deliverWorkspaceFiles(ctx)
+		state := f.fileState(ctx, t, chat.ID, file.ID)
+		require.False(t, state.WorkspaceDeliveredAt.Valid)
+		require.Equal(t, database.ChatWorkspaceFileMaxDeliveryAttempts, state.WorkspaceDeliveryAttempts)
+		require.Contains(t, state.WorkspaceDeliveryError.String, path.Join("/home/coder/.coder/chats", chat.ID.String(), "files", file.ID.String(), "report.zip"))
+		require.Contains(t, state.WorkspaceDeliveryError.String, "(4 bytes, expected 9 bytes)")
+		stored, err := f.db.GetChatFileByID(ctx, file.ID)
+		require.NoError(t, err)
+		require.Equal(t, []byte("zip bytes"), stored.Data)
+
+		f.clock.Advance(time.Hour)
+		worker.deliverWorkspaceFiles(ctx)
+		require.Len(t, f.agent.uploadRequests(), 1)
+	})
+
 	t.Run("DisconnectedAgentRefunds", func(t *testing.T) {
 		t.Parallel()
 		f := newWorkspaceFileDeliveryFixture(t)
