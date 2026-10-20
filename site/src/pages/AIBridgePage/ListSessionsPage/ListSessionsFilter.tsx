@@ -1,31 +1,27 @@
+import { BrainIcon, CloudIcon, TerminalIcon, UserIcon } from "lucide-react";
+import { useQueryClient } from "react-query";
+import {
+	getValidationErrorMessage,
+	hasError,
+	isApiValidationError,
+} from "#/api/errors";
 import { DateTimeRangePicker } from "#/components/DateTimeRangePicker/DateTimeRangePicker";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
+import type { UseFilterResult } from "#/components/Filter/Filter";
+import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
+import type { FilterCategory } from "#/components/Filter/FilterCombobox/types";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { getUserFilterOptions } from "#/pages/WorkspacesPage/filter/categoryOptions";
 import {
-	Filter,
-	MenuSkeleton,
-	type useFilter,
-} from "#/components/Filter/Filter";
-import { type UserFilterMenu, UserMenu } from "#/components/Filter/UserFilter";
-import { ClientFilter, type ClientFilterMenu } from "../filters/ClientFilter";
-import { ModelFilter, type ModelFilterMenu } from "../filters/ModelFilter";
-import {
-	ProviderFilter,
-	type ProviderFilterMenu,
-} from "../filters/ProviderFilter";
-
-// Narrower than the SelectFilter default so the search input keeps most
-// of the row on wide viewports.
-const FILTER_WIDTH = 150;
+	getClientFilterOptions,
+	getModelFilterOptions,
+	getProviderFilterOptions,
+} from "./categoryOptions";
+import { queryWithSearch, withoutTimeRange } from "./timeRange";
 
 type ListSessionsFilterProps = {
-	filter: ReturnType<typeof useFilter>;
+	filter: UseFilterResult;
 	error?: unknown;
-	menus: {
-		user: UserFilterMenu;
-		provider: ProviderFilterMenu;
-		client: ClientFilterMenu;
-		model: ModelFilterMenu;
-	};
 	timeRange: DateTimeRangeValue;
 	onTimeRangeChange: (value: DateTimeRangeValue) => void;
 };
@@ -33,35 +29,64 @@ type ListSessionsFilterProps = {
 export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 	filter,
 	error,
-	menus,
 	timeRange,
 	onTimeRangeChange,
 }) => {
+	const { user: me } = useAuthenticated();
+	const queryClient = useQueryClient();
+
+	const categories: FilterCategory[] = [
+		{
+			key: "initiator",
+			label: "User",
+			icon: <UserIcon />,
+			getOptions: (query) => getUserFilterOptions(query, me, queryClient),
+		},
+		{
+			key: "provider_name",
+			label: "Provider",
+			icon: <CloudIcon />,
+			getOptions: (query) => getProviderFilterOptions(query, queryClient),
+		},
+		{
+			key: "client",
+			label: "Client",
+			icon: <TerminalIcon />,
+			getOptions: (query) => getClientFilterOptions(query, queryClient),
+		},
+		{
+			key: "model",
+			label: "Model",
+			icon: <BrainIcon />,
+			getOptions: (query) => getModelFilterOptions(query, queryClient),
+		},
+	];
+
+	// The page hides its ErrorAlert for API validation errors, so the filter
+	// owns surfacing the actionable "invalid query" message.
+	const showValidationError = hasError(error) && isApiValidationError(error);
+
 	return (
-		<Filter
-			filter={filter}
-			optionsSkeleton={<MenuSkeleton />}
-			isLoading={menus.user.isInitializing}
-			// No preset queries; the search field and menus already cover them.
-			presets={[]}
-			error={error}
-			options={
-				<>
-					<DateTimeRangePicker
-						value={timeRange}
-						onChange={onTimeRangeChange}
-						size="lg"
-					/>
-					<UserMenu
-						menu={menus.user}
-						placeholder="All users"
-						width={FILTER_WIDTH}
-					/>
-					<ProviderFilter menu={menus.provider} width={FILTER_WIDTH} />
-					<ClientFilter menu={menus.client} width={FILTER_WIDTH} />
-					<ModelFilter menu={menus.model} width={FILTER_WIDTH} />
-				</>
-			}
-		/>
+		<div className="flex flex-wrap items-start gap-2 lg:flex-nowrap">
+			<div className="flex min-w-0 flex-1 basis-full flex-col gap-2 lg:basis-auto">
+				<FilterCombobox
+					value={withoutTimeRange(filter.query)}
+					onChange={(search) =>
+						filter.update(queryWithSearch(filter.query, search))
+					}
+					categories={categories}
+					placeholder="Search and filter sessions…"
+					className="w-full min-w-0"
+					errorMessage={
+						showValidationError ? getValidationErrorMessage(error) : undefined
+					}
+				/>
+			</div>
+			<DateTimeRangePicker
+				value={timeRange}
+				onChange={onTimeRangeChange}
+				size="lg"
+			/>
+		</div>
 	);
 };
