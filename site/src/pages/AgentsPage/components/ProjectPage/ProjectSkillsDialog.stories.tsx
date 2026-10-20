@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useEffect } from "react";
-import { useQueryClient } from "react-query";
+import { useQuery } from "react-query";
 import { fn, screen, spyOn, userEvent } from "storybook/test";
 import { API } from "#/api/api";
 import {
@@ -111,20 +110,18 @@ type RefetchSkillsOnMountProps = {
 };
 
 /**
- * Refetches the cached skill list once on mount. Retries are off so a
- * rejected request settles at once instead of after the query's backoff.
+ * Observes the cached skill list as stale, so mounting refetches it once.
+ * Retries are off so a rejected request settles at once instead of after
+ * the query's backoff.
  */
 const RefetchSkillsOnMount: React.FC<RefetchSkillsOnMountProps> = ({
 	children,
 }) => {
-	const queryClient = useQueryClient();
-	useEffect(() => {
-		void queryClient.prefetchQuery({
-			...chatProjectSkills(MockChatProject.organization_id, MockChatProject.id),
-			staleTime: 0,
-			retry: false,
-		});
-	}, [queryClient]);
+	useQuery({
+		...chatProjectSkills(MockChatProject.organization_id, MockChatProject.id),
+		staleTime: 0,
+		retry: false,
+	});
 	return children;
 };
 
