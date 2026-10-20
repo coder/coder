@@ -23,8 +23,10 @@ type sqlcQuerier interface {
 	// several root agents match the suffix, the first is checked here and
 	// the caller's selection reports the ambiguity. A claim counts an
 	// attempt, clears the last error and leases the file until
-	// lease_expires_at. File content is not returned so a batch claim does
-	// not load blobs.
+	// lease_expires_at. The returned lease_expires_at identifies the claim:
+	// the outcome queries take it back so a worker whose lease expired and
+	// was claimed again cannot record an outcome. File content is not
+	// returned so a batch claim does not load blobs.
 	AcquireChatWorkspaceFileDeliveries(ctx context.Context, arg AcquireChatWorkspaceFileDeliveriesParams) ([]AcquireChatWorkspaceFileDeliveriesRow, error)
 	// Set the lease to expire according to the provided timeout.  If there is
 	// already a lease, an exception is raised.
@@ -119,7 +121,8 @@ type sqlcQuerier interface {
 	ClearWorkspaceSecretsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
 	// CompleteChatWorkspaceFileDelivery records the receipt and drops the
 	// file content. Metadata stays so messages that reference the file keep
-	// validating.
+	// validating. It applies only under the claim that lease_expires_at
+	// identifies.
 	CompleteChatWorkspaceFileDelivery(ctx context.Context, arg CompleteChatWorkspaceFileDeliveryParams) (int64, error)
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
@@ -320,7 +323,8 @@ type sqlcQuerier interface {
 	// decides the claimed attempt: 'retry' keeps it counted, 'refund' gives
 	// it back for failures that never reached the agent, and 'park' sets the
 	// attempts to max_attempts so the file waits for an explicit retry. Any
-	// other mode fails on the NOT NULL attempts column.
+	// other mode fails on the NOT NULL attempts column. It applies only under
+	// the claim that lease_expires_at identifies.
 	FailChatWorkspaceFileDelivery(ctx context.Context, arg FailChatWorkspaceFileDeliveryParams) (int64, error)
 	FavoriteWorkspace(ctx context.Context, id uuid.UUID) error
 	FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentMemoryResourceMonitor, error)

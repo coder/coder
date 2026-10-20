@@ -6278,6 +6278,7 @@ RETURNING
 	cf.mimetype,
 	octet_length(cf.data)::bigint AS size_bytes,
 	cf.workspace_delivery_attempts,
+	cf.workspace_delivery_next_attempt_at::timestamptz AS lease_expires_at,
 	candidates.chat_id,
 	candidates.workspace_id
 `
@@ -6299,6 +6300,7 @@ type AcquireChatWorkspaceFileDeliveriesRow struct {
 	Mimetype                  string        `db:"mimetype" json:"mimetype"`
 	SizeBytes                 int64         `db:"size_bytes" json:"size_bytes"`
 	WorkspaceDeliveryAttempts int32         `db:"workspace_delivery_attempts" json:"workspace_delivery_attempts"`
+	LeaseExpiresAt            time.Time     `db:"lease_expires_at" json:"lease_expires_at"`
 	ChatID                    uuid.UUID     `db:"chat_id" json:"chat_id"`
 	WorkspaceID               uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
 }
@@ -6314,8 +6316,10 @@ type AcquireChatWorkspaceFileDeliveriesRow struct {
 // several root agents match the suffix, the first is checked here and
 // the caller's selection reports the ambiguity. A claim counts an
 // attempt, clears the last error and leases the file until
-// lease_expires_at. File content is not returned so a batch claim does
-// not load blobs.
+// lease_expires_at. The returned lease_expires_at identifies the claim:
+// the outcome queries take it back so a worker whose lease expired and
+// was claimed again cannot record an outcome. File content is not
+// returned so a batch claim does not load blobs.
 func (q *sqlQuerier) AcquireChatWorkspaceFileDeliveries(ctx context.Context, arg AcquireChatWorkspaceFileDeliveriesParams) ([]AcquireChatWorkspaceFileDeliveriesRow, error) {
 	rows, err := q.db.QueryContext(ctx, acquireChatWorkspaceFileDeliveries,
 		arg.LeaseExpiresAt,
@@ -6340,6 +6344,7 @@ func (q *sqlQuerier) AcquireChatWorkspaceFileDeliveries(ctx context.Context, arg
 			&i.Mimetype,
 			&i.SizeBytes,
 			&i.WorkspaceDeliveryAttempts,
+			&i.LeaseExpiresAt,
 			&i.ChatID,
 			&i.WorkspaceID,
 		); err != nil {
@@ -6369,6 +6374,7 @@ SET
 WHERE id = $4::uuid
 	AND purpose = 'workspace'::chat_file_purpose
 	AND workspace_delivered_at IS NULL
+	AND workspace_delivery_next_attempt_at = $5::timestamptz
 `
 
 type CompleteChatWorkspaceFileDeliveryParams struct {
@@ -6376,17 +6382,20 @@ type CompleteChatWorkspaceFileDeliveryParams struct {
 	DeliveredPath        string    `db:"delivered_path" json:"delivered_path"`
 	DeliveredWorkspaceID uuid.UUID `db:"delivered_workspace_id" json:"delivered_workspace_id"`
 	ID                   uuid.UUID `db:"id" json:"id"`
+	LeaseExpiresAt       time.Time `db:"lease_expires_at" json:"lease_expires_at"`
 }
 
 // CompleteChatWorkspaceFileDelivery records the receipt and drops the
 // file content. Metadata stays so messages that reference the file keep
-// validating.
+// validating. It applies only under the claim that lease_expires_at
+// identifies.
 func (q *sqlQuerier) CompleteChatWorkspaceFileDelivery(ctx context.Context, arg CompleteChatWorkspaceFileDeliveryParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, completeChatWorkspaceFileDelivery,
 		arg.DeliveredAt,
 		arg.DeliveredPath,
 		arg.DeliveredWorkspaceID,
 		arg.ID,
+		arg.LeaseExpiresAt,
 	)
 	if err != nil {
 		return 0, err
@@ -6430,21 +6439,24 @@ SET
 WHERE id = $5::uuid
 	AND purpose = 'workspace'::chat_file_purpose
 	AND workspace_delivered_at IS NULL
+	AND workspace_delivery_next_attempt_at = $6::timestamptz
 `
 
 type FailChatWorkspaceFileDeliveryParams struct {
-	Error         string    `db:"error" json:"error"`
-	NextAttemptAt time.Time `db:"next_attempt_at" json:"next_attempt_at"`
-	Mode          string    `db:"mode" json:"mode"`
-	MaxAttempts   int32     `db:"max_attempts" json:"max_attempts"`
-	ID            uuid.UUID `db:"id" json:"id"`
+	Error          string    `db:"error" json:"error"`
+	NextAttemptAt  time.Time `db:"next_attempt_at" json:"next_attempt_at"`
+	Mode           string    `db:"mode" json:"mode"`
+	MaxAttempts    int32     `db:"max_attempts" json:"max_attempts"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	LeaseExpiresAt time.Time `db:"lease_expires_at" json:"lease_expires_at"`
 }
 
 // FailChatWorkspaceFileDelivery records a failed attempt. The mode
 // decides the claimed attempt: 'retry' keeps it counted, 'refund' gives
 // it back for failures that never reached the agent, and 'park' sets the
 // attempts to max_attempts so the file waits for an explicit retry. Any
-// other mode fails on the NOT NULL attempts column.
+// other mode fails on the NOT NULL attempts column. It applies only under
+// the claim that lease_expires_at identifies.
 func (q *sqlQuerier) FailChatWorkspaceFileDelivery(ctx context.Context, arg FailChatWorkspaceFileDeliveryParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, failChatWorkspaceFileDelivery,
 		arg.Error,
@@ -6452,6 +6464,7 @@ func (q *sqlQuerier) FailChatWorkspaceFileDelivery(ctx context.Context, arg Fail
 		arg.Mode,
 		arg.MaxAttempts,
 		arg.ID,
+		arg.LeaseExpiresAt,
 	)
 	if err != nil {
 		return 0, err

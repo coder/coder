@@ -68,8 +68,10 @@ WHERE id = ANY(@ids::uuid[]);
 -- several root agents match the suffix, the first is checked here and
 -- the caller's selection reports the ambiguity. A claim counts an
 -- attempt, clears the last error and leases the file until
--- lease_expires_at. File content is not returned so a batch claim does
--- not load blobs.
+-- lease_expires_at. The returned lease_expires_at identifies the claim:
+-- the outcome queries take it back so a worker whose lease expired and
+-- was claimed again cannot record an outcome. File content is not
+-- returned so a batch claim does not load blobs.
 WITH candidates AS (
 	SELECT cf.id, c.id AS chat_id, c.workspace_id
 	FROM chat_files cf
@@ -129,13 +131,15 @@ RETURNING
 	cf.mimetype,
 	octet_length(cf.data)::bigint AS size_bytes,
 	cf.workspace_delivery_attempts,
+	cf.workspace_delivery_next_attempt_at::timestamptz AS lease_expires_at,
 	candidates.chat_id,
 	candidates.workspace_id;
 
 -- name: CompleteChatWorkspaceFileDelivery :execrows
 -- CompleteChatWorkspaceFileDelivery records the receipt and drops the
 -- file content. Metadata stays so messages that reference the file keep
--- validating.
+-- validating. It applies only under the claim that lease_expires_at
+-- identifies.
 UPDATE chat_files
 SET
 	data = ''::bytea,
@@ -147,14 +151,16 @@ SET
 	workspace_delivery_next_attempt_at = NULL
 WHERE id = @id::uuid
 	AND purpose = 'workspace'::chat_file_purpose
-	AND workspace_delivered_at IS NULL;
+	AND workspace_delivered_at IS NULL
+	AND workspace_delivery_next_attempt_at = @lease_expires_at::timestamptz;
 
 -- name: FailChatWorkspaceFileDelivery :execrows
 -- FailChatWorkspaceFileDelivery records a failed attempt. The mode
 -- decides the claimed attempt: 'retry' keeps it counted, 'refund' gives
 -- it back for failures that never reached the agent, and 'park' sets the
 -- attempts to max_attempts so the file waits for an explicit retry. Any
--- other mode fails on the NOT NULL attempts column.
+-- other mode fails on the NOT NULL attempts column. It applies only under
+-- the claim that lease_expires_at identifies.
 UPDATE chat_files
 SET
 	workspace_delivery_error = @error::text,
@@ -167,7 +173,8 @@ SET
 	END
 WHERE id = @id::uuid
 	AND purpose = 'workspace'::chat_file_purpose
-	AND workspace_delivered_at IS NULL;
+	AND workspace_delivered_at IS NULL
+	AND workspace_delivery_next_attempt_at = @lease_expires_at::timestamptz;
 
 -- name: RetryChatWorkspaceFileDeliveries :execrows
 -- RetryChatWorkspaceFileDeliveries makes a chat's undelivered workspace
