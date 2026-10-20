@@ -415,11 +415,9 @@ describe("submitChatTurn", () => {
 			message: sentMessage,
 			messages: [promotedSteer, sentMessage],
 		});
-		const fetchQueueConvergence = vi.fn().mockResolvedValue({
-			messages: [],
-			has_more: false,
-			queued_messages: [queued1, queued2],
-		});
+		// Convergence stays in flight, so the checks below see only the
+		// local reconciliation.
+		const fetchQueueConvergence = vi.fn(() => new Promise<never>(() => {}));
 		const setCacheQueuedMessages = vi.fn();
 		const upsertCacheMessages = vi.fn();
 
