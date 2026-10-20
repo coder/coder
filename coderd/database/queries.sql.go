@@ -10787,7 +10787,7 @@ func (q *sqlQuerier) GetChatQueuedForCapacity(ctx context.Context, arg GetChatQu
 }
 
 const getChatQueuedMessageByID = `-- name: GetChatQueuedMessageByID :one
-SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since, busy_behavior FROM chat_queued_messages
 WHERE id = $1::bigint AND chat_id = $2::uuid
 `
 
@@ -10809,12 +10809,13 @@ func (q *sqlQuerier) GetChatQueuedMessageByID(ctx context.Context, arg GetChatQu
 		&i.CreatedBy,
 		&i.ReasoningEffort,
 		&i.EditingSince,
+		&i.BusyBehavior,
 	)
 	return i, err
 }
 
 const getChatQueuedMessageHead = `-- name: GetChatQueuedMessageHead :one
-SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since, busy_behavior FROM chat_queued_messages
 WHERE chat_id = $1::uuid
 ORDER BY position ASC, id ASC
 LIMIT 1
@@ -10834,12 +10835,13 @@ func (q *sqlQuerier) GetChatQueuedMessageHead(ctx context.Context, chatID uuid.U
 		&i.CreatedBy,
 		&i.ReasoningEffort,
 		&i.EditingSince,
+		&i.BusyBehavior,
 	)
 	return i, err
 }
 
 const getChatQueuedMessages = `-- name: GetChatQueuedMessages :many
-SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since, busy_behavior FROM chat_queued_messages
 WHERE chat_id = $1
 ORDER BY position ASC, id ASC
 `
@@ -10868,6 +10870,7 @@ func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID
 			&i.CreatedBy,
 			&i.ReasoningEffort,
 			&i.EditingSince,
+			&i.BusyBehavior,
 		); err != nil {
 			return nil, err
 		}
@@ -12756,7 +12759,7 @@ SELECT
     chats.owner_id
 FROM chats
 WHERE chats.id = $1::uuid
-RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since, busy_behavior
 `
 
 type InsertChatQueuedMessageParams struct {
@@ -12787,20 +12790,22 @@ func (q *sqlQuerier) InsertChatQueuedMessage(ctx context.Context, arg InsertChat
 		&i.CreatedBy,
 		&i.ReasoningEffort,
 		&i.EditingSince,
+		&i.BusyBehavior,
 	)
 	return i, err
 }
 
 const insertChatQueuedMessageWithCreator = `-- name: InsertChatQueuedMessageWithCreator :one
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by)
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by, busy_behavior)
 VALUES (
     $1::uuid,
     $2::jsonb,
     $3::uuid,
     $4::chat_reasoning_effort,
-    $5::uuid
+    $5::uuid,
+    $6::chat_busy_behavior
 )
-RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since, busy_behavior
 `
 
 type InsertChatQueuedMessageWithCreatorParams struct {
@@ -12809,6 +12814,7 @@ type InsertChatQueuedMessageWithCreatorParams struct {
 	ModelConfigID   uuid.NullUUID           `db:"model_config_id" json:"model_config_id"`
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 	CreatedBy       uuid.UUID               `db:"created_by" json:"created_by"`
+	BusyBehavior    ChatBusyBehavior        `db:"busy_behavior" json:"busy_behavior"`
 }
 
 // Inserts a queued message that carries a position (from the default
@@ -12821,6 +12827,7 @@ func (q *sqlQuerier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg
 		arg.ModelConfigID,
 		arg.ReasoningEffort,
 		arg.CreatedBy,
+		arg.BusyBehavior,
 	)
 	var i ChatQueuedMessage
 	err := row.Scan(
@@ -12833,6 +12840,7 @@ func (q *sqlQuerier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg
 		&i.CreatedBy,
 		&i.ReasoningEffort,
 		&i.EditingSince,
+		&i.BusyBehavior,
 	)
 	return i, err
 }
@@ -13237,7 +13245,7 @@ WHERE id = (
     ORDER BY cqm.created_at ASC, cqm.id ASC
     LIMIT 1
 )
-RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since, busy_behavior
 `
 
 func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error) {
@@ -13253,6 +13261,7 @@ func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID)
 		&i.CreatedBy,
 		&i.ReasoningEffort,
 		&i.EditingSince,
+		&i.BusyBehavior,
 	)
 	return i, err
 }
@@ -14866,7 +14875,7 @@ SET content = $1::jsonb,
     model_config_id = $2::uuid,
     reasoning_effort = $3::chat_reasoning_effort
 WHERE id = $4::bigint AND chat_id = $5::uuid
-RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since, busy_behavior
 `
 
 type UpdateChatQueuedMessageContentParams struct {
@@ -14897,6 +14906,7 @@ func (q *sqlQuerier) UpdateChatQueuedMessageContent(ctx context.Context, arg Upd
 		&i.CreatedBy,
 		&i.ReasoningEffort,
 		&i.EditingSince,
+		&i.BusyBehavior,
 	)
 	return i, err
 }
@@ -14905,7 +14915,7 @@ const updateChatQueuedMessageEditing = `-- name: UpdateChatQueuedMessageEditing 
 UPDATE chat_queued_messages
 SET editing_since = CASE WHEN $1::boolean THEN COALESCE(editing_since, NOW()) ELSE NULL END
 WHERE id = $2::bigint AND chat_id = $3::uuid
-RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since, busy_behavior
 `
 
 type UpdateChatQueuedMessageEditingParams struct {
@@ -14929,6 +14939,7 @@ func (q *sqlQuerier) UpdateChatQueuedMessageEditing(ctx context.Context, arg Upd
 		&i.CreatedBy,
 		&i.ReasoningEffort,
 		&i.EditingSince,
+		&i.BusyBehavior,
 	)
 	return i, err
 }
