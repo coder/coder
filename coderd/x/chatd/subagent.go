@@ -427,17 +427,20 @@ func (p *Server) subagentTools(
 	ctx context.Context,
 	currentChat func() database.Chat,
 	currentModelConfigID uuid.UUID,
-) []fantasy.AgentTool {
+) ([]fantasy.AgentTool, error) {
 	currentChatSnapshot := database.Chat{}
 	if currentChat != nil {
 		currentChatSnapshot = currentChat()
 	}
 
-	spawnAgentDescription := buildSpawnAgentDescription(
+	spawnAgentDescription, err := buildSpawnAgentDescription(
 		ctx,
 		p,
 		currentChatSnapshot,
 	)
+	if err != nil {
+		return nil, xerrors.Errorf("build spawn agent description: %w", err)
+	}
 
 	return []fantasy.AgentTool{
 		fantasy.NewAgentTool(
@@ -888,7 +891,7 @@ func (p *Server) subagentTools(
 				}), nil
 			},
 		),
-	}
+	}, nil
 }
 
 func (p *Server) loadSubagentSpawnParentChat(
