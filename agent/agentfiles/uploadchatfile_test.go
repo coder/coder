@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"testing/iotest"
 	"time"
@@ -73,6 +74,14 @@ func uploadChatFileURL(chatID, name string) string {
 func uploadChatFile(t *testing.T, h http.Handler, name string, body io.Reader) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, uploadChatFileURL(uploadChatFileTestChatID, name), body)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	return rr
+}
+
+func uploadChatFileOnce(t *testing.T, h http.Handler, fileID, name string, body io.Reader) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, uploadChatFileURL(uploadChatFileTestChatID, name)+"&"+url.Values{"file_id": {fileID}}.Encode(), body)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 	return rr
@@ -180,6 +189,144 @@ func TestHandleUploadChatFile_CollisionExhausted(t *testing.T) {
 			entries, err := os.ReadDir(dir)
 			require.NoError(t, err)
 			require.Len(t, entries, 1000)
+		})
+	}
+}
+
+func TestHandleUploadChatFile_WriteOnce(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range uploadChatFileFilesystems {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			home := t.TempDir()
+			r := newUploadChatFileRouter(t, tc.fs, home)
+			fileID := uuid.NewString()
+
+			first := decodeUploadChatFileResponse(t, uploadChatFileOnce(t, r, fileID, "my report.zip", strings.NewReader("first")))
+			second := decodeUploadChatFileResponse(t, uploadChatFileOnce(t, r, fileID, "my report.zip", strings.NewReader("second upload")))
+
+			homePath := chatfiles.WorkspaceUploadFileHomePath(uploadChatFileTestChatID, fileID, "my_report.zip")
+			wantPath := filepath.Join(home, filepath.FromSlash(strings.TrimPrefix(homePath, "~/")))
+			want := workspacesdk.AgentUploadChatFileResponse{Path: wantPath, Name: "my_report.zip", Size: int64(len("first"))}
+			require.Equal(t, want, first)
+			require.Equal(t, want, second)
+			contents, err := os.ReadFile(wantPath)
+			require.NoError(t, err)
+			require.Equal(t, "first", string(contents))
+			entries, err := os.ReadDir(filepath.Dir(wantPath))
+			require.NoError(t, err)
+			require.Len(t, entries, 1, "temp files must not outlive a write-once upload")
+		})
+	}
+}
+
+func TestHandleUploadChatFile_WriteOnceConcurrent(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range uploadChatFileFilesystems {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			home := t.TempDir()
+			r := newUploadChatFileRouter(t, tc.fs, home)
+			fileID := uuid.NewString()
+
+			const uploads = 8
+			var wg sync.WaitGroup
+			responses := make([]*httptest.ResponseRecorder, uploads)
+			for i := range uploads {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					responses[i] = uploadChatFileOnce(t, r, fileID, "archive.zip", strings.NewReader(fmt.Sprintf("payload %d", i)))
+				}()
+			}
+			wg.Wait()
+
+			wantPath := filepath.Join(chatfiles.WorkspaceUploadFileDir(home, uploadChatFileTestChatID, fileID), "archive.zip")
+			for _, rr := range responses {
+				require.Equal(t, wantPath, decodeUploadChatFileResponse(t, rr).Path)
+			}
+			contents, err := os.ReadFile(wantPath)
+			require.NoError(t, err)
+			require.Regexp(t, `^payload \d$`, string(contents))
+			entries, err := os.ReadDir(filepath.Dir(wantPath))
+			require.NoError(t, err)
+			require.Len(t, entries, 1)
+		})
+	}
+}
+
+func TestHandleUploadChatFile_WriteOnceRejectsNonRegularTarget(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("creating symlinks requires elevated privileges on Windows")
+	}
+
+	targets := []struct {
+		name   string
+		create func(t *testing.T, target string)
+	}{
+		{name: "Directory", create: func(t *testing.T, target string) {
+			require.NoError(t, os.Mkdir(target, 0o755))
+		}},
+		{name: "Symlink", create: func(t *testing.T, target string) {
+			outside := filepath.Join(t.TempDir(), "outside.zip")
+			require.NoError(t, os.WriteFile(outside, []byte("original"), 0o600))
+			require.NoError(t, os.Symlink(outside, target))
+		}},
+	}
+	for _, tc := range uploadChatFileFilesystems {
+		for _, target := range targets {
+			t.Run(tc.name+"/"+target.name, func(t *testing.T) {
+				t.Parallel()
+
+				home := t.TempDir()
+				r := newUploadChatFileRouter(t, tc.fs, home)
+				fileID := uuid.NewString()
+				dir := chatfiles.WorkspaceUploadFileDir(home, uploadChatFileTestChatID, fileID)
+				require.NoError(t, os.MkdirAll(dir, 0o755))
+				target.create(t, filepath.Join(dir, "archive.zip"))
+
+				rr := uploadChatFileOnce(t, r, fileID, "archive.zip", strings.NewReader("payload"))
+
+				require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+				require.Contains(t, rr.Body.String(), "not a regular file")
+				entries, err := os.ReadDir(dir)
+				require.NoError(t, err)
+				require.Len(t, entries, 1, "temp files must not outlive a rejected upload")
+			})
+		}
+	}
+}
+
+func TestHandleUploadChatFile_WriteOnceRejectsSymlinkedFileDir(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("creating symlinks requires elevated privileges on Windows")
+	}
+
+	for _, tc := range uploadChatFileFilesystems {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			home := t.TempDir()
+			r := newUploadChatFileRouter(t, tc.fs, home)
+			target := t.TempDir()
+			fileID := uuid.NewString()
+			filesDir := chatfiles.WorkspaceUploadDir(home, uploadChatFileTestChatID)
+			require.NoError(t, os.MkdirAll(filesDir, 0o755))
+			require.NoError(t, os.Symlink(target, filepath.Join(filesDir, fileID)))
+
+			rr := uploadChatFileOnce(t, r, fileID, "archive.zip", strings.NewReader("payload"))
+
+			require.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
+			require.Contains(t, rr.Body.String(), "symlink")
+			entries, err := os.ReadDir(target)
+			require.NoError(t, err)
+			require.Empty(t, entries)
 		})
 	}
 }
@@ -369,6 +516,7 @@ func TestHandleUploadChatFile_BadRequest(t *testing.T) {
 		name     string
 		chatID   string
 		filename string
+		fileID   string
 		wantSub  string
 	}{
 		{name: "missing_chat_id", chatID: "", filename: "foo.zip", wantSub: "chat_id"},
@@ -377,12 +525,17 @@ func TestHandleUploadChatFile_BadRequest(t *testing.T) {
 		{name: "name_only_whitespace", chatID: uploadChatFileTestChatID, filename: "   ", wantSub: "required"},
 		{name: "chat_id_path_traversal", chatID: "../etc", filename: "foo.zip", wantSub: "chat_id"},
 		{name: "chat_id_with_slash", chatID: "a/b", filename: "foo.zip", wantSub: "chat_id"},
+		{name: "file_id_malformed", chatID: uploadChatFileTestChatID, filename: "foo.zip", fileID: "../etc", wantSub: "file_id"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequest(http.MethodPost, uploadChatFileURL(tt.chatID, tt.filename), strings.NewReader("x"))
+			target := uploadChatFileURL(tt.chatID, tt.filename)
+			if tt.fileID != "" {
+				target += "&" + url.Values{"file_id": {tt.fileID}}.Encode()
+			}
+			req := httptest.NewRequest(http.MethodPost, target, strings.NewReader("x"))
 			rr := httptest.NewRecorder()
 			r.ServeHTTP(rr, req)
 

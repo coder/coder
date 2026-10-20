@@ -51,6 +51,11 @@ func TestSanitizeWorkspaceUploadName(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
+			// Coderd stores the sanitized name and the agent sanitizes it
+			// again, so a second pass must not change it.
+			again, err := chatfiles.SanitizeWorkspaceUploadName(got)
+			require.NoError(t, err)
+			require.Equal(t, got, again)
 		})
 	}
 }
@@ -62,6 +67,9 @@ func TestSanitizeWorkspaceUploadName_TrimsAfterTruncate(t *testing.T) {
 	got, err := chatfiles.SanitizeWorkspaceUploadName(long)
 	require.NoError(t, err)
 	require.Equal(t, strings.Repeat("a", chatfiles.MaxWorkspaceUploadFileNameBytes-1), got)
+	again, err := chatfiles.SanitizeWorkspaceUploadName(got)
+	require.NoError(t, err)
+	require.Equal(t, got, again)
 }
 
 func TestSanitizeWorkspaceUploadName_Truncates(t *testing.T) {

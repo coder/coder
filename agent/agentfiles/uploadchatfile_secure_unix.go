@@ -15,14 +15,14 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
 )
 
-func (api *API) writeUploadExclusiveSecure(homeDir, chatID, dir, name string, r io.Reader) (finalName, finalPath string, size int64, err error) {
+func (api *API) writeUploadExclusiveSecure(target uploadTarget, name string, r io.Reader) (finalName, finalPath string, size int64, err error) {
 	switch api.filesystem.(type) {
 	case afero.OsFs, *afero.OsFs:
 	default:
 		return "", "", 0, errUploadSecureUnsupported
 	}
 
-	filesFD, err := openWorkspaceUploadDirNoFollow(homeDir, chatID)
+	filesFD, err := openWorkspaceUploadDirNoFollow(target)
 	if err != nil {
 		return "", "", 0, err
 	}
@@ -58,42 +58,51 @@ func (api *API) writeUploadExclusiveSecure(homeDir, chatID, dir, name string, r 
 		return "", "", 0, xerrors.Errorf("write upload: %w", err)
 	}
 
-	candidate, err := publishUploadAt(filesFD, tmp, name, unix.Linkat)
+	candidate, size, err := publishUploadAt(filesFD, tmp, name, n, target.mode(), unix.Linkat)
 	if err != nil {
 		return "", "", 0, err
 	}
-	return candidate, filepath.Join(dir, candidate), n, nil
+	return candidate, filepath.Join(target.dir, candidate), size, nil
 }
 
 // publishUploadAt gives the complete temp file its final name. linkat
 // never replaces or follows an existing name, so publishing cannot
 // clobber a concurrent upload or a symlink. Filesystems without hard
-// links fall back to an exclusive placeholder replaced by renameat.
-func publishUploadAt(dirFD int, tmp, name string, link func(oldDirFD int, oldPath string, newDirFD int, newPath string, flags int) error) (string, error) {
+// links fall back to an exclusive placeholder replaced by renameat. In
+// write-once mode the per-file directory only receives copies of one
+// file, so a placeholder created here is ours, and an existing regular
+// file is reported as the published upload with its current size.
+func publishUploadAt(dirFD int, tmp, name string, size int64, mode uploadPublishMode, link func(oldDirFD int, oldPath string, newDirFD int, newPath string, flags int) error) (string, int64, error) {
 	useLink := true
 	for i := 1; i <= maxUploadChatFileCollisionAttempts; i++ {
 		candidate := chatfiles.AddCollisionSuffix(name, i)
 		if useLink {
 			err := link(dirFD, tmp, dirFD, candidate, 0)
 			if err == nil {
-				return candidate, nil
+				return candidate, size, nil
 			}
 			if errors.Is(err, unix.EEXIST) {
+				if mode == uploadPublishWriteOnce {
+					return existingUploadAt(dirFD, candidate)
+				}
 				continue
 			}
 			if !errors.Is(err, unix.EPERM) && !errors.Is(err, unix.ENOTSUP) &&
 				!errors.Is(err, unix.EOPNOTSUPP) && !errors.Is(err, unix.EXDEV) {
-				return "", xerrors.Errorf("publish upload: %w", err)
+				return "", 0, xerrors.Errorf("publish upload: %w", err)
 			}
 			useLink = false
 		}
 
 		fd, err := unix.Openat(dirFD, candidate, unix.O_WRONLY|unix.O_CREAT|unix.O_EXCL|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0o644)
 		if errors.Is(err, unix.EEXIST) {
+			if mode == uploadPublishWriteOnce {
+				return existingUploadAt(dirFD, candidate)
+			}
 			continue
 		}
 		if err != nil {
-			return "", xerrors.Errorf("create upload target: %w", err)
+			return "", 0, xerrors.Errorf("create upload target: %w", err)
 		}
 		err = unix.Close(fd)
 		if err == nil {
@@ -101,11 +110,24 @@ func publishUploadAt(dirFD int, tmp, name string, link func(oldDirFD int, oldPat
 		}
 		if err != nil {
 			_ = unix.Unlinkat(dirFD, candidate, 0)
-			return "", xerrors.Errorf("publish upload: %w", err)
+			return "", 0, xerrors.Errorf("publish upload: %w", err)
 		}
-		return candidate, nil
+		return candidate, size, nil
 	}
-	return "", errUploadCollisionExhausted
+	return "", 0, errUploadCollisionExhausted
+}
+
+// existingUploadAt returns the name and size of the regular file a
+// write-once upload found at name, without following a symlink there.
+func existingUploadAt(dirFD int, name string) (string, int64, error) {
+	var st unix.Stat_t
+	if err := unix.Fstatat(dirFD, name, &st, unix.AT_SYMLINK_NOFOLLOW); err != nil {
+		return "", 0, xerrors.Errorf("check existing upload: %w", err)
+	}
+	if st.Mode&unix.S_IFMT != unix.S_IFREG {
+		return "", 0, xerrors.Errorf("%w: %s", errUploadTargetNotRegular, name)
+	}
+	return name, st.Size, nil
 }
 
 func sweepStaleUploadTempsAt(dirFD int) {
@@ -133,14 +155,18 @@ func sweepStaleUploadTempsAt(dirFD int) {
 	}
 }
 
-func openWorkspaceUploadDirNoFollow(homeDir, chatID string) (fd int, err error) {
-	current, err := unix.Open(homeDir, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+func openWorkspaceUploadDirNoFollow(target uploadTarget) (fd int, err error) {
+	current, err := unix.Open(target.homeDir, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return -1, xerrors.Errorf("open home directory: %w", err)
 	}
 
-	openedPath := homeDir
-	for _, component := range []string{".coder", "chats", chatID, chatfiles.WorkspaceUploadFilesSubdir} {
+	components := []string{".coder", "chats", target.chatID, chatfiles.WorkspaceUploadFilesSubdir}
+	if target.fileID != "" {
+		components = append(components, target.fileID)
+	}
+	openedPath := target.homeDir
+	for _, component := range components {
 		openedPath = filepath.Join(openedPath, component)
 		if err := unix.Mkdirat(current, component, 0o755); err != nil && !errors.Is(err, unix.EEXIST) {
 			_ = unix.Close(current)
