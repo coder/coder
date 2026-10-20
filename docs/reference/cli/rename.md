@@ -14,6 +14,14 @@ Rename a workspace
 coder rename [flags] <workspace> <new name>
 ```
 
+## Description
+
+```console
+  - Rename a workspace without a confirmation prompt:
+
+     $ coder rename <workspace> <new name> --yes
+```
+
 ## Options
 
 ### -y, --yes

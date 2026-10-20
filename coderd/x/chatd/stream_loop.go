@@ -2,8 +2,11 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"slices"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -155,19 +158,26 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 		snapshot.chat = chat
 
 		if chat.HistoryVersion > l.state.historyVersion {
+			afterRevision := l.state.historyVersion
+			if !l.state.initialMessageSyncDone && l.state.afterMessageID > 0 {
+				row, ok, err := l.initialSyncCursor(ctx, tx)
+				if err != nil {
+					return err
+				}
+				if ok {
+					// Include the cursor's own revision: rows committed with it can
+					// have higher IDs that the client has not seen.
+					afterRevision = row.Revision - 1
+				}
+			}
 			snapshot.changedMessages, err = tx.GetChatMessagesByRevisionForStream(ctx, database.GetChatMessagesByRevisionForStreamParams{
 				ChatID:        l.chatID,
-				AfterRevision: l.state.historyVersion,
+				AfterRevision: afterRevision,
 			})
 			if err != nil {
 				return xerrors.Errorf("get changed chat messages: %w", err)
 			}
-			for _, msg := range snapshot.changedMessages {
-				if msg.Deleted {
-					snapshot.historyReset = true
-					break
-				}
-			}
+			snapshot.historyReset = l.historyResetRequired(snapshot.changedMessages)
 			if snapshot.historyReset {
 				snapshot.fullHistory, err = tx.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 					ChatID:  l.chatID,
@@ -209,6 +219,49 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 		return streamDBSnapshot{}, err
 	}
 	return snapshot, nil
+}
+
+// historyResetRequired reports whether changed contains a deleted message the
+// client may still display. Messages are only deleted as a suffix of the chat:
+// an edit deletes the edited message and every later one. While message
+// after_id is live, a deleted message below it was deleted before message
+// after_id was written, and the client does not hold one above it. After the
+// initial sync, changed holds only rows written since the previous sync, so
+// message after_id is absent unless deleted and any deletion requires a reset.
+func (l *streamLoop) historyResetRequired(changed []database.ChatMessage) bool {
+	hasDeleted := slices.ContainsFunc(changed, func(msg database.ChatMessage) bool {
+		return msg.Deleted
+	})
+	if !hasDeleted {
+		return false
+	}
+	if l.state.afterMessageID <= 0 {
+		return true
+	}
+
+	idx := slices.IndexFunc(changed, func(msg database.ChatMessage) bool {
+		return msg.ID == l.state.afterMessageID
+	})
+	return idx < 0 || changed[idx].Deleted
+}
+
+// initialSyncCursor returns the afterMessageID row and true only when that row
+// belongs to this chat, so the first fetch can be bounded by its revision. A
+// cursor from another chat also clears afterMessageID.
+func (l *streamLoop) initialSyncCursor(ctx context.Context, tx database.Store) (database.ChatMessage, bool, error) {
+	cursor, err := tx.GetChatMessageByIDForStream(ctx, l.state.afterMessageID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return database.ChatMessage{}, false, nil
+		}
+		return database.ChatMessage{}, false, xerrors.Errorf("get stream cursor message: %w", err)
+	}
+	if cursor.ChatID != l.chatID {
+		// Another chat's ID says nothing about which messages the client holds.
+		l.state.afterMessageID = 0
+		return database.ChatMessage{}, false, nil
+	}
+	return cursor, true, nil
 }
 
 func (*streamLoop) actionRequiredFromHistory(chat database.Chat, messages []database.ChatMessage) (*codersdk.ChatStreamActionRequired, error) {
@@ -350,6 +403,10 @@ func (l *streamLoop) messageEvents(snapshot streamDBSnapshot) []codersdk.ChatStr
 
 	events := make([]codersdk.ChatStreamEvent, 0, len(snapshot.changedMessages))
 	for _, msg := range snapshot.changedMessages {
+		// Without a reset, deleted rows are ones the client does not hold.
+		if msg.Deleted {
+			continue
+		}
 		knownRevision := l.state.knownMessages[msg.ID]
 		if knownRevision >= msg.Revision {
 			continue

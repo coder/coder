@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import {
 	AgentSettingsGeneralPageView,
@@ -19,6 +20,8 @@ const baseArgs: AgentSettingsGeneralPageViewProps = {
 	userPromptData: {
 		custom_prompt: "Prefer concise answers with clear next steps.",
 	},
+	isLoadingUserPrompt: false,
+	userPromptError: undefined,
 	onSaveUserPrompt: fn(),
 	isSavingUserPrompt: false,
 	isSaveUserPromptError: false,
@@ -30,7 +33,6 @@ const baseArgs: AgentSettingsGeneralPageViewProps = {
 	onSaveUserDebugLogging: fn(),
 	isSavingUserDebugLogging: false,
 	isSaveUserDebugLoggingError: false,
-	chatBoardAvailable: true,
 };
 
 const meta = {
@@ -38,7 +40,7 @@ const meta = {
 	component: AgentSettingsGeneralPageView,
 	args: baseArgs,
 	parameters: {
-		queries: [{ key: ["me", "preferences"], data: preferencesData }],
+		queries: [{ key: preferenceSettingsKey, data: preferencesData }],
 	},
 } satisfies Meta<typeof AgentSettingsGeneralPageView>;
 
@@ -46,6 +48,23 @@ export default meta;
 type Story = StoryObj<typeof AgentSettingsGeneralPageView>;
 
 export const Default: Story = {};
+
+export const LoadingPersonalInstructions: Story = {
+	args: { userPromptData: undefined, isLoadingUserPrompt: true },
+};
+
+export const PersonalInstructionsLoadError: Story = {
+	args: {
+		userPromptData: undefined,
+		userPromptError: new Error(
+			"Unable to load personal instructions. Please reload the page.",
+		),
+	},
+};
+
+export const EmptyPersonalInstructions: Story = {
+	args: { userPromptData: { custom_prompt: "" } },
+};
 
 export const InvisibleUnicodeWarningUserPrompt: Story = {
 	args: {
@@ -150,6 +169,50 @@ export const TogglesSendShortcut: Story = {
 			});
 			expect(toggle).toBeChecked();
 		});
+	},
+};
+
+export const CollapseAssistantStepsEnabled: Story = {
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: { ...preferencesData, collapse_assistant_steps: true },
+			},
+		],
+	},
+};
+
+export const CollapseAssistantStepsLoadError: Story = {
+	// Drop the seeded preferences so the component fetches and hits the error.
+	parameters: { queries: [] },
+	beforeEach: () => {
+		spyOn(API, "getUserPreferenceSettings").mockRejectedValue(
+			new Error("boom"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByText(
+			"Failed to load your collapse assistant steps preference.",
+		);
+	},
+};
+
+export const CollapseAssistantStepsSaveError: Story = {
+	beforeEach: () => {
+		spyOn(API, "updateUserPreferenceSettings").mockRejectedValue(
+			new Error("boom"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await userEvent.click(
+			await canvas.findByRole("switch", { name: "Collapse assistant steps" }),
+		);
+		await canvas.findByText(
+			"Failed to save your collapse assistant steps preference.",
+		);
 	},
 };
 

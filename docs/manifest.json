@@ -375,6 +375,11 @@
 							"title": "Antigravity",
 							"description": "Access your Coder workspace with the Antigravity agentic code editor over SSH.",
 							"path": "./user-guides/workspace-access/antigravity.md"
+						},
+						{
+							"title": "Claude Desktop",
+							"description": "Let Claude Desktop access your Coder workspaces.",
+							"path": "./user-guides/workspace-access/claude-desktop.md"
 						}
 					]
 				},
@@ -629,13 +634,46 @@
 								},
 								{
 									"title": "Parameters",
-									"description": "Use build parameters to prompt users and customize each workspace when it is created.",
-									"path": "./admin/templates/extending-templates/parameters.md"
-								},
-								{
-									"title": "Dynamic parameters",
-									"description": "Build conditional, identity-aware template forms with Coder's dynamic parameters.",
-									"path": "./admin/templates/extending-templates/dynamic-parameters.md"
+									"description": "Prompt users for values, such as a region or instance size, to customize each workspace.",
+									"path": "./admin/templates/extending-templates/parameters/index.md",
+									"children": [
+										{
+											"title": "Form types and styling",
+											"description": "Choose the input control for each parameter, such as a dropdown, slider, multi-select, or text area.",
+											"path": "./admin/templates/extending-templates/parameters/form-types.md"
+										},
+										{
+											"title": "Validation",
+											"description": "Constrain parameter values with ranges, regular expressions, and rules that depend on other parameters.",
+											"path": "./admin/templates/extending-templates/parameters/validation.md"
+										},
+										{
+											"title": "Conditional parameters",
+											"description": "Show, hide, or change parameters based on the user's other selections in the workspace creation form.",
+											"path": "./admin/templates/extending-templates/parameters/conditional-parameters.md"
+										},
+										{
+											"title": "Identity-aware parameters",
+											"description": "Change parameters based on the roles and groups of the user creating the workspace.",
+											"path": "./admin/templates/extending-templates/parameters/identity-aware-parameters.md",
+											"state": ["premium"]
+										},
+										{
+											"title": "Workspace presets",
+											"description": "Bundle commonly used parameter values into a single option in the workspace creation form.",
+											"path": "./admin/templates/extending-templates/parameters/workspace-presets.md"
+										},
+										{
+											"title": "Compatibility mode",
+											"description": "Find templates that use the deprecated classic parameter flow and upgrade them.",
+											"path": "./admin/templates/extending-templates/parameters/compatibility-mode.md"
+										},
+										{
+											"title": "Troubleshooting",
+											"description": "Diagnose and resolve common problems with parameter forms.",
+											"path": "./admin/templates/extending-templates/parameters/troubleshooting.md"
+										}
+									]
 								},
 								{
 									"title": "Prebuilt workspaces",
@@ -1133,12 +1171,6 @@
 							"path": "./ai-coder/agents/chat-sharing.md"
 						},
 						{
-							"title": "Automations",
-							"description": "Send saved prompts to Coder Agents chats from webhooks and schedules, and let agents manage their own automations.",
-							"path": "./ai-coder/agents/automations.md",
-							"state": ["early access"]
-						},
-						{
 							"title": "Conversation search syntax",
 							"description": "Filter Coder Agents conversations by title, status, and linked pull requests with search syntax.",
 							"path": "./ai-coder/agents/chat-search-syntax.md"
@@ -1218,6 +1250,11 @@
 									"title": "Rules engine",
 									"description": "Learn how the Agent Firewall rules engine filters agent network requests with configurable rules.",
 									"path": "./ai-coder/agent-firewall/rules-engine.md"
+								},
+								{
+									"title": "Example policy",
+									"description": "Review a broad Agent Firewall allowlist policy for multi-language workspaces.",
+									"path": "./ai-coder/agent-firewall/example-policy.md"
 								},
 								{
 									"title": "Version requirements",
@@ -1812,7 +1849,7 @@
 						},
 						{
 							"title": "`features`",
-							"description": "List Enterprise features",
+							"description": "List license features and entitlements",
 							"path": "reference/cli/features/index.md",
 							"children": [
 								{

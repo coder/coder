@@ -12,13 +12,22 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	entconnectionlog "github.com/coder/coder/v2/enterprise/coderd/connectionlog"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestConnectionLogs(t *testing.T) {
@@ -56,7 +65,7 @@ func TestConnectionLogs(t *testing.T) {
 
 		ws := createWorkspace(t, db)
 		_ = dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
-			Type:             database.ConnectionTypeSsh,
+			ConnectionMethod: database.ConnectionLogMethodSSH,
 			WorkspaceID:      ws.ID,
 			OrganizationID:   ws.OrganizationID,
 			WorkspaceOwnerID: ws.OwnerID,
@@ -67,7 +76,63 @@ func TestConnectionLogs(t *testing.T) {
 
 		require.Len(t, logs.ConnectionLogs, 1)
 		require.EqualValues(t, 1, logs.Count)
-		require.Equal(t, codersdk.ConnectionTypeSSH, logs.ConnectionLogs[0].Type)
+		require.Equal(t, string(codersdk.ConnectionTypeSSH), logs.ConnectionLogs[0].Type)
+		require.Equal(t, codersdk.ConnectionLogMethodSSH, logs.ConnectionLogs[0].ConnectionMethod)
+		require.Empty(t, logs.ConnectionLogs[0].AppName)
+		require.Empty(t, logs.ConnectionLogs[0].AppDisplayName, "no display name is made up for a missing app")
+	})
+
+	// The filter semantics are covered by the database tests. This checks that
+	// method, app and type queries reach them.
+	t.Run("Filters", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		client, db, _ := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			ConnectionLogging: true,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAuditLog:      1,
+					codersdk.FeatureConnectionLog: 1,
+				},
+			},
+		})
+
+		ws := createWorkspace(t, db)
+		insert := func(method database.ConnectionLogMethod, appNameOrPort string) uuid.UUID {
+			return dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+				ConnectionMethod: method,
+				AppNameOrPort:    sql.NullString{String: appNameOrPort, Valid: appNameOrPort != ""},
+				WorkspaceID:      ws.ID,
+				OrganizationID:   ws.OrganizationID,
+				WorkspaceOwnerID: ws.OwnerID,
+			}).ID
+		}
+		sshCursor := insert(database.ConnectionLogMethodSSH, "cursor")
+		ptyCursor := insert(database.ConnectionLogMethodReconnectingPTY, "cursor")
+		_ = insert(database.ConnectionLogMethodSSH, "")
+		// A workspace app slugged like an IDE is still a workspace app.
+		_ = insert(database.ConnectionLogMethodWorkspaceApp, "cursor")
+
+		query := func(q string) []uuid.UUID {
+			logs, err := client.ConnectionLogs(ctx, codersdk.ConnectionLogsRequest{SearchQuery: q})
+			require.NoError(t, err, q)
+			require.EqualValues(t, len(logs.ConnectionLogs), logs.Count, "count must match the listed logs for %q", q)
+			var ids []uuid.UUID
+			for _, l := range logs.ConnectionLogs {
+				ids = append(ids, l.ID)
+			}
+			return ids
+		}
+
+		require.ElementsMatch(t, []uuid.UUID{sshCursor}, query("type:vscode"))
+		require.ElementsMatch(t, []uuid.UUID{sshCursor, ptyCursor}, query("app:cursor"))
+		require.ElementsMatch(t, []uuid.UUID{ptyCursor}, query("method:reconnecting_pty app:cursor"))
+
+		_, err := client.ConnectionLogs(ctx, codersdk.ConnectionLogsRequest{SearchQuery: "method:vscode"})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	})
 
 	t.Run("Empty", func(t *testing.T) {
@@ -107,13 +172,13 @@ func TestConnectionLogs(t *testing.T) {
 		org := dbgen.Organization(t, db, database.Organization{})
 		ws := createWorkspace(t, db)
 		_ = dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
-			Type:             database.ConnectionTypeSsh,
+			ConnectionMethod: database.ConnectionLogMethodSSH,
 			WorkspaceID:      ws.ID,
 			OrganizationID:   org.ID,
 			WorkspaceOwnerID: ws.OwnerID,
 		})
 		_ = dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
-			Type:             database.ConnectionTypeSsh,
+			ConnectionMethod: database.ConnectionLogMethodSSH,
 			WorkspaceID:      ws.ID,
 			OrganizationID:   ws.OrganizationID,
 			WorkspaceOwnerID: ws.OwnerID,
@@ -158,14 +223,14 @@ func TestConnectionLogs(t *testing.T) {
 		ws := createWorkspace(t, db)
 		clog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
 			Time:             now.Add(-time.Hour),
-			Type:             database.ConnectionTypeWorkspaceApp,
+			ConnectionMethod: database.ConnectionLogMethodWorkspaceApp,
 			WorkspaceID:      ws.ID,
 			OrganizationID:   ws.OrganizationID,
 			WorkspaceOwnerID: ws.OwnerID,
 			ConnectionID:     uuid.NullUUID{UUID: connID, Valid: true},
 			UserAgent:        sql.NullString{String: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36", Valid: true},
 			UserID:           uuid.NullUUID{UUID: ws.OwnerID, Valid: true},
-			SlugOrPort:       sql.NullString{String: "code-server", Valid: true},
+			AppNameOrPort:    sql.NullString{String: "code-server", Valid: true},
 		})
 
 		logs, err := client.ConnectionLogs(ctx, codersdk.ConnectionLogsRequest{})
@@ -174,7 +239,9 @@ func TestConnectionLogs(t *testing.T) {
 		require.Len(t, logs.ConnectionLogs, 1)
 		require.EqualValues(t, 1, logs.Count)
 		require.NotNil(t, logs.ConnectionLogs[0].WebInfo)
-		require.Equal(t, clog.SlugOrPort.String, logs.ConnectionLogs[0].WebInfo.SlugOrPort)
+		require.Equal(t, clog.AppNameOrPort.String, logs.ConnectionLogs[0].WebInfo.SlugOrPort)
+		require.Empty(t, logs.ConnectionLogs[0].AppName, "a destination is not a client app")
+		require.Empty(t, logs.ConnectionLogs[0].AppDisplayName)
 		require.Equal(t, clog.UserAgent.String, logs.ConnectionLogs[0].WebInfo.UserAgent)
 		require.Equal(t, ws.OwnerID, logs.ConnectionLogs[0].WebInfo.User.ID)
 	})
@@ -199,7 +266,7 @@ func TestConnectionLogs(t *testing.T) {
 		// user's identity; they must surface it via WebInfo.
 		clog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
 			Time:             now.Add(-time.Hour),
-			Type:             database.ConnectionTypeTunnel,
+			ConnectionMethod: database.ConnectionLogMethodTunnel,
 			WorkspaceID:      ws.ID,
 			OrganizationID:   ws.OrganizationID,
 			WorkspaceOwnerID: ws.OwnerID,
@@ -240,7 +307,8 @@ func TestConnectionLogs(t *testing.T) {
 		ws := createWorkspace(t, db)
 		clog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
 			Time:             now.Add(-time.Hour),
-			Type:             database.ConnectionTypeSsh,
+			ConnectionMethod: database.ConnectionLogMethodSSH,
+			AppNameOrPort:    sql.NullString{String: "cursor", Valid: true},
 			WorkspaceID:      ws.ID,
 			OrganizationID:   ws.OrganizationID,
 			WorkspaceOwnerID: ws.OwnerID,
@@ -261,7 +329,7 @@ func TestConnectionLogs(t *testing.T) {
 		updatedClog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
 			Time:             now,
 			OrganizationID:   clog.OrganizationID,
-			Type:             clog.Type,
+			ConnectionMethod: clog.ConnectionMethod,
 			WorkspaceID:      clog.WorkspaceID,
 			WorkspaceOwnerID: clog.WorkspaceOwnerID,
 			WorkspaceName:    clog.WorkspaceName,
@@ -290,9 +358,95 @@ func TestConnectionLogs(t *testing.T) {
 		require.EqualValues(t, 1, logs.Count)
 		require.NotNil(t, logs.ConnectionLogs[0].SSHInfo)
 		require.Nil(t, logs.ConnectionLogs[0].WebInfo)
-		require.Equal(t, codersdk.ConnectionTypeSSH, logs.ConnectionLogs[0].Type)
+		require.Equal(t, string(codersdk.ConnectionTypeVSCode), logs.ConnectionLogs[0].Type)
+		require.Equal(t, codersdk.ConnectionLogMethodSSH, logs.ConnectionLogs[0].ConnectionMethod)
+		require.Equal(t, "cursor", logs.ConnectionLogs[0].AppName)
+		require.Equal(t, "Cursor", logs.ConnectionLogs[0].AppDisplayName)
 		require.Equal(t, clog.ConnectionID.UUID, logs.ConnectionLogs[0].SSHInfo.ConnectionID)
 		require.True(t, logs.ConnectionLogs[0].SSHInfo.DisconnectTime.Equal(now))
 		require.Equal(t, updatedClog.DisconnectReason.String, logs.ConnectionLogs[0].SSHInfo.DisconnectReason)
 	})
+}
+
+func TestConnectionLogsWorkspaceShutdown(t *testing.T) {
+	t.Parallel()
+	store, _ := dbtestutil.NewDB(t)
+	batcher := entconnectionlog.NewDBBatcher(t.Context(), store, testutil.Logger(t), entconnectionlog.WithBatchSize(1))
+	t.Cleanup(func() { require.NoError(t, batcher.Close()) })
+	client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		Options:           &coderdtest.Options{Database: store, ConnectionLogger: batcher},
+		ConnectionLogging: true,
+		LicenseOptions: &coderdenttest.LicenseOptions{Features: license.Features{
+			codersdk.FeatureAuditLog: 1, codersdk.FeatureConnectionLog: 1,
+		}},
+	})
+	for _, transition := range []database.WorkspaceTransition{database.WorkspaceTransitionStop, database.WorkspaceTransitionDelete} {
+		for _, session := range []struct{ name, id string }{
+			{name: "SessionID", id: "0123456789abcdef0123456789abcdef"},
+			{name: "NoSessionID"},
+		} {
+			t.Run(string(transition)+"/"+session.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+					OrganizationID: user.OrganizationID, OwnerID: user.UserID,
+				}).WithAgent().Do()
+				agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(workspace.AgentToken))
+				// The agent role runs the connection monitor, which must keep the
+				// RPC open while the shutdown build runs.
+				rpc, _, err := agentClient.ConnectRPC212WithRole(ctx, "agent")
+				require.NoError(t, err)
+				defer rpc.DRPCConn().Close()
+				connectionID := uuid.New()
+				_, err = rpc.ReportConnection(ctx, &agentproto.ReportConnectionRequest{Connection: &agentproto.Connection{
+					Id: connectionID[:], Action: agentproto.Connection_CONNECT, Type: agentproto.Connection_SSH,
+					Timestamp: timestamppb.Now(), Ip: "127.0.0.1", ClientSessionId: session.id,
+				}})
+				require.NoError(t, err)
+				// The existing agent connection reports a generic shutdown after a
+				// STOP or DELETE job starts. Coderd enriches it before persistence.
+				dbfake.WorkspaceBuild(t, db, workspace.Workspace).Seed(database.WorkspaceBuild{
+					BuildNumber: workspace.Build.BuildNumber + 1, Transition: transition, Reason: database.BuildReasonAutostop,
+				}).Starting().Do()
+				// Two connection time updates after the shutdown build exists
+				// guarantee that the monitor has checked the build at least once.
+				shutdownCreated := dbtime.Now()
+				var updates int
+				var lastConnectedAt time.Time
+				require.Eventually(t, func() bool {
+					agent, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), workspace.Agents[0].ID)
+					if err != nil || !agent.LastConnectedAt.Valid {
+						return false
+					}
+					if at := agent.LastConnectedAt.Time; at.After(shutdownCreated) && !at.Equal(lastConnectedAt) {
+						lastConnectedAt = at
+						updates++
+					}
+					return updates >= 2
+				}, testutil.WaitLong, testutil.IntervalFast)
+				reason := string(codersdk.DisconnectReasonServerShutdown)
+				_, err = rpc.ReportConnection(ctx, &agentproto.ReportConnectionRequest{Connection: &agentproto.Connection{
+					Id: connectionID[:], Action: agentproto.Connection_DISCONNECT, Type: agentproto.Connection_SSH,
+					Timestamp: timestamppb.Now(), Reason: &reason, ClientSessionId: session.id,
+				}})
+				require.NoError(t, err)
+				require.Eventually(t, func() bool {
+					rows, err := db.GetConnectionLogsOffset(dbauthz.AsSystemRestricted(ctx), database.GetConnectionLogsOffsetParams{WorkspaceID: workspace.Workspace.ID, ConnectionID: connectionID, LimitOpt: 1})
+					if err != nil {
+						return false
+					}
+					for _, row := range rows {
+						log := row.ConnectionLog
+						if log.ConnectionID.UUID != connectionID || !log.DisconnectTime.Valid {
+							continue
+						}
+						return log.WorkspaceID == workspace.Workspace.ID &&
+							log.DisconnectReason.String == string(codersdk.DisconnectReasonWorkspaceStopped) &&
+							log.ClientSessionID.String == session.id && log.ClientSessionID.Valid == (session.id != "")
+					}
+					return false
+				}, testutil.WaitLong, testutil.IntervalFast)
+			})
+		}
+	}
 }

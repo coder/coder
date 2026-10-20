@@ -176,17 +176,17 @@
 
         paralleltestctx = unstablePkgs.buildGo126Module {
           pname = "paralleltestctx";
-          version = "0.0.2";
+          version = "0.0.2-unstable-2026-10-20";
 
           src = pkgs.fetchFromGitHub {
             owner = "coder";
             repo = "paralleltestctx";
-            rev = "v0.0.2";
-            sha256 = "sha256-qFQ4LZR2IwqscypD0URSZKXTlhUcz/axDb8NTH5CxLw=";
+            rev = "95009df793fb85bcbe71628e6dded30e5cfdb3c3";
+            sha256 = "sha256-8uvRRSDPgXGtSL5YFdd5gxPAt0d9jXZ+kPivrkkgI7c=";
           };
 
           subPackages = [ "cmd/paralleltestctx" ];
-          vendorHash = "sha256-OuQWmZmofdJKq1hvk43RPkILQwAuFzqhmB22Xf6Z3lA=";
+          vendorHash = "sha256-gWFc1Cm+UMNcvBxUgyVrreFXbwR8rwac4L2QBUDKo6M=";
         };
 
         # Keep this pin aligned with mise.toml when updating Terraform.
@@ -195,28 +195,28 @@
             releases = {
               x86_64-linux = {
                 platform = "linux_amd64";
-                hash = "sha256-DRcBHwxGZFObFksESQPQTilshsE8ufKAQAdsZc+zmFo=";
+                hash = "sha256-OANLONAwljmaehJkoUVhqAKbK0lv0fFpRSZW5Tlo8bc=";
               };
               aarch64-linux = {
                 platform = "linux_arm64";
-                hash = "sha256-wEC9HjEitCkPcPdCiNjFpU3dQlSj5Sop58xmZlP1Cgo=";
+                hash = "sha256-p1C1oRA48WWEayZYxAyIzXBwqmemG6tDGhS6J5KOqeo=";
               };
               aarch64-darwin = {
                 platform = "darwin_arm64";
-                hash = "sha256-fAoLMciqVBNRNpvPe2KnKJ+8Id5+V3ZprrptQvTmzEE=";
+                hash = "sha256-heG8eKtFvcX4KnusOSnjfQcoNKWE0iWDokmNxnu2JM0=";
               };
               x86_64-darwin = {
                 platform = "darwin_amd64";
-                hash = "sha256-J19Q7Rcq8vI+FaLOfjJRqsixe3aPLmLs64HDU80Qar8=";
+                hash = "sha256-eUo2w/fr9sWPIInCJgaKU50XBbo1ilZ5tRZxyNx+vHs=";
               };
             };
             target = releases.${system} or null;
           in
           if target != null then
-            pkgs.runCommand "terraform-1.16.2" {
+            pkgs.runCommand "terraform-1.16.6" {
               nativeBuildInputs = [ pkgs.unzip ];
               src = pkgs.fetchurl {
-                url = "https://releases.hashicorp.com/terraform/1.16.2/terraform_1.16.2_${target.platform}.zip";
+                url = "https://releases.hashicorp.com/terraform/1.16.6/terraform_1.16.6_${target.platform}.zip";
                 hash = target.hash;
               };
             } ''
@@ -253,12 +253,37 @@
           tags = [ "postgres" ];
         });
 
+        googleChrome =
+          if pkgs.stdenv.isLinux then
+            pkgs.google-chrome.overrideAttrs (
+              finalAttrs: oldAttrs: {
+                version = "155.0.8059.84";
+                src = pkgs.fetchurl {
+                  url = "https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_${finalAttrs.version}-1_amd64.deb";
+                  hash = "sha256-j70q5pzffumLdRPDOWp7Xgb5dPhiX91ZDfMJHdDD6d4=";
+                };
+                # Chrome no longer ships standalone ANGLE libraries.
+                installPhase =
+                  builtins.replaceStrings
+                    [
+                      ''
+                        # Make sure that libGL and libvulkan are found by ANGLE libGLESv2.so
+                        patchelf --set-rpath $rpath $out/share/google/$appname/lib*GL*
+                      ''
+                    ]
+                    [ "" ]
+                    oldAttrs.installPhase;
+              }
+            )
+          else
+            pkgs.google-chrome;
+
         # The minimal set of packages to build Coder.
         devShellPackages =
           with pkgs;
           [
             # google-chrome is not available on aarch64 linux
-            (lib.optionalDrvAttr (!stdenv.isLinux || !stdenv.isAarch64) google-chrome)
+            (lib.optionalDrvAttr (!stdenv.isLinux || !stdenv.isAarch64) googleChrome)
             # strace is not available on OSX
             (lib.optionalDrvAttr (!pkgs.stdenv.isDarwin) strace)
             bat

@@ -1,5 +1,4 @@
 import type React from "react";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { formatContextLimit } from "#/modules/aiModels/ModelSelector";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { formatProviderLabel } from "#/utils/aiProviders";
@@ -71,12 +70,10 @@ const ListSubagentModelsContent: React.FC<{ models: unknown[] }> = ({
 	}
 
 	return (
-		<ScrollArea
-			className="mt-1.5 rounded-md border border-solid border-border-default"
+		<ToolCall.Scrollable
+			className="mt-1.5 rounded-md border border-solid border-border"
 			viewportClassName="max-h-64"
-			viewportTabIndex={0}
-			viewportAriaLabel="Available models"
-			scrollBarClassName="w-1.5"
+			ariaLabel="Available models"
 		>
 			<div className="px-1 py-1">
 				{Array.from(grouped.entries(), ([provider, providerModels], index) => (
@@ -84,7 +81,7 @@ const ListSubagentModelsContent: React.FC<{ models: unknown[] }> = ({
 						key={provider}
 						className={
 							index > 0
-								? "border-0 border-t border-solid border-border-default"
+								? "border-0 border-t border-solid border-border"
 								: undefined
 						}
 					>
@@ -102,7 +99,7 @@ const ListSubagentModelsContent: React.FC<{ models: unknown[] }> = ({
 					</div>
 				))}
 			</div>
-		</ScrollArea>
+		</ToolCall.Scrollable>
 	);
 };
 

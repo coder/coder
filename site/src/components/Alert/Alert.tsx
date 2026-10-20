@@ -28,7 +28,7 @@ const alertVariants = cva(
 		compoundVariants: [
 			{
 				prominent: false,
-				className: "border-border-default bg-surface-secondary",
+				className: "border-border bg-surface-secondary",
 			},
 			{
 				severity: "success",
@@ -131,11 +131,11 @@ export const Alert: React.FC<AlertProps> = ({
 	);
 };
 
-export const AlertDescription: React.FC<React.PropsWithChildren> = ({
-	children,
-}) => {
+export const AlertDescription: React.FC<
+	React.PropsWithChildren<{ className?: string }>
+> = ({ children, className }) => {
 	return (
-		<span className="m-0 text-sm" data-pixel="ignore">
+		<span className={cn("m-0 text-sm", className)} data-pixel="ignore">
 			{children}
 		</span>
 	);

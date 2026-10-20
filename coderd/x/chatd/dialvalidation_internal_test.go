@@ -121,6 +121,7 @@ func TestDialWithLazyValidation_SlowDialNoCurrentAgent(t *testing.T) {
 	workspaceID := uuid.New()
 	dialStarted := make(chan struct{})
 	resultCh := make(chan error, 1)
+	staleCause := make(chan error, 1)
 
 	var dialCalls atomic.Int32
 	var validateCalls atomic.Int32
@@ -138,6 +139,7 @@ func TestDialWithLazyValidation_SlowDialNoCurrentAgent(t *testing.T) {
 				dialCalls.Add(1)
 				close(dialStarted)
 				<-ctx.Done()
+				staleCause <- context.Cause(ctx)
 				return nil, nil, ctx.Err()
 			},
 			func(_ context.Context, id uuid.UUID) (uuid.UUID, error) {
@@ -158,6 +160,12 @@ func TestDialWithLazyValidation_SlowDialNoCurrentAgent(t *testing.T) {
 		require.ErrorIs(t, err, errChatHasNoWorkspaceAgent)
 	case <-time.After(testutil.WaitShort):
 		t.Fatal("dialWithLazyValidation blocked after validation reported no current agent")
+	}
+	select {
+	case cause := <-staleCause:
+		require.ErrorIs(t, cause, workspacesdk.ErrDialAbandoned)
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("stale dial was not canceled")
 	}
 
 	require.EqualValues(t, 1, dialCalls.Load())
@@ -182,6 +190,7 @@ func TestDialWithLazyValidation_SlowDialStaleAgent(t *testing.T) {
 		var validateCalls atomic.Int32
 		var staleReleaseCalls atomic.Int32
 		var currentReleaseCalls atomic.Int32
+		staleCause := make(chan error, 1)
 
 		result, err := dialWithLazyValidation(
 			context.Background(),
@@ -193,6 +202,7 @@ func TestDialWithLazyValidation_SlowDialStaleAgent(t *testing.T) {
 				switch id {
 				case staleAgentID:
 					<-ctx.Done()
+					staleCause <- context.Cause(ctx)
 					return staleConn, func() {
 						staleReleaseCalls.Add(1)
 					}, nil
@@ -224,6 +234,7 @@ func TestDialWithLazyValidation_SlowDialStaleAgent(t *testing.T) {
 		require.Eventually(t, func() bool {
 			return staleReleaseCalls.Load() == 1
 		}, testutil.WaitShort, testutil.IntervalFast)
+		require.ErrorIs(t, <-staleCause, workspacesdk.ErrDialAbandoned)
 
 		if result.Release != nil {
 			result.Release()

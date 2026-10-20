@@ -11,6 +11,7 @@ import {
   getFirstVisibleMessageItem,
   getFlexGap,
   getLastScrollAnchor,
+  getMaxScrollTop, // LOCAL CHANGE
   getMessageScrollerItems,
   getMessageScrollerScrollable,
   getMessageScrollerVisibilityState,
@@ -49,6 +50,23 @@ function useElementRef(
     },
     [elementRef, onMount]
   )
+}
+
+// LOCAL CHANGE: stops a smooth scroll in flight and makes the browser pick a
+// new scroll anchor. Writing the same scrollTop is not enough: Chromium keeps
+// the anchor and Firefox keeps scrolling.
+function nudgeScroll(viewport: HTMLElement) {
+  const scrollTop = viewport.scrollTop
+
+  viewport.scrollTop = scrollTop >= 1 ? scrollTop - 1 : scrollTop + 1
+  viewport.scrollTop = scrollTop
+
+  // Zoomed-out WebKit can round scrollTop down when it reads it, so the write
+  // back can land a device pixel up. A write of 1px more lands on the
+  // original pixel.
+  if (scrollTop - viewport.scrollTop >= SCROLL_POSITION_EPSILON) {
+    viewport.scrollTop = scrollTop + 1
+  }
 }
 
 // Orchestrator hook. Decides when to scroll and delegates the moves to
@@ -99,9 +117,14 @@ function useMessageScrollerController({
     visibilityStore,
     visibleMessageIdsRef,
     handledScrollAnchorsRef,
+    // LOCAL CHANGE
+    followSuppressedRef,
   } = refs
 
   const previousDefaultScrollPositionRef = React.useRef(defaultScrollPosition)
+  // LOCAL CHANGE: reanchors before paint after a disclosure toggle.
+  const userLayoutIntentObserverRef =
+    React.useRef<MutationObserver | null>(null)
 
   if (previousDefaultScrollPositionRef.current !== defaultScrollPosition) {
     previousDefaultScrollPositionRef.current = defaultScrollPosition
@@ -141,6 +164,8 @@ function useMessageScrollerController({
   // anchored turn read as "at the end", and re-arming there would let the
   // first streamed chunk yank the reader off the anchor. The hold hands back
   // to following in handleResize, once the reply consumes the tail spacer.
+  // LOCAL CHANGE: while followSuppressedRef is set, neither arming nor the
+  // hand-back happens.
   const reconcileFollowMode = React.useCallback(
     (scrollable: MessageScrollerScrollable) => {
       const scrollTop = viewportRef.current?.scrollTop ?? 0
@@ -155,6 +180,7 @@ function useMessageScrollerController({
 
       if (
         autoScrollRef.current &&
+        !followSuppressedRef.current && // LOCAL CHANGE
         !scrollable.end &&
         modeRef.current !== "settling-jump" &&
         modeRef.current !== "anchored-to-message"
@@ -447,6 +473,7 @@ function useMessageScrollerController({
             return
           }
 
+          followSuppressedRef.current = false // LOCAL CHANGE
           scrollToElement(
             anchor,
             { align: "start" },
@@ -464,6 +491,7 @@ function useMessageScrollerController({
         )
 
         if (anchor) {
+          followSuppressedRef.current = false // LOCAL CHANGE
           scrollToElement(
             anchor,
             { align: "start" },
@@ -515,10 +543,22 @@ function useMessageScrollerController({
       // from the anchor hold to following the bottom. Requiring the >0 → 0
       // transition keeps a turn taller than the viewport (placed with no
       // spacer) held instead of yanked to the end.
+      // LOCAL CHANGE: and only if the end is in the handoff band,
+      // max(threshold, margin + peek), so a code block or log box that lands
+      // at once keeps the turn held. followSuppressedRef covers toggles.
+      const viewport = viewportRef.current
+
       if (
         autoScrollRef.current &&
+        !followSuppressedRef.current &&
         previousSpacerHeight > 0 &&
-        spacerHeightRef.current === 0
+        spacerHeightRef.current === 0 &&
+        viewport !== null &&
+        getMaxScrollTop(viewport) - viewport.scrollTop <=
+          Math.max(
+            scrollEdgeThresholdRef.current,
+            scrollMarginRef.current + scrollPreviousItemPeekRef.current
+          )
       ) {
         scrollToEnd({ behavior: "auto" })
       }
@@ -626,6 +666,14 @@ function useMessageScrollerController({
   )
 
   const userScrollIntent = React.useCallback(() => {
+    // LOCAL CHANGE: at the end, a gesture toward it fires no scroll event, so
+    // the caller may sync instead. Not from the anchor hold: its tail spacer
+    // reads as the end.
+    const canResumeFollowing =
+      modeRef.current === "following-bottom" ||
+      (followSuppressedRef.current && modeRef.current === "free-scrolling")
+    followSuppressedRef.current = false
+
     if (
       modeRef.current === "following-bottom" ||
       modeRef.current === "anchored-to-message" ||
@@ -636,7 +684,82 @@ function useMessageScrollerController({
       streamingTurnRef.current = null
       modeRef.current = "free-scrolling"
     }
+
+    return canResumeFollowing // LOCAL CHANGE
   }, [])
+
+  // LOCAL CHANGE: after a collapse clamps scrollTop at the bottom, Chromium
+  // keeps its scroll anchor and scrolls back down as output grows. A scroll
+  // makes it pick a new one. A clamp is exact, so allow only rounding here.
+  const resetBrowserScrollAnchor = React.useCallback(() => {
+    const viewport = viewportRef.current
+
+    if (
+      followSuppressedRef.current &&
+      modeRef.current === "free-scrolling" &&
+      viewport !== null &&
+      getMaxScrollTop(viewport) - viewport.scrollTop <=
+        DEFAULT_SCROLL_EDGE_THRESHOLD
+    ) {
+      nudgeScroll(viewport)
+    }
+  }, [])
+
+  // LOCAL CHANGE
+  const userLayoutIntent = React.useCallback((target: Element) => {
+    followSuppressedRef.current = true
+
+    // A toggle above the anchored turn moves the turn, so holding it would
+    // scroll the toggled row away.
+    const anchor = streamingTurnRef.current
+
+    if (
+      modeRef.current === "anchored-to-message" &&
+      anchor !== null &&
+      target.compareDocumentPosition(anchor) & Node.DOCUMENT_POSITION_FOLLOWING
+    ) {
+      streamingTurnRef.current = null
+      modeRef.current = "free-scrolling"
+    }
+
+    if (
+      modeRef.current === "following-bottom" ||
+      modeRef.current === "settling-jump"
+    ) {
+      modeRef.current = "free-scrolling"
+
+      // A scroll command may still be moving the view smoothly.
+      if (viewportRef.current) {
+        nudgeScroll(viewportRef.current)
+      }
+    }
+
+    const content = contentRef.current
+
+    if (content !== null && typeof MutationObserver !== "undefined") {
+      userLayoutIntentObserverRef.current?.disconnect()
+      userLayoutIntentObserverRef.current = new MutationObserver(
+        (records, observer) => {
+          // Only the toggle's commit. Later commits wait for the resize
+          // observers, as they do with no toggle.
+          observer.disconnect()
+          handleResize()
+
+          // A removed node can clamp scrollTop. Reset now: output that lands
+          // before the resize observers run would scroll the view back down.
+          if (records.some((record) => record.removedNodes.length > 0)) {
+            resetBrowserScrollAnchor()
+          }
+        }
+      )
+      userLayoutIntentObserverRef.current.observe(content, {
+        childList: true,
+        subtree: true,
+      })
+    }
+
+    scheduleStateCommit()
+  }, [handleResize, resetBrowserScrollAnchor, scheduleStateCommit])
 
   const mirrorStateAttributes = React.useCallback(
     () => writeStateAttributes(stateStore.getSnapshot()),
@@ -657,6 +780,12 @@ function useMessageScrollerController({
     (element: HTMLDivElement | null) => {
       spacerRef.current = element
       spacerGapRef.current = getFlexGap(element?.parentElement ?? null)
+      // LOCAL CHANGE: mirror the attached node. A remounted Content's new
+      // spacer mounts hidden, while StrictMode reattaches the same node.
+      spacerHeightRef.current =
+        element && !element.hidden
+          ? Number.parseFloat(element.style.height) || 0
+          : 0
     },
     []
   )
@@ -667,12 +796,35 @@ function useMessageScrollerController({
     capturePrependAnchor()
   }, [capturePrependAnchor, commitScrollState, scheduleVisibilitySync])
 
+  // LOCAL CHANGE: output can land below the view while a scrollbar press at
+  // the end is held, and a release that moved nothing fires no scroll event.
+  // Unless the press moved the view up, catch up as following would have.
+  const syncAfterScrollbarPress = React.useCallback(
+    (pressScrollTop: number) => {
+      syncAfterScroll()
+
+      const viewport = viewportRef.current
+
+      if (
+        autoScrollRef.current &&
+        !followSuppressedRef.current &&
+        modeRef.current === "free-scrolling" &&
+        viewport !== null &&
+        viewport.scrollTop >= pressScrollTop - SCROLL_POSITION_EPSILON
+      ) {
+        scrollToEnd({ behavior: "auto" })
+      }
+    },
+    [scrollToEnd, syncAfterScroll]
+  )
+
   const context = React.useMemo<MessageScrollerContextValue>(
     () => ({
       handleContentChange,
       handleResize,
       observeVisibility,
       preserveScrollOnPrependRef,
+      resetBrowserScrollAnchor, // LOCAL CHANGE
       scrollToEnd,
       scrollToMessage,
       scrollToStart,
@@ -682,7 +834,10 @@ function useMessageScrollerController({
       setViewportElement,
       stateStore,
       syncAfterScroll,
+      syncAfterScrollbarPress, // LOCAL CHANGE
       unobserveVisibility,
+      // LOCAL CHANGE
+      userLayoutIntent,
       userScrollIntent,
       viewportRef,
       visibilityStore,
@@ -691,6 +846,7 @@ function useMessageScrollerController({
       handleContentChange,
       handleResize,
       observeVisibility,
+      resetBrowserScrollAnchor, // LOCAL CHANGE
       scrollToEnd,
       scrollToMessage,
       scrollToStart,
@@ -700,7 +856,10 @@ function useMessageScrollerController({
       setViewportElement,
       stateStore,
       syncAfterScroll,
+      syncAfterScrollbarPress, // LOCAL CHANGE
       unobserveVisibility,
+      // LOCAL CHANGE
+      userLayoutIntent,
       userScrollIntent,
       visibilityStore,
     ]
@@ -737,6 +896,10 @@ function useMessageScrollerController({
 
       visibilityObserverRef.current?.disconnect()
       visibilityObserverRef.current = null
+
+      // LOCAL CHANGE
+      userLayoutIntentObserverRef.current?.disconnect()
+      userLayoutIntentObserverRef.current = null
     }
   }, [])
 

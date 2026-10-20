@@ -202,7 +202,7 @@ export const ListUsesDefaultOrganization: Story = {
 		});
 		await expect(canvas.getByText("Coder")).toBeVisible();
 		expect(
-			canvas.queryByRole("button", {
+			canvas.queryByRole("combobox", {
 				name: `Organization ${MockDefaultOrganization.display_name}`,
 			}),
 		).not.toBeInTheDocument();
@@ -307,7 +307,7 @@ export const DeleteOnlyOrgAdminCanOpenMCPServer: Story = {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
-			await canvas.findByRole("button", {
+			await canvas.findByRole("combobox", {
 				name: `Organization ${MockDefaultOrganization.display_name}`,
 			}),
 		);
@@ -402,7 +402,7 @@ export const UpdateOnlyOrgAdminUsesAuthorizedOrganization: Story = {
 		).toBeVisible();
 		expect(canvas.queryByText("Coder")).not.toBeInTheDocument();
 		expect(
-			canvas.queryByRole("button", {
+			canvas.queryByRole("combobox", {
 				name: `Organization ${MockDefaultOrganization.display_name}`,
 			}),
 		).not.toBeInTheDocument();
@@ -446,7 +446,7 @@ export const ListCanAddToCreateOnlyOrganization: Story = {
 		const canvas = within(canvasElement);
 		await expect(await canvas.findByText("Coder")).toBeVisible();
 		expect(
-			canvas.queryByRole("button", {
+			canvas.queryByRole("combobox", {
 				name: `Organization ${MockDefaultOrganization.display_name}`,
 			}),
 		).not.toBeInTheDocument();
@@ -584,7 +584,7 @@ export const AddDeepLinkShowsSingleCreatableOrganization: Story = {
 		);
 		await expect(organization).toBeVisible();
 		expect(
-			canvas.queryByRole("button", {
+			canvas.queryByRole("combobox", {
 				name: `Organization ${MockOrganization2.display_name}`,
 			}),
 		).not.toBeInTheDocument();
@@ -648,7 +648,7 @@ export const ListSwitchesOrganization: Story = {
 		const canvas = within(canvasElement);
 		await expect(await canvas.findByText("Coder")).toBeVisible();
 		await userEvent.click(
-			canvas.getByRole("button", {
+			canvas.getByRole("combobox", {
 				name: `Organization ${MockDefaultOrganization.display_name}`,
 			}),
 		);
@@ -694,7 +694,7 @@ export const ListDisambiguatesCollidingOrganizationNames: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.getByRole("button", {
+			canvas.getByRole("combobox", {
 				name: /Organization Dev \(org-a\)/,
 			}),
 		).toBeVisible();
@@ -768,7 +768,7 @@ export const CreateOnlyOrgAdminCanAddMCPServer: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("button", {
+			await canvas.findByRole("combobox", {
 				name: `Organization ${MockDefaultOrganization.display_name}`,
 			}),
 		);
@@ -861,7 +861,7 @@ export const AddDeniedRequestedOrganizationDoesNotFallback: Story = {
 		).toBeInTheDocument();
 		expect(canvas.queryByLabelText(/display name/i)).not.toBeInTheDocument();
 		expect(
-			canvas.queryByRole("button", {
+			canvas.queryByRole("combobox", {
 				name: `Organization ${MockOrganization2.display_name}`,
 			}),
 		).not.toBeInTheDocument();
@@ -915,7 +915,7 @@ export const AddImplicitOrganizationDeniedAfterPermissionsRefetch: Story = {
 		).toBeInTheDocument();
 		expect(canvas.queryByLabelText(/display name/i)).not.toBeInTheDocument();
 		expect(
-			canvas.queryByRole("button", {
+			canvas.queryByRole("combobox", {
 				name: `Organization ${MockOrganization2.display_name}`,
 			}),
 		).not.toBeInTheDocument();
@@ -1053,7 +1053,7 @@ export const AddPickerExcludesNonCreatableOrganizations: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("button", {
+			await canvas.findByRole("combobox", {
 				name: `Organization ${MockDefaultOrganization.display_name}`,
 			}),
 		);
@@ -1096,7 +1096,7 @@ export const AddDeepLinkedNonCreatableOrganizationCanSwitch: Story = {
 		await expect(await canvas.findByRole("alert")).toHaveTextContent(
 			"You cannot add servers to this organization",
 		);
-		const picker = canvas.getByRole("button", {
+		const picker = canvas.getByRole("combobox", {
 			name: `Organization ${MockOrganization2.display_name}`,
 		});
 		await expect(picker).toBeVisible();
@@ -1171,7 +1171,7 @@ export const AddToSelectedOrganization: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.getByRole("button", {
+			canvas.getByRole("combobox", {
 				name: `Organization ${MockOrganization2.display_name}`,
 			}),
 		).toHaveTextContent(MockOrganization2.display_name);
@@ -1217,7 +1217,7 @@ export const AddDisablesOrganizationWhileSaving: Story = {
 		await userEvent.click(canvas.getByRole("button", { name: "Add server" }));
 		await waitFor(() => {
 			expect(
-				canvas.getByRole("button", {
+				canvas.getByRole("combobox", {
 					name: `Organization ${MockDefaultOrganization.display_name}`,
 				}),
 			).toBeDisabled();
@@ -1247,7 +1247,7 @@ export const AddSwitchesOrganization: Story = {
 			"https://api.githubcopilot.com/mcp/",
 		);
 		await userEvent.click(
-			canvas.getByRole("button", {
+			canvas.getByRole("combobox", {
 				name: `Organization ${MockDefaultOrganization.display_name}`,
 			}),
 		);
@@ -1570,7 +1570,7 @@ export const RowClickCarriesSelectedOrganization: Story = {
 		const canvas = within(canvasElement);
 		await expect(await canvas.findByText("Coder")).toBeVisible();
 		await userEvent.click(
-			canvas.getByRole("button", {
+			canvas.getByRole("combobox", {
 				name: `Organization ${MockDefaultOrganization.display_name}`,
 			}),
 		);

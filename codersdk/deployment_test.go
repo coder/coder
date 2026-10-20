@@ -38,7 +38,6 @@ func TestExperimentDisplayNames(t *testing.T) {
 
 	expected := map[codersdk.Experiment]string{
 		codersdk.ExperimentExample:                   "Example Experiment",
-		codersdk.ExperimentAutoFillParameters:        "Auto-fill Template Parameters",
 		codersdk.ExperimentNotifications:             "SMTP and Webhook Notifications",
 		codersdk.ExperimentWorkspaceUsage:            "Workspace Usage Tracking",
 		codersdk.ExperimentMCPServerHTTP:             "MCP HTTP Server Functionality",
@@ -54,9 +53,7 @@ func TestExperimentDisplayNames(t *testing.T) {
 		codersdk.ExperimentAgentLifecycleHooks:       "Agent Lifecycle Hooks",
 		codersdk.ExperimentChatInlineMCPServers:      "Chat Inline MCP Servers",
 		codersdk.ExperimentEnableAIWorkspaceDebug:    "AI Workspace Debugging",
-		codersdk.ExperimentChatBoard:                 "Chat Board",
 		codersdk.ExperimentChatStageMetrics:          "Chat Stage Metrics",
-		codersdk.ExperimentChatAutomations:           "Chat Automations",
 	}
 
 	require.Len(t, expected, len(codersdk.ExperimentsKnown))
@@ -1022,7 +1019,6 @@ func TestDeploymentValues_Validate_ChatLimits(t *testing.T) {
 		{"chat-max-attachments-per-chat", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxAttachmentsPerChat }},
 		{"chat-max-prompt-bytes", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxPromptBytes }},
 		{"chat-max-concurrent-recording-uploads", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxConcurrentRecordingUploads }},
-		{"chat-max-automations-per-owner", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxAutomationsPerOwner }},
 	}
 	values := []struct {
 		value int64

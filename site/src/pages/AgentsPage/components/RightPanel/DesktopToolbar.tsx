@@ -29,7 +29,7 @@ export const DesktopToolbar: React.FC<DesktopToolbarProps> = ({
 }) => {
 	return (
 		<div
-			className="flex h-8 shrink-0 items-center justify-end gap-1 border-0 border-b border-solid border-border-default bg-surface-primary px-1.5"
+			className="flex h-8 shrink-0 items-center justify-end gap-1 border-0 border-b border-solid border-border bg-surface-primary px-1.5"
 			role="group"
 			aria-label="Desktop controls"
 		>

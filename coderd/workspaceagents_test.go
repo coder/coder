@@ -97,6 +97,48 @@ func TestWorkspaceAgent(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, workspace.LatestBuild.Resources[0].Agents[0].Health.Healthy)
 	})
+	t.Run("ScriptDependencies", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Scripts = []*proto.Script{
+				{DisplayName: "Clone repo", ResourceAddress: "coder_script.clone_repo"},
+				{
+					DisplayName:     "Install tools",
+					ResourceAddress: "coder_script.install_tools",
+					Dependencies: []*proto.ScriptDependency{{
+						PrerequisiteResourceAddress: "coder_script.clone_repo",
+						Requirement:                 proto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_SUCCESS,
+					}},
+				},
+			}
+			return agents
+		}).Do()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		workspace, err := client.Workspace(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		agent, err := client.WorkspaceAgent(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID)
+		require.NoError(t, err)
+
+		require.Len(t, agent.Scripts, 2)
+		byName := make(map[string]codersdk.WorkspaceAgentScript, len(agent.Scripts))
+		for _, script := range agent.Scripts {
+			byName[script.DisplayName] = script
+		}
+		require.Equal(t, "coder_script.clone_repo", byName["Clone repo"].ResourceAddress)
+		require.Empty(t, byName["Clone repo"].Dependencies)
+		require.Equal(t, "coder_script.install_tools", byName["Install tools"].ResourceAddress)
+		require.Equal(t, []codersdk.WorkspaceAgentScriptDependency{{
+			PrerequisiteResourceAddress: "coder_script.clone_repo",
+			Requirement:                 codersdk.WorkspaceAgentScriptDependencyRequirementSuccess,
+		}}, byName["Install tools"].Dependencies)
+	})
 	t.Run("HasFallbackTroubleshootingURL", func(t *testing.T) {
 		t.Parallel()
 		client, db := coderdtest.NewWithDatabase(t, nil)
@@ -953,7 +995,7 @@ func TestWorkspaceAgentClientCoordinate_ConnectionLog(t *testing.T) {
 			WorkspaceID:      r.Workspace.ID,
 			WorkspaceName:    r.Workspace.Name,
 			AgentName:        resources[0].Agents[0].Name,
-			Type:             database.ConnectionTypeTunnel,
+			ConnectionMethod: database.ConnectionLogMethodTunnel,
 			Code: sql.NullInt32{
 				Int32: http.StatusSwitchingProtocols,
 				Valid: true,
@@ -1219,6 +1261,57 @@ func connectToCoordinatorAndFetchResumeToken(ctx context.Context, logger slog.Lo
 		return "", xerrors.Errorf("fetch resume token: %w", err)
 	}
 	return newResumeToken.Token, nil
+}
+
+// TestWorkspaceAgentManifestSecretsDuringStop checks that an agent whose
+// workspace has a pending stop build still receives its build secrets when
+// it reconnects, so shutdown scripts keep their credentials.
+func TestWorkspaceAgentManifestSecretsDuringStop(t *testing.T) {
+	t.Parallel()
+
+	client, closeDaemon, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+		req.Secrets = []codersdk.WorkspaceSecretInput{
+			{Name: "api-key", Value: new("build-value"), EnvName: "API_KEY"},
+		}
+	})
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
+	buildSecretValue := func() string {
+		t.Helper()
+		conn, err := agentClient.ConnectRPC(ctx)
+		require.NoError(t, err)
+		defer conn.Close()
+		mp, err := agentproto.NewDRPCAgentClient(conn).GetManifest(ctx, &agentproto.GetManifestRequest{})
+		require.NoError(t, err)
+		for _, secret := range mp.Secrets {
+			if secret.EnvName == "API_KEY" {
+				return string(secret.Value)
+			}
+		}
+		return ""
+	}
+	require.Equal(t, "build-value", buildSecretValue())
+
+	// With no provisioner the stop build stays pending while the agent from
+	// the start build is still running. A reconnect must keep its secrets.
+	closeDaemon.Close()
+	stopBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+	require.Equal(t, "build-value", buildSecretValue())
+
+	coderdtest.NewProvisionerDaemon(t, api)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stopBuild.ID)
 }
 
 func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
@@ -3137,7 +3230,7 @@ func TestUserTailnetConnectionLog(t *testing.T) {
 		return connLogger.Contains(t, database.UpsertConnectionLogParams{
 			WorkspaceID:      allowedWorkspace.ID,
 			AgentName:        allowedSDKWorkspace.LatestBuild.Resources[0].Agents[0].Name,
-			Type:             database.ConnectionTypeTunnel,
+			ConnectionMethod: database.ConnectionLogMethodTunnel,
 			Code:             sql.NullInt32{Int32: http.StatusSwitchingProtocols, Valid: true},
 			UserID:           uuid.NullUUID{UUID: memberUser.ID, Valid: true},
 			UserAgent:        sql.NullString{},
@@ -3154,7 +3247,7 @@ func TestUserTailnetConnectionLog(t *testing.T) {
 		return connLogger.Contains(t, database.UpsertConnectionLogParams{
 			WorkspaceID:      deniedWorkspace.ID,
 			AgentName:        deniedSDKWorkspace.LatestBuild.Resources[0].Agents[0].Name,
-			Type:             database.ConnectionTypeTunnel,
+			ConnectionMethod: database.ConnectionLogMethodTunnel,
 			Code:             sql.NullInt32{Int32: http.StatusForbidden, Valid: true},
 			UserID:           uuid.NullUUID{UUID: memberUser.ID, Valid: true},
 			ConnectionStatus: database.ConnectionStatusConnected,

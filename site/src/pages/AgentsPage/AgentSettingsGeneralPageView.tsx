@@ -2,6 +2,7 @@ import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatFullWidthSettings } from "./components/ChatFullWidthSettings";
 import { ChatSendShortcutSettings } from "./components/ChatSendShortcutSettings";
+import { CollapseAssistantStepsSettings } from "./components/CollapseAssistantStepsSettings";
 import {
 	CodeDiffDisplaySettings,
 	ShellToolDisplaySettings,
@@ -10,10 +11,11 @@ import {
 import { PersonalInstructionsSettings } from "./components/PersonalInstructionsSettings";
 import { SectionHeader } from "./components/SectionHeader";
 import { UserChatDebugLoggingSettings } from "./components/UserChatDebugLoggingSettings";
-import { ChatBoardSettings } from "./exp/chatBoard/ChatBoardSettings";
 
 export type AgentSettingsGeneralPageViewProps = {
 	userPromptData: TypesGen.UserChatCustomPrompt | undefined;
+	isLoadingUserPrompt: boolean;
+	userPromptError: unknown;
 	onSaveUserPrompt: UseMutateFunction<
 		TypesGen.UserChatCustomPrompt,
 		Error,
@@ -31,13 +33,14 @@ export type AgentSettingsGeneralPageViewProps = {
 	>;
 	isSavingUserDebugLogging: boolean;
 	isSaveUserDebugLoggingError: boolean;
-	chatBoardAvailable: boolean;
 };
 
 export const AgentSettingsGeneralPageView: React.FC<
 	AgentSettingsGeneralPageViewProps
 > = ({
 	userPromptData,
+	isLoadingUserPrompt,
+	userPromptError,
 	onSaveUserPrompt,
 	isSavingUserPrompt,
 	isSaveUserPromptError,
@@ -45,7 +48,6 @@ export const AgentSettingsGeneralPageView: React.FC<
 	onSaveUserDebugLogging,
 	isSavingUserDebugLogging,
 	isSaveUserDebugLoggingError,
-	chatBoardAvailable,
 }) => {
 	return (
 		<div className="flex flex-col gap-8">
@@ -55,6 +57,8 @@ export const AgentSettingsGeneralPageView: React.FC<
 			/>
 			<PersonalInstructionsSettings
 				userPromptData={userPromptData}
+				isLoadingUserPrompt={isLoadingUserPrompt}
+				userPromptError={userPromptError}
 				onSaveUserPrompt={onSaveUserPrompt}
 				isSavingUserPrompt={isSavingUserPrompt}
 				isSaveUserPromptError={isSaveUserPromptError}
@@ -65,13 +69,13 @@ export const AgentSettingsGeneralPageView: React.FC<
 			<ThinkingDisplaySettings />
 			<ShellToolDisplaySettings />
 			<CodeDiffDisplaySettings />
+			<CollapseAssistantStepsSettings />
 			<UserChatDebugLoggingSettings
 				userSettings={userDebugLoggingData}
 				onSaveUserSetting={onSaveUserDebugLogging}
 				isSavingUserSetting={isSavingUserDebugLogging}
 				isSaveUserSettingError={isSaveUserDebugLoggingError}
 			/>
-			{chatBoardAvailable && <ChatBoardSettings />}
 		</div>
 	);
 };

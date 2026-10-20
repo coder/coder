@@ -1,4 +1,4 @@
-# Coder Docs Content Guidelines
+# Coder docs content guidelines
 
 > [!NOTE]
 > This is the **canonical** guidance for what belongs in the Coder documentation under `docs/` (published to [coder.com/docs](https://coder.com/docs)) and what doesn't.
@@ -18,7 +18,7 @@ When you have a candidate change for the docs, apply these rules in order:
 ## Quick decision checklist
 
 Triage a piece of content fast.
-If any answer routes you away from the docs, see the [routing table](#routing-table) for the correct destination.
+If any answer routes you away from the docs, refer to the [routing table](#routing-table) for the correct destination.
 
 1. Does it describe how the product works or how to use it, from the end user's perspective?
    **Likely docs.**
@@ -198,7 +198,7 @@ Each entry includes the reason it belongs in the docs.
   Once a migration path is no longer relevant to the supported upgrade path, it ages out like any other stale content.
 
 - **Tutorials and guides that go beyond an API reference.**
-  Walkthroughs using the CLI (or chained commands) with expected outputs.
+  Tutorials using the CLI (or chained commands) with expected outputs.
 
   *Why:* Reference docs tell users what exists; guides teach them how to accomplish something with it.
 
@@ -216,16 +216,14 @@ Each entry includes the reason it belongs in the docs.
   1. No PHI or PII.
   2. No internal secrets leaked without properly obfuscating the text.
   3. Capture the minimally necessary surface area.
-     The more area a
-     screenshot includes, the more likely it becomes out of date.
-  4. Alt text is always required, and must properly explain the purpose
-     of the screenshot for accessibility.
+     The more area a screenshot includes, the more likely it becomes out of date.
+  4. Alt text is always required, and must properly explain the purpose of the screenshot for accessibility.
 
   *Why:* Screenshots must be kept up to date and risk going stale if not actively monitored, and users who rely on screen readers or other assistive technology cannot get the same value from screenshots that sighted users can.
   Each screenshot must earn its place, stay small, and carry alt text that conveys its purpose.
 
   *Note:* This policy supersedes the older "image-driven documentation" guidance (structuring sections around screenshots, inserting placeholders for missing screenshots).
-  It may be loosened if automated screenshot generation becomes real (see [Open items](#open-items)).
+  It might be loosened if automated screenshot generation becomes real (refer to [Open items](#open-items)).
 
 ## Structural rules
 
@@ -259,16 +257,14 @@ These govern *how* content enters the docs, for both humans and the doc-check ag
   That format isn't processed by [coder.com](https://coder.com).
 - **No emdash, endash, or ` -- ` as punctuation.**
   This applies in docs prose, code blocks, comments, and string literals.
-  Use commas, semicolons, or periods, or restructure the sentence.
-  For numeric ranges, use a plain hyphen (e.g., `0-100`).
+  Use commas, parentheses, or periods, or restructure the sentence.
+  For numeric ranges in code and tables, a plain hyphen is fine (`0-100`).
+  In prose, spell out the joiner (`0 to 100`), as [Numeric ranges](./style-guide/capitalization-and-punctuation.md#numeric-ranges) describes.
   The rule is enforced by `make lint/emdash`.
 - **Terminology changes update the glossary.**
   When a change introduces, renames, or deprecates a Coder product or feature name, update the [glossary](../reference/glossary.md) in the same change, the way a user-facing feature lands with its docs:
-  1. New name: add an entry with a short definition and a link to the
-     page that covers the term.
-  2. Rename: update the entry and record the former name (for example,
-     "previously named ...") so a reader who searches the old term still
-     lands in the right place.
+  1. New name: add an entry with a short definition and a link to the page that covers the term.
+  2. Rename: update the entry and record the former name (for example, "previously named ...") so a reader who searches the old term still lands in the right place.
   3. Deprecation: mark the term deprecated and name its replacement.
 
   A term earns an entry when it is a Coder-specific product or feature proper noun, or a word that collides with another Coder meaning (for example, the several senses of "agent").
@@ -313,7 +309,7 @@ Each entry includes the destination and the reason.
 
   *Why:* Don't predict the future; don't carry forward material that no longer applies.
   Version-scoped content is what keeps the docs trustworthy and drift-detectable.
-  See the multi-PR launch exception in [Documentation lands with the change](#documentation-lands-with-the-change).
+  Refer to the multi-PR launch exception in [Documentation lands with the change](#documentation-lands-with-the-change).
 
 - **Feature announcements and launch rationale.**
   Route to blog.
@@ -343,7 +339,7 @@ When content doesn't belong in the docs, here's where it goes.
 | Launch rationale ("why we built this")   | Blog                                   | Casual, narrative voice belongs on the blog                                                                                                          |
 | Performance improvements                 | Changelog or blog                      | No change to how the user interacts with the product                                                                                                 |
 | Release-by-release changes               | Changelog                              | The changelog is the record of what changed and when                                                                                                 |
-| Known bugs or undesired behavior         | Changelog                              | Docs shouldn't highlight deficiencies (see exception above)                                                                                          |
+| Known bugs or undesired behavior         | Changelog                              | Docs shouldn't highlight deficiencies (refer to the exception in the previous section)                                                               |
 | Troubleshooting ("when things go wrong") | Support KB (Pylon)                     | Support is primary owner of failure-mode content (Docs secondary where needed); docs own intended behavior and link to the KB via an embedded widget |
 | Contributing guides                      | GitHub (or public Notion)              | Audience is contributors, not end users                                                                                                              |
 | Style guides (code and docs)             | GitHub, with the codebase              | Same audience as contributing guides; enables CI enforcement                                                                                         |

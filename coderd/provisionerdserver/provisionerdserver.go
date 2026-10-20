@@ -1500,13 +1500,9 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 					previousBuild = database.WorkspaceBuild{}
 				}
 
-				// We pass the below information to the Auditor so that it
-				// can form a friendly string for the user to view in the UI.
-				buildResourceInfo := audit.AdditionalFields{
-					WorkspaceName: workspace.Name,
-					BuildNumber:   strconv.FormatInt(int64(build.BuildNumber), 10),
-					BuildReason:   database.BuildReason(string(build.Reason)),
-					WorkspaceID:   workspace.ID,
+				buildResourceInfo, err := audit.WorkspaceBuildFields(ctx, s.Database, workspace, build)
+				if err != nil {
+					s.Logger.Error(ctx, "audit log - workspace build fields", slog.Error(err))
 				}
 
 				wriBytes, err := json.Marshal(buildResourceInfo)
@@ -1874,6 +1870,15 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		return xerrors.Errorf("template version ID is expected: %w", err)
 	}
 
+	// Keep plan parsing and traversal outside the transaction to avoid
+	// extending its duration for large plans.
+	// Failure to count script-order usage must not prevent import completion.
+	orderUsage, orderUsageErr := countScriptOrderUsage(jobType.TemplateImport.Plan)
+	if orderUsageErr != nil {
+		s.Logger.Warn(ctx, "count script order usage, skipping",
+			slog.F("job_id", jobID), slog.Error(orderUsageErr))
+	}
+
 	// Execute all database operations in a transaction
 	return s.Database.InTx(func(db database.Store) error {
 		now := s.timeNow()
@@ -2048,6 +2053,17 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		})
 		if err != nil {
 			return xerrors.Errorf("update template version external agent: %w", err)
+		}
+		if orderUsageErr == nil {
+			err = db.UpdateTemplateVersionScriptOrderUsageByJobID(ctx, database.UpdateTemplateVersionScriptOrderUsageByJobIDParams{
+				JobID:                      jobID,
+				ScriptOrderDataSourceCount: orderUsage.dataSourceCount,
+				ScriptOrderRuleCount:       orderUsage.ruleCount,
+				UpdatedAt:                  now,
+			})
+			if err != nil {
+				return xerrors.Errorf("update template version script order usage: %w", err)
+			}
 		}
 
 		// Process terraform values
@@ -2432,6 +2448,16 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			}()
 		}
 
+		// The previous build's agent may run until this job completes, so its
+		// secret values are kept live until now.
+		//nolint:gocritic // Clearing superseded secrets is bookkeeping, not a user write.
+		if err := db.ClearWorkspaceSecretsBeforeBuild(dbauthz.AsWorkspaceSecretManager(ctx), database.ClearWorkspaceSecretsBeforeBuildParams{
+			WorkspaceID:      workspaceBuild.WorkspaceID,
+			WorkspaceBuildID: workspaceBuild.ID,
+		}); err != nil {
+			return xerrors.Errorf("clear previous workspace secrets: %w", err)
+		}
+
 		if workspaceBuild.Transition != database.WorkspaceTransitionDelete {
 			// This is for deleting a workspace!
 			return nil
@@ -2443,6 +2469,12 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		})
 		if err != nil {
 			return xerrors.Errorf("update workspace deleted: %w", err)
+		}
+
+		// Deleted workspaces keep their rows, so drop the secret values.
+		//nolint:gocritic // Clearing a deleted workspace's secrets is bookkeeping, not a user write.
+		if err := db.ClearWorkspaceSecretsByWorkspaceID(dbauthz.AsWorkspaceSecretManager(ctx), workspaceBuild.WorkspaceID); err != nil {
+			return xerrors.Errorf("clear workspace secrets: %w", err)
 		}
 
 		// Soft-delete any agents tied to this workspace so the
@@ -2481,13 +2513,9 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			previousBuild = database.WorkspaceBuild{}
 		}
 
-		// We pass the below information to the Auditor so that it
-		// can form a friendly string for the user to view in the UI.
-		buildResourceInfo := audit.AdditionalFields{
-			WorkspaceName: workspace.Name,
-			BuildNumber:   strconv.FormatInt(int64(workspaceBuild.BuildNumber), 10),
-			BuildReason:   database.BuildReason(string(workspaceBuild.Reason)),
-			WorkspaceID:   workspace.ID,
+		buildResourceInfo, err := audit.WorkspaceBuildFields(ctx, s.Database, workspace, workspaceBuild)
+		if err != nil {
+			s.Logger.Error(ctx, "audit log - workspace build fields", slog.Error(err))
 		}
 
 		wriBytes, err := json.Marshal(buildResourceInfo)
@@ -3037,7 +3065,10 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 		}
 
-		scriptsParams := agentScriptsFromProto(prAgent.Scripts)
+		scriptsParams, err := agentScriptsFromProto(prAgent.Scripts)
+		if err != nil {
+			return xerrors.Errorf("convert agent scripts: %w", err)
+		}
 
 		// Dev Containers require a script and log/source, so we do this before
 		// the logs insert below.
@@ -3084,6 +3115,10 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				scriptsParams.ScriptStartBlocksLogin = append(scriptsParams.ScriptStartBlocksLogin, false)
 				scriptsParams.ScriptRunOnStart = append(scriptsParams.ScriptRunOnStart, false)
 				scriptsParams.ScriptRunOnStop = append(scriptsParams.ScriptRunOnStop, false)
+				// Every slice must stay the same length: unnest pads a short
+				// array with NULL and the NOT NULL columns reject the insert.
+				scriptsParams.ScriptResourceAddresses = append(scriptsParams.ScriptResourceAddresses, "")
+				scriptsParams.ScriptDependencies = append(scriptsParams.ScriptDependencies, "[]")
 			}
 
 			_, err = db.InsertWorkspaceAgentDevcontainers(ctx, database.InsertWorkspaceAgentDevcontainersParams{
@@ -3533,7 +3568,11 @@ func insertDevcontainerSubagent(
 		}
 	}
 
-	if err := insertAgentScriptsAndLogSources(ctx, db, subAgentID, agentScriptsFromProto(dc.GetScripts())); err != nil {
+	dcScriptsParams, err := agentScriptsFromProto(dc.GetScripts())
+	if err != nil {
+		return uuid.UUID{}, xerrors.Errorf("convert devcontainer agent scripts: %w", err)
+	}
+	if err := insertAgentScriptsAndLogSources(ctx, db, subAgentID, dcScriptsParams); err != nil {
 		return uuid.UUID{}, xerrors.Errorf("insert agent scripts and log sources: %w", err)
 	}
 
@@ -3604,34 +3643,41 @@ type agentScriptsParams struct {
 	LogSourceDisplayNames []string
 	LogSourceIcons        []string
 
-	ScriptIDs              []uuid.UUID
-	ScriptDisplayNames     []string
-	ScriptLogPaths         []string
-	ScriptSources          []string
-	ScriptCron             []string
-	ScriptTimeout          []int32
-	ScriptStartBlocksLogin []bool
-	ScriptRunOnStart       []bool
-	ScriptRunOnStop        []bool
+	ScriptIDs               []uuid.UUID
+	ScriptDisplayNames      []string
+	ScriptLogPaths          []string
+	ScriptSources           []string
+	ScriptCron              []string
+	ScriptTimeout           []int32
+	ScriptStartBlocksLogin  []bool
+	ScriptRunOnStart        []bool
+	ScriptRunOnStop         []bool
+	ScriptResourceAddresses []string
+	// ScriptDependencies holds one JSON array per script, "[]" when none.
+	ScriptDependencies []string
 }
 
 // agentScriptsFromProto converts a slice of proto scripts into the
-// agentScriptsParams struct needed for database insertion.
-func agentScriptsFromProto(scripts []*sdkproto.Script) agentScriptsParams {
+// agentScriptsParams struct needed for database insertion. It fails on a
+// dependency entry coderd cannot store, so the job fails before any row
+// is written.
+func agentScriptsFromProto(scripts []*sdkproto.Script) (agentScriptsParams, error) {
 	params := agentScriptsParams{
 		LogSourceIDs:          make([]uuid.UUID, 0, len(scripts)),
 		LogSourceDisplayNames: make([]string, 0, len(scripts)),
 		LogSourceIcons:        make([]string, 0, len(scripts)),
 
-		ScriptIDs:              make([]uuid.UUID, 0, len(scripts)),
-		ScriptDisplayNames:     make([]string, 0, len(scripts)),
-		ScriptLogPaths:         make([]string, 0, len(scripts)),
-		ScriptSources:          make([]string, 0, len(scripts)),
-		ScriptCron:             make([]string, 0, len(scripts)),
-		ScriptTimeout:          make([]int32, 0, len(scripts)),
-		ScriptStartBlocksLogin: make([]bool, 0, len(scripts)),
-		ScriptRunOnStart:       make([]bool, 0, len(scripts)),
-		ScriptRunOnStop:        make([]bool, 0, len(scripts)),
+		ScriptIDs:               make([]uuid.UUID, 0, len(scripts)),
+		ScriptDisplayNames:      make([]string, 0, len(scripts)),
+		ScriptLogPaths:          make([]string, 0, len(scripts)),
+		ScriptSources:           make([]string, 0, len(scripts)),
+		ScriptCron:              make([]string, 0, len(scripts)),
+		ScriptTimeout:           make([]int32, 0, len(scripts)),
+		ScriptStartBlocksLogin:  make([]bool, 0, len(scripts)),
+		ScriptRunOnStart:        make([]bool, 0, len(scripts)),
+		ScriptRunOnStop:         make([]bool, 0, len(scripts)),
+		ScriptResourceAddresses: make([]string, 0, len(scripts)),
+		ScriptDependencies:      make([]string, 0, len(scripts)),
 	}
 
 	for _, script := range scripts {
@@ -3648,9 +3694,59 @@ func agentScriptsFromProto(scripts []*sdkproto.Script) agentScriptsParams {
 		params.ScriptStartBlocksLogin = append(params.ScriptStartBlocksLogin, script.GetStartBlocksLogin())
 		params.ScriptRunOnStart = append(params.ScriptRunOnStart, script.GetRunOnStart())
 		params.ScriptRunOnStop = append(params.ScriptRunOnStop, script.GetRunOnStop())
+		params.ScriptResourceAddresses = append(params.ScriptResourceAddresses, script.GetResourceAddress())
+
+		dependencies, err := scriptDependenciesJSON(script.GetDependencies())
+		if err != nil {
+			return agentScriptsParams{}, xerrors.Errorf("script %q dependencies: %w", script.GetResourceAddress(), err)
+		}
+		params.ScriptDependencies = append(params.ScriptDependencies, dependencies)
 	}
 
-	return params
+	return params, nil
+}
+
+// scriptDependenciesJSON encodes the provisioner's dependency list as the
+// JSON stored in workspace_agent_scripts.dependencies. The document is
+// []codersdk.WorkspaceAgentScriptDependency encoded with encoding/json, so
+// the row, the REST API and the manifest spell the list one way.
+func scriptDependenciesJSON(dependencies []*sdkproto.ScriptDependency) (string, error) {
+	encoded := make([]codersdk.WorkspaceAgentScriptDependency, 0, len(dependencies))
+	for i, dependency := range dependencies {
+		requirement, err := scriptDependencyRequirementFromProto(dependency.GetRequirement())
+		if err != nil {
+			return "", xerrors.Errorf("dependency %d: %w", i, err)
+		}
+		if dependency.GetPrerequisiteResourceAddress() == "" {
+			return "", xerrors.Errorf("dependency %d has an empty prerequisite resource address", i)
+		}
+		encoded = append(encoded, codersdk.WorkspaceAgentScriptDependency{
+			PrerequisiteResourceAddress: dependency.GetPrerequisiteResourceAddress(),
+			Requirement:                 requirement,
+		})
+	}
+
+	// An empty slice encodes as `[]`, never `null`, which the column's
+	// array check would reject.
+	data, err := json.Marshal(encoded)
+	if err != nil {
+		return "", xerrors.Errorf("marshal dependencies: %w", err)
+	}
+	return string(data), nil
+}
+
+// scriptDependencyRequirementFromProto maps the wire enum to the stored
+// string. UNSPECIFIED is an error: the provisioner never sends it, so
+// receiving it is a bug rather than a third kind of requirement.
+func scriptDependencyRequirementFromProto(requirement sdkproto.ScriptDependencyRequirement) (codersdk.WorkspaceAgentScriptDependencyRequirement, error) {
+	switch requirement {
+	case sdkproto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_SUCCESS:
+		return codersdk.WorkspaceAgentScriptDependencyRequirementSuccess, nil
+	case sdkproto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_COMPLETION:
+		return codersdk.WorkspaceAgentScriptDependencyRequirementCompletion, nil
+	default:
+		return "", xerrors.Errorf("unsupported requirement %q", requirement)
+	}
 }
 
 // insertAgentScriptsAndLogSources inserts log sources and scripts for an agent (or
@@ -3686,6 +3782,8 @@ func insertAgentScriptsAndLogSources(ctx context.Context, db database.Store, age
 		RunOnStart:       params.ScriptRunOnStart,
 		RunOnStop:        params.ScriptRunOnStop,
 		DisplayName:      params.ScriptDisplayNames,
+		ResourceAddress:  params.ScriptResourceAddresses,
+		Dependencies:     params.ScriptDependencies,
 	})
 	if err != nil {
 		return xerrors.Errorf("insert scripts: %w", err)

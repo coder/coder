@@ -71,8 +71,9 @@ Chat requests that include unsafe_dynamic_tools or inline_mcp_servers are reject
 
 ### Disable chat sharing
 
-Disable chat sharing.
-Chat ACL checking is disabled and only owners can access their chats.
+Disable chat and chat project sharing.
+Existing shares stop granting access and new shares are rejected.
+Owners keep access to their own chats and projects, and administrators keep only the access their roles grant.
 
 - Type: `bool`
 - Environment variable: `CODER_DISABLE_CHAT_SHARING`
@@ -612,18 +613,6 @@ Must be at least 1.
 - Environment variable: `CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT`
 - CLI flag: [`--chat-max-attachments-per-chat`](../../reference/cli/server/index.md#--chat-max-attachments-per-chat)
 - YAML key: `chat.maxAttachmentsPerChat`
-- Default value: `50`
-
-### Max automations per owner
-
-Maximum number of chat automations one user can own across all organizations.
-Creating one more fails with HTTP 409.
-Must be at least 1.
-
-- Type: `int`
-- Environment variable: `CODER_CHAT_MAX_AUTOMATIONS_PER_OWNER`
-- CLI flag: [`--chat-max-automations-per-owner`](../../reference/cli/server/index.md#--chat-max-automations-per-owner)
-- YAML key: `chat.maxAutomationsPerOwner`
 - Default value: `50`
 
 ### Max concurrent recording uploads
@@ -1346,8 +1335,9 @@ Format matches the CSP directive format, e.g. --additional-csp-policy="script-sr
 
 Disable password authentication.
 This is recommended for security purposes in production deployments that rely on an identity provider.
-Any user with the owner role will be able to sign in with their password regardless of this setting to avoid potential lock out.
-If you are locked out of your account, you can use the `coder server create-admin` command to create a new admin user directly in the database.
+This applies to all users, including owners.
+Ensure an owner can sign in through your identity provider before enabling this.
+To recover access, unset this option, restart the server, and use `coder server create-admin-user` if needed.
 
 - Type: `bool`
 - Environment variable: `CODER_DISABLE_PASSWORD_AUTH`
