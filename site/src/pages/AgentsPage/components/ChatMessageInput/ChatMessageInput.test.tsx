@@ -258,6 +258,11 @@ describe("ChatMessageInput", () => {
 			id: "skill-reviewer",
 			name: "reviewer",
 		};
+		const mockCompactorSkill: SkillMetadata = {
+			...MockSkill,
+			id: "skill-compactor",
+			name: "compactor",
+		};
 
 		const renderWithSkills = ({
 			personal,
@@ -330,7 +335,7 @@ describe("ChatMessageInput", () => {
 		it("hides built-in commands when the organization list fails", async () => {
 			// With /compact hidden, Enter picks the qualified personal match.
 			const inputRef = renderWithSkills({
-				personal: [{ ...MockSkill, id: "skill-compactor", name: "compactor" }],
+				personal: [mockCompactorSkill],
 			});
 			const user = await pasteTrigger("/comp");
 			await screen.findByText(/Could not load organization skills/);
@@ -339,14 +344,11 @@ describe("ChatMessageInput", () => {
 		});
 
 		it("offers built-in commands when the project list fails", async () => {
-			// chatd runs a turn without project skills it cannot load, so the
-			// failed list must not hide /compact the way an organization
-			// failure does.
 			vi.spyOn(API.experimental, "getChatProjectSkills").mockRejectedValue(
 				new Error("Failed to load project skills."),
 			);
 			const inputRef = renderWithSkills({
-				personal: [{ ...MockSkill, id: "skill-compactor", name: "compactor" }],
+				personal: [mockCompactorSkill],
 				organization: [],
 				projectId: "project-1",
 			});
