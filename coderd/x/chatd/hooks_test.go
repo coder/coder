@@ -836,6 +836,7 @@ func TestPromptHooksAdmissionPreflight(t *testing.T) {
 					Content:       queuedContent.RawMessage,
 					ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 					CreatedBy:     user.ID,
+					BusyBehavior:  database.ChatBusyBehaviorQueue,
 				})
 				require.NoError(t, err)
 			}
@@ -896,6 +897,7 @@ func TestPromptHooksAdmissionPreflight(t *testing.T) {
 				Content:       queuedContent.RawMessage,
 				ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 				CreatedBy:     user.ID,
+				BusyBehavior:  database.ChatBusyBehaviorQueue,
 			})
 			require.NoError(t, err)
 			if tc.editing {
