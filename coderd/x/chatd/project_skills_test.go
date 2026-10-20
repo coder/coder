@@ -30,8 +30,13 @@ func TestProjectSkillsFollowProjectAccess(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	recorder, openAIURL := newSkillRecordingOpenAI(t)
 	owner, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	// The teammate is an organization admin, whose role can read every
+	// project in the organization. Only the project share may grant
+	// project skills, as for project instructions and memory.
 	teammate := dbgen.User(t, db, database.User{})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: teammate.ID, OrganizationID: org.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID: teammate.ID, OrganizationID: org.ID, Roles: []string{rbac.RoleOrgAdmin()},
+	})
 	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
 	projectACL := database.ChatACL{teammate.ID.String(): {Permissions: []policy.Action{policy.ActionRead}}}
 	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
@@ -156,8 +161,9 @@ func TestProjectSkillsFollowProjectAccess(t *testing.T) {
 	require.Contains(t, calls[0].system, "- shared: Project shared process\n")
 	require.Contains(t, lastToolResults(calls[1], 1)[0], "Instructions for shared.")
 
-	// Revoking the share removes project skills on the next turn. The
-	// teammate's personal skill keeps read_skill available to observe that.
+	// Revoking the share removes project skills on the next turn, even
+	// though the admin role still reads the project. The teammate's personal
+	// skill keeps read_skill available to observe that.
 	insertPersonalSkill(teammate.ID, "teammate-notes", "Teammate notes")
 	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
 		ID: project.ID, UserACL: database.ChatACL{}, GroupACL: database.ChatACL{},

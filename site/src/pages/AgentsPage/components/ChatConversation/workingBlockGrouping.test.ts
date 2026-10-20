@@ -10,8 +10,9 @@ import {
 import { assignTimelineRows, type TimelineRow } from "./timelineRows";
 import {
 	type GroupWorkingBlocksOptions,
+	getRowBlocks,
 	groupWorkingBlocks,
-	splitRowBlocks,
+	isAgentAttachmentOnlyRow,
 	type WorkingBlock,
 } from "./workingBlockGrouping";
 
@@ -97,6 +98,13 @@ const result = (
 	is_error: options.isError,
 	created_at: createdAt,
 });
+
+const mockAttachment: TypesGen.ChatMessagePart = {
+	type: "file",
+	media_type: "text/csv",
+	name: "report.csv",
+	file_id: "report-file",
+};
 
 /** One persisted step: an assistant tool call followed by its hidden result. */
 const step = (
@@ -229,6 +237,29 @@ describe("groupWorkingBlocks", () => {
 			endedAt: WORKING_FIXTURE_START + 9000,
 			key: `working:through:message:${answer.id}`,
 		});
+	});
+
+	it("keeps a step's attachment inside the block instead of ending it there", () => {
+		const prompt = user("Go");
+		// chatd persists a tool's attachments as their own assistant message.
+		const steps = [
+			...step("a", 1, 2),
+			message("assistant", [call("b", at(3), "attach_file")], at(3)),
+			message("assistant", [mockAttachment], at(3)),
+			message("tool", [result("b", at(4), { name: "attach_file" })], at(4)),
+			...step("c", 5, 6),
+		];
+		const answer = message("assistant", [text("Done.")], at(7));
+		const { rows, blocks } = group([prompt, ...steps, answer]);
+
+		expect(blocks).toHaveLength(1);
+		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([
+			steps[0].id,
+			steps[2].id,
+			steps[3].id,
+			steps[5].id,
+		]);
+		expect(blocks[0].endsWithAnswer).toBe(false);
 	});
 
 	it("treats an answer whose citations trail its text as the block's answer", () => {
@@ -1054,12 +1085,15 @@ describe("groupWorkingBlocks", () => {
 	});
 });
 
-describe("splitRowBlocks", () => {
+describe("getRowBlocks", () => {
 	const answerOf = (content: TypesGen.ChatMessagePart[]) => {
 		const [{ parsed }] = parseMessagesWithMergedTools([
 			message("assistant", content),
 		]);
-		return splitRowBlocks(parsed.blocks, parsed.tools).answer;
+		return getRowBlocks(parsed.blocks, parsed.tools, {
+			section: "answer",
+			hideAttachments: false,
+		});
 	};
 
 	it("folds narration that precedes the answer's last reasoning", () => {
@@ -1157,9 +1191,12 @@ describe("splitRowBlocks", () => {
 			const expected = [{ type: "response", text: answer }];
 
 			expect(answerOf(persisted)).toEqual(expected);
-			expect(splitRowBlocks(streamState.blocks, streamTools).answer).toEqual(
-				expected,
-			);
+			expect(
+				getRowBlocks(streamState.blocks, streamTools, {
+					section: "answer",
+					hideAttachments: false,
+				}),
+			).toEqual(expected);
 		},
 	);
 
@@ -1192,6 +1229,48 @@ describe("splitRowBlocks", () => {
 		).toEqual([
 			{ type: "response", text: "Checked the logs." },
 			{ type: "response", text: "The fix is in." },
+		]);
+	});
+
+	it("drops a row's files only when attachments are hidden", () => {
+		const [{ parsed }] = parseMessagesWithMergedTools([
+			message("assistant", [text("Report:"), mockAttachment]),
+		]);
+		const blockTypes = (hideAttachments: boolean) =>
+			getRowBlocks(parsed.blocks, parsed.tools, {
+				section: undefined,
+				hideAttachments,
+			}).map((block) => block.type);
+
+		expect(blockTypes(false)).toEqual(["response", "file"]);
+		expect(blockTypes(true)).toEqual(["response"]);
+	});
+});
+
+describe("isAgentAttachmentOnlyRow", () => {
+	it("flags only assistant rows that show nothing but attachments", () => {
+		const upload = message("user", [mockAttachment]);
+		const attachmentOnly = message("assistant", [mockAttachment]);
+		const answerWithFile = message("assistant", [
+			text("Report:"),
+			mockAttachment,
+		]);
+		const withHookNotice = message("assistant", [
+			mockAttachment,
+			{ type: "hook-notice", text: "Scanned by policy." },
+		]);
+		const { rows } = group([
+			upload,
+			attachmentOnly,
+			answerWithFile,
+			withHookNotice,
+		]);
+
+		expect(rows.map((row) => isAgentAttachmentOnlyRow(row))).toEqual([
+			false,
+			true,
+			false,
+			false,
 		]);
 	});
 });
