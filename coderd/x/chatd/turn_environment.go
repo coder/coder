@@ -402,9 +402,9 @@ func (p *Server) buildTurnEnvironment(
 		workspaceSkills     []chattool.SkillMeta
 		personalSkills      []skillspkg.Skill
 		orgSkills           []skillspkg.Skill
+		orgSkillReader      rbac.Subject
 		projectSkills       []skillspkg.Skill
-		skillProjectID      uuid.NullUUID
-		skillOwner          rbac.Subject
+		usableProjectID     uuid.NullUUID
 		resolvedUserPrompt  string
 		projectInstructions string
 		planPathBlock       string
@@ -447,6 +447,9 @@ func (p *Server) buildTurnEnvironment(
 		// history; only metadata is mutated here.
 		agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx)
 		if agentErr != nil {
+			if !isNoUsableWorkspaceAgent(agentErr) {
+				return turnEnvironment{}, xerrors.Errorf("get workspace agent: %w", agentErr)
+			}
 			logger.Debug(ctx, "workspace agent lookup failed, instruction header stays undecorated", slog.Error(agentErr))
 		}
 
@@ -516,47 +519,37 @@ func (p *Server) buildTurnEnvironment(
 		personalSkills, err = p.fetchPersonalSkillMetadata(ctx, chat.OwnerID)
 		return err
 	})
-	// Organization and project skills are both read as the chat owner, so
-	// the owner subject is loaded once and shared.
-	loadSkillOwner := sync.OnceValues(func() (rbac.Subject, error) {
-		return p.chatOwnerSubject(ctx, chat.OwnerID)
-	})
 	g2.Go(func() error {
 		var err error
-		skillOwner, err = loadSkillOwner()
+		orgSkillReader, err = p.chatOwnerSubject(ctx, chat.OwnerID)
 		if err != nil {
 			return err
 		}
-		orgSkills, err = p.fetchOrganizationSkillMetadata(ctx, skillOwner, chat.OrganizationID)
+		orgSkills, err = p.fetchOrganizationSkillMetadata(ctx, orgSkillReader, chat.OrganizationID)
 		return err
-	})
-	g2.Go(func() error {
-		skillProjectID = p.resolveChatProjectID(ctx, logger, chat)
-		if !skillProjectID.Valid {
-			return nil
-		}
-		owner, err := loadSkillOwner()
-		if err != nil {
-			// The organization skill fetch reports this error.
-			return nil
-		}
-		// Project skills fail open: the turn continues without them.
-		projectSkills, err = p.fetchProjectSkillMetadata(ctx, owner, skillProjectID.UUID)
-		if err != nil {
-			logger.Warn(ctx, "failed to load chat project skills",
-				slog.F("project_id", skillProjectID.UUID),
-				slog.Error(err),
-			)
-		}
-		return nil
 	})
 	g2.Go(func() error {
 		var err error
 		resolvedUserPrompt, err = p.resolveUserPrompt(ctx, chat.OwnerID)
 		return err
 	})
+	// Project instructions and skills share one access check, so the chat
+	// owner gets both or neither. Both fail open: the turn continues without
+	// them.
 	g2.Go(func() error {
-		projectInstructions = p.resolveProjectInstructions(ctx, logger, chat)
+		usableProjectID = p.resolveUsableChatProjectID(ctx, logger, chat)
+		if !usableProjectID.Valid {
+			return nil
+		}
+		projectInstructions = p.loadProjectInstructions(ctx, logger, usableProjectID.UUID)
+		var err error
+		projectSkills, err = p.fetchProjectSkillMetadata(ctx, usableProjectID.UUID)
+		if err != nil {
+			logger.Warn(ctx, "failed to load chat project skills",
+				slog.F("project_id", usableProjectID.UUID),
+				slog.Error(err),
+			)
+		}
 		return nil
 	})
 	if len(mcpConnectConfigs) > 0 {
@@ -566,7 +559,10 @@ func (p *Server) buildTurnEnvironment(
 			if err != nil {
 				return xerrors.Errorf("get MCP server user tokens: %w", err)
 			}
-			mcpTokens = p.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
+			mcpTokens, err = p.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
+			if err != nil {
+				return err
+			}
 			mcpServers := make([]mcpclient.Server, 0, len(mcpConnectConfigs))
 			var invalidConfigs []mcpclient.ConnectSummary
 			for _, cfg := range mcpConnectConfigs {
@@ -739,7 +735,7 @@ func (p *Server) buildTurnEnvironment(
 		tools = append(tools, chattool.NewAskUserQuestionTool())
 	}
 	if isRootChat {
-		tools = p.appendRootChatTools(ctx, tools, rootChatToolsOptions{
+		tools, err = p.appendRootChatTools(ctx, tools, rootChatToolsOptions{
 			chat:            chat,
 			modelConfigID:   modelConfig.ID,
 			workspaceCtx:    &workspaceCtx,
@@ -748,6 +744,9 @@ func (p *Server) buildTurnEnvironment(
 			storeFile:       storeChatAttachment,
 			isPlanModeTurn:  isPlanModeTurn,
 		})
+		if err != nil {
+			return turnEnvironment{}, err
+		}
 	}
 
 	skillOpts := chattool.ReadSkillOptions{
@@ -759,9 +758,9 @@ func (p *Server) buildTurnEnvironment(
 		LoadStoredSkillBody: func(ctx context.Context, skill skillspkg.Skill) (skillspkg.ParsedSkill, error) {
 			switch skill.Source {
 			case skillspkg.SourceOrganization:
-				return p.loadOrganizationSkillBody(ctx, skillOwner, chat.OrganizationID, skill.Name)
+				return p.loadOrganizationSkillBody(ctx, orgSkillReader, chat.OrganizationID, skill.Name)
 			case skillspkg.SourceProject:
-				return p.loadProjectSkillBody(ctx, skillOwner, skillProjectID.UUID, skill.Name)
+				return p.loadProjectSkillBody(ctx, usableProjectID.UUID, skill.Name)
 			default:
 				return p.loadPersonalSkillBody(ctx, chat.OwnerID, skill.Name)
 			}
@@ -1372,45 +1371,48 @@ func (c *turnWorkspaceContext) persistBuildAgentBinding(
 	buildID uuid.UUID,
 	agentID uuid.UUID,
 ) (database.Chat, error) {
-	updatedChat, err := c.server.db.UpdateChatBuildAgentBinding(
-		ctx,
-		database.UpdateChatBuildAgentBindingParams{
-			ID: chatSnapshot.ID,
-			BuildID: uuid.NullUUID{
-				UUID:  buildID,
-				Valid: true,
-			},
-			AgentID: uuid.NullUUID{
-				UUID:  agentID,
-				Valid: true,
-			},
-		},
-	)
-	if err != nil {
-		return chatSnapshot, xerrors.Errorf(
-			"update chat build/agent binding: %w", err,
-		)
-	}
-
 	// If the chat was rebound to a different agent (e.g. a workspace rebuild
 	// produced a new agent), re-pin its context to the new agent so it stops
 	// injecting the previous agent's resources. Workspace lifecycle tools clear
 	// the agent binding while preserving the pin, so a missing prior agent also
-	// requires a re-pin when pinned context exists. Best-effort: a context error
-	// must never fail the binding. The pinned context fields on updatedChat are
-	// background state, reloaded on the next snapshot fetch.
+	// requires a re-pin when pinned context exists. The binding and the re-pin
+	// commit together: a committed binding without its re-pin would never be
+	// retried, because the next turn sees no agent change. The pinned context
+	// fields on updatedChat are background state, reloaded on the next
+	// snapshot fetch.
 	hasStaleUnboundContext := !chatSnapshot.AgentID.Valid && chatSnapshot.ContextAggregateHash != nil
-	if hasStaleUnboundContext || (chatSnapshot.AgentID.Valid && chatSnapshot.AgentID.UUID != agentID) {
-		//nolint:gocritic // Chatd re-pins chats it does not own as the daemon subject.
-		repinCtx := dbauthz.AsChatd(ctx)
-		if repinErr := database.ReadModifyUpdate(c.server.db, func(tx database.Store) error {
-			return repinChatContext(repinCtx, tx, chatSnapshot.ID, uuid.NullUUID{UUID: agentID, Valid: true})
-		}); repinErr != nil {
-			c.server.logger.Warn(ctx, "re-pin chat context after agent rebind",
-				slog.F("chat_id", chatSnapshot.ID),
-				slog.F("agent_id", agentID),
-				slog.Error(repinErr))
+	needsRepin := hasStaleUnboundContext || (chatSnapshot.AgentID.Valid && chatSnapshot.AgentID.UUID != agentID)
+	var updatedChat database.Chat
+	err := database.ReadModifyUpdate(c.server.db, func(tx database.Store) error {
+		var err error
+		updatedChat, err = tx.UpdateChatBuildAgentBinding(
+			ctx,
+			database.UpdateChatBuildAgentBindingParams{
+				ID: chatSnapshot.ID,
+				BuildID: uuid.NullUUID{
+					UUID:  buildID,
+					Valid: true,
+				},
+				AgentID: uuid.NullUUID{
+					UUID:  agentID,
+					Valid: true,
+				},
+			},
+		)
+		if err != nil {
+			return xerrors.Errorf("update chat build/agent binding: %w", err)
 		}
+		if !needsRepin {
+			return nil
+		}
+		//nolint:gocritic // Chatd re-pins chats it does not own as the daemon subject.
+		if err := repinChatContext(dbauthz.AsChatd(ctx), tx, chatSnapshot.ID, uuid.NullUUID{UUID: agentID, Valid: true}); err != nil {
+			return xerrors.Errorf("re-pin chat context after agent rebind: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return chatSnapshot, err
 	}
 
 	c.setCurrentChat(updatedChat)
@@ -1462,12 +1464,15 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 		}
 
 		if !chatSnapshot.WorkspaceID.Valid {
-			return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("this tool requires a workspace and this chat does not have one. Use the create_workspace tool to create one")
+			return chatSnapshot, database.WorkspaceAgent{}, errChatHasNoWorkspace
 		}
 
 		// A soft-deleted workspace keeps its agent rows, so the bound agent
 		// would otherwise be dialed and fail as merely unreachable.
 		ws, err := c.server.db.GetWorkspaceByID(ctx, chatSnapshot.WorkspaceID.UUID)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf("load workspace: %w", errChatWorkspaceDeleted)
+		}
 		if err != nil {
 			return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf(
 				"load workspace: %w. %s", err, chattool.WorkspaceUnavailableHint,
@@ -1498,10 +1503,7 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 				return chatSnapshot, c.agent, nil
 			}
 			if !xerrors.Is(err, sql.ErrNoRows) {
-				c.server.logger.Warn(ctx, "agent binding lookup failed, re-resolving",
-					slog.F("agent_id", chatSnapshot.AgentID.UUID),
-					slog.Error(err),
-				)
+				return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf("get bound workspace agent: %w", err)
 			}
 		}
 
@@ -1556,6 +1558,16 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 	return chatSnapshot, database.WorkspaceAgent{}, xerrors.New(
 		"chat workspace changed while resolving agent",
 	)
+}
+
+// isNoUsableWorkspaceAgent reports whether err from ensureWorkspaceAgent means
+// the chat has no agent to use, as opposed to a failed lookup.
+func isNoUsableWorkspaceAgent(err error) bool {
+	return xerrors.Is(err, errChatHasNoWorkspace) ||
+		xerrors.Is(err, errChatWorkspaceDeleted) ||
+		xerrors.Is(err, errChatHasNoWorkspaceAgent) ||
+		xerrors.Is(err, agentselect.ErrNoEligibleAgents) ||
+		xerrors.Is(err, agentselect.ErrMultipleChatAgents)
 }
 
 func (c *turnWorkspaceContext) latestWorkspaceAgentID(
@@ -2407,15 +2419,14 @@ func (p *Server) loadOrganizationSkillBody(
 	return parsed, nil
 }
 
-// fetchProjectSkillMetadata lists the enabled skills of a chat project. Reads
-// run as the chat owner, so they follow the owner's access to the project.
+// fetchProjectSkillMetadata lists the enabled skills of a chat project. It
+// reads as chatd, so callers must first check that the chat owner can use the
+// project with usableChatProject, as for project instructions and memory.
 func (p *Server) fetchProjectSkillMetadata(
 	ctx context.Context,
-	owner rbac.Subject,
 	projectID uuid.UUID,
 ) ([]skillspkg.Skill, error) {
-	//nolint:gocritic // Project access is evaluated against the chat owner.
-	rows, err := p.db.ListProjectSkillMetadataByProjectID(dbauthz.As(ctx, owner), projectID)
+	rows, err := p.db.ListProjectSkillMetadataByProjectID(ctx, projectID)
 	if err != nil {
 		return nil, xerrors.Errorf("list project skill metadata: %w", err)
 	}
@@ -2434,25 +2445,21 @@ func (p *Server) fetchProjectSkillMetadata(
 	return projectSkills, nil
 }
 
-// loadProjectSkillBody loads the current body of a chat project skill as the
-// chat owner. It returns skillspkg.ErrSkillNotFound when the skill is gone,
-// disabled, or the owner can no longer read the project.
+// loadProjectSkillBody loads the current body of a chat project skill. Like
+// fetchProjectSkillMetadata, it reads as chatd and relies on the caller's
+// project access check. It returns skillspkg.ErrSkillNotFound when the skill
+// or project is gone, or the skill is disabled.
 func (p *Server) loadProjectSkillBody(
 	ctx context.Context,
-	owner rbac.Subject,
 	projectID uuid.UUID,
 	name string,
 ) (skillspkg.ParsedSkill, error) {
-	//nolint:gocritic // Project access is evaluated against the chat owner.
-	row, err := p.db.GetProjectSkillByProjectIDAndName(
-		dbauthz.As(ctx, owner),
-		database.GetProjectSkillByProjectIDAndNameParams{
-			ProjectID: projectID,
-			Name:      name,
-		},
-	)
+	row, err := p.db.GetProjectSkillByProjectIDAndName(ctx, database.GetProjectSkillByProjectIDAndNameParams{
+		ProjectID: projectID,
+		Name:      name,
+	})
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || dbauthz.IsNotAuthorizedError(err) {
+		if errors.Is(err, sql.ErrNoRows) {
 			return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
 		}
 		p.logger.Error(ctx, "load project skill body failed",
@@ -2483,7 +2490,7 @@ func (p *Server) appendRootChatTools(
 	ctx context.Context,
 	tools []fantasy.AgentTool,
 	opts rootChatToolsOptions,
-) []fantasy.AgentTool {
+) ([]fantasy.AgentTool, error) {
 	onChatUpdated := func(updatedChat database.Chat) {
 		opts.workspaceCtx.selectWorkspace(updatedChat)
 		// Notify the frontend immediately so it can start streaming
@@ -2536,9 +2543,13 @@ func (p *Server) appendRootChatTools(
 		}))
 	}
 
-	return append(tools, p.subagentTools(ctx, func() database.Chat {
+	subagentTools, err := p.subagentTools(ctx, func() database.Chat {
 		return opts.chat
-	}, opts.modelConfigID)...)
+	}, opts.modelConfigID)
+	if err != nil {
+		return nil, err
+	}
+	return append(tools, subagentTools...), nil
 }
 
 func appendDynamicTools(

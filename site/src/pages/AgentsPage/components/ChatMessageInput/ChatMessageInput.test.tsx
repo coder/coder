@@ -4,6 +4,7 @@ import { createRef, useLayoutEffect, useRef, useState } from "react";
 import { type QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
 import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type {
@@ -258,16 +259,33 @@ describe("ChatMessageInput", () => {
 			id: "skill-reviewer",
 			name: "reviewer",
 		};
+		const mockCompactorSkill: SkillMetadata = {
+			...MockSkill,
+			id: "skill-compactor",
+			name: "compactor",
+		};
 
 		const renderWithSkills = ({
 			personal,
 			organization,
+			projectId,
+			staleProject,
 		}: {
 			personal: SkillMetadata[];
 			organization?: SkillMetadata[];
+			projectId?: string;
+			// Project skills loaded long ago, so opening the menu refetches.
+			staleProject?: SkillMetadata[];
 		}) => {
 			const queryClient = createTestQueryClient();
 			queryClient.setQueryData(userSkills().queryKey, personal);
+			if (projectId && staleProject) {
+				queryClient.setQueryData(
+					chatProjectSkills(organizationId, projectId).queryKey,
+					staleProject,
+					{ updatedAt: 0 },
+				);
+			}
 			if (organization) {
 				queryClient.setQueryData(
 					organizationSkills(organizationId).queryKey,
@@ -285,6 +303,7 @@ describe("ChatMessageInput", () => {
 					ref={inputRef}
 					aria-label="Chat message input"
 					organizationId={organizationId}
+					projectId={projectId}
 					slashCommands={[COMPACT_SLASH_COMMAND]}
 				/>,
 				queryClient,
@@ -327,12 +346,79 @@ describe("ChatMessageInput", () => {
 		it("hides built-in commands when the organization list fails", async () => {
 			// With /compact hidden, Enter picks the qualified personal match.
 			const inputRef = renderWithSkills({
-				personal: [{ ...MockSkill, id: "skill-compactor", name: "compactor" }],
+				personal: [mockCompactorSkill],
 			});
 			const user = await pasteTrigger("/comp");
 			await screen.findByText(/Could not load organization skills/);
 			await user.keyboard("{Enter}");
 			expect(inputRef.current?.getValue()).toBe("/personal/compactor");
+		});
+
+		it.each([403, 404])(
+			"offers built-in commands when the project list fails with %i",
+			async (status) => {
+				vi.spyOn(API.experimental, "getChatProjectSkills").mockRejectedValue({
+					isAxiosError: true,
+					response: { status, data: { message: "Project not found." } },
+				});
+				const inputRef = renderWithSkills({
+					personal: [mockCompactorSkill],
+					organization: [],
+					projectId: "project-1",
+				});
+				const user = await pasteTrigger("/comp");
+				await screen.findByText(/Could not load project skills/);
+				await user.keyboard("{Enter}");
+				expect(inputRef.current?.getValue()).toBe("/compact");
+			},
+		);
+
+		it("drops loaded project skills when a refetch shows lost access", async () => {
+			vi.spyOn(API.experimental, "getChatProjectSkills").mockRejectedValue({
+				isAxiosError: true,
+				response: { status: 404, data: { message: "Project not found." } },
+			});
+			const inputRef = renderWithSkills({
+				personal: [],
+				organization: [],
+				projectId: "project-1",
+				staleProject: [
+					{ ...MockSkill, name: "compact", description: "Project compact" },
+				],
+			});
+			const user = await pasteTrigger("/comp");
+			await waitFor(() => {
+				expect(screen.queryByText("Project compact")).not.toBeInTheDocument();
+			});
+			await user.keyboard("{Enter}");
+			expect(inputRef.current?.getValue()).toBe("/compact");
+		});
+
+		it("hides built-in commands when the project list fails transiently", async () => {
+			// Fake timers skip the delays of the query's retries.
+			vi.useFakeTimers({ shouldAdvanceTime: true });
+			try {
+				const getChatProjectSkills = vi
+					.spyOn(API.experimental, "getChatProjectSkills")
+					.mockRejectedValue({
+						isAxiosError: true,
+						response: { status: 500, data: { message: "Internal error." } },
+					});
+				const inputRef = renderWithSkills({
+					personal: [mockCompactorSkill],
+					organization: [],
+					projectId: "project-1",
+				});
+				const user = await pasteTrigger("/comp");
+				await vi.advanceTimersByTimeAsync(10_000);
+				await screen.findByText(/Could not load project skills/);
+				expect(getChatProjectSkills).toHaveBeenCalledTimes(4);
+				// With /compact hidden, Enter picks the qualified personal match.
+				await user.keyboard("{Enter}");
+				expect(inputRef.current?.getValue()).toBe("/personal/compactor");
+			} finally {
+				vi.useRealTimers();
+			}
 		});
 
 		it("keeps triggers qualified when the organization list fails", async () => {
