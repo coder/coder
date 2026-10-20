@@ -80,6 +80,8 @@ type generationCompaction struct {
 type generationRollover struct {
 	Budget          contextWindowBudget
 	WindowID        string
+	MetricProvider  string
+	MetricModel     string
 	PendingUserRows []database.ChatMessage
 }
 
@@ -1411,6 +1413,7 @@ func (s *taskStarter) rollOverContextWindow(
 	if err != nil {
 		return xerrors.Errorf("commit context rollover step: %w", err)
 	}
+	s.server.metrics.RecordContextRollover(rollover.MetricProvider, rollover.MetricModel, string(reason))
 	return nil
 }
 

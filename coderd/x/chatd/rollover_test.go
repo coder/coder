@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -99,9 +100,11 @@ func TestActiveServer_ContextRollover(t *testing.T) {
 				UserID:             user.ID,
 				CompactionStrategy: string(tc.strategy),
 			}))
+			reg := prometheus.NewRegistry()
 			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
 				cfg.Experiments = tc.experiments
+				cfg.PrometheusRegistry = reg
 			})
 
 			chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "first request")
@@ -154,6 +157,11 @@ func TestActiveServer_ContextRollover(t *testing.T) {
 			require.NotContains(t, second, "first request")
 			require.NotContains(t, second, "first answer")
 			requireTextPart(t, messages[len(messages)-1], "second answer")
+			requireChatdMetricCounter(t, reg, "coderd_chatd_context_rollover_total", 1, map[string]string{
+				"provider": "anthropic",
+				"model":    "claude-sonnet-4-20250514",
+				"reason":   "limit",
+			})
 		})
 	}
 }

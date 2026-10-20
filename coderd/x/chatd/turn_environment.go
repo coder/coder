@@ -991,6 +991,8 @@ func (p *Server) buildTurnEnvironment(
 					effectiveThreshold,
 				),
 				WindowID:        contextWindowID(promptRows),
+				MetricProvider:  model.LanguageModel().Provider(),
+				MetricModel:     model.LanguageModel().Model(),
 				PendingUserRows: pendingUserRows,
 			}
 		}
