@@ -1774,6 +1774,23 @@ func (p *Server) chatFileResolver(provider string) chatprompt.FileResolver {
 	}
 }
 
+// chatWorkspaceAttachmentResolver reports which workspace attachments are
+// still stored, from metadata only: their bytes, up to 100 MiB, never
+// reach a prompt.
+func (p *Server) chatWorkspaceAttachmentResolver() chatprompt.FileResolver {
+	return func(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+		files, err := p.db.GetChatFilesMetadataByIDs(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		result := make(map[uuid.UUID]chatprompt.FileData, len(files))
+		for _, f := range files {
+			result[f.ID] = chatprompt.FileData{Name: f.Name, MediaType: f.Mimetype}
+		}
+		return result, nil
+	}
+}
+
 // trackWorkspaceUsage bumps the workspace's last_used_at via the
 // usage tracker and extends the workspace's autostop deadline. If
 // wsID is not yet valid, it re-reads the chat from the DB to pick
