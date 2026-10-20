@@ -1306,7 +1306,7 @@ export const ChatClearedError: Story = {
 // Token budget context window stories
 // ---------------------------------------------------------------------------
 
-const rolloverCheckpoint = `## Goal
+const mockCheckpoint = `## Goal
 Port the token budget strategy to the settings page (item 412 in w:0).
 
 ## Progress
@@ -1317,7 +1317,7 @@ Port the token budget strategy to the settings page (item 412 in w:0).
 1. Render the transcript rows.
 2. Run the Storybook checks.`;
 
-const rolloverPayload = {
+const mockRolloverPayload = {
 	requested_by: "system",
 	previous_window_id: "w:0",
 	context_tokens: 168_000,
@@ -1327,11 +1327,11 @@ const rolloverPayload = {
 export const ChatContextRollover: Story = {
 	args: {
 		name: "chat_context_rollover",
-		args: { ...rolloverPayload, reason: "limit" },
+		args: { ...mockRolloverPayload, reason: "limit" },
 		result: {
-			...rolloverPayload,
+			...mockRolloverPayload,
 			reason: "limit",
-			checkpoint: rolloverCheckpoint,
+			checkpoint: mockCheckpoint,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -1346,12 +1346,12 @@ export const ChatContextRollover: Story = {
 export const ChatContextRolloverRequestedByAgent: Story = {
 	args: {
 		name: "chat_context_rollover",
-		args: { ...rolloverPayload, reason: "model", requested_by: "model" },
+		args: { ...mockRolloverPayload, reason: "model", requested_by: "model" },
 		result: {
-			...rolloverPayload,
+			...mockRolloverPayload,
 			reason: "model",
 			requested_by: "model",
-			checkpoint: rolloverCheckpoint,
+			checkpoint: mockCheckpoint,
 		},
 	},
 };
@@ -1359,8 +1359,8 @@ export const ChatContextRolloverRequestedByAgent: Story = {
 export const ChatContextRolloverWithoutCheckpoint: Story = {
 	args: {
 		name: "chat_context_rollover",
-		args: { ...rolloverPayload, reason: "overflow" },
-		result: { ...rolloverPayload, reason: "overflow" },
+		args: { ...mockRolloverPayload, reason: "overflow" },
+		result: { ...mockRolloverPayload, reason: "overflow" },
 	},
 };
 
@@ -1413,8 +1413,8 @@ export const ChatContextHandoffFinal: Story = {
 export const SaveCheckpoint: Story = {
 	args: {
 		name: "save_checkpoint",
-		args: { checkpoint: rolloverCheckpoint },
-		result: { saved: true, bytes: rolloverCheckpoint.length },
+		args: { checkpoint: mockCheckpoint },
+		result: { saved: true, bytes: mockCheckpoint.length },
 	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
@@ -1426,7 +1426,7 @@ export const SaveCheckpoint: Story = {
 export const SaveCheckpointRunning: Story = {
 	args: {
 		name: "save_checkpoint",
-		args: { checkpoint: rolloverCheckpoint },
+		args: { checkpoint: mockCheckpoint },
 		status: "running",
 		result: undefined,
 	},

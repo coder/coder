@@ -669,7 +669,6 @@ const ChatSummarizedRenderer: React.FC<ToolRendererProps> = ({
 	const summary =
 		(rec ? asString(rec.summary) : "") ||
 		(typeof result === "string" ? result : "");
-	const source = resultOrArgsString(result, args, "source");
 
 	return (
 		<ChatSummarizedTool
@@ -677,7 +676,7 @@ const ChatSummarizedRenderer: React.FC<ToolRendererProps> = ({
 			status={status}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
-			source={source || undefined}
+			source={resultOrArgsString(result, args, "source") || undefined}
 		/>
 	);
 };
@@ -752,12 +751,6 @@ const NewContextRenderer: React.FC<ToolRendererProps> = ({
 	/>
 );
 
-const chatHistoryErrorMessages: Partial<Record<string, string>> = {
-	history_timeout: "Reading chat history timed out.",
-	item_not_found: "The requested history item was not found.",
-	window_not_found: "The requested context window was not found.",
-};
-
 const ChatHistoryRenderer: React.FC<ToolRendererProps> = ({
 	status,
 	args,
@@ -766,7 +759,6 @@ const ChatHistoryRenderer: React.FC<ToolRendererProps> = ({
 }) => {
 	const argsRec = parseArgs(args);
 	const rec = asRecord(result);
-	const errorCode = asString(rec?.error);
 	const results = rec?.windows ?? rec?.items;
 	return (
 		<ChatHistoryTool
@@ -775,13 +767,10 @@ const ChatHistoryRenderer: React.FC<ToolRendererProps> = ({
 			itemId={asString(argsRec?.item_id)}
 			resultCount={Array.isArray(results) ? results.length : undefined}
 			hasMore={rec?.has_more === true}
+			errorCode={asString(rec?.error)}
 			status={status}
-			isError={isError || errorCode !== ""}
-			errorMessage={
-				(Object.hasOwn(chatHistoryErrorMessages, errorCode)
-					? chatHistoryErrorMessages[errorCode]
-					: undefined) ?? toolErrorMessage(result)
-			}
+			isError={isError}
+			errorMessage={toolErrorMessage(result)}
 		/>
 	);
 };

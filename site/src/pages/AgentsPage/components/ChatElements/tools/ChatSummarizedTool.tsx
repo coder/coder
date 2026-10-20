@@ -3,6 +3,22 @@ import { Response } from "../Response";
 import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
 
+/** Bordered, height-capped markdown body for context boundary rows. */
+export const ScrollableMarkdown: React.FC<{
+	ariaLabel: string;
+	children: string;
+}> = ({ ariaLabel, children }) => (
+	<ToolCall.Scrollable
+		className="mt-1.5 rounded-md border border-solid border-border"
+		viewportClassName="max-h-64"
+		ariaLabel={ariaLabel}
+	>
+		<div className="px-3 py-2">
+			<Response>{children}</Response>
+		</div>
+	</ToolCall.Scrollable>
+);
+
 /**
  * Collapsed-by-default rendering for `chat_summarized` tool calls.
  * Shows "Summarized" and reveals the summary only when expanded.
@@ -39,15 +55,9 @@ export const ChatSummarizedTool: React.FC<{
 				}
 			/>
 			<ToolCall.Content>
-				<ToolCall.Scrollable
-					className="mt-1.5 rounded-md border border-solid border-border"
-					viewportClassName="max-h-64"
-					ariaLabel="Conversation summary"
-				>
-					<div className="px-3 py-2">
-						<Response>{summary}</Response>
-					</div>
-				</ToolCall.Scrollable>
+				<ScrollableMarkdown ariaLabel="Conversation summary">
+					{summary}
+				</ScrollableMarkdown>
 			</ToolCall.Content>
 		</ToolCall.Root>
 	);

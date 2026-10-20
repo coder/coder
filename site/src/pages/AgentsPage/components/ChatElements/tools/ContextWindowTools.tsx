@@ -1,5 +1,5 @@
 import type React from "react";
-import { Response } from "../Response";
+import { ScrollableMarkdown } from "./ChatSummarizedTool";
 import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
 
@@ -22,30 +22,9 @@ const ownLabel = <T,>(labels: Partial<Record<string, T>>, key: string) =>
 const SecondaryLabel: React.FC<{ children: React.ReactNode }> = ({
 	children,
 }) => (
-	<span className="min-w-0 truncate text-[13px] leading-6 text-content-secondary/60">
+	<ToolCall.Label className="text-content-secondary/60">
 		{children}
-	</span>
-);
-
-const ScrollableBody: React.FC<{
-	ariaLabel: string;
-	children: React.ReactNode;
-}> = ({ ariaLabel, children }) => (
-	<ToolCall.Scrollable
-		className="mt-1.5 rounded-md border border-solid border-border"
-		viewportClassName="max-h-64"
-		ariaLabel={ariaLabel}
-	>
-		{children}
-	</ToolCall.Scrollable>
-);
-
-const CheckpointBody: React.FC<{ checkpoint: string }> = ({ checkpoint }) => (
-	<ScrollableBody ariaLabel="Checkpoint">
-		<div className="px-3 py-2">
-			<Response>{checkpoint}</Response>
-		</div>
-	</ScrollableBody>
+	</ToolCall.Label>
 );
 
 /**
@@ -62,7 +41,7 @@ export const ContextRolloverTool: React.FC<
 			className="w-full"
 			status={status}
 			isError={isError}
-			errorMessage={errorMessage || "Failed to start a new context window"}
+			errorMessage={errorMessage}
 			hasContent={checkpoint.trim().length > 0}
 		>
 			<ToolCall.Header
@@ -73,7 +52,9 @@ export const ContextRolloverTool: React.FC<
 				}
 			/>
 			<ToolCall.Content>
-				<CheckpointBody checkpoint={checkpoint} />
+				<ScrollableMarkdown ariaLabel="Checkpoint">
+					{checkpoint}
+				</ScrollableMarkdown>
 			</ToolCall.Content>
 		</ToolCall.Root>
 	);
@@ -102,11 +83,9 @@ export const ContextHandoffTool: React.FC<
 			}
 		/>
 		<ToolCall.Content>
-			<ScrollableBody ariaLabel="Handoff prompt">
-				<p className="m-0 whitespace-pre-wrap px-3 py-2 text-xs leading-5 text-content-secondary">
-					{prompt}
-				</p>
-			</ScrollableBody>
+			<ScrollableMarkdown ariaLabel="Handoff prompt">
+				{prompt}
+			</ScrollableMarkdown>
 		</ToolCall.Content>
 	</ToolCall.Root>
 );
@@ -142,15 +121,14 @@ export const SaveCheckpointTool: React.FC<
 			})}
 		/>
 		<ToolCall.Content>
-			<CheckpointBody checkpoint={checkpoint} />
+			<ScrollableMarkdown ariaLabel="Checkpoint">
+				{checkpoint}
+			</ScrollableMarkdown>
 		</ToolCall.Content>
 	</ToolCall.Root>
 );
 
-/**
- * The agent's request for a fresh context window. chatd refuses it when
- * automatic rollover is disabled.
- */
+/** chatd refuses the request when automatic rollover is disabled. */
 export const NewContextTool: React.FC<
 	ToolRowStatusProps & { refused: boolean }
 > = ({ refused, status, isError, errorMessage }) => (
@@ -198,6 +176,12 @@ const chatHistoryVerbs: Partial<
 	},
 };
 
+const chatHistoryErrorMessages: Partial<Record<string, string>> = {
+	history_timeout: "Reading chat history timed out",
+	item_not_found: "The requested history item was not found",
+	window_not_found: "The requested context window was not found",
+};
+
 const countLabel = (count: number, noun: string) =>
 	`${count} ${noun}${count === 1 ? "" : "s"}`;
 
@@ -209,6 +193,8 @@ export const ChatHistoryTool: React.FC<
 		itemId: string;
 		resultCount: number | undefined;
 		hasMore: boolean;
+		/** Error code from a failed lookup, or empty on success. */
+		errorCode: string;
 	}
 > = ({
 	action,
@@ -216,10 +202,12 @@ export const ChatHistoryTool: React.FC<
 	itemId,
 	resultCount,
 	hasMore,
+	errorCode,
 	status,
-	isError,
+	isError: isToolError,
 	errorMessage,
 }) => {
+	const isError = isToolError || errorCode !== "";
 	const verbs = ownLabel(chatHistoryVerbs, action) ?? {
 		running: "Using chat history",
 		done: "Used chat history",
@@ -249,7 +237,10 @@ export const ChatHistoryTool: React.FC<
 		<ToolCall.Root
 			status={status}
 			isError={isError}
-			errorMessage={errorMessage || "Failed to read chat history"}
+			errorMessage={
+				ownLabel(chatHistoryErrorMessages, errorCode) ??
+				(errorMessage || "Failed to read chat history")
+			}
 			hasContent={false}
 		>
 			<ToolCall.Header
