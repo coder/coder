@@ -28,7 +28,7 @@ Common modifications are:
 - Your image(s) (e.g. a Docker image with languages and tools installed).
   Docs: [Image management](./managing-templates/image-management.md).
 - Additional parameters (e.g. disk size, instance type, or region).
-  Docs: [Template parameters](./extending-templates/parameters.md).
+  Docs: [Template parameters](./extending-templates/parameters/index.md).
 - Additional IDEs (e.g. JetBrains) or features (e.g. dotfiles, RDP).
   Docs: [Adding IDEs and features](./extending-templates/index.md).
 

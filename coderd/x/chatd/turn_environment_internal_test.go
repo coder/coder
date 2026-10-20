@@ -196,7 +196,7 @@ func TestBuildTurnEnvironmentClampsRequestedReasoningEffortToMax(t *testing.T) {
 	require.NotNil(t, summaryCall.ToolChoice)
 	require.Equal(t, fantasy.ToolChoiceNone, *summaryCall.ToolChoice)
 	require.NotNil(t, summaryCall.MaxOutputTokens)
-	require.Equal(t, 3*defaultChatMaxOutputTokens/2, *summaryCall.MaxOutputTokens)
+	require.Equal(t, *prepared.CallTemplate.MaxOutputTokens, *summaryCall.MaxOutputTokens)
 }
 
 func TestBuildTurnEnvironmentSplitsPendingUserRowsFromCompactionPrompt(t *testing.T) {
@@ -949,6 +949,17 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 				if strings.Contains(name, "__") {
 					require.False(t, loaded[name], name)
 				}
+			}
+			// chatloop offers every registered tool when the active list is
+			// empty, so an Explore child must not register a tool it hides.
+			if tt.child && tt.mode == explore {
+				var hidden []string
+				for _, tool := range env.Tools {
+					if name := tool.Info().Name; !slices.Contains(offered, name) {
+						hidden = append(hidden, name)
+					}
+				}
+				require.Empty(t, hidden)
 			}
 
 			var system strings.Builder
