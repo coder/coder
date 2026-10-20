@@ -11071,7 +11071,7 @@ func TestProcessChatPanicRecovery(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 
 	// Wrap the database so we can trigger a panic on the main
-	// goroutine of processChat. The chatloop's executeTools has
+	// goroutine of processChat. The chatloop's toolBatch has
 	// its own recover, so panicking inside a tool goroutine won't
 	// reach the processChat-level recovery. Instead, we panic
 	// during PersistStep's InTx call, which runs synchronously on
