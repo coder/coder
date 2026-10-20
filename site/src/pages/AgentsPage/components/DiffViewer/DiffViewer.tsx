@@ -121,6 +121,21 @@ pre[data-diff] {
     background-color: hsl(var(--surface-scrollbar));
   }
 }
+/* The library's Firefox rule keeps the full bottom padding under the code's
+   thin horizontal scrollbar, which makes the card taller than its metrics
+   whenever scrollbars take space. Subtract the measured gutter as the
+   WebKit rule does; it is 0 with overlay scrollbars. */
+@supports (-moz-appearance: none) {
+  [data-code] {
+    padding-bottom: max(
+      0px,
+      calc(
+        var(--diffs-gap-block, var(--diffs-gap-fallback)) -
+          var(--diffs-scrollbar-gutter)
+      )
+    );
+  }
+}
 `;
 
 // Minimum width (px) of the diff container at which the file tree sidebar is
