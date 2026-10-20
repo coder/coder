@@ -49,7 +49,7 @@ export type GroupWorkingBlocksOptions = {
 	streamState?: StreamState | null;
 };
 
-/** Tools the user must see: questions, plans, context boundaries, and handoff notices. */
+/** Tools that need the user's attention or record a context boundary or handoff. */
 const UNCOLLAPSIBLE_TOOLS: ReadonlySet<string> = new Set([
 	"ask_user_question",
 	"propose_plan",

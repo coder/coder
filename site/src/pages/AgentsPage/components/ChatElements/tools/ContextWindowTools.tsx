@@ -1,12 +1,12 @@
 import type React from "react";
-import { ScrollableMarkdown } from "./ChatSummarizedTool";
+import { ScrollableMarkdown } from "./ScrollableMarkdown";
 import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
 
 type ToolRowStatusProps = {
 	status: ToolStatus;
 	isError: boolean;
-	errorMessage?: string;
+	errorMessage: string | undefined;
 };
 
 const rolloverReasonLabels: Partial<Record<string, string>> = {
@@ -16,7 +16,7 @@ const rolloverReasonLabels: Partial<Record<string, string>> = {
 };
 
 // Values come from persisted tool rows, so inherited keys must not match.
-const ownLabel = <T,>(labels: Partial<Record<string, T>>, key: string) =>
+const labelForOwnKey = <T,>(labels: Partial<Record<string, T>>, key: string) =>
 	Object.hasOwn(labels, key) ? labels[key] : undefined;
 
 const SecondaryLabel: React.FC<{ children: React.ReactNode }> = ({
@@ -27,6 +27,42 @@ const SecondaryLabel: React.FC<{ children: React.ReactNode }> = ({
 	</ToolCall.Label>
 );
 
+const MarkdownToolRow: React.FC<
+	ToolRowStatusProps & {
+		iconName: string;
+		label: string;
+		secondaryLabel?: React.ReactNode;
+		bodyLabel: string;
+		body: string;
+	}
+> = ({
+	iconName,
+	label,
+	secondaryLabel,
+	bodyLabel,
+	body,
+	status,
+	isError,
+	errorMessage,
+}) => (
+	<ToolCall.Root
+		className="w-full"
+		status={status}
+		isError={isError}
+		errorMessage={errorMessage}
+		hasContent={body.trim().length > 0}
+	>
+		<ToolCall.Header
+			iconName={iconName}
+			label={label}
+			secondaryLabel={secondaryLabel}
+		/>
+		<ToolCall.Content>
+			<ScrollableMarkdown ariaLabel={bodyLabel}>{body}</ScrollableMarkdown>
+		</ToolCall.Content>
+	</ToolCall.Root>
+);
+
 /**
  * Boundary row for a token budget rollover: a fresh context window that
  * starts from the latest checkpoint, when one was saved, instead of a
@@ -34,29 +70,19 @@ const SecondaryLabel: React.FC<{ children: React.ReactNode }> = ({
  */
 export const ContextRolloverTool: React.FC<
 	ToolRowStatusProps & { reason: string; checkpoint: string }
-> = ({ reason, checkpoint, status, isError, errorMessage }) => {
-	const reasonLabel = ownLabel(rolloverReasonLabels, reason);
+> = ({ reason, checkpoint, ...rowStatus }) => {
+	const reasonLabel = labelForOwnKey(rolloverReasonLabels, reason);
 	return (
-		<ToolCall.Root
-			className="w-full"
-			status={status}
-			isError={isError}
-			errorMessage={errorMessage}
-			hasContent={checkpoint.trim().length > 0}
-		>
-			<ToolCall.Header
-				iconName="chat_context_rollover"
-				label="Context window rollover"
-				secondaryLabel={
-					reasonLabel ? <SecondaryLabel>{reasonLabel}</SecondaryLabel> : null
-				}
-			/>
-			<ToolCall.Content>
-				<ScrollableMarkdown ariaLabel="Checkpoint">
-					{checkpoint}
-				</ScrollableMarkdown>
-			</ToolCall.Content>
-		</ToolCall.Root>
+		<MarkdownToolRow
+			{...rowStatus}
+			iconName="chat_context_rollover"
+			label="Context window rollover"
+			secondaryLabel={
+				reasonLabel ? <SecondaryLabel>{reasonLabel}</SecondaryLabel> : null
+			}
+			bodyLabel="Rollover checkpoint"
+			body={checkpoint}
+		/>
 	);
 };
 
@@ -66,28 +92,18 @@ export const ContextRolloverTool: React.FC<
  */
 export const ContextHandoffTool: React.FC<
 	ToolRowStatusProps & { stage: string; prompt: string }
-> = ({ stage, prompt, status, isError, errorMessage }) => (
-	<ToolCall.Root
-		className="w-full"
-		status={status}
-		isError={isError}
-		errorMessage={errorMessage}
-		hasContent={prompt.trim().length > 0}
-	>
-		<ToolCall.Header
-			iconName="chat_context_handoff"
-			label={
-				stage === "final"
-					? "Context window ending: final handoff"
-					: "Context handoff requested"
-			}
-		/>
-		<ToolCall.Content>
-			<ScrollableMarkdown ariaLabel="Handoff prompt">
-				{prompt}
-			</ScrollableMarkdown>
-		</ToolCall.Content>
-	</ToolCall.Root>
+> = ({ stage, prompt, ...rowStatus }) => (
+	<MarkdownToolRow
+		{...rowStatus}
+		iconName="chat_context_handoff"
+		label={
+			stage === "final"
+				? "Context window ending: final handoff"
+				: "Context handoff requested"
+		}
+		bodyLabel="Handoff prompt"
+		body={prompt}
+	/>
 );
 
 const toolRowLabel = (
@@ -105,27 +121,19 @@ const toolRowLabel = (
 export const SaveCheckpointTool: React.FC<
 	ToolRowStatusProps & { checkpoint: string }
 > = ({ checkpoint, status, isError, errorMessage }) => (
-	<ToolCall.Root
-		className="w-full"
+	<MarkdownToolRow
 		status={status}
 		isError={isError}
 		errorMessage={errorMessage || "Failed to save checkpoint"}
-		hasContent={checkpoint.trim().length > 0}
-	>
-		<ToolCall.Header
-			iconName="save_checkpoint"
-			label={toolRowLabel(status, isError, {
-				running: "Saving checkpoint…",
-				failed: "Checkpoint not saved",
-				done: "Saved checkpoint",
-			})}
-		/>
-		<ToolCall.Content>
-			<ScrollableMarkdown ariaLabel="Checkpoint">
-				{checkpoint}
-			</ScrollableMarkdown>
-		</ToolCall.Content>
-	</ToolCall.Root>
+		iconName="save_checkpoint"
+		label={toolRowLabel(status, isError, {
+			running: "Saving checkpoint…",
+			failed: "Checkpoint not saved",
+			done: "Saved checkpoint",
+		})}
+		bodyLabel="Saved checkpoint"
+		body={checkpoint}
+	/>
 );
 
 /** chatd refuses the request when automatic rollover is disabled. */
@@ -151,7 +159,7 @@ export const NewContextTool: React.FC<
 	</ToolCall.Root>
 );
 
-const chatHistoryVerbs: Partial<
+const chatHistoryWording: Partial<
 	Record<string, { running: string; done: string; noun: string }>
 > = {
 	list_windows: {
@@ -180,6 +188,11 @@ const chatHistoryErrorMessages: Partial<Record<string, string>> = {
 	history_timeout: "Reading chat history timed out",
 	item_not_found: "The requested history item was not found",
 	window_not_found: "The requested context window was not found",
+	invalid_action: "Unknown chat history action",
+	query_required: "Searching chat history needs a query",
+	item_id_required: "Reading a history item needs an item ID",
+	filters_unsupported: "This chat history action does not accept those filters",
+	invalid_arguments: "Invalid chat history arguments",
 };
 
 const countLabel = (count: number, noun: string) =>
@@ -208,29 +221,32 @@ export const ChatHistoryTool: React.FC<
 	errorMessage,
 }) => {
 	const isError = isToolError || errorCode !== "";
-	const verbs = ownLabel(chatHistoryVerbs, action) ?? {
+	const wording = labelForOwnKey(chatHistoryWording, action) ?? {
 		running: "Using chat history",
 		done: "Used chat history",
 		noun: "item",
 	};
+
 	let target = "";
 	if (action === "search" && searchQuery) {
 		target = ` for "${searchQuery}"`;
 	} else if (action === "read_item" && itemId) {
 		target = ` item ${itemId}`;
 	}
-	let label = `${verbs.done}${target}`;
+
+	let label = `${wording.done}${target}`;
 	if (status === "running") {
-		label = `${verbs.running}${target}…`;
+		label = `${wording.running}${target}…`;
 	} else if (isError) {
 		label = "Chat history lookup failed";
 	}
+
 	const counts: string[] = [];
 	if (resultCount !== undefined && action !== "read_item") {
-		counts.push(countLabel(resultCount, verbs.noun));
+		counts.push(countLabel(resultCount, wording.noun));
 	}
 	if (hasMore) {
-		counts.push(`more ${verbs.noun}s available`);
+		counts.push(`more ${wording.noun}s available`);
 	}
 
 	return (
@@ -238,8 +254,9 @@ export const ChatHistoryTool: React.FC<
 			status={status}
 			isError={isError}
 			errorMessage={
-				ownLabel(chatHistoryErrorMessages, errorCode) ??
-				(errorMessage || "Failed to read chat history")
+				(errorCode
+					? labelForOwnKey(chatHistoryErrorMessages, errorCode)
+					: errorMessage) || "Failed to read chat history"
 			}
 			hasContent={false}
 		>
