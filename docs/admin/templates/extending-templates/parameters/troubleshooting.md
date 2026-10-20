@@ -1,18 +1,11 @@
 ---
 title: Troubleshoot parameters
+description: Diagnose and resolve common problems with parameter forms.
 ---
-
-We're tracking a list of known issues [in GitHub](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc%20is%3Aissue%20is%3Aopen%20label%3Aparameters) as we continue to polish and improve parameters.
-If you have an issue, file it in our [GitHub repository](https://github.com/coder/coder/issues/new?labels=parameters) with the `parameters` label and include a [Playground link](https://playground.coder.app/parameters) where applicable.
-
-You can share anything you build with parameters in our [Discord](https://coder.com/chat).
 
 ## Parameters look the same after you turn off compatibility mode
 
-Ensure that the following version requirements are met:
-
-- `coder/coder`: >= [v2.25.0](https://github.com/coder/coder/releases/tag/v2.25.0)
-- `coder/terraform-provider-coder`: >= [v2.5.3](https://github.com/coder/terraform-provider-coder/releases/tag/v2.5.3)
+Confirm that the template uses version [2.5.3](https://github.com/coder/terraform-provider-coder/releases/tag/v2.5.3) or later of `coder/terraform-provider-coder`.
 
 Turning off [compatibility mode](./compatibility-mode.md) on an existing template requires administrators to publish a new template version.
 This will resolve the necessary template metadata to render the form.
@@ -20,10 +13,8 @@ To publish one without editing the template's Terraform, [refresh the template d
 
 ## Template variables not showing up
 
-Template variables are fully supported in parameter forms as of [v2.25.0](https://github.com/coder/coder/releases/tag/v2.25.0).
-
-If you are experiencing issues with template variables, try upgrading to the latest version.
-Otherwise, file an issue in our GitHub repository.
+Parameter forms support template variables.
+If a template variable doesn't work as expected in the form, [file an issue](https://github.com/coder/coder/issues/new?labels=parameters) in the Coder GitHub repository with the `parameters` label.
 
 ## Registry modules
 
@@ -38,15 +29,16 @@ If your template uses modules that exceed this limit, some modules will be unava
 
 **Symptoms:**
 
-You may see warnings in the provisioner logs:
+Warnings may exist in the provisioner logs:
 
 ```txt
 [API] 2026-01-29 22:00:22.691 [warn]  provisionerd-nixos-0.executor: some (or all) terraform modules were not archived, template will have reduced function  skipped_modules=large:git::https://github.com/coder/large-module.git
 ```
 
-If encountered, reduce the size of the module by removing unnecessary files.
+In this case, reduce the size of the module by removing unnecessary files.
 
-You can hit the same error for a different reason: if the active template version has no cached module archive at all, the workspace creation form shows a warning for every module in the template, for example:
+You can get the same error for a different reason.
+If the active template version has no cached module archive at all, the workspace creation form shows a warning for every module in the template, for example:
 
 ```txt
 Module not loaded. Did you run `terraform init`?

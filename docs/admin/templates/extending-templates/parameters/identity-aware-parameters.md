@@ -1,5 +1,6 @@
 ---
 title: Identity-aware parameters
+description: Change parameters based on the roles and groups of the user creating the workspace.
 ---
 
 Identity-aware parameters change based on the roles and groups of the user filling in the workspace creation form.
@@ -7,14 +8,19 @@ Use them to set governance policy directly in the form, rather than creating mul
 
 User identity is referenced in Terraform by reading the [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner) data source.
 Coder fills in this data source with the current user's identity each time the form renders, unlike other `data` sources, which Coder reads once at template import.
-Refer to [How Coder evaluates parameters](./index.md#how-coder-evaluates-parameters).
+Refer to [How Coder evaluates parameters](./index.md#how-coder-evaluates-parameters) for more information.
 
 To change parameters based on the user's other selections instead, refer to [Conditional parameters](./conditional-parameters.md).
 
-## Role-aware options
+## Examples
+
+The following examples show common ways to use identity-aware parameters.
+Adapt the group names, roles, and options to match your deployment.
+
+### Role-aware options
 
 Template administrators often want to expose certain experimental or unstable options only to those with elevated roles.
-You can now do this by setting `count` based on a user's group or role, referencing the [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner) data source.
+You can do this by setting `count` based on a user's group or role, referencing the [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner) data source.
 
 [Try out admin-only options in the Playground](https://playground.coder.app/parameters/5Gn9W3hYs7).
 
@@ -53,10 +59,10 @@ data "coder_parameter" "advanced_settings" {
 
 ```
 
-## Group-aware regions
+### Group-aware regions
 
 You can expose regions depending on which group a user belongs to.
-This way developers can't accidentally induce low-latency with world-spanning connections.
+This way, developers can't accidentally pick a distant region and get high latency.
 
 [Try user-aware regions in the parameter playground](https://playground.coder.app/parameters/tBD-mbZRGm)
 
@@ -104,10 +110,10 @@ data "coder_parameter" "region" {
 }
 ```
 
-## Groups as namespaces
+### Groups as Kubernetes namespaces
 
-A slightly unorthodox way to leverage this is by filling the selections of a parameter from the user's groups.
-Some users associate groups with namespaces, such as Kubernetes, then allow users to target that namespace with a parameter.
+If your Coder groups map to Kubernetes namespaces, fill a parameter's options from the user's groups.
+Users can then deploy only to the namespaces of groups they belong to.
 
 [Try groups as options in the Parameter Playground](https://playground.coder.app/parameters/lKbU53nYjl).
 

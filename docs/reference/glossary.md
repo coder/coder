@@ -261,7 +261,6 @@ Refer to [Dotfiles](../user-guides/workspace-dotfiles.md).
 
 ### Dynamic parameters
 
-Former name for the conditional, identity-aware, and form-type capabilities that every template parameter now has.
 Refer to [Parameters](#parameters).
 
 ## E

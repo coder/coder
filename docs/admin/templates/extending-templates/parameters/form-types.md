@@ -1,16 +1,15 @@
 ---
 title: Form types and styling
+description: Choose the input control for each parameter, such as a dropdown, slider, multi-select, or text area.
 ---
 
 The `form_type` and `styling` attributes of [`coder_parameter`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter) control how a parameter renders in the workspace creation form.
 Use them to pick the right control for each value, such as a searchable dropdown for a long list or a slider for a resource size.
 
 These attributes require version 2.4.0 or later of the Coder Terraform provider.
-Refer to [Coder provider version](./index.md#coder-provider-version).
+Refer to [Coder provider version](./index.md#coder-provider-version) for more information.
 
 ## Form types
-
-![Old vs New Parameters](../../../../images/admin/templates/extend-templates/dyn-params/dynamic-params-compare.png)
 
 Different parameter types support different form types.
 You can specify the form type using the [`form_type`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#form_type-1) attribute.
@@ -35,9 +34,9 @@ The `coder_parameter` resource supports an additional `styling` attribute for sp
 
 This can be used for:
 
-- Masking private inputs
-- Marking inputs as read-only
-- Setting placeholder text
+- Masking private inputs.
+- Marking inputs as read-only.
+- Setting placeholder text.
 
 Note that the `styling` attribute should not be used as a governance tool, since it only changes how the interactive form is displayed.
 Users can avoid restrictions like `disabled` if they create a workspace via the CLI.
@@ -106,7 +105,7 @@ data "coder_parameter" "ides_dropdown" {
 
 The large text entry option can be used to enter long strings like AI prompts, scripts, or natural language.
 
-[Try textarea parameters on the Parameter Playground](https://playground.coder.app/parameters/RCAHA1Oi1_)
+[Try `textarea` parameters on the Parameter Playground](https://playground.coder.app/parameters/RCAHA1Oi1_)
 
 ```tf
 
@@ -249,11 +248,6 @@ data "coder_parameter" "cpu_cores" {
 
 Masked input parameters can be used to visually hide secret values in the workspace creation form.
 Note that this does not secure information on the backend and is purely cosmetic.
-
-[Try private parameters on the Parameters Playground](https://playground.coder.app/parameters/wmiP7FM3Za).
-
-Note: This text may not be properly hidden in the Playground.
-The `mask_input` styling attribute is supported in v2.24.0 and later.
 
 ```tf
 data "coder_parameter" "private_api_key" {

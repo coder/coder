@@ -1,5 +1,6 @@
 ---
 title: Parameter validation
+description: Constrain parameter values with ranges, regular expressions, and rules that depend on other parameters.
 ---
 
 The `validation` block of a [`coder_parameter`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter) rejects values that your template can't use before Coder starts a build.
@@ -42,8 +43,7 @@ data "coder_parameter" "instances" {
 }
 ```
 
-> [!NOTE]
-> As of [`terraform-provider-coder` v0.19.0](https://registry.terraform.io/providers/coder/coder/0.19.0/docs), `options` can be specified in `number` parameters; this also works with validations such as `monotonic`.
+A `number` parameter can also define `options`, and validations such as `monotonic` still apply to it.
 
 ## String validation
 

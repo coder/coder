@@ -1,8 +1,9 @@
 ---
 title: Workspace presets
+description: Bundle commonly used parameter values into a single option in the workspace creation form.
 ---
 
-Workspace presets allow you to configure commonly used combinations of parameters into a single option, which makes it easier for developers to pick one that fits their needs.
+Workspace presets bundle commonly used combinations of parameter values into a single option, so developers can pick the one that fits their needs.
 
 ![Template with options in the preset dropdown](../../../../images/admin/templates/extend-templates/template-preset-dropdown.png)
 
@@ -18,9 +19,9 @@ In addition to the required `name` and `parameters` fields, you can enhance your
   This helps users understand what the preset is for and when to use it.
 - **icon**:
   A visual icon displayed alongside the preset name in the UI.
-  Use emoji icons with the format `/emojis/{code}.png` (e.g., `/emojis/1f1fa-1f1f8.png` for the US flag emoji 🇺🇸).
+  Use emoji icons with the format `/emojis/{code}.png` (for example, `/emojis/1f1fa-1f1f8.png` for the US flag emoji 🇺🇸).
 
-For a complete list of all available fields, see the [Terraform provider documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_preset#schema).
+For a complete list of all available fields, visit the [Terraform provider documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_preset#schema).
 
 <details><summary>Expand for an example</summary>
 
@@ -87,4 +88,4 @@ data "coder_parameter" "region" {
 
 ## Learn more
 
-- [Prebuilt workspaces](../prebuilt-workspaces.md) use presets to define the configuration of each pool of ready-to-claim workspaces.
+[Prebuilt workspaces](../prebuilt-workspaces.md) use presets to define the configuration of each pool of ready-to-claim workspaces.

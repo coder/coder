@@ -19,9 +19,10 @@ Often, this workflow is simply:
 1. Give your users their secrets in advance
 1. Your users write them to a persistent file after they've built their workspace
 
-[Template parameters](../templates/extending-templates/parameters/index.md) are a dangerous way to accept secrets.
-We show parameters in cleartext around the product.
-Assume anyone with view access to a workspace can also see its parameters.
+> [!WARNING]
+> [Template parameters](../templates/extending-templates/parameters/index.md) are a dangerous way to accept secrets.
+> Coder shows parameter values in cleartext throughout the product.
+> Assume anyone with view access to a workspace can also see its parameters.
 
 ## SSH Keys
 

@@ -1,5 +1,6 @@
 ---
 title: Parameters
+description: Prompt users for values, such as a region or instance size, to customize each workspace.
 ---
 
 Parameters prompt the user for information when they create or update a workspace, such as a region, an instance size, or a repository URL.
@@ -15,7 +16,7 @@ Use these capabilities to replace several near-duplicate templates with one temp
 
 > [!NOTE]
 > Earlier Coder releases called these capabilities _dynamic parameters_.
-> They're the default for every template as of Coder v2.25.0, so this section covers them alongside the basics.
+> Every template uses them by default, so this section covers them alongside the basics.
 > Templates that still use [compatibility mode](./compatibility-mode.md) render the older classic form.
 
 This section covers:
@@ -28,8 +29,9 @@ This section covers:
 - [Compatibility mode](./compatibility-mode.md): Move templates off the deprecated classic parameter flow.
 - [Troubleshooting](./troubleshooting.md): Fix common problems with parameter forms.
 
-You can try any example in this section in the [Parameters Playground](https://playground.coder.app/parameters).
-Experiment there before you change a live template.
+> [!TIP]
+> You can try most examples in this section in the [Parameters Playground](https://playground.coder.app/parameters).
+> With the Parameters Playground, you can experiment before you change a live template.
 
 ## Define a parameter
 
@@ -99,7 +101,7 @@ Coder parses every parameter from your template's Terraform and evaluates it aga
 You can use native Terraform functions, locals, and conditionals in any parameter attribute.
 
 Coder reads Terraform `data` sources once, when it imports a template version, and stores the results.
-Rendering the form evaluates your parameter expressions against those stored results, so a `data` source whose underlying value changes in your cloud or cluster keeps returning the imported value.
+Rendering the form evaluates your parameter expressions against those stored results, so a `data` source where its underlying value changes in your cloud or cluster keeps returning the imported value.
 
 The `coder_workspace_owner` data source is the exception.
 Coder substitutes the identity of the user filling in the form each time it renders, which is what makes [identity-aware parameters](./identity-aware-parameters.md) work.
@@ -111,7 +113,7 @@ This imports the active version's source files again and publishes the result as
 > Parameters do not support external data fetching via HTTP endpoints at workspace build time.
 >
 > External fetching would introduce unpredictability in workspace builds after publishing a template.
-> Instead, we recommend that template administrators pull in any required data for a workspace build as a [locals](https://developer.hashicorp.com/terraform/tutorials/configuration-language/locals) or JSON file, then reference that data in Terraform.
+> Instead, you should pull in any required data for a workspace build as a [locals](https://developer.hashicorp.com/terraform/tutorials/configuration-language/locals) or JSON file, then reference that data in Terraform.
 >
 > If you have a use case for external data fetching, file an issue or create a discussion in the [Coder GitHub repository](https://github.com/coder/coder).
 
@@ -196,6 +198,8 @@ data "coder_parameter" "docker_host" {
   }
 }
 ```
+
+<a id="incompatibility-in-parameter-options-for-workspace-builds"></a>
 
 ### Option changes across template versions
 
