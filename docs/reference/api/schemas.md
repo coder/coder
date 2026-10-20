@@ -15341,43 +15341,31 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
-  "display_name": "Visual Studio Code",
+  "display_name": "VS Code",
   "icon": "string",
+  "method": "ssh",
   "seconds": 80500,
+  "seconds_is_upper_bound": false,
   "slug": "vscode",
   "template_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
-  "times_used": 2,
-  "type": "builtin"
+  "times_used": 2
 }
 ```
 
 ### Properties
 
-| Name           | Type                                                   | Required | Restrictions | Description |
-|----------------|--------------------------------------------------------|----------|--------------|-------------|
-| `display_name` | string                                                 | false    |              |             |
-| `icon`         | string                                                 | false    |              |             |
-| `seconds`      | integer                                                | false    |              |             |
-| `slug`         | string                                                 | false    |              |             |
-| `template_ids` | array of string                                        | false    |              |             |
-| `times_used`   | integer                                                | false    |              |             |
-| `type`         | [codersdk.TemplateAppsType](#codersdktemplateappstype) | false    |              |             |
-
-## codersdk.TemplateAppsType
-
-```json
-"builtin"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s)         |
-|------------------|
-| `app`, `builtin` |
+| Name                     | Type                                                         | Required | Restrictions | Description                                                                                                                                  |
+|--------------------------|--------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| `display_name`           | string                                                       | false    |              |                                                                                                                                              |
+| `icon`                   | string                                                       | false    |              |                                                                                                                                              |
+| `method`                 | [codersdk.ConnectionLogMethod](#codersdkconnectionlogmethod) | false    |              | Method is how the app connected. Method and Slug identify an app.                                                                            |
+| `seconds`                | integer                                                      | false    |              |                                                                                                                                              |
+| `seconds_is_upper_bound` | boolean                                                      | false    |              | Seconds is upper bound marks overflow usage that includes folded apps. Their overlap is not stored, so Seconds may overestimate active time. |
+| `slug`                   | string                                                       | false    |              |                                                                                                                                              |
+| `template_ids`           | array of string                                              | false    |              |                                                                                                                                              |
+| `times_used`             | integer                                                      | false    |              |                                                                                                                                              |
 
 ## codersdk.TemplateAutostartRequirement
 
@@ -16018,15 +16006,16 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "active_users": 22,
   "apps_usage": [
     {
-      "display_name": "Visual Studio Code",
+      "display_name": "VS Code",
       "icon": "string",
+      "method": "ssh",
       "seconds": 80500,
+      "seconds_is_upper_bound": false,
       "slug": "vscode",
       "template_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
-      "times_used": 2,
-      "type": "builtin"
+      "times_used": 2
     }
   ],
   "end_time": "2019-08-24T14:15:22Z",
@@ -16058,20 +16047,22 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "start_time": "2019-08-24T14:15:22Z",
   "template_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-  ]
+  ],
+  "usage_total_seconds": 120000
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                                        | Required | Restrictions | Description |
-|--------------------|-----------------------------------------------------------------------------|----------|--------------|-------------|
-| `active_users`     | integer                                                                     | false    |              |             |
-| `apps_usage`       | array of [codersdk.TemplateAppUsage](#codersdktemplateappusage)             | false    |              |             |
-| `end_time`         | string                                                                      | false    |              |             |
-| `parameters_usage` | array of [codersdk.TemplateParameterUsage](#codersdktemplateparameterusage) | false    |              |             |
-| `start_time`       | string                                                                      | false    |              |             |
-| `template_ids`     | array of string                                                             | false    |              |             |
+| Name                  | Type                                                                        | Required | Restrictions | Description                                                                                                                       |
+|-----------------------|-----------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `active_users`        | integer                                                                     | false    |              |                                                                                                                                   |
+| `apps_usage`          | array of [codersdk.TemplateAppUsage](#codersdktemplateappusage)             | false    |              |                                                                                                                                   |
+| `end_time`            | string                                                                      | false    |              |                                                                                                                                   |
+| `parameters_usage`    | array of [codersdk.TemplateParameterUsage](#codersdktemplateparameterusage) | false    |              |                                                                                                                                   |
+| `start_time`          | string                                                                      | false    |              |                                                                                                                                   |
+| `template_ids`        | array of string                                                             | false    |              |                                                                                                                                   |
+| `usage_total_seconds` | integer                                                                     | false    |              | Usage total seconds counts each user's active minutes once, even when apps overlap. Summed per-app seconds can exceed this total. |
 
 ## codersdk.TemplateInsightsResponse
 
@@ -16092,15 +16083,16 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "active_users": 22,
     "apps_usage": [
       {
-        "display_name": "Visual Studio Code",
+        "display_name": "VS Code",
         "icon": "string",
+        "method": "ssh",
         "seconds": 80500,
+        "seconds_is_upper_bound": false,
         "slug": "vscode",
         "template_ids": [
           "497f6eca-6276-4993-bfeb-53cbbbba6f08"
         ],
-        "times_used": 2,
-        "type": "builtin"
+        "times_used": 2
       }
     ],
     "end_time": "2019-08-24T14:15:22Z",
@@ -16132,7 +16124,8 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "start_time": "2019-08-24T14:15:22Z",
     "template_ids": [
       "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-    ]
+    ],
+    "usage_total_seconds": 120000
   }
 }
 ```
@@ -17113,6 +17106,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   },
   "pin_order": 0,
   "plan_mode": "plan",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "read": true,
   "title": "string",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
@@ -17128,6 +17122,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | » `[any property]` | string                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `pin_order`        | integer                                        | false    |              | Pin order controls the chat's pinned state and position. - nil: no change to pin state. - 0: unpin the chat. - >0 (chat is unpinned): pin the chat, appending it to   the end of the pinned list. The specific value is   ignored; the server assigns the next available position. - >0 (chat is already pinned): move the chat to the   requested position, shifting neighbors as needed. The   value is clamped to [1, pinned_count]. |
 | `plan_mode`        | [codersdk.ChatPlanMode](#codersdkchatplanmode) | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear.                                                                                                                                                                                                                                                                                                                            |
+| `project_id`       | string                                         | false    |              | Project ID moves a root chat, and with it its subagent chats. - nil: no change. - uuid.Nil: remove the chat from its project. - other: move the chat into that project. The chat's owner must own   the project or have it shared with them, and the project must be   in the chat's organization. The server returns 409 while the chat or a subagent chat is not idle.                                                                |
 |`read`|boolean|false||Read moves the owner's read cursor, which drives HasUnread. - nil: no change. - true: mark every existing message as read. - false: clear the cursor so the chat reads as unread again.
 The cursor is owner-scoped, so only the chat owner may set this. Opening a chat's stream marks it read, so marking the chat the owner is currently viewing as unread does not persist.|
 |`title`|string|false||Title, when set, is stored as the user title even when its text is unchanged, so a generated title never replaces it afterwards. It is validated like CreateChatRequest.Title.|
