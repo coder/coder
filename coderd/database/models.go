@@ -5455,6 +5455,8 @@ type ChatFile struct {
 	WorkspaceDeliveredPath sql.NullString `db:"workspace_delivered_path" json:"workspace_delivered_path"`
 	// Workspace the file was delivered to.
 	WorkspaceDeliveredWorkspaceID uuid.NullUUID `db:"workspace_delivered_workspace_id" json:"workspace_delivered_workspace_id"`
+	// Byte size of the delivered file, kept after data is emptied.
+	WorkspaceDeliveredSizeBytes sql.NullInt64 `db:"workspace_delivered_size_bytes" json:"workspace_delivered_size_bytes"`
 }
 
 type ChatFileLink struct {

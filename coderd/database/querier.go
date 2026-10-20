@@ -536,6 +536,7 @@ type sqlcQuerier interface {
 	GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]ChatFile, error)
 	// GetChatFilesMetadataByIDs returns file metadata without loading file
 	// content. Owner and organization columns support row-level authorization.
+	// Delivered workspace files report the size they had before delivery.
 	GetChatFilesMetadataByIDs(ctx context.Context, ids []uuid.UUID) ([]GetChatFilesMetadataByIDsRow, error)
 	GetChatGatewayAPIKey(ctx context.Context, arg GetChatGatewayAPIKeyParams) (APIKey, error)
 	GetChatHeartbeat(ctx context.Context, arg GetChatHeartbeatParams) (ChatHeartbeat, error)

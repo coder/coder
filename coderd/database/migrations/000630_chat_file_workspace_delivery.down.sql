@@ -1,6 +1,7 @@
 DROP INDEX IF EXISTS idx_chat_files_workspace_delivery_due;
 
 ALTER TABLE chat_files
+    DROP COLUMN IF EXISTS workspace_delivered_size_bytes,
     DROP COLUMN IF EXISTS workspace_delivered_workspace_id,
     DROP COLUMN IF EXISTS workspace_delivered_path,
     DROP COLUMN IF EXISTS workspace_delivered_at,

@@ -30,7 +30,7 @@ WHERE id = ANY(@ids::uuid[]);
 -- all files linked to a chat. The data column is excluded to avoid
 -- loading file content.
 SELECT cf.id, cf.owner_id, cf.organization_id, cf.name, cf.mimetype, cf.created_at,
-	octet_length(cf.data)::bigint AS size_bytes,
+	COALESCE(cf.workspace_delivered_size_bytes, octet_length(cf.data))::bigint AS size_bytes,
 	cf.purpose,
 	cf.workspace_delivery_attempts,
 	cf.workspace_delivery_next_attempt_at,
@@ -46,8 +46,9 @@ ORDER BY cf.created_at ASC;
 -- name: GetChatFilesMetadataByIDs :many
 -- GetChatFilesMetadataByIDs returns file metadata without loading file
 -- content. Owner and organization columns support row-level authorization.
+-- Delivered workspace files report the size they had before delivery.
 SELECT id, owner_id, organization_id, created_at, name, mimetype,
-	octet_length(data)::bigint AS size_bytes,
+	COALESCE(workspace_delivered_size_bytes, octet_length(data))::bigint AS size_bytes,
 	purpose,
 	workspace_delivered_at,
 	workspace_delivered_path,
@@ -138,6 +139,7 @@ RETURNING
 UPDATE chat_files
 SET
 	data = ''::bytea,
+	workspace_delivered_size_bytes = octet_length(data),
 	workspace_delivered_at = @delivered_at::timestamptz,
 	workspace_delivered_path = @delivered_path::text,
 	workspace_delivered_workspace_id = @delivered_workspace_id::uuid,

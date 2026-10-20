@@ -2172,7 +2172,8 @@ CREATE TABLE chat_files (
     workspace_delivery_error text,
     workspace_delivered_at timestamp with time zone,
     workspace_delivered_path text,
-    workspace_delivered_workspace_id uuid
+    workspace_delivered_workspace_id uuid,
+    workspace_delivered_size_bytes bigint
 );
 
 COMMENT ON COLUMN chat_files.purpose IS 'Where the file goes: prompt files are sent to the model provider, workspace files are copied into the chat''s workspace and never sent to the provider.';
@@ -2188,6 +2189,8 @@ COMMENT ON COLUMN chat_files.workspace_delivered_at IS 'When the file was writte
 COMMENT ON COLUMN chat_files.workspace_delivered_path IS 'Home-relative path the workspace agent wrote the file to.';
 
 COMMENT ON COLUMN chat_files.workspace_delivered_workspace_id IS 'Workspace the file was delivered to.';
+
+COMMENT ON COLUMN chat_files.workspace_delivered_size_bytes IS 'Byte size of the delivered file, kept after data is emptied.';
 
 CREATE UNLOGGED TABLE chat_heartbeats (
     chat_id uuid NOT NULL,

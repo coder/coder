@@ -6360,6 +6360,7 @@ const completeChatWorkspaceFileDelivery = `-- name: CompleteChatWorkspaceFileDel
 UPDATE chat_files
 SET
 	data = ''::bytea,
+	workspace_delivered_size_bytes = octet_length(data),
 	workspace_delivered_at = $1::timestamptz,
 	workspace_delivered_path = $2::text,
 	workspace_delivered_workspace_id = $3::uuid,
@@ -6459,7 +6460,7 @@ func (q *sqlQuerier) FailChatWorkspaceFileDelivery(ctx context.Context, arg Fail
 }
 
 const getChatFileByID = `-- name: GetChatFileByID :one
-SELECT id, owner_id, organization_id, created_at, name, mimetype, data, purpose, workspace_delivery_attempts, workspace_delivery_next_attempt_at, workspace_delivery_error, workspace_delivered_at, workspace_delivered_path, workspace_delivered_workspace_id FROM chat_files WHERE id = $1::uuid
+SELECT id, owner_id, organization_id, created_at, name, mimetype, data, purpose, workspace_delivery_attempts, workspace_delivery_next_attempt_at, workspace_delivery_error, workspace_delivered_at, workspace_delivered_path, workspace_delivered_workspace_id, workspace_delivered_size_bytes FROM chat_files WHERE id = $1::uuid
 `
 
 func (q *sqlQuerier) GetChatFileByID(ctx context.Context, id uuid.UUID) (ChatFile, error) {
@@ -6480,6 +6481,7 @@ func (q *sqlQuerier) GetChatFileByID(ctx context.Context, id uuid.UUID) (ChatFil
 		&i.WorkspaceDeliveredAt,
 		&i.WorkspaceDeliveredPath,
 		&i.WorkspaceDeliveredWorkspaceID,
+		&i.WorkspaceDeliveredSizeBytes,
 	)
 	return i, err
 }
@@ -6535,7 +6537,7 @@ func (q *sqlQuerier) GetChatFileDataPrefixesByIDs(ctx context.Context, arg GetCh
 
 const getChatFileMetadataByChatID = `-- name: GetChatFileMetadataByChatID :many
 SELECT cf.id, cf.owner_id, cf.organization_id, cf.name, cf.mimetype, cf.created_at,
-	octet_length(cf.data)::bigint AS size_bytes,
+	COALESCE(cf.workspace_delivered_size_bytes, octet_length(cf.data))::bigint AS size_bytes,
 	cf.purpose,
 	cf.workspace_delivery_attempts,
 	cf.workspace_delivery_next_attempt_at,
@@ -6608,7 +6610,7 @@ func (q *sqlQuerier) GetChatFileMetadataByChatID(ctx context.Context, chatID uui
 }
 
 const getChatFilesByIDs = `-- name: GetChatFilesByIDs :many
-SELECT id, owner_id, organization_id, created_at, name, mimetype, data, purpose, workspace_delivery_attempts, workspace_delivery_next_attempt_at, workspace_delivery_error, workspace_delivered_at, workspace_delivered_path, workspace_delivered_workspace_id FROM chat_files WHERE id = ANY($1::uuid[])
+SELECT id, owner_id, organization_id, created_at, name, mimetype, data, purpose, workspace_delivery_attempts, workspace_delivery_next_attempt_at, workspace_delivery_error, workspace_delivered_at, workspace_delivered_path, workspace_delivered_workspace_id, workspace_delivered_size_bytes FROM chat_files WHERE id = ANY($1::uuid[])
 `
 
 func (q *sqlQuerier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]ChatFile, error) {
@@ -6635,6 +6637,7 @@ func (q *sqlQuerier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]
 			&i.WorkspaceDeliveredAt,
 			&i.WorkspaceDeliveredPath,
 			&i.WorkspaceDeliveredWorkspaceID,
+			&i.WorkspaceDeliveredSizeBytes,
 		); err != nil {
 			return nil, err
 		}
@@ -6651,7 +6654,7 @@ func (q *sqlQuerier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]
 
 const getChatFilesMetadataByIDs = `-- name: GetChatFilesMetadataByIDs :many
 SELECT id, owner_id, organization_id, created_at, name, mimetype,
-	octet_length(data)::bigint AS size_bytes,
+	COALESCE(workspace_delivered_size_bytes, octet_length(data))::bigint AS size_bytes,
 	purpose,
 	workspace_delivered_at,
 	workspace_delivered_path,
@@ -6676,6 +6679,7 @@ type GetChatFilesMetadataByIDsRow struct {
 
 // GetChatFilesMetadataByIDs returns file metadata without loading file
 // content. Owner and organization columns support row-level authorization.
+// Delivered workspace files report the size they had before delivery.
 func (q *sqlQuerier) GetChatFilesMetadataByIDs(ctx context.Context, ids []uuid.UUID) ([]GetChatFilesMetadataByIDsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChatFilesMetadataByIDs, pq.Array(ids))
 	if err != nil {
