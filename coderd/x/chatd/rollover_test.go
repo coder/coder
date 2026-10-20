@@ -306,6 +306,97 @@ func TestActiveServer_NewContextRollover(t *testing.T) {
 	require.Equal(t, anthropicToolNames(streams[0]), anthropicToolNames(streams[1]))
 }
 
+func TestActiveServer_ContextHandoff(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	requests := newAnthropicRequestRecorder()
+	// W = 100 at 20%: the handoff target is 20, the final zone 38 and the
+	// usable limit 75. Each answer reports the usage the next turn sees.
+	inputTokens := []int{25, 40, 45, 50}
+	var streamCount atomic.Int32
+	anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		if !req.Stream {
+			return chattest.AnthropicNonStreamingResponse("title")
+		}
+		requests.record(req)
+		n := int(streamCount.Add(1))
+		return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunksWithCacheUsage(chattest.AnthropicUsage{
+			InputTokens:  inputTokens[min(n, len(inputTokens))-1],
+			OutputTokens: 5,
+		}, fmt.Sprintf("answer %d", n))...)
+	})
+	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+	model = updateChatModelCompressionThreshold(t, db, model, 100, 20)
+	require.NoError(t, db.UpsertUserChatCompactionStrategy(ctx, database.UpsertUserChatCompactionStrategyParams{
+		UserID:             user.ID,
+		CompactionStrategy: string(codersdk.ChatCompactionStrategyTokenBudget),
+	}))
+	reg := prometheus.NewRegistry()
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		cfg.PrometheusRegistry = reg
+	})
+
+	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "request 1")
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+	for i := 2; i <= 4; i++ {
+		_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:        chat.ID,
+			CreatedBy:     user.ID,
+			ModelConfigID: model.ID,
+			Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText(fmt.Sprintf("request %d", i))},
+		})
+		require.NoError(t, err)
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.False(t, chat.LastError.Valid)
+	}
+	require.Equal(t, int32(4), streamCount.Load(), "handoff rows are committed without a model call")
+
+	const handoffText = "The context handoff target has been reached."
+	const finalText = "The current context window is exhausted."
+	streams := filterAnthropicStreamingRequests(requests.all())
+	require.Len(t, streams, 4)
+	for i, req := range streams {
+		body := anthropicRequestBody(t, req)
+		require.NotContains(t, body, "chat_context_handoff", "stream %d: the handoff tool rows are UI only", i+1)
+		// Stream 2 answers after the handoff and stream 3 after the final
+		// prompt; each prompt stays in the window exactly once.
+		require.Equal(t, min(i, 1), strings.Count(body, handoffText), "stream %d", i+1)
+		require.Equal(t, min(max(i-1, 0), 1), strings.Count(body, finalText), "stream %d", i+1)
+	}
+	second := anthropicRequestBody(t, streams[1])
+	require.Less(t, strings.Index(second, "request 2"), strings.Index(second, handoffText), "the handoff follows the request it interrupts")
+	require.Contains(t, second, "Context budget ~33% used (25 of 75 tokens")
+
+	var stages []string
+	for _, msg := range chatMessages(ctx, t, db, chat.ID) {
+		parts, err := chatprompt.ParseContent(msg)
+		require.NoError(t, err)
+		for _, part := range parts {
+			if part.Type != codersdk.ChatMessagePartTypeToolCall || part.ToolName != "chat_context_handoff" {
+				continue
+			}
+			require.True(t, msg.Compressed)
+			require.Equal(t, database.ChatMessageVisibilityUser, msg.Visibility)
+			var args struct {
+				Stage string `json:"stage"`
+			}
+			require.NoError(t, json.Unmarshal(part.Args, &args))
+			stages = append(stages, args.Stage)
+		}
+	}
+	require.Equal(t, []string{"handoff", "final"}, stages, "each stage is requested once per window")
+	for _, stage := range stages {
+		requireChatdMetricCounter(t, reg, "coderd_chatd_context_handoff_total", 1, map[string]string{
+			"provider": "anthropic",
+			"model":    "claude-sonnet-4-20250514",
+			"stage":    stage,
+		})
+	}
+}
+
 func anthropicToolNames(req chattest.AnthropicRequest) []string {
 	names := make([]string, 0, len(req.Tools))
 	for _, tool := range req.Tools {

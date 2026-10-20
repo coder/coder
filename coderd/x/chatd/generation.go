@@ -83,6 +83,9 @@ type generationRollover struct {
 	MetricProvider  string
 	MetricModel     string
 	PendingUserRows []database.ChatMessage
+	// NewContextOffered gates the final prompt, which asks the agent to
+	// call new_context.
+	NewContextOffered bool
 }
 
 func generationRolloverBudget(rollover *generationRollover) *contextWindowBudget {
@@ -119,6 +122,7 @@ const (
 	generationActionCompact             generationActionKind = "compact"
 	generationActionGenerateAssistant   generationActionKind = "generate_assistant"
 	generationActionContextRollover     generationActionKind = "context_rollover"
+	generationActionContextHandoff      generationActionKind = "context_handoff"
 )
 
 type generationFinishReason string
@@ -161,6 +165,8 @@ type generationDecision struct {
 	forced            bool
 	toolCallMessageID int64 // ID of the assistant message holding localToolCalls
 	rolloverReason    rolloverReason
+	// handoffStage is rolloverActionHandoff or rolloverActionFinal.
+	handoffStage rolloverAction
 }
 
 type generationRetryDecision struct {
@@ -210,7 +216,8 @@ type generationDecisionInput struct {
 	compactionTriggerSource    compactionTriggerSource
 	compactionOtherTrigger     compactionTrigger
 	// rollover is set under the token budget strategy.
-	rollover *contextWindowBudget
+	rollover          *contextWindowBudget
+	newContextOffered bool
 }
 
 func decideGenerationAction(input generationDecisionInput) (generationDecision, error) {
@@ -269,13 +276,17 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 		return generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonMaxSteps}, nil
 	}
 	if input.rollover != nil {
-		receipt, err := hasNewContextReceipt(input.messages)
+		state, err := rolloverStageStateFromHistory(input.messages)
 		if err != nil {
 			return generationDecision{}, err
 		}
-		rollover := decideRollover(windowContextTokens(input.messages), *input.rollover, rolloverStageState{receipt: receipt})
-		if rollover.action == rolloverActionRollover {
+		state.newContextOffered = input.newContextOffered
+		rollover := decideRollover(windowContextTokens(input.messages), *input.rollover, state)
+		switch rollover.action {
+		case rolloverActionRollover:
 			return generationDecision{kind: generationActionContextRollover, rolloverReason: rollover.reason}, nil
+		case rolloverActionHandoff, rolloverActionFinal:
+			return generationDecision{kind: generationActionContextHandoff, handoffStage: rollover.action}, nil
 		}
 	}
 	compactionRequirement := compactionRequirementNotNeeded
@@ -668,6 +679,7 @@ func (s *taskStarter) runGenerationStep(
 				compactionTriggerSource:    generationCompactionTriggerSource(prepared.Compaction),
 				compactionOtherTrigger:     generationCompactionOtherTrigger(prepared.Compaction),
 				rollover:                   generationRolloverBudget(prepared.Rollover),
+				newContextOffered:          prepared.Rollover != nil && prepared.Rollover.NewContextOffered,
 			})
 		})
 	}
@@ -705,6 +717,8 @@ func (s *taskStarter) runGenerationStep(
 		actionErr = s.generateCompaction(ctx, machine, input, prepared, compactionSourceForDecision(decision))
 	case generationActionContextRollover:
 		actionErr = s.rollOverContextWindow(ctx, machine, input, prepared, decision.rolloverReason)
+	case generationActionContextHandoff:
+		actionErr = s.requestContextHandoff(ctx, machine, input, prepared, decision.handoffStage)
 	default:
 		return input, false, s.finishGenerationError(ctx, machine, input, xerrors.Errorf("unknown generation action %q", decision.kind), generationAttemptNotRequired)
 	}
@@ -1423,6 +1437,43 @@ func (s *taskStarter) rollOverContextWindow(
 		return xerrors.Errorf("commit context rollover step: %w", err)
 	}
 	s.server.metrics.RecordContextRollover(rollover.MetricProvider, rollover.MetricModel, string(reason))
+	return nil
+}
+
+// requestContextHandoff commits a handoff or final prompt for the agent.
+// The runner re-spawns generation on the history bump, and the next
+// decision sees the stage claimed.
+func (s *taskStarter) requestContextHandoff(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+	prepared turnEnvironment,
+	stage rolloverAction,
+) error {
+	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
+	if err != nil {
+		return xerrors.Errorf("beginGenerationAttempt: %w", err)
+	}
+	defer attempt.closeEpisode()
+	rollover := prepared.Rollover
+	if rollover == nil {
+		return s.finishGenerationError(ctx, machine, input, xerrors.New("context handoff action missing options"), requireGenerationAttempt(attempt.number))
+	}
+	messages, err := buildContextHandoffMessages(buildContextHandoffMessagesInput{
+		modelConfigID: prepared.ModelConfigID,
+		toolCallID:    handoffToolName + "_" + uuid.NewString(),
+		stage:         stage,
+		contextTokens: windowContextTokens(prepared.Messages),
+		usableLimit:   rollover.Budget.usableLimit,
+	})
+	if err != nil {
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+	}
+	err = s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionContextHandoff, stepMessagesForCommit{Messages: messages}, generationCommitHooks{})
+	if err != nil {
+		return xerrors.Errorf("commit context handoff step: %w", err)
+	}
+	s.server.metrics.RecordContextHandoff(rollover.MetricProvider, rollover.MetricModel, string(stage))
 	return nil
 }
 

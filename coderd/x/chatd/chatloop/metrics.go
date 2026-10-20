@@ -84,6 +84,7 @@ type Metrics struct {
 	stageAnomaliesTotal       *prometheus.CounterVec
 	CompactionTotal           *prometheus.CounterVec
 	ContextRolloverTotal      *prometheus.CounterVec
+	ContextHandoffTotal       *prometheus.CounterVec
 	StepsTotal                *prometheus.CounterVec
 	StreamRetriesTotal        *prometheus.CounterVec
 	FindToolsCallsTotal       prometheus.Counter
@@ -191,6 +192,12 @@ func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metr
 			Name:      "context_rollover_total",
 			Help:      "Total context window rollovers under the token budget compaction strategy, by reason (limit: the window reached its usable limit).",
 		}, []string{"provider", "model", "reason"}),
+		ContextHandoffTotal: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "context_handoff_total",
+			Help:      "Total context handoff prompts under the token budget compaction strategy, by stage (handoff: the handoff target was reached; final: the final zone before the usable limit was reached).",
+		}, []string{"provider", "model", "stage"}),
 		StepsTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
@@ -301,6 +308,15 @@ func (m *Metrics) RecordContextRollover(provider, model, reason string) {
 		return
 	}
 	m.ContextRolloverTotal.WithLabelValues(provider, model, reason).Inc()
+}
+
+// RecordContextHandoff counts a committed context handoff prompt. It is
+// a no-op when m is nil.
+func (m *Metrics) RecordContextHandoff(provider, model, stage string) {
+	if m == nil {
+		return
+	}
+	m.ContextHandoffTotal.WithLabelValues(provider, model, stage).Inc()
 }
 
 // RecordStreamRetry increments stream_retries_total. The caller

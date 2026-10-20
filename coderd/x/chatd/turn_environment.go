@@ -722,6 +722,10 @@ func (p *Server) buildTurnEnvironment(
 	if pendingUserRows == nil {
 		compactionPromptMessages = prompt
 	}
+	pendingUserRows, err = replayablePendingUserRows(pendingUserRows)
+	if err != nil {
+		return turnEnvironment{}, err
+	}
 	setAdvisorPromptSnapshot(prompt)
 
 	storeChatAttachment := p.newStoreChatAttachmentFunc(&workspaceCtx)
@@ -1022,6 +1026,9 @@ func (p *Server) buildTurnEnvironment(
 			MetricProvider:  model.LanguageModel().Provider(),
 			MetricModel:     model.LanguageModel().Model(),
 			PendingUserRows: pendingUserRows,
+			NewContextOffered: slices.ContainsFunc(toolDefinitions, func(tool fantasy.Tool) bool {
+				return tool.GetName() == chattool.NewContextToolName
+			}),
 		}
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)

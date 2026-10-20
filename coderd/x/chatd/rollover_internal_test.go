@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -113,32 +114,12 @@ func TestDecideGenerationActionContextRollover(t *testing.T) {
 
 	// W = 100 with a 32k output cap: C = 75 and H = F = 38.
 	budget := newContextWindowBudget(100, 32_000, 70)
-	toolStep := func(t *testing.T, id int64, inputTokens int64) []database.ChatMessage {
-		callID := fmt.Sprintf("call-%d", id)
-		return []database.ChatMessage{
-			withUsage(dbMessage(t, id, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall(callID, "tool", json.RawMessage(`{}`))), inputTokens, 100),
-			dbMessage(t, id+1, database.ChatMessageRoleTool, false, codersdk.ChatMessageToolResult(callID, "tool", json.RawMessage(`{}`), false, false)),
-		}
-	}
+	toolStep := rolloverTestToolStep
 	rolloverBoundary := func(t *testing.T, id int64) []database.ChatMessage {
-		anchor := dbMessage(t, id, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("lead-in"))
-		anchor.Visibility = database.ChatMessageVisibilityModel
-		return []database.ChatMessage{
-			anchor,
-			dbMessage(t, id+1, database.ChatMessageRoleAssistant, true, codersdk.ChatMessageToolCall("r", rolloverToolName, json.RawMessage(`{}`))),
-			dbMessage(t, id+2, database.ChatMessageRoleTool, true, codersdk.ChatMessageToolResult("r", rolloverToolName, json.RawMessage(`{}`), false, false)),
-		}
+		return rolloverTestBoundary(t, id, rolloverToolName)
 	}
-	history := func(rows ...[]database.ChatMessage) []database.ChatMessage {
-		var out []database.ChatMessage
-		for _, r := range rows {
-			out = append(out, r...)
-		}
-		return out
-	}
-	prompt := func(t *testing.T, id int64, text string) []database.ChatMessage {
-		return []database.ChatMessage{dbMessage(t, id, database.ChatMessageRoleUser, false, codersdk.ChatMessageText(text))}
-	}
+	history := rolloverTestHistory
+	prompt := rolloverTestPrompt
 	scheduled := json.RawMessage(`{"status":"scheduled","message":"A new context window will start without summarizing conversation history."}`)
 	// checkpointStep calls save_checkpoint and new_context in one step and
 	// records the given results.
@@ -166,7 +147,7 @@ func TestDecideGenerationActionContextRollover(t *testing.T) {
 		wantReason rolloverReason
 	}{
 		{name: "RollsOverAtUsableLimit", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 75)), budget: &budget, want: generationActionContextRollover},
-		{name: "GeneratesBelowUsableLimit", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 74)), budget: &budget, want: generationActionGenerateAssistant},
+		{name: "GeneratesBelowHandoffTarget", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 37)), budget: &budget, want: generationActionGenerateAssistant},
 		{name: "RollsOverBeforeAnsweringNewPrompt", messages: history(
 			prompt(t, 1, "go"),
 			[]database.ChatMessage{withUsage(dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("done")), 80, 100)},
@@ -210,6 +191,211 @@ func TestDecideGenerationActionContextRollover(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDecideGenerationActionContextHandoff(t *testing.T) {
+	t.Parallel()
+
+	// W = 100 at 20% with a 32k output cap: H = 20, F = 38, C = 75.
+	budget := newContextWindowBudget(100, 32_000, 20)
+	toolStep, history, prompt := rolloverTestToolStep, rolloverTestHistory, rolloverTestPrompt
+	handoffRows := func(t *testing.T, id int64, stage rolloverAction) []database.ChatMessage {
+		messages, err := buildContextHandoffMessages(buildContextHandoffMessagesInput{
+			toolCallID:    fmt.Sprintf("handoff-%d", id),
+			stage:         stage,
+			contextTokens: 25,
+			usableLimit:   budget.usableLimit,
+		})
+		require.NoError(t, err)
+		rows := make([]database.ChatMessage, 0, len(messages))
+		for i, msg := range messages {
+			rows = append(rows, database.ChatMessage{
+				ID:             id + int64(i),
+				Role:           msg.Role,
+				Content:        msg.Content,
+				ContentVersion: msg.ContentVersion,
+				Visibility:     msg.Visibility,
+				Compressed:     msg.Compressed,
+			})
+		}
+		return rows
+	}
+	answer := func(t *testing.T, id int64, inputTokens int64) []database.ChatMessage {
+		return []database.ChatMessage{withUsage(dbMessage(t, id, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("done")), inputTokens, 100)}
+	}
+
+	tests := []struct {
+		name              string
+		messages          []database.ChatMessage
+		budget            contextWindowBudget
+		newContextOffered bool
+		maxSteps          int
+		want              generationActionKind
+		wantStage         rolloverAction
+	}{
+		{name: "HandoffAtTarget", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 20)), want: generationActionContextHandoff, wantStage: rolloverActionHandoff},
+		{name: "HandoffBeforeAnsweringNewPrompt", messages: history(prompt(t, 1, "go"), answer(t, 2, 25), prompt(t, 3, "next")), newContextOffered: true, want: generationActionContextHandoff, wantStage: rolloverActionHandoff},
+		{name: "HandoffBeforeFinalInFinalZone", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 40)), newContextOffered: true, want: generationActionContextHandoff, wantStage: rolloverActionHandoff},
+		{name: "HandoffOncePerWindow", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 20), handoffRows(t, 4, rolloverActionHandoff), toolStep(t, 7, 37)), newContextOffered: true, want: generationActionGenerateAssistant},
+		{name: "FinalAfterHandoff", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 20), handoffRows(t, 4, rolloverActionHandoff), toolStep(t, 7, 38)), newContextOffered: true, want: generationActionContextHandoff, wantStage: rolloverActionFinal},
+		{name: "FinalNeedsNewContext", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 20), handoffRows(t, 4, rolloverActionHandoff), toolStep(t, 7, 38)), want: generationActionGenerateAssistant},
+		{name: "FinalOncePerWindow", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 20), handoffRows(t, 4, rolloverActionHandoff), toolStep(t, 7, 38), handoffRows(t, 9, rolloverActionFinal), toolStep(t, 12, 74)), newContextOffered: true, want: generationActionGenerateAssistant},
+		{name: "ClaimsResetAfterRollover", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 20), handoffRows(t, 4, rolloverActionHandoff), rolloverTestBoundary(t, 7, rolloverToolName), toolStep(t, 10, 25)), newContextOffered: true, want: generationActionContextHandoff, wantStage: rolloverActionHandoff},
+		{name: "ClaimsResetAfterSummary", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 20), handoffRows(t, 4, rolloverActionHandoff), rolloverTestBoundary(t, 7, "chat_summarized"), toolStep(t, 10, 25)), newContextOffered: true, want: generationActionContextHandoff, wantStage: rolloverActionHandoff},
+		{name: "ClaimsResetAfterClear", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 20), handoffRows(t, 4, rolloverActionHandoff), rolloverTestBoundary(t, 7, "chat_cleared"), toolStep(t, 10, 25)), newContextOffered: true, want: generationActionContextHandoff, wantStage: rolloverActionHandoff},
+		{name: "DisabledAtHundredPercent", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 50)), budget: newContextWindowBudget(100, 32_000, 100), newContextOffered: true, want: generationActionGenerateAssistant},
+		// Handoff rows add a compressed assistant call and a model-only
+		// user prompt; neither is a step of the turn nor a new turn.
+		{name: "HandoffRowsAreNotSteps", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 20), handoffRows(t, 4, rolloverActionHandoff)), maxSteps: 2, want: generationActionGenerateAssistant},
+		{name: "HandoffPromptDoesNotStartTurn", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 20), handoffRows(t, 4, rolloverActionHandoff)), maxSteps: 1, want: generationActionFinishTurn},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			maxSteps := tc.maxSteps
+			if maxSteps == 0 {
+				maxSteps = codersdk.DefaultChatMaxStepsPerTurn
+			}
+			caseBudget := tc.budget
+			if caseBudget == (contextWindowBudget{}) {
+				caseBudget = budget
+			}
+			decision, err := decideGenerationAction(generationDecisionInput{
+				messages:          tc.messages,
+				maxSteps:          maxSteps,
+				rollover:          &caseBudget,
+				newContextOffered: tc.newContextOffered,
+			})
+			require.NoError(t, err)
+			require.Equal(t, tc.want, decision.kind)
+			require.Equal(t, tc.wantStage, decision.handoffStage)
+		})
+	}
+}
+
+func TestBuildContextHandoffMessages(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	usage := "Context budget ~33% used (25 of 75 tokens before Coder forces a rollover at the usable limit). "
+	tests := []struct {
+		stage      rolloverAction
+		wantPrompt string
+	}{
+		{
+			stage: rolloverActionHandoff,
+			wantPrompt: usage + "The context handoff target has been reached. Finish the current small unit of work and start no substantial new work in this window. " +
+				"Before starting a new context window, save a concise checkpoint with save_checkpoint: the goal, decisions, progress, learnings, next steps, and the window ID and item ID of every relevant user request still being solved, as well as important actions and tool calls. " +
+				"Future context windows will not include the current conversation. After saving your checkpoint, call new_context in a later step to continue in a fresh context window. " +
+				"If the task is already complete, finish the reply instead.",
+		},
+		{
+			stage: rolloverActionFinal,
+			wantPrompt: usage + "The current context window is exhausted. Do not continue the task or give a final answer in this window. " +
+				"The next window will not automatically include this conversation. Save your checkpoint with save_checkpoint now. " +
+				"After the result returns, call new_context. Do not use any tools other than save_checkpoint and new_context.",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(string(tc.stage), func(t *testing.T) {
+			t.Parallel()
+			messages, err := buildContextHandoffMessages(buildContextHandoffMessagesInput{
+				modelConfigID: modelConfigID,
+				toolCallID:    "call",
+				stage:         tc.stage,
+				contextTokens: 25,
+				usableLimit:   75,
+			})
+			require.NoError(t, err)
+			require.Len(t, messages, 3)
+			parse := func(msg chatstate.Message) codersdk.ChatMessagePart {
+				parts, err := chatprompt.ParseContent(database.ChatMessage{Content: msg.Content, ContentVersion: msg.ContentVersion})
+				require.NoError(t, err)
+				require.Len(t, parts, 1)
+				return parts[0]
+			}
+
+			call, result, prompt := messages[0], messages[1], messages[2]
+			require.Equal(t, []any{database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, true}, []any{call.Role, call.Visibility, call.Compressed})
+			callPart := parse(call)
+			require.Equal(t, codersdk.ChatMessagePartTypeToolCall, callPart.Type)
+			require.Equal(t, "chat_context_handoff", callPart.ToolName)
+			require.JSONEq(t, fmt.Sprintf(`{"stage":%q,"context_tokens":25,"budget_tokens":75}`, tc.stage), string(callPart.Args))
+
+			require.Equal(t, []any{database.ChatMessageRoleTool, database.ChatMessageVisibilityUser, true}, []any{result.Role, result.Visibility, result.Compressed})
+			resultPart := parse(result)
+			require.Equal(t, codersdk.ChatMessagePartTypeToolResult, resultPart.Type)
+			require.Equal(t, callPart.ToolCallID, resultPart.ToolCallID)
+			wantResult, err := json.Marshal(map[string]string{"stage": string(tc.stage), "prompt": tc.wantPrompt})
+			require.NoError(t, err)
+			require.JSONEq(t, string(wantResult), string(resultPart.Result))
+
+			require.Equal(t, []any{database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, false}, []any{prompt.Role, prompt.Visibility, prompt.Compressed})
+			require.Equal(t, fmt.Sprintf(`<context-handoff stage=%q>%s</context-handoff>`, tc.stage, tc.wantPrompt), parse(prompt).Text)
+		})
+	}
+}
+
+func TestReplayablePendingUserRows(t *testing.T) {
+	t.Parallel()
+
+	messages, err := buildContextHandoffMessages(buildContextHandoffMessagesInput{
+		toolCallID:    "call",
+		stage:         rolloverActionHandoff,
+		contextTokens: 25,
+		usableLimit:   75,
+	})
+	require.NoError(t, err)
+	handoffPrompt := database.ChatMessage{
+		ID:             5,
+		Role:           messages[2].Role,
+		Content:        messages[2].Content,
+		ContentVersion: messages[2].ContentVersion,
+		Visibility:     messages[2].Visibility,
+	}
+	request := dbMessage(t, 2, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("next"))
+
+	rows, err := replayablePendingUserRows([]database.ChatMessage{request, handoffPrompt})
+	require.NoError(t, err)
+	require.Equal(t, []database.ChatMessage{request}, rows, "a stale handoff prompt must not reach the next window")
+
+	rows, err = replayablePendingUserRows([]database.ChatMessage{handoffPrompt})
+	require.NoError(t, err)
+	require.Empty(t, rows, "a handoff prompt alone is no pending user request")
+}
+
+func rolloverTestToolStep(t *testing.T, id int64, inputTokens int64) []database.ChatMessage {
+	callID := fmt.Sprintf("call-%d", id)
+	return []database.ChatMessage{
+		withUsage(dbMessage(t, id, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall(callID, "tool", json.RawMessage(`{}`))), inputTokens, 100),
+		dbMessage(t, id+1, database.ChatMessageRoleTool, false, codersdk.ChatMessageToolResult(callID, "tool", json.RawMessage(`{}`), false, false)),
+	}
+}
+
+// rolloverTestBoundary returns a context boundary triplet of the given
+// kind: chat_summarized, chat_cleared, or chat_context_rollover.
+func rolloverTestBoundary(t *testing.T, id int64, toolName string) []database.ChatMessage {
+	anchor := dbMessage(t, id, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("anchor"))
+	anchor.Visibility = database.ChatMessageVisibilityModel
+	call := dbMessage(t, id+1, database.ChatMessageRoleAssistant, true, codersdk.ChatMessageToolCall("boundary", toolName, json.RawMessage(`{}`)))
+	call.Visibility = database.ChatMessageVisibilityUser
+	return []database.ChatMessage{
+		anchor,
+		call,
+		dbMessage(t, id+2, database.ChatMessageRoleTool, true, codersdk.ChatMessageToolResult("boundary", toolName, json.RawMessage(`{}`), false, false)),
+	}
+}
+
+func rolloverTestHistory(rows ...[]database.ChatMessage) []database.ChatMessage {
+	var out []database.ChatMessage
+	for _, r := range rows {
+		out = append(out, r...)
+	}
+	return out
+}
+
+func rolloverTestPrompt(t *testing.T, id int64, text string) []database.ChatMessage {
+	return []database.ChatMessage{dbMessage(t, id, database.ChatMessageRoleUser, false, codersdk.ChatMessageText(text))}
 }
 
 func TestContextWindowID(t *testing.T) {
