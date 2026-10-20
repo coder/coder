@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
@@ -76,6 +77,9 @@ type turnEnvironment struct {
 
 	MaxSteps   int
 	Compaction *generationCompaction
+	// Rollover is set when the token budget strategy replaces automatic
+	// summary compaction.
+	Rollover *generationRollover
 
 	Debug *generationDebug
 
@@ -973,8 +977,28 @@ func (p *Server) buildTurnEnvironment(
 			otherTrigger = chatTrigger
 		}
 	}
+	var rollover *generationRollover
+	if p.experiments.Enabled(codersdk.ExperimentChatTokenBudget) {
+		strategy, err := p.resolveUserCompactionStrategy(ctx, chat.OwnerID)
+		if err != nil {
+			return turnEnvironment{}, err
+		}
+		if strategy == codersdk.ChatCompactionStrategyTokenBudget {
+			rollover = &generationRollover{
+				Budget: newContextWindowBudget(
+					modelConfig.ContextLimit,
+					ptr.NilToDefault(resolved.callConfig.MaxOutputTokens, defaultChatMaxOutputTokens),
+					effectiveThreshold,
+				),
+				WindowID:        contextWindowID(promptRows),
+				PendingUserRows: pendingUserRows,
+			}
+		}
+	}
 	compactionStepUsage := latestPromptUsage(promptRows)
-	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, binding.contextLimit, binding.thresholdPercent)
+	// Manual compaction still summarizes under the token budget strategy,
+	// so only the automatic triggers are switched off.
+	compactionNeeded := rollover == nil && shouldCompactPromptUsage(compactionStepUsage, binding.contextLimit, binding.thresholdPercent)
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
@@ -1038,8 +1062,9 @@ func (p *Server) buildTurnEnvironment(
 			Options:         compactionOptions,
 			PendingUserRows: pendingUserRows,
 		},
-		Debug:   debug,
-		cleanup: cleanup,
+		Rollover: rollover,
+		Debug:    debug,
+		cleanup:  cleanup,
 	}, nil
 }
 
