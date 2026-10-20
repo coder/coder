@@ -966,6 +966,21 @@ $$;
 
 COMMENT ON FUNCTION compute_notification_message_dedupe_hash() IS 'Computes a unique hash which will be used to prevent duplicate messages from being enqueued on the same day';
 
+CREATE FUNCTION delete_chat_project_user_acl_on_org_member_delete() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    -- Drop the departing member's direct grants so adding them back to the
+    -- organization does not silently restore access.
+    UPDATE chat_projects
+    SET
+        user_acl = user_acl - OLD.user_id::text,
+        updated_at = now()
+    WHERE organization_id = OLD.organization_id AND user_acl ? OLD.user_id::text;
+    RETURN OLD;
+END;
+$$;
+
 CREATE FUNCTION delete_deleted_oauth2_provider_app_token_api_key() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -5388,6 +5403,8 @@ CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_delete AFTER DE
 CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_insert AFTER INSERT ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
 CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_update AFTER UPDATE OF content, model_config_id, "position", created_by ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
+
+CREATE TRIGGER trigger_delete_chat_project_user_acl_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_chat_project_user_acl_on_org_member_delete();
 
 CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
 

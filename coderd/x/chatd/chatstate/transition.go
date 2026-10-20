@@ -10,6 +10,7 @@ type Transition string
 const (
 	TransitionCreateChat              Transition = "CreateChat"
 	TransitionSetArchived             Transition = "SetArchived"
+	TransitionSetProject              Transition = "SetProject"
 	TransitionSendMessage             Transition = "SendMessage"
 	TransitionEditMessage             Transition = "EditMessage"
 	TransitionRequestCompaction       Transition = "RequestCompaction"
@@ -50,6 +51,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 	},
 	StateW: {
 		TransitionSetArchived:       {StateXW},
+		TransitionSetProject:        {StateW},
 		TransitionSendMessage:       {StateR0},
 		TransitionEditMessage:       {StateR0},
 		TransitionRequestCompaction: {StateR0},
@@ -58,6 +60,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 	},
 	StateE0: {
 		TransitionSetArchived:       {StateXE0},
+		TransitionSetProject:        {StateE0},
 		TransitionSendMessage:       {StateR0},
 		TransitionEditMessage:       {StateR0},
 		TransitionRequestCompaction: {StateR0},
@@ -65,6 +68,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 	},
 	StateE1: {
 		TransitionSetArchived:          {StateXE1},
+		TransitionSetProject:           {StateE1},
 		TransitionSendMessage:          {StateR1},
 		TransitionEditMessage:          {StateR0},
 		TransitionDeleteQueuedMessage:  {StateE0, StateE1},
