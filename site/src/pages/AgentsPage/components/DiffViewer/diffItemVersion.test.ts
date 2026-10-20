@@ -29,11 +29,12 @@ describe("diffItemVersion", () => {
 	});
 
 	it("changes when the collapsed flag flips", () => {
-		// Any floating-point fold over the cache key drops the collapsed bit,
-		// which would make the toggle a no-op.
+		// A plain float fold (version * 31 + char) over the ~19-character
+		// cacheKey exceeds 2^53, so adding 1 for the collapsed flag would not
+		// change the value.
 		const file = diffWith("const v = 1;");
-		expect(diffItemVersion(file, annotations(12), false)).not.toBe(
-			diffItemVersion(file, annotations(12), true),
+		expect(diffItemVersion(file, [], false)).not.toBe(
+			diffItemVersion(file, [], true),
 		);
 	});
 
