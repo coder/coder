@@ -282,6 +282,17 @@ const lockedOrgDenialDescription = (
 	return `You don't have permission to create chats in ${target}, which this project belongs to. Ask your Coder administrator for access, then refresh this page.`;
 };
 
+// No chat exists yet to name the server-selected agent, so direct
+// streaming gates on any connected root agent; otherwise workspace
+// files stage in Coder.
+const canStreamToWorkspace = (
+	workspace: TypesGen.Workspace | undefined,
+): boolean =>
+	workspace !== undefined &&
+	getWorkspaceAgents(workspace).some(
+		(agent) => !agent.parent_id && agent.status === "connected",
+	);
+
 type AgentCreateFormProps = {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
 	isCreating: boolean;
@@ -732,17 +743,9 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		saveReasoningEffortForModel(selectedModel, value);
 	};
 
-	// No chat exists yet to name the server-selected agent, so direct
-	// streaming gates on any connected root agent; otherwise workspace
-	// files stage in Coder.
-	const selectedWorkspace = filteredWorkspaces.find(
-		(ws) => ws.id === effectiveWorkspaceId,
+	const canStreamWorkspaceFiles = canStreamToWorkspace(
+		filteredWorkspaces.find((ws) => ws.id === effectiveWorkspaceId),
 	);
-	const canStreamWorkspaceFiles =
-		selectedWorkspace !== undefined &&
-		getWorkspaceAgents(selectedWorkspace).some(
-			(agent) => !agent.parent_id && agent.status === "connected",
-		);
 
 	const handleSend = async (
 		message: string,
@@ -800,27 +803,24 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		resetWorkspaceUploads();
 		handleAttach(files, "workspace");
 	};
-	const stageQueuedWorkspaceFilesOnScopeChange = useEffectEvent(
-		stageQueuedWorkspaceFiles,
-	);
-	// A dropped File cannot be restored, so a scope change that loses the
+	const workspaceUploadCount = workspaceUploadEntries.length;
+	// A dropped File cannot be restored, so picking a workspace without a
 	// connected agent stages the queue in Coder. A status flap on the same
 	// workspace keeps the queue, and a submit during the flap stages it.
-	const workspaceUploadCount = workspaceUploadEntries.length;
-	const workspaceUploadScopeKey = `${organizationId}/${effectiveWorkspaceId ?? ""}`;
-	const previousWorkspaceUploadScopeKeyRef = useRef(workspaceUploadScopeKey);
-	useEffect(() => {
+	const handleWorkspaceChange = (workspaceId: string | null) => {
+		setSelectedWorkspaceId(workspaceId);
 		if (
-			previousWorkspaceUploadScopeKeyRef.current === workspaceUploadScopeKey
+			workspaceId === effectiveWorkspaceId ||
+			workspaceUploadCount === 0 ||
+			!organizationAdopted ||
+			canStreamToWorkspace(
+				filteredWorkspaces.find((ws) => ws.id === workspaceId),
+			)
 		) {
 			return;
 		}
-		previousWorkspaceUploadScopeKeyRef.current = workspaceUploadScopeKey;
-		if (canStreamWorkspaceFiles || workspaceUploadCount === 0) {
-			return;
-		}
-		stageQueuedWorkspaceFilesOnScopeChange();
-	}, [workspaceUploadScopeKey, canStreamWorkspaceFiles, workspaceUploadCount]);
+		stageQueuedWorkspaceFiles();
+	};
 
 	const handleAttachWhenIdle = (
 		files: File[],
@@ -1090,7 +1090,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 					// Do not persist a workspace until its organization is authorized.
 					onWorkspaceChange={
 						orgSelectionSettled && !noPermittedOrgs && !isSubmitPending
-							? setSelectedWorkspaceId
+							? handleWorkspaceChange
 							: undefined
 					}
 					isWorkspaceLoading={isWorkspacesLoading}
