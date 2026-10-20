@@ -10,6 +10,25 @@ const compactTokenFormatter = new Intl.NumberFormat("en-US", {
 export const roundTokenDisplay = (tokens: number) =>
 	compactTokenFormatter.format(tokens);
 
+const PROMPT_PREVIEW_MAX_CHARS = 500;
+
+/**
+ * Shortens a prompt to a preview that is long enough to recognize a session.
+ * Prompts can be tens of thousands of characters; the session page shows them
+ * in full.
+ */
+export const truncatePromptPreview = (prompt: string) => {
+	if (prompt.length <= PROMPT_PREVIEW_MAX_CHARS) {
+		return prompt;
+	}
+	// Slice by code point so an emoji or other astral character is never split.
+	const codePoints = Array.from(prompt);
+	if (codePoints.length <= PROMPT_PREVIEW_MAX_CHARS) {
+		return prompt;
+	}
+	return `${codePoints.slice(0, PROMPT_PREVIEW_MAX_CHARS).join("").trimEnd()}…`;
+};
+
 export const roundDurationDisplay = (duration: number) => {
 	if (duration >= 1000) {
 		return `${(duration / 1000).toFixed(1)}s`;

@@ -14,6 +14,7 @@ import { ClientsBadge } from "../ClientsBadge";
 import { NetworkCallBadges } from "../NetworkCallBadges";
 import { ProvidersBadge } from "../ProvidersBadge";
 import { TokenBadges } from "../TokenBadges";
+import { truncatePromptPreview } from "../utils";
 
 type ListSessionsRowProps = {
 	session: AIBridgeSession;
@@ -30,6 +31,7 @@ export const ListSessionsRow: React.FC<ListSessionsRowProps> = ({
 	)
 		.trim()
 		.split(/\s+/);
+	const promptPreview = truncatePromptPreview(session.last_prompt ?? "");
 
 	return (
 		<TableRow
@@ -43,9 +45,7 @@ export const ListSessionsRow: React.FC<ListSessionsRowProps> = ({
 				<TooltipProvider>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<p className="m-0 line-clamp-2 wrap-anywhere">
-								{session.last_prompt}
-							</p>
+							<p className="m-0 line-clamp-2 wrap-anywhere">{promptPreview}</p>
 						</TooltipTrigger>
 						<TooltipContent
 							className="max-w-64 max-h-80 overflow-y-auto"
@@ -56,7 +56,7 @@ export const ListSessionsRow: React.FC<ListSessionsRowProps> = ({
 							onClick={(event) => event.stopPropagation()}
 						>
 							<div className="font-bold">Last prompt</div>
-							<div>{session.last_prompt}</div>
+							<div className="wrap-anywhere">{promptPreview}</div>
 						</TooltipContent>
 					</Tooltip>
 				</TooltipProvider>
