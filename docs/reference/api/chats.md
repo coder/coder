@@ -1457,10 +1457,11 @@ curl -X POST http://coder-server:8080/api/v2/chats/files?organization=497f6eca-6
 
 ### Responses
 
-| Status | Meaning                                                                 | Description                                                 | Schema                                                                       |
-|--------|-------------------------------------------------------------------------|-------------------------------------------------------------|------------------------------------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                                                     | [codersdk.UploadChatFileResponse](schemas.md#codersdkuploadchatfileresponse) |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 10 MiB, or 100 MiB for workspace files | [codersdk.Response](schemas.md#codersdkresponse)                             |
+| Status | Meaning                                                                 | Description                                                        | Schema                                                                       |
+|--------|-------------------------------------------------------------------------|--------------------------------------------------------------------|------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                                                            | [codersdk.UploadChatFileResponse](schemas.md#codersdkuploadchatfileresponse) |
+| 408    | [Request Timeout](https://tools.ietf.org/html/rfc7231#section-6.5.7)    | Workspace file body stalled for 30 seconds or took over 30 minutes | [codersdk.Response](schemas.md#codersdkresponse)                             |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 10 MiB, or 100 MiB for workspace files        | [codersdk.Response](schemas.md#codersdkresponse)                             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

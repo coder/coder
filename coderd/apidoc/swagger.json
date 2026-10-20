@@ -3394,6 +3394,12 @@
 							"$ref": "#/definitions/codersdk.UploadChatFileResponse"
 						}
 					},
+					"408": {
+						"description": "Workspace file body stalled for 30 seconds or took over 30 minutes",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
+					},
 					"413": {
 						"description": "Request body exceeds 10 MiB, or 100 MiB for workspace files",
 						"schema": {
