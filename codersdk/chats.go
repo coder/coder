@@ -1367,18 +1367,6 @@ const (
 	ChatDebugStatusInterrupted ChatDebugStatus = "interrupted"
 )
 
-// ChatDebugTerminalStatuses returns the statuses that represent a
-// finished lifecycle. The SQL query FinalizeStaleChatDebugRows uses
-// a NOT IN list that must match these exactly. A test in
-// coderd/database asserts this alignment at CI time.
-func ChatDebugTerminalStatuses() []ChatDebugStatus {
-	return []ChatDebugStatus{
-		ChatDebugStatusCompleted,
-		ChatDebugStatusError,
-		ChatDebugStatusInterrupted,
-	}
-}
-
 // AllChatDebugStatuses contains every ChatDebugStatus value.
 // Update this when adding new constants above.
 var AllChatDebugStatuses = []ChatDebugStatus{

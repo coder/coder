@@ -2,7 +2,6 @@ package chatdebug_test
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"testing"
 	"time"
@@ -512,8 +511,7 @@ func TestService_UpdateStep_AutoFillsFinishedAtOnTerminalStatus(t *testing.T) {
 	require.NoError(t, err)
 
 	// Pass a terminal status without FinishedAt. The service must
-	// auto-fill it so the stale sweep does not leave terminal rows
-	// with finished_at = NULL.
+	// auto-fill it so terminal rows do not keep finished_at = NULL.
 	// Truncate to microsecond precision to match Postgres timestamptz
 	// resolution.
 	before := time.Now().Truncate(time.Microsecond)
@@ -658,174 +656,6 @@ func TestService_DeleteAfterMessageID(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, steps, 1)
 	require.Equal(t, stepKeep.ID, steps[0].ID)
-}
-
-func TestService_FinalizeStale_UsesConfiguredThreshold(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
-	svc.SetStaleAfter(42 * time.Second)
-
-	db.EXPECT().FinalizeStaleChatDebugRows(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, params database.FinalizeStaleChatDebugRowsParams) (database.FinalizeStaleChatDebugRowsRow, error) {
-			require.WithinDuration(t, time.Now().Add(-42*time.Second), params.UpdatedBefore, 2*time.Second)
-			return database.FinalizeStaleChatDebugRowsRow{}, nil
-		},
-	)
-
-	result, err := svc.FinalizeStale(context.Background())
-	require.NoError(t, err)
-	require.Zero(t, result.RunsFinalized)
-	require.Zero(t, result.StepsFinalized)
-}
-
-func TestService_FinalizeStale(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	db, _ := dbtestutil.NewDB(t)
-	_, owner, chat, model := seedChat(t, db)
-	require.NotEqual(t, uuid.Nil, owner.ID)
-
-	staleTime := time.Now().Add(-10 * time.Minute).UTC().Round(time.Microsecond)
-	run, err := db.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
-		ChatID:        chat.ID,
-		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
-		Kind:          string(chatdebug.KindChatTurn),
-		Status:        string(chatdebug.StatusInProgress),
-		StartedAt:     sql.NullTime{Time: staleTime, Valid: true},
-		UpdatedAt:     sql.NullTime{Time: staleTime, Valid: true},
-	})
-	require.NoError(t, err)
-	step, err := db.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
-		RunID:      run.ID,
-		StepNumber: 1,
-		Operation:  string(chatdebug.OperationStream),
-		Status:     string(chatdebug.StatusInProgress),
-		StartedAt:  sql.NullTime{Time: staleTime, Valid: true},
-		UpdatedAt:  sql.NullTime{Time: staleTime, Valid: true},
-		ChatID:     chat.ID,
-	})
-	require.NoError(t, err)
-
-	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
-	result, err := svc.FinalizeStale(ctx)
-	require.NoError(t, err)
-	require.EqualValues(t, 1, result.RunsFinalized)
-	require.EqualValues(t, 1, result.StepsFinalized)
-
-	storedRun, err := db.GetChatDebugRunByID(ctx, run.ID)
-	require.NoError(t, err)
-	require.Equal(t, string(chatdebug.StatusInterrupted), storedRun.Status)
-	require.True(t, storedRun.FinishedAt.Valid)
-
-	storedSteps, err := db.GetChatDebugStepsByRunID(ctx, run.ID)
-	require.NoError(t, err)
-	require.Len(t, storedSteps, 1)
-	require.Equal(t, step.ID, storedSteps[0].ID)
-	require.Equal(t, string(chatdebug.StatusInterrupted), storedSteps[0].Status)
-	require.True(t, storedSteps[0].FinishedAt.Valid)
-}
-
-func TestService_FinalizeStale_BroadcastsFinalizeEvent(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	db, _ := dbtestutil.NewDB(t)
-	_, owner, chat, model := seedChat(t, db)
-	require.NotEqual(t, uuid.Nil, owner.ID)
-
-	staleTime := time.Now().Add(-10 * time.Minute).UTC().Round(time.Microsecond)
-	run, err := db.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
-		ChatID:        chat.ID,
-		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
-		Kind:          string(chatdebug.KindChatTurn),
-		Status:        string(chatdebug.StatusInProgress),
-		StartedAt:     sql.NullTime{Time: staleTime, Valid: true},
-		UpdatedAt:     sql.NullTime{Time: staleTime, Valid: true},
-	})
-	require.NoError(t, err)
-	_, err = db.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
-		RunID:      run.ID,
-		StepNumber: 1,
-		Operation:  string(chatdebug.OperationStream),
-		Status:     string(chatdebug.StatusInProgress),
-		StartedAt:  sql.NullTime{Time: staleTime, Valid: true},
-		UpdatedAt:  sql.NullTime{Time: staleTime, Valid: true},
-		ChatID:     chat.ID,
-	})
-	require.NoError(t, err)
-
-	memoryPubsub := dbpubsub.NewInMemory()
-	svc := chatdebug.NewService(db, testutil.Logger(t), memoryPubsub)
-	type eventResult struct {
-		event chatdebug.DebugEvent
-		err   error
-	}
-	events := make(chan eventResult, 1)
-	cancel, err := memoryPubsub.Subscribe(chatdebug.PubsubChannel(uuid.Nil),
-		func(_ context.Context, message []byte) {
-			var event chatdebug.DebugEvent
-			unmarshalErr := json.Unmarshal(message, &event)
-			events <- eventResult{event: event, err: unmarshalErr}
-		},
-	)
-	require.NoError(t, err)
-	defer cancel()
-
-	result, err := svc.FinalizeStale(ctx)
-	require.NoError(t, err)
-	require.EqualValues(t, 1, result.RunsFinalized)
-	require.EqualValues(t, 1, result.StepsFinalized)
-
-	select {
-	case received := <-events:
-		require.NoError(t, received.err)
-		require.Equal(t, chatdebug.EventKindFinalize, received.event.Kind)
-		require.Equal(t, uuid.Nil, received.event.ChatID)
-		require.Equal(t, uuid.Nil, received.event.RunID)
-		require.Equal(t, uuid.Nil, received.event.StepID)
-	case <-time.After(testutil.WaitShort):
-		t.Fatal("timed out waiting for finalize event")
-	}
-}
-
-func TestService_FinalizeStale_NoChangesDoesNotBroadcast(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	db, _ := dbtestutil.NewDB(t)
-	_, owner, chat, _ := seedChat(t, db)
-	require.NotEqual(t, uuid.Nil, owner.ID)
-
-	memoryPubsub := dbpubsub.NewInMemory()
-	svc := chatdebug.NewService(db, testutil.Logger(t), memoryPubsub)
-	events := make(chan chatdebug.DebugEvent, 1)
-	cancel, err := memoryPubsub.Subscribe(chatdebug.PubsubChannel(uuid.Nil),
-		func(_ context.Context, message []byte) {
-			var event chatdebug.DebugEvent
-			if err := json.Unmarshal(message, &event); err == nil {
-				events <- event
-			}
-		},
-	)
-	require.NoError(t, err)
-	defer cancel()
-
-	result, err := svc.FinalizeStale(ctx)
-	require.NoError(t, err)
-	require.EqualValues(t, 0, result.RunsFinalized)
-	require.EqualValues(t, 0, result.StepsFinalized)
-
-	select {
-	case event := <-events:
-		t.Fatalf("unexpected finalize event: %+v", event)
-	default:
-	}
-
-	_ = chat // keep seeded chat usage explicit for test readability.
 }
 
 func TestClassifyError(t *testing.T) {
