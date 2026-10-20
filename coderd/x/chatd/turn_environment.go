@@ -445,6 +445,9 @@ func (p *Server) buildTurnEnvironment(
 		// history; only metadata is mutated here.
 		agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx)
 		if agentErr != nil {
+			if !isNoUsableWorkspaceAgent(agentErr) {
+				return turnEnvironment{}, xerrors.Errorf("get workspace agent: %w", agentErr)
+			}
 			logger.Debug(ctx, "workspace agent lookup failed, instruction header stays undecorated", slog.Error(agentErr))
 		}
 
@@ -539,7 +542,10 @@ func (p *Server) buildTurnEnvironment(
 			if err != nil {
 				return xerrors.Errorf("get MCP server user tokens: %w", err)
 			}
-			mcpTokens = p.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
+			mcpTokens, err = p.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
+			if err != nil {
+				return err
+			}
 			mcpServers := make([]mcpclient.Server, 0, len(mcpConnectConfigs))
 			var invalidConfigs []mcpclient.ConnectSummary
 			for _, cfg := range mcpConnectConfigs {
@@ -712,7 +718,7 @@ func (p *Server) buildTurnEnvironment(
 		tools = append(tools, chattool.NewAskUserQuestionTool())
 	}
 	if isRootChat {
-		tools = p.appendRootChatTools(ctx, tools, rootChatToolsOptions{
+		tools, err = p.appendRootChatTools(ctx, tools, rootChatToolsOptions{
 			chat:            chat,
 			modelConfigID:   modelConfig.ID,
 			workspaceCtx:    &workspaceCtx,
@@ -721,6 +727,9 @@ func (p *Server) buildTurnEnvironment(
 			storeFile:       storeChatAttachment,
 			isPlanModeTurn:  isPlanModeTurn,
 		})
+		if err != nil {
+			return turnEnvironment{}, err
+		}
 	}
 
 	skillOpts := chattool.ReadSkillOptions{
@@ -806,6 +815,13 @@ func (p *Server) buildTurnEnvironment(
 	// plan-mode filter so they are subject to the same approved set.
 	tools = mcpclient.AppendInline(ctx, logger, tools, inlineMCPTools)
 	tools = filterToolsForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
+	// chatloop reads an empty active tool list as every tool, so Explore
+	// children also drop the tools their allowlist blocks.
+	if isExploreSubagent && !isRootChat {
+		tools = slices.DeleteFunc(tools, func(tool fantasy.AgentTool) bool {
+			return !exploreToolAllowed(tool)
+		})
+	}
 
 	var dynamicToolNames map[string]bool
 	if p.disableCallerSuppliedTools {
@@ -1341,45 +1357,48 @@ func (c *turnWorkspaceContext) persistBuildAgentBinding(
 	buildID uuid.UUID,
 	agentID uuid.UUID,
 ) (database.Chat, error) {
-	updatedChat, err := c.server.db.UpdateChatBuildAgentBinding(
-		ctx,
-		database.UpdateChatBuildAgentBindingParams{
-			ID: chatSnapshot.ID,
-			BuildID: uuid.NullUUID{
-				UUID:  buildID,
-				Valid: true,
-			},
-			AgentID: uuid.NullUUID{
-				UUID:  agentID,
-				Valid: true,
-			},
-		},
-	)
-	if err != nil {
-		return chatSnapshot, xerrors.Errorf(
-			"update chat build/agent binding: %w", err,
-		)
-	}
-
 	// If the chat was rebound to a different agent (e.g. a workspace rebuild
 	// produced a new agent), re-pin its context to the new agent so it stops
 	// injecting the previous agent's resources. Workspace lifecycle tools clear
 	// the agent binding while preserving the pin, so a missing prior agent also
-	// requires a re-pin when pinned context exists. Best-effort: a context error
-	// must never fail the binding. The pinned context fields on updatedChat are
-	// background state, reloaded on the next snapshot fetch.
+	// requires a re-pin when pinned context exists. The binding and the re-pin
+	// commit together: a committed binding without its re-pin would never be
+	// retried, because the next turn sees no agent change. The pinned context
+	// fields on updatedChat are background state, reloaded on the next
+	// snapshot fetch.
 	hasStaleUnboundContext := !chatSnapshot.AgentID.Valid && chatSnapshot.ContextAggregateHash != nil
-	if hasStaleUnboundContext || (chatSnapshot.AgentID.Valid && chatSnapshot.AgentID.UUID != agentID) {
-		//nolint:gocritic // Chatd re-pins chats it does not own as the daemon subject.
-		repinCtx := dbauthz.AsChatd(ctx)
-		if repinErr := database.ReadModifyUpdate(c.server.db, func(tx database.Store) error {
-			return repinChatContext(repinCtx, tx, chatSnapshot.ID, uuid.NullUUID{UUID: agentID, Valid: true})
-		}); repinErr != nil {
-			c.server.logger.Warn(ctx, "re-pin chat context after agent rebind",
-				slog.F("chat_id", chatSnapshot.ID),
-				slog.F("agent_id", agentID),
-				slog.Error(repinErr))
+	needsRepin := hasStaleUnboundContext || (chatSnapshot.AgentID.Valid && chatSnapshot.AgentID.UUID != agentID)
+	var updatedChat database.Chat
+	err := database.ReadModifyUpdate(c.server.db, func(tx database.Store) error {
+		var err error
+		updatedChat, err = tx.UpdateChatBuildAgentBinding(
+			ctx,
+			database.UpdateChatBuildAgentBindingParams{
+				ID: chatSnapshot.ID,
+				BuildID: uuid.NullUUID{
+					UUID:  buildID,
+					Valid: true,
+				},
+				AgentID: uuid.NullUUID{
+					UUID:  agentID,
+					Valid: true,
+				},
+			},
+		)
+		if err != nil {
+			return xerrors.Errorf("update chat build/agent binding: %w", err)
 		}
+		if !needsRepin {
+			return nil
+		}
+		//nolint:gocritic // Chatd re-pins chats it does not own as the daemon subject.
+		if err := repinChatContext(dbauthz.AsChatd(ctx), tx, chatSnapshot.ID, uuid.NullUUID{UUID: agentID, Valid: true}); err != nil {
+			return xerrors.Errorf("re-pin chat context after agent rebind: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return chatSnapshot, err
 	}
 
 	c.setCurrentChat(updatedChat)
@@ -1431,12 +1450,15 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 		}
 
 		if !chatSnapshot.WorkspaceID.Valid {
-			return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("this tool requires a workspace and this chat does not have one. Use the create_workspace tool to create one")
+			return chatSnapshot, database.WorkspaceAgent{}, errChatHasNoWorkspace
 		}
 
 		// A soft-deleted workspace keeps its agent rows, so the bound agent
 		// would otherwise be dialed and fail as merely unreachable.
 		ws, err := c.server.db.GetWorkspaceByID(ctx, chatSnapshot.WorkspaceID.UUID)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf("load workspace: %w", errChatWorkspaceDeleted)
+		}
 		if err != nil {
 			return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf(
 				"load workspace: %w. %s", err, chattool.WorkspaceUnavailableHint,
@@ -1467,10 +1489,7 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 				return chatSnapshot, c.agent, nil
 			}
 			if !xerrors.Is(err, sql.ErrNoRows) {
-				c.server.logger.Warn(ctx, "agent binding lookup failed, re-resolving",
-					slog.F("agent_id", chatSnapshot.AgentID.UUID),
-					slog.Error(err),
-				)
+				return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf("get bound workspace agent: %w", err)
 			}
 		}
 
@@ -1525,6 +1544,16 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 	return chatSnapshot, database.WorkspaceAgent{}, xerrors.New(
 		"chat workspace changed while resolving agent",
 	)
+}
+
+// isNoUsableWorkspaceAgent reports whether err from ensureWorkspaceAgent means
+// the chat has no agent to use, as opposed to a failed lookup.
+func isNoUsableWorkspaceAgent(err error) bool {
+	return xerrors.Is(err, errChatHasNoWorkspace) ||
+		xerrors.Is(err, errChatWorkspaceDeleted) ||
+		xerrors.Is(err, errChatHasNoWorkspaceAgent) ||
+		xerrors.Is(err, agentselect.ErrNoEligibleAgents) ||
+		xerrors.Is(err, agentselect.ErrMultipleChatAgents)
 }
 
 func (c *turnWorkspaceContext) latestWorkspaceAgentID(
@@ -2023,48 +2052,26 @@ func activeToolNamesForTurn(
 	return toolNames
 }
 
-func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
-	builtinExplorePolicy := map[string]bool{
-		"read_file":            true,
-		"write_file":           false,
-		"edit_files":           false,
-		"execute":              true,
-		"process_output":       true,
-		"process_list":         false,
-		"process_signal":       false,
-		"list_templates":       false,
-		"read_template":        false,
-		"create_workspace":     false,
-		"start_workspace":      false,
-		"stop_workspace":       false,
-		"propose_plan":         false,
-		"spawn_agent":          false,
-		"wait_agent":           false,
-		"message_agent":        false,
-		"interrupt_agent":      false,
-		"close_agent":          false,
-		"list_agents":          false,
-		"list_subagent_models": false,
-		"read_skill":           true,
-		"read_skill_file":      true,
-		"ask_user_question":    false,
+func exploreToolAllowed(tool fantasy.AgentTool) bool {
+	switch tool.Info().Name {
+	case "read_file", "execute", "process_output", "read_skill", "read_skill_file":
+		return true
 	}
+	// External MCP tools pass through here. Org tools were
+	// snapshot-filtered at spawn time on chat.MCPServerIDs, and inline
+	// tools come only from root chat servers with allow_in_subagents.
+	// WorkspaceMCPTool does not implement MCPToolIdentifier, so
+	// workspace tools are excluded here too, in addition to the
+	// structural exclusion in runChat tool assembly.
+	_, ok := tool.(mcpclient.MCPToolIdentifier)
+	return ok
+}
 
+func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 	toolNames := make([]string, 0, len(allTools))
 	for _, tool := range allTools {
-		name := tool.Info().Name
-		if builtinExplorePolicy[name] {
-			toolNames = append(toolNames, name)
-			continue
-		}
-		// External MCP tools pass through here. Org tools were
-		// snapshot-filtered at spawn time on chat.MCPServerIDs, and inline
-		// tools come only from root chat servers with allow_in_subagents.
-		// WorkspaceMCPTool does not implement MCPToolIdentifier, so
-		// workspace tools are excluded here too, in addition to the
-		// structural exclusion in runChat tool assembly.
-		if _, ok := tool.(mcpclient.MCPToolIdentifier); ok {
-			toolNames = append(toolNames, name)
+		if exploreToolAllowed(tool) {
+			toolNames = append(toolNames, tool.Info().Name)
 		}
 	}
 	return toolNames
@@ -2378,7 +2385,7 @@ func (p *Server) appendRootChatTools(
 	ctx context.Context,
 	tools []fantasy.AgentTool,
 	opts rootChatToolsOptions,
-) []fantasy.AgentTool {
+) ([]fantasy.AgentTool, error) {
 	onChatUpdated := func(updatedChat database.Chat) {
 		opts.workspaceCtx.selectWorkspace(updatedChat)
 		// Notify the frontend immediately so it can start streaming
@@ -2431,9 +2438,13 @@ func (p *Server) appendRootChatTools(
 		}))
 	}
 
-	return append(tools, p.subagentTools(ctx, func() database.Chat {
+	subagentTools, err := p.subagentTools(ctx, func() database.Chat {
 		return opts.chat
-	}, opts.modelConfigID)...)
+	}, opts.modelConfigID)
+	if err != nil {
+		return nil, err
+	}
+	return append(tools, subagentTools...), nil
 }
 
 func appendDynamicTools(

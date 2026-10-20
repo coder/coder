@@ -647,6 +647,12 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 					<ChatSummaryPanel
 						chatId={agentId}
 						isVisible={shouldShowSidebar && effectiveSidebarTabId === "summary"}
+						store={store}
+						hasMoreMessages={hasMoreMessages}
+						isFetchingMoreMessages={isFetchingMoreMessages}
+						isHydratingMessages={isHydratingMessages}
+						hasFetchMoreError={hasFetchMoreError}
+						onFetchMoreMessages={onFetchMoreMessages}
 					/>
 				);
 			case "git":

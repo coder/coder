@@ -74,7 +74,7 @@ Coder reads Terraform `data` sources once, when it imports a template version.
 Every workspace built from that version reuses those stored results.
 
 Refreshing imports the active version's source files again and publishes the result as the new active version.
-Use it to pick up changes to a `data` source, or to give an older version the metadata that [Dynamic Parameters](../extending-templates/dynamic-parameters.md) needs.
+Use it to pick up changes to a `data` source, or to give an older version the metadata that the [parameter form](../extending-templates/parameters/index.md#how-coder-evaluates-parameters) needs.
 
 To refresh a template's data:
 
