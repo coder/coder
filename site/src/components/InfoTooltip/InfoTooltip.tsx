@@ -16,6 +16,8 @@ type InfoTooltipProps = {
 	type?: InfoTooltipType;
 	size?: InfoTooltipSize;
 	ariaLabel?: string;
+	/** Which side of the icon the tooltip opens on. Defaults to `right`. */
+	side?: React.ComponentProps<typeof TooltipContent>["side"];
 	children: React.ReactNode;
 };
 
@@ -39,6 +41,7 @@ export const InfoTooltip: React.FC<InfoTooltipProps> = ({
 	type = "info",
 	size = "medium",
 	ariaLabel = "More info",
+	side = "right",
 }) => {
 	const Icon = typeIcon[type];
 
@@ -58,7 +61,7 @@ export const InfoTooltip: React.FC<InfoTooltipProps> = ({
 				>
 					<Icon />
 				</TooltipTrigger>
-				<TooltipContent side="right" align="center" className="max-w-xs">
+				<TooltipContent side={side} align="center" className="max-w-xs">
 					{children}
 				</TooltipContent>
 			</Tooltip>
