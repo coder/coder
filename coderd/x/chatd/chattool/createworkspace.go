@@ -71,7 +71,10 @@ type CreateWorkspaceOptions struct {
 	AgentInactiveDisconnectTimeout time.Duration
 	WorkspaceMu                    *sync.Mutex
 	OnChatUpdated                  func(database.Chat)
-	Logger                         slog.Logger
+	// AwaitAttachments, when set, reports the chat's workspace
+	// attachments in results that return a usable workspace.
+	AwaitAttachments AwaitWorkspaceAttachmentsFn
+	Logger           slog.Logger
 }
 
 type createWorkspaceArgs struct {
@@ -308,6 +311,7 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 					result[k] = v
 				}
 			}
+			addWorkspaceAttachments(ctx, result, options.AwaitAttachments)
 
 			// Re-fire after the agent is fully ready so callers
 			// can load instruction files (AGENTS.md) from the
@@ -433,6 +437,7 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 				result[k] = v
 			}
 		}
+		addWorkspaceAttachments(ctx, result, o.AwaitAttachments)
 		return existingWorkspaceResult{Result: result, Done: true}
 
 	case database.ProvisionerJobStatusSucceeded:
@@ -480,6 +485,7 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 				for k, v := range agentStatus {
 					result[k] = v
 				}
+				addWorkspaceAttachments(ctx, result, o.AwaitAttachments)
 				return existingWorkspaceResult{Result: result, Done: true}
 			case database.WorkspaceAgentStatusConnecting:
 				result["message"] = "workspace exists and the agent is still connecting"
@@ -490,6 +496,7 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 				for k, v := range agentStatus {
 					result[k] = v
 				}
+				addWorkspaceAttachments(ctx, result, o.AwaitAttachments)
 				return existingWorkspaceResult{Result: result, Done: true}
 			case database.WorkspaceAgentStatusDisconnected,
 				database.WorkspaceAgentStatusTimeout:

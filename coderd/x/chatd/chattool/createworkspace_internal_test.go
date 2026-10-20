@@ -389,13 +389,23 @@ func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
 		return nil, func() {}, nil
 	}
 
+	attachment := WorkspaceAttachment{
+		FileID: uuid.NewString(),
+		Name:   "report.zip",
+		Status: WorkspaceAttachmentCopied,
+		Path:   "~/.coder/chats/chat/files/file/report.zip",
+	}
 	tool := CreateWorkspace(db, orgID, chatID, CreateWorkspaceOptions{
 		OwnerID: ownerID,
 
 		CreateFn:    createFn,
 		AgentConnFn: agentConnFn,
 		WorkspaceMu: &sync.Mutex{},
-		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		AwaitAttachments: func(context.Context) WorkspaceAttachmentsReport {
+			require.Equal(t, chatAgentID, connectedAgentID, "attachments are reported after the agent wait")
+			return WorkspaceAttachmentsReport{Attachments: []WorkspaceAttachment{attachment}}
+		},
+		Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 	})
 
 	input := fmt.Sprintf(`{"template_id":%q,"name":"test-chat-agent"}`, templateID.String())
@@ -408,9 +418,13 @@ func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
 	require.NotEmpty(t, resp.Content)
 	require.Equal(t, chatAgentID, connectedAgentID)
 
-	var result map[string]any
+	var result struct {
+		BuildID     string                `json:"build_id"`
+		Attachments []WorkspaceAttachment `json:"attachments"`
+	}
 	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-	require.Equal(t, buildID.String(), result["build_id"])
+	require.Equal(t, buildID.String(), result.BuildID)
+	require.Equal(t, []WorkspaceAttachment{attachment}, result.Attachments)
 }
 
 func TestCreateWorkspace_ReturnsSelectionErrorImmediately(t *testing.T) {
@@ -1467,13 +1481,19 @@ func TestCheckExistingWorkspace_ConnectedAgent(t *testing.T) {
 	}
 
 	options := testCheckExistingWorkspaceOptions(connFn)
+	options.AwaitAttachments = func(context.Context) WorkspaceAttachmentsReport {
+		return WorkspaceAttachmentsReport{Err: xerrors.New("read chat messages: connection refused")}
+	}
 	check := options.checkExistingWorkspace(context.Background(), db, chatID)
 
+	// An attachment problem never turns the workspace into a failure.
 	require.NoError(t, check.Err)
 	require.True(t, check.Done)
 	require.Equal(t, "already_exists", check.Result["status"])
 	require.Equal(t, "existing-workspace", check.Result["workspace_name"])
 	require.Equal(t, "workspace is already running and recently connected", check.Result["message"])
+	require.Equal(t, "read chat messages: connection refused", check.Result["attachments_error"])
+	require.NotContains(t, check.Result, "attachments")
 }
 
 func TestCheckExistingWorkspace_InProgressBuildReturnsBuildID(t *testing.T) {
