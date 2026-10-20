@@ -23,10 +23,13 @@ import (
 
 const (
 	// workspaceFileDeliveryLease is how long a claimed file stays leased
-	// to this replica. One attempt never outlives its lease, so no other
-	// replica works on the file at the same time.
-	workspaceFileDeliveryLease      = 5 * time.Minute
-	workspaceFileDeliveryRetryDelay = time.Minute
+	// to this replica.
+	workspaceFileDeliveryLease = 5 * time.Minute
+	// workspaceFileDeliveryAttemptTimeout ends an attempt early enough
+	// to record its outcome before the lease expires, so no other replica
+	// works on the file at the same time.
+	workspaceFileDeliveryAttemptTimeout = workspaceFileDeliveryLease - time.Minute
+	workspaceFileDeliveryRetryDelay     = time.Minute
 )
 
 // workspaceFileDeliveryFailure is a failed delivery attempt and how the
@@ -141,11 +144,15 @@ func (w *chatWorker) deliverWorkspaceFile(ctx context.Context, row database.Acqu
 		slog.F("workspace_id", row.WorkspaceID.UUID),
 		slog.F("attempt", row.WorkspaceDeliveryAttempts),
 	)
-	attemptCtx, cancel := context.WithTimeout(ctx, workspaceFileDeliveryLease)
+	attemptCtx, cancel := context.WithTimeout(ctx, workspaceFileDeliveryAttemptTimeout)
 	resp, failure := w.copyWorkspaceFile(attemptCtx, row)
 	cancel()
 	if ctx.Err() != nil {
-		// The lease expires and a later sweep retries the file.
+		fields := []slog.Field{slogError(ctx.Err())}
+		if failure != nil {
+			fields = append(fields, slog.F("attempt_error", failure.err.Error()))
+		}
+		logger.Info(ctx, "workspace chat file delivery interrupted, a later sweep retries it once the lease expires", fields...)
 		return
 	}
 
