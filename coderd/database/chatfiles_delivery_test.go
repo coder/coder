@@ -482,6 +482,31 @@ func TestChatWorkspaceFileDeliveryOutcomes(t *testing.T) {
 		require.Equal(t, int32(1), claimed[0].WorkspaceDeliveryAttempts)
 	})
 
+	t.Run("RetryRecoversUnrecordedLastAttempt", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat := f.readyChat(ctx, t)
+		file := f.linkedFile(ctx, t, chat.ID, database.ChatFilePurposeWorkspace, []byte("payload"))
+
+		// Every attempt's replica stops before recording an outcome, so
+		// each lease expires with no error and the last one uses up the
+		// attempts.
+		claimedAt := dbtime.Now().Add(-time.Hour)
+		for range database.ChatWorkspaceFileMaxDeliveryAttempts {
+			require.Len(t, acquireChatFilesFor(ctx, t, f.db, chat.ID, claimedAt), 1)
+			claimedAt = claimedAt.Add(chatFileDeliveryLease)
+		}
+		require.Empty(t, acquireChatFilesFor(ctx, t, f.db, chat.ID, dbtime.Now()))
+
+		retried, err := f.db.RetryChatWorkspaceFileDeliveries(ctx, chat.ID)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, retried)
+		claimed := acquireChatFilesFor(ctx, t, f.db, chat.ID, dbtime.Now())
+		require.Len(t, claimed, 1)
+		require.Equal(t, file.ID, claimed[0].ID)
+		require.Equal(t, int32(1), claimed[0].WorkspaceDeliveryAttempts)
+	})
+
 	t.Run("PromptFileDefault", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)

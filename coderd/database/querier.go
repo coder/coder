@@ -1525,9 +1525,11 @@ type sqlcQuerier interface {
 	// Sets the target queued message's position to one less than the
 	// current minimum position for that chat, moving it to the head.
 	ReorderChatQueuedMessageToHead(ctx context.Context, arg ReorderChatQueuedMessageToHeadParams) (int64, error)
-	// RetryChatWorkspaceFileDeliveries makes a chat's failed workspace files
-	// due again with a fresh attempt budget. Files without an error are
-	// either due already or in flight under a lease, so they are left alone.
+	// RetryChatWorkspaceFileDeliveries makes a chat's undelivered workspace
+	// files due again with a fresh attempt budget. Only a file in flight
+	// under an unexpired lease is left alone. An expired lease without an
+	// error means an attempt never recorded its outcome, for example because
+	// its replica stopped, and may have used the last attempt.
 	RetryChatWorkspaceFileDeliveries(ctx context.Context, chatID uuid.UUID) (int64, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named

@@ -170,9 +170,11 @@ WHERE id = @id::uuid
 	AND workspace_delivered_at IS NULL;
 
 -- name: RetryChatWorkspaceFileDeliveries :execrows
--- RetryChatWorkspaceFileDeliveries makes a chat's failed workspace files
--- due again with a fresh attempt budget. Files without an error are
--- either due already or in flight under a lease, so they are left alone.
+-- RetryChatWorkspaceFileDeliveries makes a chat's undelivered workspace
+-- files due again with a fresh attempt budget. Only a file in flight
+-- under an unexpired lease is left alone. An expired lease without an
+-- error means an attempt never recorded its outcome, for example because
+-- its replica stopped, and may have used the last attempt.
 UPDATE chat_files cf
 SET
 	workspace_delivery_attempts = 0,
@@ -183,7 +185,11 @@ WHERE cfl.file_id = cf.id
 	AND cfl.chat_id = @chat_id::uuid
 	AND cf.purpose = 'workspace'::chat_file_purpose
 	AND cf.workspace_delivered_at IS NULL
-	AND cf.workspace_delivery_error IS NOT NULL;
+	AND (
+		cf.workspace_delivery_error IS NOT NULL
+		OR cf.workspace_delivery_next_attempt_at IS NULL
+		OR cf.workspace_delivery_next_attempt_at <= NOW()
+	);
 
 -- name: GetOldUnlinkedChatFileIDs :many
 -- Locks candidate rows against foreign-key inserts for the transaction.
