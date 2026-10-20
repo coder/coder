@@ -3833,18 +3833,6 @@ const docTemplate = `{
         },
         "/api/v2/chats/files/{file}": {
             "get": {
-                "produces": [
-                    "image/png",
-                    "image/jpeg",
-                    "image/gif",
-                    "image/webp",
-                    "image/svg+xml",
-                    "text/plain",
-                    "text/markdown",
-                    "text/csv",
-                    "application/json",
-                    "application/pdf"
-                ],
                 "tags": [
                     "Chats"
                 ],
@@ -3863,6 +3851,12 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
+                    },
+                    "410": {
+                        "description": "Workspace file was copied into the chat's workspace and is no longer stored",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -3874,18 +3868,6 @@ const docTemplate = `{
         },
         "/api/v2/chats/files/{file}/download": {
             "get": {
-                "produces": [
-                    "image/png",
-                    "image/jpeg",
-                    "image/gif",
-                    "image/webp",
-                    "image/svg+xml",
-                    "text/plain",
-                    "text/markdown",
-                    "text/csv",
-                    "application/json",
-                    "application/pdf"
-                ],
                 "tags": [
                     "Chats"
                 ],
@@ -3911,6 +3893,12 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
+                    },
+                    "410": {
+                        "description": "Workspace file was copied into the chat's workspace and is no longer stored",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "x-apidocgen": {
@@ -3943,6 +3931,12 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ChatFileDownloadURLResponse"
+                        }
+                    },
+                    "410": {
+                        "description": "Workspace file was copied into the chat's workspace and is no longer stored",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },

@@ -7129,6 +7129,7 @@ func (c ChatFileDownloadClaims) Validate(expected jwt.Expected) error {
 // @Produce json
 // @Param file path string true "File ID" format(uuid)
 // @Success 200 {object} codersdk.ChatFileDownloadURLResponse
+// @Failure 410 {object} codersdk.Response "Workspace file was copied into the chat's workspace and is no longer stored"
 // @Router /api/v2/chats/files/{file}/download-url [post]
 // @x-apidocgen {"skip": true}
 func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request) {
@@ -7194,10 +7195,10 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 // @Summary Download chat file with signed token
 // @ID download-chat-file-with-signed-token
 // @Tags Chats
-// @Produce image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Param file path string true "File ID" format(uuid)
 // @Param token query string true "Signed download token"
 // @Success 200
+// @Failure 410 {object} codersdk.Response "Workspace file was copied into the chat's workspace and is no longer stored"
 // @Router /api/v2/chats/files/{file}/download [get]
 // @x-apidocgen {"skip": true}
 func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
@@ -7247,9 +7248,9 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 // @ID get-chat-file
 // @Security CoderSessionToken
 // @Tags Chats
-// @Produce image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Param file path string true "File ID" format(uuid)
 // @Success 200
+// @Failure 410 {object} codersdk.Response "Workspace file was copied into the chat's workspace and is no longer stored"
 // @Router /api/v2/chats/files/{file} [get]
 func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

@@ -1471,6 +1471,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/chats/files/{file} \
+  -H 'Accept: */*' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -1482,11 +1483,16 @@ curl -X GET http://coder-server:8080/api/v2/chats/files/{file} \
 |--------|------|--------------|----------|-------------|
 | `file` | path | string(uuid) | true     | File ID     |
 
+### Example responses
+
+> 410 Response
+
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema |
-|--------|---------------------------------------------------------|-------------|--------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+| Status | Meaning                                                   | Description                                                                 | Schema                                           |
+|--------|-----------------------------------------------------------|-----------------------------------------------------------------------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)   | OK                                                                          |                                                  |
+| 410    | [Gone](https://tools.ietf.org/html/rfc7231#section-6.5.9) | Workspace file was copied into the chat's workspace and is no longer stored | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
