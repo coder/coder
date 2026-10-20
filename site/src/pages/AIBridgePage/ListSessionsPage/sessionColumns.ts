@@ -135,6 +135,14 @@ const isSessionColumnId = (value: unknown): value is SessionColumnId =>
 const parseIds = (value: unknown): SessionColumnId[] =>
 	Array.isArray(value) ? value.filter(isSessionColumnId) : [];
 
+/** Saves a selected view by ID so later changes to its columns still apply. */
+export const serializeSessionColumnSettings = (
+	settings: SessionColumnSettings,
+): string => {
+	const view = getActiveView(settings);
+	return JSON.stringify(view ? { view: view.id } : settings);
+};
+
 /** Restores saved settings; unknown columns drop and new ones start hidden. */
 export const parseSessionColumnSettings = (
 	raw: string | null,
@@ -150,6 +158,12 @@ export const parseSessionColumnSettings = (
 	}
 	if (typeof parsed !== "object" || parsed === null) {
 		return defaultSessionColumnSettings;
+	}
+	const savedView =
+		"view" in parsed &&
+		sessionColumnViews.find((view) => view.id === parsed.view);
+	if (savedView) {
+		return savedView.settings;
 	}
 	const shown = [
 		...new Set(parseIds("shown" in parsed ? parsed.shown : undefined)),

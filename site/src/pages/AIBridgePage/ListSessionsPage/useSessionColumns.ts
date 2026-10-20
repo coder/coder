@@ -3,11 +3,12 @@ import {
 	countFittingColumns,
 	parseSessionColumnSettings,
 	type SessionColumnSettings,
+	serializeSessionColumnSettings,
 } from "./sessionColumns";
 
 /** Local storage key for a user's column settings. */
 export const sessionColumnsStorageKey = (userId: string) =>
-	`aiGateway.sessions.columns.${userId}`;
+	`aiGateway.sessions.columnSettings.${userId}`;
 
 /** Tracks saved column settings and which shown columns fit the `tableRef` element. */
 export const useSessionColumns = (userId: string) => {
@@ -19,7 +20,7 @@ export const useSessionColumns = (userId: string) => {
 
 	const updateSettings = (next: SessionColumnSettings) => {
 		setSettings(next);
-		localStorage.setItem(storageKey, JSON.stringify(next));
+		localStorage.setItem(storageKey, serializeSessionColumnSettings(next));
 	};
 
 	const tableRef = (element: HTMLElement | null) => {

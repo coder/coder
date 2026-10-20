@@ -16,7 +16,7 @@ import {
 	Settings2Icon,
 	ShieldCheckIcon,
 } from "lucide-react";
-import { useId, useState } from "react";
+import { Fragment, useId, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import {
 	Popover,
@@ -199,14 +199,17 @@ const ShownColumnList: React.FC<ShownColumnListProps> = ({
 		>
 			<ul className="m-0 list-none p-0">
 				{settings.shown.map((id, i) => (
-					<SortableColumnRow
-						key={id}
-						id={id}
-						index={i}
-						showHiddenDivider={i === fittingCount}
-						isLocked={id === onlyShownColumn}
-						onToggle={() => onSettingsChange(toggleColumn(settings, id))}
-					/>
+					<Fragment key={id}>
+						{/* A sibling of the rows, not part of one, so it stays put while
+						    a row is dragged past it. */}
+						{i === fittingCount && <HiddenAtWidthDivider />}
+						<SortableColumnRow
+							id={id}
+							index={i}
+							isLocked={id === onlyShownColumn}
+							onToggle={() => onSettingsChange(toggleColumn(settings, id))}
+						/>
+					</Fragment>
 				))}
 			</ul>
 		</DragDropProvider>
@@ -245,10 +248,17 @@ const NotShownColumnList: React.FC<ColumnListProps> = ({
 	);
 };
 
+const HiddenAtWidthDivider: React.FC = () => (
+	<li className="flex items-center gap-2 px-2 py-1.5 text-xs text-content-secondary">
+		<span className="h-px flex-1 bg-border" />
+		Hidden at this width
+		<span className="h-px flex-1 bg-border" />
+	</li>
+);
+
 type SortableColumnRowProps = {
 	id: SessionColumnId;
 	index: number;
-	showHiddenDivider: boolean;
 	/** The last shown column cannot be hidden. */
 	isLocked: boolean;
 	onToggle: () => void;
@@ -257,7 +267,6 @@ type SortableColumnRowProps = {
 const SortableColumnRow: React.FC<SortableColumnRowProps> = ({
 	id,
 	index,
-	showHiddenDivider,
 	isLocked,
 	onToggle,
 }) => {
@@ -269,13 +278,6 @@ const SortableColumnRow: React.FC<SortableColumnRowProps> = ({
 			ref={ref}
 			className={cn("relative bg-surface-primary", isDragging && "z-10")}
 		>
-			{showHiddenDivider && (
-				<div className="flex items-center gap-2 px-2 py-1.5 text-xs text-content-secondary">
-					<span className="h-px flex-1 bg-border" />
-					Hidden at this width
-					<span className="h-px flex-1 bg-border" />
-				</div>
-			)}
 			<div className="flex items-center">
 				<button
 					ref={handleRef}

@@ -66,14 +66,14 @@ describe("ListSessionsPageView columns", () => {
 
 		await user.click(screen.getByRole("button", { name: "Security" }));
 
-		expect(savedSettings(userId)).toEqual(sessionColumnViews[1].settings);
+		expect(savedSettings(userId)).toEqual({ view: "security" });
 		expect(savedSettings("user-2")).toBeNull();
 	});
 
 	it("saves changes on top of the settings from an earlier visit", async () => {
 		localStorage.setItem(
 			sessionColumnsStorageKey(userId),
-			JSON.stringify(sessionColumnViews[1].settings),
+			JSON.stringify({ view: "security" }),
 		);
 		renderView();
 		const user = await openColumnsMenu();

@@ -7,6 +7,7 @@ import {
 	moveShownColumn,
 	parseSessionColumnSettings,
 	type SessionColumnSettings,
+	serializeSessionColumnSettings,
 	sessionColumnIds,
 	sessionColumns,
 	sessionColumnViews,
@@ -91,6 +92,25 @@ describe("moveShownColumn", () => {
 describe("parseSessionColumnSettings", () => {
 	it("returns the default without saved settings", () => {
 		expect(parseSessionColumnSettings(null)).toBe(defaultSessionColumnSettings);
+	});
+
+	it("restores a saved view from its current definition", () => {
+		expect(parseSessionColumnSettings(JSON.stringify({ view: "cost" }))).toBe(
+			sessionColumnViews[2].settings,
+		);
+	});
+
+	it("round-trips a selected view and customized columns", () => {
+		for (const value of [sessionColumnViews[1].settings, settings]) {
+			expect(
+				parseSessionColumnSettings(serializeSessionColumnSettings(value)),
+			).toEqual(value);
+		}
+		expect(
+			JSON.parse(
+				serializeSessionColumnSettings(sessionColumnViews[1].settings),
+			),
+		).toEqual({ view: "security" });
 	});
 
 	it("returns the default for invalid JSON", () => {
