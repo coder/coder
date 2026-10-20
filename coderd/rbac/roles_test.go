@@ -273,7 +273,7 @@ func TestAgentsAccessRole(t *testing.T) {
 	require.Empty(t, role.ByOrgID[orgID.String()].Org)
 	require.ElementsMatch(t, rbac.Permissions(map[string][]policy.Action{
 		rbac.ResourceChat.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionShare, policy.ActionUpdate},
-		rbac.ResourceChatAutomation.Type:    {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+		rbac.ResourceChatAutomation.Type:    {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDisable, policy.ActionDelete},
 		rbac.ResourceChatProject.Type:       rbac.ResourceChatProject.AvailableActions(),
 		rbac.ResourceChatProjectMemory.Type: rbac.ResourceChatProjectMemory.AvailableActions(),
 	}), role.ByOrgID[orgID.String()].Member)
@@ -1551,8 +1551,21 @@ func TestRolePermissions(t *testing.T) {
 		{
 			// Members need agents-access in the automation's org to manage
 			// their own automations; the member role alone grants nothing.
-			Name:     "ChatAutomationOwnCRUD",
-			Actions:  crud,
+			// Create and update are member-level only: an automation runs
+			// as its owner, so nobody else can create or change one.
+			Name:     "ChatAutomationOwnCreateUpdate",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate},
+			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {orgAgentsAccessUser},
+				false: {owner, orgAdmin, setOtherOrg, memberMe, orgMemberMe, auditor, orgAuditor, userAdmin, orgUserAdmin, templateAdmin, orgTemplateAdmin, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			// Administrators can read, stop, and remove automations they
+			// do not own.
+			Name:     "ChatAutomationOwnReadDisableDelete",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionDisable, policy.ActionDelete},
 			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, orgAgentsAccessUser},
@@ -1562,8 +1575,17 @@ func TestRolePermissions(t *testing.T) {
 		{
 			// Automations are always org-scoped. An object missing its org
 			// must not fall through to the member role's user-level perms.
-			Name:     "ChatAutomationOwnWithoutOrgCRUD",
-			Actions:  crud,
+			Name:     "ChatAutomationOwnWithoutOrgCreateUpdate",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate},
+			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {},
+				false: {owner, setOtherOrg, setOrgNotMe, memberMe, orgMemberMe, orgAgentsAccessUser, auditor, userAdmin, templateAdmin, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			Name:     "ChatAutomationOwnWithoutOrgReadDisableDelete",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionDisable, policy.ActionDelete},
 			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
@@ -1571,8 +1593,18 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "ChatAutomationOtherOwnerCRUD",
-			Actions:  crud,
+			// Another member's automation: agents-access grants nothing.
+			Name:     "ChatAutomationOtherOwnerCreateUpdate",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate},
+			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).InOrg(orgID).WithOwner(uuid.NewString()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {},
+				false: {owner, orgAdmin, setOtherOrg, memberMe, orgMemberMe, orgAgentsAccessUser, auditor, orgAuditor, userAdmin, orgUserAdmin, templateAdmin, orgTemplateAdmin, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			Name:     "ChatAutomationOtherOwnerReadDisableDelete",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionDisable, policy.ActionDelete},
 			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).InOrg(orgID).WithOwner(uuid.NewString()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin},
@@ -1582,8 +1614,17 @@ func TestRolePermissions(t *testing.T) {
 		{
 			// agents-access in one org grants nothing in another org, even
 			// for the member's own automations.
-			Name:     "ChatAutomationOwnOtherOrgCRUD",
-			Actions:  crud,
+			Name:     "ChatAutomationOwnOtherOrgCreateUpdate",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate},
+			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).InOrg(otherOrg).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {},
+				false: {owner, otherOrgAdmin, orgAdmin, memberMe, orgMemberMe, orgAgentsAccessUser, auditor, orgAuditor, otherOrgAuditor, userAdmin, orgUserAdmin, otherOrgUserAdmin, templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			Name:     "ChatAutomationOwnOtherOrgReadDisableDelete",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionDisable, policy.ActionDelete},
 			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).InOrg(otherOrg).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, otherOrgAdmin},
