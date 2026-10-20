@@ -18,17 +18,19 @@ import {
 	updateChatAutomation,
 } from "#/api/queries/chatAutomations";
 import type { ChatAutomation, Organization } from "#/api/typesGenerated";
+import { useFilter } from "#/components/Filter/Filter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import NotFoundPage from "#/pages/NotFoundPage/NotFoundPage";
 import {
 	AgentAutomationsPageView,
+	type AutomationOwnerScope,
 	type AutomationRunError,
 } from "./AgentAutomationsPageView";
 import { selectedOrganizationIdStorageKey } from "./components/AgentCreateForm";
 import { AgentPageHeader } from "./components/AgentPageHeader";
 import { skippedRunMessage } from "./components/Automations/AutomationLastRun";
-import type { AutomationOwnerView } from "./components/Automations/AutomationOwnerFilter";
+import { defaultAutomationsFilter } from "./components/Automations/AutomationsFilter";
 import {
 	automationPath,
 	newAutomationPath,
@@ -103,9 +105,18 @@ const AutomationsList: React.FC = () => {
 	const { selectedOrg, selectOrganization } =
 		useSelectedAutomationsOrganization();
 	const organizationId = selectedOrg?.id ?? "";
-	// ?owner=all keeps the All view across reloads and Back.
 	const [searchParams, setSearchParams] = useSearchParams();
-	const wantsAllOwners = searchParams.get("owner") === "all";
+	// Links from before the filter bar opened every owner's automations with
+	// ?owner=all, which is the empty filter now.
+	const isLegacyAllOwnersLink = searchParams.get("owner") === "all";
+	const filter = useFilter({
+		fallbackFilter: isLegacyAllOwnersLink ? "" : defaultAutomationsFilter,
+		searchParams,
+		onSearchParamsChange: (next) => {
+			next.delete("owner");
+			setSearchParams(next);
+		},
+	});
 
 	// Holds the organization of the run, so a failure that arrives after the
 	// viewer switched organizations does not show on the new one.
@@ -139,16 +150,30 @@ const AutomationsList: React.FC = () => {
 		enabled: Boolean(organizationId),
 	});
 	const canReadAny = Boolean(permissionsQuery.data?.canReadAny);
+	const ownerFilter = filter.values.owner;
 	// Waits for the permission check before asking for every owner, so a
-	// member with ?owner=all in the URL gets their own list once.
+	// member with no owner in the filter gets their own list once.
 	const isCheckingOwnerView =
-		wantsAllOwners && Boolean(organizationId) && !permissionsQuery.isFetched;
-	const ownerView: AutomationOwnerView =
-		wantsAllOwners && canReadAny ? "all" : "mine";
+		ownerFilter === undefined &&
+		Boolean(organizationId) &&
+		!permissionsQuery.isFetched;
+	// No owner means every automation the viewer can read, which only
+	// viewers who can read any automation get.
+	const requestOwner = ownerFilter ?? (canReadAny ? undefined : "me");
+	let ownerScope: AutomationOwnerScope = "other";
+	if (requestOwner === undefined) {
+		ownerScope = "all";
+	} else if (
+		requestOwner === "me" ||
+		requestOwner === user.id ||
+		requestOwner.toLowerCase() === user.username.toLowerCase()
+	) {
+		ownerScope = "self";
+	}
 	const automationsQuery = useQuery({
 		...chatAutomations(
 			organizationId,
-			ownerView === "all" ? undefined : { owner: "me" },
+			requestOwner === undefined ? undefined : { owner: requestOwner },
 		),
 		enabled: Boolean(organizationId) && !isCheckingOwnerView,
 		// Keeps the server-computed next run current while the page is open.
@@ -170,16 +195,6 @@ const AutomationsList: React.FC = () => {
 	const deleteMutation = useMutation(
 		deleteChatAutomation(queryClient, organizationId),
 	);
-
-	const handleOwnerViewChange = (view: AutomationOwnerView) => {
-		const next = new URLSearchParams(searchParams);
-		if (view === "all") {
-			next.set("owner", "all");
-		} else {
-			next.delete("owner");
-		}
-		setSearchParams(next, { replace: true });
-	};
 
 	const handleOrganizationChange = (organization: Organization) => {
 		selectOrganization(organization);
@@ -254,8 +269,10 @@ const AutomationsList: React.FC = () => {
 			header={<AutomationsPageHeader />}
 			currentUserId={user.id}
 			canDeleteAnyAutomation={Boolean(permissionsQuery.data?.canDeleteAny)}
-			ownerView={ownerView}
-			onOwnerViewChange={canReadAny ? handleOwnerViewChange : undefined}
+			filterQuery={filter.query}
+			onFilterChange={filter.update}
+			canFilterAnyOwner={canReadAny}
+			ownerScope={ownerScope}
 			organizationSelector={
 				showOrganizations && (
 					<CompactOrgSelector

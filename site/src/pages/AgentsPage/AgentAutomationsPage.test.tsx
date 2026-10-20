@@ -1062,17 +1062,27 @@ describe("AgentAutomationsPage owner filter", () => {
 			)
 			.map((url) => url.searchParams.get("owner"));
 
-	it("shows a member only their automations, with no owner switch", async () => {
-		const { requests } = setup();
+	const bobsAutomation: ChatAutomation = {
+		...mockAutomation,
+		id: "other-owners-automation",
+		name: "Bob's automation",
+		owner_id: "another-user",
+		owner: { id: "another-user", username: "bob", name: "Bob" },
+	};
+
+	const mockPermissions = (canReadAny: boolean) =>
 		server.use(
 			http.post("/api/v2/authcheck", () =>
-				HttpResponse.json({ canReadAny: false, canDeleteAny: false }),
+				HttpResponse.json({ canReadAny, canDeleteAny: canReadAny }),
 			),
 		);
 
+	it("opens on the viewer's own automations, with no Owner column", async () => {
+		const { requests } = setup();
+		mockPermissions(true);
+
 		await screen.findByText(mockAutomation.name);
 		expect(listRequests(requests)).toEqual(["me"]);
-		expect(screen.queryByRole("group", { name: "Owner" })).toBeNull();
 		expect(screen.queryByRole("columnheader", { name: "Owner" })).toBeNull();
 	});
 
@@ -1082,38 +1092,25 @@ describe("AgentAutomationsPage owner filter", () => {
 		await screen.findByText("You have no automations yet");
 	});
 
-	it("lets an admin list every owner's automations with an Owner column", async () => {
+	it("lists every owner's automations once an admin removes the owner", async () => {
 		const user = userEvent.setup();
-		const otherOwners: ChatAutomation = {
-			...mockAutomation,
-			id: "other-owners-automation",
-			name: "Bob's automation",
-			owner_id: "another-user",
-			owner: { id: "another-user", username: "bob", name: "Bob" },
-		};
 		const { requests, router } = setup({
-			automations: [mockAutomation, otherOwners],
+			automations: [mockAutomation, bobsAutomation],
 		});
-		server.use(
-			http.post("/api/v2/authcheck", () =>
-				HttpResponse.json({ canReadAny: true, canDeleteAny: true }),
-			),
-		);
+		mockPermissions(true);
 
-		const owner = await screen.findByRole("group", { name: "Owner" });
-		expect(within(owner).getByRole("button", { name: "Mine" })).toHaveAttribute(
-			"aria-pressed",
-			"true",
+		await user.click(
+			await screen.findByRole("button", { name: "Remove owner:me" }),
 		);
-		await user.click(within(owner).getByRole("button", { name: "All" }));
 
 		await waitFor(() => {
 			expect(listRequests(requests)).toEqual(["me", null]);
 		});
-		expect(router.state.location.search).toBe("?owner=all");
+		expect(router.state.location.search).toBe("?filter=");
 		await screen.findByRole("columnheader", { name: "Owner" });
-		const row = screen.getByRole("row", { name: new RegExp(otherOwners.name) });
-		within(row).getByText("Bob");
+		const row = screen.getByRole("row", {
+			name: new RegExp(bobsAutomation.name),
+		});
 		// The Owner column names the owner, so the name cell does not repeat it.
 		expect(within(row).queryByText("Owned by Bob")).toBeNull();
 		// The Owner column takes the width of the button labels, so the
@@ -1129,18 +1126,53 @@ describe("AgentAutomationsPage owner filter", () => {
 		expect(await screen.findByRole("tooltip")).toHaveTextContent("Run now");
 	});
 
-	it("keeps the All view from the URL for an admin", async () => {
+	it("keeps a member's request on their own automations without an owner", async () => {
+		const { requests } = setup({ route: "/agents/automations?filter=" });
+		mockPermissions(false);
+
+		await screen.findByText(mockAutomation.name);
+		expect(listRequests(requests)).toEqual(["me"]);
+		expect(screen.queryByRole("columnheader", { name: "Owner" })).toBeNull();
+	});
+
+	it("sends another owner from the filter to the API", async () => {
+		const { requests } = setup({
+			automations: [bobsAutomation],
+			route: "/agents/automations?filter=owner:alice",
+		});
+		mockPermissions(true);
+
+		await screen.findByText(bobsAutomation.name);
+		expect(listRequests(requests)).toEqual(["alice"]);
+		await screen.findByRole("columnheader", { name: "Owner" });
+	});
+
+	it("opens every owner's automations from an old ?owner=all link", async () => {
 		const { requests } = setup({
 			automations: [],
 			route: "/agents/automations?owner=all",
 		});
-		server.use(
-			http.post("/api/v2/authcheck", () =>
-				HttpResponse.json({ canReadAny: true, canDeleteAny: true }),
-			),
-		);
+		mockPermissions(true);
 
 		await screen.findByText("No automations in this organization");
+		expect(listRequests(requests)).toEqual([null]);
+	});
+
+	it("filters by status on the client and clears the filter", async () => {
+		const user = userEvent.setup();
+		const { requests, router } = setup({
+			automations: [mockAutomation, bobsAutomation],
+			route: "/agents/automations?filter=status:paused",
+		});
+		mockPermissions(true);
+
+		await user.click(
+			await screen.findByRole("button", { name: "Clear filter" }),
+		);
+
+		await screen.findByText(bobsAutomation.name);
+		expect(router.state.location.search).toBe("?filter=");
+		// Trigger, status and name filter the list the API already returned.
 		expect(listRequests(requests)).toEqual([null]);
 	});
 });

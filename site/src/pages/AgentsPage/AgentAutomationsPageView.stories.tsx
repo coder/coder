@@ -1,8 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
 import { fn } from "storybook/test";
-import type { Chat, ChatAutomation } from "#/api/typesGenerated";
+import { usersKey } from "#/api/queries/users";
+import type { Chat, ChatAutomation, User } from "#/api/typesGenerated";
 import { MockChat, MockChatAutomation } from "#/testHelpers/chatEntities";
-import { MockUserOwner, mockApiError } from "#/testHelpers/entities";
+import {
+	MockUserMember,
+	MockUserOwner,
+	mockApiError,
+} from "#/testHelpers/entities";
+import { withAuthProvider } from "#/testHelpers/storybook";
 import { AgentAutomationsPageView } from "./AgentAutomationsPageView";
 
 const mockTargetChat: Chat = {
@@ -106,11 +113,64 @@ const mockPausedSchedule: ChatAutomation = {
 	next_run_times: [],
 };
 
+const mockOwners: User[] = [
+	"alice",
+	"bob",
+	"carol",
+	"dmitri",
+	"eun-ji",
+	"farah",
+].map((username, index) => ({
+	...MockUserMember,
+	id: `owner-${index}`,
+	username,
+	name: username.charAt(0).toUpperCase() + username.slice(1),
+	avatar_url: "",
+}));
+
+// Two automations for each owner, so the list reads like an organization's.
+const mockManyOwnersAutomations: ChatAutomation[] = mockOwners.flatMap(
+	(owner, index) => [
+		{
+			...(index % 2 === 0 ? mockDigestAutomation : mockListeningWebhook),
+			id: `automation-${owner.username}-1`,
+			name: `${owner.name} ${index % 2 === 0 ? "daily digest" : "PR opened"}`,
+			owner_id: owner.id,
+			owner: { id: owner.id, username: owner.username, name: owner.name },
+		},
+		{
+			...(index % 3 === 0 ? mockPausedSchedule : mockDisabledSchedule),
+			id: `automation-${owner.username}-2`,
+			name: `${owner.name} ${index % 3 === 0 ? "release notes" : "weekly report"}`,
+			owner_id: owner.id,
+			owner: { id: owner.id, username: owner.username, name: owner.name },
+		},
+	],
+);
+
 const meta: Meta<typeof AgentAutomationsPageView> = {
 	title: "pages/AgentsPage/AgentAutomationsPageView",
 	component: AgentAutomationsPageView,
+	decorators: [withAuthProvider],
+	parameters: { user: MockUserOwner },
+	// Keeps the filter query in state, so chips can be added and removed.
+	render: function Render(args) {
+		const [filterQuery, setFilterQuery] = useState(args.filterQuery);
+		return (
+			<AgentAutomationsPageView
+				{...args}
+				filterQuery={filterQuery}
+				onFilterChange={(query) => {
+					setFilterQuery(query);
+					args.onFilterChange(query);
+				}}
+			/>
+		);
+	},
 	args: {
 		currentUserId: MockUserOwner.id,
+		filterQuery: "owner:me",
+		onFilterChange: fn(),
 		automations: [
 			mockScheduleAutomation,
 			mockHeartbeatAutomation,
@@ -164,23 +224,26 @@ export const AllOwners: Story = {
 				name: "Hello heartbeat (every 5 min)",
 				owner: { id: MockUserOwner.id, username: "admin", name: "Admin User" },
 			},
+			...mockManyOwnersAutomations,
+		],
+		filterQuery: "",
+		ownerScope: "all",
+		canFilterAnyOwner: true,
+		canDeleteAnyAutomation: true,
+	},
+	parameters: {
+		queries: [
 			{
-				...mockScheduleAutomation,
-				owner_id: "another-user-id",
-				owner: {
-					id: "another-user-id",
-					username: "bb-seed",
-					name: "Bug bash bb-seed",
-				},
-			},
-			{
-				...mockDigestAutomation,
-				owner: { id: MockUserOwner.id, username: "admin", name: "Admin User" },
+				key: usersKey({ q: "", limit: 25 }),
+				data: { users: [MockUserOwner, ...mockOwners], count: 7 },
 			},
 		],
-		ownerView: "all",
-		onOwnerViewChange: fn(),
-		canDeleteAnyAutomation: true,
+	},
+};
+
+export const NoMatches: Story = {
+	args: {
+		filterQuery: "owner:me status:paused trigger:webhook",
 	},
 };
 
@@ -195,7 +258,12 @@ export const Empty: Story = {
 };
 
 export const EmptyAllOwners: Story = {
-	args: { automations: [], ownerView: "all", onOwnerViewChange: fn() },
+	args: {
+		automations: [],
+		filterQuery: "",
+		ownerScope: "all",
+		canFilterAnyOwner: true,
+	},
 };
 
 export const MissingTarget: Story = {

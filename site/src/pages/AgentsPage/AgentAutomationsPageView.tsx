@@ -31,13 +31,19 @@ import { useMediaQuery } from "#/hooks/useMediaQuery";
 import { useRestoreFocusOnClose } from "#/hooks/useRestoreFocusOnClose";
 import { mobileViewportMediaQuery } from "#/utils/mobile";
 import { AutomationDeleteDialog } from "./components/Automations/AutomationDeleteDialog";
-import {
-	AutomationOwnerFilter,
-	type AutomationOwnerView,
-} from "./components/Automations/AutomationOwnerFilter";
 import { AutomationRow } from "./components/Automations/AutomationRow";
 import { ChatTitleLink } from "./components/Automations/AutomationStatus";
+import {
+	AutomationsFilter,
+	filterAutomations,
+} from "./components/Automations/AutomationsFilter";
 import { SectionHeader } from "./components/SectionHeader";
+
+/**
+ * Whose automations the API returned: the viewer's own, every owner's, or
+ * another owner's.
+ */
+export type AutomationOwnerScope = "self" | "all" | "other";
 
 export type AutomationRunError = {
 	automation: ChatAutomation;
@@ -69,10 +75,14 @@ type AgentAutomationsPageViewProps = {
 	/** True for viewers, such as organization admins, who can delete any automation. */
 	canDeleteAnyAutomation?: boolean;
 	organizationSelector?: React.ReactNode;
-	/** Which owners the list shows. Mine when unset. */
-	ownerView?: AutomationOwnerView;
-	/** Shows the Mine and All switch, for viewers who can read every owner's automations. */
-	onOwnerViewChange?: (view: AutomationOwnerView) => void;
+	/** The filter query, such as `owner:me status:paused nightly`. */
+	filterQuery: string;
+	onFilterChange: (query: string) => void;
+	/** Offers every user as an owner, for viewers who can read their automations. */
+	canFilterAnyOwner?: boolean;
+	/** Adds the Owner column unless the list holds only the viewer's automations. */
+	ownerScope?: AutomationOwnerScope;
+	/** Every automation the API returned. The view applies the rest of the filter. */
 	automations: readonly ChatAutomation[] | undefined;
 	isLoading: boolean;
 	error: unknown;
@@ -180,8 +190,10 @@ export const AgentAutomationsPageView: React.FC<
 	currentUserId,
 	canDeleteAnyAutomation = false,
 	organizationSelector,
-	ownerView = "mine",
-	onOwnerViewChange,
+	filterQuery,
+	onFilterChange,
+	canFilterAnyOwner = false,
+	ownerScope = "self",
 	automations,
 	isLoading,
 	error,
@@ -200,23 +212,39 @@ export const AgentAutomationsPageView: React.FC<
 }) => {
 	const isMobile = useMediaQuery(mobileViewportMediaQuery);
 	const newAutomationRef = useRef<HTMLButtonElement>(null);
-	const showOwnerColumn = ownerView === "all" && !isMobile;
+	const showOwnerColumn = ownerScope !== "self" && !isMobile;
+	const shownAutomations =
+		automations && filterAutomations(automations, filterQuery);
 	let rows: React.ReactNode;
 	if (isLoading) {
 		rows = <TableLoader />;
-	} else if (!automations || automations.length === 0) {
+	} else if (
+		!automations ||
+		(automations.length === 0 && ownerScope !== "other")
+	) {
 		rows = (
 			<TableEmpty
 				message={
-					ownerView === "all"
+					ownerScope === "all"
 						? "No automations in this organization"
 						: "You have no automations yet"
 				}
 				description="Create a schedule or webhook that sends a prompt to an agent."
 			/>
 		);
+	} else if (!shownAutomations || shownAutomations.length === 0) {
+		rows = (
+			<TableEmpty
+				message="No automations match this filter"
+				cta={
+					<Button variant="outline" onClick={() => onFilterChange("")}>
+						Clear filter
+					</Button>
+				}
+			/>
+		);
 	} else {
-		rows = automations.map((automation) => (
+		rows = shownAutomations.map((automation) => (
 			<AutomationRow
 				key={automation.id}
 				automation={automation}
@@ -248,12 +276,6 @@ export const AgentAutomationsPageView: React.FC<
 						badge={<ExperimentalBadge />}
 						action={
 							<div className="flex items-center gap-2">
-								{onOwnerViewChange && (
-									<AutomationOwnerFilter
-										value={ownerView}
-										onChange={onOwnerViewChange}
-									/>
-								)}
 								{organizationSelector}
 								<Button
 									ref={newAutomationRef}
@@ -273,6 +295,11 @@ export const AgentAutomationsPageView: React.FC<
 						Runs happen on your Coder deployment, so your browser and devices
 						can be closed.
 					</p>
+					<AutomationsFilter
+						query={filterQuery}
+						onChange={onFilterChange}
+						canFilterAnyOwner={canFilterAnyOwner}
+					/>
 					{runError && (
 						<Alert
 							severity="error"

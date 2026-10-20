@@ -55,6 +55,27 @@ const isUsedSingleUseWebhook = (automation: ChatAutomation) =>
 	automation.webhook_use === "single" &&
 	Boolean(automation.webhook_consumed_at);
 
+export type AutomationStatusValue = "used" | "disabled" | "paused" | "enabled";
+
+/**
+ * The one status the list shows for an automation. A used single-use webhook
+ * reads Used even while its enabled flag is on, and Disabled wins over Paused.
+ */
+export const getAutomationStatus = (
+	automation: ChatAutomation,
+): AutomationStatusValue => {
+	if (isUsedSingleUseWebhook(automation)) {
+		return "used";
+	}
+	if (!automation.enabled) {
+		return "disabled";
+	}
+	if (pausedReasons(automation).length > 0) {
+		return "paused";
+	}
+	return "enabled";
+};
+
 /** True when an existing-chat automation has no chat it can run in. */
 export const isTargetMissing = (automation: ChatAutomation) =>
 	automation.target_mode === "existing_chat" &&
@@ -235,7 +256,8 @@ type AutomationNextRunProps = {
 export const AutomationNextRun: React.FC<AutomationNextRunProps> = ({
 	automation,
 }) => {
-	if (isUsedSingleUseWebhook(automation)) {
+	const status = getAutomationStatus(automation);
+	if (status === "used") {
 		return (
 			<Tooltip>
 				<TooltipTrigger asChild>
@@ -254,10 +276,10 @@ export const AutomationNextRun: React.FC<AutomationNextRunProps> = ({
 			</Tooltip>
 		);
 	}
-	if (!automation.enabled) {
+	if (status === "disabled") {
 		return <span className="text-content-secondary">Disabled</span>;
 	}
-	if (pausedReasons(automation).length > 0) {
+	if (status === "paused") {
 		return <AutomationPausedBadge automation={automation} />;
 	}
 	if (automation.kind === "webhook") {
