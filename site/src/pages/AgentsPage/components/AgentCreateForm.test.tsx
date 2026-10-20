@@ -90,6 +90,14 @@ const mockModelCatalog: TypesGen.OrganizationChatModelsResponse = {
 	unsupported_providers: [],
 };
 
+const mockOrganization2ModelCatalog: TypesGen.OrganizationChatModelsResponse = {
+	...mockModelCatalog,
+	models: mockModelCatalog.models.map((model) => ({
+		...model,
+		organization_id: MockOrganization2.id,
+	})),
+};
+
 const mockPersonalModelOverrides: TypesGen.UserChatPersonalModelOverridesResponse =
 	{
 		enabled: false,
@@ -172,6 +180,18 @@ const createQueryClient = () => {
 	return queryClient;
 };
 
+const seedOrganization2Queries = (queryClient: QueryClient) => {
+	queryClient.setQueryData(
+		organizationChatModelsKey(MockOrganization2.id),
+		mockOrganization2ModelCatalog,
+	);
+	queryClient.setQueryData(
+		userChatPersonalModelOverrides(MockOrganization2.id).queryKey,
+		mockPersonalModelOverrides,
+	);
+	queryClient.setQueryData(mcpServerConfigsKey(MockOrganization2.id), []);
+};
+
 type FormProps = React.ComponentProps<typeof AgentCreateForm>;
 
 const renderForm = (
@@ -239,6 +259,11 @@ const clickSend = async () => {
 const submitMessage = async (message: string) => {
 	await typeMessage(message);
 	await clickSend();
+};
+
+const switchOrganization = async (name: string) => {
+	await user().click(screen.getByRole("button", { name: /^Organization:/ }));
+	await user().click(await screen.findByRole("option", { name }));
 };
 
 const mockStagedUpload = () =>
@@ -469,32 +494,12 @@ describe("AgentCreateForm workspace file uploads", () => {
 		dashboard.showOrganizations = true;
 		localStorage.setItem(selectedWorkspaceIdStorageKey, mockWorkspace.id);
 		const queryClient = createQueryClient();
-		const organization2ModelCatalog: TypesGen.OrganizationChatModelsResponse = {
-			...mockModelCatalog,
-			models: mockModelCatalog.models.map((model) => ({
-				...model,
-				organization_id: MockOrganization2.id,
-			})),
-		};
-		queryClient.setQueryData(
-			organizationChatModelsKey(MockOrganization2.id),
-			organization2ModelCatalog,
-		);
-		queryClient.setQueryData(
-			userChatPersonalModelOverrides(MockOrganization2.id).queryKey,
-			mockPersonalModelOverrides,
-		);
-		queryClient.setQueryData(mcpServerConfigsKey(MockOrganization2.id), []);
+		seedOrganization2Queries(queryClient);
 		const uploadSpy = mockStagedUpload();
 		const { onCreateChat } = renderForm({}, { queryClient });
 
 		await attachZipFile();
-		await user().click(screen.getByRole("button", { name: /^Organization:/ }));
-		await user().click(
-			await screen.findByRole("option", {
-				name: MockOrganization2.display_name,
-			}),
-		);
+		await switchOrganization(MockOrganization2.display_name);
 		await user().click(await screen.findByRole("button", { name: "Continue" }));
 		await submitMessage("start over in another organization");
 
@@ -986,24 +991,10 @@ describe("AgentCreateForm project picker", () => {
 	it("clears the picked project when the organization changes", async () => {
 		dashboard.showOrganizations = true;
 		const queryClient = createProjectQueryClient();
-		queryClient.setQueryData(
-			organizationChatModelsKey(MockOrganization2.id),
-			mockModelCatalog,
-		);
-		queryClient.setQueryData(
-			userChatPersonalModelOverrides(MockOrganization2.id).queryKey,
-			mockPersonalModelOverrides,
-		);
-		queryClient.setQueryData(mcpServerConfigsKey(MockOrganization2.id), []);
+		seedOrganization2Queries(queryClient);
 		const { onCreateChat } = renderForm({}, { queryClient });
 
 		await pickProject(MockChatProject.name);
-		const switchOrganization = async (name: string) => {
-			await user().click(
-				screen.getByRole("button", { name: /^Organization:/ }),
-			);
-			await user().click(await screen.findByRole("option", { name }));
-		};
 		await switchOrganization(MockOrganization2.display_name);
 		await switchOrganization(MockDefaultOrganization.display_name);
 		await submitMessage("back in the first organization");
