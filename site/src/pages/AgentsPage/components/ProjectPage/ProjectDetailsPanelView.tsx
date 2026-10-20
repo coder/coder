@@ -20,7 +20,8 @@ type ProjectDetailsPanelViewProps = {
 	/** Omit to hide the organization row. */
 	readonly organizationLabel?: string;
 	readonly templateCount: number;
-	readonly onEditTemplates: () => void;
+	/** Opens the templates editor. Omit when the caller cannot edit. */
+	readonly onEditTemplates?: () => void;
 	/** `undefined` until the instructions load. */
 	readonly instructions: ChatProjectInstructions | undefined;
 	readonly error: unknown;
@@ -45,6 +46,8 @@ export const ProjectDetailsPanelView: React.FC<
 }) => {
 	const headingId = useId();
 	const instructionsHeadingId = useId();
+	const templateCountLabel =
+		templateCount === 1 ? "1 template" : `${templateCount} templates`;
 	const errorAlert = Boolean(error) && (
 		<ErrorAlert
 			error={error}
@@ -94,19 +97,21 @@ export const ProjectDetailsPanelView: React.FC<
 						<DetailRow label="Organization">{organizationLabel}</DetailRow>
 					)}
 					<DetailRow label="Templates">
-						<Link asChild showExternalIcon={false}>
-							<button
-								type="button"
-								className="cursor-pointer border-0 bg-transparent p-0 font-sans"
-								onClick={onEditTemplates}
-							>
-								<span className="sr-only">Edit templates:</span>{" "}
-								{templateCount === 1
-									? "1 template"
-									: `${templateCount} templates`}
-								<PenIcon />
-							</button>
-						</Link>
+						{onEditTemplates ? (
+							<Link asChild showExternalIcon={false}>
+								<button
+									type="button"
+									className="cursor-pointer border-0 bg-transparent p-0 font-sans"
+									onClick={onEditTemplates}
+								>
+									<span className="sr-only">Edit templates:</span>{" "}
+									{templateCountLabel}
+									<PenIcon />
+								</button>
+							</Link>
+						) : (
+							templateCountLabel
+						)}
 					</DetailRow>
 				</dl>
 				<section

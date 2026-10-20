@@ -38,7 +38,7 @@ export const Default: Story = {};
 
 /** Users without update permission, such as `use` sharees, cannot edit. */
 export const WithoutUpdatePermission: Story = {
-	args: { onEditInstructions: undefined },
+	args: { onEditTemplates: undefined, onEditInstructions: undefined },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByText(/Run the linters before committing/);
@@ -51,6 +51,7 @@ export const WithoutUpdatePermission: Story = {
 export const UnsetWithoutUpdatePermission: Story = {
 	args: {
 		instructions: MockUnsetChatProjectInstructions,
+		onEditTemplates: undefined,
 		onEditInstructions: undefined,
 	},
 	play: async ({ canvasElement }) => {

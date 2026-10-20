@@ -95,10 +95,14 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				createdAt={project.created_at}
 				organizationLabel={organizationLabel}
 				templateCount={project.templates.template_ids.length}
-				onEditTemplates={() => {
-					updateTemplatesMutation.reset();
-					setIsTemplatesEditorOpen(true);
-				}}
+				onEditTemplates={
+					project.permissions.update
+						? () => {
+								updateTemplatesMutation.reset();
+								setIsTemplatesEditorOpen(true);
+							}
+						: undefined
+				}
 				instructions={instructionsQuery.data}
 				error={instructionsQuery.error}
 				onRetry={() => void instructionsQuery.refetch()}

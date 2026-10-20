@@ -1,9 +1,12 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn, spyOn } from "storybook/test";
+import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
+import { useQuery } from "react-query";
+import { fn, screen, spyOn } from "storybook/test";
 import { API } from "#/api/api";
 import {
 	agentTemplates,
+	richParameters,
 	richParametersKey,
+	templateVersionPresets,
 	templateVersionPresetsKey,
 } from "#/api/queries/templates";
 import type { ChatProject, Preset, Template } from "#/api/typesGenerated";
@@ -55,6 +58,30 @@ const projectWithDefaultParameters: ChatProject = {
 		default_parameters: { [MockTemplateVersionParameter1.name]: "custom" },
 	},
 };
+
+type StoryQuery = {
+	readonly queryKey: readonly unknown[];
+	readonly queryFn: () => Promise<unknown>;
+};
+
+const RefetchOnMount: React.FC<
+	React.PropsWithChildren<{ query: StoryQuery }>
+> = ({ query, children }) => {
+	useQuery({ ...query, staleTime: 0 });
+	return children;
+};
+
+/**
+ * Refetches a seeded query when the story mounts, so a failing request
+ * leaves the query with both its cached data and an error.
+ */
+const withRefetch =
+	(query: StoryQuery): Decorator =>
+	(Story) => (
+		<RefetchOnMount query={query}>
+			<Story />
+		</RefetchOnMount>
+	);
 
 const meta: Meta<typeof ProjectTemplatesDialog> = {
 	title: "pages/AgentsPage/ProjectPage/ProjectTemplatesDialog",
@@ -123,6 +150,34 @@ export const DefaultParameters: Story = {
 				data: [smallPreset],
 			},
 		],
+	},
+};
+
+export const DefaultPresetRefetchError: Story = {
+	...DefaultPreset,
+	decorators: [
+		withRefetch(templateVersionPresets(dockerTemplate.active_version_id)),
+	],
+	beforeEach: () => {
+		spyOn(API, "getTemplateVersionPresets").mockRejectedValue(
+			mockApiError({ message: "Failed to load presets." }),
+		);
+	},
+	play: async () => {
+		await screen.findByText("Failed to load presets.");
+	},
+};
+
+export const DefaultParametersRefetchError: Story = {
+	...DefaultParameters,
+	decorators: [withRefetch(richParameters(dockerTemplate.active_version_id))],
+	beforeEach: () => {
+		spyOn(API, "getTemplateVersionRichParameters").mockRejectedValue(
+			mockApiError({ message: "Failed to load parameters." }),
+		);
+	},
+	play: async () => {
+		await screen.findByText("Failed to load parameters.");
 	},
 };
 
