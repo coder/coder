@@ -11,7 +11,13 @@ import {
 import { ChatClearedTool } from "./ChatClearedTool";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
-import { ContextHandoffTool, ContextRolloverTool } from "./ContextWindowTools";
+import {
+	ChatHistoryTool,
+	ContextHandoffTool,
+	ContextRolloverTool,
+	NewContextTool,
+	SaveCheckpointTool,
+} from "./ContextWindowTools";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
 import { DiffFileHeader } from "./DiffFileHeader";
 import { EditFilesTool } from "./EditFilesTool";
@@ -718,6 +724,64 @@ const ChatContextHandoffRenderer: React.FC<ToolRendererProps> = ({
 	/>
 );
 
+const SaveCheckpointRenderer: React.FC<ToolRendererProps> = ({
+	status,
+	args,
+	result,
+	isError,
+}) => (
+	<SaveCheckpointTool
+		checkpoint={asString(parseArgs(args)?.checkpoint)}
+		status={status}
+		isError={isError}
+		errorMessage={isError ? toolErrorMessage(result) : undefined}
+	/>
+);
+
+const NewContextRenderer: React.FC<ToolRendererProps> = ({
+	status,
+	result,
+	isError,
+}) => (
+	<NewContextTool
+		refused={asRecord(result)?.code === "rollover_disabled"}
+		status={status}
+		isError={isError}
+		errorMessage={toolErrorMessage(result)}
+	/>
+);
+
+const ChatHistoryRenderer: React.FC<ToolRendererProps> = ({
+	status,
+	args,
+	result,
+	isError,
+}) => {
+	const argsRec = parseArgs(args);
+	const rec = asRecord(result);
+	const results = rec?.windows ?? rec?.items;
+	// The server omits empty result lists from a successful lookup.
+	let resultCount: number | undefined;
+	if (Array.isArray(results)) {
+		resultCount = results.length;
+	} else if (rec?.success === true) {
+		resultCount = 0;
+	}
+	return (
+		<ChatHistoryTool
+			action={asString(argsRec?.action)}
+			searchQuery={asString(argsRec?.query)}
+			itemId={asString(argsRec?.item_id)}
+			resultCount={resultCount}
+			hasMore={rec?.has_more === true}
+			errorCode={asString(rec?.error)}
+			status={status}
+			isError={isError}
+			errorMessage={toolErrorMessage(result)}
+		/>
+	);
+};
+
 const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 	args,
 	status,
@@ -1231,6 +1295,9 @@ export const toolRenderers: Record<string, React.FC<ToolRendererProps>> = {
 	chat_summarized: ChatSummarizedRenderer,
 	chat_context_rollover: ChatContextRolloverRenderer,
 	chat_context_handoff: ChatContextHandoffRenderer,
+	save_checkpoint: SaveCheckpointRenderer,
+	new_context: NewContextRenderer,
+	chat_history: ChatHistoryRenderer,
 	ask_user_question: AskUserQuestionRenderer,
 	propose_plan: ProposePlanRenderer,
 	advisor: AdvisorRenderer,
