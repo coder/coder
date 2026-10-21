@@ -109,6 +109,7 @@ const getAttachmentExtension = (
 	);
 };
 
+/** Whether attachments of this media type open in the text preview. */
 export const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
 	TEXT_ATTACHMENT_MEDIA_TYPES.has(mediaType);
 

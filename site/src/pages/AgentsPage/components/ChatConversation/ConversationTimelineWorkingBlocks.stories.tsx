@@ -9,18 +9,21 @@ import {
 	MockChatFileMetadata,
 	MockChatMessage,
 } from "#/testHelpers/chatEntities";
+import { MockUserPreferenceSettings } from "#/testHelpers/entities";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
 	buildLiveStatus,
 	MockAttachmentWorkingMessages,
+	MockBrokenImageAttachmentMessages,
 	MockCollapsedStepsPreferences,
 	MockLeadInSearchMessages,
 	MockLongTurnPageLoads,
 	MockMixedAttachmentMessages,
 	MockPlanAttachmentMessages,
 	MockQuestionCallMessage,
+	MockUnansweredAttachmentMessages,
 	MockUncitedSearchAnswerMessages,
 	MockWebSearchAnswerMessages,
 	MockWorkingMessages,
@@ -250,6 +253,12 @@ export const AttachmentFoldsIntoBlockExpanded: Story = {
 	},
 };
 
+const openAttachmentsPill: Story["play"] = async ({ canvasElement }) => {
+	await userEvent.click(
+		within(canvasElement).getByRole("button", { name: "Attachments (4)" }),
+	);
+};
+
 export const TurnAttachmentsPill: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
@@ -260,11 +269,15 @@ export const TurnAttachmentsPillOpen: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
 	},
-	play: async ({ canvasElement }) => {
-		await userEvent.click(
-			within(canvasElement).getByRole("button", { name: "Attachments (4)" }),
-		);
+	play: openAttachmentsPill,
+};
+
+export const TurnAttachmentsPillOpenMobile: Story = {
+	globals: { viewport: { value: "mobile1", isRotated: false } },
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
 	},
+	play: openAttachmentsPill,
 };
 
 const mockSpecFileOnly = [{ ...MockChatFileMetadata, id: "spec-file" }];
@@ -274,10 +287,36 @@ export const TurnAttachmentsPillExpired: Story = {
 		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
 		chatFiles: mockSpecFileOnly,
 	},
-	play: async ({ canvasElement }) => {
-		await userEvent.click(
-			within(canvasElement).getByRole("button", { name: "Attachments (4)" }),
-		);
+	play: openAttachmentsPill,
+};
+
+export const TurnAttachmentsPillBrokenImage: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockBrokenImageAttachmentMessages,
+		),
+	},
+};
+
+// The running turn gets its pill once it settles; earlier turns keep theirs.
+export const TurnAttachmentsPillRunningTurn: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockUnansweredAttachmentMessages,
+		),
+		chatStatus: "running",
+	},
+};
+
+// With steps shown, a turn that ends on an attachment hosts the pill there.
+export const TurnAttachmentsPillStepsShown: Story = {
+	parameters: {
+		queries: [{ key: preferenceSettingsKey, data: MockUserPreferenceSettings }],
+	},
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockUnansweredAttachmentMessages,
+		),
 	},
 };
 

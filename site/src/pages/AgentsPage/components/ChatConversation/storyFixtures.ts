@@ -452,6 +452,32 @@ export const MockMixedAttachmentMessages: TypesGen.ChatMessage[] = [
 	},
 ];
 
+/** MockMixedAttachmentMessages before the newest turn answers. */
+export const MockUnansweredAttachmentMessages: TypesGen.ChatMessage[] =
+	MockMixedAttachmentMessages.slice(0, -1);
+
+const [mockSearchAnswer] = MockWebSearchAnswerMessages.slice(-1);
+
+/**
+ * MockMixedAttachmentMessages whose first turn ends in a searched answer, so
+ * the expanded block renders that answer and the row below repeats it.
+ */
+export const MockSearchAnswerAttachmentMessages: TypesGen.ChatMessage[] =
+	MockMixedAttachmentMessages.map((message) =>
+		message.id === 9 ? { ...mockSearchAnswer, id: message.id } : message,
+	);
+
+/** MockMixedAttachmentMessages whose second image cannot be decoded. */
+export const MockBrokenImageAttachmentMessages: TypesGen.ChatMessage[] =
+	MockMixedAttachmentMessages.map((message) => ({
+		...message,
+		content: message.content?.map((part) =>
+			part.type === "file" && part.name === "dashboard-after.png"
+				? { ...part, data: "not-valid-base64" }
+				: part,
+		),
+	}));
+
 const planPath = "/home/coder/.coder/plans/PLAN.md";
 
 /** A turn that proposes a plan file after the first step of MockWorkingMessages. */

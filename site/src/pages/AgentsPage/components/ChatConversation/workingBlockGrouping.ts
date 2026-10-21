@@ -160,7 +160,7 @@ type TurnAttachmentsOptions = {
 /**
  * Each settled turn's agent attachments, oldest first, keyed by its last
  * shown assistant row. Reads only the rows and flags, never working blocks or
- * stream state, so callers can cache it across stream chunks.
+ * stream state.
  */
 export const getTurnAttachmentsByRow = (
 	rows: readonly TimelineRow[],

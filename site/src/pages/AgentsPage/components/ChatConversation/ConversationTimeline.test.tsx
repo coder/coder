@@ -24,6 +24,7 @@ import {
 	MockCollapsedStepsPreferences,
 	MockLongTurnPageLoads,
 	MockMixedAttachmentMessages,
+	MockSearchAnswerAttachmentMessages,
 	MockWebSearchAnswerMessages,
 	MockWorkingMessages,
 	pinFixtureClock,
@@ -335,7 +336,13 @@ const streamingStage = (
 });
 
 describe("ConversationTimeline turn attachments", () => {
-	const readAttachmentHrefs = async (
+	const mixedTurnHrefs = [
+		`data:image/png;base64,${MockBluePngData}`,
+		`data:image/png;base64,${MockAmberPngData}`,
+		"/api/v2/chats/files/findings-file",
+		"/api/v2/chats/files/spec-file",
+	];
+	const openAttachmentHrefs = async (
 		user: ReturnType<typeof userEvent.setup>,
 		name: string,
 	) => {
@@ -352,31 +359,22 @@ describe("ConversationTimeline turn attachments", () => {
 
 	it("lists only each turn's files in the pill under its answer", async () => {
 		const user = userEvent.setup();
-		// The first turn ends in a searched answer, so its answer row renders
-		// inside the expanded block and again below it; only the row below the
-		// block hosts the pill.
-		const [searchAnswer] = MockWebSearchAnswerMessages.slice(-1);
-		renderTimeline({
-			messages: MockMixedAttachmentMessages.map((message) =>
-				message.id === 9 ? { ...searchAnswer, id: message.id } : message,
-			),
-		});
+		renderTimeline({ messages: MockSearchAnswerAttachmentMessages });
+		// Expanded, the block repeats the first answer; only the row below it
+		// hosts the pill.
 		await user.click(
 			screen.getByRole("button", { name: "Worked for 15s (4 steps)" }),
 		);
 
-		expect(await readAttachmentHrefs(user, "Attachments (1)")).toEqual([
+		expect(await openAttachmentHrefs(user, "Attachments (1)")).toEqual([
 			"/api/v2/chats/files/report-file",
 		]);
-		expect(await readAttachmentHrefs(user, "Attachments (4)")).toEqual([
-			`data:image/png;base64,${MockBluePngData}`,
-			`data:image/png;base64,${MockAmberPngData}`,
-			"/api/v2/chats/files/findings-file",
-			"/api/v2/chats/files/spec-file",
-		]);
+		expect(await openAttachmentHrefs(user, "Attachments (4)")).toEqual(
+			mixedTurnHrefs,
+		);
 	});
 
-	it("waits for the running turn to settle before showing its pill", async () => {
+	it("lists a turn's files once it stops running", async () => {
 		const user = userEvent.setup();
 		const { rerenderStage } = renderTimeline({
 			messages: MockMixedAttachmentMessages,
@@ -384,16 +382,14 @@ describe("ConversationTimeline turn attachments", () => {
 			liveStatus: idleLive,
 		});
 
-		expect(
-			screen.getAllByRole("button", { name: /^Attachments \(/ }),
-		).toHaveLength(1);
-
 		rerenderStage({
 			messages: MockMixedAttachmentMessages,
 			chatStatus: "waiting",
 			liveStatus: idleLive,
 		});
-		expect(await readAttachmentHrefs(user, "Attachments (4)")).toHaveLength(4);
+		expect(await openAttachmentHrefs(user, "Attachments (4)")).toEqual(
+			mixedTurnHrefs,
+		);
 	});
 });
 

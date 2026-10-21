@@ -15,15 +15,12 @@ import type { AgentAttachment } from "./messageHelpers";
 
 const THUMBNAIL_STACK_MAX = 3;
 
-type ThumbnailFrameProps = React.PropsWithChildren<{ className?: string }>;
+type StackSlotProps = React.PropsWithChildren<{ className?: string }>;
 
-const ThumbnailFrame: React.FC<ThumbnailFrameProps> = ({
-	className,
-	children,
-}) => (
+const StackSlot: React.FC<StackSlotProps> = ({ className, children }) => (
 	<span
 		className={cn(
-			"inline-flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-tertiary ring-1 ring-surface-primary not-first:-ml-1.5",
+			"inline-flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-tertiary ring-1 ring-surface-primary not-first:-ml-1.5",
 			className,
 		)}
 	>
@@ -44,14 +41,14 @@ const AttachmentThumbnail: React.FC<AttachmentThumbnailProps> = ({
 
 	if (isRasterImageMediaType(file.media_type) && !expired && !failed) {
 		return (
-			<ThumbnailFrame>
+			<StackSlot>
 				<ImageThumbnail
 					previewUrl={href}
 					name=""
 					className="size-full rounded-none border-0"
 					onError={() => setFailed(true)}
 				/>
-			</ThumbnailFrame>
+			</StackSlot>
 		);
 	}
 
@@ -60,9 +57,9 @@ const AttachmentThumbnail: React.FC<AttachmentThumbnailProps> = ({
 			? FileTextIcon
 			: FileIcon;
 	return (
-		<ThumbnailFrame>
+		<StackSlot>
 			<Icon className="size-3 text-content-secondary" />
-		</ThumbnailFrame>
+		</StackSlot>
 	);
 };
 
@@ -98,9 +95,9 @@ export const TurnAttachments: React.FC<TurnAttachmentsProps> = ({
 							/>
 						))}
 						{overflow > 0 && (
-							<ThumbnailFrame className="w-auto min-w-5 px-0.5 text-2xs">
+							<StackSlot className="w-auto min-w-5 px-0.5 text-2xs">
 								+{overflow.toLocaleString("en-US")}
-							</ThumbnailFrame>
+							</StackSlot>
 						)}
 					</span>
 					Attachments
@@ -112,7 +109,7 @@ export const TurnAttachments: React.FC<TurnAttachmentsProps> = ({
 				aria-label="Attachments"
 				side="top"
 				align="start"
-				className="w-80 p-2"
+				className="w-80 max-w-[calc(100vw-2rem)] p-2"
 			>
 				<AgentAttachmentList attachments={attachments} isExpired={hasExpired} />
 			</PopoverContent>

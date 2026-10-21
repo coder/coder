@@ -36,6 +36,7 @@ import {
 	type LiveStatusModel,
 	shouldRenderLiveAssistant,
 } from "./liveStatusModel";
+import { MessageActionBar } from "./MessageActionBar";
 import {
 	type AgentAttachment,
 	buildDisplayMessages,
@@ -44,7 +45,6 @@ import {
 	getVisibleContent,
 } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
-import { TurnAttachments } from "./TurnAttachments";
 import { assignTimelineRows } from "./timelineRows";
 import type {
 	MergedTool,
@@ -54,10 +54,10 @@ import type {
 	StreamState,
 } from "./types";
 import { UserMessageContent } from "./UserMessageContent";
+import { useTurnAttachmentsByRow } from "./useTurnAttachmentsByRow";
 import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
 import {
 	getRowBlocks,
-	getTurnAttachmentsByRow,
 	groupWorkingBlocks,
 	isAgentAttachmentOnlyRow,
 	type RowSection,
@@ -217,7 +217,6 @@ const ChatMessageItem = memo<{
 			(displayState.hasCopyableContent ||
 				canEditUserMessage ||
 				canJumpBetweenUserMessages);
-		const showsTurnAttachments = turnAttachments !== undefined;
 		if (displayState?.shouldHide) {
 			return null;
 		}
@@ -331,117 +330,106 @@ const ChatMessageItem = memo<{
 						{notice}
 					</LifecycleHookNotice>
 				))}
-				{(showsActionButtons || showsTurnAttachments) && (
-					<div
-						className={cn(
-							"mt-0.5 flex items-center gap-1",
-							isUser && "w-full justify-end",
-						)}
+				{(showsActionButtons || turnAttachments) && (
+					<MessageActionBar
+						isUser={isUser}
+						turnAttachments={turnAttachments}
+						showsActions={showsActionButtons}
 					>
-						{showsTurnAttachments && (
-							<TurnAttachments attachments={turnAttachments} />
+						{displayState?.hasCopyableContent && parsed && (
+							<CopyButton
+								text={parsed.markdown}
+								label="Copy message"
+								className="size-6"
+								tooltipSide="bottom"
+							/>
 						)}
-						{showsActionButtons && (
-							<div
-								className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100"
-								data-testid="message-actions"
-							>
-								{displayState.hasCopyableContent && parsed && (
-									<CopyButton
-										text={parsed.markdown}
-										label="Copy message"
+						{canEditUserMessage && messageId !== undefined && (
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Button
+										size="icon"
+										variant="subtle"
 										className="size-6"
-										tooltipSide="bottom"
-									/>
-								)}
-								{canEditUserMessage && messageId !== undefined && (
+										aria-label="Edit message"
+										onClick={() => {
+											const { text, fileBlocks, editorState } =
+												getEditableUserMessagePayload(message);
+											onEditUserMessage?.(
+												messageId,
+												text,
+												fileBlocks,
+												editorState,
+											);
+										}}
+									>
+										<PencilIcon />
+										<span className="sr-only">Edit message</span>
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent side="bottom">Edit message</TooltipContent>
+							</Tooltip>
+						)}
+						{isUser &&
+							onJumpToUserMessage &&
+							(prevUserMessageKey !== undefined ||
+								nextUserMessageKey !== undefined) && (
+								<>
 									<Tooltip>
 										<TooltipTrigger asChild>
 											<Button
 												size="icon"
 												variant="subtle"
 												className="size-6"
-												aria-label="Edit message"
+												aria-label="Jump to previous user message"
+												disabled={prevUserMessageKey === undefined}
 												onClick={() => {
-													const { text, fileBlocks, editorState } =
-														getEditableUserMessagePayload(message);
-													onEditUserMessage?.(
-														messageId,
-														text,
-														fileBlocks,
-														editorState,
-													);
+													if (prevUserMessageKey !== undefined) {
+														onJumpToUserMessage(prevUserMessageKey);
+													}
 												}}
 											>
-												<PencilIcon />
-												<span className="sr-only">Edit message</span>
+												<ChevronLeftIcon />
+												<span className="sr-only">
+													Jump to previous user message
+												</span>
 											</Button>
 										</TooltipTrigger>
-										<TooltipContent side="bottom">Edit message</TooltipContent>
+										<TooltipContent side="bottom">
+											Jump to previous user message
+										</TooltipContent>
 									</Tooltip>
-								)}
-								{isUser &&
-									onJumpToUserMessage &&
-									(prevUserMessageKey !== undefined ||
-										nextUserMessageKey !== undefined) && (
-										<>
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<Button
-														size="icon"
-														variant="subtle"
-														className="size-6"
-														aria-label="Jump to previous user message"
-														disabled={prevUserMessageKey === undefined}
-														onClick={() => {
-															if (prevUserMessageKey !== undefined) {
-																onJumpToUserMessage(prevUserMessageKey);
-															}
-														}}
-													>
-														<ChevronLeftIcon />
-														<span className="sr-only">
-															Jump to previous user message
-														</span>
-													</Button>
-												</TooltipTrigger>
-												<TooltipContent side="bottom">
-													Jump to previous user message
-												</TooltipContent>
-											</Tooltip>
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<Button
-														size="icon"
-														variant="subtle"
-														className="size-6"
-														aria-label="Jump to next user message"
-														disabled={nextUserMessageKey === undefined}
-														onClick={() => {
-															if (nextUserMessageKey !== undefined) {
-																onJumpToUserMessage(nextUserMessageKey);
-															}
-														}}
-													>
-														<ChevronRightIcon />
-														<span className="sr-only">
-															Jump to next user message
-														</span>
-													</Button>
-												</TooltipTrigger>
-												<TooltipContent side="bottom">
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												size="icon"
+												variant="subtle"
+												className="size-6"
+												aria-label="Jump to next user message"
+												disabled={nextUserMessageKey === undefined}
+												onClick={() => {
+													if (nextUserMessageKey !== undefined) {
+														onJumpToUserMessage(nextUserMessageKey);
+													}
+												}}
+											>
+												<ChevronRightIcon />
+												<span className="sr-only">
 													Jump to next user message
-												</TooltipContent>
-											</Tooltip>
-										</>
-									)}
-							</div>
-						)}
-					</div>
+												</span>
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent side="bottom">
+											Jump to next user message
+										</TooltipContent>
+									</Tooltip>
+								</>
+							)}
+					</MessageActionBar>
 				)}
 				{displayState?.needsAssistantBottomSpacer &&
 					!isLastMessage &&
-					!showsTurnAttachments && (
+					!turnAttachments && (
 						<div className="min-h-6" data-testid="assistant-bottom-spacer" />
 					)}
 				{previewImage && (
@@ -462,24 +450,6 @@ const ChatMessageItem = memo<{
 		);
 	},
 );
-
-/**
- * The timeline body reruns on every stream chunk, and the compiler cannot
- * cache this call inside it, so memoized host rows would get new arrays each
- * time. "use memo" gives the hook its own cache keyed on these arguments.
- * The rows omit the live row, which never hosts attachments.
- */
-const useTurnAttachmentsByRow = (
-	parsedMessages: readonly ParsedMessageEntry[],
-	hidesAttachmentRows: boolean,
-	isLastTurnActive: boolean,
-) => {
-	"use memo";
-	return getTurnAttachmentsByRow(
-		assignTimelineRows(buildDisplayMessages(parsedMessages), false),
-		{ hidesAttachmentRows, isLastTurnActive },
-	);
-};
 
 type ConversationTimelineProps = {
 	hasMoreMessages: boolean;
