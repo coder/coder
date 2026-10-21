@@ -47,7 +47,7 @@ The per-model threshold on the same settings page becomes the **Handoff target**
 1. **Forced rollover**: Coder starts a new context window itself when the window reaches the usable limit, or when the provider rejects a request as too large for the model.
 
 Each stage fires at most once per context window.
-The usable limit is the model's context limit minus the smaller of two values: its **Max Output Tokens** (32,000 when unset) and a quarter of the context limit.
+The usable limit is the model's context limit minus the smaller of two values: its **Max Output Tokens** [model option](../models.md#general-options) (32,000 when unset) and a quarter of the context limit.
 The final prompt fires 16,000&nbsp;tokens below the usable limit, or at half of it if that point is higher.
 The handoff target is the threshold percentage of the context limit, at least 10%, and never later than the final prompt.
 For example, a model with a 200,000-token context limit, no **Max Output Tokens** value, and a 70% threshold reaches its handoff target at 140,000&nbsp;tokens.
@@ -97,11 +97,12 @@ Some behavior stays the same under Token budget, and some doesn't apply:
 
 - Sending `/compact` still summarizes the conversation, and the summary starts a new context window.
 - Sending `/clear` still resets the context.
-  It also hides earlier checkpoints and history from `chat_history`.
+  It also discards earlier checkpoints, and `chat_history` can't read messages before it.
 - Editing a message discards checkpoints the agent saved after it, together with the rest of the later conversation.
 - Coder doesn't dispatch the `pre_compact` and `post_compact` [lifecycle hooks](../../../admin/setup/chat-lifecycle-hooks.md) for a rollover, because a rollover doesn't summarize.
 - `chat_history` reads only the current chat, not its sub-agent chats.
 - If the provider rejects the first request of a new context window as too large, for example because of a large attachment, the chat fails with an error as it does under Summarize.
+- An organization's **Compaction** [model override](../models.md#model-overrides) applies only to `/compact`, because automatic summarizing doesn't run.
 
 If an administrator turns off the experiment, every chat uses Summarize again, and Coder keeps your saved choice for when the experiment returns.
 The [Prometheus metrics](../../../admin/integrations/prometheus.md) `coderd_chatd_context_handoff_total` and `coderd_chatd_context_rollover_total` count handoff prompts and rollovers.
