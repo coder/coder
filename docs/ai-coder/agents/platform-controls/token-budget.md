@@ -10,16 +10,16 @@ This page is for chat owners: it shows how to turn on Token budget for your chat
 
 ## Prerequisites
 
-An administrator must enable the `chat-token-budget` experiment on the Coder server:
-
-```sh
-coder server --experiments=chat-token-budget
-```
-
-Or set the environment variable:
+An administrator must enable the `chat-token-budget` experiment on the control plane with the `CODER_EXPERIMENTS` environment variable:
 
 ```sh
 CODER_EXPERIMENTS=chat-token-budget
+```
+
+Or pass the flag to `coder server`:
+
+```sh
+coder server --experiments=chat-token-budget
 ```
 
 ## Turn on Token budget for your chats
@@ -30,7 +30,9 @@ CODER_EXPERIMENTS=chat-token-budget
 
 The choice applies to every chat you own, including sub-agent chats, from the next model step on.
 **Summarize** is the default and keeps the [summarizing behavior](../architecture.md#context-compaction).
-To set the same choice from a script, send `GET` and `PUT` requests to `/api/experimental/chats/config/user-compaction-strategy`, using the values `summarize` and `token_budget`.
+To read your current strategy from a script, send `GET` to `/api/experimental/chats/config/user-compaction-strategy`.
+To set it, send `PUT` to the same path with a JSON body such as `{"strategy":"token_budget"}`.
+The valid values are `summarize` and `token_budget`.
 
 ## When a context window ends
 
