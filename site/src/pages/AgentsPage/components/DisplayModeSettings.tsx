@@ -8,26 +8,21 @@ import type {
 	UserPreferenceSettings,
 } from "#/api/typesGenerated";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/Select/Select";
-
-type DisplayModeOption<T extends string> = { value: T; label: string };
+	type SettingsSelectOption,
+	SettingsSelectRow,
+} from "./SettingsSelectRow";
 
 type ThinkingDisplayMode = UserPreferenceSettings["thinking_display_mode"];
 type AgentDisplayMode = UserPreferenceSettings["code_diff_display_mode"];
 
-const thinkingDisplayOptions: DisplayModeOption<ThinkingDisplayMode>[] = [
+const thinkingDisplayOptions: SettingsSelectOption<ThinkingDisplayMode>[] = [
 	{ value: "auto", label: "Auto" },
 	{ value: "preview", label: "Preview" },
 	{ value: "always_expanded", label: "Always expanded" },
 	{ value: "always_collapsed", label: "Always collapsed" },
 ];
 
-const agentDisplayOptions: DisplayModeOption<AgentDisplayMode>[] = [
+const agentDisplayOptions: SettingsSelectOption<AgentDisplayMode>[] = [
 	{ value: "auto", label: "Auto" },
 	{ value: "always_expanded", label: "Always expanded" },
 	{ value: "always_collapsed", label: "Always collapsed" },
@@ -39,7 +34,7 @@ type DisplayModeSettingsProps<T extends string> = {
 	ariaLabel: string;
 	errorMessage: string;
 	defaultValue: T;
-	options: DisplayModeOption<T>[];
+	options: SettingsSelectOption<T>[];
 	getMode: (settings: UserPreferenceSettings) => T;
 	updateSettings: (value: T) => UpdateUserPreferenceSettingsRequest;
 };
@@ -58,42 +53,20 @@ const DisplayModeSettings = <T extends string>({
 	const query = useQuery(preferenceSettings());
 	const mutation = useMutation(updatePreferenceSettings(queryClient));
 
-	const mode = query.data ? getMode(query.data) : defaultValue;
-
 	return (
-		<div className="flex flex-col gap-2">
-			<h3 className="m-0 text-sm font-semibold text-content-primary">
-				{title}
-			</h3>
-			<div className="flex items-center justify-between gap-4">
-				<p className="m-0 flex-1 text-xs text-content-secondary">
-					{description}
-				</p>
-				<Select
-					value={mode}
-					disabled={query.isLoading || !query.data}
-					onValueChange={(value: string) => {
-						const selected = options.find((opt) => opt.value === value);
-						if (!query.data || !selected) return;
-						mutation.mutate(updateSettings(selected.value));
-					}}
-				>
-					<SelectTrigger className="w-44 shrink-0" aria-label={ariaLabel}>
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						{options.map((opt) => (
-							<SelectItem key={opt.value} value={opt.value}>
-								{opt.label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-			</div>
-			{mutation.isError && (
-				<p className="m-0 text-xs text-content-destructive">{errorMessage}</p>
-			)}
-		</div>
+		<SettingsSelectRow
+			title={title}
+			description={description}
+			ariaLabel={ariaLabel}
+			value={query.data ? getMode(query.data) : defaultValue}
+			disabled={query.isLoading || !query.data}
+			options={options}
+			onValueChange={(value) => {
+				if (!query.data) return;
+				mutation.mutate(updateSettings(value));
+			}}
+			errorMessage={mutation.isError ? errorMessage : undefined}
+		/>
 	);
 };
 
