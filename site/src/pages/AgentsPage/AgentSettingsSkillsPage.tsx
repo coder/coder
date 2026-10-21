@@ -83,8 +83,6 @@ const AgentSettingsSkillsPage: React.FC = () => {
 		...organizationSkillPreferences(selected?.organization.id ?? ""),
 		enabled: Boolean(selected),
 	});
-	// The preferences decide between member controls and the read-only view.
-	const isLoadingPreferences = preferencesQuery.isPending;
 	const editablePreferences = preferencesQuery.data?.members_can_disable_skills
 		? preferencesQuery.data
 		: undefined;
@@ -103,6 +101,18 @@ const AgentSettingsSkillsPage: React.FC = () => {
 				/>
 			)
 		);
+
+	let organizationDescription: string;
+	if (!preferencesQuery.data) {
+		organizationDescription =
+			"Skills available to you. Ask an organization admin to change the skill content.";
+	} else if (editablePreferences) {
+		organizationDescription =
+			"Skills available to you. Turn off the ones you do not want in your chats. Ask an organization admin to change the skill content.";
+	} else {
+		organizationDescription =
+			"Read-only skills available to you. Ask an organization admin to change them.";
+	}
 
 	return (
 		<div className="flex flex-col gap-12">
@@ -158,11 +168,7 @@ const AgentSettingsSkillsPage: React.FC = () => {
 							copy={{
 								noun: "Organization skill",
 								title: organizationName,
-								description: !preferencesQuery.data
-									? "Skills available to you. Ask an organization admin to change the skill content."
-									: editablePreferences
-										? "Skills available to you. Turn off the ones you do not want in your chats. Ask an organization admin to change the skill content."
-										: "Read-only skills available to you. Ask an organization admin to change them.",
+								description: organizationDescription,
 								editorDescription:
 									"Read-only organization skill. Ask an organization admin to change it.",
 								archiveName: `${selected.organization.name}-skills.zip`,
@@ -171,7 +177,7 @@ const AgentSettingsSkillsPage: React.FC = () => {
 							enabledOnly
 							headerLevel="section"
 							toolbar={organizationToolbar}
-							isLoading={isLoadingPreferences}
+							isLoading={preferencesQuery.isPending}
 							renderEnabledCell={
 								editablePreferences
 									? (skill) => (
