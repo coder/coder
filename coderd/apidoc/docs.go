@@ -3751,7 +3751,7 @@ const docTemplate = `{
         "/api/v2/chats/files": {
             "post": {
                 "consumes": [
-                    "*/*"
+                    "application/octet-stream"
                 ],
                 "produces": [
                     "application/json"

@@ -1067,7 +1067,7 @@ func New(options *Options) *API {
 		Help:      "Total chat workspace file uploads by HTTP response status.",
 	}, []string{"status"})
 	options.PrometheusRegistry.MustRegister(api.chatWorkspaceUploadsTotal)
-	api.chatWorkspaceFileUploadSem = make(chan struct{}, maxConcurrentChatWorkspaceFileUploads)
+	api.chatWorkspaceUploadBudget = newUploadMemoryBudget(chatWorkspaceUploadMemoryBudget, chatWorkspaceUploadMemoryBudget/2)
 	api.wsWatcher = httpapi.NewWSWatcher(options.Clock, wsMetrics.RecordProbe)
 
 	api.workspaceAppServer = workspaceapps.NewServer(workspaceapps.ServerOptions{
@@ -2339,9 +2339,10 @@ type API struct {
 	wsWatcher                *httpapi.WSWatcher
 
 	chatWorkspaceUploadsTotal *prometheus.CounterVec
-	// chatWorkspaceFileUploadSem bounds concurrent workspace-purpose chat
-	// file uploads, which buffer up to 100 MiB each.
-	chatWorkspaceFileUploadSem chan struct{}
+	// chatWorkspaceUploadBudget bounds the memory that workspace-purpose
+	// chat file uploads hold while they buffer and store bodies of up to
+	// 100 MiB.
+	chatWorkspaceUploadBudget *uploadMemoryBudget
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app

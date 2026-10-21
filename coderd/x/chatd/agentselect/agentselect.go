@@ -57,18 +57,6 @@ func FindChatAgent(
 		return database.WorkspaceAgent{}, ErrNoEligibleAgents
 	}
 
-	compareAgents := func(a, b database.WorkspaceAgent) int {
-		if order := cmp.Compare(a.DisplayOrder, b.DisplayOrder); order != 0 {
-			return order
-		}
-		if order := cmp.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name)); order != 0 {
-			return order
-		}
-		if order := cmp.Compare(a.Name, b.Name); order != 0 {
-			return order
-		}
-		return cmp.Compare(a.ID.String(), b.ID.String())
-	}
 	slices.SortStableFunc(rootAgents, compareAgents)
 	slices.SortStableFunc(matchingAgents, compareAgents)
 
@@ -89,6 +77,34 @@ func FindChatAgent(
 			ErrMultipleChatAgents,
 		)
 	}
+}
+
+// FirstChatAgent returns the first root agent whose name uses Suffix,
+// in FindChatAgent's order, even when several match. ok is false when
+// none matches.
+func FirstChatAgent(agents []database.WorkspaceAgent) (agent database.WorkspaceAgent, ok bool) {
+	for _, candidate := range agents {
+		if candidate.ParentID.Valid || !IsChatAgent(candidate.Name) {
+			continue
+		}
+		if !ok || compareAgents(candidate, agent) < 0 {
+			agent, ok = candidate, true
+		}
+	}
+	return agent, ok
+}
+
+func compareAgents(a, b database.WorkspaceAgent) int {
+	if order := cmp.Compare(a.DisplayOrder, b.DisplayOrder); order != 0 {
+		return order
+	}
+	if order := cmp.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name)); order != 0 {
+		return order
+	}
+	if order := cmp.Compare(a.Name, b.Name); order != 0 {
+		return order
+	}
+	return cmp.Compare(a.ID.String(), b.ID.String())
 }
 
 // ForChat picks the agent that serves chat among agents, the agents of the
