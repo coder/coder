@@ -8,7 +8,10 @@ import {
 } from "#/components/Popover/Popover";
 import { isRasterImageMediaType } from "../../utils/chatAttachments";
 import { ImageThumbnail } from "../AttachmentPreview";
-import { AgentAttachmentList } from "./AgentAttachmentList";
+import {
+	AgentAttachmentList,
+	isAgentAttachmentExpired,
+} from "./AgentAttachmentList";
 import { isTextPreviewAttachmentMediaType } from "./AttachmentBlocks";
 import { useFileProbes } from "./FileProbeContext";
 import type { AgentAttachment } from "./messageHelpers";
@@ -88,10 +91,7 @@ export const TurnAttachments: React.FC<TurnAttachmentsProps> = ({
 							<AttachmentThumbnail
 								key={attachment.key}
 								attachment={attachment}
-								expired={
-									attachment.file.file_id !== undefined &&
-									hasExpired(attachment.file.file_id)
-								}
+								expired={isAgentAttachmentExpired(attachment, hasExpired)}
 							/>
 						))}
 						{overflow > 0 && (

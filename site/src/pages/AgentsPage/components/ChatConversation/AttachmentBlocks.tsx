@@ -109,10 +109,7 @@ const getAttachmentExtension = (
 	);
 };
 
-/**
- * Whether the media type is in TEXT_ATTACHMENT_MEDIA_TYPES, the types the
- * text preview renders.
- */
+/** True for the media types the text preview renders. */
 export const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
 	TEXT_ATTACHMENT_MEDIA_TYPES.has(mediaType);
 

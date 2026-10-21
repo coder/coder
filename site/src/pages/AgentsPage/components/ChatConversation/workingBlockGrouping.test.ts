@@ -1335,7 +1335,7 @@ describe("getTurnAttachmentsByRow", () => {
 			user("One more"),
 			message("assistant", [text("Here:"), file("b")]),
 		]);
-		const fileIds = (hasMoreMessages: boolean) =>
+		const rowFileIds = (hasMoreMessages: boolean) =>
 			fileIdsByRow(
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: false,
@@ -1344,8 +1344,8 @@ describe("getTurnAttachmentsByRow", () => {
 				}),
 			);
 
-		expect(fileIds(true)).toEqual([["message:3", ["b"]]]);
-		expect(fileIds(false)).toEqual([
+		expect(rowFileIds(true)).toEqual([["message:3", ["b"]]]);
+		expect(rowFileIds(false)).toEqual([
 			["message:1", ["a"]],
 			["message:3", ["b"]],
 		]);

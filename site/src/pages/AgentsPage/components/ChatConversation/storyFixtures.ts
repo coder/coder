@@ -461,10 +461,7 @@ if (!mockSearchAnswer) {
 	throw new Error("MockWebSearchAnswerMessages has no answer.");
 }
 
-/**
- * MockMixedAttachmentMessages whose first turn ends in a searched answer, so
- * that row renders in the expanded block (its steps) and below it (its text).
- */
+/** MockMixedAttachmentMessages whose first turn ends in a searched answer. */
 export const MockSearchAnswerAttachmentMessages: TypesGen.ChatMessage[] =
 	MockMixedAttachmentMessages.map((message) =>
 		message.id === 9 ? { ...mockSearchAnswer, id: message.id } : message,

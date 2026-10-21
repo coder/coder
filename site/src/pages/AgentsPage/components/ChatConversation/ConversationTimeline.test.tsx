@@ -376,8 +376,8 @@ describe("ConversationTimeline turn attachments", () => {
 
 	it("lists a turn's files once it stops running", async () => {
 		const user = userEvent.setup();
-		// The page keeps the parsed messages when only the status changes, so
-		// the pill must follow the status alone.
+		// Both stages share the parsed messages, so only the status change can
+		// bring the pill in.
 		const parsedMessages = parseMessagesWithMergedTools(
 			MockMixedAttachmentMessages,
 		);
