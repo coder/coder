@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-	findFilePathMentions,
-	parseFilePathMention,
-} from "./filePathMentions";
+import { findFilePathMentions, parseFilePathMention } from "./filePathMentions";
 
 describe("parseFilePathMention", () => {
 	it.each([

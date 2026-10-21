@@ -25,11 +25,7 @@ type FileMentionProps = {
  * A file path mentioned in chat text. Clicking opens the file; relative
  * paths are resolved against the chat's repositories first.
  */
-export const FileMention: FC<FileMentionProps> = ({
-	path,
-	line,
-	children,
-}) => {
+export const FileMention: FC<FileMentionProps> = ({ path, line, children }) => {
 	const files = useWorkspaceFiles();
 	const queryClient = useQueryClient();
 	const [pending, setPending] = useState(false);
