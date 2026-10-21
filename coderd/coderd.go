@@ -1395,6 +1395,7 @@ func New(options *Options) *API {
 		r.Route("/workspaceagents/{workspaceagent}/files", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
+				httpmw.NoStore,
 				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentWorkspaceFiles),
 				httpmw.ExtractWorkspaceAgentAndWorkspaceParam(options.Database),
 			)
