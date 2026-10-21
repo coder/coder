@@ -172,7 +172,7 @@ type structuredTurn struct {
 func loadStructuredTurn(ctx context.Context, store database.Store, chatID uuid.UUID) (*structuredTurn, error) {
 	pending, err := store.GetPendingChatStructuredOutput(ctx, chatID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
+		return nil, nil //nolint:nilnil // nil means nothing to do.
 	}
 	if err != nil {
 		return nil, xerrors.Errorf("get pending structured output: %w", err)
@@ -300,7 +300,7 @@ type structuredStepUpdate struct {
 // successful result means a lone call whose arguments the runner validated.
 func finalizerStepUpdate(structured *structuredTurn, calls []fantasy.ToolCallContent, content []fantasy.Content) (*structuredStepUpdate, error) {
 	if structured == nil {
-		return nil, nil
+		return nil, nil //nolint:nilnil // nil means nothing to do.
 	}
 	update := &structuredStepUpdate{pending: structured.pending}
 	for _, block := range content {
@@ -323,7 +323,7 @@ func finalizerStepUpdate(structured *structuredTurn, calls []fantasy.ToolCallCon
 		update.value = value
 	}
 	if update.value == nil && update.rejected == 0 {
-		return nil, nil
+		return nil, nil //nolint:nilnil // nil means nothing to do.
 	}
 	return update, nil
 }

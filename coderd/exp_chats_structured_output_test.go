@@ -25,6 +25,8 @@ import (
 	"github.com/coder/serpent"
 )
 
+var structuredOn = []codersdk.Experiment{codersdk.ExperimentChatStructuredOutput}
+
 const structuredTestSchema = `{"type":"object","properties":{"v":{"type":"string"}},"required":["v"]}`
 
 // structuredOutputFixture is a coderd with a fake OpenAI-compatible model
@@ -37,7 +39,7 @@ type structuredOutputFixture struct {
 	calls  *atomic.Int32
 }
 
-func newStructuredOutputFixture(t *testing.T, experiment bool, respond func(step int) chattest.OpenAIResponse) structuredOutputFixture {
+func newStructuredOutputFixture(t *testing.T, experiments []codersdk.Experiment, respond func(step int) chattest.OpenAIResponse) structuredOutputFixture {
 	t.Helper()
 	var calls atomic.Int32
 	baseURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
@@ -48,8 +50,8 @@ func newStructuredOutputFixture(t *testing.T, experiment bool, respond func(step
 	})
 	values := coderdtest.DeploymentValues(t)
 	values.Experiments = serpent.StringArray{string(codersdk.ExperimentChatAdvisor)}
-	if experiment {
-		values.Experiments = append(values.Experiments, string(codersdk.ExperimentChatStructuredOutput))
+	for _, experiment := range experiments {
+		values.Experiments = append(values.Experiments, string(experiment))
 	}
 	opts := newChatTestOptions(t, values)
 	client, _, api := coderdtest.NewWithAPI(t, opts)
@@ -133,7 +135,7 @@ func requireSucceeded(t *testing.T, out codersdk.ChatStructuredOutput, value str
 func TestStructuredOutputCreateSucceeds(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{})
-	f := newStructuredOutputFixture(t, true, func(step int) chattest.OpenAIResponse {
+	f := newStructuredOutputFixture(t, structuredOn, func(step int) chattest.OpenAIResponse {
 		if step == 0 {
 			<-release
 			return finalizerResponse(`{"output":{"v":"OK"}}`)
@@ -154,7 +156,7 @@ func TestStructuredOutputCreateSucceeds(t *testing.T) {
 // result.
 func TestStructuredOutputSendSucceeds(t *testing.T) {
 	t.Parallel()
-	f := newStructuredOutputFixture(t, true, func(step int) chattest.OpenAIResponse {
+	f := newStructuredOutputFixture(t, structuredOn, func(step int) chattest.OpenAIResponse {
 		if step == 1 {
 			return finalizerResponse(`{"output":{"v":"SENT"}}`)
 		}
@@ -176,7 +178,7 @@ func TestStructuredOutputFailures(t *testing.T) {
 	t.Parallel()
 	t.Run("ValidationExhausted", func(t *testing.T) {
 		t.Parallel()
-		f := newStructuredOutputFixture(t, true, func(step int) chattest.OpenAIResponse {
+		f := newStructuredOutputFixture(t, structuredOn, func(step int) chattest.OpenAIResponse {
 			if step < 3 {
 				return finalizerResponse(`{"output":{"v":1}}`)
 			}
@@ -189,7 +191,7 @@ func TestStructuredOutputFailures(t *testing.T) {
 	})
 	t.Run("NotProduced", func(t *testing.T) {
 		t.Parallel()
-		f := newStructuredOutputFixture(t, true, func(int) chattest.OpenAIResponse { return textResponse() })
+		f := newStructuredOutputFixture(t, structuredOn, func(int) chattest.OpenAIResponse { return textResponse() })
 		chat, messageID := f.createStructuredChat(t)
 		requireFailed(t, f.settled(t, chat.ID, messageID), codersdk.ChatStructuredOutputErrorCodeNotProduced)
 	})
@@ -214,7 +216,7 @@ func TestStructuredOutputInterrupt(t *testing.T) {
 			t.Parallel()
 			blocked := make(chan struct{})
 			block := make(chan struct{})
-			f := newStructuredOutputFixture(t, true, func(step int) chattest.OpenAIResponse {
+			f := newStructuredOutputFixture(t, structuredOn, func(step int) chattest.OpenAIResponse {
 				if tt.withValue && step == 0 {
 					return finalizerResponse(`{"output":{"v":"EARLY"}}`)
 				}
@@ -255,7 +257,7 @@ func TestStructuredOutputGenerationError(t *testing.T) {
 	}
 	t.Run("AfterValue", func(t *testing.T) {
 		t.Parallel()
-		f := newStructuredOutputFixture(t, true, func(step int) chattest.OpenAIResponse {
+		f := newStructuredOutputFixture(t, structuredOn, func(step int) chattest.OpenAIResponse {
 			if step == 0 {
 				return finalizerResponse(`{"output":{"v":"KEPT"}}`)
 			}
@@ -270,7 +272,7 @@ func TestStructuredOutputGenerationError(t *testing.T) {
 	})
 	t.Run("BeforeValue", func(t *testing.T) {
 		t.Parallel()
-		f := newStructuredOutputFixture(t, true, func(int) chattest.OpenAIResponse { return fail() })
+		f := newStructuredOutputFixture(t, structuredOn, func(int) chattest.OpenAIResponse { return fail() })
 		chat, messageID := f.createStructuredChat(t)
 		requireFailed(t, f.settled(t, chat.ID, messageID), codersdk.ChatStructuredOutputErrorCodeGenerationFailed)
 	})
@@ -290,7 +292,7 @@ func structuredRequest(ctx context.Context, t *testing.T, client *codersdk.Exper
 func TestStructuredOutputRejections(t *testing.T) {
 	t.Parallel()
 	block := make(chan struct{})
-	f := newStructuredOutputFixture(t, true, func(step int) chattest.OpenAIResponse {
+	f := newStructuredOutputFixture(t, structuredOn, func(step int) chattest.OpenAIResponse {
 		if step == 0 {
 			<-block
 		}
@@ -341,7 +343,7 @@ func TestStructuredOutputRejections(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, structuredRequest(f.ctx, t, f.client, http.MethodPost, "/api/v2/chats/"+child.ID.String()+"/messages", sendBody), "sub-agent chat")
 
 	// With the experiment off, new requests fail and results stay readable.
-	off := newStructuredOutputFixture(t, false, func(int) chattest.OpenAIResponse { return textResponse() })
+	off := newStructuredOutputFixture(t, nil, func(int) chattest.OpenAIResponse { return textResponse() })
 	offBody := `{"organization_id":"` + off.org.String() + `","content":[{"type":"text","text":"x"}],"response_format":` + format + `}`
 	require.Equal(t, http.StatusBadRequest, structuredRequest(off.ctx, t, off.client, http.MethodPost, "/api/v2/chats", offBody), "experiment off")
 	offChat, err := off.client.CreateChat(off.ctx, codersdk.CreateChatRequest{OrganizationID: off.org, Content: structuredText("plain")})
@@ -364,7 +366,7 @@ func TestStructuredOutputRejections(t *testing.T) {
 // another user's chat.
 func TestStructuredOutputNotFound(t *testing.T) {
 	t.Parallel()
-	f := newStructuredOutputFixture(t, true, func(step int) chattest.OpenAIResponse {
+	f := newStructuredOutputFixture(t, structuredOn, func(step int) chattest.OpenAIResponse {
 		if step == 0 {
 			return finalizerResponse(`{"output":{"v":"OK"}}`)
 		}

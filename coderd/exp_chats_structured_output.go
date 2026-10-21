@@ -23,7 +23,7 @@ var structuredOutputErrorMessages = map[codersdk.ChatStructuredOutputErrorCode]s
 	codersdk.ChatStructuredOutputErrorCodeConfigurationError:  "The chat's model or tools cannot produce structured output.",
 }
 
-// getChatMessageStructuredOutput returns the result of the user message
+// chatMessageStructuredOutput returns the result of the user message
 // that set response_format. It works with the experiment off, so
 // existing results stay readable.
 //
@@ -36,7 +36,7 @@ var structuredOutputErrorMessages = map[codersdk.ChatStructuredOutputErrorCode]s
 // @Param message path int true "Message ID"
 // @Success 200 {object} codersdk.ChatStructuredOutput
 // @Router /api/v2/chats/{chat}/messages/{message}/structured-output [get]
-func (api *API) getChatMessageStructuredOutput(rw http.ResponseWriter, r *http.Request) {
+func (api *API) chatMessageStructuredOutput(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 	messageID, err := strconv.ParseInt(chi.URLParam(r, "message"), 10, 64)
