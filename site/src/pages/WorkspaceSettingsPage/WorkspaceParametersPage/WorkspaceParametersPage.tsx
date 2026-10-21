@@ -33,11 +33,13 @@ const WorkspaceParametersPage: React.FC = () => {
 	const mustUseActiveVersion =
 		workspace.template_require_active_version &&
 		!permissions?.updateWorkspaceVersion;
-	const requestedVersionId = searchParams.get("templateVersionId") ?? undefined;
-	const templateVersionId = mustUseActiveVersion
+	const requestedVersionId =
+		searchParams.get("templateVersionId") ??
+		workspace.latest_build.template_version_id;
+	const resolvedVersionId = mustUseActiveVersion
 		? workspace.template_active_version_id
 		: requestedVersionId;
-	const permissionsLoaded = permissions !== undefined;
+	const templateVersionId = permissions ? resolvedVersionId : undefined;
 
 	const [confirmingRestart, setConfirmingRestart] = useState<{
 		open: boolean;
@@ -126,14 +128,11 @@ const WorkspaceParametersPage: React.FC = () => {
 	}, [latestBuildParametersLoading]);
 
 	useEffect(() => {
-		// The target version depends on permissions.
-		if (!permissionsLoaded) return;
-		if (!templateVersionId && !workspace.latest_build.template_version_id)
-			return;
+		if (!templateVersionId) return;
 
 		// CLEANUP(bad-vibes): raw api call
 		const socket = API.templateVersionDynamicParameters(
-			templateVersionId ?? workspace.latest_build.template_version_id,
+			templateVersionId,
 			workspace.owner_id,
 			{
 				onOpen: () => {
@@ -176,12 +175,7 @@ const WorkspaceParametersPage: React.FC = () => {
 		return () => {
 			socket.close();
 		};
-	}, [
-		permissionsLoaded,
-		templateVersionId,
-		workspace.latest_build.template_version_id,
-		workspace.owner_id,
-	]);
+	}, [templateVersionId, workspace.owner_id]);
 
 	const startWithParameters = useMutation({
 		mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>
