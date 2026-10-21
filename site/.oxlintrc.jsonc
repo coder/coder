@@ -1,9 +1,7 @@
 {
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
 	"plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y", "vitest"],
-	// Turn every default-on category off so nothing runs unless explicitly
-	// enabled below.
-	"categories": { "correctness": "off" },
+	"categories": { "correctness": "error" },
 	"rules": {
 		// --- a11y (jsx-a11y) ---
 		"no-access-key": "error",
@@ -219,6 +217,31 @@
 		"no-noninteractive-tabindex": "off", // a11y/noNoninteractiveTabindex (small)
 		"interactive-supports-focus": "off", // a11y/useFocusableInteractive (small)
 		"iframe-has-title": "off", // a11y/useIframeTitle (small)
+
+		// Correctness category rules with existing violations.
+		// Format: "oxlint-rule": "off" // (effort)
+		"require-mock-type-parameters": "off", // (xl)
+		"prefer-tag-over-role": "off", // (large)
+		"vitest/no-conditional-expect": "off", // (large)
+		"vitest/expect-expect": "off", // (large)
+		"set-state-in-effect": "off", // (medium)
+		"vitest/valid-title": "off", // (medium)
+		"no-thenable": "off", // (medium)
+		"no-new-array": "off", // (medium)
+		"vitest/require-to-throw-message": "off", // (small)
+		"globals": "off", // (small)
+		"no-static-element-interactions": "off", // (small)
+		"immutability": "off", // (small)
+		"vitest/valid-expect": "off", // (small)
+		"purity": "off", // (small)
+		"no-useless-spread": "off", // (small)
+		"preserve-manual-memoization": "off", // (small)
+		"control-has-associated-label": "off", // (small)
+		"no-noninteractive-element-interactions": "off", // (small)
+		"no-useless-fallback-in-spread": "off", // (small)
+		"no-conditional-tests": "off", // (small)
+		"static-components": "off", // (small)
+
 		"no-restricted-imports": [
 			"error",
 			{
