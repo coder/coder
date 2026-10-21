@@ -3,7 +3,9 @@ package chattool_test
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
+	"unicode/utf16"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -18,16 +20,27 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+type chatHistoryItem struct {
+	ItemID          string `json:"itemId"`
+	WindowID        string `json:"windowId"`
+	Role            string `json:"role"`
+	StartCharOffset int    `json:"startCharOffset"`
+	Text            string `json:"text"`
+	NextCharOffset  *int   `json:"nextCharOffset"`
+}
+
 type chatHistoryWindow struct {
 	WindowID     string `json:"windowId"`
 	BoundaryKind string `json:"boundaryKind"`
 }
 
 type chatHistoryResult struct {
-	Success bool                `json:"success"`
-	Error   string              `json:"error"`
-	HasMore bool                `json:"has_more"`
-	Windows []chatHistoryWindow `json:"windows"`
+	Success   bool                `json:"success"`
+	Error     string              `json:"error"`
+	HasMore   bool                `json:"has_more"`
+	Truncated bool                `json:"truncated"`
+	Items     []chatHistoryItem   `json:"items"`
+	Windows   []chatHistoryWindow `json:"windows"`
 }
 
 type chatHistoryFixture struct {
@@ -97,7 +110,7 @@ func runChatHistory(t *testing.T, tool fantasy.AgentTool, args map[string]any) (
 }
 
 func (f chatHistoryFixture) tool() fantasy.AgentTool {
-	return chattool.ChatHistory(chattool.ChatHistoryOptions{DB: f.db, ChatID: f.chat.ID})
+	return chattool.ChatHistory(chattool.ChatHistoryOptions{DB: f.db, ChatID: f.chat.ID, ParseContent: chatprompt.ParseContent})
 }
 
 func TestChatHistory(t *testing.T) {
@@ -135,7 +148,7 @@ func TestChatHistory(t *testing.T) {
 	t.Run("PrivacyFloor", func(t *testing.T) {
 		t.Parallel()
 		f := newFixture(t)
-		f.user(t, "secret before clear")
+		secret := f.user(t, "secret before clear")
 		f.boundary(t, "chat_summarized", `{"summary":"secret summary"}`)
 		clearWindow := f.boundary(t, "chat_cleared", `{"source":"manual"}`)
 		f.user(t, "after clear")
@@ -144,9 +157,73 @@ func TestChatHistory(t *testing.T) {
 		result, _ := runChatHistory(t, tool, map[string]any{"action": "list_windows"})
 		require.Equal(t, []chatHistoryWindow{{WindowID: clearWindow, BoundaryKind: "clear"}}, result.Windows)
 
+		result, _ = runChatHistory(t, tool, map[string]any{"action": "read_item", "item_id": fmt.Sprint(secret)})
+		require.False(t, result.Success)
+		require.Equal(t, "item_not_found", result.Error)
+
 		result, _ = runChatHistory(t, tool, map[string]any{"action": "list_windows", "window_id": "w:0"})
 		require.False(t, result.Success)
 		require.Equal(t, "window_not_found", result.Error)
+	})
+
+	t.Run("ReadItemPaging", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		text := "abcd\U0001F600efgh"
+		id := f.user(t, text)
+		tool := f.tool()
+
+		var pages []string
+		offset := 0
+		for {
+			result, _ := runChatHistory(t, tool, map[string]any{"action": "read_item", "item_id": fmt.Sprint(id), "offset_chars": offset, "limit_chars": 5})
+			require.True(t, result.Success)
+			require.Len(t, result.Items, 1)
+			item := result.Items[0]
+			require.Equal(t, offset, item.StartCharOffset)
+			pages = append(pages, item.Text)
+			if item.NextCharOffset == nil {
+				break
+			}
+			offset = *item.NextCharOffset
+		}
+		// The first page stops before the surrogate pair instead of splitting it.
+		require.Equal(t, []string{"abcd", "\U0001F600efg", "h"}, pages)
+
+		// A manual offset inside the pair rounds back to include it.
+		result, _ := runChatHistory(t, tool, map[string]any{"action": "read_item", "item_id": fmt.Sprint(id), "offset_chars": 5, "limit_chars": 3})
+		require.Equal(t, 4, result.Items[0].StartCharOffset)
+		require.Equal(t, "\U0001F600e", result.Items[0].Text)
+	})
+
+	t.Run("ProjectionOmitsReasoningAndNestedHistory", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		assistant := f.insert(t, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, false,
+			codersdk.ChatMessageReasoning("private reasoning"),
+			codersdk.ChatMessageText("visible answer"),
+			codersdk.ChatMessageFile(uuid.New(), "image/png", "diagram.png"),
+			codersdk.ChatMessageToolCall("call", "execute", json.RawMessage(`{"command":"`+strings.Repeat("a", 3000)+`"}`)),
+		)
+		results := f.insert(t, database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, false,
+			codersdk.ChatMessageToolResult("call", "execute", json.RawMessage(`{"output":"done"}`), false, false),
+			codersdk.ChatMessageToolResult("history", chattool.ChatHistoryToolName, json.RawMessage(`{"items":[{"text":"recursive"}]}`), false, false),
+		)
+		tool := f.tool()
+
+		result, _ := runChatHistory(t, tool, map[string]any{"action": "read_item", "item_id": fmt.Sprint(assistant), "limit_chars": 16000})
+		require.Len(t, result.Items, 1)
+		text := result.Items[0].Text
+		require.Contains(t, text, "visible answer")
+		require.Contains(t, text, "execute")
+		require.Contains(t, text, "[file: diagram.png]")
+		require.NotContains(t, text, "private reasoning")
+		require.Less(t, len(text), 3000, "tool call arguments are truncated")
+
+		result, _ = runChatHistory(t, tool, map[string]any{"action": "read_item", "item_id": fmt.Sprint(results)})
+		text = result.Items[0].Text
+		require.Contains(t, text, `{"output":"done"}`)
+		require.NotContains(t, text, "recursive")
 	})
 
 	t.Run("RejectsUnsupportedArguments", func(t *testing.T) {
@@ -157,11 +234,29 @@ func TestChatHistory(t *testing.T) {
 			want string
 		}{
 			{map[string]any{"action": "delete"}, "invalid_action"},
+			{map[string]any{"action": "read_item"}, "item_id_required"},
+			{map[string]any{"action": "read_item", "item_id": "1", "recent_first": true}, "filters_unsupported"},
 			{map[string]any{"action": "list_windows", "limit": -1}, "invalid_arguments"},
 		} {
 			got, _ := runChatHistory(t, tool, tc.args)
 			require.False(t, got.Success, tc.args)
 			require.Equal(t, tc.want, got.Error, tc.args)
 		}
+	})
+
+	t.Run("ResultCap", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		// JSON escapes '<' as six bytes, so the cap must count encoded bytes.
+		id := f.user(t, strings.Repeat("<", 40_000))
+		tool := f.tool()
+
+		result, raw := runChatHistory(t, tool, map[string]any{"action": "read_item", "item_id": fmt.Sprint(id), "limit_chars": 16000})
+		require.LessOrEqual(t, len(raw), 16*1024)
+		require.True(t, result.Truncated)
+		item := result.Items[0]
+		require.NotEmpty(t, item.Text)
+		require.NotNil(t, item.NextCharOffset)
+		require.Equal(t, item.StartCharOffset+len(utf16.Encode([]rune(item.Text))), *item.NextCharOffset)
 	})
 }

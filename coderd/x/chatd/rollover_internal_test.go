@@ -214,7 +214,7 @@ func TestContextWindowID(t *testing.T) {
 func TestContextWindowToolsAllowedInRestrictedModes(t *testing.T) {
 	t.Parallel()
 
-	names := []string{chattool.SaveCheckpointToolName, chattool.NewContextToolName}
+	names := []string{chattool.SaveCheckpointToolName, chattool.NewContextToolName, chattool.ChatHistoryToolName}
 	tools := make([]fantasy.AgentTool, 0, len(names))
 	for _, name := range names {
 		require.True(t, builtinPlanToolAllowed(name, true), name)
