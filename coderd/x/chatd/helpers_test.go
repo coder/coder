@@ -466,9 +466,12 @@ func interruptChat(t *testing.T, f *workerTestFixture, chatID uuid.UUID) databas
 	ctx := testutil.Context(t, testutil.WaitShort)
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatID)
 	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		if _, err := tx.Interrupt(chatstate.InterruptInput{}); err != nil {
+			return err
+		}
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage(t, "interrupt", f.user.ID, f.model.ID, f.apiKey.ID),
-			BusyBehavior: chatstate.BusyBehaviorInterrupt,
+			BusyBehavior: chatstate.BusyBehaviorSteer,
 			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err

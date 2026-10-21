@@ -3186,6 +3186,38 @@ func TestInterruptAgentReportsWhetherItInterrupted(t *testing.T) {
 	}
 }
 
+func TestMessageAgentSteersBusyChild(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	parent, child := createParentChildChats(ctx, t, server, user, org, model)
+	setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
+
+	result := requireToolResponseMap(t, runSubagentTool(
+		ctx,
+		t,
+		server,
+		parent,
+		model.ID,
+		"message_agent",
+		messageAgentArgs{ChatID: child.ID.String(), Message: "change of plan"},
+	), false)
+	require.Equal(t, string(database.ChatStatusRunning), result["status"])
+
+	queued, err := db.GetChatQueuedMessages(ctx, child.ID)
+	require.NoError(t, err)
+	require.Len(t, queued, 1)
+	require.Equal(t, database.ChatBusyBehaviorSteer, queued[0].BusyBehavior)
+
+	childChat, err := db.GetChatByID(ctx, child.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusRunning, childChat.Status)
+}
+
 func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 	t.Parallel()
 

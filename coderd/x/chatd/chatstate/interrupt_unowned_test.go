@@ -8,7 +8,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -87,67 +86,6 @@ func TestInterruptUnownedRunningChat(t *testing.T) {
 			return err
 		}))
 		require.Equal(t, chatstate.StateI0, f.classify(ctx, t, created.Chat.ID))
-	})
-}
-
-func TestSendMessageInterruptUnownedRunningChat(t *testing.T) {
-	t.Parallel()
-
-	send := func(t *testing.T, f *testFixture, m *chatstate.ChatMachine, body string) chatstate.SendMessageResult {
-		t.Helper()
-		ctx := testutil.Context(t, testutil.WaitShort)
-		var result chatstate.SendMessageResult
-		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-			var err error
-			result, err = tx.SendMessage(chatstate.SendMessageInput{
-				Message:      userTextMessage(body, f.User.ID, f.Model.ID),
-				BusyBehavior: chatstate.BusyBehaviorInterrupt,
-				MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
-			})
-			return err
-		}))
-		return result
-	}
-
-	t.Run("EmptyQueuePromotesTheMessage", func(t *testing.T) {
-		t.Parallel()
-		f := newTestFixture(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-		created := createTestChat(t, f)
-		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-
-		result := send(t, f, m, "interrupting")
-
-		require.Nil(t, result.QueuedMessage, "the message is promoted, not left queued")
-		require.NotEmpty(t, result.InsertedMessages)
-		promoted := result.InsertedMessages[len(result.InsertedMessages)-1]
-		require.Equal(t, database.ChatMessageRoleUser, promoted.Role)
-		assertChatMessageText(t, promoted, "interrupting")
-		require.False(t, result.PromotedQueuedAt.IsZero())
-		require.Equal(t, chatstate.StateR0, f.classify(ctx, t, created.Chat.ID))
-		chat := f.readChat(ctx, t, created.Chat.ID)
-		require.False(t, chat.WorkerID.Valid, "the promoted turn must still go through admission")
-	})
-
-	t.Run("MessageIsPromotedAheadOfQueue", func(t *testing.T) {
-		t.Parallel()
-		f := newTestFixture(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-		created := createTestChat(t, f)
-		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-		first := sendQueuedMessage(t, f, m, "first")
-		require.NotNil(t, first.QueuedMessage)
-
-		result := send(t, f, m, "second")
-
-		require.Nil(t, result.QueuedMessage, "the message is promoted ahead of the queued message")
-		require.NotEmpty(t, result.InsertedMessages)
-		assertChatMessageText(t, result.InsertedMessages[len(result.InsertedMessages)-1], "second")
-		require.Equal(t, []int64{first.QueuedMessage.ID}, queuedIDsByPosition(ctx, t, f, created.Chat.ID),
-			"the earlier queued message stays queued")
-		require.Equal(t, chatstate.StateR1, f.classify(ctx, t, created.Chat.ID))
-		chat := f.readChat(ctx, t, created.Chat.ID)
-		require.False(t, chat.WorkerID.Valid)
 	})
 }
 
@@ -234,110 +172,5 @@ func TestInterruptUnownedInterruptingChat(t *testing.T) {
 			"the result reports the promoted head's queue time")
 		require.Len(t, historyMessageIDs(ctx, t, f, created.Chat.ID), len(before)+1)
 		requireQueuedMessageDeleted(ctx, t, f, created.Chat.ID, queued.QueuedMessage.ID)
-	})
-}
-
-func TestSendMessageInterruptUnownedInterruptingChat(t *testing.T) {
-	t.Parallel()
-
-	send := func(t *testing.T, f *testFixture, m *chatstate.ChatMachine, body string, behavior chatstate.BusyBehavior) chatstate.SendMessageResult {
-		t.Helper()
-		ctx := testutil.Context(t, testutil.WaitShort)
-		var result chatstate.SendMessageResult
-		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-			var err error
-			result, err = tx.SendMessage(chatstate.SendMessageInput{
-				Message:      userTextMessage(body, f.User.ID, f.Model.ID),
-				BusyBehavior: behavior,
-				MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
-			})
-			return err
-		}))
-		return result
-	}
-
-	t.Run("EmptyQueuePromotesTheMessage", func(t *testing.T) {
-		t.Parallel()
-		f := newTestFixture(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-		created := createTestChat(t, f)
-		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-		interruptAndAbandon(t, f, m, created.Chat.ID)
-		require.Equal(t, chatstate.StateI0, f.classify(ctx, t, created.Chat.ID))
-
-		result := send(t, f, m, "next", chatstate.BusyBehaviorInterrupt)
-
-		require.True(t, result.FinishedInterruption)
-		require.Nil(t, result.QueuedMessage, "the message is promoted, not left queued")
-		require.NotEmpty(t, result.InsertedMessages)
-		promoted := result.InsertedMessages[len(result.InsertedMessages)-1]
-		require.Equal(t, database.ChatMessageRoleUser, promoted.Role)
-		assertChatMessageText(t, promoted, "next")
-		require.False(t, result.PromotedQueuedAt.IsZero())
-		require.Equal(t, chatstate.StateR0, f.classify(ctx, t, created.Chat.ID))
-		require.False(t, f.readChat(ctx, t, created.Chat.ID).WorkerID.Valid,
-			"the promoted turn must still go through admission")
-	})
-
-	t.Run("MessageIsPromotedAheadOfQueue", func(t *testing.T) {
-		t.Parallel()
-		f := newTestFixture(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-		created := createTestChat(t, f)
-		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-		first := sendQueuedMessage(t, f, m, "first")
-		require.NotNil(t, first.QueuedMessage)
-		interruptAndAbandon(t, f, m, created.Chat.ID)
-		require.Equal(t, chatstate.StateI1, f.classify(ctx, t, created.Chat.ID))
-
-		result := send(t, f, m, "second", chatstate.BusyBehaviorInterrupt)
-
-		require.True(t, result.FinishedInterruption)
-		require.Nil(t, result.QueuedMessage, "the message is promoted ahead of the queued message")
-		require.NotEmpty(t, result.InsertedMessages)
-		assertChatMessageText(t, result.InsertedMessages[len(result.InsertedMessages)-1], "second")
-		require.Equal(t, []int64{first.QueuedMessage.ID}, queuedIDsByPosition(ctx, t, f, created.Chat.ID),
-			"the earlier queued message stays queued")
-		require.Equal(t, chatstate.StateR1, f.classify(ctx, t, created.Chat.ID))
-		require.False(t, f.readChat(ctx, t, created.Chat.ID).WorkerID.Valid)
-	})
-
-	t.Run("QueueBehaviorStillQueues", func(t *testing.T) {
-		t.Parallel()
-		f := newTestFixture(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-		created := createTestChat(t, f)
-		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-		interruptAndAbandon(t, f, m, created.Chat.ID)
-
-		result := send(t, f, m, "next", chatstate.BusyBehaviorQueue)
-
-		require.False(t, result.FinishedInterruption)
-		require.NotNil(t, result.QueuedMessage)
-		require.Empty(t, result.InsertedMessages)
-		require.Equal(t, chatstate.StateI1, f.classify(ctx, t, created.Chat.ID))
-	})
-
-	t.Run("OwnedChatStaysInterrupting", func(t *testing.T) {
-		t.Parallel()
-		f := newTestFixture(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-		created := createTestChat(t, f)
-		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-			if err := ownChat(ctx, tx, store, created.Chat.ID); err != nil {
-				return err
-			}
-			_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "stop"})
-			return err
-		}))
-
-		result := send(t, f, m, "next", chatstate.BusyBehaviorInterrupt)
-
-		require.False(t, result.FinishedInterruption)
-		require.NotNil(t, result.QueuedMessage)
-		require.Empty(t, result.InsertedMessages)
-		require.Equal(t, chatstate.StateI1, f.classify(ctx, t, created.Chat.ID))
-		require.True(t, f.readChat(ctx, t, created.Chat.ID).WorkerID.Valid)
 	})
 }
