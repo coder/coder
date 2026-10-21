@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
+	MockChatAttachment,
 	MockChatFileMetadata,
 	MockChatMessage,
 } from "#/testHelpers/chatEntities";
@@ -8,8 +9,8 @@ import {
 	buildDisplayMessages,
 	deriveEvictedFileIds,
 	deriveMessageDisplayState,
-	getAgentAttachments,
-	getLoadedAgentAttachments,
+	getEarlierMessageAttachments,
+	getMessageAttachments,
 } from "./messageHelpers";
 import {
 	parseMessageContent,
@@ -705,15 +706,30 @@ describe("deriveEvictedFileIds", () => {
 
 		expect([...evicted]).toEqual(["rec-1", "thumb-1"]);
 	});
+
+	it("counts files referenced before the loaded messages", () => {
+		const evicted = deriveEvictedFileIds(
+			[fileMessage(3, "c")],
+			chatFiles("b"),
+			["a", "b"],
+		);
+
+		expect([...evicted]).toEqual(["a"]);
+	});
 });
 
-describe("getAgentAttachments", () => {
-	it("lists assistant file parts newest first, skipping uploads and empty parts", () => {
+describe("getMessageAttachments", () => {
+	it("lists user and assistant file parts newest first, skipping empty parts", () => {
 		const mockPlanFile: TypesGen.ChatFilePart = {
 			type: "file",
 			media_type: "text/markdown",
 			name: "plan.md",
 			file_id: "plan",
+		};
+		const mockUploadFile: TypesGen.ChatFilePart = {
+			type: "file",
+			media_type: "image/png",
+			file_id: "upload",
 		};
 		const mockScreenshotFile: TypesGen.ChatFilePart = {
 			type: "file",
@@ -727,12 +743,7 @@ describe("getAgentAttachments", () => {
 		};
 		const messages: TypesGen.ChatMessage[] = [
 			{ ...buildMessage([mockPlanFile], "assistant"), id: 1 },
-			{
-				...buildMessage([
-					{ type: "file", media_type: "image/png", file_id: "upload" },
-				]),
-				id: 2,
-			},
+			{ ...buildMessage([mockUploadFile]), id: 2 },
 			{
 				...buildMessage(
 					[
@@ -747,7 +758,7 @@ describe("getAgentAttachments", () => {
 			},
 		];
 
-		expect(getAgentAttachments(messages)).toEqual([
+		expect(getMessageAttachments(messages)).toEqual([
 			{
 				key: "3:3",
 				file: mockReportFile,
@@ -758,20 +769,50 @@ describe("getAgentAttachments", () => {
 				file: mockScreenshotFile,
 				href: "data:image/png;base64,aGk=",
 			},
+			{ key: "2:0", file: mockUploadFile, href: "/api/v2/chats/files/upload" },
 			{ key: "1:0", file: mockPlanFile, href: "/api/v2/chats/files/plan" },
 		]);
 	});
 });
 
-describe("getLoadedAgentAttachments", () => {
-	it("waits only for the chat's first message page", () => {
-		const reply = buildMessage(
-			[{ type: "file", media_type: "text/csv", file_id: "report" }],
-			"assistant",
-		);
+describe("getEarlierMessageAttachments", () => {
+	it("keeps the server's file parts before the boundary, keyed like loaded ones", () => {
+		const mockBoundaryAttachment: TypesGen.ChatAttachment = {
+			...MockChatAttachment,
+			message_id: 10,
+		};
+		const mockEarlierAttachment: TypesGen.ChatAttachment = {
+			...MockChatAttachment,
+			message_id: 9,
+			part_index: 2,
+		};
+		const mockEmptyAttachment: TypesGen.ChatAttachment = {
+			...MockChatAttachment,
+			message_id: 8,
+			file: { type: "file", media_type: "text/plain" },
+		};
 
-		expect(getLoadedAgentAttachments([], true)).toBeUndefined();
-		expect(getLoadedAgentAttachments([reply], true)).toHaveLength(1);
-		expect(getLoadedAgentAttachments([], false)).toEqual([]);
+		expect(
+			getEarlierMessageAttachments(
+				[
+					mockBoundaryAttachment,
+					mockEarlierAttachment,
+					mockEmptyAttachment,
+					MockChatAttachment,
+				],
+				10,
+			),
+		).toEqual([
+			{
+				key: "9:2",
+				file: MockChatAttachment.file,
+				href: `/api/v2/chats/files/${MockChatFileMetadata.id}`,
+			},
+			{
+				key: `${MockChatAttachment.message_id}:0`,
+				file: MockChatAttachment.file,
+				href: `/api/v2/chats/files/${MockChatFileMetadata.id}`,
+			},
+		]);
 	});
 });

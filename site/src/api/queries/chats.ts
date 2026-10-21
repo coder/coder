@@ -1627,6 +1627,41 @@ export const chatPromptsQuery = (chatId: string) => ({
 	enabled: chatId !== "",
 });
 
+export const chatAttachmentsKey = (chatId: string, beforeId: number) =>
+	[...chatEntityKey(chatId), "attachments", beforeId] as const;
+
+/**
+ * Attachments in a chat's messages before `beforeId`, newest first; 0 lists
+ * every attachment. While a new boundary loads, the placeholder is a later
+ * boundary's list, so callers drop entries at or after `beforeId`.
+ */
+export const chatAttachments = (chatId: string, beforeId: number) =>
+	queryOptions({
+		queryKey: chatAttachmentsKey(chatId, beforeId),
+		queryFn: () =>
+			API.experimental.getChatAttachments(
+				chatId,
+				beforeId > 0 ? { before_id: beforeId } : undefined,
+			),
+		// History before an existing message only ever loses a suffix (an
+		// edit deletes the edited message and everything after it), so a
+		// boundary's list never changes, and a later boundary's list holds
+		// every attachment of an earlier one.
+		staleTime: Number.POSITIVE_INFINITY,
+		placeholderData: (previousData, previousQuery) => {
+			if (!previousQuery) {
+				return undefined;
+			}
+			const [, , previousChatId, , previousBeforeId] = previousQuery.queryKey;
+			const coversBoundary =
+				previousBeforeId === 0 ||
+				(beforeId > 0 && previousBeforeId >= beforeId);
+			return previousChatId === chatId && coversBoundary
+				? previousData
+				: undefined;
+		},
+	});
+
 export const chatArchiveMutationKey = (chatId: string) =>
 	["chats", "archive", chatId] as const;
 

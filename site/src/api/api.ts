@@ -3485,6 +3485,19 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	getChatAttachments = async (
+		chatId: string,
+		opts?: { before_id?: number },
+	): Promise<TypesGen.ChatAttachmentsResponse> => {
+		const url = getURLWithSearchParams(
+			`/api/v2/chats/${chatId}/attachments`,
+			opts,
+		);
+		const response =
+			await this.axios.get<TypesGen.ChatAttachmentsResponse>(url);
+		return response.data;
+	};
+
 	createChat = async (
 		req: TypesGen.CreateChatRequest,
 	): Promise<TypesGen.Chat> => {

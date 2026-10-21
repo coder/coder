@@ -1,5 +1,4 @@
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
-import { Button } from "#/components/Button/Button";
 import {
 	Collapsible,
 	CollapsibleContent,
@@ -7,38 +6,36 @@ import {
 } from "#/components/Collapsible/Collapsible";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { FileCard } from "./ChatConversation/AttachmentBlocks";
-import type { AgentAttachment } from "./ChatConversation/messageHelpers";
-import type { EarlierMessagesProps } from "./ChatMessageScroller";
+import type { MessageAttachment } from "./ChatConversation/messageHelpers";
+import { RetryButton } from "./RetryButton";
 import { SectionHeader } from "./SectionHeader";
 
 type ChatAttachmentsProps = {
-	/** Undefined until the chat's first message page reaches the store. */
-	attachments: readonly AgentAttachment[] | undefined;
+	/** Undefined while the list loads. */
+	attachments: readonly MessageAttachment[] | undefined;
 	evictedFileIds: ReadonlySet<string>;
-} & Pick<
-	EarlierMessagesProps,
-	| "hasMoreMessages"
-	| "isFetchingMoreMessages"
-	| "hasFetchMoreError"
-	| "onFetchMoreMessages"
->;
+	/** The earlier messages' attachments failed to load, so the list is partial. */
+	hasEarlierAttachmentsError: boolean;
+	isRetrying: boolean;
+	onRetry: () => void;
+};
 
-/** Collapsible download cards for the agent's attachments in the loaded messages. */
+/** Collapsible download cards for the files in the chat's messages. */
 export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 	attachments,
 	evictedFileIds,
-	hasMoreMessages,
-	isFetchingMoreMessages,
-	hasFetchMoreError,
-	onFetchMoreMessages,
+	hasEarlierAttachmentsError,
+	isRetrying,
+	onRetry,
 }) => {
+	const isComplete = attachments !== undefined && !hasEarlierAttachmentsError;
 	return (
 		<Collapsible defaultOpen className="flex flex-col gap-3">
 			<SectionHeader
 				level="section"
 				label={
 					<CollapsibleTrigger className="group inline-flex appearance-none items-center gap-1 rounded-md focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link">
-						{attachments
+						{isComplete
 							? `Attachments (${attachments.length.toLocaleString("en-US")})`
 							: "Attachments"}
 						<ChevronDownIcon
@@ -67,26 +64,26 @@ export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 						))}
 					</ul>
 				)}
-				{attachments?.length === 0 && (
+				{attachments === undefined && !hasEarlierAttachmentsError && (
+					<Spinner loading size="sm" label="Loading attachments" />
+				)}
+				{isComplete && attachments.length === 0 && (
 					<p className="m-0 text-sm text-content-secondary">
-						{hasMoreMessages
-							? "No attachments in the loaded messages."
-							: "No attachments yet."}
+						No attachments yet.
 					</p>
 				)}
-				{attachments && hasMoreMessages && (
-					<Button
-						variant="outline"
-						size="sm"
-						className="self-start"
-						disabled={isFetchingMoreMessages}
-						onClick={() => void onFetchMoreMessages()}
-					>
-						<Spinner loading={isFetchingMoreMessages} />
-						{hasFetchMoreError
-							? "Retry loading earlier messages"
-							: "Load earlier messages"}
-					</Button>
+				{hasEarlierAttachmentsError && (
+					<div className="flex flex-col items-start gap-2">
+						<p className="m-0 text-sm text-content-secondary">
+							Could not load attachments from earlier messages.
+						</p>
+						<RetryButton
+							variant="outline"
+							size="sm"
+							isRetrying={isRetrying}
+							onRetry={onRetry}
+						/>
+					</div>
 				)}
 			</CollapsibleContent>
 		</Collapsible>

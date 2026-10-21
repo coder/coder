@@ -3,7 +3,7 @@ import { fn, userEvent, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { ChatAttachments } from "./ChatAttachments";
-import { getAgentAttachments } from "./ChatConversation/messageHelpers";
+import { getMessageAttachments } from "./ChatConversation/messageHelpers";
 
 const mockAttachmentMessage: TypesGen.ChatMessage = {
 	...MockChatMessage,
@@ -52,12 +52,11 @@ const meta: Meta<typeof ChatAttachments> = {
 		),
 	],
 	args: {
-		attachments: getAgentAttachments([mockAttachmentMessage]),
+		attachments: getMessageAttachments([mockAttachmentMessage]),
 		evictedFileIds: new Set(),
-		hasMoreMessages: false,
-		isFetchingMoreMessages: false,
-		hasFetchMoreError: false,
-		onFetchMoreMessages: fn(),
+		hasEarlierAttachmentsError: false,
+		isRetrying: false,
+		onRetry: fn(),
 	},
 };
 
@@ -99,28 +98,16 @@ export const LoadingAttachments: Story = {
 	args: { attachments: undefined },
 };
 
-export const EmptyWithEarlierMessages: Story = {
-	args: { attachments: [], hasMoreMessages: true },
+export const EarlierAttachmentsFailed: Story = {
+	args: { hasEarlierAttachmentsError: true },
 };
 
-export const WithEarlierMessages: Story = {
-	args: { hasMoreMessages: true },
+export const EarlierAttachmentsRetrying: Story = {
+	args: { hasEarlierAttachmentsError: true, isRetrying: true },
 };
 
-export const LoadingEarlierMessages: Story = {
-	args: { hasMoreMessages: true, isFetchingMoreMessages: true },
-};
-
-export const LoadEarlierMessagesFailed: Story = {
-	args: { hasMoreMessages: true, hasFetchMoreError: true },
-};
-
-export const LoadEarlierMessagesRetrying: Story = {
-	args: {
-		hasMoreMessages: true,
-		hasFetchMoreError: true,
-		isFetchingMoreMessages: true,
-	},
+export const EmptyWithEarlierAttachmentsFailed: Story = {
+	args: { attachments: [], hasEarlierAttachmentsError: true },
 };
 
 export const ExpiredAttachment: Story = {
