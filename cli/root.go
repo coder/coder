@@ -1963,7 +1963,7 @@ func WarnConflictingOptions() serpent.MiddlewareFunc {
 		return func(inv *serpent.Invocation) error {
 			for _, check := range conflictingOptionChecks {
 				if warning := check(inv); warning != "" {
-					_, _ = fmt.Fprintln(inv.Stderr, "warning: "+warning)
+					cliui.Warn(inv.Stderr, warning)
 				}
 			}
 			return next(inv)

@@ -431,6 +431,7 @@ func TestWarnConflictingOptions(t *testing.T) {
 		inv.Stderr = &stderr
 		err := inv.Run()
 		require.NoError(t, err)
+		require.Contains(t, stderr.String(), "WARN: ")
 		require.Contains(t, stderr.String(), "--column only applies to table output")
 	})
 
