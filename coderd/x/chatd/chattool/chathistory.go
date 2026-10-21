@@ -387,13 +387,13 @@ func (r *chatHistoryReader) listItems() (chatHistoryResult, error) {
 				start = matchAt
 			}
 		}
-		return len(r.result.Items) < limit && r.stage(row, text, start, requested)
+		return r.stage(row, text, start, requested) && len(r.result.Items) < limit
 	})
 	if err != nil {
 		return chatHistoryResult{}, err
 	}
-	// A scan stops early at the item limit, when the result is full, or
-	// when the scan budget runs out, so more matches may exist.
+	// A scan stops as soon as the item limit is reached, when the result
+	// is full, or when the scan budget runs out, so more matches may exist.
 	r.result.HasMore = !exhausted
 	if r.malformed {
 		r.result.Warnings = []string{"malformed_rows_skipped"}
