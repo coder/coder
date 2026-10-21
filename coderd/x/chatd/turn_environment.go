@@ -744,6 +744,10 @@ func (p *Server) buildTurnEnvironment(
 	if pendingUserRows == nil {
 		compactionPromptMessages = prompt
 	}
+	pendingUserRows, err = replayablePendingUserRows(pendingUserRows)
+	if err != nil {
+		return turnEnvironment{}, err
+	}
 	setAdvisorPromptSnapshot(prompt)
 
 	storeChatAttachment := p.newStoreChatAttachmentFunc(&workspaceCtx)
