@@ -505,11 +505,20 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	}, [selectedWorkspaceId]);
 
 	// Pre-populate the edit bucket from existing file blocks only
-	// while explicitly editing a message.
+	// while explicitly editing a message. A failed edit restores the
+	// same blocks array, so keying on it keeps the attachments added
+	// or removed before the failed save.
+	const hydratedEditAttachmentBlocksRef = useRef<
+		readonly TypesGen.ChatMessagePart[] | null
+	>(null);
 	useEffect(() => {
-		if (!isEditing) {
+		if (
+			!isEditing ||
+			hydratedEditAttachmentBlocksRef.current === editingFileBlocks
+		) {
 			return;
 		}
+		hydratedEditAttachmentBlocksRef.current = editingFileBlocks;
 		if (editingFileBlocks.length === 0) {
 			setEditAttachments([]);
 			setEditUploadStates(new Map());
@@ -646,6 +655,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			return;
 		}
 		wasEditingRef.current = false;
+		hydratedEditAttachmentBlocksRef.current = null;
 		hydratedEditBlocksRef.current = null;
 		resetEditAttachments();
 		resetEditWorkspaceUploads();

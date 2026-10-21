@@ -1,63 +1,126 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { useRef, useState } from "react";
+import { useMutation } from "react-query";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
+import {
+	type SendChatTurnOptions,
+	useConversationEditingState,
+} from "../hooks/useConversationEditingState";
+import type { ChatMessageInputRef } from "./AgentChatInput";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { ChatPageInput } from "./ChatPageContent";
 
+type ChatPageInputProps = React.ComponentProps<typeof ChatPageInput>;
+
+const defaultChatPageInputProps = (
+	store: ReturnType<typeof createChatStore>,
+): ChatPageInputProps => ({
+	chat: { ...MockChat, id: "", organization_id: "" },
+	store,
+	onSend: vi.fn(),
+	onDeleteQueuedMessage: vi.fn(),
+	onPromoteQueuedMessage: vi.fn(),
+	onInterrupt: vi.fn(),
+	isInputDisabled: false,
+	isSendPending: false,
+	isInterruptPending: false,
+	hasModelOptions: true,
+	selectedModel: "model-config-1",
+	onModelChange: vi.fn(),
+	modelOptions: [
+		{
+			id: "model-config-1",
+			provider: "openai",
+			model: "gpt-4o",
+			displayName: "GPT-4o",
+		},
+	],
+	modelSelectorPlaceholder: "Select model",
+	canConfigureAgentSetup: false,
+	isEditing: false,
+	onCancelHistoryEdit: vi.fn(),
+	isReadOnly: false,
+	onReasoningEffortChange: vi.fn(),
+	unsupportedProviderNames: [],
+	onPlanModeToggle: vi.fn(),
+	isModelCatalogLoading: false,
+	inputRef: { current: null },
+	initialValue: "",
+	remountKey: 0,
+	onContentChange: vi.fn(),
+	editingFileBlocks: [],
+	mcpServers: [],
+	selectedMCPServerIds: [],
+	onMCPSelectionChange: vi.fn(),
+	onMCPAuthComplete: vi.fn(),
+	isWorkspaceLoading: false,
+});
+
 const renderChatPageInput = (
 	store: ReturnType<typeof createChatStore>,
-	overrides: Partial<React.ComponentProps<typeof ChatPageInput>> = {},
+	overrides: Partial<ChatPageInputProps> = {},
 ) =>
 	renderWithAuth(
-		<ChatPageInput
-			chat={{ ...MockChat, id: "", organization_id: "" }}
-			store={store}
-			models={[]}
-			onSend={vi.fn()}
-			onDeleteQueuedMessage={vi.fn()}
-			onPromoteQueuedMessage={vi.fn()}
-			onInterrupt={vi.fn()}
-			isInputDisabled={false}
-			isSendPending={false}
-			isInterruptPending={false}
-			hasModelOptions
-			selectedModel="model-config-1"
-			onModelChange={vi.fn()}
-			modelOptions={[
-				{
-					id: "model-config-1",
-					provider: "openai",
-					model: "gpt-4o",
-					displayName: "GPT-4o",
-				},
-			]}
-			modelSelectorPlaceholder="Select model"
-			canConfigureAgentSetup={false}
-			isEditing={false}
-			onCancelHistoryEdit={vi.fn()}
-			isReadOnly={false}
-			onReasoningEffortChange={vi.fn()}
-			unsupportedProviderNames={[]}
-			onPlanModeToggle={vi.fn()}
-			isModelCatalogLoading={false}
-			inputRef={{ current: null }}
-			initialValue=""
-			remountKey={0}
-			onContentChange={vi.fn()}
-			editingFileBlocks={[]}
-			mcpServers={[]}
-			selectedMCPServerIds={[]}
-			onMCPSelectionChange={vi.fn()}
-			onMCPAuthComplete={vi.fn()}
-			isWorkspaceLoading={false}
-			{...overrides}
-		/>,
+		<ChatPageInput {...defaultChatPageInputProps(store)} {...overrides} />,
 	);
+
+/** Drives ChatPageInput through the page's real history-edit state. */
+const HistoryEditHarness: React.FC<{
+	fileBlocks: readonly TypesGen.ChatMessagePart[];
+	sendTurn: (options: SendChatTurnOptions) => Promise<void>;
+	overrides: Partial<ChatPageInputProps>;
+}> = ({ fileBlocks, sendTurn, overrides }) => {
+	const [store] = useState(createChatStore);
+	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
+	const inputValueRef = useRef("");
+	const { isPending, mutateAsync } = useMutation({ mutationFn: sendTurn });
+	const editing = useConversationEditingState({
+		chatID: "chat-history-edit",
+		onSend: mutateAsync,
+		chatInputRef,
+		inputValueRef,
+	});
+	return (
+		<>
+			<button
+				type="button"
+				onClick={() => editing.handleEditUserMessage(1, "edited", fileBlocks)}
+			>
+				Edit message
+			</button>
+			<ChatPageInput
+				{...defaultChatPageInputProps(store)}
+				{...overrides}
+				onSend={editing.handleSendFromInput}
+				isSendPending={isPending}
+				isEditing={editing.editingMessageId !== null}
+				editingFileBlocks={editing.editingFileBlocks}
+				inputRef={chatInputRef}
+				initialValue={editing.editorInitialValue}
+				remountKey={editing.remountKey}
+				onContentChange={editing.handleContentChange}
+				onCancelHistoryEdit={editing.handleCancelHistoryEdit}
+			/>
+		</>
+	);
+};
+
+const workspaceAttachment = (
+	fileId: string,
+	name: string,
+): TypesGen.ChatWorkspaceAttachmentPart => ({
+	type: "workspace-attachment",
+	file_id: fileId,
+	name,
+	media_type: "application/zip",
+	size: 2,
+});
 
 const workspaceFileReference = (
 	name: string,
@@ -72,6 +135,13 @@ const workspaceFileReference = (
 });
 
 describe("ChatPageInput", () => {
+	beforeAll(() => {
+		Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+			configurable: true,
+			value: () => new DOMRect(0, 0, 1, 16),
+		});
+	});
+
 	afterEach(() => {
 		vi.restoreAllMocks();
 		localStorage.clear();
@@ -132,15 +202,7 @@ describe("ChatPageInput", () => {
 			onSend,
 			isEditing: true,
 			initialValue: "edited",
-			editingFileBlocks: [
-				{
-					type: "workspace-attachment",
-					file_id: "delivered-zip",
-					name: "bundle.zip",
-					media_type: "application/zip",
-					size: 2,
-				},
-			],
+			editingFileBlocks: [workspaceAttachment("delivered-zip", "bundle.zip")],
 		});
 
 		await user.click(await screen.findByRole("button", { name: "Save Edit" }));
@@ -237,5 +299,55 @@ describe("ChatPageInput", () => {
 			),
 		);
 		expect(uploadChatFile).not.toHaveBeenCalled();
+	});
+	it("keeps workspace attachment edits after a failed save", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
+			id: "staged-zip",
+		});
+		const sendTurn = vi
+			.fn<(options: SendChatTurnOptions) => Promise<void>>()
+			.mockRejectedValueOnce(new Error("edit failed"))
+			.mockResolvedValue(undefined);
+
+		renderWithAuth(
+			<HistoryEditHarness
+				fileBlocks={[
+					workspaceAttachment("removed-zip", "removed.zip"),
+					workspaceAttachment("kept-zip", "kept.zip"),
+				]}
+				sendTurn={sendTurn}
+				overrides={{
+					chat: {
+						...MockChat,
+						id: "chat-history-edit",
+						workspace_id: MockWorkspace.id,
+					},
+					workspace: MockWorkspace,
+				}}
+			/>,
+		);
+		await user.click(
+			await screen.findByRole("button", { name: "Edit message" }),
+		);
+		await user.click(
+			await screen.findByRole("button", { name: "Remove removed.zip" }),
+		);
+		await user.upload(
+			await screen.findByTestId("chat-attachment-file-input"),
+			new File(["PK"], "added.zip", { type: "application/zip" }),
+		);
+		await user.click(await screen.findByRole("button", { name: "Save Edit" }));
+		await waitFor(() => expect(sendTurn).toHaveBeenCalledTimes(1));
+		await user.click(await screen.findByRole("button", { name: "Save Edit" }));
+
+		await waitFor(() => expect(sendTurn).toHaveBeenCalledTimes(2));
+		expect(sendTurn.mock.calls[1][0]).toMatchObject({
+			editedMessageID: 1,
+			attachments: [
+				expect.objectContaining({ fileId: "kept-zip", purpose: "workspace" }),
+				expect.objectContaining({ fileId: "staged-zip", purpose: "workspace" }),
+			],
+		});
 	});
 });
