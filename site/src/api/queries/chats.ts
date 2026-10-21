@@ -2970,7 +2970,8 @@ export const userCompactionStrategy = () => ({
 
 export const updateUserCompactionStrategy = (queryClient: QueryClient) => ({
 	mutationFn: API.experimental.updateUserChatCompactionStrategy,
-	onSuccess: async () => {
+	onSuccess: async (saved: TypesGen.UserChatCompactionStrategy) => {
+		queryClient.setQueryData(userCompactionStrategyKey, saved);
 		await queryClient.invalidateQueries({
 			queryKey: userCompactionStrategyKey,
 		});

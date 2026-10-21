@@ -1514,6 +1514,19 @@ export const ChatHistoryListWindows: Story = {
 	},
 };
 
+export const ChatHistoryListItems: Story = {
+	args: {
+		name: "chat_history",
+		args: { action: "list_items", window_id: "w:0" },
+		result: {
+			success: true,
+			items: [
+				{ itemId: "412", windowId: "w:0", role: "user", text: "settings" },
+			],
+		},
+	},
+};
+
 export const ChatHistoryReadItem: Story = {
 	args: {
 		name: "chat_history",

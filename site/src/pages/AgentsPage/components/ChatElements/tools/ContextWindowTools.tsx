@@ -81,7 +81,10 @@ const toolRowLabel = (
 	return isError || status === "error" ? labels.failed : labels.done;
 };
 
-/** The checkpoint the agent saved for future context windows. */
+/**
+ * `checkpoint` comes from the call arguments, so the body shows while the
+ * call streams and after a failed save. Only the header reports the outcome.
+ */
 export const SaveCheckpointTool: React.FC<
 	ToolRowStatusProps & { checkpoint: string }
 > = ({ checkpoint, status, isError, errorMessage }) => (
@@ -95,7 +98,7 @@ export const SaveCheckpointTool: React.FC<
 			failed: "Checkpoint not saved",
 			done: "Saved checkpoint",
 		})}
-		bodyLabel="Saved checkpoint"
+		bodyLabel="Checkpoint"
 		body={checkpoint}
 	/>
 );
@@ -159,9 +162,6 @@ const chatHistoryErrorMessages = {
 	invalid_arguments: "Invalid chat history arguments",
 } satisfies Partial<Record<string, string>>;
 
-const countLabel = (count: number, noun: string) =>
-	`${count} ${noun}${count === 1 ? "" : "s"}`;
-
 /** A read of the chat's own transcript across context windows. */
 export const ChatHistoryTool: React.FC<
 	ToolRowStatusProps & {
@@ -207,7 +207,9 @@ export const ChatHistoryTool: React.FC<
 
 	const counts: string[] = [];
 	if (resultCount !== undefined && action !== "read_item") {
-		counts.push(countLabel(resultCount, wording.noun));
+		counts.push(
+			`${resultCount} ${wording.noun}${resultCount === 1 ? "" : "s"}`,
+		);
 	}
 	if (hasMore) {
 		counts.push(`more ${wording.noun}s available`);
