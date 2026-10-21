@@ -21,8 +21,14 @@ type sqlcQuerier interface {
 	// else the single root agent whose name ends with chat_agent_suffix,
 	// else the first root agent by display order, then name, then ID. When
 	// several root agents match the suffix, the first is checked here and
-	// the caller's selection reports the ambiguity. A claim counts an
-	// attempt, clears the last error and leases the file until
+	// the caller's selection reports the ambiguity. A file is due when its
+	// next attempt time has passed and attempts remain. It is also due, with
+	// a fresh attempt budget, when that agent's ready_at differs from the one
+	// recorded at the file's last claim, unless an unexpired lease without an
+	// error holds it: every agent startup retries failed and parked files
+	// once, with no startup event needed. A claim records the agent's
+	// ready_at, counts an attempt, clears the last error and leases the file
+	// until
 	// lease_expires_at plus the time the content takes to upload at
 	// min_upload_bytes_per_second, so the lease of a large file covers its
 	// upload. The returned lease_expires_at identifies the claim:
@@ -1540,11 +1546,6 @@ type sqlcQuerier interface {
 	// for example because its replica stopped, and may have used the last
 	// attempt.
 	RetryChatWorkspaceFileDeliveries(ctx context.Context, arg RetryChatWorkspaceFileDeliveriesParams) (int64, error)
-	// RetryChatWorkspaceFileDeliveriesByWorkspaceID resets the undelivered
-	// workspace files of every chat bound to the workspace like
-	// RetryChatWorkspaceFileDeliveries, for a workspace agent that finished
-	// starting and may now accept files it failed or rejected before.
-	RetryChatWorkspaceFileDeliveriesByWorkspaceID(ctx context.Context, arg RetryChatWorkspaceFileDeliveriesByWorkspaceIDParams) (int64, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct

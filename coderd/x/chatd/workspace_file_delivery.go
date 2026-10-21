@@ -5,9 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"slices"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,11 +15,13 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -35,6 +37,10 @@ const (
 	// works on the file at the same time.
 	workspaceFileDeliveryLeaseMargin = time.Minute
 	workspaceFileDeliveryRetryDelay  = time.Minute
+	// workspaceFileDeliveryUsageInterval bounds how often a delivery
+	// records workspace usage while its content streams, the cadence of
+	// the direct upload path and the chat heartbeat.
+	workspaceFileDeliveryUsageInterval = 30 * time.Second
 )
 
 // workspaceFileDeliveryFailure is a failed delivery attempt and how the
@@ -75,13 +81,12 @@ func (p *Server) wakeWorkspaceFileDelivery() {
 // workspaceFileDeliveryLoop copies workspace chat files into their chats'
 // workspaces. Postgres holds the queue; agent startup events and
 // in-process pokes only wake the loop, and a periodic sweep covers lost
-// wake-ups, retries and expired leases. An agent startup also retries
-// the failed files of the workspace's chats, because a restart is how a
-// user updates an agent that rejected them. The loop never writes chat
-// messages, because a message write cancels a running turn.
+// wake-ups, retries and expired leases. Every agent startup also gives
+// the failed files of the workspace's chats a fresh attempt budget, which
+// the claim query derives from the agent's ready_at, because a restart is
+// how a user updates an agent that rejected them. The loop never writes
+// chat messages, because a message write cancels a running turn.
 func (w *chatWorker) workspaceFileDeliveryLoop(ctx context.Context) {
-	var startedMu sync.Mutex
-	started := make(map[uuid.UUID]struct{})
 	unsubscribe, err := w.opts.Pubsub.SubscribeWithErr(
 		wspubsub.AgentStartupFinishedChannel,
 		wspubsub.HandleAgentStartupFinished(func(ctx context.Context, event wspubsub.AgentStartupFinishedEvent, err error) {
@@ -92,9 +97,6 @@ func (w *chatWorker) workspaceFileDeliveryLoop(ctx context.Context) {
 					slog.F("workspace_id", event.WorkspaceID),
 					slog.F("agent_id", event.AgentID),
 				)
-				startedMu.Lock()
-				started[event.WorkspaceID] = struct{}{}
-				startedMu.Unlock()
 			}
 			wake(w.fileDeliveryWakeCh)
 		}),
@@ -105,20 +107,9 @@ func (w *chatWorker) workspaceFileDeliveryLoop(ctx context.Context) {
 		defer unsubscribe()
 	}
 
-	sweep := func() {
-		startedMu.Lock()
-		workspaceIDs := started
-		started = make(map[uuid.UUID]struct{})
-		startedMu.Unlock()
-		for workspaceID := range workspaceIDs {
-			w.retryStartedWorkspaceFiles(ctx, workspaceID)
-		}
-		w.deliverWorkspaceFiles(ctx)
-	}
-
 	// Catch up on files that became deliverable while this replica was
 	// not subscribed.
-	sweep()
+	w.deliverWorkspaceFiles(ctx)
 
 	ticker := w.opts.Clock.NewTicker(w.opts.WorkspaceFileDeliveryInterval, "chatworker", "workspace-file-delivery")
 	defer ticker.Stop("chatworker", "workspace-file-delivery")
@@ -129,28 +120,7 @@ func (w *chatWorker) workspaceFileDeliveryLoop(ctx context.Context) {
 		case <-ticker.C:
 		case <-w.fileDeliveryWakeCh:
 		}
-		sweep()
-	}
-}
-
-// retryStartedWorkspaceFiles makes the failed and stalled files of the
-// chats bound to a workspace whose agent finished starting due again.
-func (w *chatWorker) retryStartedWorkspaceFiles(ctx context.Context, workspaceID uuid.UUID) {
-	retried, err := w.opts.Store.RetryChatWorkspaceFileDeliveriesByWorkspaceID(ctx, database.RetryChatWorkspaceFileDeliveriesByWorkspaceIDParams{
-		WorkspaceID: workspaceID,
-		Now:         w.opts.Clock.Now("chatworker", "workspace-file-delivery"),
-	})
-	if err != nil {
-		if ctx.Err() == nil {
-			w.opts.Logger.Warn(ctx, "retry workspace chat files after agent startup", slog.F("workspace_id", workspaceID), slogError(err))
-		}
-		return
-	}
-	if retried > 0 {
-		w.opts.Logger.Info(ctx, "retrying workspace chat files after agent startup",
-			slog.F("workspace_id", workspaceID),
-			slog.F("files", retried),
-		)
+		w.deliverWorkspaceFiles(ctx)
 	}
 }
 
@@ -284,11 +254,25 @@ func (w *chatWorker) copyWorkspaceFile(ctx context.Context, row database.Acquire
 	defer release()
 	conn.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {chat.ID.String()}})
 
+	// No chat turn heartbeat may keep the workspace alive during the
+	// delivery, so it records usage itself; otherwise the workspace could
+	// autostop during a long copy.
+	body := &workspaceFileUsageReader{
+		r:     bytes.NewReader(file.Data),
+		clock: w.opts.Clock,
+		report: func() {
+			if w.server.usageTracker != nil {
+				w.server.usageTracker.Add(row.WorkspaceID.UUID)
+			}
+			workspacestats.ActivityBumpWorkspace(ctx, w.opts.Logger.Named("activity_bump"), w.opts.Store, row.WorkspaceID.UUID, time.Time{}, workspacestats.ActivityBumpReasonChatWorkspaceUpload)
+		},
+	}
+	body.reportNow()
 	resp, err := conn.UploadChatFile(ctx, workspacesdk.UploadChatFileRequest{
 		ChatID: chat.ID.String(),
 		Name:   file.Name,
 		FileID: file.ID,
-		Body:   bytes.NewReader(file.Data),
+		Body:   body,
 	})
 	if err != nil {
 		return workspacesdk.AgentUploadChatFileResponse{}, classifyWorkspaceFileUploadError(err)
@@ -303,6 +287,29 @@ func (w *chatWorker) copyWorkspaceFile(ctx context.Context, row database.Acquire
 		))
 	}
 	return resp, nil
+}
+
+// workspaceFileUsageReader reports workspace usage when a delivery starts
+// and at most every workspaceFileDeliveryUsageInterval while its content
+// streams.
+type workspaceFileUsageReader struct {
+	r          io.Reader
+	clock      quartz.Clock
+	report     func()
+	lastReport time.Time
+}
+
+func (u *workspaceFileUsageReader) reportNow() {
+	u.lastReport = u.clock.Now("chatworker", "workspace-file-delivery")
+	u.report()
+}
+
+func (u *workspaceFileUsageReader) Read(p []byte) (int, error) {
+	n, err := u.r.Read(p)
+	if n > 0 && u.clock.Since(u.lastReport, "chatworker", "workspace-file-delivery") >= workspaceFileDeliveryUsageInterval {
+		u.reportNow()
+	}
+	return n, err
 }
 
 // classifyWorkspaceFileUploadError parks a file the agent rejected, since

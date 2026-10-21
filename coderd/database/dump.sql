@@ -2170,6 +2170,7 @@ CREATE TABLE chat_files (
     workspace_delivery_attempts integer DEFAULT 0 NOT NULL,
     workspace_delivery_next_attempt_at timestamp with time zone,
     workspace_delivery_error text,
+    workspace_delivery_agent_ready_at timestamp with time zone,
     workspace_delivered_at timestamp with time zone,
     workspace_delivered_path text,
     workspace_delivered_workspace_id uuid,
@@ -2178,11 +2179,13 @@ CREATE TABLE chat_files (
 
 COMMENT ON COLUMN chat_files.purpose IS 'Where the file goes: prompt files are sent to the model provider, workspace files are copied into the chat''s workspace and never sent to the provider.';
 
-COMMENT ON COLUMN chat_files.workspace_delivery_attempts IS 'Counted delivery attempts for a workspace file. Delivery stops at the configured maximum until a retry resets it.';
+COMMENT ON COLUMN chat_files.workspace_delivery_attempts IS 'Counted delivery attempts for a workspace file. Delivery stops at the configured maximum until a retry or an agent startup resets it.';
 
 COMMENT ON COLUMN chat_files.workspace_delivery_next_attempt_at IS 'When a workspace file may be claimed next. NULL means due now. A claim sets it to the lease expiry, so a future value without an error means a delivery is in flight.';
 
 COMMENT ON COLUMN chat_files.workspace_delivery_error IS 'Error from the last failed delivery attempt. Cleared when the file is claimed again.';
+
+COMMENT ON COLUMN chat_files.workspace_delivery_agent_ready_at IS 'ready_at of the workspace agent at the last claim. A claim after that agent, or a replacement, finished another startup gets a fresh attempt budget.';
 
 COMMENT ON COLUMN chat_files.workspace_delivered_at IS 'When the file was written into the workspace. Once set, data is empty and only metadata and the receipt remain.';
 
