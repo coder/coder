@@ -73,6 +73,11 @@ RETURNING *;
 -- finished, the UPDATE returns zero rows, the INSERT gets no source
 -- rows, and sql.ErrNoRows is returned. The UPDATE also serializes
 -- with a concurrent run finalization under READ COMMITTED isolation.
+-- A zero @step_number numbers the step after the run's highest step.
+-- The row lock does not make that number unique, because the statement
+-- snapshot predates the lock wait. Callers hold LockIDChatDebugRunSteps
+-- from an earlier statement of the same transaction, so the snapshot
+-- includes every committed step.
 WITH locked_run AS (
     UPDATE chat_debug_runs
     SET updated_at = COALESCE(sqlc.narg('updated_at')::timestamptz, NOW())
@@ -102,7 +107,10 @@ INSERT INTO chat_debug_steps (
 SELECT
     @run_id::uuid,
     locked_run.chat_id,
-    @step_number::int,
+    COALESCE(
+        NULLIF(@step_number::int, 0),
+        (SELECT COALESCE(MAX(s.step_number), 0) + 1 FROM chat_debug_steps s WHERE s.run_id = @run_id::uuid)
+    ),
     @operation::text,
     @status::text,
     sqlc.narg('history_tip_message_id')::bigint,
