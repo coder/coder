@@ -520,6 +520,55 @@ func seedA1WithMixedOutstandingToolCalls(t *testing.T, f *testFixture, queuedExt
 	}
 }
 
+func seedQueue(t *testing.T, f *testFixture, state chatstate.ExecutionState, behaviors ...chatstate.BusyBehavior) seededChat {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	require.NotEmpty(t, behaviors, "seedQueue needs at least one queued row")
+	var seeded seededChat
+	switch state {
+	case chatstate.StateA1:
+		seeded = seedAOrA1(t, f, 0, "seed_tool_queue")
+	case chatstate.StateE1, chatstate.StateR1, chatstate.StateI1:
+		created := createTestChat(t, f)
+		seeded = seededChat{
+			chatID:               created.Chat.ID,
+			exists:               true,
+			initialUserMessageID: firstUserMessageID(ctx, t, f, created.Chat.ID),
+		}
+	default:
+		t.Fatalf("seedQueue: unsupported execution state %s", state)
+	}
+	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
+	if state == chatstate.StateI1 {
+		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+			if err := ownChat(ctx, tx, store, seeded.chatID); err != nil {
+				return err
+			}
+			_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "seed"})
+			return err
+		}))
+	}
+	for i, behavior := range behaviors {
+		body := fmt.Sprintf("queued-%s-%d-%s", state, i, behavior)
+		sm := sendMessageWithBehavior(t, f, m, body, behavior)
+		require.NotNil(t, sm.QueuedMessage)
+		seeded.queuedMessageIDs = append(seeded.queuedMessageIDs, sm.QueuedMessage.ID)
+		seeded.queuedMessageBodies = append(seeded.queuedMessageBodies, body)
+	}
+	if state == chatstate.StateE1 {
+		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+			_, err := tx.FinishError(chatstate.FinishErrorInput{
+				LastError: pqtype.NullRawMessage{
+					RawMessage: json.RawMessage(`{"message":"boom"}`),
+					Valid:      true,
+				},
+			})
+			return err
+		}))
+	}
+	return seeded
+}
+
 // seedInvalidWithQueue seeds Invalid with a single queued message so
 // ReconcileInvalidState lands in E1 (non-empty queue) instead of E0.
 func seedInvalidWithQueue(t *testing.T, f *testFixture) seededChat {
@@ -833,8 +882,11 @@ type snapshotBaseline struct {
 	generationAttempt int64
 	queueCount        int64
 	queueIDs          []int64
-	historyIDs        []int64
-	channels          int
+	// queueRows is parallel to queueIDs: the queued rows in position
+	// order before the transition.
+	queueRows  []database.ChatQueuedMessage
+	historyIDs []int64
+	channels   int
 }
 
 func captureBaseline(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat) snapshotBaseline {
@@ -854,7 +906,11 @@ func captureBaseline(ctx context.Context, t *testing.T, f *testFixture, seeded s
 	base.queueVersion = chat.QueueVersion
 	base.retryStateVersion = chat.RetryStateVersion
 	base.generationAttempt = chat.GenerationAttempt
-	base.queueIDs = queuedIDsByPosition(ctx, t, f, seeded.chatID)
+	base.queueRows = queuedRowsByPosition(ctx, t, f, seeded.chatID)
+	base.queueIDs = make([]int64, len(base.queueRows))
+	for i, row := range base.queueRows {
+		base.queueIDs[i] = row.ID
+	}
 	count, err := f.DB.CountChatQueuedMessages(ctx, seeded.chatID)
 	require.NoError(t, err)
 	base.queueCount = count
