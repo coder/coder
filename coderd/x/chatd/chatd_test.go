@@ -1027,8 +1027,7 @@ func TestArchivedChatRejectsMutations(t *testing.T) {
 			return server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{ChatID: chat.ID, QueuedMessageID: 1})
 		},
 		"SubmitToolResults": func(ctx context.Context) error {
-			_, err := server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{ChatID: chat.ID, UserID: user.ID})
-			return err
+			return server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{ChatID: chat.ID, UserID: user.ID})
 		},
 		"CompactChat": func(ctx context.Context) error {
 			_, err := server.CompactChat(ctx, chat)
@@ -3913,8 +3912,8 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	resetSnapshot, _, cancelReset, err := replica.Subscribe(ctx, chat.ID, nil, chatd.StreamCursor{AfterMessageID: msg2.ID})
-	require.NoError(t, err)
+	resetSnapshot, _, cancelReset, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID, 0)
+	require.True(t, ok)
 	cancelReset()
 
 	resets := slice.Filter(resetSnapshot, func(e codersdk.ChatStreamEvent) bool {
@@ -3983,16 +3982,16 @@ func TestSubscribeAfterMessageIDWithEdit(t *testing.T) {
 
 	// A client that loaded after the edit gets neither a reset nor the
 	// messages it holds.
-	snapshot, _, cancel, err := replica.Subscribe(ctx, chat.ID, nil, chatd.StreamCursor{AfterMessageID: newest.ID})
-	require.NoError(t, err)
+	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, newest.ID, 0)
+	require.True(t, ok)
 	cancel()
 	require.False(t, slices.ContainsFunc(snapshot, isHistoryReset))
 	require.Empty(t, filterMessageEvents(snapshot))
 
 	// A client that loaded before the edit holds deleted messages, so it
 	// gets a reset with the live history.
-	snapshot, _, cancel, err = replica.Subscribe(ctx, chat.ID, nil, chatd.StreamCursor{AfterMessageID: secondReply.ID})
-	require.NoError(t, err)
+	snapshot, _, cancel, ok = replica.Subscribe(ctx, chat.ID, nil, secondReply.ID, 0)
+	require.True(t, ok)
 	cancel()
 	require.True(t, slices.ContainsFunc(snapshot, isHistoryReset))
 	wantIDs := []int64{first.ID, firstReply.ID}
