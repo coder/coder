@@ -64,6 +64,13 @@ func seedBlockedHead(t *testing.T, f *testFixture, from chatstate.ExecutionState
 			ids = append(ids, sm.QueuedMessage.ID)
 			bodies = append(bodies, body)
 		}
+		if from == chatstate.StateI1 {
+			// The interrupt that starts the interruption goes to the
+			// queue head, so it is the first row in queue order.
+			last := len(ids) - 1
+			ids = append([]int64{ids[last]}, ids[:last]...)
+			bodies = append([]string{bodies[last]}, bodies[:last]...)
+		}
 		if from == chatstate.StateE1 {
 			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 				_, err := tx.FinishError(chatstate.FinishErrorInput{
@@ -223,11 +230,10 @@ func editingQueueMatrixCases() []transitionCaseSpec {
 		// Turn boundaries with a blocked head pause the chat.
 		editingCase(chatstate.TransitionFinishTurn, chatstate.StateR1P, chatstate.StateP, "", seedBlocked(chatstate.StateR1, 0), applyFinishTurn, allRows, 0),
 		editingCase(chatstate.TransitionFinishInterruption, chatstate.StateI1P, chatstate.StateP, "", seedBlocked(chatstate.StateI1, 0), applyFinishInterruption, allRows, 0),
-		// A send queues behind the blocked head whatever its busy behavior.
+		// A queued send waits behind the blocked head. An interrupt runs
+		// ahead of it; the transitions matrix covers those cells.
 		sendBehindEditingCase(chatstate.StateE1P, seedBlocked(chatstate.StateE1, 0), scenarioQueue, applySendMessageQueue),
-		sendBehindEditingCase(chatstate.StateE1P, seedBlocked(chatstate.StateE1, 0), scenarioInterrupt, applySendMessageInterrupt),
 		sendBehindEditingCase(chatstate.StateP, seedP(0), scenarioQueue, applySendMessageQueue),
-		sendBehindEditingCase(chatstate.StateP, seedP(0), scenarioInterrupt, applySendMessageInterrupt),
 		// P: content edit keeps the pause; ending the head's edit resumes.
 		editingCase(chatstate.TransitionEditQueuedMessage, chatstate.StateP, chatstate.StateP, scenarioContentEdit, seedP(0), applyContentEdit, allRows, 0),
 		withPromotedRow(editingCase(chatstate.TransitionEditQueuedMessage, chatstate.StateP, chatstate.StateR0, scenarioEndEdit, seedP(0), applySetEditing(0, false), noRows, -1), 0),
@@ -280,7 +286,7 @@ func editingQueueMatrixCases() []transitionCaseSpec {
 	return cases
 }
 
-// sendBehindEditingCase: a send is appended behind the blocked head; the
+// sendBehindEditingCase: a queued send is appended behind the blocked head; the
 // state, history, and stored error do not change.
 func sendBehindEditingCase(from chatstate.ExecutionState, seed func(*testing.T, *testFixture) seededChat, sc scenario, apply applierFn) transitionCaseSpec {
 	return transitionCaseSpec{

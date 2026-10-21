@@ -364,7 +364,9 @@ func TestSendMessageInterruptUnownedInterruptingChat(t *testing.T) {
 }
 
 // Finishing an unowned interruption inline must not promote a queue
-// head under edit: the chat pauses with its queue intact.
+// head under edit: the chat pauses with its queue intact. An interrupt
+// send runs ahead of the edited head instead; see
+// TestEditing_InterruptRunsAheadOfEditedHead.
 func TestUnownedInterruptBehindEditedHead(t *testing.T) {
 	t.Parallel()
 
@@ -397,32 +399,6 @@ func TestUnownedInterruptBehindEditedHead(t *testing.T) {
 		requirePausedWithQueue(ctx, t, f, seeded, before, 1)
 		require.True(t, result.FinishedInterruption)
 		require.True(t, result.PromotedQueuedAt.IsZero())
-	})
-
-	t.Run("SendMessageInterruptRunningChat", func(t *testing.T) {
-		t.Parallel()
-		f := newTestFixture(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-		seeded := seedBlockedHead(t, f, chatstate.StateR1, 0)
-		require.Equal(t, chatstate.StateR1P, f.classify(ctx, t, seeded.chatID))
-		m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
-		before := historyMessageIDs(ctx, t, f, seeded.chatID)
-
-		var result chatstate.SendMessageResult
-		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-			var err error
-			result, err = tx.SendMessage(chatstate.SendMessageInput{
-				Message:      userTextMessage("behind the edit", f.User.ID, f.Model.ID),
-				BusyBehavior: chatstate.BusyBehaviorInterrupt,
-				MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
-			})
-			return err
-		}))
-
-		requirePausedWithQueue(ctx, t, f, seeded, before, 2)
-		require.True(t, result.FinishedInterruption)
-		require.True(t, result.PromotedQueuedAt.IsZero())
-		require.NotNil(t, result.QueuedMessage, "the message waits behind the edited head")
 	})
 
 	t.Run("InterruptInterruptingChat", func(t *testing.T) {

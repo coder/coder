@@ -10,6 +10,7 @@ type Transition string
 const (
 	TransitionCreateChat              Transition = "CreateChat"
 	TransitionSetArchived             Transition = "SetArchived"
+	TransitionSetProject              Transition = "SetProject"
 	TransitionSendMessage             Transition = "SendMessage"
 	TransitionEditMessage             Transition = "EditMessage"
 	TransitionRequestCompaction       Transition = "RequestCompaction"
@@ -46,8 +47,11 @@ func (t Transition) String() string { return string(t) }
 //
 // The "1P" states have a blocked queue head (see queuePaused). Each
 // admits the same transitions as its "1" sibling. The outputs differ
-// where the sibling would promote the head: E1P + SendMessage stays
-// E1P, and R1P + FinishTurn and I1P + FinishInterruption reach P.
+// where the sibling would promote the head: a queued send from E1P
+// stays E1P, and R1P + FinishTurn and I1P + FinishInterruption reach
+// P. An interrupt send runs ahead of a blocked head, so from E1P, A1P,
+// and P it reaches R1P, and from R1P it reaches I1 with the new
+// message at the head.
 //
 // Ownership transitions (Acquire, Abandon) are intentionally not
 // included; they are orthogonal to execution state.
@@ -57,6 +61,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 	},
 	StateW: {
 		TransitionSetArchived:       {StateXW},
+		TransitionSetProject:        {StateW},
 		TransitionSendMessage:       {StateR0},
 		TransitionEditMessage:       {StateR0},
 		TransitionRequestCompaction: {StateR0},
@@ -65,6 +70,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 	},
 	StateE0: {
 		TransitionSetArchived:       {StateXE0},
+		TransitionSetProject:        {StateE0},
 		TransitionSendMessage:       {StateR0},
 		TransitionEditMessage:       {StateR0},
 		TransitionRequestCompaction: {StateR0},
@@ -72,6 +78,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 	},
 	StateE1: {
 		TransitionSetArchived:          {StateXE1},
+		TransitionSetProject:           {StateE1},
 		TransitionSendMessage:          {StateR1, StateR1P},
 		TransitionEditMessage:          {StateR0},
 		TransitionDeleteQueuedMessage:  {StateE0, StateE1, StateE1P},
@@ -81,7 +88,8 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 	},
 	StateE1P: {
 		TransitionSetArchived:          {StateXE1P},
-		TransitionSendMessage:          {StateE1P},
+		TransitionSetProject:           {StateE1P},
+		TransitionSendMessage:          {StateE1P, StateR1P},
 		TransitionEditMessage:          {StateR0},
 		TransitionDeleteQueuedMessage:  {StateE0, StateE1, StateE1P},
 		TransitionPromoteQueuedMessage: {StateR0, StateR1, StateR1P},
@@ -114,7 +122,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionFinishError:             {StateE1},
 	},
 	StateR1P: {
-		TransitionSendMessage:             {StateR1P, StateI1P},
+		TransitionSendMessage:             {StateR1P, StateI1},
 		TransitionEditMessage:             {StateR0},
 		TransitionDeleteQueuedMessage:     {StateR0, StateR1, StateR1P},
 		TransitionPromoteQueuedMessage:    {StateI1},
@@ -149,7 +157,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionFinishInterruption:   {StateP},
 	},
 	StateA0: {
-		TransitionSendMessage:            {StateA1, StateR1},
+		TransitionSendMessage:            {StateA1, StateR0},
 		TransitionEditMessage:            {StateR0},
 		TransitionInterrupt:              {StateR0},
 		TransitionCompleteRequiresAction: {StateR0},
@@ -176,7 +184,8 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionCancelRequiresAction:   {StateR1P},
 	},
 	StateP: {
-		TransitionSendMessage:          {StateP},
+		TransitionSetProject:           {StateP},
+		TransitionSendMessage:          {StateP, StateR1P},
 		TransitionEditMessage:          {StateR0},
 		TransitionDeleteQueuedMessage:  {StateP, StateW, StateR0, StateR1},
 		TransitionPromoteQueuedMessage: {StateR0, StateR1, StateR1P},
