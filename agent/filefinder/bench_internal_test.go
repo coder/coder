@@ -79,7 +79,7 @@ func buildIndex(t testing.TB, root string) *Index {
 	t.Helper()
 	absRoot, err := filepath.Abs(root)
 	require.NoError(t, err)
-	idx, err := walkRoot(absRoot)
+	idx, _, err := walkRoot(context.Background(), absRoot)
 	require.NoError(t, err)
 	return idx
 }

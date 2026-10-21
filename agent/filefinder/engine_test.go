@@ -64,6 +64,35 @@ func TestEngine_ResultRootAndCase(t *testing.T) {
 	require.Equal(t, dir, results[0].Root)
 }
 
+func TestEngine_SearchRootsOption(t *testing.T) {
+	t.Parallel()
+	dirA, dirB := t.TempDir(), t.TempDir()
+	createFile(t, dirA, "shared_name_a.go", "")
+	createFile(t, dirB, "shared_name_b.go", "")
+
+	eng, ctx := newTestEngine(t)
+	require.NoError(t, eng.AddRoot(ctx, dirA))
+	require.NoError(t, eng.AddRoot(ctx, dirB))
+
+	opts := filefinder.DefaultSearchOptions()
+	opts.Roots = []string{dirB}
+	results, err := eng.Search(ctx, "shared_name", opts)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, dirB, results[0].Root)
+}
+
+func TestEngine_AddRootCanceled(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	createFile(t, dir, "a.go", "")
+
+	eng, _ := newTestEngine(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.ErrorIs(t, eng.AddRoot(ctx, dir), context.Canceled)
+}
+
 func TestEngine_SearchFuzzyMatch(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
