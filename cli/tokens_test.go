@@ -5,6 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -406,4 +410,46 @@ func TestTokenCreateJSON(t *testing.T) {
 	textRes := buf.String()
 	require.True(t, strings.HasSuffix(textRes, "\n"))
 	require.NotContains(t, strings.TrimSuffix(textRes, "\n"), "\n")
+}
+
+// TestTokenCreateMalformedKey verifies that the one-time secret is still
+// printed when the server returns a key that is not "<id>-<secret>".
+func TestTokenCreateMalformedKey(t *testing.T) {
+	t.Parallel()
+
+	const malformedKey = "malformedkey"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/keys/tokens/tokenconfig"):
+			httpapi.Write(r.Context(), w, http.StatusOK, codersdk.TokenConfig{MaxTokenLifetime: time.Hour})
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/keys/tokens"):
+			httpapi.Write(r.Context(), w, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: malformedKey})
+		default:
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	srvURL, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+	client := codersdk.New(srvURL)
+	client.SetSessionToken("test-token")
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	inv, root := clitest.New(t, "tokens", "create", "--output", "json")
+	clitest.SetupConfig(t, client, root)
+	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
+	inv.Stdout = stdout
+	inv.Stderr = stderr
+	require.NoError(t, inv.WithContext(ctx).Run())
+
+	var res struct {
+		codersdk.APIKey
+		Key string `json:"key"`
+	}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &res))
+	require.Equal(t, malformedKey, res.Key)
+	require.Empty(t, res.ID)
+	require.Contains(t, stderr.String(), "Could not parse the token ID")
 }

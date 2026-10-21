@@ -126,16 +126,18 @@ func (r *RootCmd) createToken() *serpent.Command {
 			}
 
 			// The key is formatted as "<id>-<secret>".
+			// The token already exists, so never fail past this point and
+			// lose the one-time secret. Print it with whatever metadata we
+			// have.
 			keyID, _, ok := strings.Cut(res.Key, "-")
+			apiKey := &codersdk.APIKey{}
 			if !ok {
-				return xerrors.Errorf("malformed token key returned by server")
-			}
-			apiKey, err := client.APIKeyByID(inv.Context(), userID, keyID)
-			if err != nil {
-				// The token already exists, so never fail here and lose the
-				// one-time secret. Print it with whatever metadata we have.
+				cliui.Warn(inv.Stderr, "Could not parse the token ID from the created token. Skipping the metadata lookup.")
+			} else if fetched, err := client.APIKeyByID(inv.Context(), userID, keyID); err != nil {
 				cliui.Warnf(inv.Stderr, "Could not fetch metadata for the created token: %v", err)
-				apiKey = &codersdk.APIKey{ID: keyID}
+				apiKey.ID = keyID
+			} else {
+				apiKey = fetched
 			}
 
 			return formatter.WriteLine(inv.Context(), inv.Stdout, createTokenResponse{
