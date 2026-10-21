@@ -411,7 +411,11 @@ func TestProjectSkillQueries(t *testing.T) {
 		GroupACL: database.ChatACL{},
 	}))
 
-	as := func(userID uuid.UUID) context.Context {
+	// as takes the caller's t and ctx because parallel subtests only start
+	// after this function returns, possibly past the parent ctx deadline,
+	// and must not call FailNow on the parent test.
+	as := func(t *testing.T, ctx context.Context, userID uuid.UUID) context.Context {
+		t.Helper()
 		subject, _, err := httpmw.UserRBACSubject(ctx, db, userID, rbac.ExpandableScope(rbac.ScopeAll))
 		require.NoError(t, err)
 		return dbauthz.As(ctx, subject)
@@ -436,7 +440,7 @@ func TestProjectSkillQueries(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			userCtx := as(tc.user)
+			userCtx := as(t, testutil.Context(t, testutil.WaitLong), tc.user)
 			_, err := authzDB.ListProjectSkillMetadataByProjectID(userCtx, project.ID)
 			requireAllowed(t, tc.read, err)
 
@@ -448,7 +452,7 @@ func TestProjectSkillQueries(t *testing.T) {
 		})
 	}
 
-	ownerCtx := as(projectOwner)
+	ownerCtx := as(t, ctx, projectOwner)
 	skill, err := authzDB.InsertProjectSkill(ownerCtx, database.InsertProjectSkillParams{
 		ID: uuid.New(), ProjectID: project.ID, Name: "owned", Description: "desc", Content: "body",
 	})
@@ -460,7 +464,7 @@ func TestProjectSkillQueries(t *testing.T) {
 		ID: uuid.New(), ProjectID: otherProject.ID, Name: "other", Description: "desc", Content: "body",
 	})
 	require.NoError(t, err)
-	listed, err := authzDB.ListProjectSkillMetadataByProjectID(as(reader), project.ID)
+	listed, err := authzDB.ListProjectSkillMetadataByProjectID(as(t, ctx, reader), project.ID)
 	require.NoError(t, err)
 	listedIDs := make([]uuid.UUID, 0, len(listed))
 	for _, row := range listed {
@@ -468,21 +472,21 @@ func TestProjectSkillQueries(t *testing.T) {
 		listedIDs = append(listedIDs, row.ID)
 	}
 	require.Contains(t, listedIDs, skill.ID)
-	got, err := authzDB.GetProjectSkillByProjectIDAndName(as(reader), database.GetProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: skill.Name})
+	got, err := authzDB.GetProjectSkillByProjectIDAndName(as(t, ctx, reader), database.GetProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: skill.Name})
 	require.NoError(t, err)
 	require.Equal(t, skill.Content, got.Content)
-	_, err = authzDB.GetProjectSkillByProjectIDAndName(as(reader), database.GetProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: "other"})
+	_, err = authzDB.GetProjectSkillByProjectIDAndName(as(t, ctx, reader), database.GetProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: "other"})
 	require.ErrorIs(t, err, sql.ErrNoRows)
 
-	_, err = authzDB.GetProjectSkillByProjectIDAndName(as(otherMember), database.GetProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: skill.Name})
+	_, err = authzDB.GetProjectSkillByProjectIDAndName(as(t, ctx, otherMember), database.GetProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: skill.Name})
 	require.True(t, dbauthz.IsNotAuthorizedError(err), err)
-	_, err = authzDB.GetProjectSkillByIDForUpdate(as(otherMember), skill.ID)
+	_, err = authzDB.GetProjectSkillByIDForUpdate(as(t, ctx, otherMember), skill.ID)
 	require.True(t, dbauthz.IsNotAuthorizedError(err), err)
-	locked, err := authzDB.GetProjectSkillByIDForUpdate(as(reader), skill.ID)
+	locked, err := authzDB.GetProjectSkillByIDForUpdate(as(t, ctx, reader), skill.ID)
 	require.NoError(t, err)
 	require.Equal(t, skill.ID, locked.ID)
 
-	_, err = authzDB.UpdateProjectSkillByProjectIDAndName(as(reader), database.UpdateProjectSkillByProjectIDAndNameParams{
+	_, err = authzDB.UpdateProjectSkillByProjectIDAndName(as(t, ctx, reader), database.UpdateProjectSkillByProjectIDAndNameParams{
 		ProjectID: project.ID, Name: skill.Name, Enabled: sql.NullBool{Bool: false, Valid: true},
 	})
 	require.True(t, dbauthz.IsNotAuthorizedError(err), err)
@@ -493,7 +497,7 @@ func TestProjectSkillQueries(t *testing.T) {
 	require.False(t, updated.Enabled)
 	require.Equal(t, skill.Content, updated.Content)
 
-	_, err = authzDB.DeleteProjectSkillByProjectIDAndName(as(reader), database.DeleteProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: skill.Name})
+	_, err = authzDB.DeleteProjectSkillByProjectIDAndName(as(t, ctx, reader), database.DeleteProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: skill.Name})
 	require.True(t, dbauthz.IsNotAuthorizedError(err), err)
 	deleted, err := authzDB.DeleteProjectSkillByProjectIDAndName(ownerCtx, database.DeleteProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: skill.Name})
 	require.NoError(t, err)

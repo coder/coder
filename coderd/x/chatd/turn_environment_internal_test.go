@@ -2,6 +2,7 @@ package chatd //nolint:testpackage // Exercises unexported re-derivation helpers
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -195,7 +196,7 @@ func TestBuildTurnEnvironmentClampsRequestedReasoningEffortToMax(t *testing.T) {
 	require.NotNil(t, summaryCall.ToolChoice)
 	require.Equal(t, fantasy.ToolChoiceNone, *summaryCall.ToolChoice)
 	require.NotNil(t, summaryCall.MaxOutputTokens)
-	require.Equal(t, 3*defaultChatMaxOutputTokens/2, *summaryCall.MaxOutputTokens)
+	require.Equal(t, *prepared.CallTemplate.MaxOutputTokens, *summaryCall.MaxOutputTokens)
 }
 
 func TestBuildTurnEnvironmentSplitsPendingUserRowsFromCompactionPrompt(t *testing.T) {
@@ -573,6 +574,68 @@ func TestBuildTurnEnvironmentMemory(t *testing.T) {
 	}
 }
 
+type workspaceLookupErrorStore struct {
+	database.Store
+
+	workspaceID uuid.UUID
+	err         error
+}
+
+func (s *workspaceLookupErrorStore) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
+	if id == s.workspaceID {
+		return database.Workspace{}, s.err
+	}
+	return s.Store.GetWorkspaceByID(ctx, id)
+}
+
+func TestBuildTurnEnvironmentWorkspaceAgentLookup(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		lookupErr error
+		wantErr   bool
+	}{
+		{name: "DatabaseErrorFailsTurn", lookupErr: sql.ErrConnDone, wantErr: true},
+		{name: "MissingWorkspaceKeepsTurn", lookupErr: sql.ErrNoRows},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			ctx := chatdTestContext(t)
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+			provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{Type: database.AIProviderTypeOpenai}, "test-key")
+			modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "gpt-4o-mini", AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true}, OrganizationID: org.ID}, func(p *database.InsertChatModelConfigParams) { p.Enabled = true })
+			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{OrganizationID: org.ID, CreatedBy: user.ID})
+			tmpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, ActiveVersionID: tv.ID, CreatedBy: user.ID})
+			ws := dbgen.Workspace(t, db, database.WorkspaceTable{OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
+
+			created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+				OrganizationID: org.ID, OwnerID: user.ID, WorkspaceID: uuid.NullUUID{UUID: ws.ID, Valid: true},
+				LastModelConfigID: modelConfig.ID, Title: "workspace agent lookup", ClientType: database.ChatClientTypeApi,
+				InitialMessages: []chatstate.Message{{Role: database.ChatMessageRoleUser, Content: mustMarshalText(t, "hello"), Visibility: database.ChatMessageVisibilityBoth, ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true}, CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true}, ContentVersion: chatprompt.CurrentContentVersion}},
+			})
+			require.NoError(t, err)
+
+			store := &workspaceLookupErrorStore{Store: db, workspaceID: ws.ID, err: tt.lookupErr}
+			server := newInternalTestServer(t, store, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerTransportFactory(&aibridgeTestFactory{}))
+			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{Chat: created.Chat, Messages: created.InitialMessages})
+			if tt.wantErr {
+				require.ErrorIs(t, err, tt.lookupErr)
+				require.ErrorContains(t, err, "get workspace agent")
+				return
+			}
+			require.NoError(t, err)
+			t.Cleanup(prepared.Close)
+		})
+	}
+}
+
 func TestBuildTurnEnvironmentSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 	t.Parallel()
 
@@ -886,6 +949,17 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 				if strings.Contains(name, "__") {
 					require.False(t, loaded[name], name)
 				}
+			}
+			// chatloop offers every registered tool when the active list is
+			// empty, so an Explore child must not register a tool it hides.
+			if tt.child && tt.mode == explore {
+				var hidden []string
+				for _, tool := range env.Tools {
+					if name := tool.Info().Name; !slices.Contains(offered, name) {
+						hidden = append(hidden, name)
+					}
+				}
+				require.Empty(t, hidden)
 			}
 
 			var system strings.Builder

@@ -1,5 +1,5 @@
 title: Coder Desktop
-description: Transform remote workspaces into seamless local development environments with no port forwarding required
+description: Transform remote workspaces into seamless local development environments with no port forwarding required.
 path: ./user-guides/desktop/index.md
 icon_path: ./images/icons/computer-code.svg
 children:
