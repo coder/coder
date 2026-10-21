@@ -42,8 +42,18 @@ func (api *API) renameUpload(from, to string, mode uploadPublishMode) error {
 // MAX_PATH, which os.Rename handles internally.
 func extendedLengthPath(p string) string {
 	const maxShortPath = 248
-	if len(p) < maxShortPath || !filepath.IsAbs(p) || strings.HasPrefix(p, `\\`) {
+	if len(p) < maxShortPath {
 		return p
 	}
-	return `\\?\` + filepath.Clean(p)
+	clean := filepath.Clean(p)
+	if strings.HasPrefix(clean, `\\?\`) || strings.HasPrefix(clean, `\\.\`) {
+		return p
+	}
+	if strings.HasPrefix(clean, `\\`) {
+		return `\\?\UNC\` + clean[len(`\\`):]
+	}
+	if !filepath.IsAbs(clean) {
+		return p
+	}
+	return `\\?\` + clean
 }
