@@ -35,6 +35,13 @@ export type SkillFormValues = {
 	body: string;
 };
 
+/** The fields of a skill that has not been written yet. */
+export const emptySkillFormValues: SkillFormValues = {
+	name: "",
+	description: "",
+	body: "",
+};
+
 type SkillSearchMetadata = {
 	name: string;
 	description: string;
@@ -200,6 +207,27 @@ export const tryParseSkillMarkdown = (
 				error instanceof Error ? error.message : "Unable to parse SKILL.md.",
 		};
 	}
+};
+
+/**
+ * Projects a stored skill into editor fields. The stored name and
+ * description win over the frontmatter, which only supplies the body.
+ */
+export const skillFormValuesFromSkill = (
+	skill: Skill,
+): ReturnType<typeof tryParseSkillMarkdown> => {
+	const parsed = tryParseSkillMarkdown(skill.content);
+	if (!parsed.ok) {
+		return parsed;
+	}
+	return {
+		ok: true,
+		values: {
+			name: skill.name,
+			description: skill.description,
+			body: parsed.values.body,
+		},
+	};
 };
 
 const frontmatterLineValue = (value: string): string =>
