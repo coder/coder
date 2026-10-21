@@ -120,6 +120,8 @@ Queue changes update `queue_version` automatically via Postgres triggers describ
 
 I don't recommend reading the rest of section thoroughly if this is your first time reading this document. It's an information dump that only makes sense once you pair it with a specific runtime component of chatd. Give it a cursory look, and treat it as a reference that you can return to later when you're analyzing how an HTTP endpoint or a chat worker implements a specific feature.
 
+TODO: after every transition, `ChatMachine.Update` closes the chat's pending structured output result (table `chat_structured_outputs`, one row per user message that set `response_format`) when the turn ended: the chat is `waiting` or `error`, or a newer client-visible user message exists. A validated value succeeds; otherwise the code is `generation_failed` (error), `not_produced` (`FinishTurn` ran) or `interrupted`. The check queries only when the chat is `waiting` or `error` or the transition inserted a user prompt. `CreateChat` and `SendMessage` insert the pending row with the message; `SendMessage` refuses a request unless the chat is in W or E0. Describe this here.
+
 ### Transitions used by the HTTP endpoints
 
 - `Create(initialMessages, initialStatus)` creates a new chat, initializes `snapshot_version` to 1, inserts its initial history, and lands in `initialStatus`. The initial status defaults to `running`; a caller can request `waiting` instead to create an idle chat, which starts running with its first `SendMessage`. The inserted initial history sets `history_version` to 1. Since the queue has not changed, `queue_version` remains 0. This transition is a special case: since the chat does not exist at the time it's run, the chat row cannot be locked before the transition is applied.
@@ -472,6 +474,8 @@ No other input states are supported.
 
 If the request sets `title`, the chat is created with a `user` title and automatic title generation does not run. Otherwise the chat is created with a `fallback` title derived from the prompt, after any `UserPromptSubmit` override, and automatic title generation starts; the response does not wait for the title model call. With an empty `content` array the `fallback` title is `New Chat`, and both steps happen at the first `POST /api/v2/chats/{chat}/messages` instead.
 
+TODO: `response_format` is parsed strictly and its schema compiled before any write; a bad format, plan mode or no initial content is a 400, and the experiment gate applies. Describe this here.
+
 ### `PATCH /api/v2/chats/{chat}`
 
 When archiving or unarchiving a root chat, the operation applies `SetArchived(archived)` to the root and all descendants atomically. If any chat in the family cannot apply the requested archived-state transition, the whole operation fails without changing any chat. Unarchiving an individual child chat remains guarded: it must fail while its parent is archived
@@ -500,6 +504,8 @@ Setting `project_id` on a root chat moves it into that project, and the nil UUID
 A move to the chat's current project succeeds without a transition, even while the chat runs. Child chats and archived chats can't be moved, and neither can a chat that the same request archives.
 
 Setting `title` writes a `user` title. The write happens even when the text is unchanged, unless the title is already a `user` title.
+
+TODO: turning plan mode on while the chat has a pending structured output result is a 409, checked before any write but not under the chat lock. Describe this here.
 
 ### `POST /api/v2/chats/{chat}/messages`
 
@@ -536,6 +542,8 @@ From `I1`, the promoted head in `messages` carries the old head's queue ID in `q
 
 Other input states are not supported.
 
+TODO: `response_format` is a 400 in plan mode, mode and child chats and a 409 when the chat is busy (checked before hooks and again under the chat lock); a plan mode switch while a result is pending is a 409. Describe this here.
+
 ### `PATCH /api/v2/chats/{chat}/messages/{message}`
 
 This endpoint uses `EditMessage(k, replacement)`:
@@ -553,6 +561,8 @@ This endpoint uses `EditMessage(k, replacement)`:
 `EditMessage` clears queued messages, cancels or obsoletes active work without preserving partial output, clears pending dynamic-tool action if present, marks the truncated active-history suffix as deleted, inserts the replacement turn, and lands in `running`.
 
 Other input states are not supported.
+
+TODO: an edit with `response_format` is a 400. An edit of a message with a pending result closes it as `interrupted` through the close rule. Describe this here.
 
 ### `DELETE /api/v2/chats/{chat}/queue/{queuedMessage}`
 
@@ -1018,6 +1028,8 @@ The generation goroutine supports:
 - provider-specific tools like web search and computer use
 - turn limit after a user message (the LLM shouldn't be able to spin forever in loop)
 - and other things
+
+TODO: while the chat has a pending structured output result, the turn offers the `coder_structured_output` provider tool (exclusive in its step) unless strict tool schemas or a tool name collision make it a `configuration_error`. Generated finalizer calls are screened before commit (one result per call, also when chatloop already answered an output-limit cut); the commit records the accepted value or the rejected call count on the result, and the third rejected call without a value fails it as `validation_exhausted`. Describe this here.
 
 ##### Project memory
 
