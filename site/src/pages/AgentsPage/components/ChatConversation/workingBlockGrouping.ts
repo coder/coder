@@ -7,7 +7,7 @@ import {
 	isProviderToolResult,
 	type TurnAttachmentList,
 } from "./messageHelpers";
-import type { TimelineRow } from "./timelineRows";
+import type { TimelineMessageRow, TimelineRow } from "./timelineRows";
 import type {
 	MergedTool,
 	ParsedMessageEntry,
@@ -175,8 +175,11 @@ export type TurnAttachmentsOptions = {
 	 * none of them hosts the pill.
 	 */
 	hidesAttachmentRows: boolean;
-	/** The newest turn may still attach files, so it gets no entry yet. */
-	isLastTurnUnsettled: boolean;
+	/**
+	 * The chat may still add to the newest turn, which gets no entry until
+	 * its answer persists.
+	 */
+	isChatActive: boolean;
 	/** More history exists, so a first turn without its prompt gets no entry. */
 	hasMoreMessages: boolean;
 };
@@ -190,25 +193,25 @@ export const getTurnAttachmentsByRow = (
 	rows: readonly TimelineRow[],
 	{
 		hidesAttachmentRows,
-		isLastTurnUnsettled,
+		isChatActive,
 		hasMoreMessages,
 	}: TurnAttachmentsOptions,
 ): ReadonlyMap<string, TurnAttachmentList> => {
 	const byRow = new Map<string, TurnAttachmentList>();
 	let attachments: AgentAttachment[] = [];
-	let lastShownRowKey: string | undefined;
+	let lastShownRow: TimelineMessageRow | undefined;
 	let isTurnStartLoaded = !hasMoreMessages;
 	const settleTurn = () => {
-		const first: AgentAttachment | undefined = attachments[0];
+		const first = attachments.at(0);
 		if (
 			isTurnStartLoaded &&
-			lastShownRowKey !== undefined &&
+			lastShownRow !== undefined &&
 			first !== undefined
 		) {
-			byRow.set(lastShownRowKey, [first, ...attachments.slice(1)]);
+			byRow.set(lastShownRow.key, [first, ...attachments.slice(1)]);
 		}
 		attachments = [];
-		lastShownRowKey = undefined;
+		lastShownRow = undefined;
 		isTurnStartLoaded = true;
 	};
 
@@ -229,15 +232,36 @@ export const getTurnAttachmentsByRow = (
 			!isHiddenAttachmentRow(row, hidesAttachmentRows) &&
 			!isContextBoundaryRow(row)
 		) {
-			lastShownRowKey = row.key;
+			lastShownRow = row;
 		}
 	}
-	if (!isLastTurnUnsettled) {
+	// The answer ends the turn's work, so a manual compaction after it, which
+	// runs the chat without a new prompt, keeps the pill.
+	const lastParsed = lastShownRow?.entry.parsed;
+	const hasAnswer =
+		lastParsed !== undefined &&
+		splitRowBlocks(lastParsed.blocks, lastParsed.tools).answer.length > 0;
+	if (!isChatActive || hasAnswer) {
 		settleTurn();
 	}
 
 	return byRow;
 };
+
+/**
+ * A working block without an answer row renders none of its rows at the top
+ * level, so it shows its turn's pill when one of its members hosts it.
+ */
+export const getBlockTurnAttachments = (
+	block: WorkingBlock,
+	memberKeys: readonly string[],
+	turnAttachmentsByRow: ReadonlyMap<string, TurnAttachmentList>,
+): TurnAttachmentList | undefined =>
+	block.endsWithAnswer
+		? undefined
+		: memberKeys
+				.map((key) => turnAttachmentsByRow.get(key))
+				.find((attachments) => attachments !== undefined);
 
 type RowContent = ReturnType<typeof getVisibleContent>;
 

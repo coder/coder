@@ -1301,7 +1301,7 @@ describe("getTurnAttachmentsByRow", () => {
 			fileIdsByRow(
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: false,
-					isLastTurnUnsettled: false,
+					isChatActive: false,
 					hasMoreMessages: false,
 				}),
 			),
@@ -1320,7 +1320,7 @@ describe("getTurnAttachmentsByRow", () => {
 		const pillRowKeys = (hidesAttachmentRows: boolean) => [
 			...getTurnAttachmentsByRow(rows, {
 				hidesAttachmentRows,
-				isLastTurnUnsettled: false,
+				isChatActive: false,
 				hasMoreMessages: false,
 			}).keys(),
 		];
@@ -1344,7 +1344,7 @@ describe("getTurnAttachmentsByRow", () => {
 				fileIdsByRow(
 					getTurnAttachmentsByRow(rows, {
 						hidesAttachmentRows: false,
-						isLastTurnUnsettled: false,
+						isChatActive: false,
 						hasMoreMessages: false,
 					}),
 				),
@@ -1362,7 +1362,7 @@ describe("getTurnAttachmentsByRow", () => {
 			fileIdsByRow(
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: false,
-					isLastTurnUnsettled: false,
+					isChatActive: false,
 					hasMoreMessages,
 				}),
 			);
@@ -1380,7 +1380,11 @@ describe("getTurnAttachmentsByRow", () => {
 				user("Build the report"),
 				message("assistant", [text("Done:"), file("a")]),
 				user("Another one"),
-				message("assistant", [text("Working on it:"), file("b")]),
+				message("assistant", [
+					text("Working on it:"),
+					call("attach", undefined, "attach_file"),
+				]),
+				message("assistant", [file("b")]),
 			],
 			{ isTurnActive: true },
 		);
@@ -1389,7 +1393,7 @@ describe("getTurnAttachmentsByRow", () => {
 			fileIdsByRow(
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: true,
-					isLastTurnUnsettled: true,
+					isChatActive: true,
 					hasMoreMessages: false,
 				}),
 			),

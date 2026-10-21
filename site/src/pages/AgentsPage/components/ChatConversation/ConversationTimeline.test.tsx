@@ -388,7 +388,7 @@ describe("ConversationTimeline turn attachments", () => {
 		// Both stages share the parsed messages, so only the status change can
 		// bring the pill in.
 		const parsedMessages = parseMessagesWithMergedTools(
-			MockMixedAttachmentMessages,
+			MockUnansweredAttachmentMessages,
 		);
 		const { rerenderStage } = renderTimeline({
 			parsedMessages,
@@ -401,6 +401,27 @@ describe("ConversationTimeline turn attachments", () => {
 			chatStatus: "waiting",
 			liveStatus: idleLive,
 		});
+		expect(await openAttachmentHrefs(user, "Attachments (4)")).toEqual(
+			mixedTurnHrefs,
+		);
+	});
+
+	it("keeps an answered turn's files while the chat compacts", async () => {
+		const user = userEvent.setup();
+		// /compact runs the chat without a new prompt and streams its summary
+		// call after the answer.
+		renderTimeline({
+			messages: MockMixedAttachmentMessages,
+			chatStatus: "running",
+			...buildStreamRenderState([
+				{
+					type: "tool-call",
+					tool_call_id: "compact",
+					tool_name: "chat_summarized",
+				},
+			]),
+		});
+
 		expect(await openAttachmentHrefs(user, "Attachments (4)")).toEqual(
 			mixedTurnHrefs,
 		);

@@ -306,7 +306,9 @@ export const TurnAttachmentsPillBrokenImage: Story = {
 // The running turn gets its pill once it settles; earlier turns keep theirs.
 export const TurnAttachmentsPillRunningTurn: Story = {
 	args: {
-		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+		parsedMessages: parseMessagesWithMergedTools(
+			MockUnansweredAttachmentMessages,
+		),
 		chatStatus: "running",
 	},
 };

@@ -58,6 +58,7 @@ import { UserMessageContent } from "./UserMessageContent";
 import { useTurnAttachmentsByRow } from "./useTurnAttachmentsByRow";
 import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
 import {
+	getBlockTurnAttachments,
 	getRowBlocks,
 	groupWorkingBlocks,
 	isHiddenAttachmentRow,
@@ -538,7 +539,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			// Unlike isTurnActive, requires_action counts, since the submitted
 			// tool result resumes the turn. The status can also settle before the
 			// streamed answer persists, so the live row keeps the turn open.
-			isLastTurnUnsettled:
+			isChatActive:
 				isActiveChatStatus(chatStatus) || shouldRenderLiveAssistant(liveStatus),
 			hasMoreMessages,
 		});
@@ -756,14 +757,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						const answerRowIndex = block.endsWithAnswer
 							? block.rowIndices.at(-1)
 							: undefined;
-						// Without an answer row, no member renders at the top level, so
-						// the block shows its turn's pill.
-						const blockAttachments =
-							answerRowIndex === undefined
-								? memberKeys
-										.map((key) => turnAttachmentsByRow.get(key))
-										.find((attachments) => attachments !== undefined)
-								: undefined;
+						const blockAttachments = getBlockTurnAttachments(
+							block,
+							memberKeys,
+							turnAttachmentsByRow,
+						);
 
 						return [
 							<MessageScroller.Item

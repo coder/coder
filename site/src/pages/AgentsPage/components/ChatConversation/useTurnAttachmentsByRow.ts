@@ -15,7 +15,7 @@ export const useTurnAttachmentsByRow = (
 	parsedMessages: readonly ParsedMessageEntry[],
 	{
 		hidesAttachmentRows,
-		isLastTurnUnsettled,
+		isChatActive,
 		hasMoreMessages,
 	}: TurnAttachmentsOptions,
 ) => {
@@ -24,6 +24,6 @@ export const useTurnAttachmentsByRow = (
 	const withLiveRow = false;
 	return getTurnAttachmentsByRow(
 		assignTimelineRows(buildDisplayMessages(parsedMessages), withLiveRow),
-		{ hidesAttachmentRows, isLastTurnUnsettled, hasMoreMessages },
+		{ hidesAttachmentRows, isChatActive, hasMoreMessages },
 	);
 };

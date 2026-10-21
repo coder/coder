@@ -1,7 +1,7 @@
 import { getDisplayMessageKey } from "./messageHelpers";
 import type { ParsedMessageEntry } from "./types";
 
-type TimelineMessageRow = {
+export type TimelineMessageRow = {
 	type: "message";
 	entry: ParsedMessageEntry;
 	key: string;
