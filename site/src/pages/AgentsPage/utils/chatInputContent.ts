@@ -43,7 +43,7 @@ export const collectSendableAttachments = (
 	return { attachments, skippedErrors };
 };
 
-/** Returns undefined without attachments; values keep each attachment's name and size. */
+/** The optimistic edited message reads each chip's name and size from here. */
 export const buildPendingAttachmentsByID = (
 	attachments?: readonly PendingAttachment[],
 ): ReadonlyMap<string, PendingAttachment> | undefined => {

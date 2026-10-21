@@ -188,8 +188,7 @@ const workspaceFileReference = (
 	workspace_file_media_type: "text/csv",
 });
 
-// Records the content of every history edit save. The first save gets
-// firstResponse when given; every other save succeeds.
+// The first save gets firstResponse when given; every other save succeeds.
 const recordEditRequests = (firstResponse?: () => Response) => {
 	const savedContent: TypesGen.ChatInputPart[][] = [];
 	server.use(

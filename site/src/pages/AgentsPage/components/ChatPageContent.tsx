@@ -503,8 +503,8 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		setPreservedWorkspaceUploads([]);
 	}, [selectedWorkspaceId]);
 
-	// Pre-populate the edit bucket once per edited blocks array. A failed
-	// save restores the same array, which keeps the user's attachment edits.
+	// Hydrate once per blocks array: a failed save restores the same array,
+	// so the user's attachment edits survive.
 	const hydratedEditAttachmentBlocksRef = useRef<
 		readonly TypesGen.ChatMessagePart[] | null
 	>(null);

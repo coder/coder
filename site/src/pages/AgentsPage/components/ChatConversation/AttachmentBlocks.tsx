@@ -112,7 +112,7 @@ const getAttachmentExtension = (
 const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
 	TEXT_ATTACHMENT_MEDIA_TYPES.has(mediaType);
 
-/** Names an attachment chip, falling back to its media type's kind. */
+/** Unnamed attachments get a fallback label for their media kind. */
 export const getAttachmentDisplayName = (
 	block: Pick<FileAttachmentBlock, "media_type" | "name">,
 ): string => {
