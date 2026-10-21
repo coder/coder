@@ -936,7 +936,7 @@ export const router = createBrowserRouter(
 					</Route>
 					<Route path="projects/:projectId" element={<AgentCreatePage />} />
 					<Route
-						path="compare/:leftId/:rightId"
+						path="compare/*"
 						element={
 							<Suspense fallback={<AgentChatPageSkeleton />}>
 								<AgentChatComparePage />
