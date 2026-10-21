@@ -200,6 +200,11 @@ func validateChatHistoryArgs(args chatHistoryArgs) string {
 		(readItem && (args.RecentFirst || args.Limit != 0)) {
 		return "filters_unsupported"
 	}
+	switch args.Role {
+	case "", "user", "assistant", "tool":
+	default:
+		return "invalid_arguments"
+	}
 	if args.Limit < 0 || args.MaxCharsPerItem < 0 || args.OffsetChars < 0 || args.LimitChars < 0 ||
 		utf8.RuneCountInString(args.Query) > chatHistoryMaxQueryChars {
 		return "invalid_arguments"
@@ -363,9 +368,15 @@ func (r *chatHistoryReader) listItems() (chatHistoryResult, error) {
 				return true
 			}
 			// Lead-in context never takes more than half of the snippet,
-			// so the match stays visible.
+			// so the match stays visible. A snippet too short for the lead-in
+			// and the match's first rune starts at the match instead.
 			leadIn := min(120, requested/2)
-			start = max(0, utf16Len(text[:loc[0]])-leadIn)
+			matchAt := utf16Len(text[:loc[0]])
+			start = max(0, matchAt-leadIn)
+			first, _ := utf8.DecodeRuneInString(text[loc[0]:])
+			if matchAt+utf16.RuneLen(first) > start+requested {
+				start = matchAt
+			}
 		}
 		return len(r.result.Items) < limit && r.stage(row, text, start, requested)
 	})
@@ -456,6 +467,9 @@ func (r *chatHistoryReader) scan(visit func(database.ChatMessage) bool) (bool, e
 			}
 			if !visit(row) {
 				return false, nil
+			}
+			if !r.opts.Clock.Now().Before(r.deadline) {
+				return false, errChatHistoryTimeout
 			}
 			if r.args.RecentFirst {
 				beforeID = row.ID
