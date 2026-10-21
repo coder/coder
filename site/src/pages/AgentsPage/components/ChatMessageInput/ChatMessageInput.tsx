@@ -73,8 +73,11 @@ import {
 } from "./pasteHelpers";
 import {
 	$getSkillInvocationNodes,
+	$hasSkillInvocationNode,
 	$insertSkillInvocation,
+	MAX_SKILL_INVOCATIONS_PER_MESSAGE,
 	SkillInvocationNode,
+	warnSkillLimit,
 } from "./SkillInvocationNode";
 import {
 	createCommandMenuItem,
@@ -733,6 +736,15 @@ const $replaceTypedSkillAlias = (
 		return;
 	}
 	if (!/\s/.test(text.charAt(aliasEnd))) {
+		return;
+	}
+
+	// Unlike a menu pick, typed text is kept when no chip can replace it.
+	if ($hasSkillInvocationNode(skill.source, skill.name)) {
+		return;
+	}
+	if ($getSkillInvocationNodes().length >= MAX_SKILL_INVOCATIONS_PER_MESSAGE) {
+		warnSkillLimit();
 		return;
 	}
 

@@ -396,6 +396,27 @@ describe("ChatMessageInput", () => {
 			},
 		);
 
+		it("keeps a typed alias as text at the skill limit and says why", async () => {
+			const toastError = vi.spyOn(toast, "error");
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [],
+			});
+			await waitFor(() => expect(inputRef.current).not.toBeNull());
+			act(() => {
+				for (let index = 0; index < 8; index++) {
+					inputRef.current?.insertSkill("project", `skill-${index}`);
+				}
+			});
+			const user = await pasteTrigger("/reviewer");
+			await screen.findByRole("option", { name: /^\/reviewer/ });
+			await user.keyboard(" now");
+			expect(inputRef.current?.getValue()).toContain("/reviewer now");
+			expect(toastError).toHaveBeenCalledWith(
+				"A message can include up to 8 skills.",
+			);
+		});
+
 		it("sends a typed partial skill name as text", async () => {
 			const inputRef = renderWithSkills({
 				personal: [mockReviewerSkill],
