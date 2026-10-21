@@ -2,6 +2,7 @@ import { cn } from "cn";
 import { Profiler, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
+import { checkAuthorization } from "#/api/queries/authCheck";
 import {
 	chatPromptsQuery,
 	organizationChatModelOverrides,
@@ -10,6 +11,8 @@ import {
 } from "#/api/queries/chats";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
 import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
@@ -375,6 +378,29 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	folder,
 }) => {
 	const { user: currentUser } = useAuthenticated();
+	const queuedMessages = useChatSelector(store, selectQueuedMessages);
+	const chatAuthorizationQuery = useQuery({
+		...checkAuthorization({
+			checks: {
+				canUpdateChat: {
+					object: {
+						resource_type: "chat",
+						owner_id: chat.owner_id,
+						organization_id: chat.organization_id,
+					},
+					action: "update",
+				},
+			},
+		}),
+		enabled: queuedMessages.length > 0,
+	});
+	const canDeleteQueuedMessage = Boolean(
+		chatAuthorizationQuery.data?.canUpdateChat,
+	);
+	const canPromoteQueuedMessage =
+		canDeleteQueuedMessage &&
+		currentUser.id === chat.owner_id &&
+		!chat.archived;
 	const organizationId = chat.organization_id;
 	const chatId = chat.id;
 	const chatContext = chat.context;
@@ -402,7 +428,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
 	const chatStatus = useChatSelector(store, selectChatStatus);
-	const queuedMessages = useChatSelector(store, selectQueuedMessages);
 
 	const messages = useChatMessages(store);
 	// Source the composer's prompt-history cycle from the dedicated /prompts endpoint.
@@ -785,8 +810,12 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			remountKey={remountKey}
 			onContentChange={onContentChange}
 			queuedMessages={queuedMessages}
-			onDeleteQueuedMessage={onDeleteQueuedMessage}
-			onPromoteQueuedMessage={onPromoteQueuedMessage}
+			onDeleteQueuedMessage={
+				canDeleteQueuedMessage ? onDeleteQueuedMessage : undefined
+			}
+			onPromoteQueuedMessage={
+				canPromoteQueuedMessage ? onPromoteQueuedMessage : undefined
+			}
 			isEditingHistoryMessage={isEditing}
 			onCancelHistoryEdit={onCancelHistoryEdit}
 			userPromptHistory={userPromptHistory}
@@ -838,16 +867,36 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		/>
 	);
 
-	if (!modelSelectorHelp) {
-		return inputElement;
-	}
+	const queueAuthorizationError =
+		queuedMessages.length > 0 && !chatAuthorizationQuery.data
+			? chatAuthorizationQuery.error
+			: null;
 
 	return (
 		<div>
+			{queueAuthorizationError && (
+				<ErrorAlert
+					error={queueAuthorizationError}
+					showDebugDetail={false}
+					className="mb-2"
+					actions={
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={chatAuthorizationQuery.isFetching}
+							onClick={() => void chatAuthorizationQuery.refetch()}
+						>
+							Retry queue permissions
+						</Button>
+					}
+				/>
+			)}
 			{inputElement}
-			<div className="px-3 pt-1 text-2xs text-content-secondary">
-				{modelSelectorHelp}
-			</div>
+			{modelSelectorHelp && (
+				<div className="px-3 pt-1 text-2xs text-content-secondary">
+					{modelSelectorHelp}
+				</div>
+			)}
 		</div>
 	);
 };
