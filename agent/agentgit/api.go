@@ -118,7 +118,7 @@ func (a *API) handleWatch(rw http.ResponseWriter, r *http.Request) {
 		defer unsubscribe()
 
 		// Load any paths that are already tracked for this chat.
-		handler.SetPaths(a.pathStore.GetPaths(watchChatID))
+		handler.SetPaths(ctx, a.pathStore.GetPaths(watchChatID))
 
 		resolvePaths = make(chan struct{}, 1)
 		go func() {
@@ -129,7 +129,7 @@ func (a *API) handleWatch(rw http.ResponseWriter, r *http.Request) {
 				case <-notifyCh:
 				case <-resolvePaths:
 				}
-				handler.SetPaths(a.pathStore.GetPaths(watchChatID))
+				handler.SetPaths(ctx, a.pathStore.GetPaths(watchChatID))
 				handler.RequestScan()
 			}
 		}()
@@ -157,10 +157,9 @@ func (a *API) handleWatch(rw http.ResponseWriter, r *http.Request) {
 				// Re-resolve the chat's paths, as a new connection
 				// would, so repos created, recreated, or nested after
 				// their paths were recorded are picked up. The
-				// resolver requests the scan afterwards.
-				if resolvePaths == nil {
-					handler.RequestScan()
-				} else {
+				// resolver requests the scan afterwards. Without a
+				// chat there are no repos to refresh.
+				if resolvePaths != nil {
 					select {
 					case resolvePaths <- struct{}{}:
 					default:

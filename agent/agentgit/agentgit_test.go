@@ -75,16 +75,17 @@ func TestSetPathsDedupesRepoRoots(t *testing.T) {
 
 	// Multiple paths in the same repo dedupe to one repo root.
 	paths := []string{filepath.Join(repoDir, "a.go"), filepath.Join(repoDir, "b.go")}
-	h.SetPaths(paths)
-	msg := h.Scan(context.Background())
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, paths)
+	msg := h.Scan(ctx)
 	require.NotNil(t, msg)
 	require.Len(t, msg.Repositories, 1)
 	require.Equal(t, repoDir, msg.Repositories[0].RepoRoot)
 
 	// Setting the same paths again changes nothing, so the next scan
 	// is a heartbeat.
-	h.SetPaths(paths)
-	msg = h.Scan(context.Background())
+	h.SetPaths(ctx, paths)
+	msg = h.Scan(ctx)
 	require.NotNil(t, msg)
 	require.Empty(t, msg.Repositories)
 }
@@ -95,8 +96,9 @@ func TestSetPathsNonGitPathsIgnored(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 	h := agentgit.NewHandler(logger)
 
-	h.SetPaths([]string{filepath.Join(t.TempDir(), "file.txt")})
-	msg := h.Scan(context.Background())
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{filepath.Join(t.TempDir(), "file.txt")})
+	msg := h.Scan(ctx)
 	require.NotNil(t, msg)
 	require.Empty(t, msg.Repositories, "non-git paths should be ignored")
 }
@@ -107,8 +109,9 @@ func TestSetPathsRelativePathsIgnored(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 	h := agentgit.NewHandler(logger)
 
-	h.SetPaths([]string{"relative/path.go"})
-	msg := h.Scan(context.Background())
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{"relative/path.go"})
+	msg := h.Scan(ctx)
 	require.NotNil(t, msg)
 	require.Empty(t, msg.Repositories, "relative paths should be ignored")
 }
@@ -119,10 +122,10 @@ func TestSetPathsEmptyPaths(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 	h := agentgit.NewHandler(logger)
 
-	h.SetPaths([]string{})
-	h.SetPaths(nil)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{})
+	h.SetPaths(ctx, nil)
 
-	ctx := context.Background()
 	msg := h.Scan(ctx)
 	require.NotNil(t, msg, "first scan should report the empty state")
 	require.Empty(t, msg.Repositories)
@@ -140,9 +143,9 @@ func TestScanReturnsRepoChanges(t *testing.T) {
 	// Create a dirty file.
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "new.go"), []byte("package main\n"), 0o600))
 
-	h.SetPaths([]string{filepath.Join(repoDir, "new.go")})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{filepath.Join(repoDir, "new.go")})
 
-	ctx := context.Background()
 	msg := h.Scan(ctx)
 	require.NotNil(t, msg)
 	require.Equal(t, codersdk.WorkspaceAgentGitServerMessageTypeChanges, msg.Type)
@@ -189,8 +192,9 @@ func TestWithExecerRunsGit(t *testing.T) {
 	h := agentgit.NewHandler(logger, agentgit.WithExecer(execer))
 
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "new.go"), []byte("package main\n"), 0o600))
-	h.SetPaths([]string{filepath.Join(repoDir, "new.go")})
-	msg := h.Scan(context.Background())
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{filepath.Join(repoDir, "new.go")})
+	msg := h.Scan(ctx)
 	require.NotNil(t, msg)
 	require.Len(t, msg.Repositories, 1)
 	require.Contains(t, msg.Repositories[0].UnifiedDiff, "new.go")
@@ -221,9 +225,9 @@ func TestScanRespectsGitignore(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "build", "output.bin"), []byte("binary\n"), 0o600))
 
 	h := agentgit.NewHandler(logger)
-	h.SetPaths([]string{filepath.Join(repoDir, "main.go")})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{filepath.Join(repoDir, "main.go")})
 
-	ctx := context.Background()
 	msg := h.Scan(ctx)
 	require.NotNil(t, msg)
 	require.Len(t, msg.Repositories, 1)
@@ -265,9 +269,9 @@ func TestScanRespectsGitignoreNestedNegation(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "main.go"), []byte("package main\n"), 0o600))
 
 	h := agentgit.NewHandler(logger)
-	h.SetPaths([]string{filepath.Join(repoDir, "main.go")})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{filepath.Join(repoDir, "main.go")})
 
-	ctx := context.Background()
 	msg := h.Scan(ctx)
 	require.NotNil(t, msg)
 	require.Len(t, msg.Repositories, 1)
@@ -295,8 +299,8 @@ func TestScanDeltaEmission(t *testing.T) {
 	dirtyFile := filepath.Join(repoDir, "dirty.go")
 	require.NoError(t, os.WriteFile(dirtyFile, []byte("package dirty\n"), 0o600))
 
-	h.SetPaths([]string{dirtyFile})
-	ctx := context.Background()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{dirtyFile})
 
 	// First scan — returns all files (no previous snapshot).
 	msg1 := h.Scan(ctx)
@@ -335,8 +339,8 @@ func TestScanHeartbeatOnCleanRepo(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 
 	h := agentgit.NewHandler(logger)
-	h.SetPaths([]string{repoDir})
-	ctx := context.Background()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{repoDir})
 
 	// First scan on a clean repo captures branch/remote/empty-diff.
 	msg1 := h.Scan(ctx)
@@ -372,11 +376,12 @@ func TestScanNoHeartbeatWithoutSubscribedRoots(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 	h := agentgit.NewHandler(logger)
 
-	msg := h.Scan(context.Background())
+	ctx := testutil.Context(t, testutil.WaitLong)
+	msg := h.Scan(ctx)
 	require.NotNil(t, msg, "first scan should report the empty state")
 	require.Empty(t, msg.Repositories)
 
-	msg = h.Scan(context.Background())
+	msg = h.Scan(ctx)
 	require.Nil(t, msg, "no subscribed roots should mean no heartbeat")
 }
 
@@ -392,8 +397,8 @@ func TestScanDeltaDetectsContentChanges(t *testing.T) {
 	readmePath := filepath.Join(repoDir, "README.md")
 	require.NoError(t, os.WriteFile(readmePath, []byte("# Edit 1\n"), 0o600))
 
-	h.SetPaths([]string{readmePath})
-	ctx := context.Background()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{readmePath})
 
 	// First scan — returns the initial dirty state.
 	msg1 := h.Scan(ctx)
@@ -424,7 +429,7 @@ func TestScanDeltaDetectsContentChanges(t *testing.T) {
 	untrackedPath := filepath.Join(repoDir, "untracked.go")
 	require.NoError(t, os.WriteFile(untrackedPath, []byte("package main\n"), 0o600))
 
-	h.SetPaths([]string{untrackedPath})
+	h.SetPaths(ctx, []string{untrackedPath})
 	msg4 := h.Scan(ctx)
 	require.NotNil(t, msg4)
 
@@ -452,10 +457,10 @@ func TestScanRateLimiting(t *testing.T) {
 
 	h := agentgit.NewHandler(logger)
 
-	h.SetPaths([]string{filepath.Join(repoDir, "file.go")})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{filepath.Join(repoDir, "file.go")})
 
 	// First scan should succeed.
-	ctx := context.Background()
 	msg1 := h.Scan(ctx)
 	// Even if no dirty files, the first scan always runs.
 	// The important thing is it doesn't panic.
@@ -482,9 +487,10 @@ func TestSetPathsDeeplyNestedFile(t *testing.T) {
 
 	h := agentgit.NewHandler(logger)
 
-	h.SetPaths([]string{nestedFile})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{nestedFile})
 
-	msg := h.Scan(context.Background())
+	msg := h.Scan(ctx)
 	require.NotNil(t, msg)
 	require.Len(t, msg.Repositories, 1)
 	require.Equal(t, repoDir, msg.Repositories[0].RepoRoot)
@@ -521,9 +527,10 @@ func TestSetPathsNestedGitRepos(t *testing.T) {
 	h := agentgit.NewHandler(logger)
 
 	// Watch a path inside the inner repo.
-	h.SetPaths([]string{dirtyFile})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{dirtyFile})
 
-	msg := h.Scan(context.Background())
+	msg := h.Scan(ctx)
 	require.NotNil(t, msg)
 	require.Len(t, msg.Repositories, 1, "should track only one repo")
 
@@ -544,8 +551,8 @@ func TestScanDeletedRepoEmitsRemoved(t *testing.T) {
 	dirtyFile := filepath.Join(repoDir, "dirty.go")
 	require.NoError(t, os.WriteFile(dirtyFile, []byte("package dirty\n"), 0o600))
 
-	h.SetPaths([]string{dirtyFile})
-	ctx := context.Background()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{dirtyFile})
 
 	// Initial scan — populates the snapshot with the dirty file.
 	msg1 := h.Scan(ctx)
@@ -586,8 +593,8 @@ func TestScanDeletedGitDirEmitsRemoved(t *testing.T) {
 	dirtyFile := filepath.Join(repoDir, "dirty.go")
 	require.NoError(t, os.WriteFile(dirtyFile, []byte("package dirty\n"), 0o600))
 
-	h.SetPaths([]string{dirtyFile})
-	ctx := context.Background()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{dirtyFile})
 
 	msg1 := h.Scan(ctx)
 	require.NotNil(t, msg1)
@@ -623,8 +630,8 @@ func TestScanDeletedWorktreeGitdirEmitsRemoved(t *testing.T) {
 	dirtyFile := filepath.Join(worktreeDir, "dirty.go")
 	require.NoError(t, os.WriteFile(dirtyFile, []byte("package dirty\n"), 0o600))
 
-	h.SetPaths([]string{dirtyFile})
-	ctx := context.Background()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{dirtyFile})
 
 	// Initial scan should succeed.
 	msg1 := h.Scan(ctx)
@@ -666,8 +673,8 @@ func TestScanTransientErrorDoesNotRemoveRepo(t *testing.T) {
 	dirtyFile := filepath.Join(repoDir, "dirty.go")
 	require.NoError(t, os.WriteFile(dirtyFile, []byte("package dirty\n"), 0o600))
 
-	h.SetPaths([]string{dirtyFile})
-	ctx := context.Background()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{dirtyFile})
 
 	// Initial scan succeeds.
 	msg1 := h.Scan(ctx)
@@ -732,16 +739,16 @@ func TestSetPathsReportsRootsNoLongerResolved(t *testing.T) {
 	require.NoError(t, os.WriteFile(file, []byte("package main\n"), 0o600))
 
 	h := agentgit.NewHandler(slogtest.Make(t, nil))
-	ctx := context.Background()
 
-	h.SetPaths([]string{file})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{file})
 	msg := h.Scan(ctx)
 	require.NotNil(t, msg)
 	require.Equal(t, map[string]bool{parent: false}, repoRemovals(msg))
 
 	// The path now belongs to a nested repository.
 	gitCmd(t, sub, "init")
-	h.SetPaths([]string{file})
+	h.SetPaths(ctx, []string{file})
 	msg = h.Scan(ctx)
 	require.NotNil(t, msg)
 	require.Equal(t, map[string]bool{sub: false, parent: true}, repoRemovals(msg))
@@ -753,7 +760,7 @@ func TestSetPathsReportsRootsNoLongerResolved(t *testing.T) {
 	// Without the nested repository the path resolves to parent
 	// again, which is sent in full even though it has not changed.
 	require.NoError(t, os.RemoveAll(filepath.Join(sub, ".git")))
-	h.SetPaths([]string{file})
+	h.SetPaths(ctx, []string{file})
 	msg = h.Scan(ctx)
 	require.NotNil(t, msg)
 	require.Equal(t, map[string]bool{parent: false, sub: true}, repoRemovals(msg))
@@ -772,19 +779,77 @@ func TestSetPathsKeepsRootWhenPathDirectoryDeleted(t *testing.T) {
 	require.NoError(t, os.WriteFile(file, []byte("package build\n"), 0o600))
 
 	h := agentgit.NewHandler(slogtest.Make(t, nil))
-	ctx := context.Background()
 
-	h.SetPaths([]string{file})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{file})
 	msg := h.Scan(ctx)
 	require.NotNil(t, msg)
 	require.Equal(t, map[string]bool{repoDir: false}, repoRemovals(msg))
 
 	require.NoError(t, os.RemoveAll(filepath.Join(repoDir, "build")))
-	h.SetPaths([]string{file})
+	h.SetPaths(ctx, []string{file})
 	msg = h.Scan(ctx)
 	require.NotNil(t, msg)
 	require.Equal(t, map[string]bool{repoDir: false}, repoRemovals(msg),
 		"the repo stays watched and its diff is updated")
+}
+
+// blockingExecer blocks the first `rev-parse --git-dir` command until
+// release is closed, after closing started.
+type blockingExecer struct {
+	agentexec.Execer
+
+	once    sync.Once
+	started chan struct{}
+	release chan struct{}
+}
+
+func (b *blockingExecer) CommandContext(ctx context.Context, cmd string, args ...string) *exec.Cmd {
+	if strings.Contains(strings.Join(args, " "), "rev-parse --git-dir") {
+		b.once.Do(func() {
+			close(b.started)
+			<-b.release
+		})
+	}
+	return b.Execer.CommandContext(ctx, cmd, args...)
+}
+
+// TestScanDropsResultsForRootsRemovedMidScan pins that a root dropped
+// by SetPaths while a scan is reading it is left out of that scan's
+// message, and is sent in full if a path resolves to it again.
+func TestScanDropsResultsForRootsRemovedMidScan(t *testing.T) {
+	t.Parallel()
+
+	repoDir := initTestRepo(t)
+	file := filepath.Join(repoDir, "main.go")
+	require.NoError(t, os.WriteFile(file, []byte("package main\n"), 0o600))
+
+	execer := &blockingExecer{
+		Execer:  agentexec.DefaultExecer,
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	h := agentgit.NewHandler(slogtest.Make(t, nil), agentgit.WithExecer(execer))
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{file})
+	done := make(chan *codersdk.WorkspaceAgentGitServerMessage, 1)
+	go func() { done <- h.Scan(ctx) }()
+
+	testutil.TryReceive(ctx, t, execer.started)
+	h.SetPaths(ctx, nil)
+	close(execer.release)
+
+	msg := testutil.TryReceive(ctx, t, done)
+	require.NotNil(t, msg)
+	require.Empty(t, msg.Repositories, "the client was never sent the dropped root")
+
+	h.SetPaths(ctx, []string{file})
+	msg = h.Scan(ctx)
+	require.NotNil(t, msg)
+	require.Len(t, msg.Repositories, 1)
+	require.Equal(t, repoDir, msg.Repositories[0].RepoRoot)
+	require.Contains(t, msg.Repositories[0].UnifiedDiff, "main.go")
 }
 
 // --- WebSocket end-to-end tests ---
@@ -803,7 +868,8 @@ func dialGitWatch(t *testing.T, opts ...agentgit.Option) *wsjson.Stream[
 	t.Cleanup(srv.Close)
 
 	wsURL := "ws" + srv.URL[len("http"):] + "/watch"
-	conn, _, err := websocket.Dial(context.Background(), wsURL, nil)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = conn.Close(websocket.StatusNormalClosure, "") })
 
@@ -833,7 +899,8 @@ func dialGitWatchWithPathStore(
 	t.Cleanup(srv.Close)
 
 	wsURL := "ws" + srv.URL[len("http"):] + "/watch?chat_id=" + chatID.String()
-	conn, _, err := websocket.Dial(context.Background(), wsURL, nil)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = conn.Close(websocket.StatusNormalClosure, "") })
 
@@ -938,7 +1005,7 @@ func TestWebSocketIncrementalSubscribe(t *testing.T) {
 
 	// Advance past the scan cooldown so the next scan fires
 	// immediately.
-	mClock.Advance(2 * time.Second).MustWait(context.Background())
+	mClock.Advance(2 * time.Second).MustWait(ctx)
 
 	// Now add repo B via the PathStore (incremental).
 	ps.AddPaths([]uuid.UUID{chatID}, []string{filepath.Join(repoB, "b.go")})
@@ -976,7 +1043,7 @@ func TestWebSocketRefreshTriggersChanges(t *testing.T) {
 	_ = recvMsg(ctx, t, ch)
 
 	// Advance past cooldown so the refresh scan fires immediately.
-	mClock.Advance(2 * time.Second).MustWait(context.Background())
+	mClock.Advance(2 * time.Second).MustWait(ctx)
 
 	// Modify a file, then send refresh.
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "r2.go"), []byte("package r\n"), 0o600))
@@ -1034,7 +1101,6 @@ func TestWebSocketRefreshResolvesNewRepo(t *testing.T) {
 func TestWebSocketRefreshMatchesNewConnection(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
 	parent := initTestRepo(t)
 	sub := filepath.Join(parent, "sub")
 	require.NoError(t, os.Mkdir(sub, 0o700))
@@ -1049,10 +1115,12 @@ func TestWebSocketRefreshMatchesNewConnection(t *testing.T) {
 	stream := dialGitWatchWithPathStore(t, ps, chatID, agentgit.WithClock(mClock))
 	ch := stream.Chan()
 
+	ctx := testutil.Context(t, testutil.WaitLong)
 	msg := recvMsg(ctx, t, ch)
 	require.Equal(t, map[string]bool{parent: false}, repoRemovals(&msg))
 
-	// The path now belongs to a nested repository.
+	// The path now belongs to a nested repository. Advance past
+	// cooldown so the refresh scan fires immediately.
 	gitCmd(t, sub, "init")
 	mClock.Advance(2 * time.Second).MustWait(ctx)
 
@@ -1109,8 +1177,9 @@ func TestGetRepoChangesStagedModifiedDeleted(t *testing.T) {
 	// Create an untracked file.
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "untracked.txt"), []byte("hello\n"), 0o600))
 
-	h.SetPaths([]string{filepath.Join(repoDir, "README.md")})
-	msg := h.Scan(context.Background())
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{filepath.Join(repoDir, "README.md")})
+	msg := h.Scan(ctx)
 	require.NotNil(t, msg)
 	require.Len(t, msg.Repositories, 1)
 
@@ -1159,7 +1228,7 @@ func TestFallbackPollTriggersScan(t *testing.T) {
 
 	// Advance to the fallback poll interval. This should trigger a
 	// scan without any explicit refresh.
-	mClock.Advance(5 * time.Second).MustWait(context.Background())
+	mClock.Advance(5 * time.Second).MustWait(ctx)
 
 	msg2 := recvMsg(ctx, t, ch)
 	require.Equal(t, codersdk.WorkspaceAgentGitServerMessageTypeChanges, msg2.Type)
@@ -1185,11 +1254,11 @@ func TestMultipleConcurrentConnections(t *testing.T) {
 	wsURL := "ws" + srv.URL[len("http"):] + "/watch?chat_id=" + chatID.String()
 
 	// Create two independent connections.
-	conn1, _, err := websocket.Dial(context.Background(), wsURL, nil)
+	conn1, _, err := websocket.Dial(ctx, wsURL, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = conn1.Close(websocket.StatusNormalClosure, "") })
 
-	conn2, _, err := websocket.Dial(context.Background(), wsURL, nil)
+	conn2, _, err := websocket.Dial(ctx, wsURL, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = conn2.Close(websocket.StatusNormalClosure, "") })
 
@@ -1236,9 +1305,9 @@ func TestScanLargeFileTooLargeToDiff(t *testing.T) {
 	largeFile := filepath.Join(repoDir, "large.txt")
 	require.NoError(t, os.WriteFile(largeFile, largeContent, 0o600))
 
-	h.SetPaths([]string{largeFile})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{largeFile})
 
-	ctx := context.Background()
 	msg := h.Scan(ctx)
 	require.NotNil(t, msg)
 	require.Len(t, msg.Repositories, 1)
@@ -1265,8 +1334,8 @@ func TestScanLargeFileDeltaTracking(t *testing.T) {
 	largeFile := filepath.Join(repoDir, "big.dat")
 	require.NoError(t, os.WriteFile(largeFile, largeContent, 0o600))
 
-	h.SetPaths([]string{largeFile})
-	ctx := context.Background()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{largeFile})
 
 	// First scan — should include the large file.
 	msg1 := h.Scan(ctx)
@@ -1309,9 +1378,9 @@ func TestScanTotalDiffTooLargeForWire(t *testing.T) {
 		paths = append(paths, fullPath)
 	}
 
-	h.SetPaths(paths)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, paths)
 
-	ctx := context.Background()
 	msg := h.Scan(ctx)
 	require.NotNil(t, msg)
 	require.Len(t, msg.Repositories, 1)
@@ -1343,9 +1412,9 @@ func TestScanBinaryFileDiff(t *testing.T) {
 	binaryFile := filepath.Join(repoDir, "image.png")
 	require.NoError(t, os.WriteFile(binaryFile, binaryContent, 0o600))
 
-	h.SetPaths([]string{binaryFile})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{binaryFile})
 
-	ctx := context.Background()
 	msg := h.Scan(ctx)
 	require.NotNil(t, msg)
 	require.Len(t, msg.Repositories, 1)
@@ -1383,9 +1452,9 @@ func TestScanBinaryFileModifiedDiff(t *testing.T) {
 
 	logger := slogtest.Make(t, nil)
 	h := agentgit.NewHandler(logger)
-	h.SetPaths([]string{binPath})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{binPath})
 
-	ctx := context.Background()
 	msg := h.Scan(ctx)
 	require.NotNil(t, msg)
 	require.Len(t, msg.Repositories, 1)
@@ -1419,9 +1488,9 @@ func TestScanFileDiffTooLargeForWire(t *testing.T) {
 	bigFile := filepath.Join(repoDir, "big_diff.txt")
 	require.NoError(t, os.WriteFile(bigFile, content, 0o600))
 
-	h.SetPaths([]string{bigFile})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{bigFile})
 
-	ctx := context.Background()
 	msg := h.Scan(ctx)
 	require.NotNil(t, msg)
 	require.Len(t, msg.Repositories, 1)
@@ -1642,7 +1711,7 @@ func TestE2E_ReEditedFileTriggersRescan(t *testing.T) {
 
 	// Advance past the scan cooldown so the second scan fires
 	// immediately.
-	mClock.Advance(2 * time.Second).MustWait(context.Background())
+	mClock.Advance(2 * time.Second).MustWait(ctx)
 
 	// AddPaths with the same path — triggers PathStore notification.
 	ps.AddPaths([]uuid.UUID{chatID}, []string{filePath})
@@ -1684,7 +1753,7 @@ func TestE2E_RepoDeletionEmitsRemoved(t *testing.T) {
 
 	// Advance past the scan cooldown so the refresh fires
 	// immediately.
-	mClock.Advance(2 * time.Second).MustWait(context.Background())
+	mClock.Advance(2 * time.Second).MustWait(ctx)
 
 	// Send a refresh message to trigger a new scan.
 	err := stream.Send(codersdk.WorkspaceAgentGitClientMessage{
@@ -1718,7 +1787,7 @@ func TestRunLoopExitsPromptlyOnCancel_DuringPoll(t *testing.T) {
 	mClock := quartz.NewMock(t)
 	h := agentgit.NewHandler(logger, agentgit.WithClock(mClock))
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
 	t.Cleanup(cancel)
 
 	// Trap NewTicker so the test can synchronize on RunLoop's
@@ -1764,9 +1833,10 @@ func TestRunLoopExitsPromptlyOnCancel_DuringCooldown(t *testing.T) {
 	// Watch a real repo so Scan() actually does work and, on
 	// completion, updates lastScanAt. Without this, Scan() early-
 	// returns on empty roots and the cooldown branch never arms.
-	h.SetPaths([]string{repoDir})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h.SetPaths(ctx, []string{repoDir})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	t.Cleanup(cancel)
 
 	// Trap NewTicker (for RunLoop) and NewTimer (for the cooldown
@@ -1821,10 +1891,9 @@ func TestRunLoopExitsPromptlyOnCancel_DuringCooldown(t *testing.T) {
 	// Cancel while the goroutine is still paused inside NewTimer.
 	// Release the trap; rateLimitedScan then enters the select on
 	// the cooldown timer vs. ctx.Done(), and ctx.Done() is already
-	// ready so it wins. MustRelease uses Background because the
+	// ready so it wins. MustRelease uses its own context because the
 	// test ctx is the one we just canceled.
-	releaseCtx, releaseCancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer releaseCancel()
+	releaseCtx := testutil.Context(t, testutil.WaitShort)
 	cancel()
 	timerCall.MustRelease(releaseCtx)
 
@@ -1865,7 +1934,7 @@ func TestFallbackPollSkipsWhenRecentlyScanned(t *testing.T) {
 	// to the 5s tick, fire a notification to trigger a scan, then
 	// advance the rest of the way to the tick. The tick should be
 	// swallowed because lastScanAt is recent.
-	mClock.Advance(4 * time.Second).MustWait(context.Background())
+	mClock.Advance(4 * time.Second).MustWait(ctx)
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "a.go"), []byte("package a\n// edit\n"), 0o600))
 	ps.Notify([]uuid.UUID{chatID})
 
@@ -1879,7 +1948,7 @@ func TestFallbackPollSkipsWhenRecentlyScanned(t *testing.T) {
 
 	// Advance to the 5s ticker boundary. The tick fires but is
 	// skipped because Since(lastScanAt) = 1s < fallbackPollInterval.
-	mClock.Advance(1 * time.Second).MustWait(context.Background())
+	mClock.Advance(1 * time.Second).MustWait(ctx)
 
 	// Confirm no scan arrived for the skipped tick.
 	select {
@@ -1891,7 +1960,7 @@ func TestFallbackPollSkipsWhenRecentlyScanned(t *testing.T) {
 	// Advance to the next ticker boundary (t=10s). lastScanAt is
 	// ~4s, so Since = 6s >= fallbackPollInterval and the tick
 	// should no longer be skipped.
-	mClock.Advance(5 * time.Second).MustWait(context.Background())
+	mClock.Advance(5 * time.Second).MustWait(ctx)
 
 	msg3 := recvMsg(ctx, t, ch)
 	require.Equal(t, codersdk.WorkspaceAgentGitServerMessageTypeChanges, msg3.Type)
