@@ -245,11 +245,8 @@ const EnabledToggle: React.FC<EnabledToggleProps> = ({
 				 * Wrap the disabled Switch in a focusable span so the
 				 * tooltip can be triggered by keyboard and pointer.
 				 */}
-				<span
-					// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- needed to surface the tooltip on a disabled control via keyboard focus.
-					tabIndex={0}
-					className="inline-flex"
-				>
+				{/* oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- needed to surface the tooltip on a disabled control via keyboard focus. */}
+				<span tabIndex={0} className="inline-flex">
 					<Switch
 						aria-label={`Toggle secret ${secret.name}`}
 						checked={secret.enabled}
