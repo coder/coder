@@ -107,6 +107,7 @@ func TestActiveServer_ContextRollover(t *testing.T) {
 				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
 				cfg.Experiments = tc.experiments
 				cfg.PrometheusRegistry = reg
+				cfg.AlwaysEnableDebugLogs = true
 			})
 
 			chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "first request")
@@ -171,6 +172,25 @@ func TestActiveServer_ContextRollover(t *testing.T) {
 				"model":    "claude-sonnet-4-20250514",
 				"reason":   "limit",
 			})
+
+			// The turn's debug run points at the user's request, not at
+			// its model-only replay after the boundary.
+			var request database.ChatMessage
+			for _, row := range messages {
+				if row.Visibility != database.ChatMessageVisibilityModel && row.Role == database.ChatMessageRoleUser && strings.Contains(messageText(t, row), "second request") {
+					request = row
+				}
+			}
+			require.NotZero(t, request.ID)
+			runs, err := db.GetChatDebugRunsByChatID(ctx, database.GetChatDebugRunsByChatIDParams{ChatID: chat.ID, LimitVal: 100})
+			require.NoError(t, err)
+			var triggers []int64
+			for _, run := range runs {
+				if run.Kind == string(codersdk.ChatDebugRunKindChatTurn) && run.TriggerMessageID.Valid {
+					triggers = append(triggers, run.TriggerMessageID.Int64)
+				}
+			}
+			require.Contains(t, triggers, request.ID)
 		})
 	}
 }
@@ -339,8 +359,12 @@ func TestActiveServer_ContextHandoff(t *testing.T) {
 	// W = 100 at 20%: the handoff target is 20, the final zone 38 and the
 	// usable limit 75. Each answer reports the usage the next turn sees.
 	inputTokens := []int{25, 40, 45, 50}
-	var streamCount atomic.Int32
+	var streamCount, compactionRequests atomic.Int32
 	anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		if strings.Contains(anthropicRequestBody(t, *req), "You are performing a context compaction") {
+			compactionRequests.Add(1)
+			return anthropicCompactionResponse(t, req, "summary")
+		}
 		if !req.Stream {
 			return chattest.AnthropicNonStreamingResponse("title")
 		}
@@ -419,6 +443,30 @@ func TestActiveServer_ContextHandoff(t *testing.T) {
 			"stage":    stage,
 		})
 	}
+
+	// After a switch to Summarize, the window keeps its handoff prompt
+	// rows, but the prompt must not ask for tools that are no longer
+	// offered.
+	updateChatModelCompressionThreshold(t, db, model, 100, 90)
+	require.NoError(t, db.UpsertUserChatCompactionStrategy(ctx, database.UpsertUserChatCompactionStrategyParams{
+		UserID:             user.ID,
+		CompactionStrategy: string(codersdk.ChatCompactionStrategySummarize),
+	}))
+	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
+		ModelConfigID: model.ID,
+		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("request 5")},
+	})
+	require.NoError(t, err)
+	chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+	require.False(t, chat.LastError.Valid)
+	require.Zero(t, compactionRequests.Load())
+	streams = filterAnthropicStreamingRequests(requests.all())
+	require.Len(t, streams, 5)
+	fifth := anthropicRequestBody(t, streams[4])
+	require.Contains(t, fifth, "request 4")
+	require.NotContains(t, fifth, handoffText)
 }
 
 func TestActiveServer_ContextOverflowRollover(t *testing.T) {

@@ -11,6 +11,7 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -271,6 +272,7 @@ func TestChatHistory(t *testing.T) {
 		results := f.insert(t, database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, false,
 			codersdk.ChatMessageToolResult("call", "execute", json.RawMessage(`{"output":"done"}`), false, false),
 			codersdk.ChatMessageToolResult("history", chattool.ChatHistoryToolName, json.RawMessage(`{"items":[{"text":"recursive"}]}`), false, false),
+			codersdk.ChatMessageToolResult("shot", "computer", json.RawMessage(`{"data":"`+strings.Repeat("QUJD", 1000)+`","mime_type":"image/png","text":"Screenshot taken"}`), false, true),
 		)
 		tool := f.tool()
 
@@ -287,6 +289,8 @@ func TestChatHistory(t *testing.T) {
 		text = result.Items[0].Text
 		require.Contains(t, text, `{"output":"done"}`)
 		require.NotContains(t, text, "recursive")
+		require.Contains(t, text, "[tool result: computer] [media: image/png] Screenshot taken")
+		require.NotContains(t, text, "QUJD", "media results keep only their annotation")
 
 		result, _ = runChatHistory(t, tool, map[string]any{"action": "search", "query": "recursive"})
 		require.Empty(t, result.Items)
@@ -336,6 +340,12 @@ func TestChatHistory(t *testing.T) {
 			require.False(t, got.Success, tc.args)
 			require.Equal(t, tc.want, got.Error, tc.args)
 		}
+
+		// The query limit counts characters, not UTF-8 bytes.
+		got, _ := runChatHistory(t, tool, map[string]any{"action": "search", "query": strings.Repeat("界", 600)})
+		require.True(t, got.Success, got.Error)
+		got, _ = runChatHistory(t, tool, map[string]any{"action": "search", "query": strings.Repeat("界", 1025)})
+		require.Equal(t, "invalid_arguments", got.Error)
 	})
 
 	t.Run("ResultCap", func(t *testing.T) {
@@ -359,6 +369,24 @@ func TestChatHistory(t *testing.T) {
 		require.NotEmpty(t, item.Text)
 		require.NotNil(t, item.NextCharOffset)
 		require.Equal(t, item.StartCharOffset+len(utf16.Encode([]rune(item.Text))), *item.NextCharOffset)
+	})
+
+	t.Run("ScanByteBudget", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		// One row over the 32 MiB scan budget is never parsed.
+		huge := &hugeRowStore{Store: db, size: 32*1024*1024 + 1}
+		var parsed int
+		tool := chattool.ChatHistory(chattool.ChatHistoryOptions{DB: huge, ChatID: f.chat.ID, ParseContent: func(database.ChatMessage) ([]codersdk.ChatMessagePart, error) {
+			parsed++
+			return []codersdk.ChatMessagePart{codersdk.ChatMessageText("huge row")}, nil
+		}})
+
+		result, _ := runChatHistory(t, tool, map[string]any{"action": "search", "query": "huge"})
+		require.True(t, result.Success)
+		require.Empty(t, result.Items)
+		require.True(t, result.HasMore)
+		require.Zero(t, parsed)
 	})
 
 	t.Run("Timeout", func(t *testing.T) {
@@ -385,4 +413,23 @@ type advancingStore struct {
 func (s *advancingStore) GetChatContextBoundaryMessages(ctx context.Context, chatID uuid.UUID) ([]database.GetChatContextBoundaryMessagesRow, error) {
 	s.clock.Advance(11 * time.Second)
 	return s.Store.GetChatContextBoundaryMessages(ctx, chatID)
+}
+
+// hugeRowStore returns one user row of the given content size.
+type hugeRowStore struct {
+	database.Store
+	size int
+}
+
+func (s *hugeRowStore) GetChatMessagesByChatIDAscPaginated(_ context.Context, arg database.GetChatMessagesByChatIDAscPaginatedParams) ([]database.ChatMessage, error) {
+	if arg.AfterID > 0 {
+		return nil, nil
+	}
+	return []database.ChatMessage{{
+		ID:         1,
+		ChatID:     arg.ChatID,
+		Role:       database.ChatMessageRoleUser,
+		Visibility: database.ChatMessageVisibilityBoth,
+		Content:    pqtype.NullRawMessage{RawMessage: make([]byte, s.size), Valid: true},
+	}}, nil
 }
