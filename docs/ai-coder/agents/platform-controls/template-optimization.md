@@ -209,8 +209,8 @@ A description like "AWS region" is less useful to the agent than one that explai
 Parameters with values like `ami-0abcdef1234567890` or `subnet-12345` are difficult for the agent to reason about.
 Where possible, use human-readable option labels or map opaque IDs to descriptive names using Terraform locals.
 
-For full parameter reference (including types, validation, mutability, and workspace presets), see [Parameters](../../../admin/templates/extending-templates/parameters.md).
-[Dynamic parameters](../../../admin/templates/extending-templates/dynamic-parameters.md) add conditional form controls and identity-aware defaults for more advanced use cases.
+For full parameter reference (including types, validation, mutability, and workspace presets), see [Parameters](../../../admin/templates/extending-templates/parameters/index.md).
+[Conditional parameters](../../../admin/templates/extending-templates/parameters/conditional-parameters.md) and [identity-aware parameters](../../../admin/templates/extending-templates/parameters/identity-aware-parameters.md) add conditional form controls and identity-aware defaults for more advanced use cases.
 
 ## Pre-install tools and dependencies
 

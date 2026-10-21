@@ -101,6 +101,11 @@ func TestActiveCitations(t *testing.T) {
 			wantPlanned: []string{"Coder.EmDash"},
 		},
 		{
+			name:       "manifest checker",
+			text:       "*Enforced by `scripts/docsmanifestgen` (`make lint/docs-manifest`) for the trailing period only.*",
+			wantActive: []string{"scripts/docsmanifestgen"},
+		},
+		{
 			name: "rule named without a claim is ignored",
 			text: "*Documentation-only. No Vale rule. Imprecise rules like `Google.Passive` and `write-good.Passive` fire on every passive construction, so they stay out of the package.*",
 		},
