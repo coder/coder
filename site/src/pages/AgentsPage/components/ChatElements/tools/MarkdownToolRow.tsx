@@ -10,12 +10,22 @@ import type { ToolStatus } from "./utils";
 export const MarkdownToolRow: React.FC<{
 	iconName: string;
 	label: string;
+	secondaryLabel?: React.ReactNode;
 	bodyLabel: string;
 	body: string;
 	status: ToolStatus;
 	isError: boolean;
 	errorMessage: string | undefined;
-}> = ({ iconName, label, bodyLabel, body, status, isError, errorMessage }) => (
+}> = ({
+	iconName,
+	label,
+	secondaryLabel,
+	bodyLabel,
+	body,
+	status,
+	isError,
+	errorMessage,
+}) => (
 	<ToolCall.Root
 		className="w-full"
 		status={status}
@@ -23,7 +33,11 @@ export const MarkdownToolRow: React.FC<{
 		errorMessage={errorMessage}
 		hasContent={body.trim().length > 0}
 	>
-		<ToolCall.Header iconName={iconName} label={label} />
+		<ToolCall.Header
+			iconName={iconName}
+			label={label}
+			secondaryLabel={secondaryLabel}
+		/>
 		<ToolCall.Content>
 			<ToolCall.Scrollable
 				className="mt-1.5 rounded-md border border-solid border-border"

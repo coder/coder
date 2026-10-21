@@ -49,12 +49,14 @@ export type GroupWorkingBlocksOptions = {
 	streamState?: StreamState | null;
 };
 
-/** Tools that need the user's attention or record a transcript boundary. */
+/** Tools that need the user's attention or record a context boundary or handoff. */
 const UNCOLLAPSIBLE_TOOLS: ReadonlySet<string> = new Set([
 	"ask_user_question",
 	"propose_plan",
 	"chat_summarized",
 	"chat_cleared",
+	"chat_context_rollover",
+	"chat_context_handoff",
 ]);
 
 /**

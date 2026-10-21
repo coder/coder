@@ -455,25 +455,28 @@ describe("groupWorkingBlocks", () => {
 		expect(blocks[1].liveKey).toBe(`working:live:message:${prompt.id}:1`);
 	});
 
-	it.each(["ask_user_question", "propose_plan", "chat_summarized"])(
-		"never folds a row containing %s",
-		(name) => {
-			const prompt = user("Go");
-			const before = step("a", 1, 2);
-			const special = [
-				message("assistant", [call("q", at(3), name)]),
-				message("tool", [result("q", at(4), { name })]),
-			];
-			const after = step("b", 5, 6);
-			const { rows, blocks } = group([prompt, ...before, ...special, ...after]);
+	it.each([
+		"ask_user_question",
+		"propose_plan",
+		"chat_summarized",
+		"chat_context_rollover",
+		"chat_context_handoff",
+	])("never folds a row containing %s", (name) => {
+		const prompt = user("Go");
+		const before = step("a", 1, 2);
+		const special = [
+			message("assistant", [call("q", at(3), name)]),
+			message("tool", [result("q", at(4), { name })]),
+		];
+		const after = step("b", 5, 6);
+		const { rows, blocks } = group([prompt, ...before, ...special, ...after]);
 
-			expect(blocks).toHaveLength(2);
-			expect(blocks.flatMap((b) => rowIds(rows, b.rowIndices))).toEqual([
-				before[0].id,
-				after[0].id,
-			]);
-		},
-	);
+		expect(blocks).toHaveLength(2);
+		expect(blocks.flatMap((b) => rowIds(rows, b.rowIndices))).toEqual([
+			before[0].id,
+			after[0].id,
+		]);
+	});
 
 	it("folds failed steps like any other step", () => {
 		const prompt = user("Go");

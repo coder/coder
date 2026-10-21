@@ -199,6 +199,20 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		result: { source: "manual" },
 	},
 	{
+		name: "chat_context_rollover",
+		args: { reason: "model", requested_by: "model" },
+		result: {
+			reason: "model",
+			requested_by: "model",
+			checkpoint: "Goal: ship the settings page.",
+		},
+	},
+	{
+		name: "chat_context_handoff",
+		args: { stage: "handoff" },
+		result: { stage: "handoff", prompt: "Save a checkpoint." },
+	},
+	{
 		name: "propose_plan",
 		args: { path: "/home/coder/.coder/plans/PLAN-example.md" },
 		result: { path: "/home/coder/.coder/plans/PLAN-example.md" },
@@ -1271,6 +1285,114 @@ export const ChatClearedError: Story = {
 		result: { error: "chat is archived" },
 		status: "error",
 		isError: true,
+	},
+};
+
+// ---------------------------------------------------------------------------
+// Token budget context window stories
+// ---------------------------------------------------------------------------
+
+const mockCheckpoint = `## Goal
+Port the token budget strategy to the settings page (item 412 in w:0).
+
+## Progress
+- Added the compaction strategy select.
+- Mirrored the handoff target math.
+
+## Next steps
+1. Render the transcript rows.
+2. Run the Storybook checks.`;
+
+const mockRolloverPayload = {
+	requested_by: "system",
+	previous_window_id: "w:0",
+	context_tokens: 168_000,
+	budget_tokens: 168_000,
+};
+
+export const ChatContextRollover: Story = {
+	args: {
+		name: "chat_context_rollover",
+		args: { ...mockRolloverPayload, reason: "limit" },
+		result: {
+			...mockRolloverPayload,
+			reason: "limit",
+			checkpoint: mockCheckpoint,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: /Context window rollover/,
+			}),
+		);
+	},
+};
+
+export const ChatContextRolloverRequestedByAgent: Story = {
+	args: {
+		name: "chat_context_rollover",
+		args: { ...mockRolloverPayload, reason: "model", requested_by: "model" },
+		result: {
+			...mockRolloverPayload,
+			reason: "model",
+			requested_by: "model",
+			checkpoint: mockCheckpoint,
+		},
+	},
+};
+
+export const ChatContextRolloverWithoutCheckpoint: Story = {
+	args: {
+		name: "chat_context_rollover",
+		args: { ...mockRolloverPayload, reason: "overflow" },
+		result: { ...mockRolloverPayload, reason: "overflow" },
+	},
+};
+
+export const ChatContextHandoff: Story = {
+	args: {
+		name: "chat_context_handoff",
+		args: {
+			stage: "handoff",
+			context_tokens: 100_800,
+			budget_tokens: 168_000,
+		},
+		result: {
+			stage: "handoff",
+			prompt:
+				"Context budget ~60% used (100800 of 168000 tokens before Coder forces a rollover at the usable limit).\nThe context handoff target has been reached. Finish the current small unit of work and start no substantial new work in this window.",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: /Context handoff requested/,
+			}),
+		);
+	},
+};
+
+export const ChatContextHandoffFinal: Story = {
+	args: {
+		name: "chat_context_handoff",
+		args: {
+			stage: "final",
+			context_tokens: 152_000,
+			budget_tokens: 168_000,
+		},
+		result: {
+			stage: "final",
+			prompt:
+				"The current context window is exhausted. Save your checkpoint with save_checkpoint now. After the result returns, call new_context.",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: /Context window ending: final handoff/,
+			}),
+		);
 	},
 };
 

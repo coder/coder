@@ -211,6 +211,12 @@ describe("getLatestContextUsage", () => {
 			)?.result,
 		},
 		{ type: "tool-call", tool_name: "chat_cleared" },
+		{ type: "tool-call", tool_name: "chat_context_rollover" },
+		{
+			type: "tool-result",
+			tool_name: "chat_context_rollover",
+			result: { reason: "limit", context_tokens: 168000 },
+		},
 	])("stops at a boundary without successful summary metadata: %j", (part) => {
 		expect(
 			getLatestContextUsage([
