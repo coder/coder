@@ -244,7 +244,7 @@ The agent has access to a set of workspace tools that it uses to accomplish task
 | `spawn_agent` (`type=general` or `explore`) | Delegate a task to a sub-agent running in parallel, optionally on a specific model                                    |
 | `list_subagent_models`                      | List the models available for `spawn_agent`'s `model_config_id` argument                                              |
 | `wait_agent`                                | Wait for a sub-agent to complete and collect its result                                                               |
-| `message_agent`                             | Send a follow-up message to a running sub-agent                                                                       |
+| `message_agent`                             | Send a follow-up message to a sub-agent. A busy sub-agent receives it before its next model call                      |
 | `interrupt_agent`                           | Halt a sub-agent's current turn; it transitions to waiting or running if there are queued messages                    |
 | `spawn_agent` (`type=computer_use`)         | Spawn a sub-agent with desktop interaction (screenshot, mouse, keyboard)                                              |
 | `list_agents`                               | List spawned child agents, most recently active first                                                                 |

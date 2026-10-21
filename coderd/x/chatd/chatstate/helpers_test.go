@@ -37,8 +37,6 @@ func sendQueuedMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine, b
 	return sendMessageWithBehavior(t, f, m, body, chatstate.BusyBehaviorQueue)
 }
 
-// sendInterruptMessage seeds one queued user message via SendMessage
-// with BusyBehaviorInterrupt on an owned chat.
 func sendInterruptMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine, chatID uuid.UUID, body string) chatstate.SendMessageResult {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -47,10 +45,13 @@ func sendInterruptMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine
 		if err := ownChat(ctx, tx, store, chatID); err != nil {
 			return err
 		}
+		if _, err := tx.Interrupt(chatstate.InterruptInput{Reason: "seed"}); err != nil {
+			return err
+		}
 		var err error
 		send, err = tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage(body, f.User.ID, f.Model.ID),
-			BusyBehavior: chatstate.BusyBehaviorInterrupt,
+			BusyBehavior: chatstate.BusyBehaviorSteer,
 			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err

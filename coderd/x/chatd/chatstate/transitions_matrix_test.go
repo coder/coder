@@ -35,9 +35,6 @@ const (
 	// scenarioQueue marks SendMessage cases driven by
 	// BusyBehaviorQueue.
 	scenarioQueue scenario = "queue"
-	// scenarioInterrupt marks SendMessage cases driven by
-	// BusyBehaviorInterrupt.
-	scenarioInterrupt scenario = "interrupt"
 
 	scenarioSteer scenario = "steer"
 
@@ -92,14 +89,6 @@ func expectedErrorForDisallowed(tr chatstate.Transition, from chatstate.Executio
 	return chatstate.ErrTransitionNotAllowed
 }
 
-// Transition appliers
-//
-// Each transition has one default applier that exercises it with
-// inputs derived from the seeded chat. Positive case specs reuse these
-// appliers unless a case needs a different input shape (for example,
-// SendMessage queue versus interrupt from the same source state).
-// The disallowed coverage path also uses these defaults.
-
 func applySetArchived(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededChat, from chatstate.ExecutionState, _ *transitionCaseResult) error {
 	t.Helper()
 	// Archived states unarchive, others archive. For disallowed
@@ -132,20 +121,6 @@ func applySendMessageQueue(t *testing.T, f *testFixture, tx *chatstate.Tx, _ see
 	result.sendMessage, err = tx.SendMessage(chatstate.SendMessageInput{
 		Message:      userTextMessage("sm-queue", f.User.ID, f.Model.ID),
 		BusyBehavior: chatstate.BusyBehaviorQueue,
-		MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
-	})
-	return err
-}
-
-func applySendMessageInterrupt(t *testing.T, f *testFixture, tx *chatstate.Tx, seeded seededChat, from chatstate.ExecutionState, result *transitionCaseResult) error {
-	t.Helper()
-	if err := ownRunningChat(t, tx, seeded, from); err != nil {
-		return err
-	}
-	var err error
-	result.sendMessage, err = tx.SendMessage(chatstate.SendMessageInput{
-		Message:      userTextMessage("sm-interrupt", f.User.ID, f.Model.ID),
-		BusyBehavior: chatstate.BusyBehaviorInterrupt,
 		MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 	})
 	return err
@@ -909,26 +884,6 @@ func matrixCases() []transitionCaseSpec {
 		sendMessageSteerCase(chatstate.StateA0, chatstate.StateA1, queueSeed{}),
 		sendMessageSteerCase(chatstate.StateA1, chatstate.StateA1, queueSeed{}),
 
-		// SendMessage(interrupt) cases. The interrupt applier runs
-		// with body "sm-interrupt" so the assertion can prove the
-		// interrupt input path was taken. From W/E0/E1/I0/I1 the
-		// resulting (transition, from, want) coverage key is
-		// identical to the queue case, but we still exercise the
-		// interrupt entry point to guard against a future bug where
-		// it stops routing through the correct direct-insert /
-		// queue-tail / promotion paths. From the busy R0/R1/A0/A1
-		// states the interrupt destination differs from the queue
-		// destination so the scenario label is the only case for that key.
-		sendMessageInterruptCase(chatstate.StateW, chatstate.StateR0),
-		sendMessageInterruptCase(chatstate.StateE0, chatstate.StateR0),
-		sendMessageInterruptCase(chatstate.StateE1, chatstate.StateR1),
-		sendMessageInterruptCase(chatstate.StateR0, chatstate.StateI1),
-		sendMessageInterruptCase(chatstate.StateR1, chatstate.StateI1),
-		sendMessageInterruptCase(chatstate.StateI0, chatstate.StateI1),
-		sendMessageInterruptCase(chatstate.StateI1, chatstate.StateI1),
-		sendMessageInterruptCase(chatstate.StateA0, chatstate.StateR0),
-		sendMessageInterruptCase(chatstate.StateA1, chatstate.StateR1),
-
 		// EditMessage cases: every allowed source state lands in R0
 		// with the queue cleared, last_error reset, and a
 		// replacement user message in active history.
@@ -1297,136 +1252,6 @@ func sendMessageSteerCase(from, want chatstate.ExecutionState, q queueSeed) tran
 			}
 		},
 	})
-}
-
-func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCaseSpec {
-	return transitionCaseSpec{
-		transition: chatstate.TransitionSendMessage,
-		from:       from,
-		want:       want,
-		scenario:   scenarioInterrupt,
-		apply:      applySendMessageInterrupt,
-		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
-			after, err := f.DB.GetChatByID(ctx, seeded.chatID)
-			require.NoError(t, err)
-			afterQueue, err := f.DB.CountChatQueuedMessages(ctx, seeded.chatID)
-			require.NoError(t, err)
-			afterHistory := activeHistoryIDs(ctx, t, f, seeded.chatID)
-			afterQueueIDs := queuedIDsByPosition(ctx, t, f, seeded.chatID)
-
-			switch from {
-			case chatstate.StateW, chatstate.StateE0:
-				// W/E0 with interrupt-mode behaves like the direct
-				// insert from queue-mode: the new user message lands
-				// directly in history, the queue is left untouched,
-				// last_error is cleared, and the chat lands in R0.
-				require.Equal(t, base.queueCount, afterQueue,
-					"SendMessage(interrupt) into W/E0 must not queue")
-				require.Nil(t, result.sendMessage.QueuedMessage,
-					"SendMessage(interrupt) into W/E0 does not return a queued message")
-				require.Len(t, result.sendMessage.InsertedMessages, 1,
-					"SendMessage(interrupt) into W/E0 inserts exactly one history message")
-				inserted := assertFetchedUserMessage(ctx, t, f, result.sendMessage.InsertedMessages[0])
-				require.Equal(t, seeded.chatID, inserted.ChatID)
-				assertChatMessageText(t, inserted, "sm-interrupt")
-				require.False(t, inserted.QueuedMessageID.Valid,
-					"SendMessage(interrupt) into W/E0 is a direct send, not a promotion")
-				require.False(t, after.LastError.Valid,
-					"SendMessage(interrupt) into W/E0 clears last_error")
-				require.Equal(t, database.ChatStatusRunning, after.Status,
-					"SendMessage(interrupt) into W/E0 lands in running")
-				require.Equal(t, base.queueIDs, afterQueueIDs,
-					"SendMessage(interrupt) into W/E0 must not touch queued messages")
-				require.Equal(t, []int64{inserted.ID}, newActiveMessageIDs(base, afterHistory),
-					"SendMessage(interrupt) into W/E0 appends exactly the new user message")
-
-			case chatstate.StateE1:
-				require.Nil(t, result.sendMessage.QueuedMessage,
-					"SendMessage(interrupt) from E1 does not return a queued message")
-				require.Len(t, result.sendMessage.InsertedMessages, 1,
-					"SendMessage(interrupt) from E1 inserts exactly one history message")
-				inserted := assertFetchedUserMessage(ctx, t, f, result.sendMessage.InsertedMessages[0])
-				require.Equal(t, seeded.chatID, inserted.ChatID)
-				assertChatMessageText(t, inserted, "sm-interrupt")
-				require.False(t, inserted.QueuedMessageID.Valid,
-					"SendMessage(interrupt) from E1 is a direct send, not a promotion")
-				require.Equal(t, base.queueIDs, afterQueueIDs,
-					"SendMessage(interrupt) from E1 must not touch queued messages")
-				require.Equal(t, base.queueVersion, after.QueueVersion,
-					"SendMessage(interrupt) from E1 must not bump queue_version")
-				require.False(t, after.LastError.Valid)
-				require.Equal(t, database.ChatStatusRunning, after.Status)
-				require.Equal(t, []int64{inserted.ID}, newActiveMessageIDs(base, afterHistory),
-					chatstate.StateE1.String()+" -> "+chatstate.StateR1.String()+
-						" interrupt inserts only the new user message")
-
-			case chatstate.StateI0, chatstate.StateI1:
-				// I*: append to queue tail, history untouched, status
-				// stays interrupting.
-				require.Equal(t, base.queueCount+1, afterQueue,
-					"SendMessage(interrupt) from I* appends one queued message")
-				require.NotNil(t, result.sendMessage.QueuedMessage,
-					"SendMessage(interrupt) from I* returns the queued tail")
-				require.Empty(t, result.sendMessage.InsertedMessages,
-					"SendMessage(interrupt) from I* does not insert history")
-				newQueued := assertFetchedQueuedMessage(ctx, t, f, seeded.chatID, *result.sendMessage.QueuedMessage)
-				assertQueuedMessageText(t, newQueued, "sm-interrupt")
-				require.Equal(t, database.ChatBusyBehaviorSteer, newQueued.BusyBehavior,
-					"SendMessage(interrupt) from I* stores a steer row")
-				wantQueue := append(append([]int64{}, base.queueIDs...), newQueued.ID)
-				require.Equal(t, wantQueue, afterQueueIDs,
-					"SendMessage(interrupt) from I* appends to the queue tail")
-				require.Equal(t, base.historyIDs, afterHistory,
-					"SendMessage(interrupt) from I* must not touch history")
-				require.Equal(t, database.ChatStatusInterrupting, after.Status,
-					"SendMessage(interrupt) from I* keeps status interrupting")
-				require.Greater(t, after.QueueVersion, base.queueVersion,
-					"SendMessage(interrupt) from I* advances queue_version")
-
-			case chatstate.StateR0, chatstate.StateR1:
-				require.Equal(t, base.queueCount+1, afterQueue,
-					"SendMessage(interrupt) from R* adds one queued message")
-				require.NotNil(t, result.sendMessage.QueuedMessage,
-					"SendMessage(interrupt) from R* returns the queued message")
-				newQueued := assertFetchedQueuedMessage(ctx, t, f, seeded.chatID, *result.sendMessage.QueuedMessage)
-				assertQueuedMessageText(t, newQueued, "sm-interrupt")
-				require.Equal(t, database.ChatBusyBehaviorSteer, newQueued.BusyBehavior,
-					"SendMessage(interrupt) from R* stores a steer row")
-				wantQueue := append(append([]int64{}, base.queueIDs...), newQueued.ID)
-				require.Equal(t, wantQueue, afterQueueIDs,
-					"SendMessage(interrupt) from R* appends to the queue tail")
-				require.Greater(t, after.QueueVersion, base.queueVersion,
-					"SendMessage(interrupt) from R* advances queue_version")
-				require.Equal(t, database.ChatStatusInterrupting, after.Status,
-					"R* -> I1 sets status interrupting")
-				require.Equal(t, base.historyIDs, afterHistory,
-					"SendMessage(interrupt) from R* must not touch history")
-
-			case chatstate.StateA0, chatstate.StateA1:
-				require.Nil(t, result.sendMessage.QueuedMessage,
-					"SendMessage(interrupt) from A* does not return a queued message")
-				require.Equal(t, base.queueIDs, afterQueueIDs,
-					"SendMessage(interrupt) from A* must not touch queued messages")
-				require.Equal(t, base.queueVersion, after.QueueVersion,
-					"SendMessage(interrupt) from A* must not bump queue_version")
-				require.Equal(t, database.ChatStatusRunning, after.Status,
-					"SendMessage(interrupt) from A* resumes running")
-				require.False(t, after.RequiresActionDeadlineAt.Valid,
-					"SendMessage(interrupt) from A* clears requires_action_deadline_at")
-				require.Len(t, result.sendMessage.InsertedMessages, 2,
-					"SendMessage(interrupt) from A* inserts one tool-result cancellation and the user message")
-				cancel := requireChatMessageByID(ctx, t, f, result.sendMessage.InsertedMessages[0].ID)
-				assertToolResultForCall(t, cancel, seeded.pendingToolCallID)
-				require.Equal(t, database.ChatMessageVisibilityBoth, cancel.Visibility)
-				inserted := assertFetchedUserMessage(ctx, t, f, result.sendMessage.InsertedMessages[1])
-				assertChatMessageText(t, inserted, "sm-interrupt")
-				require.False(t, inserted.QueuedMessageID.Valid,
-					"SendMessage(interrupt) from A* is a direct send, not a promotion")
-				require.Equal(t, []int64{cancel.ID, inserted.ID}, newActiveMessageIDs(base, afterHistory),
-					"SendMessage(interrupt) from A* appends the cancellation and the user message")
-			}
-		},
-	}
 }
 
 func editMessageCase(from chatstate.ExecutionState) transitionCaseSpec {
