@@ -467,6 +467,7 @@ const ChatMessageItem = memo<{
  * The timeline body reruns on every stream chunk, and the compiler cannot
  * cache this call inside it, so memoized host rows would get new arrays each
  * time. "use memo" gives the hook its own cache keyed on these arguments.
+ * The rows omit the live row, which never hosts attachments.
  */
 const useTurnAttachmentsByRow = (
 	parsedMessages: readonly ParsedMessageEntry[],
@@ -560,7 +561,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const liveBlocks = showsStreamOutput ? (streamState?.blocks ?? []) : [];
 		const liveTools = showsStreamOutput ? streamTools : [];
 
-		// requires_action is the agent waiting on the user, not working.
+		// requires_action is the agent blocked on a client tool result, not working.
 		const isTurnActive =
 			chatStatus === "running" || chatStatus === "interrupting";
 		const collapseSteps = Boolean(preferences.data?.collapse_assistant_steps);
@@ -711,9 +712,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			const { message, parsed } = row.entry;
 			const isUser = message.role === "user";
 			const neighbors = userNeighborsByKey.get(row.key);
+			const rendersAtTopLevel = section === "answer" || !groupedRows.has(index);
 			// A block's item dims and inerts its rows as a whole; the answer
 			// section renders outside it, so it dims itself.
-			const rendersAtTopLevel = section === "answer" || !groupedRows.has(index);
 			const isAfterEditingMessage =
 				rendersAtTopLevel && afterEditingMessageIds.has(message.id);
 
