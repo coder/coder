@@ -104,6 +104,47 @@ const LifecycleHookNotice: React.FC<{
 	</TimelineNotice>
 );
 
+type EditUserMessageButtonProps = {
+	message: TypesGen.ChatMessage;
+	onEditUserMessage: (
+		messageId: number,
+		text: string,
+		fileBlocks?: readonly TypesGen.ChatMessagePart[],
+	) => void;
+};
+
+// Reads the file probes here rather than in ChatMessageItem so a probe
+// update re-renders only this button, not every memoized message row.
+const EditUserMessageButton: React.FC<EditUserMessageButtonProps> = ({
+	message,
+	onEditUserMessage,
+}) => {
+	const { hasExpired } = useFileProbes();
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Button
+					size="icon"
+					variant="subtle"
+					className="size-6"
+					aria-label="Edit message"
+					onClick={() => {
+						const { text, fileBlocks } = getEditableUserMessagePayload(
+							message,
+							hasExpired,
+						);
+						onEditUserMessage(message.id, text, fileBlocks);
+					}}
+				>
+					<PencilIcon />
+					<span className="sr-only">Edit message</span>
+				</Button>
+			</TooltipTrigger>
+			<TooltipContent side="bottom">Edit message</TooltipContent>
+		</Tooltip>
+	);
+};
+
 const ChatMessageItem = memo<{
 	organizationId: string;
 	renderKey: string;
@@ -188,7 +229,6 @@ const ChatMessageItem = memo<{
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
 		const [previewText, setPreviewText] =
 			useState<PreviewTextAttachment | null>(null);
-		const { hasExpired } = useFileProbes();
 		const displayState =
 			message && parsed
 				? deriveMessageDisplayState({
@@ -338,34 +378,11 @@ const ChatMessageItem = memo<{
 									tooltipSide="bottom"
 								/>
 							)}
-							{canEditUserMessage && messageId !== undefined && (
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											size="icon"
-											variant="subtle"
-											className="size-6"
-											aria-label="Edit message"
-											onClick={() => {
-												const { text, fileBlocks } =
-													getEditableUserMessagePayload(message);
-												onEditUserMessage?.(
-													messageId,
-													text,
-													fileBlocks?.filter(
-														(block) =>
-															block.type !== "workspace-attachment" ||
-															!hasExpired(block.file_id),
-													),
-												);
-											}}
-										>
-											<PencilIcon />
-											<span className="sr-only">Edit message</span>
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent side="bottom">Edit message</TooltipContent>
-								</Tooltip>
+							{canEditUserMessage && message && onEditUserMessage && (
+								<EditUserMessageButton
+									message={message}
+									onEditUserMessage={onEditUserMessage}
+								/>
 							)}
 							{isUser &&
 								onJumpToUserMessage &&

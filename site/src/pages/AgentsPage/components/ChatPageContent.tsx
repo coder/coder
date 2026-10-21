@@ -504,10 +504,8 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		setPreservedWorkspaceUploads([]);
 	}, [selectedWorkspaceId]);
 
-	// Pre-populate the edit bucket from existing file blocks only
-	// while explicitly editing a message. A failed edit restores the
-	// same blocks array, so keying on it keeps the attachments added
-	// or removed before the failed save.
+	// Pre-populate the edit bucket once per edited blocks array. A failed
+	// save restores the same array, which keeps the user's attachment edits.
 	const hydratedEditAttachmentBlocksRef = useRef<
 		readonly TypesGen.ChatMessagePart[] | null
 	>(null);

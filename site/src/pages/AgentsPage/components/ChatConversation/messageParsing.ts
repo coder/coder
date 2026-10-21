@@ -380,6 +380,7 @@ const isEditableUserMessageFileBlock = (
 
 export const getEditableUserMessagePayload = (
 	message: TypesGen.ChatMessage,
+	hasExpired: (fileId: string) => boolean,
 ): {
 	text: string;
 	fileBlocks: readonly TypesGen.ChatMessagePart[] | undefined;
@@ -392,7 +393,12 @@ export const getEditableUserMessagePayload = (
 		.map((part) => part.text)
 		.join("");
 	const parsed = parseMessageContent(message.content);
-	const fileBlocks = parsed.blocks.filter(isEditableUserMessageFileBlock);
+	const fileBlocks = parsed.blocks
+		.filter(isEditableUserMessageFileBlock)
+		.filter(
+			(block) =>
+				block.type !== "workspace-attachment" || !hasExpired(block.file_id),
+		);
 	return {
 		text,
 		fileBlocks: fileBlocks.length > 0 ? fileBlocks : undefined,

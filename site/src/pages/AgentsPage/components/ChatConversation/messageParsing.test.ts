@@ -151,7 +151,7 @@ describe("getEditableUserMessagePayload", () => {
 		];
 
 		for (const { message, want } of cases) {
-			expect(getEditableUserMessagePayload(message)).toEqual(want);
+			expect(getEditableUserMessagePayload(message, () => false)).toEqual(want);
 		}
 	});
 
@@ -182,7 +182,7 @@ describe("getEditableUserMessagePayload", () => {
 			],
 		};
 
-		const payload = getEditableUserMessagePayload(message);
+		const payload = getEditableUserMessagePayload(message, () => false);
 		expect(payload?.text).toBe("Please use these files.");
 		expect(payload?.fileBlocks).toEqual([workspacePart, mockAttachmentPart]);
 	});
@@ -203,7 +203,7 @@ describe("getEditableUserMessagePayload", () => {
 				{ type: "text", text: "world" },
 			],
 		};
-		expect(getEditableUserMessagePayload(message)).toEqual({
+		expect(getEditableUserMessagePayload(message, () => false)).toEqual({
 			text: "hello   world",
 			fileBlocks: undefined,
 		});

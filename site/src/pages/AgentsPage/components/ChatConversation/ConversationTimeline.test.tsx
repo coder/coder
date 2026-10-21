@@ -4,13 +4,11 @@ import { QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { preferenceSettingsKey } from "#/api/queries/users";
-import type {
-	ChatMessage,
-	ChatWorkspaceAttachmentPart,
-} from "#/api/typesGenerated";
+import type { ChatMessage } from "#/api/typesGenerated";
 import {
 	MockChatFileMetadata,
 	MockChatMessage,
+	MockChatWorkspaceAttachmentPart,
 } from "#/testHelpers/chatEntities";
 import {
 	createTestQueryClient,
@@ -462,38 +460,32 @@ describe("ConversationTimeline live working blocks", () => {
 });
 
 describe("ConversationTimeline message editing", () => {
-	const workspaceAttachment = (
-		fileId: string,
-	): ChatWorkspaceAttachmentPart => ({
-		type: "workspace-attachment",
-		file_id: fileId,
-		name: `${fileId}.zip`,
-		media_type: "application/zip",
-		size: 2,
-	});
-
 	it("leaves evicted workspace attachments out of the edit", async () => {
 		const user = userEvent.setup();
 		const onEditUserMessage = vi.fn();
-		const kept = workspaceAttachment("kept-zip");
+		const evictedAttachment = {
+			...MockChatWorkspaceAttachmentPart,
+			file_id: "evicted-zip",
+		};
+		const keptAttachment = {
+			...MockChatWorkspaceAttachmentPart,
+			file_id: "kept-zip",
+		};
 		renderTimeline({
 			messages: [
 				{
 					...MockChatMessage,
 					id: 1,
-					content: [
-						{ type: "text", text: "First" },
-						workspaceAttachment("evicted-zip"),
-					],
+					content: [{ type: "text", text: "First" }, evictedAttachment],
 				},
 				{
 					...MockChatMessage,
 					id: 2,
 					created_at: workingFixtureTime(1),
-					content: [{ type: "text", text: "Second" }, kept],
+					content: [{ type: "text", text: "Second" }, keptAttachment],
 				},
 			],
-			chatFiles: [{ ...MockChatFileMetadata, id: kept.file_id }],
+			chatFiles: [{ ...MockChatFileMetadata, id: keptAttachment.file_id }],
 			onEditUserMessage,
 		});
 
@@ -507,8 +499,8 @@ describe("ConversationTimeline message editing", () => {
 		await editMessage(2);
 
 		expect(onEditUserMessage.mock.calls).toEqual([
-			[1, "First", []],
-			[2, "Second", [kept]],
+			[1, "First", undefined],
+			[2, "Second", [keptAttachment]],
 		]);
 	});
 });

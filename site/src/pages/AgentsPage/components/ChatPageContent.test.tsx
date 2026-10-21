@@ -5,7 +5,10 @@ import { useMutation } from "react-query";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChat } from "#/testHelpers/chatEntities";
+import {
+	MockChat,
+	MockChatWorkspaceAttachmentPart,
+} from "#/testHelpers/chatEntities";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import {
@@ -70,12 +73,18 @@ const renderChatPageInput = (
 		<ChatPageInput {...defaultChatPageInputProps(store)} {...overrides} />,
 	);
 
-/** Drives ChatPageInput through the page's real history-edit state. */
-const HistoryEditHarness: React.FC<{
+type HistoryEditHarnessProps = {
 	fileBlocks: readonly TypesGen.ChatMessagePart[];
 	sendTurn: (options: SendChatTurnOptions) => Promise<void>;
 	overrides: Partial<ChatPageInputProps>;
-}> = ({ fileBlocks, sendTurn, overrides }) => {
+};
+
+/** Drives ChatPageInput through the page's real history-edit state. */
+const HistoryEditHarness: React.FC<HistoryEditHarnessProps> = ({
+	fileBlocks,
+	sendTurn,
+	overrides,
+}) => {
 	const [store] = useState(createChatStore);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef("");
@@ -110,17 +119,6 @@ const HistoryEditHarness: React.FC<{
 		</>
 	);
 };
-
-const workspaceAttachment = (
-	fileId: string,
-	name: string,
-): TypesGen.ChatWorkspaceAttachmentPart => ({
-	type: "workspace-attachment",
-	file_id: fileId,
-	name,
-	media_type: "application/zip",
-	size: 2,
-});
 
 const workspaceFileReference = (
 	name: string,
@@ -202,7 +200,15 @@ describe("ChatPageInput", () => {
 			onSend,
 			isEditing: true,
 			initialValue: "edited",
-			editingFileBlocks: [workspaceAttachment("delivered-zip", "bundle.zip")],
+			editingFileBlocks: [
+				{
+					type: "workspace-attachment",
+					file_id: "delivered-zip",
+					name: "bundle.zip",
+					media_type: "application/zip",
+					size: 2,
+				},
+			],
 		});
 
 		await user.click(await screen.findByRole("button", { name: "Save Edit" }));
@@ -309,13 +315,20 @@ describe("ChatPageInput", () => {
 			.fn<(options: SendChatTurnOptions) => Promise<void>>()
 			.mockRejectedValueOnce(new Error("edit failed"))
 			.mockResolvedValue(undefined);
+		const removedAttachment = {
+			...MockChatWorkspaceAttachmentPart,
+			file_id: "removed-zip",
+			name: "removed.zip",
+		};
+		const keptAttachment = {
+			...MockChatWorkspaceAttachmentPart,
+			file_id: "kept-zip",
+			name: "kept.zip",
+		};
 
 		renderWithAuth(
 			<HistoryEditHarness
-				fileBlocks={[
-					workspaceAttachment("removed-zip", "removed.zip"),
-					workspaceAttachment("kept-zip", "kept.zip"),
-				]}
+				fileBlocks={[removedAttachment, keptAttachment]}
 				sendTurn={sendTurn}
 				overrides={{
 					chat: {
@@ -345,7 +358,10 @@ describe("ChatPageInput", () => {
 		expect(sendTurn.mock.calls[1][0]).toMatchObject({
 			editedMessageID: 1,
 			attachments: [
-				expect.objectContaining({ fileId: "kept-zip", purpose: "workspace" }),
+				expect.objectContaining({
+					fileId: keptAttachment.file_id,
+					purpose: "workspace",
+				}),
 				expect.objectContaining({ fileId: "staged-zip", purpose: "workspace" }),
 			],
 		});
