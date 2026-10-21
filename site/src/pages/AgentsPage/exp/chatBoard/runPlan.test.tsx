@@ -270,6 +270,34 @@ describe("runPlan", () => {
 		).resolves.toBe(false);
 	});
 
+	it("observes a failed move while its label writes wait behind an earlier write", async () => {
+		const earlier: Deferred<void> = createDeferred();
+		vi.spyOn(API.experimental, "updateChat").mockImplementation(
+			(chatId, req) => {
+				if (chatId === "z") return earlier.promise;
+				return req.project_id
+					? Promise.reject(new Error("chat is busy"))
+					: Promise.resolve();
+			},
+		);
+		const a = chat("a");
+		const { queryClient, deps } = renderDeps();
+
+		const first = runPlan({ writes: [{ chat: chat("z"), labels: {} }] }, deps);
+		await expect(
+			runPlan(
+				{
+					projectMoves: [{ chat: a, projectId: "p" }],
+					writes: [{ chat: a, labels: { "board/column": "Doing" } }],
+				},
+				deps,
+			),
+		).resolves.toBe(false);
+		earlier.resolve();
+		await first;
+		await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+	});
+
 	it("undoes project moves before restoring labels", async () => {
 		const spy = vi
 			.spyOn(API.experimental, "updateChat")

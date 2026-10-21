@@ -93,14 +93,14 @@ export const runPlan = (
 		deps.write(plan.receiver.chat.id, plan.receiver.labels, moved);
 	// A skipped write resolves, so the sources also wait on the moves
 	// themselves: a failed move must not strip notes the receiver never got.
-	// Built only when a write awaits it, so its rejection is always observed.
 	const sourcesAfter =
-		plan.writes.length > 0 && (moved || received)
-			? Promise.all([moved, received])
-			: undefined;
+		moved || received ? Promise.all([moved, received]) : undefined;
+	// Every gate is listed: a queued write only observes its gate once the
+	// write starts, which can be after the gate has rejected.
 	const pending = [
 		...(moved ? [moved] : []),
 		...(received ? [received] : []),
+		...(sourcesAfter ? [sourcesAfter] : []),
 		...plan.writes.map(({ chat, labels }) =>
 			deps.write(chat.id, labels, sourcesAfter),
 		),
