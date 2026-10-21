@@ -163,6 +163,7 @@ func TestWorkspaceAttachmentPromptText(t *testing.T) {
 	require.Equal(t, unbound, bound, "the text must not depend on the chat's workspace")
 	require.Contains(t, unbound, "report.zip (application/zip, 62 MiB)")
 	require.Contains(t, unbound, "Coder copies it to "+homePath)
+	require.Contains(t, unbound, "copy_attachments_to_workspace")
 	require.Equal(t, [][]uuid.UUID{{promptFileID}, {promptFileID}}, resolvedIDs,
 		"workspace attachment bytes must never be loaded into the prompt")
 	require.Equal(t, [][]uuid.UUID{{attachmentID}, {attachmentID}}, attachmentIDs)

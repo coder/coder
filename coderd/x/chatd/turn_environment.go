@@ -1985,7 +1985,7 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 	case "write_file", "edit_files", "list_templates", "read_template",
 		"create_workspace", "start_workspace", "stop_workspace", "propose_plan", "spawn_agent",
 		"spawn_explore_agent", "wait_agent", "list_agents", "list_subagent_models",
-		"ask_user_question", "attach_file",
+		"ask_user_question", "attach_file", chattool.CopyAttachmentsToWorkspaceToolName,
 		chattool.ReadMemoryToolName, chattool.SaveMemoryToolName, chattool.DeleteMemoryToolName, chattool.ConsolidateMemoryToolName:
 		return isRootChat
 	case "process_list", "process_signal", "message_agent", "interrupt_agent", "close_agent",
@@ -2392,6 +2392,9 @@ func (p *Server) appendRootChatTools(
 		// build logs before the tool completes.
 		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
+	awaitAttachments := func(ctx context.Context) chattool.WorkspaceAttachmentsReport {
+		return p.awaitChatWorkspaceFiles(ctx, opts.chat.ID, workspaceFilesReport)
+	}
 
 	tools = append(tools,
 		chattool.ListTemplates(p.db, opts.chat.OrganizationID, chattool.ListTemplatesOptions{
@@ -2411,15 +2414,17 @@ func (p *Server) appendRootChatTools(
 			AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
 			WorkspaceMu:                    opts.workspaceMu,
 			OnChatUpdated:                  onChatUpdated,
+			AwaitAttachments:               awaitAttachments,
 			Logger:                         p.logger,
 		}),
 		chattool.StartWorkspace(p.db, opts.chat.ID, chattool.StartWorkspaceOptions{
-			OwnerID:       opts.chat.OwnerID,
-			StartFn:       p.startWorkspaceFn,
-			AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
-			WorkspaceMu:   opts.workspaceMu,
-			OnChatUpdated: onChatUpdated,
-			Logger:        p.logger,
+			OwnerID:          opts.chat.OwnerID,
+			StartFn:          p.startWorkspaceFn,
+			AgentConnFn:      chattool.AgentConnFunc(p.agentConnFn),
+			WorkspaceMu:      opts.workspaceMu,
+			OnChatUpdated:    onChatUpdated,
+			AwaitAttachments: awaitAttachments,
+			Logger:           p.logger,
 		}),
 		chattool.StopWorkspace(p.db, opts.chat.ID, chattool.StopWorkspaceOptions{
 			OwnerID:       opts.chat.OwnerID,
@@ -2427,6 +2432,9 @@ func (p *Server) appendRootChatTools(
 			WorkspaceMu:   opts.workspaceMu,
 			OnChatUpdated: onChatUpdated,
 			Logger:        p.logger,
+		}),
+		chattool.CopyAttachmentsToWorkspace(func(ctx context.Context) chattool.WorkspaceAttachmentsReport {
+			return p.awaitChatWorkspaceFiles(ctx, opts.chat.ID, workspaceFilesRetry)
 		}),
 	)
 	if opts.isPlanModeTurn {

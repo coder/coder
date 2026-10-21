@@ -106,10 +106,14 @@ func TestStartWorkspace(t *testing.T) {
 				return codersdk.WorkspaceBuild{}, nil
 			},
 			WorkspaceMu: &sync.Mutex{},
+			AwaitAttachments: func(context.Context) chattool.WorkspaceAttachmentsReport {
+				return chattool.WorkspaceAttachmentsReport{Err: xerrors.New("read chat messages: connection refused")}
+			},
 		})
 
 		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: "{}"})
 		require.NoError(t, err)
+		require.False(t, resp.IsError, "an attachment problem must not fail the start")
 
 		var result map[string]any
 		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
@@ -118,6 +122,7 @@ func TestStartWorkspace(t *testing.T) {
 		require.True(t, started)
 		require.Nil(t, result["build_id"], "build_id should not be present when workspace was already running")
 		require.Equal(t, true, result["no_build"], "no_build should be true when workspace was already running")
+		require.Equal(t, "read chat messages: connection refused", result["attachments_error"])
 
 		bound, err := db.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
@@ -367,24 +372,38 @@ func TestStartWorkspace(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
+		attachment := chattool.WorkspaceAttachment{
+			FileID: uuid.NewString(),
+			Name:   "report.zip",
+			Status: chattool.WorkspaceAttachmentCopied,
+			Path:   "~/.coder/chats/chat/files/file/report.zip",
+		}
 		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID:     user.ID,
 			StartFn:     startFn,
 			AgentConnFn: agentConnFn,
 			WorkspaceMu: &sync.Mutex{},
+			AwaitAttachments: func(context.Context) chattool.WorkspaceAttachmentsReport {
+				require.True(t, startCalled, "attachments are reported after the start")
+				return chattool.WorkspaceAttachmentsReport{Attachments: []chattool.WorkspaceAttachment{attachment}}
+			},
 		})
 
 		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: "{}"})
 		require.NoError(t, err)
 		require.True(t, startCalled, "expected StartFn to be called")
 
-		var result map[string]any
+		var result struct {
+			Started     bool                           `json:"started"`
+			BuildID     string                         `json:"build_id"`
+			NoBuild     *bool                          `json:"no_build"`
+			Attachments []chattool.WorkspaceAttachment `json:"attachments"`
+		}
 		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-		started, ok := result["started"].(bool)
-		require.True(t, ok)
-		require.True(t, started)
-		require.Equal(t, startBuildID.String(), result["build_id"])
-		require.Nil(t, result["no_build"], "no_build should not be set when a build was triggered")
+		require.True(t, result.Started)
+		require.Equal(t, startBuildID.String(), result.BuildID)
+		require.Nil(t, result.NoBuild, "no_build should not be set when a build was triggered")
+		require.Equal(t, []chattool.WorkspaceAttachment{attachment}, result.Attachments)
 	})
 
 	t.Run("StoppedWorkspaceReportsAutoUpdate", func(t *testing.T) {
