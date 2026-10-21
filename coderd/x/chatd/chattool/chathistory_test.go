@@ -102,10 +102,15 @@ func (f chatHistoryFixture) boundary(t *testing.T, toolName, resultJSON string) 
 
 func runChatHistory(t *testing.T, tool fantasy.AgentTool, args map[string]any) (chatHistoryResult, string) {
 	t.Helper()
+	return runChatHistoryCall(t, tool, "", args)
+}
+
+func runChatHistoryCall(t *testing.T, tool fantasy.AgentTool, callID string, args map[string]any) (chatHistoryResult, string) {
+	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	input, err := json.Marshal(args)
 	require.NoError(t, err)
-	resp, err := tool.Run(ctx, fantasy.ToolCall{Input: string(input)})
+	resp, err := tool.Run(ctx, fantasy.ToolCall{ID: callID, Input: string(input)})
 	require.NoError(t, err)
 	require.False(t, resp.IsError, resp.Content)
 	var result chatHistoryResult
@@ -263,6 +268,26 @@ func TestChatHistory(t *testing.T) {
 		f.user(t, "a\U0001F600")
 		result, _ = runChatHistory(t, tool, map[string]any{"action": "search", "query": "\U0001F600", "max_chars_per_item": 2})
 		require.Equal(t, []string{"\U0001F600"}, itemTexts(result.Items))
+
+		// A lead-in that would start inside a surrogate pair cannot hide the match.
+		f.user(t, "\U0001F600q")
+		result, _ = runChatHistory(t, tool, map[string]any{"action": "search", "query": "q", "max_chars_per_item": 2})
+		require.Equal(t, []string{"q"}, itemTexts(result.Items))
+	})
+
+	t.Run("SearchSkipsActiveCall", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		f.user(t, "zebra crossing")
+		args := map[string]any{"action": "search", "query": "zebra"}
+		input, err := json.Marshal(args)
+		require.NoError(t, err)
+		// The current step is committed before its tools run, so the row
+		// already holds this call.
+		f.insert(t, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, false,
+			codersdk.ChatMessageToolCall("active", chattool.ChatHistoryToolName, input))
+		result, _ := runChatHistoryCall(t, f.tool(), "active", args)
+		require.Equal(t, []string{"zebra crossing"}, itemTexts(result.Items))
 	})
 
 	t.Run("ProjectionOmitsReasoningAndNestedHistory", func(t *testing.T) {
