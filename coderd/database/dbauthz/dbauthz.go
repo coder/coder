@@ -7281,6 +7281,14 @@ func (q *querier) IsChatProjectUsableByUserID(ctx context.Context, arg database.
 	return q.db.IsChatProjectUsableByUserID(ctx, arg)
 }
 
+func (q *querier) IsChatWorkspaceFileAttached(ctx context.Context, arg database.IsChatWorkspaceFileAttachedParams) (bool, error) {
+	_, err := q.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return false, err
+	}
+	return q.db.IsChatWorkspaceFileAttached(ctx, arg)
+}
+
 func (q *querier) LinkChatFilesAfterLock(ctx context.Context, arg database.LinkChatFilesAfterLockParams) (int32, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return 0, err

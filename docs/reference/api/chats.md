@@ -1421,7 +1421,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/chats/files?organization=497f6eca-6276-4993-bfeb-53cbbbba6f08 \
-  -H 'Content-Type: */*' \
+  -H 'Content-Type: application/octet-stream' \
   -H 'Accept: application/json' \
   -H 'Content-Disposition: attachment; filename="image.png"' \
   -H 'Coder-Session-Token: API_KEY' \

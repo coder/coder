@@ -230,6 +230,23 @@ func TestIsChatAgent(t *testing.T) {
 	}
 }
 
+func TestFirstChatAgent(t *testing.T) {
+	t.Parallel()
+
+	child := database.WorkspaceAgent{ID: uuid.New(), Name: "child" + agentselect.Suffix, ParentID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
+	plain := database.WorkspaceAgent{ID: uuid.New(), Name: "aaa"}
+	late := database.WorkspaceAgent{ID: uuid.New(), Name: "alpha" + agentselect.Suffix, DisplayOrder: 1}
+	beta := database.WorkspaceAgent{ID: uuid.New(), Name: "beta" + agentselect.Suffix}
+	gamma := database.WorkspaceAgent{ID: uuid.New(), Name: "Gamma" + agentselect.Suffix}
+
+	agent, ok := agentselect.FirstChatAgent([]database.WorkspaceAgent{child, plain, late, gamma, beta})
+	require.True(t, ok)
+	require.Equal(t, beta, agent)
+
+	_, ok = agentselect.FirstChatAgent([]database.WorkspaceAgent{child, plain})
+	require.False(t, ok)
+}
+
 func TestForChat(t *testing.T) {
 	t.Parallel()
 

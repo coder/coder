@@ -1552,6 +1552,13 @@ func (s *MethodTestSuite) TestChats() {
 		// No asserts here because callers provide the SQL filter.
 		check.Args(fileID, emptyPreparedAuthorized{}).Asserts()
 	}))
+	s.Run("IsChatWorkspaceFileAttached", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.IsChatWorkspaceFileAttachedParams{ChatID: chat.ID, FileID: uuid.New()}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().IsChatWorkspaceFileAttached(gomock.Any(), arg).Return(true, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(true)
+	}))
 	s.Run("GetChatQueuedMessages", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		qms := []database.ChatQueuedMessage{testutil.Fake(s.T(), faker, database.ChatQueuedMessage{})}
