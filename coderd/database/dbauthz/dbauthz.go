@@ -3903,6 +3903,14 @@ func (q *querier) GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID) ([
 	return q.db.GetChatStreamSyncRows(ctx, ids)
 }
 
+func (q *querier) GetChatStructuredOutput(ctx context.Context, arg database.GetChatStructuredOutputParams) (database.ChatStructuredOutput, error) {
+	// A result is part of its chat: reading it requires reading the chat.
+	if _, err := q.GetChatByID(ctx, arg.ChatID); err != nil {
+		return database.ChatStructuredOutput{}, err
+	}
+	return q.db.GetChatStructuredOutput(ctx, arg)
+}
+
 func (q *querier) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	// The system prompt is a deployment-wide setting read during chat
 	// creation by every authenticated user, so no RBAC policy check
@@ -4765,6 +4773,13 @@ func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUI
 		return nil, err
 	}
 	return q.db.GetParameterSchemasByJobID(ctx, jobID)
+}
+
+func (q *querier) GetPendingChatStructuredOutput(ctx context.Context, chatID uuid.UUID) (database.ChatStructuredOutput, error) {
+	if _, err := q.GetChatByID(ctx, chatID); err != nil {
+		return database.ChatStructuredOutput{}, err
+	}
+	return q.db.GetPendingChatStructuredOutput(ctx, chatID)
 }
 
 func (q *querier) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuildMetricsRow, error) {
@@ -6313,6 +6328,13 @@ func (q *querier) GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]datab
 	return q.db.GetWorkspacesForWorkspaceMetrics(ctx)
 }
 
+func (q *querier) HasChatUserMessageAfter(ctx context.Context, arg database.HasChatUserMessageAfterParams) (bool, error) {
+	if _, err := q.GetChatByID(ctx, arg.ChatID); err != nil {
+		return false, err
+	}
+	return q.db.HasChatUserMessageAfter(ctx, arg)
+}
+
 func (q *querier) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg database.HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error) {
 	// This query authorizes provisioner module-file downloads. The caller
 	// must be able to read files in the target organization; the actual
@@ -6547,6 +6569,17 @@ func (q *querier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg da
 	}
 	_ = chat
 	return q.db.InsertChatQueuedMessageWithCreator(ctx, arg)
+}
+
+func (q *querier) InsertChatStructuredOutput(ctx context.Context, arg database.InsertChatStructuredOutputParams) (database.ChatStructuredOutput, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatStructuredOutput{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatStructuredOutput{}, err
+	}
+	return q.db.InsertChatStructuredOutput(ctx, arg)
 }
 
 func (q *querier) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
@@ -8413,6 +8446,17 @@ func (q *querier) UpdateOrganizationWorkspaceSharingSettings(ctx context.Context
 		return q.db.GetOrganizationByID(ctx, arg.ID)
 	}
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateOrganizationWorkspaceSharingSettings)(ctx, arg)
+}
+
+func (q *querier) UpdatePendingChatStructuredOutput(ctx context.Context, arg database.UpdatePendingChatStructuredOutputParams) (database.ChatStructuredOutput, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatStructuredOutput{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatStructuredOutput{}, err
+	}
+	return q.db.UpdatePendingChatStructuredOutput(ctx, arg)
 }
 
 func (q *querier) UpdatePrebuildProvisionerJobWithCancel(ctx context.Context, arg database.UpdatePrebuildProvisionerJobWithCancelParams) ([]database.UpdatePrebuildProvisionerJobWithCancelRow, error) {

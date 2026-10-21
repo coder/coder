@@ -3660,6 +3660,44 @@ export interface ChatReasoningPart {
 
 // From codersdk/chats.go
 /**
+ * ChatResponseFormat asks for the result of the turn a message starts. The
+ * server parses it strictly and rejects unknown fields.
+ */
+export interface ChatResponseFormat {
+	readonly type: ChatResponseFormatType;
+	readonly json_schema?: ChatResponseFormatJSONSchema;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatResponseFormatJSONSchema describes a structured result.
+ */
+export interface ChatResponseFormatJSONSchema {
+	/**
+	 * Name identifies the output and matches ^[A-Za-z0-9_-]{1,64}$.
+	 */
+	readonly name: string;
+	/**
+	 * Description tells the model what the output is for (1024 bytes max).
+	 */
+	readonly description?: string;
+	/**
+	 * Schema is the JSON Schema (Draft-07, no references) the value must
+	 * satisfy.
+	 */
+	readonly schema: Record<string, string>;
+}
+
+// From codersdk/chats.go
+export type ChatResponseFormatType = "json_schema" | "text";
+
+export const ChatResponseFormatTypes: ChatResponseFormatType[] = [
+	"json_schema",
+	"text",
+];
+
+// From codersdk/chats.go
+/**
  * ChatRetentionDaysResponse contains the current chat retention setting.
  */
 export interface ChatRetentionDaysResponse {
@@ -3824,6 +3862,64 @@ export interface ChatStreamToolCall {
 	readonly tool_name: string;
 	readonly args: string;
 }
+
+// From codersdk/chats.go
+/**
+ * ChatStructuredOutput is the result of the user message that set
+ * response_format.
+ */
+export interface ChatStructuredOutput {
+	readonly chat_id: string;
+	readonly message_id: number;
+	readonly status: ChatStructuredOutputStatus;
+	/**
+	 * Value is the validated value of a succeeded result. It is
+	 * canonically equal to what the model sent, not byte-equal. It can be
+	 * any JSON value: object is the closest Swagger type.
+	 */
+	readonly value?: Record<string, string>;
+	readonly error?: ChatStructuredOutputError;
+	/**
+	 * RejectedCalls counts the finalizer calls the server rejected.
+	 */
+	readonly rejected_calls: number;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatStructuredOutputError describes why a structured output failed.
+ */
+export interface ChatStructuredOutputError {
+	readonly code: ChatStructuredOutputErrorCode;
+	readonly message: string;
+}
+
+// From codersdk/chats.go
+export type ChatStructuredOutputErrorCode =
+	| "configuration_error"
+	| "generation_failed"
+	| "interrupted"
+	| "not_produced"
+	| "validation_exhausted";
+
+export const ChatStructuredOutputErrorCodes: ChatStructuredOutputErrorCode[] = [
+	"configuration_error",
+	"generation_failed",
+	"interrupted",
+	"not_produced",
+	"validation_exhausted",
+];
+
+// From codersdk/chats.go
+export type ChatStructuredOutputStatus = "failed" | "pending" | "succeeded";
+
+export const ChatStructuredOutputStatuses: ChatStructuredOutputStatus[] = [
+	"failed",
+	"pending",
+	"succeeded",
+];
 
 // From codersdk/chats.go
 /**
@@ -4268,6 +4364,12 @@ export interface CreateChatMessageRequest {
 	 */
 	readonly plan_mode?: ChatPlanMode;
 	readonly reasoning_effort?: string;
+	/**
+	 * ResponseFormat asks for a structured result for this message.
+	 * json_schema requires the chat-structured-output experiment, an idle
+	 * root chat outside plan mode, and no plan_mode switch.
+	 */
+	readonly response_format?: ChatResponseFormat;
 }
 
 // From codersdk/chats.go
@@ -4373,6 +4475,12 @@ export interface CreateChatRequest {
 	readonly inline_mcp_servers?: readonly InlineMCPServerRequest[];
 	readonly plan_mode?: ChatPlanMode;
 	readonly client_type?: ChatClientType;
+	/**
+	 * ResponseFormat asks for a structured result for the initial message.
+	 * json_schema requires the chat-structured-output experiment, initial
+	 * content, and no plan mode.
+	 */
+	readonly response_format?: ChatResponseFormat;
 }
 
 // From codersdk/users.go
@@ -5583,6 +5691,7 @@ export type Experiment =
 	| "chat-inline-mcp-servers"
 	| "chat-projects"
 	| "chat-stage-metrics"
+	| "chat-structured-output"
 	| "chat-virtual-desktop"
 	| "enable-ai-workspace-debug"
 	| "example"
@@ -5664,6 +5773,7 @@ export const Experiments: Experiment[] = [
 	"chat-inline-mcp-servers",
 	"chat-projects",
 	"chat-stage-metrics",
+	"chat-structured-output",
 	"chat-virtual-desktop",
 	"enable-ai-workspace-debug",
 	"example",

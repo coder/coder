@@ -136,6 +136,9 @@ func (p *Server) SendMessage(
 		if lockedChat.Archived {
 			return ErrChatArchived
 		}
+		if err := checkStructuredOutputSend(ctx, store, lockedChat, opts); err != nil {
+			return err
+		}
 
 		if opts.PlanMode != nil {
 			lockedChat, err = store.UpdateChatPlanModeByID(ctx, database.UpdateChatPlanModeByIDParams{
@@ -189,9 +192,10 @@ func (p *Server) SendMessage(
 		// wrapper only propagates the typed error.
 		message := userMessage(content, modelConfigID, messageCreatedBy, opts.ReasoningEffort)
 		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
-			Message:      message,
-			BusyBehavior: busyBehaviorToChatState(busyBehavior),
-			MaxQueueSize: p.chatLimits.MaxQueuedMessagesPerChat,
+			Message:                 message,
+			BusyBehavior:            busyBehaviorToChatState(busyBehavior),
+			MaxQueueSize:            p.chatLimits.MaxQueuedMessagesPerChat,
+			StructuredOutputRequest: opts.StructuredOutputRequest,
 		})
 		if err != nil {
 			return err

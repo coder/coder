@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -52,6 +53,10 @@ type CreateChatInput struct {
 	// MaxFileLinks is the maximum number of files linked to the chat. It
 	// must be positive when FileIDs is not empty.
 	MaxFileLinks int
+	// StructuredOutputRequest, when set, is the response_format json_schema
+	// object of the last initial user message, which gets a pending
+	// structured output result.
+	StructuredOutputRequest json.RawMessage
 }
 
 // CreateChatResult is the value returned by [CreateChat]. It carries
@@ -184,6 +189,9 @@ func insertChat(
 		if err := LinkFiles(ctx, store, chat.ID, input.FileIDs, input.MaxFileLinks); err != nil {
 			return err
 		}
+		if err := insertStructuredOutput(ctx, store, chat.ID, fromInsertedRows(inserted), input.StructuredOutputRequest); err != nil {
+			return err
+		}
 		if len(input.InlineMCPServers) > 0 {
 			if err := ReplaceInlineMCPServers(ctx, store, chat.ID, input.InlineMCPServers); err != nil {
 				return err
@@ -268,6 +276,7 @@ func (tx *Tx) insertMessages(messages []Message) ([]database.ChatMessage, error)
 	if err != nil {
 		return nil, xerrors.Errorf("insert messages: %w", err)
 	}
+	tx.userPrompted = tx.userPrompted || slices.ContainsFunc(messages, isPrompt)
 	return fromInsertedRows(inserted), nil
 }
 
@@ -467,6 +476,10 @@ type SendMessageInput struct {
 	// MaxQueueSize is the maximum number of messages that can be queued
 	// in the chat. It must be positive when the message is queued.
 	MaxQueueSize int
+	// StructuredOutputRequest, when set, is the message's response_format
+	// json_schema object. The message must start a turn at once, so a busy
+	// chat returns [ErrStructuredOutputBusy].
+	StructuredOutputRequest json.RawMessage
 }
 
 // SendMessageResult is returned by [Tx.SendMessage].
@@ -514,6 +527,16 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	}
 	if err := CheckSendMessageQueueCapacity(chat, queuedCount, input.BusyBehavior, input.MaxQueueSize); err != nil {
 		return SendMessageResult{}, err
+	}
+	if input.StructuredOutputRequest != nil {
+		if from != StateW && from != StateE0 {
+			return SendMessageResult{}, ErrStructuredOutputBusy
+		}
+		result, err := tx.sendMessageDirect(chat, input)
+		if err != nil {
+			return SendMessageResult{}, err
+		}
+		return result, insertStructuredOutput(tx.ctx, tx.store, tx.chatID, result.InsertedMessages, input.StructuredOutputRequest)
 	}
 	if sendMessageInsertsDirectly(from, input.BusyBehavior) {
 		return tx.sendMessageDirect(chat, input)
@@ -1650,6 +1673,7 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 	if err != nil {
 		return FinishTurnResult{}, err
 	}
+	tx.turnFinished = true
 	if from == StateR0 {
 		updated, err := tx.applyExecutionState(executionStateUpdate{
 			Status:                   database.ChatStatusWaiting,

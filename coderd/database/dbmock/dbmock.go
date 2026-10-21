@@ -3744,6 +3744,21 @@ func (mr *MockStoreMockRecorder) GetChatStreamSyncRows(ctx, ids any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatStreamSyncRows", reflect.TypeOf((*MockStore)(nil).GetChatStreamSyncRows), ctx, ids)
 }
 
+// GetChatStructuredOutput mocks base method.
+func (m *MockStore) GetChatStructuredOutput(ctx context.Context, arg database.GetChatStructuredOutputParams) (database.ChatStructuredOutput, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatStructuredOutput", ctx, arg)
+	ret0, _ := ret[0].(database.ChatStructuredOutput)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatStructuredOutput indicates an expected call of GetChatStructuredOutput.
+func (mr *MockStoreMockRecorder) GetChatStructuredOutput(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatStructuredOutput", reflect.TypeOf((*MockStore)(nil).GetChatStructuredOutput), ctx, arg)
+}
+
 // GetChatSystemPrompt mocks base method.
 func (m *MockStore) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	m.ctrl.T.Helper()
@@ -5452,6 +5467,21 @@ func (m *MockStore) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.U
 func (mr *MockStoreMockRecorder) GetParameterSchemasByJobID(ctx, jobID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetParameterSchemasByJobID", reflect.TypeOf((*MockStore)(nil).GetParameterSchemasByJobID), ctx, jobID)
+}
+
+// GetPendingChatStructuredOutput mocks base method.
+func (m *MockStore) GetPendingChatStructuredOutput(ctx context.Context, chatID uuid.UUID) (database.ChatStructuredOutput, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPendingChatStructuredOutput", ctx, chatID)
+	ret0, _ := ret[0].(database.ChatStructuredOutput)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPendingChatStructuredOutput indicates an expected call of GetPendingChatStructuredOutput.
+func (mr *MockStoreMockRecorder) GetPendingChatStructuredOutput(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingChatStructuredOutput", reflect.TypeOf((*MockStore)(nil).GetPendingChatStructuredOutput), ctx, chatID)
 }
 
 // GetPrebuildMetrics mocks base method.
@@ -8049,6 +8079,21 @@ func (mr *MockStoreMockRecorder) GetWorkspacesForWorkspaceMetrics(ctx any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesForWorkspaceMetrics", reflect.TypeOf((*MockStore)(nil).GetWorkspacesForWorkspaceMetrics), ctx)
 }
 
+// HasChatUserMessageAfter mocks base method.
+func (m *MockStore) HasChatUserMessageAfter(ctx context.Context, arg database.HasChatUserMessageAfterParams) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasChatUserMessageAfter", ctx, arg)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// HasChatUserMessageAfter indicates an expected call of HasChatUserMessageAfter.
+func (mr *MockStoreMockRecorder) HasChatUserMessageAfter(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasChatUserMessageAfter", reflect.TypeOf((*MockStore)(nil).HasChatUserMessageAfter), ctx, arg)
+}
+
 // HasTemplateVersionsUsingCachedModuleFileInOrg mocks base method.
 func (m *MockStore) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg database.HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error) {
 	m.ctrl.T.Helper()
@@ -8480,6 +8525,21 @@ func (m *MockStore) InsertChatQueuedMessageWithCreator(ctx context.Context, arg 
 func (mr *MockStoreMockRecorder) InsertChatQueuedMessageWithCreator(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatQueuedMessageWithCreator", reflect.TypeOf((*MockStore)(nil).InsertChatQueuedMessageWithCreator), ctx, arg)
+}
+
+// InsertChatStructuredOutput mocks base method.
+func (m *MockStore) InsertChatStructuredOutput(ctx context.Context, arg database.InsertChatStructuredOutputParams) (database.ChatStructuredOutput, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertChatStructuredOutput", ctx, arg)
+	ret0, _ := ret[0].(database.ChatStructuredOutput)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertChatStructuredOutput indicates an expected call of InsertChatStructuredOutput.
+func (mr *MockStoreMockRecorder) InsertChatStructuredOutput(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatStructuredOutput", reflect.TypeOf((*MockStore)(nil).InsertChatStructuredOutput), ctx, arg)
 }
 
 // InsertCryptoKey mocks base method.
@@ -11317,6 +11377,21 @@ func (m *MockStore) UpdateOrganizationWorkspaceSharingSettings(ctx context.Conte
 func (mr *MockStoreMockRecorder) UpdateOrganizationWorkspaceSharingSettings(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrganizationWorkspaceSharingSettings", reflect.TypeOf((*MockStore)(nil).UpdateOrganizationWorkspaceSharingSettings), ctx, arg)
+}
+
+// UpdatePendingChatStructuredOutput mocks base method.
+func (m *MockStore) UpdatePendingChatStructuredOutput(ctx context.Context, arg database.UpdatePendingChatStructuredOutputParams) (database.ChatStructuredOutput, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdatePendingChatStructuredOutput", ctx, arg)
+	ret0, _ := ret[0].(database.ChatStructuredOutput)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdatePendingChatStructuredOutput indicates an expected call of UpdatePendingChatStructuredOutput.
+func (mr *MockStoreMockRecorder) UpdatePendingChatStructuredOutput(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePendingChatStructuredOutput", reflect.TypeOf((*MockStore)(nil).UpdatePendingChatStructuredOutput), ctx, arg)
 }
 
 // UpdatePrebuildProvisionerJobWithCancel mocks base method.

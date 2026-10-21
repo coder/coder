@@ -403,6 +403,12 @@ CREATE TYPE chat_status AS ENUM (
     'interrupting'
 );
 
+CREATE TYPE chat_structured_output_status AS ENUM (
+    'pending',
+    'succeeded',
+    'failed'
+);
+
 CREATE TYPE chat_title_source AS ENUM (
     'fallback',
     'generated',
@@ -2389,6 +2395,25 @@ CREATE SEQUENCE chat_queued_messages_id_seq
     CACHE 1;
 
 ALTER SEQUENCE chat_queued_messages_id_seq OWNED BY chat_queued_messages.id;
+
+CREATE TABLE chat_structured_outputs (
+    message_id bigint NOT NULL,
+    chat_id uuid NOT NULL,
+    status chat_structured_output_status DEFAULT 'pending'::chat_structured_output_status NOT NULL,
+    error_code text,
+    request jsonb NOT NULL,
+    value jsonb,
+    rejected_calls integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_structured_outputs_closed_check CHECK ((((status = 'pending'::chat_structured_output_status) AND (error_code IS NULL)) OR ((status = 'succeeded'::chat_structured_output_status) AND (error_code IS NULL) AND (value IS NOT NULL)) OR ((status = 'failed'::chat_structured_output_status) AND (error_code IS NOT NULL))))
+);
+
+COMMENT ON TABLE chat_structured_outputs IS 'The structured output result of a chat user message that set response_format.';
+
+COMMENT ON COLUMN chat_structured_outputs.request IS 'The response_format json_schema object: name, description and schema.';
+
+COMMENT ON COLUMN chat_structured_outputs.value IS 'The last value the finalizer tool validated against the schema.';
 
 CREATE TABLE chat_usage_limit_config (
     id bigint NOT NULL,
@@ -4666,6 +4691,9 @@ ALTER TABLE ONLY chat_projects
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY chat_structured_outputs
+    ADD CONSTRAINT chat_structured_outputs_pkey PRIMARY KEY (message_id);
+
 ALTER TABLE ONLY chat_usage_limit_config
     ADD CONSTRAINT chat_usage_limit_config_pkey PRIMARY KEY (id);
 
@@ -5026,6 +5054,8 @@ CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
 
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
+
+CREATE UNIQUE INDEX chat_structured_outputs_pending_idx ON chat_structured_outputs USING btree (chat_id) WHERE (status = 'pending'::chat_structured_output_status);
 
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
@@ -5608,6 +5638,12 @@ ALTER TABLE ONLY chat_projects
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_structured_outputs
+    ADD CONSTRAINT chat_structured_outputs_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_structured_outputs
+    ADD CONSTRAINT chat_structured_outputs_message_id_fkey FOREIGN KEY (message_id) REFERENCES chat_messages(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_user_model_overrides
     ADD CONSTRAINT chat_user_model_overrides_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

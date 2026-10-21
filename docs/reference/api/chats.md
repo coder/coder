@@ -432,6 +432,14 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "plan_mode": "plan",
   "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "reasoning_effort": "string",
+  "response_format": {
+    "json_schema": {
+      "description": "string",
+      "name": "string",
+      "schema": {}
+    },
+    "type": "text"
+  },
   "system_prompt": "string",
   "title": "string",
   "unsafe_dynamic_tools": [
@@ -3101,7 +3109,15 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "plan_mode": "plan",
-  "reasoning_effort": "string"
+  "reasoning_effort": "string",
+  "response_format": {
+    "json_schema": {
+      "description": "string",
+      "name": "string",
+      "schema": {}
+    },
+    "type": "text"
+  }
 }
 ```
 
@@ -3595,6 +3611,54 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
 | Status | Meaning                                                 | Description | Schema                                                                         |
 |--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.EditChatMessageResponse](schemas.md#codersdkeditchatmessageresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get chat message structured output
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages/{message}/structured-output \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/chats/{chat}/messages/{message}/structured-output`
+
+### Parameters
+
+| Name      | In   | Type         | Required | Description |
+|-----------|------|--------------|----------|-------------|
+| `chat`    | path | string(uuid) | true     | Chat ID     |
+| `message` | path | integer      | true     | Message ID  |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "created_at": "2019-08-24T14:15:22Z",
+  "error": {
+    "code": "validation_exhausted",
+    "message": "string"
+  },
+  "message_id": 0,
+  "rejected_calls": 0,
+  "status": "pending",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "value": {}
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                   |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatStructuredOutput](schemas.md#codersdkchatstructuredoutput) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

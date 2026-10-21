@@ -60,6 +60,11 @@ type Tx struct {
 	ctx    context.Context
 	store  database.Store
 	chatID uuid.UUID
+	// userPrompted reports that the transaction inserted a client-visible
+	// user message, and turnFinished that it applied FinishTurn. The
+	// structured output close rule reads both after the transition.
+	userPrompted bool
+	turnFinished bool
 }
 
 // Ctx returns the context the surrounding [ChatMachine.Update] call
@@ -175,6 +180,9 @@ func (m *ChatMachine) Update(
 		}
 		chat, state, err := tx.loadState()
 		if err != nil {
+			return err
+		}
+		if err := tx.closeEndedStructuredOutput(chat); err != nil {
 			return err
 		}
 		if err := buffer.Publish(

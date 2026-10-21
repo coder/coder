@@ -15405,6 +15405,155 @@ func (q *sqlQuerier) UpsertChatHeartbeat(ctx context.Context, arg UpsertChatHear
 	return err
 }
 
+const getChatStructuredOutput = `-- name: GetChatStructuredOutput :one
+SELECT message_id, chat_id, status, error_code, request, value, rejected_calls, created_at, updated_at FROM chat_structured_outputs
+WHERE chat_id = $1::uuid AND message_id = $2::bigint
+`
+
+type GetChatStructuredOutputParams struct {
+	ChatID    uuid.UUID `db:"chat_id" json:"chat_id"`
+	MessageID int64     `db:"message_id" json:"message_id"`
+}
+
+func (q *sqlQuerier) GetChatStructuredOutput(ctx context.Context, arg GetChatStructuredOutputParams) (ChatStructuredOutput, error) {
+	row := q.db.QueryRowContext(ctx, getChatStructuredOutput, arg.ChatID, arg.MessageID)
+	var i ChatStructuredOutput
+	err := row.Scan(
+		&i.MessageID,
+		&i.ChatID,
+		&i.Status,
+		&i.ErrorCode,
+		&i.Request,
+		&i.Value,
+		&i.RejectedCalls,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getPendingChatStructuredOutput = `-- name: GetPendingChatStructuredOutput :one
+SELECT message_id, chat_id, status, error_code, request, value, rejected_calls, created_at, updated_at FROM chat_structured_outputs
+WHERE chat_id = $1::uuid AND status = 'pending'
+`
+
+func (q *sqlQuerier) GetPendingChatStructuredOutput(ctx context.Context, chatID uuid.UUID) (ChatStructuredOutput, error) {
+	row := q.db.QueryRowContext(ctx, getPendingChatStructuredOutput, chatID)
+	var i ChatStructuredOutput
+	err := row.Scan(
+		&i.MessageID,
+		&i.ChatID,
+		&i.Status,
+		&i.ErrorCode,
+		&i.Request,
+		&i.Value,
+		&i.RejectedCalls,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const hasChatUserMessageAfter = `-- name: HasChatUserMessageAfter :one
+SELECT EXISTS (
+    SELECT 1 FROM chat_messages
+    WHERE chat_id = $1::uuid
+        AND id > $2::bigint
+        AND role = 'user'
+        AND visibility IN ('user', 'both')
+        AND deleted = false
+)::boolean
+`
+
+type HasChatUserMessageAfterParams struct {
+	ChatID  uuid.UUID `db:"chat_id" json:"chat_id"`
+	AfterID int64     `db:"after_id" json:"after_id"`
+}
+
+// Reports whether a client-visible user message follows after_id, which
+// means a newer prompt started a turn.
+func (q *sqlQuerier) HasChatUserMessageAfter(ctx context.Context, arg HasChatUserMessageAfterParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasChatUserMessageAfter, arg.ChatID, arg.AfterID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const insertChatStructuredOutput = `-- name: InsertChatStructuredOutput :one
+INSERT INTO chat_structured_outputs (message_id, chat_id, request)
+VALUES ($1::bigint, $2::uuid, $3::jsonb)
+RETURNING message_id, chat_id, status, error_code, request, value, rejected_calls, created_at, updated_at
+`
+
+type InsertChatStructuredOutputParams struct {
+	MessageID int64           `db:"message_id" json:"message_id"`
+	ChatID    uuid.UUID       `db:"chat_id" json:"chat_id"`
+	Request   json.RawMessage `db:"request" json:"request"`
+}
+
+func (q *sqlQuerier) InsertChatStructuredOutput(ctx context.Context, arg InsertChatStructuredOutputParams) (ChatStructuredOutput, error) {
+	row := q.db.QueryRowContext(ctx, insertChatStructuredOutput, arg.MessageID, arg.ChatID, arg.Request)
+	var i ChatStructuredOutput
+	err := row.Scan(
+		&i.MessageID,
+		&i.ChatID,
+		&i.Status,
+		&i.ErrorCode,
+		&i.Request,
+		&i.Value,
+		&i.RejectedCalls,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updatePendingChatStructuredOutput = `-- name: UpdatePendingChatStructuredOutput :one
+UPDATE chat_structured_outputs
+SET
+    status = $1::chat_structured_output_status,
+    error_code = $2::text,
+    value = $3::jsonb,
+    rejected_calls = $4::integer,
+    updated_at = now()
+WHERE chat_id = $5::uuid AND message_id = $6::bigint AND status = 'pending'
+RETURNING message_id, chat_id, status, error_code, request, value, rejected_calls, created_at, updated_at
+`
+
+type UpdatePendingChatStructuredOutputParams struct {
+	Status        ChatStructuredOutputStatus `db:"status" json:"status"`
+	ErrorCode     sql.NullString             `db:"error_code" json:"error_code"`
+	Value         pqtype.NullRawMessage      `db:"value" json:"value"`
+	RejectedCalls int32                      `db:"rejected_calls" json:"rejected_calls"`
+	ChatID        uuid.UUID                  `db:"chat_id" json:"chat_id"`
+	MessageID     int64                      `db:"message_id" json:"message_id"`
+}
+
+// Writes only a pending result, so a closed result never changes.
+func (q *sqlQuerier) UpdatePendingChatStructuredOutput(ctx context.Context, arg UpdatePendingChatStructuredOutputParams) (ChatStructuredOutput, error) {
+	row := q.db.QueryRowContext(ctx, updatePendingChatStructuredOutput,
+		arg.Status,
+		arg.ErrorCode,
+		arg.Value,
+		arg.RejectedCalls,
+		arg.ChatID,
+		arg.MessageID,
+	)
+	var i ChatStructuredOutput
+	err := row.Scan(
+		&i.MessageID,
+		&i.ChatID,
+		&i.Status,
+		&i.ErrorCode,
+		&i.Request,
+		&i.Value,
+		&i.RejectedCalls,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const batchUpsertConnectionLogs = `-- name: BatchUpsertConnectionLogs :exec
 INSERT INTO connection_logs (
     id, connect_time, organization_id, workspace_owner_id, workspace_id,

@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstructured"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
@@ -74,7 +75,10 @@ type turnEnvironment struct {
 	BuiltinToolNames   map[string]bool
 	ToolNameToConfigID map[string]uuid.UUID
 
-	MaxSteps   int
+	MaxSteps int
+	// Structured is the chat's pending structured output request, or nil.
+	// The finalizer tool is offered while it is set.
+	Structured *structuredTurn
 	Compaction *generationCompaction
 
 	Debug *generationDebug
@@ -893,6 +897,23 @@ func (p *Server) buildTurnEnvironment(
 		}
 	}
 
+	structured, err := loadStructuredTurn(ctx, p.db, chat.ID)
+	if err != nil {
+		return turnEnvironment{}, err
+	}
+	if structured != nil {
+		if reason := finalizerConfigurationReason(resolved.providerOptions, tools, dynamicToolNames, providerTools, subagentToolNameAliases); reason != "" {
+			return turnEnvironment{}, newStructuredConfigurationError(structured.pending, reason)
+		}
+		// The finalizer rides as a provider tool so its definition keeps the
+		// caller's schema unnormalized. It runs locally and alone in its step.
+		providerTools = append(providerTools, chatloop.ProviderTool{Definition: structured.schema.FinalizerDefinition(), Runner: structured.schema.FinalizerRunner()})
+		if exclusiveToolNames == nil {
+			exclusiveToolNames = make(map[string]bool)
+		}
+		exclusiveToolNames[chatstructured.FinalizerToolName] = true
+	}
+
 	activeToolNames := activeToolNamesForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 	if isExploreSubagent {
 		activeToolNames = allowedExploreToolNames(tools)
@@ -1057,6 +1078,7 @@ func (p *Server) buildTurnEnvironment(
 		BuiltinToolNames:     builtinToolNames,
 		ToolNameToConfigID:   toolNameToConfigID,
 		MaxSteps:             p.chatLimits.MaxStepsPerTurn,
+		Structured:           structured,
 		Compaction: &generationCompaction{
 			Override:        compactionOverride,
 			TriggerSource:   bindingSource,

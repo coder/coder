@@ -48,6 +48,9 @@ type stepMessagesForCommit struct {
 	// ConsumeCompactionRequest clears the manual compaction marker
 	// atomically with the commit. Set on compaction commits.
 	ConsumeCompactionRequest bool
+	// Structured updates the pending structured output result atomically
+	// with the commit, or is nil.
+	Structured *structuredStepUpdate
 }
 
 func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesForCommit, error) {

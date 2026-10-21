@@ -5226,6 +5226,64 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `id`              | integer                                                       | false    |              |             |
 | `model_config_id` | string                                                        | false    |              |             |
 
+## codersdk.ChatResponseFormat
+
+```json
+{
+  "json_schema": {
+    "description": "string",
+    "name": "string",
+    "schema": {}
+  },
+  "type": "text"
+}
+```
+
+### Properties
+
+| Name          | Type                                                                           | Required | Restrictions | Description |
+|---------------|--------------------------------------------------------------------------------|----------|--------------|-------------|
+| `json_schema` | [codersdk.ChatResponseFormatJSONSchema](#codersdkchatresponseformatjsonschema) | false    |              |             |
+| `type`        | [codersdk.ChatResponseFormatType](#codersdkchatresponseformattype)             | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s)              |
+|----------|-----------------------|
+| `type`   | `json_schema`, `text` |
+
+## codersdk.ChatResponseFormatJSONSchema
+
+```json
+{
+  "description": "string",
+  "name": "string",
+  "schema": {}
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description                                                                 |
+|---------------|--------|----------|--------------|-----------------------------------------------------------------------------|
+| `description` | string | false    |              | Description tells the model what the output is for (1024 bytes max).        |
+| `name`        | string | false    |              | Name identifies the output and matches ^[A-Za-z0-9_-]{1,64}$.               |
+| `schema`      | object | false    |              | Schema is the JSON Schema (Draft-07, no references) the value must satisfy. |
+
+## codersdk.ChatResponseFormatType
+
+```json
+"text"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)              |
+|-----------------------|
+| `json_schema`, `text` |
+
 ## codersdk.ChatRetentionDaysResponse
 
 ```json
@@ -5708,6 +5766,93 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `args`         | string | false    |              |             |
 | `tool_call_id` | string | false    |              |             |
 | `tool_name`    | string | false    |              |             |
+
+## codersdk.ChatStructuredOutput
+
+```json
+{
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "created_at": "2019-08-24T14:15:22Z",
+  "error": {
+    "code": "validation_exhausted",
+    "message": "string"
+  },
+  "message_id": 0,
+  "rejected_calls": 0,
+  "status": "pending",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "value": {}
+}
+```
+
+### Properties
+
+| Name             | Type                                                                       | Required | Restrictions | Description                                                                                                                                                                       |
+|------------------|----------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `chat_id`        | string                                                                     | false    |              |                                                                                                                                                                                   |
+| `created_at`     | string                                                                     | false    |              |                                                                                                                                                                                   |
+| `error`          | [codersdk.ChatStructuredOutputError](#codersdkchatstructuredoutputerror)   | false    |              |                                                                                                                                                                                   |
+| `message_id`     | integer                                                                    | false    |              |                                                                                                                                                                                   |
+| `rejected_calls` | integer                                                                    | false    |              | Rejected calls counts the finalizer calls the server rejected.                                                                                                                    |
+| `status`         | [codersdk.ChatStructuredOutputStatus](#codersdkchatstructuredoutputstatus) | false    |              |                                                                                                                                                                                   |
+| `updated_at`     | string                                                                     | false    |              |                                                                                                                                                                                   |
+| `value`          | object                                                                     | false    |              | Value is the validated value of a succeeded result. It is canonically equal to what the model sent, not byte-equal. It can be any JSON value: object is the closest Swagger type. |
+
+#### Enumerated Values
+
+| Property | Value(s)                         |
+|----------|----------------------------------|
+| `status` | `failed`, `pending`, `succeeded` |
+
+## codersdk.ChatStructuredOutputError
+
+```json
+{
+  "code": "validation_exhausted",
+  "message": "string"
+}
+```
+
+### Properties
+
+| Name      | Type                                                                             | Required | Restrictions | Description |
+|-----------|----------------------------------------------------------------------------------|----------|--------------|-------------|
+| `code`    | [codersdk.ChatStructuredOutputErrorCode](#codersdkchatstructuredoutputerrorcode) | false    |              |             |
+| `message` | string                                                                           | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s)                                                                                          |
+|----------|---------------------------------------------------------------------------------------------------|
+| `code`   | `configuration_error`, `generation_failed`, `interrupted`, `not_produced`, `validation_exhausted` |
+
+## codersdk.ChatStructuredOutputErrorCode
+
+```json
+"validation_exhausted"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                          |
+|---------------------------------------------------------------------------------------------------|
+| `configuration_error`, `generation_failed`, `interrupted`, `not_produced`, `validation_exhausted` |
+
+## codersdk.ChatStructuredOutputStatus
+
+```json
+"pending"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                         |
+|----------------------------------|
+| `failed`, `pending`, `succeeded` |
 
 ## codersdk.ChatSystemPromptResponse
 
@@ -6407,21 +6552,30 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "plan_mode": "plan",
-  "reasoning_effort": "string"
+  "reasoning_effort": "string",
+  "response_format": {
+    "json_schema": {
+      "description": "string",
+      "name": "string",
+      "schema": {}
+    },
+    "type": "text"
+  }
 }
 ```
 
 ### Properties
 
-| Name                 | Type                                                                        | Required | Restrictions | Description                                                                                                  |
-|----------------------|-----------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
-| `busy_behavior`      | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)                      | false    |              |                                                                                                              |
-| `content`            | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              |                                                                                                              |
-| `inline_mcp_servers` | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers replaces the inline MCP servers. nil: no change, empty: remove all.                       |
-| `mcp_server_ids`     | array of string                                                             | false    |              |                                                                                                              |
-| `model_config_id`    | string                                                                      | false    |              |                                                                                                              |
-| `plan_mode`          | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear. |
-| `reasoning_effort`   | string                                                                      | false    |              |                                                                                                              |
+| Name                 | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                              |
+|----------------------|-----------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `busy_behavior`      | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)                      | false    |              |                                                                                                                                                                                          |
+| `content`            | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              |                                                                                                                                                                                          |
+| `inline_mcp_servers` | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers replaces the inline MCP servers. nil: no change, empty: remove all.                                                                                                   |
+| `mcp_server_ids`     | array of string                                                             | false    |              |                                                                                                                                                                                          |
+| `model_config_id`    | string                                                                      | false    |              |                                                                                                                                                                                          |
+| `plan_mode`          | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear.                                                                             |
+| `reasoning_effort`   | string                                                                      | false    |              |                                                                                                                                                                                          |
+| `response_format`    | [codersdk.ChatResponseFormat](#codersdkchatresponseformat)                  | false    |              | Response format asks for a structured result for this message. json_schema requires the chat-structured-output experiment, an idle root chat outside plan mode, and no plan_mode switch. |
 
 #### Enumerated Values
 
@@ -6950,6 +7104,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "plan_mode": "plan",
   "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "reasoning_effort": "string",
+  "response_format": {
+    "json_schema": {
+      "description": "string",
+      "name": "string",
+      "schema": {}
+    },
+    "type": "text"
+  },
   "system_prompt": "string",
   "title": "string",
   "unsafe_dynamic_tools": [
@@ -6981,6 +7143,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              |                                                                                                                                                                                                                                                                                                                                       |
 | `project_id`           | string                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                       |
 | `reasoning_effort`     | string                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                       |
+| `response_format`      | [codersdk.ChatResponseFormat](#codersdkchatresponseformat)                  | false    |              | Response format asks for a structured result for the initial message. json_schema requires the chat-structured-output experiment, initial content, and no plan mode.                                                                                                                                                                  |
 | `system_prompt`        | string                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                       |
 | `title`                | string                                                                      | false    |              | Title, when set, is stored as the user title and automatic title generation does not run. It is trimmed and must then be non-empty and at most 200 Unicode code points (MaxChatTitleRunes), else the request fails with 400. When omitted, the title is derived from the first prompt and may later be replaced by a generated title. |
 | `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)                       | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                                                                                                                                                                            |
@@ -9805,9 +9968,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                       |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-projects`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-projects`, `chat-stage-metrics`, `chat-structured-output`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 

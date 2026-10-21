@@ -860,6 +860,10 @@ type CreateChatRequest struct {
 	InlineMCPServers []InlineMCPServerRequest `json:"inline_mcp_servers,omitempty"`
 	PlanMode         ChatPlanMode             `json:"plan_mode,omitempty"`
 	ClientType       ChatClientType           `json:"client_type,omitempty"`
+	// ResponseFormat asks for a structured result for the initial message.
+	// json_schema requires the chat-structured-output experiment, initial
+	// content, and no plan mode.
+	ResponseFormat *ChatResponseFormat `json:"response_format,omitempty"`
 }
 
 // InlineMCPServerRequest declares a streamable HTTP MCP server by value on
@@ -966,6 +970,103 @@ type CreateChatMessageRequest struct {
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode        *ChatPlanMode `json:"plan_mode,omitempty"`
 	ReasoningEffort *string       `json:"reasoning_effort,omitempty"`
+	// ResponseFormat asks for a structured result for this message.
+	// json_schema requires the chat-structured-output experiment, an idle
+	// root chat outside plan mode, and no plan_mode switch.
+	ResponseFormat *ChatResponseFormat `json:"response_format,omitempty"`
+}
+
+// ChatResponseFormatType selects the form of a message's result.
+type ChatResponseFormatType string
+
+// ChatResponseFormatType enums.
+const (
+	ChatResponseFormatTypeText       ChatResponseFormatType = "text"
+	ChatResponseFormatTypeJSONSchema ChatResponseFormatType = "json_schema"
+)
+
+// ChatResponseFormat asks for the result of the turn a message starts. The
+// server parses it strictly and rejects unknown fields.
+type ChatResponseFormat struct {
+	Type       ChatResponseFormatType        `json:"type" enums:"text,json_schema"`
+	JSONSchema *ChatResponseFormatJSONSchema `json:"json_schema,omitempty"`
+}
+
+// ChatResponseFormatJSONSchema describes a structured result.
+type ChatResponseFormatJSONSchema struct {
+	// Name identifies the output and matches ^[A-Za-z0-9_-]{1,64}$.
+	Name string `json:"name"`
+	// Description tells the model what the output is for (1024 bytes max).
+	Description string `json:"description,omitempty"`
+	// Schema is the JSON Schema (Draft-07, no references) the value must
+	// satisfy.
+	Schema json.RawMessage `json:"schema" swaggertype:"object"`
+}
+
+// ChatStructuredOutputStatus is the status of a structured output result.
+type ChatStructuredOutputStatus string
+
+// ChatStructuredOutputStatus enums.
+const (
+	ChatStructuredOutputStatusPending   ChatStructuredOutputStatus = "pending"
+	ChatStructuredOutputStatusSucceeded ChatStructuredOutputStatus = "succeeded"
+	ChatStructuredOutputStatusFailed    ChatStructuredOutputStatus = "failed"
+)
+
+// ChatStructuredOutputErrorCode explains why a structured output request
+// failed.
+type ChatStructuredOutputErrorCode string
+
+// ChatStructuredOutputErrorCode enums.
+const (
+	// The model's finalizer calls were rejected 3 times without a valid one.
+	ChatStructuredOutputErrorCodeValidationExhausted ChatStructuredOutputErrorCode = "validation_exhausted"
+	// The turn ended without a valid finalizer call.
+	ChatStructuredOutputErrorCodeNotProduced ChatStructuredOutputErrorCode = "not_produced"
+	// An interrupt or a newer message ended the turn without a valid value.
+	ChatStructuredOutputErrorCodeInterrupted ChatStructuredOutputErrorCode = "interrupted"
+	// The turn ended with an error before a valid value.
+	ChatStructuredOutputErrorCodeGenerationFailed ChatStructuredOutputErrorCode = "generation_failed"
+	// The chat's model or tools cannot serve the request.
+	ChatStructuredOutputErrorCodeConfigurationError ChatStructuredOutputErrorCode = "configuration_error"
+)
+
+// ChatStructuredOutput is the result of the user message that set
+// response_format.
+type ChatStructuredOutput struct {
+	ChatID    uuid.UUID                  `json:"chat_id" format:"uuid"`
+	MessageID int64                      `json:"message_id"`
+	Status    ChatStructuredOutputStatus `json:"status" enums:"pending,succeeded,failed"`
+	// Value is the validated value of a succeeded result. It is
+	// canonically equal to what the model sent, not byte-equal. It can be
+	// any JSON value: object is the closest Swagger type.
+	Value json.RawMessage            `json:"value,omitempty" swaggertype:"object"`
+	Error *ChatStructuredOutputError `json:"error,omitempty"`
+	// RejectedCalls counts the finalizer calls the server rejected.
+	RejectedCalls int32     `json:"rejected_calls"`
+	CreatedAt     time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt     time.Time `json:"updated_at" format:"date-time"`
+}
+
+// ChatStructuredOutputError describes why a structured output failed.
+type ChatStructuredOutputError struct {
+	Code    ChatStructuredOutputErrorCode `json:"code" enums:"validation_exhausted,not_produced,interrupted,generation_failed,configuration_error"`
+	Message string                        `json:"message"`
+}
+
+// ChatStructuredOutput returns the structured output result of a user
+// message that set response_format.
+func (c *Client) ChatStructuredOutput(ctx context.Context, chatID uuid.UUID, messageID int64) (ChatStructuredOutput, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/messages/%d/structured-output", chatID, messageID), nil)
+	if err != nil {
+		return ChatStructuredOutput{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatStructuredOutput{}, ReadBodyAsError(res)
+	}
+	var out ChatStructuredOutput
+	return out, ReadBodyAsJSON(res, &out)
 }
 
 // EditChatMessageRequest is the request to edit a user message in a chat.

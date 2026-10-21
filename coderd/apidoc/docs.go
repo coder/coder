@@ -4514,6 +4514,48 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/chats/{chat}/messages/{message}/structured-output": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat message structured output",
+                "operationId": "get-chat-message-structured-output",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Message ID",
+                        "name": "message",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatStructuredOutput"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/chats/{chat}/prompts": {
             "get": {
                 "description": "Returns the user-authored prompts in a chat, newest first,\nwith each prompt's text parts concatenated in the order they\nwere authored. Used by the composer to power the up/down\narrow prompt-history cycle without paging through every\nmessage in the chat.",
@@ -23380,6 +23422,53 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatResponseFormat": {
+            "type": "object",
+            "properties": {
+                "json_schema": {
+                    "$ref": "#/definitions/codersdk.ChatResponseFormatJSONSchema"
+                },
+                "type": {
+                    "enum": [
+                        "text",
+                        "json_schema"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatResponseFormatType"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.ChatResponseFormatJSONSchema": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "description": "Description tells the model what the output is for (1024 bytes max).",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Name identifies the output and matches ^[A-Za-z0-9_-]{1,64}$.",
+                    "type": "string"
+                },
+                "schema": {
+                    "description": "Schema is the JSON Schema (Draft-07, no references) the value must\nsatisfy.",
+                    "type": "object"
+                }
+            }
+        },
+        "codersdk.ChatResponseFormatType": {
+            "type": "string",
+            "enum": [
+                "text",
+                "json_schema"
+            ],
+            "x-enum-varnames": [
+                "ChatResponseFormatTypeText",
+                "ChatResponseFormatTypeJSONSchema"
+            ]
+        },
         "codersdk.ChatRetentionDaysResponse": {
             "type": "object",
             "properties": {
@@ -23567,6 +23656,101 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.ChatStructuredOutput": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "error": {
+                    "$ref": "#/definitions/codersdk.ChatStructuredOutputError"
+                },
+                "message_id": {
+                    "type": "integer"
+                },
+                "rejected_calls": {
+                    "description": "RejectedCalls counts the finalizer calls the server rejected.",
+                    "type": "integer"
+                },
+                "status": {
+                    "enum": [
+                        "pending",
+                        "succeeded",
+                        "failed"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatStructuredOutputStatus"
+                        }
+                    ]
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "value": {
+                    "description": "Value is the validated value of a succeeded result. It is\ncanonically equal to what the model sent, not byte-equal. It can be\nany JSON value: object is the closest Swagger type.",
+                    "type": "object"
+                }
+            }
+        },
+        "codersdk.ChatStructuredOutputError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "enum": [
+                        "validation_exhausted",
+                        "not_produced",
+                        "interrupted",
+                        "generation_failed",
+                        "configuration_error"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatStructuredOutputErrorCode"
+                        }
+                    ]
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatStructuredOutputErrorCode": {
+            "type": "string",
+            "enum": [
+                "validation_exhausted",
+                "not_produced",
+                "interrupted",
+                "generation_failed",
+                "configuration_error"
+            ],
+            "x-enum-varnames": [
+                "ChatStructuredOutputErrorCodeValidationExhausted",
+                "ChatStructuredOutputErrorCodeNotProduced",
+                "ChatStructuredOutputErrorCodeInterrupted",
+                "ChatStructuredOutputErrorCodeGenerationFailed",
+                "ChatStructuredOutputErrorCodeConfigurationError"
+            ]
+        },
+        "codersdk.ChatStructuredOutputStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "succeeded",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "ChatStructuredOutputStatusPending",
+                "ChatStructuredOutputStatusSucceeded",
+                "ChatStructuredOutputStatusFailed"
+            ]
         },
         "codersdk.ChatSystemPromptResponse": {
             "type": "object",
@@ -24001,6 +24185,14 @@ const docTemplate = `{
                 },
                 "reasoning_effort": {
                     "type": "string"
+                },
+                "response_format": {
+                    "description": "ResponseFormat asks for a structured result for this message.\njson_schema requires the chat-structured-output experiment, an idle\nroot chat outside plan mode, and no plan_mode switch.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatResponseFormat"
+                        }
+                    ]
                 }
             }
         },
@@ -24152,6 +24344,14 @@ const docTemplate = `{
                 },
                 "reasoning_effort": {
                     "type": "string"
+                },
+                "response_format": {
+                    "description": "ResponseFormat asks for a structured result for the initial message.\njson_schema requires the chat-structured-output experiment, initial\ncontent, and no plan mode.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatResponseFormat"
+                        }
+                    ]
                 },
                 "system_prompt": {
                     "type": "string"
@@ -25863,7 +26063,8 @@ const docTemplate = `{
                 "chat-inline-mcp-servers",
                 "enable-ai-workspace-debug",
                 "chat-stage-metrics",
-                "chat-acp-subagents"
+                "chat-acp-subagents",
+                "chat-structured-output"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -25874,6 +26075,7 @@ const docTemplate = `{
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
                 "ExperimentChatProjects": "Enables organization-scoped projects that group agent chats.",
                 "ExperimentChatStageMetrics": "Exposes chat lifecycle stage durations as Prometheus metrics.",
+                "ExperimentChatStructuredOutput": "Accepts response_format on agent chat messages.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
                 "ExperimentExample": "This isn't used for anything.",
@@ -25903,7 +26105,8 @@ const docTemplate = `{
                 "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents.",
                 "Exposes chat lifecycle stage durations as Prometheus metrics.",
-                "Enables workspace-local ACP subagent tools in root chats."
+                "Enables workspace-local ACP subagent tools in root chats.",
+                "Accepts response_format on agent chat messages."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -25923,7 +26126,8 @@ const docTemplate = `{
                 "ExperimentChatInlineMCPServers",
                 "ExperimentEnableAIWorkspaceDebug",
                 "ExperimentChatStageMetrics",
-                "ExperimentChatACPSubagents"
+                "ExperimentChatACPSubagents",
+                "ExperimentChatStructuredOutput"
             ]
         },
         "codersdk.ExperimentRule": {

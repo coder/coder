@@ -80,6 +80,7 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 			r.Get("/messages", api.getChatMessages)
 			r.Post("/messages", api.postChatMessages)
 			r.Patch("/messages/{message}", api.patchChatMessage)
+			r.Get("/messages/{message}/structured-output", api.getChatMessageStructuredOutput)
 			r.Get("/prompts", api.getChatUserPrompts)
 			r.Post("/interrupt", api.interruptChat)
 			r.Post("/compact", api.compactChat)

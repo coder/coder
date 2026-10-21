@@ -436,6 +436,10 @@ type CreateOptions struct {
 	InlineMCPServers   []codersdk.InlineMCPServerRequest
 	Labels             database.StringMap
 	DynamicTools       json.RawMessage
+	// StructuredOutputRequest is a ParseResponseFormat request for the
+	// initial message. It requires InitialUserContent and a root chat
+	// outside plan mode.
+	StructuredOutputRequest json.RawMessage
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -462,6 +466,9 @@ type SendMessageOptions struct {
 	MCPServerIDs    *[]uuid.UUID
 	// InlineMCPServers replaces the inline MCP servers. nil: no change.
 	InlineMCPServers *[]codersdk.InlineMCPServerRequest
+	// StructuredOutputRequest is a ParseResponseFormat request for this
+	// message. It requires an idle root chat outside plan mode.
+	StructuredOutputRequest json.RawMessage
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -611,6 +618,14 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		return database.Chat{}, xerrors.New("title is required")
 	}
 	opts.TitleSource = cmp.Or(opts.TitleSource, database.ChatTitleSourceFallback)
+	if opts.StructuredOutputRequest != nil {
+		if opts.PlanMode.Valid || opts.ChatMode.Valid || opts.ParentChatID.Valid {
+			return database.Chat{}, ErrStructuredOutputMode
+		}
+		if len(opts.InitialUserContent) == 0 {
+			return database.Chat{}, xerrors.New("structured output requires an initial user message")
+		}
+	}
 	initialStatus := database.ChatStatusWaiting
 	if len(opts.InitialUserContent) > 0 {
 		initialStatus = database.ChatStatusRunning
@@ -765,11 +780,12 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			RawMessage: opts.DynamicTools,
 			Valid:      len(opts.DynamicTools) > 0,
 		},
-		ClientType:      opts.ClientType,
-		InitialMessages: initialMessages,
-		FileIDs:         chatprompt.FileIDs(contentParts),
-		InitialStatus:   initialStatus,
-		MaxFileLinks:    p.chatLimits.MaxAttachmentsPerChat,
+		ClientType:              opts.ClientType,
+		InitialMessages:         initialMessages,
+		FileIDs:                 chatprompt.FileIDs(contentParts),
+		InitialStatus:           initialStatus,
+		MaxFileLinks:            p.chatLimits.MaxAttachmentsPerChat,
+		StructuredOutputRequest: opts.StructuredOutputRequest,
 	})
 	if err != nil {
 		return database.Chat{}, err

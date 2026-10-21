@@ -1979,6 +1979,67 @@ func AllChatStatusValues() []ChatStatus {
 	}
 }
 
+type ChatStructuredOutputStatus string
+
+const (
+	ChatStructuredOutputStatusPending   ChatStructuredOutputStatus = "pending"
+	ChatStructuredOutputStatusSucceeded ChatStructuredOutputStatus = "succeeded"
+	ChatStructuredOutputStatusFailed    ChatStructuredOutputStatus = "failed"
+)
+
+func (e *ChatStructuredOutputStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatStructuredOutputStatus(s)
+	case string:
+		*e = ChatStructuredOutputStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatStructuredOutputStatus: %T", src)
+	}
+	return nil
+}
+
+type NullChatStructuredOutputStatus struct {
+	ChatStructuredOutputStatus ChatStructuredOutputStatus `json:"chat_structured_output_status"`
+	Valid                      bool                       `json:"valid"` // Valid is true if ChatStructuredOutputStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatStructuredOutputStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatStructuredOutputStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatStructuredOutputStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatStructuredOutputStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatStructuredOutputStatus), nil
+}
+
+func (e ChatStructuredOutputStatus) Valid() bool {
+	switch e {
+	case ChatStructuredOutputStatusPending,
+		ChatStructuredOutputStatusSucceeded,
+		ChatStructuredOutputStatusFailed:
+		return true
+	}
+	return false
+}
+
+func AllChatStructuredOutputStatusValues() []ChatStructuredOutputStatus {
+	return []ChatStructuredOutputStatus{
+		ChatStructuredOutputStatusPending,
+		ChatStructuredOutputStatusSucceeded,
+		ChatStructuredOutputStatusFailed,
+	}
+}
+
 // Where a chat title came from, in ascending rank. A title write applies only when its source ranks at or above the current source. fallback: derived from the first prompt, or the default title of a chat created without one. generated: written by automatic title generation. user: supplied by the caller at creation or by rename.
 type ChatTitleSource string
 
@@ -5553,6 +5614,21 @@ type ChatQueuedMessage struct {
 	CreatedBy     uuid.UUID       `db:"created_by" json:"created_by"`
 	// Stores the selected effort until the queued row is promoted.
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
+}
+
+// The structured output result of a chat user message that set response_format.
+type ChatStructuredOutput struct {
+	MessageID int64                      `db:"message_id" json:"message_id"`
+	ChatID    uuid.UUID                  `db:"chat_id" json:"chat_id"`
+	Status    ChatStructuredOutputStatus `db:"status" json:"status"`
+	ErrorCode sql.NullString             `db:"error_code" json:"error_code"`
+	// The response_format json_schema object: name, description and schema.
+	Request json.RawMessage `db:"request" json:"request"`
+	// The last value the finalizer tool validated against the schema.
+	Value         pqtype.NullRawMessage `db:"value" json:"value"`
+	RejectedCalls int32                 `db:"rejected_calls" json:"rejected_calls"`
+	CreatedAt     time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time             `db:"updated_at" json:"updated_at"`
 }
 
 type ChatTable struct {

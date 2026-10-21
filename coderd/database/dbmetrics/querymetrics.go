@@ -1992,6 +1992,14 @@ func (m queryMetricsStore) GetChatStreamSyncRows(ctx context.Context, ids []uuid
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatStructuredOutput(ctx context.Context, arg database.GetChatStructuredOutputParams) (database.ChatStructuredOutput, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatStructuredOutput(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatStructuredOutput").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatStructuredOutput").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatSystemPrompt(ctx)
@@ -2901,6 +2909,14 @@ func (m queryMetricsStore) GetParameterSchemasByJobID(ctx context.Context, jobID
 	r0, r1 := m.s.GetParameterSchemasByJobID(ctx, jobID)
 	m.queryLatencies.WithLabelValues("GetParameterSchemasByJobID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetParameterSchemasByJobID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetPendingChatStructuredOutput(ctx context.Context, chatID uuid.UUID) (database.ChatStructuredOutput, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPendingChatStructuredOutput(ctx, chatID)
+	m.queryLatencies.WithLabelValues("GetPendingChatStructuredOutput").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetPendingChatStructuredOutput").Inc()
 	return r0, r1
 }
 
@@ -4272,6 +4288,14 @@ func (m queryMetricsStore) GetWorkspacesForWorkspaceMetrics(ctx context.Context)
 	return r0, r1
 }
 
+func (m queryMetricsStore) HasChatUserMessageAfter(ctx context.Context, arg database.HasChatUserMessageAfterParams) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.HasChatUserMessageAfter(ctx, arg)
+	m.queryLatencies.WithLabelValues("HasChatUserMessageAfter").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "HasChatUserMessageAfter").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg database.HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error) {
 	start := time.Now()
 	r0, r1 := m.s.HasTemplateVersionsUsingCachedModuleFileInOrg(ctx, arg)
@@ -4493,6 +4517,14 @@ func (m queryMetricsStore) InsertChatQueuedMessageWithCreator(ctx context.Contex
 	r0, r1 := m.s.InsertChatQueuedMessageWithCreator(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertChatQueuedMessageWithCreator").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatQueuedMessageWithCreator").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertChatStructuredOutput(ctx context.Context, arg database.InsertChatStructuredOutputParams) (database.ChatStructuredOutput, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertChatStructuredOutput(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertChatStructuredOutput").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatStructuredOutput").Inc()
 	return r0, r1
 }
 
@@ -5974,6 +6006,14 @@ func (m queryMetricsStore) UpdateOrganizationWorkspaceSharingSettings(ctx contex
 	r0, r1 := m.s.UpdateOrganizationWorkspaceSharingSettings(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateOrganizationWorkspaceSharingSettings").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateOrganizationWorkspaceSharingSettings").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdatePendingChatStructuredOutput(ctx context.Context, arg database.UpdatePendingChatStructuredOutputParams) (database.ChatStructuredOutput, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdatePendingChatStructuredOutput(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdatePendingChatStructuredOutput").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdatePendingChatStructuredOutput").Inc()
 	return r0, r1
 }
 

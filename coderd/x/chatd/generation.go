@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstructured"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
@@ -917,9 +918,23 @@ func (s *taskStarter) generateAssistant(
 	if len(outcome.Step.Content) == 0 {
 		return s.finishGenerationTurn(ctx, machine, input, requireGenerationAttempt(attempt.number))
 	}
+	// Finalizer calls are screened before storage. A rejected call is
+	// resolved in this commit, so hooks never admit it.
+	var structured *structuredStepUpdate
+	if prepared.Structured != nil {
+		structured = &structuredStepUpdate{pending: prepared.Structured.pending}
+		outcome.Step.Content, structured.rejected = screenFinalizerCalls(outcome.Step.Content, outcome.FinishReason)
+	}
 	preflight, err := s.admitStepToolCalls(ctx, input, prepared, outcome.Step.Content)
 	if err != nil {
 		return err
+	}
+	if structured != nil {
+		for _, denied := range preflight.Denied {
+			if denied.ToolName == chatstructured.FinalizerToolName {
+				structured.rejected++
+			}
+		}
 	}
 	outcome.Step.Content = chathooks.ApplyAdmittedToolCalls(outcome.Step.Content, preflight)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
@@ -938,6 +953,7 @@ func (s *taskStarter) generateAssistant(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
+	messages.Structured = structured
 	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionGenerateAssistant, messages, generationCommitHooks{})
 }
 
@@ -1188,6 +1204,9 @@ func (s *taskStarter) executeLocalTools(
 		}
 	case postDispatchErr != nil:
 		postCommitErr = chathooks.GenerationDispatchError(agenthooks.EventPostToolUse, postDispatchErr)
+	}
+	if messages.Structured, err = finalizerStepUpdate(prepared.Structured, decision.localToolCalls, outcome.Content); err != nil {
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
 	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages, generationCommitHooks{
 		PostCommitError: postCommitErr,
@@ -1492,6 +1511,9 @@ func (s *taskStarter) commitGenerationStep(
 		}); err != nil {
 			return xerrors.Errorf("tx.CommitStep: %w", err)
 		}
+		if err := messages.Structured.apply(ctx, store); err != nil {
+			return err
+		}
 		// The fail-closed hook error must commit atomically with the
 		// step; a separate commit races the runner and can be dropped
 		// on crash.
@@ -1782,6 +1804,14 @@ func (s *taskStarter) finishGenerationError(
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForGeneration(ctx, store, input, fence); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
+		}
+		// A configuration error has a code that the close rule cannot
+		// infer from the chat, so it fails the request here first.
+		var configuration *structuredConfigurationError
+		if errors.As(cause, &configuration) {
+			if err := chatstate.UpdateStructuredOutput(ctx, store, configuration.pending, database.ChatStructuredOutputStatusFailed, codersdk.ChatStructuredOutputErrorCodeConfigurationError); err != nil {
+				return err
+			}
 		}
 		if _, err := tx.FinishError(chatstate.FinishErrorInput{LastError: lastError}); err != nil {
 			return xerrors.Errorf("tx.FinishError: %w", err)
