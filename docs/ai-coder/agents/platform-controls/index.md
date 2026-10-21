@@ -200,7 +200,7 @@ See the following pages for experiment-gated features:
 - [Advisor](./advisor.md) (`--experiments=chat-advisor`)
 - [Virtual desktop](./virtual-desktop.md) (`--experiments=chat-virtual-desktop`)
 - [Inline MCP servers](./mcp-servers.md#inline-mcp-servers-experimental) (`--experiments=chat-inline-mcp-servers`)
-- [Token budget compaction](../architecture.md#context-compaction) (`--experiments=chat-token-budget`)
+- [Token budget compaction](../architecture.md#experimental-token-budget) (`--experiments=chat-token-budget`)
 
 For chat debug logging (not experiment-gated), see [Chat debug logging](./chat-debug-logging.md).
 
