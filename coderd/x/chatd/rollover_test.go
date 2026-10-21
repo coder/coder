@@ -358,8 +358,12 @@ func TestActiveServer_ContextHandoff(t *testing.T) {
 	// W = 100 at 20%: the handoff target is 20 and the usable limit 75.
 	// Each answer reports the usage the next turn sees.
 	inputTokens := []int{25, 40, 45, 50}
-	var streamCount atomic.Int32
+	var streamCount, compactionRequests atomic.Int32
 	anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		if strings.Contains(anthropicRequestBody(t, *req), "You are performing a context compaction") {
+			compactionRequests.Add(1)
+			return anthropicCompactionResponse(t, req, "summary")
+		}
 		if !req.Stream {
 			return chattest.AnthropicNonStreamingResponse("title")
 		}
@@ -436,6 +440,30 @@ func TestActiveServer_ContextHandoff(t *testing.T) {
 			"stage":    stage,
 		})
 	}
+
+	// After a switch to Summarize, the window keeps its handoff prompt
+	// rows, but the prompt must not ask for tools that are no longer
+	// offered.
+	updateChatModelCompressionThreshold(t, db, model, 100, 90)
+	require.NoError(t, db.UpsertUserChatCompactionStrategy(ctx, database.UpsertUserChatCompactionStrategyParams{
+		UserID:             user.ID,
+		CompactionStrategy: string(codersdk.ChatCompactionStrategySummarize),
+	}))
+	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
+		ModelConfigID: model.ID,
+		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("request 5")},
+	})
+	require.NoError(t, err)
+	chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+	require.False(t, chat.LastError.Valid)
+	require.Zero(t, compactionRequests.Load())
+	streams = filterAnthropicStreamingRequests(requests.all())
+	require.Len(t, streams, 5)
+	fifth := anthropicRequestBody(t, streams[4])
+	require.Contains(t, fifth, "request 4")
+	require.NotContains(t, fifth, handoffText)
 }
 
 func anthropicToolNames(req chattest.AnthropicRequest) []string {
