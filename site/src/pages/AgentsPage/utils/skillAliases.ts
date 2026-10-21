@@ -1,5 +1,5 @@
 /** Skill sources in chatd's merge order, named by their alias prefix. */
-export type SkillSource = "personal" | "org" | "workspace";
+export type SkillSource = "personal" | "org" | "project" | "workspace";
 
 export type SkillSourceList<T extends { name: string }> = {
 	source: SkillSource;
