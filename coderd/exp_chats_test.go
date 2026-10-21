@@ -17551,6 +17551,87 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 	})
 }
 
+func TestUserChatCompactionStrategy(t *testing.T) {
+	t.Parallel()
+
+	client := newChatClient(t, func(opts *coderdtest.Options) {
+		opts.DeploymentValues.Experiments = serpent.StringArray{string(codersdk.ExperimentChatTokenBudget)}
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	newMember := func(t *testing.T) *codersdk.ExperimentalClient {
+		t.Helper()
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		return codersdk.NewExperimentalClient(memberClient)
+	}
+
+	t.Run("SummarizeByDefault", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		member := newMember(t)
+
+		resp, err := member.GetUserChatCompactionStrategy(ctx)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatCompactionStrategySummarize, resp.Strategy)
+	})
+
+	t.Run("PutAndGet", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		member := newMember(t)
+
+		for _, strategy := range []codersdk.ChatCompactionStrategy{
+			codersdk.ChatCompactionStrategyTokenBudget,
+			codersdk.ChatCompactionStrategySummarize,
+		} {
+			updated, err := member.UpdateUserChatCompactionStrategy(ctx, codersdk.UserChatCompactionStrategy{Strategy: strategy})
+			require.NoError(t, err)
+			require.Equal(t, strategy, updated.Strategy)
+
+			resp, err := member.GetUserChatCompactionStrategy(ctx)
+			require.NoError(t, err)
+			require.Equal(t, strategy, resp.Strategy)
+		}
+	})
+
+	t.Run("RejectsUnknownStrategy", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		member := newMember(t)
+
+		_, err := member.UpdateUserChatCompactionStrategy(ctx, codersdk.UserChatCompactionStrategy{Strategy: codersdk.ChatCompactionStrategyTokenBudget})
+		require.NoError(t, err)
+
+		for _, strategy := range []codersdk.ChatCompactionStrategy{"", "rollover"} {
+			_, err := member.UpdateUserChatCompactionStrategy(ctx, codersdk.UserChatCompactionStrategy{Strategy: strategy})
+			requireSDKError(t, err, http.StatusBadRequest)
+		}
+
+		resp, err := member.GetUserChatCompactionStrategy(ctx)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatCompactionStrategyTokenBudget, resp.Strategy)
+	})
+
+	t.Run("IsolatedPerUser", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		first, second := newMember(t), newMember(t)
+
+		_, err := first.UpdateUserChatCompactionStrategy(ctx, codersdk.UserChatCompactionStrategy{Strategy: codersdk.ChatCompactionStrategySummarize})
+		require.NoError(t, err)
+
+		_, err = second.UpdateUserChatCompactionStrategy(ctx, codersdk.UserChatCompactionStrategy{Strategy: codersdk.ChatCompactionStrategyTokenBudget})
+		require.NoError(t, err)
+
+		firstResp, err := first.GetUserChatCompactionStrategy(ctx)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatCompactionStrategySummarize, firstResp.Strategy)
+
+		secondResp, err := second.GetUserChatCompactionStrategy(ctx)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatCompactionStrategyTokenBudget, secondResp.Strategy)
+	})
+}
+
 func TestGetChatsByWorkspace(t *testing.T) {
 	t.Parallel()
 

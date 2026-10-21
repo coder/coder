@@ -33634,6 +33634,23 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 	return i, err
 }
 
+const getUserChatCompactionStrategy = `-- name: GetUserChatCompactionStrategy :one
+SELECT
+	COALESCE((
+		SELECT value
+		FROM user_configs
+		WHERE user_id = $1
+			AND key = 'chat_compaction_strategy'
+	), 'summarize') :: text AS compaction_strategy
+`
+
+func (q *sqlQuerier) GetUserChatCompactionStrategy(ctx context.Context, userID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserChatCompactionStrategy, userID)
+	var compaction_strategy string
+	err := row.Scan(&compaction_strategy)
+	return compaction_strategy, err
+}
+
 const getUserChatCompactionThreshold = `-- name: GetUserChatCompactionThreshold :one
 SELECT value AS threshold_percent FROM user_configs
 WHERE user_id = $1 AND key = $2
@@ -34982,6 +34999,29 @@ func (q *sqlQuerier) UpdateUserThinkingDisplayMode(ctx context.Context, arg Upda
 	var thinking_display_mode string
 	err := row.Scan(&thinking_display_mode)
 	return thinking_display_mode, err
+}
+
+const upsertUserChatCompactionStrategy = `-- name: UpsertUserChatCompactionStrategy :exec
+INSERT INTO user_configs (user_id, key, value)
+VALUES (
+	$1,
+	'chat_compaction_strategy',
+	$2::text
+)
+ON CONFLICT ON CONSTRAINT user_configs_pkey
+DO UPDATE SET value = $2::text
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'chat_compaction_strategy'
+`
+
+type UpsertUserChatCompactionStrategyParams struct {
+	UserID             uuid.UUID `db:"user_id" json:"user_id"`
+	CompactionStrategy string    `db:"compaction_strategy" json:"compaction_strategy"`
+}
+
+func (q *sqlQuerier) UpsertUserChatCompactionStrategy(ctx context.Context, arg UpsertUserChatCompactionStrategyParams) error {
+	_, err := q.db.ExecContext(ctx, upsertUserChatCompactionStrategy, arg.UserID, arg.CompactionStrategy)
+	return err
 }
 
 const upsertUserChatDebugLoggingEnabled = `-- name: UpsertUserChatDebugLoggingEnabled :exec

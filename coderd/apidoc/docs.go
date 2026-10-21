@@ -154,6 +154,74 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/chats/config/user-compaction-strategy": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get user chat compaction strategy",
+                "operationId": "get-user-chat-compaction-strategy",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserChatCompactionStrategy"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update user chat compaction strategy",
+                "operationId": "update-user-chat-compaction-strategy",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserChatCompactionStrategy"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserChatCompactionStrategy"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats/projects": {
             "get": {
                 "produces": [
@@ -21582,6 +21650,17 @@ const docTemplate = `{
                 "ChatClientTypeAPI"
             ]
         },
+        "codersdk.ChatCompactionStrategy": {
+            "type": "string",
+            "enum": [
+                "summarize",
+                "token_budget"
+            ],
+            "x-enum-varnames": [
+                "ChatCompactionStrategySummarize",
+                "ChatCompactionStrategyTokenBudget"
+            ]
+        },
         "codersdk.ChatConfig": {
             "type": "object",
             "properties": {
@@ -25863,7 +25942,8 @@ const docTemplate = `{
                 "chat-inline-mcp-servers",
                 "enable-ai-workspace-debug",
                 "chat-stage-metrics",
-                "chat-acp-subagents"
+                "chat-acp-subagents",
+                "chat-token-budget"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -25874,6 +25954,7 @@ const docTemplate = `{
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
                 "ExperimentChatProjects": "Enables organization-scoped projects that group agent chats.",
                 "ExperimentChatStageMetrics": "Exposes chat lifecycle stage durations as Prometheus metrics.",
+                "ExperimentChatTokenBudget": "Lets users replace automatic chat summary compaction with checkpointed context window rollovers.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
                 "ExperimentExample": "This isn't used for anything.",
@@ -25903,7 +25984,8 @@ const docTemplate = `{
                 "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents.",
                 "Exposes chat lifecycle stage durations as Prometheus metrics.",
-                "Enables workspace-local ACP subagent tools in root chats."
+                "Enables workspace-local ACP subagent tools in root chats.",
+                "Lets users replace automatic chat summary compaction with checkpointed context window rollovers."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -25923,7 +26005,8 @@ const docTemplate = `{
                 "ExperimentChatInlineMCPServers",
                 "ExperimentEnableAIWorkspaceDebug",
                 "ExperimentChatStageMetrics",
-                "ExperimentChatACPSubagents"
+                "ExperimentChatACPSubagents",
+                "ExperimentChatTokenBudget"
             ]
         },
         "codersdk.ExperimentRule": {
@@ -33502,6 +33585,22 @@ const docTemplate = `{
                 "theme_preference": {
                     "description": "ThemePreference is the legacy single-field appearance setting. In\n\"single\" mode it mirrors the active theme. In \"sync\" mode modern\nclients normally mirror the active OS slot, but older clients can\nupdate only this field, so it may diverge from ThemeLight or\nThemeDark until a modern client saves the full appearance state\nagain.",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UserChatCompactionStrategy": {
+            "type": "object",
+            "properties": {
+                "strategy": {
+                    "enum": [
+                        "summarize",
+                        "token_budget"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatCompactionStrategy"
+                        }
+                    ]
                 }
             }
         },
