@@ -1,7 +1,7 @@
 import { cva } from "class-variance-authority";
 import { cn } from "cn";
 import { XIcon } from "lucide-react";
-import { type FC, useEffect, useEffectEvent, useId, useState } from "react";
+import { useEffect, useEffectEvent, useId, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useWorkspaceFiles } from "../../context/WorkspaceFilesContext";
@@ -36,7 +36,7 @@ const tabButtonVariants = cva(
  * chat stays mounted and laid out while a file tab is active, so streaming,
  * the transcript scroll position, and the composer draft survive switching.
  */
-export const MainTabs: FC<MainTabsProps> = ({ mainTabs, children }) => {
+export const MainTabs: React.FC<MainTabsProps> = ({ mainTabs, children }) => {
 	const workspaceFiles = useWorkspaceFiles();
 	const idPrefix = useId();
 	// Drafts change on every keystroke, so they live here instead of in the

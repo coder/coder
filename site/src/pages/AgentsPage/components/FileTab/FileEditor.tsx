@@ -1,6 +1,6 @@
 import Editor, { loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
-import { type FC, useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { useCoderTheme } from "#/components/SyntaxHighlighter/coderTheme";
 import { MONOSPACE_FONT_FAMILY } from "#/theme/constants";
 import { useTheme } from "#/theme/context";
@@ -18,7 +18,7 @@ type FileEditorProps = {
 };
 
 /** Loaded with React.lazy so the Monaco chunk loads only when a file opens. */
-const FileEditor: FC<FileEditorProps> = ({
+const FileEditor: React.FC<FileEditorProps> = ({
 	path,
 	value,
 	reveal,
