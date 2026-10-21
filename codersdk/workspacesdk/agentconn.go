@@ -1136,6 +1136,9 @@ type LSResponse struct {
 	//      Linux: "/home/coder"
 	AbsolutePathString string   `json:"absolute_path_string"`
 	Contents           []LSFile `json:"contents"`
+	// Truncated is set when the directory had more entries than the
+	// response limit and Contents was cut after sorting.
+	Truncated bool `json:"truncated,omitempty"`
 }
 
 type LSFile struct {
@@ -1143,7 +1146,27 @@ type LSFile struct {
 	// e.g. "C:\\Users\\coder\\hello.txt"
 	//      "/home/coder/hello.txt"
 	AbsolutePathString string `json:"absolute_path_string"`
-	IsDir              bool   `json:"is_dir"`
+	// IsDir reports whether the entry, or the target of a symlink, is a
+	// directory. A broken symlink is not a directory.
+	IsDir     bool      `json:"is_dir"`
+	IsSymlink bool      `json:"is_symlink"`
+	Size      int64     `json:"size"`
+	ModTime   time.Time `json:"mod_time" format:"date-time"`
+}
+
+// FindFilesResponse is the response of the agent find-files endpoint.
+type FindFilesResponse struct {
+	Results []FindFilesResult `json:"results"`
+}
+
+// FindFilesResult is a single fuzzy file search match.
+type FindFilesResult struct {
+	AbsolutePath string `json:"absolute_path"`
+	// Path is slash-separated and relative to Root.
+	Path  string  `json:"path"`
+	Root  string  `json:"root"`
+	IsDir bool    `json:"is_dir"`
+	Score float32 `json:"score"`
 }
 
 // LS lists a directory.
