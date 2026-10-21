@@ -1,6 +1,5 @@
 import { isAxiosError } from "axios";
 import {
-	type FC,
 	lazy,
 	memo,
 	Suspense,
@@ -291,7 +290,7 @@ type ChangedOnDiskAlertProps = {
 	onKeep: () => void;
 };
 
-const ChangedOnDiskAlert: FC<ChangedOnDiskAlertProps> = ({
+const ChangedOnDiskAlert: React.FC<ChangedOnDiskAlertProps> = ({
 	description,
 	keepLabel,
 	isPending,
@@ -329,7 +328,7 @@ type FileLoadErrorProps = {
 	onRetry: () => void;
 };
 
-const FileLoadError: FC<FileLoadErrorProps> = ({ error, onRetry }) => {
+const FileLoadError: React.FC<FileLoadErrorProps> = ({ error, onRetry }) => {
 	const status = isAxiosError(error) ? error.response?.status : undefined;
 	if (status === 404) {
 		return (
@@ -369,7 +368,11 @@ type ImagePreviewProps = {
 	alt: string;
 };
 
-const ImagePreview: FC<ImagePreviewProps> = ({ data, contentType, alt }) => {
+const ImagePreview: React.FC<ImagePreviewProps> = ({
+	data,
+	contentType,
+	alt,
+}) => {
 	const [url, setUrl] = useState<string>();
 
 	useEffect(() => {
