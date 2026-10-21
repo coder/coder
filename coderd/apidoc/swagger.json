@@ -1808,6 +1808,126 @@
 				}
 			}
 		},
+		"/api/experimental/workspaceagents/{workspaceagent}/files/find-files": {
+			"get": {
+				"tags": ["Agents"],
+				"summary": "Find workspace agent files",
+				"operationId": "find-workspace-agent-files",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Workspace agent ID",
+						"name": "workspaceagent",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/api/experimental/workspaceagents/{workspaceagent}/files/list-directory": {
+			"post": {
+				"tags": ["Agents"],
+				"summary": "List workspace agent directory",
+				"operationId": "list-workspace-agent-directory",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Workspace agent ID",
+						"name": "workspaceagent",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/api/experimental/workspaceagents/{workspaceagent}/files/read-file": {
+			"get": {
+				"tags": ["Agents"],
+				"summary": "Read workspace agent file",
+				"operationId": "read-workspace-agent-file",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Workspace agent ID",
+						"name": "workspaceagent",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/api/experimental/workspaceagents/{workspaceagent}/files/write-file": {
+			"post": {
+				"tags": ["Agents"],
+				"summary": "Write workspace agent file",
+				"operationId": "write-workspace-agent-file",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Workspace agent ID",
+						"name": "workspaceagent",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
 		"/api/v2/": {
 			"get": {
 				"produces": ["application/json"],
