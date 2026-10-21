@@ -206,9 +206,10 @@ func TestChatHistory(t *testing.T) {
 		require.Equal(t, []string{"one", "two"}, itemTexts(result.Items))
 		require.True(t, result.HasMore)
 
+		// A full page stops the scan, so has_more stays conservative.
 		result, _ = runChatHistory(t, tool, map[string]any{"action": "list_items", "limit": 3})
 		require.Len(t, result.Items, 3)
-		require.False(t, result.HasMore)
+		require.True(t, result.HasMore)
 
 		result, _ = runChatHistory(t, tool, map[string]any{"action": "list_items", "limit": 1, "recent_first": true})
 		require.Equal(t, []string{"three"}, itemTexts(result.Items))
@@ -450,6 +451,10 @@ func TestChatHistory(t *testing.T) {
 		result, _ := runChatHistory(t, tool, map[string]any{"action": "search", "query": "row"})
 		require.False(t, result.Success)
 		require.Equal(t, "history_timeout", result.Error)
+
+		// A full page returns before the deadline check can discard it.
+		result, _ = runChatHistory(t, tool, map[string]any{"action": "search", "query": "row", "limit": 1})
+		require.Equal(t, []string{"a row"}, itemTexts(result.Items))
 	})
 
 	t.Run("Timeout", func(t *testing.T) {
