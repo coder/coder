@@ -124,6 +124,8 @@ type Resolver struct {
 	// wires this to its MCP runner's snapshot; tests inject a
 	// closure directly.
 	MCPResources func() []Resource
+	// ACPResources returns cached harness metadata; it must never launch processes.
+	ACPResources func() []Resource
 }
 
 // ScanRoot describes a single directory or file the resolver
@@ -162,18 +164,24 @@ func (r *Resolver) ResolveContext(ctx context.Context, roots []ScanRoot) Snapsho
 	resources = deduplicateSkills(resources)
 	resources, totalBytes := res.applyCaps(resources)
 
-	// Append MCP server resources after the filesystem caps
-	// are applied so a runaway MCP server cannot crowd out
-	// instruction files.
+	// Append discovered resources after the filesystem caps so providers
+	// cannot crowd out instruction files. MCP resources take priority over ACP.
+	startIdx := len(resources)
 	if r.MCPResources != nil {
-		mcp := r.MCPResources()
-		startIdx := len(resources)
-		resources = append(resources, mcp...)
-		// MCP resources may push the aggregate over the
-		// count or byte cap. Apply both, picking up
-		// where applyCaps left off.
-		resources, snapErrs = res.applyMCPCaps(resources, startIdx, totalBytes, snapErrs)
+		resources = append(resources, r.MCPResources()...)
 	}
+	if r.ACPResources != nil {
+		for _, harness := range r.ACPResources() {
+			if harness.SizeBytes > res.MaxResourceBytes {
+				harness.Status = StatusOversize
+				harness.Error = "ACP harness metadata exceeds per-resource limit"
+				harness.Payload = nil
+				harness.ACPHarness = nil
+			}
+			resources = append(resources, harness)
+		}
+	}
+	resources, snapErrs = res.applyProviderCaps(resources, startIdx, totalBytes, snapErrs)
 
 	// Deterministic order by ID for stable IDs and hashes.
 	slices.SortFunc(resources, func(a, b Resource) int {
@@ -185,9 +193,9 @@ func (r *Resolver) ResolveContext(ctx context.Context, roots []ScanRoot) Snapsho
 		payloadBytes += uint64(len(r.Payload))
 	}
 
-	// The drift hash covers only pinned prompt content; MCP resources are
-	// excluded (see driftResources). Snapshot.Resources still carries the
-	// full set so MCP servers stay visible in the chat-context snapshot.
+	// The drift hash covers only pinned prompt content; discovery resources
+	// are excluded (see driftResources). Snapshot.Resources still carries
+	// the full inventory.
 	hash := ComputeAggregateHash(driftResources(resources))
 
 	snap := Snapshot{
@@ -707,17 +715,10 @@ func (r *Resolver) applyCaps(resources []Resource) ([]Resource, uint64) {
 	return resources, total
 }
 
-// applyMCPCaps enforces both the count cap and the remaining
-// aggregate byte cap on MCP resources appended after
-// applyCaps. startIdx is the first index of the appended tail.
-// priorBytes is the sum of payload bytes already committed by
-// the filesystem pass; MCP resources whose payloads would push
-// the running total past MaxSnapshotBytes are stamped
-// StatusExcluded. Without this guard a provider returning one
-// large KindMCPServer payload would exceed the aggregate cap
-// with StatusOK, breaking the contract in
-// DefaultMaxSnapshotBytes.
-func (r *Resolver) applyMCPCaps(resources []Resource, startIdx int, priorBytes uint64, snapErrs []string) ([]Resource, []string) {
+// applyProviderCaps enforces the count and remaining aggregate byte caps on
+// resources appended after applyCaps. startIdx is the start of the appended
+// resources; priorBytes is the payload size committed by the filesystem pass.
+func (r *Resolver) applyProviderCaps(resources []Resource, startIdx int, priorBytes uint64, snapErrs []string) ([]Resource, []string) {
 	total := priorBytes
 	countCapHit := false
 	byteCapHit := false
@@ -728,9 +729,7 @@ func (r *Resolver) applyMCPCaps(resources []Resource, startIdx int, priorBytes u
 			countCapHit = true
 			continue
 		}
-		if resources[i].Status != StatusOK {
-			continue
-		}
+		// Failed probes can retain metadata, which also counts toward the cap.
 		size := uint64(len(resources[i].Payload))
 		if total+size > r.MaxSnapshotBytes {
 			resources[i] = excluded(resources[i],
@@ -755,6 +754,7 @@ func excluded(r Resource, reason string) Resource {
 	r.Status = StatusExcluded
 	r.Error = reason
 	r.Payload = nil
+	r.ACPHarness = nil
 	return r
 }
 
@@ -850,6 +850,8 @@ const (
 	// KindCommand is reserved for plugin slash commands.
 	// Not emitted by v1.
 	KindCommand
+	// KindACPHarness describes a locally configured ACP harness.
+	KindACPHarness
 )
 
 // String returns the lower-snake-case name used in IDs and
@@ -864,6 +866,8 @@ func (k ResourceKind) String() string {
 		return "mcp_config"
 	case KindMCPServer:
 		return "mcp_server"
+	case KindACPHarness:
+		return "acp_harness"
 	case KindPlugin:
 		return "plugin"
 	case KindHook:
@@ -965,11 +969,15 @@ type Resource struct {
 	// for kinds whose body type carries a description field.
 	Description string
 	// SourcePath is the user-declared source that contributed
-	// the resource; empty for built-in scan roots.
+	// the resource, or the ACP harness configuration directory;
+	// empty for built-in scan roots.
 	SourcePath string
 	// Tools is populated for KindMCPServer with the live
 	// server's tool list; empty otherwise.
 	Tools []MCPTool
+	// ACPHarness contains capabilities and options without the ACP adapter
+	// launch command.
+	ACPHarness *workspacesdk.ACPHarness
 }
 
 // MCPTool mirrors the wire MCPTool message. InputSchema is the
@@ -990,8 +998,8 @@ type Snapshot struct {
 	// loop withholds.
 	Version uint64
 	// AggregateHash is SHA-256 over canonical (ID, Kind, Source, ContentHash,
-	// Status) tuples for drift-relevant resources. MCP resources are excluded
-	// because coderd live-syncs them onto bound chats; see driftResources.
+	// Status) tuples for drift-relevant resources. Asynchronously discovered
+	// MCP and ACP resources are excluded; see driftResources.
 	AggregateHash [32]byte
 	// Resources is sorted by ID for deterministic encoding.
 	Resources []Resource
@@ -1004,14 +1012,14 @@ type Snapshot struct {
 	SnapshotError string
 }
 
-// driftResources excludes MCP resources because agents discover them
-// asynchronously and coderd live-syncs them onto bound chats. Instructions
-// and skills remain drift-relevant because their content is pinned.
+// driftResources excludes MCP and ACP resources because agents discover them
+// asynchronously. Instructions and skills remain drift-relevant because their
+// content is pinned. Coderd live-syncs MCP resources onto bound chats.
 func driftResources(resources []Resource) []Resource {
 	out := make([]Resource, 0, len(resources))
 	for _, r := range resources {
 		switch r.Kind {
-		case KindMCPConfig, KindMCPServer:
+		case KindMCPConfig, KindMCPServer, KindACPHarness:
 			continue
 		default:
 			out = append(out, r)
