@@ -50,9 +50,7 @@ ORDER BY cf.created_at ASC;
 SELECT id, owner_id, organization_id, created_at, name, mimetype,
 	COALESCE(workspace_delivered_size_bytes, octet_length(data))::bigint AS size_bytes,
 	purpose,
-	workspace_delivered_at,
-	workspace_delivered_path,
-	workspace_delivered_workspace_id
+	workspace_delivered_at
 FROM chat_files
 WHERE id = ANY(@ids::uuid[]);
 
