@@ -9,7 +9,6 @@ import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { getAgentBrowserApp } from "#/modules/apps/apps";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { belowLgViewportMediaQuery } from "#/utils/mobile";
 import { generateConnectionSessionId, generateUUID } from "#/utils/random";
 import {
@@ -238,7 +237,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	desktopChatId,
 }) => {
 	const { proxy } = useProxy();
-	const { experiments } = useDashboard();
 	const { user: currentUser } = useAuthenticated();
 	const wildcardHostname = proxy.preferredWildcardHostname;
 	const agentId = chat.id;
@@ -370,7 +368,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 
 	const singletonTabSupport: Record<SingletonRightPanelTabId, boolean> = {
 		// FilesPanel shows its own state when the workspace has no agent.
-		files: experiments.includes("workspace-files"),
+		files: Boolean(workspaceFilesEnabled),
 		browser: availableBrowserApp !== undefined,
 		desktop: availableDesktopChatId !== undefined,
 		debug: debugLoggingEnabled === true,
