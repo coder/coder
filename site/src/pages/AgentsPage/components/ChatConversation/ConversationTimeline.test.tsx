@@ -335,31 +335,65 @@ const streamingStage = (
 });
 
 describe("ConversationTimeline turn attachments", () => {
+	const readAttachmentHrefs = async (
+		user: ReturnType<typeof userEvent.setup>,
+		name: string,
+	) => {
+		await user.click(screen.getByRole("button", { name }));
+		const dialog = await screen.findByRole("dialog", {
+			name: "Attachments",
+		});
+		const hrefs = within(dialog)
+			.getAllByRole("link")
+			.map((link) => link.getAttribute("href"));
+		await user.keyboard("{Escape}");
+		return hrefs;
+	};
+
 	it("lists only each turn's files in the pill under its answer", async () => {
 		const user = userEvent.setup();
-		renderTimeline({ messages: MockMixedAttachmentMessages });
+		// The first turn ends in a searched answer, so its answer row renders
+		// inside the expanded block and again below it; only the row below the
+		// block hosts the pill.
+		const [searchAnswer] = MockWebSearchAnswerMessages.slice(-1);
+		renderTimeline({
+			messages: MockMixedAttachmentMessages.map((message) =>
+				message.id === 9 ? { ...searchAnswer, id: message.id } : message,
+			),
+		});
+		await user.click(
+			screen.getByRole("button", { name: "Worked for 15s (4 steps)" }),
+		);
 
-		const readAttachmentHrefs = async (name: string) => {
-			await user.click(screen.getByRole("button", { name }));
-			const dialog = await screen.findByRole("dialog", {
-				name: "Attachments",
-			});
-			const hrefs = within(dialog)
-				.getAllByRole("link")
-				.map((link) => link.getAttribute("href"));
-			await user.keyboard("{Escape}");
-			return hrefs;
-		};
-
-		expect(await readAttachmentHrefs("Attachments (1)")).toEqual([
+		expect(await readAttachmentHrefs(user, "Attachments (1)")).toEqual([
 			"/api/v2/chats/files/report-file",
 		]);
-		expect(await readAttachmentHrefs("Attachments (4)")).toEqual([
+		expect(await readAttachmentHrefs(user, "Attachments (4)")).toEqual([
 			`data:image/png;base64,${MockBluePngData}`,
 			`data:image/png;base64,${MockAmberPngData}`,
 			"/api/v2/chats/files/findings-file",
 			"/api/v2/chats/files/spec-file",
 		]);
+	});
+
+	it("waits for the running turn to settle before showing its pill", async () => {
+		const user = userEvent.setup();
+		const { rerenderStage } = renderTimeline({
+			messages: MockMixedAttachmentMessages,
+			chatStatus: "running",
+			liveStatus: idleLive,
+		});
+
+		expect(
+			screen.getAllByRole("button", { name: /^Attachments \(/ }),
+		).toHaveLength(1);
+
+		rerenderStage({
+			messages: MockMixedAttachmentMessages,
+			chatStatus: "waiting",
+			liveStatus: idleLive,
+		});
+		expect(await readAttachmentHrefs(user, "Attachments (4)")).toHaveLength(4);
 	});
 });
 
