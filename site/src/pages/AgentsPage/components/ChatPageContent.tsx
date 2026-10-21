@@ -461,7 +461,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		setUploadStates: setEditUploadStates,
 		resetAttachments: resetEditAttachments,
 	} = editAttachments;
-	const wasEditingRef = useRef(isEditing);
 	const modeAttachments = isEditing ? editAttachments : composeAttachments;
 	const {
 		attachments,
@@ -635,35 +634,21 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		resetEditWorkspaceUploads,
 	]);
 
-	// Exiting edit mode should only clear the edit bucket. Compose draft
-	// attachments must survive canceling or completing an edit.
-	useEffect(() => {
-		if (isEditing) {
-			wasEditingRef.current = true;
-			return;
-		}
-		if (!wasEditingRef.current) {
-			return;
-		}
-		// History edits clear isEditing before the edit mutation
-		// settles and restore it on failure. Defer cleanup until the
-		// submission resolves so a failed edit keeps its uploads and
-		// attachments for retry.
-		if (isSendPending) {
-			return;
-		}
-		wasEditingRef.current = false;
+	// Cancel and a successful save clear only the edit bucket, so compose
+	// draft attachments survive. This is not an effect on isEditing: a failed
+	// save leaves edit mode until its rollback lands, and the composer can
+	// render the settled mutation before that.
+	const resetEditBucket = () => {
 		hydratedEditAttachmentBlocksRef.current = null;
 		hydratedEditBlocksRef.current = null;
 		resetEditAttachments();
 		resetEditWorkspaceUploads();
 		setPreservedWorkspaceUploads([]);
-	}, [
-		isEditing,
-		isSendPending,
-		resetEditAttachments,
-		resetEditWorkspaceUploads,
-	]);
+	};
+	const handleCancelHistoryEdit = () => {
+		resetEditBucket();
+		onCancelHistoryEdit();
+	};
 
 	const isStreaming = hasStreamState || isActiveChatStatus(chatStatus);
 
@@ -753,9 +738,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 						return;
 					}
 					if (isEditing) {
-						editAttachments.resetAttachments();
-						resetEditWorkspaceUploads();
-						setPreservedWorkspaceUploads([]);
+						resetEditBucket();
 					} else {
 						composeAttachments.resetAttachments();
 						composeWorkspaceUploads.reset();
@@ -787,7 +770,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			onDeleteQueuedMessage={onDeleteQueuedMessage}
 			onPromoteQueuedMessage={onPromoteQueuedMessage}
 			isEditingHistoryMessage={isEditing}
-			onCancelHistoryEdit={onCancelHistoryEdit}
+			onCancelHistoryEdit={handleCancelHistoryEdit}
 			userPromptHistory={userPromptHistory}
 			isDisabled={isInputDisabled}
 			isReadOnly={isReadOnly}

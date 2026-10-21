@@ -1,30 +1,38 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useRef, useState } from "react";
-import { useMutation } from "react-query";
+import { HttpResponse, http } from "msw";
+import { useRef } from "react";
+import {
+	defaultScheduler,
+	notifyManager,
+	useMutation,
+	useQueryClient,
+} from "react-query";
 import {
 	afterAll,
 	afterEach,
 	beforeAll,
+	beforeEach,
 	describe,
 	expect,
 	it,
 	vi,
 } from "vitest";
 import { API } from "#/api/api";
+import { editChatMessage } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChat,
+	MockChatMessage,
 	MockChatWorkspaceAttachmentPart,
 } from "#/testHelpers/chatEntities";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
-import {
-	type SendChatTurnOptions,
-	useConversationEditingState,
-} from "../hooks/useConversationEditingState";
+import { server } from "#/testHelpers/server";
+import { useConversationEditingState } from "../hooks/useConversationEditingState";
 import type { ChatMessageInputRef } from "./AgentChatInput";
 import { createChatStore } from "./ChatConversation/chatStore";
+import { submitChatTurn } from "./ChatConversation/submitChatTurn";
 import { ChatPageInput } from "./ChatPageContent";
 
 type ChatPageInputProps = React.ComponentProps<typeof ChatPageInput>;
@@ -81,24 +89,60 @@ const renderChatPageInput = (
 		<ChatPageInput {...defaultChatPageInputProps(store)} {...overrides} />,
 	);
 
+const historyEditChatId = "chat-history-edit";
+
 type HistoryEditHarnessProps = {
+	store: ReturnType<typeof createChatStore>;
 	fileBlocks: readonly TypesGen.ChatMessagePart[];
-	sendTurn: (options: SendChatTurnOptions) => Promise<void>;
 	overrides: Partial<ChatPageInputProps>;
 };
 
 const HistoryEditHarness: React.FC<HistoryEditHarnessProps> = ({
+	store,
 	fileBlocks,
-	sendTurn,
 	overrides,
 }) => {
-	const [store] = useState(createChatStore);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef("");
-	const { isPending, mutateAsync } = useMutation({ mutationFn: sendTurn });
+	const isEditReasoningEffortDirtyRef = useRef(false);
+	const queryClient = useQueryClient();
+	const { isPending, mutateAsync: editMessage } = useMutation(
+		editChatMessage(queryClient, historyEditChatId),
+	);
 	const editing = useConversationEditingState({
-		chatID: "chat-history-edit",
-		onSend: mutateAsync,
+		chatID: historyEditChatId,
+		onSend: (options) =>
+			submitChatTurn({
+				...options,
+				composerParts: chatInputRef.current?.getContentParts() ?? [],
+				isSubmissionPending: isPending,
+				hasModelOptions: true,
+				isEditReasoningEffortDirtyRef,
+				personalSkills: [],
+				organizationSkills: [],
+				workspaceSkills: [],
+				compact: vi.fn(),
+				clearChatContext: vi.fn(),
+				store,
+				agentId: historyEditChatId,
+				clearChatErrorReason: vi.fn(),
+				acceptServerChatStatus: vi.fn(),
+				chatMessages: [],
+				effectiveSelectedModel: "model-config-1",
+				modelOptions: defaultChatPageInputProps(store).modelOptions,
+				effectiveReasoningEffort: undefined,
+				mcpServerIds: [],
+				editMessage,
+				sendMessage: vi.fn(),
+				onRequestError: vi.fn(),
+				invalidateChat: vi.fn(),
+				scrollToEnd: vi.fn(),
+				upsertCacheMessages: vi.fn(),
+				getCacheQueuedMessages: () => undefined,
+				setCacheQueuedMessages: vi.fn(),
+				fetchQueueConvergence: vi.fn(),
+				setCachedChatPlanMode: vi.fn(),
+			}),
 		chatInputRef,
 		inputValueRef,
 	});
@@ -138,6 +182,15 @@ const workspaceFileReference = (
 	workspace_file_workspace_id: workspaceId,
 	workspace_file_media_type: "text/csv",
 });
+
+const failedEditResponses = [
+	{ name: "a network error", respond: () => HttpResponse.error() },
+	{
+		name: "an HTTP 500",
+		respond: () =>
+			HttpResponse.json({ message: "Internal error." }, { status: 500 }),
+	},
+];
 
 describe("ChatPageInput", () => {
 	// jsdom's Range has no getBoundingClientRect for vi.spyOn to wrap, and
@@ -330,64 +383,296 @@ describe("ChatPageInput", () => {
 		);
 		expect(uploadChatFile).not.toHaveBeenCalled();
 	});
-	it("keeps workspace attachment edits after a failed save", async () => {
+
+	describe.each(failedEditResponses)(
+		"history edit retry after $name",
+		({ respond }) => {
+			// Browsers can render the settled edit mutation before the rollback
+			// re-enters edit mode, while jsdom applies the rollback first.
+			// Notifying mutation observers in a microtask reproduces the
+			// browser order.
+			beforeEach(() => {
+				notifyManager.setScheduler(queueMicrotask);
+			});
+			afterEach(() => {
+				notifyManager.setScheduler(defaultScheduler);
+			});
+
+			// The first save fails and the retry succeeds. Returns the request
+			// content of every save.
+			const failFirstEdit = () => {
+				const savedContent: TypesGen.ChatInputPart[][] = [];
+				server.use(
+					http.patch(
+						"/api/v2/chats/:chatId/messages/:messageId",
+						async ({ request }) => {
+							const body =
+								(await request.json()) as TypesGen.EditChatMessageRequest;
+							savedContent.push([...body.content]);
+							if (savedContent.length === 1) {
+								return respond();
+							}
+							return HttpResponse.json({
+								message: { ...MockChatMessage, chat_id: historyEditChatId },
+							});
+						},
+					),
+				);
+				return savedContent;
+			};
+
+			const saveTwice = async (
+				user: ReturnType<typeof userEvent.setup>,
+				savedContent: readonly TypesGen.ChatInputPart[][],
+			) => {
+				await user.click(
+					await screen.findByRole("button", { name: "Save Edit" }),
+				);
+				await waitFor(() => expect(savedContent).toHaveLength(1));
+				await user.click(
+					await screen.findByRole("button", { name: "Save Edit" }),
+				);
+				await waitFor(() => expect(savedContent).toHaveLength(2));
+			};
+
+			it("keeps staged workspace attachment edits", async () => {
+				const user = userEvent.setup();
+				const savedContent = failFirstEdit();
+				vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
+					id: "staged-zip",
+				});
+				const mockRemovedAttachment = {
+					...MockChatWorkspaceAttachmentPart,
+					file_id: "removed-zip",
+					name: "removed.zip",
+				};
+				const mockKeptAttachment = {
+					...MockChatWorkspaceAttachmentPart,
+					file_id: "kept-zip",
+					name: "kept.zip",
+				};
+				renderWithAuth(
+					<HistoryEditHarness
+						store={createChatStore()}
+						fileBlocks={[mockRemovedAttachment, mockKeptAttachment]}
+						overrides={{
+							chat: {
+								...MockChat,
+								id: historyEditChatId,
+								workspace_id: MockWorkspace.id,
+							},
+							workspace: MockWorkspace,
+						}}
+					/>,
+				);
+
+				await user.click(
+					await screen.findByRole("button", { name: "Edit message" }),
+				);
+				await user.click(
+					await screen.findByRole("button", { name: "Remove removed.zip" }),
+				);
+				await user.upload(
+					await screen.findByTestId("chat-attachment-file-input"),
+					new File(["PK"], "added.zip", { type: "application/zip" }),
+				);
+				await saveTwice(user, savedContent);
+
+				expect(savedContent[1]).toEqual(savedContent[0]);
+				expect(savedContent[1]).toEqual([
+					{ type: "text", text: "edited" },
+					{ type: "workspace-attachment", file_id: mockKeptAttachment.file_id },
+					{ type: "workspace-attachment", file_id: "staged-zip" },
+				]);
+			});
+
+			it("keeps streamed workspace file edits", async () => {
+				const user = userEvent.setup();
+				const savedContent = failFirstEdit();
+				vi.spyOn(API.experimental, "uploadChatWorkspaceFile").mockResolvedValue(
+					{
+						path: "/home/coder/added.zip",
+						name: "added.zip",
+						size: 2,
+						media_type: "application/zip",
+						workspace_id: MockWorkspace.id,
+					},
+				);
+				renderWithAuth(
+					<HistoryEditHarness
+						store={createChatStore()}
+						fileBlocks={[
+							workspaceFileReference("kept.csv", MockWorkspace.id),
+							workspaceFileReference("removed.csv", MockWorkspace.id),
+						]}
+						overrides={{
+							chat: {
+								...MockChat,
+								id: historyEditChatId,
+								workspace_id: MockWorkspace.id,
+								agent_id: MockWorkspaceAgent.id,
+							},
+							workspace: MockWorkspace,
+							workspaceAgent: MockWorkspaceAgent,
+						}}
+					/>,
+				);
+
+				await user.click(
+					await screen.findByRole("button", { name: "Edit message" }),
+				);
+				await user.click(
+					await screen.findByRole("button", { name: "Remove removed.csv" }),
+				);
+				await user.upload(
+					await screen.findByTestId("chat-attachment-file-input"),
+					new File(["PK"], "added.zip", { type: "application/zip" }),
+				);
+				await saveTwice(user, savedContent);
+
+				expect(savedContent[1]).toEqual(savedContent[0]);
+				expect(savedContent[1]).toEqual([
+					{ type: "text", text: "edited" },
+					expect.objectContaining({ workspace_file_name: "kept.csv" }),
+					expect.objectContaining({ workspace_file_name: "added.zip" }),
+				]);
+			});
+
+			it("keeps prompt image edits", async () => {
+				const user = userEvent.setup();
+				const savedContent = failFirstEdit();
+				vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
+					id: "added-png",
+				});
+				const imagePart = (fileId: string): TypesGen.ChatFilePart => ({
+					type: "file",
+					file_id: fileId,
+					media_type: "image/png",
+				});
+				renderWithAuth(
+					<HistoryEditHarness
+						store={createChatStore()}
+						fileBlocks={[imagePart("removed-png"), imagePart("kept-png")]}
+						overrides={{ chat: { ...MockChat, id: historyEditChatId } }}
+					/>,
+				);
+
+				await user.click(
+					await screen.findByRole("button", { name: "Edit message" }),
+				);
+				await user.click(
+					await screen.findByRole("button", {
+						name: "Remove attachment-0.png",
+					}),
+				);
+				await user.upload(
+					await screen.findByTestId("chat-attachment-file-input"),
+					new File(["png"], "added.png", { type: "image/png" }),
+				);
+				await saveTwice(user, savedContent);
+
+				expect(savedContent[1]).toEqual(savedContent[0]);
+				expect(savedContent[1]).toEqual([
+					{ type: "text", text: "edited" },
+					{ type: "file", file_id: "kept-png" },
+					{ type: "file", file_id: "added-png" },
+				]);
+			});
+		},
+	);
+
+	type LeaveEditContext = {
+		user: ReturnType<typeof userEvent.setup>;
+		store: ReturnType<typeof createChatStore>;
+		savedContent: readonly TypesGen.ChatInputPart[][];
+	};
+
+	it.each([
+		{
+			name: "canceling",
+			leaveEdit: async ({ user }: LeaveEditContext) => {
+				await user.click(
+					screen.getByRole("button", { name: "Cancel editing" }),
+				);
+			},
+		},
+		{
+			name: "saving",
+			leaveEdit: async ({ user, store, savedContent }: LeaveEditContext) => {
+				await user.click(screen.getByRole("button", { name: "Save Edit" }));
+				await waitFor(() => expect(savedContent).toHaveLength(1));
+				// The composer re-enables once the save settles, after its cleanup.
+				await waitFor(() =>
+					expect(screen.getByRole("textbox")).toHaveAttribute(
+						"aria-disabled",
+						"false",
+					),
+				);
+				// The edit restarts the chat; finish that turn so the message can
+				// be edited again.
+				act(() => store.setChatStatus("waiting"));
+			},
+		},
+	])("drops attachment edits after $name the edit", async ({ leaveEdit }) => {
 		const user = userEvent.setup();
+		const store = createChatStore();
+		const savedContent: TypesGen.ChatInputPart[][] = [];
+		server.use(
+			http.patch(
+				"/api/v2/chats/:chatId/messages/:messageId",
+				async ({ request }) => {
+					const body =
+						(await request.json()) as TypesGen.EditChatMessageRequest;
+					savedContent.push([...body.content]);
+					return HttpResponse.json({
+						message: { ...MockChatMessage, chat_id: historyEditChatId },
+					});
+				},
+			),
+		);
 		vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
 			id: "staged-zip",
 		});
-		const sendTurn = vi
-			.fn<(options: SendChatTurnOptions) => Promise<void>>()
-			.mockRejectedValueOnce(new Error("edit failed"))
-			.mockResolvedValue(undefined);
-		const mockRemovedAttachment = {
+		const originalAttachment = {
 			...MockChatWorkspaceAttachmentPart,
-			file_id: "removed-zip",
-			name: "removed.zip",
+			file_id: "original-zip",
+			name: "original.zip",
 		};
-		const mockKeptAttachment = {
-			...MockChatWorkspaceAttachmentPart,
-			file_id: "kept-zip",
-			name: "kept.zip",
-		};
-
 		renderWithAuth(
 			<HistoryEditHarness
-				fileBlocks={[mockRemovedAttachment, mockKeptAttachment]}
-				sendTurn={sendTurn}
+				store={store}
+				fileBlocks={[originalAttachment]}
 				overrides={{
 					chat: {
 						...MockChat,
-						id: "chat-history-edit",
+						id: historyEditChatId,
 						workspace_id: MockWorkspace.id,
 					},
 					workspace: MockWorkspace,
 				}}
 			/>,
 		);
+
+		const editButton = await screen.findByRole("button", {
+			name: "Edit message",
+		});
+		await user.click(editButton);
 		await user.click(
-			await screen.findByRole("button", { name: "Edit message" }),
-		);
-		await user.click(
-			await screen.findByRole("button", { name: "Remove removed.zip" }),
+			await screen.findByRole("button", { name: "Remove original.zip" }),
 		);
 		await user.upload(
 			await screen.findByTestId("chat-attachment-file-input"),
 			new File(["PK"], "added.zip", { type: "application/zip" }),
 		);
-		await user.click(await screen.findByRole("button", { name: "Save Edit" }));
-		await waitFor(() => expect(sendTurn).toHaveBeenCalledTimes(1));
-		await user.click(await screen.findByRole("button", { name: "Save Edit" }));
+		await leaveEdit({ user, store, savedContent });
+		const leaveSaveCount = savedContent.length;
 
-		await waitFor(() => expect(sendTurn).toHaveBeenCalledTimes(2));
-		expect(sendTurn.mock.calls[1][0]).toMatchObject({
-			editedMessageID: 1,
-			attachments: [
-				expect.objectContaining({
-					fileId: mockKeptAttachment.file_id,
-					purpose: "workspace",
-				}),
-				expect.objectContaining({ fileId: "staged-zip", purpose: "workspace" }),
-			],
-		});
+		await user.click(editButton);
+		await user.click(await screen.findByRole("button", { name: "Save Edit" }));
+		await waitFor(() => expect(savedContent).toHaveLength(leaveSaveCount + 1));
+		expect(savedContent.at(-1)).toEqual([
+			{ type: "text", text: "edited" },
+			{ type: "workspace-attachment", file_id: originalAttachment.file_id },
+		]);
 	});
 });
