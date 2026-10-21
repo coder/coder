@@ -129,7 +129,7 @@ func runStructuredChat(t *testing.T, schema json.RawMessage, configure func(*cha
 		mu.Unlock()
 		return respond(step)
 	})
-	got := runStructuredChatOn(t, schema, false, configure, func(db database.Store) (database.User, database.Organization, database.ChatModelConfig, aibridge.TransportFactory) {
+	got := runStructuredChatOn(t, schema, nil, configure, func(db database.Store) (database.User, database.Organization, database.ChatModelConfig, aibridge.TransportFactory) {
 		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 		return user, org, model, chattest.NewMockAIBridgeTransport(t, openAIURL)
 	})
@@ -141,10 +141,10 @@ func runStructuredChat(t *testing.T, schema json.RawMessage, configure func(*cha
 
 // runStructuredChatOn is runStructuredChat with the model provider set up by
 // seed, which returns the chat owner, organization, model config and the AI
-// gateway transport. It records no model requests. With afterOrdinaryTurn
-// the chat first runs an ordinary turn and the request arrives with the
-// next message.
-func runStructuredChatOn(t *testing.T, schema json.RawMessage, afterOrdinaryTurn bool, configure func(*chatd.Config, database.Store), seed func(database.Store) (database.User, database.Organization, database.ChatModelConfig, aibridge.TransportFactory)) finalizerRun {
+// gateway transport. It records no model requests. A non-nil prelude is
+// the content of an ordinary first turn, and the request then arrives with
+// the next message.
+func runStructuredChatOn(t *testing.T, schema json.RawMessage, prelude []codersdk.ChatMessagePart, configure func(*chatd.Config, database.Store), seed func(database.Store) (database.User, database.Organization, database.ChatModelConfig, aibridge.TransportFactory)) finalizerRun {
 	t.Helper()
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -164,9 +164,12 @@ func runStructuredChatOn(t *testing.T, schema json.RawMessage, afterOrdinaryTurn
 		require.NoError(t, err)
 		request = &part
 	}
-	initial := content
-	if request != nil && !afterOrdinaryTurn {
-		initial = append(slices.Clone(content), *request)
+	initial := prelude
+	if initial == nil {
+		initial = content
+		if request != nil {
+			initial = append(slices.Clone(content), *request)
+		}
 	}
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID, OwnerID: user.ID, Title: "finalizer", ModelConfigID: model.ID, InitialUserContent: initial, DynamicTools: tools,
@@ -178,7 +181,7 @@ func runStructuredChatOn(t *testing.T, schema json.RawMessage, afterOrdinaryTurn
 		return err == nil && (done.Status == database.ChatStatusWaiting || done.Status == database.ChatStatusError)
 	}
 	testutil.Eventually(ctx, t, settled, testutil.IntervalFast)
-	if afterOrdinaryTurn {
+	if prelude != nil {
 		require.Equal(t, database.ChatStatusWaiting, done.Status)
 		_, err := server.SendMessage(ctx, chatd.SendMessageOptions{ChatID: chat.ID, Content: content, StructuredOutputRequest: request})
 		require.NoError(t, err)
@@ -187,12 +190,12 @@ func runStructuredChatOn(t *testing.T, schema json.RawMessage, afterOrdinaryTurn
 			return err == nil && !pending && settled(ctx)
 		}, testutil.IntervalFast)
 	}
-	return collectStructuredRun(ctx, t, db, chat.ID, done.Status, schema != nil)
+	return collectStructuredRun(ctx, t, db, chat.ID, done.Status)
 }
 
-// collectStructuredRun reads what a settled chat committed; structured
-// reconstructs the request state.
-func collectStructuredRun(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID, status database.ChatStatus, structured bool) finalizerRun {
+// collectStructuredRun reads what a settled chat committed and the state
+// of its latest request, which is zero for an ordinary chat.
+func collectStructuredRun(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID, status database.ChatStatus) finalizerRun {
 	t.Helper()
 	run := finalizerRun{status: status}
 	history, err := db.GetChatMessagesAllVisibilitiesByChatID(ctx, chatID)
@@ -228,10 +231,8 @@ func collectStructuredRun(ctx context.Context, t *testing.T, db database.Store, 
 			}
 		}
 	}
-	if structured {
-		run.state, err = chatstructured.ActiveRequest(rows)
-		require.NoError(t, err)
-	}
+	run.state, err = chatstructured.ActiveRequest(rows)
+	require.NoError(t, err)
 	return run
 }
 

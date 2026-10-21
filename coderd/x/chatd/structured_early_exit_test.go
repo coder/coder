@@ -266,7 +266,7 @@ func TestStructuredRequiresActionTimeout(t *testing.T) {
 	})
 	server.Start()
 	done := waitForTerminalChat(ctx, t, db, created.Chat.ID)
-	run := collectStructuredRun(ctx, t, db, created.Chat.ID, done.Status, true)
+	run := collectStructuredRun(ctx, t, db, created.Chat.ID, done.Status)
 	require.Equal(t, database.ChatStatusWaiting, run.status)
 	require.Equal(t, int32(2), streamed.Load())
 	require.Len(t, run.receipts, 1)
@@ -286,7 +286,7 @@ func TestStructuredRequiresActionTimeout(t *testing.T) {
 func TestStructuredAnthropicOutputLimit(t *testing.T) {
 	t.Parallel()
 	schema := json.RawMessage(`{"type":"object","properties":{"v":{"type":"string"}},"required":["v"]}`)
-	run := runStructuredAnthropicChat(t, schema, false, 0, nil, func(step int) chattest.AnthropicResponse {
+	run := runStructuredAnthropicChat(t, schema, nil, 0, nil, func(step int) chattest.AnthropicResponse {
 		switch step {
 		case 0:
 			chunks := chattest.AnthropicToolCallChunks(chatstructured.FinalizerToolName, `{"output":{"v":"tr`)
@@ -316,12 +316,13 @@ func TestStructuredAnthropicOutputLimit(t *testing.T) {
 	require.JSONEq(t, `{"v":"OK"}`, string(run.receipts[0].Value))
 }
 
-// runStructuredAnthropicChat is runStructuredChatOn on the Anthropic fake.
-// respond answers streaming generation call number step. A non-zero
+// runStructuredAnthropicChat is runStructuredChatOn on the Anthropic fake
+// with prelude passed through. respond answers streaming generation call
+// number step. A non-zero
 // compactionThreshold sets a 100 token context limit with that compaction
 // threshold, and every compaction call is answered with a summary and
 // counted in compactions.
-func runStructuredAnthropicChat(t *testing.T, schema json.RawMessage, afterOrdinaryTurn bool, compactionThreshold int32, compactions *atomic.Int32, respond func(step int) chattest.AnthropicResponse) finalizerRun {
+func runStructuredAnthropicChat(t *testing.T, schema json.RawMessage, prelude []codersdk.ChatMessagePart, compactionThreshold int32, compactions *atomic.Int32, respond func(step int) chattest.AnthropicResponse) finalizerRun {
 	t.Helper()
 	var streamed atomic.Int32
 	anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
@@ -335,7 +336,7 @@ func runStructuredAnthropicChat(t *testing.T, schema json.RawMessage, afterOrdin
 		}
 		return respond(int(streamed.Add(1)) - 1)
 	})
-	return runStructuredChatOn(t, schema, afterOrdinaryTurn, nil, func(db database.Store) (database.User, database.Organization, database.ChatModelConfig, aibridge.TransportFactory) {
+	return runStructuredChatOn(t, schema, prelude, nil, func(db database.Store) (database.User, database.Organization, database.ChatModelConfig, aibridge.TransportFactory) {
 		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 		if compactionThreshold != 0 {
 			model = updateChatModelCompressionThreshold(t, db, model, 100, compactionThreshold)
@@ -373,7 +374,7 @@ func TestStructuredCompaction(t *testing.T) {
 	t.Run("RequestSurvivesCompaction", func(t *testing.T) {
 		t.Parallel()
 		var compactions atomic.Int32
-		run := runStructuredAnthropicChat(t, schema, false, 70, &compactions, func(step int) chattest.AnthropicResponse {
+		run := runStructuredAnthropicChat(t, schema, nil, 70, &compactions, func(step int) chattest.AnthropicResponse {
 			switch step {
 			case 0:
 				return text(80)
@@ -396,7 +397,7 @@ func TestStructuredCompaction(t *testing.T) {
 	t.Run("StillOverLimitFailsRequest", func(t *testing.T) {
 		t.Parallel()
 		var compactions atomic.Int32
-		run := runStructuredAnthropicChat(t, schema, false, 70, &compactions, func(int) chattest.AnthropicResponse {
+		run := runStructuredAnthropicChat(t, schema, nil, 70, &compactions, func(int) chattest.AnthropicResponse {
 			return text(80)
 		})
 		require.Equal(t, database.ChatStatusError, run.status)
@@ -411,7 +412,7 @@ func TestStructuredCompaction(t *testing.T) {
 	t.Run("StillOverLimitDropsCandidate", func(t *testing.T) {
 		t.Parallel()
 		var compactions atomic.Int32
-		run := runStructuredAnthropicChat(t, schema, false, 70, &compactions, func(step int) chattest.AnthropicResponse {
+		run := runStructuredAnthropicChat(t, schema, nil, 70, &compactions, func(step int) chattest.AnthropicResponse {
 			if step == 1 {
 				return finalize(80)
 			}
@@ -431,7 +432,7 @@ func TestStructuredCompaction(t *testing.T) {
 	t.Run("CompactionBeforeFirstStep", func(t *testing.T) {
 		t.Parallel()
 		var compactions atomic.Int32
-		run := runStructuredAnthropicChat(t, schema, true, 70, &compactions, func(step int) chattest.AnthropicResponse {
+		run := runStructuredAnthropicChat(t, schema, []codersdk.ChatMessagePart{codersdk.ChatMessageText("earlier")}, 70, &compactions, func(step int) chattest.AnthropicResponse {
 			switch step {
 			case 0:
 				return text(80)
@@ -455,7 +456,7 @@ func TestStructuredCompaction(t *testing.T) {
 	t.Run("CandidateSurvivesCompaction", func(t *testing.T) {
 		t.Parallel()
 		var compactions atomic.Int32
-		run := runStructuredAnthropicChat(t, schema, false, 70, &compactions, func(step int) chattest.AnthropicResponse {
+		run := runStructuredAnthropicChat(t, schema, nil, 70, &compactions, func(step int) chattest.AnthropicResponse {
 			if step == 0 {
 				return finalize(80)
 			}
