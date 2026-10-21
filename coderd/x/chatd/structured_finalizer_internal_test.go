@@ -87,9 +87,27 @@ func TestScreenFinalizerCalls(t *testing.T) {
 		})
 	}
 
+	// A call that the output token limit cut already has chatloop's error
+	// result; screening replaces its text instead of adding a second result.
+	cut := []fantasy.Content{finalizerCall("c1", `{"output":{"note":"tr`), fantasy.ToolResultContent{
+		ToolCallID: "c1", ToolName: chatstructured.FinalizerToolName,
+		Result: fantasy.ToolResultOutputContentError{Error: xerrors.New("output token limit")},
+	}}
+	got, rejected, extra, err := governingGate(requestID).screen(cut, fantasy.FinishReasonLength)
+	require.NoError(t, err)
+	require.Equal(t, map[string]bool{"c1": true}, rejected)
+	require.Len(t, extra, 1)
+	require.Len(t, got, 2)
+	require.Equal(t, finalizerCall("c1", "{}"), got[0])
+	result, ok := fantasy.AsContentType[fantasy.ToolResultContent](got[1])
+	require.True(t, ok)
+	require.Equal(t, "c1", result.ToolCallID)
+	require.Equal(t, chatstructured.FinalizerFeedback(chatstructured.ErrFinalizerCallIncomplete), result.Result.(fantasy.ToolResultOutputContentError).Error.Error())
+	require.Contains(t, cut[1].(fantasy.ToolResultContent).Result.(fantasy.ToolResultOutputContentError).Error.Error(), "output token limit", "the input is not modified")
+
 	// Two bad calls in one step count as one rejection with two results.
 	bad := `{"output":1,"output":2}`
-	got, rejected, extra, err := governingGate(requestID).screen([]fantasy.Content{finalizerCall("a", bad), finalizerCall("b", bad)}, toolCalls)
+	got, rejected, extra, err = governingGate(requestID).screen([]fantasy.Content{finalizerCall("a", bad), finalizerCall("b", bad)}, toolCalls)
 	require.NoError(t, err)
 	require.Len(t, rejected, 2)
 	require.Len(t, got, 4)

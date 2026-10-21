@@ -112,9 +112,19 @@ func (g *finalizerGate) screen(content []fantasy.Content, finish fantasy.FinishR
 		rejected[call.ToolCallID] = true
 		call.Input = string(finalizerPlaceholderArgs)
 		out[i] = call
+		feedback := chatstructured.FinalizerFeedback(err)
+		// chatloop already answers a call that the output token limit cut;
+		// that result takes the feedback, so the call keeps one result.
+		if slices.ContainsFunc(out, func(block fantasy.Content) bool {
+			result, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
+			return ok && result.ToolCallID == call.ToolCallID
+		}) {
+			replaceFinalizerResult(out, call.ToolCallID, feedback)
+			continue
+		}
 		out = append(out, fantasy.ToolResultContent{
 			ToolCallID: call.ToolCallID, ToolName: call.ToolName,
-			Result: fantasy.ToolResultOutputContentError{Error: xerrors.New(chatstructured.FinalizerFeedback(err))},
+			Result: fantasy.ToolResultOutputContentError{Error: xerrors.New(feedback)},
 		})
 	}
 	if len(rejected) == 0 {

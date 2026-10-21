@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -14,6 +15,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -34,10 +36,13 @@ type finalizerRun struct {
 	controls []chatstructured.Control
 	state    chatstructured.ActiveRequestState
 	hidden   []chatstructured.Control // on model-only rows
-	client   []codersdk.ChatMessage
-	receipts []codersdk.ChatStructuredOutput
-	requests [][]chattest.OpenAIMessage
-	status   database.ChatStatus
+	// hiddenRequests counts request parts on model-only rows, which
+	// compaction copies.
+	hiddenRequests int
+	client         []codersdk.ChatMessage
+	receipts       []codersdk.ChatStructuredOutput
+	requests       [][]chattest.OpenAIMessage
+	status         database.ChatStatus
 }
 
 // runFinalizerTurn runs one turn whose first model step emits calls, then
@@ -62,8 +67,52 @@ func runStructuredTurn(t *testing.T, schema json.RawMessage, failStatus int, ste
 // hook; a zero status answers with an empty response.
 func runStructuredHookTurn(t *testing.T, hook func(agenthooks.Request) (int, string), schema json.RawMessage, failStatus int, steps ...[]chattest.OpenAIToolCall) finalizerRun {
 	t.Helper()
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
+	return runStructuredChat(t, schema, func(cfg *chatd.Config, db database.Store) {
+		if hook == nil {
+			return
+		}
+		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var request agenthooks.Request
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+			if status, body := hook(request); status != 0 {
+				w.WriteHeader(status)
+				_, _ = w.Write([]byte(body))
+				return
+			}
+			_, _ = w.Write([]byte(`{}`))
+		}))
+		t.Cleanup(consumer.Close)
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+	}, func(step int) chattest.OpenAIResponse {
+		if failStatus != 0 {
+			if step == 0 {
+				return chattest.OpenAIResponse{Error: &chattest.ErrorResponse{StatusCode: failStatus, Type: "invalid_request_error", Message: "PROVIDER_BODY_MARKER"}}
+			}
+			step--
+		}
+		if step >= len(steps) || len(steps[step]) == 0 {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+		}
+		return chattest.OpenAIStreamingResponse(toolCallsChunk(steps[step]))
+	})
+}
+
+// toolCallsChunk returns one streaming chunk that emits calls.
+func toolCallsChunk(calls []chattest.OpenAIToolCall) chattest.OpenAIChunk {
+	chunk := chattest.OpenAIToolCallChunk(calls[0].Function.Name, calls[0].Function.Arguments)
+	for i, call := range calls[1:] {
+		call.Index, call.ID, call.Type = i+1, "call_"+uuid.NewString()[:8], "function"
+		chunk.Choices[0].ToolCalls = append(chunk.Choices[0].ToolCalls, call)
+	}
+	return chunk
+}
+
+// runStructuredChat creates a chat, with a structured output request when
+// schema is non-nil, whose streaming model call number step (from zero)
+// answers with respond(step), and returns what the turn committed once the
+// chat is waiting or in error. configure adjusts the server config.
+func runStructuredChat(t *testing.T, schema json.RawMessage, configure func(*chatd.Config, database.Store), respond func(step int) chattest.OpenAIResponse) finalizerRun {
+	t.Helper()
 	var run finalizerRun
 	var mu sync.Mutex
 	var streamed atomic.Int32
@@ -78,59 +127,67 @@ func runStructuredHookTurn(t *testing.T, hook func(agenthooks.Request) (int, str
 		}
 		run.requests = append(run.requests, append([]chattest.OpenAIMessage(nil), req.Messages...))
 		mu.Unlock()
-		if failStatus != 0 {
-			if step == 0 {
-				return chattest.OpenAIResponse{Error: &chattest.ErrorResponse{StatusCode: failStatus, Type: "invalid_request_error", Message: "PROVIDER_BODY_MARKER"}}
-			}
-			step--
-		}
-		if step >= len(steps) || len(steps[step]) == 0 {
-			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
-		}
-		calls := steps[step]
-		chunk := chattest.OpenAIToolCallChunk(calls[0].Function.Name, calls[0].Function.Arguments)
-		for i, call := range calls[1:] {
-			call.Index, call.ID, call.Type = i+1, "call_"+uuid.NewString()[:8], "function"
-			chunk.Choices[0].ToolCalls = append(chunk.Choices[0].ToolCalls, call)
-		}
-		return chattest.OpenAIStreamingResponse(chunk)
+		return respond(step)
 	})
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	got := runStructuredChatOn(t, schema, false, configure, func(db database.Store) (database.User, database.Organization, database.ChatModelConfig, aibridge.TransportFactory) {
+		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+		return user, org, model, chattest.NewMockAIBridgeTransport(t, openAIURL)
+	})
+	mu.Lock()
+	defer mu.Unlock()
+	got.tools, got.requests = run.tools, run.requests
+	return got
+}
+
+// runStructuredChatOn is runStructuredChat with the model provider set up by
+// seed, which returns the chat owner, organization, model config and the AI
+// gateway transport. It records no model requests. With afterOrdinaryTurn
+// the chat first runs an ordinary turn and the request arrives with the
+// next message.
+func runStructuredChatOn(t *testing.T, schema json.RawMessage, afterOrdinaryTurn bool, configure func(*chatd.Config, database.Store), seed func(database.Store) (database.User, database.Organization, database.ChatModelConfig, aibridge.TransportFactory)) finalizerRun {
+	t.Helper()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	var run finalizerRun
+	user, org, model, factory := seed(db)
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
-		if hook != nil {
-			consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				var request agenthooks.Request
-				require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
-				if status, body := hook(request); status != 0 {
-					w.WriteHeader(status)
-					_, _ = w.Write([]byte(body))
-					return
-				}
-				_, _ = w.Write([]byte(`{}`))
-			}))
-			t.Cleanup(consumer.Close)
-			cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+		if configure != nil {
+			configure(cfg, db)
 		}
 	})
 	tools, err := json.Marshal([]mcp.Tool{{Name: "dyn", InputSchema: map[string]any{"type": "object"}}})
 	require.NoError(t, err)
 	content := []codersdk.ChatMessagePart{codersdk.ChatMessageText("answer")}
+	var request *codersdk.ChatMessagePart
 	if schema != nil {
-		request, err := chatstructured.EncodeRequestPart(chatstructured.Request{RequestID: uuid.New(), Name: "report", Schema: schema})
+		part, err := chatstructured.EncodeRequestPart(chatstructured.Request{RequestID: uuid.New(), Name: "report", Schema: schema})
 		require.NoError(t, err)
-		content = append(content, request)
+		request = &part
+	}
+	initial := content
+	if request != nil && !afterOrdinaryTurn {
+		initial = append(slices.Clone(content), *request)
 	}
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID, OwnerID: user.ID, Title: "finalizer", ModelConfigID: model.ID, InitialUserContent: content, DynamicTools: tools,
+		OrganizationID: org.ID, OwnerID: user.ID, Title: "finalizer", ModelConfigID: model.ID, InitialUserContent: initial, DynamicTools: tools,
 	})
 	require.NoError(t, err)
 	var done database.Chat
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+	settled := func(ctx context.Context) bool {
 		done, err = db.GetChatByID(ctx, chat.ID)
 		return err == nil && (done.Status == database.ChatStatusWaiting || done.Status == database.ChatStatusError)
-	}, testutil.IntervalFast)
+	}
+	testutil.Eventually(ctx, t, settled, testutil.IntervalFast)
+	if afterOrdinaryTurn {
+		require.Equal(t, database.ChatStatusWaiting, done.Status)
+		_, err := server.SendMessage(ctx, chatd.SendMessageOptions{ChatID: chat.ID, Content: content, StructuredOutputRequest: request})
+		require.NoError(t, err)
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			pending, err := server.HasPendingStructuredRequest(ctx, chat.ID)
+			return err == nil && !pending && settled(ctx)
+		}, testutil.IntervalFast)
+	}
 	run.status = done.Status
 
 	history, err := db.GetChatMessagesAllVisibilitiesByChatID(ctx, chat.ID)
@@ -144,6 +201,9 @@ func runStructuredHookTurn(t *testing.T, hook func(agenthooks.Request) (int, str
 			for _, part := range parts {
 				if control, err := chatstructured.DecodeControlPart(part); err == nil {
 					run.hidden = append(run.hidden, control)
+				}
+				if part.Type == codersdk.ChatMessagePartTypeStructuredOutputRequest {
+					run.hiddenRequests++
 				}
 			}
 			continue
@@ -167,8 +227,6 @@ func runStructuredHookTurn(t *testing.T, hook func(agenthooks.Request) (int, str
 		run.state, err = chatstructured.ActiveRequest(rows)
 		require.NoError(t, err)
 	}
-	mu.Lock()
-	defer mu.Unlock()
 	return run
 }
 
