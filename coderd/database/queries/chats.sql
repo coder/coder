@@ -661,6 +661,56 @@ ORDER BY
 LIMIT
     1;
 
+-- name: GetChatContextBoundaryMessages :many
+-- Returns the user-visible tool-call rows of the chat's context window
+-- boundaries (summaries, clears, and rollovers), oldest first. anchor_id
+-- is the boundary's model-only anchor row, whose ID names the context
+-- window that the boundary starts.
+SELECT
+    call_msg.id,
+    call_msg.created_at,
+    (call_part.part->>'tool_name')::text AS tool_name,
+    COALESCE(anchor.id, call_msg.id)::bigint AS anchor_id
+FROM
+    chat_messages call_msg
+    CROSS JOIN LATERAL (
+        SELECT
+            elements.part
+        FROM
+            jsonb_array_elements(call_msg.content) AS elements(part)
+        WHERE
+            elements.part->>'type' = 'tool-call'
+            AND elements.part->>'tool_name' IN ('chat_summarized', 'chat_cleared', 'chat_context_rollover')
+        LIMIT
+            1
+    ) call_part
+    LEFT JOIN LATERAL (
+        SELECT
+            anchor_msg.id
+        FROM
+            chat_messages anchor_msg
+        WHERE
+            anchor_msg.chat_id = call_msg.chat_id
+            AND anchor_msg.id < call_msg.id
+            AND anchor_msg.deleted = false
+            AND anchor_msg.compressed = true
+            AND anchor_msg.role = 'user'
+            AND anchor_msg.visibility = 'model'
+        ORDER BY
+            anchor_msg.id DESC
+        LIMIT
+            1
+    ) anchor ON true
+WHERE
+    call_msg.chat_id = @chat_id::uuid
+    AND call_msg.deleted = false
+    AND call_msg.compressed = true
+    AND call_msg.role = 'assistant'
+    AND call_msg.visibility = 'user'
+    AND jsonb_typeof(call_msg.content) = 'array'
+ORDER BY
+    call_msg.id ASC;
+
 -- name: GetChats :many
 WITH cursor_chat AS (
     SELECT
