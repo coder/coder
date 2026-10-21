@@ -84,6 +84,8 @@ export type GroupWorkingBlocksOptions = {
 	liveBlocks: readonly RenderBlock[];
 	liveTools: readonly MergedTool[];
 	streamState?: StreamState | null;
+	/** Live keys of blocks the reader focused or toggled, kept even without steps. */
+	keptBlockKeys?: ReadonlySet<string>;
 };
 
 /** Tools that need the user's attention or record a transcript boundary. */
@@ -601,6 +603,9 @@ export const groupWorkingBlocks = (
 	const getStepCount = (draft: Draft) =>
 		draft.toolIds.size + (draft.searches || draft.sourceBlocks);
 
+	const getLiveKey = (draft: Draft) =>
+		`working:live:${draft.anchorKey ?? "head"}:${draft.ordinal}`;
+
 	// Completed reasoning alone stays visible. The live turn folds from its
 	// first reasoning, so thinking never shows and then vanishes once a tool
 	// call arrives, and unfolds only when text follows it without steps.
@@ -609,7 +614,8 @@ export const groupWorkingBlocks = (
 			getStepCount(draft) > 0 ||
 			(draft.containsLiveRow &&
 				options.isTurnActive &&
-				draft.closedByRowType === undefined),
+				draft.closedByRowType === undefined) ||
+			options.keptBlockKeys?.has(getLiveKey(draft)),
 	);
 
 	const sliceKey = (rowIndex: number, sliceOrdinal: number) =>
@@ -627,7 +633,7 @@ export const groupWorkingBlocks = (
 			options.isWorking &&
 			draftIndex === blockDrafts.length - 1 &&
 			draft.closedByRowType !== "message";
-		const liveKey = `working:live:${draft.anchorKey ?? "head"}:${draft.ordinal}`;
+		const liveKey = getLiveKey(draft);
 
 		const block: WorkingBlock = {
 			key: isLive

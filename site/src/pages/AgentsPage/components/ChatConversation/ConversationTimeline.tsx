@@ -502,6 +502,13 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			ReadonlyMap<string, boolean>
 		>(new Map());
 		const [liveBlockKeys, setLiveBlockKeys] = useState(emptyLiveBlockKeys);
+		const [keptBlockKeys, setKeptBlockKeys] = useState<ReadonlySet<string>>(
+			new Set(),
+		);
+		const keepBlock = (liveKey: string) =>
+			setKeptBlockKeys((previous) =>
+				previous.has(liveKey) ? previous : new Set(previous).add(liveKey),
+			);
 
 		const jumpToUserMessage = (messageKey: string) => {
 			scrollToMessage(messageKey, { align: "start", behavior: "smooth" });
@@ -534,6 +541,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					liveBlocks,
 					liveTools,
 					streamState,
+					keptBlockKeys,
 				})
 			: { blocks: [], items: renderRows.map(wholeRowItem) };
 		const nextLiveBlockKeys = reconcileLiveBlockKeys(
@@ -734,19 +742,21 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									"transition-opacity duration-200",
 								)}
 								inert={isAfterEditingMessage ? true : undefined}
+								onFocus={() => keepBlock(block.liveKey)}
 							>
 								<WorkingBlockDisclosure
 									block={block}
 									expanded={expanded}
-									onExpandedChange={(value) =>
+									onExpandedChange={(value) => {
+										keepBlock(block.liveKey);
 										setExpandedBlocks((previous) => {
 											const next = new Map(previous);
 											for (const key of [itemKey, ...block.pieceKeys]) {
 												next.set(key, value);
 											}
 											return next;
-										})
-									}
+										});
+									}}
 								>
 									{expanded &&
 										block.slices.map((slice) =>

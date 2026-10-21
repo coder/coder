@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
@@ -438,6 +438,54 @@ describe("ConversationTimeline live working blocks", () => {
 		});
 		expect(thinking).toHaveFocus();
 	});
+
+	it.each([
+		["focused", (summary: HTMLElement) => summary.focus()],
+		// fireEvent.click leaves focus alone, as a Safari click does, so this
+		// case tests the toggle alone.
+		["expanded", (summary: HTMLElement) => fireEvent.click(summary)],
+	])(
+		"keeps a block of only reasoning that the reader %s when text follows it",
+		(_, engage) => {
+			const messages = MockWorkingMessages.slice(0, 5);
+			const note: ChatMessagePart = { type: "text", text: "Both passed." };
+			const reasoning: ChatMessagePart = {
+				type: "reasoning",
+				text: "Planning the summary",
+				created_at: workingFixtureTime(13),
+			};
+			const answer: ChatMessagePart = { type: "text", text: "All good." };
+			const mockFinalMessage: ChatMessage = {
+				...MockWorkingMessages[5],
+				content: [note, reasoning, answer],
+			};
+			const { rerenderStage } = renderTimeline({
+				messages,
+				chatStatus: "running",
+				...buildStreamRenderState([note, reasoning]),
+			});
+			const summary = screen.getByRole("button", { name: /^Working for/ });
+			engage(summary);
+
+			rerenderStage({
+				messages,
+				chatStatus: "running",
+				...buildStreamRenderState([note, reasoning, answer]),
+			});
+			expect(screen.getByRole("button", { name: /^Working for/ })).toBe(
+				summary,
+			);
+
+			rerenderStage({
+				messages: [...messages, mockFinalMessage],
+				chatStatus: "waiting",
+				liveStatus: idleLive,
+			});
+			expect(screen.getAllByRole("button", { name: /^Worked for/ })).toContain(
+				summary,
+			);
+		},
+	);
 
 	it("keeps the live disclosure mounted while the next step starts", () => {
 		const messages = MockWorkingMessages.slice(0, 5);
