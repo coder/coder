@@ -64,6 +64,59 @@ func deliveredHomePath(chatID, fileID uuid.UUID) string {
 	return path.Join("~/.coder/chats", chatID.String(), "files", fileID.String(), "report.zip")
 }
 
+// runDeliveryLoop runs the server's delivery loop until the test ends and
+// returns once the loop's catch-up sweep is done.
+func runDeliveryLoop(ctx context.Context, t *testing.T, f workspaceFileDeliveryFixture, server *Server) {
+	t.Helper()
+	trap := f.clock.Trap().NewTicker("chatworker", "workspace-file-delivery")
+	defer trap.Close()
+	loopCtx, cancel := context.WithCancel(ctx)
+	loopDone := make(chan struct{})
+	go func() {
+		defer close(loopDone)
+		server.chatWorker.workspaceFileDeliveryLoop(loopCtx)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-loopDone
+	})
+	trap.MustWait(ctx).MustRelease(ctx)
+}
+
+// claimEveryAttempt claims file until it used its last attempt and
+// returns the last claim, as if each earlier attempt failed.
+func (f workspaceFileDeliveryFixture) claimEveryAttempt(ctx context.Context, t *testing.T, chatID, fileID uuid.UUID, now time.Time) database.AcquireChatWorkspaceFileDeliveriesRow {
+	t.Helper()
+	for attempt := int32(1); ; attempt++ {
+		claimed, err := f.db.AcquireChatWorkspaceFileDeliveries(ctx, database.AcquireChatWorkspaceFileDeliveriesParams{
+			Now:                     now,
+			LeaseExpiresAt:          now.Add(workspaceFileDeliveryLease),
+			MinUploadBytesPerSecond: workspaceFileDeliveryMinUploadBytesPerSecond,
+			ChatAgentSuffix:         agentselect.Suffix,
+			MaxAttempts:             database.ChatWorkspaceFileMaxDeliveryAttempts,
+			ChatID:                  uuid.NullUUID{UUID: chatID, Valid: true},
+			LimitVal:                1,
+		})
+		require.NoError(t, err)
+		require.Len(t, claimed, 1)
+		require.Equal(t, fileID, claimed[0].ID)
+		require.Equal(t, attempt, claimed[0].WorkspaceDeliveryAttempts)
+		if attempt == database.ChatWorkspaceFileMaxDeliveryAttempts {
+			return claimed[0]
+		}
+		failed, err := f.db.FailChatWorkspaceFileDelivery(ctx, database.FailChatWorkspaceFileDeliveryParams{
+			ID:             fileID,
+			Error:          "agent unavailable",
+			NextAttemptAt:  now,
+			Mode:           database.ChatWorkspaceFileDeliveryFailureRetry,
+			MaxAttempts:    database.ChatWorkspaceFileMaxDeliveryAttempts,
+			LeaseExpiresAt: claimed[0].LeaseExpiresAt,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, failed)
+	}
+}
+
 // awaitInBackground runs the helper and advances the clock one poll at a
 // time until it returns.
 func awaitInBackground(ctx context.Context, t *testing.T, f workspaceFileDeliveryFixture, server *Server, chatID uuid.UUID, mode workspaceFilesAwaitMode) chattool.WorkspaceAttachmentsReport {
@@ -114,19 +167,7 @@ func TestAwaitChatWorkspaceFiles(t *testing.T) {
 		require.Contains(t, report.Attachments[0].Error, "agent says no")
 
 		f.setAgentFailure(nil)
-		trap := f.clock.Trap().NewTicker("chatworker", "workspace-file-delivery")
-		loopCtx, cancel := context.WithCancel(ctx)
-		loopDone := make(chan struct{})
-		go func() {
-			defer close(loopDone)
-			server.chatWorker.workspaceFileDeliveryLoop(loopCtx)
-		}()
-		t.Cleanup(func() {
-			cancel()
-			<-loopDone
-		})
-		trap.MustWait(ctx).MustRelease(ctx)
-		trap.Close()
+		runDeliveryLoop(ctx, t, f, server)
 
 		report = awaitInBackground(ctx, t, f, server, chat.ID, workspaceFilesRetry)
 		require.NoError(t, report.Err)
@@ -158,19 +199,7 @@ func TestAwaitChatWorkspaceFiles(t *testing.T) {
 		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
 		f.attach(t, chat.ID, file.ID)
 
-		trap := f.clock.Trap().NewTicker("chatworker", "workspace-file-delivery")
-		loopCtx, cancel := context.WithCancel(ctx)
-		loopDone := make(chan struct{})
-		go func() {
-			defer close(loopDone)
-			server.chatWorker.workspaceFileDeliveryLoop(loopCtx)
-		}()
-		t.Cleanup(func() {
-			cancel()
-			<-loopDone
-		})
-		trap.MustWait(ctx).MustRelease(ctx)
-		trap.Close()
+		runDeliveryLoop(ctx, t, f, server)
 
 		// Startup finished without an event reaching the loop, and the
 		// clock never reaches the sweep, so only the poke delivers.
@@ -206,31 +235,7 @@ func TestAwaitChatWorkspaceFiles(t *testing.T) {
 		// when the wait ends.
 		copying := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
 		now := f.clock.Now()
-		for attempt := int32(1); attempt <= database.ChatWorkspaceFileMaxDeliveryAttempts; attempt++ {
-			claimed, err := f.db.AcquireChatWorkspaceFileDeliveries(ctx, database.AcquireChatWorkspaceFileDeliveriesParams{
-				Now:             now,
-				LeaseExpiresAt:  now.Add(workspaceFileDeliveryLease),
-				ChatAgentSuffix: agentselect.Suffix,
-				MaxAttempts:     database.ChatWorkspaceFileMaxDeliveryAttempts,
-				ChatID:          uuid.NullUUID{UUID: chat.ID, Valid: true},
-				LimitVal:        1,
-			})
-			require.NoError(t, err)
-			require.Len(t, claimed, 1)
-			require.Equal(t, copying.ID, claimed[0].ID)
-			require.Equal(t, attempt, claimed[0].WorkspaceDeliveryAttempts)
-			if attempt == database.ChatWorkspaceFileMaxDeliveryAttempts {
-				break
-			}
-			_, err = f.db.FailChatWorkspaceFileDelivery(ctx, database.FailChatWorkspaceFileDeliveryParams{
-				ID:            copying.ID,
-				Error:         "agent unavailable",
-				NextAttemptAt: now,
-				Mode:          database.ChatWorkspaceFileDeliveryFailureRetry,
-				MaxAttempts:   database.ChatWorkspaceFileMaxDeliveryAttempts,
-			})
-			require.NoError(t, err)
-		}
+		f.claimEveryAttempt(ctx, t, chat.ID, copying.ID, now)
 
 		evicted := uuid.New()
 		f.attach(t, chat.ID, copied.ID, failed.ID, copying.ID, evicted)
@@ -264,6 +269,32 @@ func TestAwaitChatWorkspaceFiles(t *testing.T) {
 		require.Equal(t, chattool.WorkspaceAttachmentCopying, statuses[copying.ID.String()].Status)
 		require.Equal(t, chattool.WorkspaceAttachmentUnavailable, statuses[evicted.String()].Status)
 		require.WithinDuration(t, now.Add(workspaceFileStatusMaxWait), f.clock.Now(), workspaceFileStatusPollInterval)
+	})
+
+	t.Run("StalledLastAttemptFailsUntilRetried", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		server := f.statusServer(t)
+		chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+		f.attach(t, chat.ID, file.ID)
+
+		// The replica that claimed the last attempt stopped before it
+		// recorded an outcome, and its lease has expired.
+		f.claimEveryAttempt(ctx, t, chat.ID, file.ID, f.clock.Now().Add(-2*workspaceFileDeliveryLease))
+
+		report := server.awaitChatWorkspaceFiles(ctx, chat.ID, workspaceFilesReport)
+		require.NoError(t, report.Err)
+		require.Len(t, report.Attachments, 1)
+		require.Equal(t, chattool.WorkspaceAttachmentFailed, report.Attachments[0].Status)
+		require.Contains(t, report.Attachments[0].Error, "stopped before it finished")
+
+		runDeliveryLoop(ctx, t, f, server)
+		report = awaitInBackground(ctx, t, f, server, chat.ID, workspaceFilesRetry)
+		require.NoError(t, report.Err)
+		require.Len(t, report.Attachments, 1)
+		require.Equal(t, chattool.WorkspaceAttachmentCopied, report.Attachments[0].Status)
 	})
 
 	t.Run("PendingUntilStartupFinishes", func(t *testing.T) {

@@ -1496,11 +1496,11 @@ func TestPendingUserSegmentConversionEquivalence(t *testing.T) {
 	start := pendingUserSegmentStart(rows)
 	require.Equal(t, 6, start)
 
-	full, err := chatprompt.ConvertMessagesWithFiles(context.Background(), rows, nil, logger, nil, uuid.NullUUID{})
+	full, err := chatprompt.ConvertMessagesWithFiles(context.Background(), rows, nil, nil, logger, nil, uuid.NullUUID{})
 	require.NoError(t, err)
-	head, err := chatprompt.ConvertMessagesWithFiles(context.Background(), rows[:start], nil, logger, nil, uuid.NullUUID{})
+	head, err := chatprompt.ConvertMessagesWithFiles(context.Background(), rows[:start], nil, nil, logger, nil, uuid.NullUUID{})
 	require.NoError(t, err)
-	tail, err := chatprompt.ConvertMessagesWithFiles(context.Background(), rows[start:], nil, logger, nil, uuid.NullUUID{})
+	tail, err := chatprompt.ConvertMessagesWithFiles(context.Background(), rows[start:], nil, nil, logger, nil, uuid.NullUUID{})
 	require.NoError(t, err)
 
 	require.Equal(t, full, append(append([]fantasy.Message{}, head...), tail...))

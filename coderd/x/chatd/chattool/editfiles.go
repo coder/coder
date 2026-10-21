@@ -74,6 +74,13 @@ func executeEditFilesTool(
 		planPathErr    error
 		planPathLoaded bool
 	)
+	paths := make([]*string, len(args.Files))
+	for i := range args.Files {
+		paths[i] = &args.Files[i].Path
+	}
+	if err := resolveHomePaths(ctx, conn, paths...); err != nil {
+		return fantasy.NewTextErrorResponse(err.Error() + "; no files in this batch were applied"), nil
+	}
 	for _, file := range args.Files {
 		hasPlanFileName := looksLikePlanFileName(file.Path)
 		if hasPlanFileName && !isAbsolutePath(file.Path) {

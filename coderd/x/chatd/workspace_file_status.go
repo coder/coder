@@ -42,7 +42,10 @@ const (
 func (p *Server) awaitChatWorkspaceFiles(ctx context.Context, chatID uuid.UUID, mode workspaceFilesAwaitMode) chattool.WorkspaceAttachmentsReport {
 	var errs []error
 	if mode == workspaceFilesRetry {
-		if _, err := p.db.RetryChatWorkspaceFileDeliveries(ctx, chatID); err != nil {
+		if _, err := p.db.RetryChatWorkspaceFileDeliveries(ctx, database.RetryChatWorkspaceFileDeliveriesParams{
+			ChatID: chatID,
+			Now:    p.clock.Now("chatd", "await-workspace-files"),
+		}); err != nil {
 			errs = append(errs, xerrors.Errorf("retry workspace attachments: %w", err))
 		}
 	}
@@ -87,9 +90,10 @@ func (p *Server) awaitChatWorkspaceFiles(ctx context.Context, chatID uuid.UUID, 
 	for i := range files {
 		byID[files[i].ID] = &files[i]
 	}
+	now := p.clock.Now("chatd", "await-workspace-files")
 	attachments := make([]chattool.WorkspaceAttachment, 0, len(parts))
 	for _, part := range parts {
-		attachments = append(attachments, workspaceAttachmentStatus(part, byID[part.FileID.UUID], undelivered))
+		attachments = append(attachments, workspaceAttachmentStatus(part, byID[part.FileID.UUID], undelivered, now))
 	}
 	return chattool.WorkspaceAttachmentsReport{Attachments: attachments, Err: errors.Join(errs...)}
 }
@@ -222,12 +226,13 @@ func (p *Server) workspaceFilesOutstanding(files []database.GetChatFileMetadataB
 }
 
 // workspaceAttachmentStatus reports the status of the file that part
-// refers to. file is nil when the file is no longer stored. undelivered
-// is the status of a file that is neither copied nor failed.
+// refers to at now. file is nil when the file is no longer stored.
+// undelivered is the status of a file that is neither copied nor failed.
 func workspaceAttachmentStatus(
 	part codersdk.ChatMessagePart,
 	file *database.GetChatFileMetadataByChatIDRow,
 	undelivered chattool.WorkspaceAttachmentStatus,
+	now time.Time,
 ) chattool.WorkspaceAttachment {
 	attachment := chattool.WorkspaceAttachment{
 		FileID:    part.FileID.UUID.String(),
@@ -252,6 +257,12 @@ func workspaceAttachmentStatus(
 	case file.WorkspaceDeliveryError.Valid:
 		attachment.Status = chattool.WorkspaceAttachmentFailed
 		attachment.Error = file.WorkspaceDeliveryError.String
+	case file.WorkspaceDeliveryAttempts >= database.ChatWorkspaceFileMaxDeliveryAttempts &&
+		(!file.WorkspaceDeliveryNextAttemptAt.Valid || !file.WorkspaceDeliveryNextAttemptAt.Time.After(now)):
+		// The last attempt's lease expired without an outcome, so no
+		// attempt is left until a retry resets the file.
+		attachment.Status = chattool.WorkspaceAttachmentFailed
+		attachment.Error = "the last copy attempt stopped before it finished"
 	default:
 		attachment.Status = undelivered
 	}

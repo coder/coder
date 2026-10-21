@@ -55,6 +55,9 @@ func executeAttachFileTool(
 	if path == "" {
 		return fantasy.NewTextErrorResponse("path is required (use an absolute path, e.g. /home/coder/build.log)"), nil
 	}
+	if err := resolveHomePaths(ctx, conn, &path); err != nil {
+		return fantasy.NewTextErrorResponse(err.Error()), nil
+	}
 
 	attachment, size, err := storeWorkspaceAttachment(
 		ctx,

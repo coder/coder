@@ -6240,7 +6240,7 @@ WITH candidates AS (
 			AND (wa.parent_id IS NULL OR wa.id = c.agent_id)
 		ORDER BY
 			(wa.id = c.agent_id) IS TRUE DESC,
-			(right(lower(wa.name), char_length($2::text)) = lower($2::text)) DESC,
+			(right(lower(wa.name), char_length($3::text)) = lower($3::text)) DESC,
 			wa.display_order ASC,
 			lower(wa.name) COLLATE "C" ASC,
 			wa.name COLLATE "C" ASC,
@@ -6249,10 +6249,10 @@ WITH candidates AS (
 	) selected_agent ON TRUE
 	WHERE cf.purpose = 'workspace'::chat_file_purpose
 		AND cf.workspace_delivered_at IS NULL
-		AND (cf.workspace_delivery_next_attempt_at IS NULL OR cf.workspace_delivery_next_attempt_at <= $3::timestamptz)
-		AND cf.workspace_delivery_attempts < $4::int
+		AND (cf.workspace_delivery_next_attempt_at IS NULL OR cf.workspace_delivery_next_attempt_at <= $4::timestamptz)
+		AND cf.workspace_delivery_attempts < $5::int
 		AND c.archived = FALSE
-		AND ($5::uuid IS NULL OR c.id = $5::uuid)
+		AND ($6::uuid IS NULL OR c.id = $6::uuid)
 		AND latest_build.transition = 'start'::workspace_transition
 		AND selected_agent.lifecycle_state IN (
 			'ready'::workspace_agent_lifecycle_state,
@@ -6260,13 +6260,13 @@ WITH candidates AS (
 			'start_timeout'::workspace_agent_lifecycle_state
 		)
 	ORDER BY cf.workspace_delivery_next_attempt_at ASC NULLS FIRST, cf.created_at ASC, cf.id ASC
-	LIMIT $6::int
+	LIMIT $7::int
 	FOR UPDATE OF cf SKIP LOCKED
 )
 UPDATE chat_files cf
 SET
 	workspace_delivery_attempts = cf.workspace_delivery_attempts + 1,
-	workspace_delivery_next_attempt_at = $1::timestamptz,
+	workspace_delivery_next_attempt_at = make_interval(secs => octet_length(cf.data) / $1::float8) + $2::timestamptz,
 	workspace_delivery_error = NULL
 FROM candidates
 WHERE cf.id = candidates.id
@@ -6278,17 +6278,19 @@ RETURNING
 	cf.mimetype,
 	octet_length(cf.data)::bigint AS size_bytes,
 	cf.workspace_delivery_attempts,
+	cf.workspace_delivery_next_attempt_at::timestamptz AS lease_expires_at,
 	candidates.chat_id,
 	candidates.workspace_id
 `
 
 type AcquireChatWorkspaceFileDeliveriesParams struct {
-	LeaseExpiresAt  time.Time     `db:"lease_expires_at" json:"lease_expires_at"`
-	ChatAgentSuffix string        `db:"chat_agent_suffix" json:"chat_agent_suffix"`
-	Now             time.Time     `db:"now" json:"now"`
-	MaxAttempts     int32         `db:"max_attempts" json:"max_attempts"`
-	ChatID          uuid.NullUUID `db:"chat_id" json:"chat_id"`
-	LimitVal        int32         `db:"limit_val" json:"limit_val"`
+	MinUploadBytesPerSecond float64       `db:"min_upload_bytes_per_second" json:"min_upload_bytes_per_second"`
+	LeaseExpiresAt          time.Time     `db:"lease_expires_at" json:"lease_expires_at"`
+	ChatAgentSuffix         string        `db:"chat_agent_suffix" json:"chat_agent_suffix"`
+	Now                     time.Time     `db:"now" json:"now"`
+	MaxAttempts             int32         `db:"max_attempts" json:"max_attempts"`
+	ChatID                  uuid.NullUUID `db:"chat_id" json:"chat_id"`
+	LimitVal                int32         `db:"limit_val" json:"limit_val"`
 }
 
 type AcquireChatWorkspaceFileDeliveriesRow struct {
@@ -6299,6 +6301,7 @@ type AcquireChatWorkspaceFileDeliveriesRow struct {
 	Mimetype                  string        `db:"mimetype" json:"mimetype"`
 	SizeBytes                 int64         `db:"size_bytes" json:"size_bytes"`
 	WorkspaceDeliveryAttempts int32         `db:"workspace_delivery_attempts" json:"workspace_delivery_attempts"`
+	LeaseExpiresAt            time.Time     `db:"lease_expires_at" json:"lease_expires_at"`
 	ChatID                    uuid.UUID     `db:"chat_id" json:"chat_id"`
 	WorkspaceID               uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
 }
@@ -6314,10 +6317,15 @@ type AcquireChatWorkspaceFileDeliveriesRow struct {
 // several root agents match the suffix, the first is checked here and
 // the caller's selection reports the ambiguity. A claim counts an
 // attempt, clears the last error and leases the file until
-// lease_expires_at. File content is not returned so a batch claim does
-// not load blobs.
+// lease_expires_at plus the time the content takes to upload at
+// min_upload_bytes_per_second, so the lease of a large file covers its
+// upload. The returned lease_expires_at identifies the claim:
+// the outcome queries take it back so a worker whose lease expired and
+// was claimed again cannot record an outcome. File content is not
+// returned so a batch claim does not load blobs.
 func (q *sqlQuerier) AcquireChatWorkspaceFileDeliveries(ctx context.Context, arg AcquireChatWorkspaceFileDeliveriesParams) ([]AcquireChatWorkspaceFileDeliveriesRow, error) {
 	rows, err := q.db.QueryContext(ctx, acquireChatWorkspaceFileDeliveries,
+		arg.MinUploadBytesPerSecond,
 		arg.LeaseExpiresAt,
 		arg.ChatAgentSuffix,
 		arg.Now,
@@ -6340,6 +6348,7 @@ func (q *sqlQuerier) AcquireChatWorkspaceFileDeliveries(ctx context.Context, arg
 			&i.Mimetype,
 			&i.SizeBytes,
 			&i.WorkspaceDeliveryAttempts,
+			&i.LeaseExpiresAt,
 			&i.ChatID,
 			&i.WorkspaceID,
 		); err != nil {
@@ -6369,6 +6378,14 @@ SET
 WHERE id = $4::uuid
 	AND purpose = 'workspace'::chat_file_purpose
 	AND workspace_delivered_at IS NULL
+	AND workspace_delivery_next_attempt_at = $5::timestamptz
+	AND EXISTS (
+		SELECT 1
+		FROM chat_file_links cfl
+		JOIN chats c ON c.id = cfl.chat_id
+		WHERE cfl.file_id = chat_files.id
+			AND c.workspace_id = $3::uuid
+	)
 `
 
 type CompleteChatWorkspaceFileDeliveryParams struct {
@@ -6376,17 +6393,22 @@ type CompleteChatWorkspaceFileDeliveryParams struct {
 	DeliveredPath        string    `db:"delivered_path" json:"delivered_path"`
 	DeliveredWorkspaceID uuid.UUID `db:"delivered_workspace_id" json:"delivered_workspace_id"`
 	ID                   uuid.UUID `db:"id" json:"id"`
+	LeaseExpiresAt       time.Time `db:"lease_expires_at" json:"lease_expires_at"`
 }
 
 // CompleteChatWorkspaceFileDelivery records the receipt and drops the
 // file content. Metadata stays so messages that reference the file keep
-// validating.
+// validating. It applies only under the claim that lease_expires_at
+// identifies and while the file's chat is still bound to the delivered
+// workspace, so a chat that moved to another workspace during the upload
+// keeps the file for the new workspace.
 func (q *sqlQuerier) CompleteChatWorkspaceFileDelivery(ctx context.Context, arg CompleteChatWorkspaceFileDeliveryParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, completeChatWorkspaceFileDelivery,
 		arg.DeliveredAt,
 		arg.DeliveredPath,
 		arg.DeliveredWorkspaceID,
 		arg.ID,
+		arg.LeaseExpiresAt,
 	)
 	if err != nil {
 		return 0, err
@@ -6430,21 +6452,24 @@ SET
 WHERE id = $5::uuid
 	AND purpose = 'workspace'::chat_file_purpose
 	AND workspace_delivered_at IS NULL
+	AND workspace_delivery_next_attempt_at = $6::timestamptz
 `
 
 type FailChatWorkspaceFileDeliveryParams struct {
-	Error         string    `db:"error" json:"error"`
-	NextAttemptAt time.Time `db:"next_attempt_at" json:"next_attempt_at"`
-	Mode          string    `db:"mode" json:"mode"`
-	MaxAttempts   int32     `db:"max_attempts" json:"max_attempts"`
-	ID            uuid.UUID `db:"id" json:"id"`
+	Error          string    `db:"error" json:"error"`
+	NextAttemptAt  time.Time `db:"next_attempt_at" json:"next_attempt_at"`
+	Mode           string    `db:"mode" json:"mode"`
+	MaxAttempts    int32     `db:"max_attempts" json:"max_attempts"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	LeaseExpiresAt time.Time `db:"lease_expires_at" json:"lease_expires_at"`
 }
 
 // FailChatWorkspaceFileDelivery records a failed attempt. The mode
 // decides the claimed attempt: 'retry' keeps it counted, 'refund' gives
 // it back for failures that never reached the agent, and 'park' sets the
 // attempts to max_attempts so the file waits for an explicit retry. Any
-// other mode fails on the NOT NULL attempts column.
+// other mode fails on the NOT NULL attempts column. It applies only under
+// the claim that lease_expires_at identifies.
 func (q *sqlQuerier) FailChatWorkspaceFileDelivery(ctx context.Context, arg FailChatWorkspaceFileDeliveryParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, failChatWorkspaceFileDelivery,
 		arg.Error,
@@ -6452,6 +6477,7 @@ func (q *sqlQuerier) FailChatWorkspaceFileDelivery(ctx context.Context, arg Fail
 		arg.Mode,
 		arg.MaxAttempts,
 		arg.ID,
+		arg.LeaseExpiresAt,
 	)
 	if err != nil {
 		return 0, err
@@ -6825,17 +6851,59 @@ WHERE cfl.file_id = cf.id
 	AND (
 		cf.workspace_delivery_error IS NOT NULL
 		OR cf.workspace_delivery_next_attempt_at IS NULL
-		OR cf.workspace_delivery_next_attempt_at <= NOW()
+		OR cf.workspace_delivery_next_attempt_at <= $2::timestamptz
 	)
 `
 
+type RetryChatWorkspaceFileDeliveriesParams struct {
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+	Now    time.Time `db:"now" json:"now"`
+}
+
 // RetryChatWorkspaceFileDeliveries makes a chat's undelivered workspace
 // files due again with a fresh attempt budget. Only a file in flight
-// under an unexpired lease is left alone. An expired lease without an
-// error means an attempt never recorded its outcome, for example because
-// its replica stopped, and may have used the last attempt.
-func (q *sqlQuerier) RetryChatWorkspaceFileDeliveries(ctx context.Context, chatID uuid.UUID) (int64, error) {
-	result, err := q.db.ExecContext(ctx, retryChatWorkspaceFileDeliveries, chatID)
+// under a lease that has not expired at now is left alone. An expired
+// lease without an error means an attempt never recorded its outcome,
+// for example because its replica stopped, and may have used the last
+// attempt.
+func (q *sqlQuerier) RetryChatWorkspaceFileDeliveries(ctx context.Context, arg RetryChatWorkspaceFileDeliveriesParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, retryChatWorkspaceFileDeliveries, arg.ChatID, arg.Now)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const retryChatWorkspaceFileDeliveriesByWorkspaceID = `-- name: RetryChatWorkspaceFileDeliveriesByWorkspaceID :execrows
+UPDATE chat_files cf
+SET
+	workspace_delivery_attempts = 0,
+	workspace_delivery_next_attempt_at = NULL,
+	workspace_delivery_error = NULL
+FROM chat_file_links cfl
+JOIN chats c ON c.id = cfl.chat_id
+WHERE cfl.file_id = cf.id
+	AND c.workspace_id = $1::uuid
+	AND cf.purpose = 'workspace'::chat_file_purpose
+	AND cf.workspace_delivered_at IS NULL
+	AND (
+		cf.workspace_delivery_error IS NOT NULL
+		OR cf.workspace_delivery_next_attempt_at IS NULL
+		OR cf.workspace_delivery_next_attempt_at <= $2::timestamptz
+	)
+`
+
+type RetryChatWorkspaceFileDeliveriesByWorkspaceIDParams struct {
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	Now         time.Time `db:"now" json:"now"`
+}
+
+// RetryChatWorkspaceFileDeliveriesByWorkspaceID resets the undelivered
+// workspace files of every chat bound to the workspace like
+// RetryChatWorkspaceFileDeliveries, for a workspace agent that finished
+// starting and may now accept files it failed or rejected before.
+func (q *sqlQuerier) RetryChatWorkspaceFileDeliveriesByWorkspaceID(ctx context.Context, arg RetryChatWorkspaceFileDeliveriesByWorkspaceIDParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, retryChatWorkspaceFileDeliveriesByWorkspaceID, arg.WorkspaceID, arg.Now)
 	if err != nil {
 		return 0, err
 	}

@@ -36,6 +36,7 @@ type fakeUploadAgent struct {
 	fail     func(req workspacesdk.UploadChatFileRequest) error
 	afterPut func()
 	requests []workspacesdk.UploadChatFileRequest
+	timeouts []time.Duration
 	files    map[uuid.UUID][]byte
 }
 
@@ -45,7 +46,7 @@ func newFakeUploadAgent() *fakeUploadAgent {
 
 func (*fakeUploadAgent) SetExtraHeaders(http.Header) {}
 
-func (a *fakeUploadAgent) UploadChatFile(_ context.Context, req workspacesdk.UploadChatFileRequest) (workspacesdk.AgentUploadChatFileResponse, error) {
+func (a *fakeUploadAgent) UploadChatFile(ctx context.Context, req workspacesdk.UploadChatFileRequest) (workspacesdk.AgentUploadChatFileResponse, error) {
 	data, err := io.ReadAll(req.Body)
 	if err != nil {
 		return workspacesdk.AgentUploadChatFileResponse{}, err
@@ -53,6 +54,9 @@ func (a *fakeUploadAgent) UploadChatFile(_ context.Context, req workspacesdk.Upl
 	a.mu.Lock()
 	req.Body = nil
 	a.requests = append(a.requests, req)
+	if deadline, ok := ctx.Deadline(); ok {
+		a.timeouts = append(a.timeouts, time.Until(deadline))
+	}
 	fail, afterPut := a.fail, a.afterPut
 	a.mu.Unlock()
 	if fail != nil {
@@ -91,6 +95,12 @@ func (a *fakeUploadAgent) uploadRequests() []workspacesdk.UploadChatFileRequest 
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return append([]workspacesdk.UploadChatFileRequest(nil), a.requests...)
+}
+
+func (a *fakeUploadAgent) uploadTimeouts() []time.Duration {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]time.Duration(nil), a.timeouts...)
 }
 
 func agentStatusError(status int) error {
@@ -297,6 +307,33 @@ func TestWorkspaceFileDeliveryLoop(t *testing.T) {
 		f.requireDelivered(ctx, t, chat, file.ID)
 	})
 
+	t.Run("AgentStartupRetriesParkedFile", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// An agent without write-once uploads rejects the file until the
+		// workspace restarts with an updated agent.
+		f.agent.fail = func(workspacesdk.UploadChatFileRequest) error {
+			return agentStatusError(http.StatusBadRequest)
+		}
+		chat, agent := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+
+		start(ctx, t, f)
+		state := f.fileState(ctx, t, chat.ID, file.ID)
+		require.Equal(t, database.ChatWorkspaceFileMaxDeliveryAttempts, state.WorkspaceDeliveryAttempts)
+		require.Contains(t, state.WorkspaceDeliveryError.String, "update the workspace agent")
+
+		f.agent.mu.Lock()
+		f.agent.fail = nil
+		f.agent.mu.Unlock()
+		require.NoError(t, wspubsub.PublishAgentStartupFinished(ctx, f.pubsub, wspubsub.AgentStartupFinishedEvent{
+			WorkspaceID: chat.WorkspaceID.UUID,
+			AgentID:     agent.ID,
+		}))
+		f.requireDelivered(ctx, t, chat, file.ID)
+	})
+
 	t.Run("SendToRunningWorkspaceDelivers", func(t *testing.T) {
 		t.Parallel()
 		f := newWorkspaceFileDeliveryFixture(t)
@@ -441,6 +478,51 @@ func TestWorkspaceFileDeliveryOutcomes(t *testing.T) {
 		require.Len(t, f.agent.uploadRequests(), 1)
 	})
 
+	t.Run("RebindDuringUploadDeliversToTheNewWorkspace", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		other, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+		var rebound database.Chat
+		f.agent.afterPut = func() {
+			f.agent.mu.Lock()
+			f.agent.afterPut = nil
+			f.agent.mu.Unlock()
+			var err error
+			rebound, err = f.db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+				ID:          chat.ID,
+				WorkspaceID: other.WorkspaceID,
+			})
+			require.NoError(t, err)
+		}
+
+		f.worker(t).deliverWorkspaceFiles(ctx)
+		f.requireDelivered(ctx, t, rebound, file.ID)
+		require.Len(t, f.agent.uploadRequests(), 2)
+	})
+
+	t.Run("AttemptDeadlineCoversTheUpload", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		// The file takes four seconds at the slowest upload rate a lease
+		// leaves time for.
+		f.workspaceFile(ctx, t, chat.ID, strings.Repeat("x", 4*workspaceFileDeliveryMinUploadBytesPerSecond))
+
+		// The test context's own deadline is shorter than an attempt's.
+		deliverCtx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		f.worker(t).deliverWorkspaceFiles(deliverCtx)
+		timeouts := f.agent.uploadTimeouts()
+		require.Len(t, timeouts, 1)
+		want := workspaceFileDeliveryLease - time.Minute + 4*time.Second
+		require.Greater(t, timeouts[0], want-time.Second)
+		require.LessOrEqual(t, timeouts[0], want)
+	})
+
 	t.Run("DisconnectedAgentRefunds", func(t *testing.T) {
 		t.Parallel()
 		f := newWorkspaceFileDeliveryFixture(t)
@@ -481,7 +563,8 @@ func TestWorkspaceFileDeliveryOutcomes(t *testing.T) {
 		f.agent.mu.Lock()
 		f.agent.afterPut = nil
 		f.agent.mu.Unlock()
-		f.clock.Advance(workspaceFileDeliveryLease)
+		// The lease also covers the upload time of the file's nine bytes.
+		f.clock.Advance(workspaceFileDeliveryLease + time.Second)
 		f.worker(t).deliverWorkspaceFiles(ctx)
 		f.requireDelivered(ctx, t, chat, file.ID)
 
