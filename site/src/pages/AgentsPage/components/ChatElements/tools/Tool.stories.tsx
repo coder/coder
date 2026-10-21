@@ -1585,6 +1585,23 @@ export const ChatHistoryWithoutResult: Story = {
 	},
 };
 
+export const ChatHistoryUnexpectedError: Story = {
+	args: {
+		name: "chat_history",
+		args: { action: "search", query: "settings" },
+		result: { error: "read chat history: connection reset by peer" },
+		status: "error",
+		isError: true,
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(canvasElement).getByRole("img", {
+				name: "read chat history: connection reset by peer",
+			}),
+		);
+	},
+};
+
 export const ChatHistoryRunning: Story = {
 	args: {
 		name: "chat_history",

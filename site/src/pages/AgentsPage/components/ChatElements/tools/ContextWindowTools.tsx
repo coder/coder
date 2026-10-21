@@ -235,9 +235,9 @@ export const ChatHistoryTool: React.FC<
 			status={status}
 			isError={isError}
 			errorMessage={
-				(errorCode
-					? labelForOwnKey(chatHistoryErrorMessages, errorCode)
-					: errorMessage) || "Failed to read chat history"
+				labelForOwnKey(chatHistoryErrorMessages, errorCode) ||
+				errorMessage ||
+				"Failed to read chat history"
 			}
 			hasContent={false}
 		>
