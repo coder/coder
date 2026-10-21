@@ -724,7 +724,7 @@ describe("applyMessagePartToStreamState", () => {
 		const prev = createEmptyStreamState();
 		const result = applyMessagePartToStreamState(prev, {
 			type: "tool-call",
-			tool_name: "web_search",
+			tool_name: "code_execution",
 			tool_call_id: "tc-1",
 			provider_executed: true,
 		});
@@ -735,7 +735,7 @@ describe("applyMessagePartToStreamState", () => {
 	it("records a provider_executed tool-result part without a tool card", () => {
 		const part: ChatMessagePart = {
 			type: "tool-result",
-			tool_name: "web_search",
+			tool_name: "code_execution",
 			tool_call_id: "tc-1",
 			provider_executed: true,
 			result: { output: "search results" },
@@ -746,6 +746,96 @@ describe("applyMessagePartToStreamState", () => {
 			providerToolRan: true,
 		});
 		expect(applyMessagePartToStreamState(state, part)).toBe(state);
+	});
+
+	it("streams tagged sources under their web_search call, untagged ones in the source row", () => {
+		let state = applyMessagePartToStreamState(null, {
+			type: "tool-call",
+			tool_name: "web_search",
+			tool_call_id: "ws-1",
+			args: { type: "search", queries: JSON.stringify(["coder"]) },
+			provider_executed: true,
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "source",
+			tool_call_id: "ws-1",
+			url: "https://coder.com/changelog",
+		});
+		const afterFirstPage = state;
+		state = applyMessagePartToStreamState(state, {
+			type: "source",
+			tool_call_id: "ws-1",
+			url: "https://coder.com/changelog",
+		});
+		expect(state).toBe(afterFirstPage);
+
+		expect(buildStreamTools(state?.toolCalls, state?.toolResults)).toEqual([
+			expect.objectContaining({
+				id: "ws-1",
+				status: "running",
+				providerExecuted: true,
+				foundPages: [{ url: "https://coder.com/changelog", title: "" }],
+			}),
+		]);
+
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "web_search",
+			tool_call_id: "ws-1",
+			provider_executed: true,
+			result: {},
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "source",
+			url: "https://coder.com/changelog",
+			title: "Coder changelog",
+		});
+		expect(buildStreamTools(state?.toolCalls, state?.toolResults)).toEqual([
+			expect.objectContaining({
+				id: "ws-1",
+				result: {},
+				status: "completed",
+				foundPages: [{ url: "https://coder.com/changelog", title: "" }],
+			}),
+		]);
+		expect(state?.blocks).toEqual([
+			{ type: "tool", id: "ws-1" },
+			{
+				type: "sources",
+				sources: [
+					{ url: "https://coder.com/changelog", title: "Coder changelog" },
+				],
+			},
+		]);
+		expect(state?.sources).toEqual([
+			{ url: "https://coder.com/changelog", title: "Coder changelog" },
+		]);
+	});
+
+	it("keeps found pages when later tool-call deltas arrive", () => {
+		let state = applyMessagePartToStreamState(null, {
+			type: "tool-call",
+			tool_name: "web_search",
+			tool_call_id: "ws-1",
+			provider_executed: true,
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "source",
+			tool_call_id: "ws-1",
+			url: "https://coder.com",
+			title: "Coder",
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "web_search",
+			tool_call_id: "ws-1",
+			args: { query: "coder" },
+		});
+		expect(state?.toolCalls["ws-1"]).toMatchObject({
+			args: { query: "coder" },
+			providerExecuted: true,
+			foundPages: [{ url: "https://coder.com", title: "Coder" }],
+		});
 	});
 
 	it("adds a file block from a file part with data", () => {
@@ -831,6 +921,28 @@ describe("applyMessagePartToStreamState", () => {
 				{ url: "https://other.com", title: "Other" },
 			],
 		});
+	});
+
+	it("keeps streamed text together and its citations after it", () => {
+		let state: StreamState | null = null;
+		const parts: ChatMessagePart[] = [
+			{ type: "text", text: "Go 1.27 " },
+			{ type: "source", url: "https://go.dev/doc/go1.27", title: "Go 1.27" },
+			{ type: "text", text: "is out." },
+			// A paragraph break streamed as its own delta stays in the text.
+			{ type: "text", text: "\n\n" },
+			{ type: "text", text: "Go 1.28 is next." },
+		];
+		for (const part of parts) {
+			state = applyMessagePartToStreamState(state, part);
+		}
+		expect(state!.blocks).toEqual([
+			{ type: "response", text: "Go 1.27 is out.\n\nGo 1.28 is next." },
+			{
+				type: "sources",
+				sources: [{ url: "https://go.dev/doc/go1.27", title: "Go 1.27" }],
+			},
+		]);
 	});
 
 	it("deduplicates sources with the same URL", () => {

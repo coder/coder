@@ -702,6 +702,7 @@ func sdkPartFromContent(
 			SourceID:         value.ID,
 			URL:              value.URL,
 			Title:            value.Title,
+			ToolCallID:       value.ToolCallID,
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case *fantasy.SourceContent:
@@ -710,6 +711,7 @@ func sdkPartFromContent(
 			SourceID:         value.ID,
 			URL:              value.URL,
 			Title:            value.Title,
+			ToolCallID:       value.ToolCallID,
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case fantasy.FileContent:
