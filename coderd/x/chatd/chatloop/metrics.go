@@ -196,7 +196,7 @@ func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metr
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "context_handoff_total",
-			Help:      "Total context handoff prompts under the token budget compaction strategy, by stage (handoff: the handoff target was reached).",
+			Help:      "Total context handoff prompts under the token budget compaction strategy, by stage (handoff: the handoff target was reached; final: the final zone before the usable limit was reached).",
 		}, []string{"provider", "model", "stage"}),
 		StepsTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,

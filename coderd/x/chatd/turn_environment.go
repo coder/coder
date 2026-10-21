@@ -1038,6 +1038,9 @@ func (p *Server) buildTurnEnvironment(
 			MetricProvider:  model.LanguageModel().Provider(),
 			MetricModel:     model.LanguageModel().Model(),
 			PendingUserRows: pendingUserRows,
+			NewContextOffered: slices.ContainsFunc(toolDefinitions, func(tool fantasy.Tool) bool {
+				return tool.GetName() == chattool.NewContextToolName
+			}),
 		}
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)

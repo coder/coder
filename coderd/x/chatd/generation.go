@@ -83,6 +83,9 @@ type generationRollover struct {
 	MetricProvider  string
 	MetricModel     string
 	PendingUserRows []database.ChatMessage
+	// NewContextOffered gates the final prompt, which asks the agent to
+	// call new_context.
+	NewContextOffered bool
 }
 
 func generationRolloverBudget(rollover *generationRollover) *contextWindowBudget {
@@ -162,7 +165,8 @@ type generationDecision struct {
 	forced            bool
 	toolCallMessageID int64 // ID of the assistant message holding localToolCalls
 	rolloverReason    rolloverReason
-	handoffStage      rolloverAction
+	// handoffStage is rolloverActionHandoff or rolloverActionFinal.
+	handoffStage rolloverAction
 }
 
 type generationRetryDecision struct {
@@ -212,7 +216,8 @@ type generationDecisionInput struct {
 	compactionTriggerSource    compactionTriggerSource
 	compactionOtherTrigger     compactionTrigger
 	// rollover is set under the token budget strategy.
-	rollover *contextWindowBudget
+	rollover          *contextWindowBudget
+	newContextOffered bool
 }
 
 func decideGenerationAction(input generationDecisionInput) (generationDecision, error) {
@@ -275,11 +280,12 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 		if err != nil {
 			return generationDecision{}, err
 		}
+		state.newContextOffered = input.newContextOffered
 		rollover := decideRollover(windowContextTokens(input.messages), *input.rollover, state)
 		switch rollover.action {
 		case rolloverActionRollover:
 			return generationDecision{kind: generationActionContextRollover, rolloverReason: rollover.reason}, nil
-		case rolloverActionHandoff:
+		case rolloverActionHandoff, rolloverActionFinal:
 			return generationDecision{kind: generationActionContextHandoff, handoffStage: rollover.action}, nil
 		}
 	}
@@ -673,6 +679,7 @@ func (s *taskStarter) runGenerationStep(
 				compactionTriggerSource:    generationCompactionTriggerSource(prepared.Compaction),
 				compactionOtherTrigger:     generationCompactionOtherTrigger(prepared.Compaction),
 				rollover:                   generationRolloverBudget(prepared.Rollover),
+				newContextOffered:          prepared.Rollover != nil && prepared.Rollover.NewContextOffered,
 			})
 		})
 	}
@@ -1433,7 +1440,7 @@ func (s *taskStarter) rollOverContextWindow(
 	return nil
 }
 
-// requestContextHandoff commits a handoff prompt for the agent.
+// requestContextHandoff commits a handoff or final prompt for the agent.
 // The runner re-spawns generation on the history bump, and the next
 // decision sees the stage claimed.
 func (s *taskStarter) requestContextHandoff(

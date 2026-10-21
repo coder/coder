@@ -335,8 +335,8 @@ func TestActiveServer_ContextHandoff(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, ps := dbtestutil.NewDB(t)
 	requests := newAnthropicRequestRecorder()
-	// W = 100 at 20%: the handoff target is 20 and the usable limit 75.
-	// Each answer reports the usage the next turn sees.
+	// W = 100 at 20%: the handoff target is 20, the final zone 38 and the
+	// usable limit 75. Each answer reports the usage the next turn sees.
 	inputTokens := []int{25, 40, 45, 50}
 	var streamCount atomic.Int32
 	anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
@@ -378,14 +378,16 @@ func TestActiveServer_ContextHandoff(t *testing.T) {
 	require.Equal(t, int32(4), streamCount.Load(), "handoff rows are committed without a model call")
 
 	const handoffText = "The context handoff target has been reached."
+	const finalText = "The current context window is exhausted."
 	streams := filterAnthropicStreamingRequests(requests.all())
 	require.Len(t, streams, 4)
 	for i, req := range streams {
 		body := anthropicRequestBody(t, req)
 		require.NotContains(t, body, "chat_context_handoff", "stream %d: the handoff tool rows are UI only", i+1)
-		// Stream 2 answers after the handoff; the prompt stays in the
-		// window exactly once.
+		// Stream 2 answers after the handoff and stream 3 after the final
+		// prompt; each prompt stays in the window exactly once.
 		require.Equal(t, min(i, 1), strings.Count(body, handoffText), "stream %d", i+1)
+		require.Equal(t, min(max(i-1, 0), 1), strings.Count(body, finalText), "stream %d", i+1)
 	}
 	second := anthropicRequestBody(t, streams[1])
 	require.Less(t, strings.Index(second, "request 2"), strings.Index(second, handoffText), "the handoff follows the request it interrupts")
@@ -408,7 +410,7 @@ func TestActiveServer_ContextHandoff(t *testing.T) {
 			stages = append(stages, args.Stage)
 		}
 	}
-	require.Equal(t, []string{"handoff"}, stages, "the handoff is requested once per window")
+	require.Equal(t, []string{"handoff", "final"}, stages, "each stage is requested once per window")
 	for _, stage := range stages {
 		requireChatdMetricCounter(t, reg, "coderd_chatd_context_handoff_total", 1, map[string]string{
 			"provider": "anthropic",
