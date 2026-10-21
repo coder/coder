@@ -514,6 +514,21 @@ func (mr *MockAgentConnMockRecorder) ResolvePath(ctx, path any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResolvePath", reflect.TypeOf((*MockAgentConn)(nil).ResolvePath), ctx, path)
 }
 
+// ResyncContext mocks base method.
+func (m *MockAgentConn) ResyncContext(ctx context.Context) (workspacesdk.ContextSnapshotResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResyncContext", ctx)
+	ret0, _ := ret[0].(workspacesdk.ContextSnapshotResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResyncContext indicates an expected call of ResyncContext.
+func (mr *MockAgentConnMockRecorder) ResyncContext(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResyncContext", reflect.TypeOf((*MockAgentConn)(nil).ResyncContext), ctx)
+}
+
 // SSH mocks base method.
 func (m *MockAgentConn) SSH(ctx context.Context) (*gonet.TCPConn, error) {
 	m.ctrl.T.Helper()

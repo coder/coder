@@ -175,9 +175,10 @@ func TestBuiltinToolSchemasDescribeTheirInputs(t *testing.T) {
 
 	// These take an empty struct, so they carry no keys to validate.
 	noInput := map[string]bool{
-		"process_list":         true,
-		"stop_workspace":       true,
-		"list_subagent_models": true,
+		"process_list":          true,
+		"stop_workspace":        true,
+		"list_subagent_models":  true,
+		"reconnect_mcp_servers": true,
 	}
 	var unvalidated []string
 	require.NotEmpty(t, prepared.BuiltinToolNames)

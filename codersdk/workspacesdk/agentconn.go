@@ -99,6 +99,7 @@ type AgentConn interface {
 	CallMCPTool(ctx context.Context, req CallMCPToolRequest) (CallMCPToolResponse, error)
 	Close() error
 	ContextConfig(ctx context.Context) (ContextConfigResponse, error)
+	ResyncContext(ctx context.Context) (ContextSnapshotResponse, error)
 	DebugLogs(ctx context.Context, opts ...DebugLogsOption) ([]byte, error)
 	DebugMagicsock(ctx context.Context) ([]byte, error)
 	DebugManifest(ctx context.Context) ([]byte, error)
@@ -1444,6 +1445,20 @@ type ContextConfigResponse struct {
 	Parts []codersdk.ChatMessagePart `json:"parts"`
 }
 
+// ContextSnapshotResource is one resource in a ContextSnapshotResponse.
+type ContextSnapshotResource struct {
+	Kind   string `json:"kind"`
+	Name   string `json:"name,omitempty"`
+	Status string `json:"status"`
+	Error  string `json:"error,omitempty"`
+}
+
+// ContextSnapshotResponse is the response from the agent's context
+// resync endpoint.
+type ContextSnapshotResponse struct {
+	Resources []ContextSnapshotResource `json:"resources"`
+}
+
 // CallMCPToolRequest is the request body for proxying an MCP
 // tool call through the workspace agent.
 type CallMCPToolRequest struct {
@@ -1535,6 +1550,23 @@ func (c *agentConn) ContextConfig(ctx context.Context) (ContextConfigResponse, e
 		return ContextConfigResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp ContextConfigResponse
+	return resp, decodeAgentJSON(res, &resp)
+}
+
+// ResyncContext asks the agent to retry failed MCP servers and re-resolve
+// its context.
+func (c *agentConn) ResyncContext(ctx context.Context) (ContextSnapshotResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/context/resync", nil)
+	if err != nil {
+		return ContextSnapshotResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ContextSnapshotResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp ContextSnapshotResponse
 	return resp, decodeAgentJSON(res, &resp)
 }
 
