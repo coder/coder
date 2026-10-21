@@ -5770,6 +5770,7 @@ export type Experiment =
 	| "notifications"
 	| "workspace-build-updates"
 	| "workspace-capable-licensing"
+	| "workspace-files"
 	| "workspace-usage";
 
 // From codersdk/experimentrules.go
@@ -5849,6 +5850,7 @@ export const Experiments: Experiment[] = [
 	"notifications",
 	"workspace-build-updates",
 	"workspace-capable-licensing",
+	"workspace-files",
 	"workspace-usage",
 ];
 
