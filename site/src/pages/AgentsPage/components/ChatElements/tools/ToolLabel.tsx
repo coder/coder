@@ -74,28 +74,32 @@ const uncopiedAttachmentStatuses: ReadonlySet<string> = new Set([
 	"unavailable",
 ]);
 
-const CopyAttachmentsLabel: React.FC<ToolLabelProps> = ({ status, result }) => {
+// The tool reports attachment problems in its result, never as a failed call.
+const getCopyAttachmentsLabel = (status: ToolStatus, result: unknown) => {
+	if (status === "running") {
+		return "Copying attachments to the workspace…";
+	}
 	const parsedResult = asRecord(result);
+	if (status === "error" || asString(parsedResult?.attachments_error)) {
+		return "Failed to check workspace attachments";
+	}
 	const attachments = parsedResult?.attachments;
-	// The tool reports copy failures in its result, never as a failed call.
-	const hasCopyFailure =
-		Boolean(asString(parsedResult?.attachments_error)) ||
-		(Array.isArray(attachments) &&
-			attachments.some((attachment) =>
-				uncopiedAttachmentStatuses.has(asString(asRecord(attachment)?.status)),
-			));
-	return (
-		<span className="truncate text-[13px]">
-			{
-				{
-					running: "Copying attachments to the workspace…",
-					completed: "Checked workspace attachments",
-					error: "Failed to check workspace attachments",
-				}[status === "completed" && hasCopyFailure ? "error" : status]
-			}
-		</span>
-	);
+	if (
+		Array.isArray(attachments) &&
+		attachments.some((attachment) =>
+			uncopiedAttachmentStatuses.has(asString(asRecord(attachment)?.status)),
+		)
+	) {
+		return "Failed to copy workspace attachments";
+	}
+	return "Checked workspace attachments";
 };
+
+const CopyAttachmentsLabel: React.FC<ToolLabelProps> = ({ status, result }) => (
+	<span className="truncate text-[13px]">
+		{getCopyAttachmentsLabel(status, result)}
+	</span>
+);
 
 export const genericToolLabels: Partial<
 	Record<string, React.FC<ToolLabelProps>>

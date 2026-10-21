@@ -2047,6 +2047,18 @@ export const CopyAttachmentsFailed: Story = {
 	},
 };
 
+export const CopyAttachmentsCheckFailed: Story = {
+	args: {
+		name: "copy_attachments_to_workspace",
+		status: "completed",
+		args: {},
+		result: {
+			attachments: [],
+			attachments_error: "read workspace attachments: connection refused",
+		},
+	},
+};
+
 // ---------------------------------------------------------------------------
 // Tool failure display stories
 // ---------------------------------------------------------------------------
