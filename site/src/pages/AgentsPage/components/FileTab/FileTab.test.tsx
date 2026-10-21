@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AxiosError, AxiosHeaders } from "axios";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { QueryClientProvider } from "react-query";
 import {
 	afterEach,
@@ -60,7 +60,7 @@ const repository: WorkspaceAgentRepoChanges = {
 	branch: "main",
 };
 
-const Harness: FC<{ repository?: WorkspaceAgentRepoChanges }> = ({
+const Harness: React.FC<{ repository?: WorkspaceAgentRepoChanges }> = ({
 	repository,
 }) => {
 	const [draft, setDraft] = useState<FileDraft>();

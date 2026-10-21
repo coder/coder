@@ -11,7 +11,7 @@ import {
  */
 export type FileReveal = { line: number };
 
-export type MainFileTab = {
+type MainFileTab = {
 	/** Absolute path, also the tab's identity. */
 	path: string;
 	reveal?: FileReveal;

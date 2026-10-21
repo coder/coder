@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { type FC, useEffect } from "react";
+import { useEffect } from "react";
 import { QueryClientProvider } from "react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
@@ -24,14 +24,14 @@ vi.mock("../FileTab/FileEditor", () => ({
 const chatId = "chat-main-tabs";
 const chatMounted = vi.fn();
 
-const ChatStub: FC = () => {
+const ChatStub: React.FC = () => {
 	useEffect(() => {
 		chatMounted();
 	}, []);
 	return <textarea aria-label="Message" />;
 };
 
-const Harness: FC<{ paths: readonly string[] }> = ({ paths }) => {
+const Harness: React.FC<{ paths: readonly string[] }> = ({ paths }) => {
 	const mainTabs = useMainTabs(chatId);
 	return (
 		<WorkspaceFilesContext
