@@ -104,10 +104,13 @@ export const SaveCheckpointTool: React.FC<
 	/>
 );
 
-/** chatd refuses the request when automatic rollover is disabled. */
+/**
+ * chatd refuses the request when automatic rollover is disabled, and only a
+ * `scheduled` result counts as a request it accepted.
+ */
 export const NewContextTool: React.FC<
-	ToolRowStatusProps & { refused: boolean }
-> = ({ refused, status, isError, errorMessage }) => (
+	ToolRowStatusProps & { refused: boolean; scheduled: boolean }
+> = ({ refused, scheduled, status, isError, errorMessage }) => (
 	<ToolCall.Root
 		status={status}
 		isError={isError || refused}
@@ -121,7 +124,9 @@ export const NewContextTool: React.FC<
 				failed: refused
 					? "New context window refused"
 					: "New context window request failed",
-				done: "Requested a new context window",
+				done: scheduled
+					? "Requested a new context window"
+					: "New context window",
 			})}
 		/>
 	</ToolCall.Root>
@@ -164,9 +169,10 @@ const chatHistoryErrorMessages = {
 } satisfies Partial<Record<string, string>>;
 
 /**
- * Words the header by `action` and counts results except for `read_item`.
- * A nonempty `errorCode` marks the row failed even when the tool call
- * succeeded, and known codes map to fixed messages.
+ * Words the header by `action` and counts results except for `read_item`,
+ * both only once a result reports `success`. A nonempty `errorCode` marks
+ * the row failed even when the tool call succeeded, and known codes map to
+ * fixed messages.
  */
 export const ChatHistoryTool: React.FC<
 	ToolRowStatusProps & {
@@ -175,6 +181,7 @@ export const ChatHistoryTool: React.FC<
 		itemId: string;
 		resultCount: number | undefined;
 		hasMore: boolean;
+		succeeded: boolean;
 		/** Error code from a failed lookup, or empty on success. */
 		errorCode: string;
 	}
@@ -184,6 +191,7 @@ export const ChatHistoryTool: React.FC<
 	itemId,
 	resultCount,
 	hasMore,
+	succeeded,
 	errorCode,
 	status,
 	isError: isToolError,
@@ -208,6 +216,8 @@ export const ChatHistoryTool: React.FC<
 		label = `${wording.running}${target}…`;
 	} else if (isError) {
 		label = "Chat history lookup failed";
+	} else if (!succeeded) {
+		label = `Chat history lookup${target}`;
 	}
 
 	const counts: string[] = [];
@@ -235,7 +245,7 @@ export const ChatHistoryTool: React.FC<
 				iconName="chat_history"
 				label={label}
 				secondaryLabel={
-					status !== "running" && !isError && counts.length > 0 ? (
+					succeeded && !isError && counts.length > 0 ? (
 						<SecondaryLabel>{counts.join(", ")}</SecondaryLabel>
 					) : null
 				}

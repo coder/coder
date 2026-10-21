@@ -1488,6 +1488,10 @@ export const NewContext: Story = {
 	},
 };
 
+export const NewContextWithoutResult: Story = {
+	args: { name: "new_context", status: "completed", result: undefined },
+};
+
 export const NewContextRunning: Story = {
 	args: {
 		name: "new_context",
@@ -1569,6 +1573,15 @@ export const ChatHistoryReadItem: Story = {
 			success: true,
 			items: [{ itemId: "412", windowId: "w:0", role: "user", text: "..." }],
 		},
+	},
+};
+
+export const ChatHistoryWithoutResult: Story = {
+	args: {
+		name: "chat_history",
+		args: { action: "search", query: "settings page" },
+		status: "completed",
+		result: undefined,
 	},
 };
 

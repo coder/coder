@@ -746,6 +746,7 @@ const NewContextRenderer: React.FC<ToolRendererProps> = ({
 }) => (
 	<NewContextTool
 		refused={asRecord(result)?.code === "rollover_disabled"}
+		scheduled={asRecord(result)?.status === "scheduled"}
 		status={status}
 		isError={isError}
 		errorMessage={toolErrorMessage(result)}
@@ -775,6 +776,7 @@ const ChatHistoryRenderer: React.FC<ToolRendererProps> = ({
 			itemId={asString(argsRec?.item_id)}
 			resultCount={resultCount}
 			hasMore={rec?.has_more === true}
+			succeeded={rec?.success === true}
 			errorCode={asString(rec?.error)}
 			status={status}
 			isError={isError}
