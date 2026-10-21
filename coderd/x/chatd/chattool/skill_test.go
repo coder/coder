@@ -709,6 +709,33 @@ func TestReadSkillTool(t *testing.T) {
 		assert.Contains(t, resp.Content, "not found")
 	})
 
+	t.Run("ModelHiddenSkill", func(t *testing.T) {
+		t.Parallel()
+
+		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				t.Fatal("unexpected call to GetWorkspaceConn")
+				return nil, xerrors.New("unreachable")
+			},
+			GetSkills: func() []chattool.SkillMeta {
+				return []chattool.SkillMeta{{
+					Name: "manual",
+					Dir:  "/work/.agents/skills/manual",
+					Meta: []byte("---\nname: manual\ndescription: Manual only\ndisable-model-invocation: true\n---\nManual body.\n"),
+				}}
+			},
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "read_skill",
+			Input: `{"name":"manual"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Equal(t, `skill "manual" not found`, resp.Content)
+	})
+
 	t.Run("EmptyName", func(t *testing.T) {
 		t.Parallel()
 
@@ -826,6 +853,75 @@ func TestReadSkillFileTool(t *testing.T) {
 		assert.Contains(t, resp.Content, "skill lookup is ambiguous")
 		assert.Contains(t, resp.Content, "personal/deploy")
 		assert.Contains(t, resp.Content, "workspace/deploy")
+	})
+
+	// The model cannot resolve a skill hidden from it, but a person who
+	// invoked the skill needs the supporting files its body references.
+	modelHiddenSkills := []chattool.SkillMeta{{
+		Name: "manual",
+		Dir:  "/work/.agents/skills/manual",
+		Meta: []byte("---\nname: manual\ndescription: Manual only\ndisable-model-invocation: true\n---\nRun scripts/run.sh.\n"),
+	}}
+	resolveNoModelSkills := func(alias string) (skillspkg.ResolvedSkill, error) {
+		return skillspkg.ResolvedSkill{}, xerrors.Errorf("%q: %w", alias, skillspkg.ErrSkillNotFound)
+	}
+
+	t.Run("ModelHiddenSkillServesSupportingFiles", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+		conn.EXPECT().ReadFile(
+			gomock.Any(),
+			"/work/.agents/skills/manual/scripts/run.sh",
+			int64(0),
+			int64(512*1024+1),
+		).DoAndReturn(func(context.Context, string, int64, int64) (io.ReadCloser, string, error) {
+			return io.NopCloser(strings.NewReader("echo manual")), "text/plain", nil
+		}).Times(2)
+
+		tool := chattool.ReadSkillFile(chattool.ReadSkillOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return conn, nil
+			},
+			GetSkills:    func() []chattool.SkillMeta { return modelHiddenSkills },
+			ResolveAlias: resolveNoModelSkills,
+		})
+
+		for _, name := range []string{"manual", "workspace/manual"} {
+			resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+				ID:    "call-" + name,
+				Name:  "read_skill_file",
+				Input: `{"name":"` + name + `","path":"scripts/run.sh"}`,
+			})
+			require.NoError(t, err)
+			assert.False(t, resp.IsError, resp.Content)
+			assert.Contains(t, resp.Content, "echo manual")
+		}
+	})
+
+	t.Run("ModelHiddenSkillRefusesMetaFile", func(t *testing.T) {
+		t.Parallel()
+
+		tool := chattool.ReadSkillFile(chattool.ReadSkillOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				t.Fatal("unexpected call to GetWorkspaceConn")
+				return nil, xerrors.New("unreachable")
+			},
+			GetSkills:    func() []chattool.SkillMeta { return modelHiddenSkills },
+			ResolveAlias: resolveNoModelSkills,
+		})
+
+		for _, path := range []string{"SKILL.md", "skill.md"} {
+			resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+				ID:    "call-" + path,
+				Name:  "read_skill_file",
+				Input: `{"name":"workspace/manual","path":"` + path + `"}`,
+			})
+			require.NoError(t, err)
+			assert.True(t, resp.IsError)
+			assert.Contains(t, resp.Content, "cannot be read with read_skill_file")
+		}
 	})
 
 	t.Run("TraversalRejected", func(t *testing.T) {

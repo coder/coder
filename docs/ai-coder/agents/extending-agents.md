@@ -133,6 +133,10 @@ description: "Multi-reviewer code review with domain-specific reviewers"
 Instructions for the skill go here...
 ```
 
+To keep agents from using a skill on their own, add `disable-model-invocation: true` to its frontmatter.
+Agents don't see the skill in their list of skills and can't load it, but people can still invoke it from the `/` menu in the chat composer.
+For a personal, organization, or project skill, the key turns off automatic use when you create the skill through the API or import it in the project skill editor, the same as turning off **Agents can use it automatically** in [Project skills](#project-skills).
+
 ### Naming and size constraints
 
 - Names must be kebab-case (`^[a-z0-9]+(-[a-z0-9]+)*$`) and match the directory name exactly.

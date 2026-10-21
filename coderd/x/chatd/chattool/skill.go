@@ -50,6 +50,19 @@ type SkillMeta struct {
 	Meta []byte
 }
 
+// ModelInvocable reports whether agents may list and load the skill on
+// their own. A skill whose pinned meta file sets
+// disable-model-invocation: true stays hidden from them but still loads
+// when a person invokes it. A skill without a pinned meta file stays
+// model-invocable.
+func (s SkillMeta) ModelInvocable() bool {
+	raw := s.Meta
+	if int64(len(raw)) > maxSkillMetaBytes {
+		raw = raw[:maxSkillMetaBytes]
+	}
+	return !workspacesdk.SkillDisablesModelInvocation(string(raw))
+}
+
 // SkillContent is the full body of a skill, loaded on demand
 // when the model calls read_skill.
 type SkillContent struct {
@@ -420,20 +433,17 @@ func ReadSkillFile(options ReadSkillOptions) fantasy.AgentTool {
 				), nil
 			}
 
-			resolved, err := resolveSkillAlias(options, args.Name)
-			if err != nil {
-				return skillResolveErrorResponse(args.Name, err), nil
-			}
-			if resolved.Source != skillspkg.SourceWorkspace {
-				return fantasy.NewTextErrorResponse(fmt.Sprintf(
-					"read_skill_file is not supported for %s skills (no supporting files)",
-					resolved.Source,
-				)), nil
-			}
-
-			skill, ok := findSkill(options.GetSkills, resolved.Name)
+			skill, response, ok := resolveSkillFileTarget(options, args.Name)
 			if !ok {
-				return skillNotFoundResponse(args.Name), nil
+				return response, nil
+			}
+			// read_skill stays the only tool that loads the body of a
+			// skill hidden from the model.
+			if !skill.ModelInvocable() && strings.EqualFold(path.Clean(args.Path), DefaultSkillMetaFile) {
+				return fantasy.NewTextErrorResponse(fmt.Sprintf(
+					"%s of skill %q cannot be read with read_skill_file",
+					DefaultSkillMetaFile, args.Name,
+				)), nil
 			}
 
 			// Validate the path early so we reject bad
@@ -472,13 +482,44 @@ func ReadSkillFile(options ReadSkillOptions) fantasy.AgentTool {
 	)
 }
 
+// resolveSkillFileTarget finds the workspace skill whose supporting files
+// read_skill_file serves. Besides the skills listed for the model, it
+// accepts a workspace skill hidden from the model by bare or qualified
+// name: a person can invoke such a skill, and its body may reference
+// supporting files.
+func resolveSkillFileTarget(options ReadSkillOptions, name string) (SkillMeta, fantasy.ToolResponse, bool) {
+	resolved, err := resolveSkillAlias(options, name)
+	if xerrors.Is(err, skillspkg.ErrSkillNotFound) {
+		hiddenName := strings.TrimPrefix(name, skillspkg.QualifiedAlias(skillspkg.SourceWorkspace, ""))
+		skill, ok := findSkill(options.GetSkills, hiddenName)
+		if !ok || skill.ModelInvocable() {
+			return SkillMeta{}, skillNotFoundResponse(name), false
+		}
+		return skill, fantasy.ToolResponse{}, true
+	}
+	if err != nil {
+		return SkillMeta{}, skillResolveErrorResponse(name, err), false
+	}
+	if resolved.Source != skillspkg.SourceWorkspace {
+		return SkillMeta{}, fantasy.NewTextErrorResponse(fmt.Sprintf(
+			"read_skill_file is not supported for %s skills (no supporting files)",
+			resolved.Source,
+		)), false
+	}
+	skill, ok := findSkill(options.GetSkills, resolved.Name)
+	if !ok {
+		return SkillMeta{}, skillNotFoundResponse(name), false
+	}
+	return skill, fantasy.ToolResponse{}, true
+}
+
 func resolveSkillAlias(options ReadSkillOptions, name string) (skillspkg.ResolvedSkill, error) {
 	if options.ResolveAlias != nil {
 		return options.ResolveAlias(name)
 	}
 
 	skill, ok := findSkill(options.GetSkills, name)
-	if !ok {
+	if !ok || !skill.ModelInvocable() {
 		return skillspkg.ResolvedSkill{}, skillspkg.ErrSkillNotFound
 	}
 	return skillspkg.ResolvedSkill{

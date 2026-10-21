@@ -126,12 +126,14 @@ func TestResolveSkillInvocations(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
 		chat := database.Chat{ID: uuid.New(), WorkspaceID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
+		// The invoked workspace skill is hidden from the agent: users can
+		// invoke skills the agent cannot use on its own.
 		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chat.ID).
 			Return([]database.ChatContextResource{{
 				Source:   "/home/coder/.agents/skills/deploy",
 				BodyKind: database.WorkspaceAgentContextBodyKindSkill,
 				Body: mustMarshalContextBody(t, &agentproto.SkillMetaBody{
-					Meta: []byte("---\nname: deploy\ndescription: Deploy\n---\n\nDeploy steps.\n"),
+					Meta: []byte("---\nname: deploy\ndescription: Deploy\ndisable-model-invocation: true\n---\n\nDeploy steps.\n"),
 					Name: "deploy",
 				}),
 				Status: database.WorkspaceAgentContextResourceStatusOk,

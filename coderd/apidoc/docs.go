@@ -24464,7 +24464,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "model_invocable": {
-                    "description": "ModelInvocable defaults to true.",
+                    "description": "ModelInvocable defaults to false when the content's frontmatter sets\ndisable-model-invocation: true, and to true otherwise.",
                     "type": "boolean"
                 }
             }

@@ -7258,7 +7258,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `action`          | boolean | false    |              | Action is only accepted for project skills and defaults to false.                                                                                                     |
 | `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
-| `model_invocable` | boolean | false    |              | Model invocable defaults to true.                                                                                                                                     |
+| `model_invocable` | boolean | false    |              | Model invocable defaults to false when the content's frontmatter sets disable-model-invocation: true, and to true otherwise.                                          |
 
 ## codersdk.CreateTemplateRequest
 
