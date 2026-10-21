@@ -132,10 +132,13 @@ func TestCSRFExemptList(t *testing.T) {
 			URL:    "https://coder.com/scim/v2/Users",
 			Exempt: true,
 		},
+		// Provisioner daemons authenticate with a header and send no
+		// session cookie, which already exempts them. A browser session
+		// under this organization subtree must still be checked.
 		{
 			Name:   "ProvisionerDaemonsServe",
 			URL:    "https://coder.com/api/v2/organizations/default/provisionerdaemons/serve",
-			Exempt: true,
+			Exempt: false,
 		},
 		// The old patterns matched these by substring. A cookie-authenticated
 		// request to any of them must be checked.

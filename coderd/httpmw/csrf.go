@@ -57,8 +57,6 @@ func CSRF(cookieCfg codersdk.HTTPCookieConfig) func(next http.Handler) http.Hand
 		mw.ExemptRegexp(regexp.MustCompile(`^/api/v2/workspaceproxies/me(/|$)`))
 		// Derp routes
 		mw.ExemptRegexp(regexp.MustCompile(`^/derp(/|$)`))
-		// Provisioner daemon routes
-		mw.ExemptRegexp(regexp.MustCompile(`^/api/v2/organizations/[^/]+/provisionerdaemons(/|$)`))
 
 		mw.ExemptFunc(func(r *http.Request) bool {
 			// The router collapses repeated slashes before matching, so
