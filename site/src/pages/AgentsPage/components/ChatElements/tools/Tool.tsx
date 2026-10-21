@@ -732,6 +732,7 @@ const SaveCheckpointRenderer: React.FC<ToolRendererProps> = ({
 }) => (
 	<SaveCheckpointTool
 		checkpoint={asString(parseArgs(args)?.checkpoint)}
+		saved={asRecord(result)?.saved === true}
 		status={status}
 		isError={isError}
 		errorMessage={isError ? toolErrorMessage(result) : undefined}

@@ -1423,6 +1423,15 @@ export const SaveCheckpoint: Story = {
 	},
 };
 
+export const SaveCheckpointWithoutResult: Story = {
+	args: {
+		name: "save_checkpoint",
+		args: { checkpoint: mockCheckpoint },
+		status: "completed",
+		result: undefined,
+	},
+};
+
 export const SaveCheckpointRunning: Story = {
 	args: {
 		name: "save_checkpoint",
