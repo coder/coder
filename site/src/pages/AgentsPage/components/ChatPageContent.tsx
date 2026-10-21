@@ -394,7 +394,8 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	);
 	const { strategy: compactionStrategy } = useUserCompactionStrategy();
 	const compactionThreshold =
-		modelOverridesQuery.isPending || compactionStrategy === undefined
+		compactionStrategy === undefined ||
+		(compactionStrategy === "summarize" && modelOverridesQuery.isPending)
 			? undefined
 			: resolveChatCompactionThreshold(
 					chat.last_model_config_id,
