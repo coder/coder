@@ -46,7 +46,7 @@ import {
 import { RetryButton } from "./RetryButton";
 import { SectionHeader, type SectionHeaderLevel } from "./SectionHeader";
 import type { SkillErrorDisplay, SkillSubmitHandler } from "./SkillEditor";
-import { SkillEditor } from "./SkillEditor";
+import { SkillEditorDialog } from "./SkillEditor";
 import { SkillEnabledSwitch } from "./SkillEnabledSwitch";
 import { useDialogFocusReturn } from "./useDialogFocusReturn";
 
@@ -194,7 +194,7 @@ const EditSkillDialog: React.FC<
 	}
 
 	return (
-		<SkillEditor
+		<SkillEditorDialog
 			open
 			mode="edit"
 			readOnly={state.readOnly}
@@ -462,7 +462,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 			</Table>
 
 			{editorState?.mode === "create" && (
-				<SkillEditor
+				<SkillEditorDialog
 					open
 					mode="create"
 					noun={copy.noun}
