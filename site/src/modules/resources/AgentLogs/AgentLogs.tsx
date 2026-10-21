@@ -81,22 +81,9 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 
 	// re-pins on any content height change; same-frame scroll events run first
 	useEffect(() => {
-		const inner = innerRef.current;
-		if (!follow || !inner) {
-			return;
-		}
-		const observer = new ResizeObserver(() => {
-			if (followRef.current) {
-				scrollToBottom();
-			}
-		});
-		observer.observe(inner);
-		return () => observer.disconnect();
-	}, [follow, scrollToBottom]);
-
-	useEffect(() => {
 		const outer = outerRef.current;
-		if (!follow || !outer) {
+		const inner = innerRef.current;
+		if (!follow || !outer || !inner) {
 			return;
 		}
 		const handleScroll = () => {
@@ -112,9 +99,18 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 				followRef.current = false;
 			}
 		};
+		const observer = new ResizeObserver(() => {
+			if (followRef.current) {
+				scrollToBottom();
+			}
+		});
 		outer.addEventListener("scroll", handleScroll);
-		return () => outer.removeEventListener("scroll", handleScroll);
-	}, [follow]);
+		observer.observe(inner);
+		return () => {
+			outer.removeEventListener("scroll", handleScroll);
+			observer.disconnect();
+		};
+	}, [follow, scrollToBottom]);
 
 	// A log line's real height depends on its content (long lines wrap, so a
 	// single log entry can span multiple visual rows). A fixed itemSize makes
