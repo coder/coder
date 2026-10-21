@@ -20,6 +20,8 @@ export type AssistantSpec = Readonly<{
 	 */
 	snapshot: string;
 	organizationId: string;
+	/** The project the chat is created in, so it gets that project's instructions, skills and memory. */
+	projectId?: string;
 }>;
 
 /** What the assistant chat can reach; decides which prompt variant it gets. */
@@ -30,6 +32,9 @@ export type AssistantTools = Readonly<{
 
 /** The `board/assistant` value of the one assistant for the whole board. */
 export const BOARD_ASSISTANT_KEY = "board";
+
+/** The `board/assistant` value of a lane's assistant, by lane key. */
+export const laneAssistantKey = (lane: string) => `lane:${lane}`;
 
 // Assistants read and act on other chats, which needs a workspace with the
 // Coder tooling. One shared workspace serves every assistant.
@@ -130,11 +135,17 @@ const LABEL_SCHEMA = `| Label | On | Meaning |
 | board/comment.N.timestamp | primary | note N, Unix milliseconds |
 | board/comment.N.M | primary | note N, chunk M (${MAX_LABEL_VALUE_BYTES} byte label limit, at most ${MAX_LABELS_PER_CHAT} labels per chat) |
 | board/effort.N | primary | effort name N, a cross-column grouping; a card can carry several |
-| board/assistant | assistant | id of the card, or "board"; such chats are not on the board |`;
+| board/assistant | assistant | id of the card, "board", or "lane:<project id or none>"; such chats are not on the board |`;
 
 const boardSystemPrompt = (
 	tools: AssistantTools,
-): string => `You are the assistant for the user's Coder Agents board: columns for stages, cards for topics, notes for what the user knows that the agents do not.
+	scope?: string,
+): string => `You are the assistant for the user's Coder Agents board: columns for stages, cards for topics, notes for what the user knows that the agents do not. The board has a lane per project; a card's lane is its primary chat's project_id.
+${scope ? `\n${scope}\n` : ""}
+Projects give their chats shared instructions, skills and memory:
+- List: curl -sH "$H" "$CODER_URL/api/experimental/chats/projects" (id, name, organization_id).
+- A project's context: GET $CODER_URL/api/experimental/organizations/<organization_id>/chats/projects/<id>/instructions, .../skills and .../memories.
+- Move a card to another project, when the user asks: PATCH $CODER_URL/api/v2/chats/<id> with {"project_id": "<project id>"} for every root chat of the card, or the nil UUID to take it out. Subagents follow their root. The server refuses while the chat or a subagent is working.
 
 Purpose: help the user keep the board true to the work. Understand the state of the chats, answer questions, and, when the user explicitly asks, organize the board on their behalf by editing chat labels.
 
@@ -196,23 +207,30 @@ export const cardAssistantSpec = (
 	systemPrompt: cardSystemPrompt(card, tools),
 	snapshot: cardSnapshot(card),
 	organizationId: card.primary.organization_id,
+	projectId: card.primary.project_id,
 });
 
 /** One block per card in display order; the primary id is how the assistant addresses a card. */
-const boardSnapshot = (state: BoardState): string => {
+const boardSnapshot = (
+	state: BoardState,
+	heading = "Board assistant",
+	include: (card: BoardCard) => boolean = () => true,
+): string => {
 	const cards = state.columns.flatMap((column) =>
-		column.cards.map((card) =>
-			[
-				`Card ${card.id} | column: ${card.column} | title: ${card.title} | color: ${card.color ?? "none"} | efforts: ${card.efforts.join(", ") || "none"}`,
-				`  chats: ${card.members
-					.map((chat) => `${chat.title} (${chat.id}) status: ${chat.status}`)
-					.join("; ")}`,
-				`  notes: ${card.comments.length ? card.comments.map((note) => note.text).join(" | ") : "none"}`,
-			].join("\n"),
-		),
+		column.cards
+			.filter(include)
+			.map((card) =>
+				[
+					`Card ${card.id} | column: ${card.column} | project: ${card.primary.project_id ?? "none"} | title: ${card.title} | color: ${card.color ?? "none"} | efforts: ${card.efforts.join(", ") || "none"}`,
+					`  chats: ${card.members
+						.map((chat) => `${chat.title} (${chat.id}) status: ${chat.status}`)
+						.join("; ")}`,
+					`  notes: ${card.comments.length ? card.comments.map((note) => note.text).join(" | ") : "none"}`,
+				].join("\n"),
+			),
 	);
 	return [
-		`Board assistant. Snapshot, ${formatDateTime(new Date(), DATE_FORMAT.ISO_DATETIME_MINUTE)}. This is a sketch; verify before relying on it.`,
+		`${heading}. Snapshot, ${formatDateTime(new Date(), DATE_FORMAT.ISO_DATETIME_MINUTE)}. This is a sketch; verify before relying on it.`,
 		`Columns: ${state.columns.map((column) => column.name).join(", ")}`,
 		...cards,
 	].join("\n");
@@ -230,3 +248,36 @@ export const boardAssistantSpec = (
 	snapshot: boardSnapshot(state),
 	organizationId,
 });
+
+/**
+ * The assistant of one lane: created in the lane's project, when it has one,
+ * and told to work on that lane's cards.
+ */
+export const laneAssistantSpec = (
+	state: BoardState,
+	lane: Readonly<{
+		key: string;
+		name: string;
+		projectId: string | undefined;
+		organizationId: string;
+	}>,
+	inLane: (card: BoardCard) => boolean,
+	tools: AssistantTools,
+): AssistantSpec => {
+	const title = `Assistant: ${lane.name} lane`;
+	const scope = lane.projectId
+		? `Scope: the "${lane.name}" lane, the cards whose primary chat is in project ${lane.projectId}. You run in that project, so its instructions, skills and memory are yours. Other lanes have their own assistants; touch their cards only when the user asks.`
+		: `Scope: the "${lane.name}" lane, the cards whose primary chat is in no project. Other lanes have their own assistants; touch their cards only when the user asks.`;
+	return {
+		key: laneAssistantKey(lane.key),
+		title,
+		systemPrompt: boardSystemPrompt(tools, scope),
+		snapshot: boardSnapshot(
+			state,
+			`Assistant for the ${lane.name} lane`,
+			inLane,
+		),
+		organizationId: lane.organizationId,
+		projectId: lane.projectId,
+	};
+};

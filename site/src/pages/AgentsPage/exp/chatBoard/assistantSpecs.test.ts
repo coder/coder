@@ -1,9 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
-import { boardAssistantSpec, cardAssistantSpec } from "./assistantSpecs";
+import {
+	boardAssistantSpec,
+	cardAssistantSpec,
+	laneAssistantSpec,
+} from "./assistantSpecs";
 import type { BoardState } from "./boardApi";
-import { addCommentLabels, buildCards, buildColumns } from "./boardLabels";
+import {
+	addCommentLabels,
+	buildCards,
+	buildColumns,
+	laneOf,
+} from "./boardLabels";
 
 const chat = (id: string, labels: Record<string, string> = {}): Chat => ({
 	...MockChat,
@@ -28,6 +37,7 @@ const stateOf = (chats: readonly Chat[]): BoardState => {
 			emptyColumns: [],
 			windows: [],
 			effortFilter: null,
+			collapsedLanes: [],
 		},
 	};
 };
@@ -194,7 +204,7 @@ describe("boardAssistantSpec", () => {
 		expect(card).not.toContain("coder_archive_chat");
 	});
 
-	it("snapshots every card with its primary id, column, chats and notes", () => {
+	it("snapshots every card with its primary id, column, project, chats and notes", () => {
 		const chats = [
 			chat("p", {
 				"board/title": "Epic",
@@ -213,10 +223,29 @@ describe("boardAssistantSpec", () => {
 		const text = spec.snapshot;
 		expect(text).toContain("Columns: Inbox, Doing");
 		expect(text).toContain(
-			"Card p | column: Doing | title: Epic | color: sky | efforts: Q3, This week\n  chats: Chat p (p) status: waiting; Chat m (m) status: running\n  notes: one | two",
+			"Card p | column: Doing | project: none | title: Epic | color: sky | efforts: Q3, This week\n  chats: Chat p (p) status: waiting; Chat m (m) status: running\n  notes: one | two",
 		);
 		expect(text).toContain(
-			"Card s | column: Inbox | title: Chat s | color: none | efforts: none\n  chats: Chat s (s) status: waiting\n  notes: none",
+			"Card s | column: Inbox | project: none | title: Chat s | color: none | efforts: none\n  chats: Chat s (s) status: waiting\n  notes: none",
 		);
+	});
+});
+
+describe("laneAssistantSpec", () => {
+	it("lives in the lane's project and sees only that lane's cards", () => {
+		const chats = [{ ...chat("in"), project_id: "p" }, chat("out")];
+		const spec = laneAssistantSpec(
+			stateOf(chats),
+			{ key: "p", name: "Docs", projectId: "p", organizationId: "org-1" },
+			(card) => laneOf(card) === "p",
+			{ coderMcp: false },
+		);
+		expect(spec).toMatchObject({
+			key: "lane:p",
+			title: "Assistant: Docs lane",
+			projectId: "p",
+		});
+		expect(spec.snapshot).toContain("Card in |");
+		expect(spec.snapshot).not.toContain("Card out |");
 	});
 });

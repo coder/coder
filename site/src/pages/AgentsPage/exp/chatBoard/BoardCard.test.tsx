@@ -40,6 +40,7 @@ const renderCard = (chats: readonly Chat[], assistant?: Chat) => {
 	renderComponent(
 		<DragDropProvider sensors={dragSensors}>
 			<BoardCard
+				lane="board"
 				card={card}
 				assistant={assistant}
 				openChatIds={new Set()}

@@ -5,6 +5,8 @@ import {
 	KeyboardSensor,
 	PointerSensor,
 } from "@dnd-kit/react";
+import type { Chat } from "#/api/typesGenerated";
+import { canDragChatToProject } from "../../components/ChatsSidebar/chats/projectDrag";
 import type { DragData, DropData } from "./BoardCard";
 import {
 	type BoardState,
@@ -17,7 +19,13 @@ import {
 	type NoteSlot,
 	type Plan,
 } from "./boardApi";
-import type { BoardCard } from "./boardLabels";
+import {
+	BOARD_LANE,
+	type BoardCard,
+	laneOf,
+	laneProjectId,
+	NO_PROJECT_LANE,
+} from "./boardLabels";
 
 // Over a card, the top and bottom quarters insert before/after it; the
 // middle half merges.
@@ -45,8 +53,13 @@ export const dragPlugins = (defaults: Plugins): Plugins => [
 
 /** Where a drop would land, resolved from the pointer position. */
 export type DropTarget =
-	| { kind: "merge"; card: BoardCard }
-	| { kind: "insert"; column: string; beforeCardId: string | null }
+	| { kind: "merge"; card: BoardCard; lane: string }
+	| {
+			kind: "insert";
+			column: string;
+			lane: string;
+			beforeCardId: string | null;
+	  }
 	| { kind: "column"; name: string; side: "before" | "after" }
 	| { kind: "note"; card: BoardCard; slot: NoteSlot }
 	| { kind: "noteCard"; card: BoardCard };
@@ -68,10 +81,15 @@ const contains = (rect: Rect, { x, y }: Point) =>
 	y >= rect.top &&
 	y <= rect.top + rect.height;
 
-const cardsInColumn = (droppables: readonly BoardDroppable[], column: string) =>
+// A column is drawn once per lane, so its cards are the ones in that lane.
+const cardsInColumn = (
+	droppables: readonly BoardDroppable[],
+	column: string,
+	lane: string,
+) =>
 	droppables
 		.flatMap(({ data, rect }) =>
-			data.type === "card" && data.card.column === column
+			data.type === "card" && data.card.column === column && data.lane === lane
 				? [{ card: data.card, rect }]
 				: [],
 		)
@@ -80,8 +98,9 @@ const cardsInColumn = (droppables: readonly BoardDroppable[], column: string) =>
 const nextCardIdInColumn = (
 	droppables: readonly BoardDroppable[],
 	card: BoardCard,
+	lane: string,
 ): string | null => {
-	const ordered = cardsInColumn(droppables, card.column);
+	const ordered = cardsInColumn(droppables, card.column, lane);
 	const index = ordered.findIndex((entry) => entry.card.id === card.id);
 	return ordered[index + 1]?.card.id ?? null;
 };
@@ -117,13 +136,41 @@ const noteTarget = (
 	return null;
 };
 
+/** The lane a dragged card or chat is in; undefined for notes and columns. */
+const dragLane = (drag: DragData | undefined): string | undefined => {
+	if (drag?.type === "card") return laneOf(drag.card);
+	if (drag?.type === "chat") return drag.chat.project_id ?? NO_PROJECT_LANE;
+	return undefined;
+};
+
+/** The lane a card or chat lands in when dropped on target; undefined when none is drawn. */
+const targetLane = (target: DropTarget): string | undefined =>
+	(target.kind === "insert" || target.kind === "merge") &&
+	target.lane !== BOARD_LANE
+		? target.lane
+		: undefined;
+
 /**
  * Resolves the pointer to one target. A column drag lands before or after
  * the column under the pointer. Over a card, see EDGE_ZONE (chats always
  * join). Over column background, insert before the first card whose middle
- * is below the pointer.
+ * is below the pointer. A drag that cannot change project has no target in
+ * another lane, so nothing lights up there.
  */
 export const boardTarget = (
+	drag: DragData | undefined,
+	droppables: readonly BoardDroppable[],
+	pointer: Point | null,
+	canChangeLane = true,
+): DropTarget | null => {
+	const target = pointerTarget(drag, droppables, pointer);
+	if (!target || canChangeLane) return target;
+	const from = dragLane(drag);
+	const to = targetLane(target);
+	return from === undefined || to === undefined || from === to ? target : null;
+};
+
+const pointerTarget = (
 	drag: DragData | undefined,
 	droppables: readonly BoardDroppable[],
 	pointer: Point | null,
@@ -152,21 +199,25 @@ export const boardTarget = (
 		const y = (pointer.y - cardHit.rect.top) / cardHit.rect.height;
 		const card = cardHit.data.card;
 		if (drag?.type === "chat" || (y > EDGE_ZONE && y < 1 - EDGE_ZONE)) {
-			return { kind: "merge", card };
+			return { kind: "merge", card, lane: cardHit.data.lane };
 		}
 		return {
 			kind: "insert",
 			column: card.column,
+			lane: cardHit.data.lane,
 			beforeCardId:
-				y <= EDGE_ZONE ? card.id : nextCardIdInColumn(droppables, card),
+				y <= EDGE_ZONE
+					? card.id
+					: nextCardIdInColumn(droppables, card, cardHit.data.lane),
 		};
 	}
-	const below = cardsInColumn(droppables, column.name).find(
+	const below = cardsInColumn(droppables, column.name, column.lane).find(
 		({ rect }) => rect.top + rect.height / 2 > pointer.y,
 	);
 	return {
 		kind: "insert",
 		column: column.name,
+		lane: column.lane,
 		beforeCardId: below?.card.id ?? null,
 	};
 };
@@ -180,7 +231,10 @@ export const dragDataOf = (manager: DragDropManager): DragData | undefined =>
  * elements, not dnd-kit's shapes, because dnd-kit drops the shape of an
  * element scrolled out of view and the column order needs every card.
  */
-export const dragTargetOf = (manager: DragDropManager): DropTarget | null => {
+export const dragTargetOf = (
+	manager: DragDropManager,
+	currentUserId: string,
+): DropTarget | null => {
 	const droppables = [...manager.registry.droppables].flatMap((droppable) => {
 		const data = droppable.data as DropData | undefined;
 		const element = droppable.element;
@@ -192,7 +246,28 @@ export const dragTargetOf = (manager: DragDropManager): DropTarget | null => {
 		dragDataOf(manager),
 		droppables,
 		manager.dragOperation.position.current,
+		dragCanChangeLane(dragDataOf(manager), currentUserId),
 	);
+};
+
+/**
+ * Whether a drag may land in another lane, which moves its chats to that
+ * project. The server refuses to move a chat while it or a subagent works,
+ * so the sidebar's rule for dragging a chat onto a project applies.
+ */
+export const dragCanChangeLane = (
+	drag: DragData | undefined,
+	currentUserId: string,
+): boolean => {
+	const chats =
+		drag?.type === "card"
+			? drag.card.members
+			: drag?.type === "chat"
+				? [drag.chat]
+				: [];
+	return chats
+		.filter((chat) => !chat.parent_chat_id)
+		.every((chat) => canDragChatToProject(chat, currentUserId));
 };
 
 /**
@@ -201,6 +276,37 @@ export const dragTargetOf = (manager: DragDropManager): DropTarget | null => {
  * model.
  */
 export const dropCommand = (
+	drag: DragData,
+	target: DropTarget,
+	assistantOf: (cardId: string) => Chat | undefined = () => undefined,
+): ((state: BoardState) => Plan | null) | null => {
+	const command = labelCommand(drag, target);
+	const from = dragLane(drag);
+	const to = targetLane(target);
+	if (!command || from === undefined || to === undefined || from === to) {
+		return command;
+	}
+	const projectId = laneProjectId(to);
+	// Only root chats move; subagents follow their root on the server. A
+	// card that moves takes its assistant along, so it keeps the project's
+	// context; a merged card's assistant stays with the chat it was made on.
+	let chats: readonly (Chat | undefined)[] = [];
+	if (drag.type === "chat") chats = [drag.chat];
+	if (drag.type === "card") {
+		chats = [
+			...drag.card.members,
+			...(target.kind === "insert" ? [assistantOf(drag.card.id)] : []),
+		];
+	}
+	const projectMoves = chats
+		.filter((chat): chat is Chat => chat !== undefined)
+		.filter((chat) => !chat.parent_chat_id)
+		.map((chat) => ({ chat, projectId }));
+	// The labels may already say this column and place; the project still moves.
+	return (state) => ({ writes: [], ...command(state), projectMoves });
+};
+
+const labelCommand = (
 	drag: DragData,
 	target: DropTarget,
 ): ((state: BoardState) => Plan | null) | null => {

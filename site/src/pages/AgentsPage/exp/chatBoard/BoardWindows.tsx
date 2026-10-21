@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useEffectEvent } from "react";
-import type { Chat } from "#/api/typesGenerated";
+import type { Chat, ChatProject } from "#/api/typesGenerated";
 import { AgentChatPageSkeleton } from "../../components/AgentsSkeletons";
 import {
 	type BoardState,
@@ -8,7 +8,7 @@ import {
 	cardOfChat,
 	newChatLabels,
 } from "./boardApi";
-import type { BoardCard, CardColor } from "./boardLabels";
+import { type BoardCard, type CardColor, laneOf } from "./boardLabels";
 import { type ChatWindow, type DraftTarget, windowKey } from "./boardStorage";
 import { FloatingChat } from "./ChatWindows";
 import { DraftChat } from "./DraftChat";
@@ -35,6 +35,8 @@ type BoardWindowsProps = {
 	readonly onDismissTop: () => void;
 	readonly onDraftCreated: (target: DraftTarget, chatId: string) => void;
 	readonly onCardAssistant: (card: BoardCard) => void;
+	/** The project a lane files new chats into; undefined for none or unknown. */
+	readonly projectOf: (lane: string) => ChatProject | undefined;
 };
 
 /** What a window shows in its title bar and in its tab once minimized. */
@@ -43,6 +45,7 @@ const summarizeWindow = (
 	board: BoardState,
 	chatsById: ReadonlyMap<string, Chat>,
 	colorByChatId: ReadonlyMap<string, CardColor>,
+	projectOf: (lane: string) => ChatProject | undefined,
 ): Omit<WindowTab, "key"> => {
 	if (win.kind === "chat") {
 		const chat = chatsById.get(win.chatId);
@@ -55,8 +58,12 @@ const summarizeWindow = (
 
 	const { target } = win;
 	if ("column" in target) {
+		// Names the project too, so the window says where the chat will land.
+		const project = target.lane ? projectOf(target.lane) : undefined;
 		return {
-			title: `New chat in ${target.column}`,
+			title: project
+				? `New chat in ${project.name} / ${target.column}`
+				: `New chat in ${target.column}`,
 			color: undefined,
 			chat: undefined,
 		};
@@ -85,6 +92,7 @@ export const BoardWindows: React.FC<BoardWindowsProps> = ({
 	onDismissTop,
 	onDraftCreated,
 	onCardAssistant,
+	projectOf,
 }) => {
 	const hasWindows = windows.length > 0;
 	const dismissTop = useEffectEvent(onDismissTop);
@@ -109,6 +117,7 @@ export const BoardWindows: React.FC<BoardWindowsProps> = ({
 			board,
 			chatsById,
 			colorByChatId,
+			projectOf,
 		);
 		const frame = {
 			window: win,
@@ -153,6 +162,12 @@ export const BoardWindows: React.FC<BoardWindowsProps> = ({
 			"cardId" in target
 				? board.cards.find((c) => c.id === target.cardId)
 				: undefined;
+		const lane = card
+			? laneOf(card)
+			: "lane" in target
+				? target.lane
+				: undefined;
+		const project = lane === undefined ? undefined : projectOf(lane);
 		return (
 			<FloatingChat
 				// Keyed by target so a new target gets a fresh form, not the pending
@@ -160,7 +175,7 @@ export const BoardWindows: React.FC<BoardWindowsProps> = ({
 				key={
 					"cardId" in target
 						? `${key}:card:${target.cardId}`
-						: `${key}:column:${target.column}`
+						: `${key}:column:${target.lane ?? ""}:${target.column}`
 				}
 				{...frame}
 			>
@@ -169,6 +184,7 @@ export const BoardWindows: React.FC<BoardWindowsProps> = ({
 					context={
 						card && win.includeCardContext ? cardContext(card) : undefined
 					}
+					project={project}
 					onCreated={(chatId) => onDraftCreated(target, chatId)}
 				/>
 			</FloatingChat>
@@ -181,7 +197,7 @@ export const BoardWindows: React.FC<BoardWindowsProps> = ({
 		.filter((win) => win.minimized)
 		.map((win) => ({
 			key: windowKey(win),
-			...summarizeWindow(win, board, chatsById, colorByChatId),
+			...summarizeWindow(win, board, chatsById, colorByChatId, projectOf),
 		}))
 		.toReversed();
 

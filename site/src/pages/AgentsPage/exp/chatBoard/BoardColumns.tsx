@@ -30,6 +30,15 @@ import type { DraftTarget } from "./boardStorage";
 type BoardColumnsProps = ChatOpenHandlers & {
 	/** Columns after the filter, drawn left to right. */
 	readonly columns: readonly BoardColumnModel[];
+	/** The project lane these columns are drawn in, see BoardLane. */
+	readonly lane: string;
+	/**
+	 * "board" fills the page and scrolls; "lane" is as tall as its tallest
+	 * column and leaves scrolling to the lanes around it.
+	 */
+	readonly layout: "board" | "lane";
+	/** The add-column button; columns are shared, so one lane shows it. */
+	readonly showAddColumn: boolean;
 	/** The unfiltered model that every command acts on. */
 	readonly board: BoardState;
 	readonly run: (plan: Plan | null) => Promise<boolean>;
@@ -59,6 +68,9 @@ const keepNote = (text: string) =>
 
 export const BoardColumns: React.FC<BoardColumnsProps> = ({
 	columns,
+	lane,
+	layout,
+	showAddColumn,
 	board,
 	run,
 	assistants,
@@ -75,18 +87,31 @@ export const BoardColumns: React.FC<BoardColumnsProps> = ({
 	const [addingColumn, setAddingColumn] = useState(false);
 
 	return (
-		<div className="flex min-h-0 flex-1 gap-4 overflow-x-auto bg-surface-secondary px-5 pt-4 pb-3">
+		<div
+			className={
+				layout === "board"
+					? "flex min-h-0 flex-1 gap-4 overflow-x-auto bg-surface-secondary px-5 pt-4 pb-3"
+					: "flex w-max gap-4 px-5 pb-3"
+			}
+		>
 			{columns.map((column) => (
 				<BoardColumn
 					key={column.name}
 					column={column}
+					lane={lane}
 					assistants={assistants}
 					openChatIds={openChatIds}
 					dropTarget={dropTarget}
 					knownEfforts={knownEfforts}
 					onRename={(to) => void run(renameColumn(board, column.name, to))}
 					onDelete={() => void run(deleteColumn(board, column.name))}
-					onNewChat={() => onNewChat({ column: column.name })}
+					onNewChat={() =>
+						onNewChat(
+							layout === "lane"
+								? { column: column.name, lane }
+								: { column: column.name },
+						)
+					}
 					onSetCardTitle={(card, title) =>
 						void run(renameCard(board, card.id, title))
 					}
@@ -123,7 +148,7 @@ export const BoardColumns: React.FC<BoardColumnsProps> = ({
 					}
 				/>
 			))}
-			{addingColumn ? (
+			{!showAddColumn ? null : addingColumn ? (
 				<NewColumn
 					onCreate={(name) => void run(addColumn(board, name))}
 					onCancel={() => setAddingColumn(false)}

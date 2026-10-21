@@ -40,9 +40,10 @@ export type DragData =
 	| { type: "column"; name: string }
 	| { type: "note"; card: BoardCardModel; note: BoardNote };
 
+/** `lane` is the project lane the zone is drawn in, see BoardLane. */
 export type DropData =
-	| { type: "column"; name: string }
-	| { type: "card"; card: BoardCardModel }
+	| { type: "column"; name: string; lane: string }
+	| { type: "card"; card: BoardCardModel; lane: string }
 	| { type: "note"; card: BoardCardModel; note: BoardNote };
 
 /** How a card hands a chat to the board: with the element to place a window beside. */
@@ -59,6 +60,7 @@ const rectOf = (element: Element | undefined) =>
 
 type BoardCardProps = ChatOpenHandlers & {
 	readonly card: BoardCardModel;
+	readonly lane: string;
 	/** The card's assistant chat, once one has been created. */
 	readonly assistant: Chat | undefined;
 	readonly openChatIds: ReadonlySet<string>;
@@ -83,6 +85,7 @@ type BoardCardProps = ChatOpenHandlers & {
 
 export const BoardCard: React.FC<BoardCardProps> = ({
 	card,
+	lane,
 	assistant,
 	openChatIds,
 	isDropTarget,
@@ -104,7 +107,7 @@ export const BoardCard: React.FC<BoardCardProps> = ({
 	onRemoveNote,
 }) => {
 	const dragData: DragData = { type: "card", card };
-	const dropData: DropData = { type: "card", card };
+	const dropData: DropData = { type: "card", card, lane };
 	const {
 		ref: dragRef,
 		handleRef,
