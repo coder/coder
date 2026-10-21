@@ -167,13 +167,13 @@ func hasNewContextReceipt(messages []database.ChatMessage) (bool, error) {
 			if part.Type != codersdk.ChatMessagePartTypeToolResult || part.ToolName != chattool.NewContextToolName || part.IsError {
 				continue
 			}
-			var result struct {
-				Status string `json:"status"`
-			}
+			// A dynamic tool of the same name may have returned any JSON
+			// value, which is not a receipt.
+			var result any
 			if err := json.Unmarshal(part.Result, &result); err != nil {
 				return false, xerrors.Errorf("parse new_context result %d: %w", msg.ID, err)
 			}
-			if result.Status == chattool.NewContextScheduledStatus {
+			if fields, ok := result.(map[string]any); ok && fields["status"] == chattool.NewContextScheduledStatus {
 				return true, nil
 			}
 		}
@@ -606,8 +606,9 @@ func replayablePendingUserRows(rows []database.ChatMessage) ([]database.ChatMess
 }
 
 // withoutContextHandoffPrompts returns rows without handoff prompts and
-// the index that rows[pendingStart] moved to. Only the token budget
-// strategy offers the tools that a handoff prompt asks for.
+// the index that rows[pendingStart] moved to. A handoff prompt asks for
+// new_context, which only the token budget strategy offers and which
+// refuses every call when rollovers are disabled.
 func withoutContextHandoffPrompts(rows []database.ChatMessage, pendingStart int) ([]database.ChatMessage, int, error) {
 	kept := make([]database.ChatMessage, 0, len(rows))
 	keptPendingStart := pendingStart
