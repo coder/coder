@@ -640,6 +640,51 @@ func TestUpdateLifecycle(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("PublishesStartupFinished", func(t *testing.T) {
+		t.Parallel()
+
+		for state, finished := range map[agentproto.Lifecycle_State]bool{
+			agentproto.Lifecycle_CREATED:          false,
+			agentproto.Lifecycle_STARTING:         false,
+			agentproto.Lifecycle_READY:            true,
+			agentproto.Lifecycle_START_ERROR:      true,
+			agentproto.Lifecycle_START_TIMEOUT:    true,
+			agentproto.Lifecycle_SHUTTING_DOWN:    false,
+			agentproto.Lifecycle_SHUTDOWN_ERROR:   false,
+			agentproto.Lifecycle_SHUTDOWN_TIMEOUT: false,
+			agentproto.Lifecycle_OFF:              false,
+		} {
+			t.Run(state.String(), func(t *testing.T) {
+				t.Parallel()
+
+				dbM := dbmock.NewMockStore(gomock.NewController(t))
+				dbM.EXPECT().UpdateWorkspaceAgentLifecycleStateByID(gomock.Any(), gomock.Any()).Return(nil)
+				var published []uuid.UUID
+				api := &agentapi.LifecycleAPI{
+					AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
+						return agentStarting, nil
+					},
+					WorkspaceID: workspaceID,
+					Database:    dbM,
+					Log:         testutil.Logger(t),
+					PublishAgentStartupFinishedFn: func(_ context.Context, agentID uuid.UUID) error {
+						published = append(published, agentID)
+						return nil
+					},
+				}
+				_, err := api.UpdateLifecycle(context.Background(), &agentproto.UpdateLifecycleRequest{
+					Lifecycle: &agentproto.Lifecycle{State: state, ChangedAt: timestamppb.New(now)},
+				})
+				require.NoError(t, err)
+				if finished {
+					require.Equal(t, []uuid.UUID{agentStarting.ID}, published)
+				} else {
+					require.Empty(t, published)
+				}
+			})
+		}
+	})
 }
 
 func TestUpdateStartup(t *testing.T) {
