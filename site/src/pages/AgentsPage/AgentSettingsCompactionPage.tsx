@@ -72,7 +72,8 @@ const AgentSettingsCompactionPage: React.FC = () => {
 			modelsError={organizationModels.error ?? organizationModels.partialError}
 			isLoadingModels={
 				organizationModels.isLoading ||
-				modelOverrideQueries.some((query) => query.isLoading)
+				(compactionStrategy !== "token_budget" &&
+					modelOverrideQueries.some((query) => query.isLoading))
 			}
 			compactionTriggerLoadErrors={compactionTriggers.loadErrors}
 			thresholds={thresholdsQuery.data?.thresholds}

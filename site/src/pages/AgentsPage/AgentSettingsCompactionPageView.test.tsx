@@ -106,6 +106,28 @@ describe("AgentSettingsCompactionPageView compaction strategy", () => {
 		);
 	});
 
+	it("keeps the confirmed strategy when the refetch after a save fails", async () => {
+		vi.spyOn(API.experimental, "getUserChatCompactionStrategy")
+			.mockResolvedValueOnce({ strategy: "summarize" })
+			.mockRejectedValue(new Error("strategy read failed"));
+		vi.spyOn(
+			API.experimental,
+			"updateUserChatCompactionStrategy",
+		).mockImplementation(async (req) => req);
+
+		const queryClient = renderView(["chat-token-budget"]);
+		await chooseTokenBudget();
+
+		await waitFor(() =>
+			expect(queryClient.getQueryState(userCompactionStrategyKey)?.status).toBe(
+				"error",
+			),
+		);
+		expect(queryClient.getQueryData(userCompactionStrategyKey)).toEqual({
+			strategy: "token_budget",
+		});
+	});
+
 	it("keeps the saved strategy when saving fails", async () => {
 		vi.spyOn(
 			API.experimental,
