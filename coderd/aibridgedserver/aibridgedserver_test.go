@@ -71,6 +71,10 @@ var requiredExperiments = []codersdk.Experiment{
 func TestAuthorization(t *testing.T) {
 	t.Parallel()
 
+	// A valid request without a workspace resolves to the Everyone group of
+	// this organization.
+	everyoneOrgID := uuid.New()
+
 	cases := []struct {
 		name string
 		// Key will be set to the same key passed to mocksFn if unset.
@@ -157,6 +161,7 @@ func TestAuthorization(t *testing.T) {
 			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
 				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+				expectSiteWideEveryoneFallback(db, user.ID, everyoneOrgID)
 			},
 		},
 	}
@@ -234,10 +239,12 @@ func TestAuthorization(t *testing.T) {
 				require.ErrorIs(t, err, tc.expectedErr)
 			} else {
 				expected := proto.IsAuthorizedResponse{
-					OwnerId:  user.ID.String(),
-					ApiKeyId: keyID,
-					Username: user.Username,
-					Email:    user.Email,
+					OwnerId:            user.ID.String(),
+					ApiKeyId:           keyID,
+					Username:           user.Username,
+					Email:              user.Email,
+					OrganizationId:     everyoneOrgID.String(),
+					OrganizationSource: string(database.AibridgeInterceptionOrganizationSourceEffectiveGroup),
 				}
 				require.NoError(t, err)
 				require.Equal(t, &expected, resp)
@@ -253,6 +260,10 @@ func TestAuthorization(t *testing.T) {
 func TestAuthorization_Delegated(t *testing.T) {
 	t.Parallel()
 
+	// A valid delegated request resolves to the Everyone group of this
+	// organization, as delegated requests carry no workspace.
+	everyoneOrgID := uuid.New()
+
 	cases := []struct {
 		name        string
 		mocksFn     func(db *dbmock.MockStore, apiKey database.APIKey, user database.User)
@@ -264,6 +275,7 @@ func TestAuthorization_Delegated(t *testing.T) {
 			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
 				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+				expectSiteWideEveryoneFallback(db, user.ID, everyoneOrgID)
 			},
 		},
 		{
@@ -298,6 +310,7 @@ func TestAuthorization_Delegated(t *testing.T) {
 				apiKey.HashedSecret = []byte("not-the-real-hash")
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
 				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+				expectSiteWideEveryoneFallback(db, user.ID, everyoneOrgID)
 			},
 		},
 		{
@@ -412,10 +425,12 @@ func TestAuthorization_Delegated(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, &proto.IsAuthorizedResponse{
-				OwnerId:  user.ID.String(),
-				ApiKeyId: keyID,
-				Username: user.Username,
-				Email:    user.Email,
+				OwnerId:            user.ID.String(),
+				ApiKeyId:           keyID,
+				Username:           user.Username,
+				Email:              user.Email,
+				OrganizationId:     everyoneOrgID.String(),
+				OrganizationSource: string(database.AibridgeInterceptionOrganizationSourceEffectiveGroup),
 			}, resp)
 		})
 	}
@@ -494,11 +509,15 @@ func TestAuthorization_WorkspaceAttribution(t *testing.T) {
 
 			db.EXPECT().GetAPIKeyByID(gomock.Any(), key.ID).Return(key, nil)
 			db.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
-			// Unattributed requests make no workspace or organization lookups.
+			// Attributed requests resolve the workspace's organization.
+			// Unattributed requests make no workspace lookups and resolve the
+			// organization of the site-wide effective group instead.
 			orgID := uuid.New()
 			if tt.wantWsID {
 				db.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).Return(database.Workspace{ID: workspaceID, OrganizationID: orgID}, nil)
 				db.EXPECT().GetOrganizationsByUserID(gomock.Any(), gomock.Any()).Return([]database.Organization{{ID: orgID}}, nil)
+			} else if tt.wantErr == nil {
+				expectSiteWideEveryoneFallback(db, user.ID, orgID)
 			}
 
 			srv, err := aibridgedserver.NewServer(t.Context(), aibridgedserver.Options{
@@ -514,12 +533,13 @@ func TestAuthorization_WorkspaceAttribution(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
+			require.Equal(t, orgID.String(), resp.GetOrganizationId())
 			if tt.wantWsID {
 				require.Equal(t, workspaceID.String(), resp.GetWorkspaceId())
-				require.Equal(t, orgID.String(), resp.GetOrganizationId())
+				require.Equal(t, string(database.AibridgeInterceptionOrganizationSourceWorkspace), resp.GetOrganizationSource())
 			} else {
 				require.Empty(t, resp.GetWorkspaceId())
-				require.Empty(t, resp.GetOrganizationId())
+				require.Equal(t, string(database.AibridgeInterceptionOrganizationSourceEffectiveGroup), resp.GetOrganizationSource())
 			}
 		})
 	}
@@ -537,9 +557,10 @@ func TestAuthorization_WorkspaceOrgResolution(t *testing.T) {
 		name string
 		// configure mutates state after the workspace and its session token
 		// exist. It returns the token to authorize with.
-		configure func(t *testing.T, db database.Store, user database.User, org database.Organization, workspace database.WorkspaceTable) string
-		wantErr   error
-		wantOrg   bool
+		configure     func(t *testing.T, db database.Store, user database.User, org database.Organization, workspace database.WorkspaceTable) string
+		wantErr       error
+		wantWorkspace bool
+		wantSource    database.AIBridgeInterceptionOrganizationSource
 	}{
 		{
 			name: "workspace session token resolves workspace org",
@@ -550,16 +571,19 @@ func TestAuthorization_WorkspaceOrgResolution(t *testing.T) {
 				})
 				return token
 			},
-			wantOrg: true,
+			wantWorkspace: true,
+			wantSource:    database.AibridgeInterceptionOrganizationSourceWorkspace,
 		},
 		{
-			// Tokens that are not workspace session tokens have no org source
-			// yet and must keep authorizing without one.
-			name: "non-workspace token resolves no org",
+			// Tokens that are not workspace session tokens fall back to the
+			// organization of the site-wide effective group: here the Everyone
+			// group of the user's only organization.
+			name: "non-workspace token resolves effective group org",
 			configure: func(t *testing.T, db database.Store, user database.User, _ database.Organization, _ database.WorkspaceTable) string {
 				_, token := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
 				return token
 			},
+			wantSource: database.AibridgeInterceptionOrganizationSourceEffectiveGroup,
 		},
 		{
 			name: "missing workspace",
@@ -641,13 +665,164 @@ func TestAuthorization_WorkspaceOrgResolution(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, user.ID.String(), resp.GetOwnerId())
-			if tt.wantOrg {
+			require.Equal(t, org.ID.String(), resp.GetOrganizationId())
+			require.Equal(t, string(tt.wantSource), resp.GetOrganizationSource())
+			if tt.wantWorkspace {
 				require.Equal(t, workspace.ID.String(), resp.GetWorkspaceId())
-				require.Equal(t, org.ID.String(), resp.GetOrganizationId())
 			} else {
 				require.Empty(t, resp.GetWorkspaceId())
-				require.Empty(t, resp.GetOrganizationId())
 			}
+		})
+	}
+}
+
+// TestAuthorization_EffectiveGroupOrgResolution verifies that a request
+// without a workspace resolves to the organization of the user's site-wide
+// effective group, on both the direct and the delegated path. It runs against
+// a real database behind dbauthz so the AI Gateway subject's permissions are
+// exercised.
+func TestAuthorization_EffectiveGroupOrgResolution(t *testing.T) {
+	t.Parallel()
+
+	// fixture is the state each case starts from: a user who is a member of
+	// orgs A and C, with a budgeted group in A. Org B exists, but the user is
+	// not a member.
+	type fixture struct {
+		user             database.User
+		orgA, orgB, orgC database.Organization
+		groupA           database.Group
+	}
+
+	tests := []struct {
+		name      string
+		delegated bool
+		// configure adjusts the fixture and returns the organization the
+		// request should resolve to, or uuid.Nil for none.
+		configure func(ctx context.Context, t *testing.T, db database.Store, f fixture) uuid.UUID
+	}{
+		{
+			name: "budgeted group",
+			configure: func(_ context.Context, _ *testing.T, _ database.Store, f fixture) uuid.UUID {
+				return f.orgA.ID
+			},
+		},
+		{
+			// An override wins over a group budget, even a higher one.
+			name: "override",
+			configure: func(ctx context.Context, t *testing.T, db database.Store, f fixture) uuid.UUID {
+				groupC := dbgen.Group(t, db, database.Group{OrganizationID: f.orgC.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: f.user.ID, GroupID: groupC.ID})
+				_, err := db.UpsertUserAIBudgetOverride(ctx, database.UpsertUserAIBudgetOverrideParams{
+					UserID:           f.user.ID,
+					GroupID:          groupC.ID,
+					SpendLimitMicros: 1,
+				})
+				require.NoError(t, err)
+				return f.orgC.ID
+			},
+		},
+		{
+			// With no budget anywhere, the Everyone group of the default org
+			// is preferred over earlier memberships.
+			name: "no budgets uses default org",
+			configure: func(ctx context.Context, t *testing.T, db database.Store, f fixture) uuid.UUID {
+				_, err := db.DeleteGroupAIBudget(ctx, f.groupA.ID)
+				require.NoError(t, err)
+				defaultOrg, err := db.GetDefaultOrganization(ctx)
+				require.NoError(t, err)
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: defaultOrg.ID, UserID: f.user.ID})
+				return defaultOrg.ID
+			},
+		},
+		{
+			// A user in no live organization resolves no organization and is
+			// still authorized.
+			name: "no membership",
+			configure: func(ctx context.Context, t *testing.T, db database.Store, f fixture) uuid.UUID {
+				for _, org := range []database.Organization{f.orgA, f.orgC} {
+					require.NoError(t, db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
+						OrganizationID: org.ID,
+						UserID:         f.user.ID,
+					}))
+				}
+				return uuid.Nil
+			},
+		},
+		{
+			// Delegated requests carry no workspace, so they take the same
+			// site-wide step.
+			name:      "delegated",
+			delegated: true,
+			configure: func(_ context.Context, _ *testing.T, _ database.Store, f fixture) uuid.UUID {
+				return f.orgA.ID
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			logger := testutil.Logger(t)
+
+			rawDB, _ := dbtestutil.NewDB(t)
+			authzDB := dbauthz.New(rawDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), logger, coderdtest.AccessControlStorePointer())
+
+			f := fixture{
+				user: dbgen.User(t, rawDB, database.User{}),
+				orgA: dbgen.Organization(t, rawDB, database.Organization{}),
+				orgB: dbgen.Organization(t, rawDB, database.Organization{}),
+				orgC: dbgen.Organization(t, rawDB, database.Organization{}),
+			}
+			for _, org := range []database.Organization{f.orgA, f.orgC} {
+				dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: org.ID, UserID: f.user.ID})
+			}
+			f.groupA = dbgen.Group(t, rawDB, database.Group{OrganizationID: f.orgA.ID})
+			dbgen.GroupMember(t, rawDB, database.GroupMemberTable{UserID: f.user.ID, GroupID: f.groupA.ID})
+			_, err := rawDB.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+				GroupID:          f.groupA.ID,
+				SpendLimitMicros: 1_000_000,
+			})
+			require.NoError(t, err)
+			// A budget in org B must never count, as the user is not a member.
+			groupB := dbgen.Group(t, rawDB, database.Group{OrganizationID: f.orgB.ID})
+			_, err = rawDB.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+				GroupID:          groupB.ID,
+				SpendLimitMicros: 1_000_000_000,
+			})
+			require.NoError(t, err)
+
+			wantOrgID := tt.configure(ctx, t, rawDB, f)
+
+			key, token := dbgen.APIKey(t, rawDB, database.APIKey{UserID: f.user.ID})
+			req := &proto.IsAuthorizedRequest{Key: token}
+			if tt.delegated {
+				req = &proto.IsAuthorizedRequest{KeyId: key.ID}
+			}
+
+			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+				Store:         authzDB,
+				AISeatTracker: agplaiseats.Noop{},
+				AccessURL:     "/",
+				GatewayCfg:    codersdk.AIBridgeConfig{},
+				Experiments:   requiredExperiments,
+				Logger:        logger,
+				Clock:         quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			resp, err := srv.IsAuthorized(ctx, req)
+			require.NoError(t, err)
+			require.Equal(t, f.user.ID.String(), resp.GetOwnerId())
+			require.Empty(t, resp.GetWorkspaceId())
+			if wantOrgID == uuid.Nil {
+				require.Empty(t, resp.GetOrganizationId())
+				require.Empty(t, resp.GetOrganizationSource())
+				return
+			}
+			require.Equal(t, wantOrgID.String(), resp.GetOrganizationId())
+			require.Equal(t, string(database.AibridgeInterceptionOrganizationSourceEffectiveGroup), resp.GetOrganizationSource())
 		})
 	}
 }
@@ -1047,6 +1222,61 @@ func TestIsBudgetExceeded_Enforcement(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, resp.GetExceeded())
 		require.Nil(t, resp.SpendLimitMicros)
+	})
+
+	t.Run("organization scopes the budget", func(t *testing.T) {
+		t.Parallel()
+
+		clock := quartz.NewMock(t)
+		clock.Set(time.Date(2026, time.March, 15, 0, 0, 0, 0, time.UTC))
+
+		// The user is over budget in org A's group and under budget in org
+		// B's group. A's group has the higher limit, so it also wins
+		// site-wide.
+		ctx, rawDB, srv, user, groupA := setup(t, clock)
+		_, err := rawDB.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+			UserID:           user.ID,
+			EffectiveGroupID: groupA.ID,
+			Day:              clock.Now(),
+			CostMicros:       1_500_000,
+		})
+		require.NoError(t, err)
+
+		const groupBLimitMicros = groupLimitMicros / 2
+		orgB := dbgen.Organization(t, rawDB, database.Organization{})
+		dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
+		groupB := dbgen.Group(t, rawDB, database.Group{OrganizationID: orgB.ID})
+		dbgen.GroupMember(t, rawDB, database.GroupMemberTable{UserID: user.ID, GroupID: groupB.ID})
+		_, err = rawDB.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+			GroupID:          groupB.ID,
+			SpendLimitMicros: groupBLimitMicros,
+		})
+		require.NoError(t, err)
+
+		for _, tc := range []struct {
+			name         string
+			orgID        string
+			wantExceeded bool
+			wantLimit    int64
+		}{
+			{name: "org B", orgID: orgB.ID.String(), wantExceeded: false, wantLimit: groupBLimitMicros},
+			{name: "org A", orgID: groupA.OrganizationID.String(), wantExceeded: true, wantLimit: groupLimitMicros},
+			{name: "site-wide", orgID: "", wantExceeded: true, wantLimit: groupLimitMicros},
+		} {
+			resp, err := srv.IsBudgetExceeded(ctx, &proto.IsBudgetExceededRequest{
+				UserId:         user.ID.String(),
+				OrganizationId: tc.orgID,
+			})
+			require.NoError(t, err, tc.name)
+			require.Equal(t, tc.wantExceeded, resp.GetExceeded(), tc.name)
+			require.Equal(t, tc.wantLimit, resp.GetSpendLimitMicros(), tc.name)
+		}
+
+		_, err = srv.IsBudgetExceeded(ctx, &proto.IsBudgetExceededRequest{
+			UserId:         user.ID.String(),
+			OrganizationId: "not-a-uuid",
+		})
+		require.ErrorContains(t, err, "invalid organization_id")
 	})
 }
 
@@ -2881,6 +3111,121 @@ func TestRecordTokenUsageAuthorized(t *testing.T) {
 	require.Equal(t, wantCost, spend.SpendMicros, "spend micros")
 }
 
+// TestRecordTokenUsageUsesStoredOrganization verifies that cost resolves the
+// effective group inside the organization stored on the interception, and
+// never picks the site-wide winner from another organization. An interception
+// without an organization keeps site-wide resolution.
+func TestRecordTokenUsageUsesStoredOrganization(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := testutil.Logger(t)
+
+	rawDB, _ := dbtestutil.NewDB(t)
+	authzDB := dbauthz.New(rawDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), logger, coderdtest.AccessControlStorePointer())
+
+	// The user has a budgeted group in org A and in org B. A's limit is higher,
+	// so A's group wins site-wide.
+	user := dbgen.User(t, rawDB, database.User{})
+	budgetedGroup := func(limitMicros int64) database.Group {
+		org := dbgen.Organization(t, rawDB, database.Organization{})
+		dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+		group := dbgen.Group(t, rawDB, database.Group{OrganizationID: org.ID})
+		dbgen.GroupMember(t, rawDB, database.GroupMemberTable{UserID: user.ID, GroupID: group.ID})
+		_, err := rawDB.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+			GroupID:          group.ID,
+			SpendLimitMicros: limitMicros,
+		})
+		require.NoError(t, err)
+		return group
+	}
+	groupA := budgetedGroup(1_000_000_000)
+	groupB := budgetedGroup(1_000_000)
+
+	const provider, model = "anthropic", "claude-sonnet-4-6"
+	priceSeed, err := json.Marshal([]map[string]any{{
+		"provider":     provider,
+		"model":        model,
+		"input_price":  3_000_000,
+		"output_price": 6_000_000,
+	}})
+	require.NoError(t, err)
+	require.NoError(t, rawDB.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: priceSeed, Source: database.AIModelPriceSourceDefault}))
+	aiProvider := dbgen.AIProvider(t, rawDB, database.AIProvider{
+		Name: "anthropic-eu",
+		Type: database.AIProviderTypeAnthropic,
+	})
+
+	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+		Store:         authzDB,
+		AISeatTracker: agplaiseats.Noop{},
+		AccessURL:     "/",
+		GatewayCfg:    codersdk.AIBridgeConfig{},
+		Experiments:   requiredExperiments,
+		Logger:        logger,
+		Clock:         quartz.NewReal(),
+	})
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name      string
+		orgID     uuid.NullUUID
+		wantGroup database.Group
+	}{
+		{
+			name:      "stored organization",
+			orgID:     uuid.NullUUID{UUID: groupB.OrganizationID, Valid: true},
+			wantGroup: groupB,
+		},
+		{
+			// Old interceptions and old gateways store no organization.
+			name:      "no stored organization",
+			wantGroup: groupA,
+		},
+	} {
+		intcParams := database.InsertAIBridgeInterceptionParams{
+			InitiatorID:    user.ID,
+			Provider:       provider,
+			ProviderName:   aiProvider.Name,
+			Model:          model,
+			OrganizationID: tc.orgID,
+		}
+		if tc.orgID.Valid {
+			intcParams.OrganizationSource = database.NullAIBridgeInterceptionOrganizationSource{
+				AIBridgeInterceptionOrganizationSource: database.AibridgeInterceptionOrganizationSourceWorkspace,
+				Valid:                                  true,
+			}
+		}
+		intc := dbgen.AIBridgeInterception(t, rawDB, intcParams, nil)
+
+		now := dbtime.Now()
+		_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+			InterceptionId: intc.ID.String(),
+			MsgId:          "msg_" + tc.name,
+			InputTokens:    100,
+			OutputTokens:   200,
+			CreatedAt:      timestamppb.New(now),
+		})
+		require.NoError(t, err, tc.name)
+
+		tokenUsages, err := rawDB.GetAIBridgeTokenUsagesByInterceptionID(ctx, intc.ID)
+		require.NoError(t, err, tc.name)
+		require.Len(t, tokenUsages, 1, tc.name)
+		require.Equal(t, uuid.NullUUID{UUID: tc.wantGroup.ID, Valid: true}, tokenUsages[0].EffectiveGroupID, tc.name)
+		require.True(t, tokenUsages[0].CostMicros.Valid, tc.name)
+
+		// Each case charges a different group, so the group's spend is
+		// exactly this record's cost.
+		spend, err := rawDB.GetUserAISpendSince(ctx, database.GetUserAISpendSinceParams{
+			UserID:           user.ID,
+			EffectiveGroupID: tc.wantGroup.ID,
+			PeriodStart:      dbtime.StartOfDay(now),
+		})
+		require.NoError(t, err, tc.name)
+		require.Equal(t, tokenUsages[0].CostMicros.Int64, spend.SpendMicros, tc.name)
+	}
+}
+
 // TestBudgetNotificationAuthorized exercises the budget threshold notification
 // path end-to-end against a real database through the dbauthz layer as
 // subjectAibridged. This catches missing RBAC grants on the aibridged subject
@@ -3913,6 +4258,18 @@ func siteWideHighestParams(userID uuid.UUID) database.GetHighestGroupAIBudgetByU
 
 func siteWideFallbackParams(userID uuid.UUID) database.GetUserEveryoneFallbackGroupParams {
 	return database.GetUserEveryoneFallbackGroupParams{UserID: userID, OrganizationID: uuid.NullUUID{}}
+}
+
+// expectSiteWideEveryoneFallback mocks the site-wide effective group lookups
+// IsAuthorized makes for a request without a workspace: no override, no group
+// budget, and the Everyone group of orgID. The Everyone group's ID equals its
+// organization's ID.
+func expectSiteWideEveryoneFallback(db *dbmock.MockStore, userID, orgID uuid.UUID) {
+	db.EXPECT().GetUserAIBudgetOverrideWithOrganization(gomock.Any(), siteWideOverrideParams(userID)).
+		Return(database.GetUserAIBudgetOverrideWithOrganizationRow{}, sql.ErrNoRows)
+	db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), siteWideHighestParams(userID)).
+		Return(database.GetHighestGroupAIBudgetByUserRow{}, sql.ErrNoRows)
+	db.EXPECT().GetUserEveryoneFallbackGroup(gomock.Any(), siteWideFallbackParams(userID)).Return(orgID, nil)
 }
 
 // expectTokenUsageCostLookups mocks the store lookups made by resolveTokenUsageCost

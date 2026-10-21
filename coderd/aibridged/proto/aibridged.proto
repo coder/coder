@@ -196,10 +196,16 @@ message IsAuthorizedResponse {
   string workspace_id = 4; // UUID. Empty when workspace attribution is unknown.
   string email = 5;
   string organization_id = 6; // UUID. Empty when no organization could be resolved for the request.
+  // How organization_id was chosen, as an aibridge_interception_organization_source
+  // value. Empty exactly when organization_id is empty.
+  string organization_source = 7;
 }
 
 message IsBudgetExceededRequest {
   string user_id = 1; // UUID
+  // UUID of the organization from IsAuthorizedResponse. The budget is resolved
+  // inside this organization. Empty means site-wide resolution.
+  string organization_id = 2;
 }
 
 message IsBudgetExceededResponse {
