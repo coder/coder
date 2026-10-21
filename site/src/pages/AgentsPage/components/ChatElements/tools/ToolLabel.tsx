@@ -74,7 +74,8 @@ const uncopiedAttachmentStatuses: ReadonlySet<string> = new Set([
 	"unavailable",
 ]);
 
-// The tool reports attachment problems in its result, never as a failed call.
+// Copy problems come back in a completed result. A failed call means the
+// tool did not run, for example because its input did not decode.
 const getCopyAttachmentsLabel = (status: ToolStatus, result: unknown) => {
 	if (status === "running") {
 		return "Copying attachments to the workspace…";
