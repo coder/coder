@@ -4102,6 +4102,24 @@ class ExperimentalApiMethods {
 		);
 	};
 
+	getUserChatCompactionStrategy =
+		async (): Promise<TypesGen.UserChatCompactionStrategy> => {
+			const response =
+				await this.axios.get<TypesGen.UserChatCompactionStrategy>(
+					"/api/experimental/chats/config/user-compaction-strategy",
+				);
+			return response.data;
+		};
+	updateUserChatCompactionStrategy = async (
+		req: TypesGen.UserChatCompactionStrategy,
+	): Promise<TypesGen.UserChatCompactionStrategy> => {
+		const response = await this.axios.put<TypesGen.UserChatCompactionStrategy>(
+			"/api/experimental/chats/config/user-compaction-strategy",
+			req,
+		);
+		return response.data;
+	};
+
 	getChatModels = async (
 		organizationId: string,
 	): Promise<TypesGen.OrganizationChatModelsResponse> => {

@@ -2957,6 +2957,43 @@ export const deleteUserCompactionThreshold = (queryClient: QueryClient) => ({
 	},
 });
 
+export const userCompactionStrategyKey = [
+	...chatConfigKey,
+	"compaction-strategy",
+	"me",
+] as const;
+
+export const userCompactionStrategy = () => ({
+	queryKey: userCompactionStrategyKey,
+	queryFn: () => API.experimental.getUserChatCompactionStrategy(),
+});
+
+export const updateUserCompactionStrategy = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateUserChatCompactionStrategy,
+	onMutate: async (req: TypesGen.UserChatCompactionStrategy) => {
+		await queryClient.cancelQueries({ queryKey: userCompactionStrategyKey });
+		const previous =
+			queryClient.getQueryData<TypesGen.UserChatCompactionStrategy>(
+				userCompactionStrategyKey,
+			);
+		queryClient.setQueryData(userCompactionStrategyKey, req);
+		return { previous };
+	},
+	onError: (
+		_error: unknown,
+		_req: TypesGen.UserChatCompactionStrategy,
+		context: { previous?: TypesGen.UserChatCompactionStrategy } | undefined,
+	) => {
+		queryClient.setQueryData(userCompactionStrategyKey, context?.previous);
+	},
+	onSuccess: async (saved: TypesGen.UserChatCompactionStrategy) => {
+		queryClient.setQueryData(userCompactionStrategyKey, saved);
+		await queryClient.invalidateQueries({
+			queryKey: userCompactionStrategyKey,
+		});
+	},
+});
+
 const chatModelsKey = [...chatConfigKey, "models"] as const;
 
 export const organizationChatModelsKey = (organizationId: string) =>
