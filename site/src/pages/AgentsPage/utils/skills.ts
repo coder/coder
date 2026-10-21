@@ -1,6 +1,13 @@
 import frontMatter from "front-matter";
 import type { QueryClient } from "react-query";
 import {
+	chatProjectSkill,
+	chatProjectSkills,
+	createChatProjectSkill,
+	deleteChatProjectSkill,
+	updateChatProjectSkill,
+} from "#/api/queries/chatProjectSkills";
+import {
 	createOrganizationSkill,
 	deleteOrganizationSkill,
 	organizationSkill,
@@ -33,6 +40,13 @@ export type SkillFormValues = {
 	name: string;
 	description: string;
 	body: string;
+};
+
+/** The fields of a skill that has not been written yet. */
+export const emptySkillFormValues: SkillFormValues = {
+	name: "",
+	description: "",
+	body: "",
 };
 
 type SkillSearchMetadata = {
@@ -202,6 +216,27 @@ export const tryParseSkillMarkdown = (
 	}
 };
 
+/**
+ * Projects a stored skill into editor fields. The stored name and
+ * description win over the frontmatter, which only supplies the body.
+ */
+export const skillFormValuesFromSkill = (
+	skill: Skill,
+): ReturnType<typeof tryParseSkillMarkdown> => {
+	const parsed = tryParseSkillMarkdown(skill.content);
+	if (!parsed.ok) {
+		return parsed;
+	}
+	return {
+		ok: true,
+		values: {
+			name: skill.name,
+			description: skill.description,
+			body: parsed.values.body,
+		},
+	};
+};
+
 const frontmatterLineValue = (value: string): string =>
 	value.replace(/\r?\n/g, " ").trim();
 
@@ -277,7 +312,8 @@ export type SkillsScope = {
 	detail: (name: string) => SkillsQuery<Skill>;
 	create: (queryClient: QueryClient) => {
 		mutationFn: (req: CreateSkillRequest) => Promise<Skill>;
-		onSuccess: (skill: Skill) => unknown;
+		onSuccess?: (skill: Skill) => unknown;
+		onSettled?: () => unknown;
 	};
 	update: (queryClient: QueryClient) => {
 		mutationFn: (args: {
@@ -312,4 +348,19 @@ export const organizationSkillsScope = (
 	create: (queryClient) => createOrganizationSkill(queryClient, organizationId),
 	update: (queryClient) => updateOrganizationSkill(queryClient, organizationId),
 	remove: (queryClient) => deleteOrganizationSkill(queryClient, organizationId),
+});
+
+/** Adapts a project's skill queries to SkillsScope; mutations refresh its list. */
+export const projectSkillsScope = (
+	organizationId: string,
+	projectId: string,
+): SkillsScope => ({
+	list: chatProjectSkills(organizationId, projectId),
+	detail: (name) => chatProjectSkill(organizationId, projectId, name),
+	create: (queryClient) =>
+		createChatProjectSkill(queryClient, organizationId, projectId),
+	update: (queryClient) =>
+		updateChatProjectSkill(queryClient, organizationId, projectId),
+	remove: (queryClient) =>
+		deleteChatProjectSkill(queryClient, organizationId, projectId),
 });
