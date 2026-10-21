@@ -64,9 +64,9 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 
 	const loadedAttachments = getMessageAttachments(messages);
 	let attachments: MessageAttachment[] | undefined;
+	// Gating on isHydratingMessages alone would blank the list on every live
+	// message.
 	if (isHydratingMessages && messages.length === 0) {
-		// Gating on isHydratingMessages alone would blank the list on every
-		// live message.
 		attachments = undefined;
 	} else if (!hasMoreMessages || hasEarlierAttachmentsError) {
 		attachments = loadedAttachments;
