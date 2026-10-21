@@ -592,10 +592,7 @@ export const UserCompactionThresholdSettings: React.FC<
 			.catch((error: unknown) => {
 				setRowErrors((currentErrors) => ({
 					...currentErrors,
-					[modelId]: getErrorMessage(
-						error,
-						"Failed to reset compaction threshold.",
-					),
+					[modelId]: getErrorMessage(error, "Failed to reset threshold."),
 				}));
 			})
 			.finally(() => {
@@ -630,10 +627,7 @@ export const UserCompactionThresholdSettings: React.FC<
 				.catch((error: unknown) => {
 					setRowErrors((currentErrors) => ({
 						...currentErrors,
-						[modelId]: getErrorMessage(
-							error,
-							"Failed to save compaction threshold.",
-						),
+						[modelId]: getErrorMessage(error, "Failed to save threshold."),
 					}));
 					return false;
 				})
@@ -756,7 +750,7 @@ export const UserCompactionThresholdSettings: React.FC<
 						) : enabledModels.length === 0 ? (
 							<TableEmpty
 								message="No enabled chat models"
-								description="An administrator must configure chat models before compaction thresholds can be set."
+								description="An administrator must configure chat models before thresholds can be set."
 							/>
 						) : (
 							visibleModels.map((modelConfig) => (
