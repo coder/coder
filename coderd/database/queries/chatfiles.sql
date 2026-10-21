@@ -66,8 +66,14 @@ WHERE id = ANY(@ids::uuid[]);
 -- else the single root agent whose name ends with chat_agent_suffix,
 -- else the first root agent by display order, then name, then ID. When
 -- several root agents match the suffix, the first is checked here and
--- the caller's selection reports the ambiguity. A claim counts an
--- attempt, clears the last error and leases the file until
+-- the caller's selection reports the ambiguity. A file is due when its
+-- next attempt time has passed and attempts remain. It is also due, with
+-- a fresh attempt budget, when that agent's ready_at differs from the one
+-- recorded at the file's last claim, unless an unexpired lease without an
+-- error holds it: every agent startup retries failed and parked files
+-- once, with no startup event needed. A claim records the agent's
+-- ready_at, counts an attempt, clears the last error and leases the file
+-- until
 -- lease_expires_at plus the time the content takes to upload at
 -- min_upload_bytes_per_second, so the lease of a large file covers its
 -- upload. The returned lease_expires_at identifies the claim:
@@ -75,7 +81,12 @@ WHERE id = ANY(@ids::uuid[]);
 -- was claimed again cannot record an outcome. File content is not
 -- returned so a batch claim does not load blobs.
 WITH candidates AS (
-	SELECT cf.id, c.id AS chat_id, c.workspace_id
+	SELECT
+		cf.id,
+		c.id AS chat_id,
+		c.workspace_id,
+		selected_agent.ready_at AS agent_ready_at,
+		(selected_agent.ready_at IS DISTINCT FROM cf.workspace_delivery_agent_ready_at) AS agent_restarted
 	FROM chat_files cf
 	JOIN chat_file_links cfl ON cfl.file_id = cf.id
 	JOIN chats c ON c.id = cfl.chat_id
@@ -87,7 +98,7 @@ WITH candidates AS (
 		LIMIT 1
 	) latest_build ON TRUE
 	JOIN LATERAL (
-		SELECT wa.lifecycle_state
+		SELECT wa.lifecycle_state, wa.ready_at
 		FROM workspace_agents wa
 		JOIN workspace_resources wr ON wr.id = wa.resource_id
 		WHERE wr.job_id = latest_build.job_id
@@ -104,8 +115,20 @@ WITH candidates AS (
 	) selected_agent ON TRUE
 	WHERE cf.purpose = 'workspace'::chat_file_purpose
 		AND cf.workspace_delivered_at IS NULL
-		AND (cf.workspace_delivery_next_attempt_at IS NULL OR cf.workspace_delivery_next_attempt_at <= @now::timestamptz)
-		AND cf.workspace_delivery_attempts < @max_attempts::int
+		AND (
+			(
+				(cf.workspace_delivery_next_attempt_at IS NULL OR cf.workspace_delivery_next_attempt_at <= @now::timestamptz)
+				AND cf.workspace_delivery_attempts < @max_attempts::int
+			)
+			OR (
+				selected_agent.ready_at IS DISTINCT FROM cf.workspace_delivery_agent_ready_at
+				AND (
+					cf.workspace_delivery_error IS NOT NULL
+					OR cf.workspace_delivery_next_attempt_at IS NULL
+					OR cf.workspace_delivery_next_attempt_at <= @now::timestamptz
+				)
+			)
+		)
 		AND c.archived = FALSE
 		AND (sqlc.narg('chat_id')::uuid IS NULL OR c.id = sqlc.narg('chat_id')::uuid)
 		AND latest_build.transition = 'start'::workspace_transition
@@ -120,7 +143,8 @@ WITH candidates AS (
 )
 UPDATE chat_files cf
 SET
-	workspace_delivery_attempts = cf.workspace_delivery_attempts + 1,
+	workspace_delivery_attempts = CASE WHEN candidates.agent_restarted THEN 1 ELSE cf.workspace_delivery_attempts + 1 END,
+	workspace_delivery_agent_ready_at = candidates.agent_ready_at,
 	workspace_delivery_next_attempt_at = make_interval(secs => octet_length(cf.data) / @min_upload_bytes_per_second::float8) + @lease_expires_at::timestamptz,
 	workspace_delivery_error = NULL
 FROM candidates
@@ -202,28 +226,6 @@ SET
 FROM chat_file_links cfl
 WHERE cfl.file_id = cf.id
 	AND cfl.chat_id = @chat_id::uuid
-	AND cf.purpose = 'workspace'::chat_file_purpose
-	AND cf.workspace_delivered_at IS NULL
-	AND (
-		cf.workspace_delivery_error IS NOT NULL
-		OR cf.workspace_delivery_next_attempt_at IS NULL
-		OR cf.workspace_delivery_next_attempt_at <= @now::timestamptz
-	);
-
--- name: RetryChatWorkspaceFileDeliveriesByWorkspaceID :execrows
--- RetryChatWorkspaceFileDeliveriesByWorkspaceID resets the undelivered
--- workspace files of every chat bound to the workspace like
--- RetryChatWorkspaceFileDeliveries, for a workspace agent that finished
--- starting and may now accept files it failed or rejected before.
-UPDATE chat_files cf
-SET
-	workspace_delivery_attempts = 0,
-	workspace_delivery_next_attempt_at = NULL,
-	workspace_delivery_error = NULL
-FROM chat_file_links cfl
-JOIN chats c ON c.id = cfl.chat_id
-WHERE cfl.file_id = cf.id
-	AND c.workspace_id = @workspace_id::uuid
 	AND cf.purpose = 'workspace'::chat_file_purpose
 	AND cf.workspace_delivered_at IS NULL
 	AND (

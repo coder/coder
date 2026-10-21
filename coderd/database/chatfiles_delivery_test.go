@@ -649,10 +649,26 @@ func TestChatWorkspaceFileDeliveryOutcomes(t *testing.T) {
 		require.WithinDuration(t, now.Add(chatFileDeliveryLease+45*time.Second), claimed[0].LeaseExpiresAt, time.Millisecond)
 	})
 
-	t.Run("RetryByWorkspace", func(t *testing.T) {
+	t.Run("AgentStartupGrantsFreshAttempts", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		now := dbtime.Now()
+		readyAt := func(agent database.WorkspaceAgent, at time.Time) {
+			t.Helper()
+			require.NoError(t, f.db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+				ID:             agent.ID,
+				LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+				StartedAt:      sql.NullTime{Time: at, Valid: true},
+				ReadyAt:        sql.NullTime{Time: at, Valid: true},
+			}))
+		}
+		startedChat := func() (database.Chat, database.WorkspaceAgent) {
+			t.Helper()
+			workspace, build := f.build(t, database.WorkspaceTable{}, 1, database.WorkspaceTransitionStart)
+			agent := f.agent(ctx, t, build, database.WorkspaceAgent{Name: "dev", LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+			readyAt(agent, now.Add(-time.Hour))
+			return f.chat(t, workspace.ID, uuid.Nil), agent
+		}
 		park := func(chat database.Chat) database.InsertChatFileRow {
 			t.Helper()
 			file := f.linkedFile(ctx, t, chat.ID, database.ChatFilePurposeWorkspace, []byte("payload"))
@@ -670,25 +686,34 @@ func TestChatWorkspaceFileDeliveryOutcomes(t *testing.T) {
 			require.EqualValues(t, 1, failed)
 			return file
 		}
-		chat := f.readyChat(ctx, t)
+		chat, agent := startedChat()
 		parked := park(chat)
 		// A file in flight on the same workspace keeps its lease.
 		f.linkedFile(ctx, t, chat.ID, database.ChatFilePurposeWorkspace, []byte("in flight"))
 		require.Len(t, acquireChatFilesFor(ctx, t, f.db, chat.ID, now), 1)
-		otherChat := f.readyChat(ctx, t)
+		otherChat, _ := startedChat()
 		otherParked := park(otherChat)
+		require.Empty(t, acquireChatFilesFor(ctx, t, f.db, chat.ID, now.Add(2*time.Minute)))
 
-		retried, err := f.db.RetryChatWorkspaceFileDeliveriesByWorkspaceID(ctx, database.RetryChatWorkspaceFileDeliveriesByWorkspaceIDParams{
-			WorkspaceID: chat.WorkspaceID.UUID,
-			Now:         now,
-		})
-		require.NoError(t, err)
-		require.EqualValues(t, 1, retried)
-
+		readyAt(agent, now)
 		claimed := acquireChatFilesFor(ctx, t, f.db, chat.ID, now)
 		require.Len(t, claimed, 1)
 		require.Equal(t, parked.ID, claimed[0].ID)
 		require.Equal(t, int32(1), claimed[0].WorkspaceDeliveryAttempts)
+
+		// The startup grants one fresh budget, not one per claim.
+		failed, err := f.db.FailChatWorkspaceFileDelivery(ctx, database.FailChatWorkspaceFileDeliveryParams{
+			ID:             parked.ID,
+			Error:          "update the workspace agent",
+			NextAttemptAt:  now.Add(time.Minute),
+			Mode:           database.ChatWorkspaceFileDeliveryFailurePark,
+			MaxAttempts:    database.ChatWorkspaceFileMaxDeliveryAttempts,
+			LeaseExpiresAt: claimed[0].LeaseExpiresAt,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, failed)
+		require.Empty(t, acquireChatFilesFor(ctx, t, f.db, chat.ID, now.Add(2*time.Minute)))
+
 		require.Empty(t, acquireChatFilesFor(ctx, t, f.db, otherChat.ID, now.Add(time.Hour)))
 		rows, err := f.db.GetChatFileMetadataByChatID(ctx, otherChat.ID)
 		require.NoError(t, err)

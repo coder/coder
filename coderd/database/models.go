@@ -5443,12 +5443,14 @@ type ChatFile struct {
 	Data           []byte    `db:"data" json:"data"`
 	// Where the file goes: prompt files are sent to the model provider, workspace files are copied into the chat's workspace and never sent to the provider.
 	Purpose ChatFilePurpose `db:"purpose" json:"purpose"`
-	// Counted delivery attempts for a workspace file. Delivery stops at the configured maximum until a retry resets it.
+	// Counted delivery attempts for a workspace file. Delivery stops at the configured maximum until a retry or an agent startup resets it.
 	WorkspaceDeliveryAttempts int32 `db:"workspace_delivery_attempts" json:"workspace_delivery_attempts"`
 	// When a workspace file may be claimed next. NULL means due now. A claim sets it to the lease expiry, so a future value without an error means a delivery is in flight.
 	WorkspaceDeliveryNextAttemptAt sql.NullTime `db:"workspace_delivery_next_attempt_at" json:"workspace_delivery_next_attempt_at"`
 	// Error from the last failed delivery attempt. Cleared when the file is claimed again.
 	WorkspaceDeliveryError sql.NullString `db:"workspace_delivery_error" json:"workspace_delivery_error"`
+	// ready_at of the workspace agent at the last claim. A claim after that agent, or a replacement, finished another startup gets a fresh attempt budget.
+	WorkspaceDeliveryAgentReadyAt sql.NullTime `db:"workspace_delivery_agent_ready_at" json:"workspace_delivery_agent_ready_at"`
 	// When the file was written into the workspace. Once set, data is empty and only metadata and the receipt remain.
 	WorkspaceDeliveredAt sql.NullTime `db:"workspace_delivered_at" json:"workspace_delivered_at"`
 	// Home-relative path the workspace agent wrote the file to.
