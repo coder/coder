@@ -104,6 +104,31 @@ func (p *Server) RequestWorkspaceFileDelivery() {
 	p.wakeWorkspaceFileDelivery()
 }
 
+// retryAttachedWorkspaceFiles gives the workspace files that parts attach
+// a fresh delivery attempt budget in the message's transaction. Removing an
+// attachment before delivery parks its file, and the claim skips a parked
+// file until the agent starts again, so a message that attaches the same
+// file again must reset it.
+func (p *Server) retryAttachedWorkspaceFiles(ctx context.Context, store database.Store, chatID uuid.UUID, parts []codersdk.ChatMessagePart) error {
+	var fileIDs []uuid.UUID
+	for _, part := range parts {
+		if part.Type == codersdk.ChatMessagePartTypeWorkspaceAttachment && part.FileID.Valid {
+			fileIDs = append(fileIDs, part.FileID.UUID)
+		}
+	}
+	if len(fileIDs) == 0 {
+		return nil
+	}
+	if _, err := store.RetryChatWorkspaceFileDeliveriesByIDs(ctx, database.RetryChatWorkspaceFileDeliveriesByIDsParams{
+		ChatID:  chatID,
+		FileIds: fileIDs,
+		Now:     p.clock.Now(),
+	}); err != nil {
+		return xerrors.Errorf("retry attached workspace files: %w", err)
+	}
+	return nil
+}
+
 // wakeWorkspaceFileDelivery requests a delivery sweep on this replica.
 func (p *Server) wakeWorkspaceFileDelivery() {
 	if p.chatWorker != nil {

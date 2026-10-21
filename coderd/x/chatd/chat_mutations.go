@@ -218,6 +218,9 @@ func (p *Server) SendMessage(
 		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
 			return err
 		}
+		if err := p.retryAttachedWorkspaceFiles(ctx, store, opts.ChatID, contentParts); err != nil {
+			return err
+		}
 		if firstUserTurn && !result.Queued {
 			result.FirstUserTurn = true
 			// Persist the fallback title with the message so a failed
@@ -417,7 +420,10 @@ func (p *Server) EditMessage(
 		inserted = append(inserted, editResult.SuffixMessages...)
 		result.InsertedMessages = inserted
 		result.DeletedMessageIDs = editResult.DeletedMessageIDs
-		return chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat)
+		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
+			return err
+		}
+		return p.retryAttachedWorkspaceFiles(ctx, store, opts.ChatID, contentParts)
 	})
 	if err != nil {
 		return EditMessageResult{}, err

@@ -5472,6 +5472,14 @@ func (m queryMetricsStore) RetryChatWorkspaceFileDeliveries(ctx context.Context,
 	return r0, r1
 }
 
+func (m queryMetricsStore) RetryChatWorkspaceFileDeliveriesByIDs(ctx context.Context, arg database.RetryChatWorkspaceFileDeliveriesByIDsParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.RetryChatWorkspaceFileDeliveriesByIDs(ctx, arg)
+	m.queryLatencies.WithLabelValues("RetryChatWorkspaceFileDeliveriesByIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RetryChatWorkspaceFileDeliveriesByIDs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
 	start := time.Now()
 	r0 := m.s.RevokeDBCryptKey(ctx, activeKeyDigest)

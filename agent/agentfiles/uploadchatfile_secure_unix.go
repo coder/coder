@@ -264,13 +264,15 @@ func openWorkspaceUploadDirNoFollow(target uploadTarget) (fd int, err error) {
 	openedPath := target.homeDir
 	for _, component := range components {
 		openedPath = filepath.Join(openedPath, component)
-		err := unix.Mkdirat(current, component, 0o755)
-		if err == nil {
-			err = syncUploadDirAt(current, target.mode())
-		}
-		if err != nil && !errors.Is(err, unix.EEXIST) {
+		if err := unix.Mkdirat(current, component, 0o755); err != nil && !errors.Is(err, unix.EEXIST) {
 			_ = unix.Close(current)
 			return -1, xerrors.Errorf("create upload directory: %w", err)
+		}
+		// Sync an existing component too: the request that created it may
+		// have failed before its sync, leaving the entry off the disk.
+		if err := syncUploadDirAt(current, target.mode()); err != nil {
+			_ = unix.Close(current)
+			return -1, err
 		}
 		next, err := unix.Openat(current, component, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0)
 		if err != nil {
