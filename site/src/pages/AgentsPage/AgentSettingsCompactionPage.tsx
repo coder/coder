@@ -10,6 +10,7 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { AgentSettingsCompactionPageView } from "./AgentSettingsCompactionPageView";
 import { resolveCompactionTriggersByOrganization } from "./compactionTriggers";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
+import { useUserCompactionStrategy } from "./hooks/useUserCompactionStrategy";
 import {
 	providerInfoByIDFromDescriptors,
 	providerTypeByIDFromUserConfigs,
@@ -23,6 +24,7 @@ const AgentSettingsCompactionPage: React.FC = () => {
 	);
 	const providerConfigsQuery = useQuery(userChatProviderConfigs());
 	const thresholdsQuery = useQuery(userCompactionThresholds());
+	const { strategy: compactionStrategy } = useUserCompactionStrategy();
 	const modelOverrideQueries = useQueries({
 		queries: organizations.map((organization) =>
 			organizationChatModelOverrides(organization.id),
@@ -76,6 +78,7 @@ const AgentSettingsCompactionPage: React.FC = () => {
 			thresholdsError={thresholdsQuery.error}
 			onSaveThreshold={handleSaveThreshold}
 			onResetThreshold={handleResetThreshold}
+			compactionStrategy={compactionStrategy}
 		/>
 	);
 };

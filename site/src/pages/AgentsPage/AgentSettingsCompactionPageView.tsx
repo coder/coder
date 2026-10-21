@@ -3,6 +3,7 @@ import type {
 	CompactionTriggerLoadError,
 	OrganizationCompactionTrigger,
 } from "./compactionTriggers";
+import { CompactionStrategySettings } from "./components/CompactionStrategySettings";
 import { SectionHeader } from "./components/SectionHeader";
 import { UserCompactionThresholdSettings } from "./components/UserCompactionThresholdSettings";
 
@@ -25,6 +26,8 @@ export type AgentSettingsCompactionPageViewProps = {
 		thresholdPercent: number,
 	) => Promise<unknown>;
 	onResetThreshold: (modelId: string) => Promise<unknown>;
+	/** Undefined while the user's strategy loads or after it fails to load, which hides the thresholds. */
+	compactionStrategy: TypesGen.ChatCompactionStrategy | undefined;
 };
 
 export const AgentSettingsCompactionPageView: React.FC<
@@ -42,6 +45,7 @@ export const AgentSettingsCompactionPageView: React.FC<
 	thresholdsError,
 	onSaveThreshold,
 	onResetThreshold,
+	compactionStrategy,
 }) => {
 	return (
 		<div className="flex flex-col gap-8">
@@ -49,20 +53,25 @@ export const AgentSettingsCompactionPageView: React.FC<
 				label="Compaction"
 				description="Customize when conversations with models are automatically compacted."
 			/>
-			<UserCompactionThresholdSettings
-				models={models}
-				providerTypeByID={providerTypeByID}
-				organizations={organizations}
-				compactionTriggersByOrganizationID={compactionTriggersByOrganizationID}
-				modelsError={modelsError}
-				compactionTriggerLoadErrors={compactionTriggerLoadErrors}
-				isLoadingModels={isLoadingModels}
-				thresholds={thresholds}
-				isThresholdsLoading={isThresholdsLoading}
-				thresholdsError={thresholdsError}
-				onSaveThreshold={onSaveThreshold}
-				onResetThreshold={onResetThreshold}
-			/>
+			<CompactionStrategySettings />
+			{compactionStrategy !== undefined && (
+				<UserCompactionThresholdSettings
+					models={models}
+					providerTypeByID={providerTypeByID}
+					organizations={organizations}
+					compactionTriggersByOrganizationID={
+						compactionTriggersByOrganizationID
+					}
+					modelsError={modelsError}
+					compactionTriggerLoadErrors={compactionTriggerLoadErrors}
+					isLoadingModels={isLoadingModels}
+					thresholds={thresholds}
+					isThresholdsLoading={isThresholdsLoading}
+					thresholdsError={thresholdsError}
+					onSaveThreshold={onSaveThreshold}
+					onResetThreshold={onResetThreshold}
+				/>
+			)}
 		</div>
 	);
 };

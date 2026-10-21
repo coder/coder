@@ -16,10 +16,12 @@ type SettingsSelectRowProps<T extends string> = {
 	title: string;
 	description: string;
 	ariaLabel: string;
-	value: T;
+	value: T | undefined;
+	placeholder?: string;
 	disabled: boolean;
 	options: readonly SettingsSelectOption<T>[];
 	onValueChange: (value: T) => void;
+	alert?: React.ReactNode;
 	errorMessage: string | undefined;
 };
 
@@ -32,17 +34,20 @@ export const SettingsSelectRow = <T extends string>({
 	description,
 	ariaLabel,
 	value,
+	placeholder,
 	disabled,
 	options,
 	onValueChange,
+	alert,
 	errorMessage,
 }: SettingsSelectRowProps<T>) => (
 	<div className="flex flex-col gap-2">
 		<h3 className="m-0 text-sm font-semibold text-content-primary">{title}</h3>
+		{alert}
 		<div className="flex items-center justify-between gap-4">
 			<p className="m-0 flex-1 text-xs text-content-secondary">{description}</p>
 			<Select
-				value={value}
+				value={value ?? ""}
 				disabled={disabled}
 				onValueChange={(selectedValue: string) => {
 					const selected = options.find((opt) => opt.value === selectedValue);
@@ -50,7 +55,7 @@ export const SettingsSelectRow = <T extends string>({
 				}}
 			>
 				<SelectTrigger className="w-44 shrink-0" aria-label={ariaLabel}>
-					<SelectValue />
+					<SelectValue placeholder={placeholder} />
 				</SelectTrigger>
 				<SelectContent>
 					{options.map((opt) => (
