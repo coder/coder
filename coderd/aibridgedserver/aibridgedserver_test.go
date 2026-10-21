@@ -3061,11 +3061,28 @@ func TestRecordTokenUsageAuthorized(t *testing.T) {
 		Type: database.AIProviderTypeAnthropic,
 	})
 
+	// The organization's price overrides the site-wide one, so reading it
+	// needs the organization-scoped price permission.
+	require.NoError(t, rawDB.UpsertOrganizationAIProviderModelConfig(ctx, database.UpsertOrganizationAIProviderModelConfigParams{
+		OrganizationID:  org.ID,
+		ProviderID:      aiProvider.ID,
+		Model:           model,
+		InputPrice:      sql.NullInt64{Int64: 5_000_000, Valid: true},
+		OutputPrice:     sql.NullInt64{Int64: 10_000_000, Valid: true},
+		CacheReadPrice:  sql.NullInt64{Int64: 500_000, Valid: true},
+		CacheWritePrice: sql.NullInt64{Int64: 2_000_000, Valid: true},
+	}), "set organization model price")
+
 	intc := dbgen.AIBridgeInterception(t, rawDB, database.InsertAIBridgeInterceptionParams{
-		InitiatorID:  user.ID,
-		Provider:     provider,
-		ProviderName: aiProvider.Name,
-		Model:        model,
+		InitiatorID:    user.ID,
+		Provider:       provider,
+		ProviderName:   aiProvider.Name,
+		Model:          model,
+		OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+		OrganizationSource: database.NullAIBridgeInterceptionOrganizationSource{
+			AIBridgeInterceptionOrganizationSource: database.AibridgeInterceptionOrganizationSourceWorkspace,
+			Valid:                                  true,
+		},
 	}, nil)
 
 	// Use fixed dates to keep the test deterministic.
@@ -3101,11 +3118,11 @@ func TestRecordTokenUsageAuthorized(t *testing.T) {
 	tokenUsage := tokenUsages[0]
 
 	require.Equal(t, uuid.NullUUID{UUID: group.ID, Valid: true}, tokenUsage.EffectiveGroupID, "effective group")
-	require.Equal(t, sql.NullInt64{Int64: 3_000_000, Valid: true}, tokenUsage.InputPriceMicros, "input price")
-	require.Equal(t, sql.NullInt64{Int64: 6_000_000, Valid: true}, tokenUsage.OutputPriceMicros, "output price")
-	require.Equal(t, sql.NullInt64{Int64: 300_000, Valid: true}, tokenUsage.CacheReadPriceMicros, "cache read price")
-	require.Equal(t, sql.NullInt64{Int64: 4_000_000, Valid: true}, tokenUsage.CacheWritePriceMicros, "cache write price")
-	const wantCost int64 = 1555
+	require.Equal(t, sql.NullInt64{Int64: 5_000_000, Valid: true}, tokenUsage.InputPriceMicros, "input price")
+	require.Equal(t, sql.NullInt64{Int64: 10_000_000, Valid: true}, tokenUsage.OutputPriceMicros, "output price")
+	require.Equal(t, sql.NullInt64{Int64: 500_000, Valid: true}, tokenUsage.CacheReadPriceMicros, "cache read price")
+	require.Equal(t, sql.NullInt64{Int64: 2_000_000, Valid: true}, tokenUsage.CacheWritePriceMicros, "cache write price")
+	const wantCost int64 = 2545 // 500 + 2000 + 25 + 20
 	require.Equal(t, sql.NullInt64{Int64: wantCost, Valid: true}, tokenUsage.CostMicros, "cost")
 
 	// The daily spend row was incremented for (user, group, today) by the same cost.
@@ -3322,8 +3339,9 @@ func TestBudgetNotificationAuthorized(t *testing.T) {
 }
 
 // TestRecordTokenUsageModelPriceResolution covers which price an interception
-// snapshots when a model carries a price from the embedded book, a price set
-// through the API, or both.
+// snapshots when a model carries a price from the embedded book, a site-wide
+// price set through the API, a price of the interception's stored
+// organization, or several of them.
 func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
 	t.Parallel()
 
@@ -3340,6 +3358,8 @@ func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
 		requestedCustom  = modelPrice{model: model, input: 9_000_000, output: 12_000_000, cacheRead: 900_000, cacheWrite: 8_000_000, cost: 3425}        // 900 + 2400 + 45 + 80
 		providerDefault  = modelPrice{model: providerModel, input: 2_000_000, output: 4_000_000, cacheRead: 200_000, cacheWrite: 1_000_000, cost: 1020} // 200 + 800 + 10 + 10
 		providerCustom   = modelPrice{model: providerModel, input: 1_000_000, output: 2_000_000, cacheRead: 100_000, cacheWrite: 500_000, cost: 510}    // 100 + 400 + 5 + 5
+		requestedOrg     = modelPrice{model: model, input: 5_000_000, output: 10_000_000, cacheRead: 500_000, cacheWrite: 2_000_000, cost: 2545}        // 500 + 2000 + 25 + 20
+		providerOrg      = modelPrice{model: providerModel, input: 4_000_000, output: 7_000_000, cacheRead: 400_000, cacheWrite: 3_000_000, cost: 1850} // 400 + 1400 + 20 + 30
 	)
 
 	priceSeed := func(prices []modelPrice) json.RawMessage {
@@ -3364,7 +3384,14 @@ func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
 		providerModel string
 		defaultPrices []modelPrice
 		customPrices  []modelPrice
-		want          *modelPrice
+		// storedOrg stores the organization on the interception. Without it
+		// the interception has a NULL organization, like old interceptions.
+		storedOrg bool
+		// orgPrices are live prices of the organization for the provider.
+		orgPrices []modelPrice
+		// deletedOrgPrices are organization prices that were soft-deleted.
+		deletedOrgPrices []modelPrice
+		want             *modelPrice
 	}{
 		{
 			name:          "RequestedCustomOnly",
@@ -3439,6 +3466,82 @@ func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
 			defaultPrices: []modelPrice{requestedDefault},
 			want:          &requestedDefault,
 		},
+		{
+			name:          "NoStoredOrgIgnoresOrgPriceForCustom",
+			providerModel: providerModel,
+			defaultPrices: []modelPrice{requestedDefault},
+			customPrices:  []modelPrice{requestedCustom},
+			orgPrices:     []modelPrice{requestedOrg},
+			want:          &requestedCustom,
+		},
+		{
+			name:          "NoStoredOrgIgnoresOrgPriceForDefault",
+			providerModel: providerModel,
+			defaultPrices: []modelPrice{requestedDefault},
+			orgPrices:     []modelPrice{requestedOrg},
+			want:          &requestedDefault,
+		},
+		{
+			name:          "OrgPriceWinsOverCustomAndDefault",
+			providerModel: providerModel,
+			defaultPrices: []modelPrice{requestedDefault},
+			customPrices:  []modelPrice{requestedCustom},
+			storedOrg:     true,
+			orgPrices:     []modelPrice{requestedOrg},
+			want:          &requestedOrg,
+		},
+		{
+			name:          "AbsentOrgPriceFallsBackToCustom",
+			providerModel: providerModel,
+			defaultPrices: []modelPrice{requestedDefault},
+			customPrices:  []modelPrice{requestedCustom},
+			storedOrg:     true,
+			want:          &requestedCustom,
+		},
+		{
+			name:             "DeletedOrgPriceFallsBackToCustom",
+			providerModel:    providerModel,
+			defaultPrices:    []modelPrice{requestedDefault},
+			customPrices:     []modelPrice{requestedCustom},
+			storedOrg:        true,
+			deletedOrgPrices: []modelPrice{requestedOrg},
+			want:             &requestedCustom,
+		},
+		{
+			name:          "NoOrgOrCustomPriceFallsBackToDefault",
+			providerModel: providerModel,
+			defaultPrices: []modelPrice{requestedDefault},
+			storedOrg:     true,
+			want:          &requestedDefault,
+		},
+		{
+			name:          "StoredOrgUnpriced",
+			providerModel: providerModel,
+			storedOrg:     true,
+		},
+		{
+			name:          "ProviderOrgWinsOverProviderCustom",
+			providerModel: providerModel,
+			customPrices:  []modelPrice{providerCustom},
+			storedOrg:     true,
+			orgPrices:     []modelPrice{providerOrg},
+			want:          &providerOrg,
+		},
+		{
+			name:          "RequestedCustomWinsOverProviderOrg",
+			providerModel: providerModel,
+			customPrices:  []modelPrice{requestedCustom},
+			storedOrg:     true,
+			orgPrices:     []modelPrice{providerOrg},
+			want:          &requestedCustom,
+		},
+		{
+			name:          "RequestedOrgWinsOverProviderOrg",
+			providerModel: providerModel,
+			storedOrg:     true,
+			orgPrices:     []modelPrice{requestedOrg, providerOrg},
+			want:          &requestedOrg,
+		},
 	}
 
 	for _, tt := range tests {
@@ -3471,12 +3574,46 @@ func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
 				Name: "anthropic-eu",
 				Type: database.AIProviderTypeAnthropic,
 			})
-			intc := dbgen.AIBridgeInterception(t, rawDB, database.InsertAIBridgeInterceptionParams{
+
+			setOrgPrice := func(p modelPrice) {
+				require.NoError(t, rawDB.UpsertOrganizationAIProviderModelConfig(ctx, database.UpsertOrganizationAIProviderModelConfigParams{
+					OrganizationID:  org.ID,
+					ProviderID:      aiProvider.ID,
+					Model:           p.model,
+					InputPrice:      sql.NullInt64{Int64: p.input, Valid: true},
+					OutputPrice:     sql.NullInt64{Int64: p.output, Valid: true},
+					CacheReadPrice:  sql.NullInt64{Int64: p.cacheRead, Valid: true},
+					CacheWritePrice: sql.NullInt64{Int64: p.cacheWrite, Valid: true},
+				}), "set organization model price")
+			}
+			for _, p := range tt.deletedOrgPrices {
+				setOrgPrice(p)
+				deleted, err := rawDB.DeleteOrganizationAIProviderModelConfig(ctx, database.DeleteOrganizationAIProviderModelConfigParams{
+					OrganizationID: org.ID,
+					ProviderID:     aiProvider.ID,
+					Model:          p.model,
+				})
+				require.NoError(t, err, "delete organization model price")
+				require.EqualValues(t, 1, deleted, "deleted organization model prices")
+			}
+			for _, p := range tt.orgPrices {
+				setOrgPrice(p)
+			}
+
+			intcParams := database.InsertAIBridgeInterceptionParams{
 				InitiatorID:  user.ID,
 				Provider:     provider,
 				ProviderName: aiProvider.Name,
 				Model:        model,
-			}, nil)
+			}
+			if tt.storedOrg {
+				intcParams.OrganizationID = uuid.NullUUID{UUID: org.ID, Valid: true}
+				intcParams.OrganizationSource = database.NullAIBridgeInterceptionOrganizationSource{
+					AIBridgeInterceptionOrganizationSource: database.AibridgeInterceptionOrganizationSourceWorkspace,
+					Valid:                                  true,
+				}
+			}
+			intc := dbgen.AIBridgeInterception(t, rawDB, intcParams, nil)
 
 			reg := prometheus.NewRegistry()
 			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
@@ -4329,9 +4466,10 @@ func expectTokenUsageCostLookups(
 
 	if price != nil {
 		db.EXPECT().GetAIModelPriceForProvider(gomock.Any(), database.GetAIModelPriceForProviderParams{
-			ProviderType: intc.Provider,
-			Model:        intc.Model,
-			ProviderID:   providerID,
+			ProviderType:   intc.Provider,
+			Model:          intc.Model,
+			OrganizationID: intc.OrganizationID,
+			ProviderID:     providerID,
 		}).Return(database.GetAIModelPriceForProviderRow{
 			Model:           intc.Model,
 			InputPrice:      price.InputPrice,

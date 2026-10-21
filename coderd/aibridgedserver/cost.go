@@ -133,14 +133,13 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 	configuredType := string(provider.Type)
 
 	// Snapshot the most specific price for the requested model, falling back
-	// to the model reported by the provider, and compute cost. Organization
-	// prices need the organization the request was made in, which
-	// interceptions do not carry yet, so only site-wide prices match.
-	// TODO(AIGOV-716): pass the organization once interceptions carry it.
+	// to the model reported by the provider, and compute cost. The stored
+	// organization selects organization prices; a NULL organization matches
+	// only site-wide prices.
 	price, err := s.store.GetAIModelPriceForProvider(ctx, database.GetAIModelPriceForProviderParams{
 		ProviderType:   configuredType,
 		Model:          intc.Model,
-		OrganizationID: uuid.NullUUID{},
+		OrganizationID: intc.OrganizationID,
 		ProviderModel:  in.GetProviderModel(),
 		ProviderID:     provider.ID,
 	})
