@@ -437,8 +437,8 @@ func ReadSkillFile(options ReadSkillOptions) fantasy.AgentTool {
 			if !ok {
 				return response, nil
 			}
-			// read_skill stays the only tool that loads the body of a
-			// skill hidden from the model.
+			// Only a person's invocation loads the body of a skill hidden
+			// from the model, so its meta file is not served here.
 			if !skill.ModelInvocable() && strings.EqualFold(path.Clean(args.Path), DefaultSkillMetaFile) {
 				return hiddenSkillMetaFileResponse(args.Name, args.Path), nil
 			}
