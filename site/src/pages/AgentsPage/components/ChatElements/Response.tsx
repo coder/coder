@@ -15,7 +15,6 @@ import {
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
-import { useWorkspaceFiles } from "../../context/WorkspaceFilesContext";
 import { rehypeFileMentions } from "../../utils/filePathMentions";
 import { FileMention } from "./FileMention";
 import {
@@ -45,9 +44,14 @@ type ResponseProps = Omit<React.ComponentProps<"div">, "children"> & {
 // this, JSX fragments such as <ComponentName prop={value} /> are
 // consumed by rehype-raw and then stripped by rehype-sanitize,
 // silently destroying content mid-stream.
+//
+// rehypeFileMentions always runs because Streamdown's block memo ignores
+// plugin changes; it only marks nodes, and FileMention renders them as
+// plain content until workspace files are available.
 const chatRehypePlugins = [
 	defaultRehypePlugins.sanitize,
 	defaultRehypePlugins.harden,
+	rehypeFileMentions,
 ];
 
 // Only used when chips are passed in, so odd characters in agent replies
@@ -58,6 +62,7 @@ const inlineNodeRehypePlugins = [
 	defaultRehypePlugins.sanitize,
 	rehypeInlineNodes,
 	defaultRehypePlugins.harden,
+	rehypeFileMentions,
 ];
 
 const lineBreakRemarkPlugins = [
@@ -67,16 +72,6 @@ const lineBreakRemarkPlugins = [
 
 const noInlineNodes: readonly InlineNode[] = [];
 const InlineNodesContext = createContext(noInlineNodes);
-
-const chatRehypePluginsWithFileMentions = [
-	...chatRehypePlugins,
-	rehypeFileMentions,
-];
-
-const inlineNodeRehypePluginsWithFileMentions = [
-	...inlineNodeRehypePlugins,
-	rehypeFileMentions,
-];
 
 type HastNode = {
 	type?: string;
@@ -403,7 +398,6 @@ export const Response = ({
 		typeof children === "string"
 			? { markdown: children, inlineNodes: undefined }
 			: joinInlineNodes(children);
-	const files = useWorkspaceFiles();
 
 	return (
 		<div
@@ -423,13 +417,7 @@ export const Response = ({
 						preserveLineBreaks ? lineBreakRemarkPlugins : undefined
 					}
 					rehypePlugins={
-						inlineNodes
-							? files
-								? inlineNodeRehypePluginsWithFileMentions
-								: inlineNodeRehypePlugins
-							: files
-								? chatRehypePluginsWithFileMentions
-								: chatRehypePlugins
+						inlineNodes ? inlineNodeRehypePlugins : chatRehypePlugins
 					}
 					mode={streaming ? "streaming" : "static"}
 					parseIncompleteMarkdown={streaming}
