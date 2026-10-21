@@ -1748,6 +1748,12 @@ describe("chatAttachments", () => {
 			beforeId: 10,
 			seeded: false,
 		},
+		{
+			name: "fetches every attachment for boundary 0",
+			chatId: "chat-1",
+			beforeId: 0,
+			seeded: false,
+		},
 	])("$name", ({ chatId, beforeId, seeded }) => {
 		vi.mocked(API.experimental.getChatAttachments).mockReturnValue(
 			new Promise(() => {}),
