@@ -79,7 +79,6 @@ export const DisconnectedSSHError: Story = {
 	},
 };
 
-// A standalone disconnect stores its own timestamp as the connect time.
 const mockNoConnectRecorded: ConnectionLog = {
 	...MockDisconnectedSSHConnectionLog,
 	connect_time: MockDisconnectedSSHConnectionLog.ssh_info.disconnect_time,

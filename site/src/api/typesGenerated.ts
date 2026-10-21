@@ -4133,13 +4133,11 @@ export interface ConnectionLogResponse {
 export interface ConnectionLogSSHInfo {
 	readonly connection_id: string;
 	/**
-	 * ClientSessionID is an optional client-supplied correlation label, not a
-	 * unique IDE-instance identifier. Related rows may overlap or have gaps.
+	 * ClientSessionID is set by the client and isn't guaranteed to be unique.
 	 */
 	readonly client_session_id?: string;
 	/**
-	 * DurationSeconds is the stored connect-to-disconnect interval. It is
-	 * omitted unless DurationStatus is recorded.
+	 * DurationSeconds is set only when DurationStatus is recorded.
 	 */
 	readonly duration_seconds?: number;
 	readonly duration_status: ConnectionLogDurationStatus;

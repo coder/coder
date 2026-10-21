@@ -44,7 +44,6 @@ func TestConvertConnectionLogDuration(t *testing.T) {
 	}{
 		{"Recorded", start, closed(end), codersdk.ConnectionLogDurationRecorded, new(90.25)},
 		{"NoDisconnect", start, sql.NullTime{}, codersdk.ConnectionLogDurationNoDisconnect, nil},
-		// A standalone disconnect stores its own timestamp as connect_time.
 		{"MissingConnect", end, closed(end), codersdk.ConnectionLogDurationMissingConnect, nil},
 		{"Reversed", end, closed(start), codersdk.ConnectionLogDurationInvalid, nil},
 		{"ZeroStart", time.Time{}, closed(end), codersdk.ConnectionLogDurationInvalid, nil},

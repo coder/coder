@@ -12,14 +12,14 @@ import { humanDurationShort } from "#/utils/time";
 import { ConnectionLogDescription } from "./ConnectionLogDescription/ConnectionLogDescription";
 import { ConnectionLogDetailsPopover } from "./ConnectionLogDetailsPopover";
 
-const unavailableDurationLabels: Record<
-	Exclude<ConnectionLogDurationStatus, "recorded">,
-	string
-> = {
+const unavailableDurationLabels = {
 	no_disconnect: "No disconnect recorded",
 	missing_connect: "No connect recorded",
 	invalid: "Duration unavailable",
-};
+} as const satisfies Record<
+	Exclude<ConnectionLogDurationStatus, "recorded">,
+	string
+>;
 
 const durationLabel = (sshInfo: ConnectionLogSSHInfo): string | undefined => {
 	if (sshInfo.duration_status !== "recorded") {
@@ -40,7 +40,7 @@ export const ConnectionLogRow: React.FC<ConnectionLogRowProps> = ({
 	const isWeb = connectionLog.web_info !== undefined;
 	const code =
 		connectionLog.web_info?.status_code ?? connectionLog.ssh_info?.exit_code;
-	const duration = connectionLog.ssh_info
+	const durationText = connectionLog.ssh_info
 		? durationLabel(connectionLog.ssh_info)
 		: undefined;
 
@@ -74,9 +74,9 @@ export const ConnectionLogRow: React.FC<ConnectionLogRowProps> = ({
 									{connectionLog.ssh_info?.disconnect_time &&
 										` → ${new Date(connectionLog.ssh_info.disconnect_time).toLocaleTimeString()}`}
 								</span>
-								{duration && (
+								{durationText && (
 									<span className="text-content-secondary text-xs">
-										{duration}
+										{durationText}
 									</span>
 								)}
 							</div>

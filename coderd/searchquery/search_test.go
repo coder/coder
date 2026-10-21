@@ -686,7 +686,6 @@ func TestSearchConnectionLogs(t *testing.T) {
 	t.Run("ClientSessionID", func(t *testing.T) {
 		t.Parallel()
 		const sessionID = "0123456789abcdef0123456789abcdef"
-		// Queries are lowercased, so uppercase IDs match too.
 		values, count, errs := searchquery.ConnectionLogs(t.Context(), nil, "client_session_id:"+strings.ToUpper(sessionID), database.APIKey{})
 		require.Empty(t, errs)
 		require.Equal(t, sessionID, values.ClientSessionID)
