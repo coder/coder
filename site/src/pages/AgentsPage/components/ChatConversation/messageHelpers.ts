@@ -387,15 +387,3 @@ export const getAgentAttachments = (
 			}),
 		)
 		.reverse();
-
-/**
- * Undefined until the chat's first message page reaches the store; gating on
- * isHydratingMessages alone would blank the list on every live message.
- */
-export const getLoadedAgentAttachments = (
-	messages: readonly TypesGen.ChatMessage[],
-	isHydratingMessages: boolean,
-): AgentAttachment[] | undefined =>
-	isHydratingMessages && messages.length === 0
-		? undefined
-		: getAgentAttachments(messages);

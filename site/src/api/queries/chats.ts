@@ -1122,6 +1122,17 @@ export const resetUnloadedChatEntity = (
 	});
 };
 
+/** As resetUnloadedChatEntity, for every chat list that has not loaded. */
+export const resetUnloadedChatLists = (queryClient: QueryClient) =>
+	Promise.all(
+		[chatListFamilyKey, chatProjectListFamilyKey].map((queryKey) =>
+			queryClient.resetQueries({
+				queryKey,
+				predicate: (query) => query.state.data === undefined,
+			}),
+		),
+	);
+
 export const removeChatEntity = (queryClient: QueryClient, chatId: string) =>
 	queryClient.removeQueries({
 		queryKey: chatEntityKey(chatId),

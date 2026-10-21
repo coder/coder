@@ -4509,6 +4509,62 @@ describe("semantic cache operations: cancellation", () => {
 
 		expect(resetSpy).not.toHaveBeenCalled();
 	});
+
+	it("resetUnloadedChatLists restarts first fetches of sidebar and project lists", async () => {
+		const queryClient = createTestQueryClient();
+		const staleChat = makeChat("chat-1");
+		const movedChat = makeChat("chat-1", { project_id: "project-1" });
+		const firstFetches = [
+			createDeferred<TypesGen.Chat[]>(),
+			createDeferred<TypesGen.Chat[]>(),
+		];
+		const getChats = vi
+			.mocked(API.experimental.getChats)
+			.mockReturnValueOnce(firstFetches[0].promise)
+			.mockReturnValueOnce(firstFetches[1].promise)
+			.mockResolvedValueOnce([movedChat])
+			.mockResolvedValueOnce([movedChat]);
+		const lists = observeChatLists(queryClient);
+		try {
+			expect(getChats).toHaveBeenCalledTimes(2);
+
+			const reset = resetUnloadedChatLists(queryClient);
+			// Both first responses read the lists before the move.
+			for (const firstFetch of firstFetches) {
+				firstFetch.resolve([staleChat]);
+			}
+			await reset;
+
+			expect(getChats).toHaveBeenCalledTimes(4);
+			expect(lists.chats()).toEqual([[movedChat], [movedChat]]);
+		} finally {
+			lists.unsubscribe();
+		}
+	});
+
+	it("resetUnloadedChatLists keeps loaded lists and sends no request", async () => {
+		const queryClient = createTestQueryClient();
+		// Answers any request, so a refetch fails below instead of timing out.
+		const getChats = vi.mocked(API.experimental.getChats).mockResolvedValue([]);
+		const loadedChats = [makeChat("chat-1")];
+		seedInfiniteChats(queryClient, loadedChats);
+		queryClient.setQueryData<InfiniteData>(projectChatsKey("project-1"), {
+			pages: [loadedChats],
+			pageParams: [0],
+		});
+		// Fresh data keeps the observers from fetching on mount.
+		const lists = observeChatLists(queryClient, {
+			staleTime: Number.POSITIVE_INFINITY,
+		});
+		try {
+			await resetUnloadedChatLists(queryClient);
+
+			expect(getChats).not.toHaveBeenCalled();
+			expect(lists.chats()).toEqual([loadedChats, loadedChats]);
+		} finally {
+			lists.unsubscribe();
+		}
+	});
 });
 
 describe("semantic cache operations: removal and patching", () => {

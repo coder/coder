@@ -187,6 +187,33 @@ describe("AgentChatInput", () => {
 		expect(onSend).not.toHaveBeenCalled();
 	});
 
+	it("offers the chat organization's skills in the slash menu", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(userSkills().queryKey, []);
+		queryClient.setQueryData(organizationSkills("org-1").queryKey, [
+			{ ...MockSkill, name: "release-notes" },
+		]);
+
+		render(
+			<AppProviders queryClient={queryClient}>
+				<AgentChatInput
+					{...inputProps}
+					inputRef={inputRef}
+					chatOrganizationId="org-1"
+				/>
+			</AppProviders>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("/rel");
+		await user.click(
+			await screen.findByRole("option", { name: /release-notes/ }),
+		);
+		expect(inputRef.current?.getValue()).toBe("/release-notes");
+	});
+
 	it("accepts typing without sending while a send is pending", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();

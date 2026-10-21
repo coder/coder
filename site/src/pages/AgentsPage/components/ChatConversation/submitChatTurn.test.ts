@@ -52,6 +52,7 @@ const buildParams = (
 		hasModelOptions: true,
 		isEditReasoningEffortDirtyRef: { current: false },
 		personalSkills: [],
+		organizationSkills: [],
 		workspaceSkills: [],
 		compact: vi.fn().mockResolvedValue(undefined),
 		clearChatContext: vi.fn().mockResolvedValue(undefined),

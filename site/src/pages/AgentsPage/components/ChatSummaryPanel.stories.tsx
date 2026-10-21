@@ -70,7 +70,6 @@ const meta: Meta<typeof ChatSummaryPanel> = {
 		isVisible: true,
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
-		isHydratingMessages: false,
 		hasFetchMoreError: false,
 		onFetchMoreMessages: fn(),
 	},
@@ -215,29 +214,6 @@ export const WithAttachments: Story = {
 	parameters: {
 		queries: [
 			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
-			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
-		],
-	},
-};
-
-export const LoadingMessages: Story = {
-	args: { isHydratingMessages: true },
-	parameters: {
-		queries: [
-			{ key: chatEntityKey(MockChat.id), data: MockChat },
-			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
-		],
-	},
-};
-
-export const LiveMessageArriving: Story = {
-	args: { isHydratingMessages: true },
-	render: (args) => (
-		<ChatSummaryPanel {...args} store={createAttachmentStore()} />
-	),
-	parameters: {
-		queries: [
-			{ key: chatEntityKey(MockChat.id), data: MockChat },
 			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
 		],
 	},
