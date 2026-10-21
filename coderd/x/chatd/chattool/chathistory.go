@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 	"unicode/utf16"
+	"unicode/utf8"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -196,7 +197,7 @@ func validateChatHistoryArgs(args chatHistoryArgs) string {
 		return "filters_unsupported"
 	}
 	if args.Limit < 0 || args.MaxCharsPerItem < 0 || args.OffsetChars < 0 || args.LimitChars < 0 ||
-		len(args.Query) > chatHistoryMaxQueryChars {
+		utf8.RuneCountInString(args.Query) > chatHistoryMaxQueryChars {
 		return "invalid_arguments"
 	}
 	return ""
@@ -444,11 +445,11 @@ func (r *chatHistoryReader) scan(visit func(database.ChatMessage) bool) (bool, e
 			if r.upper > 0 && row.ID >= r.upper {
 				return true, nil
 			}
-			if rowsScanned >= chatHistoryMaxScanRows || bytesScanned >= chatHistoryMaxScanBytes {
-				return false, nil
-			}
 			rowsScanned++
 			bytesScanned += len(row.Content.RawMessage)
+			if rowsScanned > chatHistoryMaxScanRows || bytesScanned > chatHistoryMaxScanBytes {
+				return false, nil
+			}
 			if !visit(row) {
 				return false, nil
 			}
