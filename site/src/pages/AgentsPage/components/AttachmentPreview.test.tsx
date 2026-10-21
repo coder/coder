@@ -9,7 +9,7 @@ afterEach(() => {
 });
 
 describe("AttachmentPreview", () => {
-	it("never loads the content of a workspace text file", async () => {
+	it("removes a workspace text file without loading its content", async () => {
 		const user = userEvent.setup();
 		const fetchSpy = vi
 			.spyOn(globalThis, "fetch")
@@ -36,9 +36,9 @@ describe("AttachmentPreview", () => {
 				onInlineText={onInlineText}
 			/>,
 		);
-		for (const button of screen.getAllByRole("button")) {
-			await user.click(button);
-		}
+		expect(screen.queryByRole("button", { name: "View build.log" })).toBeNull();
+		expect(screen.queryByRole("button", { name: "Paste inline" })).toBeNull();
+		await user.click(screen.getByRole("button", { name: "Remove build.log" }));
 
 		expect(onRemove).toHaveBeenCalledWith(file);
 		expect(fetchSpy).not.toHaveBeenCalled();
