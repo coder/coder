@@ -2,8 +2,11 @@
 
 package agentfiles
 
-import "io"
+import (
+	"context"
+	"io"
+)
 
-func (api *API) writeUploadExclusiveSecure(target uploadTarget, name string, r io.Reader) (finalName, finalPath string, size int64, err error) {
+func (*API) writeUploadExclusiveSecure(context.Context, uploadTarget, string, io.Reader) (finalName, finalPath string, size int64, err error) {
 	return "", "", 0, errUploadSecureUnsupported
 }
