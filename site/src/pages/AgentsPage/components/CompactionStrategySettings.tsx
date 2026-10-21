@@ -14,12 +14,10 @@ const strategyLabels = {
 	token_budget: "Token budget",
 } satisfies Record<ChatCompactionStrategy, string>;
 
-const strategyOptions = ChatCompactionStrategies.map((value) => ({
-	value,
-	label: strategyLabels[value],
-}));
-
-/** Lets the user choose how chatd keeps long chats within the context window. */
+/**
+ * Renders nothing unless the chat-token-budget experiment is on. The choice
+ * is saved per user, and chatd applies it to every chat the user owns.
+ */
 export const CompactionStrategySettings: React.FC = () => {
 	const queryClient = useQueryClient();
 	const { isExperimentEnabled, query } = useUserCompactionStrategy();
@@ -37,7 +35,10 @@ export const CompactionStrategySettings: React.FC = () => {
 			value={query.data?.strategy}
 			placeholder={query.error != null ? "Unavailable" : "Loading…"}
 			disabled={!query.data || mutation.isPending}
-			options={strategyOptions}
+			options={ChatCompactionStrategies.map((value) => ({
+				value,
+				label: strategyLabels[value],
+			}))}
 			onValueChange={(strategy) => mutation.mutate({ strategy })}
 			alert={query.error != null && <ErrorAlert error={query.error} />}
 			errorMessage={
