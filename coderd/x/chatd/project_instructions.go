@@ -53,24 +53,10 @@ func (p *Server) resolveUsableChatProjectID(ctx context.Context, logger slog.Log
 	return projectID
 }
 
-// resolveProjectInstructions returns the system prompt block holding the
-// instructions of the chat's project, or "" when there are none.
-// Instructions are read on every turn so edits reach existing chats on their
-// next turn.
-//
-// A chat runs without project instructions when the project or its
-// instructions cannot be loaded, when the access check fails, or when the
-// chat owner can no longer use the project.
-func (p *Server) resolveProjectInstructions(ctx context.Context, logger slog.Logger, chat database.Chat) string {
-	projectID := p.resolveUsableChatProjectID(ctx, logger, chat)
-	if !projectID.Valid {
-		return ""
-	}
-	return p.loadProjectInstructions(ctx, logger, projectID.UUID)
-}
-
 // loadProjectInstructions returns the instructions block of a project the
-// chat owner can use, or "" when it has none or they cannot be loaded.
+// chat owner can use, as checked by resolveUsableChatProjectID, or "" when it
+// has none or they cannot be loaded. Instructions are read on every turn so
+// edits reach existing chats on their next turn.
 func (p *Server) loadProjectInstructions(ctx context.Context, logger slog.Logger, projectID uuid.UUID) string {
 	row, err := p.db.GetChatProjectInstructionsByProjectID(ctx, projectID)
 	if err != nil {
