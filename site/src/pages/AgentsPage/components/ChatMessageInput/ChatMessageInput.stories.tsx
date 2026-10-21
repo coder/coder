@@ -343,6 +343,30 @@ export const CommandsHiddenWhileOrganizationSkillChoicesLoad: Story = {
 	},
 };
 
+// An organization without skills has nothing to opt out of, so failed
+// skill choices still offer built-in commands without an error.
+export const OrganizationWithoutSkillsIgnoresChoicesError: Story = {
+	args: {
+		personalSkillsOverride: [],
+		organizationId: mockOrganizationId,
+		slashCommands: [COMPACT_SLASH_COMMAND],
+	},
+	parameters: {
+		queries: [
+			{ key: organizationSkills(mockOrganizationId).queryKey, data: [] },
+		],
+	},
+	beforeEach: () => {
+		spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockRejectedValue(new Error("Failed to load your skill choices."));
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+	},
+};
+
 // A 404 from the project skills request means the caller lost access to the
 // project, so the menu offers built-in commands without a retry prompt.
 export const LostProjectAccessOffersCommands: Story = {

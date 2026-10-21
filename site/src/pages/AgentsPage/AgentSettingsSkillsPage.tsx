@@ -83,8 +83,9 @@ const AgentSettingsSkillsPage: React.FC = () => {
 		...organizationSkillPreferences(selected?.organization.id ?? ""),
 		enabled: Boolean(selected),
 	});
-	// The table renders without waiting for preferences; only the member
-	// controls wait for them.
+	// The preferences decide between member controls and the read-only
+	// view, so the table shows its loading rows until they settle.
+	const isLoadingPreferences = preferencesQuery.isPending;
 	const editablePreferences = preferencesQuery.data?.members_can_disable_skills
 		? preferencesQuery.data
 		: undefined;
@@ -158,9 +159,11 @@ const AgentSettingsSkillsPage: React.FC = () => {
 							copy={{
 								noun: "Organization skill",
 								title: organizationName,
-								description: editablePreferences
-									? "Skills available to you. Turn off the ones you do not want in your chats. Ask an organization admin to change the skill content."
-									: "Read-only skills available to you. Ask an organization admin to change them.",
+								description: isLoadingPreferences
+									? ""
+									: editablePreferences
+										? "Skills available to you. Turn off the ones you do not want in your chats. Ask an organization admin to change the skill content."
+										: "Read-only skills available to you. Ask an organization admin to change them.",
 								editorDescription:
 									"Read-only organization skill. Ask an organization admin to change it.",
 								archiveName: `${selected.organization.name}-skills.zip`,
@@ -169,6 +172,7 @@ const AgentSettingsSkillsPage: React.FC = () => {
 							enabledOnly
 							headerLevel="section"
 							toolbar={organizationToolbar}
+							isLoading={isLoadingPreferences}
 							renderEnabledCell={
 								editablePreferences
 									? (skill) => (

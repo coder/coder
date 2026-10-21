@@ -416,11 +416,6 @@ describe("ChatMessageInput", () => {
 					)?.status,
 				).toBe("error");
 			});
-			// The organization has nothing to opt out of, so the failed
-			// preferences request is not reported as a failed source.
-			expect(
-				screen.queryByText(/Could not load organization skills/),
-			).not.toBeInTheDocument();
 			await user.keyboard("{Enter}");
 			expect(inputRef.current?.getValue()).toBe("/compact");
 		});

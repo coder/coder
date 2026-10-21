@@ -165,3 +165,28 @@ export const OrganizationSkillChoicesError: Story = {
 		).mockRejectedValue(new Error("Failed to load your skill choices."));
 	},
 };
+
+export const OrganizationSkillChoicesLoading: Story = {
+	parameters: {
+		queries: [
+			{ key: userSkills().queryKey, data: MockSkills },
+			{
+				key: organizationSkills(MockDefaultOrganization.id).queryKey,
+				data: [...MockSkills.slice(0, 2), MockDisabledSkill],
+			},
+			{
+				key: organizationSkills(MockOrganization2.id).queryKey,
+				data: [MockSkills[2]],
+			},
+			{
+				key: organizationSkills(MockOrganization3.id).queryKey,
+				data: [MockDisabledSkill],
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getOrganizationSkillPreferences").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+};
