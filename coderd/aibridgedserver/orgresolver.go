@@ -9,32 +9,90 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/aibridge/budget"
 	"github.com/coder/coder/v2/coderd/database"
 )
 
+// ErrAmbiguousOrganizationInput is returned when a request carries more than
+// one organization input. The login paths are mutually exclusive.
+var ErrAmbiguousOrganizationInput = xerrors.New("workspace and chat organization inputs are mutually exclusive")
+
+// orgResolverInput holds one input per login path. At most one is set.
+type orgResolverInput struct {
+	// WorkspaceID is set on the direct path, for a workspace session token.
+	WorkspaceID uuid.NullUUID
+	// ChatOrganizationID is set on the delegated path, for a chatd request.
+	// TODO(AIGOV-713): set this from the chat's organization.
+	ChatOrganizationID uuid.NullUUID
+}
+
+// resolvedOrganization is the organization a request acts in. Source is valid
+// exactly when ID is valid.
+type resolvedOrganization struct {
+	ID     uuid.NullUUID
+	Source database.NullAIBridgeInterceptionOrganizationSource
+}
+
 // resolveOrganization determines the organization an AI Gateway request acts
-// in. All org resolution for AI Gateway requests lives here.
+// in. All org resolution for AI Gateway requests lives here. It runs once per
+// request, in IsAuthorized. The budget check, the interception record and
+// cost reuse the result.
 //
-// It returns the organization for a request made by userID. When the
-// request was authenticated with a workspace session token, workspaceID
-// identifies that workspace and its organization is returned. The workspace
-// must still exist and userID must still be a member of its organization.
-// The result is invalid when no org source applies to the request.
-func (s *Server) resolveOrganization(ctx context.Context, userID uuid.UUID, workspaceID uuid.NullUUID) (uuid.NullUUID, error) {
-	if !workspaceID.Valid {
-		return uuid.NullUUID{}, nil
+// The inputs are tried in order:
+//  1. A workspace session token resolves to the workspace's organization. The
+//     workspace must still exist and userID must still be a member of its
+//     organization.
+//  2. A chat resolves to the chat's organization (AIGOV-713).
+//  3. Otherwise, the organization of the user's site-wide effective group.
+//
+// The result is empty when the user has no effective group, for example when
+// they belong to no live organization.
+func (s *Server) resolveOrganization(ctx context.Context, userID uuid.UUID, in orgResolverInput) (resolvedOrganization, error) {
+	if in.WorkspaceID.Valid && in.ChatOrganizationID.Valid {
+		return resolvedOrganization{}, ErrAmbiguousOrganizationInput
 	}
 
-	workspace, err := s.store.GetWorkspaceByID(ctx, workspaceID.UUID)
+	if in.WorkspaceID.Valid {
+		orgID, err := s.workspaceOrganization(ctx, userID, in.WorkspaceID.UUID)
+		if err != nil {
+			return resolvedOrganization{}, err
+		}
+		return newResolvedOrganization(orgID, database.AibridgeInterceptionOrganizationSourceWorkspace), nil
+	}
+
+	// AIGOV-713 adds the chat branch here, with source chatd.
+
+	group, ok, err := budget.ResolveUserEffectiveGroup(ctx, s.store, userID, uuid.NullUUID{}, s.budgetPolicy)
+	if err != nil {
+		return resolvedOrganization{}, xerrors.Errorf("resolve effective AI group for user %s: %w", userID, err)
+	}
+	if !ok {
+		return resolvedOrganization{}, nil
+	}
+	return newResolvedOrganization(group.OrganizationID, database.AibridgeInterceptionOrganizationSourceEffectiveGroup), nil
+}
+
+func newResolvedOrganization(id uuid.UUID, source database.AIBridgeInterceptionOrganizationSource) resolvedOrganization {
+	return resolvedOrganization{
+		ID:     uuid.NullUUID{UUID: id, Valid: true},
+		Source: database.NullAIBridgeInterceptionOrganizationSource{AIBridgeInterceptionOrganizationSource: source, Valid: true},
+	}
+}
+
+// workspaceOrganization returns the organization of workspaceID. It rejects the
+// request when the workspace is missing or deleted, or when userID is not a
+// member of its organization.
+func (s *Server) workspaceOrganization(ctx context.Context, userID, workspaceID uuid.UUID) (uuid.UUID, error) {
+	workspace, err := s.store.GetWorkspaceByID(ctx, workspaceID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return uuid.NullUUID{}, ErrUnknownWorkspace
+		return uuid.Nil, ErrUnknownWorkspace
 	}
 	if err != nil {
-		return uuid.NullUUID{}, xerrors.Errorf("get workspace %s: %w", workspaceID.UUID, err)
+		return uuid.Nil, xerrors.Errorf("get workspace %s: %w", workspaceID, err)
 	}
 	// Workspaces are soft-deleted, so a deleted row still resolves by ID.
 	if workspace.Deleted {
-		return uuid.NullUUID{}, ErrUnknownWorkspace
+		return uuid.Nil, ErrUnknownWorkspace
 	}
 
 	orgs, err := s.store.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
@@ -42,13 +100,13 @@ func (s *Server) resolveOrganization(ctx context.Context, userID uuid.UUID, work
 		Deleted: sql.NullBool{Bool: false, Valid: true},
 	})
 	if err != nil {
-		return uuid.NullUUID{}, xerrors.Errorf("get organizations for user %s: %w", userID, err)
+		return uuid.Nil, xerrors.Errorf("get organizations for user %s: %w", userID, err)
 	}
 	if !slices.ContainsFunc(orgs, func(org database.Organization) bool {
 		return org.ID == workspace.OrganizationID
 	}) {
-		return uuid.NullUUID{}, ErrUnknownOrganizationMember
+		return uuid.Nil, ErrUnknownOrganizationMember
 	}
 
-	return uuid.NullUUID{UUID: workspace.OrganizationID, Valid: true}, nil
+	return workspace.OrganizationID, nil
 }

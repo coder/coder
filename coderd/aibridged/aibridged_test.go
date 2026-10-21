@@ -425,6 +425,122 @@ func TestServeHTTP_ActorIdentity(t *testing.T) {
 	}
 }
 
+// TestServeHTTP_ResolvedOrganization verifies that aibridged passes the
+// organization coderd resolved in IsAuthorized to the budget check and onto
+// the handler context, and rejects a malformed or half-set organization.
+func TestServeHTTP_ResolvedOrganization(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.New()
+	tests := []struct {
+		name      string
+		delegated bool
+		orgID     string
+		source    string
+		// wantOrg is nil when no organization is expected on the context.
+		wantOrg *agplaibridge.RequestOrganization
+		// wantForbidden means the request is rejected before the budget check.
+		wantForbidden bool
+	}{
+		{
+			name:    "workspace",
+			orgID:   orgID.String(),
+			source:  "workspace",
+			wantOrg: &agplaibridge.RequestOrganization{ID: orgID, Source: "workspace"},
+		},
+		{
+			name:      "delegated effective group",
+			delegated: true,
+			orgID:     orgID.String(),
+			source:    "effective_group",
+			wantOrg:   &agplaibridge.RequestOrganization{ID: orgID, Source: "effective_group"},
+		},
+		{
+			// No organization resolved: the budget check stays site-wide.
+			name: "none",
+		},
+		{
+			name:          "id without source",
+			orgID:         orgID.String(),
+			wantForbidden: true,
+		},
+		{
+			name:          "source without id",
+			source:        "workspace",
+			wantForbidden: true,
+		},
+		{
+			name:          "malformed id",
+			orgID:         "not-a-uuid",
+			source:        "workspace",
+			wantForbidden: true,
+		},
+		{
+			name:          "nil id",
+			orgID:         uuid.Nil.String(),
+			source:        "workspace",
+			wantForbidden: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv, client, pool := newTestServer(t)
+			ownerID := uuid.New()
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).Return(&proto.IsAuthorizedResponse{
+				OwnerId:            ownerID.String(),
+				ApiKeyId:           uuid.NewString(),
+				OrganizationId:     tt.orgID,
+				OrganizationSource: tt.source,
+			}, nil)
+			// A rejected request never reaches the budget check or the pool,
+			// so no expectations are set for them.
+			if !tt.wantForbidden {
+				var wantBudgetOrgID string
+				if tt.wantOrg != nil {
+					wantBudgetOrgID = tt.wantOrg.ID.String()
+				}
+				client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, in *proto.IsBudgetExceededRequest) (*proto.IsBudgetExceededResponse, error) {
+						require.Equal(t, ownerID.String(), in.GetUserId())
+						require.Equal(t, wantBudgetOrgID, in.GetOrganizationId())
+						return &proto.IsBudgetExceededResponse{}, nil
+					})
+				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						got, ok := agplaibridge.RequestOrganizationFromContext(r.Context())
+						if tt.wantOrg == nil {
+							require.False(t, ok, "no organization expected on the context")
+						} else {
+							require.True(t, ok, "organization expected on the context")
+							require.Equal(t, *tt.wantOrg, got)
+						}
+						w.WriteHeader(http.StatusNoContent)
+					}), nil)
+			}
+
+			ctx := t.Context()
+			if tt.delegated {
+				ctx = agplaibridge.WithDelegatedAPIKeyID(ctx, "delegated-key")
+			}
+			req := httptest.NewRequest(http.MethodPost, "/openai/v1/chat/completions", nil).WithContext(ctx)
+			if !tt.delegated {
+				req.Header.Set("Authorization", "Bearer coder-secret")
+			}
+			rw := httptest.NewRecorder()
+			srv.ServeHTTP(rw, req)
+			if tt.wantForbidden {
+				require.Equal(t, http.StatusForbidden, rw.Code)
+				require.Contains(t, rw.Body.String(), aibridged.ErrUnauthorized.Error())
+				return
+			}
+			require.Equal(t, http.StatusNoContent, rw.Code)
+		})
+	}
+}
+
 // When the request context carries a delegated API key ID (set by the
 // in-process transport on behalf of a trusted caller like chatd), the handler
 // must authenticate via the key_id field, skipping the header-based key
@@ -925,10 +1041,11 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 			// Return authorization response with user ID, API key ID, username,
 			// email, and a resolved organization.
 			authResponse := &proto.IsAuthorizedResponse{
-				OwnerId:        testUserID.String(),
-				ApiKeyId:       uuid.NewString(),
-				Username:       testUsername,
-				OrganizationId: uuid.NewString(),
+				OwnerId:            testUserID.String(),
+				ApiKeyId:           uuid.NewString(),
+				Username:           testUsername,
+				OrganizationId:     uuid.NewString(),
+				OrganizationSource: "workspace",
 			}
 			if !tc.legacy {
 				authResponse.Email = testEmail
@@ -983,6 +1100,9 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 			require.Equal(t, testUserID.String(), recorded.GetInitiatorId())
 			require.Contains(t, recorded.GetMetadata(), "Username")
 			require.NotContains(t, recorded.GetMetadata(), "Email")
+			// The organization coderd resolved is stamped on the interception.
+			require.Equal(t, authResponse.OrganizationId, recorded.GetOrganizationId())
+			require.Equal(t, authResponse.OrganizationSource, recorded.GetOrganizationSource())
 		})
 	}
 }

@@ -3,6 +3,7 @@ package enterprise_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/prometheus/client_golang/prometheus"
 	promtest "github.com/prometheus/client_golang/prometheus/testutil"
@@ -32,10 +34,13 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/testutil"
@@ -640,4 +645,160 @@ func TestIntegrationRecordsUpstreamError(t *testing.T) {
 		require.True(t, intc.ErrorMessage.Valid, "interception %s should record an error message", intc.ID)
 		require.NotEmpty(t, intc.ErrorMessage.String)
 	}
+}
+
+// TestIntegrationResolvedOrganization validates that the organization coderd
+// resolves in IsAuthorized is used for the whole request: the budget check,
+// the interception record, and the effective group and spend that cost
+// records.
+func TestIntegrationResolvedOrganization(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	mockOpenAI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+  "id": "chatcmpl-resolved-org",
+  "object": "chat.completion",
+  "created": 1753343279,
+  "model": "gpt-4.1-2025-04-14",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "hello"}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 60, "completion_tokens": 15, "total_tokens": 75}
+}`))
+	}))
+	t.Cleanup(mockOpenAI.Close)
+
+	db, ps := dbtestutil.NewDB(t)
+	client, _, api, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{Database: db, Pubsub: ps},
+	})
+
+	userClient, user := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+	apiKey, err := userClient.CreateToken(ctx, "me", codersdk.CreateTokenRequest{
+		TokenName: fmt.Sprintf("test-key-%d", time.Now().UnixNano()),
+		Lifetime:  time.Hour,
+		Scope:     codersdk.APIKeyScopeAll,
+	})
+	require.NoError(t, err)
+
+	// Given: the user is in orgs A and B. Group gA has the higher limit, so it
+	// wins site-wide, and its spend is already over the limit. Group gB is
+	// under its limit.
+	now := dbtime.Now()
+	budgetedGroup := func(limitMicros int64) database.Group {
+		org := dbgen.Organization(t, db, database.Organization{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: user.ID, GroupID: group.ID})
+		_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+			GroupID:          group.ID,
+			SpendLimitMicros: limitMicros,
+		})
+		require.NoError(t, err)
+		return group
+	}
+	groupA := budgetedGroup(100_000_000)
+	groupB := budgetedGroup(10_000_000)
+	const groupASpendMicros = 150_000_000
+	_, err = db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+		UserID:           user.ID,
+		EffectiveGroupID: groupA.ID,
+		Day:              now,
+		CostMicros:       groupASpendMicros,
+	})
+	require.NoError(t, err)
+
+	// Given: a workspace in org B and its session token.
+	workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: groupB.OrganizationID,
+		OwnerID:        user.ID,
+	}).Do().Workspace
+	_, workspaceToken := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    user.ID,
+		TokenName: provisionerdserver.WorkspaceSessionTokenName(user.ID, workspace.ID),
+	})
+
+	// Given: the model is priced, so the request has a cost.
+	dbgen.AIProvider(t, db, database.AIProvider{
+		Name: config.ProviderOpenAI,
+		Type: database.AIProviderTypeOpenai,
+	})
+	priceSeed, err := json.Marshal([]map[string]any{{
+		"provider":     config.ProviderOpenAI,
+		"model":        "gpt-4.1",
+		"input_price":  2_000_000,
+		"output_price": 8_000_000,
+	}})
+	require.NoError(t, err)
+	require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: priceSeed, Source: database.AIModelPriceSourceDefault}))
+
+	aiBridgeClient, err := api.AGPL.CreateInMemoryAIBridgeServer(ctx)
+	require.NoError(t, err)
+	logger := testutil.Logger(t)
+	srv, err := aibridged.New(ctx, func(ctx context.Context) (aibridged.DRPCClient, error) {
+		return aiBridgeClient, nil
+	}, logger, testTracer, nil, nil)
+	require.NoError(t, err, "create new aibridged")
+	require.NoError(t, srv.ReplaceProviders(ctx, []aibridge.Provider{
+		aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: mockOpenAI.URL, KeyPool: singleKeyPool(t, config.ProviderOpenAI, "test-key")}),
+	}))
+	t.Cleanup(func() { _ = srv.Shutdown(ctx) })
+
+	serve := func(token string) *httptest.ResponseRecorder {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "/openai/v1/chat/completions",
+			bytes.NewBufferString(`{"messages":[{"role":"user","content":"hi"}],"model":"gpt-4.1"}`))
+		require.NoError(t, err)
+		req.Header.Add("Authorization", "Bearer "+token)
+		req.Header.Add("Accept", "application/json")
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, req)
+		return rec
+	}
+
+	// When: the user sends a normal API token, the request resolves to org A
+	// through the site-wide effective group, where the user is over budget.
+	rec := serve(apiKey.Key)
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.Contains(t, rec.Body.String(), "AI budget of US$100.00 exceeded")
+
+	// When: the user sends the workspace session token, the request resolves
+	// to org B, where the user is under budget.
+	rec = serve(workspaceToken)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	// Then: only the allowed request is recorded, with org B as its
+	// organization.
+	interceptions, err := db.GetAIBridgeInterceptions(ctx)
+	require.NoError(t, err)
+	require.Len(t, interceptions, 1)
+	intc := interceptions[0]
+	require.Equal(t, uuid.NullUUID{UUID: groupB.OrganizationID, Valid: true}, intc.OrganizationID)
+	require.Equal(t, database.NullAIBridgeInterceptionOrganizationSource{
+		AIBridgeInterceptionOrganizationSource: database.AibridgeInterceptionOrganizationSourceWorkspace,
+		Valid:                                  true,
+	}, intc.OrganizationSource)
+	require.Equal(t, uuid.NullUUID{UUID: workspace.ID, Valid: true}, intc.WorkspaceID)
+
+	// Then: cost attributes the token usage and the spend to org B's group,
+	// and org A's group spend is unchanged.
+	tokens, err := db.GetAIBridgeTokenUsagesByInterceptionID(ctx, intc.ID)
+	require.NoError(t, err)
+	require.Len(t, tokens, 1)
+	require.Equal(t, uuid.NullUUID{UUID: groupB.ID, Valid: true}, tokens[0].EffectiveGroupID)
+	require.True(t, tokens[0].CostMicros.Valid)
+	require.Positive(t, tokens[0].CostMicros.Int64)
+
+	spendSince := func(groupID uuid.UUID) int64 {
+		spend, err := db.GetUserAISpendSince(ctx, database.GetUserAISpendSinceParams{
+			UserID:           user.ID,
+			EffectiveGroupID: groupID,
+			PeriodStart:      dbtime.StartOfDay(now),
+		})
+		require.NoError(t, err)
+		return spend.SpendMicros
+	}
+	require.Equal(t, tokens[0].CostMicros.Int64, spendSince(groupB.ID))
+	require.EqualValues(t, groupASpendMicros, spendSince(groupA.ID))
 }
