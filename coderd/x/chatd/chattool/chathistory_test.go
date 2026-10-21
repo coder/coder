@@ -334,6 +334,10 @@ func TestChatHistory(t *testing.T) {
 			{map[string]any{"action": "read_item"}, "item_id_required"},
 			{map[string]any{"action": "read_item", "item_id": "1", "role": "user"}, "filters_unsupported"},
 			{map[string]any{"action": "list_windows", "tool_name": "execute"}, "filters_unsupported"},
+			{map[string]any{"action": "list_items", "query": "needle"}, "filters_unsupported"},
+			{map[string]any{"action": "search", "query": "needle", "offset_chars": 10}, "filters_unsupported"},
+			{map[string]any{"action": "list_windows", "item_id": "1"}, "filters_unsupported"},
+			{map[string]any{"action": "read_item", "item_id": "1", "limit": 5}, "filters_unsupported"},
 			{map[string]any{"action": "list_items", "limit": -1}, "invalid_arguments"},
 		} {
 			got, _ := runChatHistory(t, tool, tc.args)
