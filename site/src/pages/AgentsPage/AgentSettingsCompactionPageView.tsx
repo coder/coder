@@ -51,7 +51,7 @@ export const AgentSettingsCompactionPageView: React.FC<
 		<div className="flex flex-col gap-8">
 			<SectionHeader
 				label="Compaction"
-				description="Customize when conversations with models are automatically compacted."
+				description="Customize how conversations stay within each model's context window."
 			/>
 			<CompactionStrategySettings />
 			{compactionStrategy !== undefined && (
