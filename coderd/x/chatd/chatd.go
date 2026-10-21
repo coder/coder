@@ -2086,6 +2086,16 @@ func (p *Server) resolveUserCompactionThreshold(ctx context.Context, userID uuid
 	return int32(val), true, nil
 }
 
+// resolveUserCompactionStrategy reads the user's compaction strategy
+// uncached, so a change applies on the chat's next step.
+func (p *Server) resolveUserCompactionStrategy(ctx context.Context, userID uuid.UUID) (codersdk.ChatCompactionStrategy, error) {
+	raw, err := p.db.GetUserChatCompactionStrategy(ctx, userID)
+	if err != nil {
+		return "", xerrors.Errorf("get user compaction strategy: %w", err)
+	}
+	return codersdk.ChatCompactionStrategy(raw), nil
+}
+
 // resolveDeploymentSystemPrompt builds the deployment-level system
 // prompt from the built-in default and the admin-configured custom
 // prompt stored in site_configs.

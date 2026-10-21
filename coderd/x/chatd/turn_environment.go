@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
@@ -439,6 +440,15 @@ func (p *Server) buildTurnEnvironment(
 	}
 	promptRows = append(sanitizedHead[:len(sanitizedHead):len(sanitizedHead)], promptRows[pendingRowsStart:]...)
 	pendingRowsStart = len(sanitizedHead)
+
+	tokenBudget := false
+	if p.experiments.Enabled(codersdk.ExperimentChatTokenBudget) {
+		strategy, err := p.resolveUserCompactionStrategy(ctx, chat.OwnerID)
+		if err != nil {
+			return turnEnvironment{}, err
+		}
+		tokenBudget = strategy == codersdk.ChatCompactionStrategyTokenBudget
+	}
 
 	if chat.WorkspaceID.Valid {
 		// Resolve the workspace agent so the chat row's AgentID and
@@ -1004,8 +1014,24 @@ func (p *Server) buildTurnEnvironment(
 			otherTrigger = chatTrigger
 		}
 	}
+	var rollover *generationRollover
+	if tokenBudget {
+		rollover = &generationRollover{
+			Budget: newContextWindowBudget(
+				modelConfig.ContextLimit,
+				ptr.NilToDefault(resolved.callConfig.MaxOutputTokens, defaultChatMaxOutputTokens),
+				effectiveThreshold,
+			),
+			WindowID:        contextWindowID(promptRows),
+			MetricProvider:  model.LanguageModel().Provider(),
+			MetricModel:     model.LanguageModel().Model(),
+			PendingUserRows: pendingUserRows,
+		}
+	}
 	compactionStepUsage := latestPromptUsage(promptRows)
-	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, binding.contextLimit, binding.thresholdPercent)
+	// Manual compaction still summarizes under the token budget strategy,
+	// so only the automatic triggers are switched off.
+	compactionNeeded := rollover == nil && shouldCompactPromptUsage(compactionStepUsage, binding.contextLimit, binding.thresholdPercent)
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
@@ -1069,8 +1095,9 @@ func (p *Server) buildTurnEnvironment(
 			Options:         compactionOptions,
 			PendingUserRows: pendingUserRows,
 		},
-		Debug:   debug,
-		cleanup: cleanup,
+		Rollover: rollover,
+		Debug:    debug,
+		cleanup:  cleanup,
 	}, nil
 }
 

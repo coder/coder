@@ -83,6 +83,7 @@ type Metrics struct {
 	TurnOutcomesTotal         *prometheus.CounterVec
 	stageAnomaliesTotal       *prometheus.CounterVec
 	CompactionTotal           *prometheus.CounterVec
+	ContextRolloverTotal      *prometheus.CounterVec
 	StepsTotal                *prometheus.CounterVec
 	StreamRetriesTotal        *prometheus.CounterVec
 	FindToolsCallsTotal       prometheus.Counter
@@ -184,6 +185,12 @@ func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metr
 			Name:      "compaction_total",
 			Help:      "Total compaction outcomes (only recorded when compaction was triggered or failed).",
 		}, []string{"provider", "model", "result"}),
+		ContextRolloverTotal: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "context_rollover_total",
+			Help:      "Total context window rollovers under the token budget compaction strategy, by reason (limit: the window reached its usable limit).",
+		}, []string{"provider", "model", "reason"}),
 		StepsTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
@@ -285,6 +292,15 @@ func (m *Metrics) RecordCompaction(provider, model string, compacted bool, err e
 		// !compacted && err == nil means threshold not reached -- not
 		// recorded.
 	}
+}
+
+// RecordContextRollover counts a committed context window rollover.
+// It is a no-op when m is nil.
+func (m *Metrics) RecordContextRollover(provider, model, reason string) {
+	if m == nil {
+		return
+	}
+	m.ContextRolloverTotal.WithLabelValues(provider, model, reason).Inc()
 }
 
 // RecordStreamRetry increments stream_retries_total. The caller
