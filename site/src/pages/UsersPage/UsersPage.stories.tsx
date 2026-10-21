@@ -86,6 +86,7 @@ export const Loaded: Story = {};
 
 export const GroupsError: Story = {
 	parameters: {
+		pixel: { matrix: { viewports: ["desktop", "tablet"] } },
 		queries: parameters.queries.filter((query) => query.key !== groupsQueryKey),
 	},
 	beforeEach: () => {
@@ -103,27 +104,14 @@ export const GroupsRefetchError: Story = {
 	decorators: [
 		function RefetchGroups(Story) {
 			const queryClient = useQueryClient();
-			return (
-				<>
-					<button
-						type="button"
-						onClick={() =>
-							void queryClient.invalidateQueries({ queryKey: groupsQueryKey })
-						}
-					>
-						Refetch groups
-					</button>
-					<Story />
-				</>
-			);
+			queryClient.setQueryDefaults(groupsQueryKey, {
+				refetchOnMount: "always",
+			});
+			return <Story />;
 		},
 	],
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Refetch groups" }),
-		);
-		await canvas.findByRole("button", { name: "Retry groups" });
+		await within(canvasElement).findByRole("button", { name: "Retry groups" });
 	},
 };
 

@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "#/api/api";
 import { groupsQueryKey } from "#/api/queries/groups";
@@ -27,7 +27,8 @@ it("retries failed memberships without refetching successful users", async () =>
 		.mockResolvedValueOnce(memberships);
 	const { queryClient } = renderWithAuth(<UsersPage />);
 
-	await user.click(await screen.findByRole("button", { name: "Retry groups" }));
+	const alert = await screen.findByRole("alert");
+	await user.click(within(alert).getByRole("button", { name: "Retry groups" }));
 
 	await waitFor(() => {
 		expect(queryClient.getQueryState(groupsQueryKey)?.status).toBe("success");
@@ -57,7 +58,8 @@ it("retains cached memberships after a failed refetch and retries them", async (
 	});
 	expect(queryClient.getQueryState(groupsQueryKey)?.status).toBe("error");
 	expect(queryClient.getQueryData(groupsQueryKey)).toEqual(memberships);
-	await user.click(await screen.findByRole("button", { name: "Retry groups" }));
+	const alert = await screen.findByRole("alert");
+	await user.click(within(alert).getByRole("button", { name: "Retry groups" }));
 
 	await waitFor(() => {
 		expect(queryClient.getQueryState(groupsQueryKey)?.status).toBe("success");

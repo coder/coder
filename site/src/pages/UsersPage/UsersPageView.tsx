@@ -2,7 +2,7 @@ import { UserPlusIcon } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Alert } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { UsersFilter } from "#/components/Filter/UsersFilter";
 import {
@@ -61,17 +61,24 @@ export const UsersPageView: React.FC<UsersPageViewProps> = ({
 			</SettingsHeader>
 
 			{Boolean(groupsError) && (
-				<div className="mb-4 flex flex-col items-start gap-2">
-					<ErrorAlert error={groupsError} className="w-full" />
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={isRetryingGroups}
-						onClick={onRetryGroups}
-					>
-						Retry groups
-					</Button>
-				</div>
+				<Alert
+					severity="error"
+					className="mb-4"
+					actions={
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={isRetryingGroups}
+							onClick={onRetryGroups}
+						>
+							Retry groups
+						</Button>
+					}
+				>
+					{props.groupsByUserId
+						? "We couldn't refresh group memberships, so the Groups column may be out of date."
+						: 'We couldn\'t load group memberships, so the Groups column shows "Unavailable".'}
+				</Alert>
 			)}
 
 			<UsersFilter {...filterProps} />

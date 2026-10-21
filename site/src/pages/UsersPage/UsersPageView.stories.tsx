@@ -66,6 +66,13 @@ export const SmallViewport: Story = {
 	},
 };
 
+export const RetryingGroups: Story = {
+	args: {
+		groupsError: mockApiError({ message: "Unable to load group memberships." }),
+		isRetryingGroups: true,
+	},
+};
+
 export const Member: Story = {
 	args: { canEditUsers: false },
 };
