@@ -1108,7 +1108,7 @@ export const InlineOptionsError: Story = {
 
 // A Retry that has not settled keeps the heading with a loading row.
 export const InlineOptionsRetrying: Story = {
-	render: function InlineOptionsRetryingHarness() {
+	render: function Render() {
 		const failed = useRef(false);
 		const retryingCategories = categoriesWithAttributes.map((category) =>
 			category.key === "status"
