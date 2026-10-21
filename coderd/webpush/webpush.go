@@ -40,6 +40,10 @@ const (
 	// including reading the body, so a stalled endpoint cannot hold a
 	// goroutine open indefinitely.
 	pushRequestTimeout = 30 * time.Second
+
+	// maxResponseHeaderBytes caps the response headers, which the transport
+	// reads before the body cap applies. Go allows 10 MiB when unset.
+	maxResponseHeaderBytes = 64 << 10
 )
 
 // isStaleSubscriptionStatus reports whether a status code from a push
@@ -500,6 +504,7 @@ func newSSRFSafeHTTPClient() *http.Client {
 	return &http.Client{
 		Timeout: pushRequestTimeout,
 		Transport: &http.Transport{
+			MaxResponseHeaderBytes: maxResponseHeaderBytes,
 			DialContext: (&net.Dialer{
 				Control: func(_ string, address string, _ syscall.RawConn) error {
 					host, _, err := net.SplitHostPort(address)

@@ -1,12 +1,17 @@
 package webpush
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestSSRFSafeHTTPClientHasTimeout(t *testing.T) {
+func TestSSRFSafeHTTPClientLimits(t *testing.T) {
 	t.Parallel()
-	require.Equal(t, pushRequestTimeout, newSSRFSafeHTTPClient().Timeout)
+	client := newSSRFSafeHTTPClient()
+	require.Equal(t, pushRequestTimeout, client.Timeout)
+	transport, ok := client.Transport.(*http.Transport)
+	require.True(t, ok)
+	require.Equal(t, int64(maxResponseHeaderBytes), transport.MaxResponseHeaderBytes)
 }
