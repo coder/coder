@@ -6593,6 +6593,7 @@ SELECT cf.id, cf.owner_id, cf.organization_id, cf.name, cf.mimetype, cf.created_
 	cf.workspace_delivery_attempts,
 	cf.workspace_delivery_next_attempt_at,
 	cf.workspace_delivery_error,
+	cf.workspace_delivery_agent_ready_at,
 	cf.workspace_delivered_at,
 	cf.workspace_delivered_path,
 	cf.workspace_delivered_workspace_id
@@ -6614,6 +6615,7 @@ type GetChatFileMetadataByChatIDRow struct {
 	WorkspaceDeliveryAttempts      int32           `db:"workspace_delivery_attempts" json:"workspace_delivery_attempts"`
 	WorkspaceDeliveryNextAttemptAt sql.NullTime    `db:"workspace_delivery_next_attempt_at" json:"workspace_delivery_next_attempt_at"`
 	WorkspaceDeliveryError         sql.NullString  `db:"workspace_delivery_error" json:"workspace_delivery_error"`
+	WorkspaceDeliveryAgentReadyAt  sql.NullTime    `db:"workspace_delivery_agent_ready_at" json:"workspace_delivery_agent_ready_at"`
 	WorkspaceDeliveredAt           sql.NullTime    `db:"workspace_delivered_at" json:"workspace_delivered_at"`
 	WorkspaceDeliveredPath         sql.NullString  `db:"workspace_delivered_path" json:"workspace_delivered_path"`
 	WorkspaceDeliveredWorkspaceID  uuid.NullUUID   `db:"workspace_delivered_workspace_id" json:"workspace_delivered_workspace_id"`
@@ -6643,6 +6645,7 @@ func (q *sqlQuerier) GetChatFileMetadataByChatID(ctx context.Context, chatID uui
 			&i.WorkspaceDeliveryAttempts,
 			&i.WorkspaceDeliveryNextAttemptAt,
 			&i.WorkspaceDeliveryError,
+			&i.WorkspaceDeliveryAgentReadyAt,
 			&i.WorkspaceDeliveredAt,
 			&i.WorkspaceDeliveredPath,
 			&i.WorkspaceDeliveredWorkspaceID,
@@ -6708,25 +6711,21 @@ const getChatFilesMetadataByIDs = `-- name: GetChatFilesMetadataByIDs :many
 SELECT id, owner_id, organization_id, created_at, name, mimetype,
 	COALESCE(workspace_delivered_size_bytes, octet_length(data))::bigint AS size_bytes,
 	purpose,
-	workspace_delivered_at,
-	workspace_delivered_path,
-	workspace_delivered_workspace_id
+	workspace_delivered_at
 FROM chat_files
 WHERE id = ANY($1::uuid[])
 `
 
 type GetChatFilesMetadataByIDsRow struct {
-	ID                            uuid.UUID       `db:"id" json:"id"`
-	OwnerID                       uuid.UUID       `db:"owner_id" json:"owner_id"`
-	OrganizationID                uuid.UUID       `db:"organization_id" json:"organization_id"`
-	CreatedAt                     time.Time       `db:"created_at" json:"created_at"`
-	Name                          string          `db:"name" json:"name"`
-	Mimetype                      string          `db:"mimetype" json:"mimetype"`
-	SizeBytes                     int64           `db:"size_bytes" json:"size_bytes"`
-	Purpose                       ChatFilePurpose `db:"purpose" json:"purpose"`
-	WorkspaceDeliveredAt          sql.NullTime    `db:"workspace_delivered_at" json:"workspace_delivered_at"`
-	WorkspaceDeliveredPath        sql.NullString  `db:"workspace_delivered_path" json:"workspace_delivered_path"`
-	WorkspaceDeliveredWorkspaceID uuid.NullUUID   `db:"workspace_delivered_workspace_id" json:"workspace_delivered_workspace_id"`
+	ID                   uuid.UUID       `db:"id" json:"id"`
+	OwnerID              uuid.UUID       `db:"owner_id" json:"owner_id"`
+	OrganizationID       uuid.UUID       `db:"organization_id" json:"organization_id"`
+	CreatedAt            time.Time       `db:"created_at" json:"created_at"`
+	Name                 string          `db:"name" json:"name"`
+	Mimetype             string          `db:"mimetype" json:"mimetype"`
+	SizeBytes            int64           `db:"size_bytes" json:"size_bytes"`
+	Purpose              ChatFilePurpose `db:"purpose" json:"purpose"`
+	WorkspaceDeliveredAt sql.NullTime    `db:"workspace_delivered_at" json:"workspace_delivered_at"`
 }
 
 // GetChatFilesMetadataByIDs returns file metadata without loading file
@@ -6751,8 +6750,6 @@ func (q *sqlQuerier) GetChatFilesMetadataByIDs(ctx context.Context, ids []uuid.U
 			&i.SizeBytes,
 			&i.Purpose,
 			&i.WorkspaceDeliveredAt,
-			&i.WorkspaceDeliveredPath,
-			&i.WorkspaceDeliveredWorkspaceID,
 		); err != nil {
 			return nil, err
 		}
@@ -6861,6 +6858,42 @@ func (q *sqlQuerier) InsertChatFile(ctx context.Context, arg InsertChatFileParam
 		&i.Purpose,
 	)
 	return i, err
+}
+
+const isChatWorkspaceFileAttached = `-- name: IsChatWorkspaceFileAttached :one
+SELECT (
+	EXISTS (
+		SELECT 1
+		FROM chat_messages
+		WHERE chat_id = $1::uuid
+			AND role = 'user'::chat_message_role
+			AND deleted = FALSE
+			AND content @> jsonb_build_array(jsonb_build_object('type', 'workspace-attachment', 'file_id', $2::uuid))
+	)
+	OR EXISTS (
+		SELECT 1
+		FROM chat_queued_messages
+		WHERE chat_id = $1::uuid
+			AND content @> jsonb_build_array(jsonb_build_object('type', 'workspace-attachment', 'file_id', $2::uuid))
+	)
+)::boolean AS attached
+`
+
+type IsChatWorkspaceFileAttachedParams struct {
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+	FileID uuid.UUID `db:"file_id" json:"file_id"`
+}
+
+// IsChatWorkspaceFileAttached reports whether a user message or a queued
+// message of the chat still attaches the file as a workspace attachment.
+// Deleting a queued message or editing the attachment out of a message
+// keeps the file's link, so the link alone does not show that the user
+// still wants the file copied.
+func (q *sqlQuerier) IsChatWorkspaceFileAttached(ctx context.Context, arg IsChatWorkspaceFileAttachedParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, isChatWorkspaceFileAttached, arg.ChatID, arg.FileID)
+	var attached bool
+	err := row.Scan(&attached)
+	return attached, err
 }
 
 const retryChatWorkspaceFileDeliveries = `-- name: RetryChatWorkspaceFileDeliveries :execrows

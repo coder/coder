@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"slices"
 	"time"
 
@@ -37,18 +38,43 @@ const (
 	// works on the file at the same time.
 	workspaceFileDeliveryLeaseMargin = time.Minute
 	workspaceFileDeliveryRetryDelay  = time.Minute
+	// workspaceFileDeliveryMaxDisconnectedDelay caps the retry delay of a
+	// file whose agent is not connected.
+	workspaceFileDeliveryMaxDisconnectedDelay = 10 * time.Minute
 	// workspaceFileDeliveryUsageInterval bounds how often a delivery
 	// records workspace usage while its content streams, the cadence of
 	// the direct upload path and the chat heartbeat.
 	workspaceFileDeliveryUsageInterval = 30 * time.Second
+	// workspaceFileDeliveryStallTimeout ends an upload attempt when the
+	// agent takes no body bytes for this long, or does not answer for this
+	// long after the last one, so a stalled agent holds the replica's
+	// serial delivery loop for at most this long instead of the lease.
+	workspaceFileDeliveryStallTimeout = time.Minute
 )
+
+var errWorkspaceFileDeliveryStalled = xerrors.Errorf("the workspace agent accepted no data for %s", workspaceFileDeliveryStallTimeout)
 
 // workspaceFileDeliveryFailure is a failed delivery attempt and how the
 // attempt counts: one of the database.ChatWorkspaceFileDeliveryFailure
 // modes.
 type workspaceFileDeliveryFailure struct {
 	mode string
-	err  error
+	// err is stored on the file, where the model and the UI read it.
+	err error
+	// cause is the full error behind err for the log, when err leaves
+	// out details such as the agent's tailnet request URL.
+	cause error
+	// retryAfter replaces workspaceFileDeliveryRetryDelay when set.
+	retryAfter time.Duration
+	// quiet logs the failure at debug level.
+	quiet bool
+}
+
+func (f *workspaceFileDeliveryFailure) logError() error {
+	if f.cause != nil {
+		return f.cause
+	}
+	return f.err
 }
 
 func refundWorkspaceFileDelivery(err error) *workspaceFileDeliveryFailure {
@@ -69,6 +95,13 @@ func linksWorkspaceAttachments(parts []codersdk.ChatMessagePart) bool {
 	return slices.ContainsFunc(parts, func(part codersdk.ChatMessagePart) bool {
 		return part.Type == codersdk.ChatMessagePartTypeWorkspaceAttachment && part.FileID.Valid
 	})
+}
+
+// RequestWorkspaceFileDelivery requests a delivery sweep on this replica, for
+// a change outside chatd that can make workspace files deliverable, such
+// as binding a chat to a running workspace.
+func (p *Server) RequestWorkspaceFileDelivery() {
+	p.wakeWorkspaceFileDelivery()
 }
 
 // wakeWorkspaceFileDelivery requests a delivery sweep on this replica.
@@ -195,15 +228,18 @@ func (w *chatWorker) deliverWorkspaceFile(ctx context.Context, row database.Acqu
 			logger.Info(ctx, "delivered workspace chat file", slog.F("path", resp.Path))
 			return
 		}
-		// Either another replica claimed the file after this lease
-		// expired, which fences the refund below too, or the chat moved
-		// to another workspace during the upload and the file is due for
-		// that workspace now.
-		failure = refundWorkspaceFileDelivery(xerrors.Errorf("the chat left workspace %s while the file was copied to %s", row.WorkspaceID.UUID, resp.Path))
+		// The file left this claim, for example because the per-chat
+		// file cap evicted it or another replica claimed it after the
+		// lease expired, which fences the refund below too. Otherwise no
+		// chat of the file is bound to the workspace anymore, and the
+		// file is due for the chat's new workspace now.
+		failure = refundWorkspaceFileDelivery(xerrors.Errorf("the copy at %s was not recorded because no chat of the file is bound to workspace %s anymore", resp.Path, row.WorkspaceID.UUID))
 		nextAttemptAt = now
 	}
 
-	logger.Warn(ctx, "workspace chat file delivery failed", slog.F("mode", failure.mode), slogError(failure.err))
+	if failure.retryAfter > 0 {
+		nextAttemptAt = now.Add(failure.retryAfter)
+	}
 	failed, err := w.opts.Store.FailChatWorkspaceFileDelivery(ctx, database.FailChatWorkspaceFileDeliveryParams{
 		Error:          failure.err.Error(),
 		NextAttemptAt:  nextAttemptAt,
@@ -213,12 +249,19 @@ func (w *chatWorker) deliverWorkspaceFile(ctx context.Context, row database.Acqu
 		LeaseExpiresAt: row.LeaseExpiresAt,
 	})
 	if err != nil {
-		logger.Error(ctx, "record failed workspace chat file delivery", slogError(err))
+		logger.Error(ctx, "record failed workspace chat file delivery", slog.F("mode", failure.mode), slog.F("attempt_error", failure.logError().Error()), slogError(err))
 		return
 	}
 	if failed == 0 {
-		logger.Info(ctx, "workspace chat file delivery outcome dropped, the file is no longer under this claim")
+		logger.Info(ctx, "workspace chat file delivery outcome dropped, the file is no longer under this claim", slog.F("attempt_error", failure.logError().Error()))
+		return
 	}
+	fields := []slog.Field{slog.F("mode", failure.mode), slog.F("next_attempt_at", nextAttemptAt), slogError(failure.logError())}
+	if failure.quiet {
+		logger.Debug(ctx, "workspace chat file delivery failed", fields...)
+		return
+	}
+	logger.Warn(ctx, "workspace chat file delivery failed", fields...)
 }
 
 // copyWorkspaceFile writes the file into the workspace through the agent
@@ -227,6 +270,17 @@ func (w *chatWorker) copyWorkspaceFile(ctx context.Context, row database.Acquire
 	chat, err := w.opts.Store.GetChatByID(ctx, row.ChatID)
 	if err != nil {
 		return workspacesdk.AgentUploadChatFileResponse{}, refundWorkspaceFileDelivery(xerrors.Errorf("load chat: %w", err))
+	}
+	attached, err := w.opts.Store.IsChatWorkspaceFileAttached(ctx, database.IsChatWorkspaceFileAttachedParams{ChatID: chat.ID, FileID: row.ID})
+	if err != nil {
+		return workspacesdk.AgentUploadChatFileResponse{}, refundWorkspaceFileDelivery(xerrors.Errorf("check the chat's messages for the file: %w", err))
+	}
+	if !attached {
+		// The user removed the file before it was copied, so it waits for
+		// an explicit retry instead.
+		failure := parkWorkspaceFileDelivery(xerrors.New("no message in the chat attaches the file anymore"))
+		failure.quiet = true
+		return workspacesdk.AgentUploadChatFileResponse{}, failure
 	}
 	agents, err := w.opts.Store.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, row.WorkspaceID.UUID)
 	if err != nil {
@@ -238,7 +292,16 @@ func (w *chatWorker) copyWorkspaceFile(ctx context.Context, row database.Acquire
 	}
 	now := w.opts.Clock.Now("chatworker", "workspace-file-delivery")
 	if status := agent.Status(now, w.server.agentInactiveDisconnectTimeout).Status; status != database.WorkspaceAgentStatusConnected {
-		return workspacesdk.AgentUploadChatFileResponse{}, refundWorkspaceFileDelivery(xerrors.Errorf("workspace agent %q is %s, not connected", agent.Name, status))
+		failure := refundWorkspaceFileDelivery(xerrors.Errorf("workspace agent %q is %s, not connected", agent.Name, status))
+		// An agent that goes away without a lifecycle change still looks
+		// started to the claim, so its files would otherwise come back
+		// every minute until the user restarts the workspace. The delay
+		// grows with the time the agent has been away instead.
+		failure.quiet = true
+		if agent.LastConnectedAt.Valid {
+			failure.retryAfter = min(max(now.Sub(agent.LastConnectedAt.Time), workspaceFileDeliveryRetryDelay), workspaceFileDeliveryMaxDisconnectedDelay)
+		}
+		return workspacesdk.AgentUploadChatFileResponse{}, failure
 	}
 	file, err := w.opts.Store.GetChatFileByID(ctx, row.ID)
 	if err != nil {
@@ -257,8 +320,14 @@ func (w *chatWorker) copyWorkspaceFile(ctx context.Context, row database.Acquire
 	// No chat turn heartbeat may keep the workspace alive during the
 	// delivery, so it records usage itself; otherwise the workspace could
 	// autostop during a long copy.
+	uploadCtx, cancelUpload := context.WithCancelCause(ctx)
+	defer cancelUpload(nil)
+	stall := w.opts.Clock.AfterFunc(workspaceFileDeliveryStallTimeout, func() {
+		cancelUpload(errWorkspaceFileDeliveryStalled)
+	}, "chatworker", "workspace-file-delivery-stall")
+	defer stall.Stop("chatworker", "workspace-file-delivery-stall")
 	body := &workspaceFileUsageReader{
-		r:     bytes.NewReader(file.Data),
+		r:     &workspaceFileStallReader{r: bytes.NewReader(file.Data), timer: stall},
 		clock: w.opts.Clock,
 		report: func() {
 			if w.server.usageTracker != nil {
@@ -268,13 +337,18 @@ func (w *chatWorker) copyWorkspaceFile(ctx context.Context, row database.Acquire
 		},
 	}
 	body.reportNow()
-	resp, err := conn.UploadChatFile(ctx, workspacesdk.UploadChatFileRequest{
+	resp, err := conn.UploadChatFile(uploadCtx, workspacesdk.UploadChatFileRequest{
 		ChatID: chat.ID.String(),
 		Name:   file.Name,
 		FileID: file.ID,
 		Body:   body,
 	})
 	if err != nil {
+		if errors.Is(context.Cause(uploadCtx), errWorkspaceFileDeliveryStalled) {
+			failure := retryWorkspaceFileDelivery(errWorkspaceFileDeliveryStalled)
+			failure.cause = err
+			return workspacesdk.AgentUploadChatFileResponse{}, failure
+		}
 		return workspacesdk.AgentUploadChatFileResponse{}, classifyWorkspaceFileUploadError(err)
 	}
 	// A write-once upload reports a file that already exists at the target
@@ -312,21 +386,48 @@ func (u *workspaceFileUsageReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
+// workspaceFileStallReader restarts the stall timer each time the agent
+// takes more of the body. The last read does not restart it, so the timer
+// also bounds the wait for the agent's answer.
+type workspaceFileStallReader struct {
+	r     io.Reader
+	timer *quartz.Timer
+}
+
+func (s *workspaceFileStallReader) Read(p []byte) (int, error) {
+	n, err := s.r.Read(p)
+	if err == nil {
+		s.timer.Reset(workspaceFileDeliveryStallTimeout, "chatworker", "workspace-file-delivery-stall")
+	}
+	return n, err
+}
+
 // classifyWorkspaceFileUploadError parks a file the agent rejected, since
 // repeating the same request cannot succeed, and retries server and
-// transport errors.
+// transport errors. The stored error leaves out the agent's request URL,
+// which the full error in the log keeps.
 func classifyWorkspaceFileUploadError(err error) *workspaceFileDeliveryFailure {
+	failure := classifyWorkspaceFileUploadErrorText(err)
+	failure.cause = err
+	return failure
+}
+
+func classifyWorkspaceFileUploadErrorText(err error) *workspaceFileDeliveryFailure {
 	var sdkErr *codersdk.Error
 	if !errors.As(err, &sdkErr) {
+		var urlErr *url.Error
+		if errors.As(err, &urlErr) {
+			err = urlErr.Err
+		}
 		return retryWorkspaceFileDelivery(xerrors.Errorf("upload to the workspace agent: %w", err))
 	}
 	status := sdkErr.StatusCode()
-	if status < http.StatusBadRequest || status >= http.StatusInternalServerError {
-		return retryWorkspaceFileDelivery(xerrors.Errorf("upload to the workspace agent: %w", err))
-	}
 	reason := sdkErr.Message
 	if sdkErr.Detail != "" {
 		reason = fmt.Sprintf("%s: %s", reason, sdkErr.Detail)
+	}
+	if status < http.StatusBadRequest || status >= http.StatusInternalServerError {
+		return retryWorkspaceFileDelivery(xerrors.Errorf("the workspace agent failed the upload with status %d (%s)", status, reason))
 	}
 	// Agents that predate write-once uploads answer 400 to the file_id
 	// parameter, and agents that predate chat uploads answer 404.
