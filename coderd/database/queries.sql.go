@@ -3011,6 +3011,7 @@ WITH prices AS (
 	WHERE ai_model_configs.organization_id = $4::uuid
 		AND ai_model_configs.provider_id = $5::uuid
 		AND ai_model_configs.model IN ($1::text, $3::text)
+		AND ai_model_configs.deleted = FALSE
 )
 SELECT
 	prices.model,
@@ -3046,7 +3047,8 @@ type GetAIModelPriceForProviderRow struct {
 // custom price, then the price book. The requested model is preferred over the
 // model reported by the provider, whatever the kind of price. A NULL
 // organization_id matches no organization price, so only site-wide prices
-// apply. Each branch is a primary key lookup.
+// apply. Soft-deleted organization prices are ignored. Each branch is a unique
+// index lookup.
 func (q *sqlQuerier) GetAIModelPriceForProvider(ctx context.Context, arg GetAIModelPriceForProviderParams) (GetAIModelPriceForProviderRow, error) {
 	row := q.db.QueryRowContext(ctx, getAIModelPriceForProvider,
 		arg.Model,

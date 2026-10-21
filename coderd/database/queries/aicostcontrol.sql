@@ -42,7 +42,8 @@ WHERE (
 -- custom price, then the price book. The requested model is preferred over the
 -- model reported by the provider, whatever the kind of price. A NULL
 -- organization_id matches no organization price, so only site-wide prices
--- apply. Each branch is a primary key lookup.
+-- apply. Soft-deleted organization prices are ignored. Each branch is a unique
+-- index lookup.
 WITH prices AS (
 	SELECT
 		CASE source WHEN 'custom' THEN 2 ELSE 3 END AS specificity,
@@ -66,6 +67,7 @@ WITH prices AS (
 	WHERE ai_model_configs.organization_id = sqlc.narg('organization_id')::uuid
 		AND ai_model_configs.provider_id = @provider_id::uuid
 		AND ai_model_configs.model IN (@model::text, @provider_model::text)
+		AND ai_model_configs.deleted = FALSE
 )
 SELECT
 	prices.model,
