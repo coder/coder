@@ -19,7 +19,7 @@ BEGIN
 			EXIT;
 		EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
 			IF clock_timestamp() > deadline THEN
-				RAISE EXCEPTION 'migration 000617 could not lock chat_queued_messages within 2 minutes';
+				RAISE EXCEPTION 'migration 000631 could not lock chat_queued_messages within 2 minutes';
 			END IF;
 		END;
 		PERFORM pg_sleep(0.1);
