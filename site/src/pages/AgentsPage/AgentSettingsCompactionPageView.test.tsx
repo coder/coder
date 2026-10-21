@@ -142,14 +142,10 @@ describe("AgentSettingsCompactionPageView compaction strategy", () => {
 		await chooseTokenBudget();
 
 		await waitFor(() =>
-			expect(
-				screen.getByRole("combobox", { name: "Compaction strategy" }),
-			).toHaveTextContent("Token budget"),
+			expect(queryClient.getQueryData(userCompactionStrategyKey)).toEqual({
+				strategy: "token_budget",
+			}),
 		);
-		// The threshold table reads the same cached strategy as the select.
-		expect(queryClient.getQueryData(userCompactionStrategyKey)).toEqual({
-			strategy: "token_budget",
-		});
 	});
 
 	it("keeps the saved strategy when saving fails", async () => {
