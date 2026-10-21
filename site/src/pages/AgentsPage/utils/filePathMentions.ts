@@ -1,4 +1,4 @@
-export type FilePathMention = {
+type FilePathMention = {
 	path: string;
 	line?: number;
 };
