@@ -40,9 +40,8 @@ export const ConnectionLogRow: React.FC<ConnectionLogRowProps> = ({
 	const isWeb = connectionLog.web_info !== undefined;
 	const code =
 		connectionLog.web_info?.status_code ?? connectionLog.ssh_info?.exit_code;
-	const durationText = connectionLog.ssh_info
-		? durationLabel(connectionLog.ssh_info.duration)
-		: undefined;
+	const duration = connectionLog.ssh_info?.duration;
+	const durationText = duration ? durationLabel(duration) : undefined;
 
 	return (
 		<TimelineEntry
