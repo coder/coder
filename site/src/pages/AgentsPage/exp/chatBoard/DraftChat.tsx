@@ -17,9 +17,13 @@ type DraftChatProps = {
 	 * plain text, so the context needs no Markdown quoting.
 	 */
 	readonly context: string | undefined;
-	/** Locks the composer to this project; without it the composer's project picker decides. */
+	/**
+	 * A project locks the composer to it and null locks it outside every
+	 * project; undefined leaves the choice to the composer's project picker.
+	 */
 	readonly project:
 		| Pick<TypesGen.ChatProject, "id" | "organization_id">
+		| null
 		| undefined;
 	readonly onCreated: (chatId: string) => void;
 };
@@ -82,7 +86,8 @@ export const DraftChat: React.FC<DraftChatProps> = ({
 
 	return (
 		<AgentCreateForm
-			project={project}
+			project={project ?? undefined}
+			withoutProject={project === null}
 			onCreateChat={handleCreateChat}
 			isCreating={createMutation.isPending}
 			createError={createMutation.error}

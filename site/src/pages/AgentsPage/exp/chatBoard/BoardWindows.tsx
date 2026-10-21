@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useEffectEvent } from "react";
-import type { Chat, ChatProject } from "#/api/typesGenerated";
+import type { Chat } from "#/api/typesGenerated";
 import { AgentChatPageSkeleton } from "../../components/AgentsSkeletons";
+import type { LaneProject } from "./BoardLane";
 import {
 	type BoardState,
 	cardContext,
@@ -36,7 +37,7 @@ type BoardWindowsProps = {
 	readonly onDraftCreated: (target: DraftTarget, chatId: string) => void;
 	readonly onCardAssistant: (card: BoardCard) => void;
 	/** The project a lane files new chats into; undefined for none or unknown. */
-	readonly projectOf: (lane: string) => ChatProject | undefined;
+	readonly projectOf: (lane: string) => LaneProject | null | undefined;
 };
 
 /** What a window shows in its title bar and in its tab once minimized. */
@@ -45,7 +46,7 @@ const summarizeWindow = (
 	board: BoardState,
 	chatsById: ReadonlyMap<string, Chat>,
 	colorByChatId: ReadonlyMap<string, CardColor>,
-	projectOf: (lane: string) => ChatProject | undefined,
+	projectOf: (lane: string) => LaneProject | null | undefined,
 ): Omit<WindowTab, "key"> => {
 	if (win.kind === "chat") {
 		const chat = chatsById.get(win.chatId);
@@ -60,10 +61,10 @@ const summarizeWindow = (
 	if ("column" in target) {
 		// Names the project too, so the window says where the chat will land.
 		const project = target.lane ? projectOf(target.lane) : undefined;
+		const where =
+			project === undefined ? "" : `${project?.name ?? "No project"} / `;
 		return {
-			title: project
-				? `New chat in ${project.name} / ${target.column}`
-				: `New chat in ${target.column}`,
+			title: `New chat in ${where}${target.column}`,
 			color: undefined,
 			chat: undefined,
 		};

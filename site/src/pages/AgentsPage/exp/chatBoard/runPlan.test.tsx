@@ -222,28 +222,38 @@ describe("runPlan", () => {
 		expect(toast).not.toHaveBeenCalled();
 	});
 
-	it("moves projects before the label writes and skips the writes when a move fails", async () => {
+	it("sends no label write after a failed move and moves the landed chats back", async () => {
 		const spy = vi
 			.spyOn(API.experimental, "updateChat")
-			.mockImplementation((_chatId, req) =>
-				req.project_id
+			.mockImplementation((chatId, req) =>
+				chatId === "b" && req.project_id
 					? Promise.reject(new Error("chat is busy"))
 					: Promise.resolve(),
 			);
-		const a = chat("a");
+		const a = chat("a", addCommentLabels({}, "keep me", 1));
+		const b = chat("b");
 		const { queryClient, deps } = renderDeps();
 
 		const pending = runPlan(
 			{
-				projectMoves: [{ chat: a, projectId: "p" }],
-				writes: [{ chat: a, labels: { "board/column": "Doing" } }],
+				projectMoves: [
+					{ chat: a, projectId: "p" },
+					{ chat: b, projectId: "p" },
+				],
+				receiver: { chat: b, labels: addCommentLabels({}, "keep me", 1) },
+				writes: [{ chat: a, labels: {} }],
 			},
 			deps,
 		);
 
 		await expect(pending).resolves.toBe(false);
 		await waitFor(() => expect(queryClient.isMutating()).toBe(0));
-		expect(spy.mock.calls).toEqual([["a", { project_id: "p" }]]);
+		// The receiver never got the note, so the source keeps it.
+		expect(spy.mock.calls).toEqual([
+			["a", { project_id: "p" }],
+			["b", { project_id: "p" }],
+			["a", { project_id: "00000000-0000-0000-0000-000000000000" }],
+		]);
 	});
 
 	it("undoes project moves before restoring labels", async () => {

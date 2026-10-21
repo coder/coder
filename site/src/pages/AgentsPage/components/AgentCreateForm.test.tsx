@@ -923,6 +923,21 @@ describe("AgentCreateForm project picker", () => {
 		expect(submittedOptions(onCreateChat).projectId).toBeUndefined();
 	});
 
+	it("hides the picker and files nothing when composing outside every project", async () => {
+		const { onCreateChat } = renderForm(
+			{ withoutProject: true },
+			{ queryClient: createProjectQueryClient() },
+		);
+
+		await submitMessage("stay outside");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(
+			screen.queryByRole("button", { name: /^Project:/ }),
+		).not.toBeInTheDocument();
+		expect(submittedOptions(onCreateChat).projectId).toBeUndefined();
+	});
+
 	it("creates the chat in the picked project", async () => {
 		const { onCreateChat } = renderForm(
 			{},

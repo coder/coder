@@ -7,8 +7,16 @@ import { Button } from "#/components/Button/Button";
 import { ChatProjectIcon } from "../../components/ChatProjectIcon";
 import { AssistantOpener } from "./Openers";
 
+/** The project a lane files chats into, as far as the board knows it. */
+export type LaneProject = Readonly<{
+	id: string;
+	organization_id: string;
+	name: string;
+}>;
+
 type BoardLaneProps = {
-	/** Undefined for the lane of cards in no project. */
+	readonly name: string;
+	/** Undefined for no project, or a project missing from the list. */
 	readonly project: ChatProject | undefined;
 	readonly cardCount: number;
 	readonly collapsed: boolean;
@@ -27,6 +35,7 @@ type BoardLaneProps = {
  * to the project: collapse, the project page, and its assistant.
  */
 export const BoardLane: React.FC<BoardLaneProps> = ({
+	name,
 	project,
 	cardCount,
 	collapsed,
@@ -37,7 +46,6 @@ export const BoardLane: React.FC<BoardLaneProps> = ({
 	onPreviewEnd,
 	children,
 }) => {
-	const name = project?.name ?? "No project";
 	const headerRef = useRef<HTMLElement>(null);
 	const anchor = () =>
 		headerRef.current?.getBoundingClientRect() ?? new DOMRect();
