@@ -3,6 +3,7 @@ package database_test
 import (
 	"context"
 	"database/sql"
+	"sync"
 	"testing"
 	"time"
 
@@ -25,6 +26,7 @@ const chatFileDeliveryLease = 5 * time.Minute
 const chatFileDeliveryFastUpload = 1e18
 
 type chatFileDeliveryFixture struct {
+	sqlDB *sql.DB
 	db    database.Store
 	owner database.User
 	org   database.Organization
@@ -37,6 +39,7 @@ func newChatFileDeliveryFixture(t *testing.T) chatFileDeliveryFixture {
 	require.NoError(t, migrations.Up(sqlDB))
 	db := database.New(sqlDB)
 	return chatFileDeliveryFixture{
+		sqlDB: sqlDB,
 		db:    db,
 		owner: dbgen.User(t, db, database.User{}),
 		org:   dbgen.Organization(t, db, database.Organization{}),
@@ -601,6 +604,82 @@ func TestChatWorkspaceFileDeliveryOutcomes(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Zero(t, completed)
+
+		stored, err := f.db.GetChatFileByID(ctx, file.ID)
+		require.NoError(t, err)
+		require.Equal(t, []byte("payload"), stored.Data)
+		require.False(t, stored.WorkspaceDeliveredAt.Valid)
+	})
+
+	t.Run("CompleteWaitsForAnOpenRebind", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		now := dbtime.Now()
+		chat := f.readyChat(ctx, t)
+		file := f.linkedFile(ctx, t, chat.ID, database.ChatFilePurposeWorkspace, []byte("payload"))
+		claimed := acquireChatFilesFor(ctx, t, f.db, chat.ID, now)
+		require.Len(t, claimed, 1)
+		other, _ := f.build(t, database.WorkspaceTable{}, 1, database.WorkspaceTransitionStart)
+
+		// The rebind's transaction stays open until release closes.
+		rebound := make(chan struct{})
+		release := make(chan struct{})
+		var releaseOnce sync.Once
+		releaseRebind := func() { releaseOnce.Do(func() { close(release) }) }
+		t.Cleanup(releaseRebind)
+		rebindDone := make(chan error, 1)
+		go func() {
+			rebindDone <- f.db.InTx(func(tx database.Store) error {
+				if _, err := tx.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+					ID:          chat.ID,
+					WorkspaceID: uuid.NullUUID{UUID: other.ID, Valid: true},
+				}); err != nil {
+					return err
+				}
+				close(rebound)
+				<-release
+				return nil
+			}, nil)
+		}()
+		testutil.TryReceive(ctx, t, rebound)
+
+		type completion struct {
+			rows int64
+			err  error
+		}
+		completed := make(chan completion, 1)
+		go func() {
+			rows, err := f.db.CompleteChatWorkspaceFileDelivery(ctx, database.CompleteChatWorkspaceFileDeliveryParams{
+				ID:                   file.ID,
+				DeliveredAt:          now,
+				DeliveredPath:        "~/report.zip",
+				DeliveredWorkspaceID: claimed[0].WorkspaceID.UUID,
+				LeaseExpiresAt:       claimed[0].LeaseExpiresAt,
+			})
+			completed <- completion{rows: rows, err: err}
+		}()
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			if len(completed) > 0 {
+				return true
+			}
+			var waiting bool
+			err := f.sqlDB.QueryRowContext(ctx, `
+				SELECT EXISTS (
+					SELECT 1 FROM pg_stat_activity
+					WHERE datname = current_database()
+						AND wait_event_type = 'Lock'
+						AND query LIKE '%name: CompleteChatWorkspaceFileDelivery %'
+				)`).Scan(&waiting)
+			require.NoError(t, err)
+			return waiting
+		}, testutil.IntervalFast)
+		require.Empty(t, completed, "completion must wait for the open rebind")
+
+		releaseRebind()
+		require.NoError(t, testutil.TryReceive(ctx, t, rebindDone))
+		result := testutil.TryReceive(ctx, t, completed)
+		require.NoError(t, result.err)
+		require.Zero(t, result.rows)
 
 		stored, err := f.db.GetChatFileByID(ctx, file.ID)
 		require.NoError(t, err)

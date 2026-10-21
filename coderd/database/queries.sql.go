@@ -6409,6 +6409,7 @@ WHERE id = $4::uuid
 		JOIN chats c ON c.id = cfl.chat_id
 		WHERE cfl.file_id = chat_files.id
 			AND c.workspace_id = $3::uuid
+		FOR SHARE OF c
 	)
 `
 
@@ -6425,7 +6426,10 @@ type CompleteChatWorkspaceFileDeliveryParams struct {
 // validating. It applies only under the claim that lease_expires_at
 // identifies and while the file's chat is still bound to the delivered
 // workspace, so a chat that moved to another workspace during the upload
-// keeps the file for the new workspace.
+// keeps the file for the new workspace. FOR SHARE on the chat row conflicts
+// with UpdateChatWorkspaceBinding's row lock, so a rebind that is in flight
+// makes completion wait and recheck the binding after it commits, and a
+// completion that locks first makes the rebind wait until it commits.
 func (q *sqlQuerier) CompleteChatWorkspaceFileDelivery(ctx context.Context, arg CompleteChatWorkspaceFileDeliveryParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, completeChatWorkspaceFileDelivery,
 		arg.DeliveredAt,
