@@ -1,6 +1,8 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { AxiosError, AxiosHeaders } from "axios";
+import { useState } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { API, type WorkspaceAgentFindFilesResult } from "#/api/api";
 import { toast } from "#/components/Toaster/toast";
 import { render } from "#/testHelpers/renderHelpers";
@@ -43,20 +45,25 @@ describe("Response", () => {
 	});
 
 	describe("file mentions", () => {
+		afterEach(() => {
+			vi.restoreAllMocks();
+		});
+		const makeFiles = (): WorkspaceFilesContextValue => ({
+			agentId: "agent-1",
+			defaultDirectory: "/home/coder",
+			repoRoots: ["/home/coder/coder", "/home/coder/other"],
+			repositories: new Map(),
+			openFile: vi.fn(),
+		});
+
 		const renderWithFiles = (markdown: string) => {
-			const files: WorkspaceFilesContextValue = {
-				agentId: "agent-1",
-				defaultDirectory: "/home/coder",
-				repoRoots: ["/home/coder/coder", "/home/coder/other"],
-				repositories: new Map(),
-				openFile: vi.fn(),
-			};
-			render(
+			const files = makeFiles();
+			const { unmount } = render(
 				<WorkspaceFilesContext.Provider value={files}>
 					<Response>{markdown}</Response>
 				</WorkspaceFilesContext.Provider>,
 			);
-			return files;
+			return { files, unmount };
 		};
 
 		const findResult = (
@@ -97,7 +104,7 @@ describe("Response", () => {
 		it("opens an absolute path without searching", async () => {
 			const user = userEvent.setup();
 			const find = vi.spyOn(API, "findWorkspaceAgentFiles");
-			const files = renderWithFiles("Open /home/coder/coder/go.mod#L3.");
+			const { files } = renderWithFiles("Open /home/coder/coder/go.mod#L3.");
 
 			await user.click(
 				await screen.findByRole("button", {
@@ -119,7 +126,7 @@ describe("Response", () => {
 					findResult("/home/coder/coder", "site/src/api/myapi.ts"),
 				],
 			});
-			const files = renderWithFiles("Edit `api/api.ts:42`.");
+			const { files } = renderWithFiles("Edit `api/api.ts:42`.");
 
 			await user.dblClick(
 				await screen.findByRole("button", { name: "api/api.ts:42" }),
@@ -146,12 +153,12 @@ describe("Response", () => {
 					findResult("/home/coder/other", "docs/README.md"),
 				],
 			});
-			const files = renderWithFiles("See README.md for setup.");
+			const { files } = renderWithFiles("See README.md for setup.");
 
 			await user.click(
 				await screen.findByRole("button", { name: "README.md" }),
 			);
-			const picker = await screen.findByRole("list", {
+			const picker = await screen.findByRole("dialog", {
 				name: "Files matching README.md",
 			});
 			await user.click(
@@ -170,7 +177,7 @@ describe("Response", () => {
 				results: [findResult("/home/coder/coder", "src/other.go")],
 			});
 			const toastError = vi.spyOn(toast, "error");
-			const files = renderWithFiles("Look at `main.go`.");
+			const { files } = renderWithFiles("Look at `main.go`.");
 
 			await user.click(await screen.findByRole("button", { name: "main.go" }));
 
@@ -180,6 +187,92 @@ describe("Response", () => {
 				),
 			);
 			expect(files.openFile).not.toHaveBeenCalled();
+		});
+
+		it("marks messages rendered before workspace files became available", async () => {
+			const user = userEvent.setup();
+			const files = makeFiles();
+			const Harness = () => {
+				const [enabled, setEnabled] = useState(false);
+				return (
+					<>
+						<button type="button" onClick={() => setEnabled(true)}>
+							Enable files
+						</button>
+						<WorkspaceFilesContext.Provider value={enabled ? files : undefined}>
+							<Response>{"Open /home/coder/coder/go.mod now."}</Response>
+						</WorkspaceFilesContext.Provider>
+					</>
+				);
+			};
+			render(<Harness />);
+			await screen.findByText(/Open/);
+			expect(buttonTexts()).toEqual(["Enable files"]);
+
+			await user.click(screen.getByRole("button", { name: "Enable files" }));
+			await user.click(
+				await screen.findByRole("button", { name: "/home/coder/coder/go.mod" }),
+			);
+
+			expect(files.openFile).toHaveBeenCalledWith("/home/coder/coder/go.mod", {
+				line: undefined,
+			});
+		});
+
+		it("ignores a lookup that finishes after the mention unmounts", async () => {
+			const user = userEvent.setup();
+			let finish: (value: {
+				results: WorkspaceAgentFindFilesResult[];
+			}) => void = () => {};
+			vi.spyOn(API, "findWorkspaceAgentFiles").mockReturnValue(
+				new Promise((resolve) => {
+					finish = resolve;
+				}),
+			);
+			const toastError = vi.spyOn(toast, "error");
+			const { files, unmount } = renderWithFiles("Look at `main.go`.");
+
+			await user.click(await screen.findByRole("button", { name: "main.go" }));
+			unmount();
+			finish({ results: [findResult("/home/coder/coder", "main.go")] });
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			expect(files.openFile).not.toHaveBeenCalled();
+			expect(toastError).not.toHaveBeenCalled();
+		});
+
+		const notFoundResponse = (data: unknown) => ({
+			status: 404,
+			statusText: "Not Found",
+			data,
+			headers: {},
+			config: { headers: new AxiosHeaders() },
+		});
+
+		it.each([
+			{ shape: "a Coder error body", data: { message: "Route not found." } },
+			{ shape: "a plain text body", data: "404 page not found\n" },
+		])("asks for an agent update on a 404 with $shape", async ({ data }) => {
+			const user = userEvent.setup();
+			vi.spyOn(API, "findWorkspaceAgentFiles").mockRejectedValue(
+				new AxiosError(
+					"Request failed with status code 404",
+					AxiosError.ERR_BAD_REQUEST,
+					undefined,
+					undefined,
+					notFoundResponse(data),
+				),
+			);
+			const toastError = vi.spyOn(toast, "error");
+			renderWithFiles("Look at `main.go`.");
+
+			await user.click(await screen.findByRole("button", { name: "main.go" }));
+
+			await waitFor(() =>
+				expect(toastError).toHaveBeenCalledWith(
+					"Update the workspace agent to open files",
+				),
+			);
 		});
 	});
 });
