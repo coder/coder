@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { getErrorMessage, getErrorStatus } from "#/api/errors";
 import { workspaceAgentFindFiles } from "#/api/queries/workspaceFiles";
@@ -32,13 +32,19 @@ const QuickOpen: React.FC<{ workspaceFiles: WorkspaceFilesContextValue }> = ({
 	const { agentId, repoRoots, openFile } = workspaceFiles;
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState("");
-	const debouncedQuery = useDebouncedValue(query.trim(), 150);
+	const trimmedQuery = query.trim();
+	const debouncedQuery = useDebouncedValue(trimmedQuery, 150);
 	const roots = repoRoots.length > 0 ? repoRoots : [""];
 	const findQuery = useQuery({
 		...workspaceAgentFindFiles(agentId, roots, debouncedQuery),
 		enabled: open && debouncedQuery !== "",
 		placeholderData: keepPreviousData,
 	});
+	// The dialog has no Radix trigger, so focus returns to the element that
+	// had it when the shortcut fired. Opening a file skips this because the
+	// file tab takes focus.
+	const openerRef = useRef<HTMLElement | null>(null);
+	const openedFileRef = useRef(false);
 
 	useEffect(() => {
 		const handler = (event: KeyboardEvent) => {
@@ -52,6 +58,12 @@ const QuickOpen: React.FC<{ workspaceFiles: WorkspaceFilesContextValue }> = ({
 				return;
 			}
 			event.preventDefault();
+			if (
+				openerRef.current === null &&
+				document.activeElement instanceof HTMLElement
+			) {
+				openerRef.current = document.activeElement;
+			}
 			setOpen(true);
 		};
 		document.addEventListener("keydown", handler);
@@ -65,28 +77,43 @@ const QuickOpen: React.FC<{ workspaceFiles: WorkspaceFilesContextValue }> = ({
 		}
 	};
 
+	const handleCloseAutoFocus = (event: Event) => {
+		event.preventDefault();
+		if (!openedFileRef.current) {
+			openerRef.current?.focus();
+		}
+		openerRef.current = null;
+		openedFileRef.current = false;
+	};
+
+	// Results for an older query stay visible while the new one loads, but
+	// cannot be opened, so Enter never opens a file the input no longer matches.
+	const isStale =
+		trimmedQuery !== debouncedQuery || findQuery.isPlaceholderData;
 	const files =
-		debouncedQuery === ""
+		trimmedQuery === "" || findQuery.isError
 			? []
 			: (findQuery.data?.results.filter((result) => !result.is_dir) ?? []);
 
 	let status: string | undefined;
-	if (debouncedQuery === "") {
+	if (trimmedQuery === "") {
 		status = "Type to search files.";
-	} else if (findQuery.isError) {
+	} else if (findQuery.isError && !isStale) {
 		status =
 			getErrorStatus(findQuery.error) === 404
 				? "Update the workspace agent to search files."
 				: getErrorMessage(findQuery.error, "Failed to search files.");
-	} else if (findQuery.isPending) {
-		status = "Searching...";
 	} else if (files.length === 0) {
-		status = "No matching files.";
+		status =
+			isStale || findQuery.isPending ? "Searching..." : "No matching files.";
 	}
 
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
-			<DialogContent className="max-w-xl gap-0 overflow-hidden p-0">
+			<DialogContent
+				className="max-w-xl gap-0 overflow-hidden p-0"
+				onCloseAutoFocus={handleCloseAutoFocus}
+			>
 				<DialogTitle className="sr-only">Open file</DialogTitle>
 				<Command shouldFilter={false} label="Search files">
 					<CommandInput
@@ -100,27 +127,36 @@ const QuickOpen: React.FC<{ workspaceFiles: WorkspaceFilesContextValue }> = ({
 								{status}
 							</div>
 						)}
-						{!findQuery.isError &&
-							files.map((result) => (
-								<CommandItem
-									key={result.absolute_path}
-									value={result.absolute_path}
-									onSelect={() => {
-										openFile(result.absolute_path);
-										handleOpenChange(false);
-									}}
-									className="flex-col items-start gap-0"
-								>
-									<span className="font-semibold text-content-primary">
-										{getPathBasename(result.path)}
-									</span>
-									<span className="truncate text-xs font-normal text-content-secondary">
-										{roots.length > 1
-											? `${getPathBasename(result.root)}/${result.path}`
-											: result.path}
-									</span>
-								</CommandItem>
-							))}
+						{isStale && files.length > 0 && (
+							<div
+								role="status"
+								className="px-3 py-1 text-xs text-content-secondary"
+							>
+								Refreshing...
+							</div>
+						)}
+						{files.map((result) => (
+							<CommandItem
+								key={result.absolute_path}
+								value={result.absolute_path}
+								disabled={isStale}
+								onSelect={() => {
+									openedFileRef.current = true;
+									openFile(result.absolute_path);
+									handleOpenChange(false);
+								}}
+								className="flex-col items-start gap-0"
+							>
+								<span className="font-semibold text-content-primary">
+									{getPathBasename(result.path)}
+								</span>
+								<span className="truncate text-xs font-normal text-content-secondary">
+									{roots.length > 1
+										? `${getPathBasename(result.root)}/${result.path}`
+										: result.path}
+								</span>
+							</CommandItem>
+						))}
 					</CommandList>
 				</Command>
 			</DialogContent>
