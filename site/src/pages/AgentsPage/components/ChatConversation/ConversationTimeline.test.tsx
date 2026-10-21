@@ -360,8 +360,8 @@ describe("ConversationTimeline turn attachments", () => {
 	it("lists only each turn's files in the pill under its answer", async () => {
 		const user = userEvent.setup();
 		renderTimeline({ messages: MockSearchAnswerAttachmentMessages });
-		// Expanded, the block repeats the first answer; only the row below it
-		// hosts the pill.
+		// Expanded, the block also renders the first answer's row (its steps);
+		// only the answer below the block hosts the pill.
 		await user.click(
 			screen.getByRole("button", { name: "Worked for 15s (4 steps)" }),
 		);

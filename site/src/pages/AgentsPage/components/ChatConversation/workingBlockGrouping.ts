@@ -150,7 +150,7 @@ export const isAgentAttachmentOnlyRow = (row: TimelineRow): boolean => {
 	);
 };
 
-type TurnAttachmentsOptions = {
+export type TurnAttachmentsOptions = {
 	/** Collapsed steps hide attachment-only rows outside working blocks. */
 	hidesAttachmentRows: boolean;
 	/** The newest turn may still attach files, so it gets no entry yet. */

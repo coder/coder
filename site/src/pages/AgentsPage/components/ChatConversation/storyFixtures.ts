@@ -460,7 +460,7 @@ const [mockSearchAnswer] = MockWebSearchAnswerMessages.slice(-1);
 
 /**
  * MockMixedAttachmentMessages whose first turn ends in a searched answer, so
- * the expanded block renders that answer and the row below repeats it.
+ * that row renders in the expanded block (its steps) and below it (its text).
  */
 export const MockSearchAnswerAttachmentMessages: TypesGen.ChatMessage[] =
 	MockMixedAttachmentMessages.map((message) =>

@@ -15,6 +15,7 @@ import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
 	buildLiveStatus,
+	buildStreamRenderState,
 	MockAttachmentWorkingMessages,
 	MockBrokenImageAttachmentMessages,
 	MockCollapsedStepsPreferences,
@@ -23,6 +24,7 @@ import {
 	MockMixedAttachmentMessages,
 	MockPlanAttachmentMessages,
 	MockQuestionCallMessage,
+	MockSearchAnswerAttachmentMessages,
 	MockUnansweredAttachmentMessages,
 	MockUncitedSearchAnswerMessages,
 	MockWebSearchAnswerMessages,
@@ -301,9 +303,7 @@ export const TurnAttachmentsPillBrokenImage: Story = {
 // The running turn gets its pill once it settles; earlier turns keep theirs.
 export const TurnAttachmentsPillRunningTurn: Story = {
 	args: {
-		parsedMessages: parseMessagesWithMergedTools(
-			MockUnansweredAttachmentMessages,
-		),
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
 		chatStatus: "running",
 	},
 };
@@ -317,6 +317,41 @@ export const TurnAttachmentsPillStepsShown: Story = {
 		parsedMessages: parseMessagesWithMergedTools(
 			MockUnansweredAttachmentMessages,
 		),
+	},
+};
+
+// Expanded, the block shows the first answer's steps; the pill stays under
+// the answer text below it.
+export const TurnAttachmentsPillBlockExpanded: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockSearchAnswerAttachmentMessages,
+		),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Worked for 15s (4 steps)",
+			}),
+		);
+	},
+};
+
+// The status can settle before the streamed answer persists; until then the
+// newest turn shows no pill. With steps shown, the pill would otherwise sit
+// under the last attachment.
+export const TurnAttachmentsPillLiveAnswer: Story = {
+	parameters: {
+		queries: [{ key: preferenceSettingsKey, data: MockUserPreferenceSettings }],
+	},
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockUnansweredAttachmentMessages,
+		),
+		chatStatus: "waiting",
+		...buildStreamRenderState([
+			{ type: "text", text: "The dashboard matches the spec." },
+		]),
 	},
 };
 

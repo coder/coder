@@ -130,15 +130,16 @@ const ChatMessageItem = memo<{
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
 	hideActions?: boolean;
-	/** Non-empty, on the row that hosts a settled turn's attachments. */
+	/** Never empty when set. */
 	turnAttachments?: readonly AgentAttachment[];
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
 
 	// The bottom spacer fakes the height of the hidden action bar so
 	// chain-end messages keep even spacing before the next bubble.
-	// The last transcript message has nothing after it, so the spacer
-	// would render as a dangling blank at the end of the chat.
+	// A row with turn attachments shows the bar for its pill, so it needs
+	// no spacer. The last transcript message has nothing after it, so the
+	// spacer would render as a dangling blank at the end of the chat.
 	isLastMessage?: boolean;
 	onImplementPlan?: () => Promise<void> | void;
 	urlTransform: UrlTransform;
@@ -535,11 +536,10 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const isTurnActive =
 			chatStatus === "running" || chatStatus === "interrupting";
 		const collapseSteps = Boolean(preferences.data?.collapse_assistant_steps);
-		const turnAttachmentsByRow = useTurnAttachmentsByRow(
-			parsedMessages,
-			collapseSteps,
-			isTurnActive || shouldRenderLiveAssistant(liveStatus),
-		);
+		const turnAttachmentsByRow = useTurnAttachmentsByRow(parsedMessages, {
+			hidesAttachmentRows: collapseSteps,
+			isLastTurnActive: isTurnActive || shouldRenderLiveAssistant(liveStatus),
+		});
 		const workingBlocks = collapseSteps
 			? groupWorkingBlocks(renderRows, parsedMessages, {
 					hasMoreMessages,

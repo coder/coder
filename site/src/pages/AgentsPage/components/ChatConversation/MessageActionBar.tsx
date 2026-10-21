@@ -4,13 +4,14 @@ import { TurnAttachments } from "./TurnAttachments";
 
 type MessageActionBarProps = React.PropsWithChildren<{
 	isUser: boolean;
-	/** Set on the row that hosts a settled turn's attachments. */
 	turnAttachments?: readonly AgentAttachment[];
-	/** Whether to render the hover-revealed action buttons in children. */
 	showsActions: boolean;
 }>;
 
-/** Row below a message: the turn's attachments pill, then its actions. */
+/**
+ * The row under a message. The attachments pill stays visible; the action
+ * buttons passed as children appear on hover or focus.
+ */
 export const MessageActionBar: React.FC<MessageActionBarProps> = ({
 	isUser,
 	turnAttachments,
