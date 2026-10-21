@@ -1293,7 +1293,7 @@ func TestSteerDuringMultiStepTurnDeliveredBeforeNextModelCall(t *testing.T) {
 		behavior chatd.SendMessageBusyBehavior
 	}{
 		{text: "queued", behavior: chatd.SendMessageBusyBehaviorQueue},
-		{text: "steer", behavior: chatd.SendMessageBusyBehaviorSteer},
+		{text: "steer"},
 	} {
 		result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 			ChatID:       chat.ID,

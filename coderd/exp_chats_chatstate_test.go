@@ -173,79 +173,70 @@ func TestArchiveChatStateTransitions(t *testing.T) {
 	})
 }
 
-// TestPostChatMessagesBusyInterrupt verifies busy-interrupt sends from the
-// endpoint's perspective. An owned chat queues the message and lands in
-// `interrupting` for its runner. A chat with no owner has no runner, so the
-// interruption finishes inline and the message is promoted into history.
-func TestPostChatMessagesBusyInterrupt(t *testing.T) {
+func TestPostChatMessagesBusyBehavior(t *testing.T) {
 	t.Parallel()
 
-	t.Run("OwnedChatQueues", func(t *testing.T) {
-		t.Parallel()
+	client := newChatClient(t, withChatWorkerDisabled)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModel(t, client)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, api := newChatClientWithAPI(t, withChatWorkerDisabled)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
+	for _, tc := range []struct {
+		name         string
+		busyBehavior codersdk.ChatBusyBehavior
+		wantRow      codersdk.ChatBusyBehavior
+		wantDetail   string
+	}{
+		{name: "DefaultSteers", wantRow: codersdk.ChatBusyBehaviorSteer},
+		{name: "Steer", busyBehavior: codersdk.ChatBusyBehaviorSteer, wantRow: codersdk.ChatBusyBehaviorSteer},
+		{name: "Queue", busyBehavior: codersdk.ChatBusyBehaviorQueue, wantRow: codersdk.ChatBusyBehaviorQueue},
+		{
+			name:         "InterruptRejected",
+			busyBehavior: "interrupt",
+			wantDetail:   `Must be "steer" or "queue". To interrupt the chat, call POST /api/v2/chats/{chat}/interrupt and then send the message.`,
+		},
+		{name: "UnknownRejected", busyBehavior: "bogus", wantDetail: `Must be "steer" or "queue".`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+			ctx := testutil.Context(t, testutil.WaitLong)
+			chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+				OrganizationID: firstUser.OrganizationID,
+				Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+			})
+			require.NoError(t, err)
+			require.Equal(t, codersdk.ChatStatusRunning, chat.Status)
+
+			resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+				Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "follow up"}},
+				BusyBehavior: tc.busyBehavior,
+			})
+			var wantQueued []codersdk.ChatBusyBehavior
+			if tc.wantDetail != "" {
+				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+				require.Equal(t, "Invalid busy_behavior value.", sdkErr.Message)
+				require.Equal(t, tc.wantDetail, sdkErr.Detail)
+			} else {
+				require.NoError(t, err)
+				require.True(t, resp.Queued)
+				require.NotNil(t, resp.QueuedMessage)
+				require.Equal(t, tc.wantRow, resp.QueuedMessage.BusyBehavior)
+				wantQueued = []codersdk.ChatBusyBehavior{tc.wantRow}
+			}
+
+			messages, err := client.GetChatMessages(ctx, chat.ID, nil)
+			require.NoError(t, err)
+			gotQueued := make([]codersdk.ChatBusyBehavior, 0, len(messages.QueuedMessages))
+			for _, queued := range messages.QueuedMessages {
+				gotQueued = append(gotQueued, queued.BusyBehavior)
+			}
+			require.ElementsMatch(t, wantQueued, gotQueued)
+
+			got, err := client.GetChat(ctx, chat.ID)
+			require.NoError(t, err)
+			require.Equal(t, codersdk.ChatStatusRunning, got.Status)
 		})
-		require.NoError(t, err)
-		require.Equal(t, codersdk.ChatStatusRunning, chat.Status)
-
-		// A worker owns the running chat.
-		chatdCtx := dbauthz.AsChatd(ctx) //nolint:gocritic // Test fixture mirrors chatd background transitions.
-		machine := chatstate.NewChatMachine(api.Database, api.Pubsub, chat.ID)
-		require.NoError(t, machine.Update(chatdCtx, func(tx *chatstate.Tx, _ database.Store) error {
-			_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()})
-			return err
-		}))
-
-		resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
-			Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "stop"}},
-			BusyBehavior: codersdk.ChatBusyBehaviorInterrupt,
-		})
-		require.NoError(t, err)
-		require.True(t, resp.Queued, "busy interrupt must return queued=true")
-		require.NotNil(t, resp.QueuedMessage)
-
-		got, err := client.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
-		require.Equal(t, codersdk.ChatStatusInterrupting, got.Status,
-			"busy interrupt send must land the chat in `interrupting`")
-	})
-
-	t.Run("UnownedChatPromotesInline", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t, withChatWorkerDisabled)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
-
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
-		})
-		require.NoError(t, err)
-
-		resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
-			Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "stop"}},
-			BusyBehavior: codersdk.ChatBusyBehaviorInterrupt,
-		})
-		require.NoError(t, err)
-		require.False(t, resp.Queued, "an unowned chat promotes the message instead of queueing it")
-		require.Nil(t, resp.QueuedMessage)
-		require.NotNil(t, resp.Message)
-		require.Equal(t, codersdk.ChatMessageRoleUser, resp.Message.Role)
-
-		got, err := client.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
-		require.Equal(t, codersdk.ChatStatusRunning, got.Status,
-			"the promoted turn waits for a worker in `running`")
-	})
+	}
 }
 
 // Missing-ID cases need a non-empty queue to pass the transition check.

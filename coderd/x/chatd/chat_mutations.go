@@ -72,7 +72,7 @@ func (p *Server) SendMessage(
 
 	busyBehavior := opts.BusyBehavior
 	if busyBehavior == "" {
-		busyBehavior = SendMessageBusyBehaviorQueue
+		busyBehavior = SendMessageBusyBehaviorSteer
 	}
 	switch busyBehavior {
 	case SendMessageBusyBehaviorQueue, SendMessageBusyBehaviorSteer, SendMessageBusyBehaviorInterrupt:

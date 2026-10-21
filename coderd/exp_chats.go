@@ -3260,16 +3260,21 @@ func (api *API) sendChatMessage(
 		sendPlanMode = &resolvedPlanMode
 	}
 
-	busyBehavior := chatd.SendMessageBusyBehaviorQueue
+	var busyBehavior chatd.SendMessageBusyBehavior
 	switch req.BusyBehavior {
-	case codersdk.ChatBusyBehaviorInterrupt:
-		busyBehavior = chatd.SendMessageBusyBehaviorInterrupt
-	case codersdk.ChatBusyBehaviorQueue, "":
-		// Default to queue.
+	case "", codersdk.ChatBusyBehaviorSteer:
+		busyBehavior = chatd.SendMessageBusyBehaviorSteer
+	case codersdk.ChatBusyBehaviorQueue:
+		busyBehavior = chatd.SendMessageBusyBehaviorQueue
+	case "interrupt":
+		return codersdk.CreateChatMessageResponse{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid busy_behavior value.",
+			Detail:  `Must be "steer" or "queue". To interrupt the chat, call POST /api/v2/chats/{chat}/interrupt and then send the message.`,
+		})
 	default:
 		return codersdk.CreateChatMessageResponse{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid busy_behavior value.",
-			Detail:  `Must be "queue" or "interrupt".`,
+			Detail:  `Must be "steer" or "queue".`,
 		})
 	}
 
