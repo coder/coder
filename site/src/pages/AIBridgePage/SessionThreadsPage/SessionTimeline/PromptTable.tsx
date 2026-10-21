@@ -15,6 +15,8 @@ type PromptTableProps = {
 	model: string;
 	inputTokens: number;
 	outputTokens: number;
+	cacheReadTokens: number;
+	cacheWriteTokens: number;
 	tokenUsageMetadata?: Record<string, unknown>;
 	className?: string;
 };
@@ -24,6 +26,8 @@ export const PromptTable: React.FC<PromptTableProps> = ({
 	model,
 	inputTokens,
 	outputTokens,
+	cacheReadTokens,
+	cacheWriteTokens,
 	tokenUsageMetadata,
 	className,
 }) => {
@@ -61,12 +65,14 @@ export const PromptTable: React.FC<PromptTableProps> = ({
 				</dd>
 			</div>
 
-			<div className="flex items-center justify-between">
-				<dt className="shrink-0 whitespace-nowrap">In / out tokens</dt>
+			<div className="flex items-start justify-between">
+				<dt className="shrink-0 whitespace-nowrap">Tokens</dt>
 				<dd className="ml-4 min-w-0 truncate flex justify-end">
 					<TokenBadges
 						inputTokens={inputTokens}
 						outputTokens={outputTokens}
+						cacheReadTokens={cacheReadTokens}
+						cacheWriteTokens={cacheWriteTokens}
 						tokenUsageMetadata={tokenUsageMetadata}
 					/>
 				</dd>
