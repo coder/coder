@@ -71,6 +71,7 @@ func TestWorkspaceAgentFiles(t *testing.T) {
 		require.Equal(t, "text/plain; charset=utf-8", res.header.Get("Content-Type"))
 		require.Equal(t, "attachment", res.header.Get("Content-Disposition"))
 		require.Equal(t, "sandbox; default-src 'none'", res.header.Get("Content-Security-Policy"))
+		require.Equal(t, "no-store", res.header.Get("Cache-Control"))
 		require.Equal(t, "hello world", string(res.body))
 
 		res = filesRequest(t, client, agentID, http.MethodPost, "list-directory", url.Values{"path": {dir}}, workspacesdk.LSRequest{
@@ -83,6 +84,23 @@ func TestWorkspaceAgentFiles(t *testing.T) {
 		require.Equal(t, dir, ls.AbsolutePathString)
 		require.Len(t, ls.Contents, 1)
 		require.Equal(t, "hello.txt", ls.Contents[0].Name)
+	})
+
+	t.Run("CredentialQueryNotForwarded", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), "token.txt")
+		require.NoError(t, os.WriteFile(path, []byte("ok"), 0o600))
+
+		// The agent rejects unknown query parameters with 400, so a 200
+		// shows the credentials were dropped before the request reached it.
+		res := filesRequest(t, client, agentID, http.MethodGet, "read-file", url.Values{
+			"path":                      {path},
+			codersdk.SessionTokenCookie: {client.SessionToken()},
+			"access_token":              {client.SessionToken()},
+		}, nil)
+		require.Equal(t, http.StatusOK, res.status, string(res.body))
+		require.Equal(t, "ok", string(res.body))
 	})
 
 	t.Run("AgentStatusPassthrough", func(t *testing.T) {
