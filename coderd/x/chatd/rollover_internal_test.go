@@ -10,8 +10,11 @@ import (
 	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
@@ -336,4 +339,32 @@ func TestBuildRolloverMessages(t *testing.T) {
 		require.NoError(t, err)
 		require.NotContains(t, parts[0].Text, "interrupted", "a rollover before answering a new prompt interrupted nothing")
 	})
+}
+
+func TestLatestChatCheckpoint(t *testing.T) {
+	t.Parallel()
+
+	oversized, err := json.Marshal(map[string]string{"checkpoint": strings.Repeat("a", chattool.MaxCheckpointBytes+1)})
+	require.NoError(t, err)
+	tests := []struct {
+		name string
+		args json.RawMessage
+		want string
+	}{
+		{name: "Saved", args: json.RawMessage(`{"checkpoint":"goal"}`), want: "goal"},
+		// A dynamic tool of the same name may have taken other arguments.
+		{name: "IncompatibleLegacyArgs", args: json.RawMessage(`{"checkpoint":123}`)},
+		{name: "OversizedLegacyArgs", args: oversized},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db := dbmock.NewMockStore(gomock.NewController(t))
+			db.EXPECT().GetLatestSuccessfulChatToolCallArgs(gomock.Any(), gomock.Any()).Return(tc.args, nil)
+			server := &Server{db: db, logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})}
+			got, err := server.latestChatCheckpoint(t.Context(), uuid.New())
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
 }
