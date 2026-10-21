@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -8,7 +9,10 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
+	"strings"
+	"sync/atomic"
 	"time"
 
 	"cdr.dev/slog/v3"
@@ -23,10 +27,13 @@ import (
 )
 
 const (
-	// workspaceAgentFilesMaxRequestBytes caps the request body coderd streams
-	// to the agent, which bounds the size of a single file write.
-	workspaceAgentFilesMaxRequestBytes = 32 << 20
-	workspaceAgentFilesDialTimeout     = 30 * time.Second
+	// workspaceAgentFilesMaxFileBytes caps the write-file request body and
+	// the read-file response body, which bounds the size of a file the
+	// browser can write or read.
+	workspaceAgentFilesMaxFileBytes = 32 << 20
+	workspaceAgentFilesDialTimeout  = 30 * time.Second
+	// find-files may walk a whole root before it answers.
+	workspaceAgentFilesResponseHeaderTimeout = 2 * time.Minute
 	// Transport errors embed the agent's tailnet URL, so they are logged
 	// rather than returned to the client.
 	workspaceAgentFilesUnreachableDetail = "The workspace agent could not be reached. Check that the workspace agent is connected and retry."
@@ -34,11 +41,22 @@ const (
 
 // The agent runs code the workspace owner controls, and the requester may be
 // someone else with SSH access, such as an admin, so only the headers the
-// file API needs cross the proxy in either direction.
+// file API needs cross the proxy. Query parameters are allowlisted per route
+// as well, because coderd accepts session tokens as query parameters.
 var (
 	workspaceAgentFilesRequestHeaders  = []string{"Content-Type"}
 	workspaceAgentFilesResponseHeaders = []string{"Content-Type", "Content-Length", "ETag"}
 )
+
+// workspaceAgentFilesRoute is an agent file API endpoint that coderd
+// forwards to.
+type workspaceAgentFilesRoute struct {
+	path        string
+	queryParams []string
+	// maxResponseBytes, when set, refuses larger responses without
+	// relaying any of the body.
+	maxResponseBytes int64
+}
 
 // @Summary List workspace agent directory
 // @ID list-workspace-agent-directory
@@ -49,7 +67,10 @@ var (
 // @Router /api/experimental/workspaceagents/{workspaceagent}/files/list-directory [post]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentFilesListDirectory(rw http.ResponseWriter, r *http.Request) {
-	api.proxyWorkspaceAgentFiles(rw, r, "/api/v0/list-directory")
+	api.proxyWorkspaceAgentFiles(rw, r, workspaceAgentFilesRoute{
+		path:        "/api/v0/list-directory",
+		queryParams: []string{"path"},
+	})
 }
 
 // @Summary Read workspace agent file
@@ -61,7 +82,11 @@ func (api *API) workspaceAgentFilesListDirectory(rw http.ResponseWriter, r *http
 // @Router /api/experimental/workspaceagents/{workspaceagent}/files/read-file [get]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentFilesReadFile(rw http.ResponseWriter, r *http.Request) {
-	api.proxyWorkspaceAgentFiles(rw, r, "/api/v0/read-file")
+	api.proxyWorkspaceAgentFiles(rw, r, workspaceAgentFilesRoute{
+		path:             "/api/v0/read-file",
+		queryParams:      []string{"path", "offset", "limit"},
+		maxResponseBytes: workspaceAgentFilesMaxFileBytes,
+	})
 }
 
 // @Summary Write workspace agent file
@@ -73,7 +98,10 @@ func (api *API) workspaceAgentFilesReadFile(rw http.ResponseWriter, r *http.Requ
 // @Router /api/experimental/workspaceagents/{workspaceagent}/files/write-file [post]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentFilesWriteFile(rw http.ResponseWriter, r *http.Request) {
-	api.proxyWorkspaceAgentFiles(rw, r, "/api/v0/write-file")
+	api.proxyWorkspaceAgentFiles(rw, r, workspaceAgentFilesRoute{
+		path:        "/api/v0/write-file",
+		queryParams: []string{"path", "if_match"},
+	})
 }
 
 // @Summary Find workspace agent files
@@ -85,12 +113,15 @@ func (api *API) workspaceAgentFilesWriteFile(rw http.ResponseWriter, r *http.Req
 // @Router /api/experimental/workspaceagents/{workspaceagent}/files/find-files [get]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentFilesFindFiles(rw http.ResponseWriter, r *http.Request) {
-	api.proxyWorkspaceAgentFiles(rw, r, "/api/v0/find-files")
+	api.proxyWorkspaceAgentFiles(rw, r, workspaceAgentFilesRoute{
+		path:        "/api/v0/find-files",
+		queryParams: []string{"root", "q", "limit"},
+	})
 }
 
 // proxyWorkspaceAgentFiles authorizes the request, dials the workspace agent
-// and forwards the request to agentPath on the agent's HTTP API.
-func (api *API) proxyWorkspaceAgentFiles(rw http.ResponseWriter, r *http.Request, agentPath string) {
+// and forwards the request to route on the agent's HTTP API.
+func (api *API) proxyWorkspaceAgentFiles(rw http.ResponseWriter, r *http.Request, route workspaceAgentFilesRoute) {
 	ctx := r.Context()
 	waws := httpmw.WorkspaceAgentAndWorkspaceParam(r)
 
@@ -121,36 +152,56 @@ func (api *API) proxyWorkspaceAgentFiles(rw http.ResponseWriter, r *http.Request
 	}
 	defer release()
 
-	client := agentConn.AppHTTPClient()
-	// The transport detaches dials from the request context. Closing idle
-	// connections also cancels a dial that a canceled request left behind.
+	client := &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+		Transport: &http.Transport{
+			DisableKeepAlives: true,
+			// The transport detaches dials from the request context, so
+			// the dial needs its own deadline.
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				ctx, cancel := context.WithTimeout(ctx, workspaceAgentFilesDialTimeout)
+				defer cancel()
+				return agentConn.DialContext(ctx, network, addr)
+			},
+			ResponseHeaderTimeout: workspaceAgentFilesResponseHeaderTimeout,
+		},
+	}
+	// Cancels a dial that a canceled request left behind.
 	defer client.CloseIdleConnections()
 
-	target := &url.URL{
+	agentURL := &url.URL{
 		Scheme: "http",
 		Host:   net.JoinHostPort(tailnet.TailscaleServicePrefix.AddrFromUUID(waws.WorkspaceAgent.ID).String(), strconv.Itoa(workspacesdk.AgentHTTPAPIServerPort)),
-		Path:   agentPath,
 	}
-	api.forwardWorkspaceAgentFilesRequest(rw, r, client, target)
+	api.forwardWorkspaceAgentFilesRequest(rw, r, client, agentURL, route)
 }
 
-// forwardWorkspaceAgentFilesRequest sends r's query string, body and
-// allowlisted headers to target through client and copies the status,
-// allowlisted headers and body of the response to rw.
-func (api *API) forwardWorkspaceAgentFilesRequest(rw http.ResponseWriter, r *http.Request, client *http.Client, target *url.URL) {
+// forwardWorkspaceAgentFilesRequest sends r's body and allowlisted headers
+// and query parameters to route on agentURL through client and copies the
+// status, allowlisted headers and body of the response to rw.
+func (api *API) forwardWorkspaceAgentFilesRequest(rw http.ResponseWriter, r *http.Request, client *http.Client, agentURL *url.URL, route workspaceAgentFilesRoute) {
 	ctx := r.Context()
 
-	if r.ContentLength > workspaceAgentFilesMaxRequestBytes {
+	if r.ContentLength > workspaceAgentFilesMaxFileBytes {
 		writeWorkspaceAgentFilesRequestTooLarge(ctx, rw)
 		return
 	}
 
 	var body io.Reader = http.NoBody
+	var limitedBody *workspaceAgentFilesRequestBody
 	if r.ContentLength != 0 {
-		body = http.MaxBytesReader(rw, r.Body, workspaceAgentFilesMaxRequestBytes)
+		// The limit caps the bytes forwarded to the agent, which may
+		// answer before the limit trips.
+		limitedBody = &workspaceAgentFilesRequestBody{
+			ReadCloser: http.MaxBytesReader(rw, r.Body, workspaceAgentFilesMaxFileBytes),
+		}
+		body = limitedBody
 	}
-	u := *target
-	u.RawQuery = r.URL.RawQuery
+	u := *agentURL
+	u.Path = route.path
+	u.RawQuery = filterWorkspaceAgentFilesQuery(r.URL.RawQuery, route.queryParams)
 	outReq, err := http.NewRequestWithContext(ctx, r.Method, u.String(), body)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -167,15 +218,18 @@ func (api *API) forwardWorkspaceAgentFilesRequest(rw http.ResponseWriter, r *htt
 	}
 
 	resp, err := client.Do(outReq)
-	if err != nil {
-		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
-			writeWorkspaceAgentFilesRequestTooLarge(ctx, rw)
-			return
+	if limitedBody != nil && limitedBody.exceeded.Load() {
+		if err == nil {
+			_ = resp.Body.Close()
 		}
+		writeWorkspaceAgentFilesRequestTooLarge(ctx, rw)
+		return
+	}
+	if err != nil {
 		if ctx.Err() != nil {
 			return
 		}
-		api.Logger.Warn(ctx, "proxy workspace agent files request", slog.F("path", target.Path), slog.Error(err))
+		api.Logger.Warn(ctx, "proxy workspace agent files request", slog.F("path", route.path), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
 			Message: "Failed to reach workspace agent.",
 			Detail:  workspaceAgentFilesUnreachableDetail,
@@ -183,6 +237,33 @@ func (api *API) forwardWorkspaceAgentFilesRequest(rw http.ResponseWriter, r *htt
 		return
 	}
 	defer resp.Body.Close()
+
+	var respBody io.Reader = resp.Body
+	if route.maxResponseBytes > 0 {
+		if resp.ContentLength > route.maxResponseBytes {
+			writeWorkspaceAgentFilesResponseTooLarge(ctx, rw, route.maxResponseBytes)
+			return
+		}
+		if resp.ContentLength < 0 {
+			// Without a length the size is only known after reading, so
+			// buffer up to the limit rather than relay a truncated body.
+			data, err := io.ReadAll(io.LimitReader(resp.Body, route.maxResponseBytes+1))
+			if err != nil {
+				api.Logger.Warn(ctx, "read workspace agent files response", slog.F("path", route.path), slog.Error(err))
+				httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+					Message: "Failed to read workspace agent response.",
+					Detail:  workspaceAgentFilesUnreachableDetail,
+				})
+				return
+			}
+			if int64(len(data)) > route.maxResponseBytes {
+				writeWorkspaceAgentFilesResponseTooLarge(ctx, rw, route.maxResponseBytes)
+				return
+			}
+			rw.Header().Set("Content-Length", strconv.Itoa(len(data)))
+			respBody = bytes.NewReader(data)
+		}
+	}
 
 	for _, name := range workspaceAgentFilesResponseHeaders {
 		if v := resp.Header.Values(name); len(v) > 0 {
@@ -195,15 +276,60 @@ func (api *API) forwardWorkspaceAgentFilesRequest(rw http.ResponseWriter, r *htt
 	rw.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'")
 	rw.Header().Set("Content-Disposition", "attachment")
 	rw.WriteHeader(resp.StatusCode)
-	if _, err := io.Copy(rw, resp.Body); err != nil && ctx.Err() == nil {
-		api.Logger.Debug(ctx, "copy workspace agent files response", slog.F("path", target.Path), slog.Error(err))
+	if _, err := io.Copy(rw, respBody); err != nil && ctx.Err() == nil {
+		api.Logger.Debug(ctx, "copy workspace agent files response", slog.F("path", route.path), slog.Error(err))
 	}
 }
 
+// filterWorkspaceAgentFilesQuery returns the parameters of rawQuery named in
+// allowed, in their original order and re-encoded.
+func filterWorkspaceAgentFilesQuery(rawQuery string, allowed []string) string {
+	var kept []string
+	for part := range strings.SplitSeq(rawQuery, "&") {
+		// url.ParseQuery skips these, so coderd never read them either.
+		if part == "" || strings.Contains(part, ";") {
+			continue
+		}
+		rawKey, rawValue, _ := strings.Cut(part, "=")
+		key, err := url.QueryUnescape(rawKey)
+		if err != nil || !slices.Contains(allowed, key) {
+			continue
+		}
+		value, err := url.QueryUnescape(rawValue)
+		if err != nil {
+			continue
+		}
+		kept = append(kept, url.QueryEscape(key)+"="+url.QueryEscape(value))
+	}
+	return strings.Join(kept, "&")
+}
+
+// workspaceAgentFilesRequestBody records whether the request body hit its
+// size limit. The transport reads it on another goroutine.
+type workspaceAgentFilesRequestBody struct {
+	io.ReadCloser
+	exceeded atomic.Bool
+}
+
+func (b *workspaceAgentFilesRequestBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+		b.exceeded.Store(true)
+	}
+	return n, err
+}
+
 func writeWorkspaceAgentFilesRequestTooLarge(ctx context.Context, rw http.ResponseWriter) {
-	httpapi.RecordRequestBodyLimit(ctx, workspaceAgentFilesMaxRequestBytes)
+	httpapi.RecordRequestBodyLimit(ctx, workspaceAgentFilesMaxFileBytes)
 	httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
 		Message: "Request body too large.",
-		Detail:  fmt.Sprintf("Maximum request body size is %d bytes.", workspaceAgentFilesMaxRequestBytes),
+		Detail:  fmt.Sprintf("Maximum request body size is %d bytes.", workspaceAgentFilesMaxFileBytes),
+	})
+}
+
+func writeWorkspaceAgentFilesResponseTooLarge(ctx context.Context, rw http.ResponseWriter, limit int64) {
+	httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+		Message: "File too large.",
+		Detail:  fmt.Sprintf("Maximum file size is %d bytes.", limit),
 	})
 }
