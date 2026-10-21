@@ -13104,8 +13104,9 @@ func TestChatWorkspaceAttachments(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
 
-		data := zipBytes(codersdk.MaxChatWorkspaceFileSizeBytes + 1)
-		archive := data[:60<<20]
+		// Above the 10 MiB prompt limit, so only the workspace purpose
+		// stores it.
+		archive := zipBytes(11 << 20)
 
 		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "application/zip", "archive.zip", bytes.NewReader(archive))
 		requireSDKError(t, err, http.StatusBadRequest)
@@ -13113,10 +13114,16 @@ func TestChatWorkspaceAttachments(t *testing.T) {
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid purpose query parameter.", sdkErr.Message)
 
+		// Streamed so the client never holds the oversized body.
+		oversized := io.LimitReader(zeroReader{}, codersdk.MaxChatWorkspaceFileSizeBytes+1)
+		_, err = client.UploadChatFileWithPurpose(ctx, firstUser.OrganizationID, codersdk.ChatFilePurposeWorkspace, "application/zip", "huge.zip", oversized)
 		// The server may close the connection before the client finishes
-		// sending, so only the failure is asserted, as in TestPostChatFile.
-		_, err = client.UploadChatFileWithPurpose(ctx, firstUser.OrganizationID, codersdk.ChatFilePurposeWorkspace, "application/zip", "huge.zip", bytes.NewReader(data))
-		require.Error(t, err)
+		// sending, which surfaces as a transport error with no response.
+		if sdkErr, ok := stderrors.AsType[*codersdk.Error](err); ok {
+			require.Equal(t, http.StatusRequestEntityTooLarge, sdkErr.StatusCode())
+		} else {
+			require.Error(t, err)
+		}
 
 		fileID := uploadWorkspaceFile(ctx, t, "archive.zip", archive)
 		//nolint:gocritic // Reads the stored bytes, which no user route serves.
@@ -19250,6 +19257,14 @@ func TestGetChatMessages_TurnStartID(t *testing.T) {
 		require.NotEmpty(t, resp.Messages)
 		require.Nil(t, resp.TurnStartID)
 	})
+}
+
+// zeroReader is an endless source of zero bytes.
+type zeroReader struct{}
+
+func (zeroReader) Read(p []byte) (int, error) {
+	clear(p)
+	return len(p), nil
 }
 
 func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Error {
