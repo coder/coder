@@ -286,7 +286,8 @@ describe("ChatMessageInput", () => {
 		}: {
 			personal: SkillMetadata[];
 			organization?: SkillMetadata[];
-			organizationPreferences?: OrganizationSkillPreferences;
+			// Null leaves the preferences request to the API.
+			organizationPreferences?: OrganizationSkillPreferences | null;
 			projectId?: string;
 			projects?: ChatProject[];
 			// Project skills loaded long ago, so opening the menu refetches.
@@ -294,10 +295,12 @@ describe("ChatMessageInput", () => {
 			queryClient?: QueryClient;
 		}) => {
 			queryClient.setQueryData(userSkills().queryKey, personal);
-			queryClient.setQueryData(
-				organizationSkillPreferences(organizationId).queryKey,
-				organizationPreferences,
-			);
+			if (organizationPreferences) {
+				queryClient.setQueryData(
+					organizationSkillPreferences(organizationId).queryKey,
+					organizationPreferences,
+				);
+			}
 			vi.spyOn(API.experimental, "getChatProjects").mockResolvedValue(projects);
 			if (projectId && staleProject) {
 				queryClient.setQueryData(
@@ -391,6 +394,30 @@ describe("ChatMessageInput", () => {
 			await screen.findByText(/Could not load organization skills/);
 			await user.keyboard("{Enter}");
 			expect(inputRef.current?.getValue()).toBe("/personal/compactor");
+		});
+
+		it("offers built-in commands when preferences fail for an organization without skills", async () => {
+			vi.spyOn(
+				API.experimental,
+				"getOrganizationSkillPreferences",
+			).mockRejectedValue(new Error("Failed to load your skill choices."));
+			const queryClient = createTestQueryClient();
+			const inputRef = renderWithSkills({
+				personal: [mockCompactorSkill],
+				organization: [],
+				organizationPreferences: null,
+				queryClient,
+			});
+			const user = await pasteTrigger("/comp");
+			await waitFor(() => {
+				expect(
+					queryClient.getQueryState(
+						organizationSkillPreferences(organizationId).queryKey,
+					)?.status,
+				).toBe("error");
+			});
+			await user.keyboard("{Enter}");
+			expect(inputRef.current?.getValue()).toBe("/compact");
 		});
 
 		it.each([403, 404])(

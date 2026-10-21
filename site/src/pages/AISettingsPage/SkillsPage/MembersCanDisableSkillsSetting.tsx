@@ -15,10 +15,7 @@ type MembersCanDisableSkillsSettingProps = {
 	canUpdate: boolean;
 };
 
-/**
- * Lets members turn off organization skills for their own chats. Read-only
- * for users who cannot update organization skills.
- */
+/** Read-only for users who cannot update organization skills. */
 export const MembersCanDisableSkillsSetting: React.FC<
 	MembersCanDisableSkillsSettingProps
 > = ({ organizationId, canUpdate }) => {
@@ -37,7 +34,7 @@ export const MembersCanDisableSkillsSetting: React.FC<
 	});
 
 	return (
-		<div className="space-y-2">
+		<div className="flex flex-col gap-2">
 			<h3
 				id={labelId}
 				className="m-0 text-sm font-semibold text-content-primary"

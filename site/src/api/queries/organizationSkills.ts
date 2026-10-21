@@ -134,14 +134,15 @@ export const deleteOrganizationSkill = (
 });
 
 // Kept outside organizationSkillsKey: deleting a skill removes its detail
-// key non-exactly, so a skill named like a segment here would evict it.
+// key non-exactly, so deleting a skill named `settings` would evict a key
+// nested there.
 const organizationSkillSettingsKey = (organizationId: string) =>
 	["organization-skill-settings", organizationId] as const;
 
 const organizationSkillPreferencesKey = (organizationId: string) =>
 	["organization-skill-preferences", organizationId] as const;
 
-/** Reads the organization's member skill settings. */
+/** Reads whether members of the organization can turn off its skills. */
 export const organizationSkillSettings = (organizationId: string) => ({
 	queryKey: organizationSkillSettingsKey(organizationId),
 	queryFn: (): Promise<TypesGen.OrganizationSkillSettings> =>

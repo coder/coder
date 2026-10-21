@@ -345,23 +345,24 @@ export const organizationSkillsScope = (
 
 /**
  * Returns the organization skills that load into the member's chats, mirroring
- * GetOrganizationSkillMemberPreferencesRow.Excludes in Go. Stays undefined
- * until both the list and the preferences load.
+ * GetOrganizationSkillMemberPreferencesRow.Excludes in Go. A list with enabled
+ * skills stays undefined until the preferences load.
  */
 export const activeOrganizationSkills = (
 	skills: readonly SkillMetadata[] | undefined,
 	preferences: OrganizationSkillPreferences | undefined,
 ): SkillMetadata[] | undefined => {
-	if (!skills || !preferences) {
+	const enabledSkills = skills?.filter((skill) => skill.enabled);
+	// Without enabled skills there is nothing to opt out of.
+	if (!enabledSkills || enabledSkills.length === 0) {
+		return enabledSkills;
+	}
+	if (!preferences) {
 		return undefined;
 	}
-	return skills.filter(
-		(skill) =>
-			skill.enabled &&
-			!(
-				preferences.members_can_disable_skills &&
-				(preferences.all_skills_disabled ||
-					preferences.disabled_skill_ids.includes(skill.id))
-			),
-	);
+	const isOptedOut = (skill: SkillMetadata) =>
+		preferences.members_can_disable_skills &&
+		(preferences.all_skills_disabled ||
+			preferences.disabled_skill_ids.includes(skill.id));
+	return enabledSkills.filter((skill) => !isOptedOut(skill));
 };

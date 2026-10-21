@@ -29,7 +29,7 @@ export const OrganizationSkillsMasterSwitch: React.FC<
 		: preferences.all_skills_disabled;
 
 	return (
-		<div className="space-y-2">
+		<div className="flex flex-col gap-2">
 			<h4
 				id={labelId}
 				className="m-0 text-sm font-semibold text-content-primary"

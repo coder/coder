@@ -15,8 +15,8 @@ type OrganizationSkillPreferenceSwitchProps = {
 };
 
 /**
- * Turns one organization skill off or on for the member's chats. Locked while
- * the master switch is off, which keeps the stored choice.
+ * Checked unless the member opted the skill out. Locked while the master
+ * switch is off, which keeps the stored choice.
  */
 export const OrganizationSkillPreferenceSwitch: React.FC<
 	OrganizationSkillPreferenceSwitchProps

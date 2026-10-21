@@ -408,4 +408,10 @@ describe("activeOrganizationSkills", () => {
 		).toBeUndefined();
 		expect(activeOrganizationSkills(skills, undefined)).toBeUndefined();
 	});
+
+	it("resolves a list without enabled skills before the preferences load", () => {
+		expect(activeOrganizationSkills([MockDisabledSkill], undefined)).toEqual(
+			[],
+		);
+	});
 });

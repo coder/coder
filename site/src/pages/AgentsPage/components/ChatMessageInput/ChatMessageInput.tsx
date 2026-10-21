@@ -687,7 +687,7 @@ const useStoredSkillSource = (
 
 /**
  * Loads the organization skills chatd uses for the member: the admin-enabled
- * skills minus the member's opt-outs.
+ * skills minus the member's opt-outs while the organization allows them.
  */
 const useOrganizationSkillSource = (
 	organizationId: string | undefined,
@@ -705,14 +705,14 @@ const useOrganizationSkillSource = (
 		enabled: queryEnabled,
 		staleTime: 60_000,
 	});
-	// The member's choices narrow the list chatd loads, so the source
-	// resolves only after both requests do.
 	const skills = hasOrganization
 		? activeOrganizationSkills(skillsQuery.data, preferencesQuery.data)
 		: [];
+	// The preferences decide whether opt-outs apply, so a source with skills
+	// resolves only after both requests do.
 	return storedSkillSourceState(
 		skills,
-		[skillsQuery, preferencesQuery],
+		skills?.length === 0 ? [skillsQuery] : [skillsQuery, preferencesQuery],
 		queryEnabled,
 	);
 };
