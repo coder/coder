@@ -924,6 +924,88 @@ func TestReadSkillFileTool(t *testing.T) {
 		}
 	})
 
+	t.Run("ModelHiddenSkillRefusesLinkedMetaFile", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+		conn.EXPECT().ReadFile(
+			gomock.Any(),
+			"/work/.agents/skills/manual/alias.md",
+			int64(0),
+			int64(512*1024+1),
+		).DoAndReturn(func(context.Context, string, int64, int64) (io.ReadCloser, string, error) {
+			return io.NopCloser(strings.NewReader(string(modelHiddenSkills[0].Meta))), "text/markdown", nil
+		})
+
+		tool := chattool.ReadSkillFile(chattool.ReadSkillOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return conn, nil
+			},
+			GetSkills:    func() []chattool.SkillMeta { return modelHiddenSkills },
+			ResolveAlias: resolveNoModelSkills,
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "read_skill_file",
+			Input: `{"name":"workspace/manual","path":"alias.md"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "cannot be read with read_skill_file")
+		assert.NotContains(t, resp.Content, "disable-model-invocation")
+	})
+
+	t.Run("ModelHiddenSkillBareNameSharedWithStoredSkill", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+		conn.EXPECT().ReadFile(
+			gomock.Any(),
+			"/work/.agents/skills/manual/scripts/run.sh",
+			int64(0),
+			int64(512*1024+1),
+		).DoAndReturn(func(context.Context, string, int64, int64) (io.ReadCloser, string, error) {
+			return io.NopCloser(strings.NewReader("echo manual")), "text/plain", nil
+		})
+
+		// The model sees only the personal skill, so the bare name
+		// resolves to it.
+		listed := skillspkg.MergeSkills(skillspkg.SourceSkills{
+			Source: skillspkg.SourcePersonal,
+			Skills: []skillspkg.Skill{{Name: "manual", Source: skillspkg.SourcePersonal}},
+		})
+		tool := chattool.ReadSkillFile(chattool.ReadSkillOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return conn, nil
+			},
+			GetSkills: func() []chattool.SkillMeta { return modelHiddenSkills },
+			ResolveAlias: func(alias string) (skillspkg.ResolvedSkill, error) {
+				return skillspkg.Lookup(listed, alias)
+			},
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-bare",
+			Name:  "read_skill_file",
+			Input: `{"name":"manual","path":"scripts/run.sh"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError, resp.Content)
+		assert.Contains(t, resp.Content, "echo manual")
+
+		resp, err = tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-qualified",
+			Name:  "read_skill_file",
+			Input: `{"name":"personal/manual","path":"scripts/run.sh"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "not supported for personal skills")
+	})
+
 	t.Run("TraversalRejected", func(t *testing.T) {
 		t.Parallel()
 

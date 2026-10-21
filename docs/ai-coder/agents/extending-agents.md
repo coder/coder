@@ -135,6 +135,7 @@ Instructions for the skill go here...
 
 To keep agents from using a skill on their own, add `disable-model-invocation: true` to its frontmatter.
 Agents don't see the skill in their list of skills and can't load it, but people can still invoke it from the `/` menu in the chat composer.
+For a workspace skill, `read_skill_file` still returns its supporting files, so a skill that someone invokes can use the files its instructions reference.
 For a personal, organization, or project skill, the key turns off automatic use when you create the skill through the API or import it in the project skill editor, the same as turning off **Agents can use it automatically** in [Project skills](#project-skills).
 
 ### Naming and size constraints
@@ -295,6 +296,7 @@ For example, auditors on the **Skills** admin page and everyone in the **From yo
 A skill that is turned off stays stored, but it is hidden from the `/` menu and from the list of skills the agent can choose from.
 If the agent asks for a skill that is turned off, `read_skill` reports that the skill was not found.
 When a chat has no skills left to load, the agent doesn't get the `read_skill` tool at all.
+A workspace skill with `disable-model-invocation: true` still counts, so a chat with only such skills keeps `read_skill` and `read_skill_file`.
 
 ### Skills with the same name
 
@@ -309,6 +311,7 @@ Instead, each copy gets a qualified alias that names its source:
 | Project      | `project/<name>`   |
 | Workspace    | `workspace/<name>` |
 
+A workspace skill with `disable-model-invocation: true` isn't listed for the agent, so a listed skill with the same name keeps its bare name.
 A bare name that matches more than one source is ambiguous, so `read_skill` rejects it.
 The agent must pass the qualified alias instead, for example `org/code-review`.
 
