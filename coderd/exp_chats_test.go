@@ -13285,6 +13285,43 @@ func TestChatWorkspaceAttachments(t *testing.T) {
 		require.Equal(t, victim.ID, onBehalf.OwnerID)
 	})
 
+	t.Run("OwnerEditKeepsLinkedCallerFile", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		memberRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberRaw)
+		attach := func(fileID uuid.UUID) []codersdk.ChatInputPart {
+			return []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeWorkspaceAttachment, FileID: fileID}}
+		}
+		adminFileID := uploadWorkspaceFile(ctx, t, "admin.zip", zipBytes(256))
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        &member.ID,
+			Content:        attach(adminFileID),
+		})
+		require.NoError(t, err)
+
+		messages, err := memberClient.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		var userMessageID int64
+		for _, message := range messages.Messages {
+			if message.Role == codersdk.ChatMessageRoleUser {
+				userMessageID = message.ID
+				break
+			}
+		}
+		require.NotZero(t, userMessageID)
+
+		// The file is already linked to the chat, so its owner keeps it
+		// even though only the administrator uploaded it.
+		edited, err := memberClient.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+			Content: append(attach(adminFileID), codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeText, Text: "edited"}),
+		})
+		require.NoError(t, err)
+		require.Equal(t, uuid.NullUUID{UUID: adminFileID, Valid: true}, attachmentPart(t, edited.Message.Content).FileID)
+	})
+
 	t.Run("RejectsMismatchedPurpose", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
