@@ -248,6 +248,7 @@ Project skills use the same single-file `SKILL.md` format and the same 64&nbsp;K
 Each project can have up to 100 skills, and skills that are turned off count toward that limit.
 
 Anyone who can edit a project can add, change, turn on or off, and delete its skills.
+To manage them, open the project page and select the **Skills** row in the **Details** panel.
 A chat in the project can use the project's skills while the chat owner owns the project or the project is shared with them, the same rule as for project instructions and memory.
 An administrator role that can view every project does not count.
 A sub-agent chat uses the skills of the project its top-level chat belongs to.
@@ -272,7 +273,7 @@ For site owners, organization admins, and auditors, the group lists every organi
 
 ### Turn a skill on or off
 
-Personal and organization skills each have an **Enabled** column in their skills table.
+Personal, organization, and project skills each have an **Enabled** column in their skills table.
 If you can edit the skill, the column shows a switch that turns the skill on or off.
 Otherwise, the column shows a check mark for a skill that is turned on and an X for a skill that is turned off.
 For example, auditors on the **Skills** admin page and everyone in the **From your organizations** section see these icons instead of a switch.
