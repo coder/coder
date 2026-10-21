@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"crypto/sha256"
@@ -28,6 +29,7 @@ import (
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
+	"golang.org/x/sync/semaphore"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -81,10 +83,18 @@ const (
 	// creation and tool result requests.
 	maxChatRequestBodyBytes = 256 * 1024
 
-	maxConcurrentChatWorkspaceFileUploads = 4
-	// A buffered workspace upload releases its permit once its body
-	// stalls this long, or once reading it takes the maximum duration.
-	// coderd's HTTP server sets no body read timeout of its own.
+	// chatWorkspaceUploadMemoryBudget bounds the heap that buffered
+	// workspace uploads hold at once on a replica. One user may hold half
+	// of it, so a single user cannot stall everyone else's uploads.
+	chatWorkspaceUploadMemoryBudget = 1 << 30
+	// chatWorkspaceUploadMemoryFactor is the measured peak heap per body
+	// byte while a workspace upload is stored: the buffered body, the hex
+	// text encoding lib/pq builds for a bytea parameter (2x), and the
+	// protocol write buffer that copies that encoding (2x).
+	chatWorkspaceUploadMemoryFactor = 5
+	// A buffered workspace upload releases its memory reservation once
+	// its body stalls this long, or once reading it takes the maximum
+	// duration. coderd's HTTP server sets no body read timeout of its own.
 	chatWorkspaceFileUploadIdleTimeout = 30 * time.Second
 	chatWorkspaceFileUploadMaxDuration = 30 * time.Minute
 
@@ -7014,6 +7024,10 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	// Extract filename from Content-Disposition header if provided.
 	filename := chatFilenameFromContentDisposition(r.Header.Get("Content-Disposition"))
 	maxBytes := int64(codersdk.MaxChatFileSizeBytes)
+	// Only a workspace upload, whose memory is reserved first, reads into
+	// a buffer preallocated from its declared size; otherwise a client
+	// could claim memory it never sends.
+	bodySize := int64(-1)
 	if forWorkspace {
 		// Store the name the agent writes, so delivery never fails on
 		// naming and the prompt can state the exact workspace path.
@@ -7027,31 +7041,39 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		}
 		filename = sanitized
 		maxBytes = codersdk.MaxChatWorkspaceFileSizeBytes
-		// The whole body is buffered, so bound the memory that concurrent
-		// workspace uploads hold on this replica.
-		select {
-		case api.chatWorkspaceFileUploadSem <- struct{}{}:
-			defer func() { <-api.chatWorkspaceFileUploadSem }()
-		case <-ctx.Done():
+		// net/http fails a body that does not match its Content-Length,
+		// so a declared length within the limit is the exact size. An
+		// unknown length reserves the maximum size.
+		reserved := maxBytes
+		if r.ContentLength >= 0 && r.ContentLength <= maxBytes {
+			bodySize = r.ContentLength
+			reserved = bodySize
+		}
+		// The whole body is buffered and then encoded for the database,
+		// so reserve its peak memory on this replica before reading it.
+		release, err := api.chatWorkspaceUploadBudget.acquire(ctx, apiKey.UserID,
+			chatWorkspaceUploadMemoryFactor*reserved)
+		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusServiceUnavailable, codersdk.Response{
 				Message: "Request canceled while waiting to upload.",
-				Detail:  ctx.Err().Error(),
+				Detail:  err.Error(),
 			})
 			return
 		}
+		defer release()
 	}
 
 	r.Body = http.MaxBytesReader(rw, r.Body, maxBytes)
 	var body io.Reader = r.Body
 	var deadline *uploadBodyDeadline
 	if forWorkspace {
-		// The body is read while a permit is held, so a slow or stalled
-		// client must not keep it.
+		// The body is read while its memory is reserved, so a slow or
+		// stalled client must not keep the reservation.
 		deadline = newUploadBodyDeadline(ctx, api.Logger, api.Clock, rw, r.Body,
 			chatWorkspaceFileUploadIdleTimeout, chatWorkspaceFileUploadMaxDuration)
 		body = deadline
 	}
-	data, err := io.ReadAll(body)
+	data, err := readUploadBody(body, bodySize)
 	if deadline != nil && deadline.finish() {
 		httpapi.Write(ctx, rw, http.StatusRequestTimeout, codersdk.Response{
 			Message: "Upload timed out.",
@@ -7748,6 +7770,87 @@ func (d *uploadBodyDeadline) finish() bool {
 	d.idleTimer.Stop()
 	d.maxTimer.Stop()
 	return expired
+}
+
+// readUploadBody reads r to EOF. A positive size preallocates the
+// buffer so a large body is not copied each time the buffer grows.
+func readUploadBody(r io.Reader, size int64) ([]byte, error) {
+	if size <= 0 {
+		return io.ReadAll(r)
+	}
+	// The spare MinRead bytes let ReadFrom observe EOF without growing.
+	buf := bytes.NewBuffer(make([]byte, 0, size+bytes.MinRead))
+	_, err := buf.ReadFrom(r)
+	return buf.Bytes(), err
+}
+
+// uploadMemoryBudget reserves bytes of heap for buffered uploads, both
+// from a replica-wide pool and from a per-user share of it.
+type uploadMemoryBudget struct {
+	total   *semaphore.Weighted
+	perUser int64
+
+	mu    sync.Mutex
+	users map[uuid.UUID]*userUploadBudget
+}
+
+type userUploadBudget struct {
+	sem  *semaphore.Weighted
+	refs int
+}
+
+func newUploadMemoryBudget(total, perUser int64) *uploadMemoryBudget {
+	return &uploadMemoryBudget{
+		total:   semaphore.NewWeighted(total),
+		perUser: min(perUser, total),
+		users:   make(map[uuid.UUID]*userUploadBudget),
+	}
+}
+
+// acquire blocks until n bytes fit in both userID's share and the
+// replica pool, or ctx ends. n is capped at the per-user share so an
+// oversized request waits for the share instead of forever. The user's
+// share is taken first so a user waiting on their own uploads holds
+// none of the pool.
+func (b *uploadMemoryBudget) acquire(ctx context.Context, userID uuid.UUID, n int64) (release func(), err error) {
+	n = min(n, b.perUser)
+	user := b.ref(userID)
+	if err := user.sem.Acquire(ctx, n); err != nil {
+		b.unref(userID)
+		return nil, err
+	}
+	if err := b.total.Acquire(ctx, n); err != nil {
+		user.sem.Release(n)
+		b.unref(userID)
+		return nil, err
+	}
+	return func() {
+		b.total.Release(n)
+		user.sem.Release(n)
+		b.unref(userID)
+	}, nil
+}
+
+func (b *uploadMemoryBudget) ref(userID uuid.UUID) *userUploadBudget {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	user, ok := b.users[userID]
+	if !ok {
+		user = &userUploadBudget{sem: semaphore.NewWeighted(b.perUser)}
+		b.users[userID] = user
+	}
+	user.refs++
+	return user
+}
+
+func (b *uploadMemoryBudget) unref(userID uuid.UUID) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	user := b.users[userID]
+	user.refs--
+	if user.refs == 0 {
+		delete(b.users, userID)
+	}
 }
 
 // chatWorkspaceUploadUsageInterval bounds how often a streaming upload

@@ -934,3 +934,66 @@ func TestUploadBodyDeadline(t *testing.T) {
 		require.Equal(t, http.StatusRequestTimeout, receive(t, status))
 	})
 }
+
+func TestUploadMemoryBudget(t *testing.T) {
+	t.Parallel()
+
+	const share = 100
+	acquire := func(t *testing.T, b *uploadMemoryBudget, userID uuid.UUID, n int64) func() {
+		t.Helper()
+		release, err := b.acquire(testutil.Context(t, testutil.WaitShort), userID, n)
+		require.NoError(t, err)
+		return release
+	}
+	// requireBlocked asserts that the reservation is still waiting when
+	// its context ends, and returns nothing to release.
+	requireBlocked := func(t *testing.T, b *uploadMemoryBudget, userID uuid.UUID, n int64) {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(testutil.Context(t, testutil.WaitShort), testutil.IntervalMedium)
+		defer cancel()
+		_, err := b.acquire(ctx, userID, n)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+	}
+
+	t.Run("UserShare", func(t *testing.T) {
+		t.Parallel()
+		b := newUploadMemoryBudget(3*share, share)
+		busy, other := uuid.New(), uuid.New()
+		releaseBusy := acquire(t, b, busy, share)
+		// A user with a full share waits even though the pool has room,
+		// and does not delay other users.
+		requireBlocked(t, b, busy, 1)
+		acquire(t, b, other, share)()
+		releaseBusy()
+		acquire(t, b, busy, share)()
+	})
+
+	t.Run("ReplicaPool", func(t *testing.T) {
+		t.Parallel()
+		b := newUploadMemoryBudget(2*share, share)
+		first, second, third := uuid.New(), uuid.New(), uuid.New()
+		releaseFirst := acquire(t, b, first, share)
+		releaseSecond := acquire(t, b, second, share/2)
+		releaseThird := acquire(t, b, third, share/2)
+		// The third user's share had room, so the wait on the full pool
+		// must return what it took from the share, or the next
+		// reservation would block on the share.
+		requireBlocked(t, b, third, share/2)
+		releaseSecond()
+		acquire(t, b, third, share/2)()
+		releaseThird()
+		releaseFirst()
+		require.Empty(t, b.users)
+	})
+
+	t.Run("OversizedRequest", func(t *testing.T) {
+		t.Parallel()
+		b := newUploadMemoryBudget(2*share, share)
+		user := uuid.New()
+		// A request larger than the share reserves the whole share.
+		release := acquire(t, b, user, 10*share)
+		requireBlocked(t, b, user, 1)
+		release()
+		acquire(t, b, user, share)()
+	})
+}
