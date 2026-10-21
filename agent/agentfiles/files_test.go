@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -3476,4 +3477,104 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 			require.Equal(t, tt.content, string(data))
 		})
 	}
+}
+
+func TestFileETags(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	api := agentfiles.NewAPI(logger, afero.NewOsFs(), nil)
+	handler := api.Routes()
+
+	do := func(t *testing.T, method, target, body string) *httptest.ResponseRecorder {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequestWithContext(ctx, method, target, strings.NewReader(body))
+		handler.ServeHTTP(w, r)
+		return w
+	}
+	readETag := func(t *testing.T, path string) string {
+		t.Helper()
+		w := do(t, http.MethodGet, "/read-file?path="+url.QueryEscape(path), "")
+		require.Equal(t, http.StatusOK, w.Code)
+		etag := w.Header().Get("ETag")
+		require.Regexp(t, `^"[0-9a-f]+-[0-9a-f]+"$`, etag)
+		return etag
+	}
+	write := func(t *testing.T, path, ifMatch, body string) *httptest.ResponseRecorder {
+		t.Helper()
+		target := "/write-file?path=" + url.QueryEscape(path)
+		if ifMatch != "" {
+			target += "&if_match=" + url.QueryEscape(ifMatch)
+		}
+		return do(t, http.MethodPost, target, body)
+	}
+
+	t.Run("ReadFile", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "read.txt")
+		require.NoError(t, os.WriteFile(path, []byte("abc"), 0o600))
+		info, err := os.Stat(path)
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf(`"%x-%x"`, info.ModTime().UnixNano(), info.Size()), readETag(t, path))
+	})
+
+	t.Run("WriteWithoutIfMatch", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "plain.txt")
+		w := write(t, path, "", "new")
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, readETag(t, path), w.Header().Get("ETag"))
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+		require.Equal(t, "new", string(data))
+	})
+
+	t.Run("IfMatchMatches", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "match.txt")
+		require.NoError(t, os.WriteFile(path, []byte("old"), 0o600))
+		etag := readETag(t, path)
+
+		w := write(t, path, etag, "updated")
+		require.Equal(t, http.StatusOK, w.Code)
+		newETag := w.Header().Get("ETag")
+		require.NotEqual(t, etag, newETag)
+		require.Equal(t, readETag(t, path), newETag)
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+		require.Equal(t, "updated", string(data))
+	})
+
+	t.Run("IfMatchMismatch", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "mismatch.txt")
+		require.NoError(t, os.WriteFile(path, []byte("old"), 0o600))
+		stale := readETag(t, path)
+		require.NoError(t, os.WriteFile(path, []byte("changed elsewhere"), 0o600))
+		current := readETag(t, path)
+		require.NotEqual(t, stale, current)
+
+		w := write(t, path, stale, "mine")
+		require.Equal(t, http.StatusPreconditionFailed, w.Code)
+		require.Equal(t, current, w.Header().Get("ETag"))
+		got := &codersdk.Error{}
+		require.NoError(t, json.NewDecoder(w.Body).Decode(got))
+		require.ErrorContains(t, got, "was modified")
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+		require.Equal(t, "changed elsewhere", string(data))
+	})
+
+	t.Run("IfMatchMissingFile", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		path := filepath.Join(dir, "nested", "missing.txt")
+		w := write(t, path, `"1-1"`, "content")
+		require.Equal(t, http.StatusPreconditionFailed, w.Code)
+		require.Empty(t, w.Header().Get("ETag"))
+		_, err := os.Stat(filepath.Join(dir, "nested"))
+		require.ErrorIs(t, err, os.ErrNotExist)
+	})
 }

@@ -448,7 +448,6 @@ func (a *agent) init() {
 	a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
 
 	pathStore := agentgit.NewPathStore()
-	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore, agentfiles.WithEnvInfo(a.envInfo))
 	// workingDirFn reports the workspace directory ("" before the first manifest).
 	workingDirFn := func() string {
 		if m := a.manifest.Load(); m != nil {
@@ -456,6 +455,7 @@ func (a *agent) init() {
 		}
 		return ""
 	}
+	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore, agentfiles.WithEnvInfo(a.envInfo), agentfiles.WithWorkingDir(workingDirFn))
 	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, workingDirFn)
 	a.toolCalls = agenttoolcall.New(a.clock, a.processAPI.CancelToolCall)
 	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock), agentgit.WithExecer(a.execer)}, a.gitAPIOptions...)
@@ -2300,6 +2300,10 @@ func (a *agent) Close() error {
 
 	if err := a.processAPI.Close(); err != nil {
 		a.logger.Error(a.hardCtx, "process API close", slog.Error(err))
+	}
+
+	if err := a.filesAPI.Close(); err != nil {
+		a.logger.Error(a.hardCtx, "close files API file finder", slog.Error(err))
 	}
 
 	if err := a.desktopAPI.Close(); err != nil {
