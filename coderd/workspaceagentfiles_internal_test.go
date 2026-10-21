@@ -173,14 +173,17 @@ func TestForwardWorkspaceAgentFilesRequest(t *testing.T) {
 		t.Parallel()
 
 		for _, tc := range []struct {
-			name       string
-			size       int
-			chunked    bool
-			wantStatus int
+			name        string
+			agentStatus int
+			size        int
+			chunked     bool
+			wantStatus  int
 		}{
-			{name: "ContentLengthTooLarge", size: workspaceAgentFilesMaxFileBytes + 1, wantStatus: http.StatusRequestEntityTooLarge},
-			{name: "ChunkedTooLarge", size: workspaceAgentFilesMaxFileBytes + 1, chunked: true, wantStatus: http.StatusRequestEntityTooLarge},
-			{name: "ChunkedWithinLimit", size: 4096, chunked: true, wantStatus: http.StatusOK},
+			{name: "ContentLengthWithinLimit", agentStatus: http.StatusOK, size: 4096, wantStatus: http.StatusOK},
+			{name: "ContentLengthTooLarge", agentStatus: http.StatusOK, size: workspaceAgentFilesMaxFileBytes + 1, wantStatus: http.StatusRequestEntityTooLarge},
+			{name: "ChunkedSuccess", agentStatus: http.StatusOK, size: 4096, chunked: true, wantStatus: http.StatusBadGateway},
+			{name: "ChunkedSmallError", agentStatus: http.StatusNotFound, size: 4096, chunked: true, wantStatus: http.StatusNotFound},
+			{name: "ChunkedLargeError", agentStatus: http.StatusNotFound, size: workspaceAgentFilesMaxErrorBytes + 1, chunked: true, wantStatus: http.StatusBadGateway},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -191,7 +194,7 @@ func TestForwardWorkspaceAgentFilesRequest(t *testing.T) {
 					if !tc.chunked {
 						rw.Header().Set("Content-Length", strconv.Itoa(len(data)))
 					}
-					rw.WriteHeader(http.StatusOK)
+					rw.WriteHeader(tc.agentStatus)
 					if tc.chunked {
 						_ = http.NewResponseController(rw).Flush()
 					}
@@ -202,7 +205,7 @@ func TestForwardWorkspaceAgentFilesRequest(t *testing.T) {
 				rec := forward(t, agentURL, client, readFileRoute, req)
 
 				require.Equal(t, tc.wantStatus, rec.Code)
-				if tc.wantStatus == http.StatusOK {
+				if tc.wantStatus == tc.agentStatus {
 					require.Equal(t, strconv.Itoa(tc.size), rec.Header().Get("Content-Length"))
 					require.Equal(t, data, rec.Body.Bytes())
 				} else {
