@@ -851,6 +851,20 @@ func TestEditFiles_IndependentFiles(t *testing.T) {
 				`{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
 		},
 		{
+			// The agent merges paths that are equal once cleaned and
+			// reports them under the first one.
+			name:  "AgentMergesEquivalentPaths",
+			input: `{"edits":[` + editA + `,{"path":"/repo/./a.go","old_text":"y := 1","new_text":"y := 2"}]}`,
+			files: edits(
+				workspacesdk.FileEdits{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{fileEditA}},
+				workspacesdk.FileEdits{Path: "/repo/./a.go", Edits: []workspacesdk.FileEdit{{OldText: "y := 1", NewText: "y := 2"}}},
+			),
+			resp: results(result("/repo/a.go", diffA)),
+			want: `{"status":"applied","message":"Applied 2 of 2 edits.","files":[` +
+				`{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"},` +
+				`{"path":"/repo/./a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
+		},
+		{
 			// An error without an agent response leaves every sent
 			// file's outcome unknown.
 			name:  "TransportErrorIsUnknown",

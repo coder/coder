@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path"
 	"reflect"
 	"slices"
 	"strings"
@@ -354,9 +355,9 @@ func executeEditFilesTool(
 	)
 	// checkPath runs the coderd checks tied to one path and returns the
 	// reason to reject that file, or "" when it passes.
-	checkPath := func(path string) string {
-		hasPlanFileName := looksLikePlanFileName(path)
-		if hasPlanFileName && !isAbsolutePath(path) {
+	checkPath := func(filePath string) string {
+		hasPlanFileName := looksLikePlanFileName(filePath)
+		if hasPlanFileName && !isAbsolutePath(filePath) {
 			return "Use the chat-specific absolute plan path; plan files must use absolute paths"
 		}
 		if resolvePlanPath == nil || !hasPlanFileName {
@@ -366,7 +367,7 @@ func executeEditFilesTool(
 			chatPath, home, planPathErr = resolvePlanPath(ctx)
 			planPathLoaded = true
 		}
-		if resp, rejected := rejectSharedPlanPath(path, home, chatPath, planPathErr); rejected {
+		if resp, rejected := rejectSharedPlanPath(filePath, home, chatPath, planPathErr); rejected {
 			return resp.Content
 		}
 		return ""
@@ -416,7 +417,7 @@ type editFilesBatchFile struct {
 
 // newEditFilesBatch groups args by path and leaves out every file that
 // checkPath, when set, rejects.
-func newEditFilesBatch(args EditFilesArgs, checkPath func(path string) string) editFilesBatch {
+func newEditFilesBatch(args EditFilesArgs, checkPath func(filePath string) string) editFilesBatch {
 	batch := editFilesBatch{
 		total: len(args.Edits),
 		request: workspacesdk.FileEditRequest{
@@ -472,9 +473,12 @@ func (b editFilesBatch) response(resp workspacesdk.FileEditResponse, err error) 
 		}
 		requestMessage = workspacetools.AgentAPIErrorMessage(err)
 	}
+	// The agent merges files whose paths are equal once cleaned and
+	// reports them under the first path, so results are keyed by the
+	// cleaned path.
 	results := make(map[string]workspacesdk.FileEditResult, len(resp.Files))
 	for _, file := range resp.Files {
-		results[file.Path] = file
+		results[path.Clean(file.Path)] = file
 	}
 
 	var applied, notApplied, reports []editFilesFileResult
@@ -492,7 +496,7 @@ func (b editFilesBatch) response(resp workspacesdk.FileEditResponse, err error) 
 			continue
 		}
 		sentIndexes = append(sentIndexes, f.sent...)
-		agentResult, reported := results[f.path]
+		agentResult, reported := results[path.Clean(f.path)]
 		switch {
 		case err != nil:
 			result := editFilesFileResult{Path: f.path, Status: requestStatus, Edits: f.sent, Error: requestMessage}
