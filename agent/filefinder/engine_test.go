@@ -134,6 +134,29 @@ func TestEngine_IndexPicksUpNewFile(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast, "expected newfile_unique.txt to appear via watcher")
 }
 
+func TestEngine_AtomicRenameLeavesNoTempEntry(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	eng, ctx := newTestEngine(t)
+	require.NoError(t, eng.AddRoot(ctx, dir))
+
+	tmp := filepath.Join(dir, ".renamed_unique.txt.tmp.abcd1234")
+	require.NoError(t, os.WriteFile(tmp, []byte("x"), 0o600))
+	require.NoError(t, os.Rename(tmp, filepath.Join(dir, "renamed_unique.txt")))
+
+	var paths []string
+	require.Eventually(t, func() bool {
+		results, sErr := eng.Search(ctx, "renamed_unique", filefinder.DefaultSearchOptions())
+		if sErr != nil {
+			return false
+		}
+		paths = resultPaths(results)
+		return slices.Contains(paths, "renamed_unique.txt")
+	}, testutil.WaitShort, testutil.IntervalFast, "expected renamed_unique.txt to appear via watcher")
+	require.Equal(t, []string{"renamed_unique.txt"}, paths)
+}
+
 func TestEngine_IndexRemovesDeletedFile(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
