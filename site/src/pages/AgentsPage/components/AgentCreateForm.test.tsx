@@ -176,6 +176,18 @@ const seedOrganizationQueries = (
 	queryClient.setQueryData(mcpServerConfigsKey(organizationId), []);
 };
 
+const setPermittedChatOrganizations = (
+	queryClient: QueryClient,
+	organizations: readonly TypesGen.Organization[],
+) =>
+	queryClient.setQueryData(
+		permittedOrganizationsKey({
+			object: { resource_type: "chat", owner_id: "me" },
+			action: "create",
+		}),
+		organizations,
+	);
+
 const createQueryClient = () => {
 	const queryClient = new QueryClient({
 		defaultOptions: {
@@ -188,13 +200,10 @@ const createQueryClient = () => {
 		mockModelCatalog,
 	);
 	queryClient.setQueryData(preferenceSettingsKey, MockUserPreferenceSettings);
-	queryClient.setQueryData(
-		permittedOrganizationsKey({
-			object: { resource_type: "chat", owner_id: "me" },
-			action: "create",
-		}),
-		[MockDefaultOrganization, MockOrganization2],
-	);
+	setPermittedChatOrganizations(queryClient, [
+		MockDefaultOrganization,
+		MockOrganization2,
+	]);
 	return queryClient;
 };
 
@@ -307,6 +316,7 @@ describe("AgentCreateForm workspace file uploads", () => {
 		dashboard.showOrganizations = false;
 		vi.spyOn(toast, "error");
 		vi.spyOn(toast, "info");
+		vi.spyOn(toast, "warning");
 	});
 
 	afterEach(() => {
@@ -511,13 +521,7 @@ describe("AgentCreateForm workspace file uploads", () => {
 			name: "revoked",
 			changeOrganization: async (queryClient: QueryClient) => {
 				act(() => {
-					queryClient.setQueryData(
-						permittedOrganizationsKey({
-							object: { resource_type: "chat", owner_id: "me" },
-							action: "create",
-						}),
-						[MockOrganization2],
-					);
+					setPermittedChatOrganizations(queryClient, [MockOrganization2]);
 				});
 			},
 			expectedWarnings: 1,
@@ -534,7 +538,6 @@ describe("AgentCreateForm workspace file uploads", () => {
 				mockOrganization2ModelCatalog,
 			);
 			const uploadSpy = mockStagedUpload();
-			const warningSpy = vi.spyOn(toast, "warning");
 			const { onCreateChat } = renderForm({}, { queryClient });
 
 			await attachZipFile();
@@ -543,7 +546,7 @@ describe("AgentCreateForm workspace file uploads", () => {
 
 			await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
 			expect(uploadSpy).not.toHaveBeenCalled();
-			expect(warningSpy).toHaveBeenCalledTimes(expectedWarnings);
+			expect(toast.warning).toHaveBeenCalledTimes(expectedWarnings);
 			expect(submittedOptions(onCreateChat)).toMatchObject({
 				organizationId: MockOrganization2.id,
 				workspaceAttachmentFileIDs: [],
