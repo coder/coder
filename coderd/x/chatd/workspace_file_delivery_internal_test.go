@@ -665,23 +665,47 @@ func TestWorkspaceFileDeliveryOutcomes(t *testing.T) {
 
 	t.Run("DisconnectedAgentRefunds", func(t *testing.T) {
 		t.Parallel()
-		f := newWorkspaceFileDeliveryFixture(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
-		chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{
-			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
-			DisconnectedAt: sql.NullTime{Time: dbtime.Now().Add(time.Second), Valid: true},
-		})
-		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
-		worker := f.worker(t)
+		for _, tc := range []struct {
+			name string
+			// away is how long before the first attempt the agent last
+			// connected; zero means it never connected.
+			away   time.Duration
+			delays []time.Duration
+		}{
+			// The delay grows with the time the agent has been away, up
+			// to a cap.
+			{name: "Disconnected", away: 90 * time.Second, delays: []time.Duration{90 * time.Second, 3 * time.Minute, 6 * time.Minute, 10 * time.Minute, 10 * time.Minute}},
+			{name: "RecentlyDisconnected", away: time.Second, delays: []time.Duration{time.Minute, time.Minute + time.Second}},
+			{name: "NeverConnected", delays: []time.Duration{time.Minute, time.Minute, time.Minute}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				f := newWorkspaceFileDeliveryFixture(t)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				chat, agent := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+				connection := database.UpdateWorkspaceAgentConnectionByIDParams{ID: agent.ID, UpdatedAt: dbtime.Now()}
+				if tc.away > 0 {
+					lastConnected := f.clock.Now().Add(-tc.away)
+					connection.FirstConnectedAt = sql.NullTime{Time: lastConnected, Valid: true}
+					connection.LastConnectedAt = sql.NullTime{Time: lastConnected, Valid: true}
+					connection.DisconnectedAt = sql.NullTime{Time: lastConnected.Add(time.Millisecond), Valid: true}
+				}
+				require.NoError(t, f.db.UpdateWorkspaceAgentConnectionByID(ctx, connection))
+				file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+				worker, logs := f.loggingWorker(t)
 
-		for range database.ChatWorkspaceFileMaxDeliveryAttempts + 1 {
-			worker.deliverWorkspaceFiles(ctx)
-			state := f.fileState(ctx, t, chat.ID, file.ID)
-			require.Zero(t, state.WorkspaceDeliveryAttempts)
-			require.Contains(t, state.WorkspaceDeliveryError.String, "not connected")
-			f.clock.Advance(workspaceFileDeliveryRetryDelay)
+				for _, delay := range tc.delays {
+					worker.deliverWorkspaceFiles(ctx)
+					state := f.fileState(ctx, t, chat.ID, file.ID)
+					require.Zero(t, state.WorkspaceDeliveryAttempts)
+					require.Contains(t, state.WorkspaceDeliveryError.String, "not connected")
+					require.WithinDuration(t, f.clock.Now().Add(delay), state.WorkspaceDeliveryNextAttemptAt.Time, time.Millisecond)
+					f.clock.Advance(delay)
+				}
+				require.Empty(t, f.agent.uploadRequests())
+				require.Empty(t, warnings(logs))
+			})
 		}
-		require.Empty(t, f.agent.uploadRequests())
 	})
 
 	t.Run("CrashAfterAgentWriteRedeliversToSamePath", func(t *testing.T) {
