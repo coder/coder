@@ -310,9 +310,6 @@ const DirectoryTree: React.FC<DirectoryTreeProps> = ({
 	onOpenFile,
 }) => {
 	const rootQuery = useQuery(workspaceAgentDirectory(agentId, root));
-	// combine hands plain values to the render. Compiled memoization would
-	// otherwise skip reading the tracked results, so react-query would stop
-	// re-rendering when their data changes.
 	const childListings = useQueries({
 		queries: expandedPaths.map((path) =>
 			workspaceAgentDirectory(agentId, path),
