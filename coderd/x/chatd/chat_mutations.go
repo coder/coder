@@ -555,23 +555,20 @@ func (p *Server) DeleteQueued(
 	})
 }
 
-// PromoteQueued promotes a queued message through the chatstate state
-// machine. From running / interrupting states the state machine
-// transitions the chat to `interrupting` so the worker can drain the
-// in-flight generation before promoting; from idle / error / requires
-// action states it inserts the user message into history
-// synchronously.
+// PromoteQueued requests immediate delivery of a queued message. It steers
+// before interrupting so inline interruption delivers the steer lane, not
+// the queue head.
 func (p *Server) PromoteQueued(
 	ctx context.Context,
 	opts PromoteQueuedOptions,
-) (PromoteQueuedResult, error) {
+) error {
 	if opts.ChatID == uuid.Nil {
-		return PromoteQueuedResult{}, xerrors.New("chat_id is required")
+		return xerrors.New("chat_id is required")
 	}
 
 	var (
-		result           PromoteQueuedResult
-		promotedQueuedAt time.Time
+		promotedQueuedAt     time.Time
+		finishedInterruption bool
 	)
 	refreshed, err := p.updateChat(ctx, opts.ChatID, "promote", func(tx *chatstate.Tx, store database.Store, _ *database.Chat) error {
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
@@ -582,24 +579,42 @@ func (p *Server) PromoteQueued(
 			return ErrChatArchived
 		}
 
-		promoteResult, err := tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
+		steered, err := tx.SteerQueuedMessage(chatstate.SteerQueuedMessageInput{
 			QueuedMessageID: opts.QueuedMessageID,
 		})
 		if err != nil {
 			return err
 		}
-		if promoteResult.InsertedMessage != nil {
-			result.PromotedMessage = *promoteResult.InsertedMessage
+		promotedQueuedAt = steered.PromotedQueuedAt
+		// An owned interrupting chat delivers the steer lane when its
+		// runner finishes the interruption.
+		interrupt := lockedChat.Status == database.ChatStatusRunning ||
+			lockedChat.Status == database.ChatStatusRequiresAction ||
+			(lockedChat.Status == database.ChatStatusInterrupting && !lockedChat.WorkerID.Valid)
+		if !interrupt {
+			return nil
 		}
-		promotedQueuedAt = promoteResult.PromotedQueuedAt
+		interrupted, err := tx.Interrupt(chatstate.InterruptInput{
+			Reason: "Tool execution interrupted by queued message promotion",
+		})
+		if err != nil {
+			return xerrors.Errorf("interrupt after steer: %w", err)
+		}
+		if promotedQueuedAt.IsZero() {
+			promotedQueuedAt = interrupted.PromotedQueuedAt
+		}
+		finishedInterruption = interrupted.FinishedInterruption
 		return nil
 	})
 	if err != nil {
-		return PromoteQueuedResult{}, err
+		return err
 	}
 
 	p.recordQueueWait(ctx, refreshed, promotedQueuedAt)
-	return result, nil
+	if finishedInterruption {
+		p.afterInlineInterruption(ctx, refreshed)
+	}
+	return nil
 }
 
 // SubmitToolResults dispatches hooks before completing the

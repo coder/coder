@@ -313,9 +313,6 @@ func TestDeleteChatQueuedMessageEmptyQueueReturnsConflict(t *testing.T) {
 	require.Equal(t, http.StatusConflict, res.StatusCode)
 }
 
-// TestPromoteChatQueuedMessageMissingReturns404 mirrors the delete
-// test for the promote endpoint: with a non-empty queue, an unknown
-// queued-message ID returns 404 rather than a 409.
 func TestPromoteChatQueuedMessageMissingReturns404(t *testing.T) {
 	t.Parallel()
 
@@ -331,11 +328,12 @@ func TestPromoteChatQueuedMessageMissingReturns404(t *testing.T) {
 	require.NoError(t, err)
 
 	// Seed one queued message so the promote transition is allowed.
-	_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+	sent, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 		Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "queued"}},
 		BusyBehavior: codersdk.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
+	require.NotNil(t, sent.QueuedMessage)
 
 	res, err := client.Request(
 		ctx,
@@ -346,6 +344,11 @@ func TestPromoteChatQueuedMessageMissingReturns404(t *testing.T) {
 	require.NoError(t, err)
 	defer res.Body.Close()
 	require.Equal(t, http.StatusNotFound, res.StatusCode)
+
+	got, err := client.GetChatMessages(ctx, chat.ID, nil)
+	require.NoError(t, err)
+	require.Len(t, got.QueuedMessages, 1)
+	require.Equal(t, sent.QueuedMessage.ID, got.QueuedMessages[0].ID)
 }
 
 // TestPromoteChatQueuedMessageEmptyQueueReturnsConflict verifies
