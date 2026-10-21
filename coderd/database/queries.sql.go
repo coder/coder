@@ -10789,7 +10789,7 @@ func (q *sqlQuerier) GetChatQueuedMessageByID(ctx context.Context, arg GetChatQu
 const getChatQueuedMessages = `-- name: GetChatQueuedMessages :many
 SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, busy_behavior FROM chat_queued_messages
 WHERE chat_id = $1
-ORDER BY position ASC, id ASC
+ORDER BY CASE busy_behavior WHEN 'steer' THEN 0 ELSE 1 END, position ASC, id ASC
 `
 
 // Keep client queue order consistent with delivery order. Do not sort by
