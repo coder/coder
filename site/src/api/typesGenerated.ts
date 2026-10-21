@@ -2211,6 +2211,14 @@ export type ChatClientType = "api" | "ui";
 
 export const ChatClientTypes: ChatClientType[] = ["api", "ui"];
 
+export const ChatCompactionStrategies: ChatCompactionStrategy[] = [
+	"summarize",
+	"token_budget",
+];
+
+// From codersdk/chats.go
+export type ChatCompactionStrategy = "summarize" | "token_budget";
+
 // From codersdk/chats.go
 /**
  * ChatCompactionThresholdKeyPrefix scopes per-model chat compaction
@@ -5576,6 +5584,7 @@ export type Experiment =
 	| "chat-inline-mcp-servers"
 	| "chat-projects"
 	| "chat-stage-metrics"
+	| "chat-token-budget"
 	| "chat-virtual-desktop"
 	| "enable-ai-workspace-debug"
 	| "example"
@@ -5656,6 +5665,7 @@ export const Experiments: Experiment[] = [
 	"chat-inline-mcp-servers",
 	"chat-projects",
 	"chat-stage-metrics",
+	"chat-token-budget",
 	"chat-virtual-desktop",
 	"enable-ai-workspace-debug",
 	"example",
@@ -11633,6 +11643,17 @@ export interface UserAppearanceSettings {
 	 */
 	readonly theme_dark: string;
 	readonly terminal_font: TerminalFontName;
+}
+
+// From codersdk/chats.go
+/**
+ * UserChatCompactionStrategy is the request and response body for the
+ * user chat compaction strategy endpoint.
+ *
+ * EXPERIMENTAL: this type is experimental and is subject to change.
+ */
+export interface UserChatCompactionStrategy {
+	readonly strategy: ChatCompactionStrategy;
 }
 
 // From codersdk/chats.go

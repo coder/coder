@@ -284,6 +284,27 @@ END
 WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'chat_debug_logging_enabled';
 
+-- name: GetUserChatCompactionStrategy :one
+SELECT
+	COALESCE((
+		SELECT value
+		FROM user_configs
+		WHERE user_id = @user_id
+			AND key = 'chat_compaction_strategy'
+	), 'summarize') :: text AS compaction_strategy;
+
+-- name: UpsertUserChatCompactionStrategy :exec
+INSERT INTO user_configs (user_id, key, value)
+VALUES (
+	@user_id,
+	'chat_compaction_strategy',
+	sqlc.arg(compaction_strategy)::text
+)
+ON CONFLICT ON CONSTRAINT user_configs_pkey
+DO UPDATE SET value = sqlc.arg(compaction_strategy)::text
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'chat_compaction_strategy';
+
 -- name: GetUserThinkingDisplayMode :one
 SELECT
 	value AS thinking_display_mode
