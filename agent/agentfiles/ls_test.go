@@ -83,8 +83,9 @@ func TestHandleLS_PathForms(t *testing.T) {
 		{name: "EmptyWithMissingWorkingDir", handler: newHandler(filepath.Join(workDir, "missing")), wantDir: home, want: []string{"homesub", "home.txt"}},
 		{name: "Tilde", handler: withWorkDir, path: "~", wantDir: home, want: []string{"homesub", "home.txt"}},
 		{name: "TildeSub", handler: withWorkDir, path: "~/homesub", wantDir: filepath.Join(home, "homesub"), want: []string{"inhome.txt"}},
-		{name: "Absolute", handler: withWorkDir, path: filepath.Join(home, "homesub", "..", "homesub"), wantDir: filepath.Join(home, "homesub"), want: []string{"inhome.txt"}},
+		{name: "Absolute", handler: withWorkDir, path: home + "/homesub/../homesub/", wantDir: filepath.Join(home, "homesub"), want: []string{"inhome.txt"}},
 		{name: "Relative", handler: withWorkDir, path: "worksub", wantDir: filepath.Join(workDir, "worksub"), want: []string{"inwork.txt"}},
+		{name: "UncleanWorkingDir", handler: newHandler(workDir + "/worksub/../"), wantDir: workDir, want: []string{"worksub", "work.txt"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -132,6 +133,17 @@ func TestHandleLS_LegacyRelativityBody(t *testing.T) {
 	require.NoError(t, err)
 	code, _ = requestLS(t, handler, "relative", string(body))
 	require.Equal(t, http.StatusInternalServerError, code)
+}
+
+func TestHandleLS_BodyTooLarge(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	handler := agentfiles.NewAPI(logger, afero.NewOsFs(), nil).Routes()
+
+	body := `{"path":["` + strings.Repeat("a", 5<<20) + `"]}`
+	code, _ := requestLS(t, handler, t.TempDir(), body)
+	require.Equal(t, http.StatusRequestEntityTooLarge, code)
 }
 
 func TestHandleLS_EntryMetadata(t *testing.T) {
