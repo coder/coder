@@ -6,7 +6,10 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 
-/** `label` is the visible text; `value` is what `onValueChange` receives. */
+/**
+ * One choice of a {@link SettingsSelectRow}. Its `value` is a member of the
+ * row's string union `T`, which the row's `value` and `onValueChange` share.
+ */
 export type SettingsSelectOption<T extends string> = {
 	value: T;
 	label: string;
@@ -24,8 +27,9 @@ type SettingsSelectRowProps<T extends string> = {
 };
 
 /**
- * A titled preference row with a select. `errorMessage` renders as an alert
- * below the select unless it is undefined.
+ * A titled preference row with a select. `onValueChange` fires only for a
+ * value that one of `options` declares, so callers never receive an untyped
+ * string from the underlying Select.
  */
 export const SettingsSelectRow = <T extends string>({
 	title,
