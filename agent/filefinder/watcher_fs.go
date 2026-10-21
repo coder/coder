@@ -42,7 +42,9 @@ type fsWatcher struct {
 	logger slog.Logger
 	mu     sync.Mutex
 	closed bool
-	done   chan struct{}
+	// started is set once Start runs; done is only closed after that.
+	started bool
+	done    chan struct{}
 }
 
 func newFSWatcher(root string, logger slog.Logger) (*fsWatcher, error) {
@@ -59,12 +61,23 @@ func newFSWatcher(root string, logger slog.Logger) (*fsWatcher, error) {
 	}, nil
 }
 
+// Start adds watches under the root and starts the event loop. It
+// stops early when ctx is canceled. It does nothing after Close.
 func (fw *fsWatcher) Start(ctx context.Context) {
-	initEvents := fw.addRecursive(fw.root)
+	fw.mu.Lock()
+	if fw.closed {
+		fw.mu.Unlock()
+		return
+	}
+	fw.started = true
+	fw.mu.Unlock()
+
+	initEvents := fw.addRecursive(ctx, fw.root)
 	if len(initEvents) > 0 {
 		select {
 		case fw.events <- initEvents:
 		case <-ctx.Done():
+			close(fw.done)
 			return
 		}
 	}
@@ -79,9 +92,12 @@ func (fw *fsWatcher) Close() error {
 		return nil
 	}
 	fw.closed = true
+	started := fw.started
 	fw.mu.Unlock()
 	err := fw.w.Close()
-	<-fw.done
+	if started {
+		<-fw.done
+	}
 	return err
 }
 
@@ -137,7 +153,7 @@ func (fw *fsWatcher) loop(ctx context.Context) {
 				continue
 			}
 			if fsev.IsDir && fsev.Op == OpCreate {
-				for _, s := range fw.addRecursive(fsev.Path) {
+				for _, s := range fw.addRecursive(ctx, fsev.Path) {
 					addToBatch(s)
 				}
 			}
@@ -154,9 +170,12 @@ func (fw *fsWatcher) loop(ctx context.Context) {
 	}
 }
 
-func (fw *fsWatcher) addRecursive(dir string) []FSEvent {
+func (fw *fsWatcher) addRecursive(ctx context.Context, dir string) []FSEvent {
 	var events []FSEvent
 	if walkErr := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if ctx.Err() != nil {
+			return filepath.SkipAll
+		}
 		if err != nil {
 			return nil //nolint:nilerr // best-effort
 		}
