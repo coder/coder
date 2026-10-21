@@ -733,8 +733,13 @@ func TestChatTools(t *testing.T) {
 
 		// Block the chat turn so the interrupt has a deterministic target.
 		release := make(chan struct{})
+		streamStarted := make(chan struct{}, 1)
 		blockingURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 			if req.Stream {
+				select {
+				case streamStarted <- struct{}{}:
+				default:
+				}
 				select {
 				case <-release:
 				case <-req.Context().Done():
@@ -752,10 +757,12 @@ func TestChatTools(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ChatStatusRunning, created.Status)
+		// Wait until the model call blocks so the steer message stays queued.
+		testutil.RequireReceive(ctx, t, streamStarted)
 
 		sent, err := testTool(t, toolsdk.SendChatMessage, tb, toolsdk.SendChatMessageArgs{
 			ChatID: created.ID,
-			Text:   "Queued while busy.",
+			Text:   "Steered while busy.",
 		})
 		require.NoError(t, err)
 		require.True(t, sent.Queued)
@@ -768,10 +775,29 @@ func TestChatTools(t *testing.T) {
 			BusyBehavior: codersdk.ChatBusyBehaviorQueue,
 		})
 		require.NoError(t, err)
+		queued, err := testTool(t, toolsdk.SendChatMessage, tb, toolsdk.SendChatMessageArgs{
+			ChatID:       created.ID,
+			Text:         "Queued by the tool.",
+			BusyBehavior: codersdk.ChatBusyBehaviorQueue,
+		})
+		require.NoError(t, err)
+		require.True(t, queued.Queued)
+		messages, err := expClient.GetChatMessages(ctx, uuid.MustParse(created.ID), nil)
+		require.NoError(t, err)
+		behaviors := make([]codersdk.ChatBusyBehavior, 0, len(messages.QueuedMessages))
+		for _, queuedMessage := range messages.QueuedMessages {
+			behaviors = append(behaviors, queuedMessage.BusyBehavior)
+		}
+		require.Equal(t, []codersdk.ChatBusyBehavior{
+			codersdk.ChatBusyBehaviorSteer,
+			codersdk.ChatBusyBehaviorQueue,
+			codersdk.ChatBusyBehaviorQueue,
+		}, behaviors)
 		transcript, err := testTool(t, toolsdk.GetChatMessages, tb, toolsdk.GetChatMessagesArgs{ChatID: created.ID})
 		require.NoError(t, err)
-		require.Contains(t, transcript.QueuedMessages, "Queued while busy.")
+		require.Contains(t, transcript.QueuedMessages, "Steered while busy.")
 		require.Contains(t, transcript.QueuedMessages, "(attached files: queued-only.txt)")
+		require.Contains(t, transcript.QueuedMessages, "Queued by the tool.")
 
 		interrupted, err := testTool(t, toolsdk.InterruptChat, tb, toolsdk.InterruptChatArgs{ChatID: created.ID})
 		require.NoError(t, err)
@@ -903,12 +929,14 @@ func TestChatTools(t *testing.T) {
 		_, err = testTool(t, toolsdk.GetChat, tb, toolsdk.GetChatArgs{ChatID: "not-a-uuid"})
 		require.ErrorContains(t, err, "chat_id must be a valid UUID")
 
-		_, err = testTool(t, toolsdk.SendChatMessage, tb, toolsdk.SendChatMessageArgs{
-			ChatID:       uuid.NewString(),
-			Text:         "hi",
-			BusyBehavior: codersdk.ChatBusyBehavior("bogus"),
-		})
-		require.ErrorContains(t, err, "busy_behavior")
+		for _, busyBehavior := range []codersdk.ChatBusyBehavior{"bogus", "interrupt"} {
+			_, err = testTool(t, toolsdk.SendChatMessage, tb, toolsdk.SendChatMessageArgs{
+				ChatID:       uuid.NewString(),
+				Text:         "hi",
+				BusyBehavior: busyBehavior,
+			})
+			require.ErrorContains(t, err, "busy_behavior")
+		}
 
 		_, err = testTool(t, toolsdk.DownloadChatFile, tb, toolsdk.DownloadChatFileArgs{})
 		require.ErrorContains(t, err, "exactly one addressing mode")

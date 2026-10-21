@@ -21,6 +21,7 @@ describe("restoreOptimisticRequestSnapshot", () => {
 			{
 				id: 9,
 				chat_id: "chat-abc-123",
+				busy_behavior: "queue",
 				created_at: "2025-01-01T00:00:00.000Z",
 				content: [{ type: "text" as const, text: "queued" }],
 			},

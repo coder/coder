@@ -148,9 +148,16 @@ curl -X POST \
   }'
 ```
 
-The Chats API supports message queuing.
-If the agent is busy, the message is queued automatically and delivered when the agent finishes its current step.
-The response includes a `queued` field indicating whether the message was delivered immediately or queued.
+If the agent is busy, the `busy_behavior` field controls when the message
+reaches the agent:
+
+- `steer` (default): before the agent's next model call in the current turn.
+- `queue`: after the current turn ends.
+
+To stop the current turn first, call `POST /api/v2/chats/{chat}/interrupt`
+and then send the message. The response includes a `queued` field that
+shows whether the message was delivered immediately or held for later
+delivery.
 
 ### 4. Switch from log polling to WebSocket streaming
 
@@ -521,8 +528,9 @@ curl -s -X POST \
   }' | jq '{queued}'
 ```
 
-The response should include `"queued": false` (delivered immediately) or `"queued": true` (agent was busy.
-The message is queued and will be processed next).
+The response should include `"queued": false` (delivered immediately) or
+`"queued": true` (the agent was busy, so the message is delivered before
+the agent's next model call).
 
 ### 5. Test workspace provisioning
 
@@ -607,7 +615,7 @@ The Chats API includes capabilities that have no equivalent in the Tasks API:
 | **WebSocket streaming**              | Real-time event stream via `GET /chats/{chat}/stream` instead of HTTP polling                         |
 | **Watch all chats**                  | `GET /chats/watch` pushes events for all chats owned by the user                                      |
 | **Message editing**                  | `PATCH /chats/{chat}/messages/{message}` to edit a sent message and re-process                        |
-| **Message queuing**                  | Follow-up messages are automatically queued when the agent is busy                                    |
+| **Message steering and queuing**     | Follow-up messages steer a busy agent's current turn by default, or queue until the turn ends         |
 | **File uploads**                     | Attach images via `POST /chats/files` and reference them in messages                                  |
 | **Model selection**                  | `GET /organizations/{organization}/chats/models` to discover models; override per-chat or per-message |
 | **MCP server attachment**            | Attach MCP servers to a chat for tool augmentation                                                    |
