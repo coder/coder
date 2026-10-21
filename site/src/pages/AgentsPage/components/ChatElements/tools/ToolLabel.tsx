@@ -67,17 +67,35 @@ const AttachFileLabel: React.FC<ToolLabelProps> = ({ args, result }) => {
 	);
 };
 
-const CopyAttachmentsLabel: React.FC<ToolLabelProps> = ({ status }) => (
-	<span className="truncate text-[13px]">
-		{
+// Attachment statuses from coderd/x/chatd/chattool/workspaceattachments.go
+// that leave a file outside the workspace.
+const uncopiedAttachmentStatuses: ReadonlySet<string> = new Set([
+	"failed",
+	"unavailable",
+]);
+
+const CopyAttachmentsLabel: React.FC<ToolLabelProps> = ({ status, result }) => {
+	const parsedResult = asRecord(result);
+	const attachments = parsedResult?.attachments;
+	// The tool reports copy failures in its result, never as a failed call.
+	const hasCopyFailure =
+		Boolean(asString(parsedResult?.attachments_error)) ||
+		(Array.isArray(attachments) &&
+			attachments.some((attachment) =>
+				uncopiedAttachmentStatuses.has(asString(asRecord(attachment)?.status)),
+			));
+	return (
+		<span className="truncate text-[13px]">
 			{
-				running: "Copying attachments to the workspace…",
-				completed: "Checked workspace attachments",
-				error: "Failed to check workspace attachments",
-			}[status]
-		}
-	</span>
-);
+				{
+					running: "Copying attachments to the workspace…",
+					completed: "Checked workspace attachments",
+					error: "Failed to check workspace attachments",
+				}[status === "completed" && hasCopyFailure ? "error" : status]
+			}
+		</span>
+	);
+};
 
 export const genericToolLabels: Partial<
 	Record<string, React.FC<ToolLabelProps>>

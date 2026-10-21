@@ -2017,13 +2017,33 @@ export const CopyAttachmentsWithoutResult: Story = {
 	},
 };
 
-export const CopyAttachmentsFailed: Story = {
+export const CopyAttachmentsError: Story = {
 	args: {
 		name: "copy_attachments_to_workspace",
 		status: "error",
-		args: {},
-		result: { error: "workspace agent is not connected" },
 		isError: true,
+		args: {},
+		result: "invalid parameters: unexpected end of JSON input",
+	},
+};
+
+export const CopyAttachmentsFailed: Story = {
+	args: {
+		name: "copy_attachments_to_workspace",
+		status: "completed",
+		args: {},
+		result: {
+			attachments: [
+				{
+					file_id: "bundle-zip",
+					name: "bundle.zip",
+					media_type: "application/zip",
+					size_bytes: 2048,
+					status: "failed",
+					error: "workspace agent is not connected",
+				},
+			],
+		},
 	},
 };
 
