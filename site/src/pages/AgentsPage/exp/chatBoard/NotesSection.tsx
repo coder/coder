@@ -1,4 +1,5 @@
-import { useDraggable, useDroppable } from "@dnd-kit/core";
+import { pointerIntersection } from "@dnd-kit/collision";
+import { useDraggable, useDroppable } from "@dnd-kit/react";
 import { cn } from "cn";
 import {
 	ArrowUpIcon,
@@ -18,7 +19,7 @@ import type { NoteSlot } from "./boardApi";
 import type { BoardCard, BoardNote } from "./boardLabels";
 import { RelativeAge } from "./ChatStatusLine";
 import { CompactMarkdown } from "./CompactMarkdown";
-import { dragHandleListeners } from "./dragHandle";
+import { preventHandleSelection } from "./dragHandle";
 
 type NotesSectionProps = {
 	readonly card: BoardCard;
@@ -98,19 +99,18 @@ const Note: React.FC<NoteProps> = ({
 	const dragData: DragData = { type: "note", card, note };
 	const dropData: DropData = { type: "note", card, note };
 	const {
-		setNodeRef: setDragRef,
-		setActivatorNodeRef,
-		listeners,
-		attributes,
+		ref: dragRef,
+		handleRef,
 		isDragging,
 	} = useDraggable({ id: `note:${card.id}:${note.index}`, data: dragData });
-	const { setNodeRef: setDropRef } = useDroppable({
+	const { ref: dropRef } = useDroppable({
 		id: `drop-note:${card.id}:${note.index}`,
 		data: dropData,
+		collisionDetector: pointerIntersection,
 	});
 	const setRefs = (node: HTMLElement | null) => {
-		setDragRef(node);
-		setDropRef(node);
+		dragRef(node);
+		dropRef(node);
 	};
 
 	if (editing) {
@@ -156,9 +156,8 @@ const Note: React.FC<NoteProps> = ({
 				<Button
 					variant="subtle"
 					size="icon"
-					ref={setActivatorNodeRef}
-					{...dragHandleListeners(listeners)}
-					{...attributes}
+					ref={handleRef}
+					onPointerDown={preventHandleSelection}
 					aria-label="Drag note"
 					title="Drag to reorder or move to another card"
 					className="size-4 min-w-0 cursor-grab touch-none rounded p-0 text-content-secondary active:cursor-grabbing [&>svg]:size-3! [&>svg]:p-0"

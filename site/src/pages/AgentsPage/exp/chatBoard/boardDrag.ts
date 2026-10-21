@@ -1,9 +1,10 @@
+import type { Plugins } from "@dnd-kit/abstract";
+import { AutoScroller, PointerActivationConstraints } from "@dnd-kit/dom";
 import {
-	type Active,
-	type Collision,
-	type CollisionDetection,
-	pointerWithin,
-} from "@dnd-kit/core";
+	type DragDropManager,
+	KeyboardSensor,
+	PointerSensor,
+} from "@dnd-kit/react";
 import type { DragData, DropData } from "./BoardCard";
 import {
 	type BoardState,
@@ -22,6 +23,26 @@ import type { BoardCard } from "./boardLabels";
 // middle half merges.
 const EDGE_ZONE = 0.25;
 
+// Small enough that a drag starts promptly, large enough that a click on a
+// card header does not.
+const DRAG_ACTIVATION_PX = 4;
+
+/** The board's sensors; tests render with them so a click stays a click. */
+export const dragSensors = [
+	PointerSensor.configure({
+		activationConstraints: [
+			new PointerActivationConstraints.Distance({ value: DRAG_ACTIVATION_PX }),
+		],
+	}),
+	KeyboardSensor,
+];
+
+/** dnd-kit's plugins, with auto-scroll slowed to the speed it had in v6. */
+export const dragPlugins = (defaults: Plugins): Plugins => [
+	...defaults.filter((plugin) => plugin !== AutoScroller),
+	AutoScroller.configure({ acceleration: 16 }),
+];
+
 /** Where a drop would land, resolved from the pointer position. */
 export type DropTarget =
 	| { kind: "merge"; card: BoardCard }
@@ -30,31 +51,37 @@ export type DropTarget =
 	| { kind: "note"; card: BoardCard; slot: NoteSlot }
 	| { kind: "noteCard"; card: BoardCard };
 
-type CollisionArgs = Parameters<CollisionDetection>[0];
+type Point = { readonly x: number; readonly y: number };
+type Rect = {
+	readonly top: number;
+	readonly left: number;
+	readonly width: number;
+	readonly height: number;
+};
 
-/** The board's drag payload; dnd-kit types `data` as an open record. */
-export const dragDataOf = (active: Active): DragData | undefined =>
-	active.data.current as DragData | undefined;
+/** A registered drop zone and where it is on screen. */
+export type BoardDroppable = { readonly data: DropData; readonly rect: Rect };
 
-const dropDataOf = (hit: Collision): DropData | undefined =>
-	hit.data?.droppableContainer?.data.current as DropData | undefined;
+const contains = (rect: Rect, { x, y }: Point) =>
+	x >= rect.left &&
+	x <= rect.left + rect.width &&
+	y >= rect.top &&
+	y <= rect.top + rect.height;
 
-const cardsInColumn = (args: CollisionArgs, column: string) =>
-	args.droppableContainers
-		.flatMap((container) => {
-			const data = container.data.current as DropData | undefined;
-			const rect = args.droppableRects.get(container.id);
-			return data?.type === "card" && data.card.column === column && rect
+const cardsInColumn = (droppables: readonly BoardDroppable[], column: string) =>
+	droppables
+		.flatMap(({ data, rect }) =>
+			data.type === "card" && data.card.column === column
 				? [{ card: data.card, rect }]
-				: [];
-		})
+				: [],
+		)
 		.sort((a, b) => a.rect.top - b.rect.top);
 
 const nextCardIdInColumn = (
-	args: CollisionArgs,
+	droppables: readonly BoardDroppable[],
 	card: BoardCard,
 ): string | null => {
-	const ordered = cardsInColumn(args, card.column);
+	const ordered = cardsInColumn(droppables, card.column);
 	const index = ordered.findIndex((entry) => entry.card.id === card.id);
 	return ordered[index + 1]?.card.id ?? null;
 };
@@ -62,114 +89,111 @@ const nextCardIdInColumn = (
 // A note lands before or after the note under the pointer, or at the end
 // of another card's notes when over the card itself. Its own card, away
 // from its notes, is not a target.
-const noteCollision = (
-	args: CollisionArgs,
-	hits: readonly Collision[],
+const noteTarget = (
+	hits: readonly BoardDroppable[],
+	pointer: Point,
 	drag: Extract<DragData, { type: "note" }>,
-): Collision[] => {
-	const pointer = args.pointerCoordinates;
-	if (!pointer) return [];
-	const noteHit = hits.find((hit) => {
-		const data = dropDataOf(hit);
-		return (
-			data?.type === "note" &&
+): DropTarget | null => {
+	for (const { data, rect } of hits) {
+		if (
+			data.type === "note" &&
 			!(data.card.id === drag.card.id && data.note.index === drag.note.index)
-		);
-	});
-	if (noteHit) {
-		const data = dropDataOf(noteHit);
-		const rect = args.droppableRects.get(noteHit.id);
-		if (data?.type !== "note" || !rect) return [];
-		const target: DropTarget = {
-			kind: "note",
-			card: data.card,
-			slot: {
-				index: data.note.index,
-				side: pointer.y < rect.top + rect.height / 2 ? "before" : "after",
-			},
-		};
-		return [{ id: noteHit.id, data: { ...noteHit.data, target } }];
+		) {
+			return {
+				kind: "note",
+				card: data.card,
+				slot: {
+					index: data.note.index,
+					side: pointer.y < rect.top + rect.height / 2 ? "before" : "after",
+				},
+			};
+		}
 	}
-	const cardHit = hits.find((hit) => {
-		const data = dropDataOf(hit);
-		return data?.type === "card" && data.card.id !== drag.card.id;
-	});
-	const cardData = cardHit && dropDataOf(cardHit);
-	if (!cardHit || cardData?.type !== "card") return [];
-	const target: DropTarget = { kind: "noteCard", card: cardData.card };
-	return [{ id: cardHit.id, data: { ...cardHit.data, target } }];
+	for (const { data } of hits) {
+		if (data.type === "card" && data.card.id !== drag.card.id) {
+			return { kind: "noteCard", card: data.card };
+		}
+	}
+	return null;
 };
 
 /**
  * Resolves the pointer to one target. A column drag lands before or after
  * the column under the pointer. Over a card, see EDGE_ZONE (chats always
  * join). Over column background, insert before the first card whose middle
- * is below the pointer. The target rides along as collision data.
+ * is below the pointer.
  */
-export const boardCollision: CollisionDetection = (args) => {
-	const pointer = args.pointerCoordinates;
-	if (!pointer) return [];
-	const hits = pointerWithin(args);
-	const drag = dragDataOf(args.active);
-	if (drag?.type === "note") return noteCollision(args, hits, drag);
-	const columnHit = hits.find((hit) => dropDataOf(hit)?.type === "column");
-	if (!columnHit) return [];
-	const columnData = dropDataOf(columnHit);
-	if (columnData?.type !== "column") return [];
+export const boardTarget = (
+	drag: DragData | undefined,
+	droppables: readonly BoardDroppable[],
+	pointer: Point | null,
+): DropTarget | null => {
+	if (!pointer) return null;
+	const hits = droppables.filter(({ rect }) => contains(rect, pointer));
+	if (drag?.type === "note") return noteTarget(hits, pointer, drag);
+	const columnHit = hits.find(({ data }) => data.type === "column");
+	if (columnHit?.data.type !== "column") return null;
+	const column = columnHit.data;
 
 	if (drag?.type === "column") {
-		const rect = args.droppableRects.get(columnHit.id);
-		if (!rect || columnData.name === drag.name) return [];
-		const target: DropTarget = {
+		if (column.name === drag.name) return null;
+		const { rect } = columnHit;
+		return {
 			kind: "column",
-			name: columnData.name,
+			name: column.name,
 			side: pointer.x < rect.left + rect.width / 2 ? "before" : "after",
 		};
-		return [{ id: columnHit.id, data: { ...columnHit.data, target } }];
 	}
 
-	const cardHit = hits.find((hit) => {
-		const data = dropDataOf(hit);
-		return data?.type === "card" && data.card.id !== drag?.card.id;
-	});
-	let target: DropTarget;
-	if (cardHit) {
-		const cardData = dropDataOf(cardHit);
-		const rect = args.droppableRects.get(cardHit.id);
-		if (cardData?.type !== "card" || !rect) return [];
-		const y = (pointer.y - rect.top) / rect.height;
-		const card = cardData.card;
+	const cardHit = hits.find(
+		({ data }) => data.type === "card" && data.card.id !== drag?.card.id,
+	);
+	if (cardHit?.data.type === "card") {
+		const y = (pointer.y - cardHit.rect.top) / cardHit.rect.height;
+		const card = cardHit.data.card;
 		if (drag?.type === "chat" || (y > EDGE_ZONE && y < 1 - EDGE_ZONE)) {
-			target = { kind: "merge", card };
-		} else if (y <= EDGE_ZONE) {
-			target = { kind: "insert", column: card.column, beforeCardId: card.id };
-		} else {
-			target = {
-				kind: "insert",
-				column: card.column,
-				beforeCardId: nextCardIdInColumn(args, card),
-			};
+			return { kind: "merge", card };
 		}
-	} else {
-		const below = cardsInColumn(args, columnData.name).find(
-			({ rect }) => rect.top + rect.height / 2 > pointer.y,
-		);
-		target = {
+		return {
 			kind: "insert",
-			column: columnData.name,
-			beforeCardId: below?.card.id ?? null,
+			column: card.column,
+			beforeCardId:
+				y <= EDGE_ZONE ? card.id : nextCardIdInColumn(droppables, card),
 		};
 	}
-	const hit = cardHit ?? columnHit;
-	return [{ id: hit.id, data: { ...hit.data, target } }];
+	const below = cardsInColumn(droppables, column.name).find(
+		({ rect }) => rect.top + rect.height / 2 > pointer.y,
+	);
+	return {
+		kind: "insert",
+		column: column.name,
+		beforeCardId: below?.card.id ?? null,
+	};
 };
 
-/** The target boardCollision attached to the first collision, if any. */
-export const targetOf = (
-	collisions: readonly Collision[] | null | undefined,
-): DropTarget | null =>
-	(collisions?.[0]?.data as { target?: DropTarget } | undefined)?.target ??
-	null;
+/** The board's drag payload; dnd-kit types `data` as an open record. */
+export const dragDataOf = (manager: DragDropManager): DragData | undefined =>
+	manager.dragOperation.source?.data as DragData | undefined;
+
+/**
+ * The target under the drag's current position. Rects are read from the
+ * elements, not dnd-kit's shapes, because dnd-kit drops the shape of an
+ * element scrolled out of view and the column order needs every card.
+ */
+export const dragTargetOf = (manager: DragDropManager): DropTarget | null => {
+	const droppables = [...manager.registry.droppables].flatMap((droppable) => {
+		const data = droppable.data as DropData | undefined;
+		const element = droppable.element;
+		return data && element && !droppable.disabled
+			? [{ data, rect: element.getBoundingClientRect() }]
+			: [];
+	});
+	return boardTarget(
+		dragDataOf(manager),
+		droppables,
+		manager.dragOperation.position.current,
+	);
+};
 
 /**
  * The board command a drop means, or null when that drag cannot land on
