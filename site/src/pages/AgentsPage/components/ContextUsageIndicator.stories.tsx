@@ -128,9 +128,8 @@ export const TokenBudgetHandoffTarget: Story = {
 		},
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
 		await userEvent.hover(
-			canvas.getByRole("button", { name: /Context usage 50%/i }),
+			within(canvasElement).getByRole("button", { name: /Context usage 50%/i }),
 		);
 	},
 };
@@ -148,9 +147,8 @@ export const TokenBudgetRolloverDisabled: Story = {
 		},
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
 		await userEvent.hover(
-			canvas.getByRole("button", { name: /Context usage 50%/i }),
+			within(canvasElement).getByRole("button", { name: /Context usage 50%/i }),
 		);
 	},
 };
@@ -168,9 +166,8 @@ export const TokenBudgetHandoffBeyondReportedLimit: Story = {
 		},
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
 		await userEvent.hover(
-			canvas.getByRole("button", { name: /Context usage 52%/i }),
+			within(canvasElement).getByRole("button", { name: /Context usage 52%/i }),
 		);
 	},
 };
