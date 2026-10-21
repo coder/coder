@@ -6708,25 +6708,21 @@ const getChatFilesMetadataByIDs = `-- name: GetChatFilesMetadataByIDs :many
 SELECT id, owner_id, organization_id, created_at, name, mimetype,
 	COALESCE(workspace_delivered_size_bytes, octet_length(data))::bigint AS size_bytes,
 	purpose,
-	workspace_delivered_at,
-	workspace_delivered_path,
-	workspace_delivered_workspace_id
+	workspace_delivered_at
 FROM chat_files
 WHERE id = ANY($1::uuid[])
 `
 
 type GetChatFilesMetadataByIDsRow struct {
-	ID                            uuid.UUID       `db:"id" json:"id"`
-	OwnerID                       uuid.UUID       `db:"owner_id" json:"owner_id"`
-	OrganizationID                uuid.UUID       `db:"organization_id" json:"organization_id"`
-	CreatedAt                     time.Time       `db:"created_at" json:"created_at"`
-	Name                          string          `db:"name" json:"name"`
-	Mimetype                      string          `db:"mimetype" json:"mimetype"`
-	SizeBytes                     int64           `db:"size_bytes" json:"size_bytes"`
-	Purpose                       ChatFilePurpose `db:"purpose" json:"purpose"`
-	WorkspaceDeliveredAt          sql.NullTime    `db:"workspace_delivered_at" json:"workspace_delivered_at"`
-	WorkspaceDeliveredPath        sql.NullString  `db:"workspace_delivered_path" json:"workspace_delivered_path"`
-	WorkspaceDeliveredWorkspaceID uuid.NullUUID   `db:"workspace_delivered_workspace_id" json:"workspace_delivered_workspace_id"`
+	ID                   uuid.UUID       `db:"id" json:"id"`
+	OwnerID              uuid.UUID       `db:"owner_id" json:"owner_id"`
+	OrganizationID       uuid.UUID       `db:"organization_id" json:"organization_id"`
+	CreatedAt            time.Time       `db:"created_at" json:"created_at"`
+	Name                 string          `db:"name" json:"name"`
+	Mimetype             string          `db:"mimetype" json:"mimetype"`
+	SizeBytes            int64           `db:"size_bytes" json:"size_bytes"`
+	Purpose              ChatFilePurpose `db:"purpose" json:"purpose"`
+	WorkspaceDeliveredAt sql.NullTime    `db:"workspace_delivered_at" json:"workspace_delivered_at"`
 }
 
 // GetChatFilesMetadataByIDs returns file metadata without loading file
@@ -6751,8 +6747,6 @@ func (q *sqlQuerier) GetChatFilesMetadataByIDs(ctx context.Context, ids []uuid.U
 			&i.SizeBytes,
 			&i.Purpose,
 			&i.WorkspaceDeliveredAt,
-			&i.WorkspaceDeliveredPath,
-			&i.WorkspaceDeliveredWorkspaceID,
 		); err != nil {
 			return nil, err
 		}

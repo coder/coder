@@ -403,8 +403,6 @@ func TestChatWorkspaceFileDeliveryOutcomes(t *testing.T) {
 				require.Equal(t, database.ChatFilePurposeWorkspace, byID[0].Purpose)
 				require.EqualValues(t, len(tc.data), byID[0].SizeBytes)
 				require.WithinDuration(t, now, byID[0].WorkspaceDeliveredAt.Time, time.Millisecond)
-				require.Equal(t, params.DeliveredPath, byID[0].WorkspaceDeliveredPath.String)
-				require.Equal(t, uuid.NullUUID{UUID: params.DeliveredWorkspaceID, Valid: true}, byID[0].WorkspaceDeliveredWorkspaceID)
 
 				byChat, err := f.db.GetChatFileMetadataByChatID(ctx, chat.ID)
 				require.NoError(t, err)
@@ -423,9 +421,10 @@ func TestChatWorkspaceFileDeliveryOutcomes(t *testing.T) {
 				})
 				require.NoError(t, err)
 				require.Zero(t, again)
-				byID, err = f.db.GetChatFilesMetadataByIDs(ctx, []uuid.UUID{file.ID})
+				byChat, err = f.db.GetChatFileMetadataByChatID(ctx, chat.ID)
 				require.NoError(t, err)
-				require.Equal(t, params.DeliveredPath, byID[0].WorkspaceDeliveredPath.String)
+				require.Equal(t, params.DeliveredPath, byChat[0].WorkspaceDeliveredPath.String)
+				require.Equal(t, uuid.NullUUID{UUID: params.DeliveredWorkspaceID, Valid: true}, byChat[0].WorkspaceDeliveredWorkspaceID)
 			})
 		}
 	})
