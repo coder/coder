@@ -201,7 +201,7 @@ To keep your client in sync with the chat:
    Use exponential backoff: double the wait after each failed attempt.
 
 Don't reconnect with `after_id`.
-After an edit, a stream that you open with `after_id` sends the whole history on each connection.
+If your client misses an edit, then sends a message and reconnects with the ID of that message as `after_id`, the stream doesn't remove the messages that the edit removed and doesn't send the messages written between the edit and your message.
 
 The stream can send a change that your client already has.
 Apply the change again: a `message` event replaces the message with the same ID, and a `queue_update` event replaces the whole queue.
