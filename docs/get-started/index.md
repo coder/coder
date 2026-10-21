@@ -258,7 +258,7 @@ Now it's time to launch a workspace.
 1. Give the workspace a name.
    If you need a suggestion, you can select the automatically generated name next to the **Need a suggestion?** label.
 
-1. If the template has any [parameters](../admin/templates/extending-templates/parameters.md), fill them in.
+1. If the template has any [parameters](../admin/templates/extending-templates/parameters/index.md), fill them in.
    Parameters vary by template and the modules you selected in the builder.
 
 1. Select **Create workspace**.

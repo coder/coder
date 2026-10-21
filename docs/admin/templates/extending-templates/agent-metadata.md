@@ -139,4 +139,4 @@ One of the writes is to the `UNLOGGED` `workspace_agent_metadata` table and the 
 ## Next Steps
 
 - [Resource metadata](./resource-metadata.md)
-- [Parameters](./parameters.md)
+- [Parameters](./parameters/index.md)

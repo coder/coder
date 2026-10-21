@@ -836,6 +836,13 @@ func (p *Server) buildTurnEnvironment(
 	// plan-mode filter so they are subject to the same approved set.
 	tools = mcpclient.AppendInline(ctx, logger, tools, inlineMCPTools)
 	tools = filterToolsForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
+	// chatloop reads an empty active tool list as every tool, so Explore
+	// children also drop the tools their allowlist blocks.
+	if isExploreSubagent && !isRootChat {
+		tools = slices.DeleteFunc(tools, func(tool fantasy.AgentTool) bool {
+			return !exploreToolAllowed(tool)
+		})
+	}
 
 	var dynamicToolNames map[string]bool
 	if p.disableCallerSuppliedTools {
@@ -2066,48 +2073,26 @@ func activeToolNamesForTurn(
 	return toolNames
 }
 
-func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
-	builtinExplorePolicy := map[string]bool{
-		"read_file":            true,
-		"write_file":           false,
-		"edit_files":           false,
-		"execute":              true,
-		"process_output":       true,
-		"process_list":         false,
-		"process_signal":       false,
-		"list_templates":       false,
-		"read_template":        false,
-		"create_workspace":     false,
-		"start_workspace":      false,
-		"stop_workspace":       false,
-		"propose_plan":         false,
-		"spawn_agent":          false,
-		"wait_agent":           false,
-		"message_agent":        false,
-		"interrupt_agent":      false,
-		"close_agent":          false,
-		"list_agents":          false,
-		"list_subagent_models": false,
-		"read_skill":           true,
-		"read_skill_file":      true,
-		"ask_user_question":    false,
+func exploreToolAllowed(tool fantasy.AgentTool) bool {
+	switch tool.Info().Name {
+	case "read_file", "execute", "process_output", "read_skill", "read_skill_file":
+		return true
 	}
+	// External MCP tools pass through here. Org tools were
+	// snapshot-filtered at spawn time on chat.MCPServerIDs, and inline
+	// tools come only from root chat servers with allow_in_subagents.
+	// WorkspaceMCPTool does not implement MCPToolIdentifier, so
+	// workspace tools are excluded here too, in addition to the
+	// structural exclusion in runChat tool assembly.
+	_, ok := tool.(mcpclient.MCPToolIdentifier)
+	return ok
+}
 
+func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 	toolNames := make([]string, 0, len(allTools))
 	for _, tool := range allTools {
-		name := tool.Info().Name
-		if builtinExplorePolicy[name] {
-			toolNames = append(toolNames, name)
-			continue
-		}
-		// External MCP tools pass through here. Org tools were
-		// snapshot-filtered at spawn time on chat.MCPServerIDs, and inline
-		// tools come only from root chat servers with allow_in_subagents.
-		// WorkspaceMCPTool does not implement MCPToolIdentifier, so
-		// workspace tools are excluded here too, in addition to the
-		// structural exclusion in runChat tool assembly.
-		if _, ok := tool.(mcpclient.MCPToolIdentifier); ok {
-			toolNames = append(toolNames, name)
+		if exploreToolAllowed(tool) {
+			toolNames = append(toolNames, tool.Info().Name)
 		}
 	}
 	return toolNames
