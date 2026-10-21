@@ -521,14 +521,6 @@ type PromoteQueuedOptions struct {
 	QueuedMessageID int64
 }
 
-// PromoteQueuedResult contains post-promotion message metadata.
-type PromoteQueuedResult struct {
-	// PromotedMessage is the inserted user message. For a chat that
-	// was running at promote time, the insertion is deferred to the
-	// worker's auto-promote and PromotedMessage is the zero value.
-	PromotedMessage database.ChatMessage
-}
-
 // forcedMCPServerConfigsForOwner filters enabled Force On configs
 // through the chat owner's ACL so availability cannot widen access.
 func forcedMCPServerConfigsForOwner(ctx context.Context, store database.Store, organizationID, ownerID uuid.UUID) ([]database.MCPServerConfig, error) {

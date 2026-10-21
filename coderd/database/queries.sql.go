@@ -13314,35 +13314,6 @@ func (q *sqlQuerier) ReorderChatQueuedMessageToFront(ctx context.Context, arg Re
 	return result.RowsAffected()
 }
 
-const reorderChatQueuedMessageToHead = `-- name: ReorderChatQueuedMessageToHead :execrows
-UPDATE chat_queued_messages AS target
-SET position = COALESCE(
-    (SELECT MIN(position) FROM chat_queued_messages WHERE chat_id = $1::uuid),
-    0
-) - 1
-WHERE target.id = $2::bigint
-  AND target.chat_id = $1::uuid
-  AND target.position > COALESCE(
-    (SELECT MIN(position) FROM chat_queued_messages WHERE chat_id = $1::uuid),
-    target.position
-  )
-`
-
-type ReorderChatQueuedMessageToHeadParams struct {
-	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
-	ID     int64     `db:"id" json:"id"`
-}
-
-// Sets the target queued message's position to one less than the
-// current minimum position for that chat, moving it to the head.
-func (q *sqlQuerier) ReorderChatQueuedMessageToHead(ctx context.Context, arg ReorderChatQueuedMessageToHeadParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, reorderChatQueuedMessageToHead, arg.ChatID, arg.ID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
 const setChatContextSnapshot = `-- name: SetChatContextSnapshot :exec
 UPDATE chats
 SET
@@ -13411,6 +13382,27 @@ WHERE chat_id = $1::uuid
 func (q *sqlQuerier) SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, softDeleteContextFileMessages, chatID)
 	return err
+}
+
+const steerChatQueuedMessage = `-- name: SteerChatQueuedMessage :execrows
+UPDATE chat_queued_messages
+SET position = nextval('chat_queued_messages_position_seq'),
+    busy_behavior = 'steer'
+WHERE id = $1::bigint
+  AND chat_id = $2::uuid
+`
+
+type SteerChatQueuedMessageParams struct {
+	ID     int64     `db:"id" json:"id"`
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+}
+
+func (q *sqlQuerier) SteerChatQueuedMessage(ctx context.Context, arg SteerChatQueuedMessageParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, steerChatQueuedMessage, arg.ID, arg.ChatID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const syncAgentChatsContextLiveResources = `-- name: SyncAgentChatsContextLiveResources :many
