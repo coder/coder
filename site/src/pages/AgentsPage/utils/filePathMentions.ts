@@ -34,17 +34,28 @@ const bareFileExtensions = new Set([
 
 const extensionlessFileNames = new Set(["Makefile", "Dockerfile"]);
 
-const pathPattern =
-	"((?:~/|/)?[\\w.@+-]+(?:/[\\w.@+-]+)*)(?::(\\d+)(?::\\d+)?|#L(\\d+))?";
+// Sites whose bare names look like source files.
+const domainNames = new Set(["docs.rs", "bun.sh", "rustup.rs", "starship.rs"]);
 
-const wholeMentionRegExp = new RegExp(`^${pathPattern}$`);
+const buildPathPattern = (segmentChars: string) =>
+	`((?:~/|/)?[${segmentChars}]+(?:/[${segmentChars}]+)*)(?::(\\d+)(?::\\d+)?|#L(\\d+))?`;
+
+// Inline code holds nothing but the path, so segments may contain
+// characters that would be ambiguous in prose, as in src/app/(auth)/[id].tsx.
+const wholeMentionRegExp = new RegExp(
+	`^${buildPathPattern("\\w.@+()\\[\\]-")}$`,
+);
 
 // The lookbehind keeps matches from starting inside a word, a URL, or a
-// longer path, and the lookahead keeps them from ending mid-token.
+// longer path-like token, and the lookahead keeps them from ending mid-token.
 const mentionRegExp = new RegExp(
-	`(?<![\\w./~@:#-])${pathPattern}(?![\\w/~@:#-])`,
+	`(?<![\\w./~@:#\\\\\\])}-])${buildPathPattern("\\w.+-")}(?![\\w/~@:#\\\\(\\[-])`,
 	"g",
 );
+
+// A rooted match must start a token, so the tail of a longer path is never
+// read as an absolute path.
+const rootedMentionBoundary = /[\s("'`<]/;
 
 const isFilePath = (path: string): boolean => {
 	const segments = path.split("/");
@@ -64,7 +75,18 @@ const isFilePath = (path: string): boolean => {
 	if (!extension || name.length === extension.length + 1) {
 		return false;
 	}
-	return segments.length > 1 || bareFileExtensions.has(extension);
+	if (segments.length > 1) {
+		return true;
+	}
+	// Framework names such as Node.js, addresses, and sites read as prose.
+	if (
+		/^[A-Z][a-z0-9]*\.js$/.test(name) ||
+		name.includes("@") ||
+		domainNames.has(name)
+	) {
+		return false;
+	}
+	return bareFileExtensions.has(extension);
 };
 
 const toMention = (
@@ -101,6 +123,14 @@ export const findFilePathMentions = (text: string): FoundFilePathMention[] => {
 	const found: FoundFilePathMention[] = [];
 	for (const match of text.matchAll(mentionRegExp)) {
 		let path = match[1];
+		const previous = text[match.index - 1];
+		if (
+			/^[/~]/.test(path) &&
+			previous !== undefined &&
+			!rootedMentionBoundary.test(previous)
+		) {
+			continue;
+		}
 		const line = match[2] ?? match[3];
 		let end = match.index + match[0].length;
 		if (line === undefined) {
