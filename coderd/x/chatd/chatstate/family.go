@@ -9,6 +9,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 )
 
 // SetFamilyArchivedInput configures [SetFamilyArchived]. The struct
@@ -17,7 +19,8 @@ import (
 type SetFamilyArchivedInput struct {
 	// RootID identifies the family root. SetFamilyArchived rejects
 	// calls for child chats with [ErrChatNotRoot] and unknown chats
-	// with [ErrChatNotFound].
+	// with [ErrChatNotFound]. Unarchiving a root whose project is
+	// deleted also returns [ErrChatNotFound].
 	RootID uuid.UUID
 	// Archived is the desired post-call archived value for every
 	// family member.
@@ -84,6 +87,20 @@ func SetFamilyArchived(
 		}
 		if root.ParentChatID.Valid {
 			return ErrChatNotRoot
+		}
+		// A deleted project's families stay archived. The cleanup skips
+		// archived roots, so hold the project FOR SHARE: a delete then
+		// waits for this unarchive, and its cleanup sees the family
+		// unarchived.
+		if !input.Archived && root.ProjectID.Valid {
+			//nolint:gocritic // The caller authorized the root chat, not its project.
+			_, err := tx.GetChatProjectByIDForShare(dbauthz.AsChatd(ctx), root.ProjectID.UUID)
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrChatNotFound
+			}
+			if err != nil {
+				return xerrors.Errorf("check root chat project: %w", err)
+			}
 		}
 		ids, err := tx.GetChatFamilyIDsByRootID(ctx, input.RootID)
 		if err != nil {
@@ -155,19 +172,20 @@ func SetFamilyArchived(
 // SetFamilyProjectInput configures [SetFamilyProject].
 type SetFamilyProjectInput struct {
 	// RootID identifies the family root. SetFamilyProject rejects
-	// calls for child chats with [ErrChatNotRoot] and unknown chats
-	// with [ErrChatNotFound].
+	// calls for child chats with [ErrChatNotRoot] and unknown chats,
+	// or chats in a deleted project, with [ErrChatNotFound].
 	RootID uuid.UUID
-	// ProjectID is the root chat's new project. NULL removes the chat
-	// from its project.
+	// ProjectID is the family's new project. NULL removes the family
+	// from its project. A missing or deleted project returns
+	// [ErrChatProjectNotFound].
 	ProjectID uuid.NullUUID
 }
 
 // SetFamilyProject moves a root chat into a project, or out of its
 // project, inside one transaction. Every family member must be in W,
 // E0 or E1, or the move rolls back, so no step of the family runs with
-// the old project's memory tools after the move. Subagent chats have no
-// project and use the root's, so only the root's project_id changes.
+// the old project's memory tools after the move. Subagent chats move with
+// the root, so the project cleanup archives the whole family.
 //
 // Like [SetFamilyArchived], it locks the root first and then each
 // member in GetChatFamilyIDsByRootID order, and it publishes only after
@@ -208,20 +226,38 @@ func SetFamilyProject(
 		if root.ProjectID == input.ProjectID {
 			return nil
 		}
+		// Held until commit, so a family cannot leave a deleted project
+		// before its cleanup archives it.
+		if root.ProjectID.Valid {
+			//nolint:gocritic // The caller authorized the root chat, not its project.
+			_, err := tx.GetChatProjectByIDForShare(dbauthz.AsChatd(ctx), root.ProjectID.UUID)
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrChatNotFound
+			}
+			if err != nil {
+				return xerrors.Errorf("check current chat project: %w", err)
+			}
+		}
+		if input.ProjectID.Valid {
+			// Held until commit; see GetChatProjectByIDForShare.
+			//nolint:gocritic // The caller authorized the target project.
+			if _, err := tx.GetChatProjectByIDForShare(dbauthz.AsChatd(ctx), input.ProjectID.UUID); err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return ErrChatProjectNotFound
+				}
+				return xerrors.Errorf("lock target chat project: %w", err)
+			}
+		}
 		ids, err := tx.GetChatFamilyIDsByRootID(ctx, input.RootID)
 		if err != nil {
 			return xerrors.Errorf("get chat family: %w", err)
 		}
 		familyChats = make([]database.Chat, 0, len(ids))
 		for _, id := range ids {
-			projectID := uuid.NullUUID{}
-			if id == input.RootID {
-				projectID = input.ProjectID
-			}
 			var chat database.Chat
 			machine := NewChatMachine(tx, buffer, id)
 			err := machine.Update(ctx, func(state *Tx, _ database.Store) error {
-				result, err := state.SetProject(SetProjectInput{ProjectID: projectID})
+				result, err := state.SetProject(SetProjectInput{ProjectID: input.ProjectID})
 				if err != nil {
 					return err
 				}
@@ -242,4 +278,87 @@ func SetFamilyProject(
 		return familyChats, err
 	}
 	return familyChats, nil
+}
+
+// TombstoneChatProject marks the project deleted and deletes its memories,
+// instructions and skills. It takes no chat locks, so it cannot fail on
+// them; [ArchiveDeletedChatProject] archives the chats afterwards. It
+// returns sql.ErrNoRows for a missing or deleted project. ctx's actor must
+// be allowed to read and delete the project.
+//
+// It locks the project before the tombstone statement because a
+// statement's snapshot predates any lock wait inside it: without the
+// earlier lock, content committed by a writer the tombstone waited for
+// would survive.
+func TombstoneChatProject(ctx context.Context, store database.Store, projectID uuid.UUID) error {
+	return store.InTx(func(tx database.Store) error {
+		if _, err := tx.GetChatProjectByIDForUpdate(ctx, projectID); err != nil {
+			return err
+		}
+		_, err := tx.UpdateChatProjectDeletedByID(ctx, projectID)
+		return err
+	}, nil)
+}
+
+// ArchiveDeletedChatProject archives the unarchived chats of a deleted
+// project, sub-chats included, and returns them as archived, along with
+// every chat in the project read in the same transaction. ctx must allow
+// reading the project and reading and updating every chat in it, as chatd
+// does. Each chat moves from any execution state to [StateXW], or
+// [StateXE0] from error, with no worker or runner and an empty queue. A
+// chat:update per archived chat is published after commit so its runner
+// stops; if that fails, the committed result is returned with
+// [ErrChatUpdatePublishFailed]. A live project returns nothing.
+func ArchiveDeletedChatProject(ctx context.Context, store database.Store, publisher Publisher, projectID uuid.UUID) (archived []database.Chat, projectChats []database.Chat, err error) {
+	if store == nil {
+		return nil, nil, xerrors.New("chatstate: ArchiveDeletedChatProject called with nil store")
+	}
+	if publisher == nil {
+		return nil, nil, xerrors.New("chatstate: ArchiveDeletedChatProject called with nil publisher")
+	}
+	buffer := NewPublishBuffer(publisher)
+	defer buffer.Discard()
+	err = store.InTx(func(tx database.Store) error {
+		// A live project's chats must not get project_deleted events.
+		if _, err := tx.GetChatProjectByID(ctx, projectID); err == nil {
+			return nil
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("check project: %w", err)
+		}
+		if err := tx.LockChatProjectUnarchivedRootChats(ctx, projectID); err != nil {
+			return xerrors.Errorf("lock project root chats: %w", err)
+		}
+		ids, err := tx.ArchiveChatsOfDeletedChatProject(ctx, projectID)
+		if err != nil {
+			return xerrors.Errorf("archive project chats: %w", err)
+		}
+		if len(ids) > 0 {
+			if err := tx.DeleteChatQueuedMessagesByChatIDs(ctx, ids); err != nil {
+				return xerrors.Errorf("clear project chat queues: %w", err)
+			}
+			archived, err = tx.GetChatsByIDs(ctx, ids)
+			if err != nil {
+				return xerrors.Errorf("reload archived project chats: %w", err)
+			}
+			for _, chat := range archived {
+				if err := buffer.Publish(coderdpubsub.ChatStateUpdateChannel(chat.ID), buildChatUpdateMessage(chat)); err != nil {
+					return xerrors.Errorf("buffer chat update: %w", err)
+				}
+			}
+		}
+		// Read here, not after commit, so a failure cannot lose the watch
+		// events: the sweep only retries projects with unarchived chats.
+		projectChats, err = tx.GetChatsByProjectID(ctx, projectID)
+		if err != nil {
+			return xerrors.Errorf("list project chats: %w", err)
+		}
+		return nil
+	}, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := buffer.Flush(); err != nil {
+		return archived, projectChats, errors.Join(ErrChatUpdatePublishFailed, err)
+	}
+	return archived, projectChats, nil
 }

@@ -14,9 +14,8 @@ import (
 
 // resolveProjectInstructions returns the system prompt block holding the
 // instructions of the chat's project, or "" when there are none. Subagent
-// chats do not carry a project, so they inherit the root chat's project at
-// the cost of one extra lookup. Instructions are read on every turn so edits
-// reach existing chats on their next turn.
+// chats carry their root's project. Instructions are read on every turn so
+// edits reach existing chats on their next turn.
 //
 // A chat runs without project instructions when the project or its
 // instructions cannot be loaded, when the access check fails, or when the
@@ -25,34 +24,20 @@ func (p *Server) resolveProjectInstructions(ctx context.Context, logger slog.Log
 	if !p.experiments.Enabled(codersdk.ExperimentChatProjects) {
 		return ""
 	}
-	projectID := chat.ProjectID
-	if !projectID.Valid && chat.RootChatID.Valid && chat.RootChatID.UUID != chat.ID {
-		root, err := p.db.GetChatByID(ctx, chat.RootChatID.UUID)
-		if err != nil {
-			if !errors.Is(err, sql.ErrNoRows) {
-				logger.Warn(ctx, "failed to load root chat for project instructions",
-					slog.F("root_chat_id", chat.RootChatID.UUID),
-					slog.Error(err),
-				)
-			}
-			return ""
-		}
-		projectID = root.ProjectID
-	}
-	if !projectID.Valid {
+	if !chat.ProjectID.Valid {
 		return ""
 	}
 
-	if _, ok := p.usableChatProject(ctx, logger, projectID.UUID, chat); !ok {
+	if _, ok := p.usableChatProject(ctx, logger, chat.ProjectID.UUID, chat); !ok {
 		return ""
 	}
 
-	row, err := p.db.GetChatProjectInstructionsByProjectID(ctx, projectID.UUID)
+	row, err := p.db.GetChatProjectInstructionsByProjectID(ctx, chat.ProjectID.UUID)
 	if err != nil {
 		// A project without a row has no instructions.
 		if !errors.Is(err, sql.ErrNoRows) {
 			logger.Warn(ctx, "failed to load chat project instructions",
-				slog.F("project_id", projectID.UUID),
+				slog.F("project_id", chat.ProjectID.UUID),
 				slog.Error(err),
 			)
 		}

@@ -912,6 +912,33 @@ export const ArchiveWatchEventKeepsOpenChatMounted: Story = {
 	},
 };
 
+const mockProjectWatchedChat = watchedChat({ project_id: MockChatProject.id });
+const mockArchivedProjectWatchedChat = {
+	...mockProjectWatchedChat,
+	archived: true,
+};
+
+export const ProjectDeletedWatchEventRemovesOpenChat: Story = {
+	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats")
+			.mockResolvedValueOnce([mockProjectWatchedChat])
+			.mockResolvedValue([]);
+		spyOn(API.experimental, "getChat").mockRejectedValue({
+			...mockApiError({ message: "Resource not found." }),
+			status: 404,
+		});
+		return mockAgentChatPageAPIs();
+	},
+	parameters: watchedChatPageParameters(mockProjectWatchedChat, [
+		chatWatchEvent("project_deleted", mockArchivedProjectWatchedChat),
+	]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Chat not found");
+	},
+};
+
 export const UnarchiveWatchEventRecoversArchivedChat: Story = {
 	decorators: [withProxyProvider()],
 	beforeEach: () => {

@@ -80,8 +80,15 @@ WHERE id = @id::uuid AND organization_id IS NOT NULL
 RETURNING *;
 
 -- name: InsertProjectSkill :one
+-- Locks the live project FOR NO KEY UPDATE, the mode the skill limit
+-- trigger takes, so concurrent inserts never upgrade a shared lock and
+-- deadlock. A project delete waits for this insert and then deletes the
+-- skill. Returns no rows once the project is deleted.
 INSERT INTO skills (id, project_id, name, description, content)
-VALUES (@id::uuid, @project_id::uuid, @name::text, @description::text, @content::text)
+SELECT @id::uuid, chat_projects.id, @name::text, @description::text, @content::text
+FROM chat_projects
+WHERE chat_projects.id = @project_id::uuid AND NOT chat_projects.deleted
+FOR NO KEY UPDATE
 RETURNING *;
 
 -- name: GetProjectSkillByProjectIDAndName :one

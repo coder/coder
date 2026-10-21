@@ -40,11 +40,14 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 	const location = useLocation();
 
 	const updateMutation = useMutation(updateChatProject(queryClient));
+	const deleteOptions = deleteChatProject(queryClient);
 	// The project list refetch after a delete unmounts this page, so the
 	// toast and navigation run on the mutation itself rather than per call.
 	const deleteMutation = useMutation({
-		...deleteChatProject(queryClient),
-		onSuccess: (_data, deletedProject) => {
+		...deleteOptions,
+		onSuccess: (...args) => {
+			deleteOptions.onSuccess?.(...args);
+			const [, deletedProject] = args;
 			// Nothing can open the deleted project's composer again.
 			const draftKeys = draftStorageKeys(deletedProject.id);
 			localStorage.removeItem(draftKeys.text);
@@ -134,7 +137,7 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 				entity="project"
 				name={project.name}
 				confirmLoading={deleteMutation.isPending}
-				info="Its memories and instructions will be deleted. Chats in it, including chats started by people it is shared with, will be kept and move back to each owner's Chats list."
+				info="Its memories, instructions and skills are deleted now. Every chat in it, including chats started by people it is shared with, is stopped and can't be opened again. If conversation retention is enabled, the chats are permanently deleted when the retention period passes."
 			/>
 		</>
 	);

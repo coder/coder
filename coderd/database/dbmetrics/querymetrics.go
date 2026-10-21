@@ -168,6 +168,14 @@ func (m queryMetricsStore) ArchiveChatByID(ctx context.Context, id uuid.UUID) ([
 	return r0, r1
 }
 
+func (m queryMetricsStore) ArchiveChatsOfDeletedChatProject(ctx context.Context, projectID uuid.UUID) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.ArchiveChatsOfDeletedChatProject(ctx, projectID)
+	m.queryLatencies.WithLabelValues("ArchiveChatsOfDeletedChatProject").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ArchiveChatsOfDeletedChatProject").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ArchiveUnusedTemplateVersions(ctx context.Context, arg database.ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.ArchiveUnusedTemplateVersions(ctx, arg)
@@ -584,14 +592,6 @@ func (m queryMetricsStore) DeleteChatOrganizationModelOverride(ctx context.Conte
 	return r0
 }
 
-func (m queryMetricsStore) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.DeleteChatProjectByID(ctx, id)
-	m.queryLatencies.WithLabelValues("DeleteChatProjectByID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatProjectByID").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) DeleteChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteChatProjectInstructionsByProjectID(ctx, projectID)
@@ -632,6 +632,14 @@ func (m queryMetricsStore) DeleteChatQueuedMessageReturningCount(ctx context.Con
 	return r0, r1
 }
 
+func (m queryMetricsStore) DeleteChatQueuedMessagesByChatIDs(ctx context.Context, chatIds []uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteChatQueuedMessagesByChatIDs(ctx, chatIds)
+	m.queryLatencies.WithLabelValues("DeleteChatQueuedMessagesByChatIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatQueuedMessagesByChatIDs").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteCryptoKey(ctx, arg)
@@ -646,6 +654,14 @@ func (m queryMetricsStore) DeleteCustomRole(ctx context.Context, arg database.De
 	m.queryLatencies.WithLabelValues("DeleteCustomRole").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteCustomRole").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) DeleteEmptyDeletedChatProjects(ctx context.Context, limitCount int32) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteEmptyDeletedChatProjects(ctx, limitCount)
+	m.queryLatencies.WithLabelValues("DeleteEmptyDeletedChatProjects").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteEmptyDeletedChatProjects").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) DeleteExpiredAPIKeys(ctx context.Context, arg database.DeleteExpiredAPIKeysParams) (int64, error) {
@@ -1880,6 +1896,14 @@ func (m queryMetricsStore) GetChatProjectByID(ctx context.Context, id uuid.UUID)
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProjectByIDForShare(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatProjectByIDForShare").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectByIDForShare").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatProjectByIDForUpdate(ctx, id)
@@ -2072,11 +2096,27 @@ func (m queryMetricsStore) GetChatsByChatFileID(ctx context.Context, fileID uuid
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatsByIDs(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetChatsByIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsByIDs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatsByIDsForRunnerSync(ctx, ids)
 	m.queryLatencies.WithLabelValues("GetChatsByIDsForRunnerSync").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsByIDsForRunnerSync").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatsByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatsByProjectID(ctx, projectID)
+	m.queryLatencies.WithLabelValues("GetChatsByProjectID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsByProjectID").Inc()
 	return r0, r1
 }
 
@@ -2197,6 +2237,14 @@ func (m queryMetricsStore) GetDeletedChatMessagesFromLastAssistant(ctx context.C
 	r0, r1 := m.s.GetDeletedChatMessagesFromLastAssistant(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetDeletedChatMessagesFromLastAssistant").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetDeletedChatMessagesFromLastAssistant").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetDeletedChatProjectIDsWithUnarchivedChats(ctx context.Context, limitCount int32) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetDeletedChatProjectIDsWithUnarchivedChats(ctx, limitCount)
+	m.queryLatencies.WithLabelValues("GetDeletedChatProjectIDsWithUnarchivedChats").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetDeletedChatProjectIDsWithUnarchivedChats").Inc()
 	return r0, r1
 }
 
@@ -5264,6 +5312,14 @@ func (m queryMetricsStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid
 	return r0, r1
 }
 
+func (m queryMetricsStore) LockChatProjectUnarchivedRootChats(ctx context.Context, projectID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.LockChatProjectUnarchivedRootChats(ctx, projectID)
+	m.queryLatencies.WithLabelValues("LockChatProjectUnarchivedRootChats").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockChatProjectUnarchivedRootChats").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) LockOrganizationMembersByUserIDsForShare(ctx context.Context, arg database.LockOrganizationMembersByUserIDsForShareParams) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.LockOrganizationMembersByUserIDsForShare(ctx, arg)
@@ -5726,6 +5782,14 @@ func (m queryMetricsStore) UpdateChatProjectByID(ctx context.Context, arg databa
 	r0, r1 := m.s.UpdateChatProjectByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateChatProjectByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatProjectByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatProjectDeletedByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatProjectDeletedByID(ctx, id)
+	m.queryLatencies.WithLabelValues("UpdateChatProjectDeletedByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatProjectDeletedByID").Inc()
 	return r0, r1
 }
 

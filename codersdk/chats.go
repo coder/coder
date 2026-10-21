@@ -2214,9 +2214,15 @@ const (
 	// ChatWatchEventKindTitleChange is published after each title write.
 	// Take only the title fields from it, ordered by title_updated_at,
 	// because a title write does not change updated_at.
-	ChatWatchEventKindTitleChange      ChatWatchEventKind = "title_change"
-	ChatWatchEventKindCreated          ChatWatchEventKind = "created"
-	ChatWatchEventKindDeleted          ChatWatchEventKind = "deleted"
+	ChatWatchEventKindTitleChange ChatWatchEventKind = "title_change"
+	ChatWatchEventKindCreated     ChatWatchEventKind = "created"
+	// ChatWatchEventKindDeleted is published once per family member when a
+	// user or auto-archive archives a chat. Chats archived because their
+	// project was deleted get ChatWatchEventKindProjectDeleted instead.
+	ChatWatchEventKindDeleted ChatWatchEventKind = "deleted"
+	// ChatWatchEventKindProjectDeleted is published when a chat's project is
+	// deleted. The chat can no longer be read or unarchived.
+	ChatWatchEventKindProjectDeleted   ChatWatchEventKind = "project_deleted"
 	ChatWatchEventKindDiffStatusChange ChatWatchEventKind = "diff_status_change"
 	ChatWatchEventKindActionRequired   ChatWatchEventKind = "action_required"
 	// ChatWatchEventKindContextDirty signals that the chat's pinned
@@ -2451,7 +2457,11 @@ func (c *ExperimentalClient) UpdateChatProject(ctx context.Context, organization
 	return project, ReadBodyAsJSON(res, &project)
 }
 
-// DeleteChatProject deletes a chat project and detaches its chats.
+// DeleteChatProject deletes a chat project and, at once, its memories,
+// instructions and skills. Its chats, including those of users it is shared
+// with, can no longer be read or unarchived; they are archived in the
+// background and removed by chat retention, or kept when retention is
+// disabled.
 func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, organizationID, projectID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, chatProjectPath(organizationID, projectID), nil)
 	if err != nil {

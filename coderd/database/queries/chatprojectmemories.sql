@@ -1,4 +1,6 @@
 -- name: InsertChatProjectMemory :one
+-- Locks the live project FOR SHARE, so a project delete waits for this
+-- insert and then deletes the memory. Returns no rows once it is deleted.
 INSERT INTO chat_project_memories (
     id,
     project_id,
@@ -8,15 +10,17 @@ INSERT INTO chat_project_memories (
     body,
     created_by
 )
-VALUES (
+SELECT
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
-    @project_id::uuid,
+    chat_projects.id,
     @organization_id::uuid,
     @name::text,
     @description::text,
     @body::text,
     @created_by::uuid
-)
+FROM chat_projects
+WHERE chat_projects.id = @project_id::uuid AND NOT chat_projects.deleted
+FOR SHARE
 RETURNING *;
 
 -- name: GetChatProjectMemoryByID :one

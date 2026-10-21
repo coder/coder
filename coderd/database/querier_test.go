@@ -21,6 +21,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -38,6 +39,7 @@ import (
 	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -2201,6 +2203,453 @@ func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, accessible)
 	}
+}
+
+// TestChatProjectDeleteWaitsForContentWriters holds each project content
+// write open and checks that the delete waits for it and removes what it
+// wrote, and that the same write stores nothing afterwards.
+func TestChatProjectDeleteWaitsForContentWriters(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+
+	for _, tc := range []struct {
+		table string
+		query string
+		write func(ctx context.Context, store database.Store, projectID uuid.UUID) error
+	}{
+		{"chat_project_memories", "InsertChatProjectMemory", func(ctx context.Context, store database.Store, projectID uuid.UUID) error {
+			_, err := store.InsertChatProjectMemory(ctx, database.InsertChatProjectMemoryParams{
+				ProjectID: projectID, OrganizationID: org.ID, Name: "racing", Body: "b", CreatedBy: owner.ID,
+			})
+			return err
+		}},
+		{"chat_project_instructions", "UpsertChatProjectInstructions", func(ctx context.Context, store database.Store, projectID uuid.UUID) error {
+			_, err := store.UpsertChatProjectInstructions(ctx, database.UpsertChatProjectInstructionsParams{
+				ProjectID: projectID, Instructions: "i", UpdatedBy: owner.ID,
+			})
+			return err
+		}},
+		{"skills", "InsertProjectSkill", func(ctx context.Context, store database.Store, projectID uuid.UUID) error {
+			_, err := store.InsertProjectSkill(ctx, database.InsertProjectSkillParams{
+				ID: uuid.New(), ProjectID: projectID, Name: "racing", Description: "d", Content: "c",
+			})
+			return err
+		}},
+	} {
+		t.Run(tc.table, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+
+			wrote := make(chan struct{}, 1)
+			release := make(chan struct{})
+			writeErr := make(chan error, 1)
+			go func() {
+				writeErr <- db.InTx(func(tx database.Store) error {
+					if err := tc.write(ctx, tx, project.ID); err != nil {
+						return err
+					}
+					wrote <- struct{}{}
+					<-release
+					return nil
+				}, nil)
+			}()
+			testutil.RequireReceive(ctx, t, wrote)
+
+			deleteErr := make(chan error, 1)
+			go func() {
+				deleteErr <- chatstate.TombstoneChatProject(ctx, db, project.ID)
+			}()
+			// Subtests share the database, so match only a delete blocked by
+			// this subtest's writer.
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				return lockWaitCount(ctx, t, sqlDB, "GetChatProjectByIDForUpdate", tc.query) > 0
+			}, testutil.IntervalFast, "the delete waits for the writer's project lock")
+			close(release)
+			require.NoError(t, testutil.RequireReceive(ctx, t, writeErr))
+			require.NoError(t, testutil.RequireReceive(ctx, t, deleteErr))
+
+			var rows int
+			require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+tc.table+" WHERE project_id = $1", project.ID).Scan(&rows))
+			require.Zero(t, rows, "the delete removes the write")
+			require.ErrorIs(t, tc.write(ctx, db, project.ID), sql.ErrNoRows, "a write after the delete stores nothing")
+		})
+	}
+}
+
+func TestInsertProjectSkillLocksProject(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	insert := func(ctx context.Context, store database.Store, projectID uuid.UUID) error {
+		id := uuid.New()
+		_, err := store.InsertProjectSkill(ctx, database.InsertProjectSkillParams{
+			ID: id, ProjectID: projectID, Name: "skill-" + id.String()[:8], Description: "d", Content: "c",
+		})
+		return err
+	}
+
+	// A shared lock the limit trigger then upgrades deadlocks two
+	// concurrent inserts.
+	t.Run("ConcurrentInserts", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+		var eg errgroup.Group
+		for range 8 {
+			eg.Go(func() error {
+				for range 5 {
+					if err := insert(ctx, db, project.ID); err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+		}
+		require.NoError(t, eg.Wait())
+	})
+
+	t.Run("WaitsForDelete", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+
+		deleted := make(chan struct{}, 1)
+		release := make(chan struct{})
+		deleteErr := make(chan error, 1)
+		go func() {
+			deleteErr <- db.InTx(func(tx database.Store) error {
+				if _, err := tx.GetChatProjectByIDForUpdate(ctx, project.ID); err != nil {
+					return err
+				}
+				if _, err := tx.UpdateChatProjectDeletedByID(ctx, project.ID); err != nil {
+					return err
+				}
+				deleted <- struct{}{}
+				<-release
+				return nil
+			}, nil)
+		}()
+		testutil.RequireReceive(ctx, t, deleted)
+
+		insertErr := make(chan error, 1)
+		go func() { insertErr <- insert(ctx, db, project.ID) }()
+		// ConcurrentInserts also leaves inserts waiting, so match only one
+		// blocked by the delete.
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			return lockWaitCount(ctx, t, sqlDB, "InsertProjectSkill", "UpdateChatProjectDeletedByID") > 0
+		}, testutil.IntervalFast, "the insert waits for the delete")
+		close(release)
+		require.NoError(t, testutil.RequireReceive(ctx, t, deleteErr))
+		require.ErrorIs(t, testutil.RequireReceive(ctx, t, insertErr), sql.ErrNoRows)
+
+		var rows int
+		require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM skills WHERE project_id = $1", project.ID).Scan(&rows))
+		require.Zero(t, rows)
+	})
+}
+
+// lockWaitCount counts waiterQuery backends blocked by a backend whose
+// latest query is blockerQuery.
+func lockWaitCount(ctx context.Context, t *testing.T, sqlDB *sql.DB, waiterQuery, blockerQuery string) int {
+	t.Helper()
+	var waits int
+	err := sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pg_stat_activity waiter
+WHERE waiter.datname = current_database() AND waiter.wait_event_type = 'Lock'
+	AND waiter.query LIKE '%-- name: ' || $1 || ' %'
+	AND EXISTS (
+		SELECT 1 FROM pg_stat_activity blocker
+		WHERE blocker.pid = ANY(pg_blocking_pids(waiter.pid))
+			AND blocker.query LIKE '%-- name: ' || $2 || ' %'
+	)`, waiterQuery, blockerQuery).Scan(&waits)
+	require.NoError(t, err)
+	return waits
+}
+
+func TestChatProjectDeleteQueries(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	sharee := dbgen.User(t, db, database.User{})
+	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:                "test-model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		IsDefault:            true,
+		CompressionThreshold: 80,
+	})
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	otherProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	newChat := func(ownerID uuid.UUID, projectID uuid.NullUUID, parent *database.Chat) database.Chat {
+		seed := database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           ownerID,
+			LastModelConfigID: modelCfg.ID,
+			ProjectID:         projectID,
+		}
+		if parent != nil {
+			seed.ParentChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
+			seed.RootChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
+		}
+		return dbgen.Chat(t, db, seed)
+	}
+	inProject := uuid.NullUUID{UUID: project.ID, Valid: true}
+
+	ownerRoot := newChat(owner.ID, inProject, nil)
+	ownerChild := newChat(owner.ID, inProject, &ownerRoot)
+	shareeRoot := newChat(sharee.ID, inProject, nil)
+	unrelated := newChat(owner.ID, uuid.NullUUID{}, nil)
+	unrelatedChild := newChat(owner.ID, uuid.NullUUID{}, &unrelated)
+	otherProjectChat := newChat(owner.ID, uuid.NullUUID{UUID: otherProject.ID, Valid: true}, nil)
+	emptyProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	projectChatIDs := []uuid.UUID{ownerRoot.ID, ownerChild.ID, shareeRoot.ID}
+
+	chats, err := db.GetChatsByProjectID(ctx, project.ID)
+	require.NoError(t, err)
+	ids := make([]uuid.UUID, 0, len(chats))
+	for _, chat := range chats {
+		ids = append(ids, chat.ID)
+	}
+	require.ElementsMatch(t, projectChatIDs, ids)
+
+	linkFile := func(chatID uuid.UUID) uuid.UUID {
+		file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+			OwnerID:        owner.ID,
+			OrganizationID: org.ID,
+			Name:           "file.png",
+			Mimetype:       "image/png",
+			Data:           []byte("data"),
+		})
+		require.NoError(t, err)
+		_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{ChatID: chatID, MaxFileLinks: 10, FileIds: []uuid.UUID{file.ID}})
+		require.NoError(t, err)
+		return file.ID
+	}
+	hiddenFile := linkFile(ownerChild.ID)
+	visibleFile := linkFile(unrelated.ID)
+
+	accessible, err := db.IsChatProjectUsableByUserID(ctx, database.IsChatProjectUsableByUserIDParams{ProjectID: project.ID, UserID: owner.ID})
+	require.NoError(t, err)
+	require.True(t, accessible)
+
+	_, err = sqlDB.ExecContext(ctx, "UPDATE chats SET status = 'running', worker_id = $2, runner_id = $2 WHERE id = ANY($1)",
+		pq.Array([]uuid.UUID{ownerRoot.ID, unrelated.ID, otherProjectChat.ID}), uuid.New())
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, "UPDATE chats SET status = 'requires_action', requires_action_deadline_at = now() + interval '1 hour' WHERE id = $1", ownerChild.ID)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, "UPDATE chats SET status = 'error', pin_order = 1, compaction_requested_at = now(), retry_state = '{}'::jsonb WHERE id = $1", shareeRoot.ID)
+	require.NoError(t, err)
+	for _, id := range []uuid.UUID{ownerRoot.ID, ownerChild.ID} {
+		_, err = db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{ChatID: id, Content: json.RawMessage(`[]`)})
+		require.NoError(t, err)
+	}
+	before := make(map[uuid.UUID]database.Chat, len(projectChatIDs))
+	for _, id := range projectChatIDs {
+		chat, err := db.GetChatByID(ctx, id)
+		require.NoError(t, err)
+		before[id] = chat
+	}
+
+	archivedIDs, err := db.ArchiveChatsOfDeletedChatProject(ctx, project.ID)
+	require.NoError(t, err)
+	require.Empty(t, archivedIDs, "a live project's chats are not archived")
+	pending, err := db.GetDeletedChatProjectIDsWithUnarchivedChats(ctx, 10)
+	require.NoError(t, err)
+	require.Empty(t, pending, "a live project needs no cleanup")
+
+	dbgen.ChatProjectMemory(t, db, database.ChatProjectMemory{ProjectID: project.ID, OrganizationID: project.OrganizationID, CreatedBy: project.OwnerID})
+	skill, err := db.InsertProjectSkill(ctx, database.InsertProjectSkillParams{ID: uuid.New(), ProjectID: project.ID, Name: "deleted-project-skill", Description: "d", Content: "c"})
+	require.NoError(t, err)
+	_, err = db.UpsertChatProjectInstructions(ctx, database.UpsertChatProjectInstructionsParams{ProjectID: project.ID, Instructions: "i", UpdatedBy: owner.ID})
+	require.NoError(t, err)
+	deletedID, err := db.UpdateChatProjectDeletedByID(ctx, project.ID)
+	require.NoError(t, err)
+	require.Equal(t, project.ID, deletedID)
+	_, err = db.UpdateChatProjectDeletedByID(ctx, project.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "a second delete matches no project")
+	memories, err := db.GetChatProjectMemoriesByProjectID(ctx, project.ID)
+	require.NoError(t, err)
+	require.Empty(t, memories, "the tombstone deletes the project's memories")
+	var skills int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM skills WHERE id = $1", skill.ID).Scan(&skills))
+	require.Zero(t, skills, "the tombstone deletes the project's skills")
+	_, err = db.GetChatProjectInstructionsByProjectID(ctx, project.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "the tombstone deletes the project's instructions")
+	pending, err = db.GetDeletedChatProjectIDsWithUnarchivedChats(ctx, 10)
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{project.ID}, pending)
+	require.NoError(t, db.LockChatProjectUnarchivedRootChats(ctx, project.ID))
+	archivedIDs, err = db.ArchiveChatsOfDeletedChatProject(ctx, project.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, projectChatIDs, archivedIDs)
+	require.NoError(t, db.DeleteChatQueuedMessagesByChatIDs(ctx, archivedIDs))
+	pending, err = db.GetDeletedChatProjectIDsWithUnarchivedChats(ctx, 10)
+	require.NoError(t, err)
+	require.Empty(t, pending, "a cleaned up project is not returned again")
+	archivedIDs, err = db.ArchiveChatsOfDeletedChatProject(ctx, project.ID)
+	require.NoError(t, err)
+	require.Empty(t, archivedIDs, "a second pass leaves archived chats and their retention clock alone")
+	for _, id := range projectChatIDs {
+		chat, err := db.GetChatByID(ctx, id)
+		require.NoError(t, err)
+		queued, err := db.CountChatQueuedMessages(ctx, id)
+		require.NoError(t, err)
+		want := chatstate.StateXW
+		if id == shareeRoot.ID {
+			want = chatstate.StateXE0
+		}
+		require.Equal(t, want, chatstate.ClassifyExecutionState(chat, queued > 0, true))
+		require.Zero(t, chat.PinOrder)
+		require.False(t, chat.WorkerID.Valid)
+		require.False(t, chat.RunnerID.Valid)
+		require.False(t, chat.RequiresActionDeadlineAt.Valid)
+		require.False(t, chat.CompactionRequestedAt.Valid)
+		require.False(t, chat.RetryState.Valid)
+		require.Greater(t, chat.SnapshotVersion, before[id].SnapshotVersion)
+		require.True(t, chat.UpdatedAt.After(before[id].UpdatedAt), "the archive starts the retention clock")
+		require.Equal(t, project.ID, chat.ProjectID.UUID)
+	}
+	for _, id := range []uuid.UUID{unrelated.ID, unrelatedChild.ID, otherProjectChat.ID} {
+		chat, err := db.GetChatByID(ctx, id)
+		require.NoError(t, err)
+		require.False(t, chat.Archived)
+	}
+
+	_, err = db.GetChatProjectByID(ctx, project.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	_, err = db.GetChatProjectByIDForUpdate(ctx, project.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	_, err = db.GetChatProjectByIDForShare(ctx, project.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	_, err = db.UpdateChatProjectByID(ctx, database.UpdateChatProjectByIDParams{ID: project.ID, Name: "renamed"})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	accessible, err = db.IsChatProjectUsableByUserID(ctx, database.IsChatProjectUsableByUserIDParams{ProjectID: project.ID, UserID: owner.ID})
+	require.NoError(t, err)
+	require.False(t, accessible)
+	count, err := db.CountChatProjectsByOwnerID(ctx, owner.ID)
+	require.NoError(t, err)
+	require.EqualValues(t, 2, count)
+	projects, err := db.GetChatProjectsOwnedOrSharedWithUserID(ctx, owner.ID)
+	require.NoError(t, err)
+	listedProjects := make([]uuid.UUID, 0, len(projects))
+	for _, p := range projects {
+		listedProjects = append(listedProjects, p.ID)
+	}
+	require.ElementsMatch(t, []uuid.UUID{otherProject.ID, emptyProject.ID}, listedProjects)
+
+	for _, archived := range []sql.NullBool{{}, {Bool: true, Valid: true}} {
+		rows, err := db.GetChats(ctx, database.GetChatsParams{Archived: archived})
+		require.NoError(t, err)
+		listed := make([]uuid.UUID, 0, len(rows))
+		for _, row := range rows {
+			listed = append(listed, row.Chat.ID)
+		}
+		require.NotContains(t, listed, ownerRoot.ID)
+		require.NotContains(t, listed, shareeRoot.ID)
+	}
+
+	fileChats, err := db.GetChatsByChatFileID(ctx, hiddenFile)
+	require.NoError(t, err)
+	require.Empty(t, fileChats)
+	fileChats, err = db.GetChatsByChatFileID(ctx, visibleFile)
+	require.NoError(t, err)
+	require.Len(t, fileChats, 1)
+
+	_, err = sqlDB.ExecContext(ctx, "UPDATE chats SET worker_id = NULL, runner_id = NULL WHERE id = ANY($1)",
+		pq.Array([]uuid.UUID{unrelated.ID, otherProjectChat.ID}))
+	require.NoError(t, err)
+	candidates, err := db.GetChatWorkerAcquisitionCandidates(ctx, database.GetChatWorkerAcquisitionCandidatesParams{LimitCount: 10, StaleSeconds: 30})
+	require.NoError(t, err)
+	candidateIDs := make([]uuid.UUID, 0, len(candidates))
+	for _, candidate := range candidates {
+		candidateIDs = append(candidateIDs, candidate.ID)
+	}
+	require.ElementsMatch(t, []uuid.UUID{unrelated.ID, otherProjectChat.ID}, candidateIDs)
+
+	// Retention may delete a root before its sub-chats.
+	_, err = sqlDB.ExecContext(ctx, "DELETE FROM chats WHERE id = $1", ownerRoot.ID)
+	require.NoError(t, err)
+	orphan, err := db.GetChatByID(ctx, ownerChild.ID)
+	require.NoError(t, err)
+	require.Equal(t, inProject, orphan.ProjectID, "an orphaned sub-chat stays in its deleted project")
+
+	removed, err := db.DeleteEmptyDeletedChatProjects(ctx, 10)
+	require.NoError(t, err)
+	require.Zero(t, removed, "a deleted project with chats left is kept")
+	_, err = sqlDB.ExecContext(ctx, "DELETE FROM chats WHERE id = ANY($1)", pq.Array(projectChatIDs))
+	require.NoError(t, err)
+	removed, err = db.DeleteEmptyDeletedChatProjects(ctx, 10)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, removed)
+	_, err = db.GetChatProjectByID(ctx, emptyProject.ID)
+	require.NoError(t, err, "a live project with no chats is not purged")
+}
+
+// TestChatProjectLocksSkipChildInsertForeignKeyLock verifies that
+// GetChatProjectByIDForUpdate and the tombstone do not wait while a sub-chat
+// insert holds the project_id foreign key lock.
+func TestChatProjectLocksSkipChildInsertForeignKeyLock(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:                "test-model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		IsDefault:            true,
+		CompressionThreshold: 80,
+	})
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	root := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+		ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
+	})
+
+	childTx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = childTx.Rollback() }()
+	_, err = childTx.ExecContext(ctx, "SELECT id FROM chats WHERE id = $1 FOR SHARE", root.ID)
+	require.NoError(t, err)
+	childID := uuid.New()
+	_, err = childTx.ExecContext(ctx, `INSERT INTO chats (id, organization_id, owner_id, last_model_config_id, title, parent_chat_id, root_chat_id, project_id)
+		VALUES ($1, $2, $3, $4, 'child', $5, $5, $6)`, childID, org.ID, owner.ID, modelCfg.ID, root.ID, project.ID)
+	require.NoError(t, err)
+
+	// Neither waits on the insert's project_id foreign key lock.
+	shortCtx := testutil.Context(t, testutil.WaitShort)
+	require.NoError(t, db.InTx(func(tx database.Store) error {
+		_, err := tx.GetChatProjectByIDForUpdate(shortCtx, project.ID)
+		return err
+	}, nil), "GetChatProjectByIDForUpdate must lock FOR NO KEY UPDATE")
+	_, err = db.UpdateChatProjectDeletedByID(shortCtx, project.ID)
+	require.NoError(t, err)
 }
 
 //nolint:tparallel,paralleltest // It toggles the global chat ACL flag.

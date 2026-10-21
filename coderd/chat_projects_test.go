@@ -28,7 +28,7 @@ import (
 	"github.com/coder/serpent"
 )
 
-func TestChatProjectsCRUDListAndDeleteDetaches(t *testing.T) {
+func TestChatProjectsCRUDListAndDelete(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -110,9 +110,8 @@ func TestChatProjectsCRUDListAndDeleteDetaches(t *testing.T) {
 	require.Equal(t, duplicate.ID, fetched.ID)
 
 	require.NoError(t, client.DeleteChatProject(ctx, firstUser.OrganizationID, project.ID))
-	storedChat, err := client.GetChat(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Nil(t, storedChat.ProjectID)
+	_, err = client.GetChat(ctx, chat.ID)
+	requireSDKError(t, err, http.StatusNotFound)
 }
 
 func TestChatProjectsAuthorizationAndCrossOrganizationBinding(t *testing.T) {
@@ -324,16 +323,70 @@ func TestPatchChatProject(t *testing.T) {
 
 		require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: &projectB.ID}))
 		requireChatProjectID(ctx, t, client, chat.ID, &projectB.ID)
+		requireChatProjectID(ctx, t, client, child.ID, &projectB.ID)
 		requireProjectChats(projectA)
 		requireProjectChats(projectB, chat.ID)
 
 		require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: new(uuid.Nil)}))
 		requireChatProjectID(ctx, t, client, chat.ID, nil)
-		requireProjectChats(projectB)
-
-		// Subagent chats have no project and use the root's.
 		requireChatProjectID(ctx, t, client, child.ID, nil)
+		requireProjectChats(projectB)
 	})
+
+	t.Run("ProjectDeletedBeforeMove", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		rawDB, ps := dbtestutil.NewDB(t)
+		client, api := newChatProjectClientWithAPI(t, func(opts *coderdtest.Options) {
+			opts.Database = deleteProjectBeforeShareLockStore{Store: rawDB}
+			opts.Pubsub = ps
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		project := createChatProject(t, client, firstUser.OrganizationID, "Racing Project")
+		chat := createIdleChat(ctx, t, client, api, firstUser.OrganizationID)
+
+		err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: &project.ID})
+		sdkErr := requireSDKError(t, err, http.StatusNotFound)
+		require.Equal(t, "Chat project not found.", sdkErr.Message)
+		requireChatProjectID(ctx, t, client, chat.ID, nil)
+	})
+
+	// The wrapper deletes the chat's project after ExtractChatParam loaded
+	// the chat.
+	for _, tc := range []struct {
+		name    string
+		archive bool
+		request codersdk.UpdateChatRequest
+	}{
+		{"ProjectDeletedBeforeMoveOut", false, codersdk.UpdateChatRequest{ProjectID: new(uuid.Nil)}},
+		{"ProjectDeletedBeforeUnarchive", true, codersdk.UpdateChatRequest{Archived: new(false)}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			rawDB, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+			client, api := newChatProjectClientWithAPI(t, func(opts *coderdtest.Options) {
+				opts.Database = deleteProjectBeforeShareLockStore{Store: rawDB}
+				opts.Pubsub = ps
+			})
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModel(t, client)
+			project := createChatProject(t, client, firstUser.OrganizationID, "Racing Project")
+			chat := createIdleChat(ctx, t, client, api, firstUser.OrganizationID)
+			// Moving in through the API would trip the wrapper's delete.
+			_, err := sqlDB.ExecContext(ctx, "UPDATE chats SET project_id = $1 WHERE id = $2", project.ID, chat.ID)
+			require.NoError(t, err)
+			if tc.archive {
+				require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: new(true)}))
+			}
+
+			err = client.UpdateChat(ctx, chat.ID, tc.request)
+			requireSDKError(t, err, http.StatusNotFound)
+		})
+	}
 
 	t.Run("MoveBackWaitsForAPendingMove", func(t *testing.T) {
 		t.Parallel()
@@ -610,7 +663,7 @@ WHERE datname = current_database()
 
 		// Each family member gets one event, so every tab can update the
 		// rows it shows.
-		pending := map[uuid.UUID]*uuid.UUID{chat.ID: &project.ID, child.ID: nil}
+		pending := map[uuid.UUID]*uuid.UUID{chat.ID: &project.ID, child.ID: &project.ID}
 		for len(pending) > 0 {
 			event := testutil.RequireReceive(ctx, t, events)
 			if event.Kind != codersdk.ChatWatchEventKindProjectChange {

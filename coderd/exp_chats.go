@@ -1733,7 +1733,7 @@ func (api *API) createChatError(err error) error {
 		}, err)
 	}
 	// The project can be deleted between the access check and the insert.
-	if database.IsForeignKeyViolation(err, database.ForeignKeyChatsProjectID) {
+	if errors.Is(err, chatstate.ErrChatProjectNotFound) {
 		return httperror.WrapResponseError(http.StatusNotFound, codersdk.Response{Message: "Chat project not found."}, err)
 	}
 	if dbauthz.IsNotAuthorizedError(err) {
@@ -2787,6 +2787,11 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			if writeChatInvalidState(ctx, rw, err) {
 				return
 			}
+			// The chat was purged, or its project was deleted, after the request loaded it.
+			if errors.Is(err, chatstate.ErrChatNotFound) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
 			if errors.Is(err, chatstate.ErrTransitionNotAllowed) {
 				// Archive only succeeds from idle / error execution
 				// states (W, E0, E1) per the chatd RFC; active
@@ -2937,8 +2942,13 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 			// The project can be deleted between the check and the move.
-			if database.IsForeignKeyViolation(err, database.ForeignKeyChatsProjectID) {
+			if errors.Is(err, chatstate.ErrChatProjectNotFound) {
 				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "Chat project not found."})
+				return
+			}
+			// The chat was purged, or its project was deleted, after the request loaded it.
+			if errors.Is(err, chatstate.ErrChatNotFound) {
+				httpapi.ResourceNotFound(rw)
 				return
 			}
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

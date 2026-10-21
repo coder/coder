@@ -490,13 +490,36 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 		}
 		return false
 	case database.ResourceTypeChat:
-		// Chats are hard-deleted, so a 404 means deleted.
-		_, err := api.Database.GetChatByID(ctx, alog.AuditLog.ResourceID)
+		// Chats are hard-deleted, so a 404 means deleted. A chat in a
+		// deleted project keeps its row until chat retention removes it,
+		// but counts as deleted because no API can read it.
+		chat, err := api.Database.GetChatByID(ctx, alog.AuditLog.ResourceID)
 		if xerrors.Is(err, sql.ErrNoRows) {
 			return true
 		}
 		if err != nil {
 			api.Logger.Error(ctx, "unable to fetch chat", slog.Error(err))
+			return false
+		}
+		if chat.ProjectID.Valid {
+			//nolint:gocritic // The viewer may not be able to read the project; only whether it is deleted is used.
+			_, err := api.Database.GetChatProjectByID(dbauthz.AsSystemRestricted(ctx), chat.ProjectID.UUID)
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return true
+			}
+			if err != nil {
+				api.Logger.Error(ctx, "unable to fetch chat project", slog.Error(err))
+			}
+		}
+		return false
+	case database.ResourceTypeChatProject:
+		//nolint:gocritic // The viewer may not be able to read the project; only whether it is deleted is used.
+		_, err := api.Database.GetChatProjectByID(dbauthz.AsSystemRestricted(ctx), alog.AuditLog.ResourceID)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return true
+		}
+		if err != nil {
+			api.Logger.Error(ctx, "unable to fetch chat project", slog.Error(err))
 		}
 		return false
 	case database.ResourceTypeMCPServerConfig:

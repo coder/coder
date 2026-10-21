@@ -1,17 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { MutationObserver, type QueryClient } from "react-query";
+import { describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
+import { MockChat } from "#/testHelpers/chatEntities";
 import { MockChatProject } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import {
 	chatProject,
-	chatProjectsKey,
 	createChatProject,
 	deleteChatProject,
 	updateChatProject,
 } from "./chatProjects";
 import {
 	chatEntitiesFamilyKey,
+	chatEntityKey,
 	chatListFamilyKey,
 	chatMessagesKey,
+	chatProjectsKey,
 	chatSearchFamilyKey,
 } from "./chats";
 
@@ -58,15 +62,73 @@ describe("chat project mutations", () => {
 		}
 	});
 
-	it("refreshes chat lists, searches, and entities after a delete", async () => {
+	it("refreshes chat lists and searches after a delete", async () => {
 		const queryClient = seed();
 		const messagesKey = chatMessagesKey("chat-1");
 		queryClient.setQueryData(messagesKey, {});
 		await settle(deleteChatProject(queryClient));
-		for (const key of [...projectKeys, ...chatKeys]) {
+		const [listKey, searchKey] = chatKeys;
+		for (const key of [...projectKeys, listKey, searchKey]) {
 			expect(isInvalidated(queryClient, key)).toBe(true);
 		}
-		// A chat's nested queries do not depend on its project.
 		expect(isInvalidated(queryClient, messagesKey)).toBe(false);
+	});
+
+	const mockProjectRootChat = {
+		...MockChat,
+		id: "root",
+		project_id: MockChatProject.id,
+	};
+	const mockProjectChildChat = {
+		...MockChat,
+		id: "child",
+		root_chat_id: mockProjectRootChat.id,
+		project_id: MockChatProject.id,
+	};
+	const mockOtherProjectChat = {
+		...MockChat,
+		id: "other",
+		project_id: "other-project",
+	};
+	const runDelete = (queryClient: QueryClient) =>
+		new MutationObserver(queryClient, deleteChatProject(queryClient)).mutate(
+			MockChatProject,
+		);
+
+	it("resets only the deleted project's chats once the delete succeeds", async () => {
+		const queryClient = createTestQueryClient();
+		for (const chat of [
+			mockProjectRootChat,
+			mockProjectChildChat,
+			mockOtherProjectChat,
+		]) {
+			queryClient.setQueryData(chatEntityKey(chat.id), chat);
+		}
+		vi.spyOn(API.experimental, "deleteChatProject").mockResolvedValue();
+		await runDelete(queryClient);
+		for (const chat of [mockProjectRootChat, mockProjectChildChat]) {
+			expect(queryClient.getQueryData(chatEntityKey(chat.id))).toBeUndefined();
+		}
+		expect(
+			queryClient.getQueryData(chatEntityKey(mockOtherProjectChat.id)),
+		).toEqual(mockOtherProjectChat);
+	});
+
+	it("keeps cached chat entities when the delete fails", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryDefaults(chatEntityKey(mockProjectRootChat.id), {
+			gcTime: Number.POSITIVE_INFINITY,
+		});
+		queryClient.setQueryData(
+			chatEntityKey(mockProjectRootChat.id),
+			mockProjectRootChat,
+		);
+		vi.spyOn(API.experimental, "deleteChatProject").mockRejectedValue(
+			new Error("deadlock"),
+		);
+		await expect(runDelete(queryClient)).rejects.toThrow("deadlock");
+		expect(
+			queryClient.getQueryData(chatEntityKey(mockProjectRootChat.id)),
+		).toEqual(mockProjectRootChat);
 	});
 });

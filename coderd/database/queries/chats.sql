@@ -647,6 +647,11 @@ WHERE
         WHEN sqlc.narg('archived') :: boolean IS NULL THEN true
         ELSE chats_expanded.archived = sqlc.narg('archived') :: boolean
     END
+    AND NOT EXISTS (
+        SELECT 1
+        FROM chat_projects
+        WHERE chat_projects.id = chats_expanded.project_id AND chat_projects.deleted
+    )
     AND CASE
         WHEN sqlc.narg('project_id')::uuid IS NOT NULL THEN chats_expanded.project_id = sqlc.narg('project_id')::uuid
         ELSE true
@@ -2331,6 +2336,12 @@ WHERE
         FROM chat_file_links
         WHERE file_id = @file_id::uuid
     )
+    -- A deleted project's chats keep their rows until chat retention removes them.
+    AND NOT EXISTS (
+        SELECT 1
+        FROM chat_projects
+        WHERE chat_projects.id = chats_expanded.project_id AND chat_projects.deleted
+    )
     -- Authorize Filter clause will be injected below in GetAuthorizedChatsByChatFileID.
     -- @authorize_filter
 ;
@@ -2448,6 +2459,11 @@ SELECT *
 FROM chats_expanded
 WHERE archived = false
   AND workspace_id = ANY(@ids::uuid[])
+  AND NOT EXISTS (
+    SELECT 1
+    FROM chat_projects
+    WHERE chat_projects.id = chats_expanded.project_id AND chat_projects.deleted
+  )
 ORDER BY workspace_id, updated_at DESC;
 
 -- name: UpdateChatLastReadMessageID :exec
@@ -2770,7 +2786,8 @@ FROM chats_expanded;
 -- status, archived, last_error, ownership identifiers, the
 -- requires-action deadline, and the manual compaction request marker.
 -- Callers compose this with transition mutations inside a single
--- ChatMachine.Update transaction.
+-- ChatMachine.Update transaction. ArchiveChatsOfDeletedChatProject copies
+-- its SET list, so update both together.
 --
 -- grant_history_epoch gives a turn that inserts no history the same
 -- fresh retry budget and message part episode keys a history change

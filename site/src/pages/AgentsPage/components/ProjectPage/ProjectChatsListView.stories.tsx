@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
-import { chatProjectsKey } from "#/api/queries/chatProjects";
-import { chatCostTreeKey } from "#/api/queries/chats";
+import { chatCostTreeKey, chatProjectsKey } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat, mockChatCost } from "#/testHelpers/chatEntities";
 import {

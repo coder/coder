@@ -16,8 +16,8 @@ import {
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { aiProvidersListKey } from "#/api/queries/aiProviders";
-import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
+	chatProjectsKey,
 	mcpServerConfigsKey,
 	organizationChatModelsKey,
 	userChatPersonalModelOverrides,

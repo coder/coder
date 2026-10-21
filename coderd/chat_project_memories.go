@@ -81,6 +81,11 @@ func (api *API) postChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "A chat project memory with this name already exists."})
 		return
 	}
+	// The project was deleted after the request loaded it.
+	if errors.Is(err, chattool.ErrMemoryProjectDeleted) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to create chat project memory.", Detail: err.Error()})
 		return

@@ -9,10 +9,14 @@ import {
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { useState } from "react";
-import { QueryClientProvider } from "react-query";
+import { type QueryClient, QueryClientProvider } from "react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import {
+	applyWatchedChatProjectDeleted,
+	chatEntityKey,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
@@ -90,6 +94,7 @@ type WrapperProps = React.PropsWithChildren<{
 	experiments?: TypesGen.Experiment[];
 	organizations?: TypesGen.Organization[];
 	initialEntry?: string;
+	queryClient?: QueryClient;
 }>;
 
 const Wrapper: React.FC<WrapperProps> = ({
@@ -97,8 +102,8 @@ const Wrapper: React.FC<WrapperProps> = ({
 	experiments = [],
 	organizations = [MockDefaultOrganization],
 	initialEntry = "/agents",
+	queryClient = createTestQueryClient(),
 }) => {
-	const queryClient = createTestQueryClient();
 	const dashboardValue = {
 		entitlements: MockEntitlements,
 		experiments,
@@ -472,10 +477,24 @@ describe("ChatsSidebar projects", () => {
 			),
 		);
 
+		const queryClient = createTestQueryClient();
+		const mockDeletedProjectChat = buildChat({
+			project_id: MockChatProject.id,
+		});
+		// Nothing observes the entity, so keep it from being collected.
+		queryClient.setQueryDefaults(chatEntityKey(mockDeletedProjectChat.id), {
+			gcTime: Number.POSITIVE_INFINITY,
+		});
+		queryClient.setQueryData(
+			chatEntityKey(mockDeletedProjectChat.id),
+			mockDeletedProjectChat,
+		);
+
 		render(
 			<Wrapper
 				experiments={["chat-projects"]}
 				initialEntry={`/agents/projects/${MockChatProject.id}`}
+				queryClient={queryClient}
 			>
 				<ChatsSidebar {...defaultProps} />
 				<ProjectLocationProbe />
@@ -501,10 +520,83 @@ describe("ChatsSidebar projects", () => {
 			expect(localStorage.getItem(draftKeys.text)).toBeNull();
 		});
 		expect(localStorage.getItem(draftKeys.attachments)).toBeNull();
+		expect(
+			queryClient.getQueryData(chatEntityKey(mockDeletedProjectChat.id)),
+		).toBeUndefined();
 		await waitFor(() =>
 			expect(screen.getByTestId("location-pathname")).toHaveTextContent(
 				/^\/agents$/,
 			),
+		);
+	});
+
+	it.each([
+		["leaves an open chat of the deleted project", MockChatProject.id, true],
+		["stays on an open chat of another project", "other-project", false],
+	])("%s", async (_, chatProjectId, leaves) => {
+		const user = userEvent.setup();
+		const queryClient = createTestQueryClient();
+		const openChat = buildChat({ project_id: chatProjectId });
+		let deleteRequests = 0;
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			http.delete(
+				"/api/experimental/organizations/:organizationId/chats/projects/:projectId",
+				() => {
+					deleteRequests++;
+					// The watch event can reset the entity before the response.
+					if (leaves) {
+						applyWatchedChatProjectDeleted(queryClient, openChat);
+					}
+					return new HttpResponse(null, { status: 204 });
+				},
+			),
+		);
+		queryClient.setQueryDefaults(chatEntityKey(openChat.id), {
+			gcTime: Number.POSITIVE_INFINITY,
+		});
+		queryClient.setQueryData(chatEntityKey(openChat.id), openChat);
+
+		render(
+			<Wrapper
+				experiments={["chat-projects"]}
+				initialEntry={`/agents/${openChat.id}`}
+				queryClient={queryClient}
+			>
+				<Routes>
+					<Route
+						path="/agents/:agentId?"
+						element={<ChatsSidebar {...defaultProps} />}
+					/>
+				</Routes>
+				<ProjectLocationProbe />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Open project actions for ${MockChatProject.name}`,
+			}),
+		);
+		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+		await user.type(
+			screen.getByLabelText("Name of the project to delete"),
+			MockChatProject.name,
+		);
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+
+		// The dialog closes in mutate's onSuccess, after useMutation's
+		// onSuccess decides whether to navigate.
+		await waitFor(() =>
+			expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+		);
+		expect(deleteRequests).toBe(1);
+		// Router navigations render in a transition, after the dialog closes.
+		await act(async () => {});
+		expect(screen.getByTestId("location-pathname")).toHaveTextContent(
+			leaves ? /^\/agents$/ : `/agents/${openChat.id}`,
 		);
 	});
 

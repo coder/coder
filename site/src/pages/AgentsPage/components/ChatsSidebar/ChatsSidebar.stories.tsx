@@ -14,9 +14,9 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
-import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
 	chatListKey,
+	chatProjectsKey,
 	infiniteChats,
 	toChatListParams,
 	userChatProviderConfigsKey,

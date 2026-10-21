@@ -1631,6 +1631,19 @@ $$;
 
 COMMENT ON FUNCTION set_chat_message_revision_before() IS 'Component of chatd. Updates chat_snapshot_version when any fields of chat_messages change. Excludes changes to search_tsv and search_tsv_config as they are not relevant to chatd''s processing loop.';
 
+CREATE FUNCTION set_sub_chat_project_id() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF NEW.root_chat_id IS NOT NULL THEN
+        SELECT project_id INTO NEW.project_id
+        FROM chats
+        WHERE id = NEW.root_chat_id;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION sync_chat_retry_state() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -2344,6 +2357,7 @@ CREATE TABLE chat_projects (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
     CONSTRAINT chat_projects_description_length CHECK ((length(description) <= 1024)),
     CONSTRAINT chat_projects_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
     CONSTRAINT chat_projects_icon_length CHECK ((length(icon) <= 256)),
@@ -2359,6 +2373,8 @@ COMMENT ON COLUMN chat_projects.icon IS 'Optional icon URL shown next to the pro
 COMMENT ON COLUMN chat_projects.user_acl IS 'Users the project is shared with, keyed by user ID.';
 
 COMMENT ON COLUMN chat_projects.group_acl IS 'Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.';
+
+COMMENT ON COLUMN chat_projects.deleted IS 'True once the project is deleted; never reset to false. The delete removes the project''s memories, instructions and skills at once. Its chats are archived and follow chat retention (kept forever when retention is 0); dbpurge deletes this row once no chats reference it.';
 
 CREATE SEQUENCE chat_queued_messages_position_seq
     START WITH 1
@@ -2498,7 +2514,7 @@ COMMENT ON COLUMN chats.last_reasoning_effort IS 'Stores the most recent message
 
 COMMENT ON COLUMN chats.compaction_requested_at IS 'Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.';
 
-COMMENT ON COLUMN chats.project_id IS 'Optional project that groups a root chat with related chats.';
+COMMENT ON COLUMN chats.project_id IS 'Optional project the chat belongs to. Sub-chats carry their root chat''s project; an insert trigger sets it and replaces any passed value.';
 
 COMMENT ON COLUMN chats.title_source IS 'Rows from before this column existed are fallback regardless of who set their title.';
 
@@ -5184,6 +5200,8 @@ CREATE INDEX idx_chats_parent_chat_id ON chats USING btree (parent_chat_id);
 
 CREATE INDEX idx_chats_project_id ON chats USING btree (project_id) WHERE (project_id IS NOT NULL);
 
+CREATE INDEX idx_chats_project_id_unarchived ON chats USING btree (project_id) WHERE ((NOT archived) AND (project_id IS NOT NULL));
+
 CREATE INDEX idx_chats_root_chat_id ON chats USING btree (root_chat_id);
 
 CREATE INDEX idx_chats_title_fts ON chats USING gin (to_tsvector('simple'::regconfig, title));
@@ -5457,6 +5475,8 @@ CREATE TRIGGER trigger_nullify_next_start_at_on_workspace_autostart_modificati A
 CREATE TRIGGER trigger_set_chat_message_revision_on_insert BEFORE INSERT ON chat_messages FOR EACH ROW EXECUTE FUNCTION set_chat_message_revision_before();
 
 CREATE TRIGGER trigger_set_chat_message_revision_on_update BEFORE UPDATE ON chat_messages FOR EACH ROW EXECUTE FUNCTION set_chat_message_revision_before();
+
+CREATE TRIGGER trigger_set_sub_chat_project_id BEFORE INSERT ON chats FOR EACH ROW EXECUTE FUNCTION set_sub_chat_project_id();
 
 CREATE TRIGGER trigger_skills_per_owner_limit BEFORE INSERT ON skills FOR EACH ROW EXECUTE FUNCTION enforce_skills_per_owner_limit();
 

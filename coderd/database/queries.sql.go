@@ -7499,7 +7499,8 @@ SELECT
     $1::text,
     $2::uuid
 FROM chat_projects
-WHERE chat_projects.id = $3::uuid
+WHERE chat_projects.id = $3::uuid AND NOT chat_projects.deleted
+FOR SHARE
 ON CONFLICT (project_id) DO UPDATE SET
     instructions = EXCLUDED.instructions,
     updated_by = EXCLUDED.updated_by,
@@ -7514,7 +7515,9 @@ type UpsertChatProjectInstructionsParams struct {
 }
 
 // The organization comes from the project row, so the stored scope always
-// matches the project's organization.
+// matches the project's organization. Locks the live project FOR SHARE, so
+// a project delete waits for this write and then deletes it. Returns no
+// rows once the project is deleted.
 func (q *sqlQuerier) UpsertChatProjectInstructions(ctx context.Context, arg UpsertChatProjectInstructionsParams) (ChatProjectInstruction, error) {
 	row := q.db.QueryRowContext(ctx, upsertChatProjectInstructions, arg.Instructions, arg.UpdatedBy, arg.ProjectID)
 	var i ChatProjectInstruction
@@ -7706,37 +7709,41 @@ INSERT INTO chat_project_memories (
     body,
     created_by
 )
-VALUES (
+SELECT
     COALESCE($1::uuid, gen_random_uuid()),
+    chat_projects.id,
     $2::uuid,
-    $3::uuid,
+    $3::text,
     $4::text,
     $5::text,
-    $6::text,
-    $7::uuid
-)
+    $6::uuid
+FROM chat_projects
+WHERE chat_projects.id = $7::uuid AND NOT chat_projects.deleted
+FOR SHARE
 RETURNING id, project_id, organization_id, name, description, body, created_by, created_at
 `
 
 type InsertChatProjectMemoryParams struct {
 	ID             uuid.NullUUID `db:"id" json:"id"`
-	ProjectID      uuid.UUID     `db:"project_id" json:"project_id"`
 	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
 	Name           string        `db:"name" json:"name"`
 	Description    string        `db:"description" json:"description"`
 	Body           string        `db:"body" json:"body"`
 	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
+	ProjectID      uuid.UUID     `db:"project_id" json:"project_id"`
 }
 
+// Locks the live project FOR SHARE, so a project delete waits for this
+// insert and then deletes the memory. Returns no rows once it is deleted.
 func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChatProjectMemoryParams) (ChatProjectMemory, error) {
 	row := q.db.QueryRowContext(ctx, insertChatProjectMemory,
 		arg.ID,
-		arg.ProjectID,
 		arg.OrganizationID,
 		arg.Name,
 		arg.Description,
 		arg.Body,
 		arg.CreatedBy,
+		arg.ProjectID,
 	)
 	var i ChatProjectMemory
 	err := row.Scan(
@@ -7752,10 +7759,59 @@ func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChat
 	return i, err
 }
 
+const archiveChatsOfDeletedChatProject = `-- name: ArchiveChatsOfDeletedChatProject :many
+UPDATE chats
+SET
+    archived = true,
+    pin_order = 0,
+    status = CASE WHEN status = 'error'::chat_status THEN 'error'::chat_status ELSE 'waiting'::chat_status END,
+    worker_id = NULL,
+    runner_id = NULL,
+    requires_action_deadline_at = NULL,
+    compaction_requested_at = NULL,
+    retry_state = NULL,
+    snapshot_version = snapshot_version + 1,
+    updated_at = now()
+FROM chat_projects
+WHERE chats.project_id = $1::uuid
+    AND NOT chats.archived
+    AND chat_projects.id = chats.project_id
+    AND chat_projects.deleted
+RETURNING chats.id
+`
+
+// Execution-state transition outside the chatstate machine; keep the SET
+// list in sync with UpdateChatExecutionState. Publishes nothing, so callers
+// publish chat:update per chat. Run it before
+// DeleteChatQueuedMessagesByChatIDs so a send waiting on a chat lock reads
+// the archived state and is refused.
+func (q *sqlQuerier) ArchiveChatsOfDeletedChatProject(ctx context.Context, projectID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, archiveChatsOfDeletedChatProject, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countChatProjectsByOwnerID = `-- name: CountChatProjectsByOwnerID :one
 SELECT COUNT(*)::bigint
 FROM chat_projects
-WHERE owner_id = $1::uuid
+WHERE owner_id = $1::uuid AND NOT deleted
 `
 
 func (q *sqlQuerier) CountChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
@@ -7765,20 +7821,40 @@ func (q *sqlQuerier) CountChatProjectsByOwnerID(ctx context.Context, ownerID uui
 	return column_1, err
 }
 
-const deleteChatProjectByID = `-- name: DeleteChatProjectByID :exec
-DELETE FROM chat_projects
-WHERE id = $1::uuid
+const deleteChatQueuedMessagesByChatIDs = `-- name: DeleteChatQueuedMessagesByChatIDs :exec
+DELETE FROM chat_queued_messages
+WHERE chat_id = ANY($1::uuid[])
 `
 
-func (q *sqlQuerier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteChatProjectByID, id)
+func (q *sqlQuerier) DeleteChatQueuedMessagesByChatIDs(ctx context.Context, chatIds []uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatQueuedMessagesByChatIDs, pq.Array(chatIds))
 	return err
 }
 
+const deleteEmptyDeletedChatProjects = `-- name: DeleteEmptyDeletedChatProjects :execrows
+WITH empty AS (
+    SELECT chat_projects.id
+    FROM chat_projects
+    WHERE chat_projects.deleted
+        AND NOT EXISTS (SELECT 1 FROM chats WHERE chats.project_id = chat_projects.id)
+    LIMIT $1
+)
+DELETE FROM chat_projects
+WHERE id IN (SELECT id FROM empty)
+`
+
+func (q *sqlQuerier) DeleteEmptyDeletedChatProjects(ctx context.Context, limitCount int32) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteEmptyDeletedChatProjects, limitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getChatProjectByID = `-- name: GetChatProjectByID :one
-SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, deleted
 FROM chat_projects
-WHERE id = $1::uuid
+WHERE id = $1::uuid AND NOT deleted
 `
 
 func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (ChatProject, error) {
@@ -7795,17 +7871,50 @@ func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (Chat
 		&i.UpdatedAt,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.Deleted,
+	)
+	return i, err
+}
+
+const getChatProjectByIDForShare = `-- name: GetChatProjectByIDForShare :one
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, deleted
+FROM chat_projects
+WHERE id = $1::uuid AND NOT deleted
+FOR SHARE
+`
+
+// Root chat creation, moves into or out of a project, unarchives, and
+// memory writes hold this until commit. A concurrent project delete waits
+// for them: the tombstone then deletes their memories, and the cleanup
+// archives their chats. Returns no rows once the project is deleted.
+func (q *sqlQuerier) GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (ChatProject, error) {
+	row := q.db.QueryRowContext(ctx, getChatProjectByIDForShare, id)
+	var i ChatProject
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Description,
+		&i.Icon,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.Deleted,
 	)
 	return i, err
 }
 
 const getChatProjectByIDForUpdate = `-- name: GetChatProjectByIDForUpdate :one
-SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, deleted
 FROM chat_projects
-WHERE id = $1::uuid
-FOR UPDATE
+WHERE id = $1::uuid AND NOT deleted
+FOR NO KEY UPDATE
 `
 
+// Locks FOR NO KEY UPDATE so sub-chat inserts, whose project_id foreign key
+// check takes FOR KEY SHARE, do not wait for it.
 func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProject, error) {
 	row := q.db.QueryRowContext(ctx, getChatProjectByIDForUpdate, id)
 	var i ChatProject
@@ -7820,14 +7929,15 @@ func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UU
 		&i.UpdatedAt,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.Deleted,
 	)
 	return i, err
 }
 
 const getChatProjectsOwnedOrSharedWithUserID = `-- name: GetChatProjectsOwnedOrSharedWithUserID :many
-SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl
+SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.deleted
 FROM chat_projects
-WHERE chat_projects.owner_id = $1::uuid
+WHERE NOT chat_projects.deleted AND (chat_projects.owner_id = $1::uuid
     OR (
         (
             chat_projects.user_acl ? ($1::uuid)::text
@@ -7847,7 +7957,7 @@ WHERE chat_projects.owner_id = $1::uuid
             WHERE organization_members.user_id = $1::uuid
                 AND organization_members.organization_id = chat_projects.organization_id
         )
-    )
+    ))
 ORDER BY lower(chat_projects.name), chat_projects.id
 `
 
@@ -7873,10 +7983,209 @@ func (q *sqlQuerier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context,
 			&i.UpdatedAt,
 			&i.UserACL,
 			&i.GroupACL,
+			&i.Deleted,
 		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatsByIDs = `-- name: GetChatsByIDs :many
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at, title_source, title_updated_at
+FROM chats_expanded
+WHERE id = ANY($1::uuid[])
+ORDER BY id
+`
+
+func (q *sqlQuerier) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, getChatsByIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.LastReasoningEffort,
+			&i.Archived,
+			&i.LastError,
+			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
+			&i.Labels,
+			&i.BuildID,
+			&i.AgentID,
+			&i.PinOrder,
+			&i.LastReadMessageID,
+			&i.DynamicTools,
+			&i.OrganizationID,
+			&i.ProjectID,
+			&i.PlanMode,
+			&i.ClientType,
+			&i.LastTurnSummary,
+			&i.Summary,
+			&i.SummaryGeneratedAt,
+			&i.SnapshotVersion,
+			&i.HistoryVersion,
+			&i.QueueVersion,
+			&i.GenerationAttempt,
+			&i.RetryState,
+			&i.RetryStateVersion,
+			&i.RunnerID,
+			&i.RequiresActionDeadlineAt,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.OwnerUsername,
+			&i.OwnerName,
+			&i.ContextAggregateHash,
+			&i.ContextDirtySince,
+			&i.ContextDirtyResources,
+			&i.ContextError,
+			&i.CompactionRequestedAt,
+			&i.TitleSource,
+			&i.TitleUpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatsByProjectID = `-- name: GetChatsByProjectID :many
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at, title_source, title_updated_at
+FROM chats_expanded
+WHERE project_id = $1::uuid
+ORDER BY id
+`
+
+func (q *sqlQuerier) GetChatsByProjectID(ctx context.Context, projectID uuid.UUID) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, getChatsByProjectID, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.LastReasoningEffort,
+			&i.Archived,
+			&i.LastError,
+			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
+			&i.Labels,
+			&i.BuildID,
+			&i.AgentID,
+			&i.PinOrder,
+			&i.LastReadMessageID,
+			&i.DynamicTools,
+			&i.OrganizationID,
+			&i.ProjectID,
+			&i.PlanMode,
+			&i.ClientType,
+			&i.LastTurnSummary,
+			&i.Summary,
+			&i.SummaryGeneratedAt,
+			&i.SnapshotVersion,
+			&i.HistoryVersion,
+			&i.QueueVersion,
+			&i.GenerationAttempt,
+			&i.RetryState,
+			&i.RetryStateVersion,
+			&i.RunnerID,
+			&i.RequiresActionDeadlineAt,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.OwnerUsername,
+			&i.OwnerName,
+			&i.ContextAggregateHash,
+			&i.ContextDirtySince,
+			&i.ContextDirtyResources,
+			&i.ContextError,
+			&i.CompactionRequestedAt,
+			&i.TitleSource,
+			&i.TitleUpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getDeletedChatProjectIDsWithUnarchivedChats = `-- name: GetDeletedChatProjectIDsWithUnarchivedChats :many
+SELECT chat_projects.id
+FROM chat_projects
+WHERE chat_projects.deleted
+    AND EXISTS (
+        SELECT 1
+        FROM chats
+        WHERE chats.project_id = chat_projects.id AND NOT chats.archived
+    )
+ORDER BY chat_projects.updated_at, chat_projects.id
+LIMIT $1::int
+`
+
+func (q *sqlQuerier) GetDeletedChatProjectIDsWithUnarchivedChats(ctx context.Context, limitCount int32) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, getDeletedChatProjectIDsWithUnarchivedChats, limitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -7897,7 +8206,7 @@ VALUES (
     $5::text,
     $6::text
 )
-RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, deleted
 `
 
 type InsertChatProjectParams struct {
@@ -7930,6 +8239,7 @@ func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjec
 		&i.UpdatedAt,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.Deleted,
 	)
 	return i, err
 }
@@ -7939,6 +8249,7 @@ SELECT EXISTS (
     SELECT 1
     FROM chat_projects
     WHERE chat_projects.id = $1::uuid
+        AND NOT chat_projects.deleted
         AND (
             chat_projects.owner_id = $2::uuid
             OR (
@@ -7975,12 +8286,28 @@ func (q *sqlQuerier) IsChatProjectUsableByUserID(ctx context.Context, arg IsChat
 	return column_1, err
 }
 
+const lockChatProjectUnarchivedRootChats = `-- name: LockChatProjectUnarchivedRootChats :exec
+SELECT id
+FROM chats
+WHERE project_id = $1::uuid AND parent_chat_id IS NULL AND NOT archived
+ORDER BY id
+FOR UPDATE
+`
+
+// Sub-chat creation holds its root FOR SHARE, so this waits for it. At
+// READ COMMITTED, the default isolation, a later statement then sees every
+// child committed during the wait.
+func (q *sqlQuerier) LockChatProjectUnarchivedRootChats(ctx context.Context, projectID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, lockChatProjectUnarchivedRootChats, projectID)
+	return err
+}
+
 const updateChatProjectACLByID = `-- name: UpdateChatProjectACLByID :exec
 UPDATE chat_projects
 SET
     user_acl = $1,
     group_acl = $2
-WHERE id = $3::uuid
+WHERE id = $3::uuid AND NOT deleted
 `
 
 type UpdateChatProjectACLByIDParams struct {
@@ -8001,8 +8328,8 @@ SET
     description = $2::text,
     icon = $3::text,
     updated_at = now()
-WHERE id = $4::uuid
-RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+WHERE id = $4::uuid AND NOT deleted
+RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, deleted
 `
 
 type UpdateChatProjectByIDParams struct {
@@ -8031,8 +8358,42 @@ func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatPr
 		&i.UpdatedAt,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.Deleted,
 	)
 	return i, err
+}
+
+const updateChatProjectDeletedByID = `-- name: UpdateChatProjectDeletedByID :one
+WITH project AS (
+    UPDATE chat_projects
+    SET deleted = true, updated_at = now()
+    WHERE id = $1::uuid AND NOT deleted
+    RETURNING id
+),
+memories AS (
+    DELETE FROM chat_project_memories
+    WHERE project_id IN (SELECT id FROM project)
+),
+instructions AS (
+    DELETE FROM chat_project_instructions
+    WHERE project_id IN (SELECT id FROM project)
+),
+skills AS (
+    DELETE FROM skills
+    WHERE project_id IN (SELECT id FROM project)
+)
+SELECT id FROM project
+`
+
+// Irreversible. Call only through chatstate.TombstoneChatProject, which
+// locks the project first; see its doc. Deletes the project's memories,
+// instructions and skills; its chats keep running until
+// chatstate.ArchiveDeletedChatProject archives them.
+func (q *sqlQuerier) UpdateChatProjectDeletedByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, updateChatProjectDeletedByID, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
 }
 
 const acquireStaleChatDiffStatuses = `-- name: AcquireStaleChatDiffStatuses :many
@@ -10864,6 +11225,11 @@ WHERE
         WHEN $6 :: boolean IS NULL THEN true
         ELSE chats_expanded.archived = $6 :: boolean
     END
+    AND NOT EXISTS (
+        SELECT 1
+        FROM chat_projects
+        WHERE chat_projects.id = chats_expanded.project_id AND chat_projects.deleted
+    )
     AND CASE
         WHEN $7::uuid IS NOT NULL THEN chats_expanded.project_id = $7::uuid
         ELSE true
@@ -11198,6 +11564,12 @@ WHERE
         FROM chat_file_links
         WHERE file_id = $1::uuid
     )
+    -- A deleted project's chats keep their rows until chat retention removes them.
+    AND NOT EXISTS (
+        SELECT 1
+        FROM chat_projects
+        WHERE chat_projects.id = chats_expanded.project_id AND chat_projects.deleted
+    )
     -- Authorize Filter clause will be injected below in GetAuthorizedChatsByChatFileID.
     -- @authorize_filter
 `
@@ -11362,6 +11734,11 @@ SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbe
 FROM chats_expanded
 WHERE archived = false
   AND workspace_id = ANY($1::uuid[])
+  AND NOT EXISTS (
+    SELECT 1
+    FROM chat_projects
+    WHERE chat_projects.id = chats_expanded.project_id AND chat_projects.deleted
+  )
 ORDER BY workspace_id, updated_at DESC
 `
 
@@ -13746,7 +14123,8 @@ type UpdateChatExecutionStateParams struct {
 // status, archived, last_error, ownership identifiers, the
 // requires-action deadline, and the manual compaction request marker.
 // Callers compose this with transition mutations inside a single
-// ChatMachine.Update transaction.
+// ChatMachine.Update transaction. ArchiveChatsOfDeletedChatProject copies
+// its SET list, so update both together.
 //
 // grant_history_epoch gives a turn that inserts no history the same
 // fresh retry budget and message part episode keys a history change
@@ -28955,25 +29333,32 @@ func (q *sqlQuerier) InsertOrganizationSkill(ctx context.Context, arg InsertOrga
 
 const insertProjectSkill = `-- name: InsertProjectSkill :one
 INSERT INTO skills (id, project_id, name, description, content)
-VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text)
+SELECT $1::uuid, chat_projects.id, $2::text, $3::text, $4::text
+FROM chat_projects
+WHERE chat_projects.id = $5::uuid AND NOT chat_projects.deleted
+FOR NO KEY UPDATE
 RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
 `
 
 type InsertProjectSkillParams struct {
 	ID          uuid.UUID `db:"id" json:"id"`
-	ProjectID   uuid.UUID `db:"project_id" json:"project_id"`
 	Name        string    `db:"name" json:"name"`
 	Description string    `db:"description" json:"description"`
 	Content     string    `db:"content" json:"content"`
+	ProjectID   uuid.UUID `db:"project_id" json:"project_id"`
 }
 
+// Locks the live project FOR NO KEY UPDATE, the mode the skill limit
+// trigger takes, so concurrent inserts never upgrade a shared lock and
+// deadlock. A project delete waits for this insert and then deletes the
+// skill. Returns no rows once the project is deleted.
 func (q *sqlQuerier) InsertProjectSkill(ctx context.Context, arg InsertProjectSkillParams) (Skill, error) {
 	row := q.db.QueryRowContext(ctx, insertProjectSkill,
 		arg.ID,
-		arg.ProjectID,
 		arg.Name,
 		arg.Description,
 		arg.Content,
+		arg.ProjectID,
 	)
 	var i Skill
 	err := row.Scan(

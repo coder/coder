@@ -164,6 +164,11 @@ func (api *API) putChatProjectInstructions(rw http.ResponseWriter, r *http.Reque
 		}
 		return nil
 	}, nil)
+	// The project was deleted after the request loaded it.
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to update chat project instructions.",

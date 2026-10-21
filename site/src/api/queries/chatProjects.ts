@@ -3,11 +3,12 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	chatEntitiesFamilyKey,
+	chatProjectsKey,
 	invalidateChatListQueries,
 	invalidateChatSearches,
+	invalidateChatsByWorkspace,
+	resetChatEntity,
 } from "./chats";
-
-export const chatProjectsKey = ["chat-projects"] as const;
 
 /**
  * Lists chat projects the current user owns or that are shared with them,
@@ -63,24 +64,28 @@ export const updateChatProject = (queryClient: QueryClient) =>
 			queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
 	});
 
+/** Callers that add an onSuccess must also call this one. */
 export const deleteChatProject = (queryClient: QueryClient) =>
 	mutationOptions({
 		mutationFn: (project: TypesGen.ChatProject) =>
 			API.experimental.deleteChatProject(project.organization_id, project.id),
+		onSuccess: (_data, project) => {
+			for (const [, chat] of queryClient.getQueriesData<TypesGen.Chat>({
+				queryKey: chatEntitiesFamilyKey,
+				predicate: ({ queryKey }) =>
+					queryKey.length === chatEntitiesFamilyKey.length + 1,
+			})) {
+				if (chat?.project_id === project.id) {
+					void resetChatEntity(queryClient, chat.id);
+				}
+			}
+		},
 		onSettled: () =>
-			// Deleting a project clears project_id on its chats.
 			Promise.all([
 				queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
 				invalidateChatListQueries(queryClient),
 				invalidateChatSearches(queryClient),
-				// Only the chats themselves carry project_id. Their nested
-				// queries (messages, ACL, diffs, ...) would refetch every loaded
-				// page for nothing.
-				queryClient.invalidateQueries({
-					queryKey: chatEntitiesFamilyKey,
-					predicate: ({ queryKey }) =>
-						queryKey.length === chatEntitiesFamilyKey.length + 1,
-				}),
+				invalidateChatsByWorkspace(queryClient),
 			]),
 	});
 

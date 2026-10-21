@@ -5516,6 +5516,8 @@ type ChatProject struct {
 	UserACL ChatACL `db:"user_acl" json:"user_acl"`
 	// Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.
 	GroupACL ChatACL `db:"group_acl" json:"group_acl"`
+	// True once the project is deleted; never reset to false. The delete removes the project's memories, instructions and skills at once. Its chats are archived and follow chat retention (kept forever when retention is 0); dbpurge deletes this row once no chats reference it.
+	Deleted bool `db:"deleted" json:"deleted"`
 }
 
 // Per-project instructions injected into the system prompt of every chat in the project, for every user. A project without a row has no instructions.
@@ -5607,7 +5609,7 @@ type ChatTable struct {
 	CompactionRequestedAt sql.NullTime   `db:"compaction_requested_at" json:"compaction_requested_at"`
 	Summary               sql.NullString `db:"summary" json:"summary"`
 	SummaryGeneratedAt    sql.NullTime   `db:"summary_generated_at" json:"summary_generated_at"`
-	// Optional project that groups a root chat with related chats.
+	// Optional project the chat belongs to. Sub-chats carry their root chat's project; an insert trigger sets it and replaces any passed value.
 	ProjectID uuid.NullUUID `db:"project_id" json:"project_id"`
 	// Rows from before this column existed are fallback regardless of who set their title.
 	TitleSource ChatTitleSource `db:"title_source" json:"title_source"`
