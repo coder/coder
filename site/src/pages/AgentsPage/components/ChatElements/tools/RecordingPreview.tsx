@@ -8,6 +8,7 @@ import type React from "react";
 import { useState } from "react";
 import { getChatFileURL } from "../../../utils/chatAttachments";
 import { useFileProbes } from "../../ChatConversation/FileProbeContext";
+import { useLightbox } from "../../LightboxHost";
 import { VideoLightbox } from "../../VideoLightbox";
 import {
 	DEFAULT_ASPECT,
@@ -56,11 +57,8 @@ export const RecordingPreview: React.FC<RecordingPreviewProps> = ({
 	thumbnailSrc: thumbnailSrcOverride,
 }) => {
 	const { hasExpired } = useFileProbes();
-	const [showLightbox, setShowLightbox] = useState(false);
+	const { openLightbox, lightbox } = useLightbox();
 	const [thumbnailError, setThumbnailError] = useState(false);
-	// Incremented each time the lightbox opens so the VideoLightbox
-	// component remounts and resets its internal error state.
-	const [lightboxKey, setLightboxKey] = useState(0);
 
 	if (hasExpired(recordingFileId)) {
 		return (
@@ -92,22 +90,18 @@ export const RecordingPreview: React.FC<RecordingPreviewProps> = ({
 			<button
 				type="button"
 				aria-label="View recording"
-				onClick={() => {
-					setShowLightbox(true);
-					setLightboxKey((k) => k + 1);
-				}}
+				onClick={() =>
+					openLightbox((close) => (
+						<VideoLightbox src={videoSrc} onClose={close} />
+					))
+				}
 				className="absolute inset-0 z-10 flex cursor-pointer items-center justify-center border-0 bg-black/0 p-0 transition-colors hover:bg-black/50"
 			>
 				<span className="flex size-10 items-center justify-center rounded-full bg-black/60">
 					<PlayIcon className="size-5 text-white" />
 				</span>
 			</button>
-			<VideoLightbox
-				key={lightboxKey}
-				src={videoSrc}
-				open={showLightbox}
-				onClose={() => setShowLightbox(false)}
-			/>
+			{lightbox}
 		</div>
 	);
 };

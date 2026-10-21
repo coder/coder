@@ -17,6 +17,7 @@ import {
 	parseMessagesWithMergedTools,
 } from "./messageParsing";
 import {
+	attachmentStepMessages,
 	buildLiveStatus,
 	buildStreamRenderState,
 	MockCollapsedStepsPreferences,
@@ -314,6 +315,46 @@ describe("ConversationTimeline working blocks", () => {
 			expect(screen.getByRole("button", { name: /^Worked for/ })).toHaveFocus();
 		},
 	);
+
+	it("keeps an image the reader opened in a block open as its turn folds", async () => {
+		const user = userEvent.setup();
+		const messages = [
+			MockWorkingMessages[0],
+			...attachmentStepMessages({
+				id: 2,
+				toolCallId: "attach",
+				callAt: 1,
+				toolName: "attach_file",
+				args: { path: "/home/coder/chart.png" },
+				file: {
+					type: "file",
+					media_type: "image/png",
+					name: "chart.png",
+					file_id: "chart-file",
+				},
+				result: { name: "chart.png" },
+			}),
+		];
+		const { rerenderStage } = renderTimeline(runningStage(messages));
+
+		await user.click(screen.getByRole("button", { name: /^Working for/ }));
+		await user.click(screen.getByRole("button", { name: "View chart.png" }));
+
+		rerenderStage({
+			messages: [...messages, { ...MockWorkingMessages[5], id: 5 }],
+			chatStatus: "waiting",
+			liveStatus: idleLive,
+		});
+		expect(
+			screen.getByRole("button", { name: /^Worked for/, hidden: true }),
+		).toHaveAttribute("aria-expanded", "false");
+		expect(
+			screen.getByRole("dialog", { name: "Image preview" }),
+		).toBeInTheDocument();
+
+		await user.keyboard("{Escape}");
+		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+	});
 
 	it("keeps focus inside an open live block when its prompt page arrives", async () => {
 		const user = userEvent.setup();
