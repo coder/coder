@@ -206,14 +206,16 @@ func contextWindowPrompt(currentWindowID, previousWindowID string) string {
 	return strings.Join(lines, "\n")
 }
 
-// tagUserRowsWithItemIDs returns a copy of rows in which every user
-// message visible to both the user and the model ends with its item ID,
-// so the agent can cite it in a checkpoint. The tag is stable per row and
-// only reaches the prompt: callers must not persist the copy.
+// tagUserRowsWithItemIDs returns a copy of rows in which every
+// uncompressed user message the model sees ends with its item ID, so the
+// agent can cite it in a checkpoint. That includes the model-only replays
+// of pending requests after a boundary, but not the boundary anchors. The
+// tag is stable per row and only reaches the prompt: callers must not
+// persist the copy.
 func tagUserRowsWithItemIDs(rows []database.ChatMessage) ([]database.ChatMessage, error) {
 	tagged := slices.Clone(rows)
 	for i, row := range tagged {
-		if row.Role != database.ChatMessageRoleUser || row.Visibility != database.ChatMessageVisibilityBoth {
+		if row.Role != database.ChatMessageRoleUser || row.Compressed || row.Visibility == database.ChatMessageVisibilityUser {
 			continue
 		}
 		parts, err := chatprompt.ParseContent(row)
