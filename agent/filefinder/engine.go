@@ -21,6 +21,9 @@ import (
 type SearchOptions struct {
 	Limit         int
 	MaxCandidates int
+	// Roots restricts the search to these absolute roots. Empty
+	// searches all roots.
+	Roots []string
 }
 
 // DefaultSearchOptions returns sensible default search options.
@@ -55,13 +58,27 @@ type rootEvent struct {
 	events []FSEvent
 }
 
+// maxIndexEntries bounds the entries indexed and watched per root so a
+// single large root cannot exhaust memory or inotify watches. Entries
+// past the budget are not indexed.
+const maxIndexEntries = 300_000
+
 // walkRoot performs a full filesystem walk of absRoot and returns
 // a populated Index containing all discovered files and directories.
-func walkRoot(absRoot string) (*Index, error) {
-	idx := NewIndex()
-	err := filepath.Walk(absRoot, func(path string, info os.FileInfo, walkErr error) error {
+// It stops early when ctx is canceled or the index reaches
+// maxIndexEntries, reporting the latter as truncated.
+func walkRoot(ctx context.Context, absRoot string) (idx *Index, truncated bool, err error) {
+	idx = NewIndex()
+	err = filepath.Walk(absRoot, func(path string, info os.FileInfo, walkErr error) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if walkErr != nil {
 			return nil //nolint:nilerr
+		}
+		if idx.Len() >= maxIndexEntries {
+			truncated = true
+			return filepath.SkipAll
 		}
 		base := filepath.Base(path)
 		if _, skip := skipDirs[base]; skip && info.IsDir() {
@@ -84,7 +101,7 @@ func walkRoot(absRoot string) (*Index, error) {
 		idx.Add(relPath, flags)
 		return nil
 	})
-	return idx, err
+	return idx, truncated, err
 }
 
 // NewEngine creates a new Engine.
@@ -125,9 +142,15 @@ func (e *Engine) AddRoot(ctx context.Context, root string) error {
 
 	// Walk and create the watcher outside the lock to avoid
 	// blocking the event pipeline on filesystem I/O.
-	idx, walkErr := walkRoot(absRoot)
+	idx, truncated, walkErr := walkRoot(ctx, absRoot)
 	if walkErr != nil {
 		return xerrors.Errorf("walk root: %w", walkErr)
+	}
+	if truncated {
+		e.logger.Warn(ctx, "root exceeds the index budget, indexing partially",
+			slog.F("root", absRoot),
+			slog.F("max_entries", maxIndexEntries),
+		)
 	}
 	wCtx, wCancel := context.WithCancel(context.Background())
 	w, wErr := newFSWatcher(absRoot, e.logger)
@@ -209,6 +232,9 @@ func (e *Engine) Search(_ context.Context, query string, opts SearchOptions) ([]
 	params := defaultScoreParams()
 	var allCands []candidate
 	for _, rs := range roots {
+		if len(opts.Roots) > 0 && !slices.Contains(opts.Roots, rs.root) {
+			continue
+		}
 		cands := searchSnapshot(plan, rs.snap, opts.MaxCandidates)
 		for i := range cands {
 			cands[i].Root = rs.root
@@ -245,7 +271,7 @@ func (e *Engine) Rebuild(ctx context.Context, root string) error {
 
 	// Walk outside the lock to avoid blocking the event
 	// pipeline on potentially slow filesystem I/O.
-	idx, walkErr := walkRoot(absRoot)
+	idx, _, walkErr := walkRoot(ctx, absRoot)
 	if walkErr != nil {
 		return xerrors.Errorf("rebuild walk: %w", walkErr)
 	}

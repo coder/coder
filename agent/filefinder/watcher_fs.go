@@ -160,6 +160,9 @@ func (fw *fsWatcher) addRecursive(dir string) []FSEvent {
 		if err != nil {
 			return nil //nolint:nilerr // best-effort
 		}
+		if len(events) >= maxIndexEntries {
+			return filepath.SkipAll
+		}
 		base := filepath.Base(path)
 		if _, skip := skipDirs[base]; skip && info.IsDir() {
 			return filepath.SkipDir

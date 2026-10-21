@@ -1,5 +1,7 @@
 package filefinder
 
+import "context"
+
 // Test helpers that need internal access.
 
 // MakeTestSnapshot builds a Snapshot from a list of paths. Useful for
@@ -15,7 +17,8 @@ func MakeTestSnapshot(paths []string) *Snapshot {
 // BuildTestIndex walks root and returns a populated Index, the same
 // way Engine.AddRoot does but without starting a watcher.
 func BuildTestIndex(root string) (*Index, error) {
-	return walkRoot(root)
+	idx, _, err := walkRoot(context.Background(), root)
+	return idx, err
 }
 
 // IndexIsDeleted reports whether the document at id is tombstoned.
