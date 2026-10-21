@@ -2473,6 +2473,12 @@ export const UserMessageWithWorkspaceFileReference: Story = {
 			},
 		]),
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await hoverAttachmentTile(
+			await canvas.findByRole("button", { name: /dataset\.zip/ }),
+		);
+	},
 };
 
 export const UserMessageWithWorkspaceAttachment: Story = {
@@ -2509,11 +2515,5 @@ export const UserMessageWithWorkspaceAttachment: Story = {
 				],
 			},
 		]),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await hoverAttachmentTile(
-			await canvas.findByRole("button", { name: /release-build-artifacts/ }),
-		);
 	},
 };
