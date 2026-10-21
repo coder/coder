@@ -110,10 +110,10 @@ The per-model threshold on the same settings page becomes the **Handoff target**
 
 Each stage fires at most once per context window.
 The usable limit is the model's context limit minus the smaller of two values: its **Max Output Tokens** (32,000 when unset) and a quarter of the context limit.
-The final prompt fires 16,000 tokens below the usable limit, or at half of it if that point is higher.
+The final prompt fires 16,000&nbsp;tokens below the usable limit, or at half of it if that point is higher.
 The handoff target is the threshold percentage of the context limit, at least 10%, and never later than the final prompt.
-For example, a model with a 200,000-token context limit, no **Max Output Tokens** value, and a 70% threshold reaches its handoff target at 140,000 tokens.
-It gets the final prompt at 152,000 tokens and rolls over at 168,000 tokens.
+For example, a model with a 200,000-token context limit, no **Max Output Tokens** value, and a 70% threshold reaches its handoff target at 140,000&nbsp;tokens.
+It gets the final prompt at 152,000&nbsp;tokens and rolls over at 168,000&nbsp;tokens.
 
 A threshold of 100% shows as **Automatic rollover disabled**.
 No stage fires, and Coder refuses the agent's requests for a new context window.
@@ -128,10 +128,11 @@ Under Token budget, the agent gets 3 extra tools:
 | `chat_history`    | Reads this chat's transcript across context windows. It lists windows, lists or searches messages with a literal, case-insensitive match, and reads one message in pages. Messages before the latest `/clear` are not readable. |
 
 A new context window carries no summary of the previous one.
-It opens with a short lead-in that explains why the window changed and includes the agent's latest checkpoint.
+It opens with a short lead-in that explains why the window changed and includes the agent's latest checkpoint, when one was saved.
 The agent retrieves earlier detail, such as a completed tool result, with `chat_history` instead of running the tool again.
 A message you sent that the agent hasn't answered yet carries over into the new window.
-The transcript shows a `Context window rollover` card with the reason and the checkpoint the new window started from, and earlier messages stay visible.
+The transcript shows a `Context window rollover` card with the reason and the checkpoint the new window started from, when one was saved.
+Earlier messages stay visible.
 
 Some behavior stays the same under Token budget, and some doesn't apply:
 
