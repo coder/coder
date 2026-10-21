@@ -1412,6 +1412,7 @@ func (s *taskStarter) rollOverContextWindow(
 			BudgetTokens:     rollover.Budget.usableLimit,
 			Checkpoint:       checkpoint,
 		},
+		requestItemID:       latestRequestItemID(prepared.Messages),
 		pendingUserMessages: rollover.PendingUserRows,
 	})
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -28,6 +29,10 @@ const (
 	// rolloverLeadInPrefix starts the first line of a rollover anchor,
 	// which ends with the previous window ID.
 	rolloverLeadInPrefix = "A context window rollover started a fresh context window. Previous window: "
+	// rolloverRecoveryLine and rolloverNoCheckpointLine start the lead-in
+	// lines that point at chat_history.
+	rolloverRecoveryLine     = "Completed tool results remain in the previous window: retrieve them with chat_history rather than re-executing their side effects."
+	rolloverNoCheckpointLine = "No checkpoint was saved"
 )
 
 // contextWindowBudget holds the token budget points of one context
@@ -194,9 +199,12 @@ type contextRolloverPayload struct {
 }
 
 type buildRolloverMessagesInput struct {
-	modelConfigID       uuid.UUID
-	toolCallID          string
-	payload             contextRolloverPayload
+	modelConfigID uuid.UUID
+	toolCallID    string
+	payload       contextRolloverPayload
+	// requestItemID is the message ID of the user request in progress,
+	// or zero when there is none.
+	requestItemID       int64
 	pendingUserMessages []database.ChatMessage
 }
 
@@ -251,7 +259,7 @@ func buildRolloverMessages(input buildRolloverMessagesInput) ([]chatstate.Messag
 // Without pending user rows the rollover interrupted work in progress
 // rather than starting before a new user message is answered.
 func rolloverLeadIn(input buildRolloverMessagesInput) string {
-	payload := input.payload
+	payload, requestItemID := input.payload, input.requestItemID
 	midTurn := len(input.pendingUserMessages) == 0
 	lines := []string{rolloverLeadInPrefix + payload.PreviousWindowID + "."}
 	if payload.Reason == rolloverReasonModel {
@@ -262,11 +270,68 @@ func rolloverLeadIn(input buildRolloverMessagesInput) string {
 		}
 		lines = append(lines, "The window reached its usable limit.")
 	}
+	recovery := rolloverRecoveryLine
+	if requestItemID > 0 {
+		recovery += fmt.Sprintf(" The request in progress is item %d.", requestItemID)
+	}
+	lines = append(lines, recovery)
 	switch checkpoint := strings.TrimSpace(payload.Checkpoint); {
 	case checkpoint != "":
 		lines = append(lines, "<checkpoint>\n"+checkpoint+"\n</checkpoint>")
+	case requestItemID > 0:
+		lines = append(lines, fmt.Sprintf("%s; recover the task with chat_history, starting with item %d.", rolloverNoCheckpointLine, requestItemID))
 	default:
-		lines = append(lines, "No checkpoint was saved.")
+		lines = append(lines, rolloverNoCheckpointLine+"; recover the task with chat_history.")
 	}
 	return strings.Join(lines, "\n")
+}
+
+// withoutChatHistoryLeadIn returns a copy of prompt rows in which a
+// rollover lead-in no longer points at chat_history. A rollover boundary
+// keeps anchoring the prompt after the user switches to Summarize or the
+// experiment is turned off, but only the token budget strategy offers
+// chat_history and tags user rows with item IDs.
+func withoutChatHistoryLeadIn(promptRows []database.ChatMessage) ([]database.ChatMessage, error) {
+	rows := slices.Clone(promptRows)
+	for i, row := range rows {
+		if row.Deleted || !row.Compressed || row.Role != database.ChatMessageRoleUser || row.Visibility != database.ChatMessageVisibilityModel {
+			continue
+		}
+		parts, err := chatprompt.ParseContent(row)
+		if err != nil {
+			return nil, xerrors.Errorf("parse context boundary anchor %d: %w", row.ID, err)
+		}
+		if len(parts) == 0 || parts[0].Type != codersdk.ChatMessagePartTypeText || !strings.HasPrefix(parts[0].Text, rolloverLeadInPrefix) {
+			continue
+		}
+		lines := strings.Split(parts[0].Text, "\n")
+		for j, line := range lines {
+			// The checkpoint is the agent's own text and ends the lead-in.
+			if line == "<checkpoint>" {
+				break
+			}
+			switch {
+			case strings.HasPrefix(line, rolloverRecoveryLine):
+				lines[j] = "Completed tool results of the previous window are no longer available; check the current state before repeating their side effects."
+			case strings.HasPrefix(line, rolloverNoCheckpointLine):
+				lines[j] = rolloverNoCheckpointLine + "."
+			}
+		}
+		parts[0].Text = strings.Join(lines, "\n")
+		content, err := chatprompt.MarshalParts(parts)
+		if err != nil {
+			return nil, xerrors.Errorf("marshal context boundary anchor %d: %w", row.ID, err)
+		}
+		rows[i].Content = content
+		rows[i].ContentVersion = chatprompt.CurrentContentVersion
+	}
+	return rows, nil
+}
+
+// latestRequestItemID returns the message ID of the latest user request.
+func latestRequestItemID(messages []database.ChatMessage) int64 {
+	if index := lastUserPromptIndex(messages); index >= 0 {
+		return messages[index].ID
+	}
+	return 0
 }
