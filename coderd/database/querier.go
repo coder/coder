@@ -1552,6 +1552,10 @@ type sqlcQuerier interface {
 	// for example because its replica stopped, and may have used the last
 	// attempt.
 	RetryChatWorkspaceFileDeliveries(ctx context.Context, arg RetryChatWorkspaceFileDeliveriesParams) (int64, error)
+	// RetryChatWorkspaceFileDeliveriesByIDs is RetryChatWorkspaceFileDeliveries
+	// limited to the given files, for a message that attaches them again after
+	// delivery parked or failed them.
+	RetryChatWorkspaceFileDeliveriesByIDs(ctx context.Context, arg RetryChatWorkspaceFileDeliveriesByIDsParams) (int64, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct

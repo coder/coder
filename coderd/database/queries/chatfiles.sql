@@ -78,6 +78,27 @@ SELECT (
 	)
 )::boolean AS attached;
 
+-- name: RetryChatWorkspaceFileDeliveriesByIDs :execrows
+-- RetryChatWorkspaceFileDeliveriesByIDs is RetryChatWorkspaceFileDeliveries
+-- limited to the given files, for a message that attaches them again after
+-- delivery parked or failed them.
+UPDATE chat_files cf
+SET
+	workspace_delivery_attempts = 0,
+	workspace_delivery_next_attempt_at = NULL,
+	workspace_delivery_error = NULL
+FROM chat_file_links cfl
+WHERE cfl.file_id = cf.id
+	AND cfl.chat_id = @chat_id::uuid
+	AND cf.id = ANY(@file_ids::uuid[])
+	AND cf.purpose = 'workspace'::chat_file_purpose
+	AND cf.workspace_delivered_at IS NULL
+	AND (
+		cf.workspace_delivery_error IS NOT NULL
+		OR cf.workspace_delivery_next_attempt_at IS NULL
+		OR cf.workspace_delivery_next_attempt_at <= @now::timestamptz
+	);
+
 -- name: AcquireChatWorkspaceFileDeliveries :many
 -- AcquireChatWorkspaceFileDeliveries claims due workspace files whose
 -- chat's workspace finished starting: the workspace's latest build is a
