@@ -50,7 +50,9 @@ import {
 	compactionPointAsPercent,
 	formatCompactionPercent,
 	isCompactionPointBeyondWindow,
+	modelHandoffTargetPoint,
 	type OrganizationCompactionTrigger,
+	rolloverDisabledLabel,
 } from "../compactionTriggers";
 import { getModelLabel } from "../utils/modelOptions";
 
@@ -73,6 +75,7 @@ type UserCompactionThresholdSettingsProps = {
 		thresholdPercent: number,
 	) => Promise<unknown>;
 	onResetThreshold: (modelId: string) => Promise<unknown>;
+	compactionStrategy: TypesGen.ChatCompactionStrategy;
 };
 
 const parseThresholdDraft = (value: string): number | null => {
@@ -91,21 +94,29 @@ const parseThresholdDraft = (value: string): number | null => {
 
 type ContextCompactionHeaderProps = {
 	mayHaveOrganizationCompactionOverride: boolean;
+	isTokenBudget: boolean;
 };
 
 const ContextCompactionHeader: React.FC<ContextCompactionHeaderProps> = ({
 	mayHaveOrganizationCompactionOverride,
+	isTokenBudget,
 }) => (
 	<div className="flex flex-col gap-2">
 		<h3 className="m-0 text-sm font-semibold text-content-primary">
-			Context compaction
+			{isTokenBudget ? "Handoff target" : "Context compaction"}
 		</h3>
 		<p className="mt-0.5! m-0 text-xs text-content-secondary">
-			Control when conversation context is automatically summarized for each
-			model.{" "}
-			{mayHaveOrganizationCompactionOverride
-				? "Setting 100% turns off that model's own compaction threshold. An organization override may still compact chats with that model."
-				: "Setting 100% turns off automatic compaction for that model."}
+			{isTokenBudget ? (
+				"Control when the agent is asked to save a checkpoint and continue in a fresh context window for each model. Setting 100% turns off automatic rollover for that model."
+			) : (
+				<>
+					Control when conversation context is automatically summarized for each
+					model.{" "}
+					{mayHaveOrganizationCompactionOverride
+						? "Setting 100% turns off that model's own compaction threshold. An organization override may still compact chats with that model."
+						: "Setting 100% turns off automatic compaction for that model."}
+				</>
+			)}
 		</p>
 	</div>
 );
@@ -114,16 +125,19 @@ type CompactionContextCellProps = {
 	contextLimit: number;
 	chatTrigger: CompactionTrigger | undefined;
 	organizationTrigger: OrganizationCompactionTrigger | undefined;
+	handoffPoint: number | undefined;
 };
 
 const CompactionContextCell: React.FC<CompactionContextCellProps> = ({
 	contextLimit,
 	chatTrigger,
 	organizationTrigger,
+	handoffPoint,
 }) => {
 	const compactionPoint =
-		chatTrigger &&
-		bindingCompactionTriggerPoint(chatTrigger, organizationTrigger);
+		handoffPoint ??
+		(chatTrigger &&
+			bindingCompactionTriggerPoint(chatTrigger, organizationTrigger));
 	const isCompactionPointReachable =
 		compactionPoint !== undefined &&
 		!isCompactionPointBeyondWindow(compactionPoint, contextLimit);
@@ -138,7 +152,8 @@ const CompactionContextCell: React.FC<CompactionContextCellProps> = ({
 				)}
 				{isCompactionPointReachable && (
 					<span className="text-2xs text-content-secondary">
-						Compacts at ~{formatContextLimit(compactionPoint)}
+						{handoffPoint === undefined ? "Compacts" : "Handoff target"} at ~
+						{formatContextLimit(compactionPoint)}
 					</span>
 				)}
 			</div>
@@ -152,6 +167,8 @@ type EffectiveCompactionThresholdProps = {
 	organizationTrigger: OrganizationCompactionTrigger | undefined;
 	organizationTriggerPercentLabel: string | undefined;
 	isOrganizationPointBeyondWindow: boolean;
+	isTokenBudget: boolean;
+	handoffPoint: number | undefined;
 };
 
 const EffectiveCompactionThreshold: React.FC<
@@ -162,8 +179,14 @@ const EffectiveCompactionThreshold: React.FC<
 	organizationTrigger,
 	organizationTriggerPercentLabel,
 	isOrganizationPointBeyondWindow,
+	isTokenBudget,
+	handoffPoint,
 }) => {
-	const off = <span className="text-content-secondary">Off</span>;
+	const off = (
+		<span className="text-content-secondary">
+			{isTokenBudget ? rolloverDisabledLabel : "Off"}
+		</span>
+	);
 
 	if (
 		chatTrigger !== undefined &&
@@ -229,12 +252,20 @@ const EffectiveCompactionThreshold: React.FC<
 		);
 	}
 
+	// The handoff target is floored and clamped, so it can differ from the
+	// typed threshold.
+	const effectivePercent =
+		handoffPoint === undefined
+			? chatTrigger?.thresholdPercent
+			: compactionPointAsPercent(handoffPoint, modelConfig.context_limit);
+
 	return (
 		<TableCell className="w-0 whitespace-nowrap tabular-nums">
 			{chatTrigger &&
 				(chatTrigger.thresholdPercent >= compactionDisabledThresholdPercent
 					? off
-					: `${chatTrigger.thresholdPercent}%`)}
+					: effectivePercent !== undefined &&
+						`${formatCompactionPercent(effectivePercent)}%`)}
 		</TableCell>
 	);
 };
@@ -249,6 +280,7 @@ type CompactionThresholdRowProps = {
 	organizationName: string;
 	organizationTrigger: OrganizationCompactionTrigger | undefined;
 	organizationOverrideNotLoaded: boolean;
+	isTokenBudget: boolean;
 	onDraftChange: (value: string) => void;
 	onReset: () => void;
 };
@@ -263,6 +295,7 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 	organizationName,
 	organizationTrigger,
 	organizationOverrideNotLoaded,
+	isTokenBudget,
 	onDraftChange,
 	onReset,
 }) => {
@@ -296,7 +329,10 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 
 	let disablingCompactionWarning =
 		"Setting 100% turns off automatic compaction for this model.";
-	if (
+	if (isTokenBudget) {
+		disablingCompactionWarning =
+			"Setting 100% turns off automatic rollover for this model.";
+	} else if (
 		organizationTriggerPercentLabel !== undefined &&
 		!isOrganizationPointBeyondWindow
 	) {
@@ -318,6 +354,12 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 					thresholdPercent: effectiveThresholdPercent,
 					contextLimit: modelConfig.context_limit,
 				};
+	const handoffPoint =
+		isTokenBudget &&
+		effectiveThresholdPercent !== undefined &&
+		effectiveThresholdPercent < compactionDisabledThresholdPercent
+			? modelHandoffTargetPoint(modelConfig, effectiveThresholdPercent)
+			: undefined;
 
 	return (
 		<TableRow>
@@ -349,6 +391,7 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 				contextLimit={modelConfig.context_limit}
 				chatTrigger={chatTrigger}
 				organizationTrigger={organizationTrigger}
+				handoffPoint={handoffPoint}
 			/>
 			<TableCell className="w-0 whitespace-nowrap tabular-nums">
 				{modelConfig.compression_threshold}%
@@ -359,7 +402,7 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 						<TooltipTrigger asChild>
 							<div className="relative">
 								<Input
-									aria-label={`${modelName} compaction threshold for ${organizationName}`}
+									aria-label={`${modelName} ${isTokenBudget ? "handoff target" : "compaction threshold"} for ${organizationName}`}
 									aria-invalid={isInvalid || undefined}
 									type="text"
 									min={0}
@@ -434,6 +477,8 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 				organizationTrigger={organizationTrigger}
 				organizationTriggerPercentLabel={organizationTriggerPercentLabel}
 				isOrganizationPointBeyondWindow={isOrganizationPointBeyondWindow}
+				isTokenBudget={isTokenBudget}
+				handoffPoint={handoffPoint}
 			/>
 		</TableRow>
 	);
@@ -454,7 +499,9 @@ export const UserCompactionThresholdSettings: React.FC<
 	thresholdsError,
 	onSaveThreshold,
 	onResetThreshold,
+	compactionStrategy,
 }) => {
+	const isTokenBudget = compactionStrategy === "token_budget";
 	const [drafts, setDrafts] = useState<Record<string, string>>({});
 	const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 	const [pendingModels, setPendingModels] = useState<Set<string>>(new Set());
@@ -639,6 +686,7 @@ export const UserCompactionThresholdSettings: React.FC<
 					compactionTriggersByOrganizationID.size > 0 ||
 					compactionTriggerLoadErrors.length > 0
 				}
+				isTokenBudget={isTokenBudget}
 			/>
 			{thresholdsError != null && <ErrorAlert error={thresholdsError} />}
 			{modelsError != null && <ErrorAlert error={modelsError} />}
@@ -685,7 +733,9 @@ export const UserCompactionThresholdSettings: React.FC<
 							<TableHead>Model</TableHead>
 							<TableHead className="whitespace-nowrap">Context</TableHead>
 							<TableHead className="whitespace-nowrap">Default</TableHead>
-							<TableHead className="whitespace-nowrap">Threshold</TableHead>
+							<TableHead className="whitespace-nowrap">
+								{isTokenBudget ? "Handoff target" : "Threshold"}
+							</TableHead>
 							<TableHead className="whitespace-nowrap">Effective</TableHead>
 						</TableRow>
 					</TableHeader>
@@ -719,6 +769,7 @@ export const UserCompactionThresholdSettings: React.FC<
 									organizationOverrideNotLoaded={organizationIDsWithLoadErrors.has(
 										modelConfig.organization_id,
 									)}
+									isTokenBudget={isTokenBudget}
 									onDraftChange={(value) => {
 										setDrafts((currentDrafts) => ({
 											...currentDrafts,

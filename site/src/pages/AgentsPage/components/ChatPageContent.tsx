@@ -18,6 +18,7 @@ import { resolveChatCompactionThreshold } from "../compactionTriggers";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
+import { useUserCompactionStrategy } from "../hooks/useUserCompactionStrategy";
 import {
 	isWorkspaceUploadInProgress,
 	useWorkspaceFileUploads,
@@ -391,15 +392,18 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const modelOverridesQuery = useQuery(
 		organizationChatModelOverrides(organizationId),
 	);
-	const compactionThreshold = modelOverridesQuery.isPending
-		? undefined
-		: resolveChatCompactionThreshold(
-				chat.last_model_config_id,
-				thresholdsQuery.data?.thresholds,
-				modelCatalog?.models,
-				providerInfoByIDFromDescriptors(modelCatalog?.providers),
-				modelOverridesQuery,
-			);
+	const { strategy: compactionStrategy } = useUserCompactionStrategy();
+	const compactionThreshold =
+		modelOverridesQuery.isPending || compactionStrategy === undefined
+			? undefined
+			: resolveChatCompactionThreshold(
+					chat.last_model_config_id,
+					thresholdsQuery.data?.thresholds,
+					modelCatalog?.models,
+					providerInfoByIDFromDescriptors(modelCatalog?.providers),
+					modelOverridesQuery,
+					compactionStrategy,
+				);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const queuedMessages = useChatSelector(store, selectQueuedMessages);

@@ -28,9 +28,18 @@ export type ResolvedCompactionThreshold =
 			readonly source: "organization";
 			// Token count that triggers organization compaction.
 			readonly pointTokens: number;
+	  }
+	| {
+			readonly source: "handoff";
+			readonly percent: number;
+			// Undefined when the model's window is unknown, so no handoff fires.
+			readonly pointTokens: number | undefined;
 	  };
 
 export const compactionDisabledThresholdPercent = 100;
+
+/** Shown for a 100% handoff target, where chatd never rolls over on its own. */
+export const rolloverDisabledLabel = "Automatic rollover disabled";
 
 // Mirrors chatd compactionOverrideWindowPercent. The remaining 20% is target
 // headroom for the summary prompt and summary, not a guaranteed fit.
@@ -50,6 +59,46 @@ const isCompactionTriggerEnabled = (trigger: CompactionTrigger) =>
 
 const compactionTriggerPoint = (trigger: CompactionTrigger) =>
 	(trigger.contextLimit * trigger.thresholdPercent) / 100;
+
+// Mirrors chatd newContextWindowBudget (keep in sync with
+// TestNewContextWindowBudget).
+const defaultChatMaxOutputTokens = 32_000;
+const finalHandoffReserveTokens = 16_000;
+const minHandoffThresholdPercent = 10;
+
+const handoffTargetPoint = (
+	contextLimit: number,
+	thresholdPercent: number,
+	outputCap: number,
+): number => {
+	const usableLimit =
+		contextLimit - Math.min(outputCap, Math.floor(contextLimit / 4));
+	const finalPoint = Math.max(
+		usableLimit - finalHandoffReserveTokens,
+		Math.ceil(usableLimit / 2),
+	);
+	const thresholdPoint = compactionTriggerPoint({
+		contextLimit,
+		thresholdPercent: Math.max(thresholdPercent, minHandoffThresholdPercent),
+	});
+	return Math.min(Math.floor(thresholdPoint), finalPoint);
+};
+
+/**
+ * Token count at which chatd asks the agent to hand off under token budget,
+ * or undefined when the model's window is unknown.
+ */
+export const modelHandoffTargetPoint = (
+	model: TypesGen.ChatModel,
+	thresholdPercent: number,
+): number | undefined =>
+	model.context_limit > 0
+		? handoffTargetPoint(
+				model.context_limit,
+				thresholdPercent,
+				model.model_config?.max_output_tokens ?? defaultChatMaxOutputTokens,
+			)
+		: undefined;
 
 // Mirrors chatd (keep in sync with TestBindingCompactionTriggerSource): a
 // disabled organization trigger yields chat, a disabled chat trigger yields
@@ -189,14 +238,15 @@ export const isCompactionPointBeyondWindow = (
 	contextLimit: number,
 ) => contextLimit > 0 && point > contextLimit;
 
-// An initial overrides failure keeps the chat threshold but flags it; a failed
-// background refetch keeps using the cached overrides.
+// Under summarize, an initial overrides failure keeps the chat threshold but
+// flags it; a failed background refetch keeps using the cached overrides.
 export const resolveChatCompactionThreshold = (
 	modelID: string,
 	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
 	models: readonly TypesGen.ChatModel[] | undefined,
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
 	overrides: OverridesQueryState,
+	strategy: TypesGen.ChatCompactionStrategy,
 ): ResolvedCompactionThreshold | undefined => {
 	if (!models) {
 		return undefined;
@@ -211,6 +261,15 @@ export const resolveChatCompactionThreshold = (
 	);
 	const thresholdPercent =
 		userOverride?.threshold_percent ?? config.compression_threshold;
+	// chatd never compacts automatically under token budget, so the
+	// organization override does not apply.
+	if (strategy === "token_budget") {
+		return {
+			source: "handoff",
+			percent: thresholdPercent,
+			pointTokens: modelHandoffTargetPoint(config, thresholdPercent),
+		};
+	}
 	const organizationTrigger = resolveOrganizationCompactionTrigger(
 		compactionOverrideModelConfigID(overrides.data),
 		models,
@@ -251,6 +310,22 @@ export const compactionThresholdLabel = (
 	compaction: ResolvedCompactionThreshold,
 	contextLimit: number,
 ): string | undefined => {
+	if (compaction.source === "handoff") {
+		if (compaction.percent >= compactionDisabledThresholdPercent) {
+			return rolloverDisabledLabel;
+		}
+		const { pointTokens } = compaction;
+		if (
+			pointTokens === undefined ||
+			isCompactionPointBeyondWindow(pointTokens, contextLimit)
+		) {
+			return undefined;
+		}
+		const percent = compactionPointAsPercent(pointTokens, contextLimit);
+		return percent === undefined
+			? undefined
+			: `Handoff target: ${formatCompactionPercent(percent)}%`;
+	}
 	if (compaction.source === "organization") {
 		const percent = compactionPointAsPercent(
 			compaction.pointTokens,
