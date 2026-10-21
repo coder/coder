@@ -200,7 +200,7 @@ describe("Response", () => {
 							Enable files
 						</button>
 						<WorkspaceFilesContext.Provider value={enabled ? files : undefined}>
-							<Response>{"Open /home/coder/coder/go.mod now."}</Response>
+							<Response>Open /home/coder/coder/go.mod now.</Response>
 						</WorkspaceFilesContext.Provider>
 					</>
 				);

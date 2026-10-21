@@ -1,7 +1,7 @@
 import { isAxiosError } from "axios";
 import { cn } from "cn";
 import { LoaderIcon } from "lucide-react";
-import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "react-query";
 import type { WorkspaceAgentFindFilesResult } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
@@ -19,14 +19,18 @@ type FileMentionProps = {
 	/** Absolute, `~/`-prefixed, or relative path without a line suffix. */
 	path: string;
 	line?: number;
-	children: ReactNode;
+	children: React.ReactNode;
 };
 
 /**
  * A file path mentioned in chat text. Clicking opens the file; relative
  * paths are resolved against the chat's repositories first.
  */
-export const FileMention: FC<FileMentionProps> = ({ path, line, children }) => {
+export const FileMention: React.FC<FileMentionProps> = ({
+	path,
+	line,
+	children,
+}) => {
 	const files = useWorkspaceFiles();
 	const queryClient = useQueryClient();
 	const [pending, setPending] = useState(false);
@@ -38,8 +42,9 @@ export const FileMention: FC<FileMentionProps> = ({ path, line, children }) => {
 	const lookupRef = useRef(0);
 	const agentId = files?.agentId;
 	useEffect(() => {
+		const lookups = lookupRef;
 		return () => {
-			lookupRef.current++;
+			lookups.current++;
 			setPending(false);
 			setMatches([]);
 		};
@@ -79,6 +84,7 @@ export const FileMention: FC<FileMentionProps> = ({ path, line, children }) => {
 						: result.absolute_path === relativePath ||
 							result.absolute_path.endsWith(`/${relativePath}`)),
 			);
+			setPending(false);
 			if (found.length === 1) {
 				files.openFile(found[0].absolute_path, { line });
 			} else if (found.length > 1) {
@@ -90,14 +96,11 @@ export const FileMention: FC<FileMentionProps> = ({ path, line, children }) => {
 			if (lookup !== lookupRef.current) {
 				return;
 			}
+			setPending(false);
 			if (isAxiosError(error) && error.response?.status === 404) {
 				toast.error("Update the workspace agent to open files");
 			} else {
 				toast.error(getErrorMessage(error, `Failed to find ${path}.`));
-			}
-		} finally {
-			if (lookup === lookupRef.current) {
-				setPending(false);
 			}
 		}
 	};
