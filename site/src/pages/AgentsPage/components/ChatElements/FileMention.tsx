@@ -1,9 +1,10 @@
+import { isAxiosError } from "axios";
 import { cn } from "cn";
 import { LoaderIcon } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "react-query";
 import type { WorkspaceAgentFindFilesResult } from "#/api/api";
-import { getErrorMessage, isApiError } from "#/api/errors";
+import { getErrorMessage } from "#/api/errors";
 import { workspaceAgentFindFiles } from "#/api/queries/workspaceFiles";
 import {
 	Popover,
@@ -32,6 +33,17 @@ export const FileMention: FC<FileMentionProps> = ({ path, line, children }) => {
 	const [matches, setMatches] = useState<
 		readonly WorkspaceAgentFindFilesResult[]
 	>([]);
+	// Identifies the latest lookup; unmounting or a new agent or path makes
+	// an in-flight lookup stale so it neither opens a file nor toasts.
+	const lookupRef = useRef(0);
+	const agentId = files?.agentId;
+	useEffect(() => {
+		return () => {
+			lookupRef.current++;
+			setPending(false);
+			setMatches([]);
+		};
+	}, [agentId, path]);
 
 	if (!files) {
 		return children;
@@ -51,10 +63,14 @@ export const FileMention: FC<FileMentionProps> = ({ path, line, children }) => {
 			roots = files.repoRoots;
 		}
 		setPending(true);
+		const lookup = ++lookupRef.current;
 		try {
 			const { results } = await queryClient.fetchQuery(
 				workspaceAgentFindFiles(files.agentId, roots, relativePath),
 			);
+			if (lookup !== lookupRef.current) {
+				return;
+			}
 			const found = results.filter(
 				(result) =>
 					!result.is_dir &&
@@ -71,13 +87,18 @@ export const FileMention: FC<FileMentionProps> = ({ path, line, children }) => {
 				toast.error(`No file matching ${path} in this chat's repositories`);
 			}
 		} catch (error) {
-			if (isApiError(error) && error.response.status === 404) {
+			if (lookup !== lookupRef.current) {
+				return;
+			}
+			if (isAxiosError(error) && error.response?.status === 404) {
 				toast.error("Update the workspace agent to open files");
 			} else {
 				toast.error(getErrorMessage(error, `Failed to find ${path}.`));
 			}
 		} finally {
-			setPending(false);
+			if (lookup === lookupRef.current) {
+				setPending(false);
+			}
 		}
 	};
 
@@ -116,8 +137,12 @@ export const FileMention: FC<FileMentionProps> = ({ path, line, children }) => {
 					)}
 				</button>
 			</PopoverTrigger>
-			<PopoverContent align="start" className="w-auto max-w-md p-1">
-				<ul aria-label={`Files matching ${path}`} className="m-0 list-none p-0">
+			<PopoverContent
+				align="start"
+				aria-label={`Files matching ${path}`}
+				className="w-auto max-w-md p-1"
+			>
+				<ul className="m-0 list-none p-0">
 					{matches.map((match) => (
 						<li key={match.absolute_path}>
 							<button
