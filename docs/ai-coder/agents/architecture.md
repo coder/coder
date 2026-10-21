@@ -119,7 +119,7 @@ It gets the final prompt at 152,000&nbsp;tokens and rolls over at 168,000&nbsp;t
 A threshold of 100% shows as `Automatic rollover disabled`.
 No stage fires, and Coder refuses the agent's requests for a new context window.
 For a model without a context limit, Coder skips the handoff target, the final prompt, and the rollover at the usable limit.
-It still honors the agent's own requests, and it still starts a new context window when the provider rejects a request as too large.
+If its threshold is below 100%, Coder still honors the agent's own requests and still starts a new context window when the provider rejects a request as too large.
 
 Under Token budget, the agent gets 3 extra tools:
 
