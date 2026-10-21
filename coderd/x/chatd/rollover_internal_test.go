@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -220,6 +221,28 @@ func TestContextWindowID(t *testing.T) {
 	require.Equal(t, "w:10", contextWindowID([]database.ChatMessage{anchor, replay, next}))
 }
 
+func TestPreviousContextWindowID(t *testing.T) {
+	t.Parallel()
+
+	anchorRow := func(msg chatstate.Message) database.ChatMessage {
+		return database.ChatMessage{ID: 20, Role: msg.Role, Visibility: msg.Visibility, Compressed: msg.Compressed, Content: msg.Content, ContentVersion: msg.ContentVersion}
+	}
+	rollover, err := buildRolloverMessages(buildRolloverMessagesInput{
+		toolCallID: "call",
+		payload:    contextRolloverPayload{Reason: rolloverReasonModel, PreviousWindowID: "w:12"},
+	})
+	require.NoError(t, err)
+	previous, err := previousContextWindowID([]database.ChatMessage{anchorRow(rollover[0])})
+	require.NoError(t, err)
+	require.Equal(t, "w:12", previous)
+
+	summary := dbMessage(t, 20, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("summary of the earlier conversation"))
+	summary.Visibility = database.ChatMessageVisibilityModel
+	previous, err = previousContextWindowID([]database.ChatMessage{summary})
+	require.NoError(t, err)
+	require.Empty(t, previous, "only a rollover names the window it left")
+}
+
 func TestWithoutChatHistoryLeadIn(t *testing.T) {
 	t.Parallel()
 
@@ -339,6 +362,41 @@ func TestBuildRolloverMessages(t *testing.T) {
 		require.NoError(t, err)
 		require.NotContains(t, parts[0].Text, "interrupted", "a rollover before answering a new prompt interrupted nothing")
 	})
+}
+
+func TestTagUserRowsWithItemIDs(t *testing.T) {
+	t.Parallel()
+
+	request := dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("first"), codersdk.ChatMessageText("second"))
+	fileOnly := dbMessage(t, 2, database.ChatMessageRoleUser, false, codersdk.ChatMessageFile(uuid.New(), "image/png", "screenshot.png"))
+	answer := dbMessage(t, 3, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("answer"))
+	anchor := dbMessage(t, 4, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("lead-in"))
+	anchor.Visibility = database.ChatMessageVisibilityModel
+	replay := dbMessage(t, 5, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("pending"))
+	replay.Visibility = database.ChatMessageVisibilityModel
+	rows := []database.ChatMessage{request, fileOnly, answer, anchor, replay}
+	original := slices.Clone(rows)
+
+	tagged, err := tagUserRowsWithItemIDs(rows)
+	require.NoError(t, err)
+	require.Equal(t, original, rows, "the input rows are persisted elsewhere and must stay untagged")
+
+	texts := func(msg database.ChatMessage) []string {
+		parts, err := chatprompt.ParseContent(msg)
+		require.NoError(t, err)
+		var out []string
+		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeText {
+				out = append(out, part.Text)
+			}
+		}
+		return out
+	}
+	require.Equal(t, []string{"first", "second\n[id: 1]"}, texts(tagged[0]))
+	require.Equal(t, []string{"[id: 2]"}, texts(tagged[1]))
+	for _, i := range []int{2, 3, 4} {
+		require.Equal(t, rows[i], tagged[i], "row %d is not a user request chat_history can read", rows[i].ID)
+	}
 }
 
 func TestLatestChatCheckpoint(t *testing.T) {

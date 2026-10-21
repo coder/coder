@@ -2,6 +2,7 @@ package chatd_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -126,6 +127,7 @@ func TestActiveServer_ContextRollover(t *testing.T) {
 			require.Equal(t, tokenBudget, slices.Contains(anthropicToolNames(first), "new_context"))
 			require.Equal(t, tokenBudget, slices.Contains(anthropicToolNames(first), "save_checkpoint"))
 			require.Equal(t, tokenBudget, slices.Contains(anthropicToolNames(first), "chat_history"))
+			require.Equal(t, tokenBudget, strings.Contains(anthropicSystemText(t, first), "<context_window>"))
 
 			messages := chatMessages(ctx, t, db, chat.ID)
 			promptRows, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
@@ -304,8 +306,20 @@ func TestActiveServer_NewContextRollover(t *testing.T) {
 	require.Contains(t, messageText(t, anchor), "You requested this fresh window with new_context")
 	require.Contains(t, messageText(t, anchor), "<checkpoint>\ngoal: ship it\n</checkpoint>")
 
+	var userRequest database.ChatMessage
+	for _, msg := range messages {
+		if msg.Role == database.ChatMessageRoleUser && msg.Visibility == database.ChatMessageVisibilityBoth {
+			userRequest = msg
+		}
+	}
 	streams := filterAnthropicStreamingRequests(requests.all())
 	require.Len(t, streams, 2)
+	firstSystem := anthropicSystemText(t, streams[0])
+	require.Contains(t, firstSystem, "<context-window-guidance>")
+	require.Contains(t, firstSystem, "<context_window>\nCurrent context window id: w:0\n</context_window>")
+	require.Contains(t, anthropicRequestBody(t, streams[0]), fmt.Sprintf(`first request\n[id: %d]`, userRequest.ID))
+	require.Contains(t, anthropicSystemText(t, streams[1]),
+		fmt.Sprintf("<context_window>\nCurrent context window id: w:%d\nPrevious context window id: w:0\n</context_window>", anchor.ID))
 	second := anthropicRequestBody(t, streams[1])
 	require.Contains(t, second, "goal: ship it")
 	require.NotContains(t, second, "first request")
@@ -341,6 +355,19 @@ func anthropicToolNames(req chattest.AnthropicRequest) []string {
 		names = append(names, tool.Name)
 	}
 	return names
+}
+
+func anthropicSystemText(t *testing.T, req chattest.AnthropicRequest) string {
+	t.Helper()
+	var blocks []struct {
+		Text string `json:"text"`
+	}
+	require.NoError(t, json.Unmarshal(req.System, &blocks))
+	texts := make([]string, 0, len(blocks))
+	for _, block := range blocks {
+		texts = append(texts, block.Text)
+	}
+	return strings.Join(texts, "\n")
 }
 
 func rolloverBoundaryParts(t *testing.T, messages []database.ChatMessage) (calls, results []codersdk.ChatMessagePart) {
