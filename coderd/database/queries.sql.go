@@ -6930,6 +6930,42 @@ func (q *sqlQuerier) RetryChatWorkspaceFileDeliveries(ctx context.Context, arg R
 	return result.RowsAffected()
 }
 
+const retryChatWorkspaceFileDeliveriesByIDs = `-- name: RetryChatWorkspaceFileDeliveriesByIDs :execrows
+UPDATE chat_files cf
+SET
+	workspace_delivery_attempts = 0,
+	workspace_delivery_next_attempt_at = NULL,
+	workspace_delivery_error = NULL
+FROM chat_file_links cfl
+WHERE cfl.file_id = cf.id
+	AND cfl.chat_id = $1::uuid
+	AND cf.id = ANY($2::uuid[])
+	AND cf.purpose = 'workspace'::chat_file_purpose
+	AND cf.workspace_delivered_at IS NULL
+	AND (
+		cf.workspace_delivery_error IS NOT NULL
+		OR cf.workspace_delivery_next_attempt_at IS NULL
+		OR cf.workspace_delivery_next_attempt_at <= $3::timestamptz
+	)
+`
+
+type RetryChatWorkspaceFileDeliveriesByIDsParams struct {
+	ChatID  uuid.UUID   `db:"chat_id" json:"chat_id"`
+	FileIds []uuid.UUID `db:"file_ids" json:"file_ids"`
+	Now     time.Time   `db:"now" json:"now"`
+}
+
+// RetryChatWorkspaceFileDeliveriesByIDs is RetryChatWorkspaceFileDeliveries
+// limited to the given files, for a message that attaches them again after
+// delivery parked or failed them.
+func (q *sqlQuerier) RetryChatWorkspaceFileDeliveriesByIDs(ctx context.Context, arg RetryChatWorkspaceFileDeliveriesByIDsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, retryChatWorkspaceFileDeliveriesByIDs, arg.ChatID, pq.Array(arg.FileIds), arg.Now)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteChatMCPServersByChatIDExcludingSlugs = `-- name: DeleteChatMCPServersByChatIDExcludingSlugs :exec
 DELETE FROM
     chat_mcp_servers
