@@ -64,13 +64,21 @@ describe("imageNeedsResize", () => {
 
 	it("returns true for an over-budget image", () => {
 		expect(
-			imageNeedsResize(oversize("image/png", 6 * 1024 * 1024), 5 * 1024 * 1024),
+			imageNeedsResize(
+				oversize("image/png", 6 * 1024 * 1024),
+				5 * 1024 * 1024,
+				"prompt",
+			),
 		).toBe(true);
 	});
 
 	it("returns false for an under-budget image", () => {
 		expect(
-			imageNeedsResize(oversize("image/png", 1 * 1024 * 1024), 5 * 1024 * 1024),
+			imageNeedsResize(
+				oversize("image/png", 1 * 1024 * 1024),
+				5 * 1024 * 1024,
+				"prompt",
+			),
 		).toBe(false);
 	});
 
@@ -79,6 +87,7 @@ describe("imageNeedsResize", () => {
 			imageNeedsResize(
 				oversize("text/plain", 6 * 1024 * 1024),
 				5 * 1024 * 1024,
+				"prompt",
 			),
 		).toBe(false);
 	});

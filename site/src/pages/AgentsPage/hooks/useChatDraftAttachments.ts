@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { API } from "#/api/api";
-import { MaxChatFileSizeBytes } from "#/api/typesGenerated";
+import {
+	type ChatFilePurpose,
+	MaxChatFileSizeBytes,
+} from "#/api/typesGenerated";
 import { generateUUID } from "#/utils/random";
 import type { UploadState } from "../components/AgentChatInput";
 import {
 	getChatFileURL,
 	isRasterImageMediaType,
 	renameChatFileForUpload,
+	type StagedFilePurpose,
+	stagedFilePurpose,
 } from "../utils/chatAttachments";
 import {
 	clearChatDraftAttachmentRecords,
@@ -19,6 +24,7 @@ import {
 import {
 	formatAgentAttachmentTooLargeError,
 	formatAgentAttachmentUploadError,
+	maxAgentAttachmentBytes,
 	readAgentAttachmentText,
 } from "../utils/fileAttachmentLimits";
 import {
@@ -31,7 +37,9 @@ import { resizeImageToMaxBytes } from "../utils/resizeImage";
 const maxTextPreviewSize = 1024 * 1024;
 
 const pendingDraftWarning =
-	"This file is attached for now, but it could not be saved as a draft. If you leave this chat before it uploads or sends, it may be lost.";
+	"This file is attached for now, but it could not be saved as a draft. Closing or reloading the page before it uploads or sends may lose it.";
+const unsavedWorkspaceFileWarning =
+	"This file is saved as a draft once it uploads. Closing or reloading the page before then loses it.";
 const uploadedDraftWarning =
 	"This file is usable in this session, but it could not be saved as a draft.";
 
@@ -47,6 +55,7 @@ type DraftAttachmentView = {
 	previewUrl?: string;
 	previewUrlKind?: "blob" | "chatFile";
 	textContent?: string;
+	purpose?: StagedFilePurpose;
 };
 
 type UploadRegistrySnapshot = {
@@ -59,6 +68,7 @@ type UploadRegistrySnapshot = {
 	error?: string;
 	draftWarning?: string;
 	removed: boolean;
+	purpose?: StagedFilePurpose;
 };
 
 type UploadRegistrySubscriber = (snapshot: UploadRegistrySnapshot) => void;
@@ -76,6 +86,7 @@ type UploadRegistryEntry = {
 	removed: boolean;
 	uploadStarted: boolean;
 	subscribers: Set<UploadRegistrySubscriber>;
+	purpose?: StagedFilePurpose;
 };
 
 // Uploads outlive one chat page instance. The registry lets a remount rejoin
@@ -148,6 +159,7 @@ const snapshotFromEntry = (
 	error: entry.error,
 	draftWarning: entry.draftWarning,
 	removed: entry.removed,
+	purpose: entry.purpose,
 });
 
 const notifySubscribers = (entry: UploadRegistryEntry) => {
@@ -165,6 +177,7 @@ const createRegistryEntry = (
 	organizationId: string,
 	chatId: string,
 	file: File,
+	purpose?: StagedFilePurpose,
 ): UploadRegistryEntry => {
 	const existing = activeDraftUploads.get(clientId);
 	if (existing) {
@@ -180,6 +193,7 @@ const createRegistryEntry = (
 		removed: false,
 		uploadStarted: false,
 		subscribers: new Set(),
+		purpose,
 	};
 	activeDraftUploads.set(clientId, entry);
 	return entry;
@@ -239,6 +253,7 @@ const persistUploadedRecord = (
 		size: entry.file.size,
 		organizationId: entry.organizationId,
 		chatId: entry.chatId,
+		purpose: entry.purpose,
 	});
 	if (result.ok) {
 		entry.draftWarning = undefined;
@@ -254,13 +269,21 @@ const beginUpload = (entry: UploadRegistryEntry) => {
 	entry.uploadStarted = true;
 	const generation = entry.generation;
 	entry.status = "uploading";
+	if (entry.purpose) {
+		entry.draftWarning = unsavedWorkspaceFileWarning;
+	}
 	notifySubscribers(entry);
-	void persistUploadPayload(entry, generation);
+	// Workspace files can exceed what localStorage holds, so only their
+	// uploaded record is saved and a reload before then loses them.
+	if (!entry.purpose) {
+		void persistUploadPayload(entry, generation);
+	}
 	void (async () => {
 		try {
 			const result = await API.experimental.uploadChatFile(
 				entry.file,
 				entry.organizationId,
+				entry.purpose ?? "prompt",
 			);
 			if (!isCurrentGeneration(entry, generation)) {
 				return;
@@ -269,7 +292,7 @@ const beginUpload = (entry: UploadRegistryEntry) => {
 			entry.fileId = result.id;
 			entry.error = undefined;
 			persistUploadedRecord(entry, generation);
-			if (isRasterImageMediaType(entry.file.type)) {
+			if (!entry.purpose && isRasterImageMediaType(entry.file.type)) {
 				void fetch(getChatFileURL(result.id)).catch(() => undefined);
 			}
 			notifySubscribers(entry);
@@ -280,6 +303,9 @@ const beginUpload = (entry: UploadRegistryEntry) => {
 			}
 			entry.status = "error";
 			entry.error = formatAgentAttachmentUploadError(error);
+			if (entry.purpose) {
+				entry.draftWarning = undefined;
+			}
 			notifySubscribers(entry);
 			pruneTerminalRegistryEntry(entry);
 		}
@@ -303,11 +329,13 @@ const viewsFromRestored = (
 	restored.map(({ record, file }) => {
 		const status = record.status === "uploaded" ? "uploaded" : record.status;
 		const fileId = record.status === "uploaded" ? record.fileId : undefined;
+		const purpose = record.status === "uploaded" ? record.purpose : undefined;
 		return {
 			clientId: record.clientId,
 			file,
 			fileId,
 			status,
+			purpose,
 			...computePreview(file, status, fileId),
 		};
 	});
@@ -321,6 +349,7 @@ const viewFromSnapshot = (
 	status: snapshot.status,
 	error: snapshot.error,
 	draftWarning: snapshot.draftWarning,
+	purpose: snapshot.purpose,
 	...computePreview(snapshot.file, snapshot.status, snapshot.fileId),
 });
 
@@ -691,7 +720,10 @@ export function useChatDraftAttachments(
 		beginUpload(entry);
 	};
 
-	const handleAttach = (incomingFiles: File[]) => {
+	const handleAttach = (
+		incomingFiles: File[],
+		purpose: ChatFilePurpose = "prompt",
+	) => {
 		// Sanitize filenames at the boundary so chip labels, the
 		// chat-draft localStorage record, the upload header, and any
 		// downstream LLM prompt all see safe names. Already-safe
@@ -702,6 +734,8 @@ export function useChatDraftAttachments(
 		// can't relabel the error with the new provider.
 		const providerSnapshot = providerRef.current;
 		const budget = imageBudgetForProvider(providerSnapshot);
+		const viewPurpose = stagedFilePurpose(purpose);
+		const maxBytes = maxAgentAttachmentBytes(purpose);
 		const entriesToStart: UploadRegistryEntry[] = [];
 		const resizeJobs: Array<{ clientId: string; file: File }> = [];
 		const nextViews: DraftAttachmentView[] = [];
@@ -711,16 +745,17 @@ export function useChatDraftAttachments(
 				clientId,
 				file,
 				status: "pending",
+				purpose: viewPurpose,
 			};
-			const needsResize = imageNeedsResize(file, budget);
-			// Non-image files over the upload cap are rejected.
-			// Oversized images take the resize pipeline regardless;
-			// the post-resize check validates the result.
-			if (file.size > MaxChatFileSizeBytes && !needsResize) {
+			const needsResize = imageNeedsResize(file, budget, purpose);
+			// Files over the upload cap are rejected, except oversized
+			// prompt images, which take the resize pipeline; the
+			// post-resize check validates the result.
+			if (file.size > maxBytes && !needsResize) {
 				nextViews.push({
 					...baseView,
 					status: "error",
-					error: formatAgentAttachmentTooLargeError(file.size),
+					error: formatAgentAttachmentTooLargeError(file.size, purpose),
 				});
 				continue;
 			}
@@ -737,7 +772,13 @@ export function useChatDraftAttachments(
 				continue;
 			}
 			const view = { ...baseView, ...computePreview(file, "pending") };
-			const entry = createRegistryEntry(clientId, organizationId, chatId, file);
+			const entry = createRegistryEntry(
+				clientId,
+				organizationId,
+				chatId,
+				file,
+				viewPurpose,
+			);
 			subscribeToEntry(entry, subscriptionsRef, subscriber);
 			nextViews.push(view);
 			entriesToStart.push(entry);
@@ -814,6 +855,7 @@ export function useChatDraftAttachments(
 			fileId: view.fileId,
 			error: view.error,
 			draftWarning: view.draftWarning,
+			purpose: view.purpose,
 		});
 		if (view.previewUrl) {
 			previewUrls.set(view.file, view.previewUrl);

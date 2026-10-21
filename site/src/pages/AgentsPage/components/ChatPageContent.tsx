@@ -26,6 +26,7 @@ import {
 import {
 	getChatFileURL,
 	isWorkspaceFileReferencePart,
+	type StagedFilePurpose,
 } from "../utils/chatAttachments";
 import {
 	getProviderForModelOption,
@@ -250,6 +251,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 export type PendingAttachment = {
 	fileId: string;
 	mediaType: string;
+	purpose?: StagedFilePurpose;
 };
 
 export type PendingWorkspaceUpload = {

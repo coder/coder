@@ -1,5 +1,6 @@
 import {
 	AnthropicInlineImageCapBytes,
+	type ChatFilePurpose,
 	MaxChatFileSizeBytes,
 } from "#/api/typesGenerated";
 import { isRasterImageMediaType } from "./chatAttachments";
@@ -42,6 +43,18 @@ export function providerBudgetError(
 	return `Image too large for ${label} (${formatMiB(actualBytes)} MiB). Inline images must be under ${formatMiB(budgetBytes)} MiB on this provider.`;
 }
 
-export function imageNeedsResize(file: File, budget: number): boolean {
-	return isRasterImageMediaType(file.type) && file.size > budget;
+/**
+ * Whether an image must shrink to fit the provider budget. Workspace files
+ * never reach the model provider, so its image budget does not apply.
+ */
+export function imageNeedsResize(
+	file: File,
+	budget: number,
+	purpose: ChatFilePurpose,
+): boolean {
+	return (
+		purpose === "prompt" &&
+		isRasterImageMediaType(file.type) &&
+		file.size > budget
+	);
 }
