@@ -395,15 +395,23 @@ func editFilesResponse(args EditFilesArgs, resp workspacesdk.FileEditResponse, e
 	return newEditFilesBatch(args, nil).response(resp, err)
 }
 
-// editFilesBatch is the agent request for one edit_files call and the
-// files coderd rejected before sending it.
+// editFilesBatch is the agent request for one edit_files call and how
+// each of its files was handled before sending.
 type editFilesBatch struct {
 	total   int
 	request workspacesdk.FileEditRequest
-	// indexes holds the edits[i] indexes of each path in args.
-	indexes map[string][]int
-	// rejected holds the files entries coderd rejected, in file order.
-	rejected []editFilesFileResult
+	files   []editFilesBatchFile
+}
+
+// editFilesBatchFile is one path of the call, in file order.
+type editFilesBatchFile struct {
+	path string
+	// indexes holds the edits[i] indexes of every edit to the path.
+	indexes []int
+	// rejected is set when coderd rejected the file, so it was not sent.
+	rejected *editFilesFileResult
+	// sent holds the edits[i] indexes of the edits sent for the file.
+	sent []int
 }
 
 // newEditFilesBatch groups args by path and leaves out every file that
@@ -415,31 +423,33 @@ func newEditFilesBatch(args EditFilesArgs, checkPath func(path string) string) e
 			IncludeDiff:      true,
 			IndependentFiles: true,
 		},
-		indexes: make(map[string][]int),
 	}
+	indexes := make(map[string][]int)
 	for i, edit := range args.Edits {
-		batch.indexes[edit.Path] = append(batch.indexes[edit.Path], i)
+		indexes[edit.Path] = append(indexes[edit.Path], i)
 	}
 	for _, file := range GroupEditsByPath(args.Edits) {
+		f := editFilesBatchFile{path: file.Path, indexes: indexes[file.Path]}
 		if checkPath != nil {
 			if reason := checkPath(file.Path); reason != "" {
-				batch.rejected = append(batch.rejected, editFilesFileResult{
-					Path: file.Path, Status: editFilesStatusRejected, Edits: batch.indexes[file.Path], Error: reason,
-				})
+				f.rejected = &editFilesFileResult{Path: file.Path, Status: editFilesStatusRejected, Edits: f.indexes, Error: reason}
+				batch.files = append(batch.files, f)
 				continue
 			}
 		}
+		f.sent = f.indexes
 		batch.request.Files = append(batch.request.Files, file)
+		batch.files = append(batch.files, f)
 	}
 	return batch
 }
 
-// interrupted reports every file of the request as not sent.
+// interrupted reports every file as not sent.
 func (b editFilesBatch) interrupted() fantasy.ToolResponse {
-	notApplied := slices.Clone(b.rejected)
-	for _, file := range b.request.Files {
+	notApplied := make([]editFilesFileResult, 0, len(b.files))
+	for _, f := range b.files {
 		notApplied = append(notApplied, editFilesFileResult{
-			Path: file.Path, Status: editFilesStatusRejected, Edits: b.indexes[file.Path], Error: editFilesInterruptedError,
+			Path: f.path, Status: editFilesStatusRejected, Edits: f.indexes, Error: editFilesInterruptedError,
 		})
 	}
 	return editFilesToolResponse(0, b.total, nil, notApplied, notApplied)
@@ -450,66 +460,66 @@ func (b editFilesBatch) interrupted() fantasy.ToolResponse {
 // nothing: it answers a failure with an error and nothing written, and
 // a success with no per-file errors.
 func (b editFilesBatch) response(resp workspacesdk.FileEditResponse, err error) fantasy.ToolResponse {
-	notApplied := slices.Clone(b.rejected)
-	reports := slices.Clone(b.rejected)
-	var sentIndexes []int
-	for _, file := range b.request.Files {
-		sentIndexes = append(sentIndexes, b.indexes[file.Path]...)
-	}
+	var (
+		requestStatus  string
+		requestMessage string
+		sentIndexes    []int
+	)
 	if err != nil {
-		status := editFilesStatusUnknown
+		requestStatus = editFilesStatusUnknown
 		if agentWroteNothing(err, len(b.request.Files)) {
-			status = editFilesStatusRejected
+			requestStatus = editFilesStatusRejected
 		}
-		message := workspacetools.AgentAPIErrorMessage(err)
-		for _, file := range b.request.Files {
-			result := editFilesFileResult{Path: file.Path, Status: status, Edits: b.indexes[file.Path], Error: message}
-			notApplied = append(notApplied, result)
-			if status == editFilesStatusUnknown {
-				reports = append(reports, result)
-			}
-		}
-		if status == editFilesStatusRejected {
-			if len(b.request.Files) == 1 {
-				reports = append(reports, notApplied[len(notApplied)-1])
-			} else {
-				// An error answers the whole request, so the message
-				// lists every sent edit in one line.
-				reports = append(reports, editFilesFileResult{Status: editFilesStatusRejected, Edits: sentIndexes, Error: message})
-			}
-		}
-		return editFilesToolResponse(0, b.total, nil, notApplied, reports)
+		requestMessage = workspacetools.AgentAPIErrorMessage(err)
 	}
-
 	results := make(map[string]workspacesdk.FileEditResult, len(resp.Files))
 	for _, file := range resp.Files {
 		results[file.Path] = file
 	}
-	var applied []editFilesFileResult
+
+	var applied, notApplied, reports []editFilesFileResult
+	reject := func(result editFilesFileResult) {
+		notApplied = append(notApplied, result)
+		reports = append(reports, result)
+	}
 	appliedEdits := 0
-	for _, file := range b.request.Files {
-		indexes := b.indexes[file.Path]
-		// Agents that predate per-file results return none on success.
-		if len(resp.Files) == 0 {
-			applied = append(applied, editFilesFileResult{Path: file.Path, Status: editFilesStatusApplied})
-			appliedEdits += len(indexes)
+	for _, f := range b.files {
+		if f.rejected != nil {
+			reject(*f.rejected)
 			continue
 		}
-		agentResult, reported := results[file.Path]
+		if len(f.sent) == 0 {
+			continue
+		}
+		sentIndexes = append(sentIndexes, f.sent...)
+		agentResult, reported := results[f.path]
 		switch {
+		case err != nil:
+			result := editFilesFileResult{Path: f.path, Status: requestStatus, Edits: f.sent, Error: requestMessage}
+			// An error answers the whole request; with several files
+			// the message lists their edits in one line below.
+			if requestStatus == editFilesStatusUnknown || len(b.request.Files) == 1 {
+				reject(result)
+			} else {
+				notApplied = append(notApplied, result)
+			}
+		case len(resp.Files) == 0:
+			// Agents that predate per-file results return none on
+			// success.
+			applied = append(applied, editFilesFileResult{Path: f.path, Status: editFilesStatusApplied})
+			appliedEdits += len(f.sent)
 		case !reported:
-			result := editFilesFileResult{Path: file.Path, Status: editFilesStatusUnknown, Edits: indexes, Error: editFilesUnreportedError}
-			notApplied = append(notApplied, result)
-			reports = append(reports, result)
+			reject(editFilesFileResult{Path: f.path, Status: editFilesStatusUnknown, Edits: f.sent, Error: editFilesUnreportedError})
 		case agentResult.Error != "":
-			result := editFilesFileResult{Path: file.Path, Status: editFilesStatusRejected, Edits: indexes, Error: agentResult.Error}
-			notApplied = append(notApplied, result)
-			reports = append(reports, result)
+			reject(editFilesFileResult{Path: f.path, Status: editFilesStatusRejected, Edits: f.sent, Error: agentResult.Error})
 		default:
 			diff := agentResult.Diff
-			applied = append(applied, editFilesFileResult{Path: file.Path, Status: editFilesStatusApplied, Diff: &diff})
-			appliedEdits += len(indexes)
+			applied = append(applied, editFilesFileResult{Path: f.path, Status: editFilesStatusApplied, Diff: &diff})
+			appliedEdits += len(f.sent)
 		}
+	}
+	if requestStatus == editFilesStatusRejected && len(b.request.Files) > 1 {
+		reports = append(reports, editFilesFileResult{Status: editFilesStatusRejected, Edits: sentIndexes, Error: requestMessage})
 	}
 	return editFilesToolResponse(appliedEdits, b.total, applied, notApplied, reports)
 }
