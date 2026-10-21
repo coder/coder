@@ -9552,6 +9552,92 @@ func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Ch
 	return i, err
 }
 
+const getChatContextBoundaryMessages = `-- name: GetChatContextBoundaryMessages :many
+SELECT
+    call_msg.id,
+    call_msg.created_at,
+    (call_part.part->>'tool_name')::text AS tool_name,
+    COALESCE(anchor.id, call_msg.id)::bigint AS anchor_id
+FROM
+    chat_messages call_msg
+    CROSS JOIN LATERAL (
+        SELECT
+            elements.part
+        FROM
+            jsonb_array_elements(call_msg.content) AS elements(part)
+        WHERE
+            elements.part->>'type' = 'tool-call'
+            AND elements.part->>'tool_name' IN ('chat_summarized', 'chat_cleared', 'chat_context_rollover')
+        LIMIT
+            1
+    ) call_part
+    LEFT JOIN LATERAL (
+        SELECT
+            anchor_msg.id
+        FROM
+            chat_messages anchor_msg
+        WHERE
+            anchor_msg.chat_id = call_msg.chat_id
+            AND anchor_msg.id < call_msg.id
+            AND anchor_msg.deleted = false
+            AND anchor_msg.compressed = true
+            AND anchor_msg.role = 'user'
+            AND anchor_msg.visibility = 'model'
+        ORDER BY
+            anchor_msg.id DESC
+        LIMIT
+            1
+    ) anchor ON true
+WHERE
+    call_msg.chat_id = $1::uuid
+    AND call_msg.deleted = false
+    AND call_msg.compressed = true
+    AND call_msg.role = 'assistant'
+    AND call_msg.visibility = 'user'
+    AND jsonb_typeof(call_msg.content) = 'array'
+ORDER BY
+    call_msg.id ASC
+`
+
+type GetChatContextBoundaryMessagesRow struct {
+	ID        int64     `db:"id" json:"id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	ToolName  string    `db:"tool_name" json:"tool_name"`
+	AnchorID  int64     `db:"anchor_id" json:"anchor_id"`
+}
+
+// Returns the user-visible tool-call rows of the chat's context window
+// boundaries (summaries, clears, and rollovers), oldest first. anchor_id
+// is the boundary's model-only anchor row, whose ID names the context
+// window that the boundary starts.
+func (q *sqlQuerier) GetChatContextBoundaryMessages(ctx context.Context, chatID uuid.UUID) ([]GetChatContextBoundaryMessagesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatContextBoundaryMessages, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatContextBoundaryMessagesRow
+	for rows.Next() {
+		var i GetChatContextBoundaryMessagesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.ToolName,
+			&i.AnchorID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatDiffStatusSummary = `-- name: GetChatDiffStatusSummary :one
 WITH deduped AS (
     SELECT DISTINCT ON (COALESCE(NULLIF(cds.url, ''), c.id::text))
