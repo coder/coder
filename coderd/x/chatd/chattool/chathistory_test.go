@@ -258,6 +258,11 @@ func TestChatHistory(t *testing.T) {
 		require.Len(t, item.Text, 500)
 		require.Equal(t, strings.Index(long, "needle")-120, item.StartCharOffset)
 		require.Contains(t, item.Text, "needle")
+
+		// A short snippet drops the lead-in rather than the match.
+		f.user(t, "a\U0001F600")
+		result, _ = runChatHistory(t, tool, map[string]any{"action": "search", "query": "\U0001F600", "max_chars_per_item": 2})
+		require.Equal(t, []string{"\U0001F600"}, itemTexts(result.Items))
 	})
 
 	t.Run("ProjectionOmitsReasoningAndNestedHistory", func(t *testing.T) {
@@ -335,6 +340,7 @@ func TestChatHistory(t *testing.T) {
 			{map[string]any{"action": "read_item", "item_id": "1", "role": "user"}, "filters_unsupported"},
 			{map[string]any{"action": "list_windows", "tool_name": "execute"}, "filters_unsupported"},
 			{map[string]any{"action": "list_items", "query": "needle"}, "filters_unsupported"},
+			{map[string]any{"action": "list_items", "role": "assisstant"}, "invalid_arguments"},
 			{map[string]any{"action": "search", "query": "needle", "offset_chars": 10}, "filters_unsupported"},
 			{map[string]any{"action": "list_windows", "item_id": "1"}, "filters_unsupported"},
 			{map[string]any{"action": "read_item", "item_id": "1", "limit": 5}, "filters_unsupported"},
@@ -391,6 +397,21 @@ func TestChatHistory(t *testing.T) {
 		require.Empty(t, result.Items)
 		require.True(t, result.HasMore)
 		require.Zero(t, parsed)
+	})
+
+	t.Run("TimeoutWhileProcessingRows", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		f.user(t, "a row")
+		clock := quartz.NewMock(t)
+		tool := chattool.ChatHistory(chattool.ChatHistoryOptions{DB: db, ChatID: f.chat.ID, Clock: clock, ParseContent: func(row database.ChatMessage) ([]codersdk.ChatMessagePart, error) {
+			clock.Advance(11 * time.Second)
+			return chatprompt.ParseContent(row)
+		}})
+
+		result, _ := runChatHistory(t, tool, map[string]any{"action": "search", "query": "row"})
+		require.False(t, result.Success)
+		require.Equal(t, "history_timeout", result.Error)
 	})
 
 	t.Run("Timeout", func(t *testing.T) {
