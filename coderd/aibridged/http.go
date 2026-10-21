@@ -161,9 +161,22 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 	ctx = agplaibridge.WithAttribution(ctx, attribution)
 
-	budgetResp, err := client.IsBudgetExceeded(ctx, &proto.IsBudgetExceededRequest{
-		UserId: id.String(),
-	})
+	// coderd resolves the organization once, in IsAuthorized. The budget check
+	// and the interception record both reuse it.
+	org, hasOrg, err := requestOrganizationFromAuthorization(resp)
+	if err != nil {
+		logger.Warn(ctx, "invalid authorization organization", slog.Error(err))
+		http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
+		return
+	}
+	budgetReq := &proto.IsBudgetExceededRequest{UserId: id.String()}
+	if hasOrg {
+		ctx = agplaibridge.WithRequestOrganization(ctx, org)
+		budgetReq.OrganizationId = org.ID.String()
+		logger = logger.With(slog.F("organization_id", org.ID), slog.F("organization_source", org.Source))
+	}
+
+	budgetResp, err := client.IsBudgetExceeded(ctx, budgetReq)
 	if err != nil {
 		logger.Warn(ctx, "user AI budget check failed", slog.Error(err))
 		http.Error(rw, ErrBudgetCheck.Error(), http.StatusInternalServerError)
@@ -213,4 +226,29 @@ func attributionFromAuthorization(resp *proto.IsAuthorizedResponse) (agplaibridg
 		return agplaibridge.Attribution{}, xerrors.Errorf("parse workspace ID: %w", err)
 	}
 	return agplaibridge.Attribution{WorkspaceID: workspaceID}, nil
+}
+
+// requestOrganizationFromAuthorization extracts the organization coderd
+// resolved for the request. The boolean is false when coderd resolved none.
+// An ID without a source, a source without an ID, or a malformed ID is an
+// error. The source value itself is not checked, so a newer coderd can add
+// sources without breaking this gateway.
+func requestOrganizationFromAuthorization(resp *proto.IsAuthorizedResponse) (agplaibridge.RequestOrganization, bool, error) {
+	rawID, source := resp.GetOrganizationId(), resp.GetOrganizationSource()
+	switch {
+	case rawID == "" && source == "":
+		return agplaibridge.RequestOrganization{}, false, nil
+	case rawID == "":
+		return agplaibridge.RequestOrganization{}, false, xerrors.New("organization source set without organization ID")
+	case source == "":
+		return agplaibridge.RequestOrganization{}, false, xerrors.New("organization ID set without organization source")
+	}
+	id, err := uuid.Parse(rawID)
+	if err != nil {
+		return agplaibridge.RequestOrganization{}, false, xerrors.Errorf("parse organization ID: %w", err)
+	}
+	if id == uuid.Nil {
+		return agplaibridge.RequestOrganization{}, false, xerrors.New("organization ID is the nil UUID")
+	}
+	return agplaibridge.RequestOrganization{ID: id, Source: source}, true, nil
 }
