@@ -1472,6 +1472,9 @@ func (s *taskStarter) requestContextHandoff(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
+	// Seed the turn's debug run now: after this commit, the newest user
+	// row is the model-only handoff prompt.
+	input.DebugTurn.Ensure(ctx, prepared.Chat, prepared.Debug)
 	err = s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionContextHandoff, stepMessagesForCommit{Messages: messages}, generationCommitHooks{})
 	if err != nil {
 		return xerrors.Errorf("commit context handoff step: %w", err)

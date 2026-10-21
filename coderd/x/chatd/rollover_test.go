@@ -384,6 +384,7 @@ func TestActiveServer_ContextHandoff(t *testing.T) {
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
 		cfg.PrometheusRegistry = reg
+		cfg.AlwaysEnableDebugLogs = true
 	})
 
 	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "request 1")
@@ -443,15 +444,29 @@ func TestActiveServer_ContextHandoff(t *testing.T) {
 		})
 	}
 
-	// After a switch to Summarize, the window keeps its handoff prompt
-	// rows, but the prompt must not ask for tools that are no longer
-	// offered.
-	updateChatModelCompressionThreshold(t, db, model, 100, 90)
-	require.NoError(t, db.UpsertUserChatCompactionStrategy(ctx, database.UpsertUserChatCompactionStrategyParams{
-		UserID:             user.ID,
-		CompactionStrategy: string(codersdk.ChatCompactionStrategySummarize),
-	}))
-	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+	// The turn that the handoff interrupted keeps the user's request as
+	// its debug trigger, not the model-only handoff prompt.
+	var request2 database.ChatMessage
+	for _, row := range chatMessages(ctx, t, db, chat.ID) {
+		if row.Role == database.ChatMessageRoleUser && row.Visibility == database.ChatMessageVisibilityBoth && messageText(t, row) == "request 2" {
+			request2 = row
+		}
+	}
+	require.NotZero(t, request2.ID)
+	runs, err := db.GetChatDebugRunsByChatID(ctx, database.GetChatDebugRunsByChatIDParams{ChatID: chat.ID, LimitVal: 100})
+	require.NoError(t, err)
+	var triggers []int64
+	for _, run := range runs {
+		if run.Kind == string(codersdk.ChatDebugRunKindChatTurn) && run.TriggerMessageID.Valid {
+			triggers = append(triggers, run.TriggerMessageID.Int64)
+		}
+	}
+	require.Contains(t, triggers, request2.ID)
+
+	// At 100%, new_context refuses every call, so the window's handoff
+	// prompt must not keep asking for it.
+	model = updateChatModelCompressionThreshold(t, db, model, 100, 100)
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
 		CreatedBy:     user.ID,
 		ModelConfigID: model.ID,
@@ -460,12 +475,35 @@ func TestActiveServer_ContextHandoff(t *testing.T) {
 	require.NoError(t, err)
 	chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 	require.False(t, chat.LastError.Valid)
-	require.Zero(t, compactionRequests.Load())
 	streams = filterAnthropicStreamingRequests(requests.all())
 	require.Len(t, streams, 5)
 	fifth := anthropicRequestBody(t, streams[4])
 	require.Contains(t, fifth, "request 4")
 	require.NotContains(t, fifth, handoffText)
+
+	// After a switch to Summarize, the window keeps its handoff prompt
+	// rows, but the prompt must not ask for tools that are no longer
+	// offered.
+	updateChatModelCompressionThreshold(t, db, model, 100, 90)
+	require.NoError(t, db.UpsertUserChatCompactionStrategy(ctx, database.UpsertUserChatCompactionStrategyParams{
+		UserID:             user.ID,
+		CompactionStrategy: string(codersdk.ChatCompactionStrategySummarize),
+	}))
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
+		ModelConfigID: model.ID,
+		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("request 6")},
+	})
+	require.NoError(t, err)
+	chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+	require.False(t, chat.LastError.Valid)
+	require.Zero(t, compactionRequests.Load())
+	streams = filterAnthropicStreamingRequests(requests.all())
+	require.Len(t, streams, 6)
+	sixth := anthropicRequestBody(t, streams[5])
+	require.Contains(t, sixth, "request 5")
+	require.NotContains(t, sixth, handoffText)
 }
 
 func anthropicToolNames(req chattest.AnthropicRequest) []string {
