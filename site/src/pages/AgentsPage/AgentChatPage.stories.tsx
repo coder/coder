@@ -755,7 +755,6 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			result: {},
 		},
 
-		// copy_attachments_to_workspace: generic renderer with copy label
 		{
 			type: "tool-call",
 			tool_call_id: "every-copy-attachments",

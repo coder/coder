@@ -373,8 +373,8 @@ const isEditableUserMessageFileBlock = (
 	| TypesGen.ChatWorkspaceFileReferencePart
 	| TypesGen.ChatWorkspaceAttachmentPart =>
 	(block.type === "file" && isEditableAttachmentMediaType(block.media_type)) ||
-	// Workspace file bytes already live in the workspace or in Coder;
-	// editing preserves the reference (or drops it when the chip is removed).
+	// Workspace files skip the media type check: an edit only keeps or drops
+	// the reference and never sends their bytes to the model provider.
 	block.type === "workspace-file-reference" ||
 	block.type === "workspace-attachment";
 
