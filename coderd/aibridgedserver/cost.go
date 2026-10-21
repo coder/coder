@@ -89,7 +89,7 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 
 	// Resolve the effective group for attribution, independent of whether the
 	// model is priced.
-	effectiveGroup, ok, err := budget.ResolveUserEffectiveGroup(ctx, s.store, intc.InitiatorID, s.budgetPolicy)
+	effectiveGroup, ok, err := budget.ResolveUserEffectiveGroup(ctx, s.store, intc.InitiatorID, uuid.NullUUID{}, s.budgetPolicy)
 	if err != nil {
 		return tokenUsageCost{}, xerrors.Errorf("resolve effective AI group for user %q with policy %q: %w", intc.InitiatorID, s.budgetPolicy, err)
 	}

@@ -14964,8 +14964,13 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 func TestGetHighestGroupAIBudgetByUser(t *testing.T) {
 	t.Parallel()
 
+	// Each subtest uses its own database, so the cases can share this ID.
+	orgA := uuid.New()
+	scopedToA := uuid.NullUUID{UUID: orgA, Valid: true}
+
 	tests := []struct {
 		name    string
+		org     uuid.NullUUID
 		setup   func(t *testing.T, ctx context.Context, db database.Store) (userID uuid.UUID, want database.GetHighestGroupAIBudgetByUserRow)
 		wantErr error
 	}{
@@ -14984,7 +14989,7 @@ func TestGetHighestGroupAIBudgetByUser(t *testing.T) {
 				require.NoError(t, err)
 				_, err = db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: higher.ID, SpendLimitMicros: 2_000_000})
 				require.NoError(t, err)
-				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: higher.ID, SpendLimitMicros: 2_000_000}
+				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: higher.ID, SpendLimitMicros: 2_000_000, OrganizationID: org.ID}
 			},
 		},
 		{
@@ -15004,7 +15009,7 @@ func TestGetHighestGroupAIBudgetByUser(t *testing.T) {
 				require.NoError(t, err)
 				_, err = db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: higher.ID, SpendLimitMicros: 2_000_000})
 				require.NoError(t, err)
-				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: higher.ID, SpendLimitMicros: 2_000_000}
+				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: higher.ID, SpendLimitMicros: 2_000_000, OrganizationID: orgB.ID}
 			},
 		},
 		{
@@ -15030,7 +15035,7 @@ func TestGetHighestGroupAIBudgetByUser(t *testing.T) {
 					UpdatedAt: dbtime.Now(),
 				})
 				require.NoError(t, err)
-				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: liveGroup.ID, SpendLimitMicros: 1_000_000}
+				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: liveGroup.ID, SpendLimitMicros: 1_000_000, OrganizationID: liveOrg.ID}
 			},
 		},
 		{
@@ -15051,7 +15056,7 @@ func TestGetHighestGroupAIBudgetByUser(t *testing.T) {
 				require.NoError(t, err)
 				_, err = db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: lateGroup.ID, SpendLimitMicros: 1_000_000})
 				require.NoError(t, err)
-				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: earlyGroup.ID, SpendLimitMicros: 1_000_000}
+				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: earlyGroup.ID, SpendLimitMicros: 1_000_000, OrganizationID: earlyOrg.ID}
 			},
 		},
 		{
@@ -15065,6 +15070,67 @@ func TestGetHighestGroupAIBudgetByUser(t *testing.T) {
 				return user.ID, database.GetHighestGroupAIBudgetByUserRow{}
 			},
 		},
+		{
+			// With an organization, only groups in that org count, even when
+			// another org has a higher limit.
+			name: "ScopedToOrg",
+			org:  scopedToA,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, database.GetHighestGroupAIBudgetByUserRow) {
+				user := dbgen.User(t, db, database.User{})
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				orgB := dbgen.Organization(t, db, database.Organization{})
+				groupA := dbgen.Group(t, db, database.Group{OrganizationID: orgA})
+				groupB := dbgen.Group(t, db, database.Group{OrganizationID: orgB.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA, UserID: user.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: groupA.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: groupB.ID, UserID: user.ID})
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: groupA.ID, SpendLimitMicros: 1_000_000})
+				require.NoError(t, err)
+				_, err = db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: groupB.ID, SpendLimitMicros: 5_000_000})
+				require.NoError(t, err)
+				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: groupA.ID, SpendLimitMicros: 1_000_000, OrganizationID: orgA}
+			},
+		},
+		{
+			// With an organization the user is not a member of, there is no
+			// budget, even with budgets elsewhere.
+			name:    "ScopedNotMember",
+			org:     scopedToA,
+			wantErr: sql.ErrNoRows,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, database.GetHighestGroupAIBudgetByUserRow) {
+				user := dbgen.User(t, db, database.User{})
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				orgB := dbgen.Organization(t, db, database.Organization{})
+				groupB := dbgen.Group(t, db, database.Group{OrganizationID: orgB.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: groupB.ID, UserID: user.ID})
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: groupB.ID, SpendLimitMicros: 5_000_000})
+				require.NoError(t, err)
+				return user.ID, database.GetHighestGroupAIBudgetByUserRow{}
+			},
+		},
+		{
+			// With a soft-deleted organization, there is no budget.
+			name:    "ScopedDeletedOrg",
+			org:     scopedToA,
+			wantErr: sql.ErrNoRows,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, database.GetHighestGroupAIBudgetByUserRow) {
+				user := dbgen.User(t, db, database.User{})
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				groupA := dbgen.Group(t, db, database.Group{OrganizationID: orgA})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: groupA.ID, UserID: user.ID})
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: groupA.ID, SpendLimitMicros: 1_000_000})
+				require.NoError(t, err)
+				err = db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+					ID:        orgA,
+					UpdatedAt: dbtime.Now(),
+				})
+				require.NoError(t, err)
+				return user.ID, database.GetHighestGroupAIBudgetByUserRow{}
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -15074,7 +15140,10 @@ func TestGetHighestGroupAIBudgetByUser(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 
 			userID, want := tt.setup(t, ctx, db)
-			got, err := db.GetHighestGroupAIBudgetByUser(ctx, userID)
+			got, err := db.GetHighestGroupAIBudgetByUser(ctx, database.GetHighestGroupAIBudgetByUserParams{
+				UserID:         userID,
+				OrganizationID: tt.org,
+			})
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				return
@@ -15301,8 +15370,13 @@ func TestGetOverBudgetUsersPerGroup(t *testing.T) {
 func TestGetUserEveryoneFallbackGroup(t *testing.T) {
 	t.Parallel()
 
+	// Each subtest uses its own database, so the cases can share this ID.
+	orgA := uuid.New()
+	scopedToA := uuid.NullUUID{UUID: orgA, Valid: true}
+
 	tests := []struct {
 		name    string
+		org     uuid.NullUUID
 		setup   func(t *testing.T, ctx context.Context, db database.Store) (userID uuid.UUID, wantGroupID uuid.UUID)
 		wantErr error
 	}{
@@ -15368,6 +15442,52 @@ func TestGetUserEveryoneFallbackGroup(t *testing.T) {
 				return user.ID, uuid.Nil
 			},
 		},
+		{
+			// With an organization, its Everyone group wins over the default
+			// org.
+			name: "ScopedNonDefaultOrg",
+			org:  scopedToA,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, uuid.UUID) {
+				defaultOrg, err := db.GetDefaultOrganization(ctx)
+				require.NoError(t, err)
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: defaultOrg.ID, UserID: user.ID, CreatedAt: dbtime.Now().Add(-time.Hour)})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA, UserID: user.ID})
+				return user.ID, orgA
+			},
+		},
+		{
+			// With an organization the user is not a member of, there is no
+			// fallback group.
+			name:    "ScopedNotMember",
+			org:     scopedToA,
+			wantErr: sql.ErrNoRows,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, uuid.UUID) {
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				orgB := dbgen.Organization(t, db, database.Organization{})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
+				return user.ID, uuid.Nil
+			},
+		},
+		{
+			// With a soft-deleted organization, there is no fallback group.
+			name:    "ScopedDeletedOrg",
+			org:     scopedToA,
+			wantErr: sql.ErrNoRows,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, uuid.UUID) {
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA, UserID: user.ID})
+				err := db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+					ID:        orgA,
+					UpdatedAt: dbtime.Now(),
+				})
+				require.NoError(t, err)
+				return user.ID, uuid.Nil
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -15377,13 +15497,115 @@ func TestGetUserEveryoneFallbackGroup(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 
 			userID, wantGroupID := tt.setup(t, ctx, db)
-			got, err := db.GetUserEveryoneFallbackGroup(ctx, userID)
+			got, err := db.GetUserEveryoneFallbackGroup(ctx, database.GetUserEveryoneFallbackGroupParams{
+				UserID:         userID,
+				OrganizationID: tt.org,
+			})
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				return
 			}
 			require.NoError(t, err)
 			require.Equal(t, wantGroupID, got)
+		})
+	}
+}
+
+func TestGetUserAIBudgetOverrideWithOrganization(t *testing.T) {
+	t.Parallel()
+
+	// setupOverride creates an org with a group, makes the user a member of
+	// both, sets the user's override on the group, and soft-deletes the org
+	// when deleted is true. Returns the override row the query should return.
+	setupOverride := func(t *testing.T, ctx context.Context, db database.Store, orgID uuid.UUID, deleted bool) database.GetUserAIBudgetOverrideWithOrganizationRow {
+		t.Helper()
+		user := dbgen.User(t, db, database.User{})
+		dbgen.Organization(t, db, database.Organization{ID: orgID})
+		group := dbgen.Group(t, db, database.Group{OrganizationID: orgID})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgID, UserID: user.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: user.ID})
+		_, err := db.UpsertUserAIBudgetOverride(ctx, database.UpsertUserAIBudgetOverrideParams{
+			UserID:           user.ID,
+			GroupID:          group.ID,
+			SpendLimitMicros: 1_000_000,
+		})
+		require.NoError(t, err)
+		if deleted {
+			err = db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+				ID:        orgID,
+				UpdatedAt: dbtime.Now(),
+			})
+			require.NoError(t, err)
+		}
+		return database.GetUserAIBudgetOverrideWithOrganizationRow{
+			UserID:           user.ID,
+			GroupID:          group.ID,
+			SpendLimitMicros: 1_000_000,
+			OrganizationID:   orgID,
+		}
+	}
+
+	// Each subtest uses its own database, so the cases can share these IDs.
+	// The override is always in overrideOrg.
+	overrideOrg := uuid.New()
+	otherOrg := uuid.New()
+
+	tests := []struct {
+		name    string
+		org     uuid.NullUUID
+		deleted bool
+		wantErr error
+	}{
+		{
+			// With no organization, the override is returned with its group's
+			// org.
+			name: "NullOrg",
+		},
+		{
+			// With no organization, an override in a soft-deleted org is still
+			// returned, as before scoping.
+			name:    "NullOrgDeletedOrg",
+			deleted: true,
+		},
+		{
+			// With the override's org, the override is returned.
+			name: "SameOrg",
+			org:  uuid.NullUUID{UUID: overrideOrg, Valid: true},
+		},
+		{
+			// With another org, the override does not apply.
+			name:    "OtherOrg",
+			org:     uuid.NullUUID{UUID: otherOrg, Valid: true},
+			wantErr: sql.ErrNoRows,
+		},
+		{
+			// With the override's org soft-deleted, the override does not
+			// apply.
+			name:    "DeletedOrg",
+			org:     uuid.NullUUID{UUID: overrideOrg, Valid: true},
+			deleted: true,
+			wantErr: sql.ErrNoRows,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			db, _ := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			want := setupOverride(t, ctx, db, overrideOrg, tt.deleted)
+			dbgen.Organization(t, db, database.Organization{ID: otherOrg})
+			got, err := db.GetUserAIBudgetOverrideWithOrganization(ctx, database.GetUserAIBudgetOverrideWithOrganizationParams{
+				UserID:         want.UserID,
+				OrganizationID: tt.org,
+			})
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, want, got)
 		})
 	}
 }
