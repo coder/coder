@@ -288,7 +288,8 @@ func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 	return editFilesTool{AgentTool: fantasy.NewAgentTool(
 		EditFilesToolName,
 		"Edit files by replacing old_text with new_text. Edits to the same"+
-			" file apply in order. If any edit fails, no file is changed.",
+			" file apply in order. If any edit to a file fails, that file is"+
+			" left unchanged; other files are still edited.",
 		func(ctx context.Context, args EditFilesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if len(args.Edits) == 0 {
 				return rejectEditFiles("Add at least one edit to edits"), nil
@@ -335,6 +336,10 @@ func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 	)}
 }
 
+// executeEditFilesTool sends every file that passes the coderd checks
+// in one agent request that applies each file on its own, so a file
+// with an error does not stop the others. Results index edits by their
+// position in args.
 func executeEditFilesTool(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
@@ -347,72 +352,270 @@ func executeEditFilesTool(
 		planPathErr    error
 		planPathLoaded bool
 	)
-	for _, edit := range args.Edits {
-		hasPlanFileName := looksLikePlanFileName(edit.Path)
-		if hasPlanFileName && !isAbsolutePath(edit.Path) {
-			return rejectEditFiles(
-				"Use the chat-specific absolute plan path; plan files must use absolute paths",
-			), nil
+	// checkPath runs the coderd checks tied to one path and returns the
+	// reason to reject that file, or "" when it passes.
+	checkPath := func(path string) string {
+		hasPlanFileName := looksLikePlanFileName(path)
+		if hasPlanFileName && !isAbsolutePath(path) {
+			return "Use the chat-specific absolute plan path; plan files must use absolute paths"
 		}
 		if resolvePlanPath == nil || !hasPlanFileName {
-			continue
+			return ""
 		}
 		if !planPathLoaded {
 			chatPath, home, planPathErr = resolvePlanPath(ctx)
 			planPathLoaded = true
 		}
-		if resp, rejected := rejectSharedPlanPath(edit.Path, home, chatPath, planPathErr); rejected {
-			return rejectEditFiles(resp.Content), nil
+		if resp, rejected := rejectSharedPlanPath(path, home, chatPath, planPathErr); rejected {
+			return resp.Content
 		}
+		return ""
 	}
-
-	request := workspacesdk.FileEditRequest{
-		Files:       GroupEditsByPath(args.Edits),
-		IncludeDiff: true,
+	// The interrupt handler can persist this result, so files not yet
+	// sent are reported as not applied; sending them now would fail and
+	// report their outcome as unknown. This check runs before the path
+	// checks so the interrupt is the reason given.
+	if ctx.Err() != nil {
+		return newEditFilesBatch(args, nil).interrupted(), nil
 	}
-	resp, err := conn.EditFiles(ctx, request)
-	return editFilesResponse(args, resp, err), nil
+	batch := newEditFilesBatch(args, checkPath)
+	if len(batch.request.Files) == 0 {
+		return batch.response(workspacesdk.FileEditResponse{}, nil), nil
+	}
+	resp, err := conn.EditFiles(ctx, batch.request)
+	return batch.response(resp, err), nil
 }
 
 // editFilesResponse renders the agent's response to the request for
-// args, whether it comes from that request or, after an interrupt, from
-// the response the agent saved for the tool call.
+// args after an interrupt, from the response the agent saved for the
+// tool call. The coderd path checks are not repeated, so a file they
+// rejected shows as unreported by the agent.
 func editFilesResponse(args EditFilesArgs, resp workspacesdk.FileEditResponse, err error) fantasy.ToolResponse {
-	if err != nil {
-		if agentWroteNothing(err, len(GroupEditsByPath(args.Edits))) {
-			return fantasy.NewTextErrorResponse(fmt.Sprintf(
-				"Applied 0 of %s: %s\nFix the failing edit and resend all edits.",
-				countEdits(len(args.Edits)), workspacetools.AgentAPIErrorMessage(err),
-			))
-		}
-		return fantasy.NewTextErrorResponse(
-			"It is unknown whether any edits were applied. " + workspacetools.AgentAPIErrorMessage(err) + "\nRe-read the files before resending edits.",
-		)
-	}
+	args.Edits = NormalizeEditPaths(args.Edits)
+	return newEditFilesBatch(args, nil).response(resp, err)
+}
 
-	result := editFilesResult{
-		Status: editFilesStatusApplied,
-		Files:  make([]editFilesFileResult, 0, len(resp.Files)),
+// editFilesBatch is the agent request for one edit_files call and the
+// files coderd rejected before sending it.
+type editFilesBatch struct {
+	total   int
+	request workspacesdk.FileEditRequest
+	// indexes holds the edits[i] indexes of each path in args.
+	indexes map[string][]int
+	// rejected holds the files entries coderd rejected, in file order.
+	rejected []editFilesFileResult
+}
+
+// newEditFilesBatch groups args by path and leaves out every file that
+// checkPath, when set, rejects.
+func newEditFilesBatch(args EditFilesArgs, checkPath func(path string) string) editFilesBatch {
+	batch := editFilesBatch{
+		total: len(args.Edits),
+		request: workspacesdk.FileEditRequest{
+			IncludeDiff:      true,
+			IndependentFiles: true,
+		},
+		indexes: make(map[string][]int),
 	}
-	for _, file := range resp.Files {
-		result.Files = append(result.Files, editFilesFileResult{
-			Path:   file.Path,
-			Status: editFilesStatusApplied,
-			Diff:   file.Diff,
+	for i, edit := range args.Edits {
+		batch.indexes[edit.Path] = append(batch.indexes[edit.Path], i)
+	}
+	for _, file := range GroupEditsByPath(args.Edits) {
+		if checkPath != nil {
+			if reason := checkPath(file.Path); reason != "" {
+				batch.rejected = append(batch.rejected, editFilesFileResult{
+					Path: file.Path, Status: editFilesStatusRejected, Edits: batch.indexes[file.Path], Error: reason,
+				})
+				continue
+			}
+		}
+		batch.request.Files = append(batch.request.Files, file)
+	}
+	return batch
+}
+
+// interrupted reports every file of the request as not sent.
+func (b editFilesBatch) interrupted() fantasy.ToolResponse {
+	notApplied := slices.Clone(b.rejected)
+	for _, file := range b.request.Files {
+		notApplied = append(notApplied, editFilesFileResult{
+			Path: file.Path, Status: editFilesStatusRejected, Edits: b.indexes[file.Path], Error: editFilesInterruptedError,
 		})
 	}
-	// The request is all or nothing, so success means every edit was
-	// applied.
-	result.Message = fmt.Sprintf("Applied %d of %s.", len(args.Edits), countEdits(len(args.Edits)))
-	return marshalToolResponse(result)
+	return editFilesToolResponse(0, b.total, nil, notApplied, notApplied)
+}
+
+// response renders the agent's response to the request. An agent that
+// predates FileEditRequest.IndependentFiles applies the request all or
+// nothing: it answers a failure with an error and nothing written, and
+// a success with no per-file errors.
+func (b editFilesBatch) response(resp workspacesdk.FileEditResponse, err error) fantasy.ToolResponse {
+	notApplied := slices.Clone(b.rejected)
+	reports := slices.Clone(b.rejected)
+	var sentIndexes []int
+	for _, file := range b.request.Files {
+		sentIndexes = append(sentIndexes, b.indexes[file.Path]...)
+	}
+	if err != nil {
+		status := editFilesStatusUnknown
+		if agentWroteNothing(err, len(b.request.Files)) {
+			status = editFilesStatusRejected
+		}
+		message := workspacetools.AgentAPIErrorMessage(err)
+		for _, file := range b.request.Files {
+			result := editFilesFileResult{Path: file.Path, Status: status, Edits: b.indexes[file.Path], Error: message}
+			notApplied = append(notApplied, result)
+			if status == editFilesStatusUnknown {
+				reports = append(reports, result)
+			}
+		}
+		if status == editFilesStatusRejected {
+			if len(b.request.Files) == 1 {
+				reports = append(reports, notApplied[len(notApplied)-1])
+			} else {
+				// An error answers the whole request, so the message
+				// lists every sent edit in one line.
+				reports = append(reports, editFilesFileResult{Status: editFilesStatusRejected, Edits: sentIndexes, Error: message})
+			}
+		}
+		return editFilesToolResponse(0, b.total, nil, notApplied, reports)
+	}
+
+	results := make(map[string]workspacesdk.FileEditResult, len(resp.Files))
+	for _, file := range resp.Files {
+		results[file.Path] = file
+	}
+	var applied []editFilesFileResult
+	appliedEdits := 0
+	for _, file := range b.request.Files {
+		indexes := b.indexes[file.Path]
+		// Agents that predate per-file results return none on success.
+		if len(resp.Files) == 0 {
+			applied = append(applied, editFilesFileResult{Path: file.Path, Status: editFilesStatusApplied})
+			appliedEdits += len(indexes)
+			continue
+		}
+		agentResult, reported := results[file.Path]
+		switch {
+		case !reported:
+			result := editFilesFileResult{Path: file.Path, Status: editFilesStatusUnknown, Edits: indexes, Error: editFilesUnreportedError}
+			notApplied = append(notApplied, result)
+			reports = append(reports, result)
+		case agentResult.Error != "":
+			result := editFilesFileResult{Path: file.Path, Status: editFilesStatusRejected, Edits: indexes, Error: agentResult.Error}
+			notApplied = append(notApplied, result)
+			reports = append(reports, result)
+		default:
+			diff := agentResult.Diff
+			applied = append(applied, editFilesFileResult{Path: file.Path, Status: editFilesStatusApplied, Diff: &diff})
+			appliedEdits += len(indexes)
+		}
+	}
+	return editFilesToolResponse(appliedEdits, b.total, applied, notApplied, reports)
+}
+
+// editFilesToolResponse builds the tool result: applied when every edit
+// was applied, partial when some were, and an error when none were.
+// notApplied holds the files entries that were not applied, and reports
+// the lines the message lists, in order.
+func editFilesToolResponse(appliedEdits, total int, applied, notApplied, reports []editFilesFileResult) fantasy.ToolResponse {
+	message := editFilesResultMessage(appliedEdits, total, reports)
+	switch {
+	case appliedEdits == total:
+		return marshalToolResponse(editFilesResult{
+			Status:  editFilesStatusApplied,
+			Message: message,
+			Files:   applied,
+		})
+	case appliedEdits > 0:
+		return marshalToolResponse(editFilesResult{
+			Status:  editFilesStatusPartial,
+			Message: message,
+			Files:   append(notApplied, applied...),
+		})
+	default:
+		return fantasy.NewTextErrorResponse(message)
+	}
+}
+
+// editFilesResultMessage counts the applied edits out of total, then
+// lists one line per entry of reports, in order, with edits of unknown
+// outcome under their own heading. An entry without a path covers
+// edits the agent rejected together with one error.
+func editFilesResultMessage(applied, total int, reports []editFilesFileResult) string {
+	var rejected, unknown []string
+	for _, file := range reports {
+		prefix := "\n- " + formatEditIndexes(file.Edits) + " (" + file.Path + "): "
+		if file.Path == "" {
+			prefix = "\n- " + formatEditIndexes(file.Edits) + ": "
+		}
+		// Each line appends a sentence to the error, so its own trailing
+		// periods and spaces are trimmed to avoid "..".
+		reason := strings.TrimRight(file.Error, ". ")
+		switch {
+		case file.Status == editFilesStatusUnknown:
+			unknown = append(unknown, prefix+reason+". Re-read "+file.Path+" before resending these edits.")
+		case file.Error == editFilesInterruptedError:
+			rejected = append(rejected, prefix+reason+".")
+		case file.Path == "":
+			rejected = append(rejected, prefix+reason+". No file was changed; fix the failing edit and resend these edits.")
+		default:
+			rejected = append(rejected, prefix+reason+". "+file.Path+" is unchanged; fix and resend only these edits.")
+		}
+	}
+	var sb strings.Builder
+	_, _ = fmt.Fprintf(&sb, "Applied %d of %s.", applied, countEdits(total))
+	// The first heading follows the count on the same line; a later one
+	// starts its own line.
+	separator := " "
+	for _, section := range []struct {
+		heading string
+		lines   []string
+	}{
+		{"Not applied:", rejected},
+		{"Unknown whether applied:", unknown},
+	} {
+		if len(section.lines) == 0 {
+			continue
+		}
+		_, _ = sb.WriteString(separator + section.heading + strings.Join(section.lines, ""))
+		separator = "\n"
+	}
+	return sb.String()
+}
+
+// editFilesInterruptedError is the error of a file that was not sent
+// because the tool call was interrupted. Nothing is known to be wrong
+// with such a file, and the user may have interrupted to stop it, so
+// its line has no resend instruction.
+const editFilesInterruptedError = "not sent because the tool call was interrupted"
+
+// editFilesUnreportedError is the error of a sent file that the agent's
+// per-file results leave out.
+const editFilesUnreportedError = "the workspace agent did not report this file"
+
+// formatEditIndexes renders indexes as "edits[1], edits[3]".
+func formatEditIndexes(indexes []int) string {
+	parts := make([]string, 0, len(indexes))
+	for _, i := range indexes {
+		parts = append(parts, fmt.Sprintf("edits[%d]", i))
+	}
+	return strings.Join(parts, ", ")
 }
 
 // editFilesNoneApplied ends every whole-call rejection.
 const editFilesNoneApplied = "No edits were applied."
 
-const editFilesStatusApplied = "applied"
+// File and result statuses in edit_files results.
+const (
+	editFilesStatusApplied  = "applied"
+	editFilesStatusPartial  = "partial"
+	editFilesStatusRejected = "rejected"
+	editFilesStatusUnknown  = "unknown"
+)
 
-// editFilesResult is the successful edit_files tool result.
+// editFilesResult is the edit_files tool result when at least one file
+// was applied. Files that were not applied come first.
 type editFilesResult struct {
 	Status  string                `json:"status"`
 	Message string                `json:"message"`
@@ -423,7 +626,14 @@ type editFilesResult struct {
 type editFilesFileResult struct {
 	Path   string `json:"path"`
 	Status string `json:"status"`
-	Diff   string `json:"diff"`
+	// Edits holds the edits[i] indexes of a file that was not applied.
+	// The agent reports one error per file without saying which edit
+	// failed, so it lists every edit of that file.
+	Edits []int  `json:"edits,omitempty"`
+	Error string `json:"error,omitempty"`
+	// Diff is the agent's diff for an applied file, nil when the agent
+	// returned no per-file result.
+	Diff *string `json:"diff,omitempty"`
 }
 
 // countEdits renders n with the noun edit, singular when n is 1.
@@ -449,9 +659,10 @@ func rejectEditFiles(reason string) fantasy.ToolResponse {
 // connection may follow a completed write. The agent writes each file
 // to a temporary file and renames it into place, so a failed
 // single-file request wrote nothing unless the agent panicked after the
-// rename. With several files, 400 and 404 come only from validation,
-// before any write, but 403 and 500 can come after earlier files were
-// written.
+// rename. With several files, 400 and 404 come only from checks that
+// run before any write, but an agent that predates
+// FileEditRequest.IndependentFiles can return 403 and 500 after earlier
+// files were written.
 func agentWroteNothing(err error, requestFiles int) bool {
 	sdkErr, ok := codersdk.AsError(err)
 	if !ok {

@@ -38,7 +38,7 @@ func TestEditFiles(t *testing.T) {
 			string(parameters))
 		assert.Equal(t, []string{"edits"}, info.Required)
 		assert.Equal(t,
-			"Edit files by replacing old_text with new_text. Edits to the same file apply in order. If any edit fails, no file is changed.",
+			"Edit files by replacing old_text with new_text. Edits to the same file apply in order. If any edit to a file fails, that file is left unchanged; other files are still edited.",
 			info.Description)
 	})
 
@@ -206,178 +206,6 @@ func TestEditFiles(t *testing.T) {
 		}
 	})
 
-	// Edits are grouped by trimmed path into one all-or-nothing agent
-	// request: files in order of first appearance, each file's edits in
-	// their original order.
-	t.Run("GroupsEditsIntoOneRequest", func(t *testing.T) {
-		t.Parallel()
-		cases := []struct {
-			name  string
-			input string
-			want  []workspacesdk.FileEdits
-		}{
-			{
-				name:  "SingleFile",
-				input: `{"edits":[{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 2","replace_all":true}]}`,
-				want: []workspacesdk.FileEdits{
-					{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{{OldText: "x := 1", NewText: "x := 2", ReplaceAll: true}}},
-				},
-			},
-			{
-				name: "MultipleFiles",
-				input: `{"edits":[` +
-					`{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 2"},` +
-					`{"path":"/repo/b.go","old_text":"foo()","new_text":"bar()"}` +
-					`]}`,
-				want: []workspacesdk.FileEdits{
-					{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{{OldText: "x := 1", NewText: "x := 2"}}},
-					{Path: "/repo/b.go", Edits: []workspacesdk.FileEdit{{OldText: "foo()", NewText: "bar()"}}},
-				},
-			},
-			{
-				name: "InterleavedAndUntrimmedPaths",
-				input: `{"edits":[` +
-					`{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 2"},` +
-					`{"path":"/repo/b.go","old_text":"foo()","new_text":"bar()"},` +
-					`{"path":" /repo/a.go\n","old_text":"y := 1","new_text":"y := 2"}` +
-					`]}`,
-				want: []workspacesdk.FileEdits{
-					{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{
-						{OldText: "x := 1", NewText: "x := 2"},
-						{OldText: "y := 1", NewText: "y := 2"},
-					}},
-					{Path: "/repo/b.go", Edits: []workspacesdk.FileEdit{{OldText: "foo()", NewText: "bar()"}}},
-				},
-			},
-		}
-		for _, tc := range cases {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-				ctrl := gomock.NewController(t)
-				mockConn := agentconnmock.NewMockAgentConn(ctrl)
-				mockConn.EXPECT().
-					EditFiles(gomock.Any(), workspacesdk.FileEditRequest{Files: tc.want, IncludeDiff: true}).
-					Return(workspacesdk.FileEditResponse{}, nil).
-					Times(1)
-				tool := chattool.EditFiles(chattool.EditFilesOptions{
-					GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
-						return mockConn, nil
-					},
-				})
-
-				resp, err := tool.Run(context.Background(), fantasy.ToolCall{
-					ID:    "call-1",
-					Name:  "edit_files",
-					Input: tc.input,
-				})
-				require.NoError(t, err)
-				assert.False(t, resp.IsError, resp.Content)
-			})
-		}
-	})
-
-	// The result says nothing was applied only when the agent's response
-	// proves it; agentWroteNothing documents which responses do.
-	t.Run("AgentErrorResult", func(t *testing.T) {
-		t.Parallel()
-		const (
-			oneFile  = `{"edits":[{"path":"/repo/a.go","old_text":"old","new_text":"new"}]}`
-			twoFiles = `{"edits":[{"path":"/repo/a.go","old_text":"old","new_text":"new"},{"path":"/repo/b.go","old_text":"foo()","new_text":"bar()"}]}`
-		)
-		agentError := func(status int, message string) error {
-			sdkErr := codersdk.NewTestError(status, "POST", "http://[fd7a::1]:4/api/v0/edit-files")
-			sdkErr.Message = message
-			return sdkErr
-		}
-		detailed := codersdk.NewTestError(http.StatusBadRequest, "POST", "http://[fd7a::1]:4/api/v0/edit-files")
-		detailed.Message = `file path must be absolute: "a.txt"`
-		detailed.Helper = "Use an absolute path."
-		detailed.Detail = "some detail"
-		detailed.Validations = []codersdk.ValidationError{{Field: "path", Detail: "must be absolute"}}
-		tests := []struct {
-			name     string
-			input    string
-			agentErr error
-			wantErr  string
-		}{
-			{
-				// Transport metadata from codersdk.Error.Error() is
-				// dropped; the agent's message, helper, detail and
-				// validations are kept.
-				name:     "BadRequestOmitsTransportNoise",
-				input:    `{"edits":[{"path":"a.txt","old_text":"old","new_text":"new"}]}`,
-				agentErr: xerrors.Errorf("do request: %w", detailed),
-				wantErr:  "Applied 0 of 1 edit: file path must be absolute: \"a.txt\": Use an absolute path.: some detail\n- path: must be absolute\nFix the failing edit and resend all edits.",
-			},
-			{
-				name:     "BadRequestSeveralFiles",
-				input:    twoFiles,
-				agentErr: agentError(http.StatusBadRequest, "edit /repo/b.go: search string not found in file"),
-				wantErr:  "Applied 0 of 2 edits: edit /repo/b.go: search string not found in file\nFix the failing edit and resend all edits.",
-			},
-			{
-				name:     "NotFoundSeveralFiles",
-				input:    twoFiles,
-				agentErr: agentError(http.StatusNotFound, "open /repo/b.go: file does not exist"),
-				wantErr:  "Applied 0 of 2 edits: open /repo/b.go: file does not exist\nFix the failing edit and resend all edits.",
-			},
-			{
-				name:     "ServerErrorOneFile",
-				input:    oneFile,
-				agentErr: agentError(http.StatusInternalServerError, "write /repo/a.go: no space left on device"),
-				wantErr:  "Applied 0 of 1 edit: write /repo/a.go: no space left on device\nFix the failing edit and resend all edits.",
-			},
-			{
-				// Two edits to one file are still a single-file request.
-				name:     "ServerErrorOneFileTwoEdits",
-				input:    `{"edits":[{"path":"/repo/a.go","old_text":"old","new_text":"new"},{"path":"/repo/a.go","old_text":"foo()","new_text":"bar()"}]}`,
-				agentErr: agentError(http.StatusInternalServerError, "write /repo/a.go: no space left on device"),
-				wantErr:  "Applied 0 of 2 edits: write /repo/a.go: no space left on device\nFix the failing edit and resend all edits.",
-			},
-			{
-				name:     "ServerErrorSeveralFiles",
-				input:    twoFiles,
-				agentErr: agentError(http.StatusInternalServerError, "write /repo/b.go: no space left on device"),
-				wantErr:  "It is unknown whether any edits were applied. write /repo/b.go: no space left on device\nRe-read the files before resending edits.",
-			},
-			{
-				name:     "ForbiddenSeveralFiles",
-				input:    twoFiles,
-				agentErr: agentError(http.StatusForbidden, "open /repo/.b.go.tmp.1234abcd: permission denied"),
-				wantErr:  "It is unknown whether any edits were applied. open /repo/.b.go.tmp.1234abcd: permission denied\nRe-read the files before resending edits.",
-			},
-			{
-				name:     "TransportError",
-				input:    oneFile,
-				agentErr: xerrors.New("do request: connection reset by peer"),
-				wantErr:  "It is unknown whether any edits were applied. do request: connection reset by peer\nRe-read the files before resending edits.",
-			},
-		}
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				t.Parallel()
-				ctrl := gomock.NewController(t)
-				mockConn := agentconnmock.NewMockAgentConn(ctrl)
-				mockConn.EXPECT().EditFiles(gomock.Any(), gomock.Any()).
-					Return(workspacesdk.FileEditResponse{}, tt.agentErr)
-				tool := chattool.EditFiles(chattool.EditFilesOptions{
-					GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
-						return mockConn, nil
-					},
-				})
-
-				resp, err := tool.Run(context.Background(), fantasy.ToolCall{
-					ID:    "call-1",
-					Name:  "edit_files",
-					Input: tt.input,
-				})
-				require.NoError(t, err)
-				assert.True(t, resp.IsError)
-				assert.Equal(t, tt.wantErr, resp.Content)
-			})
-		}
-	})
-
 	t.Run("PlanTurnRejectsNonPlanPath", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
@@ -452,7 +280,8 @@ func TestEditFiles(t *testing.T) {
 					NewText: "new",
 				}},
 			}},
-			IncludeDiff: true,
+			IncludeDiff:      true,
+			IndependentFiles: true,
 		}
 		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
@@ -493,7 +322,8 @@ func TestEditFiles(t *testing.T) {
 					NewText: "new",
 				}},
 			}},
-			IncludeDiff: true,
+			IncludeDiff:      true,
+			IndependentFiles: true,
 		}
 		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
@@ -546,14 +376,22 @@ func TestEditFiles(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			name                 string
-			input                string
-			expectedRejectedPath string
+			name  string
+			input string
+			// sentPath is a file in the batch that passes the check
+			// and is sent to the agent; empty means none.
+			sentPath    string
+			wantIsError bool
+			want        string
 		}{
 			{
-				name:                 "SingleHomeRootPlanPath",
-				input:                `{"edits":[{"path":"/Users/dev/plan.md","old_text":"old","new_text":"new"}]}`,
-				expectedRejectedPath: "/Users/dev/plan.md",
+				name:        "SingleHomeRootPlanPath",
+				input:       `{"edits":[{"path":"/Users/dev/plan.md","old_text":"old","new_text":"new"}]}`,
+				wantIsError: true,
+				want: editFilesOnlyEditRejectedMessage("/Users/dev/plan.md", sharedPlanPathResolvedMessage(
+					"/Users/dev/plan.md",
+					"/Users/dev/.coder/plans/PLAN-chat.md",
+				)),
 			},
 			{
 				name: "MultiFileBatchWithHomeRootPlanPath",
@@ -561,7 +399,15 @@ func TestEditFiles(t *testing.T) {
 					`{"path":"/Users/dev/subdir/plan.md","old_text":"old","new_text":"new"},` +
 					`{"path":"/Users/dev/plan.md","old_text":"old","new_text":"new"}` +
 					`]}`,
-				expectedRejectedPath: "/Users/dev/plan.md",
+				sentPath: "/Users/dev/subdir/plan.md",
+				want: `{"status":"partial",` +
+					`"message":"Applied 1 of 2 edits. Not applied:\n- edits[1] (/Users/dev/plan.md): ` +
+					sharedPlanPathResolvedMessage("/Users/dev/plan.md", "/Users/dev/.coder/plans/PLAN-chat.md") +
+					`. /Users/dev/plan.md is unchanged; fix and resend only these edits.",` +
+					`"files":[` +
+					`{"path":"/Users/dev/plan.md","status":"rejected","edits":[1],"error":"` +
+					sharedPlanPathResolvedMessage("/Users/dev/plan.md", "/Users/dev/.coder/plans/PLAN-chat.md") + `"},` +
+					`{"path":"/Users/dev/subdir/plan.md","status":"applied","diff":""}]}`,
 			},
 		}
 
@@ -570,6 +416,16 @@ func TestEditFiles(t *testing.T) {
 				t.Parallel()
 				ctrl := gomock.NewController(t)
 				mockConn := agentconnmock.NewMockAgentConn(ctrl)
+				if testCase.sentPath != "" {
+					mockConn.EXPECT().
+						EditFiles(gomock.Any(), workspacesdk.FileEditRequest{
+							Files:            []workspacesdk.FileEdits{{Path: testCase.sentPath, Edits: []workspacesdk.FileEdit{{OldText: "old", NewText: "new"}}}},
+							IncludeDiff:      true,
+							IndependentFiles: true,
+						}).
+						Return(workspacesdk.FileEditResponse{Files: []workspacesdk.FileEditResult{{Path: testCase.sentPath}}}, nil).
+						Times(1)
+				}
 				resolvePlanPathCalls := 0
 				tool := chattool.EditFiles(chattool.EditFilesOptions{
 					GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
@@ -587,16 +443,9 @@ func TestEditFiles(t *testing.T) {
 					Input: testCase.input,
 				})
 				require.NoError(t, err)
-				assert.True(t, resp.IsError)
+				assert.Equal(t, testCase.wantIsError, resp.IsError, resp.Content)
 				assert.Equal(t, 1, resolvePlanPathCalls)
-				assert.Equal(
-					t,
-					editFilesBatchRejectedMessage(sharedPlanPathResolvedMessage(
-						testCase.expectedRejectedPath,
-						"/Users/dev/.coder/plans/PLAN-chat.md",
-					)),
-					resp.Content,
-				)
+				assert.Equal(t, testCase.want, resp.Content)
 			})
 		}
 	})
@@ -621,7 +470,7 @@ func TestEditFiles(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.Equal(t, editFilesBatchRejectedMessage(planPathVerificationMessage("/home/coder/plan.md")), resp.Content)
+		assert.Equal(t, editFilesOnlyEditRejectedMessage("/home/coder/plan.md", planPathVerificationMessage("/home/coder/plan.md")), resp.Content)
 	})
 
 	t.Run("RejectsRelativePlanPathsWhenResolvePlanPathIsConfigured", func(t *testing.T) {
@@ -647,7 +496,7 @@ func TestEditFiles(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
 		assert.False(t, resolvePlanPathCalled)
-		assert.Equal(t, "Use the chat-specific absolute plan path; plan files must use absolute paths.\nNo edits were applied.", resp.Content)
+		assert.Equal(t, editFilesOnlyEditRejectedMessage("plan.md", "Use the chat-specific absolute plan path; plan files must use absolute paths"), resp.Content)
 	})
 
 	t.Run("PerChatPlanPathIsAllowed", func(t *testing.T) {
@@ -663,7 +512,8 @@ func TestEditFiles(t *testing.T) {
 					NewText: "new",
 				}},
 			}},
-			IncludeDiff: true,
+			IncludeDiff:      true,
+			IndependentFiles: true,
 		}
 		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
@@ -700,7 +550,8 @@ func TestEditFiles(t *testing.T) {
 					NewText: "new",
 				}},
 			}},
-			IncludeDiff: true,
+			IncludeDiff:      true,
+			IndependentFiles: true,
 		}
 		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
@@ -734,7 +585,8 @@ func TestEditFiles(t *testing.T) {
 					NewText: "new",
 				}},
 			}},
-			IncludeDiff: true,
+			IncludeDiff:      true,
+			IndependentFiles: true,
 		}
 		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
@@ -771,7 +623,8 @@ func TestEditFiles(t *testing.T) {
 					NewText: "new",
 				}},
 			}},
-			IncludeDiff: true,
+			IncludeDiff:      true,
+			IndependentFiles: true,
 		}
 		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
@@ -808,7 +661,8 @@ func TestEditFiles(t *testing.T) {
 					NewText: "new",
 				}},
 			}},
-			IncludeDiff: true,
+			IncludeDiff:      true,
+			IndependentFiles: true,
 		}
 		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
@@ -844,7 +698,8 @@ func TestEditFiles_MapsOldTextNewTextToSDK(t *testing.T) {
 					NewText: "new content",
 				}},
 			}},
-			IncludeDiff: true,
+			IncludeDiff:      true,
+			IndependentFiles: true,
 		}).
 		Return(workspacesdk.FileEditResponse{}, nil)
 
@@ -863,64 +718,285 @@ func TestEditFiles_MapsOldTextNewTextToSDK(t *testing.T) {
 	assert.False(t, resp.IsError)
 }
 
-func TestEditFiles_AppliedResult(t *testing.T) {
+// Edits are grouped by trimmed path and each file is sent in its own
+// agent request, in order of first appearance. Each file's status
+// comes from its own response, and indexes in results are flat
+// edits[i] indexes of the call.
+func TestEditFiles_IndependentFiles(t *testing.T) {
 	t.Parallel()
 
 	const (
 		diffA = "--- /repo/a.go\n+++ /repo/a.go\n@@ -1 +1 @@\n-x := 1\n+x := 2\n"
 		diffB = "--- /repo/b.go\n+++ /repo/b.go\n@@ -1 +1 @@\n-foo()\n+bar()\n"
+		// JSON-escaped forms of the diffs above.
+		diffAJSON = `--- /repo/a.go\n+++ /repo/a.go\n@@ -1 +1 @@\n-x := 1\n+x := 2\n`
+		diffBJSON = `--- /repo/b.go\n+++ /repo/b.go\n@@ -1 +1 @@\n-foo()\n+bar()\n`
+
+		editA = `{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 2"}`
+		editB = `{"path":"/repo/b.go","old_text":"foo()","new_text":"bar()"}`
+		editC = `{"path":"/repo/c.go","old_text":"a","new_text":"b"}`
 	)
+	var (
+		fileEditA = workspacesdk.FileEdit{OldText: "x := 1", NewText: "x := 2"}
+		fileEditB = workspacesdk.FileEdit{OldText: "foo()", NewText: "bar()"}
+		fileEditC = workspacesdk.FileEdit{OldText: "a", NewText: "b"}
+	)
+	agentError := func(status int, message string) error {
+		sdkErr := codersdk.NewTestError(status, "POST", "http://[fd7a::1]:4/api/v0/edit-files")
+		sdkErr.Message = message
+		return xerrors.Errorf("do request: %w", sdkErr)
+	}
+	detailed := codersdk.NewTestError(http.StatusBadRequest, "POST", "http://[fd7a::1]:4/api/v0/edit-files")
+	detailed.Message = `file path must be absolute: "a.txt"`
+	detailed.Helper = "Use an absolute path."
+	detailed.Detail = "some detail"
+
+	edits := func(files ...workspacesdk.FileEdits) []workspacesdk.FileEdits { return files }
+	result := func(path, diff string) workspacesdk.FileEditResult {
+		return workspacesdk.FileEditResult{Path: path, Diff: diff}
+	}
+	failed := func(path, message string) workspacesdk.FileEditResult {
+		return workspacesdk.FileEditResult{Path: path, Error: message}
+	}
+	results := func(files ...workspacesdk.FileEditResult) workspacesdk.FileEditResponse {
+		return workspacesdk.FileEditResponse{Files: files}
+	}
 	tests := []struct {
-		name      string
-		input     string
-		agentResp workspacesdk.FileEditResponse
-		want      string
+		name            string
+		input           string
+		resolvePlanPath func(context.Context) (string, string, error)
+		// files is the request's files; nil means no request is sent.
+		files       []workspacesdk.FileEdits
+		resp        workspacesdk.FileEditResponse
+		err         error
+		wantIsError bool
+		want        string
 	}{
 		{
-			name:  "OneFile",
-			input: `{"edits":[{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 2"}]}`,
-			agentResp: workspacesdk.FileEditResponse{Files: []workspacesdk.FileEditResult{
-				{Path: "/repo/a.go", Diff: diffA},
-			}},
-			want: `{"status":"applied","message":"Applied 1 of 1 edit.","files":[` +
-				`{"path":"/repo/a.go","status":"applied","diff":"--- /repo/a.go\n+++ /repo/a.go\n@@ -1 +1 @@\n-x := 1\n+x := 2\n"}]}`,
+			name:  "OneFileApplied",
+			input: `{"edits":[` + editA + `]}`,
+			files: edits(workspacesdk.FileEdits{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{fileEditA}}),
+			resp:  results(result("/repo/a.go", diffA)),
+			want:  `{"status":"applied","message":"Applied 1 of 1 edit.","files":[{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
 		},
 		{
-			name: "SeveralFiles",
-			input: `{"edits":[` +
-				`{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 2"},` +
-				`{"path":"/repo/b.go","old_text":"foo()","new_text":"bar()"}` +
-				`]}`,
-			agentResp: workspacesdk.FileEditResponse{Files: []workspacesdk.FileEditResult{
-				{Path: "/repo/a.go", Diff: diffA},
-				{Path: "/repo/b.go", Diff: diffB},
-			}},
+			name:  "SeveralFilesApplied",
+			input: `{"edits":[` + editA + `,` + editB + `]}`,
+			files: edits(
+				workspacesdk.FileEdits{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{fileEditA}},
+				workspacesdk.FileEdits{Path: "/repo/b.go", Edits: []workspacesdk.FileEdit{fileEditB}},
+			),
+			resp: results(result("/repo/a.go", diffA), result("/repo/b.go", diffB)),
 			want: `{"status":"applied","message":"Applied 2 of 2 edits.","files":[` +
-				`{"path":"/repo/a.go","status":"applied","diff":"--- /repo/a.go\n+++ /repo/a.go\n@@ -1 +1 @@\n-x := 1\n+x := 2\n"},` +
-				`{"path":"/repo/b.go","status":"applied","diff":"--- /repo/b.go\n+++ /repo/b.go\n@@ -1 +1 @@\n-foo()\n+bar()\n"}]}`,
+				`{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"},` +
+				`{"path":"/repo/b.go","status":"applied","diff":"` + diffBJSON + `"}]}`,
 		},
 		{
 			// An edit that changes nothing gets an empty diff from
 			// the agent.
 			name:  "EmptyDiff",
 			input: `{"edits":[{"path":"/repo/a.go","old_text":"x","new_text":"x"}]}`,
-			agentResp: workspacesdk.FileEditResponse{Files: []workspacesdk.FileEditResult{
-				{Path: "/repo/a.go"},
-			}},
-			want: `{"status":"applied","message":"Applied 1 of 1 edit.","files":[{"path":"/repo/a.go","status":"applied","diff":""}]}`,
+			files: edits(workspacesdk.FileEdits{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{{OldText: "x", NewText: "x"}}}),
+			resp:  results(result("/repo/a.go", "")),
+			want:  `{"status":"applied","message":"Applied 1 of 1 edit.","files":[{"path":"/repo/a.go","status":"applied","diff":""}]}`,
 		},
 		{
-			// Agents that predate per-file results return none. The
-			// count is of edits, so it does not depend on the files the
-			// agent reports.
-			name: "AgentWithoutPerFileResults",
+			// Agents that predate per-file results return none, so
+			// applied files carry no diff.
+			name:  "AgentWithoutPerFileResults",
+			input: `{"edits":[` + editA + `,` + editB + `,{"path":"/repo/a.go","old_text":"y := 1","new_text":"y := 2"}]}`,
+			files: edits(
+				workspacesdk.FileEdits{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{fileEditA, {OldText: "y := 1", NewText: "y := 2"}}},
+				workspacesdk.FileEdits{Path: "/repo/b.go", Edits: []workspacesdk.FileEdit{fileEditB}},
+			),
+			want: `{"status":"applied","message":"Applied 3 of 3 edits.","files":[` +
+				`{"path":"/repo/a.go","status":"applied"},{"path":"/repo/b.go","status":"applied"}]}`,
+		},
+		{
+			// A failing file does not stop later files, and its entry
+			// lists every edit of that file.
+			name:  "FailingFileDoesNotBlockOthers",
+			input: `{"edits":[` + editA + `,` + editB + `,{"path":"/repo/a.go","old_text":"y := 1","new_text":"y := 2"},` + editC + `]}`,
+			files: edits(
+				workspacesdk.FileEdits{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{fileEditA, {OldText: "y := 1", NewText: "y := 2"}}},
+				workspacesdk.FileEdits{Path: "/repo/b.go", Edits: []workspacesdk.FileEdit{fileEditB}},
+				workspacesdk.FileEdits{Path: "/repo/c.go", Edits: []workspacesdk.FileEdit{fileEditC}},
+			),
+			resp: results(
+				failed("/repo/a.go", "edit /repo/a.go: search string not found in file"),
+				result("/repo/b.go", diffB),
+				result("/repo/c.go", ""),
+			),
+			want: `{"status":"partial",` +
+				`"message":"Applied 2 of 4 edits. Not applied:\n- edits[0], edits[2] (/repo/a.go): edit /repo/a.go: search string not found in file. /repo/a.go is unchanged; fix and resend only these edits.",` +
+				`"files":[` +
+				`{"path":"/repo/a.go","status":"rejected","edits":[0,2],"error":"edit /repo/a.go: search string not found in file"},` +
+				`{"path":"/repo/b.go","status":"applied","diff":"` + diffBJSON + `"},` +
+				`{"path":"/repo/c.go","status":"applied","diff":""}]}`,
+		},
+		{
+			// Interleaved and untrimmed paths group into one file
+			// each, and rejected files are listed first.
+			name:  "InterleavedPathsMapToFlatIndexes",
+			input: `{"edits":[` + editA + `,` + editB + `,{"path":" /repo/a.go\n","old_text":"y := 1","new_text":"y := 2"},{"path":"/repo/b.go","old_text":"baz()","new_text":"qux()"}]}`,
+			files: edits(
+				workspacesdk.FileEdits{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{fileEditA, {OldText: "y := 1", NewText: "y := 2"}}},
+				workspacesdk.FileEdits{Path: "/repo/b.go", Edits: []workspacesdk.FileEdit{fileEditB, {OldText: "baz()", NewText: "qux()"}}},
+			),
+			resp: results(result("/repo/a.go", diffA), failed("/repo/b.go", "edit /repo/b.go: search string not found in file")),
+			want: `{"status":"partial",` +
+				`"message":"Applied 2 of 4 edits. Not applied:\n- edits[1], edits[3] (/repo/b.go): edit /repo/b.go: search string not found in file. /repo/b.go is unchanged; fix and resend only these edits.",` +
+				`"files":[` +
+				`{"path":"/repo/b.go","status":"rejected","edits":[1,3],"error":"edit /repo/b.go: search string not found in file"},` +
+				`{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
+		},
+		{
+			// An error without an agent response leaves every sent
+			// file's outcome unknown.
+			name:  "TransportErrorIsUnknown",
+			input: `{"edits":[` + editA + `,` + editB + `]}`,
+			files: edits(
+				workspacesdk.FileEdits{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{fileEditA}},
+				workspacesdk.FileEdits{Path: "/repo/b.go", Edits: []workspacesdk.FileEdit{fileEditB}},
+			),
+			err:         xerrors.New("do request: connection reset by peer"),
+			wantIsError: true,
+			want: "Applied 0 of 2 edits. Unknown whether applied:\n" +
+				"- edits[0] (/repo/a.go): do request: connection reset by peer. Re-read /repo/a.go before resending these edits.\n" +
+				"- edits[1] (/repo/b.go): do request: connection reset by peer. Re-read /repo/b.go before resending these edits.",
+		},
+		{
+			// A sent file the agent's per-file results leave out has an
+			// unknown outcome.
+			name:  "RejectedAndUnreportedBeforeApplied",
+			input: `{"edits":[` + editA + `,` + editB + `,` + editC + `]}`,
+			files: edits(
+				workspacesdk.FileEdits{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{fileEditA}},
+				workspacesdk.FileEdits{Path: "/repo/b.go", Edits: []workspacesdk.FileEdit{fileEditB}},
+				workspacesdk.FileEdits{Path: "/repo/c.go", Edits: []workspacesdk.FileEdit{fileEditC}},
+			),
+			resp: results(result("/repo/a.go", diffA), failed("/repo/b.go", "open /repo/b.go: file does not exist")),
+			want: `{"status":"partial",` +
+				`"message":"Applied 1 of 3 edits. Not applied:\n- edits[1] (/repo/b.go): open /repo/b.go: file does not exist. /repo/b.go is unchanged; fix and resend only these edits.\n` +
+				`Unknown whether applied:\n- edits[2] (/repo/c.go): the workspace agent did not report this file. Re-read /repo/c.go before resending these edits.",` +
+				`"files":[` +
+				`{"path":"/repo/b.go","status":"rejected","edits":[1],"error":"open /repo/b.go: file does not exist"},` +
+				`{"path":"/repo/c.go","status":"unknown","edits":[2],"error":"the workspace agent did not report this file"},` +
+				`{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
+		},
+		{
+			name:  "NothingApplied",
+			input: `{"edits":[` + editA + `,` + editB + `]}`,
+			files: edits(
+				workspacesdk.FileEdits{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{fileEditA}},
+				workspacesdk.FileEdits{Path: "/repo/b.go", Edits: []workspacesdk.FileEdit{fileEditB}},
+			),
+			resp: results(
+				failed("/repo/a.go", "write /repo/a.go: no space left on device"),
+				failed("/repo/b.go", "open /repo/b.go: file does not exist"),
+			),
+			wantIsError: true,
+			want: "Applied 0 of 2 edits. Not applied:\n" +
+				"- edits[0] (/repo/a.go): write /repo/a.go: no space left on device. /repo/a.go is unchanged; fix and resend only these edits.\n" +
+				"- edits[1] (/repo/b.go): open /repo/b.go: file does not exist. /repo/b.go is unchanged; fix and resend only these edits.",
+		},
+		{
+			// An agent that predates independent files applies the
+			// request all or nothing and answers a failure with one
+			// error, which covers every sent edit.
+			name:  "AgentWithoutIndependentFilesRejectsAll",
+			input: `{"edits":[` + editA + `,` + editB + `]}`,
+			files: edits(
+				workspacesdk.FileEdits{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{fileEditA}},
+				workspacesdk.FileEdits{Path: "/repo/b.go", Edits: []workspacesdk.FileEdit{fileEditB}},
+			),
+			err:         agentError(http.StatusBadRequest, "edit /repo/a.go: search string not found in file"),
+			wantIsError: true,
+			want: "Applied 0 of 2 edits. Not applied:\n" +
+				"- edits[0], edits[1]: edit /repo/a.go: search string not found in file. No file was changed; fix the failing edit and resend these edits.",
+		},
+		{
+			// Such an agent can fail with 500 after writing earlier
+			// files, so every sent file's outcome is unknown.
+			name:  "AgentWithoutIndependentFilesWriteError",
+			input: `{"edits":[` + editA + `,` + editB + `]}`,
+			files: edits(
+				workspacesdk.FileEdits{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{fileEditA}},
+				workspacesdk.FileEdits{Path: "/repo/b.go", Edits: []workspacesdk.FileEdit{fileEditB}},
+			),
+			err:         agentError(http.StatusInternalServerError, "write /repo/b.go: no space left on device"),
+			wantIsError: true,
+			want: "Applied 0 of 2 edits. Unknown whether applied:\n" +
+				"- edits[0] (/repo/a.go): write /repo/b.go: no space left on device. Re-read /repo/a.go before resending these edits.\n" +
+				"- edits[1] (/repo/b.go): write /repo/b.go: no space left on device. Re-read /repo/b.go before resending these edits.",
+		},
+		{
+			// Transport metadata from codersdk.Error.Error() is
+			// dropped; the agent's message, helper and detail are kept.
+			// With one file sent, the error is that file's.
+			name:        "AgentErrorOmitsTransportNoise",
+			input:       `{"edits":[{"path":"a.txt","old_text":"x := 1","new_text":"x := 2"}]}`,
+			files:       edits(workspacesdk.FileEdits{Path: "a.txt", Edits: []workspacesdk.FileEdit{fileEditA}}),
+			err:         xerrors.Errorf("do request: %w", detailed),
+			wantIsError: true,
+			want:        "Applied 0 of 1 edit. Not applied:\n- edits[0] (a.txt): file path must be absolute: \"a.txt\": Use an absolute path.: some detail. a.txt is unchanged; fix and resend only these edits.",
+		},
+		{
+			name:        "OnlyUnknown",
+			input:       `{"edits":[` + editA + `]}`,
+			files:       edits(workspacesdk.FileEdits{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{fileEditA}}),
+			err:         xerrors.New("do request: connection reset by peer"),
+			wantIsError: true,
+			want: "Applied 0 of 1 edit. Unknown whether applied:\n" +
+				"- edits[0] (/repo/a.go): do request: connection reset by peer. Re-read /repo/a.go before resending these edits.",
+		},
+		{
+			// Trailing periods and spaces of an error are trimmed before a
+			// sentence is appended, so a line never has "..".
+			name:  "ErrorEndingInPeriodIsTrimmed",
+			input: `{"edits":[` + editA + `,` + editB + `]}`,
+			files: edits(
+				workspacesdk.FileEdits{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{fileEditA}},
+				workspacesdk.FileEdits{Path: "/repo/b.go", Edits: []workspacesdk.FileEdit{fileEditB}},
+			),
+			resp: results(
+				failed("/repo/a.go", "edit /repo/a.go: search string not found in file. "),
+				failed("/repo/b.go", "open /repo/b.go: permission denied.."),
+			),
+			wantIsError: true,
+			want: "Applied 0 of 2 edits. Not applied:\n" +
+				"- edits[0] (/repo/a.go): edit /repo/a.go: search string not found in file. /repo/a.go is unchanged; fix and resend only these edits.\n" +
+				"- edits[1] (/repo/b.go): open /repo/b.go: permission denied. /repo/b.go is unchanged; fix and resend only these edits.",
+		},
+		{
+			// Path-tied coderd checks leave only their file out of the
+			// request.
+			name: "PathTiedChecksRejectOnlyTheirFile",
 			input: `{"edits":[` +
-				`{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 2"},` +
-				`{"path":"/repo/b.go","old_text":"foo()","new_text":"bar()"},` +
-				`{"path":"/repo/a.go","old_text":"y := 1","new_text":"y := 2"}` +
+				`{"path":"plan.md","old_text":"a","new_text":"b"},` +
+				editA + `,` +
+				`{"path":"/home/coder/plan.md","old_text":"c","new_text":"d"}` +
 				`]}`,
-			agentResp: workspacesdk.FileEditResponse{},
-			want:      `{"status":"applied","message":"Applied 3 of 3 edits.","files":[]}`,
+			resolvePlanPath: func(context.Context) (string, string, error) {
+				return "/home/coder/.coder/plans/PLAN-chat.md", "/home/coder", nil
+			},
+			files: edits(workspacesdk.FileEdits{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{fileEditA}}),
+			resp:  results(result("/repo/a.go", diffA)),
+			want: `{"status":"partial",` +
+				`"message":"Applied 1 of 3 edits. Not applied:\n` +
+				`- edits[0] (plan.md): Use the chat-specific absolute plan path; plan files must use absolute paths. plan.md is unchanged; fix and resend only these edits.\n` +
+				`- edits[2] (/home/coder/plan.md): the plan path /home/coder/plan.md is no longer supported at the home root; use the chat-specific plan path: /home/coder/.coder/plans/PLAN-chat.md. /home/coder/plan.md is unchanged; fix and resend only these edits.",` +
+				`"files":[` +
+				`{"path":"plan.md","status":"rejected","edits":[0],"error":"Use the chat-specific absolute plan path; plan files must use absolute paths"},` +
+				`{"path":"/home/coder/plan.md","status":"rejected","edits":[2],"error":"the plan path /home/coder/plan.md is no longer supported at the home root; use the chat-specific plan path: /home/coder/.coder/plans/PLAN-chat.md"},` +
+				`{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
+		},
+		{
+			// When the coderd checks reject every file, nothing is sent.
+			name:        "EveryFileRejectedSendsNoRequest",
+			input:       `{"edits":[{"path":"plan.md","old_text":"a","new_text":"b"}]}`,
+			wantIsError: true,
+			want:        "Applied 0 of 1 edit. Not applied:\n- edits[0] (plan.md): Use the chat-specific absolute plan path; plan files must use absolute paths. plan.md is unchanged; fix and resend only these edits.",
 		},
 	}
 	for _, tt := range tests {
@@ -928,11 +1004,21 @@ func TestEditFiles_AppliedResult(t *testing.T) {
 			t.Parallel()
 			ctrl := gomock.NewController(t)
 			mockConn := agentconnmock.NewMockAgentConn(ctrl)
-			mockConn.EXPECT().EditFiles(gomock.Any(), gomock.Any()).Return(tt.agentResp, nil)
+			if tt.files != nil {
+				mockConn.EXPECT().
+					EditFiles(gomock.Any(), workspacesdk.FileEditRequest{
+						Files:            tt.files,
+						IncludeDiff:      true,
+						IndependentFiles: true,
+					}).
+					Return(tt.resp, tt.err).
+					Times(1)
+			}
 			tool := chattool.EditFiles(chattool.EditFilesOptions{
 				GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
 					return mockConn, nil
 				},
+				ResolvePlanPath: tt.resolvePlanPath,
 			})
 
 			resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -941,10 +1027,40 @@ func TestEditFiles_AppliedResult(t *testing.T) {
 				Input: tt.input,
 			})
 			require.NoError(t, err)
-			assert.False(t, resp.IsError, resp.Content)
+			assert.Equal(t, tt.wantIsError, resp.IsError, resp.Content)
 			assert.Equal(t, tt.want, resp.Content)
 		})
 	}
+
+	// A call interrupted before its request is reported as not
+	// applied, without a request or a resend instruction. The interrupt
+	// is checked before the path checks, so a plan-named file gets the
+	// interrupt reason rather than a resolver error.
+	t.Run("Interrupted", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		mockConn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+		tool := chattool.EditFiles(chattool.EditFilesOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+			ResolvePlanPath: func(context.Context) (string, string, error) {
+				return "", "", xerrors.New("workspace unavailable")
+			},
+		})
+
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "edit_files",
+			Input: `{"edits":[` + editA + `,{"path":"/home/coder/plan.md","old_text":"c","new_text":"d"}]}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError, resp.Content)
+		assert.Equal(t, "Applied 0 of 2 edits. Not applied:\n"+
+			"- edits[0] (/repo/a.go): not sent because the tool call was interrupted.\n"+
+			"- edits[1] (/home/coder/plan.md): not sent because the tool call was interrupted.", resp.Content)
+	})
 }
 
 func TestEditFiles_DecodeToolInput(t *testing.T) {
