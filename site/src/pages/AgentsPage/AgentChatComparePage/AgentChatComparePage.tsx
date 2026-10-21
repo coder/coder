@@ -2,17 +2,19 @@ import { useParams } from "react-router";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { AgentChatPage } from "../AgentChatPage/AgentChatPage";
 
-// Mounts two chats side by side in one React tree. This is the
-// benchmark scenario for chat rendering performance: two long, streaming
-// transcripts plus composer interaction on the same main thread.
+// Mounts several chats side by side in one React tree, one pane per path
+// segment after /agents/compare/. This is the benchmark scenario for chat
+// rendering performance: long, streaming transcripts plus composer
+// interaction on the same main thread.
 const AgentChatComparePage: React.FC = () => {
-	const { leftId, rightId } = useParams<{ leftId: string; rightId: string }>();
-	if (!leftId || !rightId) {
+	const { "*": splat } = useParams<{ "*": string }>();
+	const chatIds = (splat ?? "").split("/").filter(Boolean);
+	if (chatIds.length === 0) {
 		return null;
 	}
 	return (
 		<div className="flex h-full min-h-0 w-full">
-			{[leftId, rightId].map((chatId) => (
+			{chatIds.map((chatId) => (
 				<div
 					key={chatId}
 					className="flex min-w-0 flex-1 flex-col border-border border-r last:border-r-0"
