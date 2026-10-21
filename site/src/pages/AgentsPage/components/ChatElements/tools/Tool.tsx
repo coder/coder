@@ -777,7 +777,7 @@ const ChatHistoryRenderer: React.FC<ToolRendererProps> = ({
 			resultCount={resultCount}
 			hasMore={rec?.has_more === true}
 			succeeded={rec?.success === true}
-			errorCode={asString(rec?.error)}
+			resultError={asString(rec?.error)}
 			status={status}
 			isError={isError}
 			errorMessage={toolErrorMessage(result)}

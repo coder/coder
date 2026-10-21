@@ -9,15 +9,13 @@ type ToolRowStatusProps = {
 	errorMessage: string | undefined;
 };
 
-const rolloverReasonLabels = {
-	model: "Requested by the agent",
-	limit: "Usable limit reached",
-	overflow: "Provider context overflow",
-} satisfies Partial<Record<string, string>>;
-
-// Values come from persisted tool rows, so inherited keys must not match.
-const labelForOwnKey = <T,>(labels: Partial<Record<string, T>>, key: string) =>
-	Object.hasOwn(labels, key) ? labels[key] : undefined;
+// A Map because reasons come from persisted tool rows, so inherited object
+// keys must not match.
+const rolloverReasonLabels = new Map([
+	["model", "Requested by the agent"],
+	["limit", "Usable limit reached"],
+	["overflow", "Provider context overflow"],
+]);
 
 const SecondaryLabel: React.FC<{ children: React.ReactNode }> = ({
 	children,
@@ -35,7 +33,7 @@ const SecondaryLabel: React.FC<{ children: React.ReactNode }> = ({
 export const ContextRolloverTool: React.FC<
 	ToolRowStatusProps & { reason: string; checkpoint: string }
 > = ({ reason, checkpoint, ...rowStatus }) => {
-	const reasonLabel = labelForOwnKey(rolloverReasonLabels, reason);
+	const reasonLabel = rolloverReasonLabels.get(reason);
 	return (
 		<MarkdownToolRow
 			{...rowStatus}
@@ -132,6 +130,10 @@ export const NewContextTool: React.FC<
 	</ToolCall.Root>
 );
 
+// Values come from persisted tool rows, so inherited keys must not match.
+const labelForOwnKey = <T,>(labels: Partial<Record<string, T>>, key: string) =>
+	Object.hasOwn(labels, key) ? labels[key] : undefined;
+
 const chatHistoryWording = {
 	list_windows: {
 		running: "Listing context windows",
@@ -170,7 +172,7 @@ const chatHistoryErrorMessages = {
 
 /**
  * Words the header by `action` and counts results except for `read_item`,
- * both only once a result reports `success`. A nonempty `errorCode` marks
+ * both only once a result reports `success`. A nonempty `resultError` marks
  * the row failed even when the tool call succeeded, and known codes map to
  * fixed messages.
  */
@@ -183,7 +185,7 @@ export const ChatHistoryTool: React.FC<
 		hasMore: boolean;
 		succeeded: boolean;
 		/** Error code or server error message from a failed lookup, or empty on success. */
-		errorCode: string;
+		resultError: string;
 	}
 > = ({
 	action,
@@ -192,12 +194,12 @@ export const ChatHistoryTool: React.FC<
 	resultCount,
 	hasMore,
 	succeeded,
-	errorCode,
+	resultError,
 	status,
 	isError: isToolError,
 	errorMessage,
 }) => {
-	const isError = isToolError || errorCode !== "";
+	const isError = isToolError || resultError !== "";
 	const wording = labelForOwnKey(chatHistoryWording, action) ?? {
 		running: "Using chat history",
 		done: "Used chat history",
@@ -235,7 +237,7 @@ export const ChatHistoryTool: React.FC<
 			status={status}
 			isError={isError}
 			errorMessage={
-				labelForOwnKey(chatHistoryErrorMessages, errorCode) ||
+				labelForOwnKey(chatHistoryErrorMessages, resultError) ||
 				errorMessage ||
 				"Failed to read chat history"
 			}
