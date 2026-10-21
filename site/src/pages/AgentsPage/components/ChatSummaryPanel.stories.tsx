@@ -127,9 +127,9 @@ const mockAttachmentMessages: TypesGen.ChatMessage[] = [
 	}),
 ];
 
-const createAttachmentStore = () => {
+const createAttachmentStore = (messages = mockAttachmentMessages) => {
 	const store = createChatStore();
-	store.replaceMessages(mockAttachmentMessages);
+	store.replaceMessages(messages);
 	return store;
 };
 
@@ -237,12 +237,6 @@ const mockLatestMessages: TypesGen.ChatMessage[] = attachmentStepMessages({
 	result: { name: "latency-report.csv" },
 });
 
-const createLatestPageStore = () => {
-	const store = createChatStore();
-	store.replaceMessages(mockLatestMessages);
-	return store;
-};
-
 const mockEarlierScreenshot: TypesGen.ChatAttachment = {
 	...MockChatAttachment,
 	message_id: 6,
@@ -267,12 +261,13 @@ const mockEarlierUpload: TypesGen.ChatAttachment = {
 	},
 };
 
-// Only the latest page is loaded; the earlier attachments come from the
-// attachments endpoint and follow the loaded ones.
 export const WithEarlierAttachments: Story = {
 	args: { hasMoreMessages: true },
 	render: (args) => (
-		<ChatSummaryPanel {...args} store={createLatestPageStore()} />
+		<ChatSummaryPanel
+			{...args}
+			store={createAttachmentStore(mockLatestMessages)}
+		/>
 	),
 	parameters: {
 		queries: [

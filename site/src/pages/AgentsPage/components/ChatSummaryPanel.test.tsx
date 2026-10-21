@@ -33,15 +33,13 @@ const mockNewestLoadedMessage: TypesGen.ChatMessage = {
 	role: "assistant",
 };
 
-type RenderPanelOptions = {
-	isVisible?: boolean;
-	hasMoreMessages?: boolean;
-};
-
 const renderPanel = ({
 	isVisible = true,
 	hasMoreMessages = true,
-}: RenderPanelOptions = {}) => {
+}: {
+	isVisible?: boolean;
+	hasMoreMessages?: boolean;
+} = {}) => {
 	const store = createChatStore();
 	store.replaceMessages([mockOldestLoadedMessage, mockNewestLoadedMessage]);
 	renderComponent(
@@ -83,7 +81,13 @@ describe("ChatSummaryPanel attachments", () => {
 			name: "asks for attachments before the loaded page",
 			isVisible: true,
 			hasMoreMessages: true,
-			calls: [[MockChat.id, { before_id: mockOldestLoadedMessage.id }]],
+			calls: [
+				[
+					MockChat.id,
+					{ before_id: mockOldestLoadedMessage.id },
+					expect.any(AbortSignal),
+				],
+			],
 		},
 		{
 			name: "skips the request when all are loaded",
@@ -121,6 +125,7 @@ describe("ChatSummaryPanel attachments", () => {
 		expect(getChatAttachments.mock.calls[1]).toEqual([
 			MockChat.id,
 			{ before_id: mockOldestLoadedMessage.id },
+			expect.any(AbortSignal),
 		]);
 	});
 });

@@ -315,7 +315,7 @@ const NO_FILE_IDS: ReadonlySet<string> = new Set();
  * Chat files a message part references, in the order the server linked
  * them. A wait_agent result stores its recording before its thumbnail.
  */
-const partFileIds = (part: TypesGen.ChatMessagePart): string[] => {
+export const partFileIds = (part: TypesGen.ChatMessagePart): string[] => {
 	switch (part.type) {
 		case "file":
 			return part.file_id ? [part.file_id] : [];
