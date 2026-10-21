@@ -13,7 +13,10 @@ import type { AgentComposerBindings, ComposerContextValue } from "./context";
 import { useComposerEditor } from "./useComposerEditor";
 
 /** Coordinates submission and exposes the public state/actions/meta contract. */
-export function useComposerRuntime(bindings: AgentComposerBindings) {
+export function useComposerRuntime(
+	bindings: AgentComposerBindings,
+	needsSetup: boolean,
+) {
 	const {
 		onSend,
 		isDisabled,
@@ -176,11 +179,12 @@ export function useComposerRuntime(bindings: AgentComposerBindings) {
 			speechSupported: editor.speech.isSupported,
 			speechRecording: editor.speech.isRecording,
 			speechError: editor.speech.error,
+			needsSetup,
 		},
 		actions: {
 			attachFiles: files.attachFiles,
 			inlineText,
-			removeAttachment: (file) => bindings.files.onRemoveAttachment?.(file),
+			removeAttachment: bindings.files.onRemoveAttachment,
 			removeWorkspaceUpload: (id) => workspaceUploads?.onRemove(id),
 			resetPromptCycle: editor.resetPromptCycle,
 			submit,
