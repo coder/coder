@@ -5,6 +5,7 @@ import {
 	Suspense,
 	useEffect,
 	useEffectEvent,
+	useRef,
 	useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -53,12 +54,27 @@ type FileTabProps = {
 	repository: WorkspaceAgentRepoChanges | undefined;
 	draft: FileDraft | undefined;
 	onDraftChange: (path: string, update: FileDraftUpdate) => void;
+	/** Archived chats and chats owned by another user cannot edit files. */
+	readOnly: boolean;
 };
 
 const isMarkdownPath = (path: string) => /\.mdx?$/i.test(path);
 
+// Lossy decoding would show invalid UTF-8 as replacement characters and
+// write them back on save, so such files are binary. ignoreBOM keeps a BOM
+// in the buffer so it round-trips.
+const decodeUtf8 = (data: ArrayBuffer): string | undefined => {
+	try {
+		return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+			data,
+		);
+	} catch {
+		return undefined;
+	}
+};
+
 export const FileTab = memo<FileTabProps>(
-	({ agentId, path, reveal, repository, draft, onDraftChange }) => {
+	({ agentId, path, reveal, repository, draft, onDraftChange, readOnly }) => {
 		const queryClient = useQueryClient();
 		const fileQuery = useQuery({
 			...workspaceAgentFile(agentId, path),
@@ -83,11 +99,16 @@ export const FileTab = memo<FileTabProps>(
 		}
 
 		const refetchFile = useEffectEvent(() => {
-			// cancelRefetch: false makes the mount-time call join the initial
-			// fetch instead of restarting it.
-			void fileQuery.refetch({ cancelRefetch: false });
+			void fileQuery.refetch();
 		});
+		// The mount-time read already covers the repository state at mount.
+		// Later states restart a read in flight so the newest content wins.
+		const refetchedRepositoryRef = useRef(repository);
 		useEffect(() => {
+			if (refetchedRepositoryRef.current === repository) {
+				return;
+			}
+			refetchedRepositoryRef.current = repository;
 			if (repository) {
 				refetchFile();
 			}
@@ -95,8 +116,7 @@ export const FileTab = memo<FileTabProps>(
 
 		const data = fileQuery.data;
 		const isImage = data?.contentType.startsWith("image/") ?? false;
-		const text =
-			data && !isImage ? new TextDecoder().decode(data.data) : undefined;
+		const text = data && !isImage ? decodeUtf8(data.data) : undefined;
 		const isText = text !== undefined && !isBinaryData(text);
 		const value = draft?.content ?? text ?? "";
 		const hasExternalChange =
@@ -109,14 +129,19 @@ export const FileTab = memo<FileTabProps>(
 			if (!data || text === undefined) {
 				return;
 			}
+			// During a save the disk content is unknown, so a buffer that
+			// returns to the old base stays a draft until the save settles.
+			const isSaving = writeMutation.isPending;
 			onDraftChange(path, (current) => {
 				const base = current ?? { baseContent: text, baseEtag: data.etag };
-				return content === base.baseContent ? undefined : { ...base, content };
+				return content === base.baseContent && !isSaving
+					? undefined
+					: { ...base, content };
 			});
 		};
 
 		const save = (ifMatch: string | undefined) => {
-			if (!draft || writeMutation.isPending) {
+			if (readOnly || !draft || writeMutation.isPending) {
 				return;
 			}
 			const saved = draft;
@@ -130,6 +155,8 @@ export const FileTab = memo<FileTabProps>(
 				{
 					onSuccess: ({ etag }) => {
 						setHasSaveConflict(false);
+						// The saved snapshot is the new base, so edits made during
+						// the save, including an undo, stay dirty against it.
 						onDraftChange(path, (current) =>
 							!current || current.content === saved.content
 								? undefined
@@ -137,6 +164,11 @@ export const FileTab = memo<FileTabProps>(
 						);
 					},
 					onError: (error) => {
+						onDraftChange(path, (current) =>
+							!current || current.content === current.baseContent
+								? undefined
+								: current,
+						);
 						if (isAxiosError(error) && error.response?.status === 412) {
 							setHasSaveConflict(true);
 							return;
@@ -151,9 +183,18 @@ export const FileTab = memo<FileTabProps>(
 		const handleSave = () => save(draft?.baseEtag || undefined);
 
 		const handleReload = () => {
-			setHasSaveConflict(false);
-			onDraftChange(path, () => undefined);
-			void fileQuery.refetch();
+			const reloadedDraft = draft;
+			void fileQuery.refetch().then((result) => {
+				if (!result.isSuccess) {
+					toast.error(getErrorMessage(result.error, "Failed to reload file."));
+					return;
+				}
+				setHasSaveConflict(false);
+				// Edits typed while the read was in flight stay a draft.
+				onDraftChange(path, (current) =>
+					current === reloadedDraft ? undefined : current,
+				);
+			});
 		};
 
 		const handleKeepMine = () => {
@@ -210,6 +251,7 @@ export const FileTab = memo<FileTabProps>(
 						path={path}
 						value={value}
 						reveal={reveal}
+						readOnly={readOnly}
 						onChange={handleChange}
 						onSave={handleSave}
 					/>
@@ -246,7 +288,7 @@ export const FileTab = memo<FileTabProps>(
 							</Button>
 						</div>
 					)}
-					{isText && (
+					{isText && !readOnly && (
 						<Button
 							size="xs"
 							variant="outline"
@@ -259,11 +301,12 @@ export const FileTab = memo<FileTabProps>(
 						</Button>
 					)}
 				</div>
-				{hasSaveConflict && (
+				{hasSaveConflict && draft && (
 					<ChangedOnDiskAlert
 						description="The file changed on disk after you started editing."
 						keepLabel="Overwrite"
-						isPending={writeMutation.isPending}
+						isReloading={fileQuery.isFetching}
+						isKeeping={writeMutation.isPending}
 						onReload={handleReload}
 						onKeep={() => save(undefined)}
 					/>
@@ -272,7 +315,8 @@ export const FileTab = memo<FileTabProps>(
 					<ChangedOnDiskAlert
 						description="The file changed on disk while you have unsaved edits."
 						keepLabel="Keep mine"
-						isPending={false}
+						isReloading={fileQuery.isFetching}
+						isKeeping={false}
 						onReload={handleReload}
 						onKeep={handleKeepMine}
 					/>
@@ -286,7 +330,8 @@ export const FileTab = memo<FileTabProps>(
 type ChangedOnDiskAlertProps = {
 	description: string;
 	keepLabel: string;
-	isPending: boolean;
+	isReloading: boolean;
+	isKeeping: boolean;
 	onReload: () => void;
 	onKeep: () => void;
 };
@@ -294,7 +339,8 @@ type ChangedOnDiskAlertProps = {
 const ChangedOnDiskAlert: React.FC<ChangedOnDiskAlertProps> = ({
 	description,
 	keepLabel,
-	isPending,
+	isReloading,
+	isKeeping,
 	onReload,
 	onKeep,
 }) => (
@@ -304,16 +350,22 @@ const ChangedOnDiskAlert: React.FC<ChangedOnDiskAlertProps> = ({
 		className="rounded-none border-x-0 border-t-0 px-3 py-2"
 		actions={
 			<>
-				<Button size="xs" variant="outline" onClick={onReload}>
+				<Button
+					size="xs"
+					variant="outline"
+					disabled={isReloading || isKeeping}
+					onClick={onReload}
+				>
+					<Spinner size="sm" loading={isReloading} />
 					Reload
 				</Button>
 				<Button
 					size="xs"
 					variant="outline"
-					disabled={isPending}
+					disabled={isReloading || isKeeping}
 					onClick={onKeep}
 				>
-					<Spinner size="sm" loading={isPending} />
+					<Spinner size="sm" loading={isKeeping} />
 					{keepLabel}
 				</Button>
 			</>

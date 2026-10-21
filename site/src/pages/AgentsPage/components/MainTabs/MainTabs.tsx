@@ -15,6 +15,8 @@ import type { MainTabsController } from "./useMainTabs";
 
 type MainTabsProps = {
 	mainTabs: MainTabsController;
+	/** Opens files without editing, for archived and other users' chats. */
+	readOnly: boolean;
 	/** The chat transcript and composer, rendered in the pinned Chat tab. */
 	children: React.ReactNode;
 };
@@ -36,7 +38,11 @@ const tabButtonVariants = cva(
  * chat stays mounted and laid out while a file tab is active, so streaming,
  * the transcript scroll position, and the composer draft survive switching.
  */
-export const MainTabs: React.FC<MainTabsProps> = ({ mainTabs, children }) => {
+export const MainTabs: React.FC<MainTabsProps> = ({
+	mainTabs,
+	readOnly,
+	children,
+}) => {
 	const workspaceFiles = useWorkspaceFiles();
 	const idPrefix = useId();
 	// Drafts change on every keystroke, so they live here instead of in the
@@ -261,6 +267,7 @@ export const MainTabs: React.FC<MainTabsProps> = ({ mainTabs, children }) => {
 									}
 									draft={drafts.get(file.path)}
 									onDraftChange={updateDraft}
+									readOnly={readOnly}
 								/>
 							</div>
 						);

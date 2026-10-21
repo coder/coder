@@ -916,7 +916,10 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									}}
 								/>
 							</div>
-							<MainTabs mainTabs={mainTabs}>
+							<MainTabs
+								mainTabs={mainTabs}
+								readOnly={isArchived || isOtherUserReadOnly}
+							>
 								<ChatPageTimeline
 									key={agentId}
 									organizationId={organizationId}
