@@ -470,7 +470,6 @@ func TestStreamLoopInitialSyncTombstones(t *testing.T) {
 			wantEvents: []codersdk.ChatStreamEventType{
 				codersdk.ChatStreamEventTypeStatus,
 				codersdk.ChatStreamEventTypePreviewReset,
-				codersdk.ChatStreamEventTypeCheckpoint,
 			},
 		},
 		{
@@ -488,7 +487,6 @@ func TestStreamLoopInitialSyncTombstones(t *testing.T) {
 				codersdk.ChatStreamEventTypeMessage,
 				codersdk.ChatStreamEventTypeStatus,
 				codersdk.ChatStreamEventTypePreviewReset,
-				codersdk.ChatStreamEventTypeCheckpoint,
 			},
 			wantIDs: []int64{4},
 		},
@@ -509,7 +507,6 @@ func TestStreamLoopInitialSyncTombstones(t *testing.T) {
 				codersdk.ChatStreamEventTypeMessage,
 				codersdk.ChatStreamEventTypeStatus,
 				codersdk.ChatStreamEventTypePreviewReset,
-				codersdk.ChatStreamEventTypeCheckpoint,
 			},
 			wantIDs: []int64{6},
 		},
@@ -532,7 +529,6 @@ func TestStreamLoopInitialSyncTombstones(t *testing.T) {
 				codersdk.ChatStreamEventTypeMessage,
 				codersdk.ChatStreamEventTypeStatus,
 				codersdk.ChatStreamEventTypePreviewReset,
-				codersdk.ChatStreamEventTypeCheckpoint,
 			},
 			wantIDs: []int64{1, 4},
 		},
@@ -553,7 +549,6 @@ func TestStreamLoopInitialSyncTombstones(t *testing.T) {
 				codersdk.ChatStreamEventTypeMessage,
 				codersdk.ChatStreamEventTypeStatus,
 				codersdk.ChatStreamEventTypePreviewReset,
-				codersdk.ChatStreamEventTypeCheckpoint,
 			},
 			wantIDs: []int64{1},
 		},
@@ -571,7 +566,6 @@ func TestStreamLoopInitialSyncTombstones(t *testing.T) {
 				codersdk.ChatStreamEventTypeMessage,
 				codersdk.ChatStreamEventTypeStatus,
 				codersdk.ChatStreamEventTypePreviewReset,
-				codersdk.ChatStreamEventTypeCheckpoint,
 			},
 			wantIDs: []int64{4},
 		},
@@ -590,7 +584,6 @@ func TestStreamLoopInitialSyncTombstones(t *testing.T) {
 				codersdk.ChatStreamEventTypeMessage,
 				codersdk.ChatStreamEventTypeStatus,
 				codersdk.ChatStreamEventTypePreviewReset,
-				codersdk.ChatStreamEventTypeCheckpoint,
 			},
 			wantIDs: []int64{4},
 		},
@@ -609,7 +602,6 @@ func TestStreamLoopInitialSyncTombstones(t *testing.T) {
 				codersdk.ChatStreamEventTypeMessage,
 				codersdk.ChatStreamEventTypeStatus,
 				codersdk.ChatStreamEventTypePreviewReset,
-				codersdk.ChatStreamEventTypeCheckpoint,
 			},
 			wantIDs: []int64{4},
 		},
@@ -628,7 +620,6 @@ func TestStreamLoopInitialSyncTombstones(t *testing.T) {
 				codersdk.ChatStreamEventTypeMessage,
 				codersdk.ChatStreamEventTypeStatus,
 				codersdk.ChatStreamEventTypePreviewReset,
-				codersdk.ChatStreamEventTypeCheckpoint,
 			},
 			wantIDs: []int64{1, 2},
 		},
@@ -647,7 +638,6 @@ func TestStreamLoopInitialSyncTombstones(t *testing.T) {
 				codersdk.ChatStreamEventTypeMessage,
 				codersdk.ChatStreamEventTypeStatus,
 				codersdk.ChatStreamEventTypePreviewReset,
-				codersdk.ChatStreamEventTypeCheckpoint,
 			},
 			wantIDs: []int64{1, 2},
 		},
@@ -667,7 +657,7 @@ func TestStreamLoopInitialSyncTombstones(t *testing.T) {
 				HistoryVersion:  5,
 			}
 			messages := tt.messages(chatID)
-			loop := newStreamLoop(chat, db, slogtest.Make(t, nil), StreamCursor{AfterMessageID: afterID})
+			loop := newStreamLoop(chat, db, slogtest.Make(t, nil), afterID, 0)
 
 			db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
 				func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(tx) },
@@ -731,7 +721,7 @@ func TestStreamLoopTombstoneResets(t *testing.T) {
 			streamMessage(t, chatID, 1, 2, database.ChatMessageRoleUser, "before edit", true),
 			streamMessage(t, chatID, 2, 2, database.ChatMessageRoleUser, "after edit", false),
 		}
-		loop := newStreamLoop(chat, db, slogtest.Make(t, nil), StreamCursor{})
+		loop := newStreamLoop(chat, db, slogtest.Make(t, nil), 0, 0)
 
 		db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
 			func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(tx) },
@@ -754,7 +744,6 @@ func TestStreamLoopTombstoneResets(t *testing.T) {
 			codersdk.ChatStreamEventTypeMessage,
 			codersdk.ChatStreamEventTypeStatus,
 			codersdk.ChatStreamEventTypePreviewReset,
-			codersdk.ChatStreamEventTypeCheckpoint,
 		)
 		require.Equal(t, int64(2), events[1].Message.ID)
 	})
@@ -788,7 +777,7 @@ func TestStreamLoopTombstoneResets(t *testing.T) {
 			streamMessage(t, chatID, 2, 2, database.ChatMessageRoleAssistant, "reply", false),
 			streamMessage(t, chatID, 3, 3, database.ChatMessageRoleUser, "second", false),
 		}
-		loop := newStreamLoop(chat, db, slogtest.Make(t, nil), StreamCursor{AfterMessageID: 3})
+		loop := newStreamLoop(chat, db, slogtest.Make(t, nil), 3, 0)
 
 		tx.EXPECT().GetChatMessageByIDForStream(gomock.Any(), int64(3)).Return(history[2], nil)
 		expectSync(chat, 2, history[2:])
@@ -798,7 +787,6 @@ func TestStreamLoopTombstoneResets(t *testing.T) {
 		requireEventTypes(t, events,
 			codersdk.ChatStreamEventTypeStatus,
 			codersdk.ChatStreamEventTypePreviewReset,
-			codersdk.ChatStreamEventTypeCheckpoint,
 		)
 
 		chat.SnapshotVersion = 4
@@ -812,7 +800,6 @@ func TestStreamLoopTombstoneResets(t *testing.T) {
 		requireEventTypes(t, events,
 			codersdk.ChatStreamEventTypeMessage,
 			codersdk.ChatStreamEventTypePreviewReset,
-			codersdk.ChatStreamEventTypeCheckpoint,
 		)
 		require.Equal(t, int64(4), events[0].Message.ID)
 
@@ -839,7 +826,6 @@ func TestStreamLoopTombstoneResets(t *testing.T) {
 			codersdk.ChatStreamEventTypeMessage,
 			codersdk.ChatStreamEventTypeMessage,
 			codersdk.ChatStreamEventTypePreviewReset,
-			codersdk.ChatStreamEventTypeCheckpoint,
 		)
 		require.Equal(t, int64(5), events[4].Message.ID)
 	})
@@ -864,6 +850,16 @@ func syncAgainst(t *testing.T, loop *streamLoop, s streamStore) []codersdk.ChatS
 		func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(tx) },
 	)
 	tx.EXPECT().GetChatByID(gomock.Any(), s.chat.ID).Return(s.chat, nil)
+	tx.EXPECT().GetChatMessageByIDForStream(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, id int64) (database.ChatMessage, error) {
+			for _, row := range s.rows {
+				if row.ID == id {
+					return row, nil
+				}
+			}
+			return database.ChatMessage{}, sql.ErrNoRows
+		},
+	).AnyTimes()
 	tx.EXPECT().GetChatMessagesByRevisionForStream(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, params database.GetChatMessagesByRevisionForStreamParams) ([]database.ChatMessage, error) {
 			var changed []database.ChatMessage
@@ -1026,9 +1022,11 @@ func TestStreamLoopSnapshotVersion(t *testing.T) {
 			want:            []streamEvent{status},
 		},
 		{
+			// A stream opened with after_id resets only when message after_id
+			// was deleted, and then sends the whole history.
 			name:    "without a snapshot version",
-			afterID: 8,
-			held:    []int64{1, 2, 3, 4, 8},
+			afterID: 4,
+			held:    []int64{1, 2, 3, 4},
 			want: []streamEvent{
 				{typ: codersdk.ChatStreamEventTypeHistoryReset},
 				{codersdk.ChatStreamEventTypeMessage, 1, 0},
