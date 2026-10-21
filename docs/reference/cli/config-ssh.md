@@ -31,7 +31,7 @@ workspaces:
 
 ### --ssh-config-file
 
-|             |                                     |
+| Property    | Value                               |
 |-------------|-------------------------------------|
 | Type        | <code>string</code>                 |
 | Environment | <code>$CODER_SSH_CONFIG_FILE</code> |
@@ -41,7 +41,7 @@ Specifies the path to an SSH config.
 
 ### --coder-binary-path
 
-|             |                                            |
+| Property    | Value                                      |
 |-------------|--------------------------------------------|
 | Type        | <code>string</code>                        |
 | Environment | <code>$CODER_SSH_CONFIG_BINARY_PATH</code> |
@@ -50,7 +50,7 @@ Optionally specify the absolute path to the coder binary used in ProxyCommand. B
 
 ### -o, --ssh-option
 
-|             |                                     |
+| Property    | Value                               |
 |-------------|-------------------------------------|
 | Type        | <code>string-array</code>           |
 | Environment | <code>$CODER_SSH_CONFIG_OPTS</code> |
@@ -59,7 +59,7 @@ Specifies additional SSH options to embed in each host stanza.
 
 ### -n, --dry-run
 
-|             |                                 |
+| Property    | Value                           |
 |-------------|---------------------------------|
 | Type        | <code>bool</code>               |
 | Environment | <code>$CODER_SSH_DRY_RUN</code> |
@@ -68,7 +68,7 @@ Perform a trial run with no changes made, showing a diff at the end.
 
 ### --use-previous-options
 
-|             |                                              |
+| Property    | Value                                        |
 |-------------|----------------------------------------------|
 | Type        | <code>bool</code>                            |
 | Environment | <code>$CODER_SSH_USE_PREVIOUS_OPTIONS</code> |
@@ -77,7 +77,7 @@ Specifies whether or not to keep options from previous run of config-ssh.
 
 ### --ssh-host-prefix
 
-|             |                                               |
+| Property    | Value                                         |
 |-------------|-----------------------------------------------|
 | Type        | <code>string</code>                           |
 | Environment | <code>$CODER_CONFIGSSH_SSH_HOST_PREFIX</code> |
@@ -86,7 +86,7 @@ Override the default host prefix.
 
 ### --hostname-suffix
 
-|             |                                               |
+| Property    | Value                                         |
 |-------------|-----------------------------------------------|
 | Type        | <code>string</code>                           |
 | Environment | <code>$CODER_CONFIGSSH_HOSTNAME_SUFFIX</code> |
@@ -95,7 +95,7 @@ Override the default hostname suffix.
 
 ### --wait
 
-|             |                                    |
+| Property    | Value                              |
 |-------------|------------------------------------|
 | Type        | <code>yes\|no\|auto</code>         |
 | Environment | <code>$CODER_CONFIGSSH_WAIT</code> |
@@ -105,7 +105,7 @@ Specifies whether or not to wait for the startup script to finish executing. Aut
 
 ### --disable-autostart
 
-|             |                                                 |
+| Property    | Value                                           |
 |-------------|-------------------------------------------------|
 | Type        | <code>bool</code>                               |
 | Environment | <code>$CODER_CONFIGSSH_DISABLE_AUTOSTART</code> |
@@ -115,7 +115,7 @@ Disable starting the workspace automatically when connecting via SSH.
 
 ### --no-wildcard
 
-|             |                                           |
+| Property    | Value                                     |
 |-------------|-------------------------------------------|
 | Type        | <code>bool</code>                         |
 | Environment | <code>$CODER_CONFIGSSH_NO_WILDCARD</code> |
@@ -125,7 +125,7 @@ Generate an individual host entry for each workspace instead of a wildcard host 
 
 ### --force-unix-filepaths
 
-|             |                                              |
+| Property    | Value                                        |
 |-------------|----------------------------------------------|
 | Type        | <code>bool</code>                            |
 | Environment | <code>$CODER_CONFIGSSH_UNIX_FILEPATHS</code> |
@@ -134,8 +134,8 @@ By default, 'config-ssh' uses the os path separator when writing the ssh config.
 
 ### -y, --yes
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Bypass confirmation prompts.

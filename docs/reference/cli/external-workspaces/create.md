@@ -26,7 +26,7 @@ coder external-workspaces create [flags] [workspace]
 
 ### -t, --template
 
-|             |                                   |
+| Property    | Value                             |
 |-------------|-----------------------------------|
 | Type        | <code>string</code>               |
 | Environment | <code>$CODER_TEMPLATE_NAME</code> |
@@ -35,7 +35,7 @@ Specify a template name.
 
 ### --template-version
 
-|             |                                      |
+| Property    | Value                                |
 |-------------|--------------------------------------|
 | Type        | <code>string</code>                  |
 | Environment | <code>$CODER_TEMPLATE_VERSION</code> |
@@ -44,7 +44,7 @@ Specify a template version name or ID.
 
 ### --preset
 
-|             |                                 |
+| Property    | Value                           |
 |-------------|---------------------------------|
 | Type        | <code>string</code>             |
 | Environment | <code>$CODER_PRESET_NAME</code> |
@@ -53,7 +53,7 @@ Specify the name of a template version preset. Use 'none' to explicitly indicate
 
 ### --start-at
 
-|             |                                        |
+| Property    | Value                                  |
 |-------------|----------------------------------------|
 | Type        | <code>string</code>                    |
 | Environment | <code>$CODER_WORKSPACE_START_AT</code> |
@@ -62,7 +62,7 @@ Specify the workspace autostart schedule. Check coder schedule start --help for 
 
 ### --stop-after
 
-|             |                                          |
+| Property    | Value                                    |
 |-------------|------------------------------------------|
 | Type        | <code>duration</code>                    |
 | Environment | <code>$CODER_WORKSPACE_STOP_AFTER</code> |
@@ -71,7 +71,7 @@ Specify a duration after which the workspace should shut down (e.g. 8h).
 
 ### --automatic-updates
 
-|             |                                                 |
+| Property    | Value                                           |
 |-------------|-------------------------------------------------|
 | Type        | <code>string</code>                             |
 | Environment | <code>$CODER_WORKSPACE_AUTOMATIC_UPDATES</code> |
@@ -81,7 +81,7 @@ Specify automatic updates setting for the workspace (accepts 'always' or 'never'
 
 ### --copy-parameters-from
 
-|             |                                                    |
+| Property    | Value                                              |
 |-------------|----------------------------------------------------|
 | Type        | <code>string</code>                                |
 | Environment | <code>$CODER_WORKSPACE_COPY_PARAMETERS_FROM</code> |
@@ -90,7 +90,7 @@ Specify the source workspace name to copy parameters from.
 
 ### --no-wait
 
-|             |                                    |
+| Property    | Value                              |
 |-------------|------------------------------------|
 | Type        | <code>bool</code>                  |
 | Environment | <code>$CODER_CREATE_NO_WAIT</code> |
@@ -99,15 +99,15 @@ Return immediately after creating the workspace. The build will run in the backg
 
 ### -y, --yes
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Bypass confirmation prompts.
 
 ### --build-option
 
-|             |                                  |
+| Property    | Value                            |
 |-------------|----------------------------------|
 | Type        | <code>string-array</code>        |
 | Environment | <code>$CODER_BUILD_OPTION</code> |
@@ -116,15 +116,15 @@ Build option value in the format "name=value".
 
 ### --build-options
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Prompt for one-time build options defined with ephemeral parameters.
 
 ### --ephemeral-parameter
 
-|             |                                         |
+| Property    | Value                                   |
 |-------------|-----------------------------------------|
 | Type        | <code>string-array</code>               |
 | Environment | <code>$CODER_EPHEMERAL_PARAMETER</code> |
@@ -133,7 +133,7 @@ Set the value of ephemeral parameters defined in the template. The format is "na
 
 ### --prompt-ephemeral-parameters
 
-|             |                                                 |
+| Property    | Value                                           |
 |-------------|-------------------------------------------------|
 | Type        | <code>bool</code>                               |
 | Environment | <code>$CODER_PROMPT_EPHEMERAL_PARAMETERS</code> |
@@ -142,7 +142,7 @@ Prompt to set values of ephemeral parameters defined in the template. If a value
 
 ### --parameter
 
-|             |                                    |
+| Property    | Value                              |
 |-------------|------------------------------------|
 | Type        | <code>string-array</code>          |
 | Environment | <code>$CODER_RICH_PARAMETER</code> |
@@ -151,7 +151,7 @@ Rich parameter value in the format "name=value".
 
 ### --rich-parameter-file
 
-|             |                                         |
+| Property    | Value                                   |
 |-------------|-----------------------------------------|
 | Type        | <code>string</code>                     |
 | Environment | <code>$CODER_RICH_PARAMETER_FILE</code> |
@@ -160,7 +160,7 @@ Specify a file path with values for rich parameters defined in the template. The
 
 ### --parameter-default
 
-|             |                                            |
+| Property    | Value                                      |
 |-------------|--------------------------------------------|
 | Type        | <code>string-array</code>                  |
 | Environment | <code>$CODER_RICH_PARAMETER_DEFAULT</code> |
@@ -169,7 +169,7 @@ Rich parameter default values in the format "name=value".
 
 ### --use-parameter-defaults
 
-|             |                                                      |
+| Property    | Value                                                |
 |-------------|------------------------------------------------------|
 | Type        | <code>bool</code>                                    |
 | Environment | <code>$CODER_WORKSPACE_USE_PARAMETER_DEFAULTS</code> |
@@ -178,15 +178,15 @@ Automatically accept parameter defaults when no value is provided.
 
 ### --always-prompt
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Always prompt all parameters. Does not pull parameter values from existing workspace.
 
 ### -O, --org
 
-|             |                                  |
+| Property    | Value                            |
 |-------------|----------------------------------|
 | Type        | <code>string</code>              |
 | Environment | <code>$CODER_ORGANIZATION</code> |

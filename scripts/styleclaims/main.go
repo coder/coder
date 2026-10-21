@@ -135,7 +135,7 @@ var annotationStart = regexp.MustCompile(`^\*(Enforced|Documentation-only|Adapte
 // citation matches a backticked rule or tool name inside an annotation. A Vale
 // rule is `Style.Rule`; the style alternation is open so a citation to a style
 // the repo doesn't load is still read as a claim and reported.
-var citation = regexp.MustCompile("`([A-Z][A-Za-z0-9-]*\\.[A-Za-z0-9_-]+|alex\\.[A-Za-z0-9*]+|write-good\\.[A-Za-z0-9]+|markdownlint|scripts/check_emdash\\.sh|scripts/docsmanifestgen|MD[0-9]{3})`")
+var citation = regexp.MustCompile("`([A-Z][A-Za-z0-9-]*\\.[A-Za-z0-9_-]+|alex\\.[A-Za-z0-9*]+|write-good\\.[A-Za-z0-9]+|markdownlint|scripts/check_emdash\\.sh|scripts/docshtmlcheck|scripts/docsmanifestgen|MD[0-9]{3})`")
 
 // severityCell matches the severity column of a "Checks that run today" row.
 var severityCell = regexp.MustCompile("`(error|warning|suggestion)`")
@@ -767,7 +767,7 @@ func splitSentences(text string) []string {
 
 // isTool reports whether a citation names a checker outside the Vale styles.
 func isTool(c string) bool {
-	return c == "markdownlint" || c == "scripts/check_emdash.sh" || c == "scripts/docsmanifestgen" || strings.HasPrefix(c, "MD")
+	return c == "markdownlint" || c == "scripts/check_emdash.sh" || c == "scripts/docshtmlcheck" || c == "scripts/docsmanifestgen" || strings.HasPrefix(c, "MD")
 }
 
 // classify buckets an annotation for the coverage table.
