@@ -284,14 +284,16 @@ func contextWindowPrompt(currentWindowID, previousWindowID string) string {
 	return strings.Join(lines, "\n")
 }
 
-// tagUserRowsWithItemIDs returns a copy of rows in which every user
-// message visible to both the user and the model ends with its item ID,
-// so the agent can cite it in a checkpoint. The tag is stable per row and
-// only reaches the prompt: callers must not persist the copy.
+// tagUserRowsWithItemIDs returns a copy of rows in which every
+// uncompressed user message the model sees ends with its item ID, so the
+// agent can cite it in a checkpoint. That includes the model-only replays
+// of pending requests after a boundary, but not the boundary anchors. The
+// tag is stable per row and only reaches the prompt: callers must not
+// persist the copy.
 func tagUserRowsWithItemIDs(rows []database.ChatMessage) ([]database.ChatMessage, error) {
 	tagged := slices.Clone(rows)
 	for i, row := range tagged {
-		if row.Role != database.ChatMessageRoleUser || row.Visibility != database.ChatMessageVisibilityBoth {
+		if row.Role != database.ChatMessageRoleUser || row.Compressed || row.Visibility == database.ChatMessageVisibilityUser {
 			continue
 		}
 		parts, err := chatprompt.ParseContent(row)
@@ -601,6 +603,26 @@ func replayablePendingUserRows(rows []database.ChatMessage) ([]database.ChatMess
 		}
 	}
 	return replayable, nil
+}
+
+// withoutContextHandoffPrompts returns rows without handoff prompts and
+// the index that rows[pendingStart] moved to. Only the token budget
+// strategy offers the tools that a handoff prompt asks for.
+func withoutContextHandoffPrompts(rows []database.ChatMessage, pendingStart int) ([]database.ChatMessage, int, error) {
+	kept := make([]database.ChatMessage, 0, len(rows))
+	keptPendingStart := pendingStart
+	for i, row := range rows {
+		handoff, err := isContextHandoffPrompt(row)
+		if err != nil {
+			return nil, 0, err
+		}
+		if !handoff {
+			kept = append(kept, row)
+		} else if i < pendingStart {
+			keptPendingStart--
+		}
+	}
+	return kept, keptPendingStart, nil
 }
 
 func isContextHandoffPrompt(row database.ChatMessage) (bool, error) {
