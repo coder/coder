@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -75,13 +74,12 @@ func (p *Server) wakeWorkspaceFileDelivery() {
 // workspaceFileDeliveryLoop copies workspace chat files into their chats'
 // workspaces. Postgres holds the queue; agent startup events and
 // in-process pokes only wake the loop, and a periodic sweep covers lost
-// wake-ups, retries and expired leases. An agent startup also retries
-// the failed files of the workspace's chats, because a restart is how a
-// user updates an agent that rejected them. The loop never writes chat
-// messages, because a message write cancels a running turn.
+// wake-ups, retries and expired leases. Every agent startup also gives
+// the failed files of the workspace's chats a fresh attempt budget, which
+// the claim query derives from the agent's ready_at, because a restart is
+// how a user updates an agent that rejected them. The loop never writes
+// chat messages, because a message write cancels a running turn.
 func (w *chatWorker) workspaceFileDeliveryLoop(ctx context.Context) {
-	var startedMu sync.Mutex
-	started := make(map[uuid.UUID]struct{})
 	unsubscribe, err := w.opts.Pubsub.SubscribeWithErr(
 		wspubsub.AgentStartupFinishedChannel,
 		wspubsub.HandleAgentStartupFinished(func(ctx context.Context, event wspubsub.AgentStartupFinishedEvent, err error) {
@@ -92,9 +90,6 @@ func (w *chatWorker) workspaceFileDeliveryLoop(ctx context.Context) {
 					slog.F("workspace_id", event.WorkspaceID),
 					slog.F("agent_id", event.AgentID),
 				)
-				startedMu.Lock()
-				started[event.WorkspaceID] = struct{}{}
-				startedMu.Unlock()
 			}
 			wake(w.fileDeliveryWakeCh)
 		}),
@@ -105,20 +100,9 @@ func (w *chatWorker) workspaceFileDeliveryLoop(ctx context.Context) {
 		defer unsubscribe()
 	}
 
-	sweep := func() {
-		startedMu.Lock()
-		workspaceIDs := started
-		started = make(map[uuid.UUID]struct{})
-		startedMu.Unlock()
-		for workspaceID := range workspaceIDs {
-			w.retryStartedWorkspaceFiles(ctx, workspaceID)
-		}
-		w.deliverWorkspaceFiles(ctx)
-	}
-
 	// Catch up on files that became deliverable while this replica was
 	// not subscribed.
-	sweep()
+	w.deliverWorkspaceFiles(ctx)
 
 	ticker := w.opts.Clock.NewTicker(w.opts.WorkspaceFileDeliveryInterval, "chatworker", "workspace-file-delivery")
 	defer ticker.Stop("chatworker", "workspace-file-delivery")
@@ -129,28 +113,7 @@ func (w *chatWorker) workspaceFileDeliveryLoop(ctx context.Context) {
 		case <-ticker.C:
 		case <-w.fileDeliveryWakeCh:
 		}
-		sweep()
-	}
-}
-
-// retryStartedWorkspaceFiles makes the failed and stalled files of the
-// chats bound to a workspace whose agent finished starting due again.
-func (w *chatWorker) retryStartedWorkspaceFiles(ctx context.Context, workspaceID uuid.UUID) {
-	retried, err := w.opts.Store.RetryChatWorkspaceFileDeliveriesByWorkspaceID(ctx, database.RetryChatWorkspaceFileDeliveriesByWorkspaceIDParams{
-		WorkspaceID: workspaceID,
-		Now:         w.opts.Clock.Now("chatworker", "workspace-file-delivery"),
-	})
-	if err != nil {
-		if ctx.Err() == nil {
-			w.opts.Logger.Warn(ctx, "retry workspace chat files after agent startup", slog.F("workspace_id", workspaceID), slogError(err))
-		}
-		return
-	}
-	if retried > 0 {
-		w.opts.Logger.Info(ctx, "retrying workspace chat files after agent startup",
-			slog.F("workspace_id", workspaceID),
-			slog.F("files", retried),
-		)
+		w.deliverWorkspaceFiles(ctx)
 	}
 }
 

@@ -191,6 +191,19 @@ func (f workspaceFileDeliveryFixture) setLifecycle(ctx context.Context, t *testi
 	}))
 }
 
+// restartAgent records a finished agent startup, which sets a new
+// ready_at like the agent's lifecycle report does.
+func (f workspaceFileDeliveryFixture) restartAgent(ctx context.Context, t *testing.T, agentID uuid.UUID) {
+	t.Helper()
+	now := sql.NullTime{Time: dbtime.Now(), Valid: true}
+	require.NoError(t, f.db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+		ID:             agentID,
+		LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		StartedAt:      now,
+		ReadyAt:        now,
+	}))
+}
+
 func (f workspaceFileDeliveryFixture) workspaceFile(ctx context.Context, t *testing.T, chatID uuid.UUID, data string) database.InsertChatFileRow {
 	t.Helper()
 	file, err := f.db.InsertChatFile(ctx, database.InsertChatFileParams{
@@ -327,10 +340,34 @@ func TestWorkspaceFileDeliveryLoop(t *testing.T) {
 		f.agent.mu.Lock()
 		f.agent.fail = nil
 		f.agent.mu.Unlock()
+		f.restartAgent(ctx, t, agent.ID)
 		require.NoError(t, wspubsub.PublishAgentStartupFinished(ctx, f.pubsub, wspubsub.AgentStartupFinishedEvent{
 			WorkspaceID: chat.WorkspaceID.UUID,
 			AgentID:     agent.ID,
 		}))
+		f.requireDelivered(ctx, t, chat, file.ID)
+	})
+
+	t.Run("SweepRetriesParkedFileAfterMissedStartupEvent", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		f.agent.fail = func(workspacesdk.UploadChatFileRequest) error {
+			return agentStatusError(http.StatusBadRequest)
+		}
+		chat, agent := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+
+		start(ctx, t, f)
+		state := f.fileState(ctx, t, chat.ID, file.ID)
+		require.Equal(t, database.ChatWorkspaceFileMaxDeliveryAttempts, state.WorkspaceDeliveryAttempts)
+
+		f.agent.mu.Lock()
+		f.agent.fail = nil
+		f.agent.mu.Unlock()
+		// The updated agent starts, but its startup event never arrives.
+		f.restartAgent(ctx, t, agent.ID)
+		f.clock.Advance(defaultWorkspaceFileDeliveryInterval).MustWait(ctx)
 		f.requireDelivered(ctx, t, chat, file.ID)
 	})
 
