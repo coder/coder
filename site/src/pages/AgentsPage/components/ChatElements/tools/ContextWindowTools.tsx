@@ -162,7 +162,11 @@ const chatHistoryErrorMessages = {
 	invalid_arguments: "Invalid chat history arguments",
 } satisfies Partial<Record<string, string>>;
 
-/** A read of the chat's own transcript across context windows. */
+/**
+ * Words the header by `action` and counts results except for `read_item`.
+ * A nonempty `errorCode` marks the row failed even when the tool call
+ * succeeded, and known codes map to fixed messages.
+ */
 export const ChatHistoryTool: React.FC<
 	ToolRowStatusProps & {
 		action: string;

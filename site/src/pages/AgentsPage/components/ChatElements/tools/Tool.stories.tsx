@@ -1578,6 +1578,13 @@ export const ChatHistoryTimeout: Story = {
 		args: { action: "search", query: "settings" },
 		result: { success: false, error: "history_timeout" },
 	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(canvasElement).getByRole("img", {
+				name: "Reading chat history timed out",
+			}),
+		);
+	},
 };
 
 // ---------------------------------------------------------------------------
