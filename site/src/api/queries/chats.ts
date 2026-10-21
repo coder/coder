@@ -1638,27 +1638,27 @@ export const chatAttachmentsKey = (chatId: string, beforeId: number) =>
 export const chatAttachments = (chatId: string, beforeId: number) =>
 	queryOptions({
 		queryKey: chatAttachmentsKey(chatId, beforeId),
-		queryFn: () =>
+		queryFn: ({ signal }) =>
 			API.experimental.getChatAttachments(
 				chatId,
 				beforeId > 0 ? { before_id: beforeId } : undefined,
+				signal,
 			),
-		// History before an existing message only ever loses a suffix (an
-		// edit deletes the edited message and everything after it), so a
-		// boundary's list never changes, and a later boundary's list holds
-		// every attachment of an earlier one.
+		// History before an existing message only loses a suffix (an edit
+		// deletes the edited message and every later one), so a boundary's
+		// list never changes.
 		staleTime: Number.POSITIVE_INFINITY,
 		placeholderData: (previousData, previousQuery) => {
-			if (!previousQuery) {
-				return undefined;
-			}
-			const [, , previousChatId, , previousBeforeId] = previousQuery.queryKey;
+			const previousBeforeId = previousQuery?.queryKey.at(-1);
 			const coversBoundary =
-				previousBeforeId === 0 ||
-				(beforeId > 0 && previousBeforeId >= beforeId);
-			return previousChatId === chatId && coversBoundary
-				? previousData
-				: undefined;
+				beforeId > 0 &&
+				typeof previousBeforeId === "number" &&
+				previousBeforeId >= beforeId &&
+				isEqual(
+					previousQuery?.queryKey,
+					chatAttachmentsKey(chatId, previousBeforeId),
+				);
+			return coversBoundary ? previousData : undefined;
 		},
 	});
 

@@ -693,7 +693,7 @@ describe("deriveEvictedFileIds", () => {
 		expect([...evicted]).toEqual(["rec-1", "thumb-1"]);
 	});
 
-	it("counts files referenced before the loaded messages", () => {
+	it("reports files referenced before the loaded messages as evicted", () => {
 		const evicted = deriveEvictedFileIds(
 			[fileMessage(3, "c")],
 			chatFiles("b"),

@@ -10,6 +10,7 @@ import {
 	getEarlierMessageAttachments,
 	getMessageAttachments,
 	type MessageAttachment,
+	partFileIds,
 } from "./ChatConversation/messageHelpers";
 import type { EarlierMessagesProps } from "./ChatMessageScroller";
 import { ChatSummary } from "./ChatSummary";
@@ -76,9 +77,7 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	const evictedFileIds = deriveEvictedFileIds(
 		messages.map((message) => ({ message })),
 		chatData?.files,
-		earlierAttachments
-			.flatMap(({ file }) => (file.file_id ? [file.file_id] : []))
-			.reverse(),
+		earlierAttachments.flatMap(({ file }) => partFileIds(file)).reverse(),
 	);
 
 	let content: React.ReactNode = null;

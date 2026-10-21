@@ -14,6 +14,7 @@ import {
 	SUCCESS_STATUSES,
 } from "#/pages/AgentsPage/components/RightPanel/DebugPanel/debugPanelUtils";
 import {
+	MockChatAttachment,
 	MockChatMessage,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
@@ -46,6 +47,8 @@ import {
 	chatACLKey,
 	chatAdvisorConfig,
 	chatAdvisorConfigKey,
+	chatAttachments,
+	chatAttachmentsKey,
 	chatCost,
 	chatCostTreeKey,
 	chatDebugRunKey,
@@ -145,6 +148,7 @@ vi.mock("#/api/api", () => ({
 			deleteChatQueuedMessage: vi.fn(),
 			getChats: vi.fn(),
 			getChatsByWorkspace: vi.fn(),
+			getChatAttachments: vi.fn(),
 			getChatCost: vi.fn(),
 			getChatDiffContents: vi.fn(),
 			getChatMessages: vi.fn(),
@@ -1716,6 +1720,48 @@ describe("chat cost query factories", () => {
 			chatId,
 			expect.any(AbortSignal),
 		);
+	});
+});
+
+describe("chatAttachments placeholder", () => {
+	it.each([
+		{
+			name: "keeps a later boundary's list while an earlier one loads",
+			chatId: "chat-1",
+			beforeId: 10,
+			keepsPrevious: true,
+		},
+		{
+			name: "drops a list that ends before the new boundary",
+			chatId: "chat-1",
+			beforeId: 30,
+			keepsPrevious: false,
+		},
+		{
+			name: "drops another chat's list",
+			chatId: "chat-2",
+			beforeId: 10,
+			keepsPrevious: false,
+		},
+	])("$name", ({ chatId, beforeId, keepsPrevious }) => {
+		vi.mocked(API.experimental.getChatAttachments).mockReturnValue(
+			new Promise(() => {}),
+		);
+		const previous = { attachments: [MockChatAttachment] };
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatAttachmentsKey("chat-1", 20), previous);
+		const observer = new QueryObserver(
+			queryClient,
+			chatAttachments("chat-1", 20),
+		);
+		const unsubscribe = observer.subscribe(() => {});
+
+		observer.setOptions(chatAttachments(chatId, beforeId));
+
+		expect(observer.getCurrentResult().data).toBe(
+			keepsPrevious ? previous : undefined,
+		);
+		unsubscribe();
 	});
 });
 

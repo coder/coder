@@ -14,7 +14,6 @@ type ChatAttachmentsProps = {
 	/** Undefined while the list loads. */
 	attachments: readonly MessageAttachment[] | undefined;
 	evictedFileIds: ReadonlySet<string>;
-	/** The earlier messages' attachments failed to load, so the list is partial. */
 	hasEarlierAttachmentsError: boolean;
 	isRetrying: boolean;
 	onRetry: () => void;

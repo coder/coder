@@ -3488,13 +3488,16 @@ class ExperimentalApiMethods {
 	getChatAttachments = async (
 		chatId: string,
 		opts?: { before_id?: number },
+		signal?: AbortSignal,
 	): Promise<TypesGen.ChatAttachmentsResponse> => {
 		const url = getURLWithSearchParams(
 			`/api/v2/chats/${chatId}/attachments`,
 			opts,
 		);
-		const response =
-			await this.axios.get<TypesGen.ChatAttachmentsResponse>(url);
+		const response = await this.axios.get<TypesGen.ChatAttachmentsResponse>(
+			url,
+			{ signal },
+		);
 		return response.data;
 	};
 
