@@ -9,11 +9,13 @@ import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
+import { API } from "#/api/api";
 import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
+import { MockChatProject } from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
@@ -22,8 +24,15 @@ import type * as speechRecognition from "../hooks/useSpeechRecognition";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
 
+const dashboard = vi.hoisted(() => ({
+	experiments: ["chat-projects"] as string[],
+}));
+
 vi.mock("#/modules/dashboard/useDashboard", () => ({
-	useDashboard: () => ({ organizations: [] }),
+	useDashboard: () => ({
+		organizations: [],
+		experiments: dashboard.experiments,
+	}),
 }));
 
 vi.mock("../hooks/useSpeechRecognition", async (importOriginal) => {
@@ -131,6 +140,8 @@ beforeAll(() => {
 afterEach(() => {
 	vi.unstubAllGlobals();
 	mockedUseSpeechRecognition.mockReset();
+	dashboard.experiments = ["chat-projects"];
+	vi.restoreAllMocks();
 });
 
 describe("AgentChatInput", () => {
@@ -211,6 +222,72 @@ describe("AgentChatInput", () => {
 			await screen.findByRole("option", { name: /release-notes/ }),
 		);
 		expect(inputRef.current?.getValue()).toBe("/release-notes");
+	});
+
+	it("offers the chat project's skills in the slash menu", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		vi.spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+		vi.spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		const getChatProjectSkills = vi
+			.spyOn(API.experimental, "getChatProjectSkills")
+			.mockResolvedValue([{ ...MockSkill, name: "project-conventions" }]);
+		vi.spyOn(API.experimental, "getChatProjects").mockResolvedValue([
+			{ ...MockChatProject, id: "project-1" },
+		]);
+
+		render(
+			<AppProviders queryClient={createTestQueryClient()}>
+				<AgentChatInput
+					{...inputProps}
+					inputRef={inputRef}
+					chatOrganizationId="org-1"
+					chatProjectId="project-1"
+				/>
+			</AppProviders>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("/proj");
+		await user.click(
+			await screen.findByRole("option", { name: /project-conventions/ }),
+		);
+		expect(inputRef.current?.getValue()).toBe("/project-conventions");
+		expect(getChatProjectSkills).toHaveBeenCalledWith("org-1", "project-1");
+	});
+
+	it("skips the project skills request while the chat-projects experiment is off", async () => {
+		dashboard.experiments = [];
+		const user = userEvent.setup();
+		const getUserSkills = vi
+			.spyOn(API.experimental, "getUserSkills")
+			.mockResolvedValue([]);
+		const getOrganizationSkills = vi
+			.spyOn(API.experimental, "getOrganizationSkills")
+			.mockResolvedValue([]);
+		const getChatProjectSkills = vi
+			.spyOn(API.experimental, "getChatProjectSkills")
+			.mockResolvedValue([]);
+
+		render(
+			<AppProviders queryClient={createTestQueryClient()}>
+				<AgentChatInput
+					{...inputProps}
+					chatOrganizationId="org-1"
+					chatProjectId="project-1"
+				/>
+			</AppProviders>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("/proj");
+		// The skills trigger enables every skills request in the same
+		// render, so the other requests show the trigger activated.
+		await waitFor(() => {
+			expect(getUserSkills).toHaveBeenCalled();
+			expect(getOrganizationSkills).toHaveBeenCalledWith("org-1");
+		});
+		expect(getChatProjectSkills).not.toHaveBeenCalled();
 	});
 
 	it("attaches supported dropped files and reports unsupported ones", () => {
