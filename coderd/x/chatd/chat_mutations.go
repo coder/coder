@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -217,6 +218,9 @@ func (p *Server) SendMessage(
 		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
 			return err
 		}
+		if err := p.retryAttachedWorkspaceFiles(ctx, store, opts.ChatID, contentParts); err != nil {
+			return err
+		}
 		if firstUserTurn && !result.Queued {
 			result.FirstUserTurn = true
 			// Persist the fallback title with the message so a failed
@@ -243,6 +247,9 @@ func (p *Server) SendMessage(
 	}
 
 	result.Chat = refreshed
+	if result.Chat.WorkspaceID.Valid && linksWorkspaceAttachments(contentParts) {
+		p.wakeWorkspaceFileDelivery()
+	}
 	if result.FirstUserTurn && result.Chat.Title != chatprompt.DefaultChatTitle {
 		p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindTitleChange, nil)
 	}
@@ -413,12 +420,18 @@ func (p *Server) EditMessage(
 		inserted = append(inserted, editResult.SuffixMessages...)
 		result.InsertedMessages = inserted
 		result.DeletedMessageIDs = editResult.DeletedMessageIDs
-		return chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat)
+		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
+			return err
+		}
+		return p.retryAttachedWorkspaceFiles(ctx, store, opts.ChatID, contentParts)
 	})
 	if err != nil {
 		return EditMessageResult{}, err
 	}
 	result.Chat = refreshed
+	if result.Chat.WorkspaceID.Valid && linksWorkspaceAttachments(contentParts) {
+		p.wakeWorkspaceFileDelivery()
+	}
 
 	// An interrupted worker may still flush debug rows after the edit;
 	// a short bounded retry converges without waiting for dbpurge's
@@ -500,6 +513,9 @@ func (p *Server) setChatFamilyArchived(ctx context.Context, chat database.Chat, 
 	if archived {
 		p.scheduleArchiveDebugCleanup(ctx, familyChats)
 		watchKind = codersdk.ChatWatchEventKindDeleted
+	} else if slices.ContainsFunc(familyChats, func(chat database.Chat) bool { return chat.WorkspaceID.Valid }) {
+		// The claim skips archived chats, so their files may be due now.
+		p.wakeWorkspaceFileDelivery()
 	}
 	p.publishChatPubsubEvents(familyChats, watchKind)
 	return nil

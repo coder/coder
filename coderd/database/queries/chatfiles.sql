@@ -54,6 +54,50 @@ SELECT id, owner_id, organization_id, created_at, name, mimetype,
 FROM chat_files
 WHERE id = ANY(@ids::uuid[]);
 
+-- name: IsChatWorkspaceFileAttached :one
+-- IsChatWorkspaceFileAttached reports whether a user message or a queued
+-- message of the chat still attaches the file as a workspace attachment.
+-- Deleting a queued message or editing the attachment out of a message
+-- keeps the file's link, so the link alone does not show that the user
+-- still wants the file copied.
+SELECT (
+	EXISTS (
+		SELECT 1
+		FROM chat_messages
+		WHERE chat_id = @chat_id::uuid
+			AND role = 'user'::chat_message_role
+			AND deleted = FALSE
+			AND content @> jsonb_build_array(jsonb_build_object('type', 'workspace-attachment', 'file_id', @file_id::uuid))
+	)
+	OR EXISTS (
+		SELECT 1
+		FROM chat_queued_messages
+		WHERE chat_id = @chat_id::uuid
+			AND content @> jsonb_build_array(jsonb_build_object('type', 'workspace-attachment', 'file_id', @file_id::uuid))
+	)
+)::boolean AS attached;
+
+-- name: RetryChatWorkspaceFileDeliveriesByIDs :execrows
+-- RetryChatWorkspaceFileDeliveriesByIDs is RetryChatWorkspaceFileDeliveries
+-- limited to the given files, for a message that attaches them again after
+-- delivery parked or failed them.
+UPDATE chat_files cf
+SET
+	workspace_delivery_attempts = 0,
+	workspace_delivery_next_attempt_at = NULL,
+	workspace_delivery_error = NULL
+FROM chat_file_links cfl
+WHERE cfl.file_id = cf.id
+	AND cfl.chat_id = @chat_id::uuid
+	AND cf.id = ANY(@file_ids::uuid[])
+	AND cf.purpose = 'workspace'::chat_file_purpose
+	AND cf.workspace_delivered_at IS NULL
+	AND (
+		cf.workspace_delivery_error IS NOT NULL
+		OR cf.workspace_delivery_next_attempt_at IS NULL
+		OR cf.workspace_delivery_next_attempt_at <= @now::timestamptz
+	);
+
 -- name: AcquireChatWorkspaceFileDeliveries :many
 -- AcquireChatWorkspaceFileDeliveries claims due workspace files whose
 -- chat's workspace finished starting: the workspace's latest build is a

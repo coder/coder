@@ -34,6 +34,9 @@ const (
 	defaultStateChannelSize        = 64
 	defaultTaskRetryInitialBackoff = 100 * time.Millisecond
 	defaultTaskRetryMaxBackoff     = 5 * time.Second
+	// Pub/sub wake-ups are at-most-once, so the sweep bounds how long a
+	// lost wake-up or a due retry waits.
+	defaultWorkspaceFileDeliveryInterval = 30 * time.Second
 )
 
 // chatWorkerPubsub is the chat worker pubsub dependency.
@@ -265,6 +268,9 @@ type chatWorkerOptions struct {
 	AcquisitionWakeChannelSize int
 	TaskRetryInitialBackoff    time.Duration
 	TaskRetryMaxBackoff        time.Duration
+	// WorkspaceFileDeliveryInterval is how often the workspace file
+	// delivery loop sweeps without a wake-up.
+	WorkspaceFileDeliveryInterval time.Duration
 }
 
 func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
@@ -336,6 +342,9 @@ func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
 	}
 	if o.TaskRetryMaxBackoff <= 0 {
 		o.TaskRetryMaxBackoff = defaultTaskRetryMaxBackoff
+	}
+	if o.WorkspaceFileDeliveryInterval <= 0 {
+		o.WorkspaceFileDeliveryInterval = defaultWorkspaceFileDeliveryInterval
 	}
 	if o.TaskRetryMaxBackoff < o.TaskRetryInitialBackoff {
 		o.TaskRetryMaxBackoff = o.TaskRetryInitialBackoff

@@ -788,6 +788,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	// Best-effort: a chat created before its agent has pushed is hydrated
 	// by that agent's next push.
 	p.hydrateChatContextOnCreate(ctx, chat)
+	if chat.WorkspaceID.Valid && linksWorkspaceAttachments(contentParts) {
+		p.wakeWorkspaceFileDelivery()
+	}
 	return chat, nil
 }
 
