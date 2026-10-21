@@ -348,3 +348,33 @@ export const ExpiredAttachment: Story = {
 		],
 	},
 };
+
+const mockReportFile: TypesGen.ChatFileMetadata = {
+	...MockChatFileMetadata,
+	id: "report-file",
+	name: "latency-report.csv",
+	mime_type: "text/csv",
+};
+
+export const ExpiredEarlierAttachment: Story = {
+	args: { hasMoreMessages: true },
+	render: (args) => (
+		<ChatSummaryPanel
+			{...args}
+			store={createAttachmentStore(mockLatestMessages)}
+		/>
+	),
+	parameters: {
+		queries: [
+			{
+				key: chatEntityKey(MockChat.id),
+				data: { ...MockChat, files: [mockReportFile, mockScreenshotFile] },
+			},
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+			{
+				key: chatAttachmentsKey(MockChat.id, mockLatestMessages[0].id),
+				data: { attachments: [mockEarlierScreenshot, mockEarlierUpload] },
+			},
+		],
+	},
+};
