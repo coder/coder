@@ -44,6 +44,14 @@ func LockIDChatOrganizationSystemPrompt(organizationID uuid.UUID) int64 {
 	return GenLockID("chat_organization_system_prompt:" + organizationID.String())
 }
 
+// WorkspaceQuotaLockID returns the advisory lock ID that serializes quota
+// commits for one workspace owner in one organization. The key format must
+// not change, because replicas running different versions must derive the
+// same ID to exclude each other.
+func WorkspaceQuotaLockID(ownerID, organizationID uuid.UUID) int64 {
+	return GenLockID("workspace_quota:" + ownerID.String() + ":" + organizationID.String())
+}
+
 // GenLockID generates a unique and consistent lock ID from a given string.
 func GenLockID(name string) int64 {
 	hash := fnv.New64()

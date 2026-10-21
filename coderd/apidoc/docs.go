@@ -25545,6 +25545,9 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "quota_max_concurrent_commits": {
+                    "type": "integer"
+                },
                 "rate_limit": {
                     "$ref": "#/definitions/codersdk.RateLimitConfig"
                 },

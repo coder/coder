@@ -8470,6 +8470,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "proxy_trusted_origins": [
       "string"
     ],
+    "quota_max_concurrent_commits": 0,
     "rate_limit": {
       "api": 0,
       "disable_all": true
@@ -9108,6 +9109,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "proxy_trusted_origins": [
     "string"
   ],
+  "quota_max_concurrent_commits": 0,
   "rate_limit": {
     "api": 0,
     "disable_all": true
@@ -9283,6 +9285,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `proxy_health_status_interval`                 | integer                                                                                              | false    |              |                                                                           |
 | `proxy_trusted_headers`                        | array of string                                                                                      | false    |              |                                                                           |
 | `proxy_trusted_origins`                        | array of string                                                                                      | false    |              |                                                                           |
+| `quota_max_concurrent_commits`                 | integer                                                                                              | false    |              |                                                                           |
 | `rate_limit`                                   | [codersdk.RateLimitConfig](#codersdkratelimitconfig)                                                 | false    |              |                                                                           |
 | `redirect_to_access_url`                       | boolean                                                                                              | false    |              |                                                                           |
 | `retention`                                    | [codersdk.RetentionConfig](#codersdkretentionconfig)                                                 | false    |              |                                                                           |

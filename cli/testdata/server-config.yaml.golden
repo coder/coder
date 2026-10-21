@@ -551,6 +551,11 @@ pgConnMaxOpen: 10
 # idle connections.
 # (default: auto, type: string)
 pgConnMaxIdle: auto
+# Maximum number of workspace quota transactions each replica runs at once. 0 uses
+# a quarter of the Postgres max open connections, from 1 to 8. A positive value
+# must be less than the max open connections, unless that is 1.
+# (default: 0, type: int)
+quotaMaxConcurrentCommits: 0
 # A URL to an external Terms of Service that must be accepted by users when
 # logging in.
 # (default: <unset>, type: string)
