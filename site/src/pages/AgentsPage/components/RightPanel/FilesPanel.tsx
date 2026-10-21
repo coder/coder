@@ -6,9 +6,12 @@ import {
 	LinkIcon,
 	RefreshCwIcon,
 } from "lucide-react";
-import { type FC, type FormEvent, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useQueries, useQuery, useQueryClient } from "react-query";
-import type { WorkspaceAgentFile } from "#/api/api";
+import type {
+	WorkspaceAgentFile,
+	WorkspaceAgentListDirectoryResponse,
+} from "#/api/api";
 import { getErrorMessage, getErrorStatus } from "#/api/errors";
 import {
 	workspaceAgentDirectory,
@@ -42,7 +45,7 @@ type FilesPanelProps = {
 	chatId: string;
 };
 
-export const FilesPanel: FC<FilesPanelProps> = ({ chatId }) => {
+export const FilesPanel: React.FC<FilesPanelProps> = ({ chatId }) => {
 	const workspaceFiles = useWorkspaceFiles();
 	if (!workspaceFiles) {
 		return (
@@ -59,7 +62,10 @@ type FilesBrowserProps = {
 	workspaceFiles: WorkspaceFilesContextValue;
 };
 
-const FilesBrowser: FC<FilesBrowserProps> = ({ chatId, workspaceFiles }) => {
+const FilesBrowser: React.FC<FilesBrowserProps> = ({
+	chatId,
+	workspaceFiles,
+}) => {
 	const { agentId, defaultDirectory, repoRoots, openFile } = workspaceFiles;
 	const queryClient = useQueryClient();
 	const storageKey = `${filesPanelRootStorageKeyPrefix}${chatId}`;
@@ -103,7 +109,7 @@ const FilesBrowser: FC<FilesBrowserProps> = ({ chatId, workspaceFiles }) => {
 		selectRoot(value.slice(rootValuePrefix.length));
 	};
 
-	const handleOpenPath = (event: FormEvent<HTMLFormElement>) => {
+	const handleOpenPath = (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		const path = new FormData(event.currentTarget).get("path");
 		if (typeof path === "string" && path.trim() !== "") {
@@ -214,51 +220,16 @@ type TreeRow =
 	  }
 	| { type: "status"; key: string; level: number; label: string };
 
-type DirectoryTreeProps = {
-	agentId: string;
-	root: string;
-	expandedPaths: readonly string[];
-	onToggleDirectory: (path: string) => void;
-	onOpenFile: (path: string) => void;
+type ChildListing = {
+	data: WorkspaceAgentListDirectoryResponse | undefined;
+	isError: boolean;
+	error: unknown;
 };
 
-const DirectoryTree: FC<DirectoryTreeProps> = ({
-	agentId,
-	root,
-	expandedPaths,
-	onToggleDirectory,
-	onOpenFile,
-}) => {
-	const rootQuery = useQuery(workspaceAgentDirectory(agentId, root));
-	const childQueries = useQueries({
-		queries: expandedPaths.map((path) =>
-			workspaceAgentDirectory(agentId, path),
-		),
-	});
-	const [focusedPath, setFocusedPath] = useState<string>();
-	const rowElements = useRef(new Map<string, HTMLDivElement>());
-
-	if (rootQuery.data === undefined) {
-		if (!rootQuery.isError) {
-			return <Loader className="flex-1" />;
-		}
-		return (
-			<div className="p-2">
-				{getErrorStatus(rootQuery.error) === 404 ? (
-					<p className="m-0 text-sm text-content-secondary">
-						No directory at {root || "the default directory"}.
-					</p>
-				) : (
-					<ErrorAlert error={rootQuery.error} showDebugDetail={false} />
-				)}
-			</div>
-		);
-	}
-
-	const listing = rootQuery.data;
-	const childListings = new Map(
-		expandedPaths.map((path, index) => [path, childQueries[index]]),
-	);
+const buildTreeRows = (
+	rootEntries: readonly WorkspaceAgentFile[],
+	childListings: ReadonlyMap<string, ChildListing>,
+): TreeRow[] => {
 	const rows: TreeRow[] = [];
 	let entryCount = 0;
 	const addEntries = (
@@ -319,7 +290,59 @@ const DirectoryTree: FC<DirectoryTreeProps> = ({
 			}
 		}
 	};
-	addEntries(listing.contents, 1, undefined);
+	addEntries(rootEntries, 1, undefined);
+	return rows;
+};
+
+type DirectoryTreeProps = {
+	agentId: string;
+	root: string;
+	expandedPaths: readonly string[];
+	onToggleDirectory: (path: string) => void;
+	onOpenFile: (path: string) => void;
+};
+
+const DirectoryTree: React.FC<DirectoryTreeProps> = ({
+	agentId,
+	root,
+	expandedPaths,
+	onToggleDirectory,
+	onOpenFile,
+}) => {
+	const rootQuery = useQuery(workspaceAgentDirectory(agentId, root));
+	// combine hands plain values to the render. Compiled memoization would
+	// otherwise skip reading the tracked results, so react-query would stop
+	// re-rendering when their data changes.
+	const childListings = useQueries({
+		queries: expandedPaths.map((path) =>
+			workspaceAgentDirectory(agentId, path),
+		),
+	});
+	const [focusedPath, setFocusedPath] = useState<string>();
+	const rowElements = useRef(new Map<string, HTMLDivElement>());
+
+	if (rootQuery.data === undefined) {
+		if (!rootQuery.isError) {
+			return <Loader className="flex-1" />;
+		}
+		return (
+			<div className="p-2">
+				{getErrorStatus(rootQuery.error) === 404 ? (
+					<p className="m-0 text-sm text-content-secondary">
+						No directory at {root || "the default directory"}.
+					</p>
+				) : (
+					<ErrorAlert error={rootQuery.error} showDebugDetail={false} />
+				)}
+			</div>
+		);
+	}
+
+	const listing = rootQuery.data;
+	const rows = buildTreeRows(
+		listing.contents,
+		new Map(expandedPaths.map((path, index) => [path, childListings[index]])),
+	);
 
 	const entryRows = rows.filter((row) => row.type === "entry");
 	const tabStopPath = entryRows.some(
