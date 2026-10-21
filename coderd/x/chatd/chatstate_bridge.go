@@ -49,8 +49,6 @@ func busyBehaviorToChatState(b SendMessageBusyBehavior) chatstate.BusyBehavior {
 	switch b {
 	case SendMessageBusyBehaviorSteer:
 		return chatstate.BusyBehaviorSteer
-	case SendMessageBusyBehaviorInterrupt:
-		return chatstate.BusyBehaviorInterrupt
 	default:
 		return chatstate.BusyBehaviorQueue
 	}
