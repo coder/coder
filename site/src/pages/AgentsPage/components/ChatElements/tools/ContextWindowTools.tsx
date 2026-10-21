@@ -172,7 +172,7 @@ const chatHistoryErrorMessages = {
 
 /**
  * Words the header by `action` and counts results except for `read_item`,
- * both only once a result reports `success`. A nonempty `errorCode` marks
+ * both only once a result reports `success`. A nonempty `resultError` marks
  * the row failed even when the tool call succeeded, and known codes map to
  * fixed messages.
  */
@@ -185,7 +185,7 @@ export const ChatHistoryTool: React.FC<
 		hasMore: boolean;
 		succeeded: boolean;
 		/** Error code or server error message from a failed lookup, or empty on success. */
-		errorCode: string;
+		resultError: string;
 	}
 > = ({
 	action,
@@ -194,12 +194,12 @@ export const ChatHistoryTool: React.FC<
 	resultCount,
 	hasMore,
 	succeeded,
-	errorCode,
+	resultError,
 	status,
 	isError: isToolError,
 	errorMessage,
 }) => {
-	const isError = isToolError || errorCode !== "";
+	const isError = isToolError || resultError !== "";
 	const wording = labelForOwnKey(chatHistoryWording, action) ?? {
 		running: "Using chat history",
 		done: "Used chat history",
@@ -237,7 +237,7 @@ export const ChatHistoryTool: React.FC<
 			status={status}
 			isError={isError}
 			errorMessage={
-				labelForOwnKey(chatHistoryErrorMessages, errorCode) ||
+				labelForOwnKey(chatHistoryErrorMessages, resultError) ||
 				errorMessage ||
 				"Failed to read chat history"
 			}
