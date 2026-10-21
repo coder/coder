@@ -898,7 +898,10 @@ describe("AgentCreatePage workspace uploads", () => {
 			return [mockUploadedFile];
 		});
 
-		await submit({ uploadWorkspaceFiles });
+		await submit({
+			workspaceAttachmentFileIDs: ["staged-file"],
+			uploadWorkspaceFiles,
+		});
 
 		expect(events).toEqual(["create", `upload:${MockChat.id}`, "send"]);
 		expect(API.experimental.createChat).toHaveBeenCalledWith(
@@ -909,6 +912,7 @@ describe("AgentCreatePage workspace uploads", () => {
 			expect.objectContaining({
 				content: [
 					{ type: "text", text: "inspect this archive" },
+					{ type: "workspace-attachment", file_id: "staged-file" },
 					{
 						type: "workspace-file-reference",
 						workspace_file_path: "/home/coder/bundle.zip",
@@ -932,6 +936,23 @@ describe("AgentCreatePage workspace uploads", () => {
 		expect(API.experimental.createChat).toHaveBeenCalledWith(
 			expect.objectContaining({
 				content: [{ type: "text", text: "inspect this archive" }],
+			}),
+		);
+		expect(router.state.location.pathname).toBe(chatPath);
+	});
+
+	it("sends staged workspace files with the create request", async () => {
+		const router = await renderUploadPage();
+
+		await submit({ workspaceAttachmentFileIDs: ["staged-file"] });
+
+		expect(events).toEqual(["create"]);
+		expect(API.experimental.createChat).toHaveBeenCalledWith(
+			expect.objectContaining({
+				content: [
+					{ type: "text", text: "inspect this archive" },
+					{ type: "workspace-attachment", file_id: "staged-file" },
+				],
 			}),
 		);
 		expect(router.state.location.pathname).toBe(chatPath);

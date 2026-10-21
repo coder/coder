@@ -13,7 +13,6 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
-import { getWorkspaceAgents } from "#/utils/workspace";
 import { resolveChatCompactionThreshold } from "../compactionTriggers";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
@@ -28,6 +27,7 @@ import {
 	isWorkspaceFileReferencePart,
 	type StagedFilePurpose,
 } from "../utils/chatAttachments";
+import { collectSendableAttachments } from "../utils/chatInputContent";
 import {
 	getProviderForModelOption,
 	providerInfoByIDFromDescriptors,
@@ -651,20 +651,11 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 
 	const isStreaming = hasStreamState || isActiveChatStatus(chatStatus);
 
-	// The workspace upload affordance requires an existing chat bound
-	// to a workspace whose agent is connected; the agent writes the
-	// bytes into its home directory. A freshly attached or rebound
-	// workspace has no bound agent until the next generation, and the
-	// upload handler then selects one itself, so any connected root
-	// agent qualifies in that case (mirrors the new-chat page).
-	const uploadAgentConnected = workspaceAgent
-		? workspaceAgent.status === "connected"
-		: workspace !== undefined &&
-			getWorkspaceAgents(workspace).some(
-				(agent) => !agent.parent_id && agent.status === "connected",
-			);
-	const canUploadWorkspaceFiles = Boolean(
-		chatId && workspace && uploadAgentConnected,
+	// The chat's agent_id carries the server's agent pick, so stream only
+	// while that agent is connected. Otherwise workspace files stage in
+	// Coder, which copies them in once the workspace starts.
+	const canStreamWorkspaceFiles = Boolean(
+		chatId && workspace && workspaceAgent?.status === "connected",
 	);
 	const modeWorkspaceUploads = isEditing
 		? editWorkspaceUploads
@@ -700,21 +691,8 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 					// Collect uploaded attachment metadata for the optimistic
 					// transcript builder while keeping the server payload
 					// shape unchanged downstream.
-					const pendingAttachments: PendingAttachment[] = [];
-					let skippedErrors = 0;
-					for (const file of attachments) {
-						const state = uploadStates.get(file);
-						if (state?.status === "error") {
-							skippedErrors++;
-							continue;
-						}
-						if (state?.status === "uploaded" && state.fileId) {
-							pendingAttachments.push({
-								fileId: state.fileId,
-								mediaType: file.type || "application/octet-stream",
-							});
-						}
-					}
+					const { attachments: pendingAttachments, skippedErrors } =
+						collectSendableAttachments(attachments, uploadStates);
 					const pendingWorkspaceUploads: PendingWorkspaceUpload[] = [];
 					let skippedWorkspaceErrors = 0;
 					for (const upload of visibleWorkspaceUploads) {
@@ -776,9 +754,12 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			textContents={textContents}
 			workspaceUploads={{
 				uploads: visibleWorkspaceUploads,
-				onAttach: canUploadWorkspaceFiles
+				onAttach: canStreamWorkspaceFiles
 					? modeWorkspaceUploads.attach
 					: undefined,
+				onStage: canStreamWorkspaceFiles
+					? undefined
+					: (files) => handleAttach(files, "workspace"),
 				onRemove: handleRemoveWorkspaceUpload,
 			}}
 			inputRef={inputRef}

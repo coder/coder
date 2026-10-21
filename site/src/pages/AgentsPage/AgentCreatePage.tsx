@@ -261,6 +261,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 	const handleCreateChat = async ({
 		message,
 		fileIDs,
+		workspaceAttachmentFileIDs,
 		workspaceId,
 		model,
 		reasoningEffort,
@@ -277,6 +278,11 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		if (fileIDs) {
 			for (const fileID of fileIDs) {
 				content.push({ type: "file", file_id: fileID });
+			}
+		}
+		if (workspaceAttachmentFileIDs) {
+			for (const fileID of workspaceAttachmentFileIDs) {
+				content.push({ type: "workspace-attachment", file_id: fileID });
 			}
 		}
 		const createRequest: TypesGen.CreateChatRequest = {

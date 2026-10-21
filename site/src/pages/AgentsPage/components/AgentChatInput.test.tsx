@@ -652,9 +652,50 @@ describe("AgentChatInput", () => {
 		expect(onAttach).not.toHaveBeenCalled();
 	});
 
+	it("stages workspace files when direct uploads are unavailable", () => {
+		const onAttach = vi.fn();
+		const onStage = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				onSend={vi.fn()}
+				onAttach={onAttach}
+				attachments={[]}
+				workspaceUploads={{
+					uploads: [],
+					onStage,
+					onRemove: vi.fn(),
+				}}
+				isDisabled={false}
+				isLoading={false}
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
+			/>,
+		);
+
+		const zip = createMockFile("dataset.zip", "application/zip");
+		const image = createMockFile("photo.png", "image/png");
+		fireEvent.drop(screen.getByRole("textbox", { name: "Chat message" }), {
+			dataTransfer: { files: [zip, image] },
+		});
+
+		expect(onStage).toHaveBeenCalledWith([zip]);
+		expect(onAttach).toHaveBeenCalledWith([image]);
+	});
+
 	it("refuses workspace files while the composer is disabled", () => {
 		const onAttach = vi.fn();
 		const onWorkspaceAttach = vi.fn();
+		const onStage = vi.fn();
 		const toastError = vi.spyOn(toast, "error");
 
 		renderInput(
@@ -665,6 +706,7 @@ describe("AgentChatInput", () => {
 				workspaceUploads={{
 					uploads: [],
 					onAttach: onWorkspaceAttach,
+					onStage,
 					onRemove: vi.fn(),
 				}}
 				isDisabled
@@ -690,58 +732,62 @@ describe("AgentChatInput", () => {
 		});
 
 		expect(onWorkspaceAttach).not.toHaveBeenCalled();
+		expect(onStage).not.toHaveBeenCalled();
 		expect(onAttach).not.toHaveBeenCalled();
 		expect(toastError).toHaveBeenCalledWith(
-			"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
+			"Files for the workspace can't be added right now.",
 		);
 	});
 
-	it("refuses workspace files while a send is pending", () => {
-		const onAttach = vi.fn();
-		const onWorkspaceAttach = vi.fn();
-		const toastError = vi.spyOn(toast, "error");
+	it.each([
+		{ name: "streamed", route: "onAttach" },
+		{ name: "staged", route: "onStage" },
+	] as const)(
+		"refuses $name workspace files while a send is pending",
+		({ route }) => {
+			const onAttach = vi.fn();
+			const onWorkspaceRoute = vi.fn();
+			const toastError = vi.spyOn(toast, "error");
 
-		renderInput(
-			<AgentChatInput
-				onSend={vi.fn()}
-				onAttach={onAttach}
-				attachments={[]}
-				workspaceUploads={{
-					uploads: [],
-					onAttach: onWorkspaceAttach,
-					onRemove: vi.fn(),
-				}}
-				isDisabled={false}
-				isLoading
-				selectedModel={modelOptions[0].id}
-				onModelChange={vi.fn()}
-				modelOptions={modelOptions}
-				modelSelectorPlaceholder="Select model"
-				hasModelOptions
-				canConfigureAgentSetup={false}
-				initialValue=""
-				onContentChange={vi.fn()}
-				planModeEnabled={false}
-				onPlanModeToggle={vi.fn()}
-				isModelCatalogLoading={false}
-			/>,
-		);
+			renderInput(
+				<AgentChatInput
+					onSend={vi.fn()}
+					onAttach={onAttach}
+					attachments={[]}
+					workspaceUploads={{
+						uploads: [],
+						[route]: onWorkspaceRoute,
+						onRemove: vi.fn(),
+					}}
+					isDisabled={false}
+					isLoading
+					selectedModel={modelOptions[0].id}
+					onModelChange={vi.fn()}
+					modelOptions={modelOptions}
+					modelSelectorPlaceholder="Select model"
+					hasModelOptions
+					canConfigureAgentSetup={false}
+					initialValue=""
+					onContentChange={vi.fn()}
+					planModeEnabled={false}
+					onPlanModeToggle={vi.fn()}
+					isModelCatalogLoading={false}
+				/>,
+			);
 
-		// The post-send reset would discard the chip after the bytes
-		// already landed, so the drop is refused with a wait message
-		// rather than the "attach a workspace" one.
-		fireEvent.drop(screen.getByRole("textbox", { name: "Chat message" }), {
-			dataTransfer: {
-				files: [createMockFile("dataset.zip", "application/zip")],
-			},
-		});
+			fireEvent.drop(screen.getByRole("textbox", { name: "Chat message" }), {
+				dataTransfer: {
+					files: [createMockFile("dataset.zip", "application/zip")],
+				},
+			});
 
-		expect(onWorkspaceAttach).not.toHaveBeenCalled();
-		expect(onAttach).not.toHaveBeenCalled();
-		expect(toastError).toHaveBeenCalledWith(
-			"Wait for the current message to finish sending, then add the file again.",
-		);
-	});
+			expect(onWorkspaceRoute).not.toHaveBeenCalled();
+			expect(onAttach).not.toHaveBeenCalled();
+			expect(toastError).toHaveBeenCalledWith(
+				"Wait for the current message to finish sending, then add the file again.",
+			);
+		},
+	);
 
 	it("refuses pasted workspace files while a send is pending", () => {
 		const onAttach = vi.fn();
@@ -789,7 +835,7 @@ describe("AgentChatInput", () => {
 		);
 	});
 
-	it("asks for a workspace when workspace uploads are wired but unavailable", () => {
+	it("refuses workspace files when neither streaming nor staging is available", () => {
 		const onAttach = vi.fn();
 		const toastError = vi.spyOn(toast, "error");
 
@@ -826,7 +872,7 @@ describe("AgentChatInput", () => {
 
 		expect(onAttach).not.toHaveBeenCalled();
 		expect(toastError).toHaveBeenCalledWith(
-			"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
+			"Files for the workspace can't be added right now.",
 		);
 	});
 });

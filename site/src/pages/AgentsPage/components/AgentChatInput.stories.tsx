@@ -361,6 +361,21 @@ export const WithAttachments: Story = {
 	})(),
 };
 
+export const WithStagedWorkspaceAttachment: Story = {
+	args: (() => {
+		const file = createMockFile("project.zip", "application/zip");
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "uploaded", fileId: "f1", purpose: "workspace" }],
+			]),
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+			initialValue: "Unpack this once the workspace starts",
+		};
+	})(),
+};
+
 export const WithUploadingAttachment: Story = {
 	args: (() => {
 		const file = createMockFile("uploading.png", "image/png");
