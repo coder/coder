@@ -1,6 +1,7 @@
 package chatd //nolint:testpackage // Exercises unexported rollover helpers.
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -70,6 +71,93 @@ func TestDecideRollover(t *testing.T) {
 			require.Equal(t, tc.want, decideRollover(tc.tokens, tc.budget))
 		})
 	}
+}
+
+func TestDecideGenerationActionContextRollover(t *testing.T) {
+	t.Parallel()
+
+	// W = 100 with a 32k output cap: C = 75.
+	budget := newContextWindowBudget(100, 32_000, 70)
+	toolStep := rolloverTestToolStep
+	rolloverBoundary := func(t *testing.T, id int64) []database.ChatMessage {
+		return rolloverTestBoundary(t, id, rolloverToolName)
+	}
+	history := rolloverTestHistory
+	prompt := rolloverTestPrompt
+
+	tests := []struct {
+		name     string
+		messages []database.ChatMessage
+		budget   *contextWindowBudget
+		maxSteps int
+		want     generationActionKind
+	}{
+		{name: "RollsOverAtUsableLimit", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 75)), budget: &budget, want: generationActionContextRollover},
+		{name: "GeneratesBelowUsableLimit", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 74)), budget: &budget, want: generationActionGenerateAssistant},
+		{name: "RollsOverBeforeAnsweringNewPrompt", messages: history(
+			prompt(t, 1, "go"),
+			[]database.ChatMessage{withUsage(dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("done")), 80, 100)},
+			prompt(t, 3, "next"),
+		), budget: &budget, want: generationActionContextRollover},
+		{name: "IgnoresUsageBeforeRolloverBoundary", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 80), rolloverBoundary(t, 4)), budget: &budget, want: generationActionGenerateAssistant},
+		{name: "RollsOverWhenNewWindowFills", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 80), rolloverBoundary(t, 4), toolStep(t, 7, 80)), budget: &budget, want: generationActionContextRollover},
+		{name: "DisabledAtHundredPercent", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 99)), budget: new(newContextWindowBudget(100, 32_000, 100)), want: generationActionGenerateAssistant},
+		{name: "SummarizeStrategyIgnoresLimit", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 99)), want: generationActionGenerateAssistant},
+		{name: "MaxStepsFinishesFirst", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 80)), budget: &budget, maxSteps: 1, want: generationActionFinishTurn},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			maxSteps := tc.maxSteps
+			if maxSteps == 0 {
+				maxSteps = codersdk.DefaultChatMaxStepsPerTurn
+			}
+			decision, err := decideGenerationAction(generationDecisionInput{
+				messages: tc.messages,
+				maxSteps: maxSteps,
+				rollover: tc.budget,
+			})
+			require.NoError(t, err)
+			require.Equal(t, tc.want, decision.kind)
+			if tc.want == generationActionContextRollover {
+				require.Equal(t, rolloverReasonLimit, decision.rolloverReason)
+			}
+		})
+	}
+}
+
+func rolloverTestToolStep(t *testing.T, id int64, inputTokens int64) []database.ChatMessage {
+	callID := fmt.Sprintf("call-%d", id)
+	return []database.ChatMessage{
+		withUsage(dbMessage(t, id, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall(callID, "tool", json.RawMessage(`{}`))), inputTokens, 100),
+		dbMessage(t, id+1, database.ChatMessageRoleTool, false, codersdk.ChatMessageToolResult(callID, "tool", json.RawMessage(`{}`), false, false)),
+	}
+}
+
+// rolloverTestBoundary returns a context boundary triplet of the given
+// kind: chat_summarized, chat_cleared, or chat_context_rollover.
+func rolloverTestBoundary(t *testing.T, id int64, toolName string) []database.ChatMessage {
+	anchor := dbMessage(t, id, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("anchor"))
+	anchor.Visibility = database.ChatMessageVisibilityModel
+	call := dbMessage(t, id+1, database.ChatMessageRoleAssistant, true, codersdk.ChatMessageToolCall("boundary", toolName, json.RawMessage(`{}`)))
+	call.Visibility = database.ChatMessageVisibilityUser
+	return []database.ChatMessage{
+		anchor,
+		call,
+		dbMessage(t, id+2, database.ChatMessageRoleTool, true, codersdk.ChatMessageToolResult("boundary", toolName, json.RawMessage(`{}`), false, false)),
+	}
+}
+
+func rolloverTestHistory(rows ...[]database.ChatMessage) []database.ChatMessage {
+	var out []database.ChatMessage
+	for _, r := range rows {
+		out = append(out, r...)
+	}
+	return out
+}
+
+func rolloverTestPrompt(t *testing.T, id int64, text string) []database.ChatMessage {
+	return []database.ChatMessage{dbMessage(t, id, database.ChatMessageRoleUser, false, codersdk.ChatMessageText(text))}
 }
 
 func TestContextWindowID(t *testing.T) {
