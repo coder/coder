@@ -1,7 +1,10 @@
 package agentfiles
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -21,11 +24,14 @@ import (
 
 var WindowsDriveRegex = regexp.MustCompile(`^[a-zA-Z]:\\$`)
 
+// maxLSEntries caps the number of entries in a list-directory response.
+const maxLSEntries = 10000
+
 func (api *API) HandleLS(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// An absolute path may be optionally provided, otherwise a path split into an
-	// array must be provided in the body (which can be relative).
+	// The path query parameter accepts the forms documented on
+	// resolvePathForm unless the body selects the legacy form.
 	query := r.URL.Query()
 	parser := httpapi.NewQueryParamParser()
 	path := parser.String(query, "", "path")
@@ -39,8 +45,43 @@ func (api *API) HandleLS(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var req workspacesdk.LSRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
+	// legacy is set when the body has a relativity key, as every
+	// AgentConn.LS caller sends. Those requests keep the original
+	// semantics: an absolute path query parameter, or a path array
+	// relative to relativity.
+	var legacy struct {
+		Relativity *workspacesdk.LSRelativity `json:"relativity"`
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(rw, r.Body, httpapi.DefaultMaxRequestBodyBytes))
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to read request body.",
+			Detail:  err.Error(),
+		})
 		return
+	}
+	if len(bytes.TrimSpace(body)) > 0 {
+		err := json.Unmarshal(body, &req)
+		if err == nil {
+			err = json.Unmarshal(body, &legacy)
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Request body must be valid JSON.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	if legacy.Relativity == nil {
+		path, err = api.resolvePathForm(path)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: err.Error(),
+			})
+			return
+		}
 	}
 
 	resp, err := listFiles(api.filesystem, path, req)
@@ -121,10 +162,21 @@ func listFiles(fs afero.Fs, path string, query workspacesdk.LSRequest) (workspac
 	contents, _ := f.Readdir(-1)
 	respContents := make([]workspacesdk.LSFile, 0, len(contents))
 	for _, file := range contents {
+		absPath := filepath.Join(absolutePathString, file.Name())
+		isSymlink := file.Mode()&os.ModeSymlink != 0
+		isDir := file.IsDir()
+		if isSymlink {
+			if target, err := fs.Stat(absPath); err == nil {
+				isDir = target.IsDir()
+			}
+		}
 		respContents = append(respContents, workspacesdk.LSFile{
 			Name:               file.Name(),
-			AbsolutePathString: filepath.Join(absolutePathString, file.Name()),
-			IsDir:              file.IsDir(),
+			AbsolutePathString: absPath,
+			IsDir:              isDir,
+			IsSymlink:          isSymlink,
+			Size:               file.Size(),
+			ModTime:            file.ModTime(),
 		})
 	}
 
@@ -139,12 +191,18 @@ func listFiles(fs afero.Fs, path string, query workspacesdk.LSRequest) (workspac
 		return strings.Compare(a.Name, b.Name)
 	})
 
+	truncated := len(respContents) > maxLSEntries
+	if truncated {
+		respContents = respContents[:maxLSEntries]
+	}
+
 	absolutePath := pathToArray(absolutePathString)
 
 	return workspacesdk.LSResponse{
 		AbsolutePath:       absolutePath,
 		AbsolutePathString: absolutePathString,
 		Contents:           respContents,
+		Truncated:          truncated,
 	}, nil
 }
 
