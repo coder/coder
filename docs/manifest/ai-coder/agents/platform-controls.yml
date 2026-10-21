@@ -35,6 +35,10 @@ children:
     description: Provide strategic, high-level guidance to root Coder Agents chats with the Advisor.
     path: ./ai-coder/agents/platform-controls/advisor.md
     state: [early access]
+  - title: Token budget
+    description: Continue long Coder Agents chats in fresh context windows that start from a saved checkpoint instead of a summary.
+    path: ./ai-coder/agents/platform-controls/token-budget.md
+    state: [early access]
   - title: Virtual desktop
     description: Give Coder Agents a graphical virtual desktop inside workspaces for GUI-based tasks.
     path: ./ai-coder/agents/platform-controls/virtual-desktop.md
