@@ -1426,7 +1426,11 @@ func (api *API) createChat(
 		}
 	}
 
-	contentBlocks, titleText, inputError := createChatInputFromRequest(ctx, api.Database, req)
+	contentBlocks, titleText, inputError := createChatInputFromRequest(ctx, api.Database, req, chatInputFileScope{
+		organizationID: req.OrganizationID,
+		ownerID:        ownerID,
+		callerID:       callerID,
+	})
 	if inputError != nil {
 		return database.Chat{}, codersdk.Chat{}, httperror.NewResponseError(http.StatusBadRequest, *inputError)
 	}
@@ -3066,7 +3070,11 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, chat.ID, chat.WorkspaceID, req.Content, "content")
+	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, chat.ID, chat.WorkspaceID, chatInputFileScope{
+		organizationID: chat.OrganizationID,
+		ownerID:        chat.OwnerID,
+		callerID:       apiKey.UserID,
+	}, req.Content, "content")
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: inputError.Message,
@@ -3329,7 +3337,11 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, chat.ID, chat.WorkspaceID, req.Content, "content")
+	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, chat.ID, chat.WorkspaceID, chatInputFileScope{
+		organizationID: chat.OrganizationID,
+		ownerID:        chat.OwnerID,
+		callerID:       apiKey.UserID,
+	}, req.Content, "content")
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: inputError.Message,
@@ -7848,7 +7860,7 @@ func isWindowsAbsPath(p string) bool {
 		(('a' <= p[0] && p[0] <= 'z') || ('A' <= p[0] && p[0] <= 'Z'))
 }
 
-func createChatInputFromRequest(ctx context.Context, db database.Store, req codersdk.CreateChatRequest) (
+func createChatInputFromRequest(ctx context.Context, db database.Store, req codersdk.CreateChatRequest, files chatInputFileScope) (
 	[]codersdk.ChatMessagePart,
 	string,
 	*codersdk.Response,
@@ -7863,7 +7875,7 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 	}
 	// Chat creation has no chat ID yet, so workspace-file-reference
 	// parts are rejected (they require an existing chat's uploads).
-	content, pasteData, inputError := createChatInputFromParts(ctx, db, uuid.Nil, uuid.NullUUID{}, req.Content, "content")
+	content, pasteData, inputError := createChatInputFromParts(ctx, db, uuid.Nil, uuid.NullUUID{}, files, req.Content, "content")
 	if inputError != nil {
 		return nil, "", inputError
 	}
@@ -7878,6 +7890,16 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 	return content, titleText, nil
 }
 
+// chatInputFileScope limits which workspace files an input part may
+// reference: files in the chat's organization uploaded by the chat owner
+// or the caller. Reading a file is not enough, because linking hands its
+// bytes to the chat's delivery, which drops them from storage.
+type chatInputFileScope struct {
+	organizationID uuid.UUID
+	ownerID        uuid.UUID
+	callerID       uuid.UUID
+}
+
 // createChatInputFromParts validates input parts and converts them to
 // message content. The returned map holds pasted-text blob references
 // by file ID; the create path derives a title from it, message send
@@ -7887,6 +7909,7 @@ func createChatInputFromParts(
 	db database.Store,
 	chatID uuid.UUID,
 	chatWorkspaceID uuid.NullUUID,
+	files chatInputFileScope,
 	parts []codersdk.ChatInputPart,
 	fieldName string,
 ) ([]codersdk.ChatMessagePart, map[uuid.UUID][]byte, *codersdk.Response) {
@@ -7968,6 +7991,13 @@ func createChatInputFromParts(
 				return nil, nil, &codersdk.Response{
 					Message: "Invalid input part.",
 					Detail:  fmt.Sprintf("%s[%d].file_id must reference a file uploaded with purpose %q.", fieldName, i, codersdk.ChatFilePurposeWorkspace),
+				}
+			}
+			if chatFile.OrganizationID != files.organizationID ||
+				(chatFile.OwnerID != files.ownerID && chatFile.OwnerID != files.callerID) {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].file_id must reference a workspace file you or the chat owner uploaded in the chat's organization.", fieldName, i),
 				}
 			}
 			content = append(content, codersdk.ChatMessageWorkspaceAttachment(part.FileID, chatFile.Mimetype, chatFile.Name, chatFile.SizeBytes))

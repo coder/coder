@@ -13214,6 +13214,70 @@ func TestChatWorkspaceAttachments(t *testing.T) {
 		require.Equal(t, fileID, chat.Files[0].ID)
 	})
 
+	t.Run("RejectsOtherUsersFiles", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		victimRaw, victim := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		victimClient := codersdk.NewExperimentalClient(victimRaw)
+		orgAdminRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID))
+		orgAdminClient := codersdk.NewExperimentalClient(orgAdminRaw)
+		uploaded, err := victimClient.UploadChatFileWithPurpose(ctx, firstUser.OrganizationID, codersdk.ChatFilePurposeWorkspace, "application/zip", "secret.zip", bytes.NewReader(zipBytes(256)))
+		require.NoError(t, err)
+		//nolint:gocritic // Plants a file in another organization, which no user route can do.
+		foreign, err := db.InsertChatFile(dbauthz.AsSystemRestricted(ctx), database.InsertChatFileParams{
+			OwnerID:        firstUser.UserID,
+			OrganizationID: dbgen.Organization(t, db, database.Organization{}).ID,
+			Name:           "foreign.zip",
+			Mimetype:       "application/zip",
+			Data:           zipBytes(256),
+			Purpose:        database.NullChatFilePurpose{ChatFilePurpose: database.ChatFilePurposeWorkspace, Valid: true},
+		})
+		require.NoError(t, err)
+
+		attach := func(fileID uuid.UUID) []codersdk.ChatInputPart {
+			return []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeWorkspaceAttachment, FileID: fileID}}
+		}
+		requireRejected := func(t *testing.T, err error) {
+			t.Helper()
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Contains(t, sdkErr.Detail, "content[0].file_id must reference a workspace file")
+		}
+		// Site owners and org admins can read the victim's file, but must
+		// not link it into their own chats, where delivery would consume
+		// its bytes.
+		for name, attacker := range map[string]*codersdk.ExperimentalClient{"SiteOwner": client, "OrgAdmin": orgAdminClient} {
+			_, err := attacker.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: attach(uploaded.ID)})
+			requireRejected(t, err)
+			own, err := attacker.CreateChat(ctx, codersdk.CreateChatRequest{
+				OrganizationID: firstUser.OrganizationID,
+				Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+			})
+			require.NoError(t, err, name)
+			_, err = attacker.CreateChatMessage(ctx, own.ID, codersdk.CreateChatMessageRequest{Content: attach(uploaded.ID)})
+			requireRejected(t, err)
+		}
+		_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: attach(foreign.ID)})
+		requireRejected(t, err)
+
+		chat, err := victimClient.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: attach(uploaded.ID)})
+		require.NoError(t, err)
+		require.Equal(t, victim.ID, chat.OwnerID)
+		require.Len(t, chat.Files, 1)
+		require.Equal(t, uploaded.ID, chat.Files[0].ID)
+
+		// A chat created on behalf of another user may use files the
+		// caller uploaded.
+		callerFileID := uploadWorkspaceFile(ctx, t, "mine.zip", zipBytes(256))
+		onBehalf, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        &victim.ID,
+			Content:        attach(callerFileID),
+		})
+		require.NoError(t, err)
+		require.Equal(t, victim.ID, onBehalf.OwnerID)
+	})
+
 	t.Run("RejectsMismatchedPurpose", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
