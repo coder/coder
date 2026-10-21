@@ -109,8 +109,7 @@ func TestPubsub_RefreshPeers(t *testing.T) {
 		fetcher := &testPeerFetcher{addresses: []string{"nats://127.0.0.1:1234"}}
 		opts := clusterTestOptions(t)
 		opts.PeerFetcher = fetcher
-		// Nothing listens on the fake peer, so the route dial fails.
-		a := newTestPubsub(t, opts, routeConnectError)
+		a := newTestPubsub(t, opts)
 		require.GreaterOrEqual(t, fetcher.port, minTCPPort)
 		require.LessOrEqual(t, fetcher.port, maxTCPPort)
 
@@ -125,8 +124,7 @@ func TestPubsub_RefreshPeers(t *testing.T) {
 	t.Run("SetPeerFetcher", func(t *testing.T) {
 		t.Parallel()
 		opts := clusterTestOptions(t)
-		// Nothing listens on the fake peers, so the route dials fail.
-		a := newTestPubsub(t, opts, routeConnectError)
+		a := newTestPubsub(t, opts)
 
 		routes := []string{
 			"nats://127.0.0.1:1234",

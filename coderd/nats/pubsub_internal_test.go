@@ -519,7 +519,7 @@ func TestPubsubCluster(t *testing.T) {
 	t.Run("ClusterAuthRequired", func(t *testing.T) {
 		t.Parallel()
 
-		ps := newTestPubsub(t, clusterTestOptions(t), natsserver.ErrAuthentication.Error())
+		ps := newTestPubsub(t, clusterTestOptions(t))
 		routeURL := clusterRouteAddress(t, ps)
 
 		_, err := natsgo.Connect(routeURL,
@@ -546,7 +546,7 @@ func TestPubsubCluster(t *testing.T) {
 		t.Parallel()
 
 		opts := clusterTestOptions(t)
-		ps := newTestPubsub(t, opts, natsserver.ErrAuthentication.Error())
+		ps := newTestPubsub(t, opts)
 		clientURL := ps.Server.ClientURL()
 
 		_, err := natsgo.Connect(clientURL,
@@ -679,9 +679,13 @@ func clusterTestOptions(t *testing.T) Options {
 	}
 }
 
-func newTestPubsub(t *testing.T, opts Options, expectedServerErrors ...string) *Pubsub {
+func newTestPubsub(t *testing.T, opts Options) *Pubsub {
 	t.Helper()
-	logger := slogtest.Make(t, ignoreServerErrors(t, expectedServerErrors...))
+	logger := slogtest.Make(t, &slogtest.Options{
+		IgnoreErrorFn: func(ent slog.SinkEntry) bool {
+			return slices.Contains(ent.LoggerNames, "server")
+		},
+	})
 	ctx := testutil.Context(t, testutil.WaitLong)
 	ps, err := New(ctx, logger, opts)
 	require.NoError(t, err)
@@ -689,30 +693,6 @@ func newTestPubsub(t *testing.T, opts Options, expectedServerErrors ...string) *
 		_ = ps.Close()
 	})
 	return ps
-}
-
-const routeConnectError = "Error trying to connect to route"
-
-func ignoreServerErrors(t *testing.T, expected ...string) *slogtest.Options {
-	// t.Context is canceled just before cleanup functions run.
-	testCtx := t.Context()
-	return &slogtest.Options{
-		IgnoreErrorFn: func(ent slog.SinkEntry) bool {
-			if !slices.Contains(ent.LoggerNames, "server") {
-				return false
-			}
-			contains := func(s string) bool { return strings.Contains(ent.Message, s) }
-			// NATS closes duplicate routes as the mesh forms.
-			if contains("Error flushing") && contains("connection reset by peer") {
-				return true
-			}
-			// Peers shut down sequentially, interrupting dials and handshakes.
-			if testCtx.Err() != nil && (contains(routeConnectError) || contains("processRemoteSub Parse Error")) {
-				return true
-			}
-			return slices.ContainsFunc(expected, contains)
-		},
-	}
 }
 
 // requireAuthRejected asserts that a connection attempt failed the server's

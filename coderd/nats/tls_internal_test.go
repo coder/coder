@@ -80,21 +80,15 @@ func generateTestCA(t *testing.T, sequence int32) *cryptokeys.NATSCA {
 // using the supplied CA cache. ip is this node's cluster host: the route
 // listener bind host and the leaf IP SAN. Peers dial each other on that host
 // (clusterRouteAddress), so ip must be 127.0.0.1 for routes to form.
-// expectedServerErrors behaves as in newTestPubsub.
-func newTLSPubsub(t *testing.T, ca cryptokeys.SigningKeycache, ip net.IP, expectedServerErrors ...string) *Pubsub {
+func newTLSPubsub(t *testing.T, ca cryptokeys.SigningKeycache, ip net.IP) *Pubsub {
 	t.Helper()
-	logger := slogtest.Make(t, ignoreServerErrors(t, expectedServerErrors...))
-	ctx := testutil.Context(t, testutil.WaitLong)
-	ps, err := New(ctx, logger, Options{
+	return newTestPubsub(t, Options{
 		ClusterHost:       ip.String(),
 		ClusterPort:       natsserver.RANDOM_PORT,
 		disableCluster:    false,
 		ClusterCA:         ca,
 		clusterTLSTimeout: testClusterTLSTimeout,
 	})
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = ps.Close() })
-	return ps
 }
 
 // setLeafSAN overrides a node's leaf IP SAN after construction, for tests that
@@ -107,8 +101,6 @@ func setLeafSAN(ps *Pubsub, ip net.IP) {
 	ps.clusterTLS.ip = ip
 	ps.clusterTLS.leaf = nil
 }
-
-const routeTLSHandshakeError = "TLS route handshake error"
 
 func numRoutes(t *testing.T, ps *Pubsub) int {
 	t.Helper()
@@ -176,8 +168,8 @@ func TestPubsub_ClusterTLS(t *testing.T) {
 
 		caX := generateTestCA(t, 1)
 		caY := generateTestCA(t, 1)
-		a := newTLSPubsub(t, &fakeCACache{active: caX, byID: map[string]*cryptokeys.NATSCA{"1": caX}}, net.IPv4(127, 0, 0, 1), routeTLSHandshakeError)
-		b := newTLSPubsub(t, &fakeCACache{active: caY, byID: map[string]*cryptokeys.NATSCA{"1": caY}}, net.IPv4(127, 0, 0, 1), routeTLSHandshakeError)
+		a := newTLSPubsub(t, &fakeCACache{active: caX, byID: map[string]*cryptokeys.NATSCA{"1": caX}}, net.IPv4(127, 0, 0, 1))
+		b := newTLSPubsub(t, &fakeCACache{active: caY, byID: map[string]*cryptokeys.NATSCA{"1": caY}}, net.IPv4(127, 0, 0, 1))
 
 		require.NoError(t, a.setPeerAddresses([]string{clusterRouteAddress(t, b)}))
 
@@ -224,8 +216,8 @@ func TestPubsub_ClusterTLS(t *testing.T) {
 		// forms. This isolates the SAN check: a valid CA-signed leaf presented
 		// from a known replica is still rejected when the cert is not bound to
 		// the address it connects from (e.g. a stolen or mis-minted leaf).
-		a := newTLSPubsub(t, cache(), net.IPv4(127, 0, 0, 1), routeTLSHandshakeError)
-		b := newTLSPubsub(t, cache(), net.IPv4(127, 0, 0, 1), routeTLSHandshakeError)
+		a := newTLSPubsub(t, cache(), net.IPv4(127, 0, 0, 1))
+		b := newTLSPubsub(t, cache(), net.IPv4(127, 0, 0, 1))
 		setLeafSAN(a, net.IPv4(10, 99, 99, 99))
 		setLeafSAN(b, net.IPv4(10, 99, 99, 99))
 
@@ -244,10 +236,8 @@ func TestPubsub_ClusterTLS(t *testing.T) {
 		// a requires mTLS on its route listener; b is a plaintext node
 		// (newTestPubsub leaves ClusterCA nil). Routes must not form in either
 		// direction: a rollout has to enable TLS on every replica at once.
-		// a rejects b's plaintext dial in the TLS handshake; b rejects a's dial
-		// because a does not present b's cluster token.
-		a := newTLSPubsub(t, &fakeCACache{active: ca, byID: map[string]*cryptokeys.NATSCA{"1": ca}}, net.IPv4(127, 0, 0, 1), routeTLSHandshakeError)
-		b := newTestPubsub(t, clusterTestOptions(t), natsserver.ErrAuthentication.Error())
+		a := newTLSPubsub(t, &fakeCACache{active: ca, byID: map[string]*cryptokeys.NATSCA{"1": ca}}, net.IPv4(127, 0, 0, 1))
+		b := newTestPubsub(t, clusterTestOptions(t))
 
 		require.NoError(t, a.setPeerAddresses([]string{clusterRouteAddress(t, b)}))
 		require.NoError(t, b.setPeerAddresses([]string{clusterRouteAddress(t, a)}))
@@ -270,8 +260,8 @@ func TestPubsub_ClusterTLS_CacheSwap(t *testing.T) {
 		ca := generateTestCA(t, 1)
 		// a boots with the noop cache (production default); b has a real cache.
 		// a cannot mint a leaf, so its route handshakes fail and no route forms.
-		a := newTLSPubsub(t, cryptokeys.NoopSigningKeycache{}, net.IPv4(127, 0, 0, 1), routeTLSHandshakeError)
-		b := newTLSPubsub(t, &fakeCACache{active: ca, byID: map[string]*cryptokeys.NATSCA{"1": ca}}, net.IPv4(127, 0, 0, 1), routeTLSHandshakeError)
+		a := newTLSPubsub(t, cryptokeys.NoopSigningKeycache{}, net.IPv4(127, 0, 0, 1))
+		b := newTLSPubsub(t, &fakeCACache{active: ca, byID: map[string]*cryptokeys.NATSCA{"1": ca}}, net.IPv4(127, 0, 0, 1))
 
 		require.NoError(t, a.setPeerAddresses([]string{clusterRouteAddress(t, b)}))
 		require.NoError(t, b.setPeerAddresses([]string{clusterRouteAddress(t, a)}))
