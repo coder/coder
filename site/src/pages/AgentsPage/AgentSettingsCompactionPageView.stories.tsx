@@ -168,6 +168,9 @@ export const CompactionStrategyLoadError: Story = {
 			new Error("Failed to load the compaction strategy."),
 		);
 	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByRole("alert");
+	},
 };
 
 export const CompactionStrategySaveError: Story = {
@@ -192,6 +195,7 @@ export const CompactionStrategySaveError: Story = {
 		await userEvent.click(
 			await screen.findByRole("option", { name: "Token budget" }),
 		);
+		await within(canvasElement).findByRole("alert");
 	},
 };
 

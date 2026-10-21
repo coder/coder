@@ -32,7 +32,9 @@ export const CompactionStrategySettings: React.FC = () => {
 			title="Compaction strategy"
 			description="How conversations stay within the model's context window. 'Summarize' replaces older history with a summary at the compaction threshold. 'Token budget' asks the agent to save a checkpoint at the handoff target, then continues in a fresh context window that starts from that checkpoint."
 			ariaLabel="Compaction strategy"
-			value={query.data?.strategy}
+			value={
+				mutation.isPending ? mutation.variables.strategy : query.data?.strategy
+			}
 			placeholder={query.error != null ? "Unavailable" : "Loading…"}
 			disabled={!query.data || mutation.isPending}
 			options={ChatCompactionStrategies.map((value) => ({
