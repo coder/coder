@@ -52,7 +52,7 @@ For more information on feature rollout, see our [feature stages documentation](
 ESR releases will be updated with critical bugfixes and security patches that are available to paying customers.
 This extended support model provides predictable, long-term maintenance for organizations that require enhanced stability.
 Because ESR forgoes new features in favor of maintenance and stability, it is best suited for teams with strict upgrade constraints.
-The latest ESR version is [Coder 2.34](https://github.com/coder/coder/releases/tag/v2.34.12).
+The latest ESR version is [Coder 2.34](https://github.com/coder/coder/releases/tag/v2.34.13).
 
 For more information, see the [Coder ESR announcement](https://coder.com/blog/esr) or the [2.29 to 2.34 ESR Upgrade Guide](../install/operate/upgrade/esr-2.29-2.34-upgrade.md).
 
