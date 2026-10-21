@@ -2329,10 +2329,10 @@ func TestChatTurnStopsAtStepLimit(t *testing.T) {
 			require.NoError(t, err)
 			for i := range tt.preseededSteps {
 				callID := fmt.Sprintf("preseeded-%d", i)
-				insertChatMessageParts(ctx, t, db, chat.ID, database.ChatMessageRoleAssistant, model.ID, uuid.Nil, []codersdk.ChatMessagePart{
+				insertChatMessageParts(t, db, chat.ID, database.ChatMessageRoleAssistant, model.ID, uuid.Nil, []codersdk.ChatMessagePart{
 					codersdk.ChatMessageToolCall(callID, "list_templates", json.RawMessage(`{}`)),
 				})
-				insertChatMessageParts(ctx, t, db, chat.ID, database.ChatMessageRoleTool, model.ID, uuid.Nil, []codersdk.ChatMessagePart{
+				insertChatMessageParts(t, db, chat.ID, database.ChatMessageRoleTool, model.ID, uuid.Nil, []codersdk.ChatMessagePart{
 					codersdk.ChatMessageToolResult(callID, "list_templates", json.RawMessage(`{"templates":[]}`), false, false),
 				})
 			}
@@ -3852,10 +3852,15 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	require.Len(t, partialMessages, 1, "afterMessageID=msg2.ID should return only messages after msg2")
 	require.Equal(t, codersdk.ChatMessageRoleUser, partialMessages[0].Message.Role)
 
-	err = db.SoftDeleteChatMessagesAfterID(ctx, database.SoftDeleteChatMessagesAfterIDParams{
-		ChatID:  chat.ID,
-		AfterID: msg2.ID - 1,
-	})
+	err = db.InTx(func(tx database.Store) error {
+		if _, err := tx.LockChatAndBumpSnapshotVersion(ctx, chat.ID); err != nil {
+			return err
+		}
+		return tx.SoftDeleteChatMessagesAfterID(ctx, database.SoftDeleteChatMessagesAfterIDParams{
+			ChatID:  chat.ID,
+			AfterID: msg2.ID - 1,
+		})
+	}, nil)
 	require.NoError(t, err)
 
 	resetSnapshot, _, cancelReset, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID)

@@ -12346,7 +12346,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 			codersdk.ChatMessageText("queued head"),
 		})
 		require.NoError(t, err)
-		head := insertTestChatQueuedMessage(ctx, t, db, chat.ID, headContent, chat.LastModelConfigID)
+		head := insertTestChatQueuedMessage(t, db, chat.ID, headContent, chat.LastModelConfigID)
 
 		resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{{
@@ -18850,7 +18850,13 @@ func TestGetChatMessages_TurnStartID(t *testing.T) {
 	lastPrompt := insert(roleUser, both)
 	lastStep := insert(roleAssistant, both)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	require.NoError(t, db.SoftDeleteChatMessageByID(dbauthz.AsSystemRestricted(ctx), deletedPrompt))
+	err := db.InTx(func(tx database.Store) error {
+		if _, err := tx.LockChatAndBumpSnapshotVersion(dbauthz.AsSystemRestricted(ctx), chat.ID); err != nil {
+			return err
+		}
+		return tx.SoftDeleteChatMessageByID(dbauthz.AsSystemRestricted(ctx), deletedPrompt)
+	}, nil)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name string
