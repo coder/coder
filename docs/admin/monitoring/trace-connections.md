@@ -17,8 +17,7 @@ To diagnose a connection that is still open, refer to [Networking troubleshootin
 - The `connection_log` entries in this guide require a [Premium license](https://coder.com/pricing#compare-plans).
   Client and agent logs don't.
 - For VS Code, use the Coder Remote extension version 1.16.1 or later to send session IDs, and version 1.17.0 or later to report the editor name, such as `cursor`.
-
-<!-- TODO: add the first Coder Toolbox plugin release that sends client session IDs. -->
+- For JetBrains Toolbox, use the Coder Toolbox plugin version 0.9.5 or later to send session IDs and to include `coder ssh` logs in **Collect logs**.
 
 ## How client session IDs work
 
@@ -87,9 +86,11 @@ To change the number of entries, set `coder.connectionLogBuffer.size`.
 
 ### JetBrains Toolbox
 
-Toolbox starts `coder ssh`, which writes its logs to the default directory for `coder ssh` unless an SSH log directory is set in the Coder plugin settings.
-For the Toolbox logs, ask the user to select **Collect logs** from the workspace action menu.
-**Collect logs** doesn't include the `coder ssh` log files, so also ask the user for the files from the [`coder ssh` log directory](#coder-ssh).
+Toolbox starts `coder ssh`.
+With Coder Toolbox plugin version 0.9.5 or later, the plugin chooses the directory for the `coder ssh` logs: the SSH log directory in the Coder plugin settings, then `CODER_SSH_LOG_DIR`, then an `ssh-logs` directory in the plugin's data directory for the deployment.
+Ask the user to select **Collect logs** from the workspace action menu.
+The archive includes the Toolbox logs and a Coder support bundle, and version 0.9.5 or later adds recent `coder ssh` logs to the bundle under `toolbox-logs/ssh/`.
+With earlier plugin versions, `coder ssh` writes to the [`coder ssh` log directory](#coder-ssh) unless an SSH log directory is set in the plugin settings, and **Collect logs** doesn't include those files, so ask the user for them separately.
 For details, refer to [JetBrains Toolbox troubleshooting](../../user-guides/workspace-access/jetbrains/toolbox.md#troubleshooting).
 
 ### Web terminal
