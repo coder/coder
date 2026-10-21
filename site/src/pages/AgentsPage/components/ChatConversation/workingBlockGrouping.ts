@@ -150,11 +150,19 @@ export const isAgentAttachmentOnlyRow = (row: TimelineRow): boolean => {
 	);
 };
 
+/** True for a row the timeline leaves out because collapsed steps hide it. */
+export const isHiddenAttachmentRow = (
+	row: TimelineRow,
+	collapseSteps: boolean,
+): boolean => collapseSteps && isAgentAttachmentOnlyRow(row);
+
 export type TurnAttachmentsOptions = {
 	/** Collapsed steps hide attachment-only rows outside working blocks. */
 	hidesAttachmentRows: boolean;
 	/** The newest turn may still attach files, so it gets no entry yet. */
 	isLastTurnActive: boolean;
+	/** More history exists, so a first turn without its prompt gets no entry. */
+	hasMoreMessages: boolean;
 };
 
 /**
@@ -164,17 +172,27 @@ export type TurnAttachmentsOptions = {
  */
 export const getTurnAttachmentsByRow = (
 	rows: readonly TimelineRow[],
-	{ hidesAttachmentRows, isLastTurnActive }: TurnAttachmentsOptions,
+	{
+		hidesAttachmentRows,
+		isLastTurnActive,
+		hasMoreMessages,
+	}: TurnAttachmentsOptions,
 ): ReadonlyMap<string, readonly AgentAttachment[]> => {
 	const byRow = new Map<string, readonly AgentAttachment[]>();
 	let attachments: AgentAttachment[] = [];
-	let hostKey: string | undefined;
+	let lastShownRowKey: string | undefined;
+	let isTurnStartLoaded = !hasMoreMessages;
 	const settleTurn = () => {
-		if (hostKey !== undefined && attachments.length > 0) {
-			byRow.set(hostKey, attachments);
+		if (
+			isTurnStartLoaded &&
+			lastShownRowKey !== undefined &&
+			attachments.length > 0
+		) {
+			byRow.set(lastShownRowKey, attachments);
 		}
 		attachments = [];
-		hostKey = undefined;
+		lastShownRowKey = undefined;
+		isTurnStartLoaded = true;
 	};
 
 	for (const row of rows) {
@@ -190,8 +208,8 @@ export const getTurnAttachmentsByRow = (
 			continue;
 		}
 		attachments.push(...getMessageAgentAttachments(message));
-		if (!hidesAttachmentRows || !isAgentAttachmentOnlyRow(row)) {
-			hostKey = row.key;
+		if (!isHiddenAttachmentRow(row, hidesAttachmentRows)) {
+			lastShownRowKey = row.key;
 		}
 	}
 	if (!isLastTurnActive) {

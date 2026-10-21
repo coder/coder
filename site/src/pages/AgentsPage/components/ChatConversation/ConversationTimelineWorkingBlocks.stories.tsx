@@ -357,6 +357,17 @@ export const TurnAttachmentsPillLiveAnswer: Story = {
 	},
 };
 
+// The first turn's prompt is on an unloaded page, so only the second turn's
+// answer has a pill.
+export const TurnAttachmentsPillPartialTurn: Story = {
+	args: {
+		hasMoreMessages: true,
+		parsedMessages: parseMessagesWithMergedTools(
+			MockMixedAttachmentMessages.slice(1),
+		),
+	},
+};
+
 export const PlanAttachmentHidden: Story = {
 	parameters: {
 		queries: [

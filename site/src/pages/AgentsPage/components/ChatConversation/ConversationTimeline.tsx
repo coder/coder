@@ -59,7 +59,7 @@ import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
 import {
 	getRowBlocks,
 	groupWorkingBlocks,
-	isAgentAttachmentOnlyRow,
+	isHiddenAttachmentRow,
 	type RowSection,
 } from "./workingBlockGrouping";
 
@@ -135,11 +135,9 @@ const ChatMessageItem = memo<{
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
 
-	// The bottom spacer fakes the height of the hidden action bar so
-	// chain-end messages keep even spacing before the next bubble.
-	// A row with turn attachments shows the bar for its pill, so it needs
-	// no spacer. The last transcript message has nothing after it, so the
-	// spacer would render as a dangling blank at the end of the chat.
+	// The bottom spacer fakes the hidden action bar's height so chain-end
+	// messages keep even spacing. A row with a pill shows its bar, and the
+	// last message has nothing after it, so neither gets the spacer.
 	isLastMessage?: boolean;
 	onImplementPlan?: () => Promise<void> | void;
 	urlTransform: UrlTransform;
@@ -538,7 +536,10 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const collapseSteps = Boolean(preferences.data?.collapse_assistant_steps);
 		const turnAttachmentsByRow = useTurnAttachmentsByRow(parsedMessages, {
 			hidesAttachmentRows: collapseSteps,
+			// The status can settle before the streamed answer persists, so the
+			// turn stays active while its live row renders.
 			isLastTurnActive: isTurnActive || shouldRenderLiveAssistant(liveStatus),
+			hasMoreMessages,
 		});
 		const workingBlocks = collapseSteps
 			? groupWorkingBlocks(renderRows, parsedMessages, {
@@ -802,7 +803,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 
 					if (
 						groupedRows.has(index) ||
-						(collapseSteps && isAgentAttachmentOnlyRow(row))
+						isHiddenAttachmentRow(row, collapseSteps)
 					) {
 						return [];
 					}

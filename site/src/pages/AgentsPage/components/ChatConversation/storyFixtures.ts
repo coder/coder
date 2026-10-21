@@ -456,7 +456,10 @@ export const MockMixedAttachmentMessages: TypesGen.ChatMessage[] = [
 export const MockUnansweredAttachmentMessages: TypesGen.ChatMessage[] =
 	MockMixedAttachmentMessages.slice(0, -1);
 
-const [mockSearchAnswer] = MockWebSearchAnswerMessages.slice(-1);
+const mockSearchAnswer = MockWebSearchAnswerMessages.at(-1);
+if (!mockSearchAnswer) {
+	throw new Error("MockWebSearchAnswerMessages has no answer.");
+}
 
 /**
  * MockMixedAttachmentMessages whose first turn ends in a searched answer, so

@@ -7,17 +7,22 @@ import {
 } from "./workingBlockGrouping";
 
 /**
- * "use memo" gives this hook its own cache, keyed on the flags rather than the
- * caller's options object: inlined in the timeline body the call is not
- * memoized, so memoized host rows would re-render on every stream chunk.
+ * "use memo" keys this cache on the messages and the destructured flags, not
+ * the options object. Inlined, the call would share the timeline body's
+ * cache, which every stream chunk resets, re-rendering each row with a pill.
  */
 export const useTurnAttachmentsByRow = (
 	parsedMessages: readonly ParsedMessageEntry[],
-	{ hidesAttachmentRows, isLastTurnActive }: TurnAttachmentsOptions,
+	{
+		hidesAttachmentRows,
+		isLastTurnActive,
+		hasMoreMessages,
+	}: TurnAttachmentsOptions,
 ) => {
 	"use memo";
+	const withLiveRow = false;
 	return getTurnAttachmentsByRow(
-		assignTimelineRows(buildDisplayMessages(parsedMessages), false),
-		{ hidesAttachmentRows, isLastTurnActive },
+		assignTimelineRows(buildDisplayMessages(parsedMessages), withLiveRow),
+		{ hidesAttachmentRows, isLastTurnActive, hasMoreMessages },
 	);
 };

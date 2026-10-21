@@ -1302,6 +1302,7 @@ describe("getTurnAttachmentsByRow", () => {
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: false,
 					isLastTurnActive: false,
+					hasMoreMessages: false,
 				}),
 			),
 		).toEqual([
@@ -1310,21 +1311,44 @@ describe("getTurnAttachmentsByRow", () => {
 		]);
 	});
 
-	it("skips hidden attachment-only rows when picking the host row", () => {
+	it("skips hidden attachment-only rows when picking the pill's row", () => {
 		const { rows } = group([
 			user("Build the report"),
 			message("assistant", [text("Report attached.")]),
 			message("assistant", [file("a")]),
 		]);
-		const hostKeys = (hidesAttachmentRows: boolean) => [
+		const pillRowKeys = (hidesAttachmentRows: boolean) => [
 			...getTurnAttachmentsByRow(rows, {
 				hidesAttachmentRows,
 				isLastTurnActive: false,
+				hasMoreMessages: false,
 			}).keys(),
 		];
 
-		expect(hostKeys(true)).toEqual(["message:2"]);
-		expect(hostKeys(false)).toEqual(["message:3"]);
+		expect(pillRowKeys(true)).toEqual(["message:2"]);
+		expect(pillRowKeys(false)).toEqual(["message:3"]);
+	});
+
+	it("leaves out a first turn whose prompt is on an unloaded page", () => {
+		const { rows } = group([
+			message("assistant", [text("Continuing:"), file("a")]),
+			user("One more"),
+			message("assistant", [text("Here:"), file("b")]),
+		]);
+		const fileIds = (hasMoreMessages: boolean) =>
+			fileIdsByRow(
+				getTurnAttachmentsByRow(rows, {
+					hidesAttachmentRows: false,
+					isLastTurnActive: false,
+					hasMoreMessages,
+				}),
+			);
+
+		expect(fileIds(true)).toEqual([["message:3", ["b"]]]);
+		expect(fileIds(false)).toEqual([
+			["message:1", ["a"]],
+			["message:3", ["b"]],
+		]);
 	});
 
 	it("leaves the active turn out until it settles", () => {
@@ -1343,6 +1367,7 @@ describe("getTurnAttachmentsByRow", () => {
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: true,
 					isLastTurnActive: true,
+					hasMoreMessages: false,
 				}),
 			),
 		).toEqual([["message:2", ["a"]]]);
