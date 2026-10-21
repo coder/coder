@@ -1,9 +1,10 @@
 import { cva } from "class-variance-authority";
 import { cn } from "cn";
 import { XIcon } from "lucide-react";
-import { useEffect, useEffectEvent, useId, useState } from "react";
+import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { useWorkspaceFiles } from "../../context/WorkspaceFilesContext";
 import { getPathBasename, getPathDirname } from "../../utils/path";
 import {
@@ -21,6 +22,9 @@ type MainTabsProps = {
 	children: React.ReactNode;
 };
 
+/** A tab's path, or null for the Chat tab. */
+type TabKey = string | null;
+
 const tabButtonVariants = cva(
 	"h-6 min-w-0 shrink-0 gap-1.5 bg-surface-primary px-2 py-0",
 	{
@@ -32,6 +36,18 @@ const tabButtonVariants = cva(
 		},
 	},
 );
+
+const trackElement =
+	<Key,>(elements: React.RefObject<Map<Key, HTMLButtonElement>>, key: Key) =>
+	(element: HTMLButtonElement | null) => {
+		if (!element) {
+			return;
+		}
+		elements.current.set(key, element);
+		return () => {
+			elements.current.delete(key);
+		};
+	};
 
 /**
  * The chat view's main tabs: a pinned Chat tab followed by file tabs. The
@@ -45,12 +61,21 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 }) => {
 	const workspaceFiles = useWorkspaceFiles();
 	const idPrefix = useId();
+	const rootRef = useRef<HTMLDivElement>(null);
+	// Keyboard navigation and the close confirmation move focus to these.
+	const tabButtonsRef = useRef(new Map<TabKey, HTMLButtonElement>());
+	const closeButtonsRef = useRef(new Map<string, HTMLButtonElement>());
 	// Drafts change on every keystroke, so they live here instead of in the
 	// page view to keep typing from re-rendering the whole chat page.
 	const [drafts, setDrafts] = useState<ReadonlyMap<string, FileDraft>>(
 		() => new Map(),
 	);
-	const [pendingClosePath, setPendingClosePath] = useState<string>();
+	// Kept after the dialog closes so its text and the focus return target
+	// survive the close animation.
+	const [closeRequest, setCloseRequest] = useState<{
+		path: string;
+		isOpen: boolean;
+	}>();
 
 	const files = workspaceFiles ? mainTabs.files : [];
 	const activePath = files.some((file) => file.path === mainTabs.activePath)
@@ -58,6 +83,7 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 		: null;
 	const hasFileTabs = files.length > 0;
 	const isChatActive = activePath === null;
+	const tabOrder: TabKey[] = [null, ...files.map((file) => file.path)];
 
 	const updateDraft = (path: string, update: FileDraftUpdate) => {
 		setDrafts((current) => {
@@ -83,10 +109,40 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 
 	const requestCloseFile = (path: string) => {
 		if (drafts.has(path)) {
-			setPendingClosePath(path);
+			setCloseRequest({ path, isOpen: true });
 			return;
 		}
 		closeFile(path);
+	};
+
+	const selectTabAt = (index: number) => {
+		const key = tabOrder[(index + tabOrder.length) % tabOrder.length] ?? null;
+		mainTabs.activate(key);
+		// The panel that had focus turns inert, so focus follows the tab.
+		tabButtonsRef.current.get(key)?.focus();
+	};
+
+	const handleTabKeyDown = (event: React.KeyboardEvent, key: TabKey) => {
+		const index = tabOrder.indexOf(key);
+		let next: number;
+		switch (event.key) {
+			case "ArrowLeft":
+				next = index - 1;
+				break;
+			case "ArrowRight":
+				next = index + 1;
+				break;
+			case "Home":
+				next = 0;
+				break;
+			case "End":
+				next = tabOrder.length - 1;
+				break;
+			default:
+				return;
+		}
+		event.preventDefault();
+		selectTabAt(next);
 	};
 
 	const cycleTabs = useEffectEvent((event: KeyboardEvent) => {
@@ -102,13 +158,17 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 		} else {
 			return;
 		}
+		// The right panel (a terminal) and dialogs keep these keys.
+		const { target } = event;
+		const isInScope =
+			target === document.body ||
+			(target instanceof Node && rootRef.current?.contains(target));
+		if (!isInScope) {
+			return;
+		}
 		event.preventDefault();
 		event.stopPropagation();
-		const order = [null, ...files.map((file) => file.path)];
-		const index = order.indexOf(activePath);
-		mainTabs.activate(
-			order[(index + offset + order.length) % order.length] ?? null,
-		);
+		selectTabAt(tabOrder.indexOf(activePath) + offset);
 	});
 
 	useEffect(() => {
@@ -128,12 +188,9 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 
 	const chatTabId = `${idPrefix}-tab-chat`;
 	const chatPanelId = `${idPrefix}-panel-chat`;
-	const pendingCloseLabel = pendingClosePath
-		? getPathBasename(pendingClosePath)
-		: "";
 
 	return (
-		<div className="flex min-h-0 flex-1 flex-col">
+		<div ref={rootRef} className="flex min-h-0 flex-1 flex-col">
 			{hasFileTabs && (
 				<div
 					role="tablist"
@@ -141,14 +198,17 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 					className="relative z-10 flex shrink-0 items-center gap-1 overflow-x-auto border-0 border-b border-solid border-border bg-surface-primary px-4 py-1.5 scrollbar-none [&::-webkit-scrollbar]:hidden"
 				>
 					<Button
+						ref={trackElement(tabButtonsRef, null)}
 						id={chatTabId}
 						role="tab"
 						aria-selected={isChatActive}
 						aria-controls={chatPanelId}
+						tabIndex={isChatActive ? 0 : -1}
 						variant="outline"
 						size="lg"
 						className={tabButtonVariants({ active: isChatActive })}
 						onClick={() => mainTabs.activate(null)}
+						onKeyDown={(event) => handleTabKeyDown(event, null)}
 					>
 						Chat
 					</Button>
@@ -164,11 +224,13 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 						return (
 							<div key={file.path} className="flex shrink-0 items-center">
 								<Button
+									ref={trackElement(tabButtonsRef, file.path)}
 									id={`${idPrefix}-tab-${index}`}
 									role="tab"
 									aria-selected={isActive}
 									aria-controls={`${idPrefix}-panel-${index}`}
 									aria-label={isDirty ? `${name}, unsaved` : name}
+									tabIndex={isActive ? 0 : -1}
 									title={file.path}
 									variant="outline"
 									size="lg"
@@ -177,6 +239,7 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 										"rounded-r-none border-r-0 pr-2.5",
 									)}
 									onClick={() => mainTabs.activate(file.path)}
+									onKeyDown={(event) => handleTabKeyDown(event, file.path)}
 									onMouseDown={(event) => {
 										// Middle-click would otherwise start autoscroll.
 										if (event.button === 1) {
@@ -203,6 +266,7 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 									)}
 								</Button>
 								<Button
+									ref={trackElement(closeButtonsRef, file.path)}
 									variant="outline"
 									size="icon"
 									aria-label={`Close ${name}`}
@@ -274,19 +338,54 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 					})}
 			</div>
 			<ConfirmDialog
-				open={pendingClosePath !== undefined}
+				open={closeRequest?.isOpen ?? false}
 				type="delete"
 				title="Discard unsaved changes?"
-				description={`${pendingCloseLabel} has unsaved changes. Closing the tab discards them.`}
+				description={`${closeRequest ? getPathBasename(closeRequest.path) : ""} has unsaved changes. Closing the tab discards them.`}
 				confirmText="Discard"
 				onConfirm={() => {
-					if (pendingClosePath) {
-						closeFile(pendingClosePath);
+					if (closeRequest) {
+						closeFile(closeRequest.path);
+						setCloseRequest({ ...closeRequest, isOpen: false });
 					}
-					setPendingClosePath(undefined);
 				}}
-				onClose={() => setPendingClosePath(undefined)}
+				onClose={() =>
+					setCloseRequest((current) => current && { ...current, isOpen: false })
+				}
+				onCloseAutoFocus={(event) => {
+					// Back to the close button after Cancel; to the active tab once
+					// Discard removed it.
+					const target =
+						(closeRequest && closeButtonsRef.current.get(closeRequest.path)) ??
+						tabButtonsRef.current.get(activePath);
+					if (target) {
+						event.preventDefault();
+						target.focus();
+					}
+					setCloseRequest(undefined);
+				}}
 			/>
+			{drafts.size > 0 && <UnsavedFilesPrompt />}
 		</div>
+	);
+};
+
+/**
+ * Mounted only while a file is dirty: React Router consults only the newest
+ * blocker, so an always-mounted one would override the embed page's.
+ */
+const UnsavedFilesPrompt: React.FC = () => {
+	const unsavedChanges = useUnsavedChangesPrompt(true);
+	return (
+		<ConfirmDialog
+			type="info"
+			hideCancel={false}
+			open={unsavedChanges.isOpen}
+			onClose={unsavedChanges.onCancel}
+			onConfirm={unsavedChanges.onConfirm}
+			title="Unsaved changes"
+			confirmText="Leave"
+			description="Open files have unsaved changes. Leave anyway?"
+		/>
 	);
 };
