@@ -99,6 +99,52 @@ describe("QuickOpenDialog", () => {
 		);
 	});
 
+	it("does not open results of an older query", async () => {
+		const user = userEvent.setup();
+		const value = contextValue();
+		renderDialog(value);
+
+		await user.keyboard("{Control>}p{/Control}");
+		const input = screen.getByRole("combobox", { name: "Search files" });
+		await user.type(input, "main");
+		await screen.findByRole("option", { name: /main_test\.go/ });
+
+		vi.mocked(API.findWorkspaceAgentFiles).mockReturnValue(
+			new Promise(() => {}),
+		);
+		await user.clear(input);
+		await user.type(input, "beta");
+		await waitFor(() =>
+			expect(API.findWorkspaceAgentFiles).toHaveBeenLastCalledWith(
+				"agent-1",
+				["/home/coder/a", "/home/coder/b"],
+				"beta",
+			),
+		);
+		await user.keyboard("{Enter}");
+
+		expect(value.openFile).not.toHaveBeenCalled();
+	});
+
+	it("returns focus to the opener on Escape", async () => {
+		const user = userEvent.setup();
+		render(
+			<QueryClientProvider client={createTestQueryClient()}>
+				<WorkspaceFilesContext value={contextValue()}>
+					<button type="button">Opener</button>
+					<QuickOpenDialog />
+				</WorkspaceFilesContext>
+			</QueryClientProvider>,
+		);
+		const opener = screen.getByRole("button", { name: "Opener" });
+		opener.focus();
+
+		await user.keyboard("{Control>}p{/Control}");
+		await user.keyboard("{Escape}");
+
+		await waitFor(() => expect(opener).toHaveFocus());
+	});
+
 	it("ignores the shortcut without a workspace agent", async () => {
 		const user = userEvent.setup();
 		renderDialog(undefined);
