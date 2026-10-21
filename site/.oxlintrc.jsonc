@@ -1,7 +1,6 @@
 {
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
 	"plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y", "vitest"],
-	"categories": { "correctness": "error" },
 	"rules": {
 		// --- a11y (jsx-a11y) ---
 		"no-access-key": "error",
@@ -219,7 +218,6 @@
 		"iframe-has-title": "off", // a11y/useIframeTitle (small)
 
 		// Correctness category rules with existing violations.
-		// Format: "oxlint-rule": "off" // (effort)
 		"require-mock-type-parameters": "off", // (xl)
 		"prefer-tag-over-role": "off", // (large)
 		"vitest/no-conditional-expect": "off", // (large)
