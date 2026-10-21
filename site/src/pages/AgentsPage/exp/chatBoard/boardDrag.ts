@@ -13,6 +13,7 @@ import {
 	detachChat,
 	joinCard,
 	mergeCards,
+	mergeKeeper,
 	moveCard,
 	moveColumn,
 	moveNote,
@@ -234,6 +235,7 @@ export const dragDataOf = (manager: DragDropManager): DragData | undefined =>
 export const dragTargetOf = (
 	manager: DragDropManager,
 	currentUserId: string,
+	assistantOf: AssistantOf,
 ): DropTarget | null => {
 	const droppables = [...manager.registry.droppables].flatMap((droppable) => {
 		const data = droppable.data as DropData | undefined;
@@ -246,7 +248,7 @@ export const dragTargetOf = (
 		dragDataOf(manager),
 		droppables,
 		manager.dragOperation.position.current,
-		dragCanChangeLane(dragDataOf(manager), currentUserId),
+		dragCanChangeLane(dragDataOf(manager), currentUserId, assistantOf),
 	);
 };
 
@@ -258,17 +260,22 @@ export const dragTargetOf = (
 export const dragCanChangeLane = (
 	drag: DragData | undefined,
 	currentUserId: string,
+	assistantOf: AssistantOf,
 ): boolean => {
-	const chats =
-		drag?.type === "card"
-			? drag.card.members
-			: drag?.type === "chat"
-				? [drag.chat]
-				: [];
+	let chats: readonly (Chat | undefined)[] = [];
+	if (drag?.type === "chat") chats = [drag.chat];
+	// The card's assistant can move with it, so it must be idle too.
+	if (drag?.type === "card") {
+		chats = [...drag.card.members, assistantOf(drag.card.id)];
+	}
 	return chats
+		.filter((chat): chat is Chat => chat !== undefined)
 		.filter((chat) => !chat.parent_chat_id)
 		.every((chat) => canDragChatToProject(chat, currentUserId));
 };
+
+/** The assistant chat of a card, by card id. */
+type AssistantOf = (cardId: string) => Chat | undefined;
 
 /**
  * The board command a drop means, or null when that drag cannot land on
@@ -278,7 +285,7 @@ export const dragCanChangeLane = (
 export const dropCommand = (
 	drag: DragData,
 	target: DropTarget,
-	assistantOf: (cardId: string) => Chat | undefined = () => undefined,
+	assistantOf: AssistantOf = () => undefined,
 ): ((state: BoardState) => Plan | null) | null => {
 	const command = labelCommand(drag, target);
 	const from = dragLane(drag);
@@ -287,15 +294,19 @@ export const dropCommand = (
 		return command;
 	}
 	const projectId = laneProjectId(to);
-	// Only root chats move; subagents follow their root on the server. A
-	// card that moves takes its assistant along, so it keeps the project's
-	// context; a merged card's assistant stays with the chat it was made on.
+	// Only root chats move; subagents follow their root on the server. The
+	// assistant goes wherever its card's primary goes: along with a moved
+	// card, and with a merge that keeps the dragged card's primary.
 	let chats: readonly (Chat | undefined)[] = [];
 	if (drag.type === "chat") chats = [drag.chat];
 	if (drag.type === "card") {
 		chats = [
 			...drag.card.members,
-			...(target.kind === "insert" ? [assistantOf(drag.card.id)] : []),
+			...(target.kind === "insert" ||
+			(target.kind === "merge" &&
+				mergeKeeper(drag.card, target.card) === drag.card)
+				? [assistantOf(drag.card.id)]
+				: []),
 		];
 	}
 	const projectMoves = chats

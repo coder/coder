@@ -251,6 +251,19 @@ describe("lanes", () => {
 		expect(
 			merge?.(laneState)?.projectMoves?.map((m) => [m.chat.id, m.projectId]),
 		).toEqual([["c", "p"]]);
+		// A titled source card is kept by the merge, so its assistant follows.
+		const titled = buildCards([
+			{ ...inProject("t", undefined), labels: { "board/title": "Epic" } },
+		])[0];
+		if (!titled) throw new Error("card t missing");
+		const keepSource = dropCommand(
+			{ type: "card", card: titled },
+			{ kind: "merge", card: card("a"), lane: "p" },
+			() => assistant,
+		);
+		expect(
+			keepSource?.(laneState)?.projectMoves?.map((m) => m.chat.id),
+		).toEqual(["t", "x"]);
 	});
 
 	it("keeps a drag with a working chat in its own lane", () => {
@@ -258,8 +271,18 @@ describe("lanes", () => {
 			type: "card",
 			card: buildCards([inProject("c", undefined, "running")])[0] ?? card("c"),
 		};
-		const canChange = dragCanChangeLane(busy, MockChat.owner_id);
+		const canChange = dragCanChangeLane(
+			busy,
+			MockChat.owner_id,
+			() => undefined,
+		);
 		expect(canChange).toBe(false);
+		// The card's assistant moves with it, so a working assistant blocks too.
+		expect(
+			dragCanChangeLane(dragC, MockChat.owner_id, () =>
+				inProject("x", undefined, "running"),
+			),
+		).toBe(false);
 		expect(boardTarget(busy, lanes, { x: 10, y: 200 }, canChange)).toBeNull();
 		expect(boardTarget(busy, lanes, { x: 10, y: 500 }, canChange)).toEqual({
 			kind: "insert",

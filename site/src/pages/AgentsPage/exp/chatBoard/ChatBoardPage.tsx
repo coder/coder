@@ -21,7 +21,7 @@ import {
 	moveChatToProject,
 	updateChatTitle,
 } from "#/api/queries/chats";
-import type { Chat, ChatProject } from "#/api/typesGenerated";
+import type { Chat } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { toast } from "#/components/Toaster/toast";
@@ -44,7 +44,7 @@ import { assistantIds, findOrCreateAssistant } from "./assistants";
 import type { DragData } from "./BoardCard";
 import { BoardColumns } from "./BoardColumns";
 import { BoardHeader } from "./BoardHeader";
-import { BoardLane } from "./BoardLane";
+import { BoardLane, type LaneProject } from "./BoardLane";
 import { BoardWindows } from "./BoardWindows";
 import { effortCounts, type Plan, renameEffort } from "./boardApi";
 import {
@@ -296,11 +296,32 @@ const ChatBoardPage: React.FC = () => {
 	const lanes =
 		projects.length > 0
 			? [
-					...projects.map((project) => ({ key: project.id, project })),
-					...unknownProjects.map((key) => ({ key, project: undefined })),
-					{ key: NO_PROJECT_LANE, project: undefined },
+					...projects.map((project) => ({
+						key: project.id,
+						name: project.name,
+						project,
+					})),
+					...unknownProjects.map((key) => ({
+						key,
+						name: "Unknown project",
+						project: undefined,
+					})),
+					{ key: NO_PROJECT_LANE, name: "No project", project: undefined },
 				]
 			: undefined;
+	// What a chat started in a lane is created in: the lane's project, or null
+	// for none. Undefined without lanes, where the composer's picker decides.
+	const laneProject = (key: string): LaneProject | null | undefined => {
+		const lane = lanes?.find((l) => l.key === key);
+		if (!lane) return undefined;
+		if (key === NO_PROJECT_LANE) return null;
+		const organizationId =
+			lane.project?.organization_id ??
+			allCards.find((card) => laneOf(card) === key)?.primary.organization_id;
+		return organizationId === undefined
+			? undefined
+			: { id: key, organization_id: organizationId, name: lane.name };
+	};
 	const toggleLane = (key: string) =>
 		updateStorage({
 			collapsedLanes: storage.collapsedLanes.includes(key)
@@ -375,22 +396,19 @@ const ChatBoardPage: React.FC = () => {
 		});
 	const openCardAssistant = (card: BoardCardModel) =>
 		void showAssistant(card.id, (tools) => cardAssistantSpec(card, tools));
-	const openLaneAssistant = (
-		lane: Readonly<{ key: string; project: ChatProject | undefined }>,
-	) => {
+	const openLaneAssistant = (lane: Readonly<{ key: string; name: string }>) => {
 		const inLane = (card: BoardCardModel) => laneOf(card) === lane.key;
+		const project = laneProject(lane.key);
 		const organizationId =
-			lane.project?.organization_id ??
-			allCards.find(inLane)?.primary.organization_id ??
-			chats[0]?.organization_id;
+			project?.organization_id ?? chats[0]?.organization_id;
 		if (!organizationId) return;
 		void showAssistant(laneAssistantKey(lane.key), (tools) =>
 			laneAssistantSpec(
 				boardState,
 				{
 					key: lane.key,
-					name: lane.project?.name ?? "No project",
-					projectId: lane.project?.id,
+					name: lane.name,
+					projectId: project?.id,
 					organizationId,
 				},
 				inLane,
@@ -407,6 +425,7 @@ const ChatBoardPage: React.FC = () => {
 	};
 
 	const dragManagerRef = useRef<DragDropManager | null>(null);
+	const assistantOfCard = (cardId: string) => cardAssistants.get(cardId);
 	const handleDragStart = (_event: unknown, manager: DragDropManager) => {
 		dragManagerRef.current = manager;
 		setPendingPreview(null);
@@ -418,7 +437,7 @@ const ChatBoardPage: React.FC = () => {
 	// Collisions are recomputed on every move, and the zone within one card
 	// (insert above, merge, insert below) changes without the target changing.
 	const handleCollision = (_event: unknown, manager: DragDropManager) =>
-		setDropTarget(dragTargetOf(manager, user.id));
+		setDropTarget(dragTargetOf(manager, user.id, assistantOfCard));
 	const handleDragEnd = (
 		{ canceled }: { canceled: boolean },
 		manager: DragDropManager,
@@ -427,11 +446,11 @@ const ChatBoardPage: React.FC = () => {
 		setActiveDrag(null);
 		setDropTarget(null);
 		const drag = dragDataOf(manager);
-		const target = canceled ? null : dragTargetOf(manager, user.id);
+		const target = canceled
+			? null
+			: dragTargetOf(manager, user.id, assistantOfCard);
 		const command =
-			drag &&
-			target &&
-			dropCommand(drag, target, (cardId) => cardAssistants.get(cardId));
+			drag && target && dropCommand(drag, target, assistantOfCard);
 		if (command) void run(command(boardState));
 	};
 	// dnd-kit skips the collision check while the pointer stands still, so a
@@ -442,7 +461,9 @@ const ChatBoardPage: React.FC = () => {
 		const update = () => {
 			frame = undefined;
 			const manager = dragManagerRef.current;
-			if (manager) setDropTarget(dragTargetOf(manager, user.id));
+			if (manager) {
+				setDropTarget(dragTargetOf(manager, user.id, assistantOfCard));
+			}
 		};
 		const handleScroll = () => {
 			frame ??= requestAnimationFrame(update);
@@ -490,6 +511,7 @@ const ChatBoardPage: React.FC = () => {
 							return (
 								<BoardLane
 									key={lane.key}
+									name={lane.name}
 									project={lane.project}
 									cardCount={laneColumns.reduce(
 										(n, c) => n + c.cards.length,
@@ -554,7 +576,8 @@ const ChatBoardPage: React.FC = () => {
 						<DragGhost
 							drag={activeDrag}
 							hint={
-								lanes && !dragCanChangeLane(activeDrag, user.id)
+								lanes &&
+								!dragCanChangeLane(activeDrag, user.id, assistantOfCard)
 									? "A working chat keeps this in its project"
 									: undefined
 							}
@@ -614,7 +637,7 @@ const ChatBoardPage: React.FC = () => {
 				windows={windows}
 				chatsById={chatsById}
 				colorByChatId={cardColorByChat(allCards)}
-				projectOf={(lane) => projects.find((project) => project.id === lane)}
+				projectOf={laneProject}
 				board={boardState}
 				onChange={(next) => setWindows((prev) => changeWindow(prev, next))}
 				onClose={(key) => setWindows((prev) => closeWindow(prev, key))}

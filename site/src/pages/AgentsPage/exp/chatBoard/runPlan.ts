@@ -33,6 +33,36 @@ const reported = (writes: Promise<unknown>): Promise<void> =>
 // the optimistic cache patch left them.
 const before = ({ chat }: Write) => ({ chatId: chat.id, labels: chat.labels });
 
+type Move = Readonly<{ chatId: string; projectId: string | null }>;
+
+/**
+ * Sends the moves together and rejects if any failed, after moving the ones
+ * that landed back to `previous`, so a card is never split across projects.
+ * Undefined when there is nothing to move.
+ */
+const moveAll = (
+	moves: readonly Move[],
+	previous: readonly Move[],
+	deps: PlanDeps,
+): Promise<void> | undefined => {
+	if (moves.length === 0) return undefined;
+	return Promise.allSettled(
+		moves.map(({ chatId, projectId }) => deps.moveProject(chatId, projectId)),
+	).then((results) => {
+		const failed = results.find((r) => r.status === "rejected");
+		if (!failed) return;
+		const back = previous.filter((_, i) => results[i]?.status === "fulfilled");
+		void reported(
+			Promise.all(
+				back.map(({ chatId, projectId }) =>
+					deps.moveProject(chatId, projectId),
+				),
+			),
+		);
+		throw failed.reason;
+	});
+};
+
 /**
  * Applies a Plan: storage patch, project moves, label writes, title writes,
  * and the undo toast when the plan asks for it. Decides nothing about what an
@@ -49,41 +79,42 @@ export const runPlan = (
 	if (plan.storage) deps.updateStorage(plan.storage);
 	const receiverBefore = plan.receiver && before(plan.receiver);
 	const writesBefore = plan.writes.map(before);
-	const moves = (plan.projectMoves ?? []).map(({ chat, projectId }) =>
-		deps.moveProject(chat.id, projectId),
-	);
+	const moves = (plan.projectMoves ?? []).map(({ chat, projectId }) => ({
+		chatId: chat.id,
+		projectId,
+	}));
 	const movesBefore = (plan.projectMoves ?? []).map(({ chat }) => ({
 		chatId: chat.id,
 		projectId: chat.project_id ?? null,
 	}));
-	const moved = moves.length > 0 ? Promise.all(moves) : undefined;
+	const moved = moveAll(moves, movesBefore, deps);
 	const received =
 		plan.receiver &&
 		deps.write(plan.receiver.chat.id, plan.receiver.labels, moved);
+	// A skipped write resolves, so the sources also wait on the moves
+	// themselves: a failed move must not strip notes the receiver never got.
+	const sourcesAfter =
+		moved || received ? Promise.all([moved, received]) : undefined;
 	const pending = [
-		...moves,
+		...(moved ? [moved] : []),
 		...(received ? [received] : []),
 		...plan.writes.map(({ chat, labels }) =>
-			deps.write(chat.id, labels, received ?? moved),
+			deps.write(chat.id, labels, sourcesAfter),
 		),
 		...(plan.titles ?? []).map(({ chat, title }) =>
 			deps.rename(chat.id, title),
 		),
 	];
 	const undo = () => {
-		const movesBack = movesBefore.map(({ chatId, projectId }) =>
-			deps.moveProject(chatId, projectId),
-		);
-		const movedBack = movesBack.length > 0 ? Promise.all(movesBack) : undefined;
+		const movedBack = moveAll(movesBefore, moves, deps);
 		const restores = writesBefore.map(({ chatId, labels }) =>
 			deps.write(chatId, labels, movedBack),
 		);
-		const restored = Promise.all(restores);
+		const restored = Promise.all([movedBack, ...restores]);
 		// `restored` is listed as well as gating the receiver: without a
 		// receiver, or if that write never starts, nothing else would observe
 		// its rejection.
 		const all = [
-			...movesBack,
 			...restores,
 			restored,
 			...(receiverBefore

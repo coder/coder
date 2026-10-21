@@ -139,7 +139,11 @@ export const moveCard = (
 // The side that keeps its primary: an existing group beats a single chat,
 // then a titled card beats an untitled one, then the drop target. So a
 // group dropped onto a lone chat absorbs it instead of losing its title.
-const mergeKeeper = (source: BoardCard, target: BoardCard): BoardCard => {
+/** The card whose primary carries the merged card. */
+export const mergeKeeper = (
+	source: BoardCard,
+	target: BoardCard,
+): BoardCard => {
 	const grouped = (card: BoardCard) => card.members.length > 1;
 	if (grouped(source) !== grouped(target)) {
 		return grouped(source) ? source : target;
