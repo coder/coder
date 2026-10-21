@@ -27,7 +27,7 @@ import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
-import { FileProbeProvider } from "./FileProbeContext";
+import { FileProbeProvider, useFileProbes } from "./FileProbeContext";
 import {
 	emptyLiveBlockKeys,
 	reconcileLiveBlockKeys,
@@ -188,6 +188,7 @@ const ChatMessageItem = memo<{
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
 		const [previewText, setPreviewText] =
 			useState<PreviewTextAttachment | null>(null);
+		const { hasExpired } = useFileProbes();
 		const displayState =
 			message && parsed
 				? deriveMessageDisplayState({
@@ -348,7 +349,15 @@ const ChatMessageItem = memo<{
 											onClick={() => {
 												const { text, fileBlocks } =
 													getEditableUserMessagePayload(message);
-												onEditUserMessage?.(messageId, text, fileBlocks);
+												onEditUserMessage?.(
+													messageId,
+													text,
+													fileBlocks?.filter(
+														(block) =>
+															block.type !== "workspace-attachment" ||
+															!hasExpired(block.file_id),
+													),
+												);
 											}}
 										>
 											<PencilIcon />

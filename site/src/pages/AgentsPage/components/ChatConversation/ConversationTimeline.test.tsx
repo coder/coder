@@ -4,8 +4,14 @@ import { QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { preferenceSettingsKey } from "#/api/queries/users";
-import type { ChatMessage } from "#/api/typesGenerated";
-import { MockChatMessage } from "#/testHelpers/chatEntities";
+import type {
+	ChatMessage,
+	ChatWorkspaceAttachmentPart,
+} from "#/api/typesGenerated";
+import {
+	MockChatFileMetadata,
+	MockChatMessage,
+} from "#/testHelpers/chatEntities";
 import {
 	createTestQueryClient,
 	renderComponent,
@@ -452,5 +458,57 @@ describe("ConversationTimeline live working blocks", () => {
 			liveStatus: idleLive,
 		});
 		expect(copyCommand).toHaveFocus();
+	});
+});
+
+describe("ConversationTimeline message editing", () => {
+	const workspaceAttachment = (
+		fileId: string,
+	): ChatWorkspaceAttachmentPart => ({
+		type: "workspace-attachment",
+		file_id: fileId,
+		name: `${fileId}.zip`,
+		media_type: "application/zip",
+		size: 2,
+	});
+
+	it("leaves evicted workspace attachments out of the edit", async () => {
+		const user = userEvent.setup();
+		const onEditUserMessage = vi.fn();
+		const kept = workspaceAttachment("kept-zip");
+		renderTimeline({
+			messages: [
+				{
+					...MockChatMessage,
+					id: 1,
+					content: [
+						{ type: "text", text: "First" },
+						workspaceAttachment("evicted-zip"),
+					],
+				},
+				{
+					...MockChatMessage,
+					id: 2,
+					created_at: workingFixtureTime(1),
+					content: [{ type: "text", text: "Second" }, kept],
+				},
+			],
+			chatFiles: [{ ...MockChatFileMetadata, id: kept.file_id }],
+			onEditUserMessage,
+		});
+
+		const editMessage = (messageId: number) =>
+			user.click(
+				within(
+					screen.getByTestId(`chat-message-message:${messageId}`),
+				).getByRole("button", { name: "Edit message" }),
+			);
+		await editMessage(1);
+		await editMessage(2);
+
+		expect(onEditUserMessage.mock.calls).toEqual([
+			[1, "First", []],
+			[2, "Second", [kept]],
+		]);
 	});
 });
