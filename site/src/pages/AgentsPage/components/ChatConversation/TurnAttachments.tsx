@@ -106,8 +106,11 @@ export const TurnAttachments: React.FC<TurnAttachmentsProps> = ({
 					Attachments
 				</button>
 			</PopoverTrigger>
+			{/* Prefer opening above: below the last turn's pill sits the
+			    composer, which Radix collision detection does not see. */}
 			<PopoverContent
 				aria-label="Attachments"
+				side="top"
 				align="start"
 				className="w-80 p-2"
 			>
