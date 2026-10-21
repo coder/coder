@@ -35,8 +35,10 @@ func TestDiscoveryCatalog(t *testing.T) {
 			{ID: "ask", Name: "Ask", Group: "read", GroupName: "Read"},
 		},
 	}, catalog[0].ConfigOptions[1])
+	require.Equal(t, configDir, m.ContextResources()[0].SourcePath)
+	hash := m.ContextResources()[0].ContentHash
 	require.NoError(t, m.Reload(ctx))
-	require.Equal(t, catalog, m.Catalog())
+	require.Equal(t, hash, m.ContextResources()[0].ContentHash)
 	// Returned snapshots must not let callers mutate discovery state.
 	catalog[0].ConfigOptions[0].Values[0].Name = "mutated"
 	require.Equal(t, "Default", m.Catalog()[0].ConfigOptions[0].Values[0].Name)
@@ -57,14 +59,15 @@ func TestDiscoveryCatalog(t *testing.T) {
 	writeConfig(t, filepath.Join(configDir, "fake.json"), map[string]any{"command": "false", "display_name": "Changed"})
 	require.NoError(t, m.Reload(ctx))
 	var found bool
-	for _, harness := range m.Catalog() {
-		if harness.Slug == "fake" {
+	for _, resource := range m.ContextResources() {
+		if resource.Source == "fake" {
 			found = true
-			require.Equal(t, "Changed", harness.DisplayName)
-			require.NotEmpty(t, harness.Error)
+			require.NotEqual(t, hash, resource.ContentHash)
+			require.Equal(t, "Changed", resource.ACPHarness.DisplayName)
+			require.NotEmpty(t, resource.Error)
 		}
 	}
-	require.True(t, found, "the edited harness must remain in the catalog")
+	require.True(t, found, "the edited harness must remain in the context snapshot")
 	require.NoError(t, os.Remove(filepath.Join(configDir, "fake.json")))
 	require.NoError(t, m.Reload(ctx))
 	require.Len(t, m.Catalog(), 3)
@@ -196,12 +199,12 @@ func TestDiscoveryUnchangedCatalog(t *testing.T) {
 	m.SetOnChange(func() { changed <- struct{}{} })
 	clock := m.clock.(*quartz.Mock)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	catalog := m.Catalog()
+	hash := m.ContextResources()[0].ContentHash
 	startTestDiscovery(ctx, t, m)
 	m.RunDiscovery()
 	for range 2 {
 		advanceTestDiscovery(ctx, t, clock)
-		require.Equal(t, catalog, m.Catalog())
+		require.Equal(t, hash, m.ContextResources()[0].ContentHash)
 		require.Empty(t, changed)
 		// Each probe creates a native session file. Unchanged polls must not
 		// start another subprocess or create another native session.
