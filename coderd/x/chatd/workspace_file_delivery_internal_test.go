@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"io"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 	"sync"
@@ -13,7 +14,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -115,7 +118,11 @@ func agentStatusError(status int) error {
 		StatusCode: status,
 		Header:     http.Header{"Content-Type": {"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(`{"message":"agent says no"}`)),
-		Request:    &http.Request{Method: http.MethodPost},
+		Request: &http.Request{Method: http.MethodPost, URL: &url.URL{
+			Scheme: "http",
+			Host:   "[fd7a:115c:a1e0::1]:4",
+			Path:   "/api/v0/upload-chat-file",
+		}},
 	})
 }
 
@@ -152,6 +159,19 @@ func (f workspaceFileDeliveryFixture) worker(t *testing.T) *chatWorker {
 	worker, err := newChatWorker(server, opts)
 	require.NoError(t, err)
 	return worker
+}
+
+// loggingWorker is worker with a logger whose entries the test reads.
+func (f workspaceFileDeliveryFixture) loggingWorker(t *testing.T) (*chatWorker, *testutil.FakeSink) {
+	t.Helper()
+	sink := testutil.NewFakeSink(t)
+	worker := f.worker(t)
+	worker.opts.Logger = sink.Logger()
+	return worker, sink
+}
+
+func warnings(sink *testutil.FakeSink) []slog.SinkEntry {
+	return sink.Entries(func(entry slog.SinkEntry) bool { return entry.Level >= slog.LevelWarn })
 }
 
 // workspaceChat creates a running chat bound to a started workspace with
@@ -522,6 +542,37 @@ func TestWorkspaceFileDeliveryOutcomes(t *testing.T) {
 		require.Len(t, f.agent.uploadRequests(), 1)
 	})
 
+	t.Run("FencedOutcomeLogsNoFailure", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+		// Another replica records an outcome under the claim while the
+		// upload runs, so this worker no longer holds it.
+		f.agent.afterPut = func() {
+			f.agent.mu.Lock()
+			f.agent.afterPut = nil
+			f.agent.mu.Unlock()
+			lease := f.fileState(ctx, t, chat.ID, file.ID).WorkspaceDeliveryNextAttemptAt.Time
+			failed, err := f.db.FailChatWorkspaceFileDelivery(ctx, database.FailChatWorkspaceFileDeliveryParams{
+				ID:             file.ID,
+				Error:          "recorded by another replica",
+				NextAttemptAt:  lease.Add(time.Hour),
+				Mode:           database.ChatWorkspaceFileDeliveryFailureRetry,
+				MaxAttempts:    database.ChatWorkspaceFileMaxDeliveryAttempts,
+				LeaseExpiresAt: lease,
+			})
+			require.NoError(t, err)
+			require.EqualValues(t, 1, failed)
+		}
+
+		worker, logs := f.loggingWorker(t)
+		worker.deliverWorkspaceFiles(ctx)
+		require.Equal(t, "recorded by another replica", f.fileState(ctx, t, chat.ID, file.ID).WorkspaceDeliveryError.String)
+		require.Empty(t, warnings(logs))
+	})
+
 	t.Run("RebindDuringUploadDeliversToTheNewWorkspace", func(t *testing.T) {
 		t.Parallel()
 		f := newWorkspaceFileDeliveryFixture(t)
@@ -694,5 +745,47 @@ func TestWorkspaceFileDeliveryTwoReplicas(t *testing.T) {
 	require.Len(t, uploads, len(files))
 	for fileID, count := range uploads {
 		require.Equal(t, 1, count, "file %s uploaded more than once", fileID)
+	}
+}
+
+func TestClassifyWorkspaceFileUploadError(t *testing.T) {
+	t.Parallel()
+	const agentURL = "http://[fd7a:115c:a1e0::1]:4/api/v0/upload-chat-file?chat_id=c&file_id=f&name=report.zip"
+	for _, tc := range []struct {
+		name     string
+		err      error
+		mode     string
+		stored   string
+		inLogged string
+	}{
+		{
+			name:     "ServerError",
+			err:      agentStatusError(http.StatusBadGateway),
+			mode:     database.ChatWorkspaceFileDeliveryFailureRetry,
+			stored:   "the workspace agent failed the upload with status 502 (agent says no)",
+			inLogged: "/api/v0/upload-chat-file",
+		},
+		{
+			name:     "Transport",
+			err:      xerrors.Errorf("upload chat file: %w", &url.Error{Op: "Post", URL: agentURL, Err: xerrors.New("connection reset by peer")}),
+			mode:     database.ChatWorkspaceFileDeliveryFailureRetry,
+			stored:   "upload to the workspace agent: connection reset by peer",
+			inLogged: agentURL,
+		},
+		{
+			name:     "Rejected",
+			err:      agentStatusError(http.StatusForbidden),
+			mode:     database.ChatWorkspaceFileDeliveryFailurePark,
+			stored:   "the workspace agent rejected the upload with status 403 (agent says no)",
+			inLogged: "/api/v0/upload-chat-file",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			failure := classifyWorkspaceFileUploadError(tc.err)
+			require.Equal(t, tc.mode, failure.mode)
+			require.Equal(t, tc.stored, failure.err.Error())
+			require.Contains(t, failure.logError().Error(), tc.inLogged)
+		})
 	}
 }

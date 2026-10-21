@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"slices"
 	"time"
 
@@ -48,7 +49,18 @@ const (
 // modes.
 type workspaceFileDeliveryFailure struct {
 	mode string
-	err  error
+	// err is stored on the file, where the model and the UI read it.
+	err error
+	// cause is the full error behind err for the log, when err leaves
+	// out details such as the agent's tailnet request URL.
+	cause error
+}
+
+func (f *workspaceFileDeliveryFailure) logError() error {
+	if f.cause != nil {
+		return f.cause
+	}
+	return f.err
 }
 
 func refundWorkspaceFileDelivery(err error) *workspaceFileDeliveryFailure {
@@ -195,15 +207,15 @@ func (w *chatWorker) deliverWorkspaceFile(ctx context.Context, row database.Acqu
 			logger.Info(ctx, "delivered workspace chat file", slog.F("path", resp.Path))
 			return
 		}
-		// Either another replica claimed the file after this lease
-		// expired, which fences the refund below too, or the chat moved
-		// to another workspace during the upload and the file is due for
-		// that workspace now.
-		failure = refundWorkspaceFileDelivery(xerrors.Errorf("the chat left workspace %s while the file was copied to %s", row.WorkspaceID.UUID, resp.Path))
+		// The file left this claim, for example because the per-chat
+		// file cap evicted it or another replica claimed it after the
+		// lease expired, which fences the refund below too. Otherwise no
+		// chat of the file is bound to the workspace anymore, and the
+		// file is due for the chat's new workspace now.
+		failure = refundWorkspaceFileDelivery(xerrors.Errorf("the copy at %s was not recorded because no chat of the file is bound to workspace %s anymore", resp.Path, row.WorkspaceID.UUID))
 		nextAttemptAt = now
 	}
 
-	logger.Warn(ctx, "workspace chat file delivery failed", slog.F("mode", failure.mode), slogError(failure.err))
 	failed, err := w.opts.Store.FailChatWorkspaceFileDelivery(ctx, database.FailChatWorkspaceFileDeliveryParams{
 		Error:          failure.err.Error(),
 		NextAttemptAt:  nextAttemptAt,
@@ -213,12 +225,14 @@ func (w *chatWorker) deliverWorkspaceFile(ctx context.Context, row database.Acqu
 		LeaseExpiresAt: row.LeaseExpiresAt,
 	})
 	if err != nil {
-		logger.Error(ctx, "record failed workspace chat file delivery", slogError(err))
+		logger.Error(ctx, "record failed workspace chat file delivery", slog.F("mode", failure.mode), slog.F("attempt_error", failure.logError().Error()), slogError(err))
 		return
 	}
 	if failed == 0 {
-		logger.Info(ctx, "workspace chat file delivery outcome dropped, the file is no longer under this claim")
+		logger.Info(ctx, "workspace chat file delivery outcome dropped, the file is no longer under this claim", slog.F("attempt_error", failure.logError().Error()))
+		return
 	}
+	logger.Warn(ctx, "workspace chat file delivery failed", slog.F("mode", failure.mode), slogError(failure.logError()))
 }
 
 // copyWorkspaceFile writes the file into the workspace through the agent
@@ -314,19 +328,30 @@ func (u *workspaceFileUsageReader) Read(p []byte) (int, error) {
 
 // classifyWorkspaceFileUploadError parks a file the agent rejected, since
 // repeating the same request cannot succeed, and retries server and
-// transport errors.
+// transport errors. The stored error leaves out the agent's request URL,
+// which the full error in the log keeps.
 func classifyWorkspaceFileUploadError(err error) *workspaceFileDeliveryFailure {
+	failure := classifyWorkspaceFileUploadErrorText(err)
+	failure.cause = err
+	return failure
+}
+
+func classifyWorkspaceFileUploadErrorText(err error) *workspaceFileDeliveryFailure {
 	var sdkErr *codersdk.Error
 	if !errors.As(err, &sdkErr) {
+		var urlErr *url.Error
+		if errors.As(err, &urlErr) {
+			err = urlErr.Err
+		}
 		return retryWorkspaceFileDelivery(xerrors.Errorf("upload to the workspace agent: %w", err))
 	}
 	status := sdkErr.StatusCode()
-	if status < http.StatusBadRequest || status >= http.StatusInternalServerError {
-		return retryWorkspaceFileDelivery(xerrors.Errorf("upload to the workspace agent: %w", err))
-	}
 	reason := sdkErr.Message
 	if sdkErr.Detail != "" {
 		reason = fmt.Sprintf("%s: %s", reason, sdkErr.Detail)
+	}
+	if status < http.StatusBadRequest || status >= http.StatusInternalServerError {
+		return retryWorkspaceFileDelivery(xerrors.Errorf("the workspace agent failed the upload with status %d (%s)", status, reason))
 	}
 	// Agents that predate write-once uploads answer 400 to the file_id
 	// parameter, and agents that predate chat uploads answer 404.
