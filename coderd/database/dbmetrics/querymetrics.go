@@ -888,6 +888,14 @@ func (m queryMetricsStore) DeleteOrganizationMember(ctx context.Context, arg dat
 	return r0
 }
 
+func (m queryMetricsStore) DeleteOrganizationMemberDisabledSkill(ctx context.Context, arg database.DeleteOrganizationMemberDisabledSkillParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteOrganizationMemberDisabledSkill(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteOrganizationMemberDisabledSkill").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOrganizationMemberDisabledSkill").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg database.DeleteOrganizationSkillByOrganizationIDAndNameParams) (database.Skill, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteOrganizationSkillByOrganizationIDAndName(ctx, arg)
@@ -2864,6 +2872,14 @@ func (m queryMetricsStore) GetOrganizationSkillByOrganizationIDAndName(ctx conte
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetOrganizationSkillMemberPreferences(ctx context.Context, arg database.GetOrganizationSkillMemberPreferencesParams) (database.GetOrganizationSkillMemberPreferencesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationSkillMemberPreferences(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetOrganizationSkillMemberPreferences").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationSkillMemberPreferences").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetOrganizations(ctx context.Context, arg database.GetOrganizationsParams) ([]database.Organization, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOrganizations(ctx, arg)
@@ -4664,6 +4680,14 @@ func (m queryMetricsStore) InsertOrganizationMember(ctx context.Context, arg dat
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertOrganizationMemberDisabledSkill(ctx context.Context, arg database.InsertOrganizationMemberDisabledSkillParams) error {
+	start := time.Now()
+	r0 := m.s.InsertOrganizationMemberDisabledSkill(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertOrganizationMemberDisabledSkill").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertOrganizationMemberDisabledSkill").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) InsertOrganizationSkill(ctx context.Context, arg database.InsertOrganizationSkillParams) (database.Skill, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertOrganizationSkill(ctx, arg)
@@ -5953,6 +5977,14 @@ func (m queryMetricsStore) UpdateOrganizationDeletedByID(ctx context.Context, ar
 	return r0
 }
 
+func (m queryMetricsStore) UpdateOrganizationMembersCanDisableSkills(ctx context.Context, arg database.UpdateOrganizationMembersCanDisableSkillsParams) (database.Organization, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateOrganizationMembersCanDisableSkills(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateOrganizationMembersCanDisableSkills").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateOrganizationMembersCanDisableSkills").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateOrganizationSkillACLByID(ctx context.Context, arg database.UpdateOrganizationSkillACLByIDParams) (database.Skill, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateOrganizationSkillACLByID(ctx, arg)
@@ -6958,6 +6990,14 @@ func (m queryMetricsStore) UpsertOAuth2GithubDefaultEligible(ctx context.Context
 	r0 := m.s.UpsertOAuth2GithubDefaultEligible(ctx, eligible)
 	m.queryLatencies.WithLabelValues("UpsertOAuth2GithubDefaultEligible").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertOAuth2GithubDefaultEligible").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpsertOrganizationMemberSkillSettings(ctx context.Context, arg database.UpsertOrganizationMemberSkillSettingsParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertOrganizationMemberSkillSettings(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertOrganizationMemberSkillSettings").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertOrganizationMemberSkillSettings").Inc()
 	return r0
 }
 

@@ -503,3 +503,110 @@ func TestProjectSkillQueries(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, skill.ID, deleted.ID)
 }
+
+func TestOrganizationSkillMemberPreferencesExcludes(t *testing.T) {
+	t.Parallel()
+
+	skillID := uuid.New()
+	otherSkillID := uuid.New()
+	for _, tc := range []struct {
+		name       string
+		prefs      database.GetOrganizationSkillMemberPreferencesRow
+		wantSkill  bool
+		wantOthers bool
+	}{
+		{
+			name:  "SettingOffIgnoresChoices",
+			prefs: database.GetOrganizationSkillMemberPreferencesRow{AllSkillsDisabled: true, DisabledSkillIDs: []uuid.UUID{skillID}},
+		},
+		{
+			name:  "SettingOnNoChoices",
+			prefs: database.GetOrganizationSkillMemberPreferencesRow{MembersCanDisableSkills: true},
+		},
+		{
+			name:      "SettingOnSkillOptedOut",
+			prefs:     database.GetOrganizationSkillMemberPreferencesRow{MembersCanDisableSkills: true, DisabledSkillIDs: []uuid.UUID{skillID}},
+			wantSkill: true,
+		},
+		{
+			name:       "SettingOnAllSkillsDisabled",
+			prefs:      database.GetOrganizationSkillMemberPreferencesRow{MembersCanDisableSkills: true, AllSkillsDisabled: true},
+			wantSkill:  true,
+			wantOthers: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.wantSkill, tc.prefs.Excludes(skillID))
+			require.Equal(t, tc.wantOthers, tc.prefs.Excludes(otherSkillID))
+		})
+	}
+}
+
+func TestOrganizationSkillMemberPreferences(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: otherOrg.ID})
+	skill := dbgen.OrganizationSkill(t, db, database.Skill{OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true}})
+	deletedSkill := dbgen.OrganizationSkill(t, db, database.Skill{OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true}})
+	foreignSkill := dbgen.OrganizationSkill(t, db, database.Skill{OrganizationID: uuid.NullUUID{UUID: otherOrg.ID, Valid: true}})
+
+	get := func(orgID uuid.UUID) database.GetOrganizationSkillMemberPreferencesRow {
+		t.Helper()
+		prefs, err := db.GetOrganizationSkillMemberPreferences(ctx, database.GetOrganizationSkillMemberPreferencesParams{
+			OrganizationID: orgID,
+			UserID:         user.ID,
+		})
+		require.NoError(t, err)
+		return prefs
+	}
+	disable := func(orgID, skillID uuid.UUID) {
+		t.Helper()
+		require.NoError(t, db.InsertOrganizationMemberDisabledSkill(ctx, database.InsertOrganizationMemberDisabledSkillParams{
+			OrganizationID: orgID,
+			UserID:         user.ID,
+			SkillID:        skillID,
+		}))
+	}
+
+	require.Equal(t, database.GetOrganizationSkillMemberPreferencesRow{DisabledSkillIDs: []uuid.UUID{}}, get(org.ID))
+
+	require.NoError(t, db.UpsertOrganizationMemberSkillSettings(ctx, database.UpsertOrganizationMemberSkillSettingsParams{
+		OrganizationID:    org.ID,
+		UserID:            user.ID,
+		AllSkillsDisabled: true,
+	}))
+	disable(org.ID, skill.ID)
+	disable(org.ID, deletedSkill.ID)
+	// A skill owned by another organization is never stored.
+	disable(org.ID, foreignSkill.ID)
+	require.ElementsMatch(t, []uuid.UUID{skill.ID, deletedSkill.ID}, get(org.ID).DisabledSkillIDs)
+	require.True(t, get(org.ID).AllSkillsDisabled)
+
+	// Deleting a skill deletes every opt-out of it.
+	_, err := db.DeleteOrganizationSkillByOrganizationIDAndName(ctx, database.DeleteOrganizationSkillByOrganizationIDAndNameParams{
+		OrganizationID: org.ID,
+		Name:           deletedSkill.Name,
+	})
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{skill.ID}, get(org.ID).DisabledSkillIDs)
+
+	// Leaving the organization deletes the member's choices there only.
+	disable(otherOrg.ID, foreignSkill.ID)
+	require.NoError(t, db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
+		OrganizationID: org.ID,
+		UserID:         user.ID,
+	}))
+	require.Equal(t, database.GetOrganizationSkillMemberPreferencesRow{DisabledSkillIDs: []uuid.UUID{}}, get(org.ID))
+	require.Equal(t, []uuid.UUID{foreignSkill.ID}, get(otherOrg.ID).DisabledSkillIDs)
+}
