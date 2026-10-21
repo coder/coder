@@ -1,0 +1,247 @@
+import type { Plugins } from "@dnd-kit/abstract";
+import { AutoScroller, PointerActivationConstraints } from "@dnd-kit/dom";
+import {
+	type DragDropManager,
+	KeyboardSensor,
+	PointerSensor,
+} from "@dnd-kit/react";
+import type { DragData, DropData } from "./BoardCard";
+import {
+	type BoardState,
+	detachChat,
+	joinCard,
+	mergeCards,
+	moveCard,
+	moveColumn,
+	moveNote,
+	type NoteSlot,
+	type Plan,
+} from "./boardApi";
+import type { BoardCard } from "./boardLabels";
+
+// Over a card, the top and bottom quarters insert before/after it; the
+// middle half merges.
+const EDGE_ZONE = 0.25;
+
+// Small enough that a drag starts promptly, large enough that a click on a
+// card header does not.
+const DRAG_ACTIVATION_PX = 4;
+
+/** The board's sensors; tests render with them so a click stays a click. */
+export const dragSensors = [
+	PointerSensor.configure({
+		activationConstraints: [
+			new PointerActivationConstraints.Distance({ value: DRAG_ACTIVATION_PX }),
+		],
+	}),
+	KeyboardSensor,
+];
+
+/** dnd-kit's plugins, with auto-scroll slowed to the speed it had in v6. */
+export const dragPlugins = (defaults: Plugins): Plugins => [
+	...defaults.filter((plugin) => plugin !== AutoScroller),
+	AutoScroller.configure({ acceleration: 16 }),
+];
+
+/** Where a drop would land, resolved from the pointer position. */
+export type DropTarget =
+	| { kind: "merge"; card: BoardCard }
+	| { kind: "insert"; column: string; beforeCardId: string | null }
+	| { kind: "column"; name: string; side: "before" | "after" }
+	| { kind: "note"; card: BoardCard; slot: NoteSlot }
+	| { kind: "noteCard"; card: BoardCard };
+
+type Point = { readonly x: number; readonly y: number };
+type Rect = {
+	readonly top: number;
+	readonly left: number;
+	readonly width: number;
+	readonly height: number;
+};
+
+/** A registered drop zone and where it is on screen. */
+export type BoardDroppable = { readonly data: DropData; readonly rect: Rect };
+
+const contains = (rect: Rect, { x, y }: Point) =>
+	x >= rect.left &&
+	x <= rect.left + rect.width &&
+	y >= rect.top &&
+	y <= rect.top + rect.height;
+
+const cardsInColumn = (droppables: readonly BoardDroppable[], column: string) =>
+	droppables
+		.flatMap(({ data, rect }) =>
+			data.type === "card" && data.card.column === column
+				? [{ card: data.card, rect }]
+				: [],
+		)
+		.sort((a, b) => a.rect.top - b.rect.top);
+
+const nextCardIdInColumn = (
+	droppables: readonly BoardDroppable[],
+	card: BoardCard,
+): string | null => {
+	const ordered = cardsInColumn(droppables, card.column);
+	const index = ordered.findIndex((entry) => entry.card.id === card.id);
+	return ordered[index + 1]?.card.id ?? null;
+};
+
+// A note lands before or after the note under the pointer, or at the end
+// of another card's notes when over the card itself. Its own card, away
+// from its notes, is not a target.
+const noteTarget = (
+	hits: readonly BoardDroppable[],
+	pointer: Point,
+	drag: Extract<DragData, { type: "note" }>,
+): DropTarget | null => {
+	for (const { data, rect } of hits) {
+		if (
+			data.type === "note" &&
+			!(data.card.id === drag.card.id && data.note.index === drag.note.index)
+		) {
+			return {
+				kind: "note",
+				card: data.card,
+				slot: {
+					index: data.note.index,
+					side: pointer.y < rect.top + rect.height / 2 ? "before" : "after",
+				},
+			};
+		}
+	}
+	for (const { data } of hits) {
+		if (data.type === "card" && data.card.id !== drag.card.id) {
+			return { kind: "noteCard", card: data.card };
+		}
+	}
+	return null;
+};
+
+/**
+ * Resolves the pointer to one target. A column drag lands before or after
+ * the column under the pointer. Over a card, see EDGE_ZONE (chats always
+ * join). Over column background, insert before the first card whose middle
+ * is below the pointer.
+ */
+export const boardTarget = (
+	drag: DragData | undefined,
+	droppables: readonly BoardDroppable[],
+	pointer: Point | null,
+): DropTarget | null => {
+	if (!pointer) return null;
+	const hits = droppables.filter(({ rect }) => contains(rect, pointer));
+	if (drag?.type === "note") return noteTarget(hits, pointer, drag);
+	const columnHit = hits.find(({ data }) => data.type === "column");
+	if (columnHit?.data.type !== "column") return null;
+	const column = columnHit.data;
+
+	if (drag?.type === "column") {
+		if (column.name === drag.name) return null;
+		const { rect } = columnHit;
+		return {
+			kind: "column",
+			name: column.name,
+			side: pointer.x < rect.left + rect.width / 2 ? "before" : "after",
+		};
+	}
+
+	const cardHit = hits.find(
+		({ data }) => data.type === "card" && data.card.id !== drag?.card.id,
+	);
+	if (cardHit?.data.type === "card") {
+		const y = (pointer.y - cardHit.rect.top) / cardHit.rect.height;
+		const card = cardHit.data.card;
+		if (drag?.type === "chat" || (y > EDGE_ZONE && y < 1 - EDGE_ZONE)) {
+			return { kind: "merge", card };
+		}
+		return {
+			kind: "insert",
+			column: card.column,
+			beforeCardId:
+				y <= EDGE_ZONE ? card.id : nextCardIdInColumn(droppables, card),
+		};
+	}
+	const below = cardsInColumn(droppables, column.name).find(
+		({ rect }) => rect.top + rect.height / 2 > pointer.y,
+	);
+	return {
+		kind: "insert",
+		column: column.name,
+		beforeCardId: below?.card.id ?? null,
+	};
+};
+
+/** The board's drag payload; dnd-kit types `data` as an open record. */
+export const dragDataOf = (manager: DragDropManager): DragData | undefined =>
+	manager.dragOperation.source?.data as DragData | undefined;
+
+/**
+ * The target under the drag's current position. Rects are read from the
+ * elements, not dnd-kit's shapes, because dnd-kit drops the shape of an
+ * element scrolled out of view and the column order needs every card.
+ */
+export const dragTargetOf = (manager: DragDropManager): DropTarget | null => {
+	const droppables = [...manager.registry.droppables].flatMap((droppable) => {
+		const data = droppable.data as DropData | undefined;
+		const element = droppable.element;
+		return data && element && !droppable.disabled
+			? [{ data, rect: element.getBoundingClientRect() }]
+			: [];
+	});
+	return boardTarget(
+		dragDataOf(manager),
+		droppables,
+		manager.dragOperation.position.current,
+	);
+};
+
+/**
+ * The board command a drop means, or null when that drag cannot land on
+ * that target. Returned unapplied so the caller runs it against the full
+ * model.
+ */
+export const dropCommand = (
+	drag: DragData,
+	target: DropTarget,
+): ((state: BoardState) => Plan | null) | null => {
+	switch (target.kind) {
+		case "column":
+			return drag.type === "column"
+				? (state) => moveColumn(state, drag.name, target)
+				: null;
+		case "note":
+			return drag.type === "note"
+				? (state) =>
+						moveNote(
+							state,
+							drag.card.id,
+							drag.note.index,
+							target.card.id,
+							target.slot,
+						)
+				: null;
+		case "noteCard":
+			return drag.type === "note"
+				? (state) =>
+						moveNote(state, drag.card.id, drag.note.index, target.card.id, null)
+				: null;
+		case "merge":
+			if (drag.type === "card") {
+				return (state) => mergeCards(state, drag.card.id, target.card.id);
+			}
+			if (drag.type === "chat") {
+				return (state) => joinCard(state, drag.chat.id, target.card.id);
+			}
+			return null;
+		case "insert":
+			if (drag.type === "card") {
+				return (state) =>
+					moveCard(state, drag.card.id, target.column, target.beforeCardId);
+			}
+			if (drag.type === "chat") {
+				return (state) =>
+					detachChat(state, drag.chat.id, target.column, target.beforeCardId);
+			}
+			return null;
+	}
+};

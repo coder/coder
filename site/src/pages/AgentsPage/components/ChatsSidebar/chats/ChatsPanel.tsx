@@ -40,6 +40,15 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { getOSKey } from "#/utils/platform";
 import {
+	BoardColumnTag,
+	BoardGroupEntry,
+} from "../../../exp/chatBoard/BoardGroupEntry";
+import {
+	boardSidebarChats,
+	groupUpdatedAt,
+} from "../../../exp/chatBoard/boardGroups";
+import { ChatBoardNavItem } from "../../../exp/chatBoard/ChatBoardNavItem";
+import {
 	AGENT_CHAT_STATUS_GROUP_ORDER,
 	AGENT_CHAT_STATUS_ORDER,
 	type AgentSidebarFilters,
@@ -224,11 +233,12 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		(chat) => !canManageChat(chat, currentUserId),
 	);
 	const unpinnedOwnedChats = ownedChats.filter((chat) => chat.pin_order === 0);
-	const {
-		chatsByProjectId,
-		unfiledChats: unfiledOwnedChats,
-		folderProjectIds,
-	} = groupChatsByProject(unpinnedOwnedChats, projects, isProjectsLoading);
+	const { chatsByProjectId, unfiledChats, folderProjectIds } =
+		groupChatsByProject(unpinnedOwnedChats, projects, isProjectsLoading);
+	// The board experiment groups the unfiled list only, so a group never
+	// hides a chat filed in a project folder.
+	const { chats: unfiledOwnedChats, groups: boardGroups } =
+		boardSidebarChats(unfiledChats);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
 		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||
@@ -407,6 +417,9 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		navigateAfterArchive,
 		onOpenRenameDialog,
 		dragInstructionsId,
+		renderTrailing: (chat) => (
+			<BoardColumnTag chat={chat} groups={boardGroups} />
+		),
 	};
 
 	const chatSections = (
@@ -423,7 +436,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 					key: group,
 					label: group,
 					chats: unfiledOwnedChats.filter(
-						(chat) => getTimeGroup(chat.updated_at) === group,
+						(chat) => getTimeGroup(groupUpdatedAt(chat, boardGroups)) === group,
 					),
 				}))
 	).filter((section) => section.chats.length > 0);
@@ -567,6 +580,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						}
 					/>
 				)}
+				<ChatBoardNavItem locationSearch={locationSearch} />
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
 				{!chatProjectsEnabled && chatsHeader}
@@ -756,19 +770,18 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 																/>
 																{isSectionExpanded && (
 																	<div className="flex flex-col gap-0.5">
-																		{section.chats.map((chat) =>
-																			chatProjectsEnabled ? (
-																				<DraggableChatTreeNode
-																					key={chat.id}
-																					chat={chat}
-																				/>
-																			) : (
-																				<ChatTreeNode
-																					key={chat.id}
-																					chat={chat}
-																				/>
-																			),
-																		)}
+																		{section.chats.map((chat) => (
+																			<BoardGroupEntry
+																				key={chat.id}
+																				chat={chat}
+																				groups={boardGroups}
+																				row={
+																					chatProjectsEnabled
+																						? DraggableChatTreeNode
+																						: ChatTreeNode
+																				}
+																			/>
+																		))}
 																	</div>
 																)}
 															</div>
