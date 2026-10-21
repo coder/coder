@@ -26,7 +26,12 @@ import {
 	MockChatMessage,
 	MockChatWorkspaceAttachmentPart,
 } from "#/testHelpers/chatEntities";
-import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
+import {
+	MockUserChatCompactionThresholds,
+	MockUserPreferenceSettings,
+	MockWorkspace,
+	MockWorkspaceAgent,
+} from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import { useConversationEditingState } from "../hooks/useConversationEditingState";
@@ -237,6 +242,23 @@ describe("ChatPageInput", () => {
 		} else {
 			Reflect.deleteProperty(Range.prototype, "getBoundingClientRect");
 		}
+	});
+
+	beforeEach(() => {
+		vi.spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
+			MockUserPreferenceSettings,
+		);
+		vi.spyOn(API.experimental, "getChatPrompts").mockResolvedValue({
+			prompts: [],
+		});
+		vi.spyOn(
+			API.experimental,
+			"getUserChatCompactionThresholds",
+		).mockResolvedValue(MockUserChatCompactionThresholds);
+		vi.spyOn(
+			API.experimental,
+			"getOrganizationChatModelOverrides",
+		).mockResolvedValue({ overrides: [] });
 	});
 
 	afterEach(() => {
@@ -542,6 +564,13 @@ describe("ChatPageInput", () => {
 				vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
 					id: "added-png",
 				});
+				// The upload pre-warms the image cache with a plain fetch.
+				server.use(
+					http.get(
+						"/api/v2/chats/files/:fileId",
+						() => new HttpResponse(null, { status: 200 }),
+					),
+				);
 				const mockImagePart: TypesGen.ChatFilePart = {
 					type: "file",
 					file_id: "image-png",
