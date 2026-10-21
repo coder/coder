@@ -13022,6 +13022,59 @@ func TestGetLatestSuccessfulChatToolCallArgs(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "after clear", got)
 	})
+	t.Run("ResultMatchesCallOccurrence", func(t *testing.T) {
+		t.Parallel()
+		// Providers may repeat tool call IDs within a step or across steps,
+		// so a result only counts for the call occurrence it answers.
+		call := func(id, tool, checkpoint string) codersdk.ChatMessagePart {
+			args, err := json.Marshal(map[string]string{"checkpoint": checkpoint})
+			require.NoError(t, err)
+			return codersdk.ChatMessageToolCall(id, tool, args)
+		}
+		result := func(id, tool string, isError bool) codersdk.ChatMessagePart {
+			return codersdk.ChatMessageToolResult(id, tool, json.RawMessage(`{}`), isError, false)
+		}
+		step := func(t *testing.T, chatID uuid.UUID, calls []codersdk.ChatMessagePart, results ...codersdk.ChatMessagePart) {
+			content, err := chatprompt.MarshalParts(calls)
+			require.NoError(t, err)
+			dbgen.ChatMessage(t, db, database.ChatMessage{ChatID: chatID, Role: database.ChatMessageRoleAssistant, Content: content})
+			for _, r := range results {
+				insert(t, chatID, database.ChatMessageRoleTool, false, r)
+			}
+		}
+		tests := []struct {
+			name  string
+			steps func(t *testing.T, chatID uuid.UUID)
+		}{
+			{name: "SiblingToolSharesID", steps: func(t *testing.T, chatID uuid.UUID) {
+				step(t, chatID,
+					[]codersdk.ChatMessagePart{call("dup", "save_checkpoint", "rejected"), call("dup", "new_context", "")},
+					result("dup", "save_checkpoint", true), result("dup", "new_context", false))
+			}},
+			{name: "LaterStepReusesID", steps: func(t *testing.T, chatID uuid.UUID) {
+				step(t, chatID, []codersdk.ChatMessagePart{call("call_0", "save_checkpoint", "rejected")}, result("call_0", "save_checkpoint", true))
+				step(t, chatID, []codersdk.ChatMessagePart{call("call_0", "save_checkpoint", "unanswered")})
+				step(t, chatID, []codersdk.ChatMessagePart{call("call_0", "execute", "")}, result("call_0", "execute", false))
+			}},
+			{name: "RepeatedSaveSharesID", steps: func(t *testing.T, chatID uuid.UUID) {
+				step(t, chatID,
+					[]codersdk.ChatMessagePart{call("dup", "save_checkpoint", "kept"), call("dup", "save_checkpoint", "rejected")},
+					result("dup", "save_checkpoint", false), result("dup", "save_checkpoint", true))
+			}},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				chat := newChat(t)
+				save(t, chat.ID, "kept", ok())
+				tc.steps(t, chat.ID)
+				got, err := latest(ctx, t, chat.ID)
+				require.NoError(t, err)
+				require.Equal(t, "kept", got)
+			})
+		}
+	})
 }
 
 func TestGetChatMessagesForPromptByChatID(t *testing.T) {
