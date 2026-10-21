@@ -105,6 +105,7 @@ func TestActiveServer_ContextRollover(t *testing.T) {
 				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
 				cfg.Experiments = tc.experiments
 				cfg.PrometheusRegistry = reg
+				cfg.AlwaysEnableDebugLogs = true
 			})
 
 			chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "first request")
@@ -161,6 +162,25 @@ func TestActiveServer_ContextRollover(t *testing.T) {
 				"model":    "claude-sonnet-4-20250514",
 				"reason":   "limit",
 			})
+
+			// The turn's debug run points at the user's request, not at
+			// its model-only replay after the boundary.
+			var request database.ChatMessage
+			for _, row := range messages {
+				if row.Visibility != database.ChatMessageVisibilityModel && row.Role == database.ChatMessageRoleUser && strings.Contains(messageText(t, row), "second request") {
+					request = row
+				}
+			}
+			require.NotZero(t, request.ID)
+			runs, err := db.GetChatDebugRunsByChatID(ctx, database.GetChatDebugRunsByChatIDParams{ChatID: chat.ID, LimitVal: 100})
+			require.NoError(t, err)
+			var triggers []int64
+			for _, run := range runs {
+				if run.Kind == string(codersdk.ChatDebugRunKindChatTurn) && run.TriggerMessageID.Valid {
+					triggers = append(triggers, run.TriggerMessageID.Int64)
+				}
+			}
+			require.Contains(t, triggers, request.ID)
 		})
 	}
 }
