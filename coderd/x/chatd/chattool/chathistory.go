@@ -122,8 +122,8 @@ func ChatHistory(opts ChatHistoryOptions) fantasy.AgentTool {
 		opts.Clock = quartz.NewReal()
 	}
 	return fantasy.NewAgentTool(ChatHistoryToolName, chatHistoryDescription,
-		func(ctx context.Context, args chatHistoryArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			result, err := runChatHistory(ctx, opts, args, call.ID)
+		func(ctx context.Context, args chatHistoryArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			result, err := runChatHistory(ctx, opts, args)
 			if errors.Is(err, errChatHistoryTimeout) {
 				result = chatHistoryError("history_timeout")
 				result.Notice = "The history read did not finish within its time limit; narrow the query (window_id, role, tool_name, recent_first, smaller limit) and retry."
@@ -134,7 +134,7 @@ func ChatHistory(opts ChatHistoryOptions) fantasy.AgentTool {
 		})
 }
 
-func runChatHistory(parent context.Context, opts ChatHistoryOptions, args chatHistoryArgs, callID string) (chatHistoryResult, error) {
+func runChatHistory(parent context.Context, opts ChatHistoryOptions, args chatHistoryArgs) (chatHistoryResult, error) {
 	if code := validateChatHistoryArgs(args); code != "" {
 		return chatHistoryError(code), nil
 	}
@@ -145,7 +145,6 @@ func runChatHistory(parent context.Context, opts ChatHistoryOptions, args chatHi
 	r := &chatHistoryReader{
 		opts:     opts,
 		args:     args,
-		callID:   callID,
 		parent:   parent,
 		ctx:      ctx,
 		deadline: opts.Clock.Now().Add(chatHistoryDeadline),
@@ -239,11 +238,8 @@ func chatHistoryWindows(boundaries []database.GetChatContextBoundaryMessagesRow)
 }
 
 type chatHistoryReader struct {
-	opts ChatHistoryOptions
-	args chatHistoryArgs
-	// callID is the running chat_history call. Its step is committed
-	// before its tools run, so its row is current, not historical.
-	callID   string
+	opts     ChatHistoryOptions
+	args     chatHistoryArgs
 	parent   context.Context
 	ctx      context.Context
 	deadline time.Time
@@ -490,8 +486,8 @@ func (r *chatHistoryReader) scan(visit func(database.ChatMessage) bool) (bool, e
 // project renders a row as the text chat_history searches and returns,
 // with the names of the tools it calls or holds results of. Reasoning,
 // hook context and earlier chat_history results never reach the text, so
-// a read cannot amplify a previous one. The running call's row projects
-// to nothing, so a search cannot match its own arguments.
+// a read cannot amplify a previous one. chat_history calls drop their
+// arguments, so a search cannot match an earlier or the running query.
 func (r *chatHistoryReader) project(row database.ChatMessage) (string, []string, error) {
 	parts, err := r.opts.ParseContent(row)
 	if err != nil {
@@ -505,10 +501,11 @@ func (r *chatHistoryReader) project(row database.ChatMessage) (string, []string,
 				lines = append(lines, part.Text)
 			}
 		case codersdk.ChatMessagePartTypeToolCall:
-			if r.callID != "" && part.ToolCallID == r.callID {
-				return "", nil, nil
-			}
 			toolNames = append(toolNames, part.ToolName)
+			if part.ToolName == ChatHistoryToolName {
+				lines = append(lines, "[tool call: chat_history]")
+				continue
+			}
 			args := compactJSON(part.Args)
 			if truncated := truncateRunes(args, chatHistoryMaxToolArgsChars); truncated != args {
 				args = truncated + " [truncated]"
