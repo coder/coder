@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
 import {
 	chatPromptsKey,
 	organizationChatModelOverridesKey,
@@ -608,6 +609,51 @@ export const HandoffTargetUnderTokenBudget: Story = {
 				} satisfies TypesGen.WorkspacesResponse,
 			},
 		],
+	},
+	render: () => <CompactionChatPageInput />,
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			await within(canvasElement).findByRole("button", {
+				name: /Context usage/i,
+			}),
+		);
+	},
+};
+
+export const HandoffTargetWhileOverridesLoad: Story = {
+	parameters: {
+		experiments: ["chat-token-budget"],
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: mockUserChatCompactionThresholdsWithOverride,
+			},
+			{
+				key: userCompactionStrategyKey,
+				data: { strategy: "token_budget" },
+			},
+			{
+				key: chatPromptsKey(MockChat.id),
+				data: { prompts: [] } satisfies TypesGen.ChatPromptsResponse,
+			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(
+			API.experimental,
+			"getOrganizationChatModelOverrides",
+		).mockReturnValue(new Promise(() => undefined));
 	},
 	render: () => <CompactionChatPageInput />,
 	play: async ({ canvasElement }) => {
