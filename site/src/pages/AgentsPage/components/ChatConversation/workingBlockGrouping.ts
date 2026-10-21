@@ -55,7 +55,6 @@ export type GroupWorkingBlocksOptions = {
 	streamState?: StreamState | null;
 };
 
-/** Tools that record a context boundary rather than a turn's work. */
 const CONTEXT_BOUNDARY_TOOLS: ReadonlySet<string> = new Set([
 	"chat_summarized",
 	"chat_cleared",
@@ -156,18 +155,25 @@ export const isAgentAttachmentOnlyRow = (row: TimelineRow): boolean => {
 	);
 };
 
-/** True for an attachment-only row while collapsed steps are on. */
+/**
+ * Collapsed steps keep attachment-only rows off the timeline's top level; a
+ * working block that groups one still shows its files.
+ */
 export const isHiddenAttachmentRow = (
 	row: TimelineRow,
 	collapseSteps: boolean,
 ): boolean => collapseSteps && isAgentAttachmentOnlyRow(row);
 
+/** Clear and compaction rows can follow the answer, which keeps the pill. */
 const isContextBoundaryRow = (row: TimelineRow): boolean =>
 	row.type === "message" &&
 	row.entry.parsed.tools.some((tool) => CONTEXT_BOUNDARY_TOOLS.has(tool.name));
 
 export type TurnAttachmentsOptions = {
-	/** Attachment-only rows are hidden, so the pill moves to a shown row. */
+	/**
+	 * Collapsed steps show attachment-only rows only in working blocks, so
+	 * none of them hosts the pill.
+	 */
 	hidesAttachmentRows: boolean;
 	/** The newest turn may still attach files, so it gets no entry yet. */
 	isLastTurnUnsettled: boolean;
@@ -193,13 +199,13 @@ export const getTurnAttachmentsByRow = (
 	let lastShownRowKey: string | undefined;
 	let isTurnStartLoaded = !hasMoreMessages;
 	const settleTurn = () => {
-		const [first, ...rest] = attachments;
+		const first: AgentAttachment | undefined = attachments[0];
 		if (
 			isTurnStartLoaded &&
 			lastShownRowKey !== undefined &&
 			first !== undefined
 		) {
-			byRow.set(lastShownRowKey, [first, ...rest]);
+			byRow.set(lastShownRowKey, [first, ...attachments.slice(1)]);
 		}
 		attachments = [];
 		lastShownRowKey = undefined;

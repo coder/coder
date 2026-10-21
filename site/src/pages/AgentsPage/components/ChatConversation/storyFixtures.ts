@@ -457,6 +457,16 @@ export const MockMixedAttachmentMessages: TypesGen.ChatMessage[] = [
 export const MockUnansweredAttachmentMessages: TypesGen.ChatMessage[] =
 	MockMixedAttachmentMessages.slice(0, -1);
 
+/** MockMixedAttachmentMessages followed by a manual context clear. */
+export const MockClearedAttachmentMessages: TypesGen.ChatMessage[] = [
+	...MockMixedAttachmentMessages,
+	...workingStepMessages(24, "clear", 31, 31, {
+		toolName: "chat_cleared",
+		args: { source: "manual" },
+		result: { source: "manual" },
+	}),
+];
+
 const mockSearchAnswer = MockWebSearchAnswerMessages.at(-1);
 if (!mockSearchAnswer) {
 	throw new Error("MockWebSearchAnswerMessages has no answer.");

@@ -18,6 +18,7 @@ import {
 	buildStreamRenderState,
 	MockAttachmentWorkingMessages,
 	MockBrokenImageAttachmentMessages,
+	MockClearedAttachmentMessages,
 	MockCollapsedStepsPreferences,
 	MockLeadInSearchMessages,
 	MockLongTurnPageLoads,
@@ -310,32 +311,28 @@ export const TurnAttachmentsPillRunningTurn: Story = {
 	},
 };
 
+const mockPendingQuestionMessage = {
+	...MockQuestionCallMessage,
+	id: 23,
+	created_at: workingFixtureTime(30),
+};
+
 // The pending client tool's result resumes the turn, so it has no pill yet.
 export const TurnAttachmentsPillRequiresAction: Story = {
 	args: {
 		chatStatus: "requires_action",
 		onSendAskUserQuestionResponse: fn(),
 		parsedMessages: parseMessagesWithMergedTools(
-			[
-				...MockUnansweredAttachmentMessages,
-				{
-					...MockChatMessage,
-					id: 23,
-					role: "assistant",
-					created_at: workingFixtureTime(30),
-					content: [
-						{
-							type: "tool-call",
-							tool_call_id: "question",
-							tool_name: "ask_user_question",
-							args: {},
-							created_at: workingFixtureTime(30),
-						},
-					],
-				},
-			],
+			[...MockUnansweredAttachmentMessages, mockPendingQuestionMessage],
 			{ pendingToolCallIDs: new Set(["question"]) },
 		),
+	},
+};
+
+// The context-cleared row after the answer leaves the pill on the answer.
+export const TurnAttachmentsPillContextCleared: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockClearedAttachmentMessages),
 	},
 };
 

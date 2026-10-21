@@ -35,7 +35,7 @@ export const ImageThumbnail: React.FC<{
 	previewUrl: string;
 	name: string;
 	className?: string;
-	loading?: React.ImgHTMLAttributes<HTMLImageElement>["loading"];
+	loading?: React.ComponentProps<"img">["loading"];
 	onError?: React.ReactEventHandler<HTMLImageElement>;
 }> = ({ previewUrl, name, className, loading, onError }) => (
 	<img
