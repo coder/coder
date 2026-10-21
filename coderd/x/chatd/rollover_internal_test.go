@@ -166,6 +166,91 @@ func TestDecideGenerationActionContextRollover(t *testing.T) {
 	}
 }
 
+func TestBuildContextHandoffMessages(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	usage := "Context budget ~33% used (25 of 75 tokens before Coder forces a rollover at the usable limit). "
+	tests := []struct {
+		stage      rolloverAction
+		wantPrompt string
+	}{
+		{
+			stage: rolloverActionHandoff,
+			wantPrompt: usage + "The context handoff target has been reached. Finish the current small unit of work and start no substantial new work in this window. " +
+				"Before starting a new context window, save a concise checkpoint with save_checkpoint: the goal, decisions, progress, learnings, next steps, and the window ID and item ID of every relevant user request still being solved, as well as important actions and tool calls. " +
+				"Future context windows will not include the current conversation. After saving your checkpoint, call new_context in a later step to continue in a fresh context window. " +
+				"If the task is already complete, finish the reply instead.",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(string(tc.stage), func(t *testing.T) {
+			t.Parallel()
+			messages, err := buildContextHandoffMessages(buildContextHandoffMessagesInput{
+				modelConfigID: modelConfigID,
+				toolCallID:    "call",
+				stage:         tc.stage,
+				contextTokens: 25,
+				usableLimit:   75,
+			})
+			require.NoError(t, err)
+			require.Len(t, messages, 3)
+			parse := func(msg chatstate.Message) codersdk.ChatMessagePart {
+				parts, err := chatprompt.ParseContent(database.ChatMessage{Content: msg.Content, ContentVersion: msg.ContentVersion})
+				require.NoError(t, err)
+				require.Len(t, parts, 1)
+				return parts[0]
+			}
+
+			call, result, prompt := messages[0], messages[1], messages[2]
+			require.Equal(t, []any{database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, true}, []any{call.Role, call.Visibility, call.Compressed})
+			callPart := parse(call)
+			require.Equal(t, codersdk.ChatMessagePartTypeToolCall, callPart.Type)
+			require.Equal(t, "chat_context_handoff", callPart.ToolName)
+			require.JSONEq(t, fmt.Sprintf(`{"stage":%q,"context_tokens":25,"budget_tokens":75}`, tc.stage), string(callPart.Args))
+
+			require.Equal(t, []any{database.ChatMessageRoleTool, database.ChatMessageVisibilityUser, true}, []any{result.Role, result.Visibility, result.Compressed})
+			resultPart := parse(result)
+			require.Equal(t, codersdk.ChatMessagePartTypeToolResult, resultPart.Type)
+			require.Equal(t, callPart.ToolCallID, resultPart.ToolCallID)
+			wantResult, err := json.Marshal(map[string]string{"stage": string(tc.stage), "prompt": tc.wantPrompt})
+			require.NoError(t, err)
+			require.JSONEq(t, string(wantResult), string(resultPart.Result))
+
+			require.Equal(t, []any{database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, false}, []any{prompt.Role, prompt.Visibility, prompt.Compressed})
+			require.Equal(t, fmt.Sprintf(`<context-handoff stage=%q>%s</context-handoff>`, tc.stage, tc.wantPrompt), parse(prompt).Text)
+		})
+	}
+}
+
+func TestReplayablePendingUserRows(t *testing.T) {
+	t.Parallel()
+
+	messages, err := buildContextHandoffMessages(buildContextHandoffMessagesInput{
+		toolCallID:    "call",
+		stage:         rolloverActionHandoff,
+		contextTokens: 25,
+		usableLimit:   75,
+	})
+	require.NoError(t, err)
+	handoffPrompt := database.ChatMessage{
+		ID:             5,
+		Role:           messages[2].Role,
+		Content:        messages[2].Content,
+		ContentVersion: messages[2].ContentVersion,
+		Visibility:     messages[2].Visibility,
+	}
+	request := dbMessage(t, 2, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("next"))
+
+	rows, err := replayablePendingUserRows([]database.ChatMessage{request, handoffPrompt})
+	require.NoError(t, err)
+	require.Equal(t, []database.ChatMessage{request}, rows, "a stale handoff prompt must not reach the next window")
+
+	rows, err = replayablePendingUserRows([]database.ChatMessage{handoffPrompt})
+	require.NoError(t, err)
+	require.Empty(t, rows, "a handoff prompt alone is no pending user request")
+}
+
 func rolloverTestToolStep(t *testing.T, id int64, inputTokens int64) []database.ChatMessage {
 	callID := fmt.Sprintf("call-%d", id)
 	return []database.ChatMessage{

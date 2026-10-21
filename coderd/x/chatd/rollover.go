@@ -21,7 +21,11 @@ import (
 )
 
 const (
-	rolloverToolName          = "chat_context_rollover"
+	rolloverToolName = "chat_context_rollover"
+	handoffToolName  = "chat_context_handoff"
+	// handoffPromptPrefix starts the model-only user row of a handoff
+	// prompt, which continues with the stage.
+	handoffPromptPrefix       = "<context-handoff stage="
 	firstContextWindowID      = "w:0"
 	rolloverRequestedBySystem = "system"
 	rolloverRequestedByModel  = "model"
@@ -58,6 +62,7 @@ type rolloverAction string
 
 const (
 	rolloverActionNone     rolloverAction = ""
+	rolloverActionHandoff  rolloverAction = "handoff"
 	rolloverActionRollover rolloverAction = "rollover"
 )
 
@@ -412,4 +417,111 @@ func latestRequestItemID(messages []database.ChatMessage) int64 {
 		return messages[index].ID
 	}
 	return 0
+}
+
+// contextHandoffPayload is the chat_context_handoff tool call input. The
+// result carries the stage and the prompt instead of the token counts.
+type contextHandoffPayload struct {
+	Stage         rolloverAction `json:"stage"`
+	ContextTokens int64          `json:"context_tokens"`
+	BudgetTokens  int64          `json:"budget_tokens"`
+}
+
+type buildContextHandoffMessagesInput struct {
+	modelConfigID uuid.UUID
+	toolCallID    string
+	stage         rolloverAction
+	contextTokens int64
+	usableLimit   int64
+}
+
+// buildContextHandoffMessages produces a UI-only tool call and result
+// that record the stage, then the model-only prompt. The UI rows are
+// compressed so that step counts and the prompt query skip them.
+func buildContextHandoffMessages(input buildContextHandoffMessagesInput) ([]chatstate.Message, error) {
+	contentVersion := chatprompt.CurrentContentVersion
+	prompt := contextHandoffPrompt(input.contextTokens, input.usableLimit)
+	args, err := json.Marshal(contextHandoffPayload{
+		Stage:         input.stage,
+		ContextTokens: input.contextTokens,
+		BudgetTokens:  input.usableLimit,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal context handoff args: %w", err)
+	}
+	result, err := json.Marshal(struct {
+		Stage  rolloverAction `json:"stage"`
+		Prompt string         `json:"prompt"`
+	}{Stage: input.stage, Prompt: prompt})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal context handoff result: %w", err)
+	}
+	callContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolCall(input.toolCallID, handoffToolName, args),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal context handoff tool call: %w", err)
+	}
+	resultContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolResult(input.toolCallID, handoffToolName, result, false, false),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal context handoff tool result: %w", err)
+	}
+	promptContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText(fmt.Sprintf("%s%q>%s</context-handoff>", handoffPromptPrefix, input.stage, prompt)),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal context handoff prompt: %w", err)
+	}
+	call := baseMessage(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, callContent)
+	call.Compressed = true
+	toolResult := baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, resultContent)
+	toolResult.Compressed = true
+	return []chatstate.Message{
+		call,
+		toolResult,
+		baseMessage(database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, input.modelConfigID, contentVersion, promptContent),
+	}, nil
+}
+
+func contextHandoffPrompt(contextTokens, usableLimit int64) string {
+	usage := fmt.Sprintf("Context budget ~%d%% used (%d of %d tokens before Coder forces a rollover at the usable limit).",
+		(contextTokens*100+usableLimit/2)/usableLimit, contextTokens, usableLimit)
+	return strings.Join([]string{
+		usage,
+		"The context handoff target has been reached. Finish the current small unit of work and start no substantial new work in this window.",
+		"Before starting a new context window, save a concise checkpoint with " + chattool.SaveCheckpointToolName + ": the goal, decisions, progress, learnings, next steps, and the window ID and item ID of every relevant user request still being solved, as well as important actions and tool calls.",
+		"Future context windows will not include the current conversation.",
+		"After saving your checkpoint, call " + chattool.NewContextToolName + " in a later step to continue in a fresh context window.",
+		"If the task is already complete, finish the reply instead.",
+	}, " ")
+}
+
+// replayablePendingUserRows drops handoff prompts from the pending user
+// rows that a boundary replays: a prompt about the old window's budget
+// would mislead the next window, and the next window earns its own.
+func replayablePendingUserRows(rows []database.ChatMessage) ([]database.ChatMessage, error) {
+	var replayable []database.ChatMessage
+	for _, row := range rows {
+		handoff, err := isContextHandoffPrompt(row)
+		if err != nil {
+			return nil, err
+		}
+		if !handoff {
+			replayable = append(replayable, row)
+		}
+	}
+	return replayable, nil
+}
+
+func isContextHandoffPrompt(row database.ChatMessage) (bool, error) {
+	if row.Role != database.ChatMessageRoleUser || row.Visibility != database.ChatMessageVisibilityModel {
+		return false, nil
+	}
+	parts, err := chatprompt.ParseContent(row)
+	if err != nil {
+		return false, xerrors.Errorf("parse user message %d: %w", row.ID, err)
+	}
+	return len(parts) == 1 && parts[0].Type == codersdk.ChatMessagePartTypeText && strings.HasPrefix(parts[0].Text, handoffPromptPrefix), nil
 }
