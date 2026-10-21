@@ -22,7 +22,8 @@ import { MockSkill } from "#/testHelpers/skills";
 import { mobileViewportMediaQuery } from "#/utils/mobile";
 import type * as speechRecognition from "../hooks/useSpeechRecognition";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
-import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
+import { AgentChatInput } from "./AgentChatInput";
+import type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
 
 const dashboard = vi.hoisted(() => ({
 	experiments: ["chat-projects"] as string[],

@@ -17,7 +17,7 @@ import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
-import type { ChatMessageInputRef } from "../AgentChatInput";
+import type { ChatMessageInputRef } from "../ChatMessageInput/ChatMessageInput";
 import { GitPanel } from "./GitPanel";
 
 vi.mock("../DiffViewer/LocalDiffPanel", () => ({
