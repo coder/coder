@@ -2210,19 +2210,43 @@ func TestFetchPersonalSkillMetadata(t *testing.T) {
 	})
 }
 
-func TestFetchOrganizationSkillMetadataListFailure(t *testing.T) {
+func TestFetchOrganizationSkillMetadataFailure(t *testing.T) {
 	t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	server := &Server{db: db}
-	organizationID := uuid.New()
-	listErr := xerrors.New("boom")
+	t.Run("List", func(t *testing.T) {
+		t.Parallel()
 
-	db.EXPECT().ListOrganizationSkillMetadataByOrganizationID(gomock.Any(), organizationID).Return(nil, listErr)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db}
+		organizationID := uuid.New()
+		listErr := xerrors.New("boom")
 
-	_, err := server.fetchOrganizationSkillMetadata(context.Background(), rbac.Subject{ID: uuid.NewString()}, organizationID)
-	require.ErrorIs(t, err, listErr)
+		db.EXPECT().ListOrganizationSkillMetadataByOrganizationID(gomock.Any(), organizationID).Return(nil, listErr)
+
+		_, err := server.fetchOrganizationSkillMetadata(context.Background(), rbac.Subject{ID: uuid.NewString()}, uuid.New(), organizationID)
+		require.ErrorIs(t, err, listErr)
+	})
+
+	t.Run("MemberPreferences", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db}
+		organizationID := uuid.New()
+		ownerID := uuid.New()
+		prefsErr := xerrors.New("boom")
+
+		db.EXPECT().ListOrganizationSkillMetadataByOrganizationID(gomock.Any(), organizationID).Return(nil, nil)
+		db.EXPECT().GetOrganizationSkillMemberPreferences(gomock.Any(), database.GetOrganizationSkillMemberPreferencesParams{
+			OrganizationID: organizationID,
+			UserID:         ownerID,
+		}).Return(database.GetOrganizationSkillMemberPreferencesRow{}, prefsErr)
+
+		_, err := server.fetchOrganizationSkillMetadata(context.Background(), rbac.Subject{ID: ownerID.String()}, ownerID, organizationID)
+		require.ErrorIs(t, err, prefsErr)
+	})
 }
 
 func TestLoadPersonalSkillBody(t *testing.T) {
@@ -2417,6 +2441,25 @@ func TestLoadOrganizationSkillBody(t *testing.T) {
 		Name:           "disabled-review",
 	})
 	require.NoError(t, err)
+	// The member turned off opted-out-review, and the organization lets
+	// members turn off organization skills.
+	optedOut := dbgen.OrganizationSkill(t, db, database.Skill{
+		OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+		Name:           "opted-out-review",
+		GroupACL:       database.ChatACL{org.ID.String(): {Permissions: read}},
+		UserACL:        database.ChatACL{},
+	})
+	require.NoError(t, db.InsertOrganizationMemberDisabledSkill(ctx, database.InsertOrganizationMemberDisabledSkillParams{
+		OrganizationID: org.ID,
+		UserID:         member.ID,
+		SkillID:        optedOut.ID,
+	}))
+	_, err = db.UpdateOrganizationMembersCanDisableSkills(ctx, database.UpdateOrganizationMembersCanDisableSkillsParams{
+		ID:                      org.ID,
+		MembersCanDisableSkills: true,
+		UpdatedAt:               dbtime.Now(),
+	})
+	require.NoError(t, err)
 
 	subject := func(userID uuid.UUID) rbac.Subject {
 		t.Helper()
@@ -2425,10 +2468,12 @@ func TestLoadOrganizationSkillBody(t *testing.T) {
 		return got
 	}
 
-	got, err := server.loadOrganizationSkillBody(ctx, subject(member.ID), org.ID, "team-review")
+	got, err := server.loadOrganizationSkillBody(ctx, subject(member.ID), member.ID, org.ID, "team-review")
 	require.NoError(t, err)
 	require.Equal(t, skillspkg.SourceOrganization, got.Source)
 	require.Equal(t, "Team instructions.", got.Body)
+	_, err = server.loadOrganizationSkillBody(ctx, subject(outsider.ID), outsider.ID, org.ID, "opted-out-review")
+	require.NoError(t, err)
 
 	for _, tc := range []struct {
 		name   string
@@ -2438,8 +2483,9 @@ func TestLoadOrganizationSkillBody(t *testing.T) {
 		{name: "NotShared", reader: outsider.ID, skill: "team-review"},
 		{name: "Disabled", reader: member.ID, skill: "disabled-review"},
 		{name: "Missing", reader: member.ID, skill: "missing-review"},
+		{name: "OptedOut", reader: member.ID, skill: "opted-out-review"},
 	} {
-		_, err := server.loadOrganizationSkillBody(ctx, subject(tc.reader), org.ID, tc.skill)
+		_, err := server.loadOrganizationSkillBody(ctx, subject(tc.reader), tc.reader, org.ID, tc.skill)
 		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound, tc.name)
 	}
 }
