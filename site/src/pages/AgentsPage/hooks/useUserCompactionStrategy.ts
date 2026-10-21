@@ -1,6 +1,5 @@
 import { useQuery } from "react-query";
 import { userCompactionStrategy } from "#/api/queries/chats";
-import type { ChatCompactionStrategy } from "#/api/typesGenerated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 
 /**
@@ -15,8 +14,9 @@ export const useUserCompactionStrategy = () => {
 		...userCompactionStrategy(),
 		enabled: isExperimentEnabled,
 	});
-	const strategy: ChatCompactionStrategy | undefined = isExperimentEnabled
-		? query.data?.strategy
-		: "summarize";
-	return { isExperimentEnabled, strategy, query };
+	return {
+		isExperimentEnabled,
+		strategy: isExperimentEnabled ? query.data?.strategy : "summarize",
+		query,
+	};
 };
