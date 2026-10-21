@@ -176,10 +176,9 @@ describe("Tool file rows", () => {
 			);
 
 			expect(openFile).toHaveBeenCalledWith("/home/coder/main.go");
-			expect(screen.getByRole("button", { name: verb })).toHaveAttribute(
-				"aria-expanded",
-				"false",
-			);
+			expect(
+				screen.getByRole("button", { name: `${verb} main.go` }),
+			).toHaveAttribute("aria-expanded", "false");
 		},
 	);
 });

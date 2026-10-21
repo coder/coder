@@ -29,7 +29,9 @@ export const FileToolHeader: React.FC<{
 		<ToolCall.HeaderLayout className="text-content-secondary">
 			<ToolCall.HeaderButton className="shrink-0">
 				<ToolCall.LeadingIcon name={iconName} />
-				<ToolCall.Label>{verb}</ToolCall.Label>
+				<ToolCall.Label>
+					{verb} <span className="sr-only">{filename}</span>
+				</ToolCall.Label>
 			</ToolCall.HeaderButton>
 			<button
 				type="button"
