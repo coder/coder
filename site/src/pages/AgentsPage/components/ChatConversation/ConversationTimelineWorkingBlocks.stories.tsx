@@ -276,6 +276,8 @@ export const TurnAttachmentsPillOpen: Story = {
 
 export const TurnAttachmentsPillOpenMobile: Story = {
 	globals: { viewport: { value: "mobile1", isRotated: false } },
+	// Pixel ignores the viewport global and needs its own phone width.
+	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
 	},
