@@ -664,6 +664,49 @@ func TestWorkspaceFileDeliveryOutcomes(t *testing.T) {
 		}
 	})
 
+	t.Run("ReattachedFileDelivers", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, agent := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateStarting})
+		file, err := f.db.InsertChatFile(ctx, database.InsertChatFileParams{
+			OwnerID:        f.user.ID,
+			OrganizationID: f.org.ID,
+			Name:           "report.zip",
+			Mimetype:       "application/zip",
+			Data:           []byte("zip bytes"),
+			Purpose:        database.NullChatFilePurpose{ChatFilePurpose: database.ChatFilePurposeWorkspace, Valid: true},
+		})
+		require.NoError(t, err)
+		server := newUnstartedServer(t, f.pubsub, f.db)
+		send := func() SendMessageResult {
+			t.Helper()
+			result, err := server.SendMessage(ctx, SendMessageOptions{
+				ChatID:       chat.ID,
+				CreatedBy:    chat.OwnerID,
+				Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageWorkspaceAttachment(file.ID, file.Mimetype, file.Name, int64(len("zip bytes")))},
+				BusyBehavior: SendMessageBusyBehaviorQueue,
+			})
+			require.NoError(t, err)
+			require.True(t, result.Queued)
+			return result
+		}
+		// The user removes the attachment before the agent starts, which
+		// parks the file.
+		removed := send()
+		require.NoError(t, server.DeleteQueued(ctx, chat.ID, removed.QueuedMessage.ID))
+		f.restartAgent(ctx, t, agent.ID)
+		worker := f.worker(t)
+		worker.deliverWorkspaceFiles(ctx)
+		require.Equal(t, database.ChatWorkspaceFileMaxDeliveryAttempts, f.fileState(ctx, t, chat.ID, file.ID).WorkspaceDeliveryAttempts)
+
+		// A later message attaches the same file again, with no agent
+		// restart in between.
+		send()
+		worker.deliverWorkspaceFiles(ctx)
+		f.requireDelivered(ctx, t, chat, file.ID)
+	})
+
 	t.Run("FencedOutcomeLogsNoFailure", func(t *testing.T) {
 		t.Parallel()
 		f := newWorkspaceFileDeliveryFixture(t)
