@@ -11760,6 +11760,100 @@ func TestAIBridgeInterceptionAgentFirewallColumns(t *testing.T) {
 	})
 }
 
+func TestAIBridgeInterceptionOrganizationColumns(t *testing.T) {
+	t.Parallel()
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+
+	insert := func(ctx context.Context, t *testing.T, orgID uuid.NullUUID, source database.NullAIBridgeInterceptionOrganizationSource) (database.AIBridgeInterception, error) {
+		t.Helper()
+		user := dbgen.User(t, db, database.User{})
+		return db.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
+			ID:                 uuid.New(),
+			InitiatorID:        user.ID,
+			Metadata:           json.RawMessage("{}"),
+			CredentialKind:     database.CredentialKindCentralized,
+			OrganizationID:     orgID,
+			OrganizationSource: source,
+		})
+	}
+
+	for _, source := range database.AllAIBridgeInterceptionOrganizationSourceValues() {
+		t.Run("RoundTrip/"+string(source), func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			org := dbgen.Organization(t, db, database.Organization{})
+			wantOrgID := uuid.NullUUID{UUID: org.ID, Valid: true}
+			wantSource := database.NullAIBridgeInterceptionOrganizationSource{AIBridgeInterceptionOrganizationSource: source, Valid: true}
+
+			inserted, err := insert(ctx, t, wantOrgID, wantSource)
+			require.NoError(t, err)
+			require.Equal(t, wantOrgID, inserted.OrganizationID)
+			require.Equal(t, wantSource, inserted.OrganizationSource)
+
+			got, err := db.GetAIBridgeInterceptionByID(ctx, inserted.ID)
+			require.NoError(t, err)
+			require.Equal(t, wantOrgID, got.OrganizationID)
+			require.Equal(t, wantSource, got.OrganizationSource)
+		})
+	}
+
+	t.Run("RoundTripNull", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		inserted, err := insert(ctx, t, uuid.NullUUID{}, database.NullAIBridgeInterceptionOrganizationSource{})
+		require.NoError(t, err)
+
+		got, err := db.GetAIBridgeInterceptionByID(ctx, inserted.ID)
+		require.NoError(t, err)
+		require.False(t, got.OrganizationID.Valid)
+		require.False(t, got.OrganizationSource.Valid)
+	})
+
+	t.Run("HalfSetPairFailsCheck", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		_, err := insert(ctx, t, uuid.NullUUID{UUID: org.ID, Valid: true}, database.NullAIBridgeInterceptionOrganizationSource{})
+		require.True(t, database.IsCheckViolation(err, database.CheckAibridgeInterceptionsOrganizationSourceCheck), "organization without source: %v", err)
+
+		_, err = insert(ctx, t, uuid.NullUUID{}, database.NullAIBridgeInterceptionOrganizationSource{
+			AIBridgeInterceptionOrganizationSource: database.AibridgeInterceptionOrganizationSourceWorkspace,
+			Valid:                                  true,
+		})
+		require.True(t, database.IsCheckViolation(err, database.CheckAibridgeInterceptionsOrganizationSourceCheck), "source without organization: %v", err)
+	})
+
+	t.Run("MissingOrganizationFailsForeignKey", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := insert(ctx, t, uuid.NullUUID{UUID: uuid.New(), Valid: true}, database.NullAIBridgeInterceptionOrganizationSource{
+			AIBridgeInterceptionOrganizationSource: database.AibridgeInterceptionOrganizationSourceWorkspace,
+			Valid:                                  true,
+		})
+		require.True(t, database.IsForeignKeyViolation(err, database.ForeignKeyAibridgeInterceptionsOrganizationID), "unexpected error: %v", err)
+	})
+
+	t.Run("OrganizationHardDeleteBlocked", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		org := dbgen.Organization(t, db, database.Organization{})
+		_, err := insert(ctx, t, uuid.NullUUID{UUID: org.ID, Valid: true}, database.NullAIBridgeInterceptionOrganizationSource{
+			AIBridgeInterceptionOrganizationSource: database.AibridgeInterceptionOrganizationSourceChatd,
+			Valid:                                  true,
+		})
+		require.NoError(t, err)
+
+		_, err = sqlDB.ExecContext(ctx, "DELETE FROM organizations WHERE id = $1", org.ID)
+		require.True(t, database.IsForeignKeyViolation(err, database.ForeignKeyAibridgeInterceptionsOrganizationID), "unexpected error: %v", err)
+	})
+}
+
 func TestDeleteExpiredAPIKeys(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)

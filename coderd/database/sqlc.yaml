@@ -291,6 +291,7 @@ sql:
           cors_behavior: CorsBehavior
           aibridge_interception: AIBridgeInterception
           aibridge_interception_error_type: AIBridgeInterceptionErrorType
+          aibridge_interception_organization_source: AIBridgeInterceptionOrganizationSource
           aibridge_tool_usage: AIBridgeToolUsage
           aibridge_token_usage: AIBridgeTokenUsage
           aibridge_user_prompt: AIBridgeUserPrompt
