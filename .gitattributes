@@ -1,3 +1,9 @@
+# Check out text files with LF line endings on every OS, so tests that read
+# checked-in files see the same bytes on Windows as on Linux.
+* text=auto eol=lf
+# SMTP golden files contain CRLF on purpose. Keep their bytes unchanged.
+coderd/notifications/testdata/rendered-templates/smtp/*.golden -text
+
 # Generated files
 agent/agentcontainers/acmock/acmock.go linguist-generated=true
 agent/agentcontainers/dcspec/dcspec_gen.go linguist-generated=true
@@ -41,10 +47,6 @@ site/e2e/provisionerGenerated.ts linguist-generated=true
 site/src/api/countriesGenerated.tsx linguist-generated=true
 site/src/api/rbacresourcesGenerated.tsx linguist-generated=true
 site/src/api/typesGenerated.ts linguist-generated=true
-
-# Keep fixture bytes identical on every platform; tests compare and split
-# them on LF line endings.
-aibridge/fixtures/** text eol=lf
 
 # AI Gateway prices
 coderd/aibridge/prices/data/prices.json linguist-generated=true

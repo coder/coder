@@ -916,6 +916,12 @@ describe(shouldInvalidateFilteredChatList.name, () => {
 			expected: true,
 		},
 		{
+			name: "invalidates root chats that move to another project",
+			updatedChat: chatForFilterInvalidation(),
+			eventKind: "project_change",
+			expected: true,
+		},
+		{
 			name: "ignores non-membership events",
 			updatedChat: chatForFilterInvalidation(),
 			eventKind: "title_change",

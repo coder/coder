@@ -582,9 +582,9 @@ type createWorkspaceOptions struct {
 	// preCreateInTX is a function that is called within the transaction, before
 	// the workspace is created.
 	preCreateInTX func(ctx context.Context, tx database.Store) error
-	// postCreateInTX is a function that is called within the transaction, after
-	// the workspace is created but before the workspace build is created.
-	postCreateInTX func(ctx context.Context, tx database.Store, workspace database.Workspace) error
+	// postBuildInTX is a function that is called within the transaction, after
+	// the workspace and its first build are created.
+	postBuildInTX func(ctx context.Context, tx database.Store, workspace database.Workspace, build database.WorkspaceBuild) error
 	// remoteAddr is the IP address of the request initiator, used for
 	// audit logging. HTTP handlers should pass r.RemoteAddr;
 	// programmatic callers may leave it empty.
@@ -819,15 +819,6 @@ func createWorkspace(
 			return xerrors.Errorf("get workspace by ID: %w", err)
 		}
 
-		// If the postCreate hook is provided, execute it. This can be used to
-		// perform additional actions after the workspace has been created, like
-		// linking the workspace to a task.
-		if opts.postCreateInTX != nil {
-			if err := opts.postCreateInTX(ctx, db, workspace); err != nil {
-				return xerrors.Errorf("workspace postCreate failed: %w", err)
-			}
-		}
-
 		builder := wsbuilder.New(workspace, database.WorkspaceTransitionStart, *api.BuildUsageChecker.Load()).
 			Reason(database.BuildReasonInitiator).
 			Initiator(initiatorID).
@@ -856,7 +847,16 @@ func createWorkspace(
 			},
 			audit.WorkspaceBuildBaggage{IP: opts.remoteAddr},
 		)
-		return err
+		if err != nil {
+			return err
+		}
+
+		if opts.postBuildInTX != nil {
+			if err := opts.postBuildInTX(ctx, db, workspace, *workspaceBuild); err != nil {
+				return xerrors.Errorf("workspace postBuild failed: %w", err)
+			}
+		}
+		return nil
 	}, nil)
 	if err != nil {
 		return codersdk.Workspace{}, err
