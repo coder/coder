@@ -46,9 +46,18 @@ import {
 } from "../../utils/skills";
 import { RetryButton } from "../RetryButton";
 import {
+	SkillEditorBodyField,
+	SkillEditorDescriptionField,
+	SkillEditorFields,
 	SkillEditorForm,
+	SkillEditorImport,
+	SkillEditorNameField,
+	SkillEditorProjectSettings,
+	SkillEditorSubmitButton,
+	SkillEditorSubmitError,
 	type SkillErrorDisplay,
 	type SkillSubmitHandler,
+	useSkillEditorFormState,
 } from "../SkillEditor";
 import { SkillEnabledSwitch } from "../SkillEnabledSwitch";
 import { downloadSkillFile, skillError } from "../SkillsTable";
@@ -451,29 +460,7 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 				readOnly={!canEdit}
 				initialValues={openedValues ?? loaded.values}
 				existingNames={existingNames}
-				submitError={submitError}
 				isSubmitting={isSubmitting}
-				nameHint="Lowercase letters, numbers, and hyphens."
-				bodyPlaceholder="Describe when and how the agent should use this skill."
-				showProjectSettings
-				header={({ isDirty }) => (
-					<ProjectSkillEditorHeader
-						title={title}
-						isSubmitting={isSubmitting}
-						backButtonRef={backButtonRef}
-						onBack={isDirty ? () => setIsDiscardOpen(true) : onBack}
-					/>
-				)}
-				footer={({ canSubmit }) =>
-					canEdit && (
-						<DialogFooter className="border-t border-border px-6 py-4">
-							<Button type="submit" disabled={!canSubmit}>
-								<Spinner loading={isSubmitting} />
-								Save
-							</Button>
-						</DialogFooter>
-					)
-				}
 				onSubmit={(values, content, onSettled) => {
 					// A settings-only edit keeps the stored SKILL.md as written.
 					const opened = openedValues ?? loaded.values;
@@ -487,7 +474,28 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 							values.body !== opened.body,
 					);
 				}}
-			/>
+			>
+				<ProjectSkillDiscardGuardedHeader
+					title={title}
+					isSubmitting={isSubmitting}
+					backButtonRef={backButtonRef}
+					onBack={onBack}
+					onDiscardChanges={() => setIsDiscardOpen(true)}
+				/>
+				<SkillEditorFields>
+					<SkillEditorSubmitError error={submitError} />
+					{canEdit && <SkillEditorImport resetsModelInvocable />}
+					<SkillEditorNameField hint="Lowercase letters, numbers, and hyphens." />
+					<SkillEditorDescriptionField />
+					<SkillEditorProjectSettings />
+					<SkillEditorBodyField placeholder="Describe when and how the agent should use this skill." />
+				</SkillEditorFields>
+				{canEdit && (
+					<DialogFooter className="border-t border-border px-6 py-4">
+						<SkillEditorSubmitButton>Save</SkillEditorSubmitButton>
+					</DialogFooter>
+				)}
+			</SkillEditorForm>
 			<ConfirmDialog
 				open={isDiscardOpen}
 				type="delete"
@@ -505,6 +513,23 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 				}}
 			/>
 		</>
+	);
+};
+
+type ProjectSkillDiscardGuardedHeaderProps = ProjectSkillEditorHeaderProps & {
+	readonly onDiscardChanges: () => void;
+};
+
+/** Asks before Back discards unsaved edits. Renders inside SkillEditorForm. */
+const ProjectSkillDiscardGuardedHeader: React.FC<
+	ProjectSkillDiscardGuardedHeaderProps
+> = ({ onBack, onDiscardChanges, ...headerProps }) => {
+	const { isDirty } = useSkillEditorFormState();
+	return (
+		<ProjectSkillEditorHeader
+			{...headerProps}
+			onBack={isDirty ? onDiscardChanges : onBack}
+		/>
 	);
 };
 
