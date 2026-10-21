@@ -40,6 +40,9 @@ export type Write = Readonly<{ chat: Chat; labels: Record<string, string> }>;
 
 type TitleWrite = Readonly<{ chat: Chat; title: string }>;
 
+/** A root chat moved into a project, or out of its project when null. */
+type ProjectMove = Readonly<{ chat: Chat; projectId: string | null }>;
+
 /** The effects of one command. `undo` present means the user is offered to revert the writes. */
 export type Plan = Readonly<{
 	/**
@@ -48,6 +51,11 @@ export type Plan = Readonly<{
 	 * the sources untouched.
 	 */
 	receiver?: Write;
+	/**
+	 * Sent before every label write, which wait for them: a chat that cannot
+	 * change project keeps its old place instead of landing in the wrong lane.
+	 */
+	projectMoves?: readonly ProjectMove[];
 	writes: readonly Write[];
 	titles?: readonly TitleWrite[];
 	storage?: Partial<BoardStorage>;
@@ -131,7 +139,11 @@ export const moveCard = (
 // The side that keeps its primary: an existing group beats a single chat,
 // then a titled card beats an untitled one, then the drop target. So a
 // group dropped onto a lone chat absorbs it instead of losing its title.
-const mergeKeeper = (source: BoardCard, target: BoardCard): BoardCard => {
+/** The card whose primary carries the merged card. */
+export const mergeKeeper = (
+	source: BoardCard,
+	target: BoardCard,
+): BoardCard => {
 	const grouped = (card: BoardCard) => card.members.length > 1;
 	if (grouped(source) !== grouped(target)) {
 		return grouped(source) ? source : target;

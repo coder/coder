@@ -4,8 +4,8 @@ const storageKey = (userId: string) => `agents.board.${userId}`;
 
 /** Where a new chat is born: at the top of a column, or as a member of a card. */
 export type DraftTarget =
-	| Readonly<{ column: string }>
-	| Readonly<{ cardId: string }>;
+	/** `lane` is the project lane the column was drawn in, when lanes are drawn. */
+	Readonly<{ column: string; lane?: string }> | Readonly<{ cardId: string }>;
 
 type WindowFrame = Readonly<{
 	x: number;
@@ -50,6 +50,8 @@ export type BoardStorage = Readonly<{
 	windows: readonly ChatWindow[];
 	/** The effort whose cards are shown; null shows every card. */
 	effortFilter: string | null;
+	/** Project lanes the user collapsed, by lane key. */
+	collapsedLanes: readonly string[];
 }>;
 
 const DEFAULT_STORAGE: BoardStorage = {
@@ -57,6 +59,7 @@ const DEFAULT_STORAGE: BoardStorage = {
 	emptyColumns: [],
 	windows: [],
 	effortFilter: null,
+	collapsedLanes: [],
 };
 
 const isStringArray = (value: unknown): value is string[] =>
@@ -109,6 +112,9 @@ export const readBoardStorage = (userId: string): BoardStorage => {
 				: [],
 			effortFilter:
 				typeof obj.effortFilter === "string" ? obj.effortFilter : null,
+			collapsedLanes: isStringArray(obj.collapsedLanes)
+				? obj.collapsedLanes
+				: [],
 		};
 	} catch {
 		return DEFAULT_STORAGE;

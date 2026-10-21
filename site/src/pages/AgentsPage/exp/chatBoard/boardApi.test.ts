@@ -44,6 +44,7 @@ const stateOf = (
 		emptyColumns: [],
 		windows: [],
 		effortFilter: null,
+		collapsedLanes: [],
 		...storage,
 	};
 	return {

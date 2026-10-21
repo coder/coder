@@ -427,3 +427,20 @@ export const buildColumns = (
 		cards: cards.filter((card) => card.column === name),
 	}));
 };
+
+/** The lane key of cards in no project. */
+export const NO_PROJECT_LANE = "none";
+
+/** A card's lane: its primary chat's project, which a card never spans. */
+export const laneOf = (card: BoardCard): string =>
+	card.primary.project_id ?? NO_PROJECT_LANE;
+
+/**
+ * The lane key when the board draws no lanes. Drops there never change a
+ * chat's project, whatever project its chats are in.
+ */
+export const BOARD_LANE = "board";
+
+/** The project a lane files chats into; null for the no-project lane. */
+export const laneProjectId = (lane: string): string | null =>
+	lane === NO_PROJECT_LANE ? null : lane;

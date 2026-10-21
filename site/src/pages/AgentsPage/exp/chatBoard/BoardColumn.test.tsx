@@ -30,6 +30,7 @@ const renderColumn = (name: string) => {
 	renderComponent(
 		<DragDropProvider sensors={dragSensors}>
 			<BoardColumn
+				lane="board"
 				column={column}
 				assistants={new Map()}
 				openChatIds={new Set()}
