@@ -439,6 +439,14 @@ func (p *Server) buildTurnEnvironment(
 	promptRows = append(sanitizedHead[:len(sanitizedHead):len(sanitizedHead)], promptRows[pendingRowsStart:]...)
 	pendingRowsStart = len(sanitizedHead)
 
+	effectiveThreshold := modelConfig.CompressionThreshold
+	thresholdOverride, ok, err := p.resolveUserCompactionThreshold(ctx, chat.OwnerID, modelConfig.ID)
+	if err != nil {
+		return turnEnvironment{}, err
+	}
+	if ok {
+		effectiveThreshold = thresholdOverride
+	}
 	tokenBudget := false
 	if p.experiments.Enabled(codersdk.ExperimentChatTokenBudget) {
 		strategy, err := p.resolveUserCompactionStrategy(ctx, chat.OwnerID)
@@ -787,6 +795,11 @@ func (p *Server) buildTurnEnvironment(
 	if hasMemory {
 		tools = append(tools, chattool.ReadMemory(memoryStore), chattool.SaveMemory(memoryStore, memoryProjectName), chattool.DeleteMemory(memoryStore, memoryProjectName), chattool.ConsolidateMemory(memoryStore, memoryProjectName))
 	}
+	if tokenBudget {
+		tools = append(tools, chattool.SaveCheckpoint(), chattool.NewContext(chattool.NewContextOptions{
+			RolloverDisabled: effectiveThreshold >= chatloop.CompactionDisabledThresholdPercent,
+		}))
+	}
 	if advisorRuntime != nil {
 		tools = append(tools, chatadvisor.Tool(chatadvisor.ToolOptions{
 			Runtime: advisorRuntime,
@@ -956,14 +969,6 @@ func (p *Server) buildTurnEnvironment(
 	}
 
 	compactionToolCallID := "chat_summarized_" + uuid.NewString()
-	effectiveThreshold := modelConfig.CompressionThreshold
-	thresholdOverride, ok, err := p.resolveUserCompactionThreshold(ctx, chat.OwnerID, modelConfig.ID)
-	if err != nil {
-		return turnEnvironment{}, err
-	}
-	if ok {
-		effectiveThreshold = thresholdOverride
-	}
 	chatTrigger := compactionTrigger{
 		thresholdPercent: effectiveThreshold,
 		contextLimit:     modelConfig.ContextLimit,
@@ -2010,7 +2015,8 @@ func filterExternalMCPConfigsForTurn(
 
 func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 	switch name {
-	case "read_file", "execute", "process_output", "read_skill", "read_skill_file":
+	case "read_file", "execute", "process_output", "read_skill", "read_skill_file",
+		chattool.SaveCheckpointToolName, chattool.NewContextToolName:
 		return true
 	case "write_file", "edit_files", "list_templates", "read_template",
 		"create_workspace", "start_workspace", "stop_workspace", "propose_plan", "spawn_agent",
@@ -2084,7 +2090,8 @@ func activeToolNamesForTurn(
 
 func exploreToolAllowed(tool fantasy.AgentTool) bool {
 	switch tool.Info().Name {
-	case "read_file", "execute", "process_output", "read_skill", "read_skill_file":
+	case "read_file", "execute", "process_output", "read_skill", "read_skill_file",
+		chattool.SaveCheckpointToolName, chattool.NewContextToolName:
 		return true
 	}
 	// External MCP tools pass through here. Org tools were

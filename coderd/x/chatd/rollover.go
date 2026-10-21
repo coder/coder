@@ -1,7 +1,10 @@
 package chatd
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -12,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -19,6 +23,7 @@ const (
 	rolloverToolName          = "chat_context_rollover"
 	firstContextWindowID      = "w:0"
 	rolloverRequestedBySystem = "system"
+	rolloverRequestedByModel  = "model"
 	// rolloverLeadInPrefix starts the first line of a rollover anchor,
 	// which ends with the previous window ID.
 	rolloverLeadInPrefix = "A context window rollover started a fresh context window. Previous window: "
@@ -54,6 +59,7 @@ const (
 type rolloverReason string
 
 const (
+	rolloverReasonModel rolloverReason = "model"
 	rolloverReasonLimit rolloverReason = "limit"
 )
 
@@ -62,10 +68,19 @@ type rolloverDecision struct {
 	reason rolloverReason
 }
 
-func decideRollover(contextTokens int64, budget contextWindowBudget) rolloverDecision {
+// rolloverStageState is derived from the rows of the current context
+// window, so receipts survive restarts and reset at every boundary.
+type rolloverStageState struct {
+	// receipt is an unconsumed successful new_context result.
+	receipt bool
+}
+
+func decideRollover(contextTokens int64, budget contextWindowBudget, state rolloverStageState) rolloverDecision {
 	switch {
 	case budget.thresholdPercent >= chatloop.CompactionDisabledThresholdPercent:
 		return rolloverDecision{action: rolloverActionNone}
+	case state.receipt:
+		return rolloverDecision{action: rolloverActionRollover, reason: rolloverReasonModel}
 	case budget.contextLimit <= 0 || contextTokens <= 0:
 		return rolloverDecision{action: rolloverActionNone}
 	case contextTokens >= budget.usableLimit:
@@ -93,6 +108,36 @@ func windowContextTokens(messages []database.ChatMessage) int64 {
 	return 0
 }
 
+// hasNewContextReceipt reports whether the current context window holds
+// a successful new_context result. The next boundary consumes it.
+func hasNewContextReceipt(messages []database.ChatMessage) (bool, error) {
+	boundary := latestContextBoundaryIndex(messages)
+	for _, msg := range messages[boundary+1:] {
+		if msg.Deleted || msg.Role != database.ChatMessageRoleTool {
+			continue
+		}
+		parts, err := chatprompt.ParseContent(msg)
+		if err != nil {
+			return false, xerrors.Errorf("parse tool message %d: %w", msg.ID, err)
+		}
+		for _, part := range parts {
+			if part.Type != codersdk.ChatMessagePartTypeToolResult || part.ToolName != chattool.NewContextToolName || part.IsError {
+				continue
+			}
+			var result struct {
+				Status string `json:"status"`
+			}
+			if err := json.Unmarshal(part.Result, &result); err != nil {
+				return false, xerrors.Errorf("parse new_context result %d: %w", msg.ID, err)
+			}
+			if result.Status == chattool.NewContextScheduledStatus {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
 // contextWindowID names the current context window: w:0 before any
 // boundary, then w:<anchor message ID> of the latest boundary of any
 // kind. It reads prompt rows, whose only compressed row is that anchor.
@@ -106,14 +151,38 @@ func contextWindowID(promptRows []database.ChatMessage) string {
 	return firstContextWindowID
 }
 
+// latestChatCheckpoint returns the input of the newest successful
+// save_checkpoint call, or "" when there is none. A clear hides earlier
+// checkpoints and an edit that deletes the call rewinds to an older one.
+func (p *Server) latestChatCheckpoint(ctx context.Context, chatID uuid.UUID) (string, error) {
+	args, err := p.db.GetLatestSuccessfulChatToolCallArgs(ctx, database.GetLatestSuccessfulChatToolCallArgsParams{
+		ChatID:   chatID,
+		ToolName: chattool.SaveCheckpointToolName,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", xerrors.Errorf("get latest checkpoint: %w", err)
+	}
+	var input struct {
+		Checkpoint string `json:"checkpoint"`
+	}
+	if err := json.Unmarshal(args, &input); err != nil {
+		return "", xerrors.Errorf("decode checkpoint: %w", err)
+	}
+	return input.Checkpoint, nil
+}
+
 // contextRolloverPayload is the chat_context_rollover tool call input
-// and result.
+// and result. The call omits the checkpoint.
 type contextRolloverPayload struct {
 	Reason           rolloverReason `json:"reason"`
 	RequestedBy      string         `json:"requested_by"`
 	PreviousWindowID string         `json:"previous_window_id"`
 	ContextTokens    int64          `json:"context_tokens"`
 	BudgetTokens     int64          `json:"budget_tokens"`
+	Checkpoint       string         `json:"checkpoint,omitempty"`
 }
 
 type buildRolloverMessagesInput struct {
@@ -133,18 +202,24 @@ func buildRolloverMessages(input buildRolloverMessagesInput) ([]chatstate.Messag
 	if err != nil {
 		return nil, xerrors.Errorf("marshal rollover lead-in: %w", err)
 	}
-	payload, err := json.Marshal(input.payload)
+	callPayload := input.payload
+	callPayload.Checkpoint = ""
+	args, err := json.Marshal(callPayload)
 	if err != nil {
-		return nil, xerrors.Errorf("marshal rollover payload: %w", err)
+		return nil, xerrors.Errorf("marshal rollover args: %w", err)
+	}
+	result, err := json.Marshal(input.payload)
+	if err != nil {
+		return nil, xerrors.Errorf("marshal rollover result: %w", err)
 	}
 	callContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageToolCall(input.toolCallID, rolloverToolName, payload),
+		codersdk.ChatMessageToolCall(input.toolCallID, rolloverToolName, args),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("marshal rollover tool call: %w", err)
 	}
 	resultContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageToolResult(input.toolCallID, rolloverToolName, payload, false, false),
+		codersdk.ChatMessageToolResult(input.toolCallID, rolloverToolName, result, false, false),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("marshal rollover tool result: %w", err)
@@ -171,9 +246,19 @@ func rolloverLeadIn(input buildRolloverMessagesInput) string {
 	payload := input.payload
 	midTurn := len(input.pendingUserMessages) == 0
 	lines := []string{rolloverLeadInPrefix + payload.PreviousWindowID + "."}
-	if midTurn {
-		lines = append(lines, "Your previous turn was interrupted by a context rollover; continue the task.")
+	if payload.Reason == rolloverReasonModel {
+		lines = append(lines, "You requested this fresh window with new_context; continue the task.")
+	} else {
+		if midTurn {
+			lines = append(lines, "Your previous turn was interrupted by a context rollover; continue the task.")
+		}
+		lines = append(lines, "The window reached its usable limit.")
 	}
-	lines = append(lines, "The window reached its usable limit.")
+	switch checkpoint := strings.TrimSpace(payload.Checkpoint); {
+	case checkpoint != "":
+		lines = append(lines, "<checkpoint>\n"+checkpoint+"\n</checkpoint>")
+	default:
+		lines = append(lines, "No checkpoint was saved.")
+	}
 	return strings.Join(lines, "\n")
 }
