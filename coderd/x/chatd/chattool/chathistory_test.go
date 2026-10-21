@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -102,12 +103,11 @@ func (f chatHistoryFixture) boundary(t *testing.T, toolName, resultJSON string) 
 
 func runChatHistory(t *testing.T, tool fantasy.AgentTool, args map[string]any) (chatHistoryResult, string) {
 	t.Helper()
-	return runChatHistoryCall(t, tool, "", args)
+	return runChatHistoryCall(testutil.Context(t, testutil.WaitLong), t, tool, "", args)
 }
 
-func runChatHistoryCall(t *testing.T, tool fantasy.AgentTool, callID string, args map[string]any) (chatHistoryResult, string) {
+func runChatHistoryCall(ctx context.Context, t *testing.T, tool fantasy.AgentTool, callID string, args map[string]any) (chatHistoryResult, string) {
 	t.Helper()
-	ctx := testutil.Context(t, testutil.WaitLong)
 	input, err := json.Marshal(args)
 	require.NoError(t, err)
 	resp, err := tool.Run(ctx, fantasy.ToolCall{ID: callID, Input: string(input)})
@@ -275,48 +275,31 @@ func TestChatHistory(t *testing.T) {
 		require.Equal(t, []string{"q"}, itemTexts(result.Items))
 	})
 
-	t.Run("SearchOmitsHistoryCallArguments", func(t *testing.T) {
+	t.Run("HistoryQueriesDoNotSelfMatch", func(t *testing.T) {
 		t.Parallel()
 		f := newFixture(t)
-		f.user(t, "zebra crossing")
-		f.insert(t, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, false,
-			codersdk.ChatMessageText("kept answer"),
-			codersdk.ChatMessageToolCall("earlier", chattool.ChatHistoryToolName, json.RawMessage(`{"action":"search","query":"needle"}`)))
-		args := map[string]any{"action": "search", "query": "zebra"}
-		input, err := json.Marshal(args)
-		require.NoError(t, err)
-		// The current step is committed before its tools run, so the row
-		// already holds this call.
-		f.insert(t, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, false,
-			codersdk.ChatMessageToolCall("active", chattool.ChatHistoryToolName, input))
-		tool := f.tool()
-
-		result, _ := runChatHistoryCall(t, tool, "active", args)
-		require.Equal(t, []string{"zebra crossing"}, itemTexts(result.Items))
-		result, _ = runChatHistoryCall(t, tool, "active", map[string]any{"action": "search", "query": "needle"})
-		require.Empty(t, result.Items)
-		result, _ = runChatHistoryCall(t, tool, "active", map[string]any{"action": "list_items", "tool_name": chattool.ChatHistoryToolName})
-		require.Equal(t, []string{"kept answer\n[tool call: chat_history]", "[tool call: chat_history]"}, itemTexts(result.Items))
-	})
-
-	t.Run("ReusedCallIDKeepsOlderRows", func(t *testing.T) {
-		t.Parallel()
-		f := newFixture(t)
+		// An earlier chat_history call searched for the same query under
+		// the ID the provider reuses for the running call.
 		older := f.insert(t, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, false,
 			codersdk.ChatMessageText("older text"),
-			codersdk.ChatMessageToolCall("reused", "execute", json.RawMessage(`{"command":"ls"}`)))
-		f.insert(t, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, false,
-			codersdk.ChatMessageToolCall("reused", chattool.ChatHistoryToolName, json.RawMessage(`{"action":"search","query":"older"}`)))
+			codersdk.ChatMessageToolCall("reused", chattool.ChatHistoryToolName, json.RawMessage(`{"action":"search","query":"needle"}`)))
+		// The running call's row, committed before its tools run, narrates
+		// the query.
+		active := f.insert(t, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, false,
+			codersdk.ChatMessageText("I'll search for needle"),
+			codersdk.ChatMessageToolCall("reused", chattool.ChatHistoryToolName, json.RawMessage(`{"action":"search","query":"needle"}`)))
+		ctx := workspacesdk.WithToolCallID(testutil.Context(t, testutil.WaitLong), chattool.ToolCallID(f.chat.ID, active, "reused"))
 		tool := f.tool()
-		want := `older text` + "\n" + `[tool call: execute] {"command":"ls"}`
 
+		result, _ := runChatHistoryCall(ctx, t, tool, "reused", map[string]any{"action": "search", "query": "needle"})
+		require.Empty(t, result.Items)
 		for _, args := range []map[string]any{
 			{"action": "search", "query": "older"},
-			{"action": "list_items", "tool_name": "execute"},
+			{"action": "list_items", "tool_name": chattool.ChatHistoryToolName},
 			{"action": "read_item", "item_id": fmt.Sprint(older)},
 		} {
-			result, _ := runChatHistoryCall(t, tool, "reused", args)
-			require.Equal(t, []string{want}, itemTexts(result.Items), args)
+			result, _ := runChatHistoryCall(ctx, t, tool, "reused", args)
+			require.Equal(t, []string{"older text\n[tool call: chat_history]"}, itemTexts(result.Items), args)
 		}
 	})
 
