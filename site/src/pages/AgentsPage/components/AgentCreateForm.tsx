@@ -803,6 +803,25 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		resetWorkspaceUploads();
 		handleAttach(files, "workspace");
 	};
+	// A permissions refetch can revoke the selected organization without the
+	// confirmation dialog, so drop files queued for the previous one here.
+	// Reset aborts uploads, so it runs after commit, not during render.
+	const settledUploadOrgIdRef = useRef<string | null>(null);
+	useEffect(() => {
+		if (!orgSelectionSettled || noPermittedOrgs) {
+			return;
+		}
+		const previousOrgId = settledUploadOrgIdRef.current;
+		settledUploadOrgIdRef.current = organizationId;
+		if (previousOrgId !== null && previousOrgId !== organizationId) {
+			resetWorkspaceUploads();
+		}
+	}, [
+		orgSelectionSettled,
+		noPermittedOrgs,
+		organizationId,
+		resetWorkspaceUploads,
+	]);
 	const workspaceUploadCount = workspaceUploadEntries.length;
 	// A dropped File cannot be restored, so picking a workspace without a
 	// connected agent stages the queue in Coder. A status flap on the same

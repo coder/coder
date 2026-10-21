@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { StrictMode } from "react";
@@ -505,6 +511,39 @@ describe("AgentCreateForm workspace file uploads", () => {
 		await attachZipFile();
 		await switchOrganization(MockOrganization2.display_name);
 		await user().click(await screen.findByRole("button", { name: "Continue" }));
+		await submitMessage("start over in another organization");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(uploadSpy).not.toHaveBeenCalled();
+		expect(submittedOptions(onCreateChat)).toMatchObject({
+			organizationId: MockOrganization2.id,
+			workspaceAttachmentFileIDs: [],
+			uploadWorkspaceFiles: undefined,
+		});
+	});
+
+	it("drops queued files when the selected organization is revoked", async () => {
+		dashboard.showOrganizations = true;
+		localStorage.setItem(selectedWorkspaceIdStorageKey, mockWorkspace.id);
+		const queryClient = createQueryClient();
+		seedOrganizationQueries(
+			queryClient,
+			MockOrganization2.id,
+			mockOrganization2ModelCatalog,
+		);
+		const uploadSpy = mockStagedUpload();
+		const { onCreateChat } = renderForm({}, { queryClient });
+
+		await attachZipFile();
+		act(() => {
+			queryClient.setQueryData(
+				permittedOrganizationsKey({
+					object: { resource_type: "chat", owner_id: "me" },
+					action: "create",
+				}),
+				[MockOrganization2],
+			);
+		});
 		await submitMessage("start over in another organization");
 
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
