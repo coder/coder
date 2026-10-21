@@ -2,7 +2,6 @@ import { createContext, useContext, useState } from "react";
 
 type RenderLightbox = (close: () => void) => React.ReactNode;
 
-/** An open lightbox and the function that closes it. */
 type OpenLightbox = { render: RenderLightbox; close: () => void };
 
 const LightboxHostContext = createContext<

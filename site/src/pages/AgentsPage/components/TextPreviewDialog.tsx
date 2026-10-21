@@ -51,9 +51,9 @@ export const TextPreviewDialog: React.FC<TextPreviewDialogProps> = ({
 					{renderAsMarkdown ? (
 						// Reuse the same Markdown renderer used for chat messages
 						// so attached markdown previews look consistent with the
-						// rest of the conversation. This dialog can fill its
-						// opener's lightbox host, so its diagrams get their own.
+						// rest of the conversation.
 						<LightboxHost>
+							{/* This dialog may fill its opener's one lightbox slot. */}
 							<Response className="max-w-3xl">{content}</Response>
 						</LightboxHost>
 					) : (

@@ -24,7 +24,7 @@ import { Message, MessageContent } from "../ChatElements/Message";
 import { Response } from "../ChatElements/Response";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ImageLightbox } from "../ImageLightbox";
-import { LightboxHost, LightboxSlot, useLightbox } from "../LightboxHost";
+import { LightboxHost, useLightbox } from "../LightboxHost";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
@@ -196,7 +196,7 @@ const ChatMessageItem = memo<{
 	}) => {
 		const isUser = message?.role === "user";
 		const messageId = message?.id;
-		const { openLightbox, lightbox } = useLightbox();
+		const { openLightbox } = useLightbox();
 		const previewImage = (src: string) =>
 			openLightbox((close) => <ImageLightbox src={src} onClose={close} />);
 		const previewText = ({
@@ -440,7 +440,6 @@ const ChatMessageItem = memo<{
 				{displayState?.needsAssistantBottomSpacer && !isLastMessage && (
 					<div className="min-h-6" data-testid="assistant-bottom-spacer" />
 				)}
-				<LightboxSlot lightbox={lightbox} />
 			</div>
 		);
 	},

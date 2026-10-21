@@ -763,6 +763,6 @@ describe("ConversationTimeline lightboxes", () => {
 		);
 		expect(
 			screen.getByRole("dialog", { name: "Diagram preview" }),
-		).toContainElement(document.activeElement as HTMLElement);
+		).toHaveFocus();
 	});
 });
