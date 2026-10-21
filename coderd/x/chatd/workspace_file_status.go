@@ -76,7 +76,7 @@ func (p *Server) awaitChatWorkspaceFiles(ctx context.Context, chatID uuid.UUID, 
 	// Nothing is copied before startup finishes, so there is nothing to
 	// wait for.
 	if startup.finished && p.workspaceFilesOutstanding(files, fileIDs, startup) {
-		files, err = p.waitForChatWorkspaceFiles(ctx, chatID, fileIDs, files, startup)
+		files, startup, err = p.waitForChatWorkspaceFiles(ctx, chatID, fileIDs, files, startup)
 		if err != nil {
 			errs = append(errs, xerrors.Errorf("wait for workspace attachments: %w", err))
 		}
@@ -202,15 +202,17 @@ func (p *Server) chatWorkspaceStartup(ctx context.Context, chatID uuid.UUID) (wo
 	}, nil
 }
 
-// waitForChatWorkspaceFiles polls the chat's files until none of fileIDs
-// is due or in flight, or the wait ends, and returns the last read.
+// waitForChatWorkspaceFiles polls the chat's files and agent startup until
+// none of fileIDs is due or in flight, or the wait ends, and returns the
+// last reads. The agent may restart during the wait, which changes which
+// files the claim makes due.
 func (p *Server) waitForChatWorkspaceFiles(
 	ctx context.Context,
 	chatID uuid.UUID,
 	fileIDs map[uuid.UUID]struct{},
 	files []database.GetChatFileMetadataByChatIDRow,
 	startup workspaceFileAgentStartup,
-) ([]database.GetChatFileMetadataByChatIDRow, error) {
+) ([]database.GetChatFileMetadataByChatIDRow, workspaceFileAgentStartup, error) {
 	timer := p.clock.NewTimer(workspaceFileStatusMaxWait, "chatd", "await-workspace-files")
 	defer timer.Stop("chatd", "await-workspace-files")
 	ticker := p.clock.NewTicker(workspaceFileStatusPollInterval, "chatd", "await-workspace-files")
@@ -218,18 +220,22 @@ func (p *Server) waitForChatWorkspaceFiles(
 	for {
 		select {
 		case <-ctx.Done():
-			return files, ctx.Err()
+			return files, startup, ctx.Err()
 		case <-timer.C:
-			return files, nil
+			return files, startup, nil
 		case <-ticker.C:
+		}
+		latestStartup, err := p.chatWorkspaceStartup(ctx, chatID)
+		if err != nil {
+			return files, startup, err
 		}
 		latest, err := p.db.GetChatFileMetadataByChatID(ctx, chatID)
 		if err != nil {
-			return files, err
+			return files, startup, err
 		}
-		files = latest
+		files, startup = latest, latestStartup
 		if !p.workspaceFilesOutstanding(files, fileIDs, startup) {
-			return files, nil
+			return files, startup, nil
 		}
 	}
 }
