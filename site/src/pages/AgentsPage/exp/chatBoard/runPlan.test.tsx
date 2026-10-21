@@ -5,11 +5,11 @@ import {
 	useMutation,
 	useQueryClient,
 } from "react-query";
-import { toast } from "sonner";
 import { afterEach, describe, expect, it, type MockInstance, vi } from "vitest";
 import { API } from "#/api/api";
 import { infiniteChats, updateChatTitle } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import {
@@ -25,7 +25,7 @@ import { addCommentLabels, buildCards, buildColumns } from "./boardLabels";
 import type { BoardStorage } from "./boardStorage";
 import { type PlanDeps, runPlan } from "./runPlan";
 
-vi.mock("sonner", () => {
+vi.mock("#/components/Toaster/toast", () => {
 	const toast = Object.assign(vi.fn(), {
 		error: vi.fn(),
 		success: vi.fn(),
