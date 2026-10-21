@@ -9,6 +9,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/filefinder"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
@@ -22,6 +23,20 @@ const (
 	// The least recently used root is evicted when a new one is added.
 	maxFinderRoots = 8
 )
+
+// pendingRoot tracks a root being indexed so concurrent requests for
+// the same root wait for one walk instead of starting their own.
+type pendingRoot struct {
+	done chan struct{}
+	err  error
+}
+
+// findRoot pairs a requested root with the symlink-resolved directory
+// the engine indexes.
+type findRoot struct {
+	requested string
+	real      string
+}
 
 // HandleFindFiles fuzzy searches file and directory paths under one or
 // more roots. Each root accepts the forms documented on resolvePathForm.
@@ -63,28 +78,16 @@ func (api *API) HandleFindFiles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	roots := make([]string, 0, len(rawRoots))
+	roots := make([]findRoot, 0, len(rawRoots))
 	for _, raw := range rawRoots {
-		root, err := api.resolvePathForm(raw)
+		root, status, err := api.resolveFindRoot(raw)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			httpapi.Write(ctx, rw, status, codersdk.Response{
 				Message: err.Error(),
 			})
 			return
 		}
-		stat, err := api.filesystem.Stat(root)
-		if err != nil || !stat.IsDir() {
-			detail := "not a directory"
-			if err != nil {
-				detail = err.Error()
-			}
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Root %q is not an existing directory.", root),
-				Detail:  detail,
-			})
-			return
-		}
-		if !slices.Contains(roots, root) {
+		if !slices.ContainsFunc(roots, func(r findRoot) bool { return r.real == root.real }) {
 			roots = append(roots, root)
 		}
 	}
@@ -103,50 +106,50 @@ func (api *API) HandleFindFiles(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (api *API) findFiles(ctx context.Context, roots []string, q string, limit int) ([]workspacesdk.FindFilesResult, error) {
-	// The lock is held through the search so a concurrent request
-	// cannot evict a root between indexing and searching it.
-	api.finderMu.Lock()
-	defer api.finderMu.Unlock()
-	if api.closed {
-		return nil, filefinder.ErrClosed
+// resolveFindRoot resolves a root path form, requires an existing
+// directory other than the filesystem root, and resolves symlinks for
+// indexing.
+func (api *API) resolveFindRoot(raw string) (findRoot, int, error) {
+	requested, err := api.resolvePathForm(raw)
+	if err != nil {
+		return findRoot{}, http.StatusInternalServerError, err
 	}
-	if api.finder == nil {
-		api.finder = filefinder.NewEngine(api.logger.Named("filefinder"))
+	stat, err := api.filesystem.Stat(requested)
+	if err != nil {
+		return findRoot{}, http.StatusBadRequest, xerrors.Errorf("root %q is not an existing directory: %w", requested, err)
+	}
+	if !stat.IsDir() {
+		return findRoot{}, http.StatusBadRequest, xerrors.Errorf("root %q is not a directory", requested)
+	}
+	resolved, err := api.resolvePath(requested)
+	if err != nil {
+		return findRoot{}, http.StatusInternalServerError, xerrors.Errorf("resolve root %q: %w", requested, err)
+	}
+	if resolved == filepath.Dir(resolved) {
+		return findRoot{}, http.StatusBadRequest, xerrors.Errorf("root %q is the filesystem root, choose a narrower root", requested)
+	}
+	return findRoot{requested: requested, real: resolved}, 0, nil
+}
+
+func (api *API) findFiles(ctx context.Context, roots []findRoot, q string, limit int) ([]workspacesdk.FindFilesResult, error) {
+	reals := make([]string, 0, len(roots))
+	byReal := make(map[string]string, len(roots))
+	for _, root := range roots {
+		reals = append(reals, root.real)
+		byReal[root.real] = root.requested
 	}
 
-	for _, root := range roots {
-		if i := slices.Index(api.finderRoots, root); i >= 0 {
-			api.finderRoots = slices.Delete(api.finderRoots, i, i+1)
-			api.finderRoots = append(api.finderRoots, root)
-		}
-	}
-	for _, root := range roots {
-		if slices.Contains(api.finderRoots, root) {
-			continue
-		}
-		for len(api.finderRoots) >= maxFinderRoots {
-			evict := api.finderRoots[0]
-			api.finderRoots = api.finderRoots[1:]
-			if err := api.finder.RemoveRoot(evict); err != nil {
-				return nil, xerrors.Errorf("evict root %q: %w", evict, err)
-			}
-		}
-		if err := api.finder.AddRoot(ctx, root); err != nil {
-			return nil, xerrors.Errorf("index root %q: %w", root, err)
-		}
-		api.finderRoots = append(api.finderRoots, root)
+	engine, err := api.ensureFinderRoots(ctx, reals)
+	if err != nil {
+		return nil, err
 	}
 
 	opts := filefinder.DefaultSearchOptions()
-	opts.Limit = limit
-	// The engine searches every indexed root. Over-fetch when other
-	// roots are indexed so their matches do not crowd out the
-	// requested ones.
-	if len(api.finderRoots) > len(roots) {
-		opts.Limit = limit * maxFinderRoots
-	}
-	found, err := api.finder.Search(ctx, q, opts)
+	opts.Roots = reals
+	// Overlapping roots return the same file once per root, so fetch
+	// enough to fill limit after deduplication.
+	opts.Limit = limit * len(reals)
+	found, err := engine.Search(ctx, q, opts)
 	if err != nil {
 		return nil, xerrors.Errorf("search: %w", err)
 	}
@@ -157,21 +160,109 @@ func (api *API) findFiles(ctx context.Context, roots []string, q string, limit i
 		if len(results) >= limit {
 			break
 		}
-		if !slices.Contains(roots, f.Root) {
+		requested, ok := byReal[f.Root]
+		if !ok {
 			continue
 		}
-		absPath := filepath.Join(f.Root, filepath.FromSlash(f.Path))
-		if _, ok := seen[absPath]; ok {
+		rel := filepath.FromSlash(f.Path)
+		realPath := filepath.Join(f.Root, rel)
+		if _, ok := seen[realPath]; ok {
 			continue
 		}
-		seen[absPath] = struct{}{}
+		seen[realPath] = struct{}{}
 		results = append(results, workspacesdk.FindFilesResult{
-			AbsolutePath: absPath,
+			AbsolutePath: filepath.Join(requested, rel),
 			Path:         f.Path,
-			Root:         f.Root,
+			Root:         requested,
 			IsDir:        f.IsDir,
 			Score:        f.Score,
 		})
 	}
 	return results, nil
+}
+
+// ensureFinderRoots indexes any of roots not yet in the engine and
+// returns the engine. Walks run outside finderMu; concurrent requests
+// for the same root wait for the in-flight walk.
+func (api *API) ensureFinderRoots(ctx context.Context, roots []string) (*filefinder.Engine, error) {
+	api.finderMu.Lock()
+	if api.closed {
+		api.finderMu.Unlock()
+		return nil, filefinder.ErrClosed
+	}
+	if api.finder == nil {
+		api.finder = filefinder.NewEngine(api.logger.Named("filefinder"))
+		api.finderCtx, api.finderCancel = context.WithCancel(context.Background())
+		api.finderPending = make(map[string]*pendingRoot)
+	}
+	engine, finderCtx := api.finder, api.finderCtx
+	var adds []string
+	var waits []*pendingRoot
+	for _, root := range roots {
+		if i := slices.Index(api.finderRoots, root); i >= 0 {
+			api.finderRoots = append(slices.Delete(api.finderRoots, i, i+1), root)
+			continue
+		}
+		p, ok := api.finderPending[root]
+		if !ok {
+			p = &pendingRoot{done: make(chan struct{})}
+			api.finderPending[root] = p
+			adds = append(adds, root)
+		}
+		waits = append(waits, p)
+	}
+	api.finderMu.Unlock()
+
+	for _, root := range adds {
+		// The walk uses the API's context rather than the request's
+		// so other waiters are not failed by this request's
+		// cancellation; Close cancels it.
+		err := engine.AddRoot(finderCtx, root)
+
+		api.finderMu.Lock()
+		p := api.finderPending[root]
+		delete(api.finderPending, root)
+		if err == nil && api.closed {
+			err = filefinder.ErrClosed
+		}
+		if err == nil {
+			api.evictFinderRootsLocked(engine, roots)
+			api.finderRoots = append(api.finderRoots, root)
+		} else {
+			err = xerrors.Errorf("index root %q: %w", root, err)
+		}
+		p.err = err
+		close(p.done)
+		api.finderMu.Unlock()
+	}
+
+	for _, p := range waits {
+		select {
+		case <-p.done:
+			if p.err != nil {
+				return nil, p.err
+			}
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	return engine, nil
+}
+
+// evictFinderRootsLocked removes least recently used roots not in keep
+// until there is room for one more. Must be called with finderMu held.
+func (api *API) evictFinderRootsLocked(engine *filefinder.Engine, keep []string) {
+	for len(api.finderRoots) >= maxFinderRoots {
+		i := slices.IndexFunc(api.finderRoots, func(root string) bool {
+			return !slices.Contains(keep, root)
+		})
+		if i < 0 {
+			return
+		}
+		evict := api.finderRoots[i]
+		api.finderRoots = slices.Delete(api.finderRoots, i, i+1)
+		if err := engine.RemoveRoot(evict); err != nil {
+			api.logger.Warn(context.Background(), "evict file finder root", slog.F("root", evict), slog.Error(err))
+		}
+	}
 }
