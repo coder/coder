@@ -33,6 +33,20 @@
 //                             (for example WEBKIT_DISABLE_COMPOSITING_MODE=1)
 //   --only=idle-focus         focus switching without streaming
 //   --idle=<seconds>          length of the stream-idle phase (default 10)
+//   --panes=<n>               chats mounted side by side (default 2; 3 for
+//                             the scrolltype scenario); uses the first n
+//                             chats in state.json
+//   --stream=0                skip the streaming phases
+//   --heap=1                  after mount, write a JS heap snapshot
+//                             (Chromium: mounted.heapsnapshot, V8 format;
+//                             WebKit: mounted.wkheap.json); summarize with
+//                             heap-summary.mjs
+//
+// Scenario scrolltype reproduces the operator's manual sequence on the
+// compare view: wheel-scroll each transcript up and back down, focus and
+// type a short word into each composer (two rounds), scroll again, type
+// again. Phases scroll-1, type-1, type-2, scroll-2, type-3 run with idle
+// chats, then the same phases with every chat streaming (stream- prefix).
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import os from "node:os";
@@ -87,7 +101,17 @@ fs.mkdirSync(outDir, { recursive: true });
 
 const API = "http://127.0.0.1:18080";
 const WEB = state.web;
-const [chatA, chatB] = state.chats;
+const panes =
+	scenario === "single"
+		? 1
+		: Number(args.panes ?? (scenario === "scrolltype" ? 3 : 2));
+if (state.chats.length < panes) {
+	throw new Error(
+		`state.json has ${state.chats.length} chats, scenario needs ${panes}; run seed.py add`,
+	);
+}
+// The chats this run mounts, streams and interrupts.
+const chats = state.chats.slice(0, panes);
 
 // Transcript rows. The composer's testid (chat-message-input) shares the
 // prefix, so exclude it.
@@ -95,6 +119,61 @@ const ROW_SELECTOR =
 	'[data-testid^="chat-message-"]:not([data-testid="chat-message-input"])';
 
 const log = (...a) => console.log(new Date().toISOString().slice(11, 23), ...a);
+
+// Resident set size of the browser's content processes (WebKit
+// WebProcess, Chromium renderers), read from /proc. WebKit's memory
+// pressure handler acts on the WebProcess footprint, so this is the
+// number the 30 s periodic release keys on.
+function contentProcessMemory() {
+	const out = [];
+	for (const pid of fs.readdirSync("/proc").filter((d) => /^\d+$/.test(d))) {
+		let status;
+		let cmdline;
+		try {
+			status = fs.readFileSync(`/proc/${pid}/status`, "utf8");
+			cmdline = fs.readFileSync(`/proc/${pid}/cmdline`, "utf8");
+		} catch {
+			continue;
+		}
+		const name = /^Name:\s*(.*)$/m.exec(status)?.[1] ?? "";
+		const isContent =
+			/WebProcess/i.test(name) || cmdline.includes("--type=renderer");
+		if (!isContent) continue;
+		const field = (k) => Number(new RegExp(`^${k}:\\s*(\\d+)`, "m").exec(status)?.[1] ?? 0);
+		// Thread name histogram: web workers, GC and JIT helpers, compositor.
+		const threadNames = new Map();
+		try {
+			for (const tid of fs.readdirSync(`/proc/${pid}/task`)) {
+				const comm = fs.readFileSync(`/proc/${pid}/task/${tid}/comm`, "utf8").trim();
+				threadNames.set(comm, (threadNames.get(comm) ?? 0) + 1);
+			}
+		} catch {
+			// process may have exited
+		}
+		out.push({
+			pid: Number(pid),
+			name,
+			rssMb: Math.round(field("VmRSS") / 1024),
+			anonMb: Math.round(field("RssAnon") / 1024),
+			fileMb: Math.round(field("RssFile") / 1024),
+			shmemMb: Math.round(field("RssShmem") / 1024),
+			threads: field("Threads"),
+			threadNames: [...threadNames]
+				.sort((a, b) => b[1] - a[1])
+				.map(([n, c]) => `${n}:${c}`),
+		});
+	}
+	out.sort((a, b) => b.rssMb - a.rssMb);
+	return out;
+}
+const memoryLine = () =>
+	contentProcessMemory()
+		.slice(0, 2)
+		.map(
+			(p) =>
+				`${p.name}[${p.pid}]=${p.rssMb}MB (anon ${p.anonMb}, file ${p.fileMb}, shmem ${p.shmemMb}, threads ${p.threads})`,
+		)
+		.join(" ");
 
 async function api(method, p, body) {
 	const r = await fetch(API + p, {
@@ -114,7 +193,7 @@ async function chatStatus(id) {
 }
 
 async function interruptAll() {
-	for (const id of state.chats) {
+	for (const id of chats) {
 		if ((await chatStatus(id)) === "running") {
 			await api("POST", `/api/v2/chats/${id}/interrupt`).catch(() => {});
 		}
@@ -122,7 +201,7 @@ async function interruptAll() {
 }
 
 async function startStreams(seconds) {
-	for (const id of state.chats) {
+	for (const id of chats) {
 		await api("POST", `/api/v2/chats/${id}/messages`, {
 			content: [
 				{
@@ -427,6 +506,7 @@ async function main() {
 	});
 	page.on("console", (m) => {
 		if (m.type() === "error") log("console.error", m.text().slice(0, 200));
+		else if (m.text().startsWith("ballast")) log("console", m.text());
 	});
 	const wantReact = args.react === "1";
 	if (wantReact) await page.addInitScript(reactDevtoolsInitScript());
@@ -444,6 +524,18 @@ async function main() {
 		cdp = await context.newCDPSession(page);
 		await cdp.send("Performance.enable");
 	}
+	// Renderer-side counters (Chromium): JS heap and DOM node totals.
+	const rendererMetrics = async () => {
+		if (!cdp) return null;
+		const { metrics } = await cdp.send("Performance.getMetrics");
+		const pick = Object.fromEntries(metrics.map((m) => [m.name, m.value]));
+		return {
+			jsHeapUsedMb: Math.round(pick.JSHeapUsedSize / 2 ** 20),
+			jsHeapTotalMb: Math.round(pick.JSHeapTotalSize / 2 ** 20),
+			nodes: pick.Nodes,
+			jsEventListeners: pick.JSEventListeners,
+		};
+	};
 
 	const startProfile = async () => {
 		if (wk) {
@@ -487,8 +579,42 @@ async function main() {
 				JSON.stringify(data),
 			);
 			log(
-				`saved ${name}.wktimeline.json (${data.records.length} records, ${data.samples.length} samples, ${data.cpu.length} cpu samples, other events ${JSON.stringify(data.otherEvents)})`,
+				`saved ${name}.wktimeline.json (${data.records.length} records, ${data.samples.length} samples, ${data.cpu.length} cpu samples, ${data.gc.length} gc events, ${data.memory.length} memory events, other events ${JSON.stringify(data.otherEvents)})`,
 			);
+			for (const g of data.gc) {
+				const ms = Math.round((g.endTime - g.startTime) * 1000);
+				if (ms >= 20) log(`  gc ${g.type} ${ms}ms`);
+			}
+			// Align browser-side events with the long frames of this phase:
+			// memory pressure handling, GCs and network traffic within 2 s of
+			// a frame >= 300 ms. Timeline and event timestamps share the
+			// page's monotonic clock (seconds).
+			const longFrames = data.records
+				.filter((r) => (r.endTime ?? r.startTime) - r.startTime >= 0.3)
+				.map((r) => ({ start: r.startTime, end: r.endTime }));
+			const events = [
+				...data.memory
+					.filter((m) => m.pressure)
+					.map((m) => ({ t: m.timestamp, what: `MEMORY PRESSURE severity=${m.severity}` })),
+				...data.gc.map((g) => ({
+					t: g.startTime,
+					what: `gc ${g.type} ${Math.round((g.endTime - g.startTime) * 1000)}ms`,
+				})),
+				...data.network.map((n) => ({
+					t: n.t,
+					what: `net ${n.kind} ${n.method ?? ""} ${n.status ?? ""} ${n.source ?? ""} ${(n.url ?? "").replace(/^https?:\/\/[^/]+/, "").slice(0, 90)}`,
+				})),
+			].sort((a, b) => a.t - b.t);
+			for (const f of longFrames) {
+				log(`  frame ${f.start.toFixed(3)}s..${f.end.toFixed(3)}s (${Math.round((f.end - f.start) * 1000)}ms); events within 2s:`);
+				for (const e of events)
+					if (e.t >= f.start - 2 && e.t <= f.end + 2)
+						log(`    ${((e.t - f.start) * 1000).toFixed(0).padStart(7)}ms ${e.what}`);
+			}
+			const pressure = data.memory.filter((m) => m.pressure);
+			if (pressure.length && !longFrames.length)
+				log(`  memory pressure events at ${pressure.map((m) => `${m.timestamp.toFixed(2)}s`).join(", ")} (no frame >= 300ms)`);
+			log(`  network events in phase: ${data.network.filter((n) => n.kind === "request").length} requests`);
 			return;
 		}
 		if (!cdp || !profiling) return;
@@ -523,8 +649,8 @@ async function main() {
 
 	const url =
 		scenario === "single"
-			? `${WEB}/agents/${chatA}`
-			: `${WEB}/agents/compare/${chatA}/${chatB}`;
+			? `${WEB}/agents/${chats[0]}`
+			: `${WEB}/agents/compare/${chats.join("/")}`;
 	log("open", url);
 	await interruptAll();
 	await page.goto(url, { waitUntil: "domcontentloaded" });
@@ -534,7 +660,7 @@ async function main() {
 		log("attached WebKit remote inspector");
 	}
 	const composers = page.getByRole("textbox", { name: "Chat message" });
-	const wantComposers = scenario === "single" ? 1 : 2;
+	const wantComposers = panes;
 	await composers
 		.nth(wantComposers - 1)
 		.waitFor({ state: "visible", timeout: 60_000 });
@@ -582,7 +708,36 @@ async function main() {
 	const nodeCount = await page.evaluate(
 		() => document.getElementsByTagName("*").length,
 	);
-	log(`mounted: ${rowCount} rows, ${nodeCount} DOM nodes`);
+	log(`mounted: ${rowCount} rows, ${nodeCount} DOM nodes; ${memoryLine()}`);
+	const topProcess = contentProcessMemory()[0];
+	if (topProcess) log(`  threads: ${topProcess.threadNames.join(" ")}`);
+	const mountedMetrics = await rendererMetrics();
+	if (mountedMetrics)
+		log(`  renderer metrics: ${JSON.stringify(mountedMetrics)}`);
+	if (args.heap === "1") {
+		if (cdp) {
+			// Snapshots run to several hundred MB; append chunks to disk
+			// instead of joining them in memory.
+			const file = path.join(outDir, "mounted.heapsnapshot");
+			const fd = fs.openSync(file, "w");
+			const onChunk = (p) => fs.writeSync(fd, p.chunk);
+			cdp.on("HeapProfiler.addHeapSnapshotChunk", onChunk);
+			await cdp.send("HeapProfiler.collectGarbage");
+			await cdp.send("HeapProfiler.takeHeapSnapshot", {
+				reportProgress: false,
+				captureNumericValue: false,
+			});
+			cdp.off("HeapProfiler.addHeapSnapshotChunk", onChunk);
+			fs.closeSync(fd);
+			log(`saved ${file} (${Math.round(fs.statSync(file).size / 2 ** 20)} MB)`);
+		} else if (wk) {
+			await wk.send("Heap.gc", {}, 60_000);
+			const { snapshotData } = await wk.send("Heap.snapshot", {}, 300_000);
+			const file = path.join(outDir, "mounted.wkheap.json");
+			fs.writeFileSync(file, snapshotData);
+			log(`saved ${file} (${Math.round(fs.statSync(file).size / 2 ** 20)} MB)`);
+		}
+	}
 	await page.screenshot({ path: path.join(outDir, "mounted.png") });
 	if (args.prep) {
 		for (const file of args.prep.split(",")) {
@@ -670,6 +825,7 @@ async function main() {
 		await fn();
 		const wall = Date.now() - t0;
 		const raw = await collect();
+		raw.memory = contentProcessMemory().slice(0, 2);
 		if (wantReact) {
 			const data = await page.evaluate(reactProfileStop);
 			const commits = data.reduce(
@@ -721,7 +877,7 @@ async function main() {
 				log(`    dom @${e.t}ms ${e.kind} ${JSON.stringify(e.value)}`);
 		}
 		log(
-			`  ${name}: key p50=${summary.keyLatency.p50}ms p90=${summary.keyLatency.p90}ms max=${summary.keyLatency.max}ms | pointer p50=${summary.pointerLatency.p50}ms max=${summary.pointerLatency.max}ms | long frames ${summary.longFrames.count} (${summary.longFrames.totalMs}ms busy, max ${summary.longFrames.max}ms) in ${wall}ms`,
+			`  ${name}: key p50=${summary.keyLatency.p50}ms p90=${summary.keyLatency.p90}ms max=${summary.keyLatency.max}ms | pointer p50=${summary.pointerLatency.p50}ms max=${summary.pointerLatency.max}ms | long frames ${summary.longFrames.count} (${summary.longFrames.totalMs}ms busy, max ${summary.longFrames.max}ms) in ${wall}ms | ${raw.memory.map((p) => `${p.name}=${p.rssMb}MB`).join(" ")}`,
 		);
 	};
 
@@ -737,9 +893,119 @@ async function main() {
 		}
 	};
 
+	// Real wheel input over each pane's transcript, so the message
+	// scroller's onWheel (user scroll intent) and onScroll paths run as they
+	// do for a user. A flick is several wheel events, not one big delta.
+	const wheelEachPane = async (label, distance, steps = 4) => {
+		for (const id of chats) {
+			const box = await page.getByTestId(`compare-pane-${id}`).boundingBox();
+			if (!box) throw new Error(`pane ${id} has no box`);
+			await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.4);
+			await page.evaluate((n) => window.__bench.mark(n), `${label}-start`);
+			for (let i = 0; i < steps; i++) {
+				await page.mouse.wheel(0, distance / steps);
+				await page.waitForTimeout(60);
+			}
+			await page.evaluate((n) => window.__bench.mark(n), `${label}-end`);
+			await page.waitForTimeout(700);
+		}
+	};
+	const scrollUpDown = async () => {
+		await wheelEachPane("wheel-up", -400);
+		await wheelEachPane("wheel-down", 400);
+	};
+	const typeEachComposer = async (word) => {
+		for (let i = 0; i < wantComposers; i++) {
+			await typeWord(composers.nth(i), word);
+			await page.waitForTimeout(400);
+		}
+	};
+	const clearAllComposers = async () => {
+		for (let i = 0; i < wantComposers; i++)
+			await clearComposer(composers.nth(i));
+	};
+	const scrollTypePhases = async (prefix) => {
+		await phase(`${prefix}scroll-1`, scrollUpDown, { profile: true });
+		await phase(`${prefix}type-1`, () => typeEachComposer("asdf"), {
+			profile: true,
+		});
+		await phase(`${prefix}type-2`, () => typeEachComposer("asdf"), {
+			profile: true,
+		});
+		await phase(`${prefix}scroll-2`, scrollUpDown, { profile: true });
+		await phase(`${prefix}type-3`, () => typeEachComposer("asdf"), {
+			profile: true,
+		});
+		await clearAllComposers();
+	};
+	const writeResults = () => {
+		fs.writeFileSync(
+			path.join(outDir, "results.json"),
+			JSON.stringify(results, null, 1),
+		);
+		const table = Object.entries(results.phases)
+			.map(
+				([n, p]) =>
+					`${n.padEnd(16)} key p50/p90/max ${p.summary.keyLatency.p50 ?? "-"}/${p.summary.keyLatency.p90 ?? "-"}/${p.summary.keyLatency.max ?? "-"}ms | pointer p50/max ${p.summary.pointerLatency.p50 ?? "-"}/${p.summary.pointerLatency.max ?? "-"}ms | longframes ${p.summary.longFrames.count} busy ${p.summary.longFrames.totalMs}ms max ${p.summary.longFrames.max}ms`,
+			)
+			.join("\n");
+		fs.writeFileSync(
+			path.join(outDir, "summary.txt"),
+			`${browserName} ${scenario} ${label}\nrows=${rowCount} nodes=${nodeCount}\n${table}\n`,
+		);
+		console.log(
+			`\n=== ${browserName} ${scenario} ${label} (rows=${rowCount}, nodes=${nodeCount})\n${table}\nresults: ${outDir}`,
+		);
+	};
+	// Every chat must be running on the server before the streaming phases
+	// start; the fake provider begins emitting within a second of that.
+	const waitForStreams = async () => {
+		const deadline = Date.now() + 30_000;
+		let running = await Promise.all(chats.map(chatStatus));
+		while (running.some((s) => s !== "running")) {
+			if (Date.now() > deadline)
+				throw new Error(`streams did not start: ${running.join(",")}`);
+			await new Promise((r) => setTimeout(r, 250));
+			running = await Promise.all(chats.map(chatStatus));
+		}
+		return running;
+	};
+	const skipStreaming =
+		args.stream === "0" ||
+		(only && ![...only].some((n) => n.startsWith("stream")));
+
+	if (scenario === "scrolltype") {
+		await scrollTypePhases("");
+		if (!skipStreaming) {
+			await startStreams(streamSeconds);
+			const running = await waitForStreams();
+			await page.waitForTimeout(8000);
+			log("chat statuses during stream:", running.join(","));
+			await scrollTypePhases("stream-");
+			await page.screenshot({ path: path.join(outDir, "streaming.png") });
+			await interruptAll();
+		}
+		writeResults();
+		wk?.close();
+		await browser.close();
+		return;
+	}
+
 	// 0. Focus switching with nothing streaming (opt-in via --only).
 	if (only?.has("idle-focus"))
 		await phase("idle-focus", focusSwitch, { profile: true });
+
+	// 0a. Nothing at all for --idle seconds (opt-in). Long frames here are
+	// browser-scheduled work, for example WebKit's periodic memory release.
+	if (only?.has("idle-wait")) {
+		await phase(
+			"idle-wait",
+			async () => {
+				await page.waitForTimeout(Number(args.idle ?? 10) * 1000);
+			},
+			{ profile: true },
+		);
+	}
 
 	// 0b. Hovering across transcript rows with nothing streaming (opt-in).
 	// Long frames here mean :hover state changes are expensive.
@@ -775,7 +1041,7 @@ async function main() {
 	);
 
 	// 2. Start both streams and let them run.
-	if (only && ![...only].some((n) => n.startsWith("stream"))) {
+	if (skipStreaming) {
 		fs.writeFileSync(
 			path.join(outDir, "results.json"),
 			JSON.stringify(results, null, 1),
@@ -784,16 +1050,7 @@ async function main() {
 		return;
 	}
 	await startStreams(streamSeconds);
-	// Both turns must be running on the server before the streaming phases
-	// start; the fake provider begins emitting within a second of that.
-	const deadline = Date.now() + 30_000;
-	let running = await Promise.all(state.chats.map(chatStatus));
-	while (running.some((s) => s !== "running")) {
-		if (Date.now() > deadline)
-			throw new Error(`streams did not start: ${running.join(",")}`);
-		await new Promise((r) => setTimeout(r, 250));
-		running = await Promise.all(state.chats.map(chatStatus));
-	}
+	const running = await waitForStreams();
 	// Let the first tokens land and the streaming rows mount before
 	// measuring, so stream-idle reflects steady-state streaming.
 	await page.waitForTimeout(8000);
@@ -828,23 +1085,7 @@ async function main() {
 	if (wantComposers > 1) await clearComposer(B);
 
 	await interruptAll();
-	fs.writeFileSync(
-		path.join(outDir, "results.json"),
-		JSON.stringify(results, null, 1),
-	);
-	const table = Object.entries(results.phases)
-		.map(
-			([n, p]) =>
-				`${n.padEnd(14)} key p50/p90/max ${p.summary.keyLatency.p50 ?? "-"}/${p.summary.keyLatency.p90 ?? "-"}/${p.summary.keyLatency.max ?? "-"}ms | pointer p50/max ${p.summary.pointerLatency.p50 ?? "-"}/${p.summary.pointerLatency.max ?? "-"}ms | longframes ${p.summary.longFrames.count} busy ${p.summary.longFrames.totalMs}ms max ${p.summary.longFrames.max}ms`,
-		)
-		.join("\n");
-	fs.writeFileSync(
-		path.join(outDir, "summary.txt"),
-		`${browserName} ${scenario} ${label}\nrows=${rowCount} nodes=${nodeCount}\n${table}\n`,
-	);
-	console.log(
-		`\n=== ${browserName} ${scenario} ${label} (rows=${rowCount}, nodes=${nodeCount})\n${table}\nresults: ${outDir}`,
-	);
+	writeResults();
 	wk?.close();
 	await browser.close();
 }
