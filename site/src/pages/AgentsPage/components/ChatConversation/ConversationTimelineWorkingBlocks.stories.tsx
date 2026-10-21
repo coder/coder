@@ -267,12 +267,12 @@ export const TurnAttachmentsPillOpen: Story = {
 	},
 };
 
-const specFileOnly = [{ ...MockChatFileMetadata, id: "spec-file" }];
+const mockSpecFileOnly = [{ ...MockChatFileMetadata, id: "spec-file" }];
 
 export const TurnAttachmentsPillExpired: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
-		chatFiles: specFileOnly,
+		chatFiles: mockSpecFileOnly,
 	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(

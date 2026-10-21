@@ -463,6 +463,23 @@ const ChatMessageItem = memo<{
 	},
 );
 
+/**
+ * The timeline body reruns on every stream chunk, and the compiler cannot
+ * cache this call inside it, so memoized host rows would get new arrays each
+ * time. "use memo" gives the hook its own cache keyed on these arguments.
+ */
+const useTurnAttachmentsByRow = (
+	parsedMessages: readonly ParsedMessageEntry[],
+	hidesAttachmentRows: boolean,
+	isLastTurnActive: boolean,
+) => {
+	"use memo";
+	return getTurnAttachmentsByRow(
+		assignTimelineRows(buildDisplayMessages(parsedMessages), false),
+		{ hidesAttachmentRows, isLastTurnActive },
+	);
+};
+
 type ConversationTimelineProps = {
 	hasMoreMessages: boolean;
 	chatStatus: TypesGen.ChatStatus | null;
@@ -547,10 +564,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const isTurnActive =
 			chatStatus === "running" || chatStatus === "interrupting";
 		const collapseSteps = Boolean(preferences.data?.collapse_assistant_steps);
-		const turnAttachmentsByRow = getTurnAttachmentsByRow(renderRows, {
-			hidesAttachmentRows: collapseSteps,
-			isLastTurnActive: isTurnActive || shouldRenderLiveAssistant(liveStatus),
-		});
+		const turnAttachmentsByRow = useTurnAttachmentsByRow(
+			parsedMessages,
+			collapseSteps,
+			isTurnActive || shouldRenderLiveAssistant(liveStatus),
+		);
 		const workingBlocks = collapseSteps
 			? groupWorkingBlocks(renderRows, parsedMessages, {
 					hasMoreMessages,

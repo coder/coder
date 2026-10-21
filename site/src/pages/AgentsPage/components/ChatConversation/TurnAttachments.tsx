@@ -15,9 +15,12 @@ import type { AgentAttachment } from "./messageHelpers";
 
 const THUMBNAIL_STACK_MAX = 3;
 
-const ThumbnailFrame: React.FC<
-	React.PropsWithChildren<{ className?: string }>
-> = ({ className, children }) => (
+type ThumbnailFrameProps = React.PropsWithChildren<{ className?: string }>;
+
+const ThumbnailFrame: React.FC<ThumbnailFrameProps> = ({
+	className,
+	children,
+}) => (
 	<span
 		className={cn(
 			"inline-flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-tertiary ring-1 ring-surface-primary not-first:-ml-1.5",
@@ -68,10 +71,7 @@ type TurnAttachmentsProps = {
 	attachments: readonly AgentAttachment[];
 };
 
-/**
- * Action bar pill that counts every attachment of a turn, previews the first
- * three, and opens their download cards.
- */
+/** Action bar pill for a settled turn's attachments. */
 export const TurnAttachments: React.FC<TurnAttachmentsProps> = ({
 	attachments,
 }) => {
@@ -84,7 +84,7 @@ export const TurnAttachments: React.FC<TurnAttachmentsProps> = ({
 				<button
 					type="button"
 					aria-label={`Attachments (${attachments.length.toLocaleString("en-US")})`}
-					className="inline-flex h-6 cursor-pointer items-center gap-1.5 rounded-full border-0 bg-surface-secondary pl-0.5 pr-2 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+					className="inline-flex h-6 items-center gap-1.5 rounded-full border-0 bg-surface-secondary pl-0.5 pr-2 text-xs text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 				>
 					<span aria-hidden className="inline-flex items-center">
 						{attachments.slice(0, THUMBNAIL_STACK_MAX).map((attachment) => (
@@ -98,7 +98,7 @@ export const TurnAttachments: React.FC<TurnAttachmentsProps> = ({
 							/>
 						))}
 						{overflow > 0 && (
-							<ThumbnailFrame className="text-2xs">
+							<ThumbnailFrame className="w-auto min-w-5 px-0.5 text-2xs">
 								+{overflow.toLocaleString("en-US")}
 							</ThumbnailFrame>
 						)}
