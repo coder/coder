@@ -182,7 +182,7 @@ export const ChatHistoryTool: React.FC<
 		resultCount: number | undefined;
 		hasMore: boolean;
 		succeeded: boolean;
-		/** Error code from a failed lookup, or empty on success. */
+		/** Error code or server error message from a failed lookup, or empty on success. */
 		errorCode: string;
 	}
 > = ({
