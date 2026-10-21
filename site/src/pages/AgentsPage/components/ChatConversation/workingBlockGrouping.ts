@@ -1,6 +1,11 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { appendTextBlock } from "./blockUtils";
-import { getVisibleContent, isProviderToolResult } from "./messageHelpers";
+import {
+	type AgentAttachment,
+	getMessageAgentAttachments,
+	getVisibleContent,
+	isProviderToolResult,
+} from "./messageHelpers";
 import type { TimelineRow } from "./timelineRows";
 import type {
 	MergedTool,
@@ -143,6 +148,58 @@ export const isAgentAttachmentOnlyRow = (row: TimelineRow): boolean => {
 		visibleBlocks.length > 0 &&
 		visibleBlocks.every((block) => block.type === "file")
 	);
+};
+
+type TurnAttachmentsOptions = {
+	/** Attachment-only rows never render, so they cannot host the pill. */
+	hidesAttachmentRows: boolean;
+	/** The newest turn may still attach files, so it gets no entry yet. */
+	isLastTurnActive: boolean;
+};
+
+/**
+ * Each settled turn's agent attachments, oldest first, keyed by the row that
+ * hosts them: the turn's last rendered assistant message. Derived from the
+ * rows alone, never working blocks or stream state, so the map keeps its
+ * identity while a turn streams and memoized rows skip re-rendering.
+ */
+export const getTurnAttachmentsByRow = (
+	rows: readonly TimelineRow[],
+	{ hidesAttachmentRows, isLastTurnActive }: TurnAttachmentsOptions,
+): ReadonlyMap<string, readonly AgentAttachment[]> => {
+	const byRow = new Map<string, readonly AgentAttachment[]>();
+	let attachments: AgentAttachment[] = [];
+	let hostKey: string | undefined;
+	const settleTurn = () => {
+		if (hostKey !== undefined && attachments.length > 0) {
+			byRow.set(hostKey, attachments);
+		}
+		attachments = [];
+		hostKey = undefined;
+	};
+
+	for (const row of rows) {
+		if (row.type !== "message") {
+			continue;
+		}
+		const { message } = row.entry;
+		if (message.role === "user") {
+			settleTurn();
+			continue;
+		}
+		if (message.role !== "assistant") {
+			continue;
+		}
+		attachments.push(...getMessageAgentAttachments(message));
+		if (!hidesAttachmentRows || !isAgentAttachmentOnlyRow(row)) {
+			hostKey = row.key;
+		}
+	}
+	if (!isLastTurnActive) {
+		settleTurn();
+	}
+
+	return byRow;
 };
 
 type RowContent = ReturnType<typeof getVisibleContent>;

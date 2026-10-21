@@ -15,6 +15,7 @@ import {
 	MockCollapsedStepsPreferences,
 	MockLeadInSearchMessages,
 	MockLongTurnPageLoads,
+	MockMixedAttachmentMessages,
 	MockPlanAttachmentMessages,
 	MockQuestionCallMessage,
 	MockUncitedSearchAnswerMessages,
@@ -242,6 +243,24 @@ export const AttachmentFoldsIntoBlockExpanded: Story = {
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
 			within(canvasElement).getByRole("button", { name: /Worked for/ }),
+		);
+	},
+};
+
+// Each settled turn lists its own files in the action bar under its answer.
+export const TurnAttachmentsPill: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+	},
+};
+
+export const TurnAttachmentsPillOpen: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Attachments (4)" }),
 		);
 	},
 };

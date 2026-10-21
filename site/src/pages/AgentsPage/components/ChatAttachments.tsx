@@ -6,7 +6,7 @@ import {
 	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { FileCard } from "./ChatConversation/AttachmentBlocks";
+import { AgentAttachmentList } from "./ChatConversation/AgentAttachmentList";
 import type { AgentAttachment } from "./ChatConversation/messageHelpers";
 import type { EarlierMessagesProps } from "./ChatMessageScroller";
 import { SectionHeader } from "./SectionHeader";
@@ -51,21 +51,10 @@ export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 			{/* Stays mounted while loading so the open trigger's aria-controls resolves. */}
 			<CollapsibleContent className="flex flex-col gap-3">
 				{attachments && attachments.length > 0 && (
-					<ul className="flex flex-col gap-2">
-						{attachments.map(({ key, file, href }) => (
-							<li key={key}>
-								<FileCard
-									block={file}
-									href={href}
-									expired={
-										file.file_id !== undefined &&
-										evictedFileIds.has(file.file_id)
-									}
-									fullWidth
-								/>
-							</li>
-						))}
-					</ul>
+					<AgentAttachmentList
+						attachments={attachments}
+						isExpired={(fileId) => evictedFileIds.has(fileId)}
+					/>
 				)}
 				{attachments?.length === 0 && (
 					<p className="m-0 text-sm text-content-secondary">

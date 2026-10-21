@@ -109,7 +109,7 @@ const getAttachmentExtension = (
 	);
 };
 
-const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
+export const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
 	TEXT_ATTACHMENT_MEDIA_TYPES.has(mediaType);
 
 const getAttachmentDisplayName = (

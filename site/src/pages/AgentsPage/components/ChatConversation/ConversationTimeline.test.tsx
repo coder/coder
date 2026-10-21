@@ -19,8 +19,11 @@ import {
 import {
 	buildLiveStatus,
 	buildStreamRenderState,
+	MockAmberPngData,
+	MockBluePngData,
 	MockCollapsedStepsPreferences,
 	MockLongTurnPageLoads,
+	MockMixedAttachmentMessages,
 	MockWebSearchAnswerMessages,
 	MockWorkingMessages,
 	pinFixtureClock,
@@ -329,6 +332,35 @@ const streamingStage = (
 			created_at: workingFixtureTime(seconds),
 		},
 	]),
+});
+
+describe("ConversationTimeline turn attachments", () => {
+	it("lists only each turn's files in the pill under its answer", async () => {
+		const user = userEvent.setup();
+		renderTimeline({ messages: MockMixedAttachmentMessages });
+
+		const openAttachments = async (name: string) => {
+			await user.click(screen.getByRole("button", { name }));
+			const dialog = await screen.findByRole("dialog", {
+				name: "Attachments",
+			});
+			const hrefs = within(dialog)
+				.getAllByRole("link")
+				.map((link) => link.getAttribute("href"));
+			await user.keyboard("{Escape}");
+			return hrefs;
+		};
+
+		expect(await openAttachments("Attachments (1)")).toEqual([
+			"/api/v2/chats/files/report-file",
+		]);
+		expect(await openAttachments("Attachments (4)")).toEqual([
+			`data:image/png;base64,${MockBluePngData}`,
+			`data:image/png;base64,${MockAmberPngData}`,
+			"/api/v2/chats/files/findings-file",
+			"/api/v2/chats/files/spec-file",
+		]);
+	});
 });
 
 describe("ConversationTimeline live working blocks", () => {

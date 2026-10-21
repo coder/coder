@@ -390,6 +390,71 @@ export const MockAttachmentWorkingMessages: TypesGen.ChatMessage[] = [
 	},
 ];
 
+/** Base64 1x1 PNGs, so thumbnails render without a file server. */
+export const MockBluePngData =
+	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGOw6P4LAAK/AcFWgzAqAAAAAElFTkSuQmCC";
+export const MockAmberPngData =
+	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4Oo8bAAQqAZ9sWGBkAAAAAElFTkSuQmCC";
+
+const mixedTurnFiles: TypesGen.ChatFilePart[] = [
+	{
+		type: "file",
+		media_type: "image/png",
+		name: "dashboard-before.png",
+		data: MockBluePngData,
+	},
+	{
+		type: "file",
+		media_type: "image/png",
+		name: "dashboard-after.png",
+		data: MockAmberPngData,
+	},
+	{
+		type: "file",
+		media_type: "text/markdown",
+		name: "findings.md",
+		file_id: "findings-file",
+	},
+	{
+		type: "file",
+		media_type: "application/pdf",
+		name: "spec.pdf",
+		file_id: "spec-file",
+	},
+];
+
+/**
+ * MockAttachmentWorkingMessages followed by a second turn that attaches two
+ * screenshots, a markdown file, and a PDF, one attach_file step each.
+ */
+export const MockMixedAttachmentMessages: TypesGen.ChatMessage[] = [
+	...MockAttachmentWorkingMessages,
+	{
+		...MockChatMessage,
+		id: 10,
+		created_at: workingFixtureTime(20),
+		content: [{ type: "text", text: "Compare the dashboard with the spec" }],
+	},
+	...mixedTurnFiles.flatMap((file, index) =>
+		attachmentStepMessages({
+			id: 11 + index * 3,
+			toolCallId: `attach-${index}`,
+			callAt: 21 + index * 2,
+			toolName: "attach_file",
+			args: { path: `/home/coder/${file.name}` },
+			file,
+			result: { name: file.name },
+		}),
+	),
+	{
+		...MockChatMessage,
+		id: 23,
+		role: "assistant",
+		created_at: workingFixtureTime(30),
+		content: [{ type: "text", text: "The dashboard matches the spec." }],
+	},
+];
+
 const planPath = "/home/coder/.coder/plans/PLAN.md";
 
 /** A turn that proposes a plan file after the first step of MockWorkingMessages. */

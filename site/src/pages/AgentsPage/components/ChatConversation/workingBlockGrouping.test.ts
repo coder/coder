@@ -11,6 +11,7 @@ import { assignTimelineRows, type TimelineRow } from "./timelineRows";
 import {
 	type GroupWorkingBlocksOptions,
 	getRowBlocks,
+	getTurnAttachmentsByRow,
 	groupWorkingBlocks,
 	isAgentAttachmentOnlyRow,
 	type WorkingBlock,
@@ -1272,5 +1273,80 @@ describe("isAgentAttachmentOnlyRow", () => {
 			false,
 			false,
 		]);
+	});
+});
+
+describe("getTurnAttachmentsByRow", () => {
+	const file = (fileId: string): TypesGen.ChatMessagePart => ({
+		...mockAttachment,
+		file_id: fileId,
+	});
+	const fileIdsByRow = (
+		map: ReadonlyMap<string, readonly { file: TypesGen.ChatFilePart }[]>,
+	) =>
+		[...map].map(([key, attachments]) => [
+			key,
+			attachments.map(({ file }) => file.file_id),
+		]);
+
+	it("lists each turn's agent files on its last assistant row", () => {
+		const { rows } = group([
+			message("user", [text("Build the reports"), file("upload")]),
+			message("assistant", [text("First:"), file("a")]),
+			message("assistant", [file("b"), text("Then the second.")]),
+			message("assistant", [text("Both reports are ready.")]),
+			user("One more"),
+			message("assistant", [text("Here:"), file("c")]),
+		]);
+
+		expect(
+			fileIdsByRow(
+				getTurnAttachmentsByRow(rows, {
+					hidesAttachmentRows: false,
+					isLastTurnActive: false,
+				}),
+			),
+		).toEqual([
+			["message:4", ["a", "b"]],
+			["message:6", ["c"]],
+		]);
+	});
+
+	it("skips hidden attachment-only rows when picking the host row", () => {
+		const { rows } = group([
+			user("Build the report"),
+			message("assistant", [text("Report attached.")]),
+			message("assistant", [file("a")]),
+		]);
+		const hostKeys = (hidesAttachmentRows: boolean) => [
+			...getTurnAttachmentsByRow(rows, {
+				hidesAttachmentRows,
+				isLastTurnActive: false,
+			}).keys(),
+		];
+
+		expect(hostKeys(true)).toEqual(["message:2"]);
+		expect(hostKeys(false)).toEqual(["message:3"]);
+	});
+
+	it("leaves the active turn out until it settles", () => {
+		const { rows } = group(
+			[
+				user("Build the report"),
+				message("assistant", [text("Done:"), file("a")]),
+				user("Another one"),
+				message("assistant", [text("Working on it:"), file("b")]),
+			],
+			{ isTurnActive: true },
+		);
+
+		expect(
+			fileIdsByRow(
+				getTurnAttachmentsByRow(rows, {
+					hidesAttachmentRows: true,
+					isLastTurnActive: true,
+				}),
+			),
+		).toEqual([["message:2", ["a"]]]);
 	});
 });

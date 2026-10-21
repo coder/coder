@@ -37,12 +37,14 @@ import {
 	shouldRenderLiveAssistant,
 } from "./liveStatusModel";
 import {
+	type AgentAttachment,
 	buildDisplayMessages,
 	deriveEvictedFileIds,
 	deriveMessageDisplayState,
 	getVisibleContent,
 } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
+import { TurnAttachments } from "./TurnAttachments";
 import { assignTimelineRows } from "./timelineRows";
 import type {
 	MergedTool,
@@ -55,6 +57,7 @@ import { UserMessageContent } from "./UserMessageContent";
 import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
 import {
 	getRowBlocks,
+	getTurnAttachmentsByRow,
 	groupWorkingBlocks,
 	isAgentAttachmentOnlyRow,
 	type RowSection,
@@ -127,6 +130,8 @@ const ChatMessageItem = memo<{
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
 	hideActions?: boolean;
+	/** Set on the row that ends a settled turn with agent attachments. */
+	turnAttachments?: readonly AgentAttachment[];
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
 
@@ -165,6 +170,7 @@ const ChatMessageItem = memo<{
 		editingMessageId,
 		isAfterEditingMessage = false,
 		hideActions = false,
+		turnAttachments,
 		hasActiveStream = false,
 		isAwaitingFirstStreamChunk = false,
 		isLastMessage = false,
@@ -205,6 +211,14 @@ const ChatMessageItem = memo<{
 			isUser &&
 			Boolean(onJumpToUserMessage) &&
 			(prevUserMessageKey !== undefined || nextUserMessageKey !== undefined);
+		const showsActionButtons =
+			displayState !== undefined &&
+			!hideActions &&
+			(displayState.hasCopyableContent ||
+				canEditUserMessage ||
+				canJumpBetweenUserMessages);
+		const showsTurnAttachments =
+			turnAttachments !== undefined && turnAttachments.length > 0;
 		if (displayState?.shouldHide) {
 			return null;
 		}
@@ -318,112 +332,119 @@ const ChatMessageItem = memo<{
 						{notice}
 					</LifecycleHookNotice>
 				))}
-				{displayState &&
-					!hideActions &&
-					(displayState.hasCopyableContent ||
-						canEditUserMessage ||
-						canJumpBetweenUserMessages) && (
-						<div
-							className={cn(
-								"mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100",
-								isUser && "w-full justify-end",
-							)}
-							data-testid="message-actions"
-						>
-							{displayState.hasCopyableContent && parsed && (
-								<CopyButton
-									text={parsed.markdown}
-									label="Copy message"
-									className="size-6"
-									tooltipSide="bottom"
-								/>
-							)}
-							{canEditUserMessage && messageId !== undefined && (
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											size="icon"
-											variant="subtle"
-											className="size-6"
-											aria-label="Edit message"
-											onClick={() => {
-												const { text, fileBlocks, editorState } =
-													getEditableUserMessagePayload(message);
-												onEditUserMessage?.(
-													messageId,
-													text,
-													fileBlocks,
-													editorState,
-												);
-											}}
-										>
-											<PencilIcon />
-											<span className="sr-only">Edit message</span>
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent side="bottom">Edit message</TooltipContent>
-								</Tooltip>
-							)}
-							{isUser &&
-								onJumpToUserMessage &&
-								(prevUserMessageKey !== undefined ||
-									nextUserMessageKey !== undefined) && (
-									<>
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<Button
-													size="icon"
-													variant="subtle"
-													className="size-6"
-													aria-label="Jump to previous user message"
-													disabled={prevUserMessageKey === undefined}
-													onClick={() => {
-														if (prevUserMessageKey !== undefined) {
-															onJumpToUserMessage(prevUserMessageKey);
-														}
-													}}
-												>
-													<ChevronLeftIcon />
-													<span className="sr-only">
-														Jump to previous user message
-													</span>
-												</Button>
-											</TooltipTrigger>
-											<TooltipContent side="bottom">
-												Jump to previous user message
-											</TooltipContent>
-										</Tooltip>
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<Button
-													size="icon"
-													variant="subtle"
-													className="size-6"
-													aria-label="Jump to next user message"
-													disabled={nextUserMessageKey === undefined}
-													onClick={() => {
-														if (nextUserMessageKey !== undefined) {
-															onJumpToUserMessage(nextUserMessageKey);
-														}
-													}}
-												>
-													<ChevronRightIcon />
-													<span className="sr-only">
-														Jump to next user message
-													</span>
-												</Button>
-											</TooltipTrigger>
-											<TooltipContent side="bottom">
-												Jump to next user message
-											</TooltipContent>
-										</Tooltip>
-									</>
+				{(showsActionButtons || showsTurnAttachments) && (
+					<div
+						className={cn(
+							"mt-0.5 flex items-center gap-1",
+							isUser && "w-full justify-end",
+						)}
+					>
+						{showsTurnAttachments && (
+							<TurnAttachments attachments={turnAttachments} />
+						)}
+						{showsActionButtons && (
+							<div
+								className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100"
+								data-testid="message-actions"
+							>
+								{displayState?.hasCopyableContent && parsed && (
+									<CopyButton
+										text={parsed.markdown}
+										label="Copy message"
+										className="size-6"
+										tooltipSide="bottom"
+									/>
 								)}
-						</div>
-					)}
-				{displayState?.needsAssistantBottomSpacer && !isLastMessage && (
-					<div className="min-h-6" data-testid="assistant-bottom-spacer" />
+								{canEditUserMessage && messageId !== undefined && (
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												size="icon"
+												variant="subtle"
+												className="size-6"
+												aria-label="Edit message"
+												onClick={() => {
+													const { text, fileBlocks, editorState } =
+														getEditableUserMessagePayload(message);
+													onEditUserMessage?.(
+														messageId,
+														text,
+														fileBlocks,
+														editorState,
+													);
+												}}
+											>
+												<PencilIcon />
+												<span className="sr-only">Edit message</span>
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent side="bottom">Edit message</TooltipContent>
+									</Tooltip>
+								)}
+								{isUser &&
+									onJumpToUserMessage &&
+									(prevUserMessageKey !== undefined ||
+										nextUserMessageKey !== undefined) && (
+										<>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<Button
+														size="icon"
+														variant="subtle"
+														className="size-6"
+														aria-label="Jump to previous user message"
+														disabled={prevUserMessageKey === undefined}
+														onClick={() => {
+															if (prevUserMessageKey !== undefined) {
+																onJumpToUserMessage(prevUserMessageKey);
+															}
+														}}
+													>
+														<ChevronLeftIcon />
+														<span className="sr-only">
+															Jump to previous user message
+														</span>
+													</Button>
+												</TooltipTrigger>
+												<TooltipContent side="bottom">
+													Jump to previous user message
+												</TooltipContent>
+											</Tooltip>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<Button
+														size="icon"
+														variant="subtle"
+														className="size-6"
+														aria-label="Jump to next user message"
+														disabled={nextUserMessageKey === undefined}
+														onClick={() => {
+															if (nextUserMessageKey !== undefined) {
+																onJumpToUserMessage(nextUserMessageKey);
+															}
+														}}
+													>
+														<ChevronRightIcon />
+														<span className="sr-only">
+															Jump to next user message
+														</span>
+													</Button>
+												</TooltipTrigger>
+												<TooltipContent side="bottom">
+													Jump to next user message
+												</TooltipContent>
+											</Tooltip>
+										</>
+									)}
+							</div>
+						)}
+					</div>
 				)}
+				{displayState?.needsAssistantBottomSpacer &&
+					!isLastMessage &&
+					!showsTurnAttachments && (
+						<div className="min-h-6" data-testid="assistant-bottom-spacer" />
+					)}
 				{previewImage && (
 					<ImageLightbox
 						src={previewImage}
@@ -523,13 +544,18 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const liveBlocks = showsStreamOutput ? (streamState?.blocks ?? []) : [];
 		const liveTools = showsStreamOutput ? streamTools : [];
 
+		// requires_action is the agent waiting on the user, not working.
+		const isTurnActive =
+			chatStatus === "running" || chatStatus === "interrupting";
 		const collapseSteps = Boolean(preferences.data?.collapse_assistant_steps);
+		const turnAttachmentsByRow = getTurnAttachmentsByRow(renderRows, {
+			hidesAttachmentRows: collapseSteps,
+			isLastTurnActive: isTurnActive || shouldRenderLiveAssistant(liveStatus),
+		});
 		const workingBlocks = collapseSteps
 			? groupWorkingBlocks(renderRows, parsedMessages, {
 					hasMoreMessages,
-					// requires_action is the agent waiting on the user, not working.
-					isTurnActive:
-						chatStatus === "running" || chatStatus === "interrupting",
+					isTurnActive,
 					isWorking: chatStatus === "running",
 					isLiveRowCollapsible:
 						liveStatus.phase === "streaming" || liveStatus.phase === "starting",
@@ -670,9 +696,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			const neighbors = userNeighborsByKey.get(row.key);
 			// A block's item dims and inerts its rows as a whole; the answer
 			// section renders outside it, so it dims itself.
+			const rendersAtTopLevel = section === "answer" || !groupedRows.has(index);
 			const isAfterEditingMessage =
-				(section === "answer" || !groupedRows.has(index)) &&
-				afterEditingMessageIds.has(message.id);
+				rendersAtTopLevel && afterEditingMessageIds.has(message.id);
 
 			return (
 				<ChatMessageItem
@@ -697,6 +723,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					isAfterEditingMessage={isAfterEditingMessage}
 					hideActions={
 						section === "work" || (!isUser && !row.isLastInAssistantChain)
+					}
+					turnAttachments={
+						rendersAtTopLevel ? turnAttachmentsByRow.get(row.key) : undefined
 					}
 					hasActiveStream={hasActiveStream}
 					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
