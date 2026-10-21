@@ -138,7 +138,7 @@ describe("AgentSettingsCompactionPageView compaction strategy", () => {
 			"updateUserChatCompactionStrategy",
 		).mockReturnValue(new Promise(() => undefined));
 
-		renderView(["chat-token-budget"]);
+		const queryClient = renderView(["chat-token-budget"]);
 		await chooseTokenBudget();
 
 		await waitFor(() =>
@@ -146,6 +146,10 @@ describe("AgentSettingsCompactionPageView compaction strategy", () => {
 				screen.getByRole("combobox", { name: "Compaction strategy" }),
 			).toHaveTextContent("Token budget"),
 		);
+		// The threshold table reads the same cached strategy as the select.
+		expect(queryClient.getQueryData(userCompactionStrategyKey)).toEqual({
+			strategy: "token_budget",
+		});
 	});
 
 	it("keeps the saved strategy when saving fails", async () => {
