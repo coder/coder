@@ -36,21 +36,99 @@ WHERE (
 	EXCLUDED.cache_write_price
 );
 
--- name: GetAIModelPriceByProviderModel :one
--- Returns the price in effect for the requested model, falling back to the
--- model reported by the provider when the requested model has no price.
--- Rows are ordered by model first, then by source, so the lookup order is:
---   1. Custom price for the requested model.
---   2. Price book price for the requested model.
---   3. Custom price for the provider-reported model.
---   4. Price book price for the provider-reported model.
-SELECT *
-FROM ai_model_prices
-WHERE provider = @provider AND model IN (@model, @provider_model)
+-- name: GetAIModelPriceForProvider :one
+-- Returns the price in effect for the model served by the configured provider,
+-- most specific first: the organization's price for the provider, a site-wide
+-- custom price, then the price book. The requested model is preferred over the
+-- model reported by the provider, whatever the kind of price. A NULL
+-- organization_id matches no organization price, so only site-wide prices
+-- apply. Soft-deleted organization prices are ignored. Each branch is a unique
+-- index lookup.
+WITH prices AS (
+	SELECT
+		CASE source WHEN 'custom' THEN 2 ELSE 3 END AS specificity,
+		model,
+		input_price,
+		output_price,
+		cache_read_price,
+		cache_write_price
+	FROM ai_model_prices
+	WHERE ai_model_prices.provider = @provider_type::text
+		AND ai_model_prices.model IN (@model::text, @provider_model::text)
+	UNION ALL
+	SELECT
+		1,
+		model,
+		input_price,
+		output_price,
+		cache_read_price,
+		cache_write_price
+	FROM ai_model_configs
+	WHERE ai_model_configs.organization_id = sqlc.narg('organization_id')::uuid
+		AND ai_model_configs.provider_id = @provider_id::uuid
+		AND ai_model_configs.model IN (@model::text, @provider_model::text)
+		AND ai_model_configs.deleted = FALSE
+)
+SELECT
+	prices.model,
+	prices.input_price,
+	prices.output_price,
+	prices.cache_read_price,
+	prices.cache_write_price
+FROM prices
 ORDER BY
-	CASE WHEN model = @model THEN 0 ELSE 1 END ASC,
-	CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
+	CASE WHEN prices.model = @model::text THEN 0 ELSE 1 END ASC,
+	prices.specificity ASC
 LIMIT 1;
+
+-- name: GetOrganizationAIProviderModelPrice :one
+-- Returns the organization's live price for one model on one configured
+-- provider. Soft-deleted rows are ignored.
+SELECT *
+FROM ai_model_configs
+WHERE organization_id = @organization_id
+	AND provider_id = @provider_id
+	AND model = @model
+	AND deleted = FALSE;
+
+-- name: UpsertOrganizationAIProviderModelPrice :exec
+-- Sets the organization's price for one model on one configured provider. A
+-- NULL price is unknown. An existing live row is only rewritten when a price
+-- differs, so updated_at records when a price last changed. Soft-deleted rows
+-- are left untouched, and a new live row is inserted beside them.
+INSERT INTO ai_model_configs (
+	organization_id, provider_id, model, input_price, output_price, cache_read_price, cache_write_price
+) VALUES (
+	@organization_id, @provider_id, @model, @input_price, @output_price, @cache_read_price, @cache_write_price
+)
+ON CONFLICT (organization_id, provider_id, model) WHERE deleted = FALSE DO UPDATE SET
+	input_price       = EXCLUDED.input_price,
+	output_price      = EXCLUDED.output_price,
+	cache_read_price  = EXCLUDED.cache_read_price,
+	cache_write_price = EXCLUDED.cache_write_price,
+	updated_at        = NOW()
+WHERE (
+	ai_model_configs.input_price,
+	ai_model_configs.output_price,
+	ai_model_configs.cache_read_price,
+	ai_model_configs.cache_write_price
+) IS DISTINCT FROM (
+	EXCLUDED.input_price,
+	EXCLUDED.output_price,
+	EXCLUDED.cache_read_price,
+	EXCLUDED.cache_write_price
+);
+
+-- name: DeleteOrganizationAIProviderModelPrice :execrows
+-- Soft deletes the organization's live price for one model on one configured
+-- provider. Returns zero rows when there is no live price.
+UPDATE ai_model_configs
+SET deleted = TRUE,
+	updated_at = NOW()
+WHERE organization_id = @organization_id
+	AND provider_id = @provider_id
+	AND model = @model
+	AND deleted = FALSE;
 
 -- name: GetAIModelPrices :many
 -- Returns the price in effect for each model, preferring a custom price over

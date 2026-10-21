@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn, within } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 import {
 	MockChatProject,
 	MockChatProjectInstructions,
@@ -33,6 +33,32 @@ export default meta;
 type Story = StoryObj<typeof ProjectDetailsPanelView>;
 
 export const Default: Story = {};
+
+/** Users without update permission, such as `use` sharees, cannot edit. */
+export const WithoutUpdatePermission: Story = {
+	args: { onEditInstructions: undefined },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText(/Run the linters before committing/);
+		expect(
+			canvas.queryByRole("button", { name: "Edit instructions" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const UnsetWithoutUpdatePermission: Story = {
+	args: {
+		instructions: MockUnsetChatProjectInstructions,
+		onEditInstructions: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("No instructions");
+		expect(
+			canvas.queryByRole("button", { name: "Create instructions" }),
+		).not.toBeInTheDocument();
+	},
+};
 
 export const WithOrganization: Story = {
 	args: { organizationLabel: "Coder" },
