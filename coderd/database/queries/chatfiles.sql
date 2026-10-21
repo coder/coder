@@ -56,6 +56,29 @@ SELECT id, owner_id, organization_id, created_at, name, mimetype,
 FROM chat_files
 WHERE id = ANY(@ids::uuid[]);
 
+-- name: IsChatWorkspaceFileAttached :one
+-- IsChatWorkspaceFileAttached reports whether a user message or a queued
+-- message of the chat still attaches the file as a workspace attachment.
+-- Deleting a queued message or editing the attachment out of a message
+-- keeps the file's link, so the link alone does not show that the user
+-- still wants the file copied.
+SELECT (
+	EXISTS (
+		SELECT 1
+		FROM chat_messages
+		WHERE chat_id = @chat_id::uuid
+			AND role = 'user'::chat_message_role
+			AND deleted = FALSE
+			AND content @> jsonb_build_array(jsonb_build_object('type', 'workspace-attachment', 'file_id', @file_id::uuid))
+	)
+	OR EXISTS (
+		SELECT 1
+		FROM chat_queued_messages
+		WHERE chat_id = @chat_id::uuid
+			AND content @> jsonb_build_array(jsonb_build_object('type', 'workspace-attachment', 'file_id', @file_id::uuid))
+	)
+)::boolean AS attached;
+
 -- name: AcquireChatWorkspaceFileDeliveries :many
 -- AcquireChatWorkspaceFileDeliveries claims due workspace files whose
 -- chat's workspace finished starting: the workspace's latest build is a

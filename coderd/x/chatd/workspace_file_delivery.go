@@ -271,6 +271,17 @@ func (w *chatWorker) copyWorkspaceFile(ctx context.Context, row database.Acquire
 	if err != nil {
 		return workspacesdk.AgentUploadChatFileResponse{}, refundWorkspaceFileDelivery(xerrors.Errorf("load chat: %w", err))
 	}
+	attached, err := w.opts.Store.IsChatWorkspaceFileAttached(ctx, database.IsChatWorkspaceFileAttachedParams{ChatID: chat.ID, FileID: row.ID})
+	if err != nil {
+		return workspacesdk.AgentUploadChatFileResponse{}, refundWorkspaceFileDelivery(xerrors.Errorf("check the chat's messages for the file: %w", err))
+	}
+	if !attached {
+		// The user removed the file before it was copied, so it waits for
+		// an explicit retry instead.
+		failure := parkWorkspaceFileDelivery(xerrors.New("no message in the chat attaches the file anymore"))
+		failure.quiet = true
+		return workspacesdk.AgentUploadChatFileResponse{}, failure
+	}
 	agents, err := w.opts.Store.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, row.WorkspaceID.UUID)
 	if err != nil {
 		return workspacesdk.AgentUploadChatFileResponse{}, refundWorkspaceFileDelivery(xerrors.Errorf("load workspace agents: %w", err))

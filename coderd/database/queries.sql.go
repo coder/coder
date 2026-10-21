@@ -6863,6 +6863,42 @@ func (q *sqlQuerier) InsertChatFile(ctx context.Context, arg InsertChatFileParam
 	return i, err
 }
 
+const isChatWorkspaceFileAttached = `-- name: IsChatWorkspaceFileAttached :one
+SELECT (
+	EXISTS (
+		SELECT 1
+		FROM chat_messages
+		WHERE chat_id = $1::uuid
+			AND role = 'user'::chat_message_role
+			AND deleted = FALSE
+			AND content @> jsonb_build_array(jsonb_build_object('type', 'workspace-attachment', 'file_id', $2::uuid))
+	)
+	OR EXISTS (
+		SELECT 1
+		FROM chat_queued_messages
+		WHERE chat_id = $1::uuid
+			AND content @> jsonb_build_array(jsonb_build_object('type', 'workspace-attachment', 'file_id', $2::uuid))
+	)
+)::boolean AS attached
+`
+
+type IsChatWorkspaceFileAttachedParams struct {
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+	FileID uuid.UUID `db:"file_id" json:"file_id"`
+}
+
+// IsChatWorkspaceFileAttached reports whether a user message or a queued
+// message of the chat still attaches the file as a workspace attachment.
+// Deleting a queued message or editing the attachment out of a message
+// keeps the file's link, so the link alone does not show that the user
+// still wants the file copied.
+func (q *sqlQuerier) IsChatWorkspaceFileAttached(ctx context.Context, arg IsChatWorkspaceFileAttachedParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, isChatWorkspaceFileAttached, arg.ChatID, arg.FileID)
+	var attached bool
+	err := row.Scan(&attached)
+	return attached, err
+}
+
 const retryChatWorkspaceFileDeliveries = `-- name: RetryChatWorkspaceFileDeliveries :execrows
 UPDATE chat_files cf
 SET

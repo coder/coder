@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/wspubsub"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -249,6 +250,17 @@ func (f workspaceFileDeliveryFixture) workspaceFile(ctx context.Context, t *test
 		MaxFileLinks: 10,
 	})
 	require.NoError(t, err)
+	// A user message attaches the file, as a send does.
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageWorkspaceAttachment(file.ID, file.Mimetype, file.Name, int64(len(data))),
+	})
+	require.NoError(t, err)
+	dbgen.ChatMessage(t, f.db, database.ChatMessage{
+		ChatID:        chatID,
+		CreatedBy:     uuid.NullUUID{UUID: f.user.ID, Valid: true},
+		ModelConfigID: uuid.NullUUID{UUID: f.model.ID, Valid: true},
+		Content:       content,
+	})
 	return file
 }
 
@@ -586,6 +598,70 @@ func TestWorkspaceFileDeliveryOutcomes(t *testing.T) {
 		f.clock.Advance(time.Hour)
 		worker.deliverWorkspaceFiles(ctx)
 		require.Len(t, f.agent.uploadRequests(), 1)
+	})
+
+	t.Run("UnreferencedFileParks", func(t *testing.T) {
+		t.Parallel()
+		attachment := func(file database.InsertChatFileRow) []codersdk.ChatMessagePart {
+			return []codersdk.ChatMessagePart{codersdk.ChatMessageWorkspaceAttachment(file.ID, file.Mimetype, file.Name, int64(len("zip bytes")))}
+		}
+		for _, tc := range []struct {
+			name string
+			// attach references the file from the chat and may drop the
+			// reference again, like a user does before delivery.
+			attach    func(ctx context.Context, t *testing.T, server *Server, chat database.Chat, file database.InsertChatFileRow)
+			delivered bool
+		}{
+			{name: "QueuedMessage", delivered: true, attach: func(ctx context.Context, t *testing.T, server *Server, chat database.Chat, file database.InsertChatFileRow) {
+				result, err := server.SendMessage(ctx, SendMessageOptions{ChatID: chat.ID, CreatedBy: chat.OwnerID, Content: attachment(file), BusyBehavior: SendMessageBusyBehaviorQueue})
+				require.NoError(t, err)
+				require.True(t, result.Queued)
+			}},
+			{name: "DeletedQueuedMessage", attach: func(ctx context.Context, t *testing.T, server *Server, chat database.Chat, file database.InsertChatFileRow) {
+				result, err := server.SendMessage(ctx, SendMessageOptions{ChatID: chat.ID, CreatedBy: chat.OwnerID, Content: attachment(file), BusyBehavior: SendMessageBusyBehaviorQueue})
+				require.NoError(t, err)
+				require.True(t, result.Queued)
+				require.NoError(t, server.DeleteQueued(ctx, chat.ID, result.QueuedMessage.ID))
+			}},
+			{name: "EditedOutOfMessage", attach: func(ctx context.Context, t *testing.T, server *Server, chat database.Chat, file database.InsertChatFileRow) {
+				messages, err := server.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+				require.NoError(t, err)
+				require.Len(t, messages, 1)
+				edited, err := server.EditMessage(ctx, EditMessageOptions{ChatID: chat.ID, CreatedBy: chat.OwnerID, EditedMessageID: messages[0].ID, Content: attachment(file)})
+				require.NoError(t, err)
+				_, err = server.EditMessage(ctx, EditMessageOptions{ChatID: chat.ID, CreatedBy: chat.OwnerID, EditedMessageID: edited.Message.ID, Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("never mind")}})
+				require.NoError(t, err)
+			}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				f := newWorkspaceFileDeliveryFixture(t)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				chat, agent := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateStarting})
+				file, err := f.db.InsertChatFile(ctx, database.InsertChatFileParams{
+					OwnerID:        f.user.ID,
+					OrganizationID: f.org.ID,
+					Name:           "report.zip",
+					Mimetype:       "application/zip",
+					Data:           []byte("zip bytes"),
+					Purpose:        database.NullChatFilePurpose{ChatFilePurpose: database.ChatFilePurposeWorkspace, Valid: true},
+				})
+				require.NoError(t, err)
+				tc.attach(ctx, t, newUnstartedServer(t, f.pubsub, f.db), chat, file)
+
+				f.restartAgent(ctx, t, agent.ID)
+				f.worker(t).deliverWorkspaceFiles(ctx)
+				state := f.fileState(ctx, t, chat.ID, file.ID)
+				if tc.delivered {
+					f.requireDelivered(ctx, t, chat, file.ID)
+					return
+				}
+				require.False(t, state.WorkspaceDeliveredAt.Valid)
+				require.Empty(t, f.agent.uploadRequests())
+				require.Equal(t, database.ChatWorkspaceFileMaxDeliveryAttempts, state.WorkspaceDeliveryAttempts)
+				require.Equal(t, "no message in the chat attaches the file anymore", state.WorkspaceDeliveryError.String)
+			})
+		}
 	})
 
 	t.Run("FencedOutcomeLogsNoFailure", func(t *testing.T) {
