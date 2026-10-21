@@ -18,7 +18,6 @@ type LostFocus = {
 	control: Element;
 	scrollerContent: Element;
 	memberIds: readonly number[];
-	newestMemberId: number;
 };
 
 /**
@@ -41,15 +40,11 @@ export class FoldFocusRestorer extends Component<FoldFocusRestorerProps> {
 			control,
 			scrollerContent: itemElement.parentElement,
 			memberIds: source.memberIds,
-			newestMemberId: Math.max(
-				-1,
-				...previous.items.flatMap(({ memberIds }) => memberIds),
-			),
 		};
 	}
 
 	componentDidUpdate(
-		_previous: FoldFocusRestorerProps,
+		previous: FoldFocusRestorerProps,
 		_state: unknown,
 		focus: LostFocus | null,
 	) {
@@ -60,12 +55,16 @@ export class FoldFocusRestorer extends Component<FoldFocusRestorerProps> {
 		) {
 			return;
 		}
-		// An item of only the live row has no persisted rows yet. The stream
-		// persists as rows newer than any rendered before, so match on those.
-		const holdsFocusedRows =
-			focus.memberIds.length > 0
-				? (id: number) => focus.memberIds.includes(id)
-				: (id: number) => id > focus.newestMemberId;
+		let holdsFocusedRows = (id: number) => focus.memberIds.includes(id);
+		if (focus.memberIds.length === 0) {
+			// An item of only the live row has no persisted rows yet. The
+			// stream persists as rows newer than any rendered before.
+			const newestId = previous.items.reduce(
+				(newest, { memberIds }) => Math.max(newest, ...memberIds),
+				-1,
+			);
+			holdsFocusedRows = (id) => id > newestId;
+		}
 		const fold = this.props.items.find(
 			({ isFold, memberIds }) => isFold && memberIds.some(holdsFocusedRows),
 		);
