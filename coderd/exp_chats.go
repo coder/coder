@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"crypto/sha256"
@@ -28,6 +29,7 @@ import (
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
+	"golang.org/x/sync/semaphore"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -80,6 +82,21 @@ const (
 	// maxChatRequestBodyBytes is the maximum JSON body size for chat
 	// creation and tool result requests.
 	maxChatRequestBodyBytes = 256 * 1024
+
+	// chatWorkspaceUploadMemoryBudget bounds the heap that buffered
+	// workspace uploads hold at once on a replica. One user may hold half
+	// of it, so a single user cannot stall everyone else's uploads.
+	chatWorkspaceUploadMemoryBudget = 1 << 30
+	// chatWorkspaceUploadMemoryFactor is the measured peak heap per body
+	// byte while a workspace upload is stored: the buffered body, the hex
+	// text encoding lib/pq builds for a bytea parameter (2x), and the
+	// protocol write buffer that copies that encoding (2x).
+	chatWorkspaceUploadMemoryFactor = 5
+	// A buffered workspace upload releases its memory reservation once
+	// its body stalls this long, or once reading it takes the maximum
+	// duration. coderd's HTTP server sets no body read timeout of its own.
+	chatWorkspaceFileUploadIdleTimeout = 30 * time.Second
+	chatWorkspaceFileUploadMaxDuration = 30 * time.Minute
 
 	defaultChatContextCompressionThreshold = int32(70)
 	// Large-context models (1M) compact earlier; 70% of a 1M window
@@ -1419,7 +1436,11 @@ func (api *API) createChat(
 		}
 	}
 
-	contentBlocks, titleText, inputError := createChatInputFromRequest(ctx, api.Database, req)
+	contentBlocks, titleText, inputError := createChatInputFromRequest(ctx, api.Database, req, chatInputFileScope{
+		organizationID: req.OrganizationID,
+		ownerID:        ownerID,
+		callerID:       callerID,
+	})
 	if inputError != nil {
 		return database.Chat{}, codersdk.Chat{}, httperror.NewResponseError(http.StatusBadRequest, *inputError)
 	}
@@ -3059,7 +3080,11 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, chat.ID, chat.WorkspaceID, req.Content, "content")
+	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, chat.ID, chat.WorkspaceID, chatInputFileScope{
+		organizationID: chat.OrganizationID,
+		ownerID:        chat.OwnerID,
+		callerID:       apiKey.UserID,
+	}, req.Content, "content")
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: inputError.Message,
@@ -3322,7 +3347,11 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, chat.ID, chat.WorkspaceID, req.Content, "content")
+	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, chat.ID, chat.WorkspaceID, chatInputFileScope{
+		organizationID: chat.OrganizationID,
+		ownerID:        chat.OwnerID,
+		callerID:       apiKey.UserID,
+	}, req.Content, "content")
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: inputError.Message,
@@ -6922,18 +6951,34 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 // @ID upload-chat-file
 // @Security CoderSessionToken
 // @Tags Chats
-// @Accept image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
+// @Accept application/octet-stream
 // @Produce json
 // @Param organization query string true "Organization ID" format(uuid)
+// @Param purpose query string false "File purpose. Prompt files accept image/png, image/jpeg, image/gif, image/webp, image/svg+xml, text/plain, text/markdown, text/csv, application/json and application/pdf up to 10 MiB. Workspace files accept any type up to 100 MiB and are copied into the chat's workspace instead of being sent to the model" Enums(prompt,workspace)
 // @Param Content-Disposition header string true "Attachment disposition carrying the file name" example(attachment; filename="image.png")
 // @Param request body string true "Raw file binary data"
 // @x-apidocgen {"rawBodyFile": "image.png"}
 // @Success 201 {object} codersdk.UploadChatFileResponse
-// @Failure 413 {object} codersdk.Response "Request body exceeds 10 MiB"
+// @Failure 408 {object} codersdk.Response "Workspace file body stalled for 30 seconds or took over 30 minutes"
+// @Failure 413 {object} codersdk.Response "Request body exceeds 10 MiB, or 100 MiB for workspace files"
 // @Router /api/v2/chats/files [post]
 func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+
+	purpose := codersdk.ChatFilePurpose(r.URL.Query().Get("purpose"))
+	switch purpose {
+	case "":
+		purpose = codersdk.ChatFilePurposePrompt
+	case codersdk.ChatFilePurposePrompt, codersdk.ChatFilePurposeWorkspace:
+	default:
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid purpose query parameter.",
+			Detail:  fmt.Sprintf("Purpose must be %q or %q.", codersdk.ChatFilePurposePrompt, codersdk.ChatFilePurposeWorkspace),
+		})
+		return
+	}
+	forWorkspace := purpose == codersdk.ChatFilePurposeWorkspace
 
 	orgIDStr := r.URL.Query().Get("organization")
 	if orgIDStr == "" {
@@ -6968,7 +7013,7 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	}
 	// application/octet-stream means the client could not classify the file
 	// ahead of time, so we defer to byte classification below.
-	if contentType != "application/octet-stream" && !chatfiles.IsAllowedPromptInputMediaType(contentType) {
+	if !forWorkspace && contentType != "application/octet-stream" && !chatfiles.IsAllowedPromptInputMediaType(contentType) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Unsupported file type.",
 			Detail:  fmt.Sprintf("Allowed types: %s.", chatfiles.AllowedPromptInputMediaTypesString()),
@@ -6978,16 +7023,72 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 
 	// Extract filename from Content-Disposition header if provided.
 	filename := chatFilenameFromContentDisposition(r.Header.Get("Content-Disposition"))
+	maxBytes := int64(codersdk.MaxChatFileSizeBytes)
+	// Only a workspace upload, whose memory is reserved first, reads into
+	// a buffer preallocated from its declared size; otherwise a client
+	// could claim memory it never sends.
+	bodySize := int64(-1)
+	if forWorkspace {
+		// Store the name the agent writes, so delivery never fails on
+		// naming and the prompt can state the exact workspace path.
+		sanitized, err := chatfiles.SanitizeWorkspaceUploadName(filename)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Filename is required.",
+				Detail:  "Provide a filename in the Content-Disposition header.",
+			})
+			return
+		}
+		filename = sanitized
+		maxBytes = codersdk.MaxChatWorkspaceFileSizeBytes
+		// net/http fails a body that does not match its Content-Length,
+		// so a declared length within the limit is the exact size. An
+		// unknown length reserves the maximum size.
+		reserved := maxBytes
+		if r.ContentLength >= 0 && r.ContentLength <= maxBytes {
+			bodySize = r.ContentLength
+			reserved = bodySize
+		}
+		// The whole body is buffered and then encoded for the database,
+		// so reserve its peak memory on this replica before reading it.
+		release, err := api.chatWorkspaceUploadBudget.acquire(ctx, apiKey.UserID,
+			chatWorkspaceUploadMemoryFactor*reserved)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusServiceUnavailable, codersdk.Response{
+				Message: "Request canceled while waiting to upload.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		defer release()
+	}
 
-	r.Body = http.MaxBytesReader(rw, r.Body, codersdk.MaxChatFileSizeBytes)
-	data, err := io.ReadAll(r.Body)
+	r.Body = http.MaxBytesReader(rw, r.Body, maxBytes)
+	var body io.Reader = r.Body
+	var deadline *uploadBodyDeadline
+	if forWorkspace {
+		// The body is read while its memory is reserved, so a slow or
+		// stalled client must not keep the reservation.
+		deadline = newUploadBodyDeadline(ctx, api.Logger, api.Clock, rw, r.Body,
+			chatWorkspaceFileUploadIdleTimeout, chatWorkspaceFileUploadMaxDuration)
+		body = deadline
+	}
+	data, err := readUploadBody(body, bodySize)
+	if deadline != nil && deadline.finish() {
+		httpapi.Write(ctx, rw, http.StatusRequestTimeout, codersdk.Response{
+			Message: "Upload timed out.",
+			Detail: fmt.Sprintf("The file body stalled for %s or took longer than %s to arrive.",
+				chatWorkspaceFileUploadIdleTimeout, chatWorkspaceFileUploadMaxDuration),
+		})
+		return
+	}
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
-			httpapi.RecordRequestBodyLimit(ctx, codersdk.MaxChatFileSizeBytes)
+			httpapi.RecordRequestBodyLimit(ctx, maxBytes)
 			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
 				Message: "File too large.",
-				Detail:  fmt.Sprintf("Maximum file size is %d bytes.", codersdk.MaxChatFileSizeBytes),
+				Detail:  fmt.Sprintf("Maximum file size is %d bytes.", maxBytes),
 			})
 			return
 		}
@@ -7016,7 +7117,9 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	if !chatfiles.IsAllowedPromptInputMediaType(detected) {
+	// Workspace files never reach the model provider, so any sniffed type
+	// is stored for them.
+	if !forWorkspace && !chatfiles.IsAllowedPromptInputMediaType(detected) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Unsupported file type.",
 			Detail:  fmt.Sprintf("Allowed types: %s.", chatfiles.AllowedPromptInputMediaTypesString()),
@@ -7030,7 +7133,7 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	// Markdown. Combined with the X-Content-Type-Options: nosniff header
 	// applied globally, this still prevents clients from smuggling binary
 	// or active content under a safer declared Content-Type.
-	if !chatfiles.IsCompatibleUploadMediaType(contentType, detected) {
+	if !forWorkspace && !chatfiles.IsCompatibleUploadMediaType(contentType, detected) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "File content type does not match Content-Type header.",
 			Detail:  fmt.Sprintf("Header declared %q but file content was detected as %q.", contentType, detected),
@@ -7043,7 +7146,7 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		Name:           filename,
 		Mimetype:       detected,
 		Data:           data,
-		Purpose:        database.NullChatFilePurpose{ChatFilePurpose: database.ChatFilePurposePrompt, Valid: true},
+		Purpose:        database.NullChatFilePurpose{ChatFilePurpose: database.ChatFilePurpose(purpose), Valid: true},
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -7083,6 +7186,8 @@ func (c ChatFileDownloadClaims) Validate(expected jwt.Expected) error {
 // @Produce json
 // @Param file path string true "File ID" format(uuid)
 // @Success 200 {object} codersdk.ChatFileDownloadURLResponse
+// @Failure 403 {object} codersdk.Response "Workspace files are copied into the chat's workspace and cannot be downloaded"
+// @Failure 410 {object} codersdk.Response "Workspace file was copied into the chat's workspace and is no longer stored"
 // @Router /api/v2/chats/files/{file}/download-url [post]
 // @x-apidocgen {"skip": true}
 func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request) {
@@ -7095,7 +7200,7 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	chatFile, err := api.Database.GetChatFileByID(ctx, fileID)
+	chatFile, ok, err := api.servableChatFile(ctx, rw, fileID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
@@ -7105,6 +7210,9 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 			Message: "Failed to get chat file.",
 			Detail:  err.Error(),
 		})
+		return
+	}
+	if !ok {
 		return
 	}
 
@@ -7145,10 +7253,11 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 // @Summary Download chat file with signed token
 // @ID download-chat-file-with-signed-token
 // @Tags Chats
-// @Produce image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Param file path string true "File ID" format(uuid)
 // @Param token query string true "Signed download token"
 // @Success 200
+// @Failure 403 {object} codersdk.Response "Workspace files are copied into the chat's workspace and cannot be downloaded"
+// @Failure 410 {object} codersdk.Response "Workspace file was copied into the chat's workspace and is no longer stored"
 // @Router /api/v2/chats/files/{file}/download [get]
 // @x-apidocgen {"skip": true}
 func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
@@ -7171,7 +7280,10 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chatFile, err := api.Database.GetChatFileByID(dbauthz.As(ctx, subject), fileID)
+	// Never let private caches replay a signed URL past its expiry;
+	// revocation is re-checked only when the request reaches coderd.
+	rw.Header().Set("Cache-Control", "no-store")
+	chatFile, ok, err := api.servableChatFile(dbauthz.As(ctx, subject), rw, fileID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
@@ -7185,9 +7297,9 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	// Never let private caches replay a signed URL past its expiry;
-	// revocation is re-checked only when the request reaches coderd.
-	rw.Header().Set("Cache-Control", "no-store")
+	if !ok {
+		return
+	}
 	api.serveChatFile(ctx, rw, chatFile)
 }
 
@@ -7195,9 +7307,10 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 // @ID get-chat-file
 // @Security CoderSessionToken
 // @Tags Chats
-// @Produce image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Param file path string true "File ID" format(uuid)
 // @Success 200
+// @Failure 403 {object} codersdk.Response "Workspace files are copied into the chat's workspace and cannot be downloaded"
+// @Failure 410 {object} codersdk.Response "Workspace file was copied into the chat's workspace and is no longer stored"
 // @Router /api/v2/chats/files/{file} [get]
 func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -7211,7 +7324,7 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chatFile, err := api.Database.GetChatFileByID(ctx, fileID)
+	chatFile, ok, err := api.servableChatFile(ctx, rw, fileID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
@@ -7223,9 +7336,46 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if !ok {
+		return
+	}
 
 	rw.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
 	api.serveChatFile(r.Context(), rw, chatFile)
+}
+
+// servableChatFile loads a chat file for a download route. Workspace
+// files are refused from their metadata, before their bytes are loaded:
+// they may be 100 MiB and exist only to be copied into the chat's
+// workspace. ok is false when a refusal was written; err reports a failed
+// lookup for the caller to answer.
+func (api *API) servableChatFile(ctx context.Context, rw http.ResponseWriter, fileID uuid.UUID) (chatFile database.ChatFile, ok bool, err error) {
+	rows, err := api.Database.GetChatFilesMetadataByIDs(ctx, []uuid.UUID{fileID})
+	if err != nil {
+		return database.ChatFile{}, false, err
+	}
+	if len(rows) == 0 {
+		return database.ChatFile{}, false, sql.ErrNoRows
+	}
+	if rows[0].Purpose == database.ChatFilePurposeWorkspace {
+		rw.Header().Set("Cache-Control", "no-store")
+		if rows[0].WorkspaceDeliveredAt.Valid {
+			httpapi.Write(ctx, rw, http.StatusGone, codersdk.Response{
+				Message: "Chat file was copied into the chat's workspace and is no longer stored.",
+			})
+			return database.ChatFile{}, false, nil
+		}
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Workspace chat files cannot be downloaded.",
+			Detail:  "Coder copies the file into the chat's workspace once the workspace is running.",
+		})
+		return database.ChatFile{}, false, nil
+	}
+	chatFile, err = api.Database.GetChatFileByID(ctx, fileID)
+	if err != nil {
+		return database.ChatFile{}, false, err
+	}
+	return chatFile, true, nil
 }
 
 // serveChatFile writes the file body and content headers; callers set
@@ -7559,6 +7709,150 @@ func chatWorkspaceUploadAgent(chat database.Chat, agents []database.WorkspaceAge
 	return agentselect.FindChatAgent(agents)
 }
 
+// uploadBodyDeadline fails reads of a request body once it stalls for
+// idle or has been read for maxDuration, by moving the connection's read
+// deadline to now. That interrupts a read blocked on the network, which
+// closing the body would not.
+type uploadBodyDeadline struct {
+	r         io.Reader
+	rc        *http.ResponseController
+	idle      time.Duration
+	idleTimer *quartz.Timer
+	maxTimer  *quartz.Timer
+
+	mu      sync.Mutex
+	done    bool
+	expired bool
+}
+
+func newUploadBodyDeadline(
+	ctx context.Context,
+	logger slog.Logger,
+	clock quartz.Clock,
+	rw http.ResponseWriter,
+	r io.Reader,
+	idle time.Duration,
+	maxDuration time.Duration,
+) *uploadBodyDeadline {
+	d := &uploadBodyDeadline{r: r, rc: http.NewResponseController(rw), idle: idle}
+	expire := func() {
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		if d.done {
+			return
+		}
+		d.expired = true
+		if err := d.rc.SetReadDeadline(time.Now()); err != nil {
+			logger.Warn(ctx, "cannot interrupt a timed out chat file upload", slog.Error(err))
+		}
+	}
+	d.idleTimer = clock.AfterFunc(idle, expire, "chatFileUpload", "idle")
+	d.maxTimer = clock.AfterFunc(maxDuration, expire, "chatFileUpload", "max")
+	return d
+}
+
+func (d *uploadBodyDeadline) Read(p []byte) (int, error) {
+	n, err := d.r.Read(p)
+	if n > 0 {
+		d.idleTimer.Reset(d.idle, "chatFileUpload", "idle")
+	}
+	return n, err
+}
+
+// finish stops the timers and reports whether the deadline expired, in
+// which case the read failed or raced the expiry and must be treated as
+// timed out.
+func (d *uploadBodyDeadline) finish() bool {
+	d.mu.Lock()
+	d.done = true
+	expired := d.expired
+	d.mu.Unlock()
+	d.idleTimer.Stop()
+	d.maxTimer.Stop()
+	return expired
+}
+
+// readUploadBody reads r to EOF. A positive size preallocates the
+// buffer so a large body is not copied each time the buffer grows.
+func readUploadBody(r io.Reader, size int64) ([]byte, error) {
+	if size <= 0 {
+		return io.ReadAll(r)
+	}
+	// The spare MinRead bytes let ReadFrom observe EOF without growing.
+	buf := bytes.NewBuffer(make([]byte, 0, size+bytes.MinRead))
+	_, err := buf.ReadFrom(r)
+	return buf.Bytes(), err
+}
+
+// uploadMemoryBudget reserves bytes of heap for buffered uploads, both
+// from a replica-wide pool and from a per-user share of it.
+type uploadMemoryBudget struct {
+	total   *semaphore.Weighted
+	perUser int64
+
+	mu    sync.Mutex
+	users map[uuid.UUID]*userUploadBudget
+}
+
+type userUploadBudget struct {
+	sem  *semaphore.Weighted
+	refs int
+}
+
+func newUploadMemoryBudget(total, perUser int64) *uploadMemoryBudget {
+	return &uploadMemoryBudget{
+		total:   semaphore.NewWeighted(total),
+		perUser: min(perUser, total),
+		users:   make(map[uuid.UUID]*userUploadBudget),
+	}
+}
+
+// acquire blocks until n bytes fit in both userID's share and the
+// replica pool, or ctx ends. n is capped at the per-user share so an
+// oversized request waits for the share instead of forever. The user's
+// share is taken first so a user waiting on their own uploads holds
+// none of the pool.
+func (b *uploadMemoryBudget) acquire(ctx context.Context, userID uuid.UUID, n int64) (release func(), err error) {
+	n = min(n, b.perUser)
+	user := b.ref(userID)
+	if err := user.sem.Acquire(ctx, n); err != nil {
+		b.unref(userID)
+		return nil, err
+	}
+	if err := b.total.Acquire(ctx, n); err != nil {
+		user.sem.Release(n)
+		b.unref(userID)
+		return nil, err
+	}
+	return func() {
+		b.total.Release(n)
+		user.sem.Release(n)
+		b.unref(userID)
+	}, nil
+}
+
+func (b *uploadMemoryBudget) ref(userID uuid.UUID) *userUploadBudget {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	user, ok := b.users[userID]
+	if !ok {
+		user = &userUploadBudget{sem: semaphore.NewWeighted(b.perUser)}
+		b.users[userID] = user
+	}
+	user.refs++
+	return user
+}
+
+func (b *uploadMemoryBudget) unref(userID uuid.UUID) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	user := b.users[userID]
+	user.refs--
+	if user.refs == 0 {
+		delete(b.users, userID)
+	}
+}
+
 // chatWorkspaceUploadUsageInterval bounds how often a streaming upload
 // records workspace usage; chatd heartbeats at the same cadence.
 const chatWorkspaceUploadUsageInterval = 30 * time.Second
@@ -7669,7 +7963,7 @@ func isWindowsAbsPath(p string) bool {
 		(('a' <= p[0] && p[0] <= 'z') || ('A' <= p[0] && p[0] <= 'Z'))
 }
 
-func createChatInputFromRequest(ctx context.Context, db database.Store, req codersdk.CreateChatRequest) (
+func createChatInputFromRequest(ctx context.Context, db database.Store, req codersdk.CreateChatRequest, files chatInputFileScope) (
 	[]codersdk.ChatMessagePart,
 	string,
 	*codersdk.Response,
@@ -7684,7 +7978,7 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 	}
 	// Chat creation has no chat ID yet, so workspace-file-reference
 	// parts are rejected (they require an existing chat's uploads).
-	content, pasteData, inputError := createChatInputFromParts(ctx, db, uuid.Nil, uuid.NullUUID{}, req.Content, "content")
+	content, pasteData, inputError := createChatInputFromParts(ctx, db, uuid.Nil, uuid.NullUUID{}, files, req.Content, "content")
 	if inputError != nil {
 		return nil, "", inputError
 	}
@@ -7699,6 +7993,17 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 	return content, titleText, nil
 }
 
+// chatInputFileScope limits which workspace files an input part may
+// reference: files in the chat's organization uploaded by the chat owner
+// or the caller, or already linked to the chat. Reading a file is not
+// enough, because linking hands its bytes to the chat's delivery, which
+// drops them from storage.
+type chatInputFileScope struct {
+	organizationID uuid.UUID
+	ownerID        uuid.UUID
+	callerID       uuid.UUID
+}
+
 // createChatInputFromParts validates input parts and converts them to
 // message content. The returned map holds pasted-text blob references
 // by file ID; the create path derives a title from it, message send
@@ -7708,6 +8013,7 @@ func createChatInputFromParts(
 	db database.Store,
 	chatID uuid.UUID,
 	chatWorkspaceID uuid.NullUUID,
+	files chatInputFileScope,
 	parts []codersdk.ChatInputPart,
 	fieldName string,
 ) ([]codersdk.ChatMessagePart, map[uuid.UUID][]byte, *codersdk.Response) {
@@ -7720,6 +8026,10 @@ func createChatInputFromParts(
 
 	content := make([]codersdk.ChatMessagePart, 0, len(parts))
 	var pasteData map[uuid.UUID][]byte
+	// linkedFileIDs is loaded on first need. It lets a chat keep files an
+	// earlier participant linked, such as an administrator who created
+	// the chat for its owner.
+	var linkedFileIDs map[uuid.UUID]struct{}
 	for i, part := range parts {
 		switch strings.ToLower(strings.TrimSpace(string(part.Type))) {
 		case string(codersdk.ChatInputPartTypeText):
@@ -7738,21 +8048,18 @@ func createChatInputFromParts(
 					Detail:  fmt.Sprintf("%s[%d].file_id is required for file parts.", fieldName, i),
 				}
 			}
-			// Validate that the file exists and get its media type.
-			// The loaded file data is only retained for synthetic
-			// pastes below; LLM dispatch re-resolves file content via
-			// chatFileResolver.
-			chatFile, err := db.GetChatFileByID(ctx, part.FileID)
-			if err != nil {
-				if httpapi.Is404Error(err) {
-					return nil, nil, &codersdk.Response{
-						Message: "Invalid input part.",
-						Detail:  fmt.Sprintf("%s[%d].file_id references a file that does not exist.", fieldName, i),
-					}
-				}
+			// LLM dispatch resolves file content via chatFileResolver,
+			// so only metadata is loaded here.
+			chatFile, inputErr := chatInputFileMetadata(ctx, db, part.FileID, fieldName, i)
+			if inputErr != nil {
+				return nil, nil, inputErr
+			}
+			// Workspace files may be any type and up to 100 MiB, so they
+			// must never reach a provider through a file part.
+			if chatFile.Purpose == database.ChatFilePurposeWorkspace {
 				return nil, nil, &codersdk.Response{
-					Message: "Internal error.",
-					Detail:  fmt.Sprintf("Failed to retrieve file for %s[%d].", fieldName, i),
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].file_id references a workspace file. Use a %s part instead.", fieldName, i, codersdk.ChatInputPartTypeWorkspaceAttachment),
 				}
 			}
 			if !chatfiles.IsAllowedPromptInputMediaType(chatFile.Mimetype) {
@@ -7765,11 +8072,57 @@ func createChatInputFromParts(
 			// Retain blob references for create-time title derivation;
 			// send and edit paths discard the map.
 			if chatprompt.IsSyntheticPaste(chatFile.Name, chatFile.Mimetype) {
+				paste, err := db.GetChatFileByID(ctx, part.FileID)
+				if err != nil {
+					return nil, nil, &codersdk.Response{
+						Message: "Internal error.",
+						Detail:  fmt.Sprintf("Failed to retrieve file for %s[%d].", fieldName, i),
+					}
+				}
 				if pasteData == nil {
 					pasteData = make(map[uuid.UUID][]byte)
 				}
-				pasteData[part.FileID] = chatFile.Data
+				pasteData[part.FileID] = paste.Data
 			}
+		case string(codersdk.ChatInputPartTypeWorkspaceAttachment):
+			if part.FileID == uuid.Nil {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].file_id is required for workspace-attachment parts.", fieldName, i),
+				}
+			}
+			chatFile, inputErr := chatInputFileMetadata(ctx, db, part.FileID, fieldName, i)
+			if inputErr != nil {
+				return nil, nil, inputErr
+			}
+			if chatFile.Purpose != database.ChatFilePurposeWorkspace {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].file_id must reference a file uploaded with purpose %q.", fieldName, i, codersdk.ChatFilePurposeWorkspace),
+				}
+			}
+			uploadedByParticipant := chatFile.OwnerID == files.ownerID || chatFile.OwnerID == files.callerID
+			if !uploadedByParticipant && chatID != uuid.Nil && linkedFileIDs == nil {
+				linked, err := db.GetChatFileMetadataByChatID(ctx, chatID)
+				if err != nil {
+					return nil, nil, &codersdk.Response{
+						Message: "Internal error.",
+						Detail:  fmt.Sprintf("Failed to retrieve the chat's files for %s[%d]: %s", fieldName, i, err),
+					}
+				}
+				linkedFileIDs = make(map[uuid.UUID]struct{}, len(linked))
+				for _, file := range linked {
+					linkedFileIDs[file.ID] = struct{}{}
+				}
+			}
+			_, linkedToChat := linkedFileIDs[part.FileID]
+			if chatFile.OrganizationID != files.organizationID || (!uploadedByParticipant && !linkedToChat) {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].file_id must reference a workspace file you or the chat owner uploaded in the chat's organization.", fieldName, i),
+				}
+			}
+			content = append(content, codersdk.ChatMessageWorkspaceAttachment(part.FileID, chatFile.Mimetype, chatFile.Name, chatFile.SizeBytes))
 		// file-reference parts carry inline code snippets, not uploaded
 		// files. They have no FileID and are excluded from file tracking.
 		case string(codersdk.ChatInputPartTypeFileReference):
@@ -7869,6 +8222,33 @@ func createChatInputFromParts(
 		}
 	}
 	return content, pasteData, nil
+}
+
+// chatInputFileMetadata loads the metadata of a file referenced by an
+// input part through the caller's authorized store. Uploads stay unlinked
+// until a message references them, and chat creation has no chat ID yet,
+// so files are looked up by ID.
+func chatInputFileMetadata(
+	ctx context.Context,
+	db database.Store,
+	fileID uuid.UUID,
+	fieldName string,
+	index int,
+) (database.GetChatFilesMetadataByIDsRow, *codersdk.Response) {
+	rows, err := db.GetChatFilesMetadataByIDs(ctx, []uuid.UUID{fileID})
+	if err != nil && !httpapi.Is404Error(err) {
+		return database.GetChatFilesMetadataByIDsRow{}, &codersdk.Response{
+			Message: "Internal error.",
+			Detail:  fmt.Sprintf("Failed to retrieve file for %s[%d].", fieldName, index),
+		}
+	}
+	if err != nil || len(rows) == 0 {
+		return database.GetChatFilesMetadataByIDsRow{}, &codersdk.Response{
+			Message: "Invalid input part.",
+			Detail:  fmt.Sprintf("%s[%d].file_id references a file that does not exist.", fieldName, index),
+		}
+	}
+	return rows[0], nil
 }
 
 // maxPromptRequestBodyBytes allows twice the prompt limit for JSON escaping

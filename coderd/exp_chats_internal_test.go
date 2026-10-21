@@ -16,6 +16,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -839,4 +840,160 @@ func TestWorkspaceUsageReader(t *testing.T) {
 	require.Zero(t, n)
 	require.ErrorIs(t, err, io.EOF)
 	require.Equal(t, 2, reports, "empty reads must not count as usage")
+}
+
+func TestUploadBodyDeadline(t *testing.T) {
+	t.Parallel()
+
+	const (
+		idle        = 10 * time.Second
+		maxDuration = 60 * time.Second
+	)
+	// start serves one upload whose body the client writes through the
+	// returned pipe, and returns the response status once it arrives.
+	start := func(t *testing.T) (*quartz.Mock, *io.PipeWriter, <-chan int) {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clock := quartz.NewMock(t)
+		armed := clock.Trap().AfterFunc("chatFileUpload", "max")
+		defer armed.Close()
+		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			body := newUploadBodyDeadline(r.Context(), slogtest.Make(t, nil), clock, rw, r.Body, idle, maxDuration)
+			_, err := io.ReadAll(body)
+			switch {
+			case body.finish():
+				rw.WriteHeader(http.StatusRequestTimeout)
+			case err != nil:
+				rw.WriteHeader(http.StatusInternalServerError)
+			default:
+				rw.WriteHeader(http.StatusOK)
+			}
+		}))
+		t.Cleanup(srv.Close)
+
+		pr, pw := io.Pipe()
+		t.Cleanup(func() { _ = pw.Close() })
+		status := make(chan int, 1)
+		go func() {
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, srv.URL, pr)
+			if !assert.NoError(t, err) {
+				return
+			}
+			res, err := srv.Client().Do(req)
+			if !assert.NoError(t, err) {
+				return
+			}
+			defer res.Body.Close()
+			status <- res.StatusCode
+		}()
+		armed.MustWait(ctx).MustRelease(ctx)
+		return clock, pw, status
+	}
+	receive := func(t *testing.T, status <-chan int) int {
+		t.Helper()
+		select {
+		case got := <-status:
+			return got
+		case <-testutil.Context(t, testutil.WaitLong).Done():
+			require.FailNow(t, "upload did not finish")
+			return 0
+		}
+	}
+
+	t.Run("CompleteBody", func(t *testing.T) {
+		t.Parallel()
+		_, pw, status := start(t)
+		_, err := pw.Write([]byte("payload"))
+		require.NoError(t, err)
+		require.NoError(t, pw.Close())
+		require.Equal(t, http.StatusOK, receive(t, status))
+	})
+
+	t.Run("StalledBody", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clock, _, status := start(t)
+		clock.Advance(idle).MustWait(ctx)
+		require.Equal(t, http.StatusRequestTimeout, receive(t, status))
+	})
+
+	t.Run("TricklingBody", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clock, pw, status := start(t)
+		reset := clock.Trap().TimerReset("chatFileUpload", "idle")
+		defer reset.Close()
+		// Each byte arrives before the idle timeout, so only the maximum
+		// duration ends the upload.
+		for elapsed := time.Duration(0); elapsed < maxDuration; elapsed += idle / 2 {
+			_, err := pw.Write([]byte("x"))
+			require.NoError(t, err)
+			reset.MustWait(ctx).MustRelease(ctx)
+			clock.Advance(idle / 2).MustWait(ctx)
+		}
+		require.Equal(t, http.StatusRequestTimeout, receive(t, status))
+	})
+}
+
+func TestUploadMemoryBudget(t *testing.T) {
+	t.Parallel()
+
+	const share = 100
+	acquire := func(t *testing.T, b *uploadMemoryBudget, userID uuid.UUID, n int64) func() {
+		t.Helper()
+		release, err := b.acquire(testutil.Context(t, testutil.WaitShort), userID, n)
+		require.NoError(t, err)
+		return release
+	}
+	// requireBlocked asserts that the reservation is still waiting when
+	// its context ends, and returns nothing to release.
+	requireBlocked := func(t *testing.T, b *uploadMemoryBudget, userID uuid.UUID, n int64) {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(testutil.Context(t, testutil.WaitShort), testutil.IntervalMedium)
+		defer cancel()
+		_, err := b.acquire(ctx, userID, n)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+	}
+
+	t.Run("UserShare", func(t *testing.T) {
+		t.Parallel()
+		b := newUploadMemoryBudget(3*share, share)
+		busy, other := uuid.New(), uuid.New()
+		releaseBusy := acquire(t, b, busy, share)
+		// A user with a full share waits even though the pool has room,
+		// and does not delay other users.
+		requireBlocked(t, b, busy, 1)
+		acquire(t, b, other, share)()
+		releaseBusy()
+		acquire(t, b, busy, share)()
+	})
+
+	t.Run("ReplicaPool", func(t *testing.T) {
+		t.Parallel()
+		b := newUploadMemoryBudget(2*share, share)
+		first, second, third := uuid.New(), uuid.New(), uuid.New()
+		releaseFirst := acquire(t, b, first, share)
+		releaseSecond := acquire(t, b, second, share/2)
+		releaseThird := acquire(t, b, third, share/2)
+		// The third user's share had room, so the wait on the full pool
+		// must return what it took from the share, or the next
+		// reservation would block on the share.
+		requireBlocked(t, b, third, share/2)
+		releaseSecond()
+		acquire(t, b, third, share/2)()
+		releaseThird()
+		releaseFirst()
+		require.Empty(t, b.users)
+	})
+
+	t.Run("OversizedRequest", func(t *testing.T) {
+		t.Parallel()
+		b := newUploadMemoryBudget(2*share, share)
+		user := uuid.New()
+		// A request larger than the share reserves the whole share.
+		release := acquire(t, b, user, 10*share)
+		requireBlocked(t, b, user, 1)
+		release()
+		acquire(t, b, user, share)()
+	})
 }

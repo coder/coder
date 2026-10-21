@@ -53,6 +53,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -12999,6 +13000,363 @@ This arrived as octet-stream.
 	})
 }
 
+func TestChatWorkspaceAttachments(t *testing.T) {
+	t.Parallel()
+
+	key := jwtutils.StaticKey{ID: "1", Key: []byte(strings.Repeat("k", 64))}
+	client, db := newChatClientWithDatabase(t, func(options *coderdtest.Options) {
+		options.ChatFileTokenKeyCache = key
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModel(t, client)
+
+	zipBytes := func(size int) []byte {
+		data := make([]byte, size)
+		copy(data, "PK\x03\x04")
+		return data
+	}
+	uploadWorkspaceFile := func(ctx context.Context, t *testing.T, name string, data []byte) uuid.UUID {
+		t.Helper()
+		uploaded, err := client.UploadChatFileWithPurpose(ctx, firstUser.OrganizationID, codersdk.ChatFilePurposeWorkspace, "application/zip", name, bytes.NewReader(data))
+		require.NoError(t, err)
+		return uploaded.ID
+	}
+	// Minting refuses workspace files, so sign a token directly to reach
+	// the signed download route.
+	signedDownload := func(ctx context.Context, t *testing.T, fileID uuid.UUID) (int, http.Header) {
+		t.Helper()
+		token, err := jwtutils.Sign(ctx, key, coderd.ChatFileDownloadClaims{
+			RegisteredClaims: jwtutils.RegisteredClaims{
+				Expiry:   jwt.NewNumericDate(time.Now().Add(time.Minute)),
+				IssuedAt: jwt.NewNumericDate(time.Now()),
+			},
+			FileID: fileID,
+			UserID: firstUser.UserID,
+		})
+		require.NoError(t, err)
+		downloadURL := client.URL.JoinPath("api", "v2", "chats", "files", fileID.String(), "download")
+		downloadURL.RawQuery = url.Values{"token": {token}}.Encode()
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadURL.String(), nil)
+		require.NoError(t, err)
+		res, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		return res.StatusCode, res.Header
+	}
+	attachmentPart := func(t *testing.T, parts []codersdk.ChatMessagePart) codersdk.ChatMessagePart {
+		t.Helper()
+		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeWorkspaceAttachment {
+				return part
+			}
+		}
+		require.FailNow(t, "message has no workspace-attachment part")
+		return codersdk.ChatMessagePart{}
+	}
+
+	// deliverWorkspaceFile binds the chat to a started workspace and
+	// records the file's delivery the way the chatd delivery loop does.
+	deliverWorkspaceFile := func(ctx context.Context, t *testing.T, chatID, fileID uuid.UUID, deliveredPath string) {
+		t.Helper()
+		//nolint:gocritic // Test simulates the chatd delivery loop.
+		chatdCtx := dbauthz.AsChatd(ctx)
+		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        firstUser.UserID,
+		}).WithAgent().Do()
+		//nolint:gocritic // Test marks the agent's startup finished.
+		require.NoError(t, db.UpdateWorkspaceAgentLifecycleStateByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+			ID:             workspaceBuild.Agents[0].ID,
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		}))
+		_, err := db.UpdateChatWorkspaceBinding(chatdCtx, database.UpdateChatWorkspaceBindingParams{
+			ID:          chatID,
+			WorkspaceID: uuid.NullUUID{UUID: workspaceBuild.Workspace.ID, Valid: true},
+		})
+		require.NoError(t, err)
+		// Claim as of an hour ahead so a claim the server's own delivery
+		// loop may hold has expired and cannot record an outcome.
+		now := dbtime.Now().Add(time.Hour)
+		claimed, err := db.AcquireChatWorkspaceFileDeliveries(chatdCtx, database.AcquireChatWorkspaceFileDeliveriesParams{
+			Now:                     now,
+			LeaseExpiresAt:          now.Add(time.Hour),
+			MinUploadBytesPerSecond: 1 << 20,
+			ChatAgentSuffix:         agentselect.Suffix,
+			MaxAttempts:             database.ChatWorkspaceFileMaxDeliveryAttempts,
+			ChatID:                  uuid.NullUUID{UUID: chatID, Valid: true},
+			LimitVal:                1,
+		})
+		require.NoError(t, err)
+		require.Len(t, claimed, 1)
+		require.Equal(t, fileID, claimed[0].ID)
+		completed, err := db.CompleteChatWorkspaceFileDelivery(chatdCtx, database.CompleteChatWorkspaceFileDeliveryParams{
+			ID:                   fileID,
+			DeliveredAt:          now,
+			DeliveredPath:        deliveredPath,
+			DeliveredWorkspaceID: workspaceBuild.Workspace.ID,
+			LeaseExpiresAt:       claimed[0].LeaseExpiresAt,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, completed)
+	}
+
+	t.Run("UploadLimits", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+		// Above the 10 MiB prompt limit, so only the workspace purpose
+		// stores it.
+		archive := zipBytes(11 << 20)
+
+		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "application/zip", "archive.zip", bytes.NewReader(archive))
+		requireSDKError(t, err, http.StatusBadRequest)
+		_, err = client.UploadChatFileWithPurpose(ctx, firstUser.OrganizationID, codersdk.ChatFilePurpose("bogus"), "application/zip", "archive.zip", bytes.NewReader(archive[:4096]))
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid purpose query parameter.", sdkErr.Message)
+
+		// Streamed so the client never holds the oversized body.
+		oversized := io.LimitReader(zeroReader{}, codersdk.MaxChatWorkspaceFileSizeBytes+1)
+		_, err = client.UploadChatFileWithPurpose(ctx, firstUser.OrganizationID, codersdk.ChatFilePurposeWorkspace, "application/zip", "huge.zip", oversized)
+		// The server may close the connection before the client finishes
+		// sending, which surfaces as a transport error with no response.
+		if sdkErr, ok := stderrors.AsType[*codersdk.Error](err); ok {
+			require.Equal(t, http.StatusRequestEntityTooLarge, sdkErr.StatusCode())
+		} else {
+			require.Error(t, err)
+		}
+
+		fileID := uploadWorkspaceFile(ctx, t, "archive.zip", archive)
+		//nolint:gocritic // Reads the stored bytes, which no user route serves.
+		stored, err := db.GetChatFileByID(dbauthz.AsSystemRestricted(ctx), fileID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatFilePurposeWorkspace, stored.Purpose)
+		require.Equal(t, "application/zip", stored.Mimetype)
+		require.Equal(t, archive, stored.Data)
+	})
+
+	t.Run("RefusesDownloadsBeforeDelivery", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		fileID := uploadWorkspaceFile(ctx, t, "archive.zip", zipBytes(4096))
+		_, _, err := client.GetChatFile(ctx, fileID)
+		requireSDKError(t, err, http.StatusForbidden)
+		_, err = client.ChatFileDownloadURL(ctx, fileID)
+		requireSDKError(t, err, http.StatusForbidden)
+		status, header := signedDownload(ctx, t, fileID)
+		require.Equal(t, http.StatusForbidden, status)
+		require.Equal(t, "no-store", header.Get("Cache-Control"))
+	})
+
+	t.Run("CreateDeliverEdit", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		data := zipBytes(4096)
+		fileID := uploadWorkspaceFile(ctx, t, "my report?.zip", data)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "unpack this"},
+				{Type: codersdk.ChatInputPartTypeWorkspaceAttachment, FileID: fileID},
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, chat.Files, 1)
+		require.Equal(t, fileID, chat.Files[0].ID)
+		require.Equal(t, "my_report_.zip", chat.Files[0].Name)
+
+		messages, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		var userMessage codersdk.ChatMessage
+		for _, message := range messages.Messages {
+			if message.Role == codersdk.ChatMessageRoleUser {
+				userMessage = message
+				break
+			}
+		}
+		require.NotZero(t, userMessage.ID)
+		wantPart := codersdk.ChatMessageWorkspaceAttachment(fileID, "application/zip", "my_report_.zip", int64(len(data)))
+		require.Equal(t, wantPart, attachmentPart(t, userMessage.Content))
+
+		deliverWorkspaceFile(ctx, t, chat.ID, fileID, "~/.coder/chats/"+chat.ID.String()+"/files/"+fileID.String()+"/my_report_.zip")
+
+		_, _, err = client.GetChatFile(ctx, fileID)
+		requireSDKError(t, err, http.StatusGone)
+		_, err = client.ChatFileDownloadURL(ctx, fileID)
+		requireSDKError(t, err, http.StatusGone)
+		status, _ := signedDownload(ctx, t, fileID)
+		require.Equal(t, http.StatusGone, status)
+
+		edited, err := client.EditChatMessage(ctx, chat.ID, userMessage.ID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "unpack this again"},
+				{Type: codersdk.ChatInputPartTypeWorkspaceAttachment, FileID: fileID},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, wantPart, attachmentPart(t, edited.Message.Content))
+	})
+
+	t.Run("SendLinksFile", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+		})
+		require.NoError(t, err)
+		require.Empty(t, chat.Files)
+
+		fileID := uploadWorkspaceFile(ctx, t, "tools.tar.gz", zipBytes(128))
+		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeWorkspaceAttachment, FileID: fileID}},
+		})
+		require.NoError(t, err)
+
+		chat, err = client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, chat.Files, 1)
+		require.Equal(t, fileID, chat.Files[0].ID)
+	})
+
+	t.Run("RejectsOtherUsersFiles", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		victimRaw, victim := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		victimClient := codersdk.NewExperimentalClient(victimRaw)
+		orgAdminRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID))
+		orgAdminClient := codersdk.NewExperimentalClient(orgAdminRaw)
+		uploaded, err := victimClient.UploadChatFileWithPurpose(ctx, firstUser.OrganizationID, codersdk.ChatFilePurposeWorkspace, "application/zip", "secret.zip", bytes.NewReader(zipBytes(256)))
+		require.NoError(t, err)
+		//nolint:gocritic // Plants a file in another organization, which no user route can do.
+		foreign, err := db.InsertChatFile(dbauthz.AsSystemRestricted(ctx), database.InsertChatFileParams{
+			OwnerID:        firstUser.UserID,
+			OrganizationID: dbgen.Organization(t, db, database.Organization{}).ID,
+			Name:           "foreign.zip",
+			Mimetype:       "application/zip",
+			Data:           zipBytes(256),
+			Purpose:        database.NullChatFilePurpose{ChatFilePurpose: database.ChatFilePurposeWorkspace, Valid: true},
+		})
+		require.NoError(t, err)
+
+		attach := func(fileID uuid.UUID) []codersdk.ChatInputPart {
+			return []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeWorkspaceAttachment, FileID: fileID}}
+		}
+		requireRejected := func(t *testing.T, err error) {
+			t.Helper()
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Contains(t, sdkErr.Detail, "content[0].file_id must reference a workspace file")
+		}
+		// Site owners and org admins can read the victim's file, but must
+		// not link it into their own chats, where delivery would consume
+		// its bytes.
+		for name, attacker := range map[string]*codersdk.ExperimentalClient{"SiteOwner": client, "OrgAdmin": orgAdminClient} {
+			_, err := attacker.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: attach(uploaded.ID)})
+			requireRejected(t, err)
+			own, err := attacker.CreateChat(ctx, codersdk.CreateChatRequest{
+				OrganizationID: firstUser.OrganizationID,
+				Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+			})
+			require.NoError(t, err, name)
+			_, err = attacker.CreateChatMessage(ctx, own.ID, codersdk.CreateChatMessageRequest{Content: attach(uploaded.ID)})
+			requireRejected(t, err)
+		}
+		_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: attach(foreign.ID)})
+		requireRejected(t, err)
+
+		chat, err := victimClient.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: attach(uploaded.ID)})
+		require.NoError(t, err)
+		require.Equal(t, victim.ID, chat.OwnerID)
+		require.Len(t, chat.Files, 1)
+		require.Equal(t, uploaded.ID, chat.Files[0].ID)
+
+		// A chat created on behalf of another user may use files the
+		// caller uploaded.
+		callerFileID := uploadWorkspaceFile(ctx, t, "mine.zip", zipBytes(256))
+		onBehalf, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        &victim.ID,
+			Content:        attach(callerFileID),
+		})
+		require.NoError(t, err)
+		require.Equal(t, victim.ID, onBehalf.OwnerID)
+	})
+
+	t.Run("OwnerEditKeepsLinkedCallerFile", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		memberRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberRaw)
+		attach := func(fileID uuid.UUID) []codersdk.ChatInputPart {
+			return []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeWorkspaceAttachment, FileID: fileID}}
+		}
+		adminFileID := uploadWorkspaceFile(ctx, t, "admin.zip", zipBytes(256))
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        &member.ID,
+			Content:        attach(adminFileID),
+		})
+		require.NoError(t, err)
+
+		messages, err := memberClient.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		var userMessageID int64
+		for _, message := range messages.Messages {
+			if message.Role == codersdk.ChatMessageRoleUser {
+				userMessageID = message.ID
+				break
+			}
+		}
+		require.NotZero(t, userMessageID)
+
+		// The file is already linked to the chat, so its owner keeps it
+		// even though only the administrator uploaded it.
+		edited, err := memberClient.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+			Content: append(attach(adminFileID), codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeText, Text: "edited"}),
+		})
+		require.NoError(t, err)
+		require.Equal(t, uuid.NullUUID{UUID: adminFileID, Valid: true}, attachmentPart(t, edited.Message.Content).FileID)
+	})
+
+	t.Run("RejectsMismatchedPurpose", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		workspaceFileID := uploadWorkspaceFile(ctx, t, "photo.png", pngData)
+		promptFile, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "photo.png", bytes.NewReader(pngData))
+		require.NoError(t, err)
+
+		for _, tc := range []struct {
+			name   string
+			part   codersdk.ChatInputPart
+			detail string
+		}{
+			{
+				name:   "FilePartWithWorkspaceFile",
+				part:   codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeFile, FileID: workspaceFileID},
+				detail: "references a workspace file",
+			},
+			{
+				name:   "WorkspaceAttachmentWithPromptFile",
+				part:   codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeWorkspaceAttachment, FileID: promptFile.ID},
+				detail: `uploaded with purpose "workspace"`,
+			},
+		} {
+			_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+				OrganizationID: firstUser.OrganizationID,
+				Content:        []codersdk.ChatInputPart{tc.part},
+			})
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Contains(t, sdkErr.Detail, tc.detail, tc.name)
+		}
+	})
+}
+
 func TestGetChatFile(t *testing.T) {
 	t.Parallel()
 
@@ -18936,6 +19294,14 @@ func TestGetChatMessages_TurnStartID(t *testing.T) {
 		require.NotEmpty(t, resp.Messages)
 		require.Nil(t, resp.TurnStartID)
 	})
+}
+
+// zeroReader is an endless source of zero bytes.
+type zeroReader struct{}
+
+func (zeroReader) Read(p []byte) (int, error) {
+	clear(p)
+	return len(p), nil
 }
 
 func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Error {

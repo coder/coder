@@ -3751,16 +3751,7 @@ const docTemplate = `{
         "/api/v2/chats/files": {
             "post": {
                 "consumes": [
-                    "image/png",
-                    "image/jpeg",
-                    "image/gif",
-                    "image/webp",
-                    "image/svg+xml",
-                    "text/plain",
-                    "text/markdown",
-                    "text/csv",
-                    "application/json",
-                    "application/pdf"
+                    "application/octet-stream"
                 ],
                 "produces": [
                     "application/json"
@@ -3778,6 +3769,16 @@ const docTemplate = `{
                         "name": "organization",
                         "in": "query",
                         "required": true
+                    },
+                    {
+                        "enum": [
+                            "prompt",
+                            "workspace"
+                        ],
+                        "type": "string",
+                        "description": "File purpose. Prompt files accept image/png, image/jpeg, image/gif, image/webp, image/svg+xml, text/plain, text/markdown, text/csv, application/json and application/pdf up to 10 MiB. Workspace files accept any type up to 100 MiB and are copied into the chat's workspace instead of being sent to the model",
+                        "name": "purpose",
+                        "in": "query"
                     },
                     {
                         "type": "string",
@@ -3804,8 +3805,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.UploadChatFileResponse"
                         }
                     },
+                    "408": {
+                        "description": "Workspace file body stalled for 30 seconds or took over 30 minutes",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
                     "413": {
-                        "description": "Request body exceeds 10 MiB",
+                        "description": "Request body exceeds 10 MiB, or 100 MiB for workspace files",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
@@ -3823,18 +3830,6 @@ const docTemplate = `{
         },
         "/api/v2/chats/files/{file}": {
             "get": {
-                "produces": [
-                    "image/png",
-                    "image/jpeg",
-                    "image/gif",
-                    "image/webp",
-                    "image/svg+xml",
-                    "text/plain",
-                    "text/markdown",
-                    "text/csv",
-                    "application/json",
-                    "application/pdf"
-                ],
                 "tags": [
                     "Chats"
                 ],
@@ -3853,6 +3848,18 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
+                    },
+                    "403": {
+                        "description": "Workspace files are copied into the chat's workspace and cannot be downloaded",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "410": {
+                        "description": "Workspace file was copied into the chat's workspace and is no longer stored",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -3864,18 +3871,6 @@ const docTemplate = `{
         },
         "/api/v2/chats/files/{file}/download": {
             "get": {
-                "produces": [
-                    "image/png",
-                    "image/jpeg",
-                    "image/gif",
-                    "image/webp",
-                    "image/svg+xml",
-                    "text/plain",
-                    "text/markdown",
-                    "text/csv",
-                    "application/json",
-                    "application/pdf"
-                ],
                 "tags": [
                     "Chats"
                 ],
@@ -3901,6 +3896,18 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
+                    },
+                    "403": {
+                        "description": "Workspace files are copied into the chat's workspace and cannot be downloaded",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "410": {
+                        "description": "Workspace file was copied into the chat's workspace and is no longer stored",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "x-apidocgen": {
@@ -3933,6 +3940,18 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ChatFileDownloadURLResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Workspace files are copied into the chat's workspace and cannot be downloaded",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "410": {
+                        "description": "Workspace file was copied into the chat's workspace and is no longer stored",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -22108,13 +22127,15 @@ const docTemplate = `{
                 "text",
                 "file",
                 "file-reference",
-                "workspace-file-reference"
+                "workspace-file-reference",
+                "workspace-attachment"
             ],
             "x-enum-varnames": [
                 "ChatInputPartTypeText",
                 "ChatInputPartTypeFile",
                 "ChatInputPartTypeFileReference",
-                "ChatInputPartTypeWorkspaceFileReference"
+                "ChatInputPartTypeWorkspaceFileReference",
+                "ChatInputPartTypeWorkspaceAttachment"
             ]
         },
         "codersdk.ChatMessage": {
@@ -22288,6 +22309,10 @@ const docTemplate = `{
                 "result_reset": {
                     "type": "boolean"
                 },
+                "size": {
+                    "description": "Size is the byte size of a workspace attachment, filled in by the\nserver.",
+                    "type": "integer"
+                },
                 "skill_description": {
                     "description": "SkillDescription is the short description from the skill's\nSKILL.md frontmatter.",
                     "type": "string"
@@ -22360,6 +22385,7 @@ const docTemplate = `{
                 "context-file",
                 "skill",
                 "workspace-file-reference",
+                "workspace-attachment",
                 "hook-context",
                 "hook-notice"
             ],
@@ -22374,6 +22400,7 @@ const docTemplate = `{
                 "ChatMessagePartTypeContextFile",
                 "ChatMessagePartTypeSkill",
                 "ChatMessagePartTypeWorkspaceFileReference",
+                "ChatMessagePartTypeWorkspaceAttachment",
                 "ChatMessagePartTypeHookContext",
                 "ChatMessagePartTypeHookNotice"
             ]

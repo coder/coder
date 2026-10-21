@@ -3337,18 +3337,7 @@
 		},
 		"/api/v2/chats/files": {
 			"post": {
-				"consumes": [
-					"image/png",
-					"image/jpeg",
-					"image/gif",
-					"image/webp",
-					"image/svg+xml",
-					"text/plain",
-					"text/markdown",
-					"text/csv",
-					"application/json",
-					"application/pdf"
-				],
+				"consumes": ["application/octet-stream"],
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Upload chat file",
@@ -3361,6 +3350,13 @@
 						"name": "organization",
 						"in": "query",
 						"required": true
+					},
+					{
+						"enum": ["prompt", "workspace"],
+						"type": "string",
+						"description": "File purpose. Prompt files accept image/png, image/jpeg, image/gif, image/webp, image/svg+xml, text/plain, text/markdown, text/csv, application/json and application/pdf up to 10 MiB. Workspace files accept any type up to 100 MiB and are copied into the chat's workspace instead of being sent to the model",
+						"name": "purpose",
+						"in": "query"
 					},
 					{
 						"type": "string",
@@ -3387,8 +3383,14 @@
 							"$ref": "#/definitions/codersdk.UploadChatFileResponse"
 						}
 					},
+					"408": {
+						"description": "Workspace file body stalled for 30 seconds or took over 30 minutes",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
+					},
 					"413": {
-						"description": "Request body exceeds 10 MiB",
+						"description": "Request body exceeds 10 MiB, or 100 MiB for workspace files",
 						"schema": {
 							"$ref": "#/definitions/codersdk.Response"
 						}
@@ -3406,18 +3408,6 @@
 		},
 		"/api/v2/chats/files/{file}": {
 			"get": {
-				"produces": [
-					"image/png",
-					"image/jpeg",
-					"image/gif",
-					"image/webp",
-					"image/svg+xml",
-					"text/plain",
-					"text/markdown",
-					"text/csv",
-					"application/json",
-					"application/pdf"
-				],
 				"tags": ["Chats"],
 				"summary": "Get chat file",
 				"operationId": "get-chat-file",
@@ -3434,6 +3424,18 @@
 				"responses": {
 					"200": {
 						"description": "OK"
+					},
+					"403": {
+						"description": "Workspace files are copied into the chat's workspace and cannot be downloaded",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
+					},
+					"410": {
+						"description": "Workspace file was copied into the chat's workspace and is no longer stored",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
 					}
 				},
 				"security": [
@@ -3445,18 +3447,6 @@
 		},
 		"/api/v2/chats/files/{file}/download": {
 			"get": {
-				"produces": [
-					"image/png",
-					"image/jpeg",
-					"image/gif",
-					"image/webp",
-					"image/svg+xml",
-					"text/plain",
-					"text/markdown",
-					"text/csv",
-					"application/json",
-					"application/pdf"
-				],
 				"tags": ["Chats"],
 				"summary": "Download chat file with signed token",
 				"operationId": "download-chat-file-with-signed-token",
@@ -3480,6 +3470,18 @@
 				"responses": {
 					"200": {
 						"description": "OK"
+					},
+					"403": {
+						"description": "Workspace files are copied into the chat's workspace and cannot be downloaded",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
+					},
+					"410": {
+						"description": "Workspace file was copied into the chat's workspace and is no longer stored",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
 					}
 				},
 				"x-apidocgen": {
@@ -3508,6 +3510,18 @@
 						"description": "OK",
 						"schema": {
 							"$ref": "#/definitions/codersdk.ChatFileDownloadURLResponse"
+						}
+					},
+					"403": {
+						"description": "Workspace files are copied into the chat's workspace and cannot be downloaded",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
+					},
+					"410": {
+						"description": "Workspace file was copied into the chat's workspace and is no longer stored",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
 				},
@@ -19959,12 +19973,19 @@
 		},
 		"codersdk.ChatInputPartType": {
 			"type": "string",
-			"enum": ["text", "file", "file-reference", "workspace-file-reference"],
+			"enum": [
+				"text",
+				"file",
+				"file-reference",
+				"workspace-file-reference",
+				"workspace-attachment"
+			],
 			"x-enum-varnames": [
 				"ChatInputPartTypeText",
 				"ChatInputPartTypeFile",
 				"ChatInputPartTypeFileReference",
-				"ChatInputPartTypeWorkspaceFileReference"
+				"ChatInputPartTypeWorkspaceFileReference",
+				"ChatInputPartTypeWorkspaceAttachment"
 			]
 		},
 		"codersdk.ChatMessage": {
@@ -20138,6 +20159,10 @@
 				"result_reset": {
 					"type": "boolean"
 				},
+				"size": {
+					"description": "Size is the byte size of a workspace attachment, filled in by the\nserver.",
+					"type": "integer"
+				},
 				"skill_description": {
 					"description": "SkillDescription is the short description from the skill's\nSKILL.md frontmatter.",
 					"type": "string"
@@ -20210,6 +20235,7 @@
 				"context-file",
 				"skill",
 				"workspace-file-reference",
+				"workspace-attachment",
 				"hook-context",
 				"hook-notice"
 			],
@@ -20224,6 +20250,7 @@
 				"ChatMessagePartTypeContextFile",
 				"ChatMessagePartTypeSkill",
 				"ChatMessagePartTypeWorkspaceFileReference",
+				"ChatMessagePartTypeWorkspaceAttachment",
 				"ChatMessagePartTypeHookContext",
 				"ChatMessagePartTypeHookNotice"
 			]

@@ -41,6 +41,9 @@ func executeReadFileTool(
 	conn workspacesdk.AgentConn,
 	args ReadFileArgs,
 ) (fantasy.ToolResponse, error) {
+	if err := resolveHomePaths(ctx, conn, &args.Path); err != nil {
+		return fantasy.NewTextErrorResponse(err.Error()), nil
+	}
 	result, err := workspacetools.ReadFile(ctx, conn, args.Path, args.Offset, args.Limit)
 	if err != nil {
 		return fantasy.NewTextErrorResponse(err.Error()), nil
