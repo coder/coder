@@ -112,8 +112,12 @@ const FilesBrowser: FC<FilesBrowserProps> = ({ chatId, workspaceFiles }) => {
 	};
 
 	const toggleDirectory = (path: string) => {
+		// Collapsing drops expanded descendants so their listings stop being
+		// observed and refreshed while hidden.
 		setExpandedPaths((paths) =>
-			paths.includes(path) ? paths.filter((p) => p !== path) : [...paths, path],
+			paths.includes(path)
+				? paths.filter((p) => p !== path && !p.startsWith(`${path}/`))
+				: [...paths, path],
 		);
 	};
 
@@ -204,6 +208,7 @@ type TreeRow =
 	| {
 			type: "entry";
 			entry: WorkspaceAgentFile;
+			index: number;
 			level: number;
 			parentPath: string | undefined;
 	  }
@@ -233,10 +238,10 @@ const DirectoryTree: FC<DirectoryTreeProps> = ({
 	const [focusedPath, setFocusedPath] = useState<string>();
 	const rowElements = useRef(new Map<string, HTMLDivElement>());
 
-	if (rootQuery.isPending) {
-		return <Loader className="flex-1" />;
-	}
-	if (rootQuery.isError) {
+	if (rootQuery.data === undefined) {
+		if (!rootQuery.isError) {
+			return <Loader className="flex-1" />;
+		}
 		return (
 			<div className="p-2">
 				{getErrorStatus(rootQuery.error) === 404 ? (
@@ -255,6 +260,7 @@ const DirectoryTree: FC<DirectoryTreeProps> = ({
 		expandedPaths.map((path, index) => [path, childQueries[index]]),
 	);
 	const rows: TreeRow[] = [];
+	let entryCount = 0;
 	const addEntries = (
 		entries: readonly WorkspaceAgentFile[],
 		level: number,
@@ -262,43 +268,54 @@ const DirectoryTree: FC<DirectoryTreeProps> = ({
 	) => {
 		for (const entry of entries) {
 			const path = entry.absolute_path_string;
-			rows.push({ type: "entry", entry, level, parentPath });
+			rows.push({
+				type: "entry",
+				entry,
+				index: entryCount++,
+				level,
+				parentPath,
+			});
 			const child = entry.is_dir ? childListings.get(path) : undefined;
 			if (!child) {
 				continue;
 			}
 			const childLevel = level + 1;
-			if (child.isPending) {
+			if (child.data === undefined) {
 				rows.push({
 					type: "status",
-					key: path,
+					key: `${path}:load`,
 					level: childLevel,
-					label: "Loading...",
+					label: child.isError
+						? directoryErrorMessage(child.error)
+						: "Loading...",
 				});
-			} else if (child.isError) {
+				continue;
+			}
+			if (child.isError) {
 				rows.push({
 					type: "status",
-					key: path,
+					key: `${path}:refetch`,
 					level: childLevel,
-					label: directoryErrorMessage(child.error),
+					label: `Refresh failed: ${directoryErrorMessage(child.error)}`,
 				});
-			} else if (child.data.contents.length === 0) {
+			}
+			if (child.data.contents.length === 0) {
 				rows.push({
 					type: "status",
-					key: path,
+					key: `${path}:empty`,
 					level: childLevel,
 					label: "Empty",
 				});
-			} else {
-				addEntries(child.data.contents, childLevel, path);
-				if (child.data.truncated) {
-					rows.push({
-						type: "status",
-						key: path,
-						level: childLevel,
-						label: "Some entries are not shown.",
-					});
-				}
+				continue;
+			}
+			addEntries(child.data.contents, childLevel, path);
+			if (child.data.truncated) {
+				rows.push({
+					type: "status",
+					key: `${path}:truncated`,
+					level: childLevel,
+					label: "Some entries are not shown.",
+				});
 			}
 		}
 	};
@@ -386,6 +403,14 @@ const DirectoryTree: FC<DirectoryTreeProps> = ({
 					This directory has more entries than the agent lists.
 				</p>
 			)}
+			{rootQuery.isError && (
+				<p
+					role="alert"
+					className="m-0 shrink-0 px-3 pt-1 text-xs text-content-destructive"
+				>
+					Refresh failed: {directoryErrorMessage(rootQuery.error)}
+				</p>
+			)}
 			{listing.contents.length === 0 ? (
 				<p className="m-0 p-3 text-sm text-content-secondary">
 					This directory is empty.
@@ -415,7 +440,7 @@ const DirectoryTree: FC<DirectoryTreeProps> = ({
 						const { entry } = row;
 						const path = entry.absolute_path_string;
 						const isExpanded = entry.is_dir && expandedPaths.includes(path);
-						const index = entryRows.indexOf(row);
+						const { index } = row;
 						return (
 							<div
 								key={path}
