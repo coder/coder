@@ -331,6 +331,8 @@ const partFileIds = (part: TypesGen.ChatMessagePart): string[] => {
 	switch (part.type) {
 		case "file":
 			return part.file_id ? [part.file_id] : [];
+		case "workspace-attachment":
+			return [part.file_id];
 		case "tool-result": {
 			const result = asRecord(part.result);
 			return [result?.recording_file_id, result?.thumbnail_file_id].filter(

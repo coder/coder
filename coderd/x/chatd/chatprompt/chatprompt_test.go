@@ -125,7 +125,7 @@ func TestConvertMessagesWithFilesPreservesEmptyReplayableReasoning(t *testing.T)
 					Content:        content,
 					ContentVersion: chatprompt.CurrentContentVersion,
 				},
-			}, nil, slogtest.Make(t, nil), nil, uuid.NullUUID{})
+			}, nil, nil, slogtest.Make(t, nil), nil, uuid.NullUUID{})
 			require.NoError(t, err)
 			require.Len(t, prompt, 1)
 			if !tt.kept {
@@ -214,7 +214,7 @@ func TestConvertMessagesWithFilesRoundTripsAnthropicInterleavedWebSearch(t *test
 			Content:        storedContent,
 			ContentVersion: chatprompt.CurrentContentVersion,
 		},
-	}, nil, slogtest.Make(t, nil), nil, uuid.NullUUID{})
+	}, nil, nil, slogtest.Make(t, nil), nil, uuid.NullUUID{})
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
 	require.Len(t, prompt[0].Content, 5)
@@ -264,6 +264,7 @@ func convertMessagesWithoutFiles(t *testing.T, messages []database.ChatMessage) 
 	prompt, err := chatprompt.ConvertMessagesWithFiles(
 		context.Background(),
 		messages,
+		nil,
 		nil,
 		slogtest.Make(t, nil),
 		nil,
@@ -406,6 +407,7 @@ func TestConvertMessagesWithFiles_ResolvesFileData(t *testing.T) {
 			},
 		},
 		resolver,
+		nil,
 		slogtest.Make(t, nil),
 		nil,
 		uuid.NullUUID{},
@@ -466,6 +468,7 @@ func TestConvertMessagesWithFiles_MissingFileBackedAttachmentBecomesTextPart(t *
 					Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
 				}},
 				resolver,
+				nil,
 				slogtest.Make(t, nil),
 				nil,
 				uuid.NullUUID{},
@@ -515,6 +518,7 @@ func TestConvertMessagesWithFiles_ResolvedZeroByteFileIsDropped(t *testing.T) {
 			Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
 		}},
 		resolver,
+		nil,
 		slogtest.Make(t, nil),
 		nil,
 		uuid.NullUUID{},
@@ -569,6 +573,7 @@ func TestConvertMessagesWithFiles_MixedResolvedAndMissingFilePartsInSingleMessag
 			Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
 		}},
 		resolver,
+		nil,
 		slogtest.Make(t, nil),
 		nil,
 		uuid.NullUUID{},
@@ -637,6 +642,7 @@ func TestConvertMessagesWithFiles_BackwardCompat(t *testing.T) {
 			},
 		},
 		resolver,
+		nil,
 		slogtest.Make(t, nil),
 		nil,
 		uuid.NullUUID{},
@@ -1602,6 +1608,7 @@ func TestProviderMetadataRoundTrip(t *testing.T) {
 			Content:    legacyContent,
 		}},
 		nil,
+		nil,
 		slogtest.Make(t, nil),
 		nil,
 		uuid.NullUUID{},
@@ -1651,6 +1658,7 @@ func TestFileReferencePreservation(t *testing.T) {
 			Visibility: database.ChatMessageVisibilityBoth,
 			Content:    raw,
 		}},
+		nil,
 		nil,
 		slogtest.Make(t, nil),
 		nil,
@@ -1708,6 +1716,7 @@ func TestAssistantWriteRoundTrip(t *testing.T) {
 			Visibility: database.ChatMessageVisibilityBoth,
 			Content:    raw,
 		}},
+		nil,
 		nil,
 		slogtest.Make(t, nil),
 		nil,
@@ -1855,7 +1864,7 @@ func TestMixedFormatConversation(t *testing.T) {
 	}
 
 	prompt, err := chatprompt.ConvertMessagesWithFiles(
-		context.Background(), messages, resolver, slogtest.Make(t, nil),
+		context.Background(), messages, resolver, nil, slogtest.Make(t, nil),
 		nil,
 		uuid.NullUUID{},
 	)
@@ -1976,6 +1985,7 @@ func TestQueuedMessageRoundTrip(t *testing.T) {
 			Visibility: database.ChatMessageVisibilityBoth,
 			Content:    pqtype.NullRawMessage{RawMessage: raw.RawMessage, Valid: true},
 		}},
+		nil,
 		nil,
 		slogtest.Make(t, nil),
 		nil,
@@ -2281,6 +2291,7 @@ func TestNulEscapeRoundTrip(t *testing.T) {
 			ctx,
 			[]database.ChatMessage{readBack},
 			nil,
+			nil,
 			slogtest.Make(t, nil),
 			nil,
 			uuid.NullUUID{},
@@ -2386,6 +2397,7 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 			context.Background(),
 			[]database.ChatMessage{makeMsg(t, database.ChatMessageRoleUser, parts)},
 			nil,
+			nil,
 			slogtest.Make(t, nil),
 			nil,
 			uuid.NullUUID{},
@@ -2434,6 +2446,7 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 			context.Background(),
 			[]database.ChatMessage{makeMsg(t, database.ChatMessageRoleAssistant, parts)},
 			nil,
+			nil,
 			slogtest.Make(t, nil),
 			nil,
 			uuid.NullUUID{},
@@ -2469,6 +2482,7 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 		prompt, err := chatprompt.ConvertMessagesWithFiles(
 			context.Background(),
 			[]database.ChatMessage{makeMsg(t, database.ChatMessageRoleAssistant, parts)},
+			nil,
 			nil,
 			slogtest.Make(t, nil),
 			nil,
@@ -2651,6 +2665,7 @@ func TestConvertMessagesWithFiles_AssistantAttachmentIsNotReplayed(t *testing.T)
 			},
 		},
 		resolver,
+		nil,
 		slogtest.Make(t, nil),
 		nil,
 		uuid.NullUUID{},
@@ -2706,6 +2721,7 @@ func convertSingleResolvedFileMessage(t *testing.T, fileID uuid.UUID, fileData c
 			Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
 		}},
 		resolver,
+		nil,
 		slogtest.Make(t, nil),
 		nil,
 		uuid.NullUUID{},
@@ -2797,7 +2813,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		dbMsgs, loadErr := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 		require.NoError(t, loadErr)
 		prompt, convErr := chatprompt.ConvertMessagesWithFiles(
-			ctx, dbMsgs, nil, slogtest.Make(t, nil),
+			ctx, dbMsgs, nil, nil, slogtest.Make(t, nil),
 			nil,
 			uuid.NullUUID{},
 		)

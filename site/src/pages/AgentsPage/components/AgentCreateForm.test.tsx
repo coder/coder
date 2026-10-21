@@ -90,6 +90,14 @@ const mockModelCatalog: TypesGen.OrganizationChatModelsResponse = {
 	unsupported_providers: [],
 };
 
+const mockOrganization2ModelCatalog: TypesGen.OrganizationChatModelsResponse = {
+	...mockModelCatalog,
+	models: mockModelCatalog.models.map((model) => ({
+		...model,
+		organization_id: MockOrganization2.id,
+	})),
+};
+
 const mockPersonalModelOverrides: TypesGen.UserChatPersonalModelOverridesResponse =
 	{
 		enabled: false,
@@ -146,21 +154,33 @@ const mockStoppedWorkspace: TypesGen.Workspace = {
 	},
 };
 
+const seedOrganizationQueries = (
+	queryClient: QueryClient,
+	organizationId: string,
+	modelCatalog: TypesGen.OrganizationChatModelsResponse,
+) => {
+	queryClient.setQueryData(
+		organizationChatModelsKey(organizationId),
+		modelCatalog,
+	);
+	queryClient.setQueryData(
+		userChatPersonalModelOverrides(organizationId).queryKey,
+		mockPersonalModelOverrides,
+	);
+	queryClient.setQueryData(mcpServerConfigsKey(organizationId), []);
+};
+
 const createQueryClient = () => {
 	const queryClient = new QueryClient({
 		defaultOptions: {
 			queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
 		},
 	});
-	queryClient.setQueryData(
-		organizationChatModelsKey(MockDefaultOrganization.id),
+	seedOrganizationQueries(
+		queryClient,
+		MockDefaultOrganization.id,
 		mockModelCatalog,
 	);
-	queryClient.setQueryData(
-		userChatPersonalModelOverrides(MockDefaultOrganization.id).queryKey,
-		mockPersonalModelOverrides,
-	);
-	queryClient.setQueryData(mcpServerConfigsKey(MockDefaultOrganization.id), []);
 	queryClient.setQueryData(preferenceSettingsKey, MockUserPreferenceSettings);
 	queryClient.setQueryData(
 		permittedOrganizationsKey({
@@ -239,6 +259,11 @@ const clickSend = async () => {
 const submitMessage = async (message: string) => {
 	await typeMessage(message);
 	await clickSend();
+};
+
+const switchOrganization = async (name: string) => {
+	await user().click(screen.getByRole("button", { name: /^Organization:/ }));
+	await user().click(await screen.findByRole("option", { name }));
 };
 
 const mockStagedUpload = () =>
@@ -462,6 +487,32 @@ describe("AgentCreateForm workspace file uploads", () => {
 			organizationId: MockDefaultOrganization.id,
 			workspaceId: mockWorkspace.id,
 			uploadWorkspaceFiles: expect.any(Function),
+		});
+	});
+
+	it("drops queued files when an organization change is confirmed", async () => {
+		dashboard.showOrganizations = true;
+		localStorage.setItem(selectedWorkspaceIdStorageKey, mockWorkspace.id);
+		const queryClient = createQueryClient();
+		seedOrganizationQueries(
+			queryClient,
+			MockOrganization2.id,
+			mockOrganization2ModelCatalog,
+		);
+		const uploadSpy = mockStagedUpload();
+		const { onCreateChat } = renderForm({}, { queryClient });
+
+		await attachZipFile();
+		await switchOrganization(MockOrganization2.display_name);
+		await user().click(await screen.findByRole("button", { name: "Continue" }));
+		await submitMessage("start over in another organization");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(uploadSpy).not.toHaveBeenCalled();
+		expect(submittedOptions(onCreateChat)).toMatchObject({
+			organizationId: MockOrganization2.id,
+			workspaceAttachmentFileIDs: [],
+			uploadWorkspaceFiles: undefined,
 		});
 	});
 
@@ -944,24 +995,14 @@ describe("AgentCreateForm project picker", () => {
 	it("clears the picked project when the organization changes", async () => {
 		dashboard.showOrganizations = true;
 		const queryClient = createProjectQueryClient();
-		queryClient.setQueryData(
-			organizationChatModelsKey(MockOrganization2.id),
-			mockModelCatalog,
+		seedOrganizationQueries(
+			queryClient,
+			MockOrganization2.id,
+			mockOrganization2ModelCatalog,
 		);
-		queryClient.setQueryData(
-			userChatPersonalModelOverrides(MockOrganization2.id).queryKey,
-			mockPersonalModelOverrides,
-		);
-		queryClient.setQueryData(mcpServerConfigsKey(MockOrganization2.id), []);
 		const { onCreateChat } = renderForm({}, { queryClient });
 
 		await pickProject(MockChatProject.name);
-		const switchOrganization = async (name: string) => {
-			await user().click(
-				screen.getByRole("button", { name: /^Organization:/ }),
-			);
-			await user().click(await screen.findByRole("option", { name }));
-		};
 		await switchOrganization(MockOrganization2.display_name);
 		await switchOrganization(MockDefaultOrganization.display_name);
 		await submitMessage("back in the first organization");

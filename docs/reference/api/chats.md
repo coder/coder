@@ -1421,7 +1421,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/chats/files?organization=497f6eca-6276-4993-bfeb-53cbbbba6f08 \
-  -H 'Content-Type: image/png' \
+  -H 'Content-Type: */*' \
   -H 'Accept: application/json' \
   -H 'Content-Disposition: attachment; filename="image.png"' \
   -H 'Coder-Session-Token: API_KEY' \
@@ -1432,12 +1432,12 @@ curl -X POST http://coder-server:8080/api/v2/chats/files?organization=497f6eca-6
 
 ### Parameters
 
-| Name                  | In     | Type         | Required | Description                                                                                                                             |
-|-----------------------|--------|--------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------|
-| `organization`        | query  | string(uuid) | true     | Organization ID                                                                                                                         |
-| `purpose`             | query  | string       | false    | File purpose. Workspace files accept any type up to 100 MiB and are copied into the chat's workspace instead of being sent to the model |
-| `Content-Disposition` | header | string       | true     | Attachment disposition carrying the file name                                                                                           |
-| `body`                | body   | string       | true     | Raw file binary data                                                                                                                    |
+| Name                  | In     | Type         | Required | Description                                                                                                                                                                                                                                                                                                      |
+|-----------------------|--------|--------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `organization`        | query  | string(uuid) | true     | Organization ID                                                                                                                                                                                                                                                                                                  |
+| `purpose`             | query  | string       | false    | File purpose. Prompt files accept image/png, image/jpeg, image/gif, image/webp, image/svg+xml, text/plain, text/markdown, text/csv, application/json and application/pdf up to 10 MiB. Workspace files accept any type up to 100 MiB and are copied into the chat's workspace instead of being sent to the model |
+| `Content-Disposition` | header | string       | true     | Attachment disposition carrying the file name                                                                                                                                                                                                                                                                    |
+| `body`                | body   | string       | true     | Raw file binary data                                                                                                                                                                                                                                                                                             |
 
 #### Enumerated Values
 
@@ -1457,10 +1457,11 @@ curl -X POST http://coder-server:8080/api/v2/chats/files?organization=497f6eca-6
 
 ### Responses
 
-| Status | Meaning                                                                 | Description                                                 | Schema                                                                       |
-|--------|-------------------------------------------------------------------------|-------------------------------------------------------------|------------------------------------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                                                     | [codersdk.UploadChatFileResponse](schemas.md#codersdkuploadchatfileresponse) |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 10 MiB, or 100 MiB for workspace files | [codersdk.Response](schemas.md#codersdkresponse)                             |
+| Status | Meaning                                                                 | Description                                                        | Schema                                                                       |
+|--------|-------------------------------------------------------------------------|--------------------------------------------------------------------|------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                                                            | [codersdk.UploadChatFileResponse](schemas.md#codersdkuploadchatfileresponse) |
+| 408    | [Request Timeout](https://tools.ietf.org/html/rfc7231#section-6.5.7)    | Workspace file body stalled for 30 seconds or took over 30 minutes | [codersdk.Response](schemas.md#codersdkresponse)                             |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 10 MiB, or 100 MiB for workspace files        | [codersdk.Response](schemas.md#codersdkresponse)                             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1485,14 +1486,15 @@ curl -X GET http://coder-server:8080/api/v2/chats/files/{file} \
 
 ### Example responses
 
-> 410 Response
+> 403 Response
 
 ### Responses
 
-| Status | Meaning                                                   | Description                                                                 | Schema                                           |
-|--------|-----------------------------------------------------------|-----------------------------------------------------------------------------|--------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)   | OK                                                                          |                                                  |
-| 410    | [Gone](https://tools.ietf.org/html/rfc7231#section-6.5.9) | Workspace file was copied into the chat's workspace and is no longer stored | [codersdk.Response](schemas.md#codersdkresponse) |
+| Status | Meaning                                                        | Description                                                                   | Schema                                           |
+|--------|----------------------------------------------------------------|-------------------------------------------------------------------------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)        | OK                                                                            |                                                  |
+| 403    | [Forbidden](https://tools.ietf.org/html/rfc7231#section-6.5.3) | Workspace files are copied into the chat's workspace and cannot be downloaded | [codersdk.Response](schemas.md#codersdkresponse) |
+| 410    | [Gone](https://tools.ietf.org/html/rfc7231#section-6.5.9)      | Workspace file was copied into the chat's workspace and is no longer stored   | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

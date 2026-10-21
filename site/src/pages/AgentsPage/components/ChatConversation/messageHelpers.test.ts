@@ -709,6 +709,28 @@ describe("deriveEvictedFileIds", () => {
 
 		expect([...evicted]).toEqual(["rec-1", "thumb-1"]);
 	});
+
+	it("orders workspace attachments with other files", () => {
+		const workspaceAttachment = entry({
+			messageID: 2,
+			role: "user",
+			content: [
+				{
+					type: "workspace-attachment",
+					media_type: "application/zip",
+					file_id: "w",
+				},
+			],
+			parsedOverrides: {},
+		});
+
+		const evicted = deriveEvictedFileIds(
+			[fileMessage(1, "a"), workspaceAttachment],
+			chatFiles("w"),
+		);
+
+		expect([...evicted]).toEqual(["a"]);
+	});
 });
 
 describe("getAgentAttachments", () => {
