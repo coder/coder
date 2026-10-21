@@ -1,9 +1,5 @@
 import { NetworkIcon } from "lucide-react";
-import type {
-	ConnectionLog,
-	ConnectionLogDuration,
-	ConnectionLogDurationStatus,
-} from "#/api/typesGenerated";
+import type { ConnectionLog } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { StatusBadge } from "#/components/StatusBadge/StatusBadge";
 import { TableCell } from "#/components/Table/Table";
@@ -12,22 +8,43 @@ import { humanDurationShort } from "#/utils/time";
 import { ConnectionLogDescription } from "./ConnectionLogDescription/ConnectionLogDescription";
 import { ConnectionLogDetailsPopover } from "./ConnectionLogDetailsPopover";
 
-const unavailableDurationLabels = {
-	no_disconnect: "Ongoing",
-	missing_connect: "No connect recorded",
-	invalid: "Duration unavailable",
-} as const satisfies Record<
-	Exclude<ConnectionLogDurationStatus, "recorded">,
-	string
->;
+type ConnectionTiming = {
+	range: string;
+	detail?: string;
+};
 
-const durationLabel = ({ status, seconds }: ConnectionLogDuration): string => {
-	if (status !== "recorded") {
-		return unavailableDurationLabels[status];
+const formatTime = (time: string): string =>
+	new Date(time).toLocaleTimeString();
+
+const connectionTiming = ({
+	connect_time,
+	ssh_info,
+}: ConnectionLog): ConnectionTiming => {
+	const start = formatTime(connect_time);
+	const end = ssh_info?.disconnect_time && formatTime(ssh_info.disconnect_time);
+	switch (ssh_info?.duration?.status) {
+		case "no_disconnect":
+			return { range: `${start} → Ongoing` };
+		case "missing_connect":
+			return { range: `Unknown → ${end}` };
+		case "invalid":
+			return {
+				range: `${start} → ${end}`,
+				detail: "Disconnect recorded before connect",
+			};
+		case "recorded": {
+			const seconds = ssh_info.duration.seconds;
+			return {
+				range: `${start} → ${end}`,
+				detail:
+					seconds === undefined
+						? undefined
+						: humanDurationShort(seconds * 1000),
+			};
+		}
+		default:
+			return { range: end ? `${start} → ${end}` : start };
 	}
-	return seconds === undefined
-		? unavailableDurationLabels.invalid
-		: humanDurationShort(seconds * 1000);
 };
 
 type ConnectionLogRowProps = {
@@ -40,8 +57,7 @@ export const ConnectionLogRow: React.FC<ConnectionLogRowProps> = ({
 	const isWeb = connectionLog.web_info !== undefined;
 	const code =
 		connectionLog.web_info?.status_code ?? connectionLog.ssh_info?.exit_code;
-	const duration = connectionLog.ssh_info?.duration;
-	const durationText = duration ? durationLabel(duration) : undefined;
+	const timing = connectionTiming(connectionLog);
 
 	return (
 		<TimelineEntry
@@ -69,13 +85,11 @@ export const ConnectionLogRow: React.FC<ConnectionLogRowProps> = ({
 							<div className="flex flex-row items-baseline gap-2 text-base">
 								<ConnectionLogDescription connectionLog={connectionLog} />
 								<span className="text-content-secondary text-xs">
-									{new Date(connectionLog.connect_time).toLocaleTimeString()}
-									{connectionLog.ssh_info?.disconnect_time &&
-										` → ${new Date(connectionLog.ssh_info.disconnect_time).toLocaleTimeString()}`}
+									{timing.range}
 								</span>
-								{durationText && (
+								{timing.detail && (
 									<span className="text-content-secondary text-xs">
-										{durationText}
+										{timing.detail}
 									</span>
 								)}
 							</div>

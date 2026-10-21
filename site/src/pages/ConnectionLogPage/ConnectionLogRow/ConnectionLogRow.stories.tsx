@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { screen, userEvent } from "storybook/test";
-import type { ConnectionLog } from "#/api/typesGenerated";
 import { Table, TableBody } from "#/components/Table/Table";
 import {
 	MockConnectedSSHConnectionLog,
 	MockDisconnectedSSHConnectionLog,
+	MockTunnelConnectionLog,
 	MockWebConnectionLog,
 } from "#/testHelpers/entities";
 import { ConnectionLogRow } from "./ConnectionLogRow";
@@ -53,7 +53,13 @@ export const WebUnauthenticatedFail: Story = {
 	},
 };
 
-export const ConnectedSSH: Story = {
+export const Tunnel: Story = {
+	args: {
+		connectionLog: MockTunnelConnectionLog,
+	},
+};
+
+export const OngoingSSH: Story = {
 	args: {
 		connectionLog: MockConnectedSSHConnectionLog,
 	},
@@ -79,32 +85,28 @@ export const DisconnectedSSHError: Story = {
 	},
 };
 
-const mockNoConnectRecorded: ConnectionLog = {
-	...MockDisconnectedSSHConnectionLog,
-	connect_time: MockDisconnectedSSHConnectionLog.ssh_info.disconnect_time,
-	ssh_info: {
-		...MockDisconnectedSSHConnectionLog.ssh_info,
-		duration: { status: "missing_connect" },
-	},
-};
-
 export const NoConnectRecorded: Story = {
 	args: {
-		connectionLog: mockNoConnectRecorded,
+		connectionLog: {
+			...MockDisconnectedSSHConnectionLog,
+			connect_time: MockDisconnectedSSHConnectionLog.ssh_info.disconnect_time,
+			ssh_info: {
+				...MockDisconnectedSSHConnectionLog.ssh_info,
+				duration: { status: "missing_connect" },
+			},
+		},
 	},
 };
 
-const mockDurationUnavailable: ConnectionLog = {
-	...MockDisconnectedSSHConnectionLog,
-	ssh_info: {
-		...MockDisconnectedSSHConnectionLog.ssh_info,
-		disconnect_time: "2022-05-19T16:40:57.122Z",
-		duration: { status: "invalid" },
-	},
-};
-
-export const DurationUnavailable: Story = {
+export const DisconnectBeforeConnect: Story = {
 	args: {
-		connectionLog: mockDurationUnavailable,
+		connectionLog: {
+			...MockDisconnectedSSHConnectionLog,
+			ssh_info: {
+				...MockDisconnectedSSHConnectionLog.ssh_info,
+				disconnect_time: "2022-05-19T16:40:57.122Z",
+				duration: { status: "invalid" },
+			},
+		},
 	},
 };
