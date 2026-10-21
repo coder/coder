@@ -44,36 +44,27 @@ func TestServerLogger(t *testing.T) {
 func TestEmbeddedServerLogging(t *testing.T) {
 	t.Parallel()
 
-	for _, level := range []slog.Level{slog.LevelDebug, slog.LevelInfo} {
-		t.Run(level.String(), func(t *testing.T) {
-			t.Parallel()
+	sink := testutil.NewFakeSink(t)
+	ps, err := New(t.Context(), sink.Logger(slog.LevelDebug).Named("nats"), defaultTestOptions())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ps.Close() })
 
-			sink := testutil.NewFakeSink(t)
-			ps, err := New(t.Context(), sink.Logger(level).Named("nats"), defaultTestOptions())
-			require.NoError(t, err)
-			t.Cleanup(func() { _ = ps.Close() })
+	startup := sink.Entries(func(e slog.SinkEntry) bool {
+		return e.Message == "Starting nats-server"
+	})
+	require.Len(t, startup, 1, "logger must be installed before the server starts")
+	require.Equal(t, slog.LevelDebug, startup[0].Level)
+	require.Equal(t, []string{"nats", "server"}, startup[0].LoggerNames)
 
-			startup := sink.Entries(func(e slog.SinkEntry) bool {
-				return e.Message == "Starting nats-server"
-			})
-			require.Len(t, startup, 1, "logger must be installed before the server starts")
-			require.Equal(t, slog.LevelInfo, startup[0].Level)
-			require.Equal(t, []string{"nats", "server"}, startup[0].LoggerNames)
+	ps.Server.Debugf("debug %s", "message")
+	debug := sink.Entries(func(e slog.SinkEntry) bool {
+		return e.Message == "debug message"
+	})
 
-			ps.Server.Debugf("debug %s", "message")
-			debug := sink.Entries(func(e slog.SinkEntry) bool {
-				return e.Message == "debug message"
-			})
-			if level == slog.LevelDebug {
-				require.Len(t, debug, 1)
-			} else {
-				require.Empty(t, debug)
-			}
+	require.Len(t, debug, 1)
 
-			ps.Server.Tracef("trace %s", "payload")
-			require.Empty(t, sink.Entries(func(e slog.SinkEntry) bool {
-				return e.Message == "trace payload"
-			}), "protocol tracing must remain disabled")
-		})
-	}
+	ps.Server.Tracef("trace %s", "payload")
+	require.Empty(t, sink.Entries(func(e slog.SinkEntry) bool {
+		return e.Message == "trace payload"
+	}), "protocol tracing must remain disabled")
 }

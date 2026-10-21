@@ -97,33 +97,79 @@ type serverLogger struct {
 
 func (l serverLogger) Noticef(format string, args ...any) {
 	slog.Helper()
-	l.logger.Info(context.Background(), fmt.Sprintf(format, args...))
+	l.maybeLog(slog.LevelInfo, format, args...)
 }
 
 func (l serverLogger) Warnf(format string, args ...any) {
 	slog.Helper()
-	l.logger.Warn(context.Background(), fmt.Sprintf(format, args...))
+	l.maybeLog(slog.LevelWarn, format, args...)
 }
 
 func (l serverLogger) Fatalf(format string, args ...any) {
 	slog.Helper()
 	// The embedded server must not terminate the Coder process.
-	l.logger.Critical(context.Background(), fmt.Sprintf(format, args...))
+	l.maybeLog(slog.LevelCritical, format, args...)
 }
 
 func (l serverLogger) Errorf(format string, args ...any) {
 	slog.Helper()
-	l.logger.Error(context.Background(), fmt.Sprintf(format, args...))
+	l.maybeLog(slog.LevelError, format, args...)
 }
 
 func (l serverLogger) Debugf(format string, args ...any) {
 	slog.Helper()
-	l.logger.Debug(context.Background(), fmt.Sprintf(format, args...))
+	l.maybeLog(slog.LevelDebug, format, args...)
 }
 
 func (l serverLogger) Tracef(format string, args ...any) {
 	slog.Helper()
-	l.logger.Debug(context.Background(), fmt.Sprintf(format, args...))
+	l.maybeLog(slog.LevelDebug, format, args...)
+}
+
+func (l serverLogger) maybeLog(level slog.Level, format string, args ...any) {
+	slog.Helper()
+	switch format {
+	case "TLS certificate chain and hostname of solicited routes will not be verified. DO NOT USE IN PRODUCTION!":
+		// This message comes from the fact that we set InsecureSkipVerify on the TLS config, which would be bad if
+		// we didn't also set VerifyConnection. NATS only checks InsecureSkipVerify unfortunately, so just suppress the
+		// log entirely.
+		return
+	case "Starting nats-server",
+		"  Version:  %s",
+		"  Git:      [%s]",
+		"  Go build: %s",
+		"  Name:     %s",
+		"  ID:       %s",
+		"Server is ready",
+		"  Cluster:  %s",
+		"Listening for client connections on %s",
+		"Cluster name is %s",
+		"Listening for route connections on %s":
+		// These all spam on startup, and we want to not overwhelm operators running in a terminal. Reduce to debug
+		// to keep the noise down but still have access to them in tests.
+		level = slog.LevelDebug
+	}
+	l.log(level, format, args...)
+}
+
+func (l serverLogger) log(level slog.Level, format string, args ...any) {
+	slog.Helper()
+	switch level {
+	case slog.LevelDebug:
+		l.logger.Debug(context.Background(), fmt.Sprintf(format, args...))
+	case slog.LevelInfo:
+		l.logger.Info(context.Background(), fmt.Sprintf(format, args...))
+	case slog.LevelWarn:
+		l.logger.Warn(context.Background(), fmt.Sprintf(format, args...))
+	case slog.LevelError:
+		l.logger.Error(context.Background(), fmt.Sprintf(format, args...))
+	case slog.LevelCritical:
+		l.logger.Critical(context.Background(), fmt.Sprintf(format, args...))
+	case slog.LevelFatal:
+		l.logger.Fatal(context.Background(), fmt.Sprintf(format, args...))
+	default:
+		l.logger.Error(context.Background(), "unknown slog level", slog.F("level", level))
+	}
 }
 
 type connHandlers struct {
