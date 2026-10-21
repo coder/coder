@@ -206,7 +206,7 @@ In other words, CORS behavior through the dashboard is not currently configurabl
 
 <table class="tg">
 <caption>
-Requests between forwarded apps that the dashboard allows by default.
+Which requests between forwarded apps the dashboard allows by default.
 Columns are the origin: the user, workspace, and app that sends the request.
 Rows are the destination: the user, workspace, and app that receives it.
 </caption>
