@@ -686,7 +686,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const inputElement = (
 		<AgentChatInput
 			onSend={(message) => {
-				void (async () => {
+				return (async () => {
 					const hasActiveUploads =
 						attachments.some((file) =>
 							isUploadInProgress(uploadStates.get(file)),

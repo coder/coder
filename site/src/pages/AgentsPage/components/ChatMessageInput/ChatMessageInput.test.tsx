@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef, useLayoutEffect, useRef, useState } from "react";
 import { type QueryClient, QueryClientProvider } from "react-query";
@@ -19,6 +19,11 @@ import { MockSkill } from "#/testHelpers/skills";
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import { ChatMessageInput, type ChatMessageInputRef } from "./ChatMessageInput";
+
+// Isolate explicit focus requests from Lexical's automatic mount focus.
+vi.mock("@lexical/react/LexicalAutoFocusPlugin", () => ({
+	AutoFocusPlugin: () => null,
+}));
 
 const requiredProps = () => ({
 	placeholder: "Type a message...",
@@ -84,6 +89,28 @@ const QueuedReplacementHarness: React.FC<{
 				aria-label="Chat message input"
 			/>
 		</>
+	);
+};
+
+const FocusBeforeReadyHarness: React.FC<{
+	inputRef: React.RefObject<ChatMessageInputRef | null>;
+	method: "focus" | "focusWhenEditable";
+	disabled?: boolean;
+	remountKey?: number;
+}> = ({ inputRef, method, disabled = false, remountKey }) => {
+	useLayoutEffect(() => {
+		inputRef.current?.[method]();
+	}, [inputRef, method]);
+
+	return (
+		<ChatMessageInput
+			{...requiredProps()}
+			ref={inputRef}
+			initialValue="persisted draft"
+			disabled={disabled}
+			remountKey={remountKey}
+			aria-label="Chat message input"
+		/>
 	);
 };
 
@@ -232,6 +259,73 @@ describe("ChatMessageInput", () => {
 				"queued replacement",
 			);
 		});
+	});
+
+	it("ignores immediate focus until the editor is ready and editable", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const queryClient = createTestQueryClient();
+		const harness = (disabled: boolean) => (
+			<QueryClientProvider client={queryClient}>
+				<FocusBeforeReadyHarness
+					inputRef={inputRef}
+					method="focus"
+					disabled={disabled}
+				/>
+			</QueryClientProvider>
+		);
+		const { rerender } = render(harness(true));
+		await waitFor(() => {
+			expect(inputRef.current?.getValue()).toBe("persisted draft");
+		});
+		act(() => inputRef.current?.focus());
+
+		await act(async () => rerender(harness(false)));
+		await user.paste(" unsolicited");
+		expect(inputRef.current?.getValue()).toBe("persisted draft");
+
+		await act(async () => inputRef.current?.focus());
+		await user.paste(" appended");
+		await waitFor(() => {
+			expect(inputRef.current?.getValue()).toBe("persisted draft appended");
+		});
+	});
+
+	it("defers focus until editable across an inner remount and consumes the request once", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const queryClient = createTestQueryClient();
+		const input = (disabled: boolean, remountKey = 0) => (
+			<QueryClientProvider client={queryClient}>
+				<button type="button">Focus elsewhere</button>
+				<FocusBeforeReadyHarness
+					inputRef={inputRef}
+					method="focusWhenEditable"
+					disabled={disabled}
+					remountKey={remountKey}
+				/>
+			</QueryClientProvider>
+		);
+		const { rerender } = render(input(true));
+		await user.click(
+			screen.getByRole("textbox", { name: "Chat message input" }),
+		);
+		await user.keyboard("blocked{Enter}");
+		expect(inputRef.current?.getValue()).toBe("persisted draft");
+
+		await act(async () => rerender(input(true, 1)));
+		await user.click(screen.getByRole("button", { name: "Focus elsewhere" }));
+		await act(async () => rerender(input(false, 1)));
+		await user.paste(" appended");
+		await waitFor(() => {
+			expect(inputRef.current?.getValue()).toBe("persisted draft appended");
+		});
+
+		await user.click(screen.getByRole("button", { name: "Focus elsewhere" }));
+		await act(async () => rerender(input(true, 1)));
+		await act(async () => rerender(input(false, 1)));
+		await user.paste(" unsolicited");
+		expect(inputRef.current?.getValue()).toBe("persisted draft appended");
 	});
 
 	it("returns content inserted through the ref handle", async () => {
