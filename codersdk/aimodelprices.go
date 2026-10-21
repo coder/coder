@@ -160,7 +160,7 @@ type UpsertOrganizationAIModelPriceRequest struct {
 //
 // @typescript-ignore OrganizationAIModelPriceKey
 type OrganizationAIModelPriceKey struct {
-	ProviderID uuid.UUID `json:"provider_id"`
+	ProviderID uuid.UUID `json:"provider_id" format:"uuid"`
 	Model      string    `json:"model"`
 }
 
