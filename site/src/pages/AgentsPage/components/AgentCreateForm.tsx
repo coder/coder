@@ -803,26 +803,29 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		resetWorkspaceUploads();
 		handleAttach(files, "workspace");
 	};
+	const workspaceUploadCount = workspaceUploadEntries.length;
 	// A permissions refetch can revoke the selected organization without the
 	// confirmation dialog, so drop files queued for the previous one here.
 	// Reset aborts uploads, so it runs after commit, not during render.
-	const settledUploadOrgIdRef = useRef<string | null>(null);
-	useEffect(() => {
-		if (!orgSelectionSettled || noPermittedOrgs) {
+	const dropQueuedWorkspaceUploads = useEffectEvent(() => {
+		if (workspaceUploadCount === 0) {
 			return;
 		}
-		const previousOrgId = settledUploadOrgIdRef.current;
-		settledUploadOrgIdRef.current = organizationId;
-		if (previousOrgId !== null && previousOrgId !== organizationId) {
-			resetWorkspaceUploads();
+		resetWorkspaceUploads();
+		toast.warning(
+			workspaceUploadCount === 1
+				? "Removed 1 file that uploads to the workspace"
+				: `Removed ${workspaceUploadCount} files that upload to the workspace`,
+		);
+	});
+	const workspaceUploadOrgIdRef = useRef(lastSettledOrgId);
+	useEffect(() => {
+		const previousOrgId = workspaceUploadOrgIdRef.current;
+		workspaceUploadOrgIdRef.current = lastSettledOrgId;
+		if (previousOrgId !== null && previousOrgId !== lastSettledOrgId) {
+			dropQueuedWorkspaceUploads();
 		}
-	}, [
-		orgSelectionSettled,
-		noPermittedOrgs,
-		organizationId,
-		resetWorkspaceUploads,
-	]);
-	const workspaceUploadCount = workspaceUploadEntries.length;
+	}, [lastSettledOrgId]);
 	// A dropped File cannot be restored, so picking a workspace without a
 	// connected agent stages the queue in Coder. A status flap on the same
 	// workspace keeps the queue, and a submit during the flap stages it.

@@ -496,64 +496,61 @@ describe("AgentCreateForm workspace file uploads", () => {
 		});
 	});
 
-	it("drops queued files when an organization change is confirmed", async () => {
-		dashboard.showOrganizations = true;
-		localStorage.setItem(selectedWorkspaceIdStorageKey, mockWorkspace.id);
-		const queryClient = createQueryClient();
-		seedOrganizationQueries(
-			queryClient,
-			MockOrganization2.id,
-			mockOrganization2ModelCatalog,
-		);
-		const uploadSpy = mockStagedUpload();
-		const { onCreateChat } = renderForm({}, { queryClient });
-
-		await attachZipFile();
-		await switchOrganization(MockOrganization2.display_name);
-		await user().click(await screen.findByRole("button", { name: "Continue" }));
-		await submitMessage("start over in another organization");
-
-		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(uploadSpy).not.toHaveBeenCalled();
-		expect(submittedOptions(onCreateChat)).toMatchObject({
-			organizationId: MockOrganization2.id,
-			workspaceAttachmentFileIDs: [],
-			uploadWorkspaceFiles: undefined,
-		});
-	});
-
-	it("drops queued files when the selected organization is revoked", async () => {
-		dashboard.showOrganizations = true;
-		localStorage.setItem(selectedWorkspaceIdStorageKey, mockWorkspace.id);
-		const queryClient = createQueryClient();
-		seedOrganizationQueries(
-			queryClient,
-			MockOrganization2.id,
-			mockOrganization2ModelCatalog,
-		);
-		const uploadSpy = mockStagedUpload();
-		const { onCreateChat } = renderForm({}, { queryClient });
-
-		await attachZipFile();
-		act(() => {
-			queryClient.setQueryData(
-				permittedOrganizationsKey({
-					object: { resource_type: "chat", owner_id: "me" },
-					action: "create",
-				}),
-				[MockOrganization2],
+	it.each([
+		{
+			name: "confirmed",
+			changeOrganization: async () => {
+				await switchOrganization(MockOrganization2.display_name);
+				await user().click(
+					await screen.findByRole("button", { name: "Continue" }),
+				);
+			},
+			expectedWarnings: 0,
+		},
+		{
+			name: "revoked",
+			changeOrganization: async (queryClient: QueryClient) => {
+				act(() => {
+					queryClient.setQueryData(
+						permittedOrganizationsKey({
+							object: { resource_type: "chat", owner_id: "me" },
+							action: "create",
+						}),
+						[MockOrganization2],
+					);
+				});
+			},
+			expectedWarnings: 1,
+		},
+	])(
+		"drops queued files when the organization is $name",
+		async ({ changeOrganization, expectedWarnings }) => {
+			dashboard.showOrganizations = true;
+			localStorage.setItem(selectedWorkspaceIdStorageKey, mockWorkspace.id);
+			const queryClient = createQueryClient();
+			seedOrganizationQueries(
+				queryClient,
+				MockOrganization2.id,
+				mockOrganization2ModelCatalog,
 			);
-		});
-		await submitMessage("start over in another organization");
+			const uploadSpy = mockStagedUpload();
+			const warningSpy = vi.spyOn(toast, "warning");
+			const { onCreateChat } = renderForm({}, { queryClient });
 
-		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(uploadSpy).not.toHaveBeenCalled();
-		expect(submittedOptions(onCreateChat)).toMatchObject({
-			organizationId: MockOrganization2.id,
-			workspaceAttachmentFileIDs: [],
-			uploadWorkspaceFiles: undefined,
-		});
-	});
+			await attachZipFile();
+			await changeOrganization(queryClient);
+			await submitMessage("start over in another organization");
+
+			await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+			expect(uploadSpy).not.toHaveBeenCalled();
+			expect(warningSpy).toHaveBeenCalledTimes(expectedWarnings);
+			expect(submittedOptions(onCreateChat)).toMatchObject({
+				organizationId: MockOrganization2.id,
+				workspaceAttachmentFileIDs: [],
+				uploadWorkspaceFiles: undefined,
+			});
+		},
+	);
 
 	it("keeps queued files across an agent status flap on the same workspace", async () => {
 		localStorage.setItem("agents.selected-workspace-id", mockWorkspace.id);
