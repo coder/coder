@@ -138,6 +138,10 @@ func TestDecideGenerationActionContextRollover(t *testing.T) {
 		{name: "FailedNewContextIsNoReceipt", messages: history(prompt(t, 1, "go"), checkpointStep(t, 2, saveResult,
 			codersdk.ChatMessageToolResult("new", chattool.NewContextToolName, scheduled, true, false),
 		)), budget: &budget, want: generationActionGenerateAssistant},
+		// A dynamic tool of the same name may have returned any JSON value.
+		{name: "LegacyDynamicResultIsNoReceipt", messages: history(prompt(t, 1, "go"), checkpointStep(t, 2, saveResult,
+			codersdk.ChatMessageToolResult("new", chattool.NewContextToolName, json.RawMessage(`"ok"`), false, false),
+		)), budget: &budget, want: generationActionGenerateAssistant},
 		{name: "MaxStepsFinishesFirst", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 80)), budget: &budget, maxSteps: 1, want: generationActionFinishTurn},
 	}
 	for _, tc := range tests {
