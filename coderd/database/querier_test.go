@@ -12928,6 +12928,102 @@ func TestChatMessagesSequenceCacheIsOne(t *testing.T) {
 	require.Equal(t, int64(1), cacheSize, "chat_messages_id_seq must use cache 1")
 }
 
+func TestGetLatestSuccessfulChatToolCallArgs(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:     "test-model",
+		CreatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true},
+		IsDefault: true,
+	})
+	newChat := func(t *testing.T) database.Chat {
+		return dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: owner.ID, LastModelConfigID: modelCfg.ID})
+	}
+	insert := func(t *testing.T, chatID uuid.UUID, role database.ChatMessageRole, compressed bool, part codersdk.ChatMessagePart) database.ChatMessage {
+		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{part})
+		require.NoError(t, err)
+		return dbgen.ChatMessage(t, db, database.ChatMessage{ChatID: chatID, Role: role, Compressed: compressed, Content: content})
+	}
+	// save records a save_checkpoint call and, unless result is nil, its
+	// result. It returns the ID of the last inserted row.
+	save := func(t *testing.T, chatID uuid.UUID, checkpoint string, result *codersdk.ChatMessagePart) int64 {
+		callID := uuid.NewString()
+		args, err := json.Marshal(map[string]string{"checkpoint": checkpoint})
+		require.NoError(t, err)
+		last := insert(t, chatID, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall(callID, "save_checkpoint", args))
+		if result != nil {
+			result.ToolCallID = callID
+			last = insert(t, chatID, database.ChatMessageRoleTool, false, *result)
+		}
+		return last.ID
+	}
+	ok := func() *codersdk.ChatMessagePart {
+		return new(codersdk.ChatMessageToolResult("", "save_checkpoint", json.RawMessage(`{"saved":true}`), false, false))
+	}
+	failed := func() *codersdk.ChatMessagePart {
+		return new(codersdk.ChatMessageToolResult("", "save_checkpoint", json.RawMessage(`{"error":"too long"}`), true, false))
+	}
+	latest := func(ctx context.Context, t *testing.T, chatID uuid.UUID) (string, error) {
+		args, err := db.GetLatestSuccessfulChatToolCallArgs(ctx, database.GetLatestSuccessfulChatToolCallArgsParams{
+			ChatID:   chatID,
+			ToolName: "save_checkpoint",
+		})
+		if err != nil {
+			return "", err
+		}
+		var decoded struct {
+			Checkpoint string `json:"checkpoint"`
+		}
+		require.NoError(t, json.Unmarshal(args, &decoded))
+		return decoded.Checkpoint, nil
+	}
+
+	t.Run("NewestSuccessfulCall", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat := newChat(t)
+		save(t, chat.ID, "first", ok())
+		save(t, chat.ID, "second", ok())
+		save(t, chat.ID, "rejected", failed())
+		save(t, chat.ID, "unanswered", nil)
+		got, err := latest(ctx, t, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, "second", got)
+	})
+	t.Run("EditedAwayCallIgnored", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat := newChat(t)
+		kept := save(t, chat.ID, "kept", ok())
+		insert(t, chat.ID, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("edited request"))
+		save(t, chat.ID, "edited away", ok())
+		require.NoError(t, db.SoftDeleteChatMessagesAfterID(ctx, database.SoftDeleteChatMessagesAfterIDParams{ChatID: chat.ID, AfterID: kept}))
+		got, err := latest(ctx, t, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, "kept", got)
+	})
+	t.Run("ClearHidesEarlierCalls", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat := newChat(t)
+		save(t, chat.ID, "before clear", ok())
+		insert(t, chat.ID, database.ChatMessageRoleAssistant, true, codersdk.ChatMessageToolCall("clear", "chat_cleared", json.RawMessage(`{}`)))
+		insert(t, chat.ID, database.ChatMessageRoleTool, true, codersdk.ChatMessageToolResult("clear", "chat_cleared", json.RawMessage(`{}`), false, false))
+		_, err := latest(ctx, t, chat.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+
+		save(t, chat.ID, "after clear", ok())
+		got, err := latest(ctx, t, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, "after clear", got)
+	})
+}
+
 func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 	t.Parallel()
 
