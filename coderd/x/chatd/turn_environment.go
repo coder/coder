@@ -473,6 +473,8 @@ func (p *Server) buildTurnEnvironment(
 		if err != nil {
 			return turnEnvironment{}, err
 		}
+	}
+	if !tokenBudget || effectiveThreshold >= chatloop.CompactionDisabledThresholdPercent {
 		conversionRows, conversionPendingStart, err = withoutContextHandoffPrompts(conversionRows, pendingRowsStart)
 		if err != nil {
 			return turnEnvironment{}, err
