@@ -419,6 +419,49 @@ func TestHandleUploadChatFile_WriteOnceRetrySkipsBody(t *testing.T) {
 	}
 }
 
+func TestHandleUploadChatFile_WriteOnceSweepsAbandonedTemps(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range uploadChatFileFilesystems {
+		for _, published := range []bool{false, true} {
+			name := tc.name + "/Publish"
+			if published {
+				name = tc.name + "/AcknowledgeExisting"
+			}
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+
+				home := t.TempDir()
+				r := newUploadChatFileRouter(t, tc.fs, home)
+				fileID := uuid.NewString()
+				dir := chatfiles.WorkspaceUploadFileDir(home, uploadChatFileTestChatID, fileID)
+				if published {
+					decodeUploadChatFileResponse(t, uploadChatFileOnce(t, r, fileID, "archive.zip", strings.NewReader("payload")))
+				}
+				require.NoError(t, os.MkdirAll(dir, 0o755))
+				// A crashed upload leaves its temp in the per-file directory,
+				// which no later upload of another file visits.
+				abandoned := filepath.Join(dir, ".archive.zip.upload-0123456789abcdef")
+				active := filepath.Join(dir, ".archive.zip.upload-fedcba9876543210")
+				for _, p := range []string{abandoned, active} {
+					require.NoError(t, os.WriteFile(p, []byte("partial"), 0o600))
+				}
+				old := time.Now().Add(-time.Minute)
+				require.NoError(t, os.Chtimes(abandoned, old, old))
+
+				decodeUploadChatFileResponse(t, uploadChatFileOnce(t, r, fileID, "archive.zip", strings.NewReader("payload")))
+
+				_, err := os.Lstat(abandoned)
+				require.ErrorIs(t, err, os.ErrNotExist)
+				require.FileExists(t, active)
+				contents, err := os.ReadFile(filepath.Join(dir, "archive.zip"))
+				require.NoError(t, err)
+				require.Equal(t, "payload", string(contents))
+			})
+		}
+	}
+}
+
 func TestHandleUploadChatFile_RejectsSymlinkedUploadDir(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
