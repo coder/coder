@@ -36,6 +36,10 @@ const (
 	// rolloverLeadInPrefix starts the first line of a rollover anchor,
 	// which ends with the previous window ID.
 	rolloverLeadInPrefix = "A context window rollover started a fresh context window. Previous window: "
+	// rolloverRecoveryLine and rolloverNoCheckpointLine start the lead-in
+	// lines that point at chat_history.
+	rolloverRecoveryLine     = "Completed tool results remain in the previous window: retrieve them with chat_history rather than re-executing their side effects."
+	rolloverNoCheckpointLine = "No checkpoint was saved"
 )
 
 // contextWindowBudget holds the token budget points of one context
@@ -91,7 +95,10 @@ type rolloverDecision struct {
 // boundary.
 type rolloverStageState struct {
 	handoffClaimed bool
-	finalClaimed   bool
+	// stepSinceHandoff reports an assistant step after the handoff
+	// prompt, so the final prompt waits for the window to grow past it.
+	stepSinceHandoff bool
+	finalClaimed     bool
 	// receipt is an unconsumed successful new_context result.
 	receipt           bool
 	newContextOffered bool
@@ -109,7 +116,7 @@ func decideRollover(contextTokens int64, budget contextWindowBudget, state rollo
 		return rolloverDecision{action: rolloverActionRollover, reason: rolloverReasonLimit}
 	case !state.handoffClaimed && contextTokens >= budget.handoffPoint:
 		return rolloverDecision{action: rolloverActionHandoff}
-	case state.handoffClaimed && !state.finalClaimed && state.newContextOffered && contextTokens >= budget.finalPoint:
+	case state.handoffClaimed && state.stepSinceHandoff && !state.finalClaimed && state.newContextOffered && contextTokens >= budget.finalPoint:
 		return rolloverDecision{action: rolloverActionFinal}
 	default:
 		return rolloverDecision{action: rolloverActionNone}
@@ -184,7 +191,11 @@ func rolloverStageStateFromHistory(messages []database.ChatMessage) (rolloverSta
 	state := rolloverStageState{receipt: receipt}
 	boundary := latestContextBoundaryIndex(messages)
 	for _, msg := range messages[boundary+1:] {
-		if msg.Deleted || !msg.Compressed || msg.Role != database.ChatMessageRoleAssistant {
+		if msg.Deleted || msg.Role != database.ChatMessageRoleAssistant {
+			continue
+		}
+		if !msg.Compressed {
+			state.stepSinceHandoff = state.handoffClaimed
 			continue
 		}
 		parts, err := chatprompt.ParseContent(msg)
@@ -413,9 +424,13 @@ func rolloverLeadIn(input buildRolloverMessagesInput) string {
 		if midTurn {
 			lines = append(lines, "Your previous turn was interrupted by a context rollover; continue the task.")
 		}
-		lines = append(lines, "The window reached its usable limit.")
+		if payload.Reason == rolloverReasonOverflow {
+			lines = append(lines, "The provider rejected the previous request as too large for the context window.")
+		} else {
+			lines = append(lines, "The window reached its usable limit.")
+		}
 	}
-	recovery := "Completed tool results remain in the previous window: retrieve them with chat_history rather than re-executing their side effects."
+	recovery := rolloverRecoveryLine
 	if requestItemID > 0 {
 		recovery += fmt.Sprintf(" The request in progress is item %d.", requestItemID)
 	}
@@ -424,11 +439,53 @@ func rolloverLeadIn(input buildRolloverMessagesInput) string {
 	case checkpoint != "":
 		lines = append(lines, "<checkpoint>\n"+checkpoint+"\n</checkpoint>")
 	case requestItemID > 0:
-		lines = append(lines, fmt.Sprintf("No checkpoint was saved; recover the task with chat_history, starting with item %d.", requestItemID))
+		lines = append(lines, fmt.Sprintf("%s; recover the task with chat_history, starting with item %d.", rolloverNoCheckpointLine, requestItemID))
 	default:
-		lines = append(lines, "No checkpoint was saved; recover the task with chat_history.")
+		lines = append(lines, rolloverNoCheckpointLine+"; recover the task with chat_history.")
 	}
 	return strings.Join(lines, "\n")
+}
+
+// withoutChatHistoryLeadIn returns a copy of prompt rows in which a
+// rollover lead-in no longer points at chat_history. A rollover boundary
+// keeps anchoring the prompt after the user switches to Summarize or the
+// experiment is turned off, but only the token budget strategy offers
+// chat_history and tags user rows with item IDs.
+func withoutChatHistoryLeadIn(promptRows []database.ChatMessage) ([]database.ChatMessage, error) {
+	rows := slices.Clone(promptRows)
+	for i, row := range rows {
+		if row.Deleted || !row.Compressed || row.Role != database.ChatMessageRoleUser || row.Visibility != database.ChatMessageVisibilityModel {
+			continue
+		}
+		parts, err := chatprompt.ParseContent(row)
+		if err != nil {
+			return nil, xerrors.Errorf("parse context boundary anchor %d: %w", row.ID, err)
+		}
+		if len(parts) == 0 || parts[0].Type != codersdk.ChatMessagePartTypeText || !strings.HasPrefix(parts[0].Text, rolloverLeadInPrefix) {
+			continue
+		}
+		lines := strings.Split(parts[0].Text, "\n")
+		for j, line := range lines {
+			// The checkpoint is the agent's own text and ends the lead-in.
+			if line == "<checkpoint>" {
+				break
+			}
+			switch {
+			case strings.HasPrefix(line, rolloverRecoveryLine):
+				lines[j] = "Completed tool results of the previous window are no longer available; check the current state before repeating their side effects."
+			case strings.HasPrefix(line, rolloverNoCheckpointLine):
+				lines[j] = rolloverNoCheckpointLine + "."
+			}
+		}
+		parts[0].Text = strings.Join(lines, "\n")
+		content, err := chatprompt.MarshalParts(parts)
+		if err != nil {
+			return nil, xerrors.Errorf("marshal context boundary anchor %d: %w", row.ID, err)
+		}
+		rows[i].Content = content
+		rows[i].ContentVersion = chatprompt.CurrentContentVersion
+	}
+	return rows, nil
 }
 
 // latestRequestItemID returns the message ID of the latest user request.

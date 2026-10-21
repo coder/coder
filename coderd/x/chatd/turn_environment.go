@@ -467,6 +467,11 @@ func (p *Server) buildTurnEnvironment(
 			return turnEnvironment{}, err
 		}
 		contextWindowBlock = contextWindowPrompt(contextWindowID(promptRows), previousWindowID)
+	} else {
+		conversionRows, err = withoutChatHistoryLeadIn(promptRows)
+		if err != nil {
+			return turnEnvironment{}, err
+		}
 	}
 
 	if chat.WorkspaceID.Valid {

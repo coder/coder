@@ -96,10 +96,10 @@ func TestDecideRollover(t *testing.T) {
 		{name: "BelowHandoff", tokens: 139_999, budget: budget},
 		{name: "NoUsage", budget: budget},
 		{name: "UnknownWindow", tokens: 1_000_000, budget: newContextWindowBudget(0, 32_000, 70)},
-		{name: "HandoffClaimedBelowFinal", tokens: 151_999, budget: budget, state: rolloverStageState{handoffClaimed: true, newContextOffered: true}},
-		{name: "FinalAfterHandoff", tokens: 152_000, budget: budget, state: rolloverStageState{handoffClaimed: true, newContextOffered: true}, want: final},
-		{name: "FinalNeedsNewContext", tokens: 152_000, budget: budget, state: rolloverStageState{handoffClaimed: true}},
-		{name: "FinalOncePerWindow", tokens: 160_000, budget: budget, state: rolloverStageState{handoffClaimed: true, finalClaimed: true, newContextOffered: true}},
+		{name: "HandoffClaimedBelowFinal", tokens: 151_999, budget: budget, state: rolloverStageState{handoffClaimed: true, stepSinceHandoff: true, newContextOffered: true}},
+		{name: "FinalAfterHandoff", tokens: 152_000, budget: budget, state: rolloverStageState{handoffClaimed: true, stepSinceHandoff: true, newContextOffered: true}, want: final},
+		{name: "FinalNeedsNewContext", tokens: 152_000, budget: budget, state: rolloverStageState{handoffClaimed: true, stepSinceHandoff: true}},
+		{name: "FinalOncePerWindow", tokens: 160_000, budget: budget, state: rolloverStageState{handoffClaimed: true, stepSinceHandoff: true, finalClaimed: true, newContextOffered: true}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -236,6 +236,9 @@ func TestDecideGenerationActionContextHandoff(t *testing.T) {
 		{name: "HandoffAtTarget", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 20)), want: generationActionContextHandoff, wantStage: rolloverActionHandoff},
 		{name: "HandoffBeforeAnsweringNewPrompt", messages: history(prompt(t, 1, "go"), answer(t, 2, 25), prompt(t, 3, "next")), newContextOffered: true, want: generationActionContextHandoff, wantStage: rolloverActionHandoff},
 		{name: "HandoffBeforeFinalInFinalZone", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 40)), newContextOffered: true, want: generationActionContextHandoff, wantStage: rolloverActionHandoff},
+		// The gate runs again right after the handoff commit; the usage it
+		// sees predates the handoff prompt, so the final prompt must wait.
+		{name: "FinalWaitsForStepAfterHandoff", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 40), handoffRows(t, 4, rolloverActionHandoff)), newContextOffered: true, want: generationActionGenerateAssistant},
 		{name: "HandoffOncePerWindow", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 20), handoffRows(t, 4, rolloverActionHandoff), toolStep(t, 7, 37)), newContextOffered: true, want: generationActionGenerateAssistant},
 		{name: "FinalAfterHandoff", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 20), handoffRows(t, 4, rolloverActionHandoff), toolStep(t, 7, 38)), newContextOffered: true, want: generationActionContextHandoff, wantStage: rolloverActionFinal},
 		{name: "FinalNeedsNewContext", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 20), handoffRows(t, 4, rolloverActionHandoff), toolStep(t, 7, 38)), want: generationActionGenerateAssistant},

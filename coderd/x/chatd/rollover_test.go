@@ -305,6 +305,29 @@ func TestActiveServer_NewContextRollover(t *testing.T) {
 	require.Contains(t, second, "goal: ship it")
 	require.NotContains(t, second, "first request")
 	require.Equal(t, anthropicToolNames(streams[0]), anthropicToolNames(streams[1]))
+
+	// The rollover anchor still starts the prompt under Summarize, which
+	// offers no chat_history.
+	require.NoError(t, db.UpsertUserChatCompactionStrategy(ctx, database.UpsertUserChatCompactionStrategyParams{
+		UserID:             user.ID,
+		CompactionStrategy: string(codersdk.ChatCompactionStrategySummarize),
+	}))
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
+		ModelConfigID: model.ID,
+		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("after switching")},
+	})
+	require.NoError(t, err)
+	chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+	require.False(t, chat.LastError.Valid)
+	streams = filterAnthropicStreamingRequests(requests.all())
+	require.Len(t, streams, 3)
+	require.NotContains(t, anthropicToolNames(streams[2]), "chat_history")
+	third := anthropicRequestBody(t, streams[2])
+	require.Contains(t, third, rolloverLeadInPrefix)
+	require.Contains(t, third, "goal: ship it")
+	require.NotContains(t, third, "chat_history")
 }
 
 func TestActiveServer_ContextHandoff(t *testing.T) {
@@ -536,7 +559,8 @@ func TestActiveServer_ContextOverflowRollover(t *testing.T) {
 
 			retry := anthropicRequestBody(t, filterAnthropicStreamingRequests(requests.all())[2])
 			require.Contains(t, retry, rolloverLeadInPrefix)
-			require.Contains(t, retry, "The window reached its usable limit.")
+			require.Contains(t, retry, "The provider rejected the previous request as too large for the context window.")
+			require.NotContains(t, retry, "usable limit.", "an overflow did not reach the usable limit")
 			require.Contains(t, retry, "second request", "the pending user message is replayed after the anchor")
 			require.NotContains(t, retry, "first request")
 			require.NotContains(t, retry, "answer 1")
