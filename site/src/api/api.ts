@@ -467,6 +467,52 @@ export type GetProvisionerDaemonsParams = {
 	offline?: boolean;
 };
 
+// The workspace file types mirror codersdk/workspacesdk, which the type
+// generator does not cover.
+
+/** An entry of a workspace directory listing. */
+export type WorkspaceAgentFile = {
+	name: string;
+	absolute_path_string: string;
+	/** True for a directory, and for a symlink that points at one. */
+	is_dir: boolean;
+	is_symlink: boolean;
+	size: number;
+	/** RFC 3339. */
+	mod_time: string;
+};
+
+export type WorkspaceAgentListDirectoryResponse = {
+	absolute_path: string[];
+	absolute_path_string: string;
+	contents: WorkspaceAgentFile[];
+	/** The agent stopped listing at its entry limit. */
+	truncated?: boolean;
+};
+
+export type WorkspaceAgentFileContents = {
+	data: ArrayBuffer;
+	contentType: string;
+	/** Pass back as `ifMatch` when writing to detect concurrent changes. */
+	etag: string;
+};
+
+export type WorkspaceAgentFindFilesResult = {
+	absolute_path: string;
+	/** Slash-separated, relative to `root`. */
+	path: string;
+	root: string;
+	is_dir: boolean;
+	score: number;
+};
+
+export type WorkspaceAgentFindFilesResponse = {
+	results: WorkspaceAgentFindFilesResult[];
+};
+
+const workspaceAgentFilesPath = (agentId: string, route: string) =>
+	`/api/experimental/workspaceagents/${encodeURIComponent(agentId)}/files/${route}`;
+
 /**
  * This is the container for all API methods. It's split off to make it more
  * clear where API methods should go, but it is eventually merged into the Api
@@ -2459,6 +2505,83 @@ class ApiMethods {
 	): Promise<TypesGen.WorkspaceAgentListeningPortsResponse> => {
 		const response = await this.axios.get(
 			`/api/v2/workspaceagents/${agentID}/listening-ports`,
+		);
+		return response.data;
+	};
+
+	/**
+	 * Lists a workspace directory. `path` is "" for the agent's default
+	 * directory, "~" or "~/x" for home, "/x", or "x" relative to the default
+	 * directory.
+	 */
+	listWorkspaceAgentDirectory = async (
+		agentId: string,
+		path: string,
+	): Promise<WorkspaceAgentListDirectoryResponse> => {
+		const response = await this.axios.post<WorkspaceAgentListDirectoryResponse>(
+			workspaceAgentFilesPath(agentId, "list-directory"),
+			{},
+			{ params: { path } },
+		);
+		return response.data;
+	};
+
+	/** Reads a workspace file by absolute path. */
+	readWorkspaceAgentFile = async (
+		agentId: string,
+		path: string,
+	): Promise<WorkspaceAgentFileContents> => {
+		const response = await this.axios.get<ArrayBuffer>(
+			workspaceAgentFilesPath(agentId, "read-file"),
+			{ params: { path }, responseType: "arraybuffer" },
+		);
+		return {
+			data: response.data,
+			contentType: String(response.headers["content-type"] ?? ""),
+			etag: String(response.headers.etag ?? ""),
+		};
+	};
+
+	/**
+	 * Writes a workspace file by absolute path and returns the new ETag. With
+	 * `ifMatch`, the agent rejects the write with 412 when the file changed
+	 * since it was read; the error response carries the current ETag.
+	 */
+	writeWorkspaceAgentFile = async (
+		agentId: string,
+		path: string,
+		content: string,
+		ifMatch?: string,
+	): Promise<{ etag: string }> => {
+		const response = await this.axios.post(
+			workspaceAgentFilesPath(agentId, "write-file"),
+			content,
+			{
+				params: ifMatch ? { path, if_match: ifMatch } : { path },
+				headers: { "Content-Type": "application/octet-stream" },
+			},
+		);
+		return { etag: String(response.headers.etag ?? "") };
+	};
+
+	/** Fuzzy-finds files under the given roots (same path forms as listing). */
+	findWorkspaceAgentFiles = async (
+		agentId: string,
+		roots: readonly string[],
+		query: string,
+		limit?: number,
+	): Promise<WorkspaceAgentFindFilesResponse> => {
+		const params = new URLSearchParams();
+		for (const root of roots) {
+			params.append("root", root);
+		}
+		params.set("q", query);
+		if (limit !== undefined) {
+			params.set("limit", String(limit));
+		}
+		const response = await this.axios.get<WorkspaceAgentFindFilesResponse>(
+			workspaceAgentFilesPath(agentId, "find-files"),
+			{ params },
 		);
 		return response.data;
 	};
