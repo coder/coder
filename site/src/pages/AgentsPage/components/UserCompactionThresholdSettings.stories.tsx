@@ -577,8 +577,7 @@ export const TokenBudgetUnknownWindow: Story = {
 export const TokenBudgetDisableRolloverWarning: Story = {
 	args: { compactionStrategy: "token_budget" },
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const gpt4oInput = await canvas.findByRole("textbox", {
+		const gpt4oInput = await within(canvasElement).findByRole("textbox", {
 			name: /GPT-4o handoff target/i,
 		});
 
