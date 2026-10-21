@@ -27,6 +27,8 @@ type SessionSummaryTableProps = {
 	providers: readonly string[];
 	inputTokens: number;
 	outputTokens: number;
+	cacheReadTokens: number;
+	cacheWriteTokens: number;
 	threadCount: number;
 	toolCallCount: number;
 	tokenUsageMetadata?: Record<string, unknown>;
@@ -51,6 +53,8 @@ export const SessionSummaryTable = ({
 	client,
 	inputTokens,
 	outputTokens,
+	cacheReadTokens,
+	cacheWriteTokens,
 	threadCount,
 	toolCallCount,
 	tokenUsageMetadata,
@@ -169,14 +173,14 @@ export const SessionSummaryTable = ({
 
 			<Separator />
 
-			<div className="flex items-center justify-between">
-				<dt className="shrink-0 font-normal whitespace-nowrap">
-					In / out tokens
-				</dt>
+			<div className="flex items-start justify-between">
+				<dt className="shrink-0 font-normal whitespace-nowrap">Tokens</dt>
 				<dd className="ml-4 min-w-0 truncate text-content-primary">
 					<TokenBadges
 						inputTokens={inputTokens}
 						outputTokens={outputTokens}
+						cacheReadTokens={cacheReadTokens}
+						cacheWriteTokens={cacheWriteTokens}
 						tokenUsageMetadata={tokenUsageMetadata}
 					/>
 				</dd>
