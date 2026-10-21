@@ -135,12 +135,12 @@ The `type` field keeps the same values, but the API schema describes it as a str
 Durations are the time between the recorded connect and disconnect events of an SSH or reconnecting PTY connection.
 They aren't running timers.
 
-| `duration.status` | Meaning                                                      | Connection Log page      |
-|-------------------|--------------------------------------------------------------|--------------------------|
-| `recorded`        | Connect and disconnect events recorded                       | The duration             |
-| `no_disconnect`   | No disconnect recorded yet, so the connection may be ongoing | **Ongoing**              |
-| `missing_connect` | Disconnect recorded without its connect                      | **No connect recorded**  |
-| `invalid`         | Disconnect recorded before connect                           | **Duration unavailable** |
+| `duration.status` | Meaning                                                      | Connection Log page                                   |
+|-------------------|--------------------------------------------------------------|-------------------------------------------------------|
+| `recorded`        | Connect and disconnect events recorded                       | Connect and disconnect times, and the duration        |
+| `no_disconnect`   | No disconnect recorded yet, so the connection may be ongoing | Connect time, then **Ongoing**                        |
+| `missing_connect` | Disconnect recorded without its connect                      | **Unknown**, then the disconnect time                 |
+| `invalid`         | Disconnect recorded before connect                           | Both times and **Disconnect recorded before connect** |
 
 `no_disconnect` matches `status:ongoing`.
 All other duration statuses match `status:completed`.
