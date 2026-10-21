@@ -209,7 +209,11 @@ func (e *Engine) Search(_ context.Context, query string, opts SearchOptions) ([]
 	params := defaultScoreParams()
 	var allCands []candidate
 	for _, rs := range roots {
-		allCands = append(allCands, searchSnapshot(plan, rs.snap, opts.MaxCandidates)...)
+		cands := searchSnapshot(plan, rs.snap, opts.MaxCandidates)
+		for i := range cands {
+			cands[i].Root = rs.root
+		}
+		allCands = append(allCands, cands...)
 	}
 	results := mergeAndScore(allCands, plan, params, opts.Limit)
 	return results, nil
