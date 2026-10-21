@@ -61,11 +61,15 @@ export const Page: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const docsLinks = canvas.getAllByRole("link", { name: /View docs/ });
-		await expect(docsLinks).toHaveLength(2);
+		await expect(docsLinks).toHaveLength(3);
 		await expect(docsLinks[0]).toHaveAttribute("href", docs("/admin/security"));
 		await expect(docsLinks[1]).toHaveAttribute(
 			"href",
 			docs("/admin/networking#browser-only-connections"),
+		);
+		await expect(docsLinks[2]).toHaveAttribute(
+			"href",
+			docs("/admin/setup#tls--reverse-proxy"),
 		);
 		await expect(
 			canvas.getByRole("heading", {
