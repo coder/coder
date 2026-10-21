@@ -630,6 +630,41 @@ func TestPinnedContextResources(t *testing.T) {
 			},
 		}, out)
 	})
+
+	t.Run("IncludesACPHarnesses", func(t *testing.T) {
+		t.Parallel()
+
+		resources := []database.ChatContextResource{
+			{
+				Source:     "claude-code",
+				SourcePath: "/home/coder/.coder/acp",
+				BodyKind:   database.WorkspaceAgentContextBodyKindAcpHarness,
+				Status:     database.WorkspaceAgentContextResourceStatusOk,
+				SizeBytes:  120,
+			},
+			{
+				Source:   "broken",
+				BodyKind: database.WorkspaceAgentContextBodyKindAcpHarness,
+				Status:   database.WorkspaceAgentContextResourceStatusInvalid,
+				Error:    "cannot start harness",
+			},
+		}
+		require.Equal(t, []codersdk.ChatContextResource{
+			{
+				Source:     "claude-code",
+				SourcePath: "/home/coder/.coder/acp",
+				Kind:       codersdk.ChatContextResourceKindACPHarness,
+				SizeBytes:  120,
+				Status:     codersdk.ChatContextResourceStatusOK,
+			},
+			{
+				Source: "broken",
+				Kind:   codersdk.ChatContextResourceKindACPHarness,
+				Status: codersdk.ChatContextResourceStatusInvalid,
+				Error:  "cannot start harness",
+			},
+		}, pinnedContextResources(resources))
+	})
 }
 
 func TestContextResources(t *testing.T) {
@@ -638,20 +673,56 @@ func TestContextResources(t *testing.T) {
 	t.Run("ReturnsPinnedResources", func(t *testing.T) {
 		t.Parallel()
 
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		chatID := uuid.New()
-		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).
-			Return([]database.ChatContextResource{
-				instructionResource(t, "/home/coder/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusOk),
-			}, nil)
-		server := newPinServer(t, db)
+		for _, tc := range []struct {
+			name        string
+			acpEnabled  bool
+			wantSources []string
+		}{
+			{
+				name:        "ACPDisabled",
+				wantSources: []string{"/home/coder/AGENTS.md"},
+			},
+			{
+				name:        "ACPEnabled",
+				acpEnabled:  true,
+				wantSources: []string{"/home/coder/AGENTS.md", "claude-code", "broken"},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-		resources, err := server.ContextResources(context.Background(), database.Chat{ID: chatID})
-		require.NoError(t, err)
-		require.Len(t, resources, 1)
-		require.Equal(t, "/home/coder/AGENTS.md", resources[0].Source)
-		require.Equal(t, codersdk.ChatContextResourceKindInstructionFile, resources[0].Kind)
+				db := dbmock.NewMockStore(gomock.NewController(t))
+				chatID := uuid.New()
+				db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).
+					Return([]database.ChatContextResource{
+						instructionResource(t, "/home/coder/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusOk),
+						{
+							Source:   "claude-code",
+							BodyKind: database.WorkspaceAgentContextBodyKindAcpHarness,
+							Status:   database.WorkspaceAgentContextResourceStatusOk,
+						},
+						{
+							Source:   "broken",
+							BodyKind: database.WorkspaceAgentContextBodyKindAcpHarness,
+							Status:   database.WorkspaceAgentContextResourceStatusInvalid,
+							Error:    "cannot start harness",
+						},
+					}, nil)
+				server := newPinServer(t, db)
+				if tc.acpEnabled {
+					server.experiments = codersdk.Experiments{codersdk.ExperimentChatACPSubagents}
+				}
+
+				resources, err := server.ContextResources(context.Background(), database.Chat{ID: chatID})
+				require.NoError(t, err)
+				var sources []string
+				for _, resource := range resources {
+					sources = append(sources, resource.Source)
+				}
+				require.Equal(t, tc.wantSources, sources)
+				require.Equal(t, codersdk.ChatContextResourceKindInstructionFile, resources[0].Kind)
+			})
+		}
 	})
 
 	t.Run("PinnedListError", func(t *testing.T) {

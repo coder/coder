@@ -406,6 +406,8 @@ func (p *Server) buildTurnEnvironment(
 		personalSkills      []skillspkg.Skill
 		orgSkills           []skillspkg.Skill
 		orgSkillReader      rbac.Subject
+		projectSkills       []skillspkg.Skill
+		usableProjectID     uuid.NullUUID
 		resolvedUserPrompt  string
 		projectInstructions string
 		planPathBlock       string
@@ -534,8 +536,23 @@ func (p *Server) buildTurnEnvironment(
 		resolvedUserPrompt, err = p.resolveUserPrompt(ctx, chat.OwnerID)
 		return err
 	})
+	// Project instructions and skills share one access check, so the chat
+	// owner gets both or neither. Both fail open: the turn continues without
+	// them.
 	g2.Go(func() error {
-		projectInstructions = p.resolveProjectInstructions(ctx, logger, chat)
+		usableProjectID = p.resolveUsableChatProjectID(ctx, logger, chat)
+		if !usableProjectID.Valid {
+			return nil
+		}
+		projectInstructions = p.loadProjectInstructions(ctx, logger, usableProjectID.UUID)
+		var err error
+		projectSkills, err = p.fetchProjectSkillMetadata(ctx, usableProjectID.UUID)
+		if err != nil {
+			logger.Warn(ctx, "failed to load chat project skills",
+				slog.F("project_id", usableProjectID.UUID),
+				slog.Error(err),
+			)
+		}
 		return nil
 	})
 	if len(mcpConnectConfigs) > 0 {
@@ -648,7 +665,7 @@ func (p *Server) buildTurnEnvironment(
 		subagentInstruction = defaultSubagentInstruction
 	}
 	resolvedSkillsFor := func(workspaceSkills []chattool.SkillMeta) []skillspkg.ResolvedSkill {
-		return mergeTurnSkills(personalSkills, orgSkills, workspaceSkills)
+		return mergeTurnSkills(personalSkills, orgSkills, projectSkills, workspaceSkills)
 	}
 	resolveSkillAlias := func(alias string) (skillspkg.ResolvedSkill, error) {
 		return skillspkg.Lookup(resolvedSkillsFor(workspaceSkills), alias)
@@ -742,14 +759,18 @@ func (p *Server) buildTurnEnvironment(
 		},
 		ResolveAlias: resolveSkillAlias,
 		LoadStoredSkillBody: func(ctx context.Context, skill skillspkg.Skill) (skillspkg.ParsedSkill, error) {
-			if skill.Source == skillspkg.SourceOrganization {
+			switch skill.Source {
+			case skillspkg.SourceOrganization:
 				return p.loadOrganizationSkillBody(ctx, orgSkillReader, chat.OrganizationID, skill.Name)
+			case skillspkg.SourceProject:
+				return p.loadProjectSkillBody(ctx, usableProjectID.UUID, skill.Name)
+			default:
+				return p.loadPersonalSkillBody(ctx, chat.OwnerID, skill.Name)
 			}
-			return p.loadPersonalSkillBody(ctx, chat.OwnerID, skill.Name)
 		},
 	}
 	appendCurrentSkillTools := func(current []fantasy.AgentTool) ([]fantasy.AgentTool, bool) {
-		if len(personalSkills) == 0 && len(orgSkills) == 0 && len(workspaceSkills) == 0 {
+		if len(personalSkills) == 0 && len(orgSkills) == 0 && len(projectSkills) == 0 && len(workspaceSkills) == 0 {
 			return current, false
 		}
 		updated := current
@@ -2132,12 +2153,14 @@ func workspaceSkillsForResolution(workspaceSkills []chattool.SkillMeta) []skills
 func mergeTurnSkills(
 	personalSkills []skillspkg.Skill,
 	organizationSkills []skillspkg.Skill,
+	projectSkills []skillspkg.Skill,
 	workspaceSkills []chattool.SkillMeta,
 ) []skillspkg.ResolvedSkill {
 	return skillspkg.MergeSkills(
-		personalSkills,
-		organizationSkills,
-		workspaceSkillsForResolution(workspaceSkills),
+		skillspkg.SourceSkills{Source: skillspkg.SourcePersonal, Skills: personalSkills},
+		skillspkg.SourceSkills{Source: skillspkg.SourceOrganization, Skills: organizationSkills},
+		skillspkg.SourceSkills{Source: skillspkg.SourceProject, Skills: projectSkills},
+		skillspkg.SourceSkills{Source: skillspkg.SourceWorkspace, Skills: workspaceSkillsForResolution(workspaceSkills)},
 	)
 }
 
@@ -2381,6 +2404,73 @@ func (p *Server) loadOrganizationSkillBody(
 		return skillspkg.ParsedSkill{}, xerrors.Errorf("parse organization skill body: %w", err)
 	}
 	parsed.Source = skillspkg.SourceOrganization
+	return parsed, nil
+}
+
+// fetchProjectSkillMetadata lists the enabled skills of a chat project. It
+// reads as chatd, so callers must first check that the chat owner can use the
+// project with usableChatProject, as for project instructions and memory.
+func (p *Server) fetchProjectSkillMetadata(
+	ctx context.Context,
+	projectID uuid.UUID,
+) ([]skillspkg.Skill, error) {
+	rows, err := p.db.ListProjectSkillMetadataByProjectID(ctx, projectID)
+	if err != nil {
+		return nil, xerrors.Errorf("list project skill metadata: %w", err)
+	}
+
+	projectSkills := make([]skillspkg.Skill, 0, len(rows))
+	for _, row := range rows {
+		if !row.Enabled {
+			continue
+		}
+		projectSkills = append(projectSkills, skillspkg.Skill{
+			Name:        row.Name,
+			Description: row.Description,
+			Source:      skillspkg.SourceProject,
+		})
+	}
+	return projectSkills, nil
+}
+
+// loadProjectSkillBody loads the current body of a chat project skill. Like
+// fetchProjectSkillMetadata, it reads as chatd and relies on the caller's
+// project access check. It returns skillspkg.ErrSkillNotFound when the skill
+// or project is gone, or the skill is disabled.
+func (p *Server) loadProjectSkillBody(
+	ctx context.Context,
+	projectID uuid.UUID,
+	name string,
+) (skillspkg.ParsedSkill, error) {
+	row, err := p.db.GetProjectSkillByProjectIDAndName(ctx, database.GetProjectSkillByProjectIDAndNameParams{
+		ProjectID: projectID,
+		Name:      name,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
+		}
+		p.logger.Error(ctx, "load project skill body failed",
+			slog.F("project_id", projectID),
+			slog.F("name", name),
+			slog.Error(err),
+		)
+		return skillspkg.ParsedSkill{}, xerrors.Errorf("load project skill body: %w", err)
+	}
+	if !row.Enabled {
+		return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
+	}
+
+	parsed, err := skillspkg.ParsePersonalSkillMarkdown([]byte(row.Content))
+	if err != nil {
+		p.logger.Error(ctx, "parse project skill body failed",
+			slog.F("project_id", projectID),
+			slog.F("name", name),
+			slog.Error(err),
+		)
+		return skillspkg.ParsedSkill{}, xerrors.Errorf("parse project skill body: %w", err)
+	}
+	parsed.Source = skillspkg.SourceProject
 	return parsed, nil
 }
 
