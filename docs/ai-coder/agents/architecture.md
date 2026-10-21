@@ -84,7 +84,7 @@ To start over without a summary, send `/clear` while the agent is idle or in an 
 The transcript stays visible, but the next message runs with a fresh context, as if the conversation were new.
 A "Context cleared" marker shows where the reset happened.
 
-As an experimental alternative to summarizing, the [Token budget](./platform-controls/token-budget.md) strategy continues long chats in a fresh context window that starts from a checkpoint the agent saved.
+As an experimental alternative to summarizing, the [Token budget](./platform-controls/token-budget.md) strategy continues long chats in a fresh context window that starts from the agent's latest checkpoint, when one was saved.
 
 ### Message queuing
 

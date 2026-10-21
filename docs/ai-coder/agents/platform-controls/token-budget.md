@@ -3,13 +3,14 @@ title: Token budget
 ---
 
 > [!NOTE]
-> This feature is experimental.
-> Pin a release before broad rollout and review the release notes before upgrading.
+> This feature is experimental and can change between releases.
 
 Token budget is a compaction strategy for Coder Agents chats that starts a fresh context window instead of summarizing older context.
-This page shows administrators how to enable it, and shows chat owners how to turn it on and what happens when a context window fills up.
+This page is for chat owners: it shows how to turn on Token budget for your chats and what happens when a context window fills up.
 
-## Enable the experiment
+## Prerequisites
+
+An administrator must enable the `chat-token-budget` experiment on the Coder server:
 
 ```sh
 coder server --experiments=chat-token-budget
@@ -29,7 +30,7 @@ CODER_EXPERIMENTS=chat-token-budget
 
 The choice applies to every chat you own, including sub-agent chats, from the next model step on.
 **Summarize** is the default and keeps the [summarizing behavior](../architecture.md#context-compaction).
-API clients read and set the strategy with `GET` and `PUT` on `/api/experimental/chats/config/user-compaction-strategy`, using the values `summarize` and `token_budget`.
+To set the same choice from a script, send `GET` and `PUT` requests to `/api/experimental/chats/config/user-compaction-strategy`, using the values `summarize` and `token_budget`.
 
 ## When a context window ends
 
@@ -55,7 +56,7 @@ No stage fires, and Coder refuses the agent's requests for a new context window.
 For a model without a context limit, Coder skips the handoff target, the final prompt, and the rollover at the usable limit.
 If its threshold is below 100%, Coder still honors the agent's own requests and still starts a new context window when the provider rejects a request as too large.
 
-The stages use the token usage the provider reported for the previous model step.
+The handoff target, the final prompt, and the rollover at the usable limit use the token usage the provider reported for the previous model step.
 A single large tool result can therefore pass the usable limit before Coder checks it, and the provider rejection then triggers the forced rollover.
 
 ## Agent tools
