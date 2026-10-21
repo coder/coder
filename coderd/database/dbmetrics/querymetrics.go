@@ -2472,7 +2472,7 @@ func (m queryMetricsStore) GetHealthSettings(ctx context.Context) (string, error
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error) {
+func (m queryMetricsStore) GetHighestGroupAIBudgetByUser(ctx context.Context, userID database.GetHighestGroupAIBudgetByUserParams) (database.GetHighestGroupAIBudgetByUserRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetHighestGroupAIBudgetByUser(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetHighestGroupAIBudgetByUser").Observe(time.Since(start).Seconds())
@@ -3496,6 +3496,14 @@ func (m queryMetricsStore) GetUserAIBudgetOverride(ctx context.Context, userID u
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserAIBudgetOverrideWithOrganization(ctx context.Context, arg database.GetUserAIBudgetOverrideWithOrganizationParams) (database.GetUserAIBudgetOverrideWithOrganizationRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserAIBudgetOverrideWithOrganization(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetUserAIBudgetOverrideWithOrganization").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserAIBudgetOverrideWithOrganization").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserAIProviderKeyByProviderID(ctx context.Context, arg database.GetUserAIProviderKeyByProviderIDParams) (database.UserAIProviderKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserAIProviderKeyByProviderID(ctx, arg)
@@ -3624,7 +3632,7 @@ func (m queryMetricsStore) GetUserCount(ctx context.Context, includeSystem bool)
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+func (m queryMetricsStore) GetUserEveryoneFallbackGroup(ctx context.Context, userID database.GetUserEveryoneFallbackGroupParams) (uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserEveryoneFallbackGroup(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetUserEveryoneFallbackGroup").Observe(time.Since(start).Seconds())

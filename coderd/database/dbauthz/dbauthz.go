@@ -4373,11 +4373,11 @@ func (q *querier) GetHealthSettings(ctx context.Context) (string, error) {
 	return q.db.GetHealthSettings(ctx)
 }
 
-func (q *querier) GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(userID)); err != nil {
+func (q *querier) GetHighestGroupAIBudgetByUser(ctx context.Context, arg database.GetHighestGroupAIBudgetByUserParams) (database.GetHighestGroupAIBudgetByUserRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(arg.UserID)); err != nil {
 		return database.GetHighestGroupAIBudgetByUserRow{}, err
 	}
-	return q.db.GetHighestGroupAIBudgetByUser(ctx, userID)
+	return q.db.GetHighestGroupAIBudgetByUser(ctx, arg)
 }
 
 func (q *querier) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (database.InboxNotification, error) {
@@ -5443,6 +5443,13 @@ func (q *querier) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID)
 	return q.db.GetUserAIBudgetOverride(ctx, userID)
 }
 
+func (q *querier) GetUserAIBudgetOverrideWithOrganization(ctx context.Context, arg database.GetUserAIBudgetOverrideWithOrganizationParams) (database.GetUserAIBudgetOverrideWithOrganizationRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(arg.UserID)); err != nil {
+		return database.GetUserAIBudgetOverrideWithOrganizationRow{}, err
+	}
+	return q.db.GetUserAIBudgetOverrideWithOrganization(ctx, arg)
+}
+
 func (q *querier) GetUserAIProviderKeyByProviderID(ctx context.Context, arg database.GetUserAIProviderKeyByProviderIDParams) (database.UserAIProviderKey, error) {
 	u, err := q.db.GetUserByID(ctx, arg.UserID)
 	if err != nil {
@@ -5601,11 +5608,11 @@ func (q *querier) GetUserCount(ctx context.Context, includeSystem bool) (int64, 
 	return q.db.GetUserCount(ctx, includeSystem)
 }
 
-func (q *querier) GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(userID)); err != nil {
+func (q *querier) GetUserEveryoneFallbackGroup(ctx context.Context, arg database.GetUserEveryoneFallbackGroupParams) (uuid.UUID, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(arg.UserID)); err != nil {
 		return uuid.Nil, err
 	}
-	return q.db.GetUserEveryoneFallbackGroup(ctx, userID)
+	return q.db.GetUserEveryoneFallbackGroup(ctx, arg)
 }
 
 func (q *querier) GetUserForChatSyntheticAPIKeyByID(ctx context.Context, id uuid.UUID) (database.User, error) {
