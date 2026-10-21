@@ -116,18 +116,18 @@ The handoff target is the threshold percentage of the context limit, at least 10
 For example, a model with a 200,000-token context limit, no **Max Output Tokens** value, and a 70% threshold reaches its handoff target at 140,000&nbsp;tokens.
 It gets the final prompt at 152,000&nbsp;tokens and rolls over at 168,000&nbsp;tokens.
 
-A threshold of 100% shows as **Automatic rollover disabled**.
+A threshold of 100% shows as `Automatic rollover disabled`.
 No stage fires, and Coder refuses the agent's requests for a new context window.
 For a model without a context limit, Coder skips the handoff target, the final prompt, and the rollover at the usable limit.
 It still honors the agent's own requests, and it still starts a new context window when the provider rejects a request as too large.
 
 Under Token budget, the agent gets 3 extra tools:
 
-| Tool              | What it does                                                                                                                                                                                                                    |
-|-------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `save_checkpoint` | Saves a checkpoint of up to 8&nbsp;KiB with the goal, decisions, progress, and next steps. Each save replaces the previous checkpoint.                                                                                          |
-| `new_context`     | Asks Coder to start a new context window once the other tool calls in the same step finish. Refused when the threshold is 100%.                                                                                                 |
-| `chat_history`    | Reads this chat's transcript across context windows. It lists windows, lists or searches messages with a literal, case-insensitive match, and reads one message in pages. Messages before the latest `/clear` are not readable. |
+| Tool              | What it does                                                                                                                                                                                                                 |
+|-------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `save_checkpoint` | Saves a checkpoint of up to 8&nbsp;KiB with the goal, decisions, progress, and next steps. Each save replaces the previous checkpoint.                                                                                       |
+| `new_context`     | Asks Coder to start a new context window once the other tool calls in the same step finish. Refused when the threshold is 100%.                                                                                              |
+| `chat_history`    | Reads this chat's transcript across context windows. It lists windows, lists or searches messages with a literal, case-insensitive match, and reads one message in pages. It can't read messages before the latest `/clear`. |
 
 A new context window carries no summary of the previous one.
 It opens with a short lead-in that explains why the window changed and includes the agent's latest checkpoint, when one was saved.
