@@ -30,7 +30,8 @@ type DialogState =
 	| { type: "delete"; skill: SkillMetadata; submittedName?: string }
 	| null;
 
-const skillError = (
+/** Maps an API error to a status-specific message with a fallback; undefined without an error. */
+export const skillError = (
 	error: unknown,
 	fallback: string,
 	lowerNoun: string,
@@ -57,7 +58,8 @@ const skillError = (
 	};
 };
 
-const downloadSkillFile = async (
+/** Fetches a skill's SKILL.md content and saves it as `<name>.md`. */
+export const downloadSkillFile = async (
 	name: string,
 	fetchContent: (name: string) => Promise<string>,
 ): Promise<void> => {

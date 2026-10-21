@@ -213,7 +213,8 @@ const EditSkillDialog: React.FC<
 	);
 };
 
-const DeleteSkillDialog: React.FC<DialogProps<SkillDeleteState>> = ({
+/** Confirms deleting a skill and shows the last failure; onCloseAutoFocus restores focus. */
+export const DeleteSkillDialog: React.FC<DialogProps<SkillDeleteState>> = ({
 	state,
 	onCloseAutoFocus,
 }) => {

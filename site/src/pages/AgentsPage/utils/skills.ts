@@ -1,6 +1,13 @@
 import frontMatter from "front-matter";
 import type { QueryClient } from "react-query";
 import {
+	chatProjectSkill,
+	chatProjectSkills,
+	createChatProjectSkill,
+	deleteChatProjectSkill,
+	updateChatProjectSkill,
+} from "#/api/queries/chatProjectSkills";
+import {
 	createOrganizationSkill,
 	deleteOrganizationSkill,
 	organizationSkill,
@@ -306,7 +313,8 @@ export type SkillsScope = {
 	detail: (name: string) => SkillsQuery<Skill>;
 	create: (queryClient: QueryClient) => {
 		mutationFn: (req: CreateSkillRequest) => Promise<Skill>;
-		onSuccess: (skill: Skill) => unknown;
+		onSuccess?: (skill: Skill) => unknown;
+		onSettled?: () => unknown;
 	};
 	update: (queryClient: QueryClient) => {
 		mutationFn: (args: {
@@ -366,3 +374,18 @@ export const activeOrganizationSkills = (
 			preferences.disabled_skill_ids.includes(skill.id));
 	return enabledSkills.filter((skill) => !isOptedOut(skill));
 };
+
+/** Adapts a project's skill queries to SkillsScope; mutations refresh its list. */
+export const projectSkillsScope = (
+	organizationId: string,
+	projectId: string,
+): SkillsScope => ({
+	list: chatProjectSkills(organizationId, projectId),
+	detail: (name) => chatProjectSkill(organizationId, projectId, name),
+	create: (queryClient) =>
+		createChatProjectSkill(queryClient, organizationId, projectId),
+	update: (queryClient) =>
+		updateChatProjectSkill(queryClient, organizationId, projectId),
+	remove: (queryClient) =>
+		deleteChatProjectSkill(queryClient, organizationId, projectId),
+});

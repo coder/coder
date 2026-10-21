@@ -90,7 +90,7 @@ const beginsWithFrontmatterDelimiter = (content: string): boolean =>
 		?.trim() === "---";
 
 /** The skill fields and SKILL.md import, without a dialog around them. */
-const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
+export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 	mode,
 	readOnly = false,
 	initialValues,

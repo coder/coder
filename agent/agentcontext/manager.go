@@ -48,6 +48,8 @@ type ManagerOptions struct {
 	// MCPReconnect runs at the start of Resync to reconnect MCP
 	// servers that failed or stopped responding.
 	MCPReconnect func(context.Context) error
+	// ACPResources supplies the cached workspace-local harness catalog.
+	ACPResources func() []Resource
 	// Debounce overrides the watcher's debounce window.
 	Debounce time.Duration
 }
@@ -151,6 +153,10 @@ func NewManager(opts ManagerOptions) *Manager {
 		closedCh:     make(chan struct{}),
 		runDoneCh:    make(chan struct{}),
 		runStartedCh: make(chan struct{}),
+	}
+
+	if resolver.ACPResources == nil {
+		resolver.ACPResources = opts.ACPResources
 	}
 
 	// Surface the shared MCP engine's catalog as KindMCPServer
