@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -506,6 +507,9 @@ func (p *Server) setChatFamilyArchived(ctx context.Context, chat database.Chat, 
 	if archived {
 		p.scheduleArchiveDebugCleanup(ctx, familyChats)
 		watchKind = codersdk.ChatWatchEventKindDeleted
+	} else if slices.ContainsFunc(familyChats, func(chat database.Chat) bool { return chat.WorkspaceID.Valid }) {
+		// The claim skips archived chats, so their files may be due now.
+		p.wakeWorkspaceFileDelivery()
 	}
 	p.publishChatPubsubEvents(familyChats, watchKind)
 	return nil
