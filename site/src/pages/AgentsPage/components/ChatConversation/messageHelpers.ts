@@ -366,6 +366,12 @@ export type AgentAttachment = {
 	href: string;
 };
 
+/** A settled turn's agent attachments, oldest first. */
+export type TurnAttachmentList = readonly [
+	AgentAttachment,
+	...AgentAttachment[],
+];
+
 /** Downloadable files in one message, in part order. */
 export const getMessageAgentAttachments = (
 	message: TypesGen.ChatMessage,

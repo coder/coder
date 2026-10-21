@@ -109,7 +109,7 @@ const getAttachmentExtension = (
 	);
 };
 
-/** True for the media types the text preview renders. */
+/** Exact, case-sensitive match on the media type string. */
 export const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
 	TEXT_ATTACHMENT_MEDIA_TYPES.has(mediaType);
 

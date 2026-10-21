@@ -1301,7 +1301,7 @@ describe("getTurnAttachmentsByRow", () => {
 			fileIdsByRow(
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: false,
-					isLastTurnActive: false,
+					isLastTurnUnsettled: false,
 					hasMoreMessages: false,
 				}),
 			),
@@ -1320,7 +1320,7 @@ describe("getTurnAttachmentsByRow", () => {
 		const pillRowKeys = (hidesAttachmentRows: boolean) => [
 			...getTurnAttachmentsByRow(rows, {
 				hidesAttachmentRows,
-				isLastTurnActive: false,
+				isLastTurnUnsettled: false,
 				hasMoreMessages: false,
 			}).keys(),
 		];
@@ -1328,6 +1328,29 @@ describe("getTurnAttachmentsByRow", () => {
 		expect(pillRowKeys(true)).toEqual(["message:2"]);
 		expect(pillRowKeys(false)).toEqual(["message:3"]);
 	});
+
+	it.each(["chat_cleared", "chat_summarized"])(
+		"keeps the pill off a later %s row",
+		(toolName) => {
+			const { rows } = group([
+				user("Build the report"),
+				message("assistant", [text("Here:"), file("a")]),
+				message("assistant", [call("boundary", undefined, toolName)]),
+				message("tool", [result("boundary", undefined, { name: toolName })]),
+				user("Start over"),
+			]);
+
+			expect(
+				fileIdsByRow(
+					getTurnAttachmentsByRow(rows, {
+						hidesAttachmentRows: false,
+						isLastTurnUnsettled: false,
+						hasMoreMessages: false,
+					}),
+				),
+			).toEqual([["message:2", ["a"]]]);
+		},
+	);
 
 	it("leaves out a first turn whose prompt is on an unloaded page", () => {
 		const { rows } = group([
@@ -1339,7 +1362,7 @@ describe("getTurnAttachmentsByRow", () => {
 			fileIdsByRow(
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: false,
-					isLastTurnActive: false,
+					isLastTurnUnsettled: false,
 					hasMoreMessages,
 				}),
 			);
@@ -1366,7 +1389,7 @@ describe("getTurnAttachmentsByRow", () => {
 			fileIdsByRow(
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: true,
-					isLastTurnActive: true,
+					isLastTurnUnsettled: true,
 					hasMoreMessages: false,
 				}),
 			),

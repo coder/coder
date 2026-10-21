@@ -1,10 +1,10 @@
 import { cn } from "cn";
-import type { AgentAttachment } from "./messageHelpers";
+import type { TurnAttachmentList } from "./messageHelpers";
 import { TurnAttachments } from "./TurnAttachments";
 
 type MessageActionBarProps = React.PropsWithChildren<{
 	isUser: boolean;
-	turnAttachments?: readonly AgentAttachment[];
+	turnAttachments: TurnAttachmentList | undefined;
 	showsActions: boolean;
 }>;
 

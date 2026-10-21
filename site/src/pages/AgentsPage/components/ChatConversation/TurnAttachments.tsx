@@ -14,7 +14,7 @@ import {
 } from "./AgentAttachmentList";
 import { isTextPreviewAttachmentMediaType } from "./AttachmentBlocks";
 import { useFileProbes } from "./FileProbeContext";
-import type { AgentAttachment } from "./messageHelpers";
+import type { AgentAttachment, TurnAttachmentList } from "./messageHelpers";
 
 const THUMBNAIL_STACK_MAX = 3;
 
@@ -49,6 +49,7 @@ const AttachmentThumbnail: React.FC<AttachmentThumbnailProps> = ({
 					previewUrl={href}
 					name=""
 					className="size-full rounded-none border-0"
+					loading="lazy"
 					onError={() => setFailed(true)}
 				/>
 			</StackSlot>
@@ -67,8 +68,7 @@ const AttachmentThumbnail: React.FC<AttachmentThumbnailProps> = ({
 };
 
 type TurnAttachmentsProps = {
-	/** Oldest first; callers pass at least one attachment. */
-	attachments: readonly AgentAttachment[];
+	attachments: TurnAttachmentList;
 };
 
 /** Action bar pill for a settled turn's attachments. */
@@ -80,36 +80,33 @@ export const TurnAttachments: React.FC<TurnAttachmentsProps> = ({
 
 	return (
 		<Popover>
-			<PopoverTrigger asChild>
-				<button
-					type="button"
-					aria-label={`Attachments (${attachments.length.toLocaleString("en-US")})`}
-					className="inline-flex h-6 items-center gap-1.5 rounded-full border-0 bg-surface-secondary pl-0.5 pr-2 text-xs text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
-				>
-					<span aria-hidden className="inline-flex items-center">
-						{attachments.slice(0, THUMBNAIL_STACK_MAX).map((attachment) => (
-							<AttachmentThumbnail
-								key={attachment.key}
-								attachment={attachment}
-								expired={isAgentAttachmentExpired(attachment, hasExpired)}
-							/>
-						))}
-						{overflow > 0 && (
-							<StackSlot className="w-auto min-w-5 px-0.5 text-2xs">
-								+{overflow.toLocaleString("en-US")}
-							</StackSlot>
-						)}
-					</span>
-					Attachments
-				</button>
+			<PopoverTrigger
+				aria-label={`Attachments (${attachments.length.toLocaleString("en-US")})`}
+				className="inline-flex h-6 items-center gap-1.5 rounded-full border-0 bg-surface-secondary pl-0.5 pr-2 text-xs text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+			>
+				<span aria-hidden className="inline-flex items-center">
+					{attachments.slice(0, THUMBNAIL_STACK_MAX).map((attachment) => (
+						<AttachmentThumbnail
+							key={attachment.key}
+							attachment={attachment}
+							expired={isAgentAttachmentExpired(attachment, hasExpired)}
+						/>
+					))}
+					{overflow > 0 && (
+						<StackSlot className="w-auto min-w-5 px-0.5 text-2xs">
+							+{overflow.toLocaleString("en-US")}
+						</StackSlot>
+					)}
+				</span>
+				Attachments
 			</PopoverTrigger>
-			{/* Prefer opening above: below the last turn's pill sits the
-			    composer, which Radix collision detection does not see. */}
+			{/* Below the last turn's pill sits the composer, which Radix
+			    collision detection does not see. */}
 			<PopoverContent
 				aria-label="Attachments"
 				side="top"
 				align="start"
-				className="w-80 max-w-[calc(100vw-2rem)] p-2"
+				className="w-80 max-w-(--radix-popper-available-width) p-2"
 			>
 				<AgentAttachmentList attachments={attachments} isExpired={hasExpired} />
 			</PopoverContent>

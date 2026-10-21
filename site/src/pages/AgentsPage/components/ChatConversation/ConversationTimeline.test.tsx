@@ -347,10 +347,9 @@ describe("ConversationTimeline turn attachments", () => {
 		name: string,
 	) => {
 		await user.click(screen.getByRole("button", { name }));
-		const dialog = await screen.findByRole("dialog", {
-			name: "Attachments",
-		});
-		const hrefs = within(dialog)
+		const hrefs = within(
+			await screen.findByRole("dialog", { name: "Attachments" }),
+		)
 			.getAllByRole("link")
 			.map((link) => link.getAttribute("href"));
 		await user.keyboard("{Escape}");

@@ -35,11 +35,13 @@ export const ImageThumbnail: React.FC<{
 	previewUrl: string;
 	name: string;
 	className?: string;
+	loading?: React.ImgHTMLAttributes<HTMLImageElement>["loading"];
 	onError?: React.ReactEventHandler<HTMLImageElement>;
-}> = ({ previewUrl, name, className, onError }) => (
+}> = ({ previewUrl, name, className, loading, onError }) => (
 	<img
 		src={previewUrl}
 		alt={name}
+		loading={loading}
 		className={cn(
 			"size-16 rounded-md border border-border object-cover",
 			className,

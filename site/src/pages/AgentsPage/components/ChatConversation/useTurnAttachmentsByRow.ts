@@ -15,14 +15,15 @@ export const useTurnAttachmentsByRow = (
 	parsedMessages: readonly ParsedMessageEntry[],
 	{
 		hidesAttachmentRows,
-		isLastTurnActive,
+		isLastTurnUnsettled,
 		hasMoreMessages,
 	}: TurnAttachmentsOptions,
 ) => {
 	"use memo";
+	// The live row never hosts a pill.
 	const withLiveRow = false;
 	return getTurnAttachmentsByRow(
 		assignTimelineRows(buildDisplayMessages(parsedMessages), withLiveRow),
-		{ hidesAttachmentRows, isLastTurnActive, hasMoreMessages },
+		{ hidesAttachmentRows, isLastTurnUnsettled, hasMoreMessages },
 	);
 };

@@ -27,6 +27,7 @@ import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
+import { isActiveChatStatus } from "./chatStore";
 import { FileProbeProvider } from "./FileProbeContext";
 import {
 	emptyLiveBlockKeys,
@@ -38,11 +39,11 @@ import {
 } from "./liveStatusModel";
 import { MessageActionBar } from "./MessageActionBar";
 import {
-	type AgentAttachment,
 	buildDisplayMessages,
 	deriveEvictedFileIds,
 	deriveMessageDisplayState,
 	getVisibleContent,
+	type TurnAttachmentList,
 } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { assignTimelineRows } from "./timelineRows";
@@ -130,14 +131,9 @@ const ChatMessageItem = memo<{
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
 	hideActions?: boolean;
-	/** Never empty when set. */
-	turnAttachments?: readonly AgentAttachment[];
+	turnAttachments?: TurnAttachmentList;
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
-
-	// The bottom spacer fakes the hidden action bar's height so chain-end
-	// messages keep even spacing. A row with a pill shows its bar, and the
-	// last message has nothing after it, so neither gets the spacer.
 	isLastMessage?: boolean;
 	onImplementPlan?: () => Promise<void> | void;
 	urlTransform: UrlTransform;
@@ -426,6 +422,9 @@ const ChatMessageItem = memo<{
 							)}
 					</MessageActionBar>
 				)}
+				{/* The bottom spacer fakes the hidden action bar's height so chain-end
+				    messages keep even spacing. A row with a pill shows its bar, and the
+				    last message has nothing after it, so neither gets the spacer. */}
 				{displayState?.needsAssistantBottomSpacer &&
 					!isLastMessage &&
 					!turnAttachments && (
@@ -536,9 +535,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const collapseSteps = Boolean(preferences.data?.collapse_assistant_steps);
 		const turnAttachmentsByRow = useTurnAttachmentsByRow(parsedMessages, {
 			hidesAttachmentRows: collapseSteps,
-			// The status can settle before the streamed answer persists, so the
-			// turn stays active while its live row renders.
-			isLastTurnActive: isTurnActive || shouldRenderLiveAssistant(liveStatus),
+			// Unlike isTurnActive, requires_action counts, since the submitted
+			// tool result resumes the turn. The status can also settle before the
+			// streamed answer persists, so the live row keeps the turn open.
+			isLastTurnUnsettled:
+				isActiveChatStatus(chatStatus) || shouldRenderLiveAssistant(liveStatus),
 			hasMoreMessages,
 		});
 		const workingBlocks = collapseSteps

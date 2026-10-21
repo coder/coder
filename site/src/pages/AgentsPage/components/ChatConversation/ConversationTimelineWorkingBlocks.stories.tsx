@@ -310,6 +310,35 @@ export const TurnAttachmentsPillRunningTurn: Story = {
 	},
 };
 
+// The pending client tool's result resumes the turn, so it has no pill yet.
+export const TurnAttachmentsPillRequiresAction: Story = {
+	args: {
+		chatStatus: "requires_action",
+		onSendAskUserQuestionResponse: fn(),
+		parsedMessages: parseMessagesWithMergedTools(
+			[
+				...MockUnansweredAttachmentMessages,
+				{
+					...MockChatMessage,
+					id: 23,
+					role: "assistant",
+					created_at: workingFixtureTime(30),
+					content: [
+						{
+							type: "tool-call",
+							tool_call_id: "question",
+							tool_name: "ask_user_question",
+							args: {},
+							created_at: workingFixtureTime(30),
+						},
+					],
+				},
+			],
+			{ pendingToolCallIDs: new Set(["question"]) },
+		),
+	},
+};
+
 // With steps shown, a turn that ends on an attachment hosts the pill there.
 export const TurnAttachmentsPillStepsShown: Story = {
 	parameters: {

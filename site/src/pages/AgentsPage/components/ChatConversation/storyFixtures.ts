@@ -390,38 +390,12 @@ export const MockAttachmentWorkingMessages: TypesGen.ChatMessage[] = [
 	},
 ];
 
-/** Base64 1x1 PNGs, so thumbnails render without a file server. */
+/** Base64 1x1 blue PNG, so thumbnails render without a file server. */
 export const MockBluePngData =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGOw6P4LAAK/AcFWgzAqAAAAAElFTkSuQmCC";
+/** Base64 1x1 amber PNG, so stacked thumbnails differ from MockBluePngData. */
 export const MockAmberPngData =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4Oo8bAAQqAZ9sWGBkAAAAAElFTkSuQmCC";
-
-const mockMixedTurnFiles: TypesGen.ChatFilePart[] = [
-	{
-		type: "file",
-		media_type: "image/png",
-		name: "dashboard-before.png",
-		data: MockBluePngData,
-	},
-	{
-		type: "file",
-		media_type: "image/png",
-		name: "dashboard-after.png",
-		data: MockAmberPngData,
-	},
-	{
-		type: "file",
-		media_type: "text/markdown",
-		name: "findings.md",
-		file_id: "findings-file",
-	},
-	{
-		type: "file",
-		media_type: "application/pdf",
-		name: "spec.pdf",
-		file_id: "spec-file",
-	},
-];
 
 /** MockAttachmentWorkingMessages and a turn that attaches four mixed files. */
 export const MockMixedAttachmentMessages: TypesGen.ChatMessage[] = [
@@ -432,7 +406,34 @@ export const MockMixedAttachmentMessages: TypesGen.ChatMessage[] = [
 		created_at: workingFixtureTime(20),
 		content: [{ type: "text", text: "Compare the dashboard with the spec" }],
 	},
-	...mockMixedTurnFiles.flatMap((file, index) =>
+	...(
+		[
+			{
+				type: "file",
+				media_type: "image/png",
+				name: "dashboard-before.png",
+				data: MockBluePngData,
+			},
+			{
+				type: "file",
+				media_type: "image/png",
+				name: "dashboard-after.png",
+				data: MockAmberPngData,
+			},
+			{
+				type: "file",
+				media_type: "text/markdown",
+				name: "findings.md",
+				file_id: "findings-file",
+			},
+			{
+				type: "file",
+				media_type: "application/pdf",
+				name: "spec.pdf",
+				file_id: "spec-file",
+			},
+		] satisfies TypesGen.ChatFilePart[]
+	).flatMap((file, index) =>
 		attachmentStepMessages({
 			id: 11 + index * 3,
 			toolCallId: `attach-${index}`,

@@ -5,6 +5,7 @@ import {
 	getMessageAgentAttachments,
 	getVisibleContent,
 	isProviderToolResult,
+	type TurnAttachmentList,
 } from "./messageHelpers";
 import type { TimelineRow } from "./timelineRows";
 import type {
@@ -54,12 +55,17 @@ export type GroupWorkingBlocksOptions = {
 	streamState?: StreamState | null;
 };
 
+/** Tools that record a context boundary rather than a turn's work. */
+const CONTEXT_BOUNDARY_TOOLS: ReadonlySet<string> = new Set([
+	"chat_summarized",
+	"chat_cleared",
+]);
+
 /** Tools that need the user's attention or record a transcript boundary. */
 const UNCOLLAPSIBLE_TOOLS: ReadonlySet<string> = new Set([
 	"ask_user_question",
 	"propose_plan",
-	"chat_summarized",
-	"chat_cleared",
+	...CONTEXT_BOUNDARY_TOOLS,
 ]);
 
 /**
@@ -150,45 +156,50 @@ export const isAgentAttachmentOnlyRow = (row: TimelineRow): boolean => {
 	);
 };
 
-/** True for a row the timeline leaves out because collapsed steps hide it. */
+/** True for an attachment-only row while collapsed steps are on. */
 export const isHiddenAttachmentRow = (
 	row: TimelineRow,
 	collapseSteps: boolean,
 ): boolean => collapseSteps && isAgentAttachmentOnlyRow(row);
 
+const isContextBoundaryRow = (row: TimelineRow): boolean =>
+	row.type === "message" &&
+	row.entry.parsed.tools.some((tool) => CONTEXT_BOUNDARY_TOOLS.has(tool.name));
+
 export type TurnAttachmentsOptions = {
-	/** Collapsed steps hide attachment-only rows outside working blocks. */
+	/** Attachment-only rows are hidden, so the pill moves to a shown row. */
 	hidesAttachmentRows: boolean;
 	/** The newest turn may still attach files, so it gets no entry yet. */
-	isLastTurnActive: boolean;
+	isLastTurnUnsettled: boolean;
 	/** More history exists, so a first turn without its prompt gets no entry. */
 	hasMoreMessages: boolean;
 };
 
 /**
- * Each settled turn's agent attachments, oldest first, keyed by its last
- * shown assistant row. Reads only the rows and flags, never working blocks or
- * stream state.
+ * Each settled turn's agent attachments, keyed by its last shown assistant
+ * row other than a context clear or summary. Reads only the rows and flags,
+ * never working blocks or stream state.
  */
 export const getTurnAttachmentsByRow = (
 	rows: readonly TimelineRow[],
 	{
 		hidesAttachmentRows,
-		isLastTurnActive,
+		isLastTurnUnsettled,
 		hasMoreMessages,
 	}: TurnAttachmentsOptions,
-): ReadonlyMap<string, readonly AgentAttachment[]> => {
-	const byRow = new Map<string, readonly AgentAttachment[]>();
+): ReadonlyMap<string, TurnAttachmentList> => {
+	const byRow = new Map<string, TurnAttachmentList>();
 	let attachments: AgentAttachment[] = [];
 	let lastShownRowKey: string | undefined;
 	let isTurnStartLoaded = !hasMoreMessages;
 	const settleTurn = () => {
+		const [first, ...rest] = attachments;
 		if (
 			isTurnStartLoaded &&
 			lastShownRowKey !== undefined &&
-			attachments.length > 0
+			first !== undefined
 		) {
-			byRow.set(lastShownRowKey, attachments);
+			byRow.set(lastShownRowKey, [first, ...rest]);
 		}
 		attachments = [];
 		lastShownRowKey = undefined;
@@ -208,11 +219,14 @@ export const getTurnAttachmentsByRow = (
 			continue;
 		}
 		attachments.push(...getMessageAgentAttachments(message));
-		if (!isHiddenAttachmentRow(row, hidesAttachmentRows)) {
+		if (
+			!isHiddenAttachmentRow(row, hidesAttachmentRows) &&
+			!isContextBoundaryRow(row)
+		) {
 			lastShownRowKey = row.key;
 		}
 	}
-	if (!isLastTurnActive) {
+	if (!isLastTurnUnsettled) {
 		settleTurn();
 	}
 
