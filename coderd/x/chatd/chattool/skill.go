@@ -376,7 +376,12 @@ func ReadSkill(options ReadSkillOptions) fantasy.AgentTool {
 				), nil
 			}
 
-			resolved, err := resolveSkillAlias(options, args.Name)
+			if options.ResolveAlias == nil {
+				return fantasy.NewTextErrorResponse(
+					"skill alias resolver is not configured",
+				), nil
+			}
+			resolved, err := options.ResolveAlias(args.Name)
 			if err != nil {
 				return skillResolveErrorResponse(args.Name, err), nil
 			}
@@ -448,6 +453,11 @@ func ReadSkillFile(options ReadSkillOptions) fantasy.AgentTool {
 				), nil
 			}
 
+			if options.ResolveAlias == nil {
+				return fantasy.NewTextErrorResponse(
+					"skill alias resolver is not configured",
+				), nil
+			}
 			skill, response, ok := resolveSkillFileTarget(options, args.Name)
 			if !ok {
 				return response, nil
@@ -514,7 +524,7 @@ func resolveSkillFileTarget(options ReadSkillOptions, name string) (SkillMeta, f
 	if skill, ok := findSkill(options.GetSkills, bareName); ok && !skill.ModelInvocable() {
 		return skill, fantasy.ToolResponse{}, true
 	}
-	resolved, err := resolveSkillAlias(options, name)
+	resolved, err := options.ResolveAlias(name)
 	if err != nil {
 		return SkillMeta{}, skillResolveErrorResponse(name, err), false
 	}
@@ -529,25 +539,6 @@ func resolveSkillFileTarget(options ReadSkillOptions, name string) (SkillMeta, f
 		return SkillMeta{}, skillNotFoundResponse(name), false
 	}
 	return skill, fantasy.ToolResponse{}, true
-}
-
-func resolveSkillAlias(options ReadSkillOptions, name string) (skillspkg.ResolvedSkill, error) {
-	if options.ResolveAlias != nil {
-		return options.ResolveAlias(name)
-	}
-
-	skill, ok := findSkill(options.GetSkills, name)
-	if !ok || !skill.ModelInvocable() {
-		return skillspkg.ResolvedSkill{}, skillspkg.ErrSkillNotFound
-	}
-	return skillspkg.ResolvedSkill{
-		Skill: skillspkg.Skill{
-			Name:        skill.Name,
-			Description: skill.Description,
-			Source:      skillspkg.SourceWorkspace,
-		},
-		Alias: skill.Name,
-	}, nil
 }
 
 func readWorkspaceSkillBody(

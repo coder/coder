@@ -50,6 +50,19 @@ func responseDir(t *testing.T, resp fantasy.ToolResponse) string {
 	return payload.Dir
 }
 
+// lookupSkills resolves aliases the way chatd does: it merges the sources and
+// looks the alias up in the merged list.
+func lookupSkills(sources ...skillspkg.SourceSkills) func(string) (skillspkg.ResolvedSkill, error) {
+	resolved := skillspkg.MergeSkills(sources...)
+	return func(alias string) (skillspkg.ResolvedSkill, error) {
+		return skillspkg.Lookup(resolved, alias)
+	}
+}
+
+func skillSource(source skillspkg.Source, name string) skillspkg.SourceSkills {
+	return skillspkg.SourceSkills{Source: source, Skills: []skillspkg.Skill{{Name: name}}}
+}
+
 func TestFormatResolvedSkillIndex(t *testing.T) {
 	t.Parallel()
 
@@ -329,7 +342,8 @@ func TestReadSkillTool(t *testing.T) {
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
 				return conn, nil
 			},
-			GetSkills: func() []chattool.SkillMeta { return skills },
+			GetSkills:    func() []chattool.SkillMeta { return skills },
+			ResolveAlias: lookupSkills(skillSource(skillspkg.SourceWorkspace, "my-skill")),
 		})
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -361,7 +375,8 @@ func TestReadSkillTool(t *testing.T) {
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
 				return nil, xerrors.New("workspace is stopped")
 			},
-			GetSkills: func() []chattool.SkillMeta { return skills },
+			GetSkills:    func() []chattool.SkillMeta { return skills },
+			ResolveAlias: lookupSkills(skillSource(skillspkg.SourceWorkspace, "my-skill")),
 		})
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -383,17 +398,7 @@ func TestReadSkillTool(t *testing.T) {
 		t.Parallel()
 
 		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
-			ResolveAlias: func(alias string) (skillspkg.ResolvedSkill, error) {
-				require.Equal(t, "my-skill", alias)
-				return skillspkg.ResolvedSkill{
-					Skill: skillspkg.Skill{
-						Name:        "my-skill",
-						Description: "test",
-						Source:      skillspkg.SourcePersonal,
-					},
-					Alias: "my-skill",
-				}, nil
-			},
+			ResolveAlias: lookupSkills(skillSource(skillspkg.SourcePersonal, "my-skill")),
 			LoadStoredSkillBody: func(context.Context, skillspkg.Skill) (skillspkg.ParsedSkill, error) {
 				return skillspkg.ParsedSkill{
 					Skill: skillspkg.Skill{
@@ -425,17 +430,7 @@ func TestReadSkillTool(t *testing.T) {
 
 		var loadedName string
 		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
-			ResolveAlias: func(alias string) (skillspkg.ResolvedSkill, error) {
-				require.Equal(t, "personal/my-skill", alias)
-				return skillspkg.ResolvedSkill{
-					Skill: skillspkg.Skill{
-						Name:        "my-skill",
-						Description: "test",
-						Source:      skillspkg.SourcePersonal,
-					},
-					Alias: "personal/my-skill",
-				}, nil
-			},
+			ResolveAlias: lookupSkills(skillSource(skillspkg.SourcePersonal, "my-skill")),
 			LoadStoredSkillBody: func(_ context.Context, skill skillspkg.Skill) (skillspkg.ParsedSkill, error) {
 				loadedName = skill.Name
 				return skillspkg.ParsedSkill{
@@ -482,18 +477,8 @@ func TestReadSkillTool(t *testing.T) {
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
 				return conn, nil
 			},
-			GetSkills: func() []chattool.SkillMeta { return skills },
-			ResolveAlias: func(alias string) (skillspkg.ResolvedSkill, error) {
-				require.Equal(t, "workspace/my-skill", alias)
-				return skillspkg.ResolvedSkill{
-					Skill: skillspkg.Skill{
-						Name:        "my-skill",
-						Description: "test",
-						Source:      skillspkg.SourceWorkspace,
-					},
-					Alias: "workspace/my-skill",
-				}, nil
-			},
+			GetSkills:    func() []chattool.SkillMeta { return skills },
+			ResolveAlias: lookupSkills(skillSource(skillspkg.SourceWorkspace, "my-skill")),
 		})
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -525,36 +510,15 @@ func TestReadSkillTool(t *testing.T) {
 			workspacesdk.LSResponse{}, nil,
 		)
 
-		resolveAlias := func(alias string) (skillspkg.ResolvedSkill, error) {
-			switch alias {
-			case "personal/deploy":
-				return skillspkg.ResolvedSkill{
-					Skill: skillspkg.Skill{
-						Name:        "deploy",
-						Description: "personal deploy",
-						Source:      skillspkg.SourcePersonal,
-					},
-					Alias: "personal/deploy",
-				}, nil
-			case "workspace/deploy":
-				return skillspkg.ResolvedSkill{
-					Skill: skillspkg.Skill{
-						Name:        "deploy",
-						Description: "workspace deploy",
-						Source:      skillspkg.SourceWorkspace,
-					},
-					Alias: "workspace/deploy",
-				}, nil
-			default:
-				return skillspkg.ResolvedSkill{}, skillspkg.ErrSkillNotFound
-			}
-		}
 		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
 				return conn, nil
 			},
-			GetSkills:    func() []chattool.SkillMeta { return workspaceSkills },
-			ResolveAlias: resolveAlias,
+			GetSkills: func() []chattool.SkillMeta { return workspaceSkills },
+			ResolveAlias: lookupSkills(
+				skillSource(skillspkg.SourcePersonal, "deploy"),
+				skillSource(skillspkg.SourceWorkspace, "deploy"),
+			),
 			LoadStoredSkillBody: func(_ context.Context, skill skillspkg.Skill) (skillspkg.ParsedSkill, error) {
 				require.Equal(t, "deploy", skill.Name)
 				return skillspkg.ParsedSkill{
@@ -575,12 +539,9 @@ func TestReadSkillTool(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.False(t, workspaceResp.IsError)
-		workspaceName := responseName(t, workspaceResp)
-		assert.Equal(t, "workspace/deploy", workspaceName)
+		assert.Equal(t, "workspace/deploy", responseName(t, workspaceResp))
 		assert.Equal(t, "/work/.agents/skills/deploy", responseDir(t, workspaceResp))
-		workspaceResolved, err := resolveAlias(workspaceName)
-		require.NoError(t, err)
-		assert.Equal(t, skillspkg.SourceWorkspace, workspaceResolved.Source)
+		assert.Contains(t, workspaceResp.Content, "Do the thing.")
 
 		personalResp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-2",
@@ -589,26 +550,15 @@ func TestReadSkillTool(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.False(t, personalResp.IsError)
-		personalName := responseName(t, personalResp)
-		assert.Equal(t, "personal/deploy", personalName)
-		personalResolved, err := resolveAlias(personalName)
-		require.NoError(t, err)
-		assert.Equal(t, skillspkg.SourcePersonal, personalResolved.Source)
-
-		_, err = resolveAlias("deploy")
-		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound)
+		assert.Equal(t, "personal/deploy", responseName(t, personalResp))
+		assert.Contains(t, personalResp.Content, "Personal deploy instructions.")
 	})
 
 	t.Run("MissingPersonalSkill", func(t *testing.T) {
 		t.Parallel()
 
 		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
-			ResolveAlias: func(alias string) (skillspkg.ResolvedSkill, error) {
-				return skillspkg.ResolvedSkill{
-					Skill: skillspkg.Skill{Name: alias, Source: skillspkg.SourcePersonal},
-					Alias: alias,
-				}, nil
-			},
+			ResolveAlias: lookupSkills(skillSource(skillspkg.SourcePersonal, "missing-skill")),
 			LoadStoredSkillBody: func(context.Context, skillspkg.Skill) (skillspkg.ParsedSkill, error) {
 				return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
 			},
@@ -628,12 +578,7 @@ func TestReadSkillTool(t *testing.T) {
 		t.Parallel()
 
 		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
-			ResolveAlias: func(alias string) (skillspkg.ResolvedSkill, error) {
-				return skillspkg.ResolvedSkill{
-					Skill: skillspkg.Skill{Name: alias, Source: skillspkg.SourcePersonal},
-					Alias: alias,
-				}, nil
-			},
+			ResolveAlias: lookupSkills(skillSource(skillspkg.SourcePersonal, "my-skill")),
 			LoadStoredSkillBody: func(context.Context, skillspkg.Skill) (skillspkg.ParsedSkill, error) {
 				return skillspkg.ParsedSkill{}, xerrors.New("synthetic private storage failure")
 			},
@@ -676,7 +621,10 @@ func TestReadSkillTool(t *testing.T) {
 		t.Parallel()
 
 		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
-			ResolveAlias: ambiguousResolveAliasForTest,
+			ResolveAlias: lookupSkills(
+				skillSource(skillspkg.SourcePersonal, "deploy"),
+				skillSource(skillspkg.SourceWorkspace, "deploy"),
+			),
 		})
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -700,7 +648,7 @@ func TestReadSkillTool(t *testing.T) {
 				t.Fatal("unexpected call to GetWorkspaceConn")
 				return nil, xerrors.New("unreachable")
 			},
-			GetSkills: func() []chattool.SkillMeta { return nil },
+			ResolveAlias: lookupSkills(),
 		})
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -711,33 +659,6 @@ func TestReadSkillTool(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
 		assert.Contains(t, resp.Content, "not found")
-	})
-
-	t.Run("ModelHiddenSkill", func(t *testing.T) {
-		t.Parallel()
-
-		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
-			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
-				t.Fatal("unexpected call to GetWorkspaceConn")
-				return nil, xerrors.New("unreachable")
-			},
-			GetSkills: func() []chattool.SkillMeta {
-				return []chattool.SkillMeta{{
-					Name: "manual",
-					Dir:  "/work/.agents/skills/manual",
-					Meta: []byte("---\nname: manual\ndescription: Manual only\ndisable-model-invocation: true\n---\nManual body.\n"),
-				}}
-			},
-		})
-
-		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
-			ID:    "call-1",
-			Name:  "read_skill",
-			Input: `{"name":"manual"}`,
-		})
-		require.NoError(t, err)
-		assert.True(t, resp.IsError)
-		assert.Equal(t, `skill "manual" not found`, resp.Content)
 	})
 
 	t.Run("EmptyName", func(t *testing.T) {
@@ -760,19 +681,6 @@ func TestReadSkillTool(t *testing.T) {
 		assert.True(t, resp.IsError)
 		assert.Contains(t, resp.Content, "required")
 	})
-}
-
-func ambiguousResolveAliasForTest(alias string) (skillspkg.ResolvedSkill, error) {
-	return skillspkg.Lookup([]skillspkg.ResolvedSkill{
-		{
-			Skill: skillspkg.Skill{Name: "deploy", Source: skillspkg.SourcePersonal},
-			Alias: "personal/deploy",
-		},
-		{
-			Skill: skillspkg.Skill{Name: "deploy", Source: skillspkg.SourceWorkspace},
-			Alias: "workspace/deploy",
-		},
-	}, alias)
 }
 
 func TestReadSkillFileTool(t *testing.T) {
@@ -805,7 +713,8 @@ func TestReadSkillFileTool(t *testing.T) {
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
 				return conn, nil
 			},
-			GetSkills: func() []chattool.SkillMeta { return skills },
+			GetSkills:    func() []chattool.SkillMeta { return skills },
+			ResolveAlias: lookupSkills(skillSource(skillspkg.SourceWorkspace, "my-skill")),
 		})
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -822,12 +731,7 @@ func TestReadSkillFileTool(t *testing.T) {
 		t.Parallel()
 
 		tool := chattool.ReadSkillFile(chattool.ReadSkillOptions{
-			ResolveAlias: func(alias string) (skillspkg.ResolvedSkill, error) {
-				return skillspkg.ResolvedSkill{
-					Skill: skillspkg.Skill{Name: alias, Source: skillspkg.SourcePersonal},
-					Alias: alias,
-				}, nil
-			},
+			ResolveAlias: lookupSkills(skillSource(skillspkg.SourcePersonal, "my-skill")),
 		})
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -844,7 +748,10 @@ func TestReadSkillFileTool(t *testing.T) {
 		t.Parallel()
 
 		tool := chattool.ReadSkillFile(chattool.ReadSkillOptions{
-			ResolveAlias: ambiguousResolveAliasForTest,
+			ResolveAlias: lookupSkills(
+				skillSource(skillspkg.SourcePersonal, "deploy"),
+				skillSource(skillspkg.SourceWorkspace, "deploy"),
+			),
 		})
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -953,7 +860,8 @@ func TestReadSkillFileTool(t *testing.T) {
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
 				return conn, nil
 			},
-			GetSkills: func() []chattool.SkillMeta { return skills },
+			GetSkills:    func() []chattool.SkillMeta { return skills },
+			ResolveAlias: lookupSkills(skillSource(skillspkg.SourceWorkspace, "auto-helper")),
 		})
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -1108,7 +1016,8 @@ func TestReadSkillFileTool(t *testing.T) {
 				t.Fatal("unexpected call to GetWorkspaceConn")
 				return nil, xerrors.New("unreachable")
 			},
-			GetSkills: func() []chattool.SkillMeta { return skills },
+			GetSkills:    func() []chattool.SkillMeta { return skills },
+			ResolveAlias: lookupSkills(skillSource(skillspkg.SourceWorkspace, "my-skill")),
 		})
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -1120,4 +1029,33 @@ func TestReadSkillFileTool(t *testing.T) {
 		assert.True(t, resp.IsError)
 		assert.Contains(t, resp.Content, "traversal")
 	})
+}
+
+func TestReadSkillToolsRequireAliasResolver(t *testing.T) {
+	t.Parallel()
+
+	// GetSkills lists a readable workspace skill, but without a resolver the
+	// tools must not guess that the name refers to it.
+	options := chattool.ReadSkillOptions{
+		GetSkills: func() []chattool.SkillMeta {
+			return []chattool.SkillMeta{{
+				Name: "my-skill",
+				Meta: []byte(validSkillMD("my-skill", "test")),
+			}}
+		},
+	}
+	for _, tool := range []fantasy.AgentTool{
+		chattool.ReadSkill(options),
+		chattool.ReadSkillFile(options),
+	} {
+		name := tool.Info().Name
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  name,
+			Input: `{"name":"my-skill","path":"helper.md"}`,
+		})
+		require.NoError(t, err, name)
+		assert.True(t, resp.IsError, name)
+		assert.Contains(t, resp.Content, "skill alias resolver is not configured", name)
+	}
 }
