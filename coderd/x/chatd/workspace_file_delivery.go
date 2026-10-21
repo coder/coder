@@ -45,7 +45,14 @@ const (
 	// records workspace usage while its content streams, the cadence of
 	// the direct upload path and the chat heartbeat.
 	workspaceFileDeliveryUsageInterval = 30 * time.Second
+	// workspaceFileDeliveryStallTimeout ends an upload attempt when the
+	// agent takes no body bytes for this long, or does not answer for this
+	// long after the last one, so a stalled agent holds the replica's
+	// serial delivery loop for at most this long instead of the lease.
+	workspaceFileDeliveryStallTimeout = time.Minute
 )
+
+var errWorkspaceFileDeliveryStalled = xerrors.Errorf("the workspace agent accepted no data for %s", workspaceFileDeliveryStallTimeout)
 
 // workspaceFileDeliveryFailure is a failed delivery attempt and how the
 // attempt counts: one of the database.ChatWorkspaceFileDeliveryFailure
@@ -295,8 +302,14 @@ func (w *chatWorker) copyWorkspaceFile(ctx context.Context, row database.Acquire
 	// No chat turn heartbeat may keep the workspace alive during the
 	// delivery, so it records usage itself; otherwise the workspace could
 	// autostop during a long copy.
+	uploadCtx, cancelUpload := context.WithCancelCause(ctx)
+	defer cancelUpload(nil)
+	stall := w.opts.Clock.AfterFunc(workspaceFileDeliveryStallTimeout, func() {
+		cancelUpload(errWorkspaceFileDeliveryStalled)
+	}, "chatworker", "workspace-file-delivery-stall")
+	defer stall.Stop("chatworker", "workspace-file-delivery-stall")
 	body := &workspaceFileUsageReader{
-		r:     bytes.NewReader(file.Data),
+		r:     &workspaceFileStallReader{r: bytes.NewReader(file.Data), timer: stall},
 		clock: w.opts.Clock,
 		report: func() {
 			if w.server.usageTracker != nil {
@@ -306,13 +319,18 @@ func (w *chatWorker) copyWorkspaceFile(ctx context.Context, row database.Acquire
 		},
 	}
 	body.reportNow()
-	resp, err := conn.UploadChatFile(ctx, workspacesdk.UploadChatFileRequest{
+	resp, err := conn.UploadChatFile(uploadCtx, workspacesdk.UploadChatFileRequest{
 		ChatID: chat.ID.String(),
 		Name:   file.Name,
 		FileID: file.ID,
 		Body:   body,
 	})
 	if err != nil {
+		if errors.Is(context.Cause(uploadCtx), errWorkspaceFileDeliveryStalled) {
+			failure := retryWorkspaceFileDelivery(errWorkspaceFileDeliveryStalled)
+			failure.cause = err
+			return workspacesdk.AgentUploadChatFileResponse{}, failure
+		}
 		return workspacesdk.AgentUploadChatFileResponse{}, classifyWorkspaceFileUploadError(err)
 	}
 	// A write-once upload reports a file that already exists at the target
@@ -346,6 +364,22 @@ func (u *workspaceFileUsageReader) Read(p []byte) (int, error) {
 	n, err := u.r.Read(p)
 	if n > 0 && u.clock.Since(u.lastReport, "chatworker", "workspace-file-delivery") >= workspaceFileDeliveryUsageInterval {
 		u.reportNow()
+	}
+	return n, err
+}
+
+// workspaceFileStallReader restarts the stall timer each time the agent
+// takes more of the body. The last read does not restart it, so the timer
+// also bounds the wait for the agent's answer.
+type workspaceFileStallReader struct {
+	r     io.Reader
+	timer *quartz.Timer
+}
+
+func (s *workspaceFileStallReader) Read(p []byte) (int, error) {
+	n, err := s.r.Read(p)
+	if err == nil {
+		s.timer.Reset(workspaceFileDeliveryStallTimeout, "chatworker", "workspace-file-delivery-stall")
 	}
 	return n, err
 }

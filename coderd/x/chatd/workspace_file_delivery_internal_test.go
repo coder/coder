@@ -3,6 +3,7 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -36,7 +37,7 @@ type fakeUploadAgent struct {
 	workspacesdk.AgentConn
 
 	mu       sync.Mutex
-	stream   func(body io.Reader) ([]byte, error)
+	stream   func(ctx context.Context, body io.Reader) ([]byte, error)
 	fail     func(req workspacesdk.UploadChatFileRequest) error
 	afterPut func()
 	requests []workspacesdk.UploadChatFileRequest
@@ -55,9 +56,9 @@ func (a *fakeUploadAgent) UploadChatFile(ctx context.Context, req workspacesdk.U
 	stream := a.stream
 	a.mu.Unlock()
 	if stream == nil {
-		stream = io.ReadAll
+		stream = func(_ context.Context, body io.Reader) ([]byte, error) { return io.ReadAll(body) }
 	}
-	data, err := stream(req.Body)
+	data, err := stream(ctx, req.Body)
 	if err != nil {
 		return workspacesdk.AgentUploadChatFileResponse{}, err
 	}
@@ -643,7 +644,7 @@ func TestWorkspaceFileDeliveryOutcomes(t *testing.T) {
 			require.True(t, latest.Deadline.After(dbtime.Now().Add(30*time.Minute)), "deadline %s was not bumped", latest.Deadline)
 		}
 		nearAutostop()
-		f.agent.stream = func(body io.Reader) ([]byte, error) {
+		f.agent.stream = func(_ context.Context, body io.Reader) ([]byte, error) {
 			requireBumped()
 			nearAutostop()
 			var head [1]byte
@@ -657,6 +658,84 @@ func TestWorkspaceFileDeliveryOutcomes(t *testing.T) {
 			}
 			requireBumped()
 			return append(head[:], rest...), nil
+		}
+
+		f.worker(t).deliverWorkspaceFiles(ctx)
+		f.requireDelivered(ctx, t, chat, file.ID)
+	})
+
+	t.Run("StalledUploadRetries", func(t *testing.T) {
+		t.Parallel()
+		// waitForCancel stands in for an agent that stops taking the body
+		// or never answers: only the attempt's cancellation ends it.
+		waitForCancel := func(ctx, testCtx context.Context) error {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-testCtx.Done():
+				return xerrors.New("the upload was not canceled")
+			}
+		}
+		for _, tc := range []struct {
+			name   string
+			stream func(ctx, testCtx context.Context, clock *quartz.Mock, body io.Reader) ([]byte, error)
+		}{
+			{name: "BodyStalls", stream: func(ctx, testCtx context.Context, clock *quartz.Mock, body io.Reader) ([]byte, error) {
+				if _, err := io.ReadFull(body, make([]byte, 1)); err != nil {
+					return nil, err
+				}
+				clock.Advance(workspaceFileDeliveryStallTimeout).MustWait(testCtx)
+				return nil, waitForCancel(ctx, testCtx)
+			}},
+			{name: "ResponseHangs", stream: func(ctx, testCtx context.Context, clock *quartz.Mock, body io.Reader) ([]byte, error) {
+				if _, err := io.ReadAll(body); err != nil {
+					return nil, err
+				}
+				clock.Advance(workspaceFileDeliveryStallTimeout).MustWait(testCtx)
+				return nil, waitForCancel(ctx, testCtx)
+			}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				f := newWorkspaceFileDeliveryFixture(t)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+				file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+				f.agent.stream = func(uploadCtx context.Context, body io.Reader) ([]byte, error) {
+					return tc.stream(uploadCtx, ctx, f.clock, body)
+				}
+
+				f.worker(t).deliverWorkspaceFiles(ctx)
+				state := f.fileState(ctx, t, chat.ID, file.ID)
+				require.False(t, state.WorkspaceDeliveredAt.Valid)
+				require.Equal(t, int32(1), state.WorkspaceDeliveryAttempts)
+				require.Equal(t, "the workspace agent accepted no data for 1m0s", state.WorkspaceDeliveryError.String)
+				require.WithinDuration(t, f.clock.Now().Add(workspaceFileDeliveryRetryDelay), state.WorkspaceDeliveryNextAttemptAt.Time, time.Millisecond)
+			})
+		}
+	})
+
+	t.Run("SlowUploadKeepsGoing", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+		// Each byte arrives just inside the stall timeout.
+		f.agent.stream = func(_ context.Context, body io.Reader) ([]byte, error) {
+			var data []byte
+			for {
+				f.clock.Advance(workspaceFileDeliveryStallTimeout - time.Second).MustWait(ctx)
+				var b [1]byte
+				n, err := body.Read(b[:])
+				data = append(data, b[:n]...)
+				if errors.Is(err, io.EOF) {
+					return data, nil
+				}
+				if err != nil {
+					return nil, err
+				}
+			}
 		}
 
 		f.worker(t).deliverWorkspaceFiles(ctx)
