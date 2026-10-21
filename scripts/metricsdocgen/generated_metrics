@@ -364,7 +364,7 @@ coderd_chatd_compaction_total{provider="",model="",result=""} 0
 # HELP coderd_chatd_context_handoff_total Total context handoff prompts under the token budget compaction strategy, by stage. The handoff stage means the handoff target was reached, and the final stage means the final zone before the usable limit was reached.
 # TYPE coderd_chatd_context_handoff_total counter
 coderd_chatd_context_handoff_total{provider="",model="",stage=""} 0
-# HELP coderd_chatd_context_rollover_total Total context window rollovers under the token budget compaction strategy, by reason. The model reason means the agent called new_context, and the limit reason means the window reached its usable limit.
+# HELP coderd_chatd_context_rollover_total Total context window rollovers under the token budget compaction strategy, by reason. The model reason means the agent called new_context, the limit reason means the window reached its usable limit, and the overflow reason means the provider rejected the prompt as too large.
 # TYPE coderd_chatd_context_rollover_total counter
 coderd_chatd_context_rollover_total{provider="",model="",reason=""} 0
 # HELP coderd_chatd_find_tools_activations_total Total deferred tool activations returned by find_tools.

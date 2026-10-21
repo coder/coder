@@ -81,6 +81,9 @@ type rolloverReason string
 const (
 	rolloverReasonModel rolloverReason = "model"
 	rolloverReasonLimit rolloverReason = "limit"
+	// rolloverReasonOverflow follows a provider rejecting the prompt as
+	// too large for the window.
+	rolloverReasonOverflow rolloverReason = "overflow"
 )
 
 type rolloverDecision struct {
@@ -137,6 +140,16 @@ func windowContextTokens(messages []database.ChatMessage) int64 {
 		}
 	}
 	return 0
+}
+
+// windowHasAssistantStep reports whether the current context window
+// holds an assistant step. A fresh window that overflows cannot shrink
+// by rolling over again, so it must fail instead.
+func windowHasAssistantStep(messages []database.ChatMessage) bool {
+	boundary := latestContextBoundaryIndex(messages)
+	return slices.ContainsFunc(messages[boundary+1:], func(msg database.ChatMessage) bool {
+		return !msg.Deleted && !msg.Compressed && msg.Role == database.ChatMessageRoleAssistant
+	})
 }
 
 // hasNewContextReceipt reports whether the current context window holds
@@ -421,7 +434,11 @@ func rolloverLeadIn(input buildRolloverMessagesInput) string {
 		if midTurn {
 			lines = append(lines, "Your previous turn was interrupted by a context rollover; continue the task.")
 		}
-		lines = append(lines, "The window reached its usable limit.")
+		if payload.Reason == rolloverReasonOverflow {
+			lines = append(lines, "The provider rejected the previous request as too large for the context window.")
+		} else {
+			lines = append(lines, "The window reached its usable limit.")
+		}
 	}
 	recovery := rolloverRecoveryLine
 	if requestItemID > 0 {
