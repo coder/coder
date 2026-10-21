@@ -77,8 +77,8 @@ func SkillDisablesModelInvocation(content string) bool {
 	if err != nil {
 		return false
 	}
-	disabled, ok := frontmatter["disable-model-invocation"].(bool)
-	return ok && disabled
+	disabled, _ := frontmatter["disable-model-invocation"].(bool)
+	return disabled
 }
 
 // splitSkillFrontmatter decodes the YAML frontmatter of a skill meta file

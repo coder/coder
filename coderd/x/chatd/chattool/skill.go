@@ -56,11 +56,15 @@ type SkillMeta struct {
 // when a person invokes it. A skill without a pinned meta file stays
 // model-invocable.
 func (s SkillMeta) ModelInvocable() bool {
+	return !workspacesdk.SkillDisablesModelInvocation(s.pinnedMeta())
+}
+
+func (s SkillMeta) pinnedMeta() string {
 	raw := s.Meta
 	if int64(len(raw)) > maxSkillMetaBytes {
 		raw = raw[:maxSkillMetaBytes]
 	}
-	return !workspacesdk.SkillDisablesModelInvocation(string(raw))
+	return string(raw)
 }
 
 // SkillContent is the full body of a skill, loaded on demand
@@ -223,11 +227,7 @@ func loadPinnedWorkspaceSkillContent(
 // PinnedWorkspaceSkillBody parses the body of a workspace skill from the
 // SKILL.md pinned in the workspace context snapshot.
 func PinnedWorkspaceSkillBody(skill SkillMeta) (string, error) {
-	raw := skill.Meta
-	if int64(len(raw)) > maxSkillMetaBytes {
-		raw = raw[:maxSkillMetaBytes]
-	}
-	_, _, body, err := workspacesdk.ParseSkillFrontmatter(string(raw))
+	_, _, body, err := workspacesdk.ParseSkillFrontmatter(skill.pinnedMeta())
 	if err != nil {
 		return "", xerrors.Errorf("parse skill frontmatter: %w", err)
 	}
@@ -495,7 +495,8 @@ func resolveSkillFileTarget(options ReadSkillOptions, name string) (SkillMeta, f
 	// Stored skills have no supporting files, so a name that names a
 	// hidden workspace skill means that skill, even when the bare name
 	// also names one or more listed stored skills.
-	if skill, ok := findHiddenWorkspaceSkill(options, strings.TrimPrefix(name, skillspkg.QualifiedAlias(skillspkg.SourceWorkspace, ""))); ok {
+	bareName := strings.TrimPrefix(name, skillspkg.QualifiedAlias(skillspkg.SourceWorkspace, ""))
+	if skill, ok := findSkill(options.GetSkills, bareName); ok && !skill.ModelInvocable() {
 		return skill, fantasy.ToolResponse{}, true
 	}
 	resolved, err := resolveSkillAlias(options, name)
@@ -513,14 +514,6 @@ func resolveSkillFileTarget(options ReadSkillOptions, name string) (SkillMeta, f
 		return SkillMeta{}, skillNotFoundResponse(name), false
 	}
 	return skill, fantasy.ToolResponse{}, true
-}
-
-func findHiddenWorkspaceSkill(options ReadSkillOptions, name string) (SkillMeta, bool) {
-	skill, ok := findSkill(options.GetSkills, name)
-	if !ok || skill.ModelInvocable() {
-		return SkillMeta{}, false
-	}
-	return skill, true
 }
 
 func resolveSkillAlias(options ReadSkillOptions, name string) (skillspkg.ResolvedSkill, error) {
