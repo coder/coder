@@ -12,7 +12,8 @@ import {
 	organizationSkillACL,
 	organizationSkillACLAvailable,
 	organizationSkillPreferences,
-	organizationSkillSettings,
+	organizationSkillPreferencesKey,
+	organizationSkillSettingsKey,
 	organizationSkills,
 	updateOrganizationSkillACL,
 	updateOrganizationSkillPreferences,
@@ -103,7 +104,7 @@ describe("organization skill ACL queries", () => {
 describe("organization skill settings queries", () => {
 	it("stores the saved setting and invalidates member preferences", async () => {
 		const queryClient = createTestQueryClient();
-		const preferencesKey = organizationSkillPreferences("org").queryKey;
+		const preferencesKey = organizationSkillPreferencesKey("org");
 		queryClient.setQueryData(preferencesKey, MockOrganizationSkillPreferences);
 		const mockSavedSettings = {
 			...MockOrganizationSkillSettings,
@@ -115,7 +116,7 @@ describe("organization skill settings queries", () => {
 		);
 
 		expect(
-			queryClient.getQueryData(organizationSkillSettings("org").queryKey),
+			queryClient.getQueryData(organizationSkillSettingsKey("org")),
 		).toEqual(mockSavedSettings);
 		expect(queryClient.getQueryState(preferencesKey)?.isInvalidated).toBe(true);
 	});
@@ -149,7 +150,7 @@ describe("organization skill preference queries", () => {
 		await expect(read).rejects.toThrow();
 
 		expect(
-			queryClient.getQueryData(organizationSkillPreferences("org").queryKey),
+			queryClient.getQueryData(organizationSkillPreferencesKey("org")),
 		).toEqual(mockSavedPreferences);
 	});
 
@@ -188,7 +189,7 @@ describe("organization skill preference queries", () => {
 		await Promise.all([first, second]);
 
 		expect(
-			queryClient.getQueryData(organizationSkillPreferences("org").queryKey),
+			queryClient.getQueryData(organizationSkillPreferencesKey("org")),
 		).toEqual(mockSecondPreferences);
 	});
 });

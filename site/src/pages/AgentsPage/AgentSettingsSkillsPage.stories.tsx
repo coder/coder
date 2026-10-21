@@ -3,7 +3,7 @@ import { spyOn } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import {
-	organizationSkillPreferences,
+	organizationSkillPreferencesKey,
 	organizationSkills,
 } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
@@ -74,7 +74,7 @@ export const OrganizationSkills: Story = {
 				data: [MockDisabledSkill],
 			},
 			{
-				key: organizationSkillPreferences(MockDefaultOrganization.id).queryKey,
+				key: organizationSkillPreferencesKey(MockDefaultOrganization.id),
 				data: MockOrganizationSkillPreferences,
 			},
 		],
@@ -104,7 +104,7 @@ export const MemberControls: Story = {
 				data: [MockDisabledSkill],
 			},
 			{
-				key: organizationSkillPreferences(MockDefaultOrganization.id).queryKey,
+				key: organizationSkillPreferencesKey(MockDefaultOrganization.id),
 				data: mockMemberControlsPreferences,
 			},
 		],
@@ -133,7 +133,7 @@ export const AllOrganizationSkillsTurnedOff: Story = {
 				data: [MockDisabledSkill],
 			},
 			{
-				key: organizationSkillPreferences(MockDefaultOrganization.id).queryKey,
+				key: organizationSkillPreferencesKey(MockDefaultOrganization.id),
 				data: mockAllSkillsOffPreferences,
 			},
 		],

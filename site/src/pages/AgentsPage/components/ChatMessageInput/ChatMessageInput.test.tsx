@@ -7,7 +7,7 @@ import { API } from "#/api/api";
 import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
-	organizationSkillPreferences,
+	organizationSkillPreferencesKey,
 	organizationSkills,
 } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
@@ -297,7 +297,7 @@ describe("ChatMessageInput", () => {
 			queryClient.setQueryData(userSkills().queryKey, personal);
 			if (organizationPreferences) {
 				queryClient.setQueryData(
-					organizationSkillPreferences(organizationId).queryKey,
+					organizationSkillPreferencesKey(organizationId),
 					organizationPreferences,
 				);
 			}
@@ -412,7 +412,7 @@ describe("ChatMessageInput", () => {
 			await waitFor(() => {
 				expect(
 					queryClient.getQueryState(
-						organizationSkillPreferences(organizationId).queryKey,
+						organizationSkillPreferencesKey(organizationId),
 					)?.status,
 				).toBe("error");
 			});

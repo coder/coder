@@ -11,7 +11,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
 import { API } from "#/api/api";
 import {
-	organizationSkillPreferences,
+	organizationSkillPreferencesKey,
 	organizationSkills,
 } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
@@ -212,7 +212,7 @@ describe("AgentChatInput", () => {
 			{ ...MockSkill, name: "release-notes" },
 		]);
 		queryClient.setQueryData(
-			organizationSkillPreferences("org-1").queryKey,
+			organizationSkillPreferencesKey("org-1"),
 			MockOrganizationSkillPreferences,
 		);
 

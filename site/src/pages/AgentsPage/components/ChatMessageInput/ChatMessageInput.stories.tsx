@@ -5,7 +5,7 @@ import { expect, fn, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
-	organizationSkillPreferences,
+	organizationSkillPreferencesKey,
 	organizationSkills,
 } from "#/api/queries/organizationSkills";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -253,7 +253,7 @@ export const OpensWithAllSkillSources: Story = {
 				data: mockOrganizationMenuSkills,
 			},
 			{
-				key: organizationSkillPreferences(mockOrganizationId).queryKey,
+				key: organizationSkillPreferencesKey(mockOrganizationId),
 				data: MockOrganizationSkillPreferences,
 			},
 		],
@@ -285,7 +285,7 @@ export const HidesOrganizationSkillsTurnedOff: Story = {
 				data: mockOrganizationMenuSkills,
 			},
 			{
-				key: organizationSkillPreferences(mockOrganizationId).queryKey,
+				key: organizationSkillPreferencesKey(mockOrganizationId),
 				data: mockReviewerTurnedOffPreferences,
 			},
 		],
@@ -378,7 +378,7 @@ export const LostProjectAccessOffersCommands: Story = {
 		queries: [
 			{ key: organizationSkills(mockOrganizationId).queryKey, data: [] },
 			{
-				key: organizationSkillPreferences(mockOrganizationId).queryKey,
+				key: organizationSkillPreferencesKey(mockOrganizationId),
 				data: MockOrganizationSkillPreferences,
 			},
 			{ key: chatProjectsKey, data: [] },
