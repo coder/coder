@@ -497,7 +497,11 @@ func (r *chatHistoryReader) project(row database.ChatMessage) (string, []string,
 			if part.IsError {
 				label = "tool error"
 			}
-			lines = append(lines, fmt.Sprintf("[%s: %s] %s", label, part.ToolName, toolResultText(part.Result)))
+			text := toolResultText(part.Result)
+			if part.IsMedia {
+				text = mediaResultText(part.Result)
+			}
+			lines = append(lines, fmt.Sprintf("[%s: %s] %s", label, part.ToolName, text))
 		case codersdk.ChatMessagePartTypeFile:
 			name := part.Name
 			if name == "" {
@@ -519,6 +523,19 @@ func toolResultText(result json.RawMessage) string {
 		return text
 	}
 	return compactJSON(result)
+}
+
+// mediaResultText renders a persisted media tool result, such as a
+// screenshot, as its media type and annotation, never its base64 data.
+func mediaResultText(result json.RawMessage) string {
+	var media struct {
+		MimeType string `json:"mime_type"`
+		Text     string `json:"text"`
+	}
+	if err := json.Unmarshal(result, &media); err != nil {
+		return "[media]"
+	}
+	return strings.TrimSpace(fmt.Sprintf("[media: %s] %s", media.MimeType, media.Text))
 }
 
 // compactJSON drops the whitespace that jsonb adds, falling back to the

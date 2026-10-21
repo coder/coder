@@ -271,6 +271,7 @@ func TestChatHistory(t *testing.T) {
 		results := f.insert(t, database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, false,
 			codersdk.ChatMessageToolResult("call", "execute", json.RawMessage(`{"output":"done"}`), false, false),
 			codersdk.ChatMessageToolResult("history", chattool.ChatHistoryToolName, json.RawMessage(`{"items":[{"text":"recursive"}]}`), false, false),
+			codersdk.ChatMessageToolResult("shot", "computer", json.RawMessage(`{"data":"`+strings.Repeat("QUJD", 1000)+`","mime_type":"image/png","text":"Screenshot taken"}`), false, true),
 		)
 		tool := f.tool()
 
@@ -287,6 +288,8 @@ func TestChatHistory(t *testing.T) {
 		text = result.Items[0].Text
 		require.Contains(t, text, `{"output":"done"}`)
 		require.NotContains(t, text, "recursive")
+		require.Contains(t, text, "[tool result: computer] [media: image/png] Screenshot taken")
+		require.NotContains(t, text, "QUJD", "media results keep only their annotation")
 
 		result, _ = runChatHistory(t, tool, map[string]any{"action": "search", "query": "recursive"})
 		require.Empty(t, result.Items)
