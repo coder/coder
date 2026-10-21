@@ -973,12 +973,14 @@ func TestStopAfterBehaviorTools(t *testing.T) {
 
 // TestWaitForActiveChatStop and TestWaitForActiveChatStop_WaitsForReplacementRun
 // were removed along with the process-local activeChats mechanism.
-// Debug cleanup is now best-effort; stale finalization handles orphaned rows.
+// Debug cleanup is now best-effort; dbpurge removes orphaned rows
+// after the debug retention window.
 
 // TestArchiveChatWaitsForActiveChatStop and
 // TestArchiveChatWaitsForEveryInterruptedChat were removed along with
 // the process-local activeChats mechanism. Archive cleanup is now
-// best-effort; stale finalization handles any orphaned rows.
+// best-effort; dbpurge removes any orphaned rows after the debug
+// retention window.
 
 // A rename is skipped only when the stored title is already this user
 // title; any other source is replaced even when the text is unchanged.

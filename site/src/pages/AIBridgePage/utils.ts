@@ -1,9 +1,11 @@
-export const roundTokenDisplay = (tokens: number) => {
-	if (tokens >= 1000) {
-		return `${(tokens / 1000).toFixed(1)}k`;
-	}
-	return tokens.toString();
-};
+const compactTokenFormatter = new Intl.NumberFormat("en-US", {
+	notation: "compact",
+	maximumFractionDigits: 1,
+});
+
+/** Formats a token count compactly, such as `22.5M`. */
+export const roundTokenDisplay = (tokens: number) =>
+	compactTokenFormatter.format(tokens);
 
 export const roundDurationDisplay = (duration: number) => {
 	if (duration >= 1000) {

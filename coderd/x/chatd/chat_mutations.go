@@ -421,8 +421,8 @@ func (p *Server) EditMessage(
 	result.Chat = refreshed
 
 	// An interrupted worker may still flush debug rows after the edit;
-	// a short bounded retry converges without waiting for the much
-	// longer stale-finalization sweep. Cut off at the DB-stamped
+	// a short bounded retry converges without waiting for dbpurge's
+	// much longer debug retention window. Cut off at the DB-stamped
 	// updated_at, the clock that also stamps replacement-turn rows,
 	// minus debugCleanupClockSkew so replica drift cannot delete the
 	// replacement turn's rows.
@@ -502,6 +502,30 @@ func (p *Server) setChatFamilyArchived(ctx context.Context, chat database.Chat, 
 		watchKind = codersdk.ChatWatchEventKindDeleted
 	}
 	p.publishChatPubsubEvents(familyChats, watchKind)
+	return nil
+}
+
+// MoveChatToProject moves a root chat into a project, or out of its
+// project when projectID is NULL. Its subagent chats follow because they
+// use the root's project. While the chat or a subagent chat is not idle,
+// it returns [chatstate.ErrTransitionNotAllowed], unless the chat is
+// already in that project, which changes nothing.
+func (p *Server) MoveChatToProject(ctx context.Context, chat database.Chat, projectID uuid.NullUUID) error {
+	if chat.ID == uuid.Nil {
+		return xerrors.New("chat_id is required")
+	}
+	if chat.ParentChatID.Valid {
+		return chatstate.ErrChatNotRoot
+	}
+
+	familyChats, err := chatstate.SetFamilyProject(ctx, p.db, p.pubsub, chatstate.SetFamilyProjectInput{
+		RootID:    chat.ID,
+		ProjectID: projectID,
+	})
+	if err != nil {
+		return err
+	}
+	p.publishChatPubsubEvents(familyChats, codersdk.ChatWatchEventKindProjectChange)
 	return nil
 }
 

@@ -1411,27 +1411,12 @@ func (api *API) createChat(
 	}
 	projectID := uuid.NullUUID{}
 	if req.ProjectID != nil {
-		project, err := api.Database.GetChatProjectByID(ctx, *req.ProjectID)
-		if err != nil {
-			if httpapi.Is404Error(err) {
-				return database.Chat{}, codersdk.Chat{}, httperror.NewResponseError(http.StatusNotFound, codersdk.Response{Message: "Chat project not found."})
-			}
-			return database.Chat{}, codersdk.Chat{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching chat project.",
-				Detail:  err.Error(),
-			})
+		var status int
+		var resp *codersdk.Response
+		projectID, status, resp = api.validateChatProjectSelection(ctx, *req.ProjectID, ownerID, req.OrganizationID)
+		if resp != nil {
+			return database.Chat{}, codersdk.Chat{}, httperror.NewResponseError(status, *resp)
 		}
-		// Projects are private to their owner, and a chat in a project reads
-		// and writes its memory, so the chat's owner must own the project.
-		// This matches the unreadable-project response so callers creating
-		// chats for other users cannot probe for project IDs.
-		if project.OwnerID != ownerID {
-			return database.Chat{}, codersdk.Chat{}, httperror.NewResponseError(http.StatusNotFound, codersdk.Response{Message: "Chat project not found."})
-		}
-		if project.OrganizationID != req.OrganizationID {
-			return database.Chat{}, codersdk.Chat{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{Message: "Chat project does not belong to this chat's organization."})
-		}
-		projectID = uuid.NullUUID{UUID: project.ID, Valid: true}
 	}
 
 	contentBlocks, titleText, inputError := createChatInputFromRequest(ctx, api.Database, req)
@@ -1746,6 +1731,10 @@ func (api *API) createChatError(err error) error {
 			Message: "Invalid model config ID.",
 			Detail:  err.Error(),
 		}, err)
+	}
+	// The project can be deleted between the access check and the insert.
+	if database.IsForeignKeyViolation(err, database.ForeignKeyChatsProjectID) {
+		return httperror.WrapResponseError(http.StatusNotFound, codersdk.Response{Message: "Chat project not found."}, err)
 	}
 	if dbauthz.IsNotAuthorizedError(err) {
 		return httperror.WrapResponseError(http.StatusForbidden, httpapi.ResourceForbiddenResponse, err)
@@ -2563,8 +2552,8 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 }
 
 // patchChat updates a chat resource. Supports updating labels,
-// workspace binding, archiving, pinning, pinned-chat ordering, and the
-// owner's read state.
+// workspace binding, project, archiving, pinning, pinned-chat ordering,
+// and the owner's read state.
 //
 // @Summary Update chat
 // @ID update-chat
@@ -2725,6 +2714,34 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+	}
+
+	var projectUpdate *uuid.NullUUID
+	if req.ProjectID != nil {
+		var refusal string
+		switch {
+		case !api.Experiments.Enabled(codersdk.ExperimentChatProjects):
+			refusal = "chat projects experiment is not enabled"
+		case chat.ParentChatID.Valid:
+			refusal = "Cannot move a child chat."
+		case archived:
+			refusal = "Cannot move an archived chat."
+		}
+		if refusal != "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: refusal})
+			return
+		}
+		projectID := uuid.NullUUID{}
+		if *req.ProjectID != uuid.Nil {
+			var status int
+			var resp *codersdk.Response
+			projectID, status, resp = api.validateChatProjectSelection(ctx, *req.ProjectID, chat.OwnerID, chat.OrganizationID)
+			if resp != nil {
+				httpapi.Write(ctx, rw, status, *resp)
+				return
+			}
+		}
+		projectUpdate = &projectID
 	}
 
 	if req.Title != nil {
@@ -2902,6 +2919,34 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		chat = updatedChat
+	}
+
+	// The move is the last write, so a refused move keeps the earlier
+	// writes of the request, as a refused archive does.
+	if projectUpdate != nil {
+		err := api.chatDaemon.MoveChatToProject(ctx, chat, *projectUpdate)
+		if err != nil {
+			if writeChatInvalidState(ctx, rw, err) {
+				return
+			}
+			if errors.Is(err, chatstate.ErrTransitionNotAllowed) {
+				httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+					Message: "Cannot move an active chat. Interrupt or wait for the chat to finish first.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			// The project can be deleted between the check and the move.
+			if database.IsForeignKeyViolation(err, database.ForeignKeyChatsProjectID) {
+				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "Chat project not found."})
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to move chat.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
 	if refreshed, err := api.Database.GetChatByID(ctx, chat.ID); err == nil {
@@ -4708,6 +4753,44 @@ func (api *API) resolveChatGitAccessToken(
 
 type createChatWorkspaceSelection struct {
 	WorkspaceID uuid.NullUUID
+}
+
+// validateChatProjectSelection returns the project for a chat of ownerID in
+// organizationID. A chat in a project reads and writes its memory, so the
+// chat's owner must be able to use the project. A project the owner cannot
+// use gets the unreadable-project response so callers acting for other
+// users cannot probe for project IDs.
+func (api *API) validateChatProjectSelection(
+	ctx context.Context,
+	projectID, ownerID, organizationID uuid.UUID,
+) (uuid.NullUUID, int, *codersdk.Response) {
+	notFound := &codersdk.Response{Message: "Chat project not found."}
+	project, err := api.Database.GetChatProjectByID(ctx, projectID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			return uuid.NullUUID{}, http.StatusNotFound, notFound
+		}
+		return uuid.NullUUID{}, http.StatusInternalServerError, &codersdk.Response{
+			Message: "Internal error fetching chat project.",
+			Detail:  err.Error(),
+		}
+	}
+	usable, err := chatd.ChatProjectUsableBy(ctx, api.Database, project, ownerID)
+	if err != nil {
+		return uuid.NullUUID{}, http.StatusInternalServerError, &codersdk.Response{
+			Message: "Internal error checking chat project access.",
+			Detail:  err.Error(),
+		}
+	}
+	if !usable {
+		return uuid.NullUUID{}, http.StatusNotFound, notFound
+	}
+	if project.OrganizationID != organizationID {
+		return uuid.NullUUID{}, http.StatusBadRequest, &codersdk.Response{
+			Message: "Chat project does not belong to this chat's organization.",
+		}
+	}
+	return uuid.NullUUID{UUID: project.ID, Valid: true}, 0, nil
 }
 
 func (api *API) validateChatWorkspaceSelection(
