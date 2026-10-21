@@ -33,6 +33,8 @@ type API struct {
 	finderCancel  context.CancelFunc
 	finderRoots   []string
 	finderPending map[string]*pendingRoot
+	finderPins    map[string]int
+	finderWalks   chan struct{}
 	closed        bool
 }
 

@@ -9,9 +9,11 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"testing"
 
 	"github.com/spf13/afero"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
@@ -164,6 +166,58 @@ func TestHandleFindFiles_RootIdentity(t *testing.T) {
 
 	code, _ = requestFindFiles(t, handler, url.Values{"root": {"/"}, "q": {"widget"}})
 	require.Equal(t, http.StatusBadRequest, code)
+}
+
+func TestHandleFindFiles_ConcurrentEviction(t *testing.T) {
+	t.Parallel()
+
+	const numRoots = 12
+	home := t.TempDir()
+	for i := range numRoots {
+		p := filepath.Join(home, fmt.Sprintf("root%d", i), fmt.Sprintf("uniq%d_target.go", i))
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+		require.NoError(t, os.WriteFile(p, nil, 0o600))
+	}
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	api := agentfiles.NewAPI(logger, afero.NewOsFs(), nil, agentfiles.WithEnvInfo(fakeBundleEnvInfo{home: home}))
+	handler := api.Routes()
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var ok, busy int
+	for g := range 3 * numRoots {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			i := g % numRoots
+			for range 5 {
+				code, resp := requestFindFiles(t, handler, url.Values{
+					"root": {fmt.Sprintf("~/root%d", i)},
+					"q":    {fmt.Sprintf("uniq%d_target", i)},
+				})
+				mu.Lock()
+				switch code {
+				case http.StatusOK:
+					ok++
+					assert.Len(t, resp.Results, 1, "root%d lost its match", i)
+				case http.StatusServiceUnavailable:
+					busy++
+				default:
+					assert.Fail(t, "unexpected status", "root%d: %d", i, code)
+				}
+				mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+	require.Positive(t, ok)
+	t.Logf("ok=%d busy=%d", ok, busy)
+
+	done := make(chan error, 1)
+	go func() { done <- api.Close() }()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	require.NoError(t, testutil.RequireReceive(ctx, t, done))
 }
 
 func withoutScores(results []workspacesdk.FindFilesResult) []workspacesdk.FindFilesResult {
