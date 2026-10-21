@@ -10,6 +10,7 @@ import {
 	isAgentDisplayFullyExpanded,
 	resolveAgentDisplayState,
 } from "./displayMode";
+import { FileToolHeader } from "./FileToolHeader";
 import { ToolCall } from "./ToolCall";
 import {
 	DIFFS_FONT_STYLE,
@@ -63,7 +64,16 @@ export const EditFilesTool: React.FC<{
 			hasContent={hasDiffs || Boolean(errorDetail)}
 			defaultView={displayState}
 		>
-			<ToolCall.Header iconName="edit_files" label={label} />
+			{files.length === 1 ? (
+				<FileToolHeader
+					iconName="edit_files"
+					verb={verb}
+					path={files[0].path}
+					running={isRunning}
+				/>
+			) : (
+				<ToolCall.Header iconName="edit_files" label={label} />
+			)}
 			<ToolCall.Content>
 				{errorDetail && (
 					<ToolCall.ErrorDetail>{errorDetail}</ToolCall.ErrorDetail>
