@@ -63,13 +63,24 @@ A single large tool result can therefore pass the usable limit before Coder chec
 
 ## Agent tools
 
-Under Token budget, the agent gets 3 extra tools:
+Under Token budget, the agent gets 3 extra tools.
 
-| Tool              | What it does                                                                                                                                                                                                                                                                                                     |
-|-------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `save_checkpoint` | Saves a checkpoint of up to 8&nbsp;KiB with the goal, decisions, progress, and next steps. Each save replaces the previous checkpoint.                                                                                                                                                                           |
-| `new_context`     | Asks Coder to start a new context window once the other tool calls in the same step finish. Coder refuses the request when the threshold is 100%.                                                                                                                                                                |
-| `chat_history`    | Reads this chat's transcript across context windows. It lists windows, lists or searches messages with a literal, case-insensitive match, and reads one message in pages. It returns message text, tool calls and results, and file names, but not reasoning. It can't read messages before the latest `/clear`. |
+### `save_checkpoint`
+
+Saves a checkpoint of up to 8&nbsp;KiB with the goal, decisions, progress, and next steps.
+Each save replaces the previous checkpoint.
+
+### `new_context`
+
+Asks Coder to start a new context window once the other tool calls in the same step finish.
+Coder refuses the request when the threshold is 100%.
+
+### `chat_history`
+
+Reads this chat's transcript across context windows.
+It lists windows, lists or searches messages with a literal, case-insensitive match, and reads one message in pages.
+It returns message text, tool calls and results, and file names, but not reasoning.
+It can't read messages before the latest `/clear`.
 
 ## What the new context window contains
 
