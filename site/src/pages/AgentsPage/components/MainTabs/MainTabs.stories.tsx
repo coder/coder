@@ -1,0 +1,87 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { WorkspaceAgentFileContents } from "#/api/api";
+import { workspaceAgentFileKey } from "#/api/queries/workspaceFiles";
+import { WorkspaceFilesContext } from "../../context/WorkspaceFilesContext";
+import {
+	type PersistedMainTabs,
+	savePersistedMainTabs,
+} from "../../utils/mainTabStorage";
+import { MainTabs } from "./MainTabs";
+import { useMainTabs } from "./useMainTabs";
+
+const agentId = "story-agent";
+const chatId = "story-main-tabs";
+
+const textFile = (content: string): WorkspaceAgentFileContents => ({
+	data: new TextEncoder().encode(content).buffer,
+	contentType: "text/plain; charset=utf-8",
+	etag: '"v1"',
+});
+
+const fileQueries = [
+	{
+		key: workspaceAgentFileKey(agentId, "/repo/src/index.ts"),
+		data: textFile('export const greet = () => "hello";\n'),
+	},
+	{
+		key: workspaceAgentFileKey(agentId, "/repo/test/index.ts"),
+		data: textFile('import { greet } from "../src";\n'),
+	},
+	{
+		key: workspaceAgentFileKey(agentId, "/repo/README.md"),
+		data: textFile(
+			"# Example\n\nA short README with a list:\n\n- one\n- two\n\n```sh\nmake build\n```\n",
+		),
+	},
+];
+
+const StoryMainTabs: React.FC = () => {
+	const mainTabs = useMainTabs(chatId);
+	return (
+		<WorkspaceFilesContext
+			value={{
+				agentId,
+				defaultDirectory: "/repo",
+				repoRoots: [],
+				repositories: new Map(),
+				openFile: mainTabs.openFile,
+			}}
+		>
+			<div className="flex h-[480px] flex-col">
+				<MainTabs mainTabs={mainTabs}>
+					<div className="flex flex-1 items-center justify-center text-sm text-content-secondary">
+						Chat transcript
+					</div>
+				</MainTabs>
+			</div>
+		</WorkspaceFilesContext>
+	);
+};
+
+const persistTabs = (tabs: PersistedMainTabs) => () => {
+	savePersistedMainTabs(chatId, tabs);
+	return () => savePersistedMainTabs(chatId, { paths: [], activePath: null });
+};
+
+const meta: Meta<typeof StoryMainTabs> = {
+	title: "pages/AgentsPage/MainTabs",
+	component: StoryMainTabs,
+	parameters: { queries: fileQueries },
+};
+
+export default meta;
+type Story = StoryObj<typeof StoryMainTabs>;
+
+export const ChatActive: Story = {
+	beforeEach: persistTabs({
+		paths: ["/repo/src/index.ts", "/repo/test/index.ts", "/repo/README.md"],
+		activePath: null,
+	}),
+};
+
+export const MarkdownPreview: Story = {
+	beforeEach: persistTabs({
+		paths: ["/repo/src/index.ts", "/repo/README.md"],
+		activePath: "/repo/README.md",
+	}),
+};
