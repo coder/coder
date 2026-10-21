@@ -24,9 +24,12 @@ import (
 const (
 	rolloverToolName = "chat_context_rollover"
 	handoffToolName  = "chat_context_handoff"
-	// handoffPromptPrefix starts the model-only user row of a handoff
-	// prompt, which continues with the stage.
-	handoffPromptPrefix        = "<context-handoff stage="
+	// handoffPromptPrefix starts the model-only user row of a handoff or
+	// final prompt, which continues with the stage.
+	handoffPromptPrefix = "<context-handoff stage="
+	// finalHandoffReserveTokens leaves room below the usable limit for the
+	// final prompt and the agent's checkpoint before the forced rollover.
+	finalHandoffReserveTokens  = int64(16_000)
 	minHandoffThresholdPercent = int32(10)
 	firstContextWindowID       = "w:0"
 	rolloverRequestedBySystem  = "system"
@@ -47,6 +50,7 @@ const (
 type contextWindowBudget struct {
 	contextLimit     int64
 	usableLimit      int64
+	finalPoint       int64
 	handoffPoint     int64
 	thresholdPercent int32
 }
@@ -58,7 +62,8 @@ func newContextWindowBudget(contextLimit, outputCap int64, thresholdPercent int3
 	}
 	budget.contextLimit = contextLimit
 	budget.usableLimit = contextLimit - min(outputCap, contextLimit/4)
-	budget.handoffPoint = min(contextLimit*int64(max(thresholdPercent, minHandoffThresholdPercent))/100, budget.usableLimit)
+	budget.finalPoint = max(budget.usableLimit-finalHandoffReserveTokens, (budget.usableLimit+1)/2)
+	budget.handoffPoint = min(contextLimit*int64(max(thresholdPercent, minHandoffThresholdPercent))/100, budget.finalPoint)
 	return budget
 }
 
@@ -67,6 +72,7 @@ type rolloverAction string
 const (
 	rolloverActionNone     rolloverAction = ""
 	rolloverActionHandoff  rolloverAction = "handoff"
+	rolloverActionFinal    rolloverAction = "final"
 	rolloverActionRollover rolloverAction = "rollover"
 )
 
@@ -87,8 +93,13 @@ type rolloverDecision struct {
 // boundary.
 type rolloverStageState struct {
 	handoffClaimed bool
+	// stepSinceHandoff reports an assistant step after the handoff
+	// prompt, so the final prompt waits for the window to grow past it.
+	stepSinceHandoff bool
+	finalClaimed     bool
 	// receipt is an unconsumed successful new_context result.
-	receipt bool
+	receipt           bool
+	newContextOffered bool
 }
 
 func decideRollover(contextTokens int64, budget contextWindowBudget, state rolloverStageState) rolloverDecision {
@@ -103,6 +114,8 @@ func decideRollover(contextTokens int64, budget contextWindowBudget, state rollo
 		return rolloverDecision{action: rolloverActionRollover, reason: rolloverReasonLimit}
 	case !state.handoffClaimed && contextTokens >= budget.handoffPoint:
 		return rolloverDecision{action: rolloverActionHandoff}
+	case state.handoffClaimed && state.stepSinceHandoff && !state.finalClaimed && state.newContextOffered && contextTokens >= budget.finalPoint:
+		return rolloverDecision{action: rolloverActionFinal}
 	default:
 		return rolloverDecision{action: rolloverActionNone}
 	}
@@ -166,7 +179,11 @@ func rolloverStageStateFromHistory(messages []database.ChatMessage) (rolloverSta
 	state := rolloverStageState{receipt: receipt}
 	boundary := latestContextBoundaryIndex(messages)
 	for _, msg := range messages[boundary+1:] {
-		if msg.Deleted || !msg.Compressed || msg.Role != database.ChatMessageRoleAssistant {
+		if msg.Deleted || msg.Role != database.ChatMessageRoleAssistant {
+			continue
+		}
+		if !msg.Compressed {
+			state.stepSinceHandoff = state.handoffClaimed
 			continue
 		}
 		parts, err := chatprompt.ParseContent(msg)
@@ -181,8 +198,11 @@ func rolloverStageStateFromHistory(messages []database.ChatMessage) (rolloverSta
 			if err := json.Unmarshal(part.Args, &payload); err != nil {
 				return rolloverStageState{}, xerrors.Errorf("parse context handoff %d: %w", msg.ID, err)
 			}
-			if payload.Stage == rolloverActionHandoff {
+			switch payload.Stage {
+			case rolloverActionHandoff:
 				state.handoffClaimed = true
+			case rolloverActionFinal:
+				state.finalClaimed = true
 			}
 		}
 	}
@@ -480,6 +500,7 @@ type contextHandoffPayload struct {
 type buildContextHandoffMessagesInput struct {
 	modelConfigID uuid.UUID
 	toolCallID    string
+	// stage is rolloverActionHandoff or rolloverActionFinal.
 	stage         rolloverAction
 	contextTokens int64
 	usableLimit   int64
@@ -490,7 +511,7 @@ type buildContextHandoffMessagesInput struct {
 // compressed so that step counts and the prompt query skip them.
 func buildContextHandoffMessages(input buildContextHandoffMessagesInput) ([]chatstate.Message, error) {
 	contentVersion := chatprompt.CurrentContentVersion
-	prompt := contextHandoffPrompt(input.contextTokens, input.usableLimit)
+	prompt := contextHandoffPrompt(input.stage, input.contextTokens, input.usableLimit)
 	args, err := json.Marshal(contextHandoffPayload{
 		Stage:         input.stage,
 		ContextTokens: input.contextTokens,
@@ -535,9 +556,19 @@ func buildContextHandoffMessages(input buildContextHandoffMessagesInput) ([]chat
 	}, nil
 }
 
-func contextHandoffPrompt(contextTokens, usableLimit int64) string {
+func contextHandoffPrompt(stage rolloverAction, contextTokens, usableLimit int64) string {
 	usage := fmt.Sprintf("Context budget ~%d%% used (%d of %d tokens before Coder forces a rollover at the usable limit).",
 		(contextTokens*100+usableLimit/2)/usableLimit, contextTokens, usableLimit)
+	if stage == rolloverActionFinal {
+		return strings.Join([]string{
+			usage,
+			"The current context window is exhausted. Do not continue the task or give a final answer in this window.",
+			"The next window will not automatically include this conversation.",
+			"Save your checkpoint with " + chattool.SaveCheckpointToolName + " now.",
+			"After the result returns, call " + chattool.NewContextToolName + ".",
+			"Do not use any tools other than " + chattool.SaveCheckpointToolName + " and " + chattool.NewContextToolName + ".",
+		}, " ")
+	}
 	return strings.Join([]string{
 		usage,
 		"The context handoff target has been reached. Finish the current small unit of work and start no substantial new work in this window.",
