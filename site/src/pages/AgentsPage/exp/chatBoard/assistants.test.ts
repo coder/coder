@@ -10,7 +10,7 @@ import { assistantIds, findOrCreateAssistant } from "./assistants";
 import { boardChatsKey } from "./boardChats";
 import { buildCards } from "./boardLabels";
 
-vi.mock("sonner", () => ({
+vi.mock("#/components/Toaster/toast", () => ({
 	toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
 }));
 
@@ -142,7 +142,7 @@ describe("findOrCreateAssistant", () => {
 	});
 
 	it("toasts and returns undefined when the workspace lookup fails", async () => {
-		const { toast } = await import("sonner");
+		const { toast } = await import("#/components/Toaster/toast");
 		vi.spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
 		vi.spyOn(API, "getWorkspaces").mockRejectedValue(new Error("offline"));
 
@@ -193,7 +193,7 @@ describe("findOrCreateAssistant", () => {
 	});
 
 	it("still creates the chat without a workspace when the lookup fails but the MCP is attached", async () => {
-		const { toast } = await import("sonner");
+		const { toast } = await import("#/components/Toaster/toast");
 		vi.mocked(toast.error).mockClear();
 		vi.spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([
 			coderMcp,

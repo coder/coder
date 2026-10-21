@@ -1,5 +1,4 @@
 import type { QueryClient } from "react-query";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
 	mcpServerConfigs,
@@ -11,6 +10,7 @@ import type {
 	CreateChatRequest,
 	MCPServerConfig,
 } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import {
 	type AssistantSpec,
 	type AssistantTools,
