@@ -34,6 +34,7 @@
 		"lang": "error",
 		"media-has-caption": "error",
 		"click-events-have-key-events": "error",
+		"no-noninteractive-tabindex": "error",
 
 		// --- complexity ---
 		"no-regex-spaces": "error",
@@ -216,7 +217,6 @@
 		// small < medium < large < xl.
 		// ==========================================================
 		"no-autofocus": "off", // a11y/noAutofocus (large)
-		"no-noninteractive-tabindex": "off", // a11y/noNoninteractiveTabindex (small)
 		"interactive-supports-focus": "off", // a11y/useFocusableInteractive (small)
 		"iframe-has-title": "off", // a11y/useIframeTitle (small)
 		"no-restricted-imports": [
