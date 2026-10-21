@@ -586,6 +586,12 @@ Refer to [Manage templates](../admin/templates/managing-templates/index.md).
 The HashiCorp tool Coder uses to define and provision workspace infrastructure.
 Visit the [Terraform documentation](https://developer.hashicorp.com/terraform).
 
+### Token budget
+
+An experimental [Coder Agents](#coder-agents) compaction strategy that continues a long chat in a fresh context window instead of summarizing older context.
+The new window starts from the agent's latest checkpoint, when one was saved.
+Refer to [Token budget](../ai-coder/agents/platform-controls/token-budget.md).
+
 ## W
 
 ### Web terminal

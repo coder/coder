@@ -1138,6 +1138,12 @@
 									"state": ["early access"]
 								},
 								{
+									"title": "Token budget",
+									"description": "Continue long Coder Agents chats in fresh context windows that start from the agent's latest checkpoint, when one was saved, instead of a summary.",
+									"path": "./ai-coder/agents/platform-controls/token-budget.md",
+									"state": ["early access"]
+								},
+								{
 									"title": "Virtual desktop",
 									"description": "Give Coder Agents a graphical virtual desktop inside workspaces for GUI-based tasks.",
 									"path": "./ai-coder/agents/platform-controls/virtual-desktop.md",
