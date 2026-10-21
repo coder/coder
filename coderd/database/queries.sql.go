@@ -11866,39 +11866,73 @@ WITH privacy_floor AS (
         AND compressed = true
         AND role = 'assistant'
         AND content @> '[{"type": "tool-call", "tool_name": "chat_cleared"}]'::jsonb
+),
+calls AS (
+    SELECT
+        call_msg.id AS message_id,
+        call_part.ordinality,
+        call_part.part,
+        ROW_NUMBER() OVER (
+            PARTITION BY call_msg.id, call_part.part->>'tool_call_id'
+            ORDER BY call_part.ordinality
+        ) AS occurrence
+    FROM
+        chat_messages call_msg,
+        jsonb_array_elements(call_msg.content) WITH ORDINALITY AS call_part(part, ordinality)
+    WHERE
+        call_msg.chat_id = $1::uuid
+        AND call_msg.deleted = false
+        AND call_msg.role = 'assistant'
+        AND call_msg.id > (SELECT id FROM privacy_floor)
+        AND jsonb_typeof(call_msg.content) = 'array'
+        AND call_msg.content @> jsonb_build_array(jsonb_build_object('type', 'tool-call', 'tool_name', $2::text))
+        AND call_part.part->>'type' = 'tool-call'
 )
 SELECT
-    (call_part.part->'args')::jsonb AS args
+    (calls.part->'args')::jsonb AS args
 FROM
-    chat_messages call_msg,
-    jsonb_array_elements(call_msg.content) WITH ORDINALITY AS call_part(part, ordinality)
-WHERE
-    call_msg.chat_id = $1::uuid
-    AND call_msg.deleted = false
-    AND call_msg.role = 'assistant'
-    AND call_msg.id > (SELECT id FROM privacy_floor)
-    AND jsonb_typeof(call_msg.content) = 'array'
-    AND call_part.part->>'type' = 'tool-call'
-    AND call_part.part->>'tool_name' = $2::text
-    AND EXISTS (
+    calls
+    CROSS JOIN LATERAL (
         SELECT
-            1
+            result_part.part
         FROM
             chat_messages result_msg,
-            jsonb_array_elements(result_msg.content) AS result_part(part)
+            jsonb_array_elements(result_msg.content) WITH ORDINALITY AS result_part(part, ordinality)
         WHERE
-            result_msg.chat_id = call_msg.chat_id
+            result_msg.chat_id = $1::uuid
             AND result_msg.deleted = false
             AND result_msg.role = 'tool'
-            AND result_msg.id > call_msg.id
+            AND result_msg.id > calls.message_id
+            AND NOT EXISTS (
+                SELECT
+                    1
+                FROM
+                    chat_messages next_msg
+                WHERE
+                    next_msg.chat_id = $1::uuid
+                    AND next_msg.deleted = false
+                    AND next_msg.role = 'assistant'
+                    AND next_msg.id > calls.message_id
+                    AND next_msg.id < result_msg.id
+            )
             AND jsonb_typeof(result_msg.content) = 'array'
             AND result_part.part->>'type' = 'tool-result'
-            AND result_part.part->>'tool_call_id' = call_part.part->>'tool_call_id'
-            AND COALESCE((result_part.part->>'is_error')::boolean, false) = false
-    )
+            AND result_part.part->>'tool_call_id' = calls.part->>'tool_call_id'
+        ORDER BY
+            result_msg.id,
+            result_part.ordinality
+        OFFSET
+            calls.occurrence - 1
+        LIMIT
+            1
+    ) matched
+WHERE
+    calls.part->>'tool_name' = $2::text
+    AND matched.part->>'tool_name' = $2::text
+    AND COALESCE((matched.part->>'is_error')::boolean, false) = false
 ORDER BY
-    call_msg.id DESC,
-    call_part.ordinality DESC
+    calls.message_id DESC,
+    calls.ordinality DESC
 LIMIT
     1
 `
@@ -11910,7 +11944,10 @@ type GetLatestSuccessfulChatToolCallArgsParams struct {
 
 // Returns the arguments of the newest non-deleted call to the named tool
 // that has a successful result. Calls before the newest chat_cleared
-// boundary are ignored, so a clear hides them.
+// boundary are ignored, so a clear hides them. Providers may repeat tool
+// call IDs, so a call's result is the result with the same ID and
+// occurrence among its step's tool rows, which end at the next assistant
+// row.
 func (q *sqlQuerier) GetLatestSuccessfulChatToolCallArgs(ctx context.Context, arg GetLatestSuccessfulChatToolCallArgsParams) (json.RawMessage, error) {
 	row := q.db.QueryRowContext(ctx, getLatestSuccessfulChatToolCallArgs, arg.ChatID, arg.ToolName)
 	var args json.RawMessage
