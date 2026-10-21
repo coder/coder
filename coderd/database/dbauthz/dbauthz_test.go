@@ -1744,6 +1744,44 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().CountChatProjectMemoriesByProjectID(gomock.Any(), memory.ProjectID).Return(int64(1), nil).AnyTimes()
 		check.Args(memory.ProjectID).Asserts(database.ChatProjectMemoryRBACObject(project), policy.ActionRead).Returns(int64(1))
 	}))
+	s.Run("InsertChatStructuredOutput", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.InsertChatStructuredOutputParams{MessageID: 1, ChatID: chat.ID, Request: []byte(`{}`)}
+		out := testutil.Fake(s.T(), faker, database.ChatStructuredOutput{ChatID: chat.ID})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().InsertChatStructuredOutput(gomock.Any(), arg).Return(out, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(out)
+	}))
+	s.Run("UpdatePendingChatStructuredOutput", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.UpdatePendingChatStructuredOutputParams{ChatID: chat.ID, MessageID: 1, Status: database.ChatStructuredOutputStatusPending}
+		out := testutil.Fake(s.T(), faker, database.ChatStructuredOutput{ChatID: chat.ID})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpdatePendingChatStructuredOutput(gomock.Any(), arg).Return(out, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(out)
+	}))
+	s.Run("GetChatStructuredOutput", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.GetChatStructuredOutputParams{ChatID: chat.ID, MessageID: 1}
+		out := testutil.Fake(s.T(), faker, database.ChatStructuredOutput{ChatID: chat.ID})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().GetChatStructuredOutput(gomock.Any(), arg).Return(out, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(out)
+	}))
+	s.Run("GetPendingChatStructuredOutput", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		out := testutil.Fake(s.T(), faker, database.ChatStructuredOutput{ChatID: chat.ID})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().GetPendingChatStructuredOutput(gomock.Any(), chat.ID).Return(out, nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(out)
+	}))
+	s.Run("HasChatUserMessageAfter", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.HasChatUserMessageAfterParams{ChatID: chat.ID, AfterID: 1}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().HasChatUserMessageAfter(gomock.Any(), arg).Return(true, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(true)
+	}))
 	s.Run("CountChatQueuedMessages", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
