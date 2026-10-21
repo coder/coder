@@ -3,6 +3,7 @@
 package agentfiles
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -16,7 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
 )
 
-func (api *API) writeUploadExclusiveSecure(target uploadTarget, name string, r io.Reader) (finalName, finalPath string, size int64, err error) {
+func (api *API) writeUploadExclusiveSecure(ctx context.Context, target uploadTarget, name string, r io.Reader) (finalName, finalPath string, size int64, err error) {
 	switch api.filesystem.(type) {
 	case afero.OsFs, *afero.OsFs:
 	default:
@@ -33,7 +34,14 @@ func (api *API) writeUploadExclusiveSecure(target uploadTarget, name string, r i
 		}
 	}()
 
-	sweepStaleUploadTempsAt(filesFD)
+	api.sweepUploadTempsAt(ctx, target.dir, filesFD, staleUploadTempAge)
+	if target.mode() == uploadPublishWriteOnce {
+		defer func() {
+			if err == nil {
+				api.sweepUploadTempsAt(ctx, target.dir, filesFD, abandonedWriteOnceTempAge)
+			}
+		}()
+	}
 
 	if target.mode() == uploadPublishWriteOnce {
 		size, err = publishedUploadSizeAt(filesFD, name)
@@ -226,7 +234,7 @@ func statUploadAt(dirFD int, name string) (unix.Stat_t, error) {
 	return st, nil
 }
 
-func sweepStaleUploadTempsAt(dirFD int) {
+func (api *API) sweepUploadTempsAt(ctx context.Context, dirPath string, dirFD int, olderThan time.Duration) {
 	fd, err := unix.Openat(dirFD, ".", unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return
@@ -245,8 +253,8 @@ func sweepStaleUploadTempsAt(dirFD int) {
 		f := os.NewFile(uintptr(fd), name)
 		info, err := f.Stat()
 		_ = f.Close()
-		if err == nil && isStaleUploadTemp(info) {
-			_ = unix.Unlinkat(dirFD, name, 0)
+		if err == nil && isUploadTempOlderThan(info, olderThan) {
+			api.logUploadTempRemoval(ctx, dirPath, name, unix.Unlinkat(dirFD, name, 0))
 		}
 	}
 }
