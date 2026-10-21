@@ -2231,7 +2231,7 @@ export interface ChatAttachment {
 	 */
 	readonly part_index: number;
 	readonly role: ChatMessageRole;
-	readonly file: ChatMessagePart;
+	readonly file: ChatFilePart;
 }
 
 // From codersdk/chats.go

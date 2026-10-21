@@ -1,4 +1,4 @@
-import { useQuery } from "react-query";
+import { useQuery, useQueryClient } from "react-query";
 import { chat, chatAttachments, chatCost } from "#/api/queries/chats";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
@@ -10,7 +10,6 @@ import {
 	getEarlierMessageAttachments,
 	getMessageAttachments,
 	type MessageAttachment,
-	partFileIds,
 } from "./ChatConversation/messageHelpers";
 import type { EarlierMessagesProps } from "./ChatMessageScroller";
 import { ChatSummary } from "./ChatSummary";
@@ -29,6 +28,7 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	hasMoreMessages,
 	isHydratingMessages,
 }) => {
+	const queryClient = useQueryClient();
 	const showCost = Boolean(useFeatureVisibility().aibridge);
 	const chatQuery = useQuery({ ...chat(chatId), enabled: isVisible });
 
@@ -42,18 +42,13 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	const messages = useChatMessages(store);
 	const oldestLoadedMessageId = messages.at(0)?.id;
 	const earlierAttachmentsQuery = useQuery({
-		...chatAttachments(chatId, oldestLoadedMessageId ?? 0),
+		...chatAttachments(queryClient, chatId, oldestLoadedMessageId ?? 0),
 		enabled:
 			isVisible && hasMoreMessages && oldestLoadedMessageId !== undefined,
 	});
 	const earlierAttachments =
-		hasMoreMessages &&
-		oldestLoadedMessageId !== undefined &&
-		earlierAttachmentsQuery.data
-			? getEarlierMessageAttachments(
-					earlierAttachmentsQuery.data.attachments,
-					oldestLoadedMessageId,
-				)
+		hasMoreMessages && earlierAttachmentsQuery.data
+			? getEarlierMessageAttachments(earlierAttachmentsQuery.data.attachments)
 			: [];
 	// A retry puts a failed query back to pending, so `errorUpdateCount`
 	// tells a retry from the first load.
@@ -77,7 +72,9 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	const evictedFileIds = deriveEvictedFileIds(
 		messages.map((message) => ({ message })),
 		chatData?.files,
-		earlierAttachments.flatMap(({ file }) => partFileIds(file)).reverse(),
+		earlierAttachments.flatMap(({ file }) =>
+			file.file_id ? [file.file_id] : [],
+		),
 	);
 
 	let content: React.ReactNode = null;

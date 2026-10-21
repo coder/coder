@@ -79,6 +79,7 @@ func TSMutations(ts *guts.Typescript) {
 		config.NotNullMaps,
 		FixSerpentStruct,
 		DiscriminatedChatMessagePart,
+		ChatAttachmentFilePart,
 		AgentHookRawMessages,
 		// Prefer enums as types
 		config.EnumAsTypes,
@@ -289,6 +290,31 @@ func DiscriminatedChatMessagePart(ts *guts.Typescript) {
 		SupportComments: iface.SupportComments,
 		Source:          iface.Source,
 	})
+}
+
+// ChatAttachmentFilePart types ChatAttachment.file as the file variant of
+// ChatMessagePart, the only part type the attachments endpoint returns. It
+// must run after DiscriminatedChatMessagePart, which generates the variant.
+func ChatAttachmentFilePart(ts *guts.Typescript) {
+	node, ok := ts.Node("ChatAttachment")
+	if !ok {
+		return
+	}
+	iface, ok := node.(*bindings.Interface)
+	if !ok {
+		panic("ChatAttachment is not an interface")
+	}
+	for _, field := range iface.Fields {
+		if field.Name == "file" {
+			field.Type = bindings.Reference(bindings.Identifier{
+				Name:    chatMessagePartTSName(codersdk.ChatMessagePartTypeFile),
+				Package: iface.Name.Package,
+				Prefix:  iface.Name.Prefix,
+			})
+			return
+		}
+	}
+	panic("ChatAttachment.file was not generated")
 }
 
 // chatPartVariant holds the parsed variant info for one part type.
