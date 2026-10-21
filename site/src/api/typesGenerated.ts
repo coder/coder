@@ -2219,6 +2219,22 @@ export interface ChatACPTranscriptMessage {
 }
 
 // From codersdk/chats.go
+/**
+ * ChatAttachment is a file part of a chat message, returned by
+ * GET /api/v2/chats/{chat}/attachments.
+ */
+export interface ChatAttachment {
+	readonly message_id: number;
+	/**
+	 * PartIndex is the file part's position in the message content the
+	 * messages endpoint returns.
+	 */
+	readonly part_index: number;
+	readonly role: ChatMessageRole;
+	readonly file: ChatMessagePart;
+}
+
+// From codersdk/chats.go
 export type ChatAttachmentMediaType =
 	| "application/json"
 	| "application/pdf"
@@ -2243,6 +2259,29 @@ export const ChatAttachmentMediaTypes: ChatAttachmentMediaType[] = [
 	"text/markdown",
 	"text/plain",
 ];
+
+// From codersdk/chats.go
+/**
+ * ChatAttachmentsOptions are optional query parameters for
+ * GetChatAttachments.
+ */
+export interface ChatAttachmentsOptions {
+	/**
+	 * BeforeID, when > 0, restricts results to messages with id strictly
+	 * less than BeforeID. 0 returns every attachment in the chat.
+	 */
+	readonly BeforeID: number;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatAttachmentsResponse is the payload of
+ * GET /api/v2/chats/{chat}/attachments. Attachments are returned newest
+ * first.
+ */
+export interface ChatAttachmentsResponse {
+	readonly attachments: readonly ChatAttachment[];
+}
 
 // From codersdk/chats.go
 /**
