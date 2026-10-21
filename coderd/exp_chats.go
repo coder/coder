@@ -6951,7 +6951,7 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 // @ID upload-chat-file
 // @Security CoderSessionToken
 // @Tags Chats
-// @Accept */*
+// @Accept application/octet-stream
 // @Produce json
 // @Param organization query string true "Organization ID" format(uuid)
 // @Param purpose query string false "File purpose. Prompt files accept image/png, image/jpeg, image/gif, image/webp, image/svg+xml, text/plain, text/markdown, text/csv, application/json and application/pdf up to 10 MiB. Workspace files accept any type up to 100 MiB and are copied into the chat's workspace instead of being sent to the model" Enums(prompt,workspace)

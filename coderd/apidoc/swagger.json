@@ -3337,7 +3337,7 @@
 		},
 		"/api/v2/chats/files": {
 			"post": {
-				"consumes": ["*/*"],
+				"consumes": ["application/octet-stream"],
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Upload chat file",
