@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -211,6 +212,11 @@ func TestParseDestination(t *testing.T) {
 		{in: "https://coder.com/x/:path", wantMsg: `must not contain ":"`},
 		{in: "https://coder.com/x/*", wantMsg: "wildcard"},
 		{in: "https://coder.com/x y", wantMsg: "whitespace"},
+		{in: "https://github.com/coder/../other-org", wantMsg: `".." path segment`},
+		{in: "https://github.com/coder/%2e%2e/other-org", wantMsg: `".." path segment`},
+		{in: "https://github.com/coder/./coder", wantMsg: `".." path segment`},
+		{in: `https://github.com/coder/x\..\..\other-org`, wantMsg: `must not contain "\"`},
+		{in: "https://coder.com/a..b/c", want: destination{kind: destExternal, raw: "https://coder.com/a..b/c", valid: true}},
 		{in: "/admin/users", wantMsg: "no leading slash"},
 		{in: "admin/users/", wantMsg: "no trailing slash"},
 		{in: "*", wantMsg: `only allowed as a trailing "/*"`},
@@ -267,8 +273,8 @@ func TestCheckRedirectsStructure(t *testing.T) {
 		{name: "destination not a page", data: `[{"source": "old", "destination": "admin/missing"}]`, want: []wantProblem{{0, "not a page in docs/manifest.json"}}},
 		{name: "wildcard destination needs wildcard source", data: `[{"source": "old", "destination": "ai-coder/ai-gateway/*"}]`, want: []wantProblem{{0, `source is not a wildcard`}}},
 		{name: "wildcard destination into nothing", data: `[{"source": "old/*", "destination": "nowhere/*"}]`, want: []wantProblem{{0, "no docs page exists under"}}},
-		{name: "shadows page", data: `[{"source": "admin/users", "destination": "admin/groups"}]`, want: []wantProblem{{0, "hides a live docs page: admin/users"}}},
-		{name: "wildcard shadows pages", data: `[{"source": "admin/*", "destination": "/"}]`, want: []wantProblem{{0, "hides a live docs page: admin/groups (and 1 more)"}}},
+		{name: "shadows page", data: `[{"source": "admin/users", "destination": "admin/groups"}]`, want: []wantProblem{{0, `hides a live docs page: "admin/users"`}}},
+		{name: "wildcard shadows pages", data: `[{"source": "admin/*", "destination": "/"}]`, want: []wantProblem{{0, `hides a live docs page: "admin/groups" (and 1 more)`}}},
 		{name: "duplicate", data: `[{"source": "old", "destination": "admin/users"}, {"source": "old", "destination": "admin/groups"}]`, want: []wantProblem{{1, "duplicate of rule [0]"}}},
 		{name: "unreachable after wildcard", data: `[{"source": "old/*", "destination": "/"}, {"source": "old/page", "destination": "admin/users"}]`, want: []wantProblem{{1, "unreachable"}}},
 		{name: "exact before wildcard is fine", data: `[{"source": "old", "destination": "admin/users"}, {"source": "old/*", "destination": "/"}]`},
@@ -470,6 +476,14 @@ func TestResolverFollowsAtMostThreeHops(t *testing.T) {
 	// Four redirects is one too many.
 	rules = append([]rule{mk("z", "a")}, rules...)
 	require.False(t, newResolver(live, nil, rules).resolves("z"))
+
+	// The limit holds whatever the last destination is.
+	for _, dst := range []string{"/", "https://coder.com/x"} {
+		chain := []rule{mk("a", "b"), mk("b", "c"), mk("c", dst)}
+		require.True(t, newResolver(live, nil, chain).resolves("a"), dst)
+		chain = append([]rule{mk("z", "a")}, chain...)
+		require.False(t, newResolver(live, nil, chain).resolves("z"), dst)
+	}
 }
 
 func TestResolverIgnoresRulesWithInvalidDestination(t *testing.T) {
@@ -669,7 +683,7 @@ func (f *fakeFetcher) Get(_ context.Context, url string) (int, []byte, error) {
 	return r.status, []byte(r.body), r.err
 }
 
-func noSleep(time.Duration) {}
+func noWait(context.Context, time.Duration) error { return nil }
 
 const listBody = "- [Home](/beta-docs/@main/)\n- [Users](/beta-docs/@main/admin/users/)\n"
 
@@ -687,17 +701,21 @@ func TestFetchLiveRoutes(t *testing.T) {
 		{name: "retries then ok", results: []fetchResult{{err: xerrors.New("reset")}, {status: 503}, {status: 403}, {status: 200, body: listBody}}, wantCalls: 4, want: []string{"", "admin/users"}},
 		{name: "network error", results: []fetchResult{{err: xerrors.New("no route to host")}}, wantCalls: fetchAttempts, wantErr: "no route to host"},
 		{name: "forbidden", results: []fetchResult{{status: 403}}, wantCalls: fetchAttempts, wantErr: "HTTP status 403"},
-		{name: "not found", results: []fetchResult{{status: 404}}, wantCalls: fetchAttempts, wantErr: "HTTP status 404"},
+		{name: "not found is not published and is not retried", results: []fetchResult{{status: 404}}, wantCalls: 1, wantErr: "docs version is not published"},
 		{name: "empty list is an error and is not retried", results: []fetchResult{{status: 200, body: "# nothing here\n"}}, wantCalls: 1, wantErr: "lists no pages"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			f := &fakeFetcher{results: tt.results}
 			var slept []time.Duration
-			got, err := fetchLiveRoutes(context.Background(), f, "https://example.test/llms.txt", "@main", func(d time.Duration) { slept = append(slept, d) })
+			got, err := fetchLiveRoutes(context.Background(), f, "https://example.test/llms.txt", "@main", func(_ context.Context, d time.Duration) error {
+				slept = append(slept, d)
+				return nil
+			})
 			require.Len(t, f.urls, tt.wantCalls)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
+				require.Equal(t, tt.results[0].status == http.StatusNotFound, errors.Is(err, errNotPublished))
 				return
 			}
 			require.NoError(t, err)
@@ -733,14 +751,18 @@ func TestHTTPFetcherSendsExplicitUserAgent(t *testing.T) {
 type fakeGit struct {
 	revs  map[string]bool
 	files map[string]string // "rev:path" -> contents
+	errs  map[string]error  // "rev:path" -> error other than a missing file
 }
 
 func (f *fakeGit) HasRev(rev string) bool { return f.revs[rev] }
 
 func (f *fakeGit) Show(rev, path string) ([]byte, error) {
+	if err := f.errs[rev+":"+path]; err != nil {
+		return nil, err
+	}
 	s, ok := f.files[rev+":"+path]
 	if !ok {
-		return nil, xerrors.New("not in revision")
+		return nil, xerrors.Errorf("not in revision: %w", fs.ErrNotExist)
 	}
 	return []byte(s), nil
 }
@@ -800,7 +822,7 @@ func (e *runEnv) run(a runArgs) int {
 	if a.fetch == nil {
 		a.fetch = failingFetcher{}
 	}
-	return run(options{
+	return run(context.Background(), options{
 		manifestPath:  e.manifestPath,
 		redirectsPath: e.redirectsPath,
 		base:          a.base,
@@ -808,7 +830,7 @@ func (e *runEnv) run(a runArgs) int {
 		offline:       a.offline,
 		git:           a.git,
 		fetch:         a.fetch,
-		sleep:         noSleep,
+		wait:          noWait,
 		getenv:        func(k string) string { return a.env[k] },
 		stdout:        &e.stdout,
 		stderr:        &e.stderr,
@@ -997,8 +1019,82 @@ func TestRunOfflineNeverTouchesTheNetwork(t *testing.T) {
 
 	e := newRunEnv(t, manifestHead, `[]`)
 	env := map[string]string{"GITHUB_ACTIONS": "true", "GITHUB_BASE_REF": "main"}
-	require.Equal(t, 0, e.run(runArgs{offline: true, git: prGit(manifestBase[:0]), fetch: failingFetcher{}, env: env})&^1)
+	g := prGit("")
+	g.files["HEAD^1:"+manifestRepoPath] = manifestHead
+	// Nothing is removed, and the head redirects differ from the base, so only
+	// -offline skips the list.
+	require.Equal(t, 0, e.run(runArgs{offline: true, git: g, fetch: failingFetcher{}, env: env}), e.stderr.String())
 	require.Contains(t, e.stdout.String(), "live page list skipped (-offline)")
+}
+
+func TestRunUnpublishedVersionSkipsTheLiveList(t *testing.T) {
+	t.Parallel()
+
+	f := &fakeFetcher{results: []fetchResult{{status: http.StatusNotFound}}}
+	g := prGit("")
+	g.files["HEAD^1:"+manifestRepoPath] = manifestHead
+	e := newRunEnv(t, manifestHead, `[]`)
+	require.Equal(t, 0, e.run(runArgs{git: g, fetch: f, env: map[string]string{"GITHUB_BASE_REF": "release/9.99"}}), e.stderr.String())
+	require.Equal(t, []string{"https://coder.com/beta-docs/v9.99/llms.txt"}, f.urls)
+	require.Contains(t, e.stdout.String(), "answered 404, so docs version v9.99 is not published yet")
+}
+
+func TestRunUnchangedDocsSkipTheLiveList(t *testing.T) {
+	t.Parallel()
+
+	const redirects = `[{"source": "admin/groups", "destination": "/"}]`
+	for name, tt := range map[string]struct {
+		manifest, redirects string
+		baseRedirects       string
+		wantFetch           bool
+	}{
+		"unchanged":                {manifest: manifestHead, redirects: redirects, baseRedirects: redirects},
+		"unchanged with CRLF":      {manifest: strings.ReplaceAll(manifestHead, "\n", "\r\n"), redirects: redirects + "\r\n", baseRedirects: redirects + "\n"},
+		"no redirects file at all": {manifest: manifestHead},
+		"manifest changed":         {manifest: manifestHead + "\n", redirects: redirects, baseRedirects: redirects, wantFetch: true},
+		"redirects changed":        {manifest: manifestHead, redirects: `[{"source": "admin/groups", "destination": "admin/users"}]`, baseRedirects: redirects, wantFetch: true},
+		"redirects added":          {manifest: manifestHead, redirects: `[]`, wantFetch: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			g := prGit(tt.baseRedirects)
+			g.files["HEAD^1:"+manifestRepoPath] = strings.ReplaceAll(manifestHead, "\r\n", "\n")
+			f := &fakeFetcher{results: []fetchResult{{status: 200, body: listBody}}}
+			e := newRunEnv(t, tt.manifest, tt.redirects)
+			require.Equal(t, 0, e.run(runArgs{git: g, fetch: f, env: prEnv}), e.stderr.String())
+			if tt.wantFetch {
+				require.Len(t, f.urls, 1)
+				return
+			}
+			require.Empty(t, f.urls)
+			require.Contains(t, e.stdout.String(), "live page list skipped: docs/manifest.json and docs/redirects.json are unchanged from HEAD^1")
+		})
+	}
+}
+
+func TestRunUnreadableBaseRedirectsIsANoteAndReadsTheLiveList(t *testing.T) {
+	t.Parallel()
+
+	g := prGit("")
+	g.files["HEAD^1:"+manifestRepoPath] = manifestHead
+	g.errs = map[string]error{"HEAD^1:" + redirectsRepoPath: xerrors.New("object is corrupt")}
+	f := &fakeFetcher{results: []fetchResult{{status: 200, body: listBody}}}
+	e := newRunEnv(t, manifestHead, "")
+	require.Equal(t, 0, e.run(runArgs{git: g, fetch: f, env: prEnv}), e.stderr.String())
+	require.Contains(t, e.stdout.String(), "base redirect sources not compared: cannot read docs/redirects.json at HEAD^1: object is corrupt")
+	// The base rules are unknown, so the docs cannot count as unchanged.
+	require.Len(t, f.urls, 1)
+}
+
+func TestFetchLiveRoutesStopsWhenTheContextIsDone(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	f := &fakeFetcher{results: []fetchResult{{status: 503}}}
+	_, err := fetchLiveRoutes(ctx, f, "https://example.test/llms.txt", "@main", sleepContext)
+	require.ErrorIs(t, err, context.Canceled)
+	require.Len(t, f.urls, 1)
 }
 
 func TestRunTargetBranchSelectsTheLiveList(t *testing.T) {
@@ -1135,6 +1231,23 @@ func TestExecGitRejectsOptionLikeRevisions(t *testing.T) {
 	require.False(t, g.HasRev("--output=somefile"))
 	_, err := g.Show("--help", manifestRepoPath)
 	require.Error(t, err)
+}
+
+func TestExecGitShowMissingFileIsNotExist(t *testing.T) {
+	t.Parallel()
+
+	g := execGit{}
+	if !g.HasRev("HEAD") {
+		t.Skip("not running inside a git checkout")
+	}
+	_, err := g.Show("HEAD", "docs/does-not-exist.json")
+	require.ErrorIs(t, err, fs.ErrNotExist)
+	_, err = g.Show("HEAD", manifestRepoPath)
+	require.NoError(t, err)
+	// A revision that is not a commit fails for another reason.
+	_, err = g.Show("0000000000000000000000000000000000000000", manifestRepoPath)
+	require.Error(t, err)
+	require.NotErrorIs(t, err, fs.ErrNotExist)
 }
 
 // TestRepositoryFiles runs the structural checks against the repository's own

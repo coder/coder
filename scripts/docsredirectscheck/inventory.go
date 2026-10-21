@@ -132,18 +132,40 @@ func routesUnder(hrefs []string, base string) []string {
 	return routes
 }
 
+// errNotPublished means the site has no page list for a version, which is the
+// case for a new release branch before its docs are published.
+var errNotPublished = xerrors.New("docs version is not published")
+
+// sleepContext waits for d, or returns early with the context's error when ctx
+// is done first.
+func sleepContext(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
+}
+
 // fetchLiveRoutes reads the live page list of a version, retrying transient
-// failures a bounded number of times. An empty list is an error.
-func fetchLiveRoutes(ctx context.Context, f fetcher, url, segment string, sleep func(time.Duration)) ([]string, error) {
+// failures a bounded number of times. An empty list is an error. A 404 is not
+// retried and returns an error that wraps errNotPublished.
+func fetchLiveRoutes(ctx context.Context, f fetcher, url, segment string, wait func(context.Context, time.Duration) error) ([]string, error) {
 	var lastErr error
 	for attempt := 0; attempt < fetchAttempts; attempt++ {
 		if attempt > 0 {
-			sleep(time.Duration(1<<(attempt-1)) * time.Second)
+			if err := wait(ctx, time.Duration(1<<(attempt-1))*time.Second); err != nil {
+				return nil, xerrors.Errorf("cannot read %s: %w", url, err)
+			}
 		}
 		status, body, err := f.Get(ctx, url)
 		switch {
 		case err != nil:
 			lastErr = err
+		case status == http.StatusNotFound:
+			return nil, xerrors.Errorf("%s answered HTTP status 404: %w", url, errNotPublished)
 		case status != http.StatusOK:
 			lastErr = xerrors.Errorf("HTTP status %d", status)
 		default:
@@ -230,15 +252,16 @@ func (r resolver) isLive(route string) bool {
 
 // resolves reports whether a request for route ends on a page: it is a live
 // route, or the head rules send it, within maxRedirectHops, to a live route,
-// the docs root, or an allowed external URL.
+// the docs root, or an allowed external URL. Every redirect counts as a hop,
+// whatever its destination.
 func (r resolver) resolves(route string) bool {
 	route = normalizeRoute(route)
-	for hop := 0; hop <= maxRedirectHops; hop++ {
+	for hops := 0; ; hops++ {
 		if r.isLive(route) {
 			return true
 		}
 		i := slices.IndexFunc(r.rules, func(rl rule) bool { return rl.matches(route) })
-		if i < 0 || !r.rules[i].dst.valid {
+		if i < 0 || !r.rules[i].dst.valid || hops == maxRedirectHops {
 			return false
 		}
 		kind, next := r.rules[i].target(route)
@@ -247,7 +270,6 @@ func (r resolver) resolves(route string) bool {
 		}
 		route = next
 	}
-	return false
 }
 
 // suggest picks a destination for a rule that restores route. In order of

@@ -33,7 +33,7 @@ A missing `docs/redirects.json` passes.
 - A `source` is an exact route, or a route ending in `/*`.
   A wildcard matches the prefix itself and every route beneath it.
 - A `destination` is an exact route, `/` for the docs root, or an `https://` URL that starts with `https://github.com/coder/` or `https://coder.com/`.
-  An external destination has no `:` after the scheme and no `*`.
+  An external destination has no `:` after the scheme, no `*`, no `\`, and no `.` or `..` path segment, also when percent-encoded.
 - An exact route destination may end in one `#fragment` that matches `[A-Za-z0-9._-]+`, such as `user-guides/workspace-access#web-ides`.
   The route part must be a live route.
   `/` and wildcard destinations never carry a fragment.
@@ -102,11 +102,17 @@ Both ends of the check can be missing, and the check says so and skips that part
 - **Live page list.**
   The target branch is `-branch`, then `GITHUB_BASE_REF` on a pull request, then `GITHUB_REF_NAME` on a push.
   A branch other than `main` or `release/X.Y`, or no known branch, skips the list with a note.
+  A list that answers 404 skips the list with a note, because a new `release/X.Y` branch has no published docs version yet.
+  When `docs/manifest.json` and `docs/redirects.json` are the same as on the base branch, the list is skipped with a note, because the change cannot affect the result.
+  On a pull request, a coder.com outage only blocks changes to those two files.
   Pass `-offline` to skip the list on purpose, for example without network access.
 
-A live page list that cannot be read is an infrastructure failure and exits 2, not a pass.
+A live page list that cannot be read for any other reason is an infrastructure failure and exits 2, not a pass.
 The request has a descriptive `User-Agent`, because the site answers 403 to some default clients, and it retries a few times before it gives up.
 An empty list is also a failure.
+
+A base `docs/redirects.json` that does not exist means the base branch had no rules.
+Any other failure to read it skips the base redirect sources with a note.
 
 ### Dotted segments
 
@@ -132,7 +138,7 @@ Examples are an unreadable manifest or a live page list that cannot be read.
 ## Limitations
 
 - Chains through a wildcard destination are not checked, because where such a destination lands depends on the route being redirected.
-  The removed-route check does follow rules, up to 3 hops.
+  The removed-route check does follow rules, up to 3 hops, whatever the last destination is.
 - Only the two source forms above are understood.
   Regular-expression groups, version ranges, and mid-path parameters are rejected rather than guessed at.
 - The check does not know whether an external destination is reachable.

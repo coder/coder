@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"regexp"
 	"slices"
 	"strconv"
@@ -129,13 +130,13 @@ func formatProblem(file string, p problem) string {
 	}
 }
 
-// segment is one route segment. "." and ".." match it and are rejected
+// segmentRe matches one route segment. "." and ".." match it and are rejected
 // separately.
-var segment = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+var segmentRe = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
 // fragmentRe matches the fragment of a destination, which has the same
 // characters as a segment.
-var fragmentRe = segment
+var fragmentRe = segmentRe
 
 // legacyParam matches a trailing path parameter in the old syntax: ":name",
 // ":name*" and ":name(.*)".
@@ -166,7 +167,7 @@ func checkRoute(route string) string {
 			return "empty path segment"
 		case seg == "." || seg == "..":
 			return fmt.Sprintf("segment %q is not allowed", seg)
-		case !segment.MatchString(seg):
+		case !segmentRe.MatchString(seg):
 			return fmt.Sprintf("segment %q must match [A-Za-z0-9._-]+", seg)
 		}
 	}
@@ -237,6 +238,20 @@ func checkExternal(raw string) string {
 		return fmt.Sprintf(`external destination %q must not contain ":" after the scheme`, raw)
 	case strings.ContainsAny(raw, "*{} \t\r\n"):
 		return fmt.Sprintf("external destination %q must not contain a wildcard, parameter, or whitespace", raw)
+	case strings.Contains(raw, `\`):
+		// Browsers read "\" as "/" in https URLs.
+		return fmt.Sprintf(`external destination %q must not contain "\"`, raw)
+	}
+	// A "." or ".." segment, also when percent-encoded, would let a URL that
+	// starts with an allowed prefix resolve outside it.
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Sprintf("external destination %q is not a valid URL: %v", raw, err)
+	}
+	for _, seg := range strings.Split(u.Path, "/") {
+		if seg == "." || seg == ".." {
+			return fmt.Sprintf(`external destination %q must not contain a "." or ".." path segment`, raw)
+		}
 	}
 	return ""
 }
@@ -472,7 +487,7 @@ func checkShadowing(src pattern, live routeSet) string {
 	if len(hidden) > 1 {
 		more = fmt.Sprintf(" (and %d more)", len(hidden)-1)
 	}
-	return fmt.Sprintf("source hides a live docs page: %s%s; remove the redirect, or remove the page from docs/manifest.json first", displayRoute(hidden[0]), more)
+	return fmt.Sprintf("source hides a live docs page: %q%s; remove the redirect, or remove the page from docs/manifest.json first", displayRoute(hidden[0]), more)
 }
 
 func displayRoute(route string) string {
