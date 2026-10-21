@@ -156,6 +156,43 @@ describe("WorkingBlockDisclosure in a MessageScroller", () => {
 		expect(await visibleRowsAfterLayout()).toEqual(["history-9", "block"]);
 	});
 
+	it("scrolls a block taller than the view only until its summary reaches the top", async () => {
+		const user = userEvent.setup();
+		const update = renderTranscript(<RevealTranscript expandedHeight={600} />);
+
+		await user.click(summaryButton());
+		await flushLayout();
+		expect(viewport().scrollTop).toBe(1000);
+
+		// Find in page scrolls the view into the block, and then a step grows.
+		viewport().scrollTop = 1100;
+		fireEvent.scroll(viewport());
+		await update(<RevealTranscript expandedHeight={700} />);
+		await flushLayout();
+		expect(viewport().scrollTop).toBe(1100);
+	});
+
+	it.each([
+		["glides", "no-preference", "smooth"],
+		["jumps", "reduce", "auto"],
+	] as const)(
+		"%s to the end of an expanded block when the reader's motion preference is %s",
+		async (_name, preference, behavior) => {
+			vi.stubGlobal("matchMedia", (query: string) => ({
+				matches: query === `(prefers-reduced-motion: ${preference})`,
+			}));
+			const scrollTo = vi.spyOn(Element.prototype, "scrollTo");
+			const user = userEvent.setup();
+			renderTranscript(<RevealTranscript expandedHeight={300} />);
+
+			await user.click(summaryButton());
+
+			expect(scrollTo).toHaveBeenLastCalledWith(
+				expect.objectContaining({ behavior }),
+			);
+		},
+	);
+
 	it("keeps the end of a revealed block in view as its steps finish loading", async () => {
 		const user = userEvent.setup();
 		const update = renderTranscript(<RevealTranscript expandedHeight={300} />);
@@ -165,7 +202,7 @@ describe("WorkingBlockDisclosure in a MessageScroller", () => {
 		// Lazy images in two of the steps load, one after the other.
 		await update(<RevealTranscript expandedHeight={320} />);
 		await flushLayout();
-		await update(<RevealTranscript expandedHeight={500} />);
+		await update(<RevealTranscript expandedHeight={380} />);
 
 		expect(await visibleRowsAfterLayout()).toEqual(["block"]);
 	});

@@ -5,6 +5,7 @@
 import * as React from "react"
 
 import {
+  getContentBlockPadding, // LOCAL CHANGE
   getContentBottom,
   getElementTop,
   getElementViewportTop,
@@ -80,6 +81,15 @@ function endsBelowView(rect: DOMRect, viewport: HTMLElement) {
     rect.bottom - viewport.getBoundingClientRect().bottom >
     SCROLL_POSITION_EPSILON
   )
+}
+
+// LOCAL CHANGE: a smooth scroll from script bypasses the reduced-motion
+// scroll-behavior rule, and a reveal's growth chase repeats it without a
+// gesture.
+function getRevealScrollBehavior(): ScrollBehavior {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ? "auto"
+    : "smooth"
 }
 
 // Orchestrator hook. Decides when to scroll and delegates the moves to
@@ -546,16 +556,35 @@ function useMessageScrollerController({
   ])
 
   // LOCAL CHANGE: scrollToElement clears revealedItemRef, so the row is
-  // recorded after the scroll.
-  const scrollToItemEnd = React.useCallback(
-    (item: HTMLElement, rect: DOMRect) => {
-      scrollToElement(item, { align: "end", behavior: "smooth" })
+  // recorded after the scroll. Never scrolls up. A row that does not fit in
+  // the view with its margins aligns its start, so its toggle stays in view.
+  const scrollTowardItemEnd = React.useCallback(
+    (item: HTMLElement, rect: DOMRect, viewport: HTMLElement) => {
+      const padding = getContentBlockPadding(spacerRef.current)
+      const scrollMargin = scrollMarginRef.current
+      const startsBelowTop =
+        getElementViewportTop(item, viewport) - padding.start - scrollMargin >
+        SCROLL_POSITION_EPSILON
+
+      if (!startsBelowTop) {
+        return false
+      }
+
+      const fitsInView =
+        rect.height + padding.start + padding.end + 2 * scrollMargin <=
+        viewport.clientHeight
+
+      scrollToElement(item, {
+        align: fitsInView ? "end" : "start",
+        behavior: getRevealScrollBehavior(),
+      })
       revealedItemRef.current = {
         element: item,
         expiresAt: performance.now() + REVEAL_GROWTH_WINDOW_MS,
         height: rect.height,
         width: rect.width,
       }
+      return true
     },
     [scrollToElement]
   )
@@ -621,7 +650,7 @@ function useMessageScrollerController({
         rect.height - revealed.height > SCROLL_POSITION_EPSILON &&
         endsBelowView(rect, viewport)
       ) {
-        scrollToItemEnd(revealed.element, rect)
+        scrollTowardItemEnd(revealed.element, rect, viewport)
       }
     }
 
@@ -632,7 +661,7 @@ function useMessageScrollerController({
     scheduleStateCommit,
     scheduleVisibilitySync,
     scrollToEnd,
-    scrollToItemEnd,
+    scrollTowardItemEnd,
   ])
 
   const observeVisibility = React.useCallback(() => {
@@ -808,11 +837,14 @@ function useMessageScrollerController({
         return false
       }
 
+      if (!scrollTowardItemEnd(item, rect, viewport)) {
+        return false
+      }
+
       followSuppressedRef.current = false
-      scrollToItemEnd(item, rect)
       return true
     },
-    [scrollToEnd, scrollToItemEnd]
+    [scrollToEnd, scrollTowardItemEnd]
   )
 
   // LOCAL CHANGE
