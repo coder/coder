@@ -132,7 +132,10 @@ type sqlcQuerier interface {
 	// validating. It applies only under the claim that lease_expires_at
 	// identifies and while the file's chat is still bound to the delivered
 	// workspace, so a chat that moved to another workspace during the upload
-	// keeps the file for the new workspace.
+	// keeps the file for the new workspace. FOR SHARE on the chat row conflicts
+	// with UpdateChatWorkspaceBinding's row lock, so a rebind that is in flight
+	// makes completion wait and recheck the binding after it commits, and a
+	// completion that locks first makes the rebind wait until it commits.
 	CompleteChatWorkspaceFileDelivery(ctx context.Context, arg CompleteChatWorkspaceFileDeliveryParams) (int64, error)
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
