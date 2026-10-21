@@ -6,13 +6,18 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstructured"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
@@ -80,6 +85,25 @@ func TestStructuredEarlyExits(t *testing.T) {
 		require.Equal(t, map[string]float64{"error": 1}, turnOutcomes(t, registry))
 	})
 
+	// A finish without output or tool calls is retried; the request stays
+	// open across the retry and the retried step closes it.
+	t.Run("NoOutputFinishRetried", func(t *testing.T) {
+		t.Parallel()
+		run := runStructuredChat(t, schema, nil, func(step int) chattest.OpenAIResponse {
+			switch step {
+			case 0:
+				return chattest.OpenAIStreamingResponse(chattest.OpenAIChunk{Object: "chat.completion.chunk", Choices: []chattest.OpenAIChunkChoice{{FinishReason: "tool_calls"}}})
+			case 1:
+				return chattest.OpenAIStreamingResponse(valid)
+			}
+			return text()
+		})
+		require.Equal(t, database.ChatStatusWaiting, run.status)
+		require.Len(t, run.requests, 3)
+		require.Len(t, run.receipts, 1)
+		require.Equal(t, codersdk.ChatStructuredOutputStatusSucceeded, run.receipts[0].Status)
+	})
+
 	// The step budget ends a turn that keeps answering with text before the
 	// repair budget does, as not_produced. The decision that closes the
 	// request carries no finish reason; the turn still counts once, as
@@ -97,6 +121,64 @@ func TestStructuredEarlyExits(t *testing.T) {
 		require.Len(t, run.receipts, 1)
 		require.Equal(t, codersdk.ChatStructuredOutputErrorCodeNotProduced, run.receipts[0].Error.Code)
 		require.Equal(t, map[string]float64{"completed": 1}, turnOutcomes(t, registry))
+	})
+
+	// With caller-supplied tools disabled, a call to one gets a local error
+	// result and the turn goes on, so the request stays open until the
+	// finalizer closes it.
+	t.Run("CallerToolsDisabled", func(t *testing.T) {
+		t.Parallel()
+		run := runStructuredChat(t, schema, func(cfg *chatd.Config, _ database.Store) {
+			cfg.DisableCallerSuppliedTools = true
+		}, func(step int) chattest.OpenAIResponse {
+			switch step {
+			case 0:
+				return chattest.OpenAIStreamingResponse(toolCallsChunk([]chattest.OpenAIToolCall{finalizerToolCall("dyn", `{}`)}))
+			case 1:
+				return chattest.OpenAIStreamingResponse(valid)
+			}
+			return text()
+		})
+		require.Equal(t, database.ChatStatusWaiting, run.status)
+		require.Len(t, run.requests, 3)
+		require.Len(t, run.receipts, 1)
+		require.Equal(t, codersdk.ChatStructuredOutputStatusSucceeded, run.receipts[0].Status)
+	})
+
+	// The advisor must run alone in its batch. A finalizer call that shares
+	// the advisor's batch gets the exclusive-policy error and counts as one
+	// rejection, and the finalizer call alone after it succeeds.
+	t.Run("AdvisorSharesFinalizerBatch", func(t *testing.T) {
+		t.Parallel()
+		run := runStructuredChat(t, schema, func(_ *chatd.Config, db database.Store) {
+			seedAdvisorConfig(testutil.Context(t, testutil.WaitShort), t, db, codersdk.AdvisorConfig{Enabled: true, MaxUsesPerRun: 3, MaxOutputTokens: 1024})
+		}, func(step int) chattest.OpenAIResponse {
+			switch step {
+			case 0:
+				return chattest.OpenAIStreamingResponse(toolCallsChunk([]chattest.OpenAIToolCall{
+					finalizerToolCall("advisor", `{"question":"help"}`),
+					finalizerToolCall(chatstructured.FinalizerToolName, `{"output":{"v":"EARLY"}}`),
+				}))
+			case 1:
+				return chattest.OpenAIStreamingResponse(valid)
+			}
+			return text()
+		})
+		require.Equal(t, database.ChatStatusWaiting, run.status)
+		require.Len(t, run.requests, 3)
+		require.Equal(t, 1, run.state.Rejections)
+		var finalizerErrors int
+		advisorRejected := false
+		for _, result := range run.results {
+			if result.ToolName == chatstructured.FinalizerToolName && result.IsError {
+				finalizerErrors++
+			}
+			advisorRejected = advisorRejected || result.ToolName == "advisor" && strings.Contains(string(result.Result), "advisor must be called alone")
+		}
+		require.True(t, advisorRejected, "the exclusive policy rejected the batch")
+		require.Equal(t, 1, finalizerErrors, "the shared batch's finalizer call failed")
+		require.Len(t, run.receipts, 1)
+		require.JSONEq(t, `{"v":"OK"}`, string(run.receipts[0].Value))
 	})
 
 	// A candidate that is current when the step budget runs out succeeds.
@@ -118,6 +200,83 @@ func TestStructuredEarlyExits(t *testing.T) {
 		require.Equal(t, codersdk.ChatStructuredOutputStatusSucceeded, run.receipts[0].Status)
 		require.Equal(t, map[string]float64{"completed": 1}, turnOutcomes(t, registry))
 	})
+}
+
+// TestStructuredRequiresActionTimeout expires the deadline of a client
+// tool call while a structured output request is open. The timeout cancels
+// the call and returns the chat to running, so the turn goes on and the
+// request stays open until the finalizer closes it.
+func TestStructuredRequiresActionTimeout(t *testing.T) {
+	t.Parallel()
+	db, ps, rawDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	var streamed atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if streamed.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(toolCallsChunk([]chattest.OpenAIToolCall{
+				finalizerToolCall(chatstructured.FinalizerToolName, `{"output":{"v":"OK"}}`),
+			}))
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	request, err := chatstructured.EncodeRequestPart(chatstructured.Request{
+		RequestID: uuid.New(), Name: "report",
+		Schema: json.RawMessage(`{"type":"object","properties":{"v":{"type":"string"}},"required":["v"]}`),
+	})
+	require.NoError(t, err)
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("answer"), request})
+	require.NoError(t, err)
+	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: model.ID, Title: "structured-requires-action",
+		DynamicTools: nullRawMessage(dynamicToolJSON(t, "dyn")), ClientType: database.ChatClientTypeApi,
+		InitialStatus: database.ChatStatusRunning,
+		InitialMessages: []chatstate.Message{{
+			Role: database.ChatMessageRoleUser, Content: content, Visibility: database.ChatMessageVisibilityBoth,
+			ContentVersion: chatprompt.CurrentContentVersion,
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+		}},
+	})
+	require.NoError(t, err)
+	call, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+		Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: "call_dyn", ToolName: "dyn", Args: json.RawMessage(`{}`),
+	}})
+	require.NoError(t, err)
+	machine := chatstate.NewChatMachine(db, ps, created.Chat.ID)
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		if _, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{{
+			Role: database.ChatMessageRoleAssistant, Content: call, Visibility: database.ChatMessageVisibilityBoth,
+			ContentVersion: chatprompt.CurrentContentVersion, ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		}}}); err != nil {
+			return err
+		}
+		_, err := tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{})
+		return err
+	}))
+	_, err = rawDB.ExecContext(ctx, "UPDATE chats SET requires_action_deadline_at = $1 WHERE id = $2", time.Now().Add(-time.Hour), created.Chat.ID)
+	require.NoError(t, err)
+
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
+	server.Start()
+	done := waitForTerminalChat(ctx, t, db, created.Chat.ID)
+	run := collectStructuredRun(ctx, t, db, created.Chat.ID, done.Status, true)
+	require.Equal(t, database.ChatStatusWaiting, run.status)
+	require.Equal(t, int32(2), streamed.Load())
+	require.Len(t, run.receipts, 1)
+	require.Equal(t, codersdk.ChatStructuredOutputStatusSucceeded, run.receipts[0].Status)
+	require.JSONEq(t, `{"v":"OK"}`, string(run.receipts[0].Value))
+	timedOut := false
+	for _, result := range run.results {
+		timedOut = timedOut || result.ToolCallID == "call_dyn" && result.IsError
+	}
+	require.True(t, timedOut, "the timeout canceled the client tool call")
 }
 
 // TestStructuredAnthropicOutputLimit cuts a finalizer call with the output

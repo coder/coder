@@ -148,7 +148,6 @@ func runStructuredChatOn(t *testing.T, schema json.RawMessage, afterOrdinaryTurn
 	t.Helper()
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	var run finalizerRun
 	user, org, model, factory := seed(db)
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
@@ -188,9 +187,15 @@ func runStructuredChatOn(t *testing.T, schema json.RawMessage, afterOrdinaryTurn
 			return err == nil && !pending && settled(ctx)
 		}, testutil.IntervalFast)
 	}
-	run.status = done.Status
+	return collectStructuredRun(ctx, t, db, chat.ID, done.Status, schema != nil)
+}
 
-	history, err := db.GetChatMessagesAllVisibilitiesByChatID(ctx, chat.ID)
+// collectStructuredRun reads what a settled chat committed; structured
+// reconstructs the request state.
+func collectStructuredRun(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID, status database.ChatStatus, structured bool) finalizerRun {
+	t.Helper()
+	run := finalizerRun{status: status}
+	history, err := db.GetChatMessagesAllVisibilitiesByChatID(ctx, chatID)
 	require.NoError(t, err)
 	rows := make([]chatstructured.Row, 0, len(history))
 	for _, msg := range history {
@@ -223,7 +228,7 @@ func runStructuredChatOn(t *testing.T, schema json.RawMessage, afterOrdinaryTurn
 			}
 		}
 	}
-	if schema != nil {
+	if structured {
 		run.state, err = chatstructured.ActiveRequest(rows)
 		require.NoError(t, err)
 	}
