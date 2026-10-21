@@ -37,7 +37,7 @@ import { resizeImageToMaxBytes } from "../utils/resizeImage";
 const maxTextPreviewSize = 1024 * 1024;
 
 const pendingDraftWarning =
-	"This file is attached for now, but it could not be saved as a draft. If you leave this chat before it uploads or sends, it may be lost.";
+	"This file is attached for now, but it could not be saved as a draft. Closing or reloading the page before it uploads or sends may lose it.";
 const unsavedWorkspaceFileWarning =
 	"This file is saved as a draft once it uploads. Closing or reloading the page before then loses it.";
 const uploadedDraftWarning =
