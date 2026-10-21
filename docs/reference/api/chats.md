@@ -4089,7 +4089,7 @@ The server then sends the `message_part` events of the reply in progress again, 
 
 When you don't set `snapshot_version`, the events don't include `snapshot_version`, and `history_reset` events don't include `from_message_id`.
 After a `history_reset` event, the server sends every message in the chat as `message` events.
-The server sends this `history_reset` event and the whole history on each connection to a chat with a message that an edit removed, even when you set `after_id`.
+The server sends this `history_reset` event and the whole history on each connection to a chat with a message that an edit removed, unless `after_id` is the ID of a message in the chat that no edit removed.
 
 When the server can't subscribe to the chat or read it, the server returns `500 Internal Server Error` and doesn't open the WebSocket connection.
 
