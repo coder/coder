@@ -296,9 +296,6 @@ func (api *API) writeUploadExclusivePath(dir, name string, mode uploadPublishMod
 			return "", "", 0, err
 		}
 		if size > 0 {
-			if err := api.syncExistingUploadPath(targetPath); err != nil {
-				return "", "", 0, err
-			}
 			return name, targetPath, size, nil
 		}
 	}
@@ -344,9 +341,6 @@ func (api *API) writeUploadExclusivePath(dir, name string, mode uploadPublishMod
 						return "", "", 0, err
 					}
 					if !replace {
-						if err := api.syncExistingUploadPath(candidatePath); err != nil {
-							return "", "", 0, err
-						}
 						return candidate, candidatePath, existing.Size(), nil
 					}
 					if err := api.filesystem.Rename(tmpPath, candidatePath); err != nil {
@@ -382,25 +376,6 @@ func (api *API) publishedUploadSizePath(p string) (int64, error) {
 		return 0, err
 	}
 	return info.Size(), nil
-}
-
-// syncExistingUploadPath makes the existing file a write-once upload
-// acknowledges durable, since coderd drops its only stored copy once the
-// upload is acknowledged. It opens the file for writing because Windows
-// cannot flush a read-only handle.
-func (api *API) syncExistingUploadPath(p string) error {
-	f, err := api.filesystem.OpenFile(p, os.O_WRONLY, 0)
-	if err != nil {
-		return xerrors.Errorf("open existing upload: %w", err)
-	}
-	err = f.Sync()
-	if cerr := f.Close(); err == nil {
-		err = cerr
-	}
-	if err != nil {
-		return xerrors.Errorf("sync existing upload: %w", err)
-	}
-	return nil
 }
 
 // existingUploadPath describes the regular file a write-once upload found
