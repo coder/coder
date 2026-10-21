@@ -8,7 +8,7 @@ import { getChatCostTreeID } from "./ChatConversation/chatHelpers";
 import type { ChatStore } from "./ChatConversation/chatStore";
 import {
 	deriveEvictedFileIds,
-	partFileIds,
+	getAgentAttachments,
 } from "./ChatConversation/messageHelpers";
 import type { EarlierMessagesProps } from "./ChatMessageScroller";
 import { ChatSummary } from "./ChatSummary";
@@ -17,13 +17,18 @@ import { useTabPanelState } from "./ChatsSidebar/tabs/SidebarTabView";
 type ChatSummaryPanelProps = {
 	chatId: string;
 	store: ChatStore;
-} & Pick<EarlierMessagesProps, "hasMoreMessages" | "isHydratingMessages">;
+} & Pick<
+	EarlierMessagesProps,
+	| "hasMoreMessages"
+	| "isFetchingMoreMessages"
+	| "hasFetchMoreError"
+	| "onFetchMoreMessages"
+>;
 
 export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	chatId,
 	store,
-	hasMoreMessages,
-	isHydratingMessages,
+	...earlierMessages
 }) => {
 	const showCost = Boolean(useFeatureVisibility().aibridge);
 	// Gate reads on tab visibility so the chat, cost, and attachments
@@ -81,7 +86,7 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 		<div className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto p-4">
 			{content}
 			<ChatAttachments
-				attachments={attachments}
+				attachments={getAgentAttachments(messages)}
 				evictedFileIds={evictedFileIds}
 				isLoadingEarlierAttachments={earlierAttachmentsRequest.isLoading}
 				earlierAttachmentsError={earlierAttachmentsRequest.error}
