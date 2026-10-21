@@ -34,6 +34,8 @@ export const collectSendableAttachments = (
 			attachments.push({
 				fileId: state.fileId,
 				mediaType: file.type || "application/octet-stream",
+				name: file.name,
+				size: file.size,
 				purpose: state.purpose,
 			});
 		}
@@ -41,15 +43,16 @@ export const collectSendableAttachments = (
 	return { attachments, skippedErrors };
 };
 
-export const buildAttachmentMediaTypes = (
+/** The optimistic edited message reads each chip's name and size from here. */
+export const buildPendingAttachmentsByID = (
 	attachments?: readonly PendingAttachment[],
-): ReadonlyMap<string, string> | undefined => {
+): ReadonlyMap<string, PendingAttachment> | undefined => {
 	if (!attachments?.length) {
 		return undefined;
 	}
 
 	return new Map(
-		attachments.map(({ fileId, mediaType }) => [fileId, mediaType]),
+		attachments.map((attachment) => [attachment.fileId, attachment]),
 	);
 };
 

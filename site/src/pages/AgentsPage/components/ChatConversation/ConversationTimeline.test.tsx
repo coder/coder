@@ -5,7 +5,11 @@ import { defaultUrlTransform } from "streamdown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage } from "#/api/typesGenerated";
-import { MockChatMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChatFileMetadata,
+	MockChatMessage,
+	MockChatWorkspaceAttachmentPart,
+} from "#/testHelpers/chatEntities";
 import {
 	createTestQueryClient,
 	renderComponent,
@@ -452,5 +456,51 @@ describe("ConversationTimeline live working blocks", () => {
 			liveStatus: idleLive,
 		});
 		expect(copyCommand).toHaveFocus();
+	});
+});
+
+describe("ConversationTimeline message editing", () => {
+	it("leaves evicted workspace attachments out of the edit", async () => {
+		const user = userEvent.setup();
+		const onEditUserMessage = vi.fn();
+		const mockEvictedAttachment = {
+			...MockChatWorkspaceAttachmentPart,
+			file_id: "evicted-zip",
+		};
+		const mockKeptAttachment = {
+			...MockChatWorkspaceAttachmentPart,
+			file_id: "kept-zip",
+		};
+		renderTimeline({
+			messages: [
+				{
+					...MockChatMessage,
+					id: 1,
+					content: [{ type: "text", text: "First" }, mockEvictedAttachment],
+				},
+				{
+					...MockChatMessage,
+					id: 2,
+					created_at: workingFixtureTime(1),
+					content: [{ type: "text", text: "Second" }, mockKeptAttachment],
+				},
+			],
+			chatFiles: [{ ...MockChatFileMetadata, id: mockKeptAttachment.file_id }],
+			onEditUserMessage,
+		});
+
+		const editMessage = (messageId: number) =>
+			user.click(
+				within(
+					screen.getByTestId(`chat-message-message:${messageId}`),
+				).getByRole("button", { name: "Edit message" }),
+			);
+		await editMessage(1);
+		await editMessage(2);
+
+		expect(onEditUserMessage.mock.calls).toEqual([
+			[1, "First", undefined],
+			[2, "Second", [mockKeptAttachment]],
+		]);
 	});
 });

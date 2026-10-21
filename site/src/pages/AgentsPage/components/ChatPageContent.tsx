@@ -251,6 +251,8 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 export type PendingAttachment = {
 	fileId: string;
 	mediaType: string;
+	name: string;
+	size: number;
 	purpose?: StagedFilePurpose;
 };
 
@@ -459,7 +461,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		setUploadStates: setEditUploadStates,
 		resetAttachments: resetEditAttachments,
 	} = editAttachments;
-	const wasEditingRef = useRef(isEditing);
 	const modeAttachments = isEditing ? editAttachments : composeAttachments;
 	const {
 		attachments,
@@ -502,12 +503,19 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		setPreservedWorkspaceUploads([]);
 	}, [selectedWorkspaceId]);
 
-	// Pre-populate the edit bucket from existing file blocks only
-	// while explicitly editing a message.
+	// Hydrate once per blocks array: a failed save restores the same array,
+	// so the user's attachment edits survive.
+	const hydratedEditAttachmentBlocksRef = useRef<
+		readonly TypesGen.ChatMessagePart[] | null
+	>(null);
 	useEffect(() => {
-		if (!isEditing) {
+		if (
+			!isEditing ||
+			hydratedEditAttachmentBlocksRef.current === editingFileBlocks
+		) {
 			return;
 		}
+		hydratedEditAttachmentBlocksRef.current = editingFileBlocks;
 		if (editingFileBlocks.length === 0) {
 			setEditAttachments([]);
 			setEditUploadStates(new Map());
@@ -515,31 +523,37 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			return;
 		}
 		const fileBlocks = editingFileBlocks.filter(
-			(b): b is TypesGen.ChatFilePart => b.type === "file",
+			(b): b is TypesGen.ChatFilePart | TypesGen.ChatWorkspaceAttachmentPart =>
+				b.type === "file" || b.type === "workspace-attachment",
 		);
 		const files = fileBlocks.map((block, i) => {
 			const mt = block.media_type;
-			const ext = mt === "text/plain" ? "txt" : (mt.split("/")[1] ?? "png");
 			// Empty File used as a Map key only, its content is never
 			// read because the existing file_id is reused at send time.
+			if (block.type === "workspace-attachment") {
+				return new File([], block.name || `attachment-${i}`, { type: mt });
+			}
+			const ext = mt === "text/plain" ? "txt" : (mt.split("/")[1] ?? "png");
 			return new File([], `attachment-${i}.${ext}`, { type: mt });
 		});
 		setEditAttachments(files);
-		setEditPreviewUrls(
-			new Map(
-				files.map((f, i) => [f, getChatFileURL(fileBlocks[i].file_id ?? "")]),
-			),
-		);
+		const newPreviewUrls = new Map<File, string>();
 		const newUploadStates = new Map<File, UploadState>();
 		for (const [i, file] of files.entries()) {
 			const block = fileBlocks[i];
+			if (block.type === "file") {
+				newPreviewUrls.set(file, getChatFileURL(block.file_id ?? ""));
+			}
 			if (block.file_id) {
 				newUploadStates.set(file, {
 					status: "uploaded",
 					fileId: block.file_id,
+					purpose:
+						block.type === "workspace-attachment" ? "workspace" : undefined,
 				});
 			}
 		}
+		setEditPreviewUrls(newPreviewUrls);
 		setEditUploadStates(newUploadStates);
 	}, [
 		isEditing,
@@ -620,34 +634,20 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		resetEditWorkspaceUploads,
 	]);
 
-	// Exiting edit mode should only clear the edit bucket. Compose draft
-	// attachments must survive canceling or completing an edit.
-	useEffect(() => {
-		if (isEditing) {
-			wasEditingRef.current = true;
-			return;
-		}
-		if (!wasEditingRef.current) {
-			return;
-		}
-		// History edits clear isEditing before the edit mutation
-		// settles and restore it on failure. Defer cleanup until the
-		// submission resolves so a failed edit keeps its uploads and
-		// attachments for retry.
-		if (isSendPending) {
-			return;
-		}
-		wasEditingRef.current = false;
+	// Clear the edit bucket only on cancel and successful save. A failed save
+	// leaves edit mode until its rollback lands, and the composer can render
+	// that gap, so an isEditing effect would drop the user's edits.
+	const resetEditBucket = () => {
+		hydratedEditAttachmentBlocksRef.current = null;
 		hydratedEditBlocksRef.current = null;
 		resetEditAttachments();
 		resetEditWorkspaceUploads();
 		setPreservedWorkspaceUploads([]);
-	}, [
-		isEditing,
-		isSendPending,
-		resetEditAttachments,
-		resetEditWorkspaceUploads,
-	]);
+	};
+	const handleCancelHistoryEdit = () => {
+		resetEditBucket();
+		onCancelHistoryEdit();
+	};
 
 	const isStreaming = hasStreamState || isActiveChatStatus(chatStatus);
 
@@ -737,9 +737,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 						return;
 					}
 					if (isEditing) {
-						editAttachments.resetAttachments();
-						resetEditWorkspaceUploads();
-						setPreservedWorkspaceUploads([]);
+						resetEditBucket();
 					} else {
 						composeAttachments.resetAttachments();
 						composeWorkspaceUploads.reset();
@@ -771,7 +769,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			onDeleteQueuedMessage={onDeleteQueuedMessage}
 			onPromoteQueuedMessage={onPromoteQueuedMessage}
 			isEditingHistoryMessage={isEditing}
-			onCancelHistoryEdit={onCancelHistoryEdit}
+			onCancelHistoryEdit={handleCancelHistoryEdit}
 			userPromptHistory={userPromptHistory}
 			isDisabled={isInputDisabled}
 			isReadOnly={isReadOnly}

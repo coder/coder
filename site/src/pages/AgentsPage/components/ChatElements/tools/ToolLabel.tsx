@@ -1,9 +1,16 @@
 import type React from "react";
 import { getPathBasename } from "../../../utils/path";
-import { asRecord, asString, humanizeMCPToolName, parseArgs } from "./utils";
+import {
+	asRecord,
+	asString,
+	humanizeMCPToolName,
+	parseArgs,
+	type ToolStatus,
+} from "./utils";
 
 type ToolLabelProps = {
 	name: string;
+	status: ToolStatus;
 	args: unknown;
 	result: unknown;
 	mcpSlug?: string;
@@ -60,6 +67,41 @@ const AttachFileLabel: React.FC<ToolLabelProps> = ({ args, result }) => {
 	);
 };
 
+// Attachment statuses from coderd/x/chatd/chattool/workspaceattachments.go
+// that leave a file outside the workspace.
+const uncopiedAttachmentStatuses: ReadonlySet<string> = new Set([
+	"failed",
+	"unavailable",
+]);
+
+// Copy problems come back in a completed result. A failed call means the
+// tool did not run, for example because its input did not decode.
+const getCopyAttachmentsLabel = (status: ToolStatus, result: unknown) => {
+	if (status === "running") {
+		return "Copying attachments to the workspace…";
+	}
+	const parsedResult = asRecord(result);
+	if (status === "error" || asString(parsedResult?.attachments_error)) {
+		return "Failed to check workspace attachments";
+	}
+	const attachments = parsedResult?.attachments;
+	if (
+		Array.isArray(attachments) &&
+		attachments.some((attachment) =>
+			uncopiedAttachmentStatuses.has(asString(asRecord(attachment)?.status)),
+		)
+	) {
+		return "Failed to copy workspace attachments";
+	}
+	return "Checked workspace attachments";
+};
+
+const CopyAttachmentsLabel: React.FC<ToolLabelProps> = ({ status, result }) => (
+	<span className="truncate text-[13px]">
+		{getCopyAttachmentsLabel(status, result)}
+	</span>
+);
+
 export const genericToolLabels: Partial<
 	Record<string, React.FC<ToolLabelProps>>
 > = {
@@ -68,6 +110,7 @@ export const genericToolLabels: Partial<
 		<span className="truncate text-[13px]">Listing processes</span>
 	),
 	attach_file: AttachFileLabel,
+	copy_attachments_to_workspace: CopyAttachmentsLabel,
 	advisor: () => (
 		<span className="truncate text-[13px] leading-4 text-content-secondary">
 			Advisor

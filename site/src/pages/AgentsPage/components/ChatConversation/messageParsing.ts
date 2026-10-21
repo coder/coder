@@ -349,13 +349,9 @@ export const parseMessageContent = (
 				}
 				break;
 			}
-			case "workspace-file-reference": {
-				parsed.blocks.push(part);
-				break;
-			}
+			case "workspace-file-reference":
 			case "workspace-attachment": {
-				// Workspace attachments are not rendered in the conversation
-				// timeline.
+				parsed.blocks.push(part);
 				break;
 			}
 			default: {
@@ -372,14 +368,19 @@ const isEditableAttachmentMediaType = (mediaType: string): boolean =>
 
 const isEditableUserMessageFileBlock = (
 	block: RenderBlock,
-): block is TypesGen.ChatFilePart | TypesGen.ChatWorkspaceFileReferencePart =>
+): block is
+	| TypesGen.ChatFilePart
+	| TypesGen.ChatWorkspaceFileReferencePart
+	| TypesGen.ChatWorkspaceAttachmentPart =>
 	(block.type === "file" && isEditableAttachmentMediaType(block.media_type)) ||
-	// Workspace file bytes already live in the workspace; editing
-	// preserves the reference (or drops it when the chip is removed).
-	block.type === "workspace-file-reference";
+	// Workspace files skip the media type check: an edit only keeps or drops
+	// the reference and never sends their bytes to the model provider.
+	block.type === "workspace-file-reference" ||
+	block.type === "workspace-attachment";
 
 export const getEditableUserMessagePayload = (
 	message: TypesGen.ChatMessage,
+	hasExpired: (fileId: string) => boolean,
 ): {
 	text: string;
 	fileBlocks: readonly TypesGen.ChatMessagePart[] | undefined;
@@ -392,7 +393,12 @@ export const getEditableUserMessagePayload = (
 		.map((part) => part.text)
 		.join("");
 	const parsed = parseMessageContent(message.content);
-	const fileBlocks = parsed.blocks.filter(isEditableUserMessageFileBlock);
+	const fileBlocks = parsed.blocks
+		.filter(isEditableUserMessageFileBlock)
+		.filter(
+			(block) =>
+				block.type !== "workspace-attachment" || !hasExpired(block.file_id),
+		);
 	return {
 		text,
 		fileBlocks: fileBlocks.length > 0 ? fileBlocks : undefined,

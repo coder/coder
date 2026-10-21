@@ -151,11 +151,11 @@ describe("getEditableUserMessagePayload", () => {
 		];
 
 		for (const { message, want } of cases) {
-			expect(getEditableUserMessagePayload(message)).toEqual(want);
+			expect(getEditableUserMessagePayload(message, () => false)).toEqual(want);
 		}
 	});
 
-	it("preserves workspace file references as editable file blocks", () => {
+	it("preserves workspace files as editable file blocks", () => {
 		const workspacePart = {
 			type: "workspace-file-reference",
 			workspace_file_path: "/home/coder/.coder/chats/chat-1/files/data.csv",
@@ -163,17 +163,28 @@ describe("getEditableUserMessagePayload", () => {
 			workspace_file_size: 42,
 			workspace_file_workspace_id: "ws-1",
 		} as const;
+		const mockAttachmentPart = {
+			type: "workspace-attachment",
+			file_id: "zip-file",
+			name: "archive.zip",
+			media_type: "application/zip",
+			size: 2048,
+		} as const;
 		const message: ChatMessage = {
 			id: 1,
 			chat_id: "chat-1",
 			created_at: "2026-04-21T00:00:00.000Z",
 			role: "user",
-			content: [{ type: "text", text: "Please use this file." }, workspacePart],
+			content: [
+				{ type: "text", text: "Please use these files." },
+				workspacePart,
+				mockAttachmentPart,
+			],
 		};
 
-		const payload = getEditableUserMessagePayload(message);
-		expect(payload?.text).toBe("Please use this file.");
-		expect(payload?.fileBlocks).toEqual([workspacePart]);
+		const payload = getEditableUserMessagePayload(message, () => false);
+		expect(payload?.text).toBe("Please use these files.");
+		expect(payload?.fileBlocks).toEqual([workspacePart, mockAttachmentPart]);
 	});
 
 	it("preserves whitespace-only text parts when concatenating", () => {
@@ -192,7 +203,7 @@ describe("getEditableUserMessagePayload", () => {
 				{ type: "text", text: "world" },
 			],
 		};
-		expect(getEditableUserMessagePayload(message)).toEqual({
+		expect(getEditableUserMessagePayload(message, () => false)).toEqual({
 			text: "hello   world",
 			fileBlocks: undefined,
 		});

@@ -7,6 +7,7 @@ import type {
 	ChatFileMetadata,
 	ChatMessage,
 	ChatQueuedMessage,
+	ChatWorkspaceAttachmentPart,
 	MCPServerConfig,
 } from "#/api/typesGenerated";
 import { MockUserOwner } from "./entities";
@@ -147,6 +148,14 @@ export const MockChatFileMetadata: ChatFileMetadata = {
 	mime_type: "text/plain",
 	size_bytes: 128,
 	created_at: MOCK_TIMESTAMP,
+};
+
+export const MockChatWorkspaceAttachmentPart: ChatWorkspaceAttachmentPart = {
+	type: "workspace-attachment",
+	file_id: "workspace-attachment-file",
+	name: "bundle.zip",
+	media_type: "application/zip",
+	size: 2,
 };
 
 export const MockChatCompactionMessage: ChatMessage = {

@@ -27,7 +27,7 @@ import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
-import { FileProbeProvider } from "./FileProbeContext";
+import { FileProbeProvider, useFileProbes } from "./FileProbeContext";
 import {
 	emptyLiveBlockKeys,
 	reconcileLiveBlockKeys,
@@ -103,6 +103,45 @@ const LifecycleHookNotice: React.FC<{
 		</div>
 	</TimelineNotice>
 );
+
+type EditUserMessageButtonProps = {
+	message: TypesGen.ChatMessage;
+	onEditUserMessage: NonNullable<
+		ConversationTimelineProps["onEditUserMessage"]
+	>;
+};
+
+// Reads the file probes here rather than in ChatMessageItem, so a probe
+// update re-renders this button instead of the whole memoized row.
+const EditUserMessageButton: React.FC<EditUserMessageButtonProps> = ({
+	message,
+	onEditUserMessage,
+}) => {
+	const { hasExpired } = useFileProbes();
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Button
+					size="icon"
+					variant="subtle"
+					className="size-6"
+					aria-label="Edit message"
+					onClick={() => {
+						const { text, fileBlocks } = getEditableUserMessagePayload(
+							message,
+							hasExpired,
+						);
+						onEditUserMessage(message.id, text, fileBlocks);
+					}}
+				>
+					<PencilIcon />
+					<span className="sr-only">Edit message</span>
+				</Button>
+			</TooltipTrigger>
+			<TooltipContent side="bottom">Edit message</TooltipContent>
+		</Tooltip>
+	);
+};
 
 const ChatMessageItem = memo<{
 	organizationId: string;
@@ -337,26 +376,11 @@ const ChatMessageItem = memo<{
 									tooltipSide="bottom"
 								/>
 							)}
-							{canEditUserMessage && messageId !== undefined && (
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											size="icon"
-											variant="subtle"
-											className="size-6"
-											aria-label="Edit message"
-											onClick={() => {
-												const { text, fileBlocks } =
-													getEditableUserMessagePayload(message);
-												onEditUserMessage?.(messageId, text, fileBlocks);
-											}}
-										>
-											<PencilIcon />
-											<span className="sr-only">Edit message</span>
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent side="bottom">Edit message</TooltipContent>
-								</Tooltip>
+							{canEditUserMessage && message && onEditUserMessage && (
+								<EditUserMessageButton
+									message={message}
+									onEditUserMessage={onEditUserMessage}
+								/>
 							)}
 							{isUser &&
 								onJumpToUserMessage &&

@@ -275,7 +275,7 @@ describe("useConversationEditingState", () => {
 	it("forwards pending attachments through history-edit send", async () => {
 		const { result, onSend, unmount } = renderEditing();
 		const attachments: PendingAttachment[] = [
-			{ fileId: "file-1", mediaType: "image/png" },
+			{ fileId: "file-1", mediaType: "image/png", name: "image.png", size: 1 },
 		];
 
 		act(() => {

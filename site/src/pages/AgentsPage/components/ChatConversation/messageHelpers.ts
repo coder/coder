@@ -18,16 +18,21 @@ type WorkspaceFileReferenceBlock = Extract<
 	RenderBlock,
 	{ type: "workspace-file-reference" }
 >;
+type WorkspaceAttachmentBlock = Extract<
+	RenderBlock,
+	{ type: "workspace-attachment" }
+>;
 
 export type MessageDisplayState = {
 	shouldHide: boolean;
 	userInlineContent: UserInlineRenderBlock[];
 	userFileBlocks: FileRenderBlock[];
 	workspaceFileBlocks: WorkspaceFileReferenceBlock[];
+	workspaceAttachmentBlocks: WorkspaceAttachmentBlock[];
 	workspaceFileReferenceCount: number;
 	hasUserMessageBody: boolean;
 	hasFileBlocks: boolean;
-	hasWorkspaceFileReferences: boolean;
+	hasWorkspaceFileChips: boolean;
 	hasCopyableContent: boolean;
 	needsAssistantBottomSpacer: boolean;
 };
@@ -55,6 +60,10 @@ const isWorkspaceFileReferenceBlock = (
 ): block is WorkspaceFileReferenceBlock =>
 	block.type === "workspace-file-reference";
 
+const isWorkspaceAttachmentBlock = (
+	block: RenderBlock,
+): block is WorkspaceAttachmentBlock => block.type === "workspace-attachment";
+
 export const isProviderToolResult = (part: TypesGen.ChatMessagePart): boolean =>
 	part.type === "tool-result" && part.provider_executed === true;
 
@@ -81,11 +90,10 @@ export const getVisibleContent = (
 		}),
 	);
 	const visibleToolIds = new Set(visibleTools.map((tool) => tool.id));
-	// Workspace file references render as chips from the display
-	// state, not as standalone timeline blocks.
 	const visibleBlocks = blocks.filter(
 		(block) =>
 			block.type !== "workspace-file-reference" &&
+			block.type !== "workspace-attachment" &&
 			(block.type !== "tool" || visibleToolIds.has(block.id)),
 	);
 
@@ -175,8 +183,12 @@ export const deriveMessageDisplayState = ({
 	const workspaceFileBlocks = isUser
 		? parsed.blocks.filter(isWorkspaceFileReferenceBlock)
 		: [];
+	const workspaceAttachmentBlocks = isUser
+		? parsed.blocks.filter(isWorkspaceAttachmentBlock)
+		: [];
 	const workspaceFileReferenceCount = workspaceFileBlocks.length;
-	const hasWorkspaceFileReferences = workspaceFileReferenceCount > 0;
+	const hasWorkspaceFileChips =
+		workspaceFileReferenceCount > 0 || workspaceAttachmentBlocks.length > 0;
 	const hasFileAttachments = parsed.blocks.some(isFileRenderBlock);
 	const hasUserMessageBody =
 		userInlineContent.length > 0 || Boolean(parsed.markdown.trim());
@@ -190,7 +202,7 @@ export const deriveMessageDisplayState = ({
 	const hasCopyableContent =
 		Boolean(parsed.markdown.trim()) &&
 		!hasFileAttachments &&
-		!hasWorkspaceFileReferences &&
+		!hasWorkspaceFileChips &&
 		(isUser || endsWithResponseBlock);
 	const needsAssistantBottomSpacer =
 		!hideActions &&
@@ -204,10 +216,11 @@ export const deriveMessageDisplayState = ({
 		userInlineContent,
 		userFileBlocks,
 		workspaceFileBlocks,
+		workspaceAttachmentBlocks,
 		workspaceFileReferenceCount,
 		hasUserMessageBody,
 		hasFileBlocks,
-		hasWorkspaceFileReferences,
+		hasWorkspaceFileChips,
 		hasCopyableContent,
 		needsAssistantBottomSpacer,
 	};
@@ -336,6 +349,10 @@ const partFileIds = (part: TypesGen.ChatMessagePart): string[] => {
  * newest remaining one but absent from the record has been evicted. Later
  * references are newer than the record, so a message that lands before the
  * next chat refetch is never mistaken for an evicted one.
+ *
+ * An edit keeps the links of the message it replaces, so the record can hold
+ * only files no visible message references. Then a reference from a message
+ * sent before the newest record file was uploaded has been evicted.
  */
 export const deriveEvictedFileIds = (
 	entries: readonly Pick<ParsedMessageEntry, "message">[],
@@ -345,15 +362,32 @@ export const deriveEvictedFileIds = (
 		return NO_FILE_IDS;
 	}
 	const linkedFileIds = new Set(chatFiles.map((file) => file.id));
-	const referencedFileIds = entries.flatMap(({ message }) =>
-		(message.content ?? []).flatMap(partFileIds),
+	const references = entries.flatMap(({ message }) =>
+		(message.content ?? []).flatMap(partFileIds).map((fileId) => ({
+			fileId,
+			sentAt: Date.parse(message.created_at),
+		})),
 	);
-	const newestLinkedIndex = referencedFileIds.findLastIndex((fileId) =>
+	const newestLinkedIndex = references.findLastIndex(({ fileId }) =>
 		linkedFileIds.has(fileId),
 	);
+	if (newestLinkedIndex === -1) {
+		if (chatFiles.length === 0) {
+			return NO_FILE_IDS;
+		}
+		const newestRecordedAt = Math.max(
+			...chatFiles.map((file) => Date.parse(file.created_at)),
+		);
+		return new Set(
+			references
+				.filter(({ sentAt }) => sentAt < newestRecordedAt)
+				.map(({ fileId }) => fileId),
+		);
+	}
 	return new Set(
-		referencedFileIds
-			.slice(0, Math.max(newestLinkedIndex, 0))
+		references
+			.slice(0, newestLinkedIndex)
+			.map(({ fileId }) => fileId)
 			.filter((fileId) => !linkedFileIds.has(fileId)),
 	);
 };

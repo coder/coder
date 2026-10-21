@@ -349,8 +349,26 @@ describe("deriveMessageDisplayState", () => {
 
 		const state = getDisplayState(message);
 		expect(state.shouldHide).toBe(false);
-		expect(state.hasWorkspaceFileReferences).toBe(true);
+		expect(state.hasWorkspaceFileChips).toBe(true);
 		expect(state.workspaceFileReferenceCount).toBe(1);
+		expect(state.hasCopyableContent).toBe(false);
+	});
+
+	it("keeps workspace-attachment-only user messages visible as chips", () => {
+		const message = buildMessage([
+			{
+				type: "workspace-attachment",
+				file_id: "file-1",
+				name: "bundle.zip",
+				size: 2048,
+				media_type: "application/zip",
+			},
+		]);
+
+		const state = getDisplayState(message);
+		expect(state.shouldHide).toBe(false);
+		expect(state.hasWorkspaceFileChips).toBe(true);
+		expect(state.workspaceAttachmentBlocks).toHaveLength(1);
 		expect(state.hasCopyableContent).toBe(false);
 	});
 
@@ -369,7 +387,7 @@ describe("deriveMessageDisplayState", () => {
 		const state = getDisplayState(message);
 		expect(state.shouldHide).toBe(false);
 		expect(state.hasUserMessageBody).toBe(true);
-		expect(state.hasWorkspaceFileReferences).toBe(true);
+		expect(state.hasWorkspaceFileChips).toBe(true);
 		expect(state.hasCopyableContent).toBe(false);
 	});
 
@@ -651,6 +669,48 @@ describe("deriveEvictedFileIds", () => {
 		);
 
 		expect(evicted.size).toBe(0);
+	});
+
+	describe("when no reference is linked", () => {
+		const sentAt = (
+			fileEntry: ParsedMessageEntry,
+			createdAt: string,
+		): ParsedMessageEntry => ({
+			...fileEntry,
+			message: { ...fileEntry.message, created_at: createdAt },
+		});
+		const mockRecordedFileB = {
+			...MockChatFileMetadata,
+			id: "b",
+			created_at: "2026-03-10T00:00:02.000Z",
+		};
+		const mockRecordedFileC = { ...mockRecordedFileB, id: "c" };
+
+		it("keeps reporting an evicted file after the newer files' message is edited away", () => {
+			const record = [mockRecordedFileB, mockRecordedFileC];
+			const first = sentAt(fileMessage(1, "a"), "2026-03-10T00:00:01.000Z");
+			const beforeEdit = deriveEvictedFileIds(
+				[first, sentAt(fileMessage(2, "b", "c"), "2026-03-10T00:00:02.000Z")],
+				record,
+			);
+			// Editing a message soft-deletes it but keeps its file links.
+			const afterEdit = deriveEvictedFileIds(
+				[first, sentAt(fileMessage(3), "2026-03-10T00:00:03.000Z")],
+				record,
+			);
+
+			expect([...beforeEdit]).toEqual(["a"]);
+			expect([...afterEdit]).toEqual(["a"]);
+		});
+
+		it("presumes files sent after the newest record file are present", () => {
+			const evicted = deriveEvictedFileIds(
+				[sentAt(fileMessage(4, "d"), "2026-03-10T00:00:03.000Z")],
+				[mockRecordedFileB],
+			);
+
+			expect(evicted.size).toBe(0);
+		});
 	});
 
 	it("reports nothing when the chat record has no files", () => {

@@ -2001,6 +2001,64 @@ export const AttachFileLabelFallsBackToPathBasename: Story = {
 	},
 };
 
+export const CopyAttachmentsRunning: Story = {
+	args: {
+		name: "copy_attachments_to_workspace",
+		status: "running",
+		args: {},
+	},
+};
+
+export const CopyAttachmentsWithoutResult: Story = {
+	args: {
+		name: "copy_attachments_to_workspace",
+		status: "completed",
+		args: {},
+	},
+};
+
+export const CopyAttachmentsError: Story = {
+	args: {
+		name: "copy_attachments_to_workspace",
+		status: "error",
+		isError: true,
+		args: {},
+		result: "invalid parameters: unexpected end of JSON input",
+	},
+};
+
+export const CopyAttachmentsFailed: Story = {
+	args: {
+		name: "copy_attachments_to_workspace",
+		status: "completed",
+		args: {},
+		result: {
+			attachments: [
+				{
+					file_id: "bundle-zip",
+					name: "bundle.zip",
+					media_type: "application/zip",
+					size_bytes: 2048,
+					status: "failed",
+					error: "workspace agent is not connected",
+				},
+			],
+		},
+	},
+};
+
+export const CopyAttachmentsCheckFailed: Story = {
+	args: {
+		name: "copy_attachments_to_workspace",
+		status: "completed",
+		args: {},
+		result: {
+			attachments: [],
+			attachments_error: "read workspace attachments: connection refused",
+		},
+	},
+};
+
 // ---------------------------------------------------------------------------
 // Tool failure display stories
 // ---------------------------------------------------------------------------
