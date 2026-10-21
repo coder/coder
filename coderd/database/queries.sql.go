@@ -6593,6 +6593,7 @@ SELECT cf.id, cf.owner_id, cf.organization_id, cf.name, cf.mimetype, cf.created_
 	cf.workspace_delivery_attempts,
 	cf.workspace_delivery_next_attempt_at,
 	cf.workspace_delivery_error,
+	cf.workspace_delivery_agent_ready_at,
 	cf.workspace_delivered_at,
 	cf.workspace_delivered_path,
 	cf.workspace_delivered_workspace_id
@@ -6614,6 +6615,7 @@ type GetChatFileMetadataByChatIDRow struct {
 	WorkspaceDeliveryAttempts      int32           `db:"workspace_delivery_attempts" json:"workspace_delivery_attempts"`
 	WorkspaceDeliveryNextAttemptAt sql.NullTime    `db:"workspace_delivery_next_attempt_at" json:"workspace_delivery_next_attempt_at"`
 	WorkspaceDeliveryError         sql.NullString  `db:"workspace_delivery_error" json:"workspace_delivery_error"`
+	WorkspaceDeliveryAgentReadyAt  sql.NullTime    `db:"workspace_delivery_agent_ready_at" json:"workspace_delivery_agent_ready_at"`
 	WorkspaceDeliveredAt           sql.NullTime    `db:"workspace_delivered_at" json:"workspace_delivered_at"`
 	WorkspaceDeliveredPath         sql.NullString  `db:"workspace_delivered_path" json:"workspace_delivered_path"`
 	WorkspaceDeliveredWorkspaceID  uuid.NullUUID   `db:"workspace_delivered_workspace_id" json:"workspace_delivered_workspace_id"`
@@ -6643,6 +6645,7 @@ func (q *sqlQuerier) GetChatFileMetadataByChatID(ctx context.Context, chatID uui
 			&i.WorkspaceDeliveryAttempts,
 			&i.WorkspaceDeliveryNextAttemptAt,
 			&i.WorkspaceDeliveryError,
+			&i.WorkspaceDeliveryAgentReadyAt,
 			&i.WorkspaceDeliveredAt,
 			&i.WorkspaceDeliveredPath,
 			&i.WorkspaceDeliveredWorkspaceID,

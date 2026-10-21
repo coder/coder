@@ -60,7 +60,7 @@ func (p *Server) awaitChatWorkspaceFiles(ctx context.Context, chatID uuid.UUID, 
 		return chattool.WorkspaceAttachmentsReport{Err: errors.Join(errs...)}
 	}
 
-	startupFinished, err := p.chatWorkspaceStartupFinished(ctx, chatID)
+	startup, err := p.chatWorkspaceStartup(ctx, chatID)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -75,15 +75,15 @@ func (p *Server) awaitChatWorkspaceFiles(ctx context.Context, chatID uuid.UUID, 
 	}
 	// Nothing is copied before startup finishes, so there is nothing to
 	// wait for.
-	if startupFinished && p.workspaceFilesOutstanding(files, fileIDs) {
-		files, err = p.waitForChatWorkspaceFiles(ctx, chatID, fileIDs, files)
+	if startup.finished && p.workspaceFilesOutstanding(files, fileIDs, startup) {
+		files, err = p.waitForChatWorkspaceFiles(ctx, chatID, fileIDs, files, startup)
 		if err != nil {
 			errs = append(errs, xerrors.Errorf("wait for workspace attachments: %w", err))
 		}
 	}
 
 	undelivered := chattool.WorkspaceAttachmentPending
-	if startupFinished {
+	if startup.finished {
 		undelivered = chattool.WorkspaceAttachmentCopying
 	}
 	byID := make(map[uuid.UUID]*database.GetChatFileMetadataByChatIDRow, len(files))
@@ -93,7 +93,7 @@ func (p *Server) awaitChatWorkspaceFiles(ctx context.Context, chatID uuid.UUID, 
 	now := p.clock.Now("chatd", "await-workspace-files")
 	attachments := make([]chattool.WorkspaceAttachment, 0, len(parts))
 	for _, part := range parts {
-		attachments = append(attachments, workspaceAttachmentStatus(part, byID[part.FileID.UUID], undelivered, now))
+		attachments = append(attachments, workspaceAttachmentStatus(part, byID[part.FileID.UUID], undelivered, startup, now))
 	}
 	return chattool.WorkspaceAttachmentsReport{Attachments: attachments, Err: errors.Join(errs...)}
 }
@@ -131,33 +131,62 @@ func (p *Server) chatWorkspaceAttachmentParts(ctx context.Context, chatID uuid.U
 	return parts, nil
 }
 
-// chatWorkspaceStartupFinished reports whether the chat's workspace
-// passes the condition AcquireChatWorkspaceFileDeliveries claims files
-// under: the latest build is a start build and the chat's agent finished
-// its startup scripts.
-func (p *Server) chatWorkspaceStartupFinished(ctx context.Context, chatID uuid.UUID) (bool, error) {
+// workspaceFileAgentStartup is the startup of the agent that
+// AcquireChatWorkspaceFileDeliveries claims a chat's files for.
+type workspaceFileAgentStartup struct {
+	// finished reports whether the claim condition holds: the latest
+	// build is a start build and the agent finished its startup scripts.
+	finished bool
+	readyAt  sql.NullTime
+}
+
+// redelivers reports whether the claim makes file due again, with a fresh
+// attempt budget, because the agent started after the file's last claim.
+func (s workspaceFileAgentStartup) redelivers(file database.GetChatFileMetadataByChatIDRow, now time.Time) bool {
+	if !s.finished {
+		return false
+	}
+	recorded := file.WorkspaceDeliveryAgentReadyAt
+	restarted := s.readyAt.Valid != recorded.Valid || (s.readyAt.Valid && !s.readyAt.Time.Equal(recorded.Time))
+	scheduled := file.WorkspaceDeliveryNextAttemptAt.Valid && file.WorkspaceDeliveryNextAttemptAt.Time.After(now)
+	return restarted && (file.WorkspaceDeliveryError.Valid || !scheduled)
+}
+
+// chatWorkspaceStartup reports the startup of the agent the claim checks
+// for the chat's workspace.
+func (p *Server) chatWorkspaceStartup(ctx context.Context, chatID uuid.UUID) (workspaceFileAgentStartup, error) {
 	chat, err := p.db.GetChatByID(ctx, chatID)
 	if err != nil {
-		return false, xerrors.Errorf("load chat: %w", err)
+		return workspaceFileAgentStartup{}, xerrors.Errorf("load chat: %w", err)
 	}
 	if !chat.WorkspaceID.Valid {
-		return false, nil
+		return workspaceFileAgentStartup{}, nil
 	}
 	build, err := p.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, chat.WorkspaceID.UUID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
+		return workspaceFileAgentStartup{}, nil
 	}
 	if err != nil {
-		return false, xerrors.Errorf("load latest workspace build: %w", err)
+		return workspaceFileAgentStartup{}, xerrors.Errorf("load latest workspace build: %w", err)
 	}
 	if build.Transition != database.WorkspaceTransitionStart {
-		return false, nil
+		return workspaceFileAgentStartup{}, nil
 	}
 	agents, err := p.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, chat.WorkspaceID.UUID)
 	if err != nil {
-		return false, xerrors.Errorf("load workspace agents: %w", err)
+		return workspaceFileAgentStartup{}, xerrors.Errorf("load workspace agents: %w", err)
 	}
 	agent, err := agentselect.ForChat(chat, agents)
+	if errors.Is(err, agentselect.ErrMultipleChatAgents) {
+		// The claim checks the first matching agent, and the delivery
+		// then parks the file with the selection error, which reaches the
+		// model through the file's status.
+		var ok bool
+		agent, ok = agentselect.FirstChatAgent(agents)
+		if ok {
+			err = nil
+		}
+	}
 	if err != nil {
 		// The delivery loop parks files it cannot pick an agent for, so
 		// the error reaches the model through the file's status.
@@ -165,9 +194,12 @@ func (p *Server) chatWorkspaceStartupFinished(ctx context.Context, chatID uuid.U
 			slog.F("chat_id", chatID),
 			slog.Error(err),
 		)
-		return false, nil
+		return workspaceFileAgentStartup{}, nil
 	}
-	return agent.LifecycleState.StartupFinished(), nil
+	return workspaceFileAgentStartup{
+		finished: agent.LifecycleState.StartupFinished(),
+		readyAt:  agent.ReadyAt,
+	}, nil
 }
 
 // waitForChatWorkspaceFiles polls the chat's files until none of fileIDs
@@ -177,6 +209,7 @@ func (p *Server) waitForChatWorkspaceFiles(
 	chatID uuid.UUID,
 	fileIDs map[uuid.UUID]struct{},
 	files []database.GetChatFileMetadataByChatIDRow,
+	startup workspaceFileAgentStartup,
 ) ([]database.GetChatFileMetadataByChatIDRow, error) {
 	timer := p.clock.NewTimer(workspaceFileStatusMaxWait, "chatd", "await-workspace-files")
 	defer timer.Stop("chatd", "await-workspace-files")
@@ -195,7 +228,7 @@ func (p *Server) waitForChatWorkspaceFiles(
 			return files, err
 		}
 		files = latest
-		if !p.workspaceFilesOutstanding(files, fileIDs) {
+		if !p.workspaceFilesOutstanding(files, fileIDs, startup) {
 			return files, nil
 		}
 	}
@@ -204,8 +237,9 @@ func (p *Server) waitForChatWorkspaceFiles(
 // workspaceFilesOutstanding reports whether any of fileIDs is due or in
 // flight. A claim counts the attempt, clears the last error and leases
 // the file, so a future next attempt without an error is in flight, even
-// on the last attempt, and one with an error is waiting to retry.
-func (p *Server) workspaceFilesOutstanding(files []database.GetChatFileMetadataByChatIDRow, fileIDs map[uuid.UUID]struct{}) bool {
+// on the last attempt, and one with an error is waiting to retry unless
+// the agent restarted since its last claim.
+func (p *Server) workspaceFilesOutstanding(files []database.GetChatFileMetadataByChatIDRow, fileIDs map[uuid.UUID]struct{}, startup workspaceFileAgentStartup) bool {
 	now := p.clock.Now("chatd", "await-workspace-files")
 	for _, file := range files {
 		if _, ok := fileIDs[file.ID]; !ok {
@@ -218,7 +252,7 @@ func (p *Server) workspaceFilesOutstanding(files []database.GetChatFileMetadataB
 			file.WorkspaceDeliveryNextAttemptAt.Time.After(now)
 		inFlight := scheduled && !file.WorkspaceDeliveryError.Valid
 		due := !scheduled && file.WorkspaceDeliveryAttempts < database.ChatWorkspaceFileMaxDeliveryAttempts
-		if inFlight || due {
+		if inFlight || due || startup.redelivers(file, now) {
 			return true
 		}
 	}
@@ -227,11 +261,13 @@ func (p *Server) workspaceFilesOutstanding(files []database.GetChatFileMetadataB
 
 // workspaceAttachmentStatus reports the status of the file that part
 // refers to at now. file is nil when the file is no longer stored.
-// undelivered is the status of a file that is neither copied nor failed.
+// undelivered is the status of a file that is neither copied nor failed,
+// including a failed file that startup makes due again.
 func workspaceAttachmentStatus(
 	part codersdk.ChatMessagePart,
 	file *database.GetChatFileMetadataByChatIDRow,
 	undelivered chattool.WorkspaceAttachmentStatus,
+	startup workspaceFileAgentStartup,
 	now time.Time,
 ) chattool.WorkspaceAttachment {
 	attachment := chattool.WorkspaceAttachment{
@@ -254,6 +290,8 @@ func workspaceAttachmentStatus(
 		if file.WorkspaceDeliveredWorkspaceID.Valid {
 			attachment.WorkspaceID = file.WorkspaceDeliveredWorkspaceID.UUID.String()
 		}
+	case startup.redelivers(*file, now):
+		attachment.Status = undelivered
 	case file.WorkspaceDeliveryError.Valid:
 		attachment.Status = chattool.WorkspaceAttachmentFailed
 		attachment.Error = file.WorkspaceDeliveryError.String

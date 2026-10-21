@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"path"
 	"testing"
@@ -18,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 // statusServer returns a server on the fixture's clock whose own worker
@@ -140,6 +142,36 @@ func pollUntilReported(ctx context.Context, t *testing.T, f workspaceFileDeliver
 			f.clock.Advance(workspaceFileStatusPollInterval).MustWait(ctx)
 		}
 	}
+}
+
+// awaitDuringDelayedClaim runs the helper in report mode, lets the
+// delivery loop claim the chat's due files only once the helper waits for
+// them, and returns the report.
+func awaitDuringDelayedClaim(ctx context.Context, t *testing.T, f workspaceFileDeliveryFixture, server *Server, chatID uuid.UUID) chattool.WorkspaceAttachmentsReport {
+	t.Helper()
+	trap := f.clock.Trap().NewTicker("chatd", "await-workspace-files")
+	defer trap.Close()
+	done := make(chan chattool.WorkspaceAttachmentsReport, 1)
+	go func() {
+		done <- server.awaitChatWorkspaceFiles(ctx, chatID, workspaceFilesReport)
+	}()
+	waiting := make(chan *quartz.Call, 1)
+	go func() {
+		call, err := trap.Wait(ctx)
+		if err == nil {
+			waiting <- call
+		}
+	}()
+	select {
+	case report := <-done:
+		t.Fatalf("the report did not wait for the due files: %+v", report.Attachments)
+	case call := <-waiting:
+		call.MustRelease(ctx)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for the helper to wait")
+	}
+	server.chatWorker.deliverWorkspaceFiles(ctx)
+	return pollUntilReported(ctx, t, f, done)
 }
 
 func TestAwaitChatWorkspaceFiles(t *testing.T) {
@@ -297,6 +329,58 @@ func TestAwaitChatWorkspaceFiles(t *testing.T) {
 		require.Equal(t, chattool.WorkspaceAttachmentCopied, report.Attachments[0].Status)
 	})
 
+	t.Run("ReportWaitsForClaimAfterAgentRestart", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		server := f.statusServer(t)
+		chat, agent := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+		f.attach(t, chat.ID, file.ID)
+
+		f.setAgentFailure(func(workspacesdk.UploadChatFileRequest) error {
+			return agentStatusError(http.StatusForbidden)
+		})
+		server.chatWorker.deliverWorkspaceFiles(ctx)
+		f.setAgentFailure(nil)
+		// The agent restart makes the parked file due again, but the loop
+		// is busy elsewhere and has not claimed it yet.
+		f.restartAgent(ctx, t, agent.ID)
+
+		report := awaitInBackground(ctx, t, f, server, chat.ID, workspaceFilesReport)
+		require.NoError(t, report.Err)
+		require.Len(t, report.Attachments, 1)
+		require.Equal(t, chattool.WorkspaceAttachmentCopying, report.Attachments[0].Status)
+		require.Empty(t, report.Attachments[0].Error)
+
+		report = awaitDuringDelayedClaim(ctx, t, f, server, chat.ID)
+		require.NoError(t, report.Err)
+		require.Len(t, report.Attachments, 1)
+		require.Equal(t, chattool.WorkspaceAttachmentCopied, report.Attachments[0].Status)
+		require.Len(t, f.agent.uploadRequests(), 2)
+	})
+
+	t.Run("AmbiguousAgentsReportSelectionError", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		server := f.statusServer(t)
+		chat, agent := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		for _, name := range []string{"alpha" + agentselect.Suffix, "beta" + agentselect.Suffix} {
+			ambiguous := dbgen.WorkspaceAgent(t, f.db, database.WorkspaceAgent{ResourceID: agent.ResourceID, Name: name})
+			f.setLifecycle(ctx, t, ambiguous.ID, database.WorkspaceAgentLifecycleStateReady)
+		}
+		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+		f.attach(t, chat.ID, file.ID)
+
+		report := awaitDuringDelayedClaim(ctx, t, f, server, chat.ID)
+		require.NoError(t, report.Err)
+		require.Len(t, report.Attachments, 1)
+		require.Equal(t, chattool.WorkspaceAttachmentFailed, report.Attachments[0].Status)
+		require.Contains(t, report.Attachments[0].Error, agentselect.ErrMultipleChatAgents.Error())
+		require.Empty(t, f.agent.uploadRequests())
+	})
+
 	t.Run("PendingUntilStartupFinishes", func(t *testing.T) {
 		t.Parallel()
 		f := newWorkspaceFileDeliveryFixture(t)
@@ -314,4 +398,62 @@ func TestAwaitChatWorkspaceFiles(t *testing.T) {
 		require.Equal(t, chattool.WorkspaceAttachmentPending, report.Attachments[0].Status)
 		require.Empty(t, f.agent.uploadRequests())
 	})
+}
+
+// TestWorkspaceFileAgentStartupRedelivers pins the restart branch of the
+// AcquireChatWorkspaceFileDeliveries due condition.
+func TestWorkspaceFileAgentStartupRedelivers(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+	readyAt := sql.NullTime{Time: now.Add(-time.Hour), Valid: true}
+	restartedAt := sql.NullTime{Time: now.Add(-time.Minute), Valid: true}
+	future := sql.NullTime{Time: now.Add(time.Minute), Valid: true}
+	failed := sql.NullString{String: "agent says no", Valid: true}
+	tests := []struct {
+		name    string
+		startup workspaceFileAgentStartup
+		file    database.GetChatFileMetadataByChatIDRow
+		want    bool
+	}{
+		{
+			name:    "StartupNotFinished",
+			startup: workspaceFileAgentStartup{readyAt: restartedAt},
+			file:    database.GetChatFileMetadataByChatIDRow{WorkspaceDeliveryAgentReadyAt: readyAt, WorkspaceDeliveryError: failed},
+		},
+		{
+			name:    "SameAgentStartup",
+			startup: workspaceFileAgentStartup{finished: true, readyAt: readyAt},
+			file:    database.GetChatFileMetadataByChatIDRow{WorkspaceDeliveryAgentReadyAt: readyAt, WorkspaceDeliveryError: failed},
+		},
+		{
+			name:    "RestartedWithErrorWaitingToRetry",
+			startup: workspaceFileAgentStartup{finished: true, readyAt: restartedAt},
+			file:    database.GetChatFileMetadataByChatIDRow{WorkspaceDeliveryAgentReadyAt: readyAt, WorkspaceDeliveryError: failed, WorkspaceDeliveryNextAttemptAt: future},
+			want:    true,
+		},
+		{
+			name:    "RestartedDuringLease",
+			startup: workspaceFileAgentStartup{finished: true, readyAt: restartedAt},
+			file:    database.GetChatFileMetadataByChatIDRow{WorkspaceDeliveryAgentReadyAt: readyAt, WorkspaceDeliveryNextAttemptAt: future},
+		},
+		{
+			name:    "RestartedAfterExpiredLease",
+			startup: workspaceFileAgentStartup{finished: true, readyAt: restartedAt},
+			file:    database.GetChatFileMetadataByChatIDRow{WorkspaceDeliveryAgentReadyAt: readyAt, WorkspaceDeliveryNextAttemptAt: sql.NullTime{Time: now, Valid: true}},
+			want:    true,
+		},
+		{
+			name:    "NeverClaimed",
+			startup: workspaceFileAgentStartup{finished: true, readyAt: restartedAt},
+			file:    database.GetChatFileMetadataByChatIDRow{},
+			want:    true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, tt.startup.redelivers(tt.file, now))
+		})
+	}
 }

@@ -35,6 +35,7 @@ SELECT cf.id, cf.owner_id, cf.organization_id, cf.name, cf.mimetype, cf.created_
 	cf.workspace_delivery_attempts,
 	cf.workspace_delivery_next_attempt_at,
 	cf.workspace_delivery_error,
+	cf.workspace_delivery_agent_ready_at,
 	cf.workspace_delivered_at,
 	cf.workspace_delivered_path,
 	cf.workspace_delivered_workspace_id
