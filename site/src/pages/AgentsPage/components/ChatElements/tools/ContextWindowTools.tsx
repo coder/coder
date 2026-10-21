@@ -83,11 +83,12 @@ const toolRowLabel = (
 
 /**
  * `checkpoint` comes from the call arguments, so the body shows while the
- * call streams and after a failed save. Only the header reports the outcome.
+ * call streams and after a failed save. Only the header reports the outcome,
+ * and only a successful result counts as saved, as it does for chatd.
  */
 export const SaveCheckpointTool: React.FC<
-	ToolRowStatusProps & { checkpoint: string }
-> = ({ checkpoint, status, isError, errorMessage }) => (
+	ToolRowStatusProps & { checkpoint: string; saved: boolean }
+> = ({ checkpoint, saved, status, isError, errorMessage }) => (
 	<MarkdownToolRow
 		status={status}
 		isError={isError}
@@ -96,7 +97,7 @@ export const SaveCheckpointTool: React.FC<
 		label={toolRowLabel(status, isError, {
 			running: "Saving checkpoint…",
 			failed: "Checkpoint not saved",
-			done: "Saved checkpoint",
+			done: saved ? "Saved checkpoint" : "Checkpoint",
 		})}
 		bodyLabel="Checkpoint"
 		body={checkpoint}
@@ -216,7 +217,7 @@ export const ChatHistoryTool: React.FC<
 		);
 	}
 	if (hasMore) {
-		counts.push(`more ${wording.noun}s available`);
+		counts.push(`more ${wording.noun}s may be available`);
 	}
 
 	return (
