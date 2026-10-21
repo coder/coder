@@ -90,8 +90,6 @@ export const getVisibleContent = (
 		}),
 	);
 	const visibleToolIds = new Set(visibleTools.map((tool) => tool.id));
-	// Workspace files render as chips from the display state, not as
-	// standalone timeline blocks.
 	const visibleBlocks = blocks.filter(
 		(block) =>
 			block.type !== "workspace-file-reference" &&

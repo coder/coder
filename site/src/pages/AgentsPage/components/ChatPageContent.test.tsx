@@ -79,7 +79,6 @@ type HistoryEditHarnessProps = {
 	overrides: Partial<ChatPageInputProps>;
 };
 
-/** Drives ChatPageInput through the page's real history-edit state. */
 const HistoryEditHarness: React.FC<HistoryEditHarnessProps> = ({
 	fileBlocks,
 	sendTurn,

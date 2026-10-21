@@ -396,8 +396,6 @@ export const BlockList: React.FC<BlockListProps> = ({
 								sources={block.sources}
 							/>
 						);
-					// Workspace files render through the user message display
-					// state, not as timeline blocks.
 					case "workspace-file-reference":
 					case "workspace-attachment":
 						return null;
