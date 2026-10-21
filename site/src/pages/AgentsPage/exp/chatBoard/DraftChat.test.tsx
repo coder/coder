@@ -34,6 +34,7 @@ vi.mock("../../components/AgentCreateForm", () => ({
 				void onCreateChat({
 					message: "Hello",
 					organizationId: "org-1",
+					projectId: "project-1",
 				})
 					.catch(() => undefined)
 					.finally(() => button.setAttribute("data-settled", "true"));
@@ -51,6 +52,7 @@ const renderDraft = () => {
 			<DraftChat
 				labels={{ "board/column": "Doing" }}
 				context="Card: Launch"
+				project={undefined}
 				onCreated={onCreated}
 			/>
 		</QueryClientProvider>,
@@ -63,7 +65,7 @@ describe("DraftChat", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("creates the chat with the board labels and the card context, then reports it", async () => {
+	it("creates the chat with the board labels, the card context and the composer's project, then reports it", async () => {
 		const user = userEvent.setup();
 		const create = vi
 			.spyOn(API.experimental, "createChat")
@@ -77,6 +79,7 @@ describe("DraftChat", () => {
 			expect.objectContaining({
 				labels: { "board/column": "Doing" },
 				content: [{ type: "text", text: "Hello\n\nCard: Launch" }],
+				project_id: "project-1",
 			}),
 		);
 	});

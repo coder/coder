@@ -14,13 +14,20 @@ import {
 } from "react-query";
 import { useNavigate } from "react-router";
 import { getErrorMessage } from "#/api/errors";
-import { chatSearch, createChat, updateChatTitle } from "#/api/queries/chats";
-import type { Chat } from "#/api/typesGenerated";
+import { chatProjects } from "#/api/queries/chatProjects";
+import {
+	chatSearch,
+	createChat,
+	moveChatToProject,
+	updateChatTitle,
+} from "#/api/queries/chats";
+import type { Chat, ChatProject } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { toast } from "#/components/Toaster/toast";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { pageTitle } from "#/utils/page";
 import { isActiveChatStatus } from "../../components/ChatConversation/chatStore";
 import { buildChatSearchQuery } from "../../components/ChatsSidebar/dialogs/searchQuery";
@@ -30,11 +37,14 @@ import {
 	BOARD_ASSISTANT_KEY,
 	boardAssistantSpec,
 	cardAssistantSpec,
+	laneAssistantKey,
+	laneAssistantSpec,
 } from "./assistantSpecs";
 import { assistantIds, findOrCreateAssistant } from "./assistants";
 import type { DragData } from "./BoardCard";
 import { BoardColumns } from "./BoardColumns";
 import { BoardHeader } from "./BoardHeader";
+import { BoardLane } from "./BoardLane";
 import { BoardWindows } from "./BoardWindows";
 import { effortCounts, type Plan, renameEffort } from "./boardApi";
 import {
@@ -45,6 +55,7 @@ import {
 } from "./boardChats";
 import {
 	type DropTarget,
+	dragCanChangeLane,
 	dragDataOf,
 	dragPlugins,
 	dragSensors,
@@ -52,10 +63,13 @@ import {
 	dropCommand,
 } from "./boardDrag";
 import {
+	BOARD_LANE,
 	type BoardCard as BoardCardModel,
 	buildCards,
 	buildColumns,
 	cardColorByChat,
+	laneOf,
+	NO_PROJECT_LANE,
 } from "./boardLabels";
 import {
 	type BoardStorage,
@@ -101,6 +115,11 @@ const ChatBoardPage: React.FC = () => {
 	const [search, setSearch] = useState("");
 	const debouncedSearch = useDebouncedValue(search.trim(), SEARCH_DEBOUNCE_MS);
 	const [activeDrag, setActiveDrag] = useState<DragData | null>(null);
+	const { experiments } = useDashboard();
+	const projectsQuery = useQuery({
+		...chatProjects(),
+		enabled: experiments.includes("chat-projects"),
+	});
 	const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
 	const [pendingPreview, setPendingPreview] = useState<PendingPreview | null>(
 		null,
@@ -155,6 +174,14 @@ const ChatBoardPage: React.FC = () => {
 			toast.error(getErrorMessage(error, "Failed to rename chat.")),
 	});
 	const createMutation = useMutation(createChat(queryClient));
+	const projectMoveOptions = moveChatToProject(queryClient);
+	const projectMutation = useMutation({
+		...projectMoveOptions,
+		onError: (error, variables, context) => {
+			projectMoveOptions.onError(error, variables, context);
+			toast.error(getErrorMessage(error, "Failed to move chat to project."));
+		},
+	});
 
 	const chats = chatsQuery.data?.pages[0] ?? [];
 	const chatsById = new Map(chats.map((chat) => [chat.id, chat]));
@@ -167,7 +194,9 @@ const ChatBoardPage: React.FC = () => {
 	const cardAssistants = new Map(
 		[...assistantByKey].flatMap(([key, id]) => {
 			const assistant = chatsById.get(id);
-			return key !== BOARD_ASSISTANT_KEY && assistant
+			return key !== BOARD_ASSISTANT_KEY &&
+				!key.startsWith(laneAssistantKey("")) &&
+				assistant
 				? [[key, assistant] as const]
 				: [];
 		}),
@@ -250,6 +279,34 @@ const ChatBoardPage: React.FC = () => {
 		),
 	}));
 	const visibleCount = visibleColumns.reduce((n, c) => n + c.cards.length, 0);
+	// Every project I can use gets a lane, so a card can be dragged into an
+	// empty one. A card whose project is not in the list keeps a lane of its
+	// own, so no card is ever hidden.
+	const projects = projectsQuery.data ?? [];
+	const unknownProjects = [
+		...new Set(
+			allCards
+				.map(laneOf)
+				.filter(
+					(key) =>
+						key !== NO_PROJECT_LANE && !projects.some((p) => p.id === key),
+				),
+		),
+	];
+	const lanes =
+		projects.length > 0
+			? [
+					...projects.map((project) => ({ key: project.id, project })),
+					...unknownProjects.map((key) => ({ key, project: undefined })),
+					{ key: NO_PROJECT_LANE, project: undefined },
+				]
+			: undefined;
+	const toggleLane = (key: string) =>
+		updateStorage({
+			collapsedLanes: storage.collapsedLanes.includes(key)
+				? storage.collapsedLanes.filter((k) => k !== key)
+				: [...storage.collapsedLanes, key],
+		});
 
 	// A draft whose card was merged away or removed, or whose column was
 	// renamed or deleted, has nowhere to land; submitting it would recreate
@@ -271,6 +328,8 @@ const ChatBoardPage: React.FC = () => {
 			write: (chatId, labels, after) =>
 				labelsMutation.mutateAsync({ chatId, labels, after }),
 			rename: (chatId, title) => titleMutation.mutateAsync({ chatId, title }),
+			moveProject: (chatId, projectId) =>
+				projectMutation.mutateAsync({ chatId, projectId }),
 			updateStorage,
 		});
 
@@ -316,6 +375,29 @@ const ChatBoardPage: React.FC = () => {
 		});
 	const openCardAssistant = (card: BoardCardModel) =>
 		void showAssistant(card.id, (tools) => cardAssistantSpec(card, tools));
+	const openLaneAssistant = (
+		lane: Readonly<{ key: string; project: ChatProject | undefined }>,
+	) => {
+		const inLane = (card: BoardCardModel) => laneOf(card) === lane.key;
+		const organizationId =
+			lane.project?.organization_id ??
+			allCards.find(inLane)?.primary.organization_id ??
+			chats[0]?.organization_id;
+		if (!organizationId) return;
+		void showAssistant(laneAssistantKey(lane.key), (tools) =>
+			laneAssistantSpec(
+				boardState,
+				{
+					key: lane.key,
+					name: lane.project?.name ?? "No project",
+					projectId: lane.project?.id,
+					organizationId,
+				},
+				inLane,
+				tools,
+			),
+		);
+	};
 	const openBoardAssistant = () => {
 		const organizationId = chats[0]?.organization_id;
 		if (!organizationId) return;
@@ -336,7 +418,7 @@ const ChatBoardPage: React.FC = () => {
 	// Collisions are recomputed on every move, and the zone within one card
 	// (insert above, merge, insert below) changes without the target changing.
 	const handleCollision = (_event: unknown, manager: DragDropManager) =>
-		setDropTarget(dragTargetOf(manager));
+		setDropTarget(dragTargetOf(manager, user.id));
 	const handleDragEnd = (
 		{ canceled }: { canceled: boolean },
 		manager: DragDropManager,
@@ -345,8 +427,11 @@ const ChatBoardPage: React.FC = () => {
 		setActiveDrag(null);
 		setDropTarget(null);
 		const drag = dragDataOf(manager);
-		const target = canceled ? null : dragTargetOf(manager);
-		const command = drag && target && dropCommand(drag, target);
+		const target = canceled ? null : dragTargetOf(manager, user.id);
+		const command =
+			drag &&
+			target &&
+			dropCommand(drag, target, (cardId) => cardAssistants.get(cardId));
 		if (command) void run(command(boardState));
 	};
 	// dnd-kit skips the collision check while the pointer stands still, so a
@@ -357,7 +442,7 @@ const ChatBoardPage: React.FC = () => {
 		const update = () => {
 			frame = undefined;
 			const manager = dragManagerRef.current;
-			if (manager) setDropTarget(dragTargetOf(manager));
+			if (manager) setDropTarget(dragTargetOf(manager, user.id));
 		};
 		const handleScroll = () => {
 			// Not ??=: the React Compiler cannot lower it and skips the file.
@@ -369,7 +454,7 @@ const ChatBoardPage: React.FC = () => {
 			document.removeEventListener("scroll", handleScroll, options);
 			if (frame !== undefined) cancelAnimationFrame(frame);
 		};
-	}, [activeDrag]);
+	}, [activeDrag, user.id]);
 
 	// The board is replaced only while a query has nothing to show. A failed
 	// refetch keeps its data, and the board with it, so open note editors
@@ -396,24 +481,86 @@ const ChatBoardPage: React.FC = () => {
 				onCollision={handleCollision}
 				onDragEnd={handleDragEnd}
 			>
-				<BoardColumns
-					columns={visibleColumns}
-					board={boardState}
-					run={run}
-					assistants={cardAssistants}
-					openChatIds={openChatIds}
-					dropTarget={dropTarget}
-					knownEfforts={efforts.map((e) => e.name)}
-					onCardAssistant={openCardAssistant}
-					onNewChat={openDraft}
-					onFilterEffort={(effort) => updateStorage({ effortFilter: effort })}
-					onOpen={openChat}
-					onPreview={previewChat}
-					onPreviewEnd={endPreview}
-				/>
+				{lanes ? (
+					<div className="flex min-h-0 flex-1 flex-col overflow-auto bg-surface-secondary">
+						{lanes.map((lane, index) => {
+							const laneColumns = visibleColumns.map((column) => ({
+								...column,
+								cards: column.cards.filter((card) => laneOf(card) === lane.key),
+							}));
+							return (
+								<BoardLane
+									key={lane.key}
+									project={lane.project}
+									cardCount={laneColumns.reduce(
+										(n, c) => n + c.cards.length,
+										0,
+									)}
+									collapsed={storage.collapsedLanes.includes(lane.key)}
+									onToggle={() => toggleLane(lane.key)}
+									assistant={chatsById.get(
+										assistantByKey.get(laneAssistantKey(lane.key)) ?? "",
+									)}
+									onAssistant={() => openLaneAssistant(lane)}
+									onPreview={previewChat}
+									onPreviewEnd={endPreview}
+								>
+									<BoardColumns
+										columns={laneColumns}
+										lane={lane.key}
+										layout="lane"
+										showAddColumn={index === 0}
+										board={boardState}
+										run={run}
+										assistants={cardAssistants}
+										openChatIds={openChatIds}
+										dropTarget={dropTarget}
+										knownEfforts={efforts.map((e) => e.name)}
+										onCardAssistant={openCardAssistant}
+										onNewChat={openDraft}
+										onFilterEffort={(effort) =>
+											updateStorage({ effortFilter: effort })
+										}
+										onOpen={openChat}
+										onPreview={previewChat}
+										onPreviewEnd={endPreview}
+									/>
+								</BoardLane>
+							);
+						})}
+					</div>
+				) : (
+					<BoardColumns
+						columns={visibleColumns}
+						lane={BOARD_LANE}
+						layout="board"
+						showAddColumn
+						board={boardState}
+						run={run}
+						assistants={cardAssistants}
+						openChatIds={openChatIds}
+						dropTarget={dropTarget}
+						knownEfforts={efforts.map((e) => e.name)}
+						onCardAssistant={openCardAssistant}
+						onNewChat={openDraft}
+						onFilterEffort={(effort) => updateStorage({ effortFilter: effort })}
+						onOpen={openChat}
+						onPreview={previewChat}
+						onPreviewEnd={endPreview}
+					/>
+				)}
 				{/* Portaled above every column so the moving card is never clipped. */}
 				<DragOverlay dropAnimation={null}>
-					{activeDrag && <DragGhost drag={activeDrag} />}
+					{activeDrag && (
+						<DragGhost
+							drag={activeDrag}
+							hint={
+								lanes && !dragCanChangeLane(activeDrag, user.id)
+									? "A working chat keeps this in its project"
+									: undefined
+							}
+						/>
+					)}
 				</DragOverlay>
 			</DragDropProvider>
 		);
@@ -468,6 +615,7 @@ const ChatBoardPage: React.FC = () => {
 				windows={windows}
 				chatsById={chatsById}
 				colorByChatId={cardColorByChat(allCards)}
+				projectOf={(lane) => projects.find((project) => project.id === lane)}
 				board={boardState}
 				onChange={(next) => setWindows((prev) => changeWindow(prev, next))}
 				onClose={(key) => setWindows((prev) => closeWindow(prev, key))}
