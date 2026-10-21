@@ -152,7 +152,7 @@ func TestBeginStep_FallsBackToRunChatID(t *testing.T) {
 	runChatID := uuid.New()
 	ownerID := uuid.New()
 	expectDebugLoggingEnabled(t, db, ownerID)
-	expectCreateStepNumberWithRequestValidity(t, db, runID, runChatID, 1, OperationGenerate, false)
+	expectCreateStepWithRequestValidity(t, db, runID, runChatID, OperationGenerate, false)
 
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: runChatID})
 	svc := NewService(db, testutil.Logger(t), nil)

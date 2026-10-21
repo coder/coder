@@ -444,6 +444,7 @@ A good description:
 - Stays under roughly 160 characters so search engines don't truncate it.
 - Avoids marketing language and superlatives.
 - Reads as a complete sentence.
+- Ends with a period.
 
 **Do**:
 
@@ -466,7 +467,7 @@ The marketing description doesn't survive truncation and adds no information.
 
 If a page doesn't yet have a description in the sidebar sources, add one in the same PR that touches the page.
 
-*Documentation-only.
+*Enforced by `scripts/docsmanifestgen` (`make lint/docs-manifest`) for the trailing period only.
 No Vale rule.*
 
 ## Reading level
