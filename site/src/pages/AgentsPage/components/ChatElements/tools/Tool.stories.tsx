@@ -1430,6 +1430,13 @@ export const SaveCheckpointRunning: Story = {
 		status: "running",
 		result: undefined,
 	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: /Saving checkpoint/,
+			}),
+		);
+	},
 };
 
 export const SaveCheckpointError: Story = {
