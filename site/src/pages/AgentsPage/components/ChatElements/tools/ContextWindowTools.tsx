@@ -9,15 +9,13 @@ type ToolRowStatusProps = {
 	errorMessage: string | undefined;
 };
 
-const rolloverReasonLabels = {
-	model: "Requested by the agent",
-	limit: "Usable limit reached",
-	overflow: "Provider context overflow",
-} satisfies Partial<Record<string, string>>;
-
-// Values come from persisted tool rows, so inherited keys must not match.
-const labelForOwnKey = <T,>(labels: Partial<Record<string, T>>, key: string) =>
-	Object.hasOwn(labels, key) ? labels[key] : undefined;
+// A Map because reasons come from persisted tool rows, so inherited object
+// keys must not match.
+const rolloverReasonLabels = new Map([
+	["model", "Requested by the agent"],
+	["limit", "Usable limit reached"],
+	["overflow", "Provider context overflow"],
+]);
 
 const SecondaryLabel: React.FC<{ children: React.ReactNode }> = ({
 	children,
@@ -35,7 +33,7 @@ const SecondaryLabel: React.FC<{ children: React.ReactNode }> = ({
 export const ContextRolloverTool: React.FC<
 	ToolRowStatusProps & { reason: string; checkpoint: string }
 > = ({ reason, checkpoint, ...rowStatus }) => {
-	const reasonLabel = labelForOwnKey(rolloverReasonLabels, reason);
+	const reasonLabel = rolloverReasonLabels.get(reason);
 	return (
 		<MarkdownToolRow
 			{...rowStatus}
