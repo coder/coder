@@ -912,7 +912,7 @@ func TestReadSkillFileTool(t *testing.T) {
 			ResolveAlias: resolveNoModelSkills,
 		})
 
-		for _, path := range []string{"SKILL.md", "skill.md"} {
+		for _, path := range []string{"SKILL.md", "skill.md", "SKILL.md/"} {
 			resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 				ID:    "call-" + path,
 				Name:  "read_skill_file",
