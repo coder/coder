@@ -24,6 +24,7 @@ func TestExtendedLengthPath(t *testing.T) {
 		{name: "LongForwardSlashUNC", path: `//server/share/` + strings.ReplaceAll(long, `\`, "/"), want: `\\?\UNC\server\share\` + long},
 		{name: "AlreadyExtended", path: `\\?\C:\` + long, want: `\\?\C:\` + long},
 		{name: "AlreadyExtendedUNC", path: `\\?\UNC\server\share\` + long, want: `\\?\UNC\server\share\` + long},
+		{name: "AlreadyExtendedForwardSlash", path: `//?/C:/` + strings.ReplaceAll(long, `\`, "/"), want: `//?/C:/` + strings.ReplaceAll(long, `\`, "/")},
 		{name: "Device", path: `\\.\C:\` + long, want: `\\.\C:\` + long},
 		{name: "Relative", path: long, want: long},
 	}
