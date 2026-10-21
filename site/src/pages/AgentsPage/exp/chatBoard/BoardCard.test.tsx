@@ -1,3 +1,4 @@
+import { DragDropProvider } from "@dnd-kit/react";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -5,6 +6,7 @@ import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { renderComponent } from "#/testHelpers/renderHelpers";
 import { BoardCard } from "./BoardCard";
+import { dragSensors } from "./boardDrag";
 import { buildCards } from "./boardLabels";
 
 const chat = (id: string, labels: Record<string, string> = {}): Chat => ({
@@ -33,20 +35,20 @@ const renderCard = (chats: readonly Chat[], assistant?: Chat) => {
 		onEditNote: vi.fn(),
 		onRemoveNote: vi.fn(),
 	} satisfies Partial<React.ComponentProps<typeof BoardCard>>;
-	// No DndContext: its default sensors have no activation distance, so a
-	// pointerdown on the header would start a drag and swallow the click.
-	// Outside a context the dnd-kit hooks are inert, like a click that stays
-	// under the real board's distance threshold.
+	// The board's sensors: dnd-kit's defaults have no activation distance, so
+	// a pointerdown on the header would start a drag and swallow the click.
 	renderComponent(
-		<BoardCard
-			card={card}
-			assistant={assistant}
-			openChatIds={new Set()}
-			isDropTarget={false}
-			noteDrop={undefined}
-			knownEfforts={["Q3", "This week"]}
-			{...handlers}
-		/>,
+		<DragDropProvider sensors={dragSensors}>
+			<BoardCard
+				card={card}
+				assistant={assistant}
+				openChatIds={new Set()}
+				isDropTarget={false}
+				noteDrop={undefined}
+				knownEfforts={["Q3", "This week"]}
+				{...handlers}
+			/>
+		</DragDropProvider>,
 	);
 	return { card, ...handlers };
 };
