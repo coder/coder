@@ -44,6 +44,12 @@ const uploadTempMarker = ".upload-"
 // least once per uploadChatFileIdleTimeout, so older files are abandoned.
 const staleUploadTempAge = time.Hour
 
+// abandonedWriteOnceTempAge is how old a temp file in a write-once
+// upload's per-file directory must be before a finished upload of that
+// file removes it. No upload of another file sweeps that directory, and
+// the idle timeout ends an upload whose temp stops changing for longer.
+const abandonedWriteOnceTempAge = uploadChatFileIdleTimeout
+
 // deadlineExtendingReader extends the request's read and write deadlines
 // every time a chunk of the body arrives, turning the server's fixed
 // per-request timeouts into an idle timeout for streamed uploads.
@@ -93,6 +99,7 @@ func (api *API) HandleUploadChatFile(rw http.ResponseWriter, r *http.Request) {
 		RequiredNotEmpty("name")
 	chatID := parser.UUID(query, uuid.Nil, "chat_id")
 	rawName := parser.String(query, "", "name")
+	fileID := parser.UUID(query, uuid.Nil, "file_id")
 	parser.ErrorExcessParams(query)
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -130,24 +137,35 @@ func (api *API) HandleUploadChatFile(rw http.ResponseWriter, r *http.Request) {
 	// Workspace uploads intentionally stream without a MaxBytesReader cap.
 	// The uploaded bytes land in the user's workspace filesystem rather than
 	// coderd storage, so workspace disk limits are the enforcement boundary.
-	dir := chatfiles.WorkspaceUploadDir(home, chatID.String())
-	finalName, finalPath, size, err := api.writeUploadExclusiveSecure(home, chatID.String(), dir, name, body)
+	target := uploadTarget{
+		homeDir: home,
+		chatID:  chatID.String(),
+		dir:     chatfiles.WorkspaceUploadDir(home, chatID.String()),
+	}
+	if fileID != uuid.Nil {
+		target.fileID = fileID.String()
+		target.dir = chatfiles.WorkspaceUploadFileDir(home, target.chatID, target.fileID)
+	}
+	finalName, finalPath, size, err := api.writeUploadExclusiveSecure(ctx, target, name, body)
 	if errors.Is(err, errUploadSecureUnsupported) {
-		err = api.prepareUploadDirPath(home, chatID.String(), dir)
+		err = api.prepareUploadDirPath(target)
 		if err == nil {
-			finalName, finalPath, size, err = api.writeUploadExclusivePath(dir, name, body)
+			finalName, finalPath, size, err = api.writeUploadExclusivePath(ctx, target.dir, name, target.mode(), body)
 		}
 	}
 	if err != nil {
 		status := http.StatusInternalServerError
 		switch {
-		case errors.Is(err, errUploadCollisionExhausted):
+		case errors.Is(err, errUploadCollisionExhausted), errors.Is(err, errUploadTargetNotRegular):
 			status = http.StatusConflict
 		case errors.Is(err, errUploadDirSymlink), errors.Is(err, os.ErrPermission):
 			status = http.StatusForbidden
+		case errors.Is(err, errUploadPublishInProgress):
+			status = http.StatusServiceUnavailable
 		}
 		api.logger.Warn(ctx, "workspace chat file upload failed",
 			slog.F("chat_id", chatID),
+			slog.F("file_id", fileID),
 			slog.F("name", name),
 			slog.F("bytes_received", body.received),
 			slog.F("duration", time.Since(start)),
@@ -173,27 +191,89 @@ var errUploadSecureUnsupported = xerrors.New("secure workspace upload unsupporte
 
 var errUploadCollisionExhausted = xerrors.New("too many existing files with the same name")
 
-func (api *API) prepareUploadDirPath(homeDir, chatID, dir string) error {
-	if err := api.rejectSymlinkedUploadDir(homeDir, chatID); err != nil {
-		return err
+var errUploadTargetNotRegular = xerrors.New("workspace upload target exists and is not a regular file")
+
+// errUploadPublishInProgress means a write-once upload found the empty
+// placeholder of a concurrent upload of the same file that has not
+// renamed its content into place yet.
+var errUploadPublishInProgress = xerrors.New("another upload of this file is still being published")
+
+// abandonedUploadPlaceholderAge is how old an empty write-once target must
+// be before an upload with content replaces it. A placeholder only exists
+// between creating it and renaming the finished temp file over it, so an
+// older one was left by an upload that crashed while publishing.
+const abandonedUploadPlaceholderAge = uploadChatFileIdleTimeout
+
+// checkWriteOnceExisting reports whether a write-once upload of
+// uploadedSize bytes replaces the regular file it found at its target
+// instead of acknowledging it. The fallback writers publish through an
+// empty placeholder, so an empty file never acknowledges an upload with
+// content: a recent one may still get a concurrent upload's content, and
+// an older one is replaced.
+func checkWriteOnceExisting(existingSize int64, existingModTime time.Time, uploadedSize int64) (replace bool, err error) {
+	if existingSize > 0 || uploadedSize == 0 {
+		return false, nil
 	}
-	if err := api.filesystem.MkdirAll(dir, 0o755); err != nil {
-		return xerrors.Errorf("create upload directory: %w", err)
+	if time.Since(existingModTime) <= abandonedUploadPlaceholderAge {
+		return false, errUploadPublishInProgress
 	}
-	return api.rejectSymlinkedUploadDir(homeDir, chatID)
+	return true, nil
 }
 
-func (api *API) rejectSymlinkedUploadDir(homeDir, chatID string) error {
+// uploadPublishMode selects how an upload claims its final name.
+type uploadPublishMode int
+
+const (
+	// uploadPublishUniqueName adds a collision suffix until the name is free.
+	uploadPublishUniqueName uploadPublishMode = iota
+	// uploadPublishWriteOnce publishes only under the exact name and treats
+	// an existing regular file there as the result of an earlier identical
+	// upload, so retried deliveries of one chat file are idempotent.
+	uploadPublishWriteOnce
+)
+
+// uploadTarget is the upload directory below the agent home directory.
+type uploadTarget struct {
+	homeDir string
+	chatID  string
+	// fileID is empty unless the upload is write-once, in which case dir
+	// is the per-file directory below the chat's files directory.
+	fileID string
+	dir    string
+}
+
+func (t uploadTarget) mode() uploadPublishMode {
+	if t.fileID != "" {
+		return uploadPublishWriteOnce
+	}
+	return uploadPublishUniqueName
+}
+
+func (api *API) prepareUploadDirPath(target uploadTarget) error {
+	if err := api.rejectSymlinkedUploadDir(target); err != nil {
+		return err
+	}
+	if err := api.filesystem.MkdirAll(target.dir, 0o755); err != nil {
+		return xerrors.Errorf("create upload directory: %w", err)
+	}
+	return api.rejectSymlinkedUploadDir(target)
+}
+
+func (api *API) rejectSymlinkedUploadDir(target uploadTarget) error {
 	lstater, ok := api.filesystem.(afero.Lstater)
 	if !ok {
 		return nil
 	}
-	for _, dir := range []string{
-		filepath.Join(homeDir, ".coder"),
-		filepath.Join(homeDir, chatfiles.WorkspaceChatsDir),
-		chatfiles.WorkspaceChatDir(homeDir, chatID),
-		chatfiles.WorkspaceUploadDir(homeDir, chatID),
-	} {
+	dirs := []string{
+		filepath.Join(target.homeDir, ".coder"),
+		filepath.Join(target.homeDir, chatfiles.WorkspaceChatsDir),
+		chatfiles.WorkspaceChatDir(target.homeDir, target.chatID),
+		chatfiles.WorkspaceUploadDir(target.homeDir, target.chatID),
+	}
+	if target.fileID != "" {
+		dirs = append(dirs, chatfiles.WorkspaceUploadFileDir(target.homeDir, target.chatID, target.fileID))
+	}
+	for _, dir := range dirs {
 		info, _, err := lstater.LstatIfPossible(dir)
 		if errors.Is(err, os.ErrNotExist) {
 			continue
@@ -208,8 +288,30 @@ func (api *API) rejectSymlinkedUploadDir(homeDir, chatID string) error {
 	return nil
 }
 
-func (api *API) writeUploadExclusivePath(dir, name string, r io.Reader) (finalName, finalPath string, size int64, err error) {
-	api.sweepStaleUploadTempsPath(dir)
+func (api *API) writeUploadExclusivePath(ctx context.Context, dir, name string, mode uploadPublishMode, r io.Reader) (finalName, finalPath string, size int64, err error) {
+	api.sweepUploadTempsPath(ctx, dir, staleUploadTempAge)
+	if mode == uploadPublishWriteOnce {
+		defer func() {
+			if err == nil {
+				api.sweepUploadTempsPath(ctx, dir, abandonedWriteOnceTempAge)
+			}
+		}()
+	}
+
+	// A retry of a published write-once upload is acknowledged without
+	// reading its body, which may fail or need disk space the workspace no
+	// longer has. An empty target may be a placeholder, so that upload
+	// streams and decides after the copy.
+	if mode == uploadPublishWriteOnce {
+		targetPath := filepath.Join(dir, name)
+		size, err := api.publishedUploadSizePath(targetPath)
+		if err != nil {
+			return "", "", 0, err
+		}
+		if size > 0 {
+			return name, targetPath, size, nil
+		}
+	}
 
 	tmp, err := uploadTempName(name)
 	if err != nil {
@@ -223,6 +325,9 @@ func (api *API) writeUploadExclusivePath(dir, name string, r io.Reader) (finalNa
 	defer func() { _ = api.filesystem.Remove(tmpPath) }()
 
 	n, err := io.Copy(f, r)
+	if err == nil && mode == uploadPublishWriteOnce {
+		err = f.Sync()
+	}
 	if cerr := f.Close(); err == nil {
 		err = cerr
 	}
@@ -239,13 +344,30 @@ func (api *API) writeUploadExclusivePath(dir, name string, r io.Reader) (finalNa
 		placeholder, err := api.filesystem.OpenFile(candidatePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 		if err != nil {
 			if errors.Is(err, os.ErrExist) {
+				if mode == uploadPublishWriteOnce {
+					existing, err := api.existingUploadPath(candidatePath)
+					if err != nil {
+						return "", "", 0, err
+					}
+					replace, err := checkWriteOnceExisting(existing.Size(), existing.ModTime(), n)
+					if err != nil {
+						return "", "", 0, err
+					}
+					if !replace {
+						return candidate, candidatePath, existing.Size(), nil
+					}
+					if err := api.renameUpload(tmpPath, candidatePath, mode); err != nil {
+						return "", "", 0, xerrors.Errorf("replace abandoned upload placeholder: %w", err)
+					}
+					return candidate, candidatePath, n, nil
+				}
 				continue
 			}
 			return "", "", 0, xerrors.Errorf("create upload target: %w", err)
 		}
 		err = placeholder.Close()
 		if err == nil {
-			err = api.filesystem.Rename(tmpPath, candidatePath)
+			err = api.renameUpload(tmpPath, candidatePath, mode)
 		}
 		if err != nil {
 			_ = api.filesystem.Remove(candidatePath)
@@ -256,15 +378,57 @@ func (api *API) writeUploadExclusivePath(dir, name string, r io.Reader) (finalNa
 	return "", "", 0, errUploadCollisionExhausted
 }
 
-func (api *API) sweepStaleUploadTempsPath(dir string) {
+// publishedUploadSizePath returns the size of the regular file at a
+// write-once upload's target path, or 0 when the path is absent.
+func (api *API) publishedUploadSizePath(p string) (int64, error) {
+	info, err := api.existingUploadPath(p)
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	return info.Size(), nil
+}
+
+// existingUploadPath describes the regular file a write-once upload found
+// at its target path.
+func (api *API) existingUploadPath(p string) (os.FileInfo, error) {
+	var info os.FileInfo
+	var err error
+	if lstater, ok := api.filesystem.(afero.Lstater); ok {
+		info, _, err = lstater.LstatIfPossible(p)
+	} else {
+		info, err = api.filesystem.Stat(p)
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("check existing upload: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, xerrors.Errorf("%w: %s", errUploadTargetNotRegular, p)
+	}
+	return info, nil
+}
+
+func (api *API) sweepUploadTempsPath(ctx context.Context, dir string, olderThan time.Duration) {
 	infos, err := afero.ReadDir(api.filesystem, dir)
 	if err != nil {
 		return
 	}
 	for _, info := range infos {
-		if isUploadTempName(info.Name()) && isStaleUploadTemp(info) {
-			_ = api.filesystem.Remove(filepath.Join(dir, info.Name()))
+		if isUploadTempName(info.Name()) && isUploadTempOlderThan(info, olderThan) {
+			api.logUploadTempRemoval(ctx, dir, info.Name(), api.filesystem.Remove(filepath.Join(dir, info.Name())))
 		}
+	}
+}
+
+func (api *API) logUploadTempRemoval(ctx context.Context, dir, name string, err error) {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		api.logger.Warn(ctx, "remove abandoned workspace chat file upload temp",
+			slog.F("dir", dir),
+			slog.F("name", name),
+			slog.Error(err),
+		)
 	}
 }
 
@@ -286,6 +450,6 @@ func isUploadTempName(name string) bool {
 	return strings.HasPrefix(name, ".") && strings.Contains(name, uploadTempMarker)
 }
 
-func isStaleUploadTemp(info os.FileInfo) bool {
-	return info.Mode().IsRegular() && time.Since(info.ModTime()) > staleUploadTempAge
+func isUploadTempOlderThan(info os.FileInfo, age time.Duration) bool {
+	return info.Mode().IsRegular() && time.Since(info.ModTime()) > age
 }
