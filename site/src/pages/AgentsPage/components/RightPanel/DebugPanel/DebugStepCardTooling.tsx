@@ -2,10 +2,9 @@ import { cn } from "cn";
 import { WrenchIcon } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "#/components/Badge/Badge";
+import { clampContent, exceedsClampThreshold } from "#/utils/text";
 import { CopyableCodeBlock, RoleBadge } from "./DebugPanelPrimitives";
 import {
-	clampContent,
-	exceedsClampThreshold,
 	MESSAGE_CONTENT_CLAMP_CHARS,
 	type MessagePart,
 } from "./debugPanelUtils";

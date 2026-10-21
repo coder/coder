@@ -49,7 +49,7 @@ Use the time range filter in the filter bar to widen or narrow the window, for e
 
 Each row shows the last prompt, initiator, provider, client, token usage, network requests, thread count, and timestamp.
 
-The **Network Requests** column reports the total and blocked [Agent Firewall](../agent-firewall/index.md) requests for the session.
+The **Network** column reports the total and blocked [Agent Firewall](../agent-firewall/index.md) requests for the session.
 It shows `No activity` when the session made no requests, and `Disabled` when the session did not pass through Agent Firewall, so no network requests were monitored.
 
 Select one to view its full details.
