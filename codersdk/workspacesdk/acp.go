@@ -9,11 +9,33 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// ACPConfigValue is a selectable value advertised by a harness.
+type ACPConfigValue struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Group       string `json:"group,omitempty"`
+	GroupName   string `json:"group_name,omitempty"`
+}
+
+// ACPConfigOption describes an ACP session select option.
+type ACPConfigOption struct {
+	ID           string           `json:"id"`
+	Name         string           `json:"name"`
+	Description  string           `json:"description,omitempty"`
+	CurrentValue string           `json:"current_value"`
+	Category     string           `json:"category,omitempty"`
+	Values       []ACPConfigValue `json:"values"`
+}
+
 // ACPHarness is the public discovery result. Commands stay on the agent.
 type ACPHarness struct {
-	Slug        string `json:"slug"`
-	DisplayName string `json:"display_name"`
-	Error       string `json:"error,omitempty"`
+	Slug          string            `json:"slug"`
+	DisplayName   string            `json:"display_name"`
+	LoadSession   bool              `json:"load_session"`
+	ResumeSession bool              `json:"resume_session"`
+	ConfigOptions []ACPConfigOption `json:"config_options"`
+	Error         string            `json:"error,omitempty"`
 }
 
 // ListACPHarnesses returns the cached agent-local harness catalog.

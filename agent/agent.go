@@ -465,7 +465,7 @@ func (a *agent) init() {
 	)
 	a.desktopAPI = agentdesktop.NewAPI(a.logger.Named("desktop"), desktop, a.clock)
 	a.mcpManager = agentmcp.NewManager(a.gracefulCtx, a.logger.Named("mcp"), a.execer, a.filesystem, a.envInfo, a.updateCommandEnv, workingDirFn)
-	a.acpManager = agentacp.NewManager(a.gracefulCtx, agentacp.Options{Logger: a.logger.Named("acp"), Clock: a.clock, Filesystem: a.filesystem, EnvInfo: a.envInfo})
+	a.acpManager = agentacp.NewManager(a.gracefulCtx, agentacp.Options{Logger: a.logger.Named("acp"), Clock: a.clock, Execer: a.execer, Filesystem: a.filesystem, EnvInfo: a.envInfo, UpdateEnv: a.updateCommandEnv, WorkingDir: workingDirFn})
 	a.acpAPI = agentacp.NewAPI(a.acpManager)
 	a.contextConfigAPI = agentcontextconfig.NewAPI(workingDirFn, a.contextConfig)
 	a.mcpAPI = agentmcp.NewAPI(a.mcpManager)
