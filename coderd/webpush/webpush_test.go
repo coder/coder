@@ -578,7 +578,6 @@ func TestPush(t *testing.T) {
 		manager, err := webpush.New(ctx, &logger, db, "http://example.com", webpush.WithHTTPClient(client))
 		require.NoError(t, err)
 
-		start := time.Now()
 		err = manager.Test(ctx, codersdk.WebpushSubscription{
 			Endpoint:  server.URL,
 			AuthKey:   validEndpointAuthKey,
@@ -588,7 +587,7 @@ func TestPush(t *testing.T) {
 		var netErr net.Error
 		require.ErrorAs(t, err, &netErr)
 		require.True(t, netErr.Timeout(), "expected a timeout, got: %v", err)
-		require.Less(t, time.Since(start), testutil.WaitShort, "the client timeout, not the test context, should end the call")
+		require.NoError(t, ctx.Err(), "the client timeout, not the test context, should end the call")
 	})
 }
 
