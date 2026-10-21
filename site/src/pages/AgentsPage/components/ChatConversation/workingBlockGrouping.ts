@@ -353,7 +353,8 @@ const getPartTimestamps = (part: TypesGen.ChatMessagePart): number[] => {
 		.map((timestamp) => Date.parse(timestamp));
 };
 
-const rowMessageIds = (row: TimelineRow): readonly number[] =>
+/** The persisted message IDs a row renders; the live row has none. */
+export const rowMessageIds = (row: TimelineRow): readonly number[] =>
 	row.type === "live" ? [] : (row.entry.mergedFrom ?? [row.entry.message.id]);
 
 type PiecePosition = { rowIndex: number; pieceIndex: number };
