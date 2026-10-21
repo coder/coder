@@ -5,6 +5,7 @@ ALTER TABLE chat_files
     DROP COLUMN IF EXISTS workspace_delivered_workspace_id,
     DROP COLUMN IF EXISTS workspace_delivered_path,
     DROP COLUMN IF EXISTS workspace_delivered_at,
+    DROP COLUMN IF EXISTS workspace_delivery_agent_ready_at,
     DROP COLUMN IF EXISTS workspace_delivery_error,
     DROP COLUMN IF EXISTS workspace_delivery_next_attempt_at,
     DROP COLUMN IF EXISTS workspace_delivery_attempts,
