@@ -364,7 +364,7 @@ coderd_chatd_compaction_total{provider="",model="",result=""} 0
 # HELP coderd_chatd_context_handoff_total Total context handoff prompts under the token budget compaction strategy, by stage (handoff: the handoff target was reached; final: the final zone before the usable limit was reached).
 # TYPE coderd_chatd_context_handoff_total counter
 coderd_chatd_context_handoff_total{provider="",model="",stage=""} 0
-# HELP coderd_chatd_context_rollover_total Total context window rollovers under the token budget compaction strategy, by reason (model: the agent called new_context; limit: the window reached its usable limit).
+# HELP coderd_chatd_context_rollover_total Total context window rollovers under the token budget compaction strategy, by reason (model: the agent called new_context; limit: the window reached its usable limit; overflow: the provider rejected the prompt as too large).
 # TYPE coderd_chatd_context_rollover_total counter
 coderd_chatd_context_rollover_total{provider="",model="",reason=""} 0
 # HELP coderd_chatd_find_tools_activations_total Total deferred tool activations returned by find_tools.
