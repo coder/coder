@@ -378,6 +378,37 @@ describe("ChatMessageInput", () => {
 			]);
 		});
 
+		it.each(["/reviewer", "/personal/reviewer"])(
+			"sends a typed %s ended by a space as a skill chip",
+			async (alias) => {
+				const inputRef = renderWithSkills({
+					personal: [mockReviewerSkill],
+					organization: [],
+				});
+				const user = await pasteTrigger(`Run ${alias}`);
+				await screen.findByRole("option", { name: /^\/reviewer/ });
+				await user.keyboard(" now");
+				expect(getRequestContent(inputRef)).toEqual([
+					{ type: "text", text: "Run " },
+					mockSkillPart("personal", "reviewer"),
+					{ type: "text", text: " now" },
+				]);
+			},
+		);
+
+		it("sends a typed partial skill name as text", async () => {
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [],
+			});
+			const user = await pasteTrigger("Run /rev");
+			await screen.findByRole("option", { name: /^\/reviewer/ });
+			await user.keyboard(" now");
+			expect(getRequestContent(inputRef)).toEqual([
+				{ type: "text", text: "Run /rev now" },
+			]);
+		});
+
 		it("inserts built-in commands as text", async () => {
 			const inputRef = renderWithSkills({ personal: [], organization: [] });
 			const user = await pasteTrigger("/comp");

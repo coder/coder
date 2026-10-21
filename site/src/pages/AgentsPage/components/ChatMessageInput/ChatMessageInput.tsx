@@ -902,6 +902,47 @@ const ChatMessageInput = ({
 			? -1
 			: Math.min(skillsMenuSelectedIndex, allFilteredSkills.length - 1);
 
+	// A typed alias that whitespace ends becomes a chip, as a menu pick does.
+	// As text it would never load a skill the agent cannot use on its own.
+	const convertTypedSkillAlias = (closedTrigger: ActiveSkillsTrigger) => {
+		const alias = `/${closedTrigger.query}`;
+		const skill = skillTriggers.find(
+			(trigger) =>
+				trigger.triggerText === alias || trigger.altTriggerText === alias,
+		);
+		if (!skill) {
+			return;
+		}
+		editorRef.current?.update(() => {
+			const selection = $getSelection();
+			const node = $getNodeByKey(closedTrigger.nodeKey);
+			const aliasEnd = closedTrigger.slashOffset + alias.length;
+			if (
+				!$isRangeSelection(selection) ||
+				!selection.isCollapsed() ||
+				selection.anchor.key !== closedTrigger.nodeKey ||
+				selection.anchor.offset !== aliasEnd + 1 ||
+				!$isTextNode(node)
+			) {
+				return;
+			}
+			const text = node.getTextContent();
+			if (
+				text.slice(closedTrigger.slashOffset, aliasEnd) !== alias ||
+				!/\s/.test(text.charAt(aliasEnd))
+			) {
+				return;
+			}
+			selection.anchor.set(
+				closedTrigger.nodeKey,
+				closedTrigger.slashOffset,
+				"text",
+			);
+			selection.focus.set(closedTrigger.nodeKey, aliasEnd, "text");
+			$insertSkillInvocation(selection, skill.source, skill.name);
+		});
+	};
+
 	const handleSkillsTriggerChange = (trigger: ActiveSkillsTrigger | null) => {
 		if (
 			trigger &&
@@ -913,6 +954,9 @@ const ChatMessageInput = ({
 		suppressedSkillsTriggerRef.current = null;
 		if (isSameSkillsTrigger(trigger, skillsTrigger)) {
 			return;
+		}
+		if (skillsTrigger && !trigger) {
+			convertTypedSkillAlias(skillsTrigger);
 		}
 		if (trigger?.query !== skillsTrigger?.query) {
 			setSkillsMenuSelectedIndex(0);
