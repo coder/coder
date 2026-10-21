@@ -333,19 +333,24 @@ const partFileIds = (part: TypesGen.ChatMessagePart): string[] => {
  * lists the attachments that remain. An attachment referenced before the
  * newest remaining one but absent from the record has been evicted. Later
  * references are newer than the record, so a message that lands before the
- * next chat refetch is never mistaken for an evicted one.
+ * next chat refetch is never mistaken for an evicted one. `earlierFileIds`
+ * lists, oldest first, the files referenced before the first entry.
  */
 export const deriveEvictedFileIds = (
 	entries: readonly Pick<ParsedMessageEntry, "message">[],
 	chatFiles: readonly TypesGen.ChatFileMetadata[] | undefined,
+	earlierFileIds: readonly string[] = [],
 ): ReadonlySet<string> => {
 	if (!chatFiles) {
 		return NO_FILE_IDS;
 	}
 	const linkedFileIds = new Set(chatFiles.map((file) => file.id));
-	const referencedFileIds = entries.flatMap(({ message }) =>
-		(message.content ?? []).flatMap(partFileIds),
-	);
+	const referencedFileIds = [
+		...earlierFileIds,
+		...entries.flatMap(({ message }) =>
+			(message.content ?? []).flatMap(partFileIds),
+		),
+	];
 	const newestLinkedIndex = referencedFileIds.findLastIndex((fileId) =>
 		linkedFileIds.has(fileId),
 	);
@@ -356,43 +361,56 @@ export const deriveEvictedFileIds = (
 	);
 };
 
-/** A downloadable file the agent attached, keyed by message and part. */
-export type AgentAttachment = {
+/** A downloadable file in a chat message, keyed by message and part. */
+export type MessageAttachment = {
 	key: string;
 	file: TypesGen.ChatFilePart;
 	href: string;
 };
 
+const toMessageAttachments = (
+	messageId: number,
+	partIndex: number,
+	part: TypesGen.ChatMessagePart,
+): MessageAttachment[] => {
+	if (part.type !== "file") {
+		return [];
+	}
+	const href = getAttachmentHref(part);
+	return href ? [{ key: `${messageId}:${partIndex}`, file: part, href }] : [];
+};
+
 /**
- * Downloadable files the agent attached to its messages, newest first. Files
- * the user uploaded are left out.
+ * Downloadable files the user uploaded and the agent attached, newest first.
  */
-export const getAgentAttachments = (
+export const getMessageAttachments = (
 	messages: readonly TypesGen.ChatMessage[],
-): AgentAttachment[] =>
+): MessageAttachment[] =>
 	messages
-		.filter((message) => message.role === "assistant")
+		.filter(
+			(message) => message.role === "user" || message.role === "assistant",
+		)
 		.flatMap((message) =>
-			(message.content ?? []).flatMap((part, partIndex) => {
-				if (part.type !== "file") {
-					return [];
-				}
-				const href = getAttachmentHref(part);
-				return href
-					? [{ key: `${message.id}:${partIndex}`, file: part, href }]
-					: [];
-			}),
+			(message.content ?? []).flatMap((part, partIndex) =>
+				toMessageAttachments(message.id, partIndex, part),
+			),
 		)
 		.reverse();
 
 /**
- * Undefined until the chat's first message page reaches the store; gating on
- * isHydratingMessages alone would blank the list on every live message.
+ * The server's attachments from messages before `beforeMessageId`, newest
+ * first. Entries at or after the boundary belong to the loaded messages.
  */
-export const getLoadedAgentAttachments = (
-	messages: readonly TypesGen.ChatMessage[],
-	isHydratingMessages: boolean,
-): AgentAttachment[] | undefined =>
-	isHydratingMessages && messages.length === 0
-		? undefined
-		: getAgentAttachments(messages);
+export const getEarlierMessageAttachments = (
+	attachments: readonly TypesGen.ChatAttachment[],
+	beforeMessageId: number,
+): MessageAttachment[] =>
+	attachments
+		.filter((attachment) => attachment.message_id < beforeMessageId)
+		.flatMap((attachment) =>
+			toMessageAttachments(
+				attachment.message_id,
+				attachment.part_index,
+				attachment.file,
+			),
+		);

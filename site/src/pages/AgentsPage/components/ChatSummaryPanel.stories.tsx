@@ -1,10 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, spyOn, waitFor, within } from "storybook/test";
+import { expect, spyOn, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
-import { chatCostTreeKey, chatEntityKey } from "#/api/queries/chats";
+import {
+	chatAttachmentsKey,
+	chatCostTreeKey,
+	chatEntityKey,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChat,
+	MockChatAttachment,
 	MockChatFileMetadata,
 	MockChatMessage,
 } from "#/testHelpers/chatEntities";
@@ -69,10 +74,7 @@ const meta: Meta<typeof ChatSummaryPanel> = {
 		chatId: MockChat.id,
 		isVisible: true,
 		hasMoreMessages: false,
-		isFetchingMoreMessages: false,
 		isHydratingMessages: false,
-		hasFetchMoreError: false,
-		onFetchMoreMessages: fn(),
 	},
 	render: (args) => <ChatSummaryPanel {...args} store={createChatStore()} />,
 };
@@ -216,6 +218,70 @@ export const WithAttachments: Story = {
 		queries: [
 			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
 			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
+	},
+};
+
+const mockLatestMessages: TypesGen.ChatMessage[] = attachmentStepMessages({
+	id: 20,
+	toolCallId: "report",
+	callAt: 10,
+	toolName: "attach_file",
+	args: { path: "/home/coder/latency-report.csv" },
+	file: {
+		type: "file",
+		media_type: "text/csv",
+		name: "latency-report.csv",
+		file_id: "report-file",
+	},
+	result: { name: "latency-report.csv" },
+});
+
+const createLatestPageStore = () => {
+	const store = createChatStore();
+	store.replaceMessages(mockLatestMessages);
+	return store;
+};
+
+const mockEarlierScreenshot: TypesGen.ChatAttachment = {
+	...MockChatAttachment,
+	message_id: 6,
+	role: "assistant",
+	file: {
+		type: "file",
+		media_type: "image/png",
+		name: "ci-dashboard.png",
+		file_id: "screenshot-file",
+	},
+};
+
+const mockEarlierUpload: TypesGen.ChatAttachment = {
+	...MockChatAttachment,
+	message_id: 1,
+	part_index: 1,
+	file: {
+		type: "file",
+		media_type: "text/plain",
+		name: "uploaded-ci.log",
+		file_id: "upload-file",
+	},
+};
+
+// Only the latest page is loaded; the earlier attachments come from the
+// attachments endpoint and follow the loaded ones.
+export const WithEarlierAttachments: Story = {
+	args: { hasMoreMessages: true },
+	render: (args) => (
+		<ChatSummaryPanel {...args} store={createLatestPageStore()} />
+	),
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+			{
+				key: chatAttachmentsKey(MockChat.id, mockLatestMessages[0].id),
+				data: { attachments: [mockEarlierScreenshot, mockEarlierUpload] },
+			},
 		],
 	},
 };

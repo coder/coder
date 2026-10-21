@@ -1,5 +1,5 @@
 import { useQuery } from "react-query";
-import { chat, chatCost } from "#/api/queries/chats";
+import { chat, chatAttachments, chatCost } from "#/api/queries/chats";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { ChatAttachments } from "./ChatAttachments";
@@ -7,7 +7,9 @@ import { getChatCostTreeID } from "./ChatConversation/chatHelpers";
 import { type ChatStore, useChatMessages } from "./ChatConversation/chatStore";
 import {
 	deriveEvictedFileIds,
-	getLoadedAgentAttachments,
+	getEarlierMessageAttachments,
+	getMessageAttachments,
+	type MessageAttachment,
 } from "./ChatConversation/messageHelpers";
 import type { EarlierMessagesProps } from "./ChatMessageScroller";
 import { ChatSummary } from "./ChatSummary";
@@ -17,21 +19,14 @@ type ChatSummaryPanelProps = {
 	/** Gate reads on tab visibility so the chat and cost queries don't run while the tab is hidden. */
 	isVisible: boolean;
 	store: ChatStore;
-} & Pick<
-	EarlierMessagesProps,
-	| "hasMoreMessages"
-	| "isFetchingMoreMessages"
-	| "isHydratingMessages"
-	| "hasFetchMoreError"
-	| "onFetchMoreMessages"
->;
+} & Pick<EarlierMessagesProps, "hasMoreMessages" | "isHydratingMessages">;
 
 export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	chatId,
 	isVisible,
 	store,
+	hasMoreMessages,
 	isHydratingMessages,
-	...earlierMessages
 }) => {
 	const showCost = Boolean(useFeatureVisibility().aibridge);
 	const chatQuery = useQuery({ ...chat(chatId), enabled: isVisible });
@@ -44,9 +39,46 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	});
 
 	const messages = useChatMessages(store);
+	const oldestLoadedMessageId = messages.at(0)?.id;
+	const earlierAttachmentsQuery = useQuery({
+		...chatAttachments(chatId, oldestLoadedMessageId ?? 0),
+		enabled:
+			isVisible && hasMoreMessages && oldestLoadedMessageId !== undefined,
+	});
+	const earlierAttachments =
+		hasMoreMessages &&
+		oldestLoadedMessageId !== undefined &&
+		earlierAttachmentsQuery.data
+			? getEarlierMessageAttachments(
+					earlierAttachmentsQuery.data.attachments,
+					oldestLoadedMessageId,
+				)
+			: [];
+	// A retry puts a failed query back to pending, so `errorUpdateCount`
+	// tells a retry from the first load.
+	const hasEarlierAttachmentsError =
+		hasMoreMessages &&
+		!earlierAttachmentsQuery.data &&
+		earlierAttachmentsQuery.errorUpdateCount > 0;
+
+	const loadedAttachments = getMessageAttachments(messages);
+	let attachments: MessageAttachment[] | undefined;
+	if (isHydratingMessages && messages.length === 0) {
+		// Gating on isHydratingMessages alone would blank the list on every
+		// live message.
+		attachments = undefined;
+	} else if (!hasMoreMessages || hasEarlierAttachmentsError) {
+		attachments = loadedAttachments;
+	} else if (earlierAttachmentsQuery.data) {
+		attachments = [...loadedAttachments, ...earlierAttachments];
+	}
+
 	const evictedFileIds = deriveEvictedFileIds(
 		messages.map((message) => ({ message })),
 		chatData?.files,
+		earlierAttachments
+			.flatMap(({ file }) => (file.file_id ? [file.file_id] : []))
+			.reverse(),
 	);
 
 	let content: React.ReactNode = null;
@@ -72,9 +104,11 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 		<div className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto p-4">
 			{content}
 			<ChatAttachments
-				attachments={getLoadedAgentAttachments(messages, isHydratingMessages)}
+				attachments={attachments}
 				evictedFileIds={evictedFileIds}
-				{...earlierMessages}
+				hasEarlierAttachmentsError={hasEarlierAttachmentsError}
+				isRetrying={earlierAttachmentsQuery.isFetching}
+				onRetry={() => void earlierAttachmentsQuery.refetch()}
 			/>
 		</div>
 	);
