@@ -132,3 +132,77 @@ export const deleteOrganizationSkill = (
 		});
 	},
 });
+
+// Kept outside organizationSkillsKey: deleting a skill removes its detail
+// key non-exactly, so deleting a skill named `settings` would evict a key
+// nested there.
+const organizationSkillSettingsKey = (organizationId: string) =>
+	["organization-skill-settings", organizationId] as const;
+
+const organizationSkillPreferencesKey = (organizationId: string) =>
+	["organization-skill-preferences", organizationId] as const;
+
+/** Reads whether members of the organization can turn off its skills. */
+export const organizationSkillSettings = (organizationId: string) => ({
+	queryKey: organizationSkillSettingsKey(organizationId),
+	queryFn: (): Promise<TypesGen.OrganizationSkillSettings> =>
+		API.experimental.getOrganizationSkillSettings(organizationId),
+});
+
+/** Saves the organization setting and refreshes member preferences. */
+export const updateOrganizationSkillSettings = (
+	queryClient: QueryClient,
+	organizationId: string,
+) => ({
+	mutationFn: (req: TypesGen.UpdateOrganizationSkillSettingsRequest) =>
+		API.experimental.updateOrganizationSkillSettings(organizationId, req),
+	onSuccess: async (settings: TypesGen.OrganizationSkillSettings) => {
+		// A refetch that started before the write would otherwise
+		// overwrite the saved value with the old one when it lands.
+		await queryClient.cancelQueries({
+			queryKey: organizationSkillSettingsKey(organizationId),
+		});
+		queryClient.setQueryData(
+			organizationSkillSettingsKey(organizationId),
+			settings,
+		);
+		// Member preferences embed the setting.
+		return queryClient.invalidateQueries({
+			queryKey: organizationSkillPreferencesKey(organizationId),
+		});
+	},
+});
+
+/** Reads the current user's organization skill choices. */
+export const organizationSkillPreferences = (organizationId: string) => ({
+	queryKey: organizationSkillPreferencesKey(organizationId),
+	queryFn: (): Promise<TypesGen.OrganizationSkillPreferences> =>
+		API.experimental.getOrganizationSkillPreferences(organizationId),
+});
+
+/** Saves some of the current user's organization skill choices. */
+export const updateOrganizationSkillPreferences = (
+	queryClient: QueryClient,
+	organizationId: string,
+) => ({
+	mutationFn: (req: TypesGen.UpdateOrganizationSkillPreferencesRequest) =>
+		API.experimental.updateOrganizationSkillPreferences(organizationId, req),
+	// Each response replaces the cached preferences, so writes run in order
+	// and the last response holds every choice.
+	scope: { id: `organization-skill-preferences-${organizationId}` },
+	onSuccess: async (preferences: TypesGen.OrganizationSkillPreferences) => {
+		await queryClient.cancelQueries({
+			queryKey: organizationSkillPreferencesKey(organizationId),
+		});
+		queryClient.setQueryData(
+			organizationSkillPreferencesKey(organizationId),
+			preferences,
+		);
+	},
+	// A write fails once an admin turns the setting off, so reload the
+	// preferences to show the current setting.
+	onError: () =>
+		queryClient.invalidateQueries({
+			queryKey: organizationSkillPreferencesKey(organizationId),
+		}),
+});

@@ -1,7 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { hashKey } from "react-query";
 import { Outlet, useNavigate } from "react-router";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
@@ -44,6 +51,10 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import { setupMatchMedia } from "#/testHelpers/matchMedia";
+import {
+	MockOrganizationSkillPreferences,
+	MockSkill,
+} from "#/testHelpers/skills";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -2895,6 +2906,10 @@ export const SlashCompactCommandSubmits: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
 		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(MockOrganizationSkillPreferences);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -2944,6 +2959,10 @@ export const SlashClearCommandSubmits: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
 		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(MockOrganizationSkillPreferences);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -2994,6 +3013,10 @@ export const SlashClearCommandConflictShowsError: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
 		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(MockOrganizationSkillPreferences);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -3059,6 +3082,10 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 			},
 		]);
 		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(MockOrganizationSkillPreferences);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -3098,6 +3125,69 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 			expect(sendSpy).toHaveBeenCalledTimes(1);
 		});
 		expect(compactSpy).not.toHaveBeenCalled();
+	},
+};
+
+const mockOrganizationCompactSkill: TypesGen.SkillMetadata = {
+	...MockSkill,
+	id: "skill-organization-compact",
+	name: "compact",
+	description: "Organization compact skill",
+};
+
+const mockCompactTurnedOffPreferences: TypesGen.OrganizationSkillPreferences = {
+	...MockOrganizationSkillPreferences,
+	members_can_disable_skills: true,
+	disabled_skill_ids: [mockOrganizationCompactSkill.id],
+};
+
+export const SlashCompactIgnoresTurnedOffOrganizationSkill: Story = {
+	parameters: {
+		// The play function submits the composer, so the capture would show
+		// no new visual state. The storybook Vitest project runs it as the
+		// submit-path test, because AgentChatPage has no Vitest harness.
+		pixel: { exclude: true },
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Organization skill turned off",
+				status: "waiting",
+			},
+			slashCommandMessages,
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([
+			mockOrganizationCompactSkill,
+		]);
+		spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(mockCompactTurnedOffPreferences);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const compactSpy = spyOn(API.experimental, "compactChat").mockResolvedValue(
+			{ ...MockChat, id: CHAT_ID, status: "running" },
+		);
+		const sendSpy = spyOn(API.experimental, "createChatMessage");
+
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.keyboard("/compact");
+		await waitFor(() => {
+			expect(screen.getByRole("option", { name: /\/compact/i })).toBeVisible();
+		});
+		await userEvent.keyboard("{Enter}");
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(compactSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(sendSpy).not.toHaveBeenCalled();
 	},
 };
 
