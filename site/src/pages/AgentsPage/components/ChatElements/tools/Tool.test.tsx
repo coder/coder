@@ -13,6 +13,7 @@ import {
 import { createMockWebSocket } from "#/testHelpers/websockets";
 import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
+import { WorkspaceFilesContext } from "../../../context/WorkspaceFilesContext";
 import { Tool } from "./Tool";
 
 afterEach(() => {
@@ -127,4 +128,58 @@ describe("Tool generic rows", () => {
 
 		expect(screen.getByRole("button")).toHaveAccessibleName("custom_tool");
 	});
+});
+
+describe("Tool file rows", () => {
+	it.each([
+		{ name: "read_file", args: { path: "/home/coder/main.go" }, verb: "Read" },
+		{
+			name: "write_file",
+			args: { path: "/home/coder/main.go", content: "package main\n" },
+			verb: "Wrote",
+		},
+	])(
+		"$name opens its file without toggling the row",
+		async ({ name, args, verb }) => {
+			const user = userEvent.setup();
+			const openFile = vi.fn();
+			renderComponent(
+				<QueryClientProvider client={createTestQueryClient()}>
+					<WorkspaceFilesContext.Provider
+						value={{
+							agentId: "agent-1",
+							defaultDirectory: "/home/coder",
+							repoRoots: [],
+							repositories: new Map(),
+							openFile,
+						}}
+					>
+						<Tool
+							name={name}
+							organizationId="organization-id"
+							mcpServers={[]}
+							status="completed"
+							args={args}
+							result={{ content: "package main" }}
+							isError={false}
+							subagentTitles={new Map()}
+							subagentVariants={new Map()}
+							shellToolDisplayMode="auto"
+							codeDiffDisplayMode="auto"
+						/>
+					</WorkspaceFilesContext.Provider>
+				</QueryClientProvider>,
+			);
+
+			await user.click(
+				screen.getByRole("button", { name: "Open /home/coder/main.go" }),
+			);
+
+			expect(openFile).toHaveBeenCalledWith("/home/coder/main.go");
+			expect(screen.getByRole("button", { name: verb })).toHaveAttribute(
+				"aria-expanded",
+				"false",
+			);
+		},
+	);
 });
