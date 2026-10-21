@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -263,11 +264,18 @@ func (p *Server) latestChatCheckpoint(ctx context.Context, chatID uuid.UUID) (st
 	if err != nil {
 		return "", xerrors.Errorf("get latest checkpoint: %w", err)
 	}
+	// A dynamic tool of the same name may have taken other arguments, so
+	// an input the builtin would reject is no saved checkpoint.
 	var input struct {
 		Checkpoint string `json:"checkpoint"`
 	}
 	if err := json.Unmarshal(args, &input); err != nil {
-		return "", xerrors.Errorf("decode checkpoint: %w", err)
+		p.logger.Warn(ctx, "ignoring undecodable save_checkpoint input", slog.F("chat_id", chatID), slog.Error(err))
+		return "", nil
+	}
+	if len(input.Checkpoint) > chattool.MaxCheckpointBytes {
+		p.logger.Warn(ctx, "ignoring oversized save_checkpoint input", slog.F("chat_id", chatID), slog.F("bytes", len(input.Checkpoint)))
+		return "", nil
 	}
 	return input.Checkpoint, nil
 }
