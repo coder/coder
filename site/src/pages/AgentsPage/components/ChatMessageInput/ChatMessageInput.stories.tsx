@@ -343,7 +343,6 @@ export const CommandsHiddenWhileOrganizationSkillChoicesLoad: Story = {
 	},
 };
 
-// An organization without skills has nothing to opt out of.
 export const OrganizationWithoutSkillsIgnoresChoicesError: Story = {
 	args: {
 		personalSkillsOverride: [],
