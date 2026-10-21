@@ -11,7 +11,7 @@ import { RetryButton } from "./RetryButton";
 import { SectionHeader } from "./SectionHeader";
 
 type ChatAttachmentsProps = {
-	/** Undefined while the list loads. */
+	/** Newest first; undefined while the list loads. */
 	attachments: readonly MessageAttachment[] | undefined;
 	evictedFileIds: ReadonlySet<string>;
 	hasEarlierAttachmentsError: boolean;
@@ -20,8 +20,8 @@ type ChatAttachmentsProps = {
 };
 
 /**
- * Shows `attachments` in the order given (callers pass them newest first),
- * with a count in the header once the list is complete.
+ * Shows `attachments` in the order given, with a count in the header once
+ * the list is complete.
  */
 export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 	attachments,
