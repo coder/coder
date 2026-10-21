@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"slices"
 	"time"
@@ -14,11 +15,13 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -34,6 +37,10 @@ const (
 	// works on the file at the same time.
 	workspaceFileDeliveryLeaseMargin = time.Minute
 	workspaceFileDeliveryRetryDelay  = time.Minute
+	// workspaceFileDeliveryUsageInterval bounds how often a delivery
+	// records workspace usage while its content streams, the cadence of
+	// the direct upload path and the chat heartbeat.
+	workspaceFileDeliveryUsageInterval = 30 * time.Second
 )
 
 // workspaceFileDeliveryFailure is a failed delivery attempt and how the
@@ -247,11 +254,25 @@ func (w *chatWorker) copyWorkspaceFile(ctx context.Context, row database.Acquire
 	defer release()
 	conn.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {chat.ID.String()}})
 
+	// No chat turn heartbeat may keep the workspace alive during the
+	// delivery, so it records usage itself; otherwise the workspace could
+	// autostop during a long copy.
+	body := &workspaceFileUsageReader{
+		r:     bytes.NewReader(file.Data),
+		clock: w.opts.Clock,
+		report: func() {
+			if w.server.usageTracker != nil {
+				w.server.usageTracker.Add(row.WorkspaceID.UUID)
+			}
+			workspacestats.ActivityBumpWorkspace(ctx, w.opts.Logger.Named("activity_bump"), w.opts.Store, row.WorkspaceID.UUID, time.Time{}, workspacestats.ActivityBumpReasonChatWorkspaceUpload)
+		},
+	}
+	body.reportNow()
 	resp, err := conn.UploadChatFile(ctx, workspacesdk.UploadChatFileRequest{
 		ChatID: chat.ID.String(),
 		Name:   file.Name,
 		FileID: file.ID,
-		Body:   bytes.NewReader(file.Data),
+		Body:   body,
 	})
 	if err != nil {
 		return workspacesdk.AgentUploadChatFileResponse{}, classifyWorkspaceFileUploadError(err)
@@ -266,6 +287,29 @@ func (w *chatWorker) copyWorkspaceFile(ctx context.Context, row database.Acquire
 		))
 	}
 	return resp, nil
+}
+
+// workspaceFileUsageReader reports workspace usage when a delivery starts
+// and at most every workspaceFileDeliveryUsageInterval while its content
+// streams.
+type workspaceFileUsageReader struct {
+	r          io.Reader
+	clock      quartz.Clock
+	report     func()
+	lastReport time.Time
+}
+
+func (u *workspaceFileUsageReader) reportNow() {
+	u.lastReport = u.clock.Now("chatworker", "workspace-file-delivery")
+	u.report()
+}
+
+func (u *workspaceFileUsageReader) Read(p []byte) (int, error) {
+	n, err := u.r.Read(p)
+	if n > 0 && u.clock.Since(u.lastReport, "chatworker", "workspace-file-delivery") >= workspaceFileDeliveryUsageInterval {
+		u.reportNow()
+	}
+	return n, err
 }
 
 // classifyWorkspaceFileUploadError parks a file the agent rejected, since

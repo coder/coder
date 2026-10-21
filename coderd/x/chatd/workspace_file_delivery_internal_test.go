@@ -33,6 +33,7 @@ type fakeUploadAgent struct {
 	workspacesdk.AgentConn
 
 	mu       sync.Mutex
+	stream   func(body io.Reader) ([]byte, error)
 	fail     func(req workspacesdk.UploadChatFileRequest) error
 	afterPut func()
 	requests []workspacesdk.UploadChatFileRequest
@@ -47,7 +48,13 @@ func newFakeUploadAgent() *fakeUploadAgent {
 func (*fakeUploadAgent) SetExtraHeaders(http.Header) {}
 
 func (a *fakeUploadAgent) UploadChatFile(ctx context.Context, req workspacesdk.UploadChatFileRequest) (workspacesdk.AgentUploadChatFileResponse, error) {
-	data, err := io.ReadAll(req.Body)
+	a.mu.Lock()
+	stream := a.stream
+	a.mu.Unlock()
+	if stream == nil {
+		stream = io.ReadAll
+	}
+	data, err := stream(req.Body)
 	if err != nil {
 		return workspacesdk.AgentUploadChatFileResponse{}, err
 	}
@@ -558,6 +565,51 @@ func TestWorkspaceFileDeliveryOutcomes(t *testing.T) {
 		want := workspaceFileDeliveryLease - time.Minute + 4*time.Second
 		require.Greater(t, timeouts[0], want-time.Second)
 		require.LessOrEqual(t, timeouts[0], want)
+	})
+
+	t.Run("UploadKeepsTheWorkspaceAlive", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+		build, err := f.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, chat.WorkspaceID.UUID)
+		require.NoError(t, err)
+		// No chat turn heartbeats while the workspace nears its autostop
+		// deadline.
+		nearAutostop := func() {
+			t.Helper()
+			require.NoError(t, f.db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+				ID:        build.ID,
+				Deadline:  dbtime.Now().Add(time.Minute),
+				UpdatedAt: dbtime.Now(),
+			}))
+		}
+		requireBumped := func() {
+			t.Helper()
+			latest, err := f.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, build.WorkspaceID)
+			require.NoError(t, err)
+			require.True(t, latest.Deadline.After(dbtime.Now().Add(30*time.Minute)), "deadline %s was not bumped", latest.Deadline)
+		}
+		nearAutostop()
+		f.agent.stream = func(body io.Reader) ([]byte, error) {
+			requireBumped()
+			nearAutostop()
+			var head [1]byte
+			if _, err := io.ReadFull(body, head[:]); err != nil {
+				return nil, err
+			}
+			f.clock.Advance(workspaceFileDeliveryUsageInterval)
+			rest, err := io.ReadAll(body)
+			if err != nil {
+				return nil, err
+			}
+			requireBumped()
+			return append(head[:], rest...), nil
+		}
+
+		f.worker(t).deliverWorkspaceFiles(ctx)
+		f.requireDelivered(ctx, t, chat, file.ID)
 	})
 
 	t.Run("DisconnectedAgentRefunds", func(t *testing.T) {
