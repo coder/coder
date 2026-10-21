@@ -41,8 +41,10 @@ import { getEffectiveTabId } from "../components/ChatsSidebar/tabs/getEffectiveT
 import { SidebarTabView } from "../components/ChatsSidebar/tabs/SidebarTabView";
 import { ChatTopBar } from "../components/ChatTopBar";
 import { GitPanel } from "../components/GitPanel/GitPanel";
+import { QuickOpenDialog } from "../components/QuickOpenDialog/QuickOpenDialog";
 import { DebugPanel } from "../components/RightPanel/DebugPanel/DebugPanel";
 import { DesktopPanel } from "../components/RightPanel/DesktopPanel";
+import { FilesPanel } from "../components/RightPanel/FilesPanel";
 import { PortPreviewPanel } from "../components/RightPanel/PortPreviewPanel";
 import { RightPanel } from "../components/RightPanel/RightPanel";
 import { RightPanelAddTabControl } from "../components/RightPanel/RightPanelAddTabControl";
@@ -319,7 +321,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	desktopChatId,
 }) => {
 	const { proxy } = useProxy();
-	const { entitlements } = useDashboard();
+	const { entitlements, experiments } = useDashboard();
 	const { permissions, user: currentUser } = useAuthenticated();
 	const wildcardHostname = proxy.preferredWildcardHostname;
 	const agentId = chat.id;
@@ -429,6 +431,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const availableBrowserApp = getAgentBrowserApp(workspaceAgent);
 
 	const singletonTabSupport: Record<SingletonRightPanelTabId, boolean> = {
+		// Mirrors when WorkspaceFilesContext provides a value.
+		files:
+			experiments.includes("workspace-files") && workspaceAgent !== undefined,
 		browser: availableBrowserApp !== undefined,
 		desktop: availableDesktopChatId !== undefined,
 		debug: debugLoggingEnabled === true,
@@ -459,6 +464,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const builtInSidebarTabConfigs = [
 		{ id: "summary", label: "Summary" },
 		{ id: "git", label: "Git" },
+		...(isSingletonTabShown("files") ? [{ id: "files", label: "Files" }] : []),
 		...(isSingletonTabShown("debug") ? [{ id: "debug", label: "Debug" }] : []),
 		...(isSingletonTabShown("browser")
 			? [{ id: "browser", label: "Browser" }]
@@ -673,6 +679,8 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 						chatInputRef={editing.chatInputRef}
 					/>
 				);
+			case "files":
+				return <FilesPanel chatId={agentId} />;
 			case "browser":
 				return workspace && workspaceAgent && availableBrowserApp ? (
 					<WorkspaceAppFrame
@@ -1003,6 +1011,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								chatTitle={chat.title}
 							/>
 						</RightPanel>
+						<QuickOpenDialog />
 					</div>
 				</DesktopPanelContext>
 			</ChatWorkspaceContext>
