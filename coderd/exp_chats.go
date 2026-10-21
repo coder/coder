@@ -82,6 +82,11 @@ const (
 	maxChatRequestBodyBytes = 256 * 1024
 
 	maxConcurrentChatWorkspaceFileUploads = 4
+	// A buffered workspace upload releases its permit once its body
+	// stalls this long, or once reading it takes the maximum duration.
+	// coderd's HTTP server sets no body read timeout of its own.
+	chatWorkspaceFileUploadIdleTimeout = 30 * time.Second
+	chatWorkspaceFileUploadMaxDuration = 30 * time.Minute
 
 	defaultChatContextCompressionThreshold = int32(70)
 	// Large-context models (1M) compact earlier; 70% of a 1M window
@@ -6924,14 +6929,15 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 // @ID upload-chat-file
 // @Security CoderSessionToken
 // @Tags Chats
-// @Accept image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
+// @Accept */*
 // @Produce json
 // @Param organization query string true "Organization ID" format(uuid)
-// @Param purpose query string false "File purpose. Workspace files accept any type up to 100 MiB and are copied into the chat's workspace instead of being sent to the model" Enums(prompt,workspace)
+// @Param purpose query string false "File purpose. Prompt files accept image/png, image/jpeg, image/gif, image/webp, image/svg+xml, text/plain, text/markdown, text/csv, application/json and application/pdf up to 10 MiB. Workspace files accept any type up to 100 MiB and are copied into the chat's workspace instead of being sent to the model" Enums(prompt,workspace)
 // @Param Content-Disposition header string true "Attachment disposition carrying the file name" example(attachment; filename="image.png")
 // @Param request body string true "Raw file binary data"
 // @x-apidocgen {"rawBodyFile": "image.png"}
 // @Success 201 {object} codersdk.UploadChatFileResponse
+// @Failure 408 {object} codersdk.Response "Workspace file body stalled for 30 seconds or took over 30 minutes"
 // @Failure 413 {object} codersdk.Response "Request body exceeds 10 MiB, or 100 MiB for workspace files"
 // @Router /api/v2/chats/files [post]
 func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
@@ -7024,7 +7030,24 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	r.Body = http.MaxBytesReader(rw, r.Body, maxBytes)
-	data, err := io.ReadAll(r.Body)
+	var body io.Reader = r.Body
+	var deadline *uploadBodyDeadline
+	if forWorkspace {
+		// The body is read while a permit is held, so a slow or stalled
+		// client must not keep it.
+		deadline = newUploadBodyDeadline(ctx, api.Logger, api.Clock, rw, r.Body,
+			chatWorkspaceFileUploadIdleTimeout, chatWorkspaceFileUploadMaxDuration)
+		body = deadline
+	}
+	data, err := io.ReadAll(body)
+	if deadline != nil && deadline.finish() {
+		httpapi.Write(ctx, rw, http.StatusRequestTimeout, codersdk.Response{
+			Message: "Upload timed out.",
+			Detail: fmt.Sprintf("The file body stalled for %s or took longer than %s to arrive.",
+				chatWorkspaceFileUploadIdleTimeout, chatWorkspaceFileUploadMaxDuration),
+		})
+		return
+	}
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
@@ -7129,6 +7152,7 @@ func (c ChatFileDownloadClaims) Validate(expected jwt.Expected) error {
 // @Produce json
 // @Param file path string true "File ID" format(uuid)
 // @Success 200 {object} codersdk.ChatFileDownloadURLResponse
+// @Failure 403 {object} codersdk.Response "Workspace files are copied into the chat's workspace and cannot be downloaded"
 // @Failure 410 {object} codersdk.Response "Workspace file was copied into the chat's workspace and is no longer stored"
 // @Router /api/v2/chats/files/{file}/download-url [post]
 // @x-apidocgen {"skip": true}
@@ -7142,7 +7166,7 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	chatFile, err := api.Database.GetChatFileByID(ctx, fileID)
+	chatFile, ok, err := api.servableChatFile(ctx, rw, fileID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
@@ -7154,7 +7178,7 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
-	if writeChatFileGoneIfDelivered(ctx, rw, chatFile) {
+	if !ok {
 		return
 	}
 
@@ -7198,6 +7222,7 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 // @Param file path string true "File ID" format(uuid)
 // @Param token query string true "Signed download token"
 // @Success 200
+// @Failure 403 {object} codersdk.Response "Workspace files are copied into the chat's workspace and cannot be downloaded"
 // @Failure 410 {object} codersdk.Response "Workspace file was copied into the chat's workspace and is no longer stored"
 // @Router /api/v2/chats/files/{file}/download [get]
 // @x-apidocgen {"skip": true}
@@ -7221,7 +7246,10 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chatFile, err := api.Database.GetChatFileByID(dbauthz.As(ctx, subject), fileID)
+	// Never let private caches replay a signed URL past its expiry;
+	// revocation is re-checked only when the request reaches coderd.
+	rw.Header().Set("Cache-Control", "no-store")
+	chatFile, ok, err := api.servableChatFile(dbauthz.As(ctx, subject), rw, fileID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
@@ -7235,10 +7263,7 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	// Never let private caches replay a signed URL past its expiry;
-	// revocation is re-checked only when the request reaches coderd.
-	rw.Header().Set("Cache-Control", "no-store")
-	if writeChatFileGoneIfDelivered(ctx, rw, chatFile) {
+	if !ok {
 		return
 	}
 	api.serveChatFile(ctx, rw, chatFile)
@@ -7250,6 +7275,7 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 // @Tags Chats
 // @Param file path string true "File ID" format(uuid)
 // @Success 200
+// @Failure 403 {object} codersdk.Response "Workspace files are copied into the chat's workspace and cannot be downloaded"
 // @Failure 410 {object} codersdk.Response "Workspace file was copied into the chat's workspace and is no longer stored"
 // @Router /api/v2/chats/files/{file} [get]
 func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
@@ -7264,7 +7290,7 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chatFile, err := api.Database.GetChatFileByID(ctx, fileID)
+	chatFile, ok, err := api.servableChatFile(ctx, rw, fileID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
@@ -7276,30 +7302,46 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
-	if chatFile.Purpose == database.ChatFilePurposeWorkspace {
-		// The bytes are dropped once the file reaches the workspace, so
-		// a cached copy would outlive the stored file.
-		rw.Header().Set("Cache-Control", "no-store")
-	} else {
-		rw.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
-	}
-	if writeChatFileGoneIfDelivered(ctx, rw, chatFile) {
+	if !ok {
 		return
 	}
+
+	rw.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
 	api.serveChatFile(r.Context(), rw, chatFile)
 }
 
-// writeChatFileGoneIfDelivered answers 410 Gone for a workspace file whose
-// bytes were dropped after delivery, instead of serving an empty body.
-func writeChatFileGoneIfDelivered(ctx context.Context, rw http.ResponseWriter, chatFile database.ChatFile) bool {
-	if chatFile.Purpose != database.ChatFilePurposeWorkspace || !chatFile.WorkspaceDeliveredAt.Valid {
-		return false
+// servableChatFile loads a chat file for a download route. Workspace
+// files are refused from their metadata, before their bytes are loaded:
+// they may be 100 MiB and exist only to be copied into the chat's
+// workspace. ok is false when a refusal was written; err reports a failed
+// lookup for the caller to answer.
+func (api *API) servableChatFile(ctx context.Context, rw http.ResponseWriter, fileID uuid.UUID) (chatFile database.ChatFile, ok bool, err error) {
+	rows, err := api.Database.GetChatFilesMetadataByIDs(ctx, []uuid.UUID{fileID})
+	if err != nil {
+		return database.ChatFile{}, false, err
 	}
-	httpapi.Write(ctx, rw, http.StatusGone, codersdk.Response{
-		Message: "Chat file was copied into the chat's workspace and is no longer stored.",
-	})
-	return true
+	if len(rows) == 0 {
+		return database.ChatFile{}, false, sql.ErrNoRows
+	}
+	if rows[0].Purpose == database.ChatFilePurposeWorkspace {
+		rw.Header().Set("Cache-Control", "no-store")
+		if rows[0].WorkspaceDeliveredAt.Valid {
+			httpapi.Write(ctx, rw, http.StatusGone, codersdk.Response{
+				Message: "Chat file was copied into the chat's workspace and is no longer stored.",
+			})
+			return database.ChatFile{}, false, nil
+		}
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Workspace chat files cannot be downloaded.",
+			Detail:  "Coder copies the file into the chat's workspace once the workspace is running.",
+		})
+		return database.ChatFile{}, false, nil
+	}
+	chatFile, err = api.Database.GetChatFileByID(ctx, fileID)
+	if err != nil {
+		return database.ChatFile{}, false, err
+	}
+	return chatFile, true, nil
 }
 
 // serveChatFile writes the file body and content headers; callers set
@@ -7615,6 +7657,69 @@ func (api *API) postChatWorkspaceFile(rw http.ResponseWriter, r *http.Request) {
 		MediaType:   contentType,
 		WorkspaceID: workspace.ID,
 	})
+}
+
+// uploadBodyDeadline fails reads of a request body once it stalls for
+// idle or has been read for maxDuration, by moving the connection's read
+// deadline to now. That interrupts a read blocked on the network, which
+// closing the body would not.
+type uploadBodyDeadline struct {
+	r         io.Reader
+	rc        *http.ResponseController
+	idle      time.Duration
+	idleTimer *quartz.Timer
+	maxTimer  *quartz.Timer
+
+	mu      sync.Mutex
+	done    bool
+	expired bool
+}
+
+func newUploadBodyDeadline(
+	ctx context.Context,
+	logger slog.Logger,
+	clock quartz.Clock,
+	rw http.ResponseWriter,
+	r io.Reader,
+	idle time.Duration,
+	maxDuration time.Duration,
+) *uploadBodyDeadline {
+	d := &uploadBodyDeadline{r: r, rc: http.NewResponseController(rw), idle: idle}
+	expire := func() {
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		if d.done {
+			return
+		}
+		d.expired = true
+		if err := d.rc.SetReadDeadline(time.Now()); err != nil {
+			logger.Warn(ctx, "cannot interrupt a timed out chat file upload", slog.Error(err))
+		}
+	}
+	d.idleTimer = clock.AfterFunc(idle, expire, "chatFileUpload", "idle")
+	d.maxTimer = clock.AfterFunc(maxDuration, expire, "chatFileUpload", "max")
+	return d
+}
+
+func (d *uploadBodyDeadline) Read(p []byte) (int, error) {
+	n, err := d.r.Read(p)
+	if n > 0 {
+		d.idleTimer.Reset(d.idle, "chatFileUpload", "idle")
+	}
+	return n, err
+}
+
+// finish stops the timers and reports whether the deadline expired, in
+// which case the read failed or raced the expiry and must be treated as
+// timed out.
+func (d *uploadBodyDeadline) finish() bool {
+	d.mu.Lock()
+	d.done = true
+	expired := d.expired
+	d.mu.Unlock()
+	d.idleTimer.Stop()
+	d.maxTimer.Stop()
+	return expired
 }
 
 // chatWorkspaceUploadUsageInterval bounds how often a streaming upload
