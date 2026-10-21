@@ -146,8 +146,9 @@ func pollUntilReported(ctx context.Context, t *testing.T, f workspaceFileDeliver
 
 // awaitDuringDelayedClaim runs the helper in report mode, lets the
 // delivery loop claim the chat's due files only once the helper waits for
-// them, and returns the report.
-func awaitDuringDelayedClaim(ctx context.Context, t *testing.T, f workspaceFileDeliveryFixture, server *Server, chatID uuid.UUID) chattool.WorkspaceAttachmentsReport {
+// them, and returns the report. beforeClaim, when set, runs right before
+// the claim.
+func awaitDuringDelayedClaim(ctx context.Context, t *testing.T, f workspaceFileDeliveryFixture, server *Server, chatID uuid.UUID, beforeClaim func()) chattool.WorkspaceAttachmentsReport {
 	t.Helper()
 	trap := f.clock.Trap().NewTicker("chatd", "await-workspace-files")
 	defer trap.Close()
@@ -169,6 +170,9 @@ func awaitDuringDelayedClaim(ctx context.Context, t *testing.T, f workspaceFileD
 		call.MustRelease(ctx)
 	case <-ctx.Done():
 		t.Fatal("timed out waiting for the helper to wait")
+	}
+	if beforeClaim != nil {
+		beforeClaim()
 	}
 	server.chatWorker.deliverWorkspaceFiles(ctx)
 	return pollUntilReported(ctx, t, f, done)
@@ -353,11 +357,36 @@ func TestAwaitChatWorkspaceFiles(t *testing.T) {
 		require.Equal(t, chattool.WorkspaceAttachmentCopying, report.Attachments[0].Status)
 		require.Empty(t, report.Attachments[0].Error)
 
-		report = awaitDuringDelayedClaim(ctx, t, f, server, chat.ID)
+		report = awaitDuringDelayedClaim(ctx, t, f, server, chat.ID, nil)
 		require.NoError(t, report.Err)
 		require.Len(t, report.Attachments, 1)
 		require.Equal(t, chattool.WorkspaceAttachmentCopied, report.Attachments[0].Status)
 		require.Len(t, f.agent.uploadRequests(), 2)
+	})
+
+	t.Run("ReportsFailureAfterAgentRestartsDuringWait", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		server := f.statusServer(t)
+		chat, agent := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+		f.attach(t, chat.ID, file.ID)
+		f.setAgentFailure(func(workspacesdk.UploadChatFileRequest) error {
+			return agentStatusError(http.StatusForbidden)
+		})
+
+		start := f.clock.Now()
+		// The agent restarts while the helper waits, and the claim under
+		// the restarted agent parks the file.
+		report := awaitDuringDelayedClaim(ctx, t, f, server, chat.ID, func() {
+			f.restartAgent(ctx, t, agent.ID)
+		})
+		require.NoError(t, report.Err)
+		require.Len(t, report.Attachments, 1)
+		require.Equal(t, chattool.WorkspaceAttachmentFailed, report.Attachments[0].Status)
+		require.Contains(t, report.Attachments[0].Error, "agent says no")
+		require.Less(t, f.clock.Since(start), workspaceFileStatusMaxWait)
 	})
 
 	t.Run("AmbiguousAgentsReportSelectionError", func(t *testing.T) {
@@ -373,7 +402,7 @@ func TestAwaitChatWorkspaceFiles(t *testing.T) {
 		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
 		f.attach(t, chat.ID, file.ID)
 
-		report := awaitDuringDelayedClaim(ctx, t, f, server, chat.ID)
+		report := awaitDuringDelayedClaim(ctx, t, f, server, chat.ID, nil)
 		require.NoError(t, report.Err)
 		require.Len(t, report.Attachments, 1)
 		require.Equal(t, chattool.WorkspaceAttachmentFailed, report.Attachments[0].Status)
