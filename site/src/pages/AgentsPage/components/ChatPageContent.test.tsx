@@ -2,7 +2,15 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useRef, useState } from "react";
 import { useMutation } from "react-query";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+	afterAll,
+	afterEach,
+	beforeAll,
+	describe,
+	expect,
+	it,
+	vi,
+} from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
@@ -132,11 +140,28 @@ const workspaceFileReference = (
 });
 
 describe("ChatPageInput", () => {
+	// jsdom's Range has no getBoundingClientRect for vi.spyOn to wrap, and
+	// Lexical calls it when the composer regains focus.
+	const rangeRectDescriptor = Object.getOwnPropertyDescriptor(
+		Range.prototype,
+		"getBoundingClientRect",
+	);
 	beforeAll(() => {
 		Object.defineProperty(Range.prototype, "getBoundingClientRect", {
 			configurable: true,
 			value: () => new DOMRect(0, 0, 1, 16),
 		});
+	});
+	afterAll(() => {
+		if (rangeRectDescriptor) {
+			Object.defineProperty(
+				Range.prototype,
+				"getBoundingClientRect",
+				rangeRectDescriptor,
+			);
+		} else {
+			Reflect.deleteProperty(Range.prototype, "getBoundingClientRect");
+		}
 	});
 
 	afterEach(() => {
