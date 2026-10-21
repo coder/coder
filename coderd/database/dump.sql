@@ -966,6 +966,21 @@ $$;
 
 COMMENT ON FUNCTION compute_notification_message_dedupe_hash() IS 'Computes a unique hash which will be used to prevent duplicate messages from being enqueued on the same day';
 
+CREATE FUNCTION delete_chat_project_user_acl_on_org_member_delete() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    -- Drop the departing member's direct grants so adding them back to the
+    -- organization does not silently restore access.
+    UPDATE chat_projects
+    SET
+        user_acl = user_acl - OLD.user_id::text,
+        updated_at = now()
+    WHERE organization_id = OLD.organization_id AND user_acl ? OLD.user_id::text;
+    RETURN OLD;
+END;
+$$;
+
 CREATE FUNCTION delete_deleted_oauth2_provider_app_token_api_key() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1694,6 +1709,29 @@ CREATE TABLE ai_gateway_keys (
 COMMENT ON TABLE ai_gateway_keys IS 'Hashed bearer secrets used by AI Gateway standalone replicas to authenticate into coderd.';
 
 COMMENT ON COLUMN ai_gateway_keys.secret_prefix IS 'Public token prefix for display and audit correlation. Auth uses hashed_secret.';
+
+CREATE TABLE ai_model_configs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    provider_id uuid NOT NULL,
+    model text NOT NULL,
+    input_price bigint,
+    output_price bigint,
+    cache_read_price bigint,
+    cache_write_price bigint,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    CONSTRAINT ai_model_configs_cache_read_price_check CHECK ((cache_read_price >= 0)),
+    CONSTRAINT ai_model_configs_cache_write_price_check CHECK ((cache_write_price >= 0)),
+    CONSTRAINT ai_model_configs_input_price_check CHECK ((input_price >= 0)),
+    CONSTRAINT ai_model_configs_model_check CHECK ((model <> ''::text)),
+    CONSTRAINT ai_model_configs_output_price_check CHECK ((output_price >= 0))
+);
+
+COMMENT ON TABLE ai_model_configs IS 'AI Governance configuration for one model on one configured AI provider within one organization. The token prices override site-wide prices in ai_model_prices.';
+
+COMMENT ON COLUMN ai_model_configs.deleted IS 'Soft delete flag. Soft-deleted rows are kept for history and do not block a new live row for the same model.';
 
 CREATE TABLE ai_model_prices (
     provider text NOT NULL,
@@ -4522,6 +4560,9 @@ ALTER TABLE ONLY workspace_agent_stats
 ALTER TABLE ONLY ai_gateway_keys
     ADD CONSTRAINT ai_gateway_keys_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY ai_model_configs
+    ADD CONSTRAINT ai_model_configs_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY ai_model_prices
     ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model, source);
 
@@ -4975,6 +5016,8 @@ CREATE UNIQUE INDEX ai_gateway_keys_name_idx ON ai_gateway_keys USING btree (low
 
 CREATE UNIQUE INDEX ai_gateway_keys_secret_prefix_idx ON ai_gateway_keys USING btree (secret_prefix);
 
+CREATE UNIQUE INDEX ai_model_configs_organization_provider_model_unique ON ai_model_configs USING btree (organization_id, provider_id, model) WHERE (deleted = false);
+
 CREATE UNIQUE INDEX ai_providers_name_unique ON ai_providers USING btree (name) WHERE (deleted = false);
 
 CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
@@ -4986,6 +5029,8 @@ CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (he
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
+
+CREATE INDEX idx_ai_model_configs_provider_id ON ai_model_configs USING btree (provider_id);
 
 CREATE INDEX idx_ai_provider_keys_provider_id ON ai_provider_keys USING btree (provider_id);
 
@@ -5389,6 +5434,8 @@ CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_insert AFTER IN
 
 CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_update AFTER UPDATE OF content, model_config_id, "position", created_by ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
+CREATE TRIGGER trigger_delete_chat_project_user_acl_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_chat_project_user_acl_on_org_member_delete();
+
 CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
 
 CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_provider_app_tokens FOR EACH ROW EXECUTE FUNCTION delete_deleted_oauth2_provider_app_token_api_key();
@@ -5440,6 +5487,12 @@ CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF na
 COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'Use a trigger instead of a unique constraint because existing data may violate
 the uniqueness requirement. A trigger allows us to enforce uniqueness going
 forward without requiring a migration to clean up historical data.';
+
+ALTER TABLE ONLY ai_model_configs
+    ADD CONSTRAINT ai_model_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY ai_model_configs
+    ADD CONSTRAINT ai_model_configs_provider_id_fkey FOREIGN KEY (provider_id) REFERENCES ai_providers(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY ai_provider_keys
     ADD CONSTRAINT ai_provider_keys_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);

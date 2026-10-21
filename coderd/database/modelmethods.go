@@ -212,18 +212,14 @@ func (p ChatProject) RBACObject() rbac.Object {
 		WithGroupACL(p.GroupACL.RBACACL())
 }
 
-// Agent memory tools run as chatd and bypass this ACL, so chatd must check
-// IsChatProjectAccessibleByUserID for the chat owner before running them.
+// Project read grants memory read and write, matching what agent memory
+// tools can do in the sharee's chats. Those tools run as chatd and bypass
+// this ACL, so chatd checks IsChatProjectUsableByUserID first.
 func chatProjectMemoryACL(projectACL ChatACL) map[string][]policy.Action {
 	memoryACL := make(map[string][]policy.Action, len(projectACL))
 	for id, entry := range projectACL {
-		if !chatACLGrants(entry, policy.ActionRead) {
-			continue
-		}
-		if chatACLGrants(entry, policy.ActionUpdate) {
+		if chatACLGrants(entry, policy.ActionRead) {
 			memoryACL[id] = []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete}
-		} else {
-			memoryACL[id] = []policy.Action{policy.ActionRead}
 		}
 	}
 	return memoryACL

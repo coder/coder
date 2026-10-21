@@ -3,12 +3,11 @@ import { useState } from "react";
 import {
 	Tooltip,
 	TooltipContent,
+	type TooltipSide,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useClickable } from "#/hooks/useClickable";
 import { useClipboard } from "#/hooks/useClipboard";
-
-type TooltipSide = "top" | "right" | "bottom" | "left";
 
 type CopyableValueProps = React.ComponentProps<"span"> & {
 	value: string;

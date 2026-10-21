@@ -100,7 +100,8 @@ func TestService_AggregateRunSummary(t *testing.T) {
 		run := createRun(t, fixture)
 
 		// Step 2 is inserted first so the label proves the query
-		// orders rows by step_number rather than insertion.
+		// orders rows by step_number rather than insertion. The rows
+		// go through the store because CreateStep numbers steps itself.
 		for _, step := range []struct {
 			number   int32
 			status   chatdebug.Status
@@ -123,12 +124,12 @@ func TestService_AggregateRunSummary(t *testing.T) {
 				usage: map[string]any{"input_tokens": 10, "output_tokens": 5, "reasoning_tokens": 20, "cache_creation_tokens": 2, "cache_read_tokens": 3},
 			},
 		} {
-			created, err := fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
+			created, err := fixture.db.InsertChatDebugStep(fixture.ctx, database.InsertChatDebugStepParams{
 				RunID:      run.ID,
 				ChatID:     fixture.chat.ID,
 				StepNumber: step.number,
-				Operation:  chatdebug.OperationGenerate,
-				Status:     chatdebug.StatusInProgress,
+				Operation:  string(chatdebug.OperationGenerate),
+				Status:     string(chatdebug.StatusInProgress),
 			})
 			require.NoError(t, err)
 			_, err = fixture.svc.UpdateStep(fixture.ctx, chatdebug.UpdateStepParams{
