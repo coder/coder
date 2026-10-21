@@ -148,7 +148,9 @@ describe("Response", () => {
 			});
 			const files = renderWithFiles("See README.md for setup.");
 
-			await user.click(await screen.findByRole("button", { name: "README.md" }));
+			await user.click(
+				await screen.findByRole("button", { name: "README.md" }),
+			);
 			const picker = await screen.findByRole("list", {
 				name: "Files matching README.md",
 			});
