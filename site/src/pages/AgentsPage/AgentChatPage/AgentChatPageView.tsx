@@ -15,6 +15,7 @@ import {
 import { WorkspaceAppFrame } from "#/modules/apps/WorkspaceAppFrame";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { belowLgViewportMediaQuery } from "#/utils/mobile";
 import { generateConnectionSessionId, generateUUID } from "#/utils/random";
 import { findWorkspaceAgent } from "#/utils/workspace";
 import {
@@ -41,6 +42,8 @@ import { getEffectiveTabId } from "../components/ChatsSidebar/tabs/getEffectiveT
 import { SidebarTabView } from "../components/ChatsSidebar/tabs/SidebarTabView";
 import { ChatTopBar } from "../components/ChatTopBar";
 import { GitPanel } from "../components/GitPanel/GitPanel";
+import { MainTabs } from "../components/MainTabs/MainTabs";
+import { useMainTabs } from "../components/MainTabs/useMainTabs";
 import { QuickOpenDialog } from "../components/QuickOpenDialog/QuickOpenDialog";
 import { DebugPanel } from "../components/RightPanel/DebugPanel/DebugPanel";
 import { DesktopPanel } from "../components/RightPanel/DesktopPanel";
@@ -52,6 +55,10 @@ import { getWorkspaceStatus, StatusIcon } from "../components/StatusIcon";
 import { TerminalPanel } from "../components/TerminalPanel";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "../context/TerminalClientSessionContext";
+import {
+	WorkspaceFilesContext,
+	type WorkspaceFilesContextValue,
+} from "../context/WorkspaceFilesContext";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import {
 	getPersistedDefaultTerminalHidden,
@@ -103,6 +110,8 @@ type AgentChatPageViewProps = {
 	persistedError: ChatDetailError | undefined;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
+	/** The workspace-files experiment: file tabs and file links. */
+	workspaceFilesEnabled?: boolean;
 
 	// Store handle.
 	store: ChatStoreHandle;
@@ -272,6 +281,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	persistedError,
 	workspaceAgent,
 	workspace,
+	workspaceFilesEnabled,
 	store,
 	initialMessages,
 	editing,
@@ -396,12 +406,35 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 
 	const shouldShowSidebar = showSidebarPanel;
 
+	const repoRoots = Array.from(gitWatcher.repositories.keys()).sort();
 	// Prefer the git repository root over the agent's expanded directory
 	// for VS Code folder resolution (important for monorepos).
-	const preferredFolder = (() => {
-		const repoRoots = Array.from(gitWatcher?.repositories.keys() ?? []).sort();
-		return repoRoots[0] || workspaceAgent?.expanded_directory;
-	})();
+	const preferredFolder = repoRoots[0] || workspaceAgent?.expanded_directory;
+
+	const mainTabs = useMainTabs(chat.id);
+	const workspaceFiles: WorkspaceFilesContextValue | undefined =
+		workspaceFilesEnabled && workspaceAgent
+			? {
+					agentId: workspaceAgent.id,
+					defaultDirectory: workspaceAgent.expanded_directory || undefined,
+					repoRoots,
+					repositories: gitWatcher.repositories,
+					openFile: (path, options) => {
+						mainTabs.openFile(path, options);
+						// File tabs render in the chat area, which an expanded right
+						// panel, or an open one below lg, covers.
+						if (visualExpanded) {
+							setIsRightPanelExpanded(false);
+						}
+						if (
+							showSidebarPanel &&
+							window.matchMedia(belowLgViewportMediaQuery).matches
+						) {
+							onSetShowSidebarPanel(false);
+						}
+					},
+				}
+			: undefined;
 
 	const workspaceRoute = workspace
 		? `/@${workspace.owner_name}/${workspace.name}`
@@ -817,7 +850,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			? runtimeHours.hard_limit
 			: undefined;
 
-	return (
+	const pageContent = (
 		<TerminalClientSessionContext value={clientSessionId}>
 			<ChatWorkspaceContext
 				value={{
@@ -883,98 +916,100 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									}}
 								/>
 							</div>
-							<ChatPageTimeline
-								key={agentId}
-								organizationId={organizationId}
-								store={store}
-								chatFiles={chat.files}
-								initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
-								persistedError={persistedError}
-								hasMoreMessages={hasMoreMessages}
-								isFetchingMoreMessages={isFetchingMoreMessages}
-								isHydratingMessages={isHydratingMessages}
-								hasFetchMoreError={hasFetchMoreError}
-								onFetchMoreMessages={onFetchMoreMessages}
-								onEditUserMessage={
-									isOtherUserReadOnly
-										? undefined
-										: editing.handleEditUserMessage
-								}
-								editingMessageId={editing.editingMessageId}
-								urlTransform={urlTransform}
-								mcpServers={mcpServers}
-								onImplementPlan={
-									isOtherUserReadOnly || !canSubmitChatTurn
-										? undefined
-										: onImplementPlan
-								}
-								onSendAskUserQuestionResponse={
-									isOtherUserReadOnly || !canSubmitChatTurn
-										? undefined
-										: onSendAskUserQuestionResponse
-								}
-								footer={
-									chat.queued_for_capacity ? (
-										<QueuedForCapacityCallout
-											hasLicense={hasLicense}
-											canManageLicenses={canManageLicenses}
-											agentHoursHardLimit={agentHoursHardLimit}
+							<MainTabs mainTabs={mainTabs}>
+								<ChatPageTimeline
+									key={agentId}
+									organizationId={organizationId}
+									store={store}
+									chatFiles={chat.files}
+									initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
+									persistedError={persistedError}
+									hasMoreMessages={hasMoreMessages}
+									isFetchingMoreMessages={isFetchingMoreMessages}
+									isHydratingMessages={isHydratingMessages}
+									hasFetchMoreError={hasFetchMoreError}
+									onFetchMoreMessages={onFetchMoreMessages}
+									onEditUserMessage={
+										isOtherUserReadOnly
+											? undefined
+											: editing.handleEditUserMessage
+									}
+									editingMessageId={editing.editingMessageId}
+									urlTransform={urlTransform}
+									mcpServers={mcpServers}
+									onImplementPlan={
+										isOtherUserReadOnly || !canSubmitChatTurn
+											? undefined
+											: onImplementPlan
+									}
+									onSendAskUserQuestionResponse={
+										isOtherUserReadOnly || !canSubmitChatTurn
+											? undefined
+											: onSendAskUserQuestionResponse
+									}
+									footer={
+										chat.queued_for_capacity ? (
+											<QueuedForCapacityCallout
+												hasLicense={hasLicense}
+												canManageLicenses={canManageLicenses}
+												agentHoursHardLimit={agentHoursHardLimit}
+											/>
+										) : undefined
+									}
+								/>
+								{!isArchived && (
+									<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
+										<ChatPageInput
+											chat={chat}
+											store={store}
+											modelCatalog={modelCatalog}
+											onSend={editing.handleSendFromInput}
+											onDeleteQueuedMessage={handleDeleteQueuedMessage}
+											onPromoteQueuedMessage={handlePromoteQueuedMessage}
+											onInterrupt={handleInterrupt}
+											isInputDisabled={isInputDisabled}
+											isReadOnly={isOtherUserReadOnly}
+											readOnlyNotice={readOnlyNotice}
+											isSendPending={isSubmissionPending}
+											isInterruptPending={isInterruptPending}
+											hasModelOptions={hasModelOptions}
+											canConfigureAgentSetup={canConfigureAgentSetup}
+											providerCount={providerCount}
+											modelCount={modelCount}
+											unsupportedProviderNames={unsupportedProviderNames}
+											aiGatewayDisabled={aiGatewayDisabled}
+											selectedModel={effectiveSelectedModel}
+											onModelChange={setSelectedModel}
+											modelOptions={modelOptions}
+											modelSelectorPlaceholder={modelSelectorPlaceholder}
+											modelSelectorHelp={modelSelectorHelp}
+											reasoningEffort={reasoningEffort}
+											onReasoningEffortChange={onReasoningEffortChange}
+											onPlanModeToggle={onPlanModeToggle}
+											isModelCatalogLoading={isModelCatalogLoading}
+											onWorkspaceChange={onWorkspaceChange}
+											isWorkspaceLoading={isWorkspaceLoading}
+											inputRef={editing.chatInputRef}
+											initialValue={editing.editorInitialValue}
+											initialEditorState={editing.initialEditorState}
+											remountKey={editing.remountKey}
+											onContentChange={editing.handleContentChange}
+											isEditing={isEditing}
+											onCancelHistoryEdit={editing.handleCancelHistoryEdit}
+											editingFileBlocks={editing.editingFileBlocks}
+											mcpServers={mcpServers}
+											selectedMCPServerIds={selectedMCPServerIds}
+											onMCPSelectionChange={onMCPSelectionChange}
+											onMCPAuthComplete={onMCPAuthComplete}
+											workspace={workspace}
+											workspaceAgent={workspaceAgent}
+											sshCommand={sshCommand}
+											attachedWorkspace={attachedWorkspace}
+											folder={preferredFolder}
 										/>
-									) : undefined
-								}
-							/>
-							{!isArchived && (
-								<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
-									<ChatPageInput
-										chat={chat}
-										store={store}
-										modelCatalog={modelCatalog}
-										onSend={editing.handleSendFromInput}
-										onDeleteQueuedMessage={handleDeleteQueuedMessage}
-										onPromoteQueuedMessage={handlePromoteQueuedMessage}
-										onInterrupt={handleInterrupt}
-										isInputDisabled={isInputDisabled}
-										isReadOnly={isOtherUserReadOnly}
-										readOnlyNotice={readOnlyNotice}
-										isSendPending={isSubmissionPending}
-										isInterruptPending={isInterruptPending}
-										hasModelOptions={hasModelOptions}
-										canConfigureAgentSetup={canConfigureAgentSetup}
-										providerCount={providerCount}
-										modelCount={modelCount}
-										unsupportedProviderNames={unsupportedProviderNames}
-										aiGatewayDisabled={aiGatewayDisabled}
-										selectedModel={effectiveSelectedModel}
-										onModelChange={setSelectedModel}
-										modelOptions={modelOptions}
-										modelSelectorPlaceholder={modelSelectorPlaceholder}
-										modelSelectorHelp={modelSelectorHelp}
-										reasoningEffort={reasoningEffort}
-										onReasoningEffortChange={onReasoningEffortChange}
-										onPlanModeToggle={onPlanModeToggle}
-										isModelCatalogLoading={isModelCatalogLoading}
-										onWorkspaceChange={onWorkspaceChange}
-										isWorkspaceLoading={isWorkspaceLoading}
-										inputRef={editing.chatInputRef}
-										initialValue={editing.editorInitialValue}
-										initialEditorState={editing.initialEditorState}
-										remountKey={editing.remountKey}
-										onContentChange={editing.handleContentChange}
-										isEditing={isEditing}
-										onCancelHistoryEdit={editing.handleCancelHistoryEdit}
-										editingFileBlocks={editing.editingFileBlocks}
-										mcpServers={mcpServers}
-										selectedMCPServerIds={selectedMCPServerIds}
-										onMCPSelectionChange={onMCPSelectionChange}
-										onMCPAuthComplete={onMCPAuthComplete}
-										workspace={workspace}
-										workspaceAgent={workspaceAgent}
-										sshCommand={sshCommand}
-										attachedWorkspace={attachedWorkspace}
-										folder={preferredFolder}
-									/>
-								</div>
-							)}
+									</div>
+								)}
+							</MainTabs>
 						</div>
 						<RightPanel
 							isOpen={shouldShowSidebar}
@@ -1015,6 +1050,12 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 				</DesktopPanelContext>
 			</ChatWorkspaceContext>
 		</TerminalClientSessionContext>
+	);
+
+	return (
+		<WorkspaceFilesContext value={workspaceFiles}>
+			{pageContent}
+		</WorkspaceFilesContext>
 	);
 };
 
