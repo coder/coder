@@ -400,7 +400,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			? undefined
 			: resolveChatCompactionThreshold(
 					chat.last_model_config_id,
-					thresholdsQuery.data?.thresholds,
+					thresholdsQuery.data.thresholds,
 					modelCatalog?.models,
 					providerInfoByIDFromDescriptors(modelCatalog?.providers),
 					modelOverridesQuery,
