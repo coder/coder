@@ -456,6 +456,7 @@ func (p *Server) buildTurnEnvironment(
 		tokenBudget = strategy == codersdk.ChatCompactionStrategyTokenBudget
 	}
 	var conversionRows []database.ChatMessage
+	conversionPendingStart := pendingRowsStart
 	var contextWindowBlock string
 	if tokenBudget {
 		conversionRows, err = tagUserRowsWithItemIDs(promptRows)
@@ -469,6 +470,10 @@ func (p *Server) buildTurnEnvironment(
 		contextWindowBlock = contextWindowPrompt(contextWindowID(promptRows), previousWindowID)
 	} else {
 		conversionRows, err = withoutChatHistoryLeadIn(promptRows)
+		if err != nil {
+			return turnEnvironment{}, err
+		}
+		conversionRows, conversionPendingStart, err = withoutContextHandoffPrompts(conversionRows, pendingRowsStart)
 		if err != nil {
 			return turnEnvironment{}, err
 		}
@@ -538,13 +543,13 @@ func (p *Server) buildTurnEnvironment(
 		// accepts a file part is the one for model.Provider().
 		acceptsFilePart := model.AcceptsFilePartMediaType
 		providerType := string(modelRoute.Provider.Type)
-		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, conversionRows[:pendingRowsStart], p.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
+		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, conversionRows[:conversionPendingStart], p.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
 		if err != nil {
 			return xerrors.Errorf("build chat prompt: %w", err)
 		}
 		prompt = replaceUnsupportedToolMedia(ctx, logger, prompt, model, providerType)
-		if pendingRowsStart < len(promptRows) {
-			pendingPrompt, err = chatprompt.ConvertMessagesWithFiles(ctx, conversionRows[pendingRowsStart:], p.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
+		if conversionPendingStart < len(conversionRows) {
+			pendingPrompt, err = chatprompt.ConvertMessagesWithFiles(ctx, conversionRows[conversionPendingStart:], p.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
 			if err != nil {
 				return xerrors.Errorf("build pending chat prompt tail: %w", err)
 			}
