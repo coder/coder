@@ -22,7 +22,7 @@ export const EditableSkillChip: React.FC<
 			className={cn(fileReferenceChipVariants({ editable: true }), className)}
 			contentEditable={false}
 		>
-			<ZapIcon className="ml-0.5 size-3.5 shrink-0 text-content-secondary" />
+			<ZapIcon className="ml-0.5 size-icon-xs shrink-0 text-content-secondary" />
 			<span className="min-w-0 truncate" title={alias}>
 				{alias}
 			</span>
