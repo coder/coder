@@ -25,10 +25,8 @@ const badgeVariants = cva(
 					"border-highlight-orange bg-surface-orange text-highlight-orange",
 				destructive:
 					"border-border-destructive bg-surface-red text-highlight-red",
-				green:
-					"border-border-green bg-surface-green text-highlight-green",
-				purple:
-					"border-border-purple bg-surface-purple text-highlight-purple",
+				green: "border-border-green bg-surface-green text-highlight-green",
+				purple: "border-border-purple bg-surface-purple text-highlight-purple",
 				magenta:
 					"border-border-magenta bg-surface-magenta text-highlight-magenta",
 				info: "border-border-pending bg-surface-sky text-highlight-sky",
