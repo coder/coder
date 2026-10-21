@@ -7701,16 +7701,6 @@ func (q *querier) RetryChatWorkspaceFileDeliveries(ctx context.Context, arg data
 	return q.db.RetryChatWorkspaceFileDeliveries(ctx, arg)
 }
 
-func (q *querier) RetryChatWorkspaceFileDeliveriesByWorkspaceID(ctx context.Context, arg database.RetryChatWorkspaceFileDeliveriesByWorkspaceIDParams) (int64, error) {
-	// System-level reset used by the chatd delivery loop when a
-	// workspace agent finishes starting; callers must use AsChatd
-	// context.
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
-		return 0, err
-	}
-	return q.db.RetryChatWorkspaceFileDeliveriesByWorkspaceID(ctx, arg)
-}
-
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
