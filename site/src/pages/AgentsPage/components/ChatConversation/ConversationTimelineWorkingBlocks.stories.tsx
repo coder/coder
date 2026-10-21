@@ -336,6 +336,15 @@ export const TurnAttachmentsPillContextCleared: Story = {
 	},
 };
 
+// A turn that ends inside its working block shows the pill under the block.
+export const TurnAttachmentsPillWithoutAnswer: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockUnansweredAttachmentMessages,
+		),
+	},
+};
+
 // With steps shown, a turn that ends on an attachment hosts the pill there.
 export const TurnAttachmentsPillStepsShown: Story = {
 	parameters: {

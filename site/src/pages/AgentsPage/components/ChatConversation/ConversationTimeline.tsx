@@ -756,6 +756,14 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						const answerRowIndex = block.endsWithAnswer
 							? block.rowIndices.at(-1)
 							: undefined;
+						// Without an answer row, no member renders at the top level, so
+						// the block shows its turn's pill.
+						const blockAttachments =
+							answerRowIndex === undefined
+								? memberKeys
+										.map((key) => turnAttachmentsByRow.get(key))
+										.find((attachments) => attachments !== undefined)
+								: undefined;
 
 						return [
 							<MessageScroller.Item
@@ -788,6 +796,13 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 											),
 										)}
 								</WorkingBlockDisclosure>
+								{blockAttachments && (
+									<MessageActionBar
+										isUser={false}
+										turnAttachments={blockAttachments}
+										showsActions={false}
+									/>
+								)}
 							</MessageScroller.Item>,
 							...(answerRowIndex === undefined
 								? []

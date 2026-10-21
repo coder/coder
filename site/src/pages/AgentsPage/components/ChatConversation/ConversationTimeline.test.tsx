@@ -25,6 +25,7 @@ import {
 	MockLongTurnPageLoads,
 	MockMixedAttachmentMessages,
 	MockSearchAnswerAttachmentMessages,
+	MockUnansweredAttachmentMessages,
 	MockWebSearchAnswerMessages,
 	MockWorkingMessages,
 	pinFixtureClock,
@@ -368,6 +369,15 @@ describe("ConversationTimeline turn attachments", () => {
 		expect(await openAttachmentHrefs(user, "Attachments (1)")).toEqual([
 			"/api/v2/chats/files/report-file",
 		]);
+		expect(await openAttachmentHrefs(user, "Attachments (4)")).toEqual(
+			mixedTurnHrefs,
+		);
+	});
+
+	it("lists the files of a turn that ends in its working block", async () => {
+		const user = userEvent.setup();
+		renderTimeline({ messages: MockUnansweredAttachmentMessages });
+
 		expect(await openAttachmentHrefs(user, "Attachments (4)")).toEqual(
 			mixedTurnHrefs,
 		);
