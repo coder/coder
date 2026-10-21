@@ -10,6 +10,12 @@ import type { UrlTransform } from "streamdown";
 import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import {
+	chatProjectSkills,
+	chatProjectUsability,
+	usableChatProjectSkills,
+} from "#/api/queries/chatProjectSkills";
+import { chatProject } from "#/api/queries/chatProjects";
+import {
 	chatMessagesForInfiniteScroll,
 	chatModels,
 	chatQueueConvergence,
@@ -326,6 +332,23 @@ const AgentChatPage: React.FC = () => {
 		enabled: Boolean(chatOrganizationId),
 		staleTime: 60_000,
 	});
+	const chatProjectId = experiments.includes("chat-projects")
+		? chatQuery.data?.project_id
+		: undefined;
+	const hasChatProject = Boolean(chatOrganizationId && chatProjectId);
+	const projectSkillsQuery = useQuery({
+		...chatProjectSkills(chatOrganizationId, chatProjectId ?? ""),
+		enabled: hasChatProject,
+		staleTime: 60_000,
+	});
+	const chatProjectQuery = useQuery({
+		...chatProject(chatProjectId),
+		enabled: hasChatProject,
+	});
+	const projectUsability = chatProjectUsability(
+		chatProjectQuery,
+		projectSkillsQuery.error,
+	);
 	const chatWorkspaceSkills = workspaceSkillsFromChat(chatQuery.data);
 	const { mutateAsync: deleteQueuedMessage } = useMutation(
 		deleteChatQueuedMessage(queryClient, agentId),
@@ -637,6 +660,15 @@ const AgentChatPage: React.FC = () => {
 		organizationSkills: organizationSkillsQuery.data?.filter(
 			(skill) => skill.enabled,
 		),
+		// Unlike the lists above, losing the use of the project means no
+		// project skills, even if some loaded earlier, because chatd then
+		// runs turns without them.
+		projectSkills: hasChatProject
+			? usableChatProjectSkills(
+					projectUsability,
+					projectSkillsQuery.data?.filter((skill) => skill.enabled),
+				)
+			: [],
 		workspaceSkills: chatWorkspaceSkills,
 		compact,
 		clearChatContext,
