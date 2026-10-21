@@ -440,7 +440,7 @@ func ReadSkillFile(options ReadSkillOptions) fantasy.AgentTool {
 			// read_skill stays the only tool that loads the body of a
 			// skill hidden from the model.
 			if !skill.ModelInvocable() && strings.EqualFold(path.Clean(args.Path), DefaultSkillMetaFile) {
-				return hiddenSkillMetaFileResponse(args.Name), nil
+				return hiddenSkillMetaFileResponse(args.Name, args.Path), nil
 			}
 
 			// Validate the path early so we reject bad
@@ -471,10 +471,12 @@ func ReadSkillFile(options ReadSkillOptions) fantasy.AgentTool {
 					err.Error(),
 				), nil
 			}
-			// A link or copy inside the skill directory can expose the
-			// meta file under another path.
-			if !skill.ModelInvocable() && content == string(skill.Meta) {
-				return hiddenSkillMetaFileResponse(args.Name), nil
+			// A link or copy in any skill directory can expose a hidden
+			// skill's meta file under another path, and the pinned meta
+			// goes stale when the file is edited, so check the content
+			// itself.
+			if workspacesdk.SkillDisablesModelInvocation(content) {
+				return hiddenSkillMetaFileResponse(args.Name, args.Path), nil
 			}
 
 			return toolResponse(map[string]any{
@@ -484,10 +486,10 @@ func ReadSkillFile(options ReadSkillOptions) fantasy.AgentTool {
 	)
 }
 
-func hiddenSkillMetaFileResponse(name string) fantasy.ToolResponse {
+func hiddenSkillMetaFileResponse(name, filePath string) fantasy.ToolResponse {
 	return fantasy.NewTextErrorResponse(fmt.Sprintf(
-		"%s of skill %q cannot be read with read_skill_file",
-		DefaultSkillMetaFile, name,
+		"%s of skill %q is the meta file of a skill hidden from agents and cannot be read with read_skill_file",
+		filePath, name,
 	))
 }
 
@@ -497,25 +499,17 @@ func hiddenSkillMetaFileResponse(name string) fantasy.ToolResponse {
 // name: a person can invoke such a skill, and its body may reference
 // supporting files.
 func resolveSkillFileTarget(options ReadSkillOptions, name string) (SkillMeta, fantasy.ToolResponse, bool) {
-	resolved, err := resolveSkillAlias(options, name)
-	if xerrors.Is(err, skillspkg.ErrSkillNotFound) {
-		skill, ok := findHiddenWorkspaceSkill(options, strings.TrimPrefix(name, skillspkg.QualifiedAlias(skillspkg.SourceWorkspace, "")))
-		if !ok {
-			return SkillMeta{}, skillNotFoundResponse(name), false
-		}
+	// Stored skills have no supporting files, so a name that names a
+	// hidden workspace skill means that skill, even when the bare name
+	// also names one or more listed stored skills.
+	if skill, ok := findHiddenWorkspaceSkill(options, strings.TrimPrefix(name, skillspkg.QualifiedAlias(skillspkg.SourceWorkspace, ""))); ok {
 		return skill, fantasy.ToolResponse{}, true
 	}
+	resolved, err := resolveSkillAlias(options, name)
 	if err != nil {
 		return SkillMeta{}, skillResolveErrorResponse(name, err), false
 	}
 	if resolved.Source != skillspkg.SourceWorkspace {
-		// Stored skills have no supporting files, so a bare name that
-		// also names a hidden workspace skill means the workspace skill.
-		if name == resolved.Name {
-			if skill, ok := findHiddenWorkspaceSkill(options, name); ok {
-				return skill, fantasy.ToolResponse{}, true
-			}
-		}
 		return SkillMeta{}, fantasy.NewTextErrorResponse(fmt.Sprintf(
 			"read_skill_file is not supported for %s skills (no supporting files)",
 			resolved.Source,
