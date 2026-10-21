@@ -16,6 +16,12 @@ describe("parseFilePathMention", () => {
 		["coderd/chat.go:120", { path: "coderd/chat.go", line: 120 }],
 		["coderd/chat.go:120:5", { path: "coderd/chat.go", line: 120 }],
 		["coderd/chat.go#L42", { path: "coderd/chat.go", line: 42 }],
+		["src/app/(auth)/page.tsx", { path: "src/app/(auth)/page.tsx" }],
+		["src/[id]/page.tsx:7", { path: "src/[id]/page.tsx", line: 7 }],
+		[
+			"node_modules/@types/node/index.d.ts",
+			{ path: "node_modules/@types/node/index.d.ts" },
+		],
 		[" api.ts ", { path: "api.ts" }],
 	])("parses %j", (text, expected) => {
 		expect(parseFilePathMention(text)).toEqual(expected);
@@ -37,6 +43,11 @@ describe("parseFilePathMention", () => {
 		"fmt.Println",
 		"git status",
 		"main.go:abc",
+		"Node.js",
+		"docs.rs",
+		"user@example.md",
+		"src/my dir/a.ts",
+		"C:\\Users\\me\\a.ts",
 		"",
 	])("rejects %j", (text) => {
 		expect(parseFilePathMention(text)).toBeUndefined();
@@ -58,6 +69,14 @@ describe("findFilePathMentions", () => {
 		["Mail user@example.com", []],
 		["Visit www.example.com/index.html", []],
 		["Nothing here", []],
+		["Built with Node.js and Next.js", []],
+		["See docs.rs or install bun.sh", []],
+		["Mail user@example.md", []],
+		["Edit src/[id]/page.tsx", []],
+		["Edit src/app/(auth)/page.tsx", []],
+		["Edit C:\\Users\\me\\app.ts", []],
+		["Edit C:/Users/me/app.ts", []],
+		["Edit /home/me/a.ts", ["/home/me/a.ts"]],
 	])("finds mentions in %j", (text, expected) => {
 		expect(mentionedText(text)).toEqual(expected);
 	});
