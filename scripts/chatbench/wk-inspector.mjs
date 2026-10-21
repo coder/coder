@@ -45,6 +45,9 @@ export class WebKitInspector {
 		this.records = [];
 		this.samples = [];
 		this.cpu = [];
+		this.gc = [];
+		this.memory = [];
+		this.network = [];
 		this.otherEvents = new Map();
 		this.targetId = null;
 	}
@@ -87,6 +90,18 @@ export class WebKitInspector {
 		if (!this.targetId)
 			throw new Error(`no WebKit page target answering for ${urlPart}`);
 		await this.send("Timeline.enable");
+		// GC events (Heap.garbageCollected: type full|partial, start, end)
+		// tell a memory-pressure release apart from ordinary work.
+		await this.send("Heap.enable").catch(() => {});
+		// Network requests with timestamps, to align any periodic frontend
+		// request with long frames.
+		await this.send("Network.enable").catch(() => {});
+		// Memory category breakdown (JavaScript, Layers, Images, Page) needs
+		// ENABLE(RESOURCE_USAGE); absent in Playwright's Linux WebKit.
+		this.hasMemory = await this.send("Memory.enable").then(
+			() => true,
+			() => false,
+		);
 		// setInstruments only governs auto and programmatic (console.profile)
 		// captures; a frontend-driven recording starts each instrument itself,
 		// as Web Inspector does. See start() and stop().
@@ -114,11 +129,48 @@ export class WebKitInspector {
 				this.records.push(msg.params.record);
 				break;
 			case "ScriptProfiler.trackingComplete":
-				this.samples.push(...(msg.params.samples?.stackTraces ?? []));
+				// A long phase yields more samples than a spread call accepts
+				// as arguments.
+				for (const trace of msg.params.samples?.stackTraces ?? []) {
+					this.samples.push(trace);
+				}
 				this.trackingDone?.();
 				break;
 			case "CPU.trackingUpdate":
 				this.cpu.push(msg.params.event);
+				break;
+			case "Heap.garbageCollected":
+				this.gc.push(msg.params.collection);
+				break;
+			case "Memory.trackingUpdate":
+				this.memory.push(msg.params.event);
+				break;
+			case "Memory.memoryPressure":
+				// Emitted when the WebProcess runs its memory pressure handler
+				// (InspectorMemoryAgent::didHandleMemoryPressure).
+				this.memory.push({ ...msg.params, pressure: true });
+				break;
+			case "Network.requestWillBeSent":
+				this.network.push({
+					kind: "request",
+					t: msg.params.timestamp,
+					url: msg.params.request?.url,
+					method: msg.params.request?.method,
+					type: msg.params.type,
+				});
+				break;
+			case "Network.responseReceived":
+				this.network.push({
+					kind: "response",
+					t: msg.params.timestamp,
+					url: msg.params.response?.url,
+					status: msg.params.response?.status,
+					mimeType: msg.params.response?.mimeType,
+					source: msg.params.response?.source,
+				});
+				break;
+			case "Network.loadingFinished":
+				this.network.push({ kind: "finished", t: msg.params.timestamp });
 				break;
 			default:
 				if (msg.method)
@@ -186,6 +238,9 @@ export class WebKitInspector {
 		this.records = [];
 		this.samples = [];
 		this.cpu = [];
+		this.gc = [];
+		this.memory = [];
+		this.network = [];
 		this.otherEvents = new Map();
 		await this.send("Timeline.start", { maxCallStackDepth: 24 });
 		// JS sampling profiler (stack samples) and per-thread CPU usage; CPU
@@ -196,6 +251,10 @@ export class WebKitInspector {
 			() => true,
 			() => false,
 		);
+		if (this.hasMemory)
+			await this.send("Memory.startTracking").catch(() => {
+				this.hasMemory = false;
+			});
 	}
 
 	async stop() {
@@ -204,6 +263,7 @@ export class WebKitInspector {
 			setTimeout(resolve, 15_000);
 		});
 		if (this.hasCPU) await this.send("CPU.stopTracking");
+		if (this.hasMemory) await this.send("Memory.stopTracking").catch(() => {});
 		await this.send("ScriptProfiler.stopTracking");
 		await this.send("Timeline.stop");
 		await done;
@@ -211,6 +271,9 @@ export class WebKitInspector {
 			records: this.records,
 			samples: this.samples,
 			cpu: this.cpu,
+			gc: this.gc,
+			memory: this.memory,
+			network: this.network,
 			otherEvents: Object.fromEntries(this.otherEvents),
 		};
 	}
