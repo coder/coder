@@ -1,4 +1,5 @@
-import { useDraggable, useDroppable } from "@dnd-kit/core";
+import { pointerIntersection } from "@dnd-kit/collision";
+import { useDraggable, useDroppable } from "@dnd-kit/react";
 import { cva } from "class-variance-authority";
 import { cn } from "cn";
 import { PlusIcon, Trash2Icon } from "lucide-react";
@@ -19,7 +20,7 @@ import type {
 	CardColor,
 } from "./boardLabels";
 import { columnHue, INBOX_COLUMN } from "./boardLabels";
-import { dragHandleListeners } from "./dragHandle";
+import { preventHandleSelection } from "./dragHandle";
 import { InlineEdit } from "./InlineEdit";
 
 const columnShell = cva("relative flex min-h-0 w-[300px] shrink-0 flex-col", {
@@ -96,24 +97,17 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
 	onRemoveNote,
 }) => {
 	const dropData: DropData = { type: "column", name: column.name };
-	const { setNodeRef } = useDroppable({
+	const { ref: setNodeRef } = useDroppable({
 		id: `column:${column.name}`,
 		data: dropData,
+		collisionDetector: pointerIntersection,
 	});
 	const dragData: DragData = { type: "column", name: column.name };
-	// The header is both the draggable node and its handle; without a node
-	// rect dnd-kit measures nothing and never runs collision detection.
-	const {
-		setNodeRef: setDragNodeRef,
-		setActivatorNodeRef,
-		listeners,
-		attributes,
-		isDragging,
-	} = useDraggable({ id: `column-drag:${column.name}`, data: dragData });
-	const setHeaderRefs = (node: HTMLElement | null) => {
-		setDragNodeRef(node);
-		setActivatorNodeRef(node);
-	};
+	// The header is both the draggable element and its handle.
+	const { ref: setHeaderRefs, isDragging } = useDraggable({
+		id: `column-drag:${column.name}`,
+		data: dragData,
+	});
 	const isInbox = column.name === INBOX_COLUMN;
 	const insertBefore =
 		dropTarget?.kind === "insert" && dropTarget.column === column.name
@@ -179,8 +173,7 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
 			<header
 				ref={setHeaderRefs}
 				className={columnHeader({ draggable: true })}
-				{...dragHandleListeners(listeners)}
-				{...attributes}
+				onPointerDown={preventHandleSelection}
 			>
 				<span className={dot({ hue: columnHue(column.name) })} />
 				{title}

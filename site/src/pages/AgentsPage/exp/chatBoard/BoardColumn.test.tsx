@@ -1,3 +1,4 @@
+import { DragDropProvider } from "@dnd-kit/react";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -5,6 +6,7 @@ import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { renderComponent } from "#/testHelpers/renderHelpers";
 import { BoardColumn, NewColumn } from "./BoardColumn";
+import { dragSensors } from "./boardDrag";
 import { buildCards, buildColumns, INBOX_COLUMN } from "./boardLabels";
 
 const chat = (id: string, labels: Record<string, string> = {}): Chat => ({
@@ -24,32 +26,34 @@ const renderColumn = (name: string) => {
 	const onDelete = vi.fn();
 	const onNewChat = vi.fn();
 	const noop = vi.fn();
-	// No DndContext, see BoardCard.test.tsx.
+	// The board's sensors, see BoardCard.test.tsx.
 	renderComponent(
-		<BoardColumn
-			column={column}
-			assistants={new Map()}
-			openChatIds={new Set()}
-			dropTarget={null}
-			knownEfforts={[]}
-			onRename={onRename}
-			onDelete={onDelete}
-			onNewChat={onNewChat}
-			onSetCardTitle={noop}
-			onSetCardColor={noop}
-			onSetCardEfforts={noop}
-			onFilterEffort={noop}
-			onRenameChat={noop}
-			onCardAssistant={noop}
-			onNewChatInCard={noop}
-			onRemoveFromGroup={noop}
-			onOpen={noop}
-			onPreview={noop}
-			onPreviewEnd={noop}
-			onAddNote={noop}
-			onEditNote={noop}
-			onRemoveNote={noop}
-		/>,
+		<DragDropProvider sensors={dragSensors}>
+			<BoardColumn
+				column={column}
+				assistants={new Map()}
+				openChatIds={new Set()}
+				dropTarget={null}
+				knownEfforts={[]}
+				onRename={onRename}
+				onDelete={onDelete}
+				onNewChat={onNewChat}
+				onSetCardTitle={noop}
+				onSetCardColor={noop}
+				onSetCardEfforts={noop}
+				onFilterEffort={noop}
+				onRenameChat={noop}
+				onCardAssistant={noop}
+				onNewChatInCard={noop}
+				onRemoveFromGroup={noop}
+				onOpen={noop}
+				onPreview={noop}
+				onPreviewEnd={noop}
+				onAddNote={noop}
+				onEditNote={noop}
+				onRemoveNote={noop}
+			/>
+		</DragDropProvider>,
 	);
 	return { onRename, onDelete, onNewChat };
 };

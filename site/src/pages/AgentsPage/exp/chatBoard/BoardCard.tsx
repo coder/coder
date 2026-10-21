@@ -1,4 +1,5 @@
-import { useDraggable, useDroppable } from "@dnd-kit/core";
+import { pointerIntersection } from "@dnd-kit/collision";
+import { useDraggable, useDroppable } from "@dnd-kit/react";
 import { cn } from "cn";
 import {
 	BotIcon,
@@ -26,7 +27,7 @@ import { CardColorPicker } from "./CardColorPicker";
 import { ChatInfoPopover } from "./ChatInfo";
 import { ChatStatusLine } from "./ChatStatusLine";
 import { cardAccent, cardTint } from "./cardColor";
-import { dragHandleListeners } from "./dragHandle";
+import { preventHandleSelection } from "./dragHandle";
 import { EditableTitle } from "./EditableTitle";
 import { InlineEdit } from "./InlineEdit";
 import { NotesSection } from "./NotesSection";
@@ -51,10 +52,10 @@ export type ChatOpenHandlers = {
 	readonly onPreviewEnd: () => void;
 };
 
-// dnd-kit fills the node ref on mount; before that there is nothing to
+// dnd-kit sets the element on mount; before that there is nothing to
 // place a window beside.
-const rectOf = (node: React.RefObject<HTMLElement | null>) =>
-	node.current?.getBoundingClientRect() ?? new DOMRect();
+const rectOf = (element: Element | undefined) =>
+	element?.getBoundingClientRect() ?? new DOMRect();
 
 type BoardCardProps = ChatOpenHandlers & {
 	readonly card: BoardCardModel;
@@ -105,23 +106,22 @@ export const BoardCard: React.FC<BoardCardProps> = ({
 	const dragData: DragData = { type: "card", card };
 	const dropData: DropData = { type: "card", card };
 	const {
-		setNodeRef: setDragRef,
-		node,
-		setActivatorNodeRef,
-		listeners,
-		attributes,
+		ref: dragRef,
+		handleRef,
+		draggable,
 		isDragging,
 	} = useDraggable({ id: `card:${card.id}`, data: dragData });
-	const { setNodeRef: setDropRef } = useDroppable({
+	const { ref: dropRef } = useDroppable({
 		id: `drop-card:${card.id}`,
 		data: dropData,
+		collisionDetector: pointerIntersection,
 	});
 	// A single chat's window opens beside the card; a row's beside the row.
-	const open = (chat: Chat) => onOpen(chat, rectOf(node));
-	const preview = (chat: Chat) => onPreview(chat, rectOf(node));
+	const open = (chat: Chat) => onOpen(chat, rectOf(draggable.element));
+	const preview = (chat: Chat) => onPreview(chat, rectOf(draggable.element));
 	const setRefs = (el: HTMLElement | null) => {
-		setDragRef(el);
-		setDropRef(el);
+		dragRef(el);
+		dropRef(el);
 	};
 	const [renaming, setRenaming] = useState(false);
 	const toggleEffort = (name: string, on: boolean) =>
@@ -166,9 +166,8 @@ export const BoardCard: React.FC<BoardCardProps> = ({
 					// Without a tint, a group's header reads as one more chat row.
 					!single && !card.color && "bg-surface-tertiary",
 				)}
-				{...dragHandleListeners(listeners)}
-				{...attributes}
-				ref={setActivatorNodeRef}
+				onPointerDown={preventHandleSelection}
+				ref={handleRef}
 			>
 				{single && (
 					<OpenChatSurface chat={lead} isDragging={isDragging} onOpen={open} />
@@ -411,16 +410,12 @@ const ChatRow: React.FC<ChatRowProps> = ({
 	onPreviewEnd,
 }) => {
 	const dragData: DragData = { type: "chat", chat, card };
-	const {
-		setNodeRef,
-		node,
-		setActivatorNodeRef,
-		listeners,
-		attributes,
-		isDragging,
-	} = useDraggable({ id: `chat:${chat.id}`, data: dragData });
-	const open = () => onOpen(chat, rectOf(node));
-	const preview = () => onPreview(chat, rectOf(node));
+	const { ref, handleRef, draggable, isDragging } = useDraggable({
+		id: `chat:${chat.id}`,
+		data: dragData,
+	});
+	const open = () => onOpen(chat, rectOf(draggable.element));
+	const preview = () => onPreview(chat, rectOf(draggable.element));
 	const [renaming, setRenaming] = useState(false);
 	const display = getChatDisplayConfig(chat);
 	const StatusIcon = display.icon;
@@ -428,7 +423,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 
 	return (
 		<li
-			ref={setNodeRef}
+			ref={ref}
 			className={cn(
 				"relative grid grid-cols-[14px_minmax(0,1fr)_auto] gap-x-2 rounded-md px-2 py-1.5 hover:bg-content-primary/5",
 				isDragging && "opacity-40",
@@ -437,9 +432,8 @@ const ChatRow: React.FC<ChatRowProps> = ({
 			<OpenChatSurface chat={chat} isDragging={isDragging} onOpen={open} />
 			{/* The status icon doubles as the drag handle so rows need no extra gutter. */}
 			<span
-				ref={setActivatorNodeRef}
-				{...dragHandleListeners(listeners)}
-				{...attributes}
+				ref={handleRef}
+				onPointerDown={preventHandleSelection}
 				className="relative z-[1] flex h-[18px] cursor-grab touch-none items-center justify-center active:cursor-grabbing"
 				title="Drag to move this chat"
 			>

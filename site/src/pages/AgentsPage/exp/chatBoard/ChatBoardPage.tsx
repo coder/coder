@@ -1,16 +1,10 @@
 import {
-	DndContext,
-	type DragEndEvent,
-	type DragMoveEvent,
+	type DragDropManager,
+	DragDropProvider,
 	DragOverlay,
-	type DragStartEvent,
-	KeyboardSensor,
-	PointerSensor,
-	useSensor,
-	useSensors,
-} from "@dnd-kit/core";
+} from "@dnd-kit/react";
 import { cn } from "cn";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	keepPreviousData,
 	useInfiniteQuery,
@@ -50,11 +44,12 @@ import {
 	updateChatLabels,
 } from "./boardChats";
 import {
-	boardCollision,
 	type DropTarget,
 	dragDataOf,
+	dragPlugins,
+	dragSensors,
+	dragTargetOf,
 	dropCommand,
-	targetOf,
 } from "./boardDrag";
 import {
 	type BoardCard as BoardCardModel,
@@ -92,10 +87,6 @@ const PREVIEW_OPEN_MS = 450;
 const PREVIEW_CLOSE_MS = 300;
 
 const SEARCH_DEBOUNCE_MS = 300;
-
-// Small enough that a drag starts promptly, large enough that a click on a
-// card header does not.
-const DRAG_ACTIVATION_PX = 4;
 
 /** A preview change waiting for its delay: open beside an anchor, or close. */
 type PendingPreview =
@@ -164,12 +155,6 @@ const ChatBoardPage: React.FC = () => {
 			toast.error(getErrorMessage(error, "Failed to rename chat.")),
 	});
 	const createMutation = useMutation(createChat(queryClient));
-	const sensors = useSensors(
-		useSensor(PointerSensor, {
-			activationConstraint: { distance: DRAG_ACTIVATION_PX },
-		}),
-		useSensor(KeyboardSensor),
-	);
 
 	const chats = chatsQuery.data?.pages[0] ?? [];
 	const chatsById = new Map(chats.map((chat) => [chat.id, chat]));
@@ -339,28 +324,51 @@ const ChatBoardPage: React.FC = () => {
 		);
 	};
 
-	const handleDragStart = ({ active }: DragStartEvent) => {
+	const dragManagerRef = useRef<DragDropManager | null>(null);
+	const handleDragStart = (_event: unknown, manager: DragDropManager) => {
+		dragManagerRef.current = manager;
 		setPendingPreview(null);
 		setWindows((prev) =>
 			prev.some((w) => !w.pinned) ? dropPreview(prev) : prev,
 		);
-		setActiveDrag(dragDataOf(active) ?? null);
+		setActiveDrag(dragDataOf(manager) ?? null);
 	};
-	// onDragOver only fires when the droppable id changes, but the zone within
-	// one card (insert above, merge, insert below) changes without that.
-	const handleDragMove = ({ collisions }: DragMoveEvent) =>
-		setDropTarget(targetOf(collisions));
-	const clearDrag = () => {
+	// Collisions are recomputed on every move, and the zone within one card
+	// (insert above, merge, insert below) changes without the target changing.
+	const handleCollision = (_event: unknown, manager: DragDropManager) =>
+		setDropTarget(dragTargetOf(manager));
+	const handleDragEnd = (
+		{ canceled }: { canceled: boolean },
+		manager: DragDropManager,
+	) => {
+		dragManagerRef.current = null;
 		setActiveDrag(null);
 		setDropTarget(null);
-	};
-	const handleDragEnd = ({ active, collisions }: DragEndEvent) => {
-		clearDrag();
-		const drag = dragDataOf(active);
-		const target = targetOf(collisions);
+		const drag = dragDataOf(manager);
+		const target = canceled ? null : dragTargetOf(manager);
 		const command = drag && target && dropCommand(drag, target);
 		if (command) void run(command(boardState));
 	};
+	// dnd-kit skips the collision check while the pointer stands still, so a
+	// scroll under it, by wheel or auto-scroll, resolves the target here.
+	useEffect(() => {
+		if (!activeDrag) return;
+		let frame: number | undefined;
+		const update = () => {
+			frame = undefined;
+			const manager = dragManagerRef.current;
+			if (manager) setDropTarget(dragTargetOf(manager));
+		};
+		const handleScroll = () => {
+			frame ??= requestAnimationFrame(update);
+		};
+		const options = { capture: true, passive: true };
+		document.addEventListener("scroll", handleScroll, options);
+		return () => {
+			document.removeEventListener("scroll", handleScroll, options);
+			if (frame !== undefined) cancelAnimationFrame(frame);
+		};
+	}, [activeDrag]);
 
 	// The board is replaced only while a query has nothing to show. A failed
 	// refetch keeps its data, and the board with it, so open note editors
@@ -380,13 +388,12 @@ const ChatBoardPage: React.FC = () => {
 		);
 	} else {
 		body = (
-			<DndContext
-				sensors={sensors}
-				collisionDetection={boardCollision}
+			<DragDropProvider
+				sensors={dragSensors}
+				plugins={dragPlugins}
 				onDragStart={handleDragStart}
-				onDragMove={handleDragMove}
+				onCollision={handleCollision}
 				onDragEnd={handleDragEnd}
-				onDragCancel={clearDrag}
 			>
 				<BoardColumns
 					columns={visibleColumns}
@@ -407,7 +414,7 @@ const ChatBoardPage: React.FC = () => {
 				<DragOverlay dropAnimation={null}>
 					{activeDrag && <DragGhost drag={activeDrag} />}
 				</DragOverlay>
-			</DndContext>
+			</DragDropProvider>
 		);
 	}
 
