@@ -15,7 +15,7 @@ type FocusItem = {
 	isFold: boolean;
 };
 
-/** The timeline's items as the restorer tracks them. */
+/** Each item's scroller key and rows, marking ended-turn blocks as folds. */
 export const foldFocusItems = (
 	items: WorkingBlockLayout["items"],
 	rows: readonly TimelineRow[],
@@ -79,7 +79,7 @@ export class FoldFocusRestorer extends Component<FoldFocusRestorerProps> {
 		) {
 			return;
 		}
-		let holdsFocusedRows = (id: number) => focus.memberIds.includes(id);
+		let belongsToFocusedItem = (id: number) => focus.memberIds.includes(id);
 		if (focus.memberIds.length === 0) {
 			// An item of only the live row has no persisted rows yet. The
 			// stream persists as rows newer than any rendered before.
@@ -87,10 +87,10 @@ export class FoldFocusRestorer extends Component<FoldFocusRestorerProps> {
 				(newest, { memberIds }) => Math.max(newest, ...memberIds),
 				-1,
 			);
-			holdsFocusedRows = (id) => id > newestId;
+			belongsToFocusedItem = (id) => id > newestId;
 		}
 		const fold = this.props.items.find(
-			({ isFold, memberIds }) => isFold && memberIds.some(holdsFocusedRows),
+			({ isFold, memberIds }) => isFold && memberIds.some(belongsToFocusedItem),
 		);
 		if (!fold) {
 			return;

@@ -109,8 +109,8 @@ const mockNote: ChatMessage = {
 	content: [{ type: "text", text: "Found the config." }],
 };
 
-// MockWorkingMessages' second step, its result, and the answer, renumbered to
-// follow mockNote.
+// MockWorkingMessages' second step, its result, and the answer, with IDs above
+// mockNote's, as rows persisted after it.
 const mockLiveStep: ChatMessage = { ...MockWorkingMessages[3], id: 5 };
 const mockLiveStepResult: ChatMessage = { ...MockWorkingMessages[4], id: 6 };
 const mockAnswerAfterNote: ChatMessage = { ...MockWorkingMessages[5], id: 7 };
