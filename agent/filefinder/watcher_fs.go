@@ -105,22 +105,20 @@ func (fw *fsWatcher) loop(ctx context.Context) {
 	defer close(fw.done)
 	const batchWindow = 50 * time.Millisecond
 	var (
-		batch  []FSEvent
-		seen   = make(map[string]struct{})
+		batch  eventBatch
 		timer  *time.Timer
 		timerC <-chan time.Time
 	)
 	flush := func() {
-		if len(batch) == 0 {
+		events := batch.take()
+		if len(events) == 0 {
 			return
 		}
 		select {
-		case fw.events <- batch:
+		case fw.events <- events:
 		default:
-			fw.logger.Warn(ctx, "fs watcher dropping batch", slog.F("count", len(batch)))
+			fw.logger.Warn(ctx, "fs watcher dropping batch", slog.F("count", len(events)))
 		}
-		batch = nil
-		seen = make(map[string]struct{})
 		if timer != nil {
 			timer.Stop()
 		}
@@ -128,11 +126,7 @@ func (fw *fsWatcher) loop(ctx context.Context) {
 		timerC = nil
 	}
 	addToBatch := func(ev FSEvent) {
-		if _, dup := seen[ev.Path]; dup {
-			return
-		}
-		seen[ev.Path] = struct{}{}
-		batch = append(batch, ev)
+		batch.add(ev)
 		if timer == nil {
 			timer = time.NewTimer(batchWindow)
 			timerC = timer.C
@@ -168,6 +162,49 @@ func (fw *fsWatcher) loop(ctx context.Context) {
 			flush()
 		}
 	}
+}
+
+// eventBatch coalesces events to at most one per path while keeping
+// the path's final state. A create, remove, or rename replaces any
+// earlier event for the path and moves it to the end, so the batch
+// applies in the order the last changes happened; for example, a temp
+// file created and then renamed away ends as a rename and is removed
+// from the index. A modify never replaces an earlier event because it
+// does not change whether the path exists.
+type eventBatch struct {
+	events []FSEvent
+	// index maps a path to its live entry in events.
+	index map[string]int
+	// stale marks entries superseded by a later event for the same
+	// path.
+	stale map[int]struct{}
+}
+
+func (b *eventBatch) add(ev FSEvent) {
+	if b.index == nil {
+		b.index = make(map[string]int)
+		b.stale = make(map[int]struct{})
+	}
+	if i, ok := b.index[ev.Path]; ok {
+		if ev.Op == OpModify {
+			return
+		}
+		b.stale[i] = struct{}{}
+	}
+	b.index[ev.Path] = len(b.events)
+	b.events = append(b.events, ev)
+}
+
+// take returns the coalesced events in order and resets the batch.
+func (b *eventBatch) take() []FSEvent {
+	events := make([]FSEvent, 0, len(b.events)-len(b.stale))
+	for i, ev := range b.events {
+		if _, ok := b.stale[i]; !ok {
+			events = append(events, ev)
+		}
+	}
+	*b = eventBatch{}
+	return events
 }
 
 func (fw *fsWatcher) addRecursive(ctx context.Context, dir string) []FSEvent {
