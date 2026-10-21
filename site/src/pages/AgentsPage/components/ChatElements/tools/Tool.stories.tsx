@@ -1442,6 +1442,24 @@ export const SaveCheckpointError: Story = {
 	},
 };
 
+export const SaveCheckpointRejected: Story = {
+	args: {
+		name: "save_checkpoint",
+		args: { checkpoint: mockCheckpoint },
+		result:
+			"checkpoint must be at most 8192 bytes, got 9000; shorten it and save again",
+		status: "error",
+		isError: true,
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: /Checkpoint not saved/,
+			}),
+		);
+	},
+};
+
 export const NewContext: Story = {
 	args: {
 		name: "new_context",
