@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/justinas/nosurf"
@@ -91,6 +92,98 @@ func TestCSRFExemptList(t *testing.T) {
 			URL:    "https://coder.com/oauth2//authorize?client_id=test",
 			Exempt: false,
 		},
+		{
+			Name:   "CSPReports",
+			URL:    "https://coder.com/api/v2/csp/reports",
+			Exempt: true,
+		},
+		{
+			Name:   "FirstUser",
+			URL:    "https://coder.com/api/v2/users/first",
+			Exempt: true,
+		},
+		{
+			Name:   "WorkspaceAgentsMe",
+			URL:    "https://coder.com/api/v2/workspaceagents/me/rpc",
+			Exempt: true,
+		},
+		{
+			Name:   "WorkspaceAgentsMeLogs",
+			URL:    "https://coder.com/api/v2/workspaceagents/me/logs",
+			Exempt: true,
+		},
+		{
+			Name:   "AWSInstanceIdentity",
+			URL:    "https://coder.com/api/v2/workspaceagents/aws-instance-identity",
+			Exempt: true,
+		},
+		{
+			Name:   "WorkspaceProxiesMe",
+			URL:    "https://coder.com/api/v2/workspaceproxies/me/register",
+			Exempt: true,
+		},
+		{
+			Name:   "DERP",
+			URL:    "https://coder.com/derp",
+			Exempt: true,
+		},
+		{
+			Name:   "SCIM",
+			URL:    "https://coder.com/scim/v2/Users",
+			Exempt: true,
+		},
+		{
+			Name:   "ProvisionerDaemonsServe",
+			URL:    "https://coder.com/api/v2/organizations/default/provisionerdaemons/serve",
+			Exempt: true,
+		},
+		// The old patterns matched these by substring. A cookie-authenticated
+		// request to any of them must be checked.
+		{
+			Name:   "UsernameContainingDerp",
+			URL:    "https://coder.com/api/v2/users/derp-x/roles",
+			Exempt: false,
+		},
+		{
+			Name:   "UsernameWithFirstPrefix",
+			URL:    "https://coder.com/api/v2/users/firstx/roles",
+			Exempt: false,
+		},
+		{
+			Name:   "OrgMemberContainingDerp",
+			URL:    "https://coder.com/api/v2/organizations/8d3e19b7-4b9e-4a25-a367-927384ee6c2f/members/derpy/roles",
+			Exempt: false,
+		},
+		{
+			Name:   "WorkspaceAgentsDevcontainerRecreate",
+			URL:    "https://coder.com/api/v2/workspaceagents/8d3e19b7-4b9e-4a25-a367-927384ee6c2f/containers/devcontainers/dc/recreate",
+			Exempt: false,
+		},
+		{
+			Name:   "WorkspaceAgentsDevcontainerDelete",
+			URL:    "https://coder.com/api/v2/workspaceagents/8d3e19b7-4b9e-4a25-a367-927384ee6c2f/containers/devcontainers/dc",
+			Exempt: false,
+		},
+		{
+			Name:   "WorkspaceProxyNameStartingWithMe",
+			URL:    "https://coder.com/api/v2/workspaceproxies/me-east",
+			Exempt: false,
+		},
+		{
+			Name:   "InstanceIdentityWithSuffix",
+			URL:    "https://coder.com/api/v2/workspaceagents/aws-instance-identity/extra",
+			Exempt: false,
+		},
+		{
+			Name:   "SCIMUnderAPI",
+			URL:    "https://coder.com/api/v2/scim/v2/Users",
+			Exempt: false,
+		},
+		{
+			Name:   "WorkspaceAgentsMeRepeatedLeadingSlash",
+			URL:    "https://coder.com//api/v2/workspaceagents/me/rpc",
+			Exempt: false,
+		},
 	}
 
 	mw := httpmw.CSRF(codersdk.HTTPCookieConfig{})
@@ -108,6 +201,25 @@ func TestCSRFExemptList(t *testing.T) {
 			require.Equal(t, c.Exempt, exempt)
 		})
 	}
+
+	// Agents, workspace proxies, provisioner daemons and SCIM clients
+	// authenticate with headers and never send a session cookie, so they
+	// are exempt whatever the pattern list says.
+	t.Run("NoSessionCookie", func(t *testing.T) {
+		t.Parallel()
+
+		for _, u := range []string{
+			"https://coder.com/api/v2/workspaceagents/me/rpc",
+			"https://coder.com/api/v2/workspaceproxies/me/register",
+			"https://coder.com/api/v2/organizations/default/provisionerdaemons/serve",
+			"https://coder.com/api/v2/users/first",
+			"https://coder.com/api/v2/workspaceagents/8d3e19b7-4b9e-4a25-a367-927384ee6c2f/containers/devcontainers/dc/recreate",
+		} {
+			r, err := http.NewRequestWithContext(context.Background(), http.MethodPost, u, nil)
+			require.NoError(t, err)
+			require.True(t, csrfmw.IsExempt(r), "no-cookie request to %s should be exempt", u)
+		}
+	})
 }
 
 // TestCSRFError verifies the error message returned to a user when CSRF
@@ -181,5 +293,25 @@ func TestCSRFError(t *testing.T) {
 		resp := rec.Result()
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 		require.Contains(t, rec.Body.String(), "CSRF error encountered. Authentication via")
+	})
+
+	// A forged request to a path the old "derp/*" pattern exempted. The
+	// browser attaches both cookies but cannot add the header.
+	t.Run("FormerlyExemptPath", func(t *testing.T) {
+		t.Parallel()
+
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPut,
+			"https://coder.com/api/v2/users/derp-x/roles", strings.NewReader(`{"roles":["owner"]}`))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "text/plain")
+		req.Header.Set("Origin", "https://app--dev--coder--attacker--apps.coder.com")
+		req.AddCookie(&http.Cookie{Name: codersdk.SessionTokenCookie, Value: "session_token_value"})
+		req.AddCookie(&http.Cookie{Name: nosurf.CookieName, Value: csrfCookieValue})
+
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		resp := rec.Result()
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		require.Contains(t, rec.Body.String(), "Something is wrong with your CSRF token.")
 	})
 }
