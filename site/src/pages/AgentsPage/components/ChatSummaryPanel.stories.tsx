@@ -281,6 +281,27 @@ export const WithEarlierAttachments: Story = {
 	},
 };
 
+export const EarlierAttachmentsFailed: Story = {
+	args: { hasMoreMessages: true },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatAttachments").mockRejectedValue(
+			new Error("Failed to load attachments"),
+		);
+	},
+	render: (args) => (
+		<ChatSummaryPanel
+			{...args}
+			store={createAttachmentStore(mockLatestMessages)}
+		/>
+	),
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
+	},
+};
+
 export const LoadingMessages: Story = {
 	args: { isHydratingMessages: true },
 	parameters: {
