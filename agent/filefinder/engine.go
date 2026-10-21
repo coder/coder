@@ -177,12 +177,21 @@ func (e *Engine) AddRoot(ctx context.Context, root string) error {
 	}
 	rs := &rootState{root: absRoot, index: idx, watcher: w, cancel: wCancel}
 	e.roots[absRoot] = rs
-	w.Start(wCtx)
 	e.wg.Add(1)
 	go e.forwardEvents(wCtx, absRoot, w)
 	e.publishSnapshot()
 	fileCount := idx.Len()
 	e.mu.Unlock()
+
+	// Start walks the root again to add watches, so it runs outside
+	// the lock. RemoveRoot and Close cancel wCtx, and canceling ctx
+	// stops it too; the root is then removed.
+	stop := context.AfterFunc(ctx, wCancel)
+	w.Start(wCtx)
+	if !stop() {
+		_ = e.RemoveRoot(absRoot)
+		return ctx.Err()
+	}
 	e.logger.Info(ctx, "added root to engine",
 		slog.F("root", absRoot),
 		slog.F("files", fileCount),
