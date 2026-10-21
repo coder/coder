@@ -567,6 +567,13 @@ export const TokenBudgetHandoffTargets: Story = {
 	},
 };
 
+export const TokenBudgetUnknownWindow: Story = {
+	args: {
+		compactionStrategy: "token_budget",
+		models: [{ ...mockModels[0], context_limit: 0 }],
+	},
+};
+
 export const TokenBudgetDisableRolloverWarning: Story = {
 	args: { compactionStrategy: "token_budget" },
 	play: async ({ canvasElement }) => {

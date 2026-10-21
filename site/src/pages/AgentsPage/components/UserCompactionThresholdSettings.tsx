@@ -254,18 +254,25 @@ const EffectiveCompactionThreshold: React.FC<
 
 	// The handoff target is floored and clamped, so it can differ from the
 	// typed threshold.
-	const effectivePercent =
-		handoffPoint === undefined
-			? chatTrigger?.thresholdPercent
-			: compactionPointAsPercent(handoffPoint, modelConfig.context_limit);
+	let effectivePercent = chatTrigger?.thresholdPercent;
+	if (handoffPoint !== undefined) {
+		effectivePercent = compactionPointAsPercent(
+			handoffPoint,
+			modelConfig.context_limit,
+		);
+	} else if (isTokenBudget) {
+		// chatd schedules no handoff for a model whose window is unknown.
+		effectivePercent = undefined;
+	}
 
 	return (
 		<TableCell className="w-0 whitespace-nowrap tabular-nums">
 			{chatTrigger &&
 				(chatTrigger.thresholdPercent >= compactionDisabledThresholdPercent
 					? off
-					: effectivePercent !== undefined &&
-						`${formatCompactionPercent(effectivePercent)}%`)}
+					: effectivePercent === undefined
+						? "Unknown"
+						: `${formatCompactionPercent(effectivePercent)}%`)}
 		</TableCell>
 	);
 };
@@ -305,7 +312,7 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 	const parsedDraftValue = parseThresholdDraft(draftValue);
 	const isInvalid = draftValue.length > 0 && parsedDraftValue === null;
 	// Only warn when user-typed, not when loaded from the server.
-	const isDraftDisablingCompaction =
+	const isDraftDisablingAutomation =
 		draftValue === String(compactionDisabledThresholdPercent) &&
 		draft !== undefined;
 	// A point past this window can only bind while the chat trigger is off,
@@ -327,18 +334,18 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 			? undefined
 			: formatCompactionPercent(organizationTriggerPercent);
 
-	let disablingCompactionWarning =
+	let disablingAutomationWarning =
 		"Setting 100% turns off automatic compaction for this model.";
 	if (isTokenBudget) {
-		disablingCompactionWarning =
+		disablingAutomationWarning =
 			"Setting 100% turns off automatic rollover for this model.";
 	} else if (
 		organizationTriggerPercentLabel !== undefined &&
 		!isOrganizationPointBeyondWindow
 	) {
-		disablingCompactionWarning = `Setting 100% turns off this model's own compaction threshold. Chats still compact at about ${organizationTriggerPercentLabel}% of this model's window, set by the organization override.`;
+		disablingAutomationWarning = `Setting 100% turns off this model's own compaction threshold. Chats still compact at about ${organizationTriggerPercentLabel}% of this model's window, set by the organization override.`;
 	} else if (organizationOverrideNotLoaded) {
-		disablingCompactionWarning =
+		disablingAutomationWarning =
 			"Setting 100% turns off this model's own compaction threshold. An organization override may still compact chats with this model.";
 	}
 
@@ -427,11 +434,11 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 								</span>
 							</div>
 						</TooltipTrigger>
-						{(isInvalid || isDraftDisablingCompaction) && (
+						{(isInvalid || isDraftDisablingAutomation) && (
 							<TooltipContent>
 								{isInvalid
 									? "Enter a whole number between 0 and 100."
-									: disablingCompactionWarning}
+									: disablingAutomationWarning}
 							</TooltipContent>
 						)}
 					</Tooltip>
@@ -465,9 +472,9 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 						Enter a whole number between 0 and 100.
 					</span>
 				)}
-				{isDraftDisablingCompaction && (
+				{isDraftDisablingAutomation && (
 					<span className="sr-only" aria-live="polite">
-						{disablingCompactionWarning}
+						{disablingAutomationWarning}
 					</span>
 				)}
 			</TableCell>
@@ -727,7 +734,11 @@ export const UserCompactionThresholdSettings: React.FC<
 				/>
 			)}
 			{!blockingError && (
-				<Table aria-label="Compaction thresholds">
+				<Table
+					aria-label={
+						isTokenBudget ? "Handoff targets" : "Compaction thresholds"
+					}
+				>
 					<TableHeader>
 						<TableRow>
 							<TableHead>Model</TableHead>
