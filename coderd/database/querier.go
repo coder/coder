@@ -12,6 +12,30 @@ import (
 )
 
 type sqlcQuerier interface {
+	// AcquireChatWorkspaceFileDeliveries claims due workspace files whose
+	// chat's workspace finished starting: the workspace's latest build is a
+	// start build and the agent a delivery would use reports ready,
+	// start_error or start_timeout. That agent is picked like
+	// agentselect.FindChatAgent over the latest build's agents, after the
+	// chat's bound agent: the bound agent when it is in the latest build,
+	// else the single root agent whose name ends with chat_agent_suffix,
+	// else the first root agent by display order, then name, then ID. When
+	// several root agents match the suffix, the first is checked here and
+	// the caller's selection reports the ambiguity. A file is due when its
+	// next attempt time has passed and attempts remain. It is also due, with
+	// a fresh attempt budget, when that agent's ready_at differs from the one
+	// recorded at the file's last claim, unless an unexpired lease without an
+	// error holds it: every agent startup retries failed and parked files
+	// once, with no startup event needed. A claim records the agent's
+	// ready_at, counts an attempt, clears the last error and leases the file
+	// until
+	// lease_expires_at plus the time the content takes to upload at
+	// min_upload_bytes_per_second, so the lease of a large file covers its
+	// upload. The returned lease_expires_at identifies the claim:
+	// the outcome queries take it back so a worker whose lease expired and
+	// was claimed again cannot record an outcome. File content is not
+	// returned so a batch claim does not load blobs.
+	AcquireChatWorkspaceFileDeliveries(ctx context.Context, arg AcquireChatWorkspaceFileDeliveriesParams) ([]AcquireChatWorkspaceFileDeliveriesRow, error)
 	// Set the lease to expire according to the provided timeout.  If there is
 	// already a lease, an exception is raised.
 	AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg AcquireExternalAuthLinkRefreshLeaseParams) (ExternalAuthLink, error)
@@ -103,6 +127,16 @@ type sqlcQuerier interface {
 	// Drops the values of every live row of the workspace, keeping the rows as
 	// history. Used when the workspace is deleted.
 	ClearWorkspaceSecretsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
+	// CompleteChatWorkspaceFileDelivery records the receipt and drops the
+	// file content. Metadata stays so messages that reference the file keep
+	// validating. It applies only under the claim that lease_expires_at
+	// identifies and while the file's chat is still bound to the delivered
+	// workspace, so a chat that moved to another workspace during the upload
+	// keeps the file for the new workspace. FOR SHARE on the chat row conflicts
+	// with UpdateChatWorkspaceBinding's row lock, so a rebind that is in flight
+	// makes completion wait and recheck the binding after it commits, and a
+	// completion that locks first makes the rebind wait until it commits.
+	CompleteChatWorkspaceFileDelivery(ctx context.Context, arg CompleteChatWorkspaceFileDeliveryParams) (int64, error)
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	// Excluding the candidate keeps ownership takeover capacity-neutral.
@@ -298,6 +332,13 @@ type sqlcQuerier interface {
 	// attributed through the token usage's effective group, and rows are bucketed
 	// by the token usage created_at, matching how ai_user_daily_spend is derived.
 	ExportOrganizationAISpend(ctx context.Context, arg ExportOrganizationAISpendParams) ([]ExportOrganizationAISpendRow, error)
+	// FailChatWorkspaceFileDelivery records a failed attempt. The mode
+	// decides the claimed attempt: 'retry' keeps it counted, 'refund' gives
+	// it back for failures that never reached the agent, and 'park' sets the
+	// attempts to max_attempts so the file waits for an explicit retry. Any
+	// other mode fails on the NOT NULL attempts column. It applies only under
+	// the claim that lease_expires_at identifies.
+	FailChatWorkspaceFileDelivery(ctx context.Context, arg FailChatWorkspaceFileDeliveryParams) (int64, error)
 	FavoriteWorkspace(ctx context.Context, id uuid.UUID) error
 	FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentMemoryResourceMonitor, error)
 	FetchMemoryResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]WorkspaceAgentMemoryResourceMonitor, error)
@@ -497,6 +538,10 @@ type sqlcQuerier interface {
 	// loading file content.
 	GetChatFileMetadataByChatID(ctx context.Context, chatID uuid.UUID) ([]GetChatFileMetadataByChatIDRow, error)
 	GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]ChatFile, error)
+	// GetChatFilesMetadataByIDs returns file metadata without loading file
+	// content. Owner and organization columns support row-level authorization.
+	// Delivered workspace files report the size they had before delivery.
+	GetChatFilesMetadataByIDs(ctx context.Context, ids []uuid.UUID) ([]GetChatFilesMetadataByIDsRow, error)
 	GetChatGatewayAPIKey(ctx context.Context, arg GetChatGatewayAPIKeyParams) (APIKey, error)
 	GetChatHeartbeat(ctx context.Context, arg GetChatHeartbeatParams) (ChatHeartbeat, error)
 	// GetChatIncludeDefaultSystemPrompt preserves the legacy default
@@ -1227,6 +1272,7 @@ type sqlcQuerier interface {
 	// from an earlier statement of the same transaction, so the snapshot
 	// includes every committed step.
 	InsertChatDebugStep(ctx context.Context, arg InsertChatDebugStepParams) (ChatDebugStep, error)
+	// A NULL purpose stores a prompt file.
 	InsertChatFile(ctx context.Context, arg InsertChatFileParams) (InsertChatFileRow, error)
 	// Returns the inserted rows in input array order. Ids are allocated before the
 	// insert and the k-th smallest is assigned to input index k, so callers may
@@ -1487,6 +1533,13 @@ type sqlcQuerier interface {
 	// Sets the target queued message's position to one less than the
 	// current minimum position for that chat, moving it to the head.
 	ReorderChatQueuedMessageToHead(ctx context.Context, arg ReorderChatQueuedMessageToHeadParams) (int64, error)
+	// RetryChatWorkspaceFileDeliveries makes a chat's undelivered workspace
+	// files due again with a fresh attempt budget. Only a file in flight
+	// under a lease that has not expired at now is left alone. An expired
+	// lease without an error means an attempt never recorded its outcome,
+	// for example because its replica stopped, and may have used the last
+	// attempt.
+	RetryChatWorkspaceFileDeliveries(ctx context.Context, arg RetryChatWorkspaceFileDeliveriesParams) (int64, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct

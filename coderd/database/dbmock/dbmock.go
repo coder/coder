@@ -44,6 +44,21 @@ func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 	return m.recorder
 }
 
+// AcquireChatWorkspaceFileDeliveries mocks base method.
+func (m *MockStore) AcquireChatWorkspaceFileDeliveries(ctx context.Context, arg database.AcquireChatWorkspaceFileDeliveriesParams) ([]database.AcquireChatWorkspaceFileDeliveriesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AcquireChatWorkspaceFileDeliveries", ctx, arg)
+	ret0, _ := ret[0].([]database.AcquireChatWorkspaceFileDeliveriesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AcquireChatWorkspaceFileDeliveries indicates an expected call of AcquireChatWorkspaceFileDeliveries.
+func (mr *MockStoreMockRecorder) AcquireChatWorkspaceFileDeliveries(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireChatWorkspaceFileDeliveries", reflect.TypeOf((*MockStore)(nil).AcquireChatWorkspaceFileDeliveries), ctx, arg)
+}
+
 // AcquireExternalAuthLinkRefreshLease mocks base method.
 func (m *MockStore) AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 	m.ctrl.T.Helper()
@@ -448,6 +463,21 @@ func (m *MockStore) ClearWorkspaceSecretsByWorkspaceID(ctx context.Context, work
 func (mr *MockStoreMockRecorder) ClearWorkspaceSecretsByWorkspaceID(ctx, workspaceID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearWorkspaceSecretsByWorkspaceID", reflect.TypeOf((*MockStore)(nil).ClearWorkspaceSecretsByWorkspaceID), ctx, workspaceID)
+}
+
+// CompleteChatWorkspaceFileDelivery mocks base method.
+func (m *MockStore) CompleteChatWorkspaceFileDelivery(ctx context.Context, arg database.CompleteChatWorkspaceFileDeliveryParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CompleteChatWorkspaceFileDelivery", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CompleteChatWorkspaceFileDelivery indicates an expected call of CompleteChatWorkspaceFileDelivery.
+func (mr *MockStoreMockRecorder) CompleteChatWorkspaceFileDelivery(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteChatWorkspaceFileDelivery", reflect.TypeOf((*MockStore)(nil).CompleteChatWorkspaceFileDelivery), ctx, arg)
 }
 
 // CountAIBridgeSessions mocks base method.
@@ -1915,6 +1945,21 @@ func (mr *MockStoreMockRecorder) ExportOrganizationAISpend(ctx, arg any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExportOrganizationAISpend", reflect.TypeOf((*MockStore)(nil).ExportOrganizationAISpend), ctx, arg)
 }
 
+// FailChatWorkspaceFileDelivery mocks base method.
+func (m *MockStore) FailChatWorkspaceFileDelivery(ctx context.Context, arg database.FailChatWorkspaceFileDeliveryParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FailChatWorkspaceFileDelivery", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FailChatWorkspaceFileDelivery indicates an expected call of FailChatWorkspaceFileDelivery.
+func (mr *MockStoreMockRecorder) FailChatWorkspaceFileDelivery(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FailChatWorkspaceFileDelivery", reflect.TypeOf((*MockStore)(nil).FailChatWorkspaceFileDelivery), ctx, arg)
+}
+
 // FavoriteWorkspace mocks base method.
 func (m *MockStore) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -3172,6 +3217,21 @@ func (m *MockStore) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]d
 func (mr *MockStoreMockRecorder) GetChatFilesByIDs(ctx, ids any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatFilesByIDs", reflect.TypeOf((*MockStore)(nil).GetChatFilesByIDs), ctx, ids)
+}
+
+// GetChatFilesMetadataByIDs mocks base method.
+func (m *MockStore) GetChatFilesMetadataByIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetChatFilesMetadataByIDsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatFilesMetadataByIDs", ctx, ids)
+	ret0, _ := ret[0].([]database.GetChatFilesMetadataByIDsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatFilesMetadataByIDs indicates an expected call of GetChatFilesMetadataByIDs.
+func (mr *MockStoreMockRecorder) GetChatFilesMetadataByIDs(ctx, ids any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatFilesMetadataByIDs", reflect.TypeOf((*MockStore)(nil).GetChatFilesMetadataByIDs), ctx, ids)
 }
 
 // GetChatGatewayAPIKey mocks base method.
@@ -10291,6 +10351,21 @@ func (m *MockStore) ReorderChatQueuedMessageToHead(ctx context.Context, arg data
 func (mr *MockStoreMockRecorder) ReorderChatQueuedMessageToHead(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReorderChatQueuedMessageToHead", reflect.TypeOf((*MockStore)(nil).ReorderChatQueuedMessageToHead), ctx, arg)
+}
+
+// RetryChatWorkspaceFileDeliveries mocks base method.
+func (m *MockStore) RetryChatWorkspaceFileDeliveries(ctx context.Context, arg database.RetryChatWorkspaceFileDeliveriesParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RetryChatWorkspaceFileDeliveries", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RetryChatWorkspaceFileDeliveries indicates an expected call of RetryChatWorkspaceFileDeliveries.
+func (mr *MockStoreMockRecorder) RetryChatWorkspaceFileDeliveries(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetryChatWorkspaceFileDeliveries", reflect.TypeOf((*MockStore)(nil).RetryChatWorkspaceFileDeliveries), ctx, arg)
 }
 
 // RevokeDBCryptKey mocks base method.
