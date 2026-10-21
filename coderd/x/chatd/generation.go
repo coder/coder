@@ -76,6 +76,18 @@ type generationCompaction struct {
 	PendingUserRows []database.ChatMessage
 }
 
+// generationRollover carries the token budget strategy's per-step inputs.
+type generationRollover struct {
+	Budget contextWindowBudget
+}
+
+func generationRolloverBudget(rollover *generationRollover) *contextWindowBudget {
+	if rollover == nil {
+		return nil
+	}
+	return &rollover.Budget
+}
+
 type generationDebug struct {
 	Enabled             bool
 	Service             *chatdebug.Service
@@ -102,6 +114,7 @@ const (
 	generationActionFinishTurn          generationActionKind = "finish_turn"
 	generationActionCompact             generationActionKind = "compact"
 	generationActionGenerateAssistant   generationActionKind = "generate_assistant"
+	generationActionContextRollover     generationActionKind = "context_rollover"
 )
 
 type generationFinishReason string
@@ -143,6 +156,7 @@ type generationDecision struct {
 	// compaction request rather than the usage threshold.
 	forced            bool
 	toolCallMessageID int64 // ID of the assistant message holding localToolCalls
+	rolloverReason    rolloverReason
 }
 
 type generationRetryDecision struct {
@@ -191,6 +205,8 @@ type generationDecisionInput struct {
 	compactionContextLimit     int64
 	compactionTriggerSource    compactionTriggerSource
 	compactionOtherTrigger     compactionTrigger
+	// rollover is set under the token budget strategy.
+	rollover *contextWindowBudget
 }
 
 func decideGenerationAction(input generationDecisionInput) (generationDecision, error) {
@@ -247,6 +263,12 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	}
 	if currentTurnStepCount(input.messages) >= input.maxSteps {
 		return generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonMaxSteps}, nil
+	}
+	if input.rollover != nil {
+		rollover := decideRollover(windowContextTokens(input.messages), *input.rollover)
+		if rollover.action == rolloverActionRollover {
+			return generationDecision{kind: generationActionContextRollover, rolloverReason: rollover.reason}, nil
+		}
 	}
 	compactionRequirement := compactionRequirementNotNeeded
 	if input.compactionEnabled && input.compactionNeeded {
@@ -637,6 +659,7 @@ func (s *taskStarter) runGenerationStep(
 				compactionContextLimit:     generationCompactionContextLimit(prepared.Compaction),
 				compactionTriggerSource:    generationCompactionTriggerSource(prepared.Compaction),
 				compactionOtherTrigger:     generationCompactionOtherTrigger(prepared.Compaction),
+				rollover:                   generationRolloverBudget(prepared.Rollover),
 			})
 		})
 	}

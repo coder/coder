@@ -76,6 +76,9 @@ type turnEnvironment struct {
 
 	MaxSteps   int
 	Compaction *generationCompaction
+	// Rollover is set when the token budget strategy replaces automatic
+	// summary compaction.
+	Rollover *generationRollover
 
 	Debug *generationDebug
 
