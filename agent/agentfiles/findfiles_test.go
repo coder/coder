@@ -2,11 +2,13 @@ package agentfiles_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/spf13/afero"
@@ -99,6 +101,69 @@ func TestHandleFindFiles(t *testing.T) {
 			require.Equal(t, http.StatusBadRequest, code, name)
 		}
 	})
+}
+
+func TestHandleFindFiles_RootIdentity(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require elevated privileges on Windows")
+	}
+
+	home := t.TempDir()
+	rootA := filepath.Join(home, "projA")
+	rootB := filepath.Join(home, "projB")
+	require.NoError(t, os.MkdirAll(filepath.Join(rootA, "deep", "deeper"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(rootA, "deep", "deeper", "x_widget_extra_long_name.go"), nil, 0o600))
+	// rootB has many better-scoring matches that would crowd out
+	// rootA's single match if every indexed root were searched.
+	for i := range 40 {
+		p := filepath.Join(rootB, fmt.Sprintf("d%d", i), "widget.go")
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+		require.NoError(t, os.WriteFile(p, nil, 0o600))
+	}
+	link := filepath.Join(home, "link")
+	require.NoError(t, os.Symlink(rootA, link))
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	api := agentfiles.NewAPI(logger, afero.NewOsFs(), nil,
+		agentfiles.WithEnvInfo(fakeBundleEnvInfo{home: home}),
+		// An unclean configured directory must match the engine's
+		// cleaned root.
+		agentfiles.WithWorkingDir(func() string { return rootA + "/" }),
+	)
+	t.Cleanup(func() { require.NoError(t, api.Close()) })
+	handler := api.Routes()
+
+	code, resp := requestFindFiles(t, handler, url.Values{"root": {rootB}, "q": {"widget"}})
+	require.Equal(t, http.StatusOK, code)
+	require.NotEmpty(t, resp.Results)
+
+	code, resp = requestFindFiles(t, handler, url.Values{"root": {""}, "q": {"widget"}, "limit": {"1"}})
+	require.Equal(t, http.StatusOK, code)
+	require.Equal(t, []workspacesdk.FindFilesResult{{
+		AbsolutePath: filepath.Join(rootA, "deep", "deeper", "x_widget_extra_long_name.go"),
+		Path:         "deep/deeper/x_widget_extra_long_name.go",
+		Root:         rootA,
+	}}, withoutScores(resp.Results))
+
+	// A symlinked root is indexed through its target and reported
+	// under the requested path.
+	code, resp = requestFindFiles(t, handler, url.Values{"root": {link}, "q": {"widget"}})
+	require.Equal(t, http.StatusOK, code)
+	require.Equal(t, []workspacesdk.FindFilesResult{{
+		AbsolutePath: filepath.Join(link, "deep", "deeper", "x_widget_extra_long_name.go"),
+		Path:         "deep/deeper/x_widget_extra_long_name.go",
+		Root:         link,
+	}}, withoutScores(resp.Results))
+
+	// Overlapping roots return each file once.
+	code, resp = requestFindFiles(t, handler, url.Values{"root": {rootA, filepath.Join(rootA, "deep")}, "q": {"widget"}})
+	require.Equal(t, http.StatusOK, code)
+	require.Len(t, resp.Results, 1)
+
+	code, _ = requestFindFiles(t, handler, url.Values{"root": {"/"}, "q": {"widget"}})
+	require.Equal(t, http.StatusBadRequest, code)
 }
 
 func withoutScores(results []workspacesdk.FindFilesResult) []workspacesdk.FindFilesResult {

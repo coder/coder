@@ -1,6 +1,7 @@
 package agentfiles
 
 import (
+	"context"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -26,10 +27,13 @@ type API struct {
 	workingDir        func() string
 	bundleFilesLimits workspacesdk.BundleFilesLimits
 
-	finderMu    sync.Mutex
-	finder      *filefinder.Engine
-	finderRoots []string
-	closed      bool
+	finderMu      sync.Mutex
+	finder        *filefinder.Engine
+	finderCtx     context.Context
+	finderCancel  context.CancelFunc
+	finderRoots   []string
+	finderPending map[string]*pendingRoot
+	closed        bool
 }
 
 // Option configures the API.
@@ -88,18 +92,20 @@ func (api *API) Routes() http.Handler {
 	return r
 }
 
-// Close releases the file finder index, if one was created.
+// Close releases the file finder index, if one was created, and
+// cancels in-progress root walks.
 func (api *API) Close() error {
 	api.finderMu.Lock()
-	defer api.finderMu.Unlock()
 	api.closed = true
-	if api.finder == nil {
-		return nil
-	}
-	err := api.finder.Close()
+	engine, cancel := api.finder, api.finderCancel
 	api.finder = nil
 	api.finderRoots = nil
-	return err
+	api.finderMu.Unlock()
+	if engine == nil {
+		return nil
+	}
+	cancel()
+	return engine.Close()
 }
 
 // defaultDir returns the agent's configured working directory when it
@@ -113,7 +119,7 @@ func (api *API) defaultDir() (string, error) {
 	if err != nil {
 		return "", xerrors.Errorf("resolve default directory: %w", err)
 	}
-	return dir, nil
+	return filepath.Clean(dir), nil
 }
 
 // resolvePathForm converts a user-facing path into an absolute, cleaned
