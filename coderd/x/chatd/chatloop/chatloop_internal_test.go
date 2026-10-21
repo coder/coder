@@ -105,7 +105,7 @@ func TestProcessStepStreamLabelsNarration(t *testing.T) {
 	var published []codersdk.ChatMessagePart
 	result, err := processStepStream(stream, quartz.NewMock(t), func(_ codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 		published = append(published, part)
-	})
+	}, nil)
 	require.NoError(t, err)
 
 	narration := codersdk.ChatMessageText("Reading")
