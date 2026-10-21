@@ -852,7 +852,9 @@ lint/docs-html:
 
 # Fails when the YAML sidebar sources under docs/manifest are unformatted or
 # invalid: unknown or misordered keys, missing pages, overlays that match no
-# generated route, or source files that nothing references.
+# generated route, source files that nothing references, or a page description
+# (in the sources, a generated fragment, or page front matter) that doesn't end
+# with a period.
 lint/docs-manifest: _gen/bin/docsmanifestgen
 	echo "--- check docs sidebar sources"
 	_gen/bin/docsmanifestgen check

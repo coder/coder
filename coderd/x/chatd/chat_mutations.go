@@ -421,8 +421,8 @@ func (p *Server) EditMessage(
 	result.Chat = refreshed
 
 	// An interrupted worker may still flush debug rows after the edit;
-	// a short bounded retry converges without waiting for the much
-	// longer stale-finalization sweep. Cut off at the DB-stamped
+	// a short bounded retry converges without waiting for dbpurge's
+	// much longer debug retention window. Cut off at the DB-stamped
 	// updated_at, the clock that also stamps replacement-turn rows,
 	// minus debugCleanupClockSkew so replica drift cannot delete the
 	// replacement turn's rows.

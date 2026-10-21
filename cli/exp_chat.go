@@ -275,7 +275,8 @@ func (r *RootCmd) chatContextRefreshCommand(socketPath *string) *serpent.Command
 			"<chat> argument, refreshes that chat and works from anywhere.\n\nWith no " +
 			"argument, run from inside the workspace: forces the agent to re-resolve its " +
 			"sources (catching freshly-cloned repos and startup-script writes the watcher " +
-			"has not seen yet), then refreshes every drifted chat. This path authenticates " +
+			"has not seen yet) and retry MCP servers that failed to connect, then " +
+			"refreshes every drifted chat. This path authenticates " +
 			"with the agent token, so it does not require 'coder login'.",
 		Middleware: serpent.RequireRangeArgs(0, 1),
 		Handler: func(inv *serpent.Invocation) error {
