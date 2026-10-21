@@ -27,16 +27,16 @@ removed:
 
 ### -y, --yes
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Bypass confirmation prompts.
 
 ### --roles
 
-|      |                           |
-|------|---------------------------|
-| Type | <code>string-array</code> |
+| Property | Value                     |
+|----------|---------------------------|
+| Type     | <code>string-array</code> |
 
 Replaces the user's full set of site roles with this list. Any existing role not included here is removed.

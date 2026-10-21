@@ -18,7 +18,7 @@ coder open vscode [flags] <workspace> [<directory in workspace>]
 
 ### --generate-token
 
-|             |                                                |
+| Property    | Value                                          |
 |-------------|------------------------------------------------|
 | Type        | <code>bool</code>                              |
 | Environment | <code>$CODER_OPEN_VSCODE_GENERATE_TOKEN</code> |

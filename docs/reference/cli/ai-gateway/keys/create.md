@@ -18,9 +18,9 @@ coder ai-gateway keys create [flags] <name>
 
 ### -o, --output
 
-|         |                         |
-|---------|-------------------------|
-| Type    | <code>text\|json</code> |
-| Default | <code>text</code>       |
+| Property | Value                   |
+|----------|-------------------------|
+| Type     | <code>text\|json</code> |
+| Default  | <code>text</code>       |
 
 Output format.
