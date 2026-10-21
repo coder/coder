@@ -334,7 +334,7 @@ export const partFileIds = (part: TypesGen.ChatMessagePart): string[] => {
  * newest remaining one but absent from the record has been evicted. Later
  * references are newer than the record, so a message that lands before the
  * next chat refetch is never mistaken for an evicted one. `earlierFileIds`
- * lists, oldest first, the files referenced before the first entry.
+ * lists, oldest first, the file parts' IDs referenced before the first entry.
  */
 export const deriveEvictedFileIds = (
 	entries: readonly Pick<ParsedMessageEntry, "message">[],
