@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AxiosError, AxiosHeaders } from "axios";
 import { useState } from "react";
@@ -14,15 +14,21 @@ import {
 } from "vitest";
 import { API, type WorkspaceAgentFileContents } from "#/api/api";
 import type { WorkspaceAgentRepoChanges } from "#/api/typesGenerated";
+import { createDeferred } from "#/testHelpers/deferred";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import type FileEditor from "./FileEditor";
 import { type FileDraft, FileTab } from "./FileTab";
 
 vi.mock("./FileEditor", () => ({
-	default: ({ value, onChange }: React.ComponentProps<typeof FileEditor>) => (
+	default: ({
+		value,
+		readOnly,
+		onChange,
+	}: React.ComponentProps<typeof FileEditor>) => (
 		<textarea
 			aria-label="File contents"
 			value={value}
+			readOnly={readOnly}
 			onChange={(event) => onChange(event.target.value)}
 		/>
 	),
@@ -40,29 +46,34 @@ const fileContents = (
 	etag,
 });
 
-const preconditionFailed = () =>
+const responseError = (status: number, statusText: string) =>
 	new AxiosError(
-		"Request failed with status code 412",
+		`Request failed with status code ${status}`,
 		AxiosError.ERR_BAD_REQUEST,
 		undefined,
 		undefined,
 		{
-			data: { message: "File changed." },
-			status: 412,
-			statusText: "Precondition Failed",
+			data: {},
+			status,
+			statusText,
 			headers: { etag: '"v2"' },
 			config: { headers: new AxiosHeaders() },
 		},
 	);
+
+const preconditionFailed = () => responseError(412, "Precondition Failed");
 
 const repository: WorkspaceAgentRepoChanges = {
 	repo_root: "/repo",
 	branch: "main",
 };
 
-const Harness: React.FC<{ repository?: WorkspaceAgentRepoChanges }> = ({
-	repository,
-}) => {
+type HarnessProps = {
+	repository?: WorkspaceAgentRepoChanges;
+	readOnly?: boolean;
+};
+
+const Harness: React.FC<HarnessProps> = ({ repository, readOnly = false }) => {
 	const [draft, setDraft] = useState<FileDraft>();
 	return (
 		<FileTab
@@ -72,11 +83,12 @@ const Harness: React.FC<{ repository?: WorkspaceAgentRepoChanges }> = ({
 			repository={repository}
 			draft={draft}
 			onDraftChange={(_, update) => setDraft(update)}
+			readOnly={readOnly}
 		/>
 	);
 };
 
-const renderFileTab = (props: { repository?: WorkspaceAgentRepoChanges }) => {
+const renderFileTab = (props: HarnessProps) => {
 	const queryClient = createTestQueryClient();
 	return render(<Harness {...props} />, {
 		wrapper: ({ children }) => (
@@ -187,5 +199,101 @@ describe("FileTab", () => {
 				'"v2"',
 			);
 		});
+	});
+
+	it("keeps edits made during a save dirty against the saved content", async () => {
+		const user = userEvent.setup();
+		const write = createDeferred<{ etag: string }>();
+		writeFile.mockReturnValueOnce(write.promise);
+		renderFileTab({});
+
+		await editFile(user, " world");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		const editor = screen.getByLabelText("File contents");
+		await user.clear(editor);
+		await user.type(editor, "hello");
+		await act(async () => {
+			write.resolve({ etag: '"v2"' });
+			await write.promise;
+		});
+
+		expect(editor).toHaveValue("hello");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		await waitFor(() => {
+			expect(writeFile).toHaveBeenLastCalledWith(
+				agentId,
+				path,
+				"hello",
+				'"v2"',
+			);
+		});
+	});
+
+	it("keeps local edits when reloading fails", async () => {
+		const user = userEvent.setup();
+		writeFile.mockRejectedValueOnce(preconditionFailed());
+		renderFileTab({});
+
+		await editFile(user, " world");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		readFile.mockRejectedValueOnce(responseError(502, "Bad Gateway"));
+		await user.click(await screen.findByRole("button", { name: "Reload" }));
+
+		await waitFor(() => {
+			expect(readFile).toHaveBeenCalledTimes(2);
+		});
+		await waitFor(() => {
+			expect(screen.getByRole("button", { name: "Reload" })).toBeEnabled();
+		});
+		expect(screen.getByLabelText("File contents")).toHaveValue("hello world");
+		expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+	});
+
+	it("opens files read-only without a way to save", async () => {
+		const user = userEvent.setup();
+		renderFileTab({ readOnly: true });
+
+		await editFile(user, " world");
+
+		expect(screen.getByLabelText("File contents")).toHaveValue("hello");
+		expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+	});
+
+	it("treats invalid UTF-8 as binary instead of editable text", async () => {
+		readFile.mockResolvedValue({
+			data: new Uint8Array([0x68, 0x69, 0xff, 0x0a]).buffer,
+			contentType: "text/plain",
+			etag: '"v1"',
+		});
+		renderFileTab({});
+
+		await screen.findByText("Binary file");
+		expect(screen.queryByLabelText("File contents")).toBeNull();
+		expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+	});
+
+	it("restarts a read in flight when the repository changes again", async () => {
+		const { rerender } = renderFileTab({ repository });
+		const editor = await screen.findByLabelText("File contents");
+
+		const staleRead = createDeferred<WorkspaceAgentFileContents>();
+		readFile.mockReturnValueOnce(staleRead.promise);
+		rerender(<Harness repository={{ ...repository }} />);
+		await waitFor(() => {
+			expect(readFile).toHaveBeenCalledTimes(2);
+		});
+
+		readFile.mockResolvedValueOnce(fileContents("latest", '"v3"'));
+		rerender(<Harness repository={{ ...repository }} />);
+		await waitFor(() => {
+			expect(editor).toHaveValue("latest");
+		});
+
+		await act(async () => {
+			staleRead.resolve(fileContents("stale", '"v2"'));
+			await staleRead.promise;
+		});
+		expect(readFile).toHaveBeenCalledTimes(3);
+		expect(editor).toHaveValue("latest");
 	});
 });

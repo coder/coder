@@ -48,7 +48,7 @@ const StoryMainTabs: React.FC = () => {
 			}}
 		>
 			<div className="flex h-[480px] flex-col">
-				<MainTabs mainTabs={mainTabs}>
+				<MainTabs mainTabs={mainTabs} readOnly={false}>
 					<div className="flex flex-1 items-center justify-center text-sm text-content-secondary">
 						Chat transcript
 					</div>
