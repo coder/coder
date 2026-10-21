@@ -52,7 +52,7 @@ const Harness: React.FC<{ paths: readonly string[] }> = ({ paths }) => {
 					{`Open ${path}`}
 				</button>
 			))}
-			<MainTabs mainTabs={mainTabs}>
+			<MainTabs mainTabs={mainTabs} readOnly={false}>
 				<ChatStub />
 			</MainTabs>
 		</WorkspaceFilesContext>

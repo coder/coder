@@ -652,7 +652,10 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								}}
 							/>
 						</div>
-						<MainTabs mainTabs={mainTabs}>
+						<MainTabs
+							mainTabs={mainTabs}
+							readOnly={isArchived || isOtherUserReadOnly}
+						>
 							<ChatWorkspaceContext
 								value={{
 									workspaceId: workspace?.id,

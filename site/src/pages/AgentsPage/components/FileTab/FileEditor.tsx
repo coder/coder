@@ -13,6 +13,7 @@ type FileEditorProps = {
 	path: string;
 	value: string;
 	reveal: FileReveal | undefined;
+	readOnly: boolean;
 	onChange: (value: string) => void;
 	onSave: () => void;
 };
@@ -22,6 +23,7 @@ const FileEditor: React.FC<FileEditorProps> = ({
 	path,
 	value,
 	reveal,
+	readOnly,
 	onChange,
 	onSave,
 }) => {
@@ -77,6 +79,7 @@ const FileEditor: React.FC<FileEditorProps> = ({
 						fontFamily: MONOSPACE_FONT_FAMILY,
 						fontSize: 13,
 						minimap: { enabled: false },
+						readOnly,
 						scrollBeyondLastLine: false,
 						wordWrap: "on",
 						padding: { top: 8, bottom: 8 },
