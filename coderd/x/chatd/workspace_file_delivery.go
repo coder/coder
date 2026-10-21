@@ -97,6 +97,13 @@ func linksWorkspaceAttachments(parts []codersdk.ChatMessagePart) bool {
 	})
 }
 
+// RequestWorkspaceFileDelivery requests a delivery sweep on this replica, for
+// a change outside chatd that can make workspace files deliverable, such
+// as binding a chat to a running workspace.
+func (p *Server) RequestWorkspaceFileDelivery() {
+	p.wakeWorkspaceFileDelivery()
+}
+
 // wakeWorkspaceFileDelivery requests a delivery sweep on this replica.
 func (p *Server) wakeWorkspaceFileDelivery() {
 	if p.chatWorker != nil {

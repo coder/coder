@@ -399,28 +399,19 @@ func TestWorkspaceFileDeliveryLoop(t *testing.T) {
 		f.requireDelivered(ctx, t, chat, file.ID)
 	})
 
-	t.Run("SendToRunningWorkspaceDelivers", func(t *testing.T) {
-		t.Parallel()
-		f := newWorkspaceFileDeliveryFixture(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
-		// The send pokes its server's own worker, so the loop runs there.
+	// startServer runs the delivery loop of a server's own worker, the
+	// one the server's wake-ups poke, on the fixture clock. The clock
+	// never reaches the sweep, so only a wake-up delivers a file that
+	// becomes due afterwards.
+	startServer := func(ctx context.Context, t *testing.T, f workspaceFileDeliveryFixture) *Server {
+		t.Helper()
 		server := newUnstartedServer(t, f.pubsub, f.db, withInternalTestServerClock(f.clock))
 		server.agentInactiveDisconnectTimeout = time.Hour
 		server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			return f.agent, func() {}, nil
 		}
-		chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
-		file, err := f.db.InsertChatFile(ctx, database.InsertChatFileParams{
-			OwnerID:        f.user.ID,
-			OrganizationID: f.org.ID,
-			Name:           "report.zip",
-			Mimetype:       "application/zip",
-			Data:           []byte("zip bytes"),
-			Purpose:        database.NullChatFilePurpose{ChatFilePurpose: database.ChatFilePurposeWorkspace, Valid: true},
-		})
-		require.NoError(t, err)
-
 		trap := f.clock.Trap().NewTicker("chatworker", "workspace-file-delivery")
+		defer trap.Close()
 		loopCtx, cancel := context.WithCancel(ctx)
 		loopDone := make(chan struct{})
 		go func() {
@@ -432,11 +423,27 @@ func TestWorkspaceFileDeliveryLoop(t *testing.T) {
 			<-loopDone
 		})
 		trap.MustWait(ctx).MustRelease(ctx)
-		trap.Close()
+		return server
+	}
+
+	t.Run("SendToRunningWorkspaceDelivers", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		file, err := f.db.InsertChatFile(ctx, database.InsertChatFileParams{
+			OwnerID:        f.user.ID,
+			OrganizationID: f.org.ID,
+			Name:           "report.zip",
+			Mimetype:       "application/zip",
+			Data:           []byte("zip bytes"),
+			Purpose:        database.NullChatFilePurpose{ChatFilePurpose: database.ChatFilePurposeWorkspace, Valid: true},
+		})
+		require.NoError(t, err)
+		server := startServer(ctx, t, f)
 
 		// The workspace already finished starting, so no startup event
-		// follows and the clock never reaches the sweep: only the send
-		// can wake the loop.
+		// follows: only the send can wake the loop.
 		_, err = server.SendMessage(ctx, SendMessageOptions{
 			ChatID:    chat.ID,
 			CreatedBy: f.user.ID,
@@ -445,6 +452,44 @@ func TestWorkspaceFileDeliveryLoop(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
+		f.requireDelivered(ctx, t, chat, file.ID)
+	})
+
+	t.Run("BindingDelivers", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		workspaceID := chat.WorkspaceID
+		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+		_, err := f.db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{ID: chat.ID})
+		require.NoError(t, err)
+		server := startServer(ctx, t, f)
+
+		// PATCH /chats/{chat} binds a running workspace like this.
+		chat, err = f.db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{ID: chat.ID, WorkspaceID: workspaceID})
+		require.NoError(t, err)
+		server.RequestWorkspaceFileDelivery()
+		f.requireDelivered(ctx, t, chat, file.ID)
+	})
+
+	t.Run("UnarchiveDelivers", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkspaceFileDeliveryFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, _ := f.workspaceChat(ctx, t, database.WorkspaceAgent{LifecycleState: database.WorkspaceAgentLifecycleStateReady})
+		file := f.workspaceFile(ctx, t, chat.ID, "zip bytes")
+		// Only an idle chat can be archived.
+		_, err := f.db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{ID: chat.ID, Status: database.ChatStatusWaiting})
+		require.NoError(t, err)
+		_, err = f.db.ArchiveChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		server := startServer(ctx, t, f)
+		require.Empty(t, f.agent.uploadRequests())
+
+		chat, err = f.db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.NoError(t, server.UnarchiveChat(ctx, chat))
 		f.requireDelivered(ctx, t, chat, file.ID)
 	})
 }
