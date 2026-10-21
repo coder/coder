@@ -590,7 +590,8 @@ func TestTagUserRowsWithItemIDs(t *testing.T) {
 	}
 	require.Equal(t, []string{"first", "second\n[id: 1]"}, texts(tagged[0]))
 	require.Equal(t, []string{"[id: 2]"}, texts(tagged[1]))
-	for _, i := range []int{2, 3, 4} {
+	require.Equal(t, []string{"pending\n[id: 5]"}, texts(tagged[4]), "a replayed pending request keeps an ID")
+	for _, i := range []int{2, 3} {
 		require.Equal(t, rows[i], tagged[i], "row %d is not a user request", rows[i].ID)
 	}
 }

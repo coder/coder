@@ -1440,6 +1440,9 @@ func (s *taskStarter) rollOverContextWindow(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
+	// Seed the turn's debug run now: after the boundary, the newest user
+	// row is the request's model-only replay.
+	input.DebugTurn.Ensure(ctx, prepared.Chat, prepared.Debug)
 	err = s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionContextRollover, stepMessagesForCommit{Messages: messages}, generationCommitHooks{})
 	if err != nil {
 		return xerrors.Errorf("commit context rollover step: %w", err)
