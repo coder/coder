@@ -16,7 +16,7 @@ const badgeVariants = cva(
 		variants: {
 			variant: {
 				default:
-					"border-surface-secondary bg-surface-secondary text-content-secondary shadow-sm",
+					"border-transparent bg-surface-secondary text-content-secondary shadow-sm",
 				outline:
 					"border-border bg-transparent text-content-primary shadow-none",
 				dashed:
