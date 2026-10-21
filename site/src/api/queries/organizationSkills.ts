@@ -134,15 +134,13 @@ export const deleteOrganizationSkill = (
 });
 
 /**
- * Keys whether members of an organization can turn off its skills. Kept
- * outside organizationSkillsKey: deleting a skill removes its detail key
- * non-exactly, so deleting a skill named `settings` would evict a key nested
- * there.
+ * Kept outside organizationSkillsKey: deleting a skill removes its detail
+ * key non-exactly, so deleting a skill named `settings` would evict a key
+ * nested there.
  */
 export const organizationSkillSettingsKey = (organizationId: string) =>
 	["organization-skill-settings", organizationId] as const;
 
-/** Keys the current user's organization skill choices. */
 export const organizationSkillPreferencesKey = (organizationId: string) =>
 	["organization-skill-preferences", organizationId] as const;
 
