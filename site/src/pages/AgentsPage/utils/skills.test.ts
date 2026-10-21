@@ -360,12 +360,12 @@ describe("getSkillContentSizeBytes", () => {
 });
 
 describe("activeOrganizationSkills", () => {
-	const [reviewer, docs] = MockSkills;
-	const skills = [reviewer, docs, MockDisabledSkill];
+	const [mockReviewer, mockDocs] = MockSkills;
+	const skills = [mockReviewer, mockDocs, MockDisabledSkill];
 	const mockOptedOutOfReviewerPreferences: TypesGen.OrganizationSkillPreferences =
 		{
 			...MockOrganizationSkillPreferences,
-			disabled_skill_ids: [reviewer.id],
+			disabled_skill_ids: [mockReviewer.id],
 		};
 
 	it.each<{
@@ -379,7 +379,7 @@ describe("activeOrganizationSkills", () => {
 				...mockOptedOutOfReviewerPreferences,
 				all_skills_disabled: true,
 			},
-			expected: [reviewer, docs],
+			expected: [mockReviewer, mockDocs],
 		},
 		{
 			name: "drops opted-out skills",
@@ -387,7 +387,7 @@ describe("activeOrganizationSkills", () => {
 				...mockOptedOutOfReviewerPreferences,
 				members_can_disable_skills: true,
 			},
-			expected: [docs],
+			expected: [mockDocs],
 		},
 		{
 			name: "drops every skill with the master switch",

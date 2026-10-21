@@ -663,10 +663,9 @@ const AgentChatPage: React.FC = () => {
 		isSubmissionPending,
 		hasModelOptions,
 		isEditReasoningEffortDirtyRef,
-		// chatd skips disabled skills and, while members can opt out, the
-		// organization skills they turned off, so they never shadow a
-		// built-in command. A list with no data stays unknown, even after an
-		// error.
+		// chatd skips disabled skills and, while members can opt out, skills
+		// they turned off, so neither shadows a built-in command. A list with
+		// no data stays unknown, even after an error.
 		personalSkills: personalSkillsQuery.data?.filter((skill) => skill.enabled),
 		organizationSkills: activeOrganizationSkills(
 			organizationSkillsQuery.data,

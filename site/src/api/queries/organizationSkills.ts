@@ -199,8 +199,8 @@ export const updateOrganizationSkillPreferences = (
 			preferences,
 		);
 	},
-	// A write fails with 403 once an admin turns the setting off, so reload
-	// the preferences to show the current setting.
+	// A write fails once an admin turns the setting off, so reload the
+	// preferences to show the current setting.
 	onError: () =>
 		queryClient.invalidateQueries({
 			queryKey: organizationSkillPreferencesKey(organizationId),
