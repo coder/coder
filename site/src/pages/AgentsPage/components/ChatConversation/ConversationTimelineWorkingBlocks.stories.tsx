@@ -313,6 +313,21 @@ export const TurnAttachmentsPillRunningTurn: Story = {
 	},
 };
 
+// A manual compaction runs the chat after the answer, which keeps its pill.
+export const TurnAttachmentsPillCompacting: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+		chatStatus: "running",
+		...buildStreamRenderState([
+			{
+				type: "tool-call",
+				tool_call_id: "compact",
+				tool_name: "chat_summarized",
+			},
+		]),
+	},
+};
+
 const mockPendingQuestionMessage = {
 	...MockQuestionCallMessage,
 	id: 23,

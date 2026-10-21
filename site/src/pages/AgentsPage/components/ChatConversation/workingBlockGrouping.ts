@@ -175,10 +175,7 @@ export type TurnAttachmentsOptions = {
 	 * none of them hosts the pill.
 	 */
 	hidesAttachmentRows: boolean;
-	/**
-	 * The chat may still add to the newest turn, which gets no entry until
-	 * its answer persists.
-	 */
+	/** While true, the newest turn gets no entry until its answer persists. */
 	isChatActive: boolean;
 	/** More history exists, so a first turn without its prompt gets no entry. */
 	hasMoreMessages: boolean;
@@ -238,20 +235,17 @@ export const getTurnAttachmentsByRow = (
 	// The answer ends the turn's work, so a manual compaction after it, which
 	// runs the chat without a new prompt, keeps the pill.
 	const lastParsed = lastShownRow?.entry.parsed;
-	const hasAnswer =
+	const lastShownRowEndsWithAnswer =
 		lastParsed !== undefined &&
 		splitRowBlocks(lastParsed.blocks, lastParsed.tools).answer.length > 0;
-	if (!isChatActive || hasAnswer) {
+	if (!isChatActive || lastShownRowEndsWithAnswer) {
 		settleTurn();
 	}
 
 	return byRow;
 };
 
-/**
- * A working block without an answer row renders none of its rows at the top
- * level, so it shows its turn's pill when one of its members hosts it.
- */
+/** A block without an answer row shows the pill its members would host. */
 export const getBlockTurnAttachments = (
 	block: WorkingBlock,
 	memberKeys: readonly string[],
