@@ -84,8 +84,7 @@ const mockNoConnectRecorded: ConnectionLog = {
 	connect_time: MockDisconnectedSSHConnectionLog.ssh_info.disconnect_time,
 	ssh_info: {
 		...MockDisconnectedSSHConnectionLog.ssh_info,
-		duration_seconds: undefined,
-		duration_status: "missing_connect",
+		duration: { status: "missing_connect" },
 	},
 };
 
@@ -100,8 +99,7 @@ const mockDurationUnavailable: ConnectionLog = {
 	ssh_info: {
 		...MockDisconnectedSSHConnectionLog.ssh_info,
 		disconnect_time: "2022-05-19T16:40:57.122Z",
-		duration_seconds: undefined,
-		duration_status: "invalid",
+		duration: { status: "invalid" },
 	},
 };
 

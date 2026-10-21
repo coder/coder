@@ -329,8 +329,7 @@ func TestConnectionLogs(t *testing.T) {
 		require.Empty(t, logs.ConnectionLogs[0].SSHInfo.ExitCode)
 		require.Empty(t, logs.ConnectionLogs[0].SSHInfo.DisconnectTime)
 		require.Empty(t, logs.ConnectionLogs[0].SSHInfo.DisconnectReason)
-		require.Nil(t, logs.ConnectionLogs[0].SSHInfo.DurationSeconds)
-		require.Equal(t, codersdk.ConnectionLogDurationNoDisconnect, logs.ConnectionLogs[0].SSHInfo.DurationStatus)
+		require.Equal(t, codersdk.ConnectionLogDuration{Status: codersdk.ConnectionLogDurationNoDisconnect}, logs.ConnectionLogs[0].SSHInfo.Duration)
 		require.Equal(t, "0123456789abcdef0123456789abcdef", logs.ConnectionLogs[0].SSHInfo.ClientSessionID)
 
 		// Mark log as closed
@@ -373,8 +372,7 @@ func TestConnectionLogs(t *testing.T) {
 		require.Equal(t, clog.ConnectionID.UUID, logs.ConnectionLogs[0].SSHInfo.ConnectionID)
 		require.True(t, logs.ConnectionLogs[0].SSHInfo.DisconnectTime.Equal(now))
 		require.Equal(t, updatedClog.DisconnectReason.String, logs.ConnectionLogs[0].SSHInfo.DisconnectReason)
-		require.Equal(t, new(3600.0), logs.ConnectionLogs[0].SSHInfo.DurationSeconds)
-		require.Equal(t, codersdk.ConnectionLogDurationRecorded, logs.ConnectionLogs[0].SSHInfo.DurationStatus)
+		require.Equal(t, codersdk.ConnectionLogDuration{Status: codersdk.ConnectionLogDurationRecorded, Seconds: new(3600.0)}, logs.ConnectionLogs[0].SSHInfo.Duration)
 	})
 }
 

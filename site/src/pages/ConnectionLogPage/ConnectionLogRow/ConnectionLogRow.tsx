@@ -1,8 +1,8 @@
 import { NetworkIcon } from "lucide-react";
 import type {
 	ConnectionLog,
+	ConnectionLogDuration,
 	ConnectionLogDurationStatus,
-	ConnectionLogSSHInfo,
 } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { StatusBadge } from "#/components/StatusBadge/StatusBadge";
@@ -13,7 +13,7 @@ import { ConnectionLogDescription } from "./ConnectionLogDescription/ConnectionL
 import { ConnectionLogDetailsPopover } from "./ConnectionLogDetailsPopover";
 
 const unavailableDurationLabels = {
-	no_disconnect: "No disconnect recorded",
+	no_disconnect: "Ongoing",
 	missing_connect: "No connect recorded",
 	invalid: "Duration unavailable",
 } as const satisfies Record<
@@ -21,13 +21,13 @@ const unavailableDurationLabels = {
 	string
 >;
 
-const durationLabel = (sshInfo: ConnectionLogSSHInfo): string | undefined => {
-	if (sshInfo.duration_status !== "recorded") {
-		return unavailableDurationLabels[sshInfo.duration_status];
+const durationLabel = ({ status, seconds }: ConnectionLogDuration): string => {
+	if (status !== "recorded") {
+		return unavailableDurationLabels[status];
 	}
-	return sshInfo.duration_seconds !== undefined
-		? humanDurationShort(sshInfo.duration_seconds * 1000)
-		: undefined;
+	return seconds === undefined
+		? unavailableDurationLabels.invalid
+		: humanDurationShort(seconds * 1000);
 };
 
 type ConnectionLogRowProps = {
@@ -41,7 +41,7 @@ export const ConnectionLogRow: React.FC<ConnectionLogRowProps> = ({
 	const code =
 		connectionLog.web_info?.status_code ?? connectionLog.ssh_info?.exit_code;
 	const durationText = connectionLog.ssh_info
-		? durationLabel(connectionLog.ssh_info)
+		? durationLabel(connectionLog.ssh_info.duration)
 		: undefined;
 
 	return (

@@ -4093,6 +4093,19 @@ export interface ConnectionLog {
 }
 
 // From codersdk/connectionlog.go
+/**
+ * ConnectionLogDuration is the time between a connection's recorded connect
+ * and disconnect events.
+ */
+export interface ConnectionLogDuration {
+	readonly status: ConnectionLogDurationStatus;
+	/**
+	 * Seconds is set only when Status is recorded.
+	 */
+	readonly seconds?: number;
+}
+
+// From codersdk/connectionlog.go
 export type ConnectionLogDurationStatus =
 	| "invalid"
 	| "missing_connect"
@@ -4136,11 +4149,7 @@ export interface ConnectionLogSSHInfo {
 	 * ClientSessionID is set by the client and isn't guaranteed to be unique.
 	 */
 	readonly client_session_id?: string;
-	/**
-	 * DurationSeconds is set only when DurationStatus is recorded.
-	 */
-	readonly duration_seconds?: number;
-	readonly duration_status: ConnectionLogDurationStatus;
+	readonly duration: ConnectionLogDuration;
 	/**
 	 * DisconnectTime is omitted if a disconnect event with the same connection ID
 	 * has not yet been seen.

@@ -100,19 +100,19 @@ func convertConnectionLogs(dblogs []database.GetConnectionLogsOffsetRow) []coder
 
 // connectionLogDuration treats equal timestamps as a missing connect: a
 // disconnect without its connect stores its own timestamp as connect_time.
-func connectionLogDuration(log database.ConnectionLog) (*float64, codersdk.ConnectionLogDurationStatus) {
+func connectionLogDuration(log database.ConnectionLog) codersdk.ConnectionLogDuration {
 	if !log.DisconnectTime.Valid {
-		return nil, codersdk.ConnectionLogDurationNoDisconnect
+		return codersdk.ConnectionLogDuration{Status: codersdk.ConnectionLogDurationNoDisconnect}
 	}
 	start, end := log.ConnectTime, log.DisconnectTime.Time
 	if start.Equal(end) {
-		return nil, codersdk.ConnectionLogDurationMissingConnect
+		return codersdk.ConnectionLogDuration{Status: codersdk.ConnectionLogDurationMissingConnect}
 	}
 	if start.IsZero() || end.Before(start) {
-		return nil, codersdk.ConnectionLogDurationInvalid
+		return codersdk.ConnectionLogDuration{Status: codersdk.ConnectionLogDurationInvalid}
 	}
 	seconds := end.Sub(start).Seconds()
-	return &seconds, codersdk.ConnectionLogDurationRecorded
+	return codersdk.ConnectionLogDuration{Status: codersdk.ConnectionLogDurationRecorded, Seconds: &seconds}
 }
 
 func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.ConnectionLog {
@@ -156,13 +156,11 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		if appName != "" {
 			appDisplayName = codersdk.AppDisplayName(appName)
 		}
-		seconds, status := connectionLogDuration(dblog.ConnectionLog)
 		sshInfo = &codersdk.ConnectionLogSSHInfo{
 			ConnectionID:     dblog.ConnectionLog.ConnectionID.UUID,
 			ClientSessionID:  dblog.ConnectionLog.ClientSessionID.String,
 			DisconnectReason: dblog.ConnectionLog.DisconnectReason.String,
-			DurationSeconds:  seconds,
-			DurationStatus:   status,
+			Duration:         connectionLogDuration(dblog.ConnectionLog),
 		}
 		if dblog.ConnectionLog.DisconnectTime.Valid {
 			sshInfo.DisconnectTime = &dblog.ConnectionLog.DisconnectTime.Time

@@ -23783,6 +23783,18 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ConnectionLogDuration": {
+            "type": "object",
+            "properties": {
+                "seconds": {
+                    "description": "Seconds is set only when Status is recorded.",
+                    "type": "number"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.ConnectionLogDurationStatus"
+                }
+            }
+        },
         "codersdk.ConnectionLogDurationStatus": {
             "type": "string",
             "enum": [
@@ -23852,12 +23864,8 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
-                "duration_seconds": {
-                    "description": "DurationSeconds is set only when DurationStatus is recorded.",
-                    "type": "number"
-                },
-                "duration_status": {
-                    "$ref": "#/definitions/codersdk.ConnectionLogDurationStatus"
+                "duration": {
+                    "$ref": "#/definitions/codersdk.ConnectionLogDuration"
                 },
                 "exit_code": {
                     "description": "ExitCode is the exit code of the SSH session. It is omitted if a\ndisconnect event with the same connection ID has not yet been seen.",

@@ -3215,7 +3215,7 @@ export const MockConnectedSSHConnectionLog = {
 		disconnect_time: undefined,
 		exit_code: undefined,
 		client_session_id: "3f2a9c4e8b1d4f6a9e0c7b5d2a1f8e3c",
-		duration_status: "no_disconnect",
+		duration: { status: "no_disconnect" },
 	},
 } satisfies TypesGen.ConnectionLog;
 
@@ -3242,8 +3242,7 @@ export const MockDisconnectedSSHConnectionLog = {
 		disconnect_time: "2022-05-19T16:49:57.122Z",
 		exit_code: 0,
 		client_session_id: "3f2a9c4e8b1d4f6a9e0c7b5d2a1f8e3c",
-		duration_seconds: 240,
-		duration_status: "recorded",
+		duration: { status: "recorded", seconds: 240 },
 	},
 } satisfies TypesGen.ConnectionLog;
 
