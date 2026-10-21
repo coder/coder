@@ -1224,11 +1224,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().RetryChatWorkspaceFileDeliveries(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
 	}))
-	s.Run("RetryChatWorkspaceFileDeliveriesByWorkspaceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		arg := testutil.Fake(s.T(), faker, database.RetryChatWorkspaceFileDeliveriesByWorkspaceIDParams{})
-		dbm.EXPECT().RetryChatWorkspaceFileDeliveriesByWorkspaceID(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(int64(1))
-	}))
 	s.Run("GetChatFileMetadataByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		file := testutil.Fake(s.T(), faker, database.ChatFile{})

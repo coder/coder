@@ -10383,21 +10383,6 @@ func (mr *MockStoreMockRecorder) RetryChatWorkspaceFileDeliveries(ctx, arg any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetryChatWorkspaceFileDeliveries", reflect.TypeOf((*MockStore)(nil).RetryChatWorkspaceFileDeliveries), ctx, arg)
 }
 
-// RetryChatWorkspaceFileDeliveriesByWorkspaceID mocks base method.
-func (m *MockStore) RetryChatWorkspaceFileDeliveriesByWorkspaceID(ctx context.Context, arg database.RetryChatWorkspaceFileDeliveriesByWorkspaceIDParams) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RetryChatWorkspaceFileDeliveriesByWorkspaceID", ctx, arg)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// RetryChatWorkspaceFileDeliveriesByWorkspaceID indicates an expected call of RetryChatWorkspaceFileDeliveriesByWorkspaceID.
-func (mr *MockStoreMockRecorder) RetryChatWorkspaceFileDeliveriesByWorkspaceID(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetryChatWorkspaceFileDeliveriesByWorkspaceID", reflect.TypeOf((*MockStore)(nil).RetryChatWorkspaceFileDeliveriesByWorkspaceID), ctx, arg)
-}
-
 // RevokeDBCryptKey mocks base method.
 func (m *MockStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
 	m.ctrl.T.Helper()
