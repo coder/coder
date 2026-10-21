@@ -993,8 +993,8 @@ const (
 	// the current run finishes.
 	ChatBusyBehaviorQueue ChatBusyBehavior = "queue"
 	// ChatBusyBehaviorInterrupt interrupts the active run. It persists
-	// the partial response before this message runs ahead of queued messages.
-	// Further messages join the queue tail while the interruption is pending.
+	// the partial response, then delivers this message and the other
+	// interrupt messages ahead of queued messages.
 	ChatBusyBehaviorInterrupt ChatBusyBehavior = "interrupt"
 )
 
