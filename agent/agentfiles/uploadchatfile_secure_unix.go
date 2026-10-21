@@ -41,6 +41,9 @@ func (api *API) writeUploadExclusiveSecure(target uploadTarget, name string, r i
 			return "", "", 0, err
 		}
 		if size > 0 {
+			if err = syncExistingUploadAt(filesFD, name); err != nil {
+				return "", "", 0, err
+			}
 			return name, filepath.Join(target.dir, name), size, nil
 		}
 	}
@@ -62,6 +65,9 @@ func (api *API) writeUploadExclusiveSecure(target uploadTarget, name string, r i
 
 	f := os.NewFile(uintptr(fd), tmp)
 	n, err := io.Copy(f, r)
+	if err == nil && target.mode() == uploadPublishWriteOnce {
+		err = f.Sync()
+	}
 	if cerr := f.Close(); err == nil {
 		err = cerr
 	}
@@ -92,6 +98,9 @@ func publishUploadAt(dirFD int, tmp, name string, size int64, mode uploadPublish
 		if useLink {
 			err := link(dirFD, tmp, dirFD, candidate, 0)
 			if err == nil {
+				if err := syncUploadDirAt(dirFD, mode); err != nil {
+					return "", 0, err
+				}
 				return candidate, size, nil
 			}
 			if errors.Is(err, unix.EEXIST) {
@@ -125,6 +134,9 @@ func publishUploadAt(dirFD int, tmp, name string, size int64, mode uploadPublish
 			_ = unix.Unlinkat(dirFD, candidate, 0)
 			return "", 0, xerrors.Errorf("publish upload: %w", err)
 		}
+		if err := syncUploadDirAt(dirFD, mode); err != nil {
+			return "", 0, err
+		}
 		return candidate, size, nil
 	}
 	return "", 0, errUploadCollisionExhausted
@@ -143,12 +155,49 @@ func existingUploadAt(dirFD int, tmp, name string, size int64) (string, int64, e
 		return "", 0, err
 	}
 	if !replace {
+		if err := syncExistingUploadAt(dirFD, name); err != nil {
+			return "", 0, err
+		}
 		return name, st.Size, nil
 	}
 	if err := unix.Renameat(dirFD, tmp, dirFD, name); err != nil {
 		return "", 0, xerrors.Errorf("replace abandoned upload placeholder: %w", err)
 	}
+	if err := syncUploadDirAt(dirFD, uploadPublishWriteOnce); err != nil {
+		return "", 0, err
+	}
 	return name, size, nil
+}
+
+// syncUploadDirAt makes the directory entry of a write-once upload
+// durable. coderd drops its only stored copy of the file once the upload
+// is acknowledged, so the acknowledgement must survive a host crash.
+func syncUploadDirAt(dirFD int, mode uploadPublishMode) error {
+	if mode != uploadPublishWriteOnce {
+		return nil
+	}
+	if err := unix.Fsync(dirFD); err != nil {
+		return xerrors.Errorf("sync upload directory: %w", err)
+	}
+	return nil
+}
+
+// syncExistingUploadAt makes the existing file a write-once upload
+// acknowledges durable, together with its directory entry, since an
+// earlier upload may have published it without either reaching the disk.
+func syncExistingUploadAt(dirFD int, name string) error {
+	fd, err := unix.Openat(dirFD, name, unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return xerrors.Errorf("open existing upload: %w", err)
+	}
+	err = unix.Fsync(fd)
+	if cerr := unix.Close(fd); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		return xerrors.Errorf("sync existing upload: %w", err)
+	}
+	return syncUploadDirAt(dirFD, uploadPublishWriteOnce)
 }
 
 // publishedUploadSizeAt returns the size of the regular file at a
@@ -215,7 +264,11 @@ func openWorkspaceUploadDirNoFollow(target uploadTarget) (fd int, err error) {
 	openedPath := target.homeDir
 	for _, component := range components {
 		openedPath = filepath.Join(openedPath, component)
-		if err := unix.Mkdirat(current, component, 0o755); err != nil && !errors.Is(err, unix.EEXIST) {
+		err := unix.Mkdirat(current, component, 0o755)
+		if err == nil {
+			err = syncUploadDirAt(current, target.mode())
+		}
+		if err != nil && !errors.Is(err, unix.EEXIST) {
 			_ = unix.Close(current)
 			return -1, xerrors.Errorf("create upload directory: %w", err)
 		}
