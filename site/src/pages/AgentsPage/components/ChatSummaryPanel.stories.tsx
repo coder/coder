@@ -237,6 +237,13 @@ const mockLatestMessages: TypesGen.ChatMessage[] = attachmentStepMessages({
 	result: { name: "latency-report.csv" },
 });
 
+const renderWithLatestMessages: Story["render"] = (args) => (
+	<ChatSummaryPanel
+		{...args}
+		store={createAttachmentStore(mockLatestMessages)}
+	/>
+);
+
 const mockEarlierScreenshot: TypesGen.ChatAttachment = {
 	...MockChatAttachment,
 	message_id: 6,
@@ -263,12 +270,7 @@ const mockEarlierUpload: TypesGen.ChatAttachment = {
 
 export const WithEarlierAttachments: Story = {
 	args: { hasMoreMessages: true },
-	render: (args) => (
-		<ChatSummaryPanel
-			{...args}
-			store={createAttachmentStore(mockLatestMessages)}
-		/>
-	),
+	render: renderWithLatestMessages,
 	parameters: {
 		queries: [
 			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
@@ -288,12 +290,7 @@ export const EarlierAttachmentsFailed: Story = {
 			new Error("Failed to load attachments"),
 		);
 	},
-	render: (args) => (
-		<ChatSummaryPanel
-			{...args}
-			store={createAttachmentStore(mockLatestMessages)}
-		/>
-	),
+	render: renderWithLatestMessages,
 	parameters: {
 		queries: [
 			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
@@ -356,20 +353,17 @@ const mockReportFile: TypesGen.ChatFileMetadata = {
 	mime_type: "text/csv",
 };
 
+const mockReportAndScreenshotChat: TypesGen.Chat = {
+	...MockChat,
+	files: [mockReportFile, mockScreenshotFile],
+};
+
 export const ExpiredEarlierAttachment: Story = {
 	args: { hasMoreMessages: true },
-	render: (args) => (
-		<ChatSummaryPanel
-			{...args}
-			store={createAttachmentStore(mockLatestMessages)}
-		/>
-	),
+	render: renderWithLatestMessages,
 	parameters: {
 		queries: [
-			{
-				key: chatEntityKey(MockChat.id),
-				data: { ...MockChat, files: [mockReportFile, mockScreenshotFile] },
-			},
+			{ key: chatEntityKey(MockChat.id), data: mockReportAndScreenshotChat },
 			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
 			{
 				key: chatAttachmentsKey(MockChat.id, mockLatestMessages[0].id),
