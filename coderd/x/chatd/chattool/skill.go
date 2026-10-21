@@ -471,13 +471,6 @@ func ReadSkillFile(options ReadSkillOptions) fantasy.AgentTool {
 					err.Error(),
 				), nil
 			}
-			// A link or copy in any skill directory can expose a hidden
-			// skill's meta file under another path, and the pinned meta
-			// goes stale when the file is edited, so check the content
-			// itself.
-			if workspacesdk.SkillDisablesModelInvocation(content) {
-				return hiddenSkillMetaFileResponse(args.Name, args.Path), nil
-			}
 
 			return toolResponse(map[string]any{
 				"content": content,

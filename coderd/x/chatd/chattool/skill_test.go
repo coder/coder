@@ -924,60 +924,39 @@ func TestReadSkillFileTool(t *testing.T) {
 		}
 	})
 
-	t.Run("RefusesLinkedHiddenMetaFile", func(t *testing.T) {
+	t.Run("ListedSkillServesFileThatDisablesModelInvocation", func(t *testing.T) {
 		t.Parallel()
 
-		// A link or copy can expose a hidden skill's SKILL.md under another
-		// path, from its own directory or from a listed skill's directory,
-		// and the file may have changed since the skill was pinned.
-		skills := append([]chattool.SkillMeta{{
+		const content = "---\nname: example\ndescription: example\ndisable-model-invocation: true\n---\nCodeword.\n"
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+		conn.EXPECT().ReadFile(
+			gomock.Any(),
+			"/work/.agents/skills/auto-helper/example-skill.md",
+			int64(0),
+			int64(512*1024+1),
+		).Return(io.NopCloser(strings.NewReader(content)), "text/markdown", nil)
+
+		skills := []chattool.SkillMeta{{
 			Name: "auto-helper",
 			Dir:  "/work/.agents/skills/auto-helper",
 			Meta: []byte("---\nname: auto-helper\ndescription: Listed\n---\nHelp.\n"),
-		}}, modelHiddenSkills...)
-		pinnedMeta := string(modelHiddenSkills[0].Meta)
-		for _, tc := range []struct {
-			name     string
-			skill    string
-			filePath string
-			content  string
-		}{
-			{"PinnedHiddenSkill", "workspace/manual", "/work/.agents/skills/manual/alias.md", pinnedMeta},
-			{"EditedHiddenSkill", "manual", "/work/.agents/skills/manual/alias.md", pinnedMeta + "Edited after pinning.\n"},
-			{"ListedSkill", "auto-helper", "/work/.agents/skills/auto-helper/alias.md", pinnedMeta},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
+		}}
+		tool := chattool.ReadSkillFile(chattool.ReadSkillOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return conn, nil
+			},
+			GetSkills: func() []chattool.SkillMeta { return skills },
+		})
 
-				ctrl := gomock.NewController(t)
-				conn := agentconnmock.NewMockAgentConn(ctrl)
-				conn.EXPECT().ReadFile(
-					gomock.Any(),
-					tc.filePath,
-					int64(0),
-					int64(512*1024+1),
-				).DoAndReturn(func(context.Context, string, int64, int64) (io.ReadCloser, string, error) {
-					return io.NopCloser(strings.NewReader(tc.content)), "text/markdown", nil
-				})
-
-				tool := chattool.ReadSkillFile(chattool.ReadSkillOptions{
-					GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
-						return conn, nil
-					},
-					GetSkills: func() []chattool.SkillMeta { return skills },
-				})
-
-				resp, err := tool.Run(context.Background(), fantasy.ToolCall{
-					ID:    "call-1",
-					Name:  "read_skill_file",
-					Input: `{"name":"` + tc.skill + `","path":"alias.md"}`,
-				})
-				require.NoError(t, err)
-				assert.True(t, resp.IsError)
-				assert.Contains(t, resp.Content, "cannot be read with read_skill_file")
-				assert.NotContains(t, resp.Content, "disable-model-invocation")
-			})
-		}
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "read_skill_file",
+			Input: `{"name":"auto-helper","path":"example-skill.md"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError, resp.Content)
+		assert.Contains(t, resp.Content, "Codeword.")
 	})
 
 	t.Run("ModelHiddenSkillBareNameSharedWithStoredSkill", func(t *testing.T) {
