@@ -33,6 +33,12 @@ import {
 	useState,
 } from "react";
 import { useQuery } from "react-query";
+import {
+	chatProjectSkills,
+	chatProjectUsability,
+	usableChatProjectSkills,
+} from "#/api/queries/chatProjectSkills";
+import { chatProject } from "#/api/queries/chatProjects";
 import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -42,7 +48,11 @@ import {
 	type SkillSource,
 	type SkillSourceList,
 } from "../../utils/skillAliases";
-import { filterSkillsByQuery, isSkillTriggerToken } from "../../utils/skills";
+import {
+	filterSkillsByQuery,
+	isSkillTriggerToken,
+	type SkillsScope,
+} from "../../utils/skills";
 import {
 	type ChatSlashCommand,
 	resolveChatSlashCommandAvailability,
@@ -551,6 +561,8 @@ type ChatMessageInputProps = Omit<
 	hasWorkspace: boolean;
 	/** Organization whose skills the chat loads, if any. */
 	organizationId?: string;
+	/** Project, in organizationId, whose skills the chat loads, if any. */
+	projectId?: string;
 	/**
 	 * Story and test seam for deterministic personal skill menu data.
 	 */
@@ -621,6 +633,34 @@ const isSameSkillsTrigger = (
 	);
 };
 
+/**
+ * Loads a Coder-stored skill source for the "/" menu while a trigger is
+ * active, without the disabled skills chatd skips.
+ */
+const useStoredSkillSource = (
+	queryOptions: SkillsScope["list"],
+	{
+		hasSource,
+		isTriggerActive,
+	}: { hasSource: boolean; isTriggerActive: boolean },
+) => {
+	const queryEnabled = isTriggerActive && hasSource;
+	const query = useQuery({
+		...queryOptions,
+		enabled: queryEnabled,
+		staleTime: 60_000,
+	});
+	const skills = hasSource ? query.data?.filter((skill) => skill.enabled) : [];
+	const isUnresolved = queryEnabled && query.data === undefined;
+	return {
+		skills,
+		isResolvedEmpty: skills?.length === 0 && !query.isFetching,
+		isLoading: isUnresolved && query.isFetching,
+		isError: isUnresolved && query.isError,
+		error: query.error,
+	};
+};
+
 const ChatMessageInput = ({
 	className,
 	placeholder,
@@ -637,6 +677,7 @@ const ChatMessageInput = ({
 	disabled,
 	hasWorkspace,
 	organizationId,
+	projectId,
 	personalSkillsOverride,
 	workspaceSkills,
 	slashCommands,
@@ -681,28 +722,59 @@ const ChatMessageInput = ({
 		// Avoid refetching on each trigger toggle from caret movement.
 		staleTime: 60_000,
 	});
-	const organizationSkillsQueryEnabled =
-		hasSkillsTrigger && Boolean(organizationId);
-	const organizationSkillsQuery = useQuery({
-		...organizationSkills(organizationId ?? ""),
-		enabled: organizationSkillsQueryEnabled,
+	const organizationSource = useStoredSkillSource(
+		organizationSkills(organizationId ?? ""),
+		{ hasSource: Boolean(organizationId), isTriggerActive: hasSkillsTrigger },
+	);
+	const hasProject = Boolean(organizationId && projectId);
+	const projectSource = useStoredSkillSource(
+		chatProjectSkills(organizationId ?? "", projectId ?? ""),
+		{ hasSource: hasProject, isTriggerActive: hasSkillsTrigger },
+	);
+	const projectQuery = useQuery({
+		...chatProject(projectId),
+		enabled: hasProject && hasSkillsTrigger,
 		staleTime: 60_000,
 	});
+	const projectUsability = chatProjectUsability(
+		projectQuery,
+		projectSource.error,
+	);
+	// While the caller's project list is unsettled, the menu shows the
+	// project source as loading or failed, as it does for the skills request.
+	// A project the caller cannot use is a known empty source, not a failure.
+	const isProjectUsabilityUnknown =
+		hasProject && projectUsability === "unknown";
+	const isProjectUnusable = hasProject && projectUsability === "unusable";
+	const isProjectLoading =
+		!isProjectUnusable &&
+		(projectSource.isLoading ||
+			(isProjectUsabilityUnknown && projectQuery.isFetching));
+	const isProjectError =
+		!isProjectUnusable &&
+		(projectSource.isError ||
+			(isProjectUsabilityUnknown && projectQuery.isError));
 	// chatd skips disabled skills, so they never offer or collide.
 	const personalSkills = (personalSkillsOverride ?? skillsQuery.data)?.filter(
 		(skill) => skill.enabled,
 	);
-	const loadedOrganizationSkills = organizationId
-		? organizationSkillsQuery.data?.filter((skill) => skill.enabled)
-		: [];
 	const loadedWorkspaceSkills =
 		workspaceSkills ?? (hasWorkspace ? undefined : []);
 	// A list stays undefined until its source loads, even after an error,
 	// which keeps triggers qualified and built-in commands hidden. A chat
-	// without an organization or workspace has a known empty list.
+	// without an organization, project, or workspace has a known empty list.
+	// Project skills also wait for the caller's project list, and losing the
+	// use of the project gives a known empty list, because chatd then runs
+	// turns without project skills.
 	const skillLists: SkillSourceList<SkillMetadata>[] = [
 		{ source: "personal", skills: personalSkills },
-		{ source: "org", skills: loadedOrganizationSkills },
+		{ source: "org", skills: organizationSource.skills },
+		{
+			source: "project",
+			skills: hasProject
+				? usableChatProjectSkills(projectUsability, projectSource.skills)
+				: [],
+		},
 		{ source: "workspace", skills: loadedWorkspaceSkills },
 	];
 	const availableSlashCommands = (slashCommands ?? []).filter(
@@ -716,8 +788,10 @@ const ChatMessageInput = ({
 	const isResolvedEmptySkills =
 		personalSkills?.length === 0 &&
 		(hasPersonalSkillsOverride || !skillsQuery.isFetching) &&
-		loadedOrganizationSkills?.length === 0 &&
-		!organizationSkillsQuery.isFetching &&
+		organizationSource.isResolvedEmpty &&
+		(!hasProject ||
+			isProjectUnusable ||
+			(projectUsability === "usable" && projectSource.isResolvedEmpty)) &&
 		loadedWorkspaceSkills?.length === 0;
 	// Without built-in commands, "/" is plain text when every skills
 	// list resolves empty. When only the filtered result is empty,
@@ -737,21 +811,19 @@ const ChatMessageInput = ({
 		);
 	const personalSkillItems = filterSkillTriggers("personal");
 	const organizationSkillItems = filterSkillTriggers("org");
+	const projectSkillItems = filterSkillTriggers("project");
 	const workspaceSkillItems = filterSkillTriggers("workspace");
 	const isPersonalSkillsLoading =
 		personalSkillsQueryEnabled &&
 		skillsQuery.isFetching &&
 		skillsQuery.data === undefined;
-	const isOrganizationSkillsLoading =
-		organizationSkillsQueryEnabled &&
-		organizationSkillsQuery.isFetching &&
-		organizationSkillsQuery.data === undefined;
 	const isWorkspaceSkillsLoading = loadedWorkspaceSkills === undefined;
 	// Commands come first so partitioned menu groups match selection order.
 	const allFilteredSkills: readonly SkillMenuItem[] = [
 		...commandMenuItems,
 		...personalSkillItems,
 		...organizationSkillItems,
+		...projectSkillItems,
 		...workspaceSkillItems,
 	];
 	const selectedSkillIndex =
@@ -1029,7 +1101,8 @@ const ChatMessageInput = ({
 					skills={allFilteredSkills}
 					skillsLoading={
 						isPersonalSkillsLoading ||
-						isOrganizationSkillsLoading ||
+						organizationSource.isLoading ||
+						isProjectLoading ||
 						isWorkspaceSkillsLoading
 					}
 					selectedIndex={selectedSkillIndex}
@@ -1049,8 +1122,10 @@ const ChatMessageInput = ({
 					commands={commandMenuItems}
 					personalSkills={personalSkillItems}
 					organizationSkills={organizationSkillItems}
+					projectSkills={projectSkillItems}
 					workspaceSkills={workspaceSkillItems}
 					organizationSkillsEnabled={Boolean(organizationId)}
+					projectSkillsEnabled={hasProject}
 					workspaceSkillsEnabled={hasWorkspace}
 					isPersonalLoading={isPersonalSkillsLoading}
 					isPersonalError={
@@ -1058,12 +1133,10 @@ const ChatMessageInput = ({
 						skillsQuery.isError &&
 						skillsQuery.data === undefined
 					}
-					isOrganizationLoading={isOrganizationSkillsLoading}
-					isOrganizationError={
-						organizationSkillsQueryEnabled &&
-						organizationSkillsQuery.isError &&
-						organizationSkillsQuery.data === undefined
-					}
+					isOrganizationLoading={organizationSource.isLoading}
+					isOrganizationError={organizationSource.isError}
+					isProjectLoading={isProjectLoading}
+					isProjectError={isProjectError}
 					isWorkspaceLoading={isWorkspaceSkillsLoading}
 					selectedIndex={selectedSkillIndex}
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}
