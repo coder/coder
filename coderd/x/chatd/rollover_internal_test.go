@@ -3,13 +3,19 @@ package chatd //nolint:testpackage // Exercises unexported rollover helpers.
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -53,13 +59,17 @@ func TestDecideRollover(t *testing.T) {
 	// W = 200k: C = 168k.
 	budget := newContextWindowBudget(200_000, 32_000, 70)
 	limit := rolloverDecision{action: rolloverActionRollover, reason: rolloverReasonLimit}
+	model := rolloverDecision{action: rolloverActionRollover, reason: rolloverReasonModel}
 	tests := []struct {
 		name   string
 		tokens int64
 		budget contextWindowBudget
+		state  rolloverStageState
 		want   rolloverDecision
 	}{
-		{name: "DisabledAtHundred", tokens: 199_000, budget: newContextWindowBudget(200_000, 32_000, 100)},
+		{name: "DisabledAtHundredEvenWithReceipt", tokens: 199_000, budget: newContextWindowBudget(200_000, 32_000, 100), state: rolloverStageState{receipt: true}},
+		{name: "ReceiptWithUnknownWindow", budget: newContextWindowBudget(0, 32_000, 70), state: rolloverStageState{receipt: true}, want: model},
+		{name: "ReceiptBeforeLimit", tokens: 170_000, budget: budget, state: rolloverStageState{receipt: true}, want: model},
 		{name: "LimitAtUsableLimit", tokens: 168_000, budget: budget, want: limit},
 		{name: "BelowLimit", tokens: 167_999, budget: budget},
 		{name: "NoUsage", budget: budget},
@@ -68,7 +78,7 @@ func TestDecideRollover(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.want, decideRollover(tc.tokens, tc.budget))
+			require.Equal(t, tc.want, decideRollover(tc.tokens, tc.budget, tc.state))
 		})
 	}
 }
@@ -84,6 +94,22 @@ func TestDecideGenerationActionContextRollover(t *testing.T) {
 	}
 	history := rolloverTestHistory
 	prompt := rolloverTestPrompt
+	scheduled := json.RawMessage(`{"status":"scheduled","message":"A new context window will start without summarizing conversation history."}`)
+	// checkpointStep calls save_checkpoint and new_context in one step and
+	// records the given results.
+	checkpointStep := func(t *testing.T, id int64, results ...codersdk.ChatMessagePart) []database.ChatMessage {
+		rows := []database.ChatMessage{withUsage(dbMessage(t, id, database.ChatMessageRoleAssistant, false,
+			codersdk.ChatMessageToolCall("save", chattool.SaveCheckpointToolName, json.RawMessage(`{"checkpoint":"goal"}`)),
+			codersdk.ChatMessageToolCall("new", chattool.NewContextToolName, json.RawMessage(`{}`)),
+		), 10, 100)}
+		for i, result := range results {
+			rows = append(rows, dbMessage(t, id+1+int64(i), database.ChatMessageRoleTool, false, result))
+		}
+		return rows
+	}
+	saveResult := codersdk.ChatMessageToolResult("save", chattool.SaveCheckpointToolName, json.RawMessage(`{"saved":true,"bytes":4}`), false, false)
+	newContextResult := codersdk.ChatMessageToolResult("new", chattool.NewContextToolName, scheduled, false, false)
+	unknownWindow := newContextWindowBudget(0, 32_000, 70)
 
 	tests := []struct {
 		name     string
@@ -91,6 +117,8 @@ func TestDecideGenerationActionContextRollover(t *testing.T) {
 		budget   *contextWindowBudget
 		maxSteps int
 		want     generationActionKind
+		// wantReason defaults to the usable-limit reason.
+		wantReason rolloverReason
 	}{
 		{name: "RollsOverAtUsableLimit", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 75)), budget: &budget, want: generationActionContextRollover},
 		{name: "GeneratesBelowUsableLimit", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 74)), budget: &budget, want: generationActionGenerateAssistant},
@@ -103,6 +131,19 @@ func TestDecideGenerationActionContextRollover(t *testing.T) {
 		{name: "RollsOverWhenNewWindowFills", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 80), rolloverBoundary(t, 4), toolStep(t, 7, 80)), budget: &budget, want: generationActionContextRollover},
 		{name: "DisabledAtHundredPercent", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 99)), budget: new(newContextWindowBudget(100, 32_000, 100)), want: generationActionGenerateAssistant},
 		{name: "SummarizeStrategyIgnoresLimit", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 99)), want: generationActionGenerateAssistant},
+		{name: "NewContextReceiptWithUnknownWindow", messages: history(prompt(t, 1, "go"), checkpointStep(t, 2, saveResult, newContextResult)), budget: &unknownWindow, want: generationActionContextRollover, wantReason: rolloverReasonModel},
+		{name: "SiblingToolsSettleBeforeReceipt", messages: history(prompt(t, 1, "go"), checkpointStep(t, 2, newContextResult)), budget: &budget, want: generationActionExecuteLocalTools},
+		{name: "ReceiptHonoredOncePerWindow", messages: history(prompt(t, 1, "go"), checkpointStep(t, 2, saveResult, newContextResult), rolloverBoundary(t, 5)), budget: &budget, want: generationActionGenerateAssistant},
+		{name: "RefusedNewContextIsNoReceipt", messages: history(prompt(t, 1, "go"), checkpointStep(t, 2, saveResult,
+			codersdk.ChatMessageToolResult("new", chattool.NewContextToolName, json.RawMessage(`{"code":"rollover_disabled","error":"disabled"}`), false, false),
+		)), budget: &budget, want: generationActionGenerateAssistant},
+		{name: "FailedNewContextIsNoReceipt", messages: history(prompt(t, 1, "go"), checkpointStep(t, 2, saveResult,
+			codersdk.ChatMessageToolResult("new", chattool.NewContextToolName, scheduled, true, false),
+		)), budget: &budget, want: generationActionGenerateAssistant},
+		// A dynamic tool of the same name may have returned any JSON value.
+		{name: "LegacyDynamicResultIsNoReceipt", messages: history(prompt(t, 1, "go"), checkpointStep(t, 2, saveResult,
+			codersdk.ChatMessageToolResult("new", chattool.NewContextToolName, json.RawMessage(`"ok"`), false, false),
+		)), budget: &budget, want: generationActionGenerateAssistant},
 		{name: "MaxStepsFinishesFirst", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 80)), budget: &budget, maxSteps: 1, want: generationActionFinishTurn},
 	}
 	for _, tc := range tests {
@@ -120,7 +161,11 @@ func TestDecideGenerationActionContextRollover(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tc.want, decision.kind)
 			if tc.want == generationActionContextRollover {
-				require.Equal(t, rolloverReasonLimit, decision.rolloverReason)
+				wantReason := tc.wantReason
+				if wantReason == "" {
+					wantReason = rolloverReasonLimit
+				}
+				require.Equal(t, wantReason, decision.rolloverReason)
 			}
 		})
 	}
@@ -174,6 +219,19 @@ func TestContextWindowID(t *testing.T) {
 	require.Equal(t, "w:10", contextWindowID([]database.ChatMessage{anchor, replay, next}))
 }
 
+func TestContextWindowToolsAllowedInRestrictedModes(t *testing.T) {
+	t.Parallel()
+
+	names := []string{chattool.SaveCheckpointToolName, chattool.NewContextToolName}
+	tools := make([]fantasy.AgentTool, 0, len(names))
+	for _, name := range names {
+		require.True(t, builtinPlanToolAllowed(name, true), name)
+		require.True(t, builtinPlanToolAllowed(name, false), "%s is offered to child chats too", name)
+		tools = append(tools, newTestAgentTool(name))
+	}
+	require.Equal(t, names, allowedExploreToolNames(tools))
+}
+
 func TestBuildRolloverMessages(t *testing.T) {
 	t.Parallel()
 
@@ -200,7 +258,8 @@ func TestBuildRolloverMessages(t *testing.T) {
 		require.Len(t, parts, 1)
 		require.Equal(t, "A context window rollover started a fresh context window. Previous window: w:12.\n"+
 			"Your previous turn was interrupted by a context rollover; continue the task.\n"+
-			"The window reached its usable limit.", parts[0].Text)
+			"The window reached its usable limit.\n"+
+			"No checkpoint was saved.", parts[0].Text)
 	})
 
 	t.Run("ReplaysPendingUserRows", func(t *testing.T) {
@@ -226,4 +285,32 @@ func TestBuildRolloverMessages(t *testing.T) {
 		require.NoError(t, err)
 		require.NotContains(t, parts[0].Text, "interrupted", "a rollover before answering a new prompt interrupted nothing")
 	})
+}
+
+func TestLatestChatCheckpoint(t *testing.T) {
+	t.Parallel()
+
+	oversized, err := json.Marshal(map[string]string{"checkpoint": strings.Repeat("a", chattool.MaxCheckpointBytes+1)})
+	require.NoError(t, err)
+	tests := []struct {
+		name string
+		args json.RawMessage
+		want string
+	}{
+		{name: "Saved", args: json.RawMessage(`{"checkpoint":"goal"}`), want: "goal"},
+		// A dynamic tool of the same name may have taken other arguments.
+		{name: "IncompatibleLegacyArgs", args: json.RawMessage(`{"checkpoint":123}`)},
+		{name: "OversizedLegacyArgs", args: oversized},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db := dbmock.NewMockStore(gomock.NewController(t))
+			db.EXPECT().GetLatestSuccessfulChatToolCallArgs(gomock.Any(), gomock.Any()).Return(tc.args, nil)
+			server := &Server{db: db, logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})}
+			got, err := server.latestChatCheckpoint(t.Context(), uuid.New())
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
 }
