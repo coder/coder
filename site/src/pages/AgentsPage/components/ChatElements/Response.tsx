@@ -15,6 +15,9 @@ import {
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
+import { useWorkspaceFiles } from "../../context/WorkspaceFilesContext";
+import { rehypeFileMentions } from "../../utils/filePathMentions";
+import { FileMention } from "./FileMention";
 import {
 	type InlineNode,
 	inlineNodeIndexProperty,
@@ -65,6 +68,16 @@ const lineBreakRemarkPlugins = [
 const noInlineNodes: readonly InlineNode[] = [];
 const InlineNodesContext = createContext(noInlineNodes);
 
+const chatRehypePluginsWithFileMentions = [
+	...chatRehypePlugins,
+	rehypeFileMentions,
+];
+
+const inlineNodeRehypePluginsWithFileMentions = [
+	...inlineNodeRehypePlugins,
+	rehypeFileMentions,
+];
+
 type HastNode = {
 	type?: string;
 	value?: string;
@@ -73,6 +86,8 @@ type HastNode = {
 	properties?: {
 		className?: string[] | string;
 		[inlineNodeIndexProperty]?: number;
+		dataFileMention?: unknown;
+		dataFileMentionLine?: unknown;
 	};
 };
 
@@ -111,6 +126,15 @@ const getClassNames = (className: string[] | string | undefined): string[] => {
 	return className.filter(
 		(classToken): classToken is string => typeof classToken === "string",
 	);
+};
+
+const getFileMention = (node: HastNode | undefined) => {
+	const path = node?.properties?.dataFileMention;
+	if (typeof path !== "string") {
+		return undefined;
+	}
+	const line = node?.properties?.dataFileMentionLine;
+	return { path, line: typeof line === "number" ? line : undefined };
 };
 
 const fileViewerTheme = {
@@ -255,12 +279,37 @@ const createComponents = (
 			<td className="px-4 py-2">{children}</td>
 		),
 		// Inline code only, fenced blocks are handled by the pre override.
-		code: ({ children }: MarkdownComponentProps) => (
-			<code className="rounded bg-surface-quaternary/25 px-1 py-0.5 font-mono text-content-primary">
-				{children}
-			</code>
-		),
-		span: InlineNodeSpan,
+		code: ({ children, node }: MarkdownComponentProps) => {
+			const code = (
+				<code className="rounded bg-surface-quaternary/25 px-1 py-0.5 font-mono text-content-primary">
+					{children}
+				</code>
+			);
+			const mention = getFileMention(node);
+			if (!mention) {
+				return code;
+			}
+			return (
+				<FileMention path={mention.path} line={mention.line}>
+					{code}
+				</FileMention>
+			);
+		},
+		// Mentions in prose arrive as spans from rehypeFileMentions.
+		span: ({
+			node,
+			...props
+		}: React.ComponentProps<"span"> & { node?: HastNode }) => {
+			const mention = getFileMention(node);
+			if (!mention) {
+				return <InlineNodeSpan node={node} {...props} />;
+			}
+			return (
+				<FileMention path={mention.path} line={mention.line}>
+					{props.children}
+				</FileMention>
+			);
+		},
 		pre: function MarkdownPre({ node }: MarkdownComponentProps) {
 			const inlineNodes = useContext(InlineNodesContext);
 			const codeChild = node?.children?.[0];
@@ -354,6 +403,7 @@ export const Response = ({
 		typeof children === "string"
 			? { markdown: children, inlineNodes: undefined }
 			: joinInlineNodes(children);
+	const files = useWorkspaceFiles();
 
 	return (
 		<div
@@ -373,7 +423,13 @@ export const Response = ({
 						preserveLineBreaks ? lineBreakRemarkPlugins : undefined
 					}
 					rehypePlugins={
-						inlineNodes ? inlineNodeRehypePlugins : chatRehypePlugins
+						inlineNodes
+							? files
+								? inlineNodeRehypePluginsWithFileMentions
+								: inlineNodeRehypePlugins
+							: files
+								? chatRehypePluginsWithFileMentions
+								: chatRehypePlugins
 					}
 					mode={streaming ? "streaming" : "static"}
 					parseIncompleteMarkdown={streaming}

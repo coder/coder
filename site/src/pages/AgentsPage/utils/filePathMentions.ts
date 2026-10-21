@@ -124,7 +124,25 @@ type HastNode = {
 	children?: HastNode[];
 };
 
-const skippedTagNames = new Set(["a", "code", "pre", "button"]);
+const skippedTagNames = new Set(["a", "pre", "button"]);
+
+const markMention = (
+	properties: Record<string, unknown>,
+	mention: FilePathMention,
+) => {
+	properties.dataFileMention = mention.path;
+	properties.dataFileMentionLine = mention.line;
+};
+
+const markInlineCode = (node: HastNode) => {
+	const text = node.children?.length === 1 ? node.children[0] : undefined;
+	const mention =
+		text?.type === "text" ? parseFilePathMention(text.value ?? "") : undefined;
+	if (mention) {
+		node.properties ??= {};
+		markMention(node.properties, mention);
+	}
+};
 
 const splitMentions = (node: HastNode): HastNode[] | undefined => {
 	const value = node.value ?? "";
@@ -138,13 +156,12 @@ const splitMentions = (node: HastNode): HastNode[] | undefined => {
 		if (mention.start > offset) {
 			nodes.push({ type: "text", value: value.slice(offset, mention.start) });
 		}
+		const properties: Record<string, unknown> = {};
+		markMention(properties, mention);
 		nodes.push({
 			type: "element",
 			tagName: "span",
-			properties: {
-				dataFileMention: mention.path,
-				dataFileMentionLine: mention.line,
-			},
+			properties,
 			children: [
 				{ type: "text", value: value.slice(mention.start, mention.end) },
 			],
@@ -168,7 +185,12 @@ const visit = (node: HastNode) => {
 			children.push(...(split ?? [child]));
 			continue;
 		}
-		if (child.type !== "element" || !skippedTagNames.has(child.tagName ?? "")) {
+		if (child.type === "element" && child.tagName === "code") {
+			markInlineCode(child);
+		} else if (
+			child.type === "element" &&
+			!skippedTagNames.has(child.tagName ?? "")
+		) {
 			visit(child);
 		}
 		children.push(child);
@@ -177,8 +199,9 @@ const visit = (node: HastNode) => {
 };
 
 /**
- * Rehype plugin that wraps file path mentions in prose with
- * `<span data-file-mention="path" data-file-mention-line="n">`. Text in
- * links and code is left alone; inline code is matched separately.
+ * Rehype plugin that marks file path mentions with `data-file-mention` and
+ * `data-file-mention-line` properties: on inline code that is entirely a
+ * path, and on spans it wraps around paths in prose. Links and code blocks
+ * are left alone.
  */
-export const rehypeFileMentions = () => visit;
+export const rehypeFileMentions = () => (tree: HastNode) => visit(tree);
