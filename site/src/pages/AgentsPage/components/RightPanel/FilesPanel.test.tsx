@@ -35,7 +35,15 @@ const listings: Record<string, WorkspaceAgentListDirectoryResponse> = {
 	"/home/coder/repo/src": {
 		absolute_path: ["home", "coder", "repo", "src"],
 		absolute_path_string: "/home/coder/repo/src",
-		contents: [entry("/home/coder/repo/src/main.go", false)],
+		contents: [
+			entry("/home/coder/repo/src/main.go", false),
+			entry("/home/coder/repo/src/lib", true),
+		],
+	},
+	"/home/coder/repo/src/lib": {
+		absolute_path: ["home", "coder", "repo", "src", "lib"],
+		absolute_path_string: "/home/coder/repo/src/lib",
+		contents: [entry("/home/coder/repo/src/lib/util.go", false)],
 	},
 	"~": {
 		absolute_path: ["home", "coder"],
@@ -158,6 +166,44 @@ describe("FilesPanel", () => {
 		expect(
 			localStorage.getItem(`${filesPanelRootStorageKeyPrefix}chat-1`),
 		).toBe("~");
+	});
+
+	it("keeps listed entries when a refresh fails", async () => {
+		const user = userEvent.setup();
+		renderPanel(contextValue());
+
+		await user.click(await screen.findByRole("treeitem", { name: "src" }));
+		await screen.findByRole("treeitem", { name: "main.go" });
+		vi.mocked(API.listWorkspaceAgentDirectory).mockRejectedValue(
+			new Error("agent unreachable"),
+		);
+		await user.click(screen.getByRole("button", { name: "Refresh files" }));
+
+		await screen.findByRole("alert");
+		await screen.findByRole("treeitem", { name: /^Refresh failed/ });
+		screen.getByRole("treeitem", { name: "README.md" });
+		screen.getByRole("treeitem", { name: "main.go" });
+	});
+
+	it("stops refreshing directories under a collapsed directory", async () => {
+		const user = userEvent.setup();
+		renderPanel(contextValue());
+
+		const src = await screen.findByRole("treeitem", { name: "src" });
+		await user.click(src);
+		await user.click(await screen.findByRole("treeitem", { name: "lib" }));
+		await screen.findByRole("treeitem", { name: "util.go" });
+		await user.click(src);
+		vi.mocked(API.listWorkspaceAgentDirectory).mockClear();
+		await user.click(screen.getByRole("button", { name: "Refresh files" }));
+
+		await waitFor(() =>
+			expect(API.listWorkspaceAgentDirectory).toHaveBeenCalledWith(
+				"agent-1",
+				"/home/coder/repo",
+			),
+		);
+		expect(API.listWorkspaceAgentDirectory).toHaveBeenCalledTimes(1);
 	});
 
 	it("does not list files without a workspace agent", () => {
