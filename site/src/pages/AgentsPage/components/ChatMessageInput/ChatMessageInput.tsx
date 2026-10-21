@@ -39,7 +39,10 @@ import {
 	usableChatProjectSkills,
 } from "#/api/queries/chatProjectSkills";
 import { chatProject } from "#/api/queries/chatProjects";
-import { organizationSkills } from "#/api/queries/organizationSkills";
+import {
+	organizationSkillPreferences,
+	organizationSkills,
+} from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MODIFIER_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
@@ -49,6 +52,7 @@ import {
 	type SkillSourceList,
 } from "../../utils/skillAliases";
 import {
+	activeOrganizationSkills,
 	filterSkillsByQuery,
 	isSkillTriggerToken,
 	type SkillsScope,
@@ -657,6 +661,7 @@ const useStoredSkillSource = (
 		isResolvedEmpty: skills?.length === 0 && !query.isFetching,
 		isLoading: isUnresolved && query.isFetching,
 		isError: isUnresolved && query.isError,
+		isFetching: query.isFetching,
 		error: query.error,
 	};
 };
@@ -722,10 +727,44 @@ const ChatMessageInput = ({
 		// Avoid refetching on each trigger toggle from caret movement.
 		staleTime: 60_000,
 	});
-	const organizationSource = useStoredSkillSource(
+	const hasOrganization = Boolean(organizationId);
+	const organizationListSource = useStoredSkillSource(
 		organizationSkills(organizationId ?? ""),
-		{ hasSource: Boolean(organizationId), isTriggerActive: hasSkillsTrigger },
+		{ hasSource: hasOrganization, isTriggerActive: hasSkillsTrigger },
 	);
+	const organizationPreferencesQueryEnabled =
+		hasSkillsTrigger && hasOrganization;
+	const organizationPreferencesQuery = useQuery({
+		...organizationSkillPreferences(organizationId ?? ""),
+		enabled: organizationPreferencesQueryEnabled,
+		staleTime: 60_000,
+	});
+	const isOrganizationPreferencesUnresolved =
+		organizationPreferencesQueryEnabled &&
+		organizationPreferencesQuery.data === undefined;
+	// The member's choices narrow the list chatd loads, so the source
+	// resolves only after both requests do.
+	const organizationSkillList = hasOrganization
+		? activeOrganizationSkills(
+				organizationListSource.skills,
+				organizationPreferencesQuery.data,
+			)
+		: [];
+	const organizationSource = {
+		skills: organizationSkillList,
+		isResolvedEmpty:
+			organizationSkillList?.length === 0 &&
+			!organizationListSource.isFetching &&
+			!organizationPreferencesQuery.isFetching,
+		isLoading:
+			organizationListSource.isLoading ||
+			(isOrganizationPreferencesUnresolved &&
+				organizationPreferencesQuery.isFetching),
+		isError:
+			organizationListSource.isError ||
+			(isOrganizationPreferencesUnresolved &&
+				organizationPreferencesQuery.isError),
+	};
 	const hasProject = Boolean(organizationId && projectId);
 	const projectSource = useStoredSkillSource(
 		chatProjectSkills(organizationId ?? "", projectId ?? ""),

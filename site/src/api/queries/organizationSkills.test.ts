@@ -2,12 +2,19 @@ import { QueryClient } from "react-query";
 import { describe, expect, it } from "vitest";
 import type { Skill } from "#/api/typesGenerated";
 import {
+	MockOrganizationSkillPreferences,
+	MockOrganizationSkillSettings,
+} from "#/testHelpers/skills";
+import {
 	deleteOrganizationSkill,
 	organizationSkill,
 	organizationSkillACL,
 	organizationSkillACLAvailable,
+	organizationSkillPreferences,
+	organizationSkillSettings,
 	organizationSkills,
 	updateOrganizationSkillACL,
+	updateOrganizationSkillSettings,
 } from "./organizationSkills";
 
 const createTestQueryClient = (): QueryClient =>
@@ -84,5 +91,24 @@ describe("organization skill ACL queries", () => {
 			queryClient.getQueryState(organizationSkill("org", "alpha").queryKey)
 				?.isInvalidated,
 		).toBe(true);
+	});
+});
+
+describe("organization skill settings queries", () => {
+	it("stores the saved setting and invalidates member preferences", async () => {
+		const queryClient = createTestQueryClient();
+		const preferencesKey = organizationSkillPreferences("org").queryKey;
+		queryClient.setQueryData(preferencesKey, MockOrganizationSkillPreferences);
+		const saved = {
+			...MockOrganizationSkillSettings,
+			members_can_disable_skills: true,
+		};
+
+		await updateOrganizationSkillSettings(queryClient, "org").onSuccess(saved);
+
+		expect(
+			queryClient.getQueryData(organizationSkillSettings("org").queryKey),
+		).toEqual(saved);
+		expect(queryClient.getQueryState(preferencesKey)?.isInvalidated).toBe(true);
 	});
 });

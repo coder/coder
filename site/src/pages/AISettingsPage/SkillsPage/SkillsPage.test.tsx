@@ -10,7 +10,7 @@ import {
 	MockUserOwner,
 } from "#/testHelpers/entities";
 import { renderWithRouter } from "#/testHelpers/renderHelpers";
-import { MockSkill } from "#/testHelpers/skills";
+import { MockOrganizationSkillSettings, MockSkill } from "#/testHelpers/skills";
 import SkillsPage from "./SkillsPage";
 
 vi.mock("#/hooks/useAuthenticated", () => ({
@@ -44,6 +44,9 @@ it("lets a role that can only update skills toggle and edit them", async () => {
 		...mockReviewSkill,
 		content: "---\nname: review-sql\ndescription: Review SQL.\n---\n\nBody\n",
 	});
+	vi.spyOn(API.experimental, "getOrganizationSkillSettings").mockResolvedValue(
+		MockOrganizationSkillSettings,
+	);
 	const updateSkill = vi
 		.spyOn(API.experimental, "updateOrganizationSkill")
 		.mockResolvedValue({ ...mockReviewSkill, enabled: false, content: "" });
@@ -85,5 +88,35 @@ it("lets a role that can only update skills toggle and edit them", async () => {
 					'---\nname: review-sql\ndescription: "Review SQL changes."\n---\nBody\n',
 			},
 		),
+	);
+});
+
+it("lets an organization admin allow members to turn off skills", async () => {
+	const user = userEvent.setup();
+	vi.spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+		Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
+	);
+	vi.spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+	vi.spyOn(API.experimental, "getOrganizationSkillSettings").mockResolvedValue(
+		MockOrganizationSkillSettings,
+	);
+	const updateSettings = vi
+		.spyOn(API.experimental, "updateOrganizationSkillSettings")
+		.mockResolvedValue({ members_can_disable_skills: true });
+	const router = createMemoryRouter(
+		[{ path: "/ai/settings/skills", element: <SkillsPage /> }],
+		{ initialEntries: ["/ai/settings/skills"] },
+	);
+	renderWithRouter(router);
+
+	await user.click(
+		await screen.findByRole("switch", {
+			name: "Members can turn off organization skills",
+		}),
+	);
+	await waitFor(() =>
+		expect(updateSettings).toHaveBeenCalledWith(MockOrganization.id, {
+			members_can_disable_skills: true,
+		}),
 	);
 });

@@ -1,10 +1,15 @@
 import { useState } from "react";
-import { useQueries } from "react-query";
-import { organizationSkills } from "#/api/queries/organizationSkills";
+import { useQueries, useQuery } from "react-query";
+import {
+	organizationSkillPreferences,
+	organizationSkills,
+} from "#/api/queries/organizationSkills";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { OrganizationField } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { OrganizationSkillPreferenceSwitch } from "./components/OrganizationSkillPreferenceSwitch";
+import { OrganizationSkillsUsageSetting } from "./components/OrganizationSkillsUsageSetting";
 import { RetryButton } from "./components/RetryButton";
 import { SectionHeader } from "./components/SectionHeader";
 import { SkillsTable } from "./components/SkillsTable";
@@ -49,6 +54,15 @@ const AgentSettingsSkillsPage: React.FC = () => {
 	const organizationName = selected
 		? selected.organization.display_name || selected.organization.name
 		: "";
+	const preferencesQuery = useQuery({
+		...organizationSkillPreferences(selected?.organization.id ?? ""),
+		enabled: Boolean(selected),
+	});
+	// Member controls show only while the organization allows them. Without
+	// loaded preferences the table stays read-only and keeps its skills.
+	const preferences = preferencesQuery.data?.members_can_disable_skills
+		? preferencesQuery.data
+		: undefined;
 
 	return (
 		<div className="flex flex-col gap-12">
@@ -114,8 +128,9 @@ const AgentSettingsSkillsPage: React.FC = () => {
 							copy={{
 								noun: "Organization skill",
 								title: organizationName,
-								description:
-									"Read-only skills available to you. Ask an organization admin to change them.",
+								description: preferences
+									? "Skills available to you. Turn off the ones you do not want in your chats. Ask an organization admin to change their content."
+									: "Read-only skills available to you. Ask an organization admin to change them.",
 								editorDescription:
 									"Read-only organization skill. Ask an organization admin to change it.",
 								archiveName: `${selected.organization.name}-skills.zip`,
@@ -123,6 +138,42 @@ const AgentSettingsSkillsPage: React.FC = () => {
 							access={readOnlySkillAccess}
 							enabledOnly
 							headerLevel="section"
+							toolbar={
+								preferencesQuery.isError && !preferencesQuery.data ? (
+									<ErrorAlert
+										error={preferencesQuery.error}
+										actions={
+											<RetryButton
+												size="sm"
+												variant="outline"
+												aria-label={`Retry loading your ${organizationName} skill choices`}
+												isRetrying={preferencesQuery.isFetching}
+												onRetry={() => {
+													void preferencesQuery.refetch();
+												}}
+											/>
+										}
+									/>
+								) : (
+									preferences && (
+										<OrganizationSkillsUsageSetting
+											organizationId={selected.organization.id}
+											preferences={preferences}
+										/>
+									)
+								)
+							}
+							renderEnabledCell={
+								preferences
+									? (skill) => (
+											<OrganizationSkillPreferenceSwitch
+												organizationId={selected.organization.id}
+												skill={skill}
+												preferences={preferences}
+											/>
+										)
+									: undefined
+							}
 						/>
 					)}
 				</section>

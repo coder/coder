@@ -16,6 +16,7 @@ import {
 } from "#/api/queries/userSkills";
 import type {
 	CreateSkillRequest,
+	OrganizationSkillPreferences,
 	Skill,
 	SkillMetadata,
 	UpdateSkillRequest,
@@ -341,3 +342,30 @@ export const organizationSkillsScope = (
 	update: (queryClient) => updateOrganizationSkill(queryClient, organizationId),
 	remove: (queryClient) => deleteOrganizationSkill(queryClient, organizationId),
 });
+
+/**
+ * Returns the organization skills that load into the member's chats: the
+ * admin-enabled skills, minus the member's choices while the organization
+ * lets members turn skills off. This mirrors the server rule in
+ * GetOrganizationSkillMemberPreferencesRow.Excludes. The result stays
+ * undefined until both the list and the preferences load.
+ */
+export const activeOrganizationSkills = <
+	T extends Pick<SkillMetadata, "id" | "enabled">,
+>(
+	skills: readonly T[] | undefined,
+	preferences: OrganizationSkillPreferences | undefined,
+): T[] | undefined => {
+	if (!skills || !preferences) {
+		return undefined;
+	}
+	return skills.filter(
+		(skill) =>
+			skill.enabled &&
+			!(
+				preferences.members_can_disable_skills &&
+				(preferences.all_skills_disabled ||
+					preferences.disabled_skill_ids.includes(skill.id))
+			),
+	);
+};

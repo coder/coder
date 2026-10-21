@@ -132,3 +132,61 @@ export const deleteOrganizationSkill = (
 		});
 	},
 });
+
+// Kept outside organizationSkillsKey, whose children are skill detail keys
+// that a delete removes non-exactly.
+const organizationSkillSettingsKey = (organizationId: string) =>
+	["organization-skill-settings", organizationId] as const;
+
+const organizationSkillPreferencesKey = (organizationId: string) =>
+	["organization-skill-preferences", organizationId] as const;
+
+export const organizationSkillSettings = (organizationId: string) => ({
+	queryKey: organizationSkillSettingsKey(organizationId),
+	queryFn: (): Promise<TypesGen.OrganizationSkillSettings> =>
+		API.experimental.getOrganizationSkillSettings(organizationId),
+});
+
+export const updateOrganizationSkillSettings = (
+	queryClient: QueryClient,
+	organizationId: string,
+) => ({
+	mutationFn: (req: TypesGen.UpdateOrganizationSkillSettingsRequest) =>
+		API.experimental.updateOrganizationSkillSettings(organizationId, req),
+	onSuccess: (settings: TypesGen.OrganizationSkillSettings) => {
+		queryClient.setQueryData(
+			organizationSkillSettingsKey(organizationId),
+			settings,
+		);
+		// Member preferences embed the setting.
+		return queryClient.invalidateQueries({
+			queryKey: organizationSkillPreferencesKey(organizationId),
+		});
+	},
+});
+
+export const organizationSkillPreferences = (organizationId: string) => ({
+	queryKey: organizationSkillPreferencesKey(organizationId),
+	queryFn: (): Promise<TypesGen.OrganizationSkillPreferences> =>
+		API.experimental.getOrganizationSkillPreferences(organizationId),
+});
+
+export const updateOrganizationSkillPreferences = (
+	queryClient: QueryClient,
+	organizationId: string,
+) => ({
+	mutationFn: (req: TypesGen.UpdateOrganizationSkillPreferencesRequest) =>
+		API.experimental.updateOrganizationSkillPreferences(organizationId, req),
+	onSuccess: (preferences: TypesGen.OrganizationSkillPreferences) => {
+		queryClient.setQueryData(
+			organizationSkillPreferencesKey(organizationId),
+			preferences,
+		);
+	},
+	// A write fails with 403 once an admin turns the setting off, so reload
+	// the preferences to show the current setting.
+	onError: () =>
+		queryClient.invalidateQueries({
+			queryKey: organizationSkillPreferencesKey(organizationId),
+		}),
+});

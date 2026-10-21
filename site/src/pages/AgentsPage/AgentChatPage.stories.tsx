@@ -45,6 +45,10 @@ import {
 } from "#/testHelpers/entities";
 import { setupMatchMedia } from "#/testHelpers/matchMedia";
 import {
+	MockOrganizationSkillPreferences,
+	MockSkill,
+} from "#/testHelpers/skills";
+import {
 	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
@@ -2895,6 +2899,10 @@ export const SlashCompactCommandSubmits: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
 		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(MockOrganizationSkillPreferences);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -2944,6 +2952,10 @@ export const SlashClearCommandSubmits: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
 		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(MockOrganizationSkillPreferences);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -2994,6 +3006,10 @@ export const SlashClearCommandConflictShowsError: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
 		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(MockOrganizationSkillPreferences);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -3059,6 +3075,10 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 			},
 		]);
 		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(MockOrganizationSkillPreferences);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -3098,6 +3118,52 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 			expect(sendSpy).toHaveBeenCalledTimes(1);
 		});
 		expect(compactSpy).not.toHaveBeenCalled();
+	},
+};
+
+const mockOrganizationCompactSkill: TypesGen.SkillMetadata = {
+	...MockSkill,
+	id: "skill-organization-compact",
+	name: "compact",
+	description: "Organization compact skill",
+};
+
+const mockCompactTurnedOffPreferences: TypesGen.OrganizationSkillPreferences = {
+	...MockOrganizationSkillPreferences,
+	members_can_disable_skills: true,
+	disabled_skill_ids: [mockOrganizationCompactSkill.id],
+};
+
+/** The member turned off an organization skill named "compact", so it no
+ *  longer shadows the built-in command and the menu offers /compact. */
+export const SlashCompactIgnoresTurnedOffOrganizationSkill: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Organization skill turned off",
+				status: "waiting",
+			},
+			slashCommandMessages,
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([
+			mockOrganizationCompactSkill,
+		]);
+		spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(mockCompactTurnedOffPreferences);
+	},
+	play: async ({ canvasElement }) => {
+		const editor =
+			await within(canvasElement).findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.keyboard("/compact");
 	},
 };
 

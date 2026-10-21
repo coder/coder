@@ -90,6 +90,8 @@ export type SkillsTableViewProps = {
 	access: SkillAccess;
 	headerLevel?: SectionHeaderLevel;
 	toolbar?: React.ReactNode;
+	/** Replaces the admin enabled switch in the Enabled column. */
+	renderEnabledCell?: (skill: SkillMetadata) => React.ReactNode;
 	error: unknown;
 	isLoading: boolean;
 	isRetrying: boolean;
@@ -252,6 +254,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	access,
 	headerLevel,
 	toolbar,
+	renderEnabledCell,
 	error,
 	isLoading,
 	isRetrying,
@@ -395,11 +398,15 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 									)}
 								</TableCell>
 								<TableCell>
-									<SkillEnabledSwitch
-										scope={scope}
-										skill={skill}
-										readOnly={!access.update}
-									/>
+									{renderEnabledCell ? (
+										renderEnabledCell(skill)
+									) : (
+										<SkillEnabledSwitch
+											scope={scope}
+											skill={skill}
+											readOnly={!access.update}
+										/>
+									)}
 								</TableCell>
 								<TableCell className="hidden whitespace-nowrap sm:table-cell">
 									{formatUpdatedAt(skill.updated_at)}

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
+	MockDisabledSkill,
+	MockOrganizationSkillPreferences,
+	MockSkills,
+} from "#/testHelpers/skills";
+import {
+	activeOrganizationSkills,
 	buildSkillMarkdown,
 	filterSkillsByQuery,
 	getSkillContentSizeBytes,
@@ -350,5 +356,49 @@ describe("getSkillContentSizeBytes", () => {
 
 	it("exposes the backend size limit", () => {
 		expect(SKILL_MAX_SIZE_BYTES).toBe(65_536);
+	});
+});
+
+describe("activeOrganizationSkills", () => {
+	const [reviewer, docs] = MockSkills;
+	const skills = [reviewer, docs, MockDisabledSkill];
+	const optedOutOfReviewer: TypesGen.OrganizationSkillPreferences = {
+		...MockOrganizationSkillPreferences,
+		disabled_skill_ids: [reviewer.id],
+	};
+
+	it.each<{
+		name: string;
+		preferences: TypesGen.OrganizationSkillPreferences;
+		expected: readonly TypesGen.SkillMetadata[];
+	}>([
+		{
+			name: "ignores choices while the setting is off",
+			preferences: { ...optedOutOfReviewer, all_skills_disabled: true },
+			expected: [reviewer, docs],
+		},
+		{
+			name: "drops opted-out skills",
+			preferences: { ...optedOutOfReviewer, members_can_disable_skills: true },
+			expected: [docs],
+		},
+		{
+			name: "drops every skill with the master switch",
+			preferences: {
+				...MockOrganizationSkillPreferences,
+				members_can_disable_skills: true,
+				all_skills_disabled: true,
+			},
+			expected: [],
+		},
+	])("$name", ({ preferences, expected }) => {
+		expect(activeOrganizationSkills(skills, preferences)).toEqual(expected);
+	});
+
+	it("stays unknown until both requests load", () => {
+		expect(
+			activeOrganizationSkills(undefined, MockOrganizationSkillPreferences),
+		).toBeUndefined();
+		expect(activeOrganizationSkills(skills, undefined)).toBeUndefined();
 	});
 });

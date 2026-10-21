@@ -4,9 +4,16 @@ import { flushSync } from "react-dom";
 import { expect, fn, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
-import { organizationSkills } from "#/api/queries/organizationSkills";
+import {
+	organizationSkillPreferences,
+	organizationSkills,
+} from "#/api/queries/organizationSkills";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockSkill, MockSkills } from "#/testHelpers/skills";
+import {
+	MockOrganizationSkillPreferences,
+	MockSkill,
+	MockSkills,
+} from "#/testHelpers/skills";
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import { ChatMessageInput } from "./ChatMessageInput";
@@ -218,6 +225,21 @@ export const ArrowDownSelectsWorkspaceSkill: Story = {
 
 const mockOrganizationId = "organization-skills-story";
 
+const mockOrganizationMenuSkills: TypesGen.SkillMetadata[] = [
+	{
+		...MockSkill,
+		id: "skill-release-notes",
+		name: "release-notes",
+		description: "Write release notes in the organization style.",
+	},
+	{
+		...MockSkill,
+		id: "skill-org-reviewer",
+		name: "reviewer",
+		description: "Organization review checklist.",
+	},
+];
+
 export const OpensWithAllSkillSources: Story = {
 	args: {
 		hasWorkspace: true,
@@ -228,20 +250,43 @@ export const OpensWithAllSkillSources: Story = {
 		queries: [
 			{
 				key: organizationSkills(mockOrganizationId).queryKey,
-				data: [
-					{
-						...MockSkill,
-						id: "skill-release-notes",
-						name: "release-notes",
-						description: "Write release notes in the organization style.",
-					},
-					{
-						...MockSkill,
-						id: "skill-org-reviewer",
-						name: "reviewer",
-						description: "Organization review checklist.",
-					},
-				],
+				data: mockOrganizationMenuSkills,
+			},
+			{
+				key: organizationSkillPreferences(mockOrganizationId).queryKey,
+				data: MockOrganizationSkillPreferences,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+	},
+};
+
+const mockReviewerTurnedOffPreferences: TypesGen.OrganizationSkillPreferences =
+	{
+		...MockOrganizationSkillPreferences,
+		members_can_disable_skills: true,
+		disabled_skill_ids: ["skill-org-reviewer"],
+	};
+
+// The member turned off the organization reviewer, so the menu offers only
+// release-notes from the organization, and the personal reviewer stays bare.
+export const HidesOrganizationSkillsTurnedOff: Story = {
+	args: {
+		hasWorkspace: true,
+		workspaceSkills: mockWorkspaceSkills,
+		organizationId: mockOrganizationId,
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationSkills(mockOrganizationId).queryKey,
+				data: mockOrganizationMenuSkills,
+			},
+			{
+				key: organizationSkillPreferences(mockOrganizationId).queryKey,
+				data: mockReviewerTurnedOffPreferences,
 			},
 		],
 	},
@@ -262,6 +307,10 @@ export const LostProjectAccessOffersCommands: Story = {
 	parameters: {
 		queries: [
 			{ key: organizationSkills(mockOrganizationId).queryKey, data: [] },
+			{
+				key: organizationSkillPreferences(mockOrganizationId).queryKey,
+				data: MockOrganizationSkillPreferences,
+			},
 			{ key: chatProjectsKey, data: [] },
 		],
 	},
