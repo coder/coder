@@ -256,6 +256,20 @@ describe("runPlan", () => {
 		]);
 	});
 
+	it("resolves false on a failed move when the drop needs no label write", async () => {
+		vi.spyOn(API.experimental, "updateChat").mockRejectedValue(
+			new Error("chat is busy"),
+		);
+		const { deps } = renderDeps();
+
+		await expect(
+			runPlan(
+				{ projectMoves: [{ chat: chat("a"), projectId: "p" }], writes: [] },
+				deps,
+			),
+		).resolves.toBe(false);
+	});
+
 	it("undoes project moves before restoring labels", async () => {
 		const spy = vi
 			.spyOn(API.experimental, "updateChat")

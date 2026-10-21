@@ -4,7 +4,7 @@ import {
 	DragOverlay,
 } from "@dnd-kit/react";
 import { cn } from "cn";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
 	keepPreviousData,
 	useInfiniteQuery,
@@ -455,15 +455,17 @@ const ChatBoardPage: React.FC = () => {
 	};
 	// dnd-kit skips the collision check while the pointer stands still, so a
 	// scroll under it, by wheel or auto-scroll, resolves the target here.
+	// An Effect Event, so a scroll resolves against the current assistants.
+	const retarget = useEffectEvent(() => {
+		const manager = dragManagerRef.current;
+		if (manager) setDropTarget(dragTargetOf(manager, user.id, assistantOfCard));
+	});
 	useEffect(() => {
 		if (!activeDrag) return;
 		let frame: number | undefined;
 		const update = () => {
 			frame = undefined;
-			const manager = dragManagerRef.current;
-			if (manager) {
-				setDropTarget(dragTargetOf(manager, user.id, assistantOfCard));
-			}
+			retarget();
 		};
 		const handleScroll = () => {
 			// Not ??=: the React Compiler cannot lower it and skips the file.
@@ -475,7 +477,7 @@ const ChatBoardPage: React.FC = () => {
 			document.removeEventListener("scroll", handleScroll, options);
 			if (frame !== undefined) cancelAnimationFrame(frame);
 		};
-	}, [activeDrag, user.id]);
+	}, [activeDrag]);
 
 	// The board is replaced only while a query has nothing to show. A failed
 	// refetch keeps its data, and the board with it, so open note editors
