@@ -662,12 +662,6 @@ const ChatSummarizedRenderer: React.FC<ToolRendererProps> = ({
 	const summary =
 		(rec ? asString(rec.summary) : "") ||
 		(typeof result === "string" ? result : "");
-	// The result carries the source once committed; while streaming,
-	// only the call args are available.
-	const argsRec = parseArgs(args);
-	const source =
-		(rec ? asString(rec.source) : "") ||
-		(argsRec ? asString(argsRec.source) : "");
 
 	return (
 		<ChatSummarizedTool
@@ -675,10 +669,15 @@ const ChatSummarizedRenderer: React.FC<ToolRendererProps> = ({
 			status={status}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
-			source={source || undefined}
+			source={resultOrArgsString(result, args, "source") || undefined}
 		/>
 	);
 };
+
+// The committed result carries the field; while the call streams, only the
+// args do.
+const resultOrArgsString = (result: unknown, args: unknown, key: string) =>
+	asString(asRecord(result)?.[key]) || asString(parseArgs(args)?.[key]);
 
 const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 	args,

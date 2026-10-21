@@ -1,6 +1,5 @@
 import type React from "react";
-import { Response } from "../Response";
-import { ToolCall } from "./ToolCall";
+import { MarkdownToolRow } from "./MarkdownToolRow";
 import type { ToolStatus } from "./utils";
 
 /**
@@ -16,39 +15,24 @@ export const ChatSummarizedTool: React.FC<{
 	errorMessage?: string;
 	source?: string;
 }> = ({ summary, status, isError, errorMessage, source }) => {
-	const hasSummary = summary.trim().length > 0;
 	const isRunning = status === "running";
 	const isManual = source === "manual";
 
 	return (
-		<ToolCall.Root
-			className="w-full"
+		<MarkdownToolRow
+			iconName="chat_summarized"
+			label={
+				isRunning
+					? "Summarizing…"
+					: isManual
+						? "Summarized (manual)"
+						: "Summarized"
+			}
+			bodyLabel="Conversation summary"
+			body={summary}
 			status={status}
 			isError={isError}
 			errorMessage={errorMessage || "Failed to summarize conversation"}
-			hasContent={hasSummary}
-		>
-			<ToolCall.Header
-				iconName="chat_summarized"
-				label={
-					isRunning
-						? "Summarizing…"
-						: isManual
-							? "Summarized (manual)"
-							: "Summarized"
-				}
-			/>
-			<ToolCall.Content>
-				<ToolCall.Scrollable
-					className="mt-1.5 rounded-md border border-solid border-border"
-					viewportClassName="max-h-64"
-					ariaLabel="Conversation summary"
-				>
-					<div className="px-3 py-2">
-						<Response>{summary}</Response>
-					</div>
-				</ToolCall.Scrollable>
-			</ToolCall.Content>
-		</ToolCall.Root>
+		/>
 	);
 };
