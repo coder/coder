@@ -213,6 +213,20 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		result: { stage: "handoff", prompt: "Save a checkpoint." },
 	},
 	{
+		name: "save_checkpoint",
+		args: { checkpoint: "Goal: ship the settings page." },
+		result: { saved: true, bytes: 29 },
+	},
+	{
+		name: "new_context",
+		result: { status: "scheduled" },
+	},
+	{
+		name: "chat_history",
+		args: { action: "search", query: "settings" },
+		result: { success: true },
+	},
+	{
 		name: "propose_plan",
 		args: { path: "/home/coder/.coder/plans/PLAN-example.md" },
 		result: { path: "/home/coder/.coder/plans/PLAN-example.md" },
@@ -1391,6 +1405,222 @@ export const ChatContextHandoffFinal: Story = {
 		await userEvent.click(
 			within(canvasElement).getByRole("button", {
 				name: /Context window ending: final handoff/,
+			}),
+		);
+	},
+};
+
+export const SaveCheckpoint: Story = {
+	args: {
+		name: "save_checkpoint",
+		args: { checkpoint: mockCheckpoint },
+		result: { saved: true, bytes: mockCheckpoint.length },
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: /Saved checkpoint/ }),
+		);
+	},
+};
+
+export const SaveCheckpointWithoutResult: Story = {
+	args: {
+		name: "save_checkpoint",
+		args: { checkpoint: mockCheckpoint },
+		status: "completed",
+		result: undefined,
+	},
+};
+
+export const SaveCheckpointRunning: Story = {
+	args: {
+		name: "save_checkpoint",
+		args: { checkpoint: mockCheckpoint },
+		status: "running",
+		result: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: /Saving checkpoint/,
+			}),
+		);
+	},
+};
+
+export const SaveCheckpointError: Story = {
+	args: {
+		name: "save_checkpoint",
+		args: { checkpoint: "" },
+		result: "checkpoint must not be empty",
+		status: "error",
+		isError: true,
+	},
+};
+
+export const SaveCheckpointRejected: Story = {
+	args: {
+		name: "save_checkpoint",
+		args: { checkpoint: mockCheckpoint },
+		result:
+			"checkpoint must be at most 8192 bytes, got 9000; shorten it and save again",
+		status: "error",
+		isError: true,
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: /Checkpoint not saved/,
+			}),
+		);
+	},
+};
+
+export const NewContext: Story = {
+	args: {
+		name: "new_context",
+		args: {},
+		result: {
+			status: "scheduled",
+			message:
+				"A new context window will start without summarizing conversation history.",
+		},
+	},
+};
+
+export const NewContextWithoutResult: Story = {
+	args: { name: "new_context", status: "completed", result: undefined },
+};
+
+export const NewContextRunning: Story = {
+	args: {
+		name: "new_context",
+		args: {},
+		status: "running",
+		result: undefined,
+	},
+};
+
+export const NewContextError: Story = {
+	args: {
+		name: "new_context",
+		args: {},
+		result: { error: "tool call was cancelled" },
+		status: "error",
+		isError: true,
+	},
+};
+
+export const NewContextRefused: Story = {
+	args: {
+		name: "new_context",
+		args: {},
+		result: {
+			code: "rollover_disabled",
+			error:
+				"Automatic rollover is disabled (compaction threshold 100%), so no new context window can start. Continue in this window.",
+		},
+	},
+};
+
+export const ChatHistorySearch: Story = {
+	args: {
+		name: "chat_history",
+		args: { action: "search", query: "settings page" },
+		result: {
+			success: true,
+			has_more: true,
+			items: [
+				{ itemId: "412", windowId: "w:0", role: "user", text: "settings" },
+				{ itemId: "418", windowId: "w:0", role: "assistant", text: "page" },
+			],
+		},
+	},
+};
+
+export const ChatHistoryListWindows: Story = {
+	args: {
+		name: "chat_history",
+		args: { action: "list_windows" },
+		result: {
+			success: true,
+			windows: [
+				{ windowId: "w:0", boundaryKind: "root" },
+				{ windowId: "w:431", boundaryKind: "rollover" },
+			],
+		},
+	},
+};
+
+export const ChatHistoryListItems: Story = {
+	args: {
+		name: "chat_history",
+		args: { action: "list_items", window_id: "w:0" },
+		result: {
+			success: true,
+			items: [
+				{ itemId: "412", windowId: "w:0", role: "user", text: "settings" },
+			],
+		},
+	},
+};
+
+export const ChatHistoryReadItem: Story = {
+	args: {
+		name: "chat_history",
+		args: { action: "read_item", item_id: "412" },
+		result: {
+			success: true,
+			items: [{ itemId: "412", windowId: "w:0", role: "user", text: "..." }],
+		},
+	},
+};
+
+export const ChatHistoryWithoutResult: Story = {
+	args: {
+		name: "chat_history",
+		args: { action: "search", query: "settings page" },
+		status: "completed",
+		result: undefined,
+	},
+};
+
+export const ChatHistoryUnexpectedError: Story = {
+	args: {
+		name: "chat_history",
+		args: { action: "search", query: "settings" },
+		result: { error: "read chat history: connection reset by peer" },
+		status: "error",
+		isError: true,
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(canvasElement).getByRole("img", {
+				name: "read chat history: connection reset by peer",
+			}),
+		);
+	},
+};
+
+export const ChatHistoryRunning: Story = {
+	args: {
+		name: "chat_history",
+		args: { action: "search", query: "settings page" },
+		status: "running",
+		result: undefined,
+	},
+};
+
+export const ChatHistoryTimeout: Story = {
+	args: {
+		name: "chat_history",
+		args: { action: "search", query: "settings" },
+		result: { success: false, error: "history_timeout" },
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(canvasElement).getByRole("img", {
+				name: "Reading chat history timed out",
 			}),
 		);
 	},
