@@ -34,6 +34,13 @@ const (
 	workspaceAgentFilesDialTimeout  = 30 * time.Second
 	// find-files may walk a whole root before it answers.
 	workspaceAgentFilesResponseHeaderTimeout = 2 * time.Minute
+	// workspaceAgentFilesExchangeTimeout bounds the whole HTTP exchange with
+	// the agent, body transfer included, and leaves room for a file of
+	// workspaceAgentFilesMaxFileBytes.
+	workspaceAgentFilesExchangeTimeout = 5 * time.Minute
+	// workspaceAgentFilesMaxErrorBytes caps the read-file error body that is
+	// buffered when the agent sends no Content-Length.
+	workspaceAgentFilesMaxErrorBytes = 64 << 10
 	// Transport errors embed the agent's tailnet URL, so they are logged
 	// rather than returned to the client.
 	workspaceAgentFilesUnreachableDetail = "The workspace agent could not be reached. Check that the workspace agent is connected and retry."
@@ -202,7 +209,9 @@ func (api *API) forwardWorkspaceAgentFilesRequest(rw http.ResponseWriter, r *htt
 	u := *agentURL
 	u.Path = route.path
 	u.RawQuery = filterWorkspaceAgentFilesQuery(r.URL.RawQuery, route.queryParams)
-	outReq, err := http.NewRequestWithContext(ctx, r.Method, u.String(), body)
+	exchangeCtx, cancel := context.WithTimeout(ctx, workspaceAgentFilesExchangeTimeout)
+	defer cancel()
+	outReq, err := http.NewRequestWithContext(exchangeCtx, r.Method, u.String(), body)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error creating workspace agent request.",
@@ -245,19 +254,19 @@ func (api *API) forwardWorkspaceAgentFilesRequest(rw http.ResponseWriter, r *htt
 			return
 		}
 		if resp.ContentLength < 0 {
-			// Without a length the size is only known after reading, so
-			// buffer up to the limit rather than relay a truncated body.
-			data, err := io.ReadAll(io.LimitReader(resp.Body, route.maxResponseBytes+1))
-			if err != nil {
-				api.Logger.Warn(ctx, "read workspace agent files response", slog.F("path", route.path), slog.Error(err))
+			// The agent sets Content-Length on every successful read, so
+			// only a small error body is buffered to learn its length.
+			if resp.StatusCode/100 == 2 {
 				httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
-					Message: "Failed to read workspace agent response.",
-					Detail:  workspaceAgentFilesUnreachableDetail,
+					Message: "The workspace agent sent file contents without a Content-Length.",
 				})
 				return
 			}
-			if int64(len(data)) > route.maxResponseBytes {
-				writeWorkspaceAgentFilesResponseTooLarge(ctx, rw, route.maxResponseBytes)
+			data, err := io.ReadAll(io.LimitReader(resp.Body, workspaceAgentFilesMaxErrorBytes+1))
+			if err != nil || len(data) > workspaceAgentFilesMaxErrorBytes {
+				httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+					Message: "The workspace agent sent an unreadable or oversized error response.",
+				})
 				return
 			}
 			rw.Header().Set("Content-Length", strconv.Itoa(len(data)))
