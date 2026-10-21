@@ -131,6 +131,19 @@ export const SummarizeStrategy: Story = {
 	},
 };
 
+export const TokenBudgetStrategy: Story = {
+	args: {
+		compactionStrategy: "token_budget",
+		thresholds: [{ model_config_id: "model-config-1", threshold_percent: 98 }],
+	},
+	parameters: {
+		experiments: ["chat-token-budget"],
+		queries: [
+			{ key: userCompactionStrategyKey, data: { strategy: "token_budget" } },
+		],
+	},
+};
+
 export const CompactionStrategyOptions: Story = {
 	parameters: {
 		experiments: ["chat-token-budget"],

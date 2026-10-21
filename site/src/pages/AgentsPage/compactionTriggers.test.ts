@@ -12,6 +12,7 @@ import {
 	compactionPointAsPercent,
 	compactionThresholdLabel,
 	isCompactionPointBeyondWindow,
+	modelHandoffTargetPoint,
 	type OrganizationCompactionTrigger,
 	type ResolvedCompactionThreshold,
 	resolveChatCompactionThreshold,
@@ -297,6 +298,7 @@ describe("compaction triggers", () => {
 				models,
 				providers,
 				overrides,
+				"summarize",
 			);
 
 		it("returns the organization point when its trigger binds", () => {
@@ -375,6 +377,7 @@ describe("compaction triggers", () => {
 					undefined,
 					providers,
 					{ data: mockCompactionOverrides, error: null },
+					"summarize",
 				),
 			).toBeUndefined();
 		});
@@ -414,6 +417,56 @@ describe("compaction triggers", () => {
 				organizationOverrideNotLoaded: false,
 			});
 		});
+
+		it("resolves the handoff target under token budget, ignoring the organization override", () => {
+			expect(
+				resolveChatCompactionThreshold(
+					mockChatModel.id,
+					[{ model_config_id: mockChatModel.id, threshold_percent: 30 }],
+					[mockChatModel, MockCompactionChatModel],
+					providers,
+					{ data: mockCompactionOverrides, error: null },
+					"token_budget",
+				),
+			).toEqual({ source: "handoff", percent: 30, pointTokens: 38_400 });
+		});
+	});
+
+	// Mirrors chatd (keep in sync with TestNewContextWindowBudget).
+	it.each([
+		[128_000, 30, 38_400],
+		[128_000, 95, 80_000],
+		[200_000, 0, 20_000],
+		[32_000, 30, 9_600],
+		[8_000, 70, 3_000],
+		[8_001, 5, 800],
+	])(
+		"places the handoff target of a %i-token window with threshold %i at %i tokens",
+		(contextLimit, thresholdPercent, expected) => {
+			expect(
+				modelHandoffTargetPoint(
+					{
+						...mockChatModel,
+						context_limit: contextLimit,
+						model_config: undefined,
+					},
+					thresholdPercent,
+				),
+			).toBe(expected);
+		},
+	);
+
+	it("derives the usable limit from the model's output cap", () => {
+		expect(
+			modelHandoffTargetPoint(
+				{
+					...mockChatModel,
+					context_limit: 200_000,
+					model_config: { max_output_tokens: 8_192 },
+				},
+				95,
+			),
+		).toBe(175_808);
 	});
 
 	it.each<[ResolvedCompactionThreshold, number, string | undefined]>([
@@ -453,6 +506,17 @@ describe("compaction triggers", () => {
 			200_000,
 			"Compaction off (organization override not loaded)",
 		],
+		[
+			{ source: "handoff", percent: 95, pointTokens: 80_000 },
+			128_000,
+			"Handoff target: 62.5%",
+		],
+		[
+			{ source: "handoff", percent: 100, pointTokens: 80_000 },
+			128_000,
+			"Automatic rollover disabled",
+		],
+		[{ source: "handoff", percent: 30, pointTokens: undefined }, 0, undefined],
 	])("labels %o in a %i-token window", (compaction, contextLimit, expected) => {
 		expect(compactionThresholdLabel(compaction, contextLimit)).toBe(expected);
 	});

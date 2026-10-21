@@ -105,6 +105,7 @@ const meta = {
 		thresholdsError: undefined,
 		onSaveThreshold: fn(async () => undefined),
 		onResetThreshold: fn(async () => undefined),
+		compactionStrategy: "summarize",
 	},
 	parameters: {
 		user: MockUserOwner,
@@ -553,5 +554,34 @@ export const PartialModelLoadError: Story = {
 		modelsError: new globalThis.Error(
 			"Failed to load models from one organization",
 		),
+	},
+};
+
+export const TokenBudgetHandoffTargets: Story = {
+	args: {
+		compactionStrategy: "token_budget",
+		thresholds: [
+			{ model_config_id: "model-1", threshold_percent: 95 },
+			{ model_config_id: "model-2", threshold_percent: 100 },
+		],
+	},
+};
+
+export const TokenBudgetUnknownWindow: Story = {
+	args: {
+		compactionStrategy: "token_budget",
+		models: [{ ...mockModels[0], context_limit: 0 }],
+	},
+};
+
+export const TokenBudgetDisableRolloverWarning: Story = {
+	args: { compactionStrategy: "token_budget" },
+	play: async ({ canvasElement }) => {
+		const gpt4oInput = await within(canvasElement).findByRole("textbox", {
+			name: /GPT-4o handoff target/i,
+		});
+
+		await userEvent.type(gpt4oInput, "100");
+		await reopenTooltip(gpt4oInput);
 	},
 };

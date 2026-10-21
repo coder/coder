@@ -70,6 +70,7 @@ export const AgentSettingsCompactionPageView: React.FC<
 					thresholdsError={thresholdsError}
 					onSaveThreshold={onSaveThreshold}
 					onResetThreshold={onResetThreshold}
+					compactionStrategy={compactionStrategy}
 				/>
 			)}
 		</div>

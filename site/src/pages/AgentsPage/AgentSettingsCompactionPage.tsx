@@ -50,11 +50,13 @@ const AgentSettingsCompactionPage: React.FC = () => {
 		providerConfigsQuery.data,
 	);
 	const compactionTriggers = resolveCompactionTriggersByOrganization(
-		organizations.map((organization, index) => ({
-			organizationID: organization.id,
-			data: modelOverrideQueries[index].data,
-			error: modelOverrideQueries[index].error,
-		})),
+		compactionStrategy === "token_budget"
+			? []
+			: organizations.map((organization, index) => ({
+					organizationID: organization.id,
+					data: modelOverrideQueries[index].data,
+					error: modelOverrideQueries[index].error,
+				})),
 		organizationModels.models,
 		providerInfoByIDFromDescriptors(organizationModels.providers),
 	);
@@ -70,7 +72,8 @@ const AgentSettingsCompactionPage: React.FC = () => {
 			modelsError={organizationModels.error ?? organizationModels.partialError}
 			isLoadingModels={
 				organizationModels.isLoading ||
-				modelOverrideQueries.some((query) => query.isLoading)
+				(compactionStrategy !== "token_budget" &&
+					modelOverrideQueries.some((query) => query.isLoading))
 			}
 			compactionTriggerLoadErrors={compactionTriggers.loadErrors}
 			thresholds={thresholdsQuery.data?.thresholds}
