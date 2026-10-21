@@ -29,7 +29,7 @@ type NewContextOptions struct {
 func NewContext(opts NewContextOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(NewContextToolName,
 		"Start a new context window (the workspace is untouched). "+
-			"First save a checkpoint with "+SaveCheckpointToolName+": the new window has no transcript or summary, only that checkpoint. "+
+			"First save a checkpoint with "+SaveCheckpointToolName+": the new window has no transcript or summary, only that checkpoint and chat_history. "+
 			"It starts once this step settles (sibling calls still complete). Honored once per window; refused when automatic rollover is off (threshold 100%).",
 		func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if opts.RolloverDisabled {
