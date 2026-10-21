@@ -7979,8 +7979,9 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 
 // chatInputFileScope limits which workspace files an input part may
 // reference: files in the chat's organization uploaded by the chat owner
-// or the caller. Reading a file is not enough, because linking hands its
-// bytes to the chat's delivery, which drops them from storage.
+// or the caller, or already linked to the chat. Reading a file is not
+// enough, because linking hands its bytes to the chat's delivery, which
+// drops them from storage.
 type chatInputFileScope struct {
 	organizationID uuid.UUID
 	ownerID        uuid.UUID
@@ -8009,6 +8010,10 @@ func createChatInputFromParts(
 
 	content := make([]codersdk.ChatMessagePart, 0, len(parts))
 	var pasteData map[uuid.UUID][]byte
+	// linkedFileIDs is loaded on first need. It lets a chat keep files an
+	// earlier participant linked, such as an administrator who created
+	// the chat for its owner.
+	var linkedFileIDs map[uuid.UUID]struct{}
 	for i, part := range parts {
 		switch strings.ToLower(strings.TrimSpace(string(part.Type))) {
 		case string(codersdk.ChatInputPartTypeText):
@@ -8080,8 +8085,22 @@ func createChatInputFromParts(
 					Detail:  fmt.Sprintf("%s[%d].file_id must reference a file uploaded with purpose %q.", fieldName, i, codersdk.ChatFilePurposeWorkspace),
 				}
 			}
-			if chatFile.OrganizationID != files.organizationID ||
-				(chatFile.OwnerID != files.ownerID && chatFile.OwnerID != files.callerID) {
+			uploadedByParticipant := chatFile.OwnerID == files.ownerID || chatFile.OwnerID == files.callerID
+			if !uploadedByParticipant && chatID != uuid.Nil && linkedFileIDs == nil {
+				linked, err := db.GetChatFileMetadataByChatID(ctx, chatID)
+				if err != nil {
+					return nil, nil, &codersdk.Response{
+						Message: "Internal error.",
+						Detail:  fmt.Sprintf("Failed to retrieve the chat's files for %s[%d]: %s", fieldName, i, err),
+					}
+				}
+				linkedFileIDs = make(map[uuid.UUID]struct{}, len(linked))
+				for _, file := range linked {
+					linkedFileIDs[file.ID] = struct{}{}
+				}
+			}
+			_, linkedToChat := linkedFileIDs[part.FileID]
+			if chatFile.OrganizationID != files.organizationID || (!uploadedByParticipant && !linkedToChat) {
 				return nil, nil, &codersdk.Response{
 					Message: "Invalid input part.",
 					Detail:  fmt.Sprintf("%s[%d].file_id must reference a workspace file you or the chat owner uploaded in the chat's organization.", fieldName, i),
