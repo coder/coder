@@ -37,22 +37,22 @@ import {
 	AgentCreateForm,
 	type AgentCreatePrefill,
 	type CreateChatOptions,
-} from "./components/AgentCreateForm";
-import { AgentCreateFormFrame } from "./components/AgentCreateFormFrame";
-import { AgentPageHeader } from "./components/AgentPageHeader";
-import { ChimeButton } from "./components/ChimeButton";
-import { ProjectPage } from "./components/ProjectPage/ProjectPage";
-import { WebPushButton } from "./components/WebPushButton";
-import { isAbortError } from "./utils/chatAttachments";
-import { toWorkspaceFileReferencePart } from "./utils/chatInputContent";
-import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
-import { type DeepLinkState, readDeepLinkState } from "./utils/deepLinkState";
-import { buildAgentChatPath } from "./utils/navigation";
+} from "../components/AgentCreateForm";
+import { AgentCreateFormFrame } from "../components/AgentCreateFormFrame";
+import { AgentPageHeader } from "../components/AgentPageHeader";
+import { ChimeButton } from "../components/ChimeButton";
+import { ProjectPage } from "../components/ProjectPage/ProjectPage";
+import { WebPushButton } from "../components/WebPushButton";
+import { isAbortError } from "../utils/chatAttachments";
+import { toWorkspaceFileReferencePart } from "../utils/chatInputContent";
+import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
+import { type DeepLinkState, readDeepLinkState } from "../utils/deepLinkState";
+import { buildAgentChatPath } from "../utils/navigation";
 import {
 	debugWorkspaceBuildLogsFileName,
 	debugWorkspaceBuildPrompt,
 	formatWorkspaceBuildLogsForDebug,
-} from "./utils/workspaceBuildDebug";
+} from "../utils/workspaceBuildDebug";
 
 const promptSearchParam = "prompt";
 

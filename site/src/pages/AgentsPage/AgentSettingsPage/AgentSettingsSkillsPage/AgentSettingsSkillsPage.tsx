@@ -5,15 +5,15 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { OrganizationField } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { RetryButton } from "./components/RetryButton";
-import { SectionHeader } from "./components/SectionHeader";
-import { SkillsTable } from "./components/SkillsTable";
+import { RetryButton } from "../../components/RetryButton";
+import { SectionHeader } from "../../components/SectionHeader";
+import { SkillsTable } from "../../components/SkillsTable";
 import {
 	fullSkillAccess,
 	organizationSkillsScope,
 	readOnlySkillAccess,
 	userSkillsScope,
-} from "./utils/skills";
+} from "../../utils/skills";
 
 const AgentSettingsSkillsPage: React.FC = () => {
 	const { user } = useAuthenticated();

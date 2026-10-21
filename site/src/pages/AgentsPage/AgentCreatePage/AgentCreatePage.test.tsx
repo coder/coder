@@ -39,19 +39,19 @@ import {
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
-import AgentCreatePage from "./AgentCreatePage";
-import type * as AgentCreateFormModule from "./components/AgentCreateForm";
+import type * as AgentCreateFormModule from "../components/AgentCreateForm";
 import {
 	type CreateChatOptions,
 	draftStorageKeys,
 	emptyInputStorageKey,
-} from "./components/AgentCreateForm";
-import type { WorkspaceFileUpload } from "./hooks/useWorkspaceFileUploads";
-import { readAgentAttachmentText } from "./utils/fileAttachmentLimits";
+} from "../components/AgentCreateForm";
+import type { WorkspaceFileUpload } from "../hooks/useWorkspaceFileUploads";
+import { readAgentAttachmentText } from "../utils/fileAttachmentLimits";
 import {
 	debugWorkspaceBuildPrompt,
 	formatWorkspaceBuildLogsForDebug,
-} from "./utils/workspaceBuildDebug";
+} from "../utils/workspaceBuildDebug";
+import AgentCreatePage from "./AgentCreatePage";
 
 const { renderedProjects, realForm, formProps } = vi.hoisted(() => ({
 	renderedProjects: [] as Array<
@@ -74,7 +74,7 @@ type AgentCreateFormProps = React.ComponentProps<
 
 // Upload tests call the captured onCreateChat to drive the page's submit path
 // directly.
-vi.mock("./components/AgentCreateForm", async (importOriginal) => {
+vi.mock("../components/AgentCreateForm", async (importOriginal) => {
 	const actual = await importOriginal<typeof AgentCreateFormModule>();
 	const StubAgentCreateForm = ({
 		onCreateChat,
@@ -116,7 +116,7 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 });
 
 // AgentPageHeader needs the layout's outlet context.
-vi.mock("./components/AgentPageHeader", () => ({
+vi.mock("../components/AgentPageHeader", () => ({
 	AgentPageHeader: () => null,
 }));
 

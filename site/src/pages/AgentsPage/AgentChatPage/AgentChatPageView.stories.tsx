@@ -44,17 +44,17 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { MessageScroller } from "#/vendor/message-scroller";
+import type { ChatDetailError } from "../components/ChatConversation/chatError";
+import { createChatStore } from "../components/ChatConversation/chatStore";
+import { buildLongConversation } from "../components/ChatConversation/storyFixtures";
+import { visibleSingletonTabsStorageKeyPrefix } from "../utils/rightPanelTabStorage";
+import type { SingletonRightPanelTabId } from "../utils/rightPanelTabs";
+import { lastActiveSidebarTabStorageKeyPrefix } from "../utils/sidebarTabStorage";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
 } from "./AgentChatPageView";
-import type { ChatDetailError } from "./components/ChatConversation/chatError";
-import { createChatStore } from "./components/ChatConversation/chatStore";
-import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
-import { visibleSingletonTabsStorageKeyPrefix } from "./utils/rightPanelTabStorage";
-import type { SingletonRightPanelTabId } from "./utils/rightPanelTabs";
-import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
 
 // ---------------------------------------------------------------------------
 // Shared constants & helpers
