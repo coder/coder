@@ -41,6 +41,8 @@ const (
 
 	scenarioSteer scenario = "steer"
 
+	scenarioSteerBatch scenario = "steer_batch"
+
 	scenarioSteerJumps scenario = "steer_jumps"
 
 	scenarioQueueSteerJumps scenario = "queue_steer_jumps"
@@ -64,6 +66,8 @@ const (
 	// FinishInterruption case that exercises the precondition
 	// rejecting outstanding non-dynamic tool calls.
 	scenarioRejectNonDynamicOutstandingToolCall scenario = "reject_non_dynamic_outstanding_tool_call"
+
+	scenarioRejectOutstandingToolCall scenario = "reject_outstanding_tool_call"
 )
 
 func transitionAllowed(tr chatstate.Transition, from chatstate.ExecutionState) bool {
@@ -250,6 +254,13 @@ func applyRecordRetryState(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ see
 	return err
 }
 
+func applyDeliverSteerMessages(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+	t.Helper()
+	var err error
+	result.deliverSteerMessages, err = tx.DeliverSteerMessages(chatstate.DeliverSteerMessagesInput{})
+	return err
+}
+
 func applyCommitStep(t *testing.T, f *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
 	t.Helper()
 	assistant := userTextMessage("assistant", f.User.ID, f.Model.ID)
@@ -387,6 +398,8 @@ func defaultApplier(tr chatstate.Transition) applierFn {
 		return applyRecordGenerationAttempt
 	case chatstate.TransitionRecordRetryState:
 		return applyRecordRetryState
+	case chatstate.TransitionDeliverSteerMessages:
+		return applyDeliverSteerMessages
 	case chatstate.TransitionCommitStep:
 		return applyCommitStep
 	case chatstate.TransitionEnterRequiresAction:
@@ -435,6 +448,7 @@ type transitionCaseResult struct {
 	completeRequiresAction  chatstate.CompleteRequiresActionResult
 	recordGenerationAttempt chatstate.RecordGenerationAttemptResult
 	recordRetryState        chatstate.RecordRetryStateResult
+	deliverSteerMessages    chatstate.DeliverSteerMessagesResult
 	commitStep              chatstate.CommitStepResult
 	enterRequiresAction     chatstate.EnterRequiresActionResult
 	finishInterruption      chatstate.FinishInterruptionResult
@@ -1000,6 +1014,20 @@ func matrixCases() []transitionCaseSpec {
 		// RecordRetryState cases: from-state preserved.
 		recordRetryStateCase(chatstate.StateR0),
 		recordRetryStateCase(chatstate.StateR1),
+
+		deliverSteerMessagesCase(chatstate.StateR0, chatstate.StateR0, queueSeed{}),
+		deliverSteerMessagesCase(chatstate.StateR1, chatstate.StateR1, queueSeed{}),
+		deliverSteerMessagesCase(chatstate.StateR1, chatstate.StateR0, queueSeed{
+			scenario:  scenarioSteerBatch,
+			behaviors: []chatstate.BusyBehavior{chatstate.BusyBehaviorSteer, chatstate.BusyBehaviorSteer},
+			promoted:  []int{0, 1},
+		}),
+		deliverSteerMessagesCase(chatstate.StateR1, chatstate.StateR1, queueSeed{
+			scenario:  scenarioSteerJumps,
+			behaviors: []chatstate.BusyBehavior{chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorSteer, chatstate.BusyBehaviorQueue},
+			promoted:  []int{1},
+		}),
+		deliverSteerMessagesRejectsOutstandingToolCallCase(),
 
 		// CommitStep cases: from-state preserved, history grows by
 		// one message.
@@ -1906,6 +1934,73 @@ func recordRetryStateCase(from chatstate.ExecutionState) transitionCaseSpec {
 				"RecordRetryState does not change queue order")
 			require.Equal(t, base.historyIDs, activeHistoryIDs(ctx, t, f, seeded.chatID),
 				"RecordRetryState does not change history messages")
+		},
+	}
+}
+
+func deliverSteerMessagesCase(from, want chatstate.ExecutionState, q queueSeed) transitionCaseSpec {
+	return q.apply(transitionCaseSpec{
+		transition: chatstate.TransitionDeliverSteerMessages,
+		from:       from,
+		want:       want,
+		apply:      applyDeliverSteerMessages,
+		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
+			after, err := f.DB.GetChatByID(ctx, seeded.chatID)
+			require.NoError(t, err)
+			afterHistory := activeHistoryIDs(ctx, t, f, seeded.chatID)
+			require.Equal(t, database.ChatStatusRunning, after.Status,
+				"DeliverSteerMessages keeps the chat running")
+			require.Equal(t, base.generationAttempt, after.GenerationAttempt,
+				"DeliverSteerMessages does not record a generation attempt")
+			delivered := result.deliverSteerMessages.DeliveredMessages
+			if len(q.promoted) == 0 {
+				require.Empty(t, delivered,
+					"DeliverSteerMessages without steer rows delivers nothing")
+				require.Equal(t, base.historyIDs, afterHistory)
+				require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID))
+				require.Equal(t, base.historyVersion, after.HistoryVersion)
+				require.Equal(t, base.queueVersion, after.QueueVersion)
+				return
+			}
+			remaining := assertPromotedRows(ctx, t, f, seeded, base, delivered, q.promoted)
+			deliveredIDs := make([]int64, 0, len(delivered))
+			for _, m := range delivered {
+				deliveredIDs = append(deliveredIDs, m.ID)
+			}
+			require.Equal(t, deliveredIDs, newActiveMessageIDs(base, afterHistory),
+				"DeliverSteerMessages inserts only the steer messages")
+			require.Equal(t, remaining, queuedIDsByPosition(ctx, t, f, seeded.chatID),
+				"DeliverSteerMessages keeps queue rows queued in order")
+			require.Greater(t, after.HistoryVersion, base.historyVersion)
+			require.Greater(t, after.QueueVersion, base.queueVersion)
+		},
+	})
+}
+
+func deliverSteerMessagesRejectsOutstandingToolCallCase() transitionCaseSpec {
+	return transitionCaseSpec{
+		transition: chatstate.TransitionDeliverSteerMessages,
+		from:       chatstate.StateR1,
+		want:       chatstate.StateR1,
+		scenario:   scenarioRejectOutstandingToolCall,
+		seed: func(t *testing.T, f *testFixture, _ chatstate.ExecutionState) seededChat {
+			seeded := seedForEnterRequiresAction(t, f, chatstate.StateR0)
+			m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
+			sm := sendMessageWithBehavior(t, f, m, "steer-with-tool-call", chatstate.BusyBehaviorSteer)
+			require.NotNil(t, sm.QueuedMessage)
+			seeded.queuedMessageIDs = []int64{sm.QueuedMessage.ID}
+			seeded.queuedMessageBodies = []string{"steer-with-tool-call"}
+			return seeded
+		},
+		apply: applyDeliverSteerMessages,
+		assertFailure: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, err error) {
+			require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed,
+				"DeliverSteerMessages must reject outstanding tool calls")
+			var te *chatstate.TransitionError
+			require.ErrorAs(t, err, &te)
+			require.Equal(t, chatstate.TransitionDeliverSteerMessages, te.Transition)
+			require.Equal(t, chatstate.StateR1, te.From)
+			assertNoMutationOrPublish(ctx, t, f, seeded.chatID, base)
 		},
 	}
 }

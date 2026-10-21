@@ -445,6 +445,9 @@ type SendMessageBusyBehavior string
 const (
 	// SendMessageBusyBehaviorQueue queues user messages while the chat is busy.
 	SendMessageBusyBehaviorQueue SendMessageBusyBehavior = "queue"
+	// SendMessageBusyBehaviorSteer delivers the message before the next
+	// assistant model call.
+	SendMessageBusyBehaviorSteer SendMessageBusyBehavior = "steer"
 	// SendMessageBusyBehaviorInterrupt interrupts the active run. It persists
 	// the partial response before this message runs ahead of queued messages.
 	// Further messages join the queue tail while the interruption is pending.
