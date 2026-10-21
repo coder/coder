@@ -306,7 +306,7 @@ func (api *API) HandleWriteFile(rw http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	parser := httpapi.NewQueryParamParser().RequiredNotEmpty("path")
 	path := parser.String(query, "", "path")
-	ifMatch := parser.String(query, "", "if_match")
+	ifMatchValue := parser.String(query, "", "if_match")
 	parser.ErrorExcessParams(query)
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -314,6 +314,11 @@ func (api *API) HandleWriteFile(rw http.ResponseWriter, r *http.Request) {
 			Validations: parser.Errors,
 		})
 		return
+	}
+	// A present but empty if_match is a precondition no file matches.
+	var ifMatch *string
+	if query.Has("if_match") {
+		ifMatch = &ifMatchValue
 	}
 
 	status, etag, err := api.writeFile(ctx, r, path, ifMatch)
@@ -339,11 +344,11 @@ func (api *API) HandleWriteFile(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// writeFile writes the request body to path. When ifMatch is set, the
-// write only happens if the current file's ETag equals it; otherwise
-// it returns 412 with the current ETag, if the file exists. The
-// returned ETag is the written file's on success.
-func (api *API) writeFile(ctx context.Context, r *http.Request, path, ifMatch string) (HTTPResponseCode, string, error) {
+// writeFile writes the request body to path. When ifMatch is non-nil,
+// the write only happens if the current file's ETag equals it;
+// otherwise it returns 412 with the current ETag, if the file exists.
+// The returned ETag is the written file's on success.
+func (api *API) writeFile(ctx context.Context, r *http.Request, path string, ifMatch *string) (HTTPResponseCode, string, error) {
 	if !filepath.IsAbs(path) {
 		return http.StatusBadRequest, "", xerrors.Errorf("file path must be absolute: %q", path)
 	}
@@ -359,9 +364,9 @@ func (api *API) writeFile(ctx context.Context, r *http.Request, path, ifMatch st
 	// concurrent write can be overwritten. It is still not atomic.
 	var currentETag string
 	var precondition func() (int, error)
-	if ifMatch != "" {
+	if ifMatch != nil {
 		precondition = func() (int, error) {
-			status, etag, err := api.checkIfMatch(path, ifMatch)
+			status, etag, err := api.checkIfMatch(path, *ifMatch)
 			currentETag = etag
 			return status, err
 		}
@@ -394,15 +399,11 @@ func (api *API) writeFile(ctx context.Context, r *http.Request, path, ifMatch st
 		mode = &m
 	}
 
-	if status, err := api.atomicWrite(ctx, path, mode, r.Body, precondition); err != nil {
+	info, status, err := api.atomicWrite(ctx, path, mode, r.Body, precondition)
+	if err != nil {
 		return status, currentETag, err
 	}
-
-	stat, err := api.filesystem.Stat(path)
-	if err != nil {
-		return http.StatusInternalServerError, "", xerrors.Errorf("stat written file %s: %w", path, err)
-	}
-	return 0, fileETag(stat), nil
+	return 0, fileETag(info), nil
 }
 
 // checkIfMatch returns 412 when the file at path is missing or its
@@ -511,7 +512,7 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 	// cross-file atomicity would require filesystem transactions.
 	for _, p := range pending {
 		mode := p.mode
-		s, err := api.atomicWrite(ctx, p.path, &mode, strings.NewReader(p.content), nil)
+		_, s, err := api.atomicWrite(ctx, p.path, &mode, strings.NewReader(p.content), nil)
 		if err != nil {
 			httpapi.Write(ctx, rw, s, codersdk.Response{
 				Message: err.Error(),
@@ -629,8 +630,10 @@ func (api *API) prepareFileEdit(path string, edits []workspacesdk.FileEdit) (int
 // On failure the temp file is cleaned up and the original is
 // untouched. A non-nil beforeRename runs after the temp file is
 // written; if it fails, the write is abandoned and its status and
-// error are returned.
-func (api *API) atomicWrite(ctx context.Context, path string, mode *os.FileMode, r io.Reader, beforeRename func() (int, error)) (int, error) {
+// error are returned. The returned FileInfo is the temp file's, taken
+// before the rename; its size and modification time are the written
+// file's even if another writer replaces path afterwards.
+func (api *API) atomicWrite(ctx context.Context, path string, mode *os.FileMode, r io.Reader, beforeRename func() (int, error)) (os.FileInfo, int, error) {
 	logger := api.logger.With(agentchat.Fields(ctx)...)
 
 	dir := filepath.Dir(path)
@@ -642,7 +645,7 @@ func (api *API) atomicWrite(ctx context.Context, path string, mode *os.FileMode,
 		if errors.Is(err, os.ErrPermission) {
 			status = http.StatusForbidden
 		}
-		return status, err
+		return nil, status, err
 	}
 
 	cleanup := func() {
@@ -655,14 +658,21 @@ func (api *API) atomicWrite(ctx context.Context, path string, mode *os.FileMode,
 	if err != nil {
 		_ = tmpfile.Close()
 		cleanup()
-		return http.StatusInternalServerError, xerrors.Errorf("write %s: %w", path, err)
+		return nil, http.StatusInternalServerError, xerrors.Errorf("write %s: %w", path, err)
+	}
+
+	info, err := tmpfile.Stat()
+	if err != nil {
+		_ = tmpfile.Close()
+		cleanup()
+		return nil, http.StatusInternalServerError, xerrors.Errorf("stat %s: %w", tmpName, err)
 	}
 
 	// Close before rename to flush buffered data and catch write
 	// errors (e.g. delayed allocation failures).
 	if err := tmpfile.Close(); err != nil {
 		cleanup()
-		return http.StatusInternalServerError, xerrors.Errorf("write %s: %w", path, err)
+		return nil, http.StatusInternalServerError, xerrors.Errorf("write %s: %w", path, err)
 	}
 
 	// Set permissions on the temp file before rename so there is
@@ -679,7 +689,7 @@ func (api *API) atomicWrite(ctx context.Context, path string, mode *os.FileMode,
 	if beforeRename != nil {
 		if status, err := beforeRename(); err != nil {
 			cleanup()
-			return status, err
+			return nil, status, err
 		}
 	}
 
@@ -689,10 +699,10 @@ func (api *API) atomicWrite(ctx context.Context, path string, mode *os.FileMode,
 		if errors.Is(err, os.ErrPermission) {
 			status = http.StatusForbidden
 		}
-		return status, xerrors.Errorf("write %s: %w", path, err)
+		return nil, status, xerrors.Errorf("write %s: %w", path, err)
 	}
 
-	return 0, nil
+	return info, 0, nil
 }
 
 // splitEnding separates a line produced by strings.SplitAfter(s,

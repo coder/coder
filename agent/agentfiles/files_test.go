@@ -3577,4 +3577,64 @@ func TestFileETags(t *testing.T) {
 		_, err := os.Stat(filepath.Join(dir, "nested"))
 		require.ErrorIs(t, err, os.ErrNotExist)
 	})
+
+	t.Run("EmptyIfMatch", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		existing := filepath.Join(dir, "existing.txt")
+		require.NoError(t, os.WriteFile(existing, []byte("old"), 0o600))
+		current := readETag(t, existing)
+
+		w := do(t, http.MethodPost, "/write-file?if_match=&path="+url.QueryEscape(existing), "mine")
+		require.Equal(t, http.StatusPreconditionFailed, w.Code)
+		require.Equal(t, current, w.Header().Get("ETag"))
+		data, err := os.ReadFile(existing)
+		require.NoError(t, err)
+		require.Equal(t, "old", string(data))
+
+		missing := filepath.Join(dir, "missing.txt")
+		w = do(t, http.MethodPost, "/write-file?if_match=&path="+url.QueryEscape(missing), "mine")
+		require.Equal(t, http.StatusPreconditionFailed, w.Code)
+		_, err = os.Stat(missing)
+		require.ErrorIs(t, err, os.ErrNotExist)
+	})
+}
+
+// renameHookFs runs afterRename after each successful rename, to
+// simulate another writer replacing the file right after a write.
+type renameHookFs struct {
+	afero.Fs
+	afterRename func(newname string)
+}
+
+func (fs *renameHookFs) Rename(oldname, newname string) error {
+	if err := fs.Fs.Rename(oldname, newname); err != nil {
+		return err
+	}
+	fs.afterRename(newname)
+	return nil
+}
+
+func TestWriteFile_ETagIsOwnWrite(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "raced.txt")
+	const concurrent = "written by another process"
+	fs := &renameHookFs{Fs: afero.NewOsFs(), afterRename: func(newname string) {
+		require.NoError(t, os.WriteFile(newname, []byte(concurrent), 0o600))
+	}}
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	handler := agentfiles.NewAPI(logger, fs, nil).Routes()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/write-file?path="+url.QueryEscape(path), strings.NewReader("mine"))
+	handler.ServeHTTP(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	require.Equal(t, int64(len(concurrent)), info.Size())
+	// The ETag describes the 4-byte write, not the file now on disk.
+	require.Regexp(t, `^"[0-9a-f]+-4"$`, w.Header().Get("ETag"))
 }
