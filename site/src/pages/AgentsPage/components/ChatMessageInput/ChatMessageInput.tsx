@@ -704,6 +704,44 @@ const isSameSkillsTrigger = (
 };
 
 /**
+ * Replaces a closed trigger's alias with the skill's chip when the caret
+ * sits just past the whitespace that ends the alias.
+ */
+const $replaceTypedSkillAlias = (
+	trigger: ActiveSkillsTrigger,
+	skill: { source: SkillSource; name: string },
+) => {
+	const alias = `/${trigger.query}`;
+	const aliasEnd = trigger.slashOffset + alias.length;
+	const selection = $getSelection();
+	if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
+		return;
+	}
+
+	const { anchor, focus } = selection;
+	if (anchor.key !== trigger.nodeKey || anchor.offset !== aliasEnd + 1) {
+		return;
+	}
+
+	const node = $getNodeByKey(trigger.nodeKey);
+	if (!$isTextNode(node)) {
+		return;
+	}
+
+	const text = node.getTextContent();
+	if (text.slice(trigger.slashOffset, aliasEnd) !== alias) {
+		return;
+	}
+	if (!/\s/.test(text.charAt(aliasEnd))) {
+		return;
+	}
+
+	anchor.set(trigger.nodeKey, trigger.slashOffset, "text");
+	focus.set(trigger.nodeKey, aliasEnd, "text");
+	$insertSkillInvocation(selection, skill.source, skill.name);
+};
+
+/**
  * Loads a Coder-stored skill source for the "/" menu while a trigger is
  * active, without the disabled skills chatd skips.
  */
@@ -910,37 +948,11 @@ const ChatMessageInput = ({
 			(trigger) =>
 				trigger.triggerText === alias || trigger.altTriggerText === alias,
 		);
-		if (!skill) {
-			return;
-		}
-		editorRef.current?.update(() => {
-			const selection = $getSelection();
-			const node = $getNodeByKey(closedTrigger.nodeKey);
-			const aliasEnd = closedTrigger.slashOffset + alias.length;
-			if (
-				!$isRangeSelection(selection) ||
-				!selection.isCollapsed() ||
-				selection.anchor.key !== closedTrigger.nodeKey ||
-				selection.anchor.offset !== aliasEnd + 1 ||
-				!$isTextNode(node)
-			) {
-				return;
-			}
-			const text = node.getTextContent();
-			if (
-				text.slice(closedTrigger.slashOffset, aliasEnd) !== alias ||
-				!/\s/.test(text.charAt(aliasEnd))
-			) {
-				return;
-			}
-			selection.anchor.set(
-				closedTrigger.nodeKey,
-				closedTrigger.slashOffset,
-				"text",
+		if (skill) {
+			editorRef.current?.update(() =>
+				$replaceTypedSkillAlias(closedTrigger, skill),
 			);
-			selection.focus.set(closedTrigger.nodeKey, aliasEnd, "text");
-			$insertSkillInvocation(selection, skill.source, skill.name);
-		});
+		}
 	};
 
 	const handleSkillsTriggerChange = (trigger: ActiveSkillsTrigger | null) => {
