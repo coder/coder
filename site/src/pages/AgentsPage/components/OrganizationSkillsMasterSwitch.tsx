@@ -6,14 +6,17 @@ import type { OrganizationSkillPreferences } from "#/api/typesGenerated";
 import { Switch } from "#/components/Switch/Switch";
 import { toast } from "#/components/Toaster/toast";
 
-type OrganizationSkillsUsageSettingProps = {
+type OrganizationSkillsMasterSwitchProps = {
 	organizationId: string;
 	preferences: OrganizationSkillPreferences;
 };
 
-/** The member's master switch for every skill of one organization. */
-export const OrganizationSkillsUsageSetting: React.FC<
-	OrganizationSkillsUsageSettingProps
+/**
+ * Turns every skill of one organization on or off for the member's chats,
+ * including skills added later.
+ */
+export const OrganizationSkillsMasterSwitch: React.FC<
+	OrganizationSkillsMasterSwitchProps
 > = ({ organizationId, preferences }) => {
 	const labelId = useId();
 	const descriptionId = useId();
@@ -21,15 +24,18 @@ export const OrganizationSkillsUsageSetting: React.FC<
 	const toggleMutation = useMutation(
 		updateOrganizationSkillPreferences(queryClient, organizationId),
 	);
+	const allSkillsDisabled = toggleMutation.isPending
+		? toggleMutation.variables.all_skills_disabled
+		: preferences.all_skills_disabled;
 
 	return (
 		<div className="space-y-2">
-			<h3
+			<h4
 				id={labelId}
 				className="m-0 text-sm font-semibold text-content-primary"
 			>
 				Use organization skills in my chats
-			</h3>
+			</h4>
 			<div className="flex items-center justify-between gap-4">
 				<p
 					id={descriptionId}
@@ -37,16 +43,12 @@ export const OrganizationSkillsUsageSetting: React.FC<
 				>
 					Turn this off to hide every skill from this organization in your
 					chats, including skills added later. Your choices for individual
-					skills are kept.
+					skills are kept and apply again when you turn this back on.
 				</p>
 				<Switch
 					aria-labelledby={labelId}
 					aria-describedby={descriptionId}
-					checked={
-						toggleMutation.isPending
-							? !toggleMutation.variables.all_skills_disabled
-							: !preferences.all_skills_disabled
-					}
+					checked={!allSkillsDisabled}
 					disabled={toggleMutation.isPending}
 					onCheckedChange={(checked) =>
 						toggleMutation.mutate(

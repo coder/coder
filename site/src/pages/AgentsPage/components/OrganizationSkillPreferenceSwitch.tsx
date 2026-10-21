@@ -14,7 +14,10 @@ type OrganizationSkillPreferenceSwitchProps = {
 	preferences: OrganizationSkillPreferences;
 };
 
-/** Turns one organization skill off or on for the member's own chats. */
+/**
+ * Turns one organization skill off or on for the member's chats. Locked while
+ * the master switch is off, which keeps the stored choice.
+ */
 export const OrganizationSkillPreferenceSwitch: React.FC<
 	OrganizationSkillPreferenceSwitchProps
 > = ({ organizationId, skill, preferences }) => {
@@ -31,7 +34,6 @@ export const OrganizationSkillPreferenceSwitch: React.FC<
 					? Boolean(toggleMutation.variables.skills?.[skill.id])
 					: !preferences.disabled_skill_ids.includes(skill.id)
 			}
-			// The master switch overrides every per-skill choice.
 			disabled={toggleMutation.isPending || preferences.all_skills_disabled}
 			onCheckedChange={(enabled) =>
 				toggleMutation.mutate(

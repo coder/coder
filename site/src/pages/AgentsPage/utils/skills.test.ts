@@ -362,10 +362,11 @@ describe("getSkillContentSizeBytes", () => {
 describe("activeOrganizationSkills", () => {
 	const [reviewer, docs] = MockSkills;
 	const skills = [reviewer, docs, MockDisabledSkill];
-	const optedOutOfReviewer: TypesGen.OrganizationSkillPreferences = {
-		...MockOrganizationSkillPreferences,
-		disabled_skill_ids: [reviewer.id],
-	};
+	const mockOptedOutOfReviewerPreferences: TypesGen.OrganizationSkillPreferences =
+		{
+			...MockOrganizationSkillPreferences,
+			disabled_skill_ids: [reviewer.id],
+		};
 
 	it.each<{
 		name: string;
@@ -374,12 +375,18 @@ describe("activeOrganizationSkills", () => {
 	}>([
 		{
 			name: "ignores choices while the setting is off",
-			preferences: { ...optedOutOfReviewer, all_skills_disabled: true },
+			preferences: {
+				...mockOptedOutOfReviewerPreferences,
+				all_skills_disabled: true,
+			},
 			expected: [reviewer, docs],
 		},
 		{
 			name: "drops opted-out skills",
-			preferences: { ...optedOutOfReviewer, members_can_disable_skills: true },
+			preferences: {
+				...mockOptedOutOfReviewerPreferences,
+				members_can_disable_skills: true,
+			},
 			expected: [docs],
 		},
 		{

@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { spyOn } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
 import {
 	organizationSkillSettings,
 	organizationSkills,
@@ -98,7 +100,6 @@ export const MembersCanTurnOffSkills: Story = {
 	},
 };
 
-// Reading skills without updating them leaves the setting read-only.
 const mockReadOnlySkillsPermissions: OrganizationPermissions = {
 	...MockNoOrganizationPermissions,
 	viewOrganizationSkills: true,
@@ -120,6 +121,46 @@ export const MembersCanTurnOffSkillsReadOnly: Story = {
 				data: mockMembersCanDisableSkillsSettings,
 			},
 		],
+	},
+};
+
+export const MembersCanTurnOffSkillsLoading: Story = {
+	parameters: {
+		queries: [
+			{
+				key: organizationsPermissions([MockDefaultOrganization.id]).queryKey,
+				data: { [MockDefaultOrganization.id]: MockOrganizationPermissions },
+			},
+			{
+				key: organizationSkills(MockDefaultOrganization.id).queryKey,
+				data: mockOrganizationSkills,
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getOrganizationSkillSettings").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+};
+
+export const MembersCanTurnOffSkillsError: Story = {
+	parameters: {
+		queries: [
+			{
+				key: organizationsPermissions([MockDefaultOrganization.id]).queryKey,
+				data: { [MockDefaultOrganization.id]: MockOrganizationPermissions },
+			},
+			{
+				key: organizationSkills(MockDefaultOrganization.id).queryKey,
+				data: mockOrganizationSkills,
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getOrganizationSkillSettings").mockRejectedValue(
+			new Error("Failed to load the organization setting."),
+		);
 	},
 };
 

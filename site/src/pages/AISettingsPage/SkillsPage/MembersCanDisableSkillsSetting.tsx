@@ -15,6 +15,10 @@ type MembersCanDisableSkillsSettingProps = {
 	canUpdate: boolean;
 };
 
+/**
+ * Lets members turn off organization skills for their own chats. Read-only
+ * for users who cannot update organization skills.
+ */
 export const MembersCanDisableSkillsSetting: React.FC<
 	MembersCanDisableSkillsSettingProps
 > = ({ organizationId, canUpdate }) => {
@@ -47,6 +51,8 @@ export const MembersCanDisableSkillsSetting: React.FC<
 				>
 					Each member can turn off individual organization skills, or all of
 					them, for their own chats.
+					{!canUpdate &&
+						" Only users who can update organization skills can change this setting."}
 				</p>
 				{settingsQuery.data ? (
 					<Switch
@@ -77,7 +83,7 @@ export const MembersCanDisableSkillsSetting: React.FC<
 				)}
 			</div>
 			{settingsQuery.isError && !settingsQuery.data && (
-				<p className="m-0 text-xs text-content-destructive">
+				<p role="alert" className="m-0 text-xs text-content-destructive">
 					{getErrorMessage(
 						settingsQuery.error,
 						"Failed to load the organization setting.",

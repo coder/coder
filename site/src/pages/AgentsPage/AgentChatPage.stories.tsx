@@ -1,7 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { hashKey } from "react-query";
 import { Outlet, useNavigate } from "react-router";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
@@ -3134,10 +3141,12 @@ const mockCompactTurnedOffPreferences: TypesGen.OrganizationSkillPreferences = {
 	disabled_skill_ids: [mockOrganizationCompactSkill.id],
 };
 
-/** The member turned off an organization skill named "compact", so it no
- *  longer shadows the built-in command and the menu offers /compact. */
 export const SlashCompactIgnoresTurnedOffOrganizationSkill: Story = {
 	parameters: {
+		// The play function submits the composer, so the capture would show
+		// no new visual state. The storybook Vitest project runs it as the
+		// submit-path test, because AgentChatPage has no Vitest harness.
+		pixel: { exclude: true },
 		queries: buildQueries(
 			{
 				id: CHAT_ID,
@@ -3160,10 +3169,25 @@ export const SlashCompactIgnoresTurnedOffOrganizationSkill: Story = {
 		).mockResolvedValue(mockCompactTurnedOffPreferences);
 	},
 	play: async ({ canvasElement }) => {
-		const editor =
-			await within(canvasElement).findByTestId("chat-message-input");
+		const canvas = within(canvasElement);
+		const compactSpy = spyOn(API.experimental, "compactChat").mockResolvedValue(
+			{ ...MockChat, id: CHAT_ID, status: "running" },
+		);
+		const sendSpy = spyOn(API.experimental, "createChatMessage");
+
+		const editor = await canvas.findByTestId("chat-message-input");
 		await userEvent.click(editor);
 		await userEvent.keyboard("/compact");
+		await waitFor(() => {
+			expect(screen.getByRole("option", { name: /\/compact/i })).toBeVisible();
+		});
+		await userEvent.keyboard("{Enter}");
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(compactSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(sendSpy).not.toHaveBeenCalled();
 	},
 };
 

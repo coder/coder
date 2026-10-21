@@ -344,18 +344,14 @@ export const organizationSkillsScope = (
 });
 
 /**
- * Returns the organization skills that load into the member's chats: the
- * admin-enabled skills, minus the member's choices while the organization
- * lets members turn skills off. This mirrors the server rule in
- * GetOrganizationSkillMemberPreferencesRow.Excludes. The result stays
- * undefined until both the list and the preferences load.
+ * Returns the organization skills that load into the member's chats, mirroring
+ * GetOrganizationSkillMemberPreferencesRow.Excludes in Go. Stays undefined
+ * until both the list and the preferences load.
  */
-export const activeOrganizationSkills = <
-	T extends Pick<SkillMetadata, "id" | "enabled">,
->(
-	skills: readonly T[] | undefined,
+export const activeOrganizationSkills = (
+	skills: readonly SkillMetadata[] | undefined,
 	preferences: OrganizationSkillPreferences | undefined,
-): T[] | undefined => {
+): SkillMetadata[] | undefined => {
 	if (!skills || !preferences) {
 		return undefined;
 	}

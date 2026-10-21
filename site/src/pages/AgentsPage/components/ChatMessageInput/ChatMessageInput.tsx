@@ -32,7 +32,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { useQuery } from "react-query";
+import { type UseQueryResult, useQuery } from "react-query";
 import {
 	chatProjectSkills,
 	chatProjectUsability,
@@ -637,6 +637,30 @@ const isSameSkillsTrigger = (
 	);
 };
 
+type StoredSkillRequest = Pick<
+	UseQueryResult<unknown>,
+	"data" | "isFetching" | "isError"
+>;
+
+// Only requests without data report loading or failure, so a background
+// refetch never blanks a loaded source.
+const storedSkillSourceState = (
+	skills: SkillMetadata[] | undefined,
+	requests: readonly StoredSkillRequest[],
+	queryEnabled: boolean,
+) => {
+	const unresolved = queryEnabled
+		? requests.filter((request) => request.data === undefined)
+		: [];
+	return {
+		skills,
+		isResolvedEmpty:
+			skills?.length === 0 && !requests.some((request) => request.isFetching),
+		isLoading: unresolved.some((request) => request.isFetching),
+		isError: unresolved.some((request) => request.isError),
+	};
+};
+
 /**
  * Loads a Coder-stored skill source for the "/" menu while a trigger is
  * active, without the disabled skills chatd skips.
@@ -655,15 +679,42 @@ const useStoredSkillSource = (
 		staleTime: 60_000,
 	});
 	const skills = hasSource ? query.data?.filter((skill) => skill.enabled) : [];
-	const isUnresolved = queryEnabled && query.data === undefined;
 	return {
-		skills,
-		isResolvedEmpty: skills?.length === 0 && !query.isFetching,
-		isLoading: isUnresolved && query.isFetching,
-		isError: isUnresolved && query.isError,
-		isFetching: query.isFetching,
+		...storedSkillSourceState(skills, [query], queryEnabled),
 		error: query.error,
 	};
+};
+
+/**
+ * Loads the organization skills chatd uses for the member: the admin-enabled
+ * skills minus the member's opt-outs.
+ */
+const useOrganizationSkillSource = (
+	organizationId: string | undefined,
+	isTriggerActive: boolean,
+) => {
+	const hasOrganization = Boolean(organizationId);
+	const queryEnabled = isTriggerActive && hasOrganization;
+	const skillsQuery = useQuery({
+		...organizationSkills(organizationId ?? ""),
+		enabled: queryEnabled,
+		staleTime: 60_000,
+	});
+	const preferencesQuery = useQuery({
+		...organizationSkillPreferences(organizationId ?? ""),
+		enabled: queryEnabled,
+		staleTime: 60_000,
+	});
+	// The member's choices narrow the list chatd loads, so the source
+	// resolves only after both requests do.
+	const skills = hasOrganization
+		? activeOrganizationSkills(skillsQuery.data, preferencesQuery.data)
+		: [];
+	return storedSkillSourceState(
+		skills,
+		[skillsQuery, preferencesQuery],
+		queryEnabled,
+	);
 };
 
 const ChatMessageInput = ({
@@ -727,44 +778,10 @@ const ChatMessageInput = ({
 		// Avoid refetching on each trigger toggle from caret movement.
 		staleTime: 60_000,
 	});
-	const hasOrganization = Boolean(organizationId);
-	const organizationListSource = useStoredSkillSource(
-		organizationSkills(organizationId ?? ""),
-		{ hasSource: hasOrganization, isTriggerActive: hasSkillsTrigger },
+	const organizationSource = useOrganizationSkillSource(
+		organizationId,
+		hasSkillsTrigger,
 	);
-	const organizationPreferencesQueryEnabled =
-		hasSkillsTrigger && hasOrganization;
-	const organizationPreferencesQuery = useQuery({
-		...organizationSkillPreferences(organizationId ?? ""),
-		enabled: organizationPreferencesQueryEnabled,
-		staleTime: 60_000,
-	});
-	const isOrganizationPreferencesUnresolved =
-		organizationPreferencesQueryEnabled &&
-		organizationPreferencesQuery.data === undefined;
-	// The member's choices narrow the list chatd loads, so the source
-	// resolves only after both requests do.
-	const organizationSkillList = hasOrganization
-		? activeOrganizationSkills(
-				organizationListSource.skills,
-				organizationPreferencesQuery.data,
-			)
-		: [];
-	const organizationSource = {
-		skills: organizationSkillList,
-		isResolvedEmpty:
-			organizationSkillList?.length === 0 &&
-			!organizationListSource.isFetching &&
-			!organizationPreferencesQuery.isFetching,
-		isLoading:
-			organizationListSource.isLoading ||
-			(isOrganizationPreferencesUnresolved &&
-				organizationPreferencesQuery.isFetching),
-		isError:
-			organizationListSource.isError ||
-			(isOrganizationPreferencesUnresolved &&
-				organizationPreferencesQuery.isError),
-	};
 	const hasProject = Boolean(organizationId && projectId);
 	const projectSource = useStoredSkillSource(
 		chatProjectSkills(organizationId ?? "", projectId ?? ""),

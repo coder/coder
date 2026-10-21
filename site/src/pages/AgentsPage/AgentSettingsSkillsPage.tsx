@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQueries, useQuery } from "react-query";
+import { type UseQueryResult, useQueries, useQuery } from "react-query";
 import {
 	organizationSkillPreferences,
 	organizationSkills,
@@ -9,7 +9,7 @@ import { OrganizationField } from "#/components/OrganizationAutocomplete/Organiz
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { OrganizationSkillPreferenceSwitch } from "./components/OrganizationSkillPreferenceSwitch";
-import { OrganizationSkillsUsageSetting } from "./components/OrganizationSkillsUsageSetting";
+import { OrganizationSkillsMasterSwitch } from "./components/OrganizationSkillsMasterSwitch";
 import { RetryButton } from "./components/RetryButton";
 import { SectionHeader } from "./components/SectionHeader";
 import { SkillsTable } from "./components/SkillsTable";
@@ -19,6 +19,31 @@ import {
 	readOnlySkillAccess,
 	userSkillsScope,
 } from "./utils/skills";
+
+type QueryErrorAlertProps = {
+	query: Pick<UseQueryResult<unknown>, "error" | "isFetching" | "refetch">;
+	retryLabel: string;
+};
+
+const QueryErrorAlert: React.FC<QueryErrorAlertProps> = ({
+	query,
+	retryLabel,
+}) => (
+	<ErrorAlert
+		error={query.error}
+		actions={
+			<RetryButton
+				size="sm"
+				variant="outline"
+				aria-label={retryLabel}
+				isRetrying={query.isFetching}
+				onRetry={() => {
+					void query.refetch();
+				}}
+			/>
+		}
+	/>
+);
 
 const AgentSettingsSkillsPage: React.FC = () => {
 	const { user } = useAuthenticated();
@@ -58,11 +83,26 @@ const AgentSettingsSkillsPage: React.FC = () => {
 		...organizationSkillPreferences(selected?.organization.id ?? ""),
 		enabled: Boolean(selected),
 	});
-	// Member controls show only while the organization allows them. Without
-	// loaded preferences the table stays read-only and keeps its skills.
-	const preferences = preferencesQuery.data?.members_can_disable_skills
+	// The table renders without waiting for preferences; only the member
+	// controls wait for them.
+	const editablePreferences = preferencesQuery.data?.members_can_disable_skills
 		? preferencesQuery.data
 		: undefined;
+	const organizationToolbar =
+		preferencesQuery.isError && !preferencesQuery.data ? (
+			<QueryErrorAlert
+				query={preferencesQuery}
+				retryLabel={`Retry loading your ${organizationName} skill choices`}
+			/>
+		) : (
+			selected &&
+			editablePreferences && (
+				<OrganizationSkillsMasterSwitch
+					organizationId={selected.organization.id}
+					preferences={editablePreferences}
+				/>
+			)
+		);
 
 	return (
 		<div className="flex flex-col gap-12">
@@ -106,19 +146,9 @@ const AgentSettingsSkillsPage: React.FC = () => {
 						// mount and clear its error, so a failed list renders here.
 						<div className="flex flex-col gap-4">
 							<SectionHeader level="section" label={organizationName} />
-							<ErrorAlert
-								error={selected.query.error}
-								actions={
-									<RetryButton
-										size="sm"
-										variant="outline"
-										aria-label={`Retry loading ${organizationName} skills`}
-										isRetrying={selected.query.isFetching}
-										onRetry={() => {
-											void selected.query.refetch();
-										}}
-									/>
-								}
+							<QueryErrorAlert
+								query={selected.query}
+								retryLabel={`Retry loading ${organizationName} skills`}
 							/>
 						</div>
 					) : (
@@ -128,8 +158,8 @@ const AgentSettingsSkillsPage: React.FC = () => {
 							copy={{
 								noun: "Organization skill",
 								title: organizationName,
-								description: preferences
-									? "Skills available to you. Turn off the ones you do not want in your chats. Ask an organization admin to change their content."
+								description: editablePreferences
+									? "Skills available to you. Turn off the ones you do not want in your chats. Ask an organization admin to change the skill content."
 									: "Read-only skills available to you. Ask an organization admin to change them.",
 								editorDescription:
 									"Read-only organization skill. Ask an organization admin to change it.",
@@ -138,38 +168,14 @@ const AgentSettingsSkillsPage: React.FC = () => {
 							access={readOnlySkillAccess}
 							enabledOnly
 							headerLevel="section"
-							toolbar={
-								preferencesQuery.isError && !preferencesQuery.data ? (
-									<ErrorAlert
-										error={preferencesQuery.error}
-										actions={
-											<RetryButton
-												size="sm"
-												variant="outline"
-												aria-label={`Retry loading your ${organizationName} skill choices`}
-												isRetrying={preferencesQuery.isFetching}
-												onRetry={() => {
-													void preferencesQuery.refetch();
-												}}
-											/>
-										}
-									/>
-								) : (
-									preferences && (
-										<OrganizationSkillsUsageSetting
-											organizationId={selected.organization.id}
-											preferences={preferences}
-										/>
-									)
-								)
-							}
+							toolbar={organizationToolbar}
 							renderEnabledCell={
-								preferences
+								editablePreferences
 									? (skill) => (
 											<OrganizationSkillPreferenceSwitch
 												organizationId={selected.organization.id}
 												skill={skill}
-												preferences={preferences}
+												preferences={editablePreferences}
 											/>
 										)
 									: undefined

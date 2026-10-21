@@ -270,8 +270,7 @@ const mockReviewerTurnedOffPreferences: TypesGen.OrganizationSkillPreferences =
 		disabled_skill_ids: ["skill-org-reviewer"],
 	};
 
-// The member turned off the organization reviewer, so the menu offers only
-// release-notes from the organization, and the personal reviewer stays bare.
+// With the organization reviewer turned off, the personal reviewer stays bare.
 export const HidesOrganizationSkillsTurnedOff: Story = {
 	args: {
 		hasWorkspace: true,
@@ -289,6 +288,31 @@ export const HidesOrganizationSkillsTurnedOff: Story = {
 				data: mockReviewerTurnedOffPreferences,
 			},
 		],
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+	},
+};
+
+export const OrganizationSkillChoicesError: Story = {
+	args: {
+		hasWorkspace: true,
+		workspaceSkills: mockWorkspaceSkills,
+		organizationId: mockOrganizationId,
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationSkills(mockOrganizationId).queryKey,
+				data: mockOrganizationMenuSkills,
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockRejectedValue(new Error("Failed to load your skill choices."));
 	},
 	play: async ({ canvasElement }) => {
 		await typeInEditor(canvasElement, "/");
