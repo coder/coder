@@ -634,10 +634,9 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		resetEditWorkspaceUploads,
 	]);
 
-	// Cancel and a successful save clear only the edit bucket, so compose
-	// draft attachments survive. This is not an effect on isEditing: a failed
-	// save leaves edit mode until its rollback lands, and the composer can
-	// render the settled mutation before that.
+	// Clear the edit bucket only on cancel and successful save. A failed save
+	// leaves edit mode until its rollback lands, and the composer can render
+	// that gap, so an isEditing effect would drop the user's edits.
 	const resetEditBucket = () => {
 		hydratedEditAttachmentBlocksRef.current = null;
 		hydratedEditBlocksRef.current = null;

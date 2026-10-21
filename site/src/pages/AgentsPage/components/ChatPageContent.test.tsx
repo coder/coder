@@ -183,6 +183,28 @@ const workspaceFileReference = (
 	workspace_file_media_type: "text/csv",
 });
 
+// Records the content of every history edit save. The first save gets
+// firstResponse when given; every other save succeeds.
+const recordEditRequests = (firstResponse?: () => Response) => {
+	const savedContent: TypesGen.ChatInputPart[][] = [];
+	server.use(
+		http.patch(
+			"/api/v2/chats/:chatId/messages/:messageId",
+			async ({ request }) => {
+				const body = (await request.json()) as TypesGen.EditChatMessageRequest;
+				savedContent.push([...body.content]);
+				if (firstResponse && savedContent.length === 1) {
+					return firstResponse();
+				}
+				return HttpResponse.json({
+					message: { ...MockChatMessage, chat_id: historyEditChatId },
+				});
+			},
+		),
+	);
+	return savedContent;
+};
+
 const failedEditResponses = [
 	{ name: "a network error", respond: () => HttpResponse.error() },
 	{
@@ -387,39 +409,15 @@ describe("ChatPageInput", () => {
 	describe.each(failedEditResponses)(
 		"history edit retry after $name",
 		({ respond }) => {
-			// Browsers can render the settled edit mutation before the rollback
-			// re-enters edit mode, while jsdom applies the rollback first.
-			// Notifying mutation observers in a microtask reproduces the
-			// browser order.
+			// jsdom applies the rollback before TanStack's setTimeout notification,
+			// but browsers can render the settled mutation first. A microtask
+			// scheduler forces that browser order.
 			beforeEach(() => {
 				notifyManager.setScheduler(queueMicrotask);
 			});
 			afterEach(() => {
 				notifyManager.setScheduler(defaultScheduler);
 			});
-
-			// The first save fails and the retry succeeds. Returns the request
-			// content of every save.
-			const failFirstEdit = () => {
-				const savedContent: TypesGen.ChatInputPart[][] = [];
-				server.use(
-					http.patch(
-						"/api/v2/chats/:chatId/messages/:messageId",
-						async ({ request }) => {
-							const body =
-								(await request.json()) as TypesGen.EditChatMessageRequest;
-							savedContent.push([...body.content]);
-							if (savedContent.length === 1) {
-								return respond();
-							}
-							return HttpResponse.json({
-								message: { ...MockChatMessage, chat_id: historyEditChatId },
-							});
-						},
-					),
-				);
-				return savedContent;
-			};
 
 			const saveTwice = async (
 				user: ReturnType<typeof userEvent.setup>,
@@ -437,7 +435,7 @@ describe("ChatPageInput", () => {
 
 			it("keeps staged workspace attachment edits", async () => {
 				const user = userEvent.setup();
-				const savedContent = failFirstEdit();
+				const savedContent = recordEditRequests(respond);
 				vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
 					id: "staged-zip",
 				});
@@ -488,7 +486,7 @@ describe("ChatPageInput", () => {
 
 			it("keeps streamed workspace file edits", async () => {
 				const user = userEvent.setup();
-				const savedContent = failFirstEdit();
+				const savedContent = recordEditRequests(respond);
 				vi.spyOn(API.experimental, "uploadChatWorkspaceFile").mockResolvedValue(
 					{
 						path: "/home/coder/added.zip",
@@ -540,19 +538,24 @@ describe("ChatPageInput", () => {
 
 			it("keeps prompt image edits", async () => {
 				const user = userEvent.setup();
-				const savedContent = failFirstEdit();
+				const savedContent = recordEditRequests(respond);
 				vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
 					id: "added-png",
 				});
-				const imagePart = (fileId: string): TypesGen.ChatFilePart => ({
+				const mockImagePart: TypesGen.ChatFilePart = {
 					type: "file",
-					file_id: fileId,
+					file_id: "image-png",
 					media_type: "image/png",
-				});
+				};
+				const mockRemovedImagePart = {
+					...mockImagePart,
+					file_id: "removed-png",
+				};
+				const mockKeptImagePart = { ...mockImagePart, file_id: "kept-png" };
 				renderWithAuth(
 					<HistoryEditHarness
 						store={createChatStore()}
-						fileBlocks={[imagePart("removed-png"), imagePart("kept-png")]}
+						fileBlocks={[mockRemovedImagePart, mockKeptImagePart]}
 						overrides={{ chat: { ...MockChat, id: historyEditChatId } }}
 					/>,
 				);
@@ -574,7 +577,7 @@ describe("ChatPageInput", () => {
 				expect(savedContent[1]).toEqual(savedContent[0]);
 				expect(savedContent[1]).toEqual([
 					{ type: "text", text: "edited" },
-					{ type: "file", file_id: "kept-png" },
+					{ type: "file", file_id: mockKeptImagePart.file_id },
 					{ type: "file", file_id: "added-png" },
 				]);
 			});
@@ -616,24 +619,11 @@ describe("ChatPageInput", () => {
 	])("drops attachment edits after $name the edit", async ({ leaveEdit }) => {
 		const user = userEvent.setup();
 		const store = createChatStore();
-		const savedContent: TypesGen.ChatInputPart[][] = [];
-		server.use(
-			http.patch(
-				"/api/v2/chats/:chatId/messages/:messageId",
-				async ({ request }) => {
-					const body =
-						(await request.json()) as TypesGen.EditChatMessageRequest;
-					savedContent.push([...body.content]);
-					return HttpResponse.json({
-						message: { ...MockChatMessage, chat_id: historyEditChatId },
-					});
-				},
-			),
-		);
+		const savedContent = recordEditRequests();
 		vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
 			id: "staged-zip",
 		});
-		const originalAttachment = {
+		const mockOriginalAttachment = {
 			...MockChatWorkspaceAttachmentPart,
 			file_id: "original-zip",
 			name: "original.zip",
@@ -641,7 +631,7 @@ describe("ChatPageInput", () => {
 		renderWithAuth(
 			<HistoryEditHarness
 				store={store}
-				fileBlocks={[originalAttachment]}
+				fileBlocks={[mockOriginalAttachment]}
 				overrides={{
 					chat: {
 						...MockChat,
@@ -672,7 +662,7 @@ describe("ChatPageInput", () => {
 		await waitFor(() => expect(savedContent).toHaveLength(leaveSaveCount + 1));
 		expect(savedContent.at(-1)).toEqual([
 			{ type: "text", text: "edited" },
-			{ type: "workspace-attachment", file_id: originalAttachment.file_id },
+			{ type: "workspace-attachment", file_id: mockOriginalAttachment.file_id },
 		]);
 	});
 });
