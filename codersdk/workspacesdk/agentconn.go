@@ -91,6 +91,7 @@ const (
 // AgentConn represents a connection to a workspace agent.
 // @typescript-ignore AgentConn
 type AgentConn interface {
+	ListACPHarnesses(ctx context.Context) ([]ACPHarness, error)
 	TailnetConn() *tailnet.Conn
 	SetExtraHeaders(h http.Header)
 
