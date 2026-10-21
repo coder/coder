@@ -25,8 +25,9 @@ These events are reported by workspace agents, and their receipt by the control 
 Agent-reported events do not identify the Coder user who connected.
 To attribute SSH and IDE activity to a user, correlate them with tunnel events for the same workspace and agent.
 
-Clients such as `coder ssh` can supply a client session ID to correlate related connections.
-It isn't a unique IDE identifier, and connections that share one can overlap or have gaps.
+The Coder CLI attaches a client session ID to the SSH and reconnecting PTY connections it opens.
+Tools that launch the CLI, such as IDE extensions, can reuse one ID across launches to group their connections.
+The client sets the ID, so it isn't guaranteed to be unique, and connections that share one can overlap or have gaps.
 To list connections in the same workspace that share an ID, open an entry's details and select **View related connections**.
 
 ## Tunnel Connections

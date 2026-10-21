@@ -24040,7 +24040,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "client_session_id": {
-                    "description": "ClientSessionID is an optional client-supplied correlation label, not a\nunique IDE-instance identifier. Related rows may overlap or have gaps.",
+                    "description": "ClientSessionID is set by the client and isn't guaranteed to be unique.",
                     "type": "string"
                 },
                 "connection_id": {
@@ -24057,7 +24057,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "duration_seconds": {
-                    "description": "DurationSeconds is the stored connect-to-disconnect interval. It is\nomitted unless DurationStatus is recorded.",
+                    "description": "DurationSeconds is set only when DurationStatus is recorded.",
                     "type": "number"
                 },
                 "duration_status": {

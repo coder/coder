@@ -222,7 +222,7 @@ describe("ConnectionLogPage", () => {
 		it("copies the client session ID", async () => {
 			await renderPage();
 
-			// Set up the clipboard stub before spying on writeText.
+			// userEvent.setup() replaces navigator.clipboard, so spy after it.
 			const user = userEvent.setup();
 			const writeText = vi
 				.spyOn(navigator.clipboard, "writeText")

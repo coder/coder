@@ -98,9 +98,8 @@ func convertConnectionLogs(dblogs []database.GetConnectionLogsOffsetRow) []coder
 	return clogs
 }
 
-// connectionLogDuration derives a duration from the stored timestamps. A
-// standalone disconnect stores its own timestamp as connect_time until the
-// matching connect arrives, so equal timestamps mean the connect is missing.
+// connectionLogDuration treats equal timestamps as a missing connect: a
+// disconnect without its connect stores its own timestamp as connect_time.
 func connectionLogDuration(log database.ConnectionLog) (*float64, codersdk.ConnectionLogDurationStatus) {
 	if !log.DisconnectTime.Valid {
 		return nil, codersdk.ConnectionLogDurationNoDisconnect

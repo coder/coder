@@ -9,7 +9,6 @@ import {
 	HelpPopover,
 	HelpPopoverContent,
 	HelpPopoverIconTrigger,
-	HelpPopoverTitle,
 } from "#/components/HelpPopover/HelpPopover";
 import { Link } from "#/components/Link/Link";
 
@@ -17,16 +16,17 @@ type ConnectionLogDetailsPopoverProps = {
 	connectionLog: ConnectionLog;
 };
 
-/** Shows connection metadata and workspace-scoped correlation actions. */
+/** Shows connection metadata and links to related connections. */
 export const ConnectionLogDetailsPopover: React.FC<
 	ConnectionLogDetailsPopoverProps
 > = ({ connectionLog }) => {
 	const [isOpen, setIsOpen] = useState(false);
 	const contentRef = useRef<HTMLDivElement>(null);
-	const userAgent = connectionLog.web_info?.user_agent
-		? userAgentParser(connectionLog.web_info.user_agent)
+	const { ip, organization, ssh_info: sshInfo, web_info } = connectionLog;
+	const userAgent = web_info?.user_agent
+		? userAgentParser(web_info.user_agent)
 		: undefined;
-	const sshInfo = connectionLog.ssh_info;
+	const clientSessionId = sshInfo?.client_session_id;
 
 	return (
 		<HelpPopover open={isOpen} onOpenChange={setIsOpen}>
@@ -35,103 +35,72 @@ export const ConnectionLogDetailsPopover: React.FC<
 			</HelpPopoverIconTrigger>
 			<HelpPopoverContent
 				ref={contentRef}
-				side="bottom"
 				align="end"
-				className="flex flex-col gap-2"
-				// Focus the panel to avoid opening the copy tooltip.
+				// Focus the panel so the copy button's tooltip doesn't open.
 				onOpenAutoFocus={(event) => {
 					event.preventDefault();
 					contentRef.current?.focus();
 				}}
 			>
-				{connectionLog.ip && (
-					<ConnectionLogDetail title="IP:">
-						{connectionLog.ip}
-					</ConnectionLogDetail>
-				)}
-				{userAgent?.os.name && (
-					<ConnectionLogDetail title="OS:">
-						{userAgent.os.name}
-					</ConnectionLogDetail>
-				)}
-				{userAgent?.browser.name && (
-					<ConnectionLogDetail title="Browser:">
-						{userAgent.browser.name} {userAgent.browser.version}
-					</ConnectionLogDetail>
-				)}
-				{connectionLog.organization && (
-					<ConnectionLogDetail title="Organization:">
-						<Link asChild size="sm" showExternalIcon={false} className="px-0">
-							<RouterLink
-								to={`/organizations/${connectionLog.organization.name}`}
-							>
-								{connectionLog.organization.display_name ||
-									connectionLog.organization.name}
-							</RouterLink>
-						</Link>
-					</ConnectionLogDetail>
-				)}
-				{sshInfo?.disconnect_reason && (
-					<ConnectionLogDetail title="Close Reason:">
-						{sshInfo.disconnect_reason}
-					</ConnectionLogDetail>
-				)}
-				{sshInfo?.client_session_id && (
-					<ClientSessionDetail
-						clientSessionId={sshInfo.client_session_id}
-						workspaceId={connectionLog.workspace_id}
-						onNavigate={() => setIsOpen(false)}
-					/>
-				)}
+				<dl className="m-0 flex flex-col gap-2">
+					{ip && <Detail title="IP">{ip}</Detail>}
+					{userAgent?.os.name && (
+						<Detail title="OS">{userAgent.os.name}</Detail>
+					)}
+					{userAgent?.browser.name && (
+						<Detail title="Browser">
+							{userAgent.browser.name} {userAgent.browser.version}
+						</Detail>
+					)}
+					{organization && (
+						<Detail title="Organization">
+							<Link asChild size="sm" showExternalIcon={false} className="px-0">
+								<RouterLink to={`/organizations/${organization.name}`}>
+									{organization.display_name || organization.name}
+								</RouterLink>
+							</Link>
+						</Detail>
+					)}
+					{sshInfo?.disconnect_reason && (
+						<Detail title="Close Reason">{sshInfo.disconnect_reason}</Detail>
+					)}
+					{clientSessionId && (
+						<Detail title="Client Session ID">
+							<div className="flex flex-row items-center gap-1">
+								<code className="break-all">{clientSessionId}</code>
+								<CopyButton
+									text={clientSessionId}
+									label="Copy client session ID"
+								/>
+							</div>
+							<Link asChild size="sm" showExternalIcon={false} className="px-0">
+								<RouterLink
+									to={`/connectionlog?${new URLSearchParams({
+										[useFilterParamsKey]: `client_session_id:${clientSessionId} workspace_id:${connectionLog.workspace_id}`,
+									})}`}
+									onClick={() => setIsOpen(false)}
+								>
+									View related connections
+								</RouterLink>
+							</Link>
+						</Detail>
+					)}
+				</dl>
 			</HelpPopoverContent>
 		</HelpPopover>
 	);
 };
 
-type ClientSessionDetailProps = {
-	clientSessionId: string;
-	workspaceId: string;
-	onNavigate: () => void;
-};
-
-const ClientSessionDetail: React.FC<ClientSessionDetailProps> = ({
-	clientSessionId,
-	workspaceId,
-	onNavigate,
-}) => {
-	const relatedConnectionsParams = new URLSearchParams({
-		[useFilterParamsKey]: `client_session_id:${clientSessionId} workspace_id:${workspaceId}`,
-	});
-
-	return (
-		<ConnectionLogDetail title="Client Session ID:">
-			<div className="flex flex-row items-center gap-1">
-				<code className="break-all">{clientSessionId}</code>
-				<CopyButton text={clientSessionId} label="Copy client session ID" />
-			</div>
-			<Link asChild size="sm" showExternalIcon={false} className="px-0">
-				<RouterLink
-					to={`/connectionlog?${relatedConnectionsParams.toString()}`}
-					onClick={onNavigate}
-				>
-					View related connections
-				</RouterLink>
-			</Link>
-		</ConnectionLogDetail>
-	);
-};
-
-type ConnectionLogDetailProps = {
+type DetailProps = {
 	title: string;
 	children: React.ReactNode;
 };
 
-const ConnectionLogDetail: React.FC<ConnectionLogDetailProps> = ({
-	title,
-	children,
-}) => (
+const Detail: React.FC<DetailProps> = ({ title, children }) => (
 	<div>
-		<HelpPopoverTitle className="mb-0">{title}</HelpPopoverTitle>
-		<div className="text-content-secondary text-xs">{children}</div>
+		<dt className="text-sm font-semibold leading-[150%] text-content-primary">
+			{title}
+		</dt>
+		<dd className="m-0 text-xs text-content-secondary">{children}</dd>
 	</div>
 );
