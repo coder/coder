@@ -128,6 +128,26 @@ describe("AgentSettingsCompactionPageView compaction strategy", () => {
 		});
 	});
 
+	it("shows the submitted strategy while the save is pending", async () => {
+		vi.spyOn(
+			API.experimental,
+			"getUserChatCompactionStrategy",
+		).mockResolvedValue({ strategy: "summarize" });
+		vi.spyOn(
+			API.experimental,
+			"updateUserChatCompactionStrategy",
+		).mockReturnValue(new Promise(() => undefined));
+
+		renderView(["chat-token-budget"]);
+		await chooseTokenBudget();
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("combobox", { name: "Compaction strategy" }),
+			).toHaveTextContent("Token budget"),
+		);
+	});
+
 	it("keeps the saved strategy when saving fails", async () => {
 		vi.spyOn(
 			API.experimental,
