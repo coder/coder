@@ -19,7 +19,10 @@ type ChatAttachmentsProps = {
 	onRetry: () => void;
 };
 
-/** Collapsible download cards for the files in the chat's messages. */
+/**
+ * Shows `attachments` in the order given (callers pass them newest first),
+ * with a count in the header once the list is complete.
+ */
 export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 	attachments,
 	evictedFileIds,

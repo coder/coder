@@ -1627,15 +1627,22 @@ export const chatPromptsQuery = (chatId: string) => ({
 	enabled: chatId !== "",
 });
 
+const chatAttachmentsFamilyKey = (chatId: string) =>
+	[...chatEntityKey(chatId), "attachments"] as const;
+
 export const chatAttachmentsKey = (chatId: string, beforeId: number) =>
-	[...chatEntityKey(chatId), "attachments", beforeId] as const;
+	[...chatAttachmentsFamilyKey(chatId), beforeId] as const;
 
 /**
  * Attachments in a chat's messages before `beforeId`, newest first; 0 lists
- * every attachment. While a new boundary loads, the placeholder is a later
- * boundary's list, so callers drop entries at or after `beforeId`.
+ * every attachment. A cached list for a later boundary holds every entry of
+ * an earlier one, so it seeds that boundary without a request.
  */
-export const chatAttachments = (chatId: string, beforeId: number) =>
+export const chatAttachments = (
+	queryClient: QueryClient,
+	chatId: string,
+	beforeId: number,
+) =>
 	queryOptions({
 		queryKey: chatAttachmentsKey(chatId, beforeId),
 		queryFn: ({ signal }) =>
@@ -1648,17 +1655,29 @@ export const chatAttachments = (chatId: string, beforeId: number) =>
 		// deletes the edited message and every later one), so a boundary's
 		// list never changes.
 		staleTime: Number.POSITIVE_INFINITY,
-		placeholderData: (previousData, previousQuery) => {
-			const previousBeforeId = previousQuery?.queryKey.at(-1);
-			const coversBoundary =
-				beforeId > 0 &&
-				typeof previousBeforeId === "number" &&
-				previousBeforeId >= beforeId &&
-				isEqual(
-					previousQuery?.queryKey,
-					chatAttachmentsKey(chatId, previousBeforeId),
-				);
-			return coversBoundary ? previousData : undefined;
+		initialData: () => {
+			if (beforeId <= 0) {
+				return undefined;
+			}
+			const covering = queryClient
+				.getQueriesData<TypesGen.ChatAttachmentsResponse>({
+					queryKey: chatAttachmentsFamilyKey(chatId),
+				})
+				.find(([queryKey, data]) => {
+					const coveredBeforeId = queryKey.at(-1);
+					return (
+						data !== undefined &&
+						typeof coveredBeforeId === "number" &&
+						coveredBeforeId > beforeId
+					);
+				})?.[1];
+			return covering
+				? {
+						attachments: covering.attachments.filter(
+							(attachment) => attachment.message_id < beforeId,
+						),
+					}
+				: undefined;
 		},
 	});
 

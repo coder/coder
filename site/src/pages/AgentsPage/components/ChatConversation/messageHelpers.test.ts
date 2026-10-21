@@ -693,11 +693,11 @@ describe("deriveEvictedFileIds", () => {
 		expect([...evicted]).toEqual(["rec-1", "thumb-1"]);
 	});
 
-	it("reports files referenced before the loaded messages as evicted", () => {
+	it("reports earlier files missing from the chat record as evicted", () => {
 		const evicted = deriveEvictedFileIds(
 			[fileMessage(3, "c")],
 			chatFiles("b"),
-			["a", "b"],
+			["b", "a"],
 		);
 
 		expect([...evicted]).toEqual(["a"]);
@@ -762,11 +762,7 @@ describe("getMessageAttachments", () => {
 });
 
 describe("getEarlierMessageAttachments", () => {
-	it("keeps the server's file parts before the boundary, keyed like loaded ones", () => {
-		const mockBoundaryAttachment: TypesGen.ChatAttachment = {
-			...MockChatAttachment,
-			message_id: 10,
-		};
+	it("keys the server's file parts like loaded ones, skipping empty parts", () => {
 		const mockEarlierAttachment: TypesGen.ChatAttachment = {
 			...MockChatAttachment,
 			message_id: 9,
@@ -779,15 +775,11 @@ describe("getEarlierMessageAttachments", () => {
 		};
 
 		expect(
-			getEarlierMessageAttachments(
-				[
-					mockBoundaryAttachment,
-					mockEarlierAttachment,
-					mockEmptyAttachment,
-					MockChatAttachment,
-				],
-				10,
-			),
+			getEarlierMessageAttachments([
+				mockEarlierAttachment,
+				mockEmptyAttachment,
+				MockChatAttachment,
+			]),
 		).toEqual([
 			{
 				key: "9:2",

@@ -1723,43 +1723,53 @@ describe("chat cost query factories", () => {
 	});
 });
 
-describe("chatAttachments placeholder", () => {
+describe("chatAttachments", () => {
+	const mockEarlierAttachment: TypesGen.ChatAttachment = {
+		...MockChatAttachment,
+		message_id: 5,
+	};
+
 	it.each([
 		{
-			name: "keeps a later boundary's list while an earlier one loads",
+			name: "seeds an earlier boundary from a later boundary's list",
 			chatId: "chat-1",
 			beforeId: 10,
-			keepsPrevious: true,
+			seeded: true,
 		},
 		{
-			name: "drops a list that ends before the new boundary",
+			name: "fetches a boundary that no cached list covers",
 			chatId: "chat-1",
 			beforeId: 30,
-			keepsPrevious: false,
+			seeded: false,
 		},
 		{
-			name: "drops another chat's list",
+			name: "fetches another chat's boundary",
 			chatId: "chat-2",
 			beforeId: 10,
-			keepsPrevious: false,
+			seeded: false,
 		},
-	])("$name", ({ chatId, beforeId, keepsPrevious }) => {
+	])("$name", ({ chatId, beforeId, seeded }) => {
 		vi.mocked(API.experimental.getChatAttachments).mockReturnValue(
 			new Promise(() => {}),
 		);
-		const previous = { attachments: [MockChatAttachment] };
 		const queryClient = createTestQueryClient();
-		queryClient.setQueryData(chatAttachmentsKey("chat-1", 20), previous);
+		queryClient.setQueryData(chatAttachmentsKey("chat-1", 20), {
+			attachments: [
+				{ ...MockChatAttachment, message_id: 15 },
+				mockEarlierAttachment,
+			],
+		});
 		const observer = new QueryObserver(
 			queryClient,
-			chatAttachments("chat-1", 20),
+			chatAttachments(queryClient, chatId, beforeId),
 		);
 		const unsubscribe = observer.subscribe(() => {});
 
-		observer.setOptions(chatAttachments(chatId, beforeId));
-
-		expect(observer.getCurrentResult().data).toBe(
-			keepsPrevious ? previous : undefined,
+		expect(observer.getCurrentResult().data).toEqual(
+			seeded ? { attachments: [mockEarlierAttachment] } : undefined,
+		);
+		expect(API.experimental.getChatAttachments).toHaveBeenCalledTimes(
+			seeded ? 0 : 1,
 		);
 		unsubscribe();
 	});
