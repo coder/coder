@@ -431,9 +431,8 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const availableBrowserApp = getAgentBrowserApp(workspaceAgent);
 
 	const singletonTabSupport: Record<SingletonRightPanelTabId, boolean> = {
-		// Mirrors when WorkspaceFilesContext provides a value.
-		files:
-			experiments.includes("workspace-files") && workspaceAgent !== undefined,
+		// FilesPanel shows its own state when the workspace has no agent.
+		files: experiments.includes("workspace-files"),
 		browser: availableBrowserApp !== undefined,
 		desktop: availableDesktopChatId !== undefined,
 		debug: debugLoggingEnabled === true,
