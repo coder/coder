@@ -1449,14 +1449,10 @@ func TestPreToolUseHookEditFilesGroupedInput(t *testing.T) {
 			mockConn := agentconnmock.NewMockAgentConn(ctrl)
 			setupToolExecutionAgentConn(t, mockConn)
 			if tt.wantRequest != nil {
-				calls := make([]any, 0, len(tt.wantRequest))
-				for _, file := range tt.wantRequest {
-					calls = append(calls, mockConn.EXPECT().
-						EditFiles(gomock.Any(), workspacesdk.FileEditRequest{Files: []workspacesdk.FileEdits{file}, IncludeDiff: true}).
-						Return(workspacesdk.FileEditResponse{}, nil).
-						Times(1))
-				}
-				gomock.InOrder(calls...)
+				mockConn.EXPECT().
+					EditFiles(gomock.Any(), workspacesdk.FileEditRequest{Files: tt.wantRequest, IncludeDiff: true, IndependentFiles: true}).
+					Return(workspacesdk.FileEditResponse{}, nil).
+					Times(1)
 			} else {
 				mockConn.EXPECT().EditFiles(gomock.Any(), gomock.Any()).Times(0)
 			}
@@ -1558,8 +1554,9 @@ func TestPreToolUseHookEditFilesDenyAndOverrideInOneStep(t *testing.T) {
 	setupToolExecutionAgentConn(t, mockConn)
 	mockConn.EXPECT().
 		EditFiles(gomock.Any(), workspacesdk.FileEditRequest{
-			Files:       []workspacesdk.FileEdits{{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{{OldText: "x := 1", NewText: "x := 3"}}}},
-			IncludeDiff: true,
+			Files:            []workspacesdk.FileEdits{{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{{OldText: "x := 1", NewText: "x := 3"}}}},
+			IncludeDiff:      true,
+			IndependentFiles: true,
 		}).
 		Return(workspacesdk.FileEditResponse{}, nil).
 		Times(1)
