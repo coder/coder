@@ -190,10 +190,14 @@ func validateChatHistoryArgs(args chatHistoryArgs) string {
 	if args.Action == "read_item" && args.ItemID == "" {
 		return "item_id_required"
 	}
-	// Reject rather than silently ignore filters an action cannot honor.
-	filterable := args.Action == "list_items" || args.Action == "search"
+	// Reject rather than silently ignore arguments an action cannot honor.
+	search := args.Action == "search"
+	readItem := args.Action == "read_item"
+	filterable := args.Action == "list_items" || search
 	if (!filterable && (args.Role != "" || args.ToolName != "" || args.MaxCharsPerItem != 0)) ||
-		(args.Action == "read_item" && args.RecentFirst) {
+		(!search && args.Query != "") ||
+		(!readItem && (args.ItemID != "" || args.OffsetChars != 0 || args.LimitChars != 0)) ||
+		(readItem && (args.RecentFirst || args.Limit != 0)) {
 		return "filters_unsupported"
 	}
 	if args.Limit < 0 || args.MaxCharsPerItem < 0 || args.OffsetChars < 0 || args.LimitChars < 0 ||
