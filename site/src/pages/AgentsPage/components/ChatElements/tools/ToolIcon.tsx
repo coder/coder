@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import {
 	ActivityIcon,
+	ArrowRightLeftIcon,
 	BadgeQuestionMarkIcon,
 	BotIcon,
 	CompassIcon,
@@ -11,6 +12,7 @@ import {
 	MonitorIcon,
 	PowerIcon,
 	PowerOffIcon,
+	RefreshCwIcon,
 	RouteIcon,
 	SearchIcon,
 	ServerIcon,
@@ -42,6 +44,8 @@ export const toolIcons: Partial<Record<string, LucideIcon>> = {
 	stop_workspace: PowerOffIcon,
 	chat_cleared: BotIcon,
 	chat_summarized: BotIcon,
+	chat_context_rollover: RefreshCwIcon,
+	chat_context_handoff: ArrowRightLeftIcon,
 	list_agents: BotIcon,
 	list_subagent_models: BotIcon,
 	thinking: LightbulbIcon,

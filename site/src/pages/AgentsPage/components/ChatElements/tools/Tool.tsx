@@ -11,6 +11,7 @@ import {
 import { ChatClearedTool } from "./ChatClearedTool";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
+import { ContextHandoffTool, ContextRolloverTool } from "./ContextWindowTools";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
 import { DiffFileHeader } from "./DiffFileHeader";
 import { EditFilesTool } from "./EditFilesTool";
@@ -679,6 +680,44 @@ const ChatSummarizedRenderer: React.FC<ToolRendererProps> = ({
 const resultOrArgsString = (result: unknown, args: unknown, key: string) =>
 	asString(asRecord(result)?.[key]) || asString(parseArgs(args)?.[key]);
 
+const toolErrorMessage = (result: unknown): string | undefined => {
+	if (typeof result === "string") {
+		return result;
+	}
+	const rec = asRecord(result);
+	return rec ? asString(rec.error || rec.message) || undefined : undefined;
+};
+
+const ChatContextRolloverRenderer: React.FC<ToolRendererProps> = ({
+	status,
+	args,
+	result,
+	isError,
+}) => (
+	<ContextRolloverTool
+		reason={resultOrArgsString(result, args, "reason")}
+		checkpoint={asString(asRecord(result)?.checkpoint)}
+		status={status}
+		isError={isError}
+		errorMessage={toolErrorMessage(result)}
+	/>
+);
+
+const ChatContextHandoffRenderer: React.FC<ToolRendererProps> = ({
+	status,
+	args,
+	result,
+	isError,
+}) => (
+	<ContextHandoffTool
+		stage={resultOrArgsString(result, args, "stage")}
+		prompt={asString(asRecord(result)?.prompt)}
+		status={status}
+		isError={isError}
+		errorMessage={toolErrorMessage(result)}
+	/>
+);
+
 const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 	args,
 	status,
@@ -1190,6 +1229,8 @@ export const toolRenderers: Record<string, React.FC<ToolRendererProps>> = {
 	read_skill_file: ReadSkillFileRenderer,
 	chat_cleared: ChatClearedRenderer,
 	chat_summarized: ChatSummarizedRenderer,
+	chat_context_rollover: ChatContextRolloverRenderer,
+	chat_context_handoff: ChatContextHandoffRenderer,
 	ask_user_question: AskUserQuestionRenderer,
 	propose_plan: ProposePlanRenderer,
 	advisor: AdvisorRenderer,
