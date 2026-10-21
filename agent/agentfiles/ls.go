@@ -1,8 +1,7 @@
 package agentfiles
 
 import (
-	"bytes"
-	"encoding/json"
+	"bufio"
 	"errors"
 	"io"
 	"net/http"
@@ -44,37 +43,38 @@ func (api *API) HandleLS(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req workspacesdk.LSRequest
-	// legacy is set when the body has a relativity key, as every
-	// AgentConn.LS caller sends. Those requests keep the original
+	// body.Relativity is set when the body has a relativity key, as
+	// every AgentConn.LS caller sends. Those requests keep the original
 	// semantics: an absolute path query parameter, or a path array
-	// relative to relativity.
-	var legacy struct {
+	// relative to relativity. It shadows the embedded field.
+	var body struct {
+		workspacesdk.LSRequest
 		Relativity *workspacesdk.LSRelativity `json:"relativity"`
 	}
-	body, err := io.ReadAll(http.MaxBytesReader(rw, r.Body, httpapi.DefaultMaxRequestBodyBytes))
-	if err != nil {
+	// An empty body selects the path forms with no request fields.
+	br := bufio.NewReader(r.Body)
+	if _, err := br.Peek(1); err == nil {
+		r.Body = struct {
+			io.Reader
+			io.Closer
+		}{br, r.Body}
+		if !httpapi.Read(ctx, rw, r, &body) {
+			return
+		}
+	} else if !errors.Is(err, io.EOF) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to read request body.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-	if len(bytes.TrimSpace(body)) > 0 {
-		err := json.Unmarshal(body, &req)
-		if err == nil {
-			err = json.Unmarshal(body, &legacy)
-		}
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Request body must be valid JSON.",
-				Detail:  err.Error(),
-			})
-			return
-		}
+	req := body.LSRequest
+	if body.Relativity != nil {
+		req.Relativity = *body.Relativity
 	}
 
-	if legacy.Relativity == nil {
+	if body.Relativity == nil {
+		var err error
 		path, err = api.resolvePathForm(path)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
