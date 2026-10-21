@@ -19,7 +19,6 @@ import {
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
-	MockCompactionChatModel,
 } from "#/testHelpers/chatModels";
 import {
 	MockUserChatCompactionThresholds,
@@ -98,10 +97,7 @@ const mockUserChatCompactionThresholdsWithOverride: TypesGen.UserChatCompactionT
 	};
 
 const mockCompactionModelCatalog: TypesGen.OrganizationChatModelsResponse = {
-	models: [
-		{ ...MockChatModel, id: MockChat.last_model_config_id },
-		MockCompactionChatModel,
-	],
+	models: [{ ...MockChatModel, id: MockChat.last_model_config_id }],
 	providers: [MockChatModelProviderDescriptor],
 	unsupported_providers: [],
 };
@@ -571,56 +567,6 @@ export const CompactsAtHistoricalModelDefault: Story = {
 };
 
 export const HandoffTargetUnderTokenBudget: Story = {
-	parameters: {
-		experiments: ["chat-token-budget"],
-		queries: [
-			{
-				key: preferenceSettingsKey,
-				data: MockUserPreferenceSettings,
-			},
-			{
-				key: userCompactionThresholdsKey,
-				data: mockUserChatCompactionThresholdsWithOverride,
-			},
-			{
-				key: userCompactionStrategyKey,
-				data: { strategy: "token_budget" },
-			},
-			{
-				key: organizationChatModelOverridesKey(MockChat.organization_id),
-				data: {
-					overrides: [
-						{
-							context: "compaction",
-							model_config_id: MockCompactionChatModel.id,
-						},
-					],
-				} satisfies TypesGen.ChatModelOverridesResponse,
-			},
-			{
-				key: chatPromptsKey(MockChat.id),
-				data: { prompts: [] } satisfies TypesGen.ChatPromptsResponse,
-			},
-			{
-				key: workspacesKey({ q: "owner:me", limit: 0 }),
-				data: {
-					workspaces: [],
-					count: 0,
-				} satisfies TypesGen.WorkspacesResponse,
-			},
-		],
-	},
-	render: () => <CompactionChatPageInput />,
-	play: async ({ canvasElement }) => {
-		await userEvent.hover(
-			await within(canvasElement).findByRole("button", {
-				name: /Context usage/i,
-			}),
-		);
-	},
-};
-
-export const HandoffTargetWhileOverridesLoad: Story = {
 	parameters: {
 		experiments: ["chat-token-budget"],
 		queries: [
