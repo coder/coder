@@ -83,7 +83,8 @@ export const FileTab = memo<FileTabProps>(
 		}
 
 		const refetchFile = useEffectEvent(() => {
-			// Without cancelRefetch the mount-time call joins the initial fetch.
+			// cancelRefetch: false makes the mount-time call join the initial
+			// fetch instead of restarting it.
 			void fileQuery.refetch({ cancelRefetch: false });
 		});
 		useEffect(() => {

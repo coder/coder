@@ -222,8 +222,8 @@ export const MainTabs: React.FC<MainTabsProps> = ({ mainTabs, children }) => {
 						role: "tabpanel",
 						"aria-labelledby": chatTabId,
 					})}
-					// Hidden with visibility, not display, so the transcript keeps
-					// its size and scroll position while a file tab is active.
+					// Hidden with visibility, not display, so the transcript keeps its
+					// layout and the scroller keeps following output in the background.
 					className={cn(
 						"flex min-h-0 flex-1 flex-col",
 						!isChatActive && "invisible",
