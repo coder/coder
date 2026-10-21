@@ -9,6 +9,7 @@ import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { getAgentBrowserApp } from "#/modules/apps/apps";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { generateConnectionSessionId, generateUUID } from "#/utils/random";
 import {
 	AgentChatInput,
@@ -37,9 +38,11 @@ import {
 } from "../components/ChatsSidebar/tabs/SidebarTabView";
 import { ChatTopBar } from "../components/ChatTopBar";
 import { GitPanel } from "../components/GitPanel/GitPanel";
+import { QuickOpenDialog } from "../components/QuickOpenDialog/QuickOpenDialog";
 import { AppPanel } from "../components/RightPanel/AppPanel";
 import { DebugPanel } from "../components/RightPanel/DebugPanel/DebugPanel";
 import { DesktopPanel } from "../components/RightPanel/DesktopPanel";
+import { FilesPanel } from "../components/RightPanel/FilesPanel";
 import { RightPanel } from "../components/RightPanel/RightPanel";
 import { RightPanelAddTabControl } from "../components/RightPanel/RightPanelAddTabControl";
 import { UserTabPanel } from "../components/RightPanel/UserTabPanel";
@@ -225,6 +228,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	desktopChatId,
 }) => {
 	const { proxy } = useProxy();
+	const { experiments } = useDashboard();
 	const { user: currentUser } = useAuthenticated();
 	const wildcardHostname = proxy.preferredWildcardHostname;
 	const agentId = chat.id;
@@ -332,6 +336,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const availableBrowserApp = getAgentBrowserApp(workspaceAgent);
 
 	const singletonTabSupport: Record<SingletonRightPanelTabId, boolean> = {
+		// Mirrors when WorkspaceFilesContext provides a value.
+		files:
+			experiments.includes("workspace-files") && workspaceAgent !== undefined,
 		browser: availableBrowserApp !== undefined,
 		desktop: availableDesktopChatId !== undefined,
 		debug: debugLoggingEnabled === true,
@@ -774,6 +781,16 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								/>
 							</SidebarTab>
 
+							{isSingletonTabShown("files") && (
+								<SidebarTab
+									id="files"
+									label="Files"
+									onClose={(next) => handleCloseTab("files", next)}
+								>
+									<FilesPanel chatId={agentId} />
+								</SidebarTab>
+							)}
+
 							{isSingletonTabShown("debug") && (
 								<SidebarTab
 									id="debug"
@@ -836,6 +853,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							))}
 						</SidebarTabView>
 					</RightPanel>
+					<QuickOpenDialog />
 				</div>
 			</DesktopPanelContext>
 		</TerminalClientSessionContext>
