@@ -1,7 +1,8 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
 import { QueryClientProvider } from "react-query";
+import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
@@ -12,10 +13,15 @@ import { MainTabs } from "./MainTabs";
 import { useMainTabs } from "./useMainTabs";
 
 vi.mock("../FileTab/FileEditor", () => ({
-	default: ({ value, onChange }: React.ComponentProps<typeof FileEditor>) => (
+	default: ({
+		value,
+		readOnly,
+		onChange,
+	}: React.ComponentProps<typeof FileEditor>) => (
 		<textarea
 			aria-label="File contents"
 			value={value}
+			readOnly={readOnly}
 			onChange={(event) => onChange(event.target.value)}
 		/>
 	),
@@ -52,6 +58,7 @@ const Harness: React.FC<{ paths: readonly string[] }> = ({ paths }) => {
 					{`Open ${path}`}
 				</button>
 			))}
+			<textarea aria-label="Terminal" />
 			<MainTabs mainTabs={mainTabs} readOnly={false}>
 				<ChatStub />
 			</MainTabs>
@@ -61,11 +68,16 @@ const Harness: React.FC<{ paths: readonly string[] }> = ({ paths }) => {
 
 const renderHarness = (paths: readonly string[] = []) => {
 	const queryClient = createTestQueryClient();
-	return render(<Harness paths={paths} />, {
-		wrapper: ({ children }) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		),
-	});
+	const router = createMemoryRouter([
+		{ path: "/", element: <Harness paths={paths} /> },
+		{ path: "/other", element: <p>Other page</p> },
+	]);
+	const result = render(
+		<QueryClientProvider client={queryClient}>
+			<RouterProvider router={router} />
+		</QueryClientProvider>,
+	);
+	return { ...result, router };
 };
 
 const getTab = (name: string | RegExp) => screen.getByRole("tab", { name });
@@ -164,9 +176,11 @@ describe("MainTabs", () => {
 
 		await user.click(screen.getByRole("button", { name: "Open /repo/a.go" }));
 		await user.click(screen.getByRole("button", { name: "Open /repo/b.go" }));
+		await user.click(getTab("b.go"));
 
 		await user.keyboard("{Alt>}[BracketRight]{/Alt}");
 		expect(getTab("Chat")).toHaveAttribute("aria-selected", "true");
+		expect(getTab("Chat")).toHaveFocus();
 
 		await user.keyboard("{Alt>}[BracketRight]{/Alt}");
 		expect(getTab("a.go")).toHaveAttribute("aria-selected", "true");
@@ -175,9 +189,41 @@ describe("MainTabs", () => {
 		await user.click(await within(panel).findByLabelText("File contents"));
 		await user.keyboard("{Alt>}[BracketLeft]{/Alt}");
 		expect(getTab("Chat")).toHaveAttribute("aria-selected", "true");
+		expect(getTab("Chat")).toHaveFocus();
 		expect(within(panel).getByLabelText("File contents")).toHaveValue(
 			"package main\n",
 		);
+	});
+
+	it("leaves Alt+[ and Alt+] to focus outside the main tabs", async () => {
+		const user = userEvent.setup();
+		renderHarness(["/repo/a.go"]);
+
+		await user.click(screen.getByRole("button", { name: "Open /repo/a.go" }));
+		await user.click(screen.getByLabelText("Terminal"));
+		await user.keyboard("{Alt>}[BracketRight]{/Alt}");
+
+		expect(getTab("a.go")).toHaveAttribute("aria-selected", "true");
+		expect(screen.getByLabelText("Terminal")).toHaveFocus();
+	});
+
+	it("moves between tabs with the arrow keys", async () => {
+		const user = userEvent.setup();
+		renderHarness(["/repo/a.go", "/repo/b.go"]);
+
+		await user.click(screen.getByRole("button", { name: "Open /repo/a.go" }));
+		await user.click(screen.getByRole("button", { name: "Open /repo/b.go" }));
+		await user.click(getTab("Chat"));
+
+		await user.keyboard("{ArrowRight}");
+		expect(getTab("a.go")).toHaveAttribute("aria-selected", "true");
+		expect(getTab("a.go")).toHaveFocus();
+
+		await user.keyboard("{End}");
+		expect(getTab("b.go")).toHaveFocus();
+		await user.keyboard("{ArrowRight}");
+		expect(getTab("Chat")).toHaveAttribute("aria-selected", "true");
+		expect(getTab("Chat")).toHaveFocus();
 	});
 
 	it("keeps the chat mounted while a file tab is active", async () => {
@@ -208,6 +254,11 @@ describe("MainTabs", () => {
 		const dialog = await screen.findByRole("dialog");
 		await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
 		expect(getTab("main.go, unsaved")).toHaveAttribute("aria-selected", "true");
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: "Close main.go" }),
+			).toHaveFocus();
+		});
 		expect(getPersistedMainTabs(chatId).paths).toEqual(["/repo/main.go"]);
 
 		await user.click(screen.getByRole("button", { name: "Close main.go" }));
@@ -218,6 +269,26 @@ describe("MainTabs", () => {
 		);
 		await waitFor(() => {
 			expect(getPersistedMainTabs(chatId).paths).toEqual([]);
+		});
+	});
+
+	it("asks before leaving the chat with unsaved edits", async () => {
+		const user = userEvent.setup();
+		const { router } = renderHarness(["/repo/main.go"]);
+
+		await user.click(
+			screen.getByRole("button", { name: "Open /repo/main.go" }),
+		);
+		await user.type(await screen.findByLabelText("File contents"), "// edit");
+		await act(() => router.navigate("/other"));
+
+		const dialog = await screen.findByRole("dialog", {
+			name: "Unsaved changes",
+		});
+		expect(router.state.location.pathname).toBe("/");
+		await user.click(within(dialog).getByRole("button", { name: "Leave" }));
+		await waitFor(() => {
+			expect(router.state.location.pathname).toBe("/other");
 		});
 	});
 });
