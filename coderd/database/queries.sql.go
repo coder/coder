@@ -5834,7 +5834,10 @@ INSERT INTO chat_debug_steps (
 SELECT
     $1::uuid,
     locked_run.chat_id,
-    $2::int,
+    COALESCE(
+        NULLIF($2::int, 0),
+        (SELECT COALESCE(MAX(s.step_number), 0) + 1 FROM chat_debug_steps s WHERE s.run_id = $1::uuid)
+    ),
     $3::text,
     $4::text,
     $5::bigint,
@@ -5876,6 +5879,11 @@ type InsertChatDebugStepParams struct {
 // finished, the UPDATE returns zero rows, the INSERT gets no source
 // rows, and sql.ErrNoRows is returned. The UPDATE also serializes
 // with a concurrent run finalization under READ COMMITTED isolation.
+// A zero @step_number numbers the step after the run's highest step.
+// The row lock does not make that number unique, because the statement
+// snapshot predates the lock wait. Callers hold LockIDChatDebugRunSteps
+// from an earlier statement of the same transaction, so the snapshot
+// includes every committed step.
 func (q *sqlQuerier) InsertChatDebugStep(ctx context.Context, arg InsertChatDebugStepParams) (ChatDebugStep, error) {
 	row := q.db.QueryRowContext(ctx, insertChatDebugStep,
 		arg.RunID,

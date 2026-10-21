@@ -26,15 +26,7 @@ func TestBeginStepReuseStep(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
 		expectDebugLoggingEnabled(t, db, ownerID)
-		expectCreateStepNumberWithRequestValidity(
-			t,
-			db,
-			runID,
-			chatID,
-			1,
-			OperationStream,
-			false,
-		)
+		expectCreateStepWithRequestValidity(t, db, runID, chatID, OperationStream, false)
 		expectDebugLoggingEnabled(t, db, ownerID)
 
 		svc := NewService(db, testutil.Logger(t), nil)
@@ -67,25 +59,9 @@ func TestBeginStepReuseStep(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
 		expectDebugLoggingEnabled(t, db, ownerID)
-		expectCreateStepNumberWithRequestValidity(
-			t,
-			db,
-			runID,
-			chatID,
-			1,
-			OperationStream,
-			false,
-		)
+		expectCreateStepWithRequestValidity(t, db, runID, chatID, OperationStream, false)
 		expectDebugLoggingEnabled(t, db, ownerID)
-		expectCreateStepNumberWithRequestValidity(
-			t,
-			db,
-			runID,
-			chatID,
-			2,
-			OperationStream,
-			false,
-		)
+		expectCreateStepWithRequestValidity(t, db, runID, chatID, OperationStream, false)
 
 		svc := NewService(db, testutil.Logger(t), nil)
 		ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
