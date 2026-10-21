@@ -111,9 +111,9 @@ Each connection log in the response describes the connection with these fields:
 - `web_info.slug_or_port`: The workspace app slug or forwarded port, for workspace app and port forwarding connections.
 - `ssh_info.client_session_id`: The optional client session ID for SSH or reconnecting PTY connections.
   Omitted when the client didn't supply an ID.
-- `ssh_info.duration_seconds`: Seconds between the stored connect and disconnect times.
-  Included only when `ssh_info.duration_status` is `recorded`.
-- `ssh_info.duration_status`: How Coder determined the duration, as listed in [Duration status values](#duration-status-values).
+- `ssh_info.duration.status`: How Coder determined the duration, as listed in [Duration status values](#duration-status-values).
+- `ssh_info.duration.seconds`: Seconds between the stored connect and disconnect times.
+  Included only when `ssh_info.duration.status` is `recorded`.
 - `type`: Deprecated.
   Use `connection_method` and `app_name` instead.
   It will be removed in a future release.
@@ -133,14 +133,14 @@ The `type` field keeps the same values, but the API schema describes it as a str
 #### Duration status values
 
 Durations are the time between the recorded connect and disconnect events of an SSH or reconnecting PTY connection.
-They aren't running timers and don't measure active work or an IDE's lifetime.
+They aren't running timers.
 
-| `duration_status` | Meaning                                 | Connection Log page        |
-|-------------------|-----------------------------------------|----------------------------|
-| `recorded`        | Connect and disconnect events recorded  | The duration               |
-| `no_disconnect`   | Disconnect not recorded                 | **No disconnect recorded** |
-| `missing_connect` | Disconnect recorded without its connect | **No connect recorded**    |
-| `invalid`         | Disconnect recorded before connect      | **Duration unavailable**   |
+| `duration.status` | Meaning                                                      | Connection Log page      |
+|-------------------|--------------------------------------------------------------|--------------------------|
+| `recorded`        | Connect and disconnect events recorded                       | The duration             |
+| `no_disconnect`   | No disconnect recorded yet, so the connection may be ongoing | **Ongoing**              |
+| `missing_connect` | Disconnect recorded without its connect                      | **No connect recorded**  |
+| `invalid`         | Disconnect recorded before connect                           | **Duration unavailable** |
 
 `no_disconnect` matches `status:ongoing`.
 All other duration statuses match `status:completed`.

@@ -57,8 +57,7 @@ func TestConvertConnectionLogDuration(t *testing.T) {
 					DisconnectTime:   tt.end,
 				},
 			})
-			require.Equal(t, tt.status, log.SSHInfo.DurationStatus)
-			require.Equal(t, tt.seconds, log.SSHInfo.DurationSeconds)
+			require.Equal(t, codersdk.ConnectionLogDuration{Status: tt.status, Seconds: tt.seconds}, log.SSHInfo.Duration)
 		})
 	}
 }

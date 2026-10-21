@@ -6275,8 +6275,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
     "disconnect_reason": "string",
     "disconnect_time": "2019-08-24T14:15:22Z",
-    "duration_seconds": 0,
-    "duration_status": "recorded",
+    "duration": {
+      "seconds": 0,
+      "status": "recorded"
+    },
     "exit_code": 0
   },
   "type": "string",
@@ -6337,6 +6339,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `workspace_owner_id`       | string                                                         | false    |              |                                                                                                                                                                                                          |
 | `workspace_owner_username` | string                                                         | false    |              |                                                                                                                                                                                                          |
 
+## codersdk.ConnectionLogDuration
+
+```json
+{
+  "seconds": 0,
+  "status": "recorded"
+}
+```
+
+### Properties
+
+| Name      | Type                                                                         | Required | Restrictions | Description                                  |
+|-----------|------------------------------------------------------------------------------|----------|--------------|----------------------------------------------|
+| `seconds` | number                                                                       | false    |              | Seconds is set only when Status is recorded. |
+| `status`  | [codersdk.ConnectionLogDurationStatus](#codersdkconnectionlogdurationstatus) | false    |              |                                              |
+
 ## codersdk.ConnectionLogDurationStatus
 
 ```json
@@ -6389,8 +6407,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
         "disconnect_reason": "string",
         "disconnect_time": "2019-08-24T14:15:22Z",
-        "duration_seconds": 0,
-        "duration_status": "recorded",
+        "duration": {
+          "seconds": 0,
+          "status": "recorded"
+        },
         "exit_code": 0
       },
       "type": "string",
@@ -6451,23 +6471,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
   "disconnect_reason": "string",
   "disconnect_time": "2019-08-24T14:15:22Z",
-  "duration_seconds": 0,
-  "duration_status": "recorded",
+  "duration": {
+    "seconds": 0,
+    "status": "recorded"
+  },
   "exit_code": 0
 }
 ```
 
 ### Properties
 
-| Name                | Type                                                                         | Required | Restrictions | Description                                                                                                                           |
-|---------------------|------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------|
-| `client_session_id` | string                                                                       | false    |              | Client session ID is set by the client and isn't guaranteed to be unique.                                                             |
-| `connection_id`     | string                                                                       | false    |              |                                                                                                                                       |
-| `disconnect_reason` | string                                                                       | false    |              | Disconnect reason is omitted if a disconnect event with the same connection ID has not yet been seen.                                 |
-| `disconnect_time`   | string                                                                       | false    |              | Disconnect time is omitted if a disconnect event with the same connection ID has not yet been seen.                                   |
-| `duration_seconds`  | number                                                                       | false    |              | Duration seconds is set only when DurationStatus is recorded.                                                                         |
-| `duration_status`   | [codersdk.ConnectionLogDurationStatus](#codersdkconnectionlogdurationstatus) | false    |              |                                                                                                                                       |
-| `exit_code`         | integer                                                                      | false    |              | Exit code is the exit code of the SSH session. It is omitted if a disconnect event with the same connection ID has not yet been seen. |
+| Name                | Type                                                             | Required | Restrictions | Description                                                                                                                           |
+|---------------------|------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `client_session_id` | string                                                           | false    |              | Client session ID is set by the client and isn't guaranteed to be unique.                                                             |
+| `connection_id`     | string                                                           | false    |              |                                                                                                                                       |
+| `disconnect_reason` | string                                                           | false    |              | Disconnect reason is omitted if a disconnect event with the same connection ID has not yet been seen.                                 |
+| `disconnect_time`   | string                                                           | false    |              | Disconnect time is omitted if a disconnect event with the same connection ID has not yet been seen.                                   |
+| `duration`          | [codersdk.ConnectionLogDuration](#codersdkconnectionlogduration) | false    |              |                                                                                                                                       |
+| `exit_code`         | integer                                                          | false    |              | Exit code is the exit code of the SSH session. It is omitted if a disconnect event with the same connection ID has not yet been seen. |
 
 ## codersdk.ConnectionLogWebInfo
 
