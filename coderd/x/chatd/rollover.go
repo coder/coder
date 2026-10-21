@@ -25,10 +25,11 @@ const (
 	handoffToolName  = "chat_context_handoff"
 	// handoffPromptPrefix starts the model-only user row of a handoff
 	// prompt, which continues with the stage.
-	handoffPromptPrefix       = "<context-handoff stage="
-	firstContextWindowID      = "w:0"
-	rolloverRequestedBySystem = "system"
-	rolloverRequestedByModel  = "model"
+	handoffPromptPrefix        = "<context-handoff stage="
+	minHandoffThresholdPercent = int32(10)
+	firstContextWindowID       = "w:0"
+	rolloverRequestedBySystem  = "system"
+	rolloverRequestedByModel   = "model"
 	// rolloverLeadInPrefix starts the first line of a rollover anchor,
 	// which ends with the previous window ID.
 	rolloverLeadInPrefix = "A context window rollover started a fresh context window. Previous window: "
@@ -45,6 +46,7 @@ const (
 type contextWindowBudget struct {
 	contextLimit     int64
 	usableLimit      int64
+	handoffPoint     int64
 	thresholdPercent int32
 }
 
@@ -55,6 +57,7 @@ func newContextWindowBudget(contextLimit, outputCap int64, thresholdPercent int3
 	}
 	budget.contextLimit = contextLimit
 	budget.usableLimit = contextLimit - min(outputCap, contextLimit/4)
+	budget.handoffPoint = min(contextLimit*int64(max(thresholdPercent, minHandoffThresholdPercent))/100, budget.usableLimit)
 	return budget
 }
 
@@ -79,8 +82,10 @@ type rolloverDecision struct {
 }
 
 // rolloverStageState is derived from the rows of the current context
-// window, so receipts survive restarts and reset at every boundary.
+// window, so claims and receipts survive restarts and reset at every
+// boundary.
 type rolloverStageState struct {
+	handoffClaimed bool
 	// receipt is an unconsumed successful new_context result.
 	receipt bool
 }
@@ -95,6 +100,8 @@ func decideRollover(contextTokens int64, budget contextWindowBudget, state rollo
 		return rolloverDecision{action: rolloverActionNone}
 	case contextTokens >= budget.usableLimit:
 		return rolloverDecision{action: rolloverActionRollover, reason: rolloverReasonLimit}
+	case !state.handoffClaimed && contextTokens >= budget.handoffPoint:
+		return rolloverDecision{action: rolloverActionHandoff}
 	default:
 		return rolloverDecision{action: rolloverActionNone}
 	}
@@ -146,6 +153,39 @@ func hasNewContextReceipt(messages []database.ChatMessage) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// rolloverStageStateFromHistory derives the current window's handoff
+// claims and new_context receipt from the rows after the latest boundary.
+func rolloverStageStateFromHistory(messages []database.ChatMessage) (rolloverStageState, error) {
+	receipt, err := hasNewContextReceipt(messages)
+	if err != nil {
+		return rolloverStageState{}, err
+	}
+	state := rolloverStageState{receipt: receipt}
+	boundary := latestContextBoundaryIndex(messages)
+	for _, msg := range messages[boundary+1:] {
+		if msg.Deleted || !msg.Compressed || msg.Role != database.ChatMessageRoleAssistant {
+			continue
+		}
+		parts, err := chatprompt.ParseContent(msg)
+		if err != nil {
+			return rolloverStageState{}, xerrors.Errorf("parse assistant message %d: %w", msg.ID, err)
+		}
+		for _, part := range parts {
+			if part.Type != codersdk.ChatMessagePartTypeToolCall || part.ToolName != handoffToolName {
+				continue
+			}
+			var payload contextHandoffPayload
+			if err := json.Unmarshal(part.Args, &payload); err != nil {
+				return rolloverStageState{}, xerrors.Errorf("parse context handoff %d: %w", msg.ID, err)
+			}
+			if payload.Stage == rolloverActionHandoff {
+				state.handoffClaimed = true
+			}
+		}
+	}
+	return state, nil
 }
 
 // contextWindowID names the current context window: w:0 before any

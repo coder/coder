@@ -21,22 +21,42 @@ import (
 func TestNewContextWindowBudget(t *testing.T) {
 	t.Parallel()
 
+	type points struct{ usable, handoff int64 }
 	tests := []struct {
-		window int64
-		want   int64
+		window    int64
+		threshold int32
+		want      points
 	}{
-		{1_000_000, 968_000},
-		{200_000, 168_000},
-		{128_000, 96_000},
+		{1_000_000, 30, points{968_000, 300_000}},
+		{1_000_000, 70, points{968_000, 700_000}},
+		{1_000_000, 95, points{968_000, 950_000}},
+		{1_000_000, 100, points{968_000, 968_000}},
+		{200_000, 30, points{168_000, 60_000}},
+		{200_000, 70, points{168_000, 140_000}},
+		{200_000, 95, points{168_000, 168_000}},
+		{200_000, 100, points{168_000, 168_000}},
+		{128_000, 30, points{96_000, 38_400}},
+		{128_000, 70, points{96_000, 89_600}},
+		{128_000, 95, points{96_000, 96_000}},
+		{128_000, 100, points{96_000, 96_000}},
 		// From here the reserve is a quarter of the window.
-		{32_000, 24_000},
-		{8_000, 6_000},
+		{32_000, 30, points{24_000, 9_600}},
+		{32_000, 70, points{24_000, 22_400}},
+		{32_000, 95, points{24_000, 24_000}},
+		{32_000, 100, points{24_000, 24_000}},
+		{8_000, 30, points{6_000, 2_400}},
+		{8_000, 70, points{6_000, 5_600}},
+		{8_000, 95, points{6_000, 6_000}},
+		{8_000, 100, points{6_000, 6_000}},
+		// The handoff target never drops below 10% of the window.
+		{200_000, 0, points{168_000, 20_000}},
+		{8_001, 5, points{6_001, 800}},
 	}
 	for _, tc := range tests {
-		t.Run(fmt.Sprintf("W%d", tc.window), func(t *testing.T) {
+		t.Run(fmt.Sprintf("W%d/T%d", tc.window, tc.threshold), func(t *testing.T) {
 			t.Parallel()
-			got := newContextWindowBudget(tc.window, 32_000, 70)
-			require.Equal(t, tc.want, got.usableLimit)
+			got := newContextWindowBudget(tc.window, 32_000, tc.threshold)
+			require.Equal(t, tc.want, points{got.usableLimit, got.handoffPoint})
 		})
 	}
 
@@ -55,8 +75,9 @@ func TestNewContextWindowBudget(t *testing.T) {
 func TestDecideRollover(t *testing.T) {
 	t.Parallel()
 
-	// W = 200k: C = 168k.
+	// W = 200k: C = 168k, H = 140k.
 	budget := newContextWindowBudget(200_000, 32_000, 70)
+	handoff := rolloverDecision{action: rolloverActionHandoff}
 	limit := rolloverDecision{action: rolloverActionRollover, reason: rolloverReasonLimit}
 	model := rolloverDecision{action: rolloverActionRollover, reason: rolloverReasonModel}
 	tests := []struct {
@@ -69,10 +90,12 @@ func TestDecideRollover(t *testing.T) {
 		{name: "DisabledAtHundredEvenWithReceipt", tokens: 199_000, budget: newContextWindowBudget(200_000, 32_000, 100), state: rolloverStageState{receipt: true}},
 		{name: "ReceiptWithUnknownWindow", budget: newContextWindowBudget(0, 32_000, 70), state: rolloverStageState{receipt: true}, want: model},
 		{name: "ReceiptBeforeLimit", tokens: 170_000, budget: budget, state: rolloverStageState{receipt: true}, want: model},
-		{name: "LimitAtUsableLimit", tokens: 168_000, budget: budget, want: limit},
-		{name: "BelowLimit", tokens: 167_999, budget: budget},
+		{name: "LimitBeforeHandoff", tokens: 168_000, budget: budget, want: limit},
+		{name: "HandoffAtTarget", tokens: 140_000, budget: budget, want: handoff},
+		{name: "BelowHandoff", tokens: 139_999, budget: budget},
 		{name: "NoUsage", budget: budget},
 		{name: "UnknownWindow", tokens: 1_000_000, budget: newContextWindowBudget(0, 32_000, 70)},
+		{name: "HandoffOncePerWindow", tokens: 167_999, budget: budget, state: rolloverStageState{handoffClaimed: true}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -85,7 +108,7 @@ func TestDecideRollover(t *testing.T) {
 func TestDecideGenerationActionContextRollover(t *testing.T) {
 	t.Parallel()
 
-	// W = 100 with a 32k output cap: C = 75.
+	// W = 100 with a 32k output cap: C = 75 and H = 70.
 	budget := newContextWindowBudget(100, 32_000, 70)
 	toolStep := rolloverTestToolStep
 	rolloverBoundary := func(t *testing.T, id int64) []database.ChatMessage {
@@ -120,7 +143,7 @@ func TestDecideGenerationActionContextRollover(t *testing.T) {
 		wantReason rolloverReason
 	}{
 		{name: "RollsOverAtUsableLimit", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 75)), budget: &budget, want: generationActionContextRollover},
-		{name: "GeneratesBelowUsableLimit", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 74)), budget: &budget, want: generationActionGenerateAssistant},
+		{name: "GeneratesBelowHandoffTarget", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 37)), budget: &budget, want: generationActionGenerateAssistant},
 		{name: "RollsOverBeforeAnsweringNewPrompt", messages: history(
 			prompt(t, 1, "go"),
 			[]database.ChatMessage{withUsage(dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("done")), 80, 100)},
@@ -162,6 +185,80 @@ func TestDecideGenerationActionContextRollover(t *testing.T) {
 				}
 				require.Equal(t, wantReason, decision.rolloverReason)
 			}
+		})
+	}
+}
+
+func TestDecideGenerationActionContextHandoff(t *testing.T) {
+	t.Parallel()
+
+	// W = 100 at 20% with a 32k output cap: H = 20 and C = 75.
+	budget := newContextWindowBudget(100, 32_000, 20)
+	toolStep, history, prompt := rolloverTestToolStep, rolloverTestHistory, rolloverTestPrompt
+	handoffRows := func(t *testing.T, id int64, stage rolloverAction) []database.ChatMessage {
+		messages, err := buildContextHandoffMessages(buildContextHandoffMessagesInput{
+			toolCallID:    fmt.Sprintf("handoff-%d", id),
+			stage:         stage,
+			contextTokens: 25,
+			usableLimit:   budget.usableLimit,
+		})
+		require.NoError(t, err)
+		rows := make([]database.ChatMessage, 0, len(messages))
+		for i, msg := range messages {
+			rows = append(rows, database.ChatMessage{
+				ID:             id + int64(i),
+				Role:           msg.Role,
+				Content:        msg.Content,
+				ContentVersion: msg.ContentVersion,
+				Visibility:     msg.Visibility,
+				Compressed:     msg.Compressed,
+			})
+		}
+		return rows
+	}
+	answer := func(t *testing.T, id int64, inputTokens int64) []database.ChatMessage {
+		return []database.ChatMessage{withUsage(dbMessage(t, id, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("done")), inputTokens, 100)}
+	}
+
+	tests := []struct {
+		name      string
+		messages  []database.ChatMessage
+		budget    contextWindowBudget
+		maxSteps  int
+		want      generationActionKind
+		wantStage rolloverAction
+	}{
+		{name: "HandoffAtTarget", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 20)), want: generationActionContextHandoff, wantStage: rolloverActionHandoff},
+		{name: "HandoffBeforeAnsweringNewPrompt", messages: history(prompt(t, 1, "go"), answer(t, 2, 25), prompt(t, 3, "next")), want: generationActionContextHandoff, wantStage: rolloverActionHandoff},
+		{name: "HandoffOncePerWindow", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 20), handoffRows(t, 4, rolloverActionHandoff), toolStep(t, 7, 37)), want: generationActionGenerateAssistant},
+		{name: "ClaimsResetAfterRollover", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 20), handoffRows(t, 4, rolloverActionHandoff), rolloverTestBoundary(t, 7, rolloverToolName), toolStep(t, 10, 25)), want: generationActionContextHandoff, wantStage: rolloverActionHandoff},
+		{name: "ClaimsResetAfterSummary", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 20), handoffRows(t, 4, rolloverActionHandoff), rolloverTestBoundary(t, 7, "chat_summarized"), toolStep(t, 10, 25)), want: generationActionContextHandoff, wantStage: rolloverActionHandoff},
+		{name: "ClaimsResetAfterClear", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 20), handoffRows(t, 4, rolloverActionHandoff), rolloverTestBoundary(t, 7, "chat_cleared"), toolStep(t, 10, 25)), want: generationActionContextHandoff, wantStage: rolloverActionHandoff},
+		{name: "DisabledAtHundredPercent", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 50)), budget: newContextWindowBudget(100, 32_000, 100), want: generationActionGenerateAssistant},
+		// Handoff rows add a compressed assistant call and a model-only
+		// user prompt; neither is a step of the turn nor a new turn.
+		{name: "HandoffRowsAreNotSteps", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 20), handoffRows(t, 4, rolloverActionHandoff)), maxSteps: 2, want: generationActionGenerateAssistant},
+		{name: "HandoffPromptDoesNotStartTurn", messages: history(prompt(t, 1, "go"), toolStep(t, 2, 20), handoffRows(t, 4, rolloverActionHandoff)), maxSteps: 1, want: generationActionFinishTurn},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			maxSteps := tc.maxSteps
+			if maxSteps == 0 {
+				maxSteps = codersdk.DefaultChatMaxStepsPerTurn
+			}
+			caseBudget := tc.budget
+			if caseBudget == (contextWindowBudget{}) {
+				caseBudget = budget
+			}
+			decision, err := decideGenerationAction(generationDecisionInput{
+				messages: tc.messages,
+				maxSteps: maxSteps,
+				rollover: &caseBudget,
+			})
+			require.NoError(t, err)
+			require.Equal(t, tc.want, decision.kind)
+			require.Equal(t, tc.wantStage, decision.handoffStage)
 		})
 	}
 }
