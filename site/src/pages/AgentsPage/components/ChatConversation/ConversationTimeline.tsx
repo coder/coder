@@ -106,15 +106,13 @@ const LifecycleHookNotice: React.FC<{
 
 type EditUserMessageButtonProps = {
 	message: TypesGen.ChatMessage;
-	onEditUserMessage: (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly TypesGen.ChatMessagePart[],
-	) => void;
+	onEditUserMessage: NonNullable<
+		ConversationTimelineProps["onEditUserMessage"]
+	>;
 };
 
-// Reads the file probes here rather than in ChatMessageItem so a probe
-// update re-renders only this button, not every memoized message row.
+// Reads the file probes here rather than in ChatMessageItem, so a probe
+// update re-renders this button instead of the whole memoized row.
 const EditUserMessageButton: React.FC<EditUserMessageButtonProps> = ({
 	message,
 	onEditUserMessage,

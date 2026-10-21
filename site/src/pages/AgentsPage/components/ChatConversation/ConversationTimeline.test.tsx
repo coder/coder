@@ -463,11 +463,11 @@ describe("ConversationTimeline message editing", () => {
 	it("leaves evicted workspace attachments out of the edit", async () => {
 		const user = userEvent.setup();
 		const onEditUserMessage = vi.fn();
-		const evictedAttachment = {
+		const mockEvictedAttachment = {
 			...MockChatWorkspaceAttachmentPart,
 			file_id: "evicted-zip",
 		};
-		const keptAttachment = {
+		const mockKeptAttachment = {
 			...MockChatWorkspaceAttachmentPart,
 			file_id: "kept-zip",
 		};
@@ -476,16 +476,16 @@ describe("ConversationTimeline message editing", () => {
 				{
 					...MockChatMessage,
 					id: 1,
-					content: [{ type: "text", text: "First" }, evictedAttachment],
+					content: [{ type: "text", text: "First" }, mockEvictedAttachment],
 				},
 				{
 					...MockChatMessage,
 					id: 2,
 					created_at: workingFixtureTime(1),
-					content: [{ type: "text", text: "Second" }, keptAttachment],
+					content: [{ type: "text", text: "Second" }, mockKeptAttachment],
 				},
 			],
-			chatFiles: [{ ...MockChatFileMetadata, id: keptAttachment.file_id }],
+			chatFiles: [{ ...MockChatFileMetadata, id: mockKeptAttachment.file_id }],
 			onEditUserMessage,
 		});
 
@@ -500,7 +500,7 @@ describe("ConversationTimeline message editing", () => {
 
 		expect(onEditUserMessage.mock.calls).toEqual([
 			[1, "First", undefined],
-			[2, "Second", [keptAttachment]],
+			[2, "Second", [mockKeptAttachment]],
 		]);
 	});
 });

@@ -315,12 +315,12 @@ describe("ChatPageInput", () => {
 			.fn<(options: SendChatTurnOptions) => Promise<void>>()
 			.mockRejectedValueOnce(new Error("edit failed"))
 			.mockResolvedValue(undefined);
-		const removedAttachment = {
+		const mockRemovedAttachment = {
 			...MockChatWorkspaceAttachmentPart,
 			file_id: "removed-zip",
 			name: "removed.zip",
 		};
-		const keptAttachment = {
+		const mockKeptAttachment = {
 			...MockChatWorkspaceAttachmentPart,
 			file_id: "kept-zip",
 			name: "kept.zip",
@@ -328,7 +328,7 @@ describe("ChatPageInput", () => {
 
 		renderWithAuth(
 			<HistoryEditHarness
-				fileBlocks={[removedAttachment, keptAttachment]}
+				fileBlocks={[mockRemovedAttachment, mockKeptAttachment]}
 				sendTurn={sendTurn}
 				overrides={{
 					chat: {
@@ -359,7 +359,7 @@ describe("ChatPageInput", () => {
 			editedMessageID: 1,
 			attachments: [
 				expect.objectContaining({
-					fileId: keptAttachment.file_id,
+					fileId: mockKeptAttachment.file_id,
 					purpose: "workspace",
 				}),
 				expect.objectContaining({ fileId: "staged-zip", purpose: "workspace" }),
