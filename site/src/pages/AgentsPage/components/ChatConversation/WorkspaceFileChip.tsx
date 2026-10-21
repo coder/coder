@@ -7,9 +7,9 @@ import {
 } from "#/components/Tooltip/Tooltip";
 
 /**
- * Timeline chip for a workspace file, whose bytes live in the workspace or in
- * Coder until it copies them there, so there is nothing to preview or
- * download. The trigger is a button so the tooltip is keyboard-reachable.
+ * Timeline chip for a file sent to the chat's workspace. The file is for the
+ * agent's workspace only, so the chip offers no preview or download. The
+ * trigger is a button so the tooltip is keyboard-reachable.
  */
 export const WorkspaceFileChip: React.FC<{
 	name: string;
