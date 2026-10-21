@@ -748,7 +748,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									chatId={agentId}
 									store={store}
 									hasMoreMessages={hasMoreMessages}
-									isHydratingMessages={isHydratingMessages}
+									isFetchingMoreMessages={isFetchingMoreMessages}
+									hasFetchMoreError={hasFetchMoreError}
+									onFetchMoreMessages={onFetchMoreMessages}
 								/>
 							</SidebarTab>
 
