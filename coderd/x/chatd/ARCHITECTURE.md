@@ -141,7 +141,7 @@ Queued messages wait in two lanes. These rules apply to every transition that qu
 - When `Create(initialMessages, initialStatus)` creates a child chat, it first locks the family's root chat row with `FOR SHARE` and fails if the root is archived, so a new child never joins an archived family.
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
 - `SetProject(project)` sets or clears the project of one chat without changing its execution state. A move of a root chat applies it to the root and each descendant in one transaction, and fails without changing any chat if one of them isn't in `W`, `E0`, `E1`, `E1P` or `P`. Only the root's `project_id` changes; subagents go through `SetProject` only so that their execution state is checked too. As in a family archive, the root row is locked first, so a concurrent child creation either joins the move or waits for it. A move to the root's current project applies no transition.
-- `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be `queue`, `steer` or `interrupt`. `queue` and `steer` name the lane (see [Queued message lanes](#queued-message-lanes)). Outside `E1`, a busy send with one of them stores `m` in its lane and keeps the status, except a `steer` send from `E1P` or `P`. From `E1`, `E1P`, and `P`, `busy_behavior=steer` inserts the queued `steer` messages and then `m` into history, and `queue` messages stay queued. From `E1`, `busy_behavior=queue` queues `m` as a `queue` message and promotes the next messages. With `busy_behavior=interrupt`, it also requests interruption, or cancels a pending dynamic-tool action and inserts the message directly. A queued interrupt message goes to the end of the `steer` lane. A `queue` send never runs before a message under edit; an interrupt send runs before it, unless the chat is running or interrupting and the message under edit is a `steer` message.
+- `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be `queue`, `steer` or `interrupt`. `queue` and `steer` name the lane (see [Queued message lanes](#queued-message-lanes)). Outside `E1`, a busy send with one of them stores `m` in its lane and keeps the status, except a `steer` send from `E1P` or `P`. From `E1`, `E1P`, and `P`, `busy_behavior=steer` inserts the queued `steer` messages and then `m` into history, and `queue` messages stay queued. From `E1`, `busy_behavior=queue` queues `m` as a `queue` message and promotes the next messages. With `busy_behavior=interrupt`, it also requests interruption, or cancels a pending dynamic-tool action and inserts the message directly. A queued interrupt message goes to the end of the `steer` lane. A `queue` send never runs before a message under edit; an interrupt send runs before it, unless the chat is running or interrupting and the message under edit is a `steer` message. When the message is queued and no worker owns the chat, the same transaction also applies `FinishInterruption`, so the `steer` lane goes into history at once and the chat lands in `R0` or `R1` without an owner.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
 - `DeleteQueuedMessage(qid)` removes one queued message without changing the active history. From `P`, removing the head promotes the message behind it and reaches `running`, or reaches `waiting` when the head was the last queued message.
 - `SteerQueuedMessage(qid)` moves a queued message to the end of the `steer` lane. A `steer` message keeps its place. Steering a message under edit ends its edit. From `E1`, `E1P`, and `P`, it closes open tool calls with synthetic cancellation results, delivers the whole `steer` lane into history, and reaches `running`. When another `steer` message under edit is the head, nothing is delivered and the chat keeps its state. From the other states it keeps the chat status, and the `steer` lane waits for the next delivery point.
@@ -217,6 +217,7 @@ stateDiagram-v2
     E1 --> E1: SetProject
 
     E1P --> E1P: SendMessage(queue)
+    E1P --> R1P: SendMessage(steer)
     E1P --> R1P: SendMessage(interrupt)
     E1P --> E1P: SetProject
     E1P --> R0: EditMessage
@@ -275,6 +276,7 @@ stateDiagram-v2
     R1P --> R0: EditMessage
     R1P --> E1P: FinishError
     R1P --> R1P: SendMessage(queue)
+    R1P --> R1: SendMessage(steer)
     R1P --> R0: DeleteQueuedMessage / removed last queued
     R1P --> R1: DeleteQueuedMessage / new head ready
     R1P --> R1P: DeleteQueuedMessage / removed row behind head
@@ -299,7 +301,8 @@ stateDiagram-v2
     I1 --> R1: FinishInterruption / queue still non-empty after promoting
     I1 --> R1P: FinishInterruption / new head under edit
 
-    I1P --> I1P: SendMessage
+    I1P --> I1P: SendMessage(queue)
+    I1P --> I1: SendMessage(steer)
     I1P --> R0: EditMessage
     I1P --> I0: DeleteQueuedMessage / removed last queued
     I1P --> I1: DeleteQueuedMessage / new head ready
@@ -335,6 +338,7 @@ stateDiagram-v2
     A1P --> R1P: Interrupt
     A1P --> R1P: CancelRequiresAction
     A1P --> A1P: SendMessage(queue)
+    A1P --> A1: SendMessage(steer)
     A1P --> R1P: SendMessage(interrupt)
     A1P --> R0: EditMessage
     A1P --> A0: DeleteQueuedMessage / removed last queued
@@ -345,6 +349,7 @@ stateDiagram-v2
     A1P --> A1: EditQueuedMessage / end head edit or begin edit behind head
 
     P --> P: SendMessage(queue)
+    P --> R1P: SendMessage(steer)
     P --> R1P: SendMessage(interrupt)
     P --> P: SetProject
     P --> R0: EditMessage
@@ -621,6 +626,8 @@ Setting `title` writes a `user` title. The write happens even when the text is u
 
 ### `POST /api/v2/chats/{chat}/messages`
 
+`busy_behavior` must be `steer` or `queue`. If the request omits it, the endpoint uses `steer`. The endpoint rejects `busy_behavior=interrupt` with a 400 error. To interrupt the chat and send a message, a client calls `POST /api/v2/chats/{chat}/interrupt` and then sends the message.
+
 For `busy_behavior=queue`, `SendMessage(m, queue)` supports:
 
 - `W -> SendMessage(m, queue) -> R0`
@@ -628,7 +635,7 @@ For `busy_behavior=queue`, `SendMessage(m, queue)` supports:
 - `E1 -> SendMessage(m, queue) -> R1` (or `R1P` when the message behind the promoted head is under edit): this appends `m` to the end of the queue, promotes every `steer` message, or the current queue head if there are none, and clears the error. The scenario where this happens is:
   - the user queued some messages
   - the chat ran into an error and stopped, for example because of an unretriable problem with the LLM provider
-  - the user then sends a new message, but there is a non-empty queue. As defined here, the UX will be “add the new message to the end of the queue and promote every `steer` message, or the queue head if there are none.” Arguably, a better UX could be “add the new message to the chat immediately and start running it, even though there's a non-empty queue.” I think the former is better because it's more consistent with the behavior of the endpoint in other cases.
+  - the user then sends a new message, but there is a non-empty queue. As defined here, the UX will be “add the new message to the end of the queue and promote every `steer` message, or the queue head if there are none.” With `busy_behavior=steer`, the default, the endpoint instead adds the new message to the chat immediately and starts running it, after the queued `steer` messages.
 - `E1P -> SendMessage(m, queue) -> E1P`
 - `R0 -> SendMessage(m, queue) -> R1`
 - `R1 -> SendMessage(m, queue) -> R1`
@@ -641,24 +648,7 @@ For `busy_behavior=queue`, `SendMessage(m, queue)` supports:
 - `A1P -> SendMessage(m, queue) -> A1P`
 - `P -> SendMessage(m, queue) -> P`
 
-For `busy_behavior=interrupt`, `SendMessage(m, interrupt)` supports:
-
-- `W -> SendMessage(m, interrupt) -> R0`
-- `E0 -> SendMessage(m, interrupt) -> R0`
-- `E1 -> SendMessage(m, interrupt) -> R1`
-- `E1P -> SendMessage(m, interrupt) -> R1P`
-- `R0 -> SendMessage(m, interrupt) -> I1`
-- `R1 -> SendMessage(m, interrupt) -> I1`
-- `R1P -> SendMessage(m, interrupt) -> I1`
-- `I0 -> SendMessage(m, interrupt) -> I1`
-- `I1 -> SendMessage(m, interrupt) -> I1`
-- `I1P -> SendMessage(m, interrupt) -> I1` (or `I1P` when the queue head is a `steer` message)
-- `A0 -> SendMessage(m, interrupt) -> R0`
-- `A1 -> SendMessage(m, interrupt) -> R1`
-- `A1P -> SendMessage(m, interrupt) -> R1P`
-- `P -> SendMessage(m, interrupt) -> R1P`
-
-When `SendMessage(m, interrupt)` reaches `I1` or `I1P`, `m` goes to the end of the `steer` lane. `FinishInterruption(partial?)` finalizes the interrupted suffix and then promotes every `steer` message, so `m` goes into history after the `steer` messages that were queued before it. If no worker owns the chat, the same transaction applies `FinishInterruption` instead, and the chat stays without an owner. The response then returns `m` as `message` with `queued` set to false.
+For `busy_behavior=steer`, `SendMessage(m, steer)` supports the same input states as `queue`, with the same output states except from `E1`, `E1P`, `R1P`, `I1P`, `A1P`, and `P`. From `E1`, it inserts the queued `steer` messages and then `m` into history, keeps `queue` messages queued, and clears the error: `E1 -> SendMessage(m, steer) -> R0` if no queued messages remain, or `R1` if `queue` messages remain (or `R1P` when the first of them is under edit). `E1P` and `P` take the same path and reach `R1P`. From the busy states, it stores `m` in the `steer` lane. From `R1P`, `I1P`, and `A1P`, `m` becomes the queue head, so the chat lands in `R1`, `I1`, and `A1`.
 
 Other input states are not supported.
 

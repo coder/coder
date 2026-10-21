@@ -2076,6 +2076,7 @@ describe("mutation invalidation scope", () => {
 	): TypesGen.ChatQueuedMessage => ({
 		id,
 		chat_id: chatId,
+		busy_behavior: "queue",
 		created_at: `2025-01-01T00:10:${String(id).padStart(2, "0")}Z`,
 		content: [{ type: "text" as const, text: `queued ${id}` }],
 	});
@@ -5684,6 +5685,7 @@ describe("message upsert fan-out and history replacement", () => {
 		const queuedMessage: TypesGen.ChatQueuedMessage = {
 			id: 1,
 			chat_id: "chat-1",
+			busy_behavior: "queue",
 			created_at: "2025-01-01T00:10:00.000Z",
 			content: [{ type: "text", text: "queued" }],
 		};
