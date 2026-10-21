@@ -130,7 +130,7 @@ const ChatMessageItem = memo<{
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
 	hideActions?: boolean;
-	/** Set on the row that ends a settled turn with agent attachments. */
+	/** Non-empty, on the row that hosts a settled turn's attachments. */
 	turnAttachments?: readonly AgentAttachment[];
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
@@ -217,8 +217,7 @@ const ChatMessageItem = memo<{
 			(displayState.hasCopyableContent ||
 				canEditUserMessage ||
 				canJumpBetweenUserMessages);
-		const showsTurnAttachments =
-			turnAttachments !== undefined && turnAttachments.length > 0;
+		const showsTurnAttachments = turnAttachments !== undefined;
 		if (displayState?.shouldHide) {
 			return null;
 		}
@@ -347,7 +346,7 @@ const ChatMessageItem = memo<{
 								className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100"
 								data-testid="message-actions"
 							>
-								{displayState?.hasCopyableContent && parsed && (
+								{displayState.hasCopyableContent && parsed && (
 									<CopyButton
 										text={parsed.markdown}
 										label="Copy message"

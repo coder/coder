@@ -7,6 +7,7 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { isRasterImageMediaType } from "../../utils/chatAttachments";
+import { ImageThumbnail } from "../AttachmentPreview";
 import { AgentAttachmentList } from "./AgentAttachmentList";
 import { isTextPreviewAttachmentMediaType } from "./AttachmentBlocks";
 import { useFileProbes } from "./FileProbeContext";
@@ -14,8 +15,18 @@ import type { AgentAttachment } from "./messageHelpers";
 
 const THUMBNAIL_STACK_MAX = 3;
 
-const thumbnailClassName =
-	"inline-flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-tertiary ring-1 ring-surface-primary not-first:-ml-1.5";
+const ThumbnailFrame: React.FC<
+	React.PropsWithChildren<{ className?: string }>
+> = ({ className, children }) => (
+	<span
+		className={cn(
+			"inline-flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-tertiary ring-1 ring-surface-primary not-first:-ml-1.5",
+			className,
+		)}
+	>
+		{children}
+	</span>
+);
 
 type AttachmentThumbnailProps = {
 	attachment: AgentAttachment;
@@ -30,14 +41,14 @@ const AttachmentThumbnail: React.FC<AttachmentThumbnailProps> = ({
 
 	if (isRasterImageMediaType(file.media_type) && !expired && !failed) {
 		return (
-			<span className={thumbnailClassName}>
-				<img
-					src={href}
-					alt=""
-					className="size-full object-cover"
+			<ThumbnailFrame>
+				<ImageThumbnail
+					previewUrl={href}
+					name=""
+					className="size-full rounded-none border-0"
 					onError={() => setFailed(true)}
 				/>
-			</span>
+			</ThumbnailFrame>
 		);
 	}
 
@@ -46,24 +57,25 @@ const AttachmentThumbnail: React.FC<AttachmentThumbnailProps> = ({
 			? FileTextIcon
 			: FileIcon;
 	return (
-		<span className={thumbnailClassName}>
+		<ThumbnailFrame>
 			<Icon className="size-3 text-content-secondary" />
-		</span>
+		</ThumbnailFrame>
 	);
 };
 
 type TurnAttachmentsProps = {
-	/** The turn's attachments, oldest first. */
+	/** Oldest first; callers pass at least one attachment. */
 	attachments: readonly AgentAttachment[];
 };
 
-/** A pill previewing a turn's attachments that opens their download cards. */
+/**
+ * Action bar pill that counts every attachment of a turn, previews the first
+ * three, and opens their download cards.
+ */
 export const TurnAttachments: React.FC<TurnAttachmentsProps> = ({
 	attachments,
 }) => {
 	const { hasExpired } = useFileProbes();
-	const isExpired = (file: AgentAttachment["file"]) =>
-		file.file_id !== undefined && hasExpired(file.file_id);
 	const overflow = attachments.length - THUMBNAIL_STACK_MAX;
 
 	return (
@@ -72,20 +84,23 @@ export const TurnAttachments: React.FC<TurnAttachmentsProps> = ({
 				<button
 					type="button"
 					aria-label={`Attachments (${attachments.length.toLocaleString("en-US")})`}
-					className="inline-flex h-6 cursor-pointer items-center gap-1.5 rounded-full border-0 bg-surface-secondary py-0 pl-0.5 pr-2 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+					className="inline-flex h-6 cursor-pointer items-center gap-1.5 rounded-full border-0 bg-surface-secondary pl-0.5 pr-2 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 				>
 					<span aria-hidden className="inline-flex items-center">
 						{attachments.slice(0, THUMBNAIL_STACK_MAX).map((attachment) => (
 							<AttachmentThumbnail
 								key={attachment.key}
 								attachment={attachment}
-								expired={isExpired(attachment.file)}
+								expired={
+									attachment.file.file_id !== undefined &&
+									hasExpired(attachment.file.file_id)
+								}
 							/>
 						))}
 						{overflow > 0 && (
-							<span className={cn(thumbnailClassName, "text-2xs")}>
+							<ThumbnailFrame className="text-2xs">
 								+{overflow.toLocaleString("en-US")}
-							</span>
+							</ThumbnailFrame>
 						)}
 					</span>
 					Attachments

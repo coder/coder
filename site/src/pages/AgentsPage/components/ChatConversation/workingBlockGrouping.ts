@@ -151,17 +151,16 @@ export const isAgentAttachmentOnlyRow = (row: TimelineRow): boolean => {
 };
 
 type TurnAttachmentsOptions = {
-	/** Attachment-only rows never render, so they cannot host the pill. */
+	/** Collapsed steps hide attachment-only rows outside working blocks. */
 	hidesAttachmentRows: boolean;
 	/** The newest turn may still attach files, so it gets no entry yet. */
 	isLastTurnActive: boolean;
 };
 
 /**
- * Each settled turn's agent attachments, oldest first, keyed by the row that
- * hosts them: the turn's last rendered assistant message. Derived from the
- * rows alone, never working blocks or stream state, so the map keeps its
- * identity while a turn streams and memoized rows skip re-rendering.
+ * Each settled turn's agent attachments, oldest first, keyed by its last
+ * shown assistant row. Stream chunks never change the inputs, so memoized
+ * rows keep their props while a turn streams.
  */
 export const getTurnAttachmentsByRow = (
 	rows: readonly TimelineRow[],

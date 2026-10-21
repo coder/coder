@@ -1,6 +1,6 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
-import { buildDisplayMessages } from "./messageHelpers";
+import { type AgentAttachment, buildDisplayMessages } from "./messageHelpers";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
 	workingFixtureTime as at,
@@ -1281,9 +1281,7 @@ describe("getTurnAttachmentsByRow", () => {
 		...mockAttachment,
 		file_id: fileId,
 	});
-	const fileIdsByRow = (
-		map: ReadonlyMap<string, readonly { file: TypesGen.ChatFilePart }[]>,
-	) =>
+	const fileIdsByRow = (map: ReadonlyMap<string, readonly AgentAttachment[]>) =>
 		[...map].map(([key, attachments]) => [
 			key,
 			attachments.map(({ file }) => file.file_id),

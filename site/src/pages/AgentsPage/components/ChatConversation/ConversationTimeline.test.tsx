@@ -339,7 +339,7 @@ describe("ConversationTimeline turn attachments", () => {
 		const user = userEvent.setup();
 		renderTimeline({ messages: MockMixedAttachmentMessages });
 
-		const openAttachments = async (name: string) => {
+		const readAttachmentHrefs = async (name: string) => {
 			await user.click(screen.getByRole("button", { name }));
 			const dialog = await screen.findByRole("dialog", {
 				name: "Attachments",
@@ -351,10 +351,10 @@ describe("ConversationTimeline turn attachments", () => {
 			return hrefs;
 		};
 
-		expect(await openAttachments("Attachments (1)")).toEqual([
+		expect(await readAttachmentHrefs("Attachments (1)")).toEqual([
 			"/api/v2/chats/files/report-file",
 		]);
-		expect(await openAttachments("Attachments (4)")).toEqual([
+		expect(await readAttachmentHrefs("Attachments (4)")).toEqual([
 			`data:image/png;base64,${MockBluePngData}`,
 			`data:image/png;base64,${MockAmberPngData}`,
 			"/api/v2/chats/files/findings-file",

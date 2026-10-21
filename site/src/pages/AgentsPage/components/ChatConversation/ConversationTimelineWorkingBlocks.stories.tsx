@@ -5,7 +5,10 @@ import { defaultUrlTransform } from "streamdown";
 import { chatFileTextKey } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { Button } from "#/components/Button/Button";
-import { MockChatMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChatFileMetadata,
+	MockChatMessage,
+} from "#/testHelpers/chatEntities";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
@@ -247,7 +250,6 @@ export const AttachmentFoldsIntoBlockExpanded: Story = {
 	},
 };
 
-// Each settled turn lists its own files in the action bar under its answer.
 export const TurnAttachmentsPill: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
@@ -257,6 +259,20 @@ export const TurnAttachmentsPill: Story = {
 export const TurnAttachmentsPillOpen: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Attachments (4)" }),
+		);
+	},
+};
+
+const specFileOnly = [{ ...MockChatFileMetadata, id: "spec-file" }];
+
+export const TurnAttachmentsPillExpired: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+		chatFiles: specFileOnly,
 	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(

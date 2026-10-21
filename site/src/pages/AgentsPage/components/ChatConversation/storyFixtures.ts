@@ -396,7 +396,7 @@ export const MockBluePngData =
 export const MockAmberPngData =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4Oo8bAAQqAZ9sWGBkAAAAAElFTkSuQmCC";
 
-const mixedTurnFiles: TypesGen.ChatFilePart[] = [
+const mockMixedTurnFiles: TypesGen.ChatFilePart[] = [
 	{
 		type: "file",
 		media_type: "image/png",
@@ -423,10 +423,7 @@ const mixedTurnFiles: TypesGen.ChatFilePart[] = [
 	},
 ];
 
-/**
- * MockAttachmentWorkingMessages followed by a second turn that attaches two
- * screenshots, a markdown file, and a PDF, one attach_file step each.
- */
+/** MockAttachmentWorkingMessages and a turn that attaches four mixed files. */
 export const MockMixedAttachmentMessages: TypesGen.ChatMessage[] = [
 	...MockAttachmentWorkingMessages,
 	{
@@ -435,7 +432,7 @@ export const MockMixedAttachmentMessages: TypesGen.ChatMessage[] = [
 		created_at: workingFixtureTime(20),
 		content: [{ type: "text", text: "Compare the dashboard with the spec" }],
 	},
-	...mixedTurnFiles.flatMap((file, index) =>
+	...mockMixedTurnFiles.flatMap((file, index) =>
 		attachmentStepMessages({
 			id: 11 + index * 3,
 			toolCallId: `attach-${index}`,

@@ -6,7 +6,7 @@ type AgentAttachmentListProps = {
 	isExpired: (fileId: string) => boolean;
 };
 
-/** Full-width download cards for agent attachments, in the given order. */
+/** Download cards for agent attachments, in the given order. */
 export const AgentAttachmentList: React.FC<AgentAttachmentListProps> = ({
 	attachments,
 	isExpired,
