@@ -59,6 +59,8 @@ Files uploaded into the chat's workspace through `POST /api/v2/chats/{chat}/work
 
 Project instructions are optional context injected into all chats in a project. Stored in `chat_project_instructions`. Subagents have no `project_id`, so they use the root chat's project. A root chat can move into a project, between projects, or out of its project after it's created. The move is written inside the `SetProject` transition so that it happens only while no step of the chat runs.
 
+Project skills are the project's enabled skills, which every chat in the project gets as a project skill source alongside personal, organization, and workspace skills. Each turn checks ChatProjectUsableBy once for the chat owner, and that one result gates both project instructions and skills, so a chat gets both or neither. Skills are then read as chatd, so role grants do not count. Subagents use the root chat's project. If loading fails, the turn continues without them.
+
 If the distinction isn't completely clear to you at this point, don't worry. It should become clearer as you learn more about the core state machine.
 
 ## Execution states
@@ -1040,9 +1042,9 @@ Owners share a project with users, groups, or the Everyone group (ID = organizat
 
 Only the owner and administrators with `chat_project` delete can delete a project. Project responses include the caller's `permissions` (update, delete, share), role grants included.
 
-Memory tools and instruction loading run as chatd, so `ChatProjectUsableBy` gates them. It allows the owner and users with an ACL read grant (direct, group, or Everyone). Role grants do not count, so an administrator cannot attach a chat to an unshared project. An administrator with `share` can still grant themselves access; this is accepted to keep access control simple.
+Memory tools, instruction loading and skill loading run as chatd, so `ChatProjectUsableBy` gates them. It allows the owner and users with an ACL read grant (direct, group, or Everyone). Role grants do not count, so an administrator cannot attach a chat to an unshared project. An administrator with `share` can still grant themselves access; this is accepted to keep access control simple.
 
-Chat creation checks `ChatProjectUsableBy` for the chat owner, and `resolveProjectMemory` and `resolveProjectInstructions` check it on every turn. If the check fails, for example after the owner's grant is removed or for non-owner chats under `--disable-chat-sharing`, the chat stays in the project but its next turn gets no memory or instructions. Content already in the chat history stays.
+Chat creation checks `ChatProjectUsableBy` for the chat owner, and `resolveProjectMemory` check it on every turn. If the check fails, for example after the owner's grant is removed or for non-owner chats under `--disable-chat-sharing`, the chat stays in the project but its next turn gets no memory or instructions. Content already in the chat history stays.
 
 ##### Reasoning effort
 
