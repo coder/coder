@@ -1,7 +1,6 @@
 import type { InfiniteData } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 
-/** Local metadata for an attachment the server has not echoed back yet. */
 type OptimisticAttachment = {
 	mediaType: string;
 	name: string;
