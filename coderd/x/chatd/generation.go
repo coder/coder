@@ -78,7 +78,11 @@ type generationCompaction struct {
 
 // generationRollover carries the token budget strategy's per-step inputs.
 type generationRollover struct {
-	Budget contextWindowBudget
+	Budget          contextWindowBudget
+	WindowID        string
+	MetricProvider  string
+	MetricModel     string
+	PendingUserRows []database.ChatMessage
 }
 
 func generationRolloverBudget(rollover *generationRollover) *contextWindowBudget {
@@ -695,6 +699,8 @@ func (s *taskStarter) runGenerationStep(
 		actionErr = s.executeLocalTools(ctx, machine, input, prepared, decision)
 	case generationActionCompact:
 		actionErr = s.generateCompaction(ctx, machine, input, prepared, compactionSourceForDecision(decision))
+	case generationActionContextRollover:
+		actionErr = s.rollOverContextWindow(ctx, machine, input, prepared, decision.rolloverReason)
 	default:
 		return input, false, s.finishGenerationError(ctx, machine, input, xerrors.Errorf("unknown generation action %q", decision.kind), generationAttemptNotRequired)
 	}
@@ -1361,6 +1367,48 @@ func (s *taskStarter) generateCompaction(
 	if err != nil {
 		return xerrors.Errorf("commit compaction step: %w", err)
 	}
+	return nil
+}
+
+// rollOverContextWindow commits a rollover boundary that starts a fresh
+// context window without summarizing. The runner re-spawns generation
+// on the history bump, as after compaction.
+func (s *taskStarter) rollOverContextWindow(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+	prepared turnEnvironment,
+	reason rolloverReason,
+) error {
+	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
+	if err != nil {
+		return xerrors.Errorf("beginGenerationAttempt: %w", err)
+	}
+	defer attempt.closeEpisode()
+	rollover := prepared.Rollover
+	if rollover == nil {
+		return s.finishGenerationError(ctx, machine, input, xerrors.New("context rollover action missing options"), requireGenerationAttempt(attempt.number))
+	}
+	messages, err := buildRolloverMessages(buildRolloverMessagesInput{
+		modelConfigID: prepared.ModelConfigID,
+		toolCallID:    rolloverToolName + "_" + uuid.NewString(),
+		payload: contextRolloverPayload{
+			Reason:           reason,
+			RequestedBy:      rolloverRequestedBySystem,
+			PreviousWindowID: rollover.WindowID,
+			ContextTokens:    windowContextTokens(prepared.Messages),
+			BudgetTokens:     rollover.Budget.usableLimit,
+		},
+		pendingUserMessages: rollover.PendingUserRows,
+	})
+	if err != nil {
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+	}
+	err = s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionContextRollover, stepMessagesForCommit{Messages: messages}, generationCommitHooks{})
+	if err != nil {
+		return xerrors.Errorf("commit context rollover step: %w", err)
+	}
+	s.server.metrics.RecordContextRollover(rollover.MetricProvider, rollover.MetricModel, string(reason))
 	return nil
 }
 
