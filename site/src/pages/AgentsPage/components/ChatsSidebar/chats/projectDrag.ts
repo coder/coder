@@ -11,7 +11,7 @@ import { isSortable } from "@dnd-kit/react/sortable";
 import type { Chat } from "#/api/typesGenerated";
 import {
 	canManageChat,
-	chatFamilyAllowsArchive,
+	getArchiveBlockedReason,
 } from "../../ChatActionsMenuItems";
 import { getParentChatID } from "../tree/chatTree";
 
@@ -73,7 +73,7 @@ export const canDragChatToProject = (
 	canManageChat(chat, currentUserId) &&
 	!chat.archived &&
 	getParentChatID(chat) === undefined &&
-	chatFamilyAllowsArchive(chat.status, chat.children);
+	getArchiveBlockedReason(chat.status, chat.children) !== "active";
 
 /**
  * The project_id that a drop on target sets: a project ID, null to remove the

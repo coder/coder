@@ -367,6 +367,8 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	const archiveBlockedDescribedBy = isArchiveBlocked
 		? archiveBlockedHintId
 		: undefined;
+	// SetProject refuses only a busy family; a queued edit does not block it.
+	const isMoveBlocked = archiveBlockedReason === "active";
 
 	const subagentToggle = showSubagentsToggle ? (
 		<Item onSelect={onToggleSubagents}>
@@ -499,8 +501,8 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 					{showArchiveActions && (
 						<MoveToProjectMenuItems
 							chat={chat}
-							blocked={isArchiveBlocked}
-							describedBy={archiveBlockedDescribedBy}
+							blocked={isMoveBlocked}
+							describedBy={isMoveBlocked ? archiveBlockedHintId : undefined}
 							Item={Item}
 							Separator={Separator}
 							Sub={Sub}
