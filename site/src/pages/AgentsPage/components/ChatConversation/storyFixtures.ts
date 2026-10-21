@@ -235,6 +235,15 @@ export const MockWorkingMessages: TypesGen.ChatMessage[] = [
 	},
 ];
 
+/** MockWorkingMessages' second step, called after text about the first. */
+export const MockTextBeforeSecondStepMessage: TypesGen.ChatMessage = {
+	...MockWorkingMessages[3],
+	content: [
+		{ type: "text", text: "The first check passed. Running the trials next." },
+		...(MockWorkingMessages[3].content ?? []),
+	],
+};
+
 /**
  * MockWorkingMessages whose final answer also reasoned, narrated, and searched
  * the web from 13s to 16s before writing its text.

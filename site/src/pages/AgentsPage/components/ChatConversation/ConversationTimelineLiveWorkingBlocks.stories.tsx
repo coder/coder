@@ -15,6 +15,7 @@ import {
 	MockAttachedFileMessages,
 	MockCollapsedStepsPreferences,
 	MockQuestionCallMessage,
+	MockTextBeforeSecondStepMessage,
 	MockWorkingMessages,
 	pinFixtureClock,
 	workingFixtureTime,
@@ -242,6 +243,29 @@ export const RequiresActionKeepsPendingToolVisible: Story = {
 		chatStatus: "requires_action",
 		parsedMessages: parseMessagesWithMergedTools(
 			[...MockWorkingMessages.slice(0, 3), MockPendingToolMessage],
+			{ pendingToolCallIDs: new Set(["editor"]) },
+		),
+	},
+};
+
+const MockLaterPendingToolMessage: ChatMessage = {
+	...MockPendingToolMessage,
+	id: 6,
+	created_at: workingFixtureTime(14),
+};
+
+// A parked turn has not ended, so it does not fold.
+export const RequiresActionKeepsTextBetweenSteps: Story = {
+	args: {
+		chatStatus: "requires_action",
+		liveStatus: buildLiveStatus(),
+		parsedMessages: parseMessagesWithMergedTools(
+			[
+				...MockWorkingMessages.slice(0, 3),
+				MockTextBeforeSecondStepMessage,
+				MockWorkingMessages[4],
+				MockLaterPendingToolMessage,
+			],
 			{ pendingToolCallIDs: new Set(["editor"]) },
 		),
 	},

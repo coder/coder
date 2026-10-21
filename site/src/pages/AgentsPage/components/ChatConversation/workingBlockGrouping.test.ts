@@ -158,6 +158,7 @@ const attachStep = (
 const defaultOptions: GroupWorkingBlocksOptions = {
 	hasMoreMessages: false,
 	isTurnActive: false,
+	isTurnParked: false,
 	isWorking: false,
 	isLiveRowCollapsible: false,
 	liveBlocks: [],
@@ -244,7 +245,7 @@ describe("groupWorkingBlocks", () => {
 		});
 	});
 
-	it("closes the block at text before a tool call and opens the next below it", () => {
+	const textBetweenSteps = () => {
 		const prompt = user("Go");
 		const steps = [
 			...step("a", 1, 2, {
@@ -256,7 +257,12 @@ describe("groupWorkingBlocks", () => {
 			reasoning("Wrap up", at(5), at(6)),
 			text("Done."),
 		]);
-		const layout = group([prompt, ...steps, answer]);
+		return { prompt, steps, answer, messages: [prompt, ...steps, answer] };
+	};
+
+	it("closes the block at text before a tool call while the turn is parked", () => {
+		const { prompt, steps, answer, messages } = textBetweenSteps();
+		const layout = group(messages, { isTurnParked: true });
 		const [firstStepId, secondStepId] = [steps[0].id, steps[2].id];
 
 		expect(layoutOf(layout)).toEqual([
@@ -285,7 +291,27 @@ describe("groupWorkingBlocks", () => {
 		]);
 	});
 
-	it("keys the blocks on either side of text inside one step apart", () => {
+	it("folds an ended turn's text between steps into one block and leaves only the final answer outside", () => {
+		const { prompt, steps, answer, messages } = textBetweenSteps();
+		const layout = group(messages);
+
+		expect(layoutOf(layout)).toEqual([
+			`${prompt.id}`,
+			[`${steps[0].id}`, `${steps[2].id}`, `${answer.id}[0]`],
+			`${answer.id}[1]`,
+		]);
+		expect(layout.blocks).toMatchObject([
+			{
+				stepCount: 2,
+				startedAt: WORKING_FIXTURE_START + 500,
+				endedAt: WORKING_FIXTURE_START + 6000,
+				key: `working:through:message:${answer.id}`,
+				liveKey: `working:live:message:${prompt.id}:0`,
+			},
+		]);
+	});
+
+	const callsAroundTextTurn = () => {
 		const prompt = user("Go");
 		const callsAroundText = message("assistant", [
 			call("a", at(1)),
@@ -293,7 +319,16 @@ describe("groupWorkingBlocks", () => {
 			call("b", at(2)),
 		]);
 		const results = message("tool", [result("a", at(3)), result("b", at(4))]);
-		const layout = group([prompt, callsAroundText, results]);
+		return {
+			prompt,
+			callsAroundText,
+			messages: [prompt, callsAroundText, results],
+		};
+	};
+
+	it("keys the blocks on either side of text inside one step apart", () => {
+		const { prompt, callsAroundText, messages } = callsAroundTextTurn();
+		const layout = group(messages, { isTurnParked: true });
 
 		expect(layoutOf(layout)).toEqual([
 			`${prompt.id}`,
@@ -315,6 +350,51 @@ describe("groupWorkingBlocks", () => {
 				endedAt: WORKING_FIXTURE_START + 4000,
 			},
 		]);
+	});
+
+	it("keeps the running turn's last block key and piece keys once the turn ends and folds", () => {
+		const { callsAroundText, messages } = callsAroundTextTurn();
+		const running = group(messages, { isTurnActive: true });
+		const ended = group(messages);
+
+		expect(running.blocks).toMatchObject([
+			{ turnKey: undefined },
+			{ turnKey: undefined },
+		]);
+		expect(ended.blocks).toMatchObject([
+			{
+				key: running.blocks[1].key,
+				turnKey: `working:turn:message:${callsAroundText.id}:1`,
+				pieceKeys: [`${callsAroundText.id}:0`, `${callsAroundText.id}:1`],
+				slices: [{ key: `message:${callsAroundText.id}` }],
+			},
+		]);
+	});
+
+	it("keeps an answer's key once its turn ends and folds the text before it in its row", () => {
+		const prompt = user("Go");
+		const answer = message("assistant", [
+			text("Looking it up."),
+			searchCall("s", at(1)),
+			searchResult("s", at(2)),
+			source("https://example.com/a", "A"),
+			text("Found it."),
+		]);
+		const parked = group([prompt, answer], { isTurnParked: true });
+		const ended = group([prompt, answer]);
+
+		expect(layoutOf(parked)).toEqual([
+			`${prompt.id}`,
+			`${answer.id}[0]`,
+			[`${answer.id}[1]`],
+			`${answer.id}[2]`,
+		]);
+		expect(layoutOf(ended)).toEqual([
+			`${prompt.id}`,
+			[`${answer.id}[0]`],
+			`${answer.id}[2]`,
+		]);
+		expect(ended.items.at(-1)).toEqual(parked.items.at(-1));
 	});
 
 	it("folds the final answer's reasoning and web search into the block it ends", () => {
@@ -444,8 +524,24 @@ describe("groupWorkingBlocks", () => {
 		]);
 		const steps = step("a", 5, 6);
 
-		expect(group([prompt, answer, search, ...steps]).blocks).toMatchObject([
+		expect(
+			group([prompt, answer, search, ...steps], { isTurnParked: true }).blocks,
+		).toMatchObject([
 			{ stepCount: 2, startedAt: WORKING_FIXTURE_START + 3000 },
+		]);
+	});
+
+	it("counts a search that rendered no row toward the ended turn's block that the next row's text starts", () => {
+		const prompt = user("Go");
+		const search = message("assistant", [
+			searchCall("s", at(1)),
+			searchResult("s", at(2)),
+		]);
+		const steps = step("a", 3, 4, { leading: [text("Found it, checking.")] });
+		const answer = message("assistant", [text("Done.")]);
+
+		expect(group([prompt, search, ...steps, answer]).blocks).toMatchObject([
+			{ stepCount: 2, startedAt: WORKING_FIXTURE_START + 1000 },
 		]);
 	});
 
@@ -509,7 +605,9 @@ describe("groupWorkingBlocks", () => {
 			text("Halfway there."),
 		]);
 		const second = step("b", 4, 5);
-		const layout = group([prompt, ...first, interlude, ...second]);
+		const layout = group([prompt, ...first, interlude, ...second], {
+			isTurnParked: true,
+		});
 
 		expect(layoutOf(layout)).toEqual([
 			`${prompt.id}`,
@@ -531,30 +629,13 @@ describe("groupWorkingBlocks", () => {
 			message("tool", [searchResult("s", at(4))]),
 		];
 		const second = step("b", 5, 6);
-		const { blocks } = group([
-			prompt,
-			...first,
-			interlude,
-			...search,
-			...second,
-		]);
+		const { blocks } = group(
+			[prompt, ...first, interlude, ...search, ...second],
+			{ isTurnParked: true },
+		);
 
 		expect(blocks).toHaveLength(2);
 		expect(blocks.reduce((total, block) => total + block.stepCount, 0)).toBe(3);
-	});
-
-	it("splits a turn at an interleaved answer row", () => {
-		const prompt = user("Go");
-		const first = step("a", 1, 2);
-		const interlude = message("assistant", [text("Halfway there.")], at(3));
-		const second = step("b", 4, 5);
-		const { rows, blocks } = group([prompt, ...first, interlude, ...second]);
-
-		expect(blocks).toHaveLength(2);
-		expect(rowIds(rows, blocks[0].slices)).toEqual([first[0].id]);
-		expect(rowIds(rows, blocks[1].slices)).toEqual([second[0].id]);
-		expect(blocks[0].liveKey).toBe(`working:live:message:${prompt.id}:0`);
-		expect(blocks[1].liveKey).toBe(`working:live:message:${prompt.id}:1`);
 	});
 
 	it.each(["ask_user_question", "propose_plan", "chat_summarized"])(
@@ -725,21 +806,61 @@ describe("groupWorkingBlocks", () => {
 	});
 
 	it.each([
-		{ name: "its prompt", opening: () => user("Go") },
+		{ name: "its prompt", opening: () => user("Go"), isTurnParked: false },
 		{
-			name: "an assistant text row",
+			name: "an assistant text row of a parked turn",
 			opening: () => message("assistant", [text("Next, the tests.")]),
+			isTurnParked: true,
 		},
 	])(
 		"does not mark a block partial when the loaded history starts at $name",
-		({ opening }) => {
+		({ opening, isTurnParked }) => {
 			const { blocks } = group([opening(), ...step("a", 1, 2)], {
 				hasMoreMessages: true,
+				isTurnParked,
 			});
 
 			expect(blocks[0].isPartial).toBe(false);
 		},
 	);
+
+	it("keeps a block partial through the text that starts an ended turn's loaded history", () => {
+		const note = message("assistant", [text("Next, the tests.")]);
+		const steps = step("a", 1, 2);
+		const layout = group([note, ...steps], { hasMoreMessages: true });
+
+		expect(layoutOf(layout)).toEqual([[`${note.id}`, `${steps[0].id}`]]);
+		expect(layout.blocks[0].isPartial).toBe(true);
+	});
+
+	it("keeps an ended turn's text before a question visible and splits the turn there", () => {
+		const prompt = user("Go");
+		const before = step("a", 1, 2);
+		const note = message("assistant", [text("I need your input.")]);
+		const question = [
+			message("assistant", [call("q", at(3), "ask_user_question")]),
+			message("tool", [result("q", at(4), { name: "ask_user_question" })]),
+		];
+		const after = step("b", 5, 6);
+		const answer = message("assistant", [text("Done.")]);
+		const layout = group([
+			prompt,
+			...before,
+			note,
+			...question,
+			...after,
+			answer,
+		]);
+
+		expect(layoutOf(layout)).toEqual([
+			`${prompt.id}`,
+			[`${before[0].id}`],
+			`${note.id}`,
+			`${question[0].id}`,
+			[`${after[0].id}`],
+			`${answer.id}`,
+		]);
+	});
 
 	describe("live turns", () => {
 		const groupLive = (
@@ -935,14 +1056,22 @@ describe("groupWorkingBlocks", () => {
 			]);
 		});
 
-		it("leaves a tool-less turn's labeled narration in the transcript", () => {
+		it("folds a tool-less turn's labeled narration once the turn ends, not while it streams", () => {
 			const prompt = user("Go");
 			const parts = [narration("Checking the docs."), text("They cover it.")];
+			const answer = message("assistant", parts);
 			const live = groupLive([prompt], parts);
-			const persisted = group([prompt, message("assistant", parts)]);
+			const persisted = group([prompt, answer]);
 
 			expect(live.blocks).toEqual([]);
-			expect(persisted.blocks).toEqual([]);
+			expect(layoutOf(persisted)).toEqual([
+				`${prompt.id}`,
+				[`${answer.id}[0]`],
+				`${answer.id}[1]`,
+			]);
+			expect(persisted.blocks).toMatchObject([
+				{ stepCount: 0, key: `working:through:message:${answer.id}` },
+			]);
 		});
 
 		// OpenAI streams a search's citations inside the answer text that follows
@@ -1087,7 +1216,10 @@ describe("groupWorkingBlocks", () => {
 				[reasoning("Wrap up", at(3), at(4)), text("Done.")],
 				at(5),
 			);
-			const { blocks } = group([prompt, ...steps, answer], { isWorking: true });
+			const { blocks } = group([prompt, ...steps, answer], {
+				isTurnActive: true,
+				isWorking: true,
+			});
 
 			expect(blocks).toHaveLength(1);
 			expect(blocks[0]).toMatchObject({
@@ -1236,7 +1368,10 @@ describe("groupWorkingBlocks", () => {
 				pendingToolCallIDs: new Set(["b"]),
 			});
 			const rows = assignTimelineRows(buildDisplayMessages(entries), false);
-			const { blocks } = groupWorkingBlocks(rows, entries, defaultOptions);
+			const { blocks } = groupWorkingBlocks(rows, entries, {
+				...defaultOptions,
+				isTurnParked: true,
+			});
 
 			expect(blocks).toHaveLength(1);
 			expect(rowIds(rows, blocks[0].slices)).toEqual([steps[0].id]);
@@ -1266,6 +1401,48 @@ describe("groupWorkingBlocks", () => {
 
 			expect(done.blocks[0].liveKey).toBe("working:live:head:0");
 			expect(done.blocks[0].isPartial).toBe(true);
+		});
+
+		it("folds only earlier turns' text between steps, not the running turn's around a hook notice", () => {
+			const first = user("One");
+			const firstSteps = step("a", 1, 2);
+			const note = message("assistant", [text("Halfway there.")]);
+			const moreSteps = step("b", 3, 4);
+			const firstAnswer = message("assistant", [text("Done one.")]);
+			const second = user("Two");
+			const secondSteps = step("c", 5, 6);
+			const secondNote = message("assistant", [text("Still going.")]);
+			const lastSteps = step("d", 7, 8);
+			const hook = message("system", [
+				{ type: "hook-notice", text: "Formatter ran." },
+			]);
+			const layout = groupLive(
+				[
+					first,
+					...firstSteps,
+					note,
+					...moreSteps,
+					firstAnswer,
+					second,
+					...secondSteps,
+					secondNote,
+					...lastSteps,
+					hook,
+				],
+				[call("e", at(9))],
+			);
+
+			expect(layoutOf(layout)).toEqual([
+				`${first.id}`,
+				[`${firstSteps[0].id}`, `${note.id}`, `${moreSteps[0].id}`],
+				`${firstAnswer.id}`,
+				`${second.id}`,
+				[`${secondSteps[0].id}`],
+				`${secondNote.id}`,
+				[`${lastSteps[0].id}`],
+				`${hook.id}`,
+				["live"],
+			]);
 		});
 
 		it("does not treat a completed earlier turn as live", () => {
@@ -1394,10 +1571,12 @@ describe("splitRowPieces", () => {
 				text("They cover it."),
 			],
 			pieces: [
-				output(
-					{ type: "response", text: "Checking the docs.", narration: true },
-					said("They cover it."),
-				),
+				output({
+					type: "response",
+					text: "Checking the docs.",
+					narration: true,
+				}),
+				output(said("They cover it.")),
 			],
 		},
 	])(

@@ -21,6 +21,7 @@ import {
 	buildStreamRenderState,
 	MockCollapsedStepsPreferences,
 	MockLongTurnPageLoads,
+	MockTextBeforeSecondStepMessage,
 	MockWebSearchAnswerMessages,
 	MockWorkingMessages,
 	pinFixtureClock,
@@ -108,15 +109,15 @@ const focusCopyCommand = (messageId: number) => {
 };
 
 describe("ConversationTimeline working blocks", () => {
-	it("copies the whole message from the answer that ends a row split by its work", async () => {
+	it("copies the whole message from the answer that ends a row folded by its work", async () => {
 		const user = userEvent.setup();
 		const writeText = vi
 			.spyOn(navigator.clipboard, "writeText")
 			.mockResolvedValue();
 		renderTimeline({ messages: MockWebSearchAnswerMessages });
 
-		// The row's lead-in text and answer render on either side of its
-		// search's block, and only the answer carries the row's actions.
+		// The row's lead-in text folds into its search's block, and only the
+		// answer below the block carries the row's actions.
 		await user.click(
 			within(screen.getByTestId("chat-message-message:6:1")).getByRole(
 				"button",
@@ -174,14 +175,31 @@ describe("ConversationTimeline working blocks", () => {
 		expect(copyCommand).toHaveFocus();
 	});
 
+	const textSplitTurn = [
+		...MockWorkingMessages.slice(0, 3),
+		MockTextBeforeSecondStepMessage,
+	];
+
 	it.each([
-		["the rest of the turn persists", MockWorkingMessages],
-		["no further messages arrive", MockWorkingMessages.slice(0, 4)],
+		[
+			"the rest of the turn persists",
+			MockWorkingMessages.slice(0, 4),
+			MockWorkingMessages,
+		],
+		[
+			"no further messages arrive",
+			MockWorkingMessages.slice(0, 4),
+			MockWorkingMessages.slice(0, 4),
+		],
+		[
+			"text split the turn's blocks",
+			textSplitTurn,
+			[...textSplitTurn, ...MockWorkingMessages.slice(4)],
+		],
 	])(
-		"keeps focus inside an open block across the live-to-durable handoff when %s",
-		async (_, finalMessages) => {
+		"collapses the open block into its turn's one block, keeping its summary focused, at the turn's end when %s",
+		async (_, messages, finalMessages) => {
 			const user = userEvent.setup();
-			const messages = MockWorkingMessages.slice(0, 4);
 			const { rerenderStage } = renderTimeline({
 				messages,
 				pendingToolCallIDs: getPendingToolCallIDs(messages, "running"),
@@ -189,15 +207,17 @@ describe("ConversationTimeline working blocks", () => {
 				liveStatus: idleLive,
 			});
 
-			await user.click(screen.getByRole("button", { name: "Working for 12s" }));
-			const copyCommand = focusCopyCommand(2);
+			const summary = screen.getByRole("button", { name: /^Working for/ });
+			await user.click(summary);
 
 			rerenderStage({
 				messages: finalMessages,
 				chatStatus: "waiting",
 				liveStatus: idleLive,
 			});
-			expect(copyCommand).toHaveFocus();
+			expect(screen.getByRole("button", { name: /^Worked for/ })).toBe(summary);
+			expect(summary).toHaveFocus();
+			expect(summary).toHaveAttribute("aria-expanded", "false");
 		},
 	);
 
@@ -400,7 +420,7 @@ describe("ConversationTimeline live working blocks", () => {
 
 		rerenderStage({
 			messages: MockWorkingMessages,
-			chatStatus: "waiting",
+			chatStatus: "running",
 			streamState: null,
 			streamTools: [],
 			liveStatus: idleLive,
@@ -455,10 +475,6 @@ describe("ConversationTimeline live working blocks", () => {
 				created_at: workingFixtureTime(13),
 			};
 			const answer: ChatMessagePart = { type: "text", text: "All good." };
-			const mockFinalMessage: ChatMessage = {
-				...MockWorkingMessages[5],
-				content: [note, reasoning, answer],
-			};
 			const { rerenderStage } = renderTimeline({
 				messages,
 				chatStatus: "running",
@@ -473,15 +489,6 @@ describe("ConversationTimeline live working blocks", () => {
 				...buildStreamRenderState([note, reasoning, answer]),
 			});
 			expect(screen.getByRole("button", { name: /^Working for/ })).toBe(
-				summary,
-			);
-
-			rerenderStage({
-				messages: [...messages, mockFinalMessage],
-				chatStatus: "waiting",
-				liveStatus: idleLive,
-			});
-			expect(screen.getAllByRole("button", { name: /^Worked for/ })).toContain(
 				summary,
 			);
 		},
@@ -533,10 +540,10 @@ describe("ConversationTimeline live working blocks", () => {
 			liveStatus: idleLive,
 		});
 
-		await user.click(
-			screen.getByRole("button", { name: "Working for at least 12s" }),
-		);
-		const copyCommand = focusCopyCommand(2);
+		const summary = screen.getByRole("button", {
+			name: "Working for at least 12s",
+		});
+		await user.click(summary);
 
 		rerenderStage({
 			messages: MockWorkingMessages.slice(1),
@@ -544,13 +551,13 @@ describe("ConversationTimeline live working blocks", () => {
 			chatStatus: "waiting",
 			liveStatus: idleLive,
 		});
-		expect(copyCommand).toHaveFocus();
+		expect(summary).toHaveFocus();
 
 		rerenderStage({
 			messages: MockWorkingMessages,
 			chatStatus: "waiting",
 			liveStatus: idleLive,
 		});
-		expect(copyCommand).toHaveFocus();
+		expect(summary).toHaveFocus();
 	});
 });

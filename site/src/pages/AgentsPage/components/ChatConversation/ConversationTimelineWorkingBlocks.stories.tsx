@@ -18,6 +18,7 @@ import {
 	MockPageFromAttachedFileMessages,
 	MockPlanAttachmentMessages,
 	MockQuestionCallMessage,
+	MockTextBeforeSecondStepMessage,
 	MockUncitedSearchAnswerMessages,
 	MockWebSearchAnswerMessages,
 	MockWorkingMessages,
@@ -80,8 +81,8 @@ export const Expanded: Story = {
 	},
 };
 
-// The answer's lead-in text closes the steps' block, and its search folds into
-// a block of its own before the final text.
+// The answer's lead-in text and search fold into the steps' block, and only its
+// final text shows after the summary.
 export const AnswerWorkFolds: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockWebSearchAnswerMessages),
@@ -93,12 +94,10 @@ export const AnswerWorkFoldsExpanded: Story = {
 		parsedMessages: parseMessagesWithMergedTools(MockWebSearchAnswerMessages),
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Worked for 13s (2 steps)" }),
-		);
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Worked for 2s (1 step)" }),
+			within(canvasElement).getByRole("button", {
+				name: "Worked for 15s (3 steps)",
+			}),
 		);
 	},
 };
@@ -127,7 +126,7 @@ export const UncitedSearchAnswerFoldsExpanded: Story = {
 	},
 };
 
-export const LabeledNarrationStaysVisible: Story = {
+export const LabeledNarrationFolds: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools([
 			MockWorkingMessages[0],
@@ -149,9 +148,14 @@ export const LabeledNarrationStaysVisible: Story = {
 			},
 		]),
 	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Worked for 1s" }),
+		);
+	},
 };
 
-export const LeadInBeforeSearchStaysVisible: Story = {
+export const LeadInBeforeSearchFolds: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockLeadInSearchMessages),
 	},
@@ -164,30 +168,19 @@ export const LeadInBeforeSearchStaysVisible: Story = {
 	},
 };
 
-export const TextBetweenStepsSplitsBlocks: Story = {
+export const TextBetweenStepsFolds: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools([
 			...MockWorkingMessages.slice(0, 3),
-			{
-				...MockWorkingMessages[3],
-				content: [
-					{
-						type: "text",
-						text: "The first check passed. Running the trials next.",
-					},
-					...(MockWorkingMessages[3].content ?? []),
-				],
-			},
+			MockTextBeforeSecondStepMessage,
 			...MockWorkingMessages.slice(4),
 		]),
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Worked for 3s (1 step)" }),
-		);
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Worked for 8s (1 step)" }),
+			within(canvasElement).getByRole("button", {
+				name: "Worked for 12s (2 steps)",
+			}),
 		);
 	},
 };
