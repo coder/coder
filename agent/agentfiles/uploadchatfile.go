@@ -343,7 +343,7 @@ func (api *API) writeUploadExclusivePath(dir, name string, mode uploadPublishMod
 					if !replace {
 						return candidate, candidatePath, existing.Size(), nil
 					}
-					if err := api.filesystem.Rename(tmpPath, candidatePath); err != nil {
+					if err := api.renameUpload(tmpPath, candidatePath, mode); err != nil {
 						return "", "", 0, xerrors.Errorf("replace abandoned upload placeholder: %w", err)
 					}
 					return candidate, candidatePath, n, nil
@@ -354,7 +354,7 @@ func (api *API) writeUploadExclusivePath(dir, name string, mode uploadPublishMod
 		}
 		err = placeholder.Close()
 		if err == nil {
-			err = api.filesystem.Rename(tmpPath, candidatePath)
+			err = api.renameUpload(tmpPath, candidatePath, mode)
 		}
 		if err != nil {
 			_ = api.filesystem.Remove(candidatePath)
