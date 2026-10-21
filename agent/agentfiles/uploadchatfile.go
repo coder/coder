@@ -44,6 +44,12 @@ const uploadTempMarker = ".upload-"
 // least once per uploadChatFileIdleTimeout, so older files are abandoned.
 const staleUploadTempAge = time.Hour
 
+// abandonedWriteOnceTempAge is how old a temp file in a write-once
+// upload's per-file directory must be before a finished upload of that
+// file removes it. No upload of another file sweeps that directory, and
+// the idle timeout ends an upload whose temp stops changing for longer.
+const abandonedWriteOnceTempAge = uploadChatFileIdleTimeout
+
 // deadlineExtendingReader extends the request's read and write deadlines
 // every time a chunk of the body arrives, turning the server's fixed
 // per-request timeouts into an idle timeout for streamed uploads.
@@ -140,11 +146,11 @@ func (api *API) HandleUploadChatFile(rw http.ResponseWriter, r *http.Request) {
 		target.fileID = fileID.String()
 		target.dir = chatfiles.WorkspaceUploadFileDir(home, target.chatID, target.fileID)
 	}
-	finalName, finalPath, size, err := api.writeUploadExclusiveSecure(target, name, body)
+	finalName, finalPath, size, err := api.writeUploadExclusiveSecure(ctx, target, name, body)
 	if errors.Is(err, errUploadSecureUnsupported) {
 		err = api.prepareUploadDirPath(target)
 		if err == nil {
-			finalName, finalPath, size, err = api.writeUploadExclusivePath(target.dir, name, target.mode(), body)
+			finalName, finalPath, size, err = api.writeUploadExclusivePath(ctx, target.dir, name, target.mode(), body)
 		}
 	}
 	if err != nil {
@@ -282,8 +288,15 @@ func (api *API) rejectSymlinkedUploadDir(target uploadTarget) error {
 	return nil
 }
 
-func (api *API) writeUploadExclusivePath(dir, name string, mode uploadPublishMode, r io.Reader) (finalName, finalPath string, size int64, err error) {
-	api.sweepStaleUploadTempsPath(dir)
+func (api *API) writeUploadExclusivePath(ctx context.Context, dir, name string, mode uploadPublishMode, r io.Reader) (finalName, finalPath string, size int64, err error) {
+	api.sweepUploadTempsPath(ctx, dir, staleUploadTempAge)
+	if mode == uploadPublishWriteOnce {
+		defer func() {
+			if err == nil {
+				api.sweepUploadTempsPath(ctx, dir, abandonedWriteOnceTempAge)
+			}
+		}()
+	}
 
 	// A retry of a published write-once upload is acknowledged without
 	// reading its body, which may fail or need disk space the workspace no
@@ -397,15 +410,25 @@ func (api *API) existingUploadPath(p string) (os.FileInfo, error) {
 	return info, nil
 }
 
-func (api *API) sweepStaleUploadTempsPath(dir string) {
+func (api *API) sweepUploadTempsPath(ctx context.Context, dir string, olderThan time.Duration) {
 	infos, err := afero.ReadDir(api.filesystem, dir)
 	if err != nil {
 		return
 	}
 	for _, info := range infos {
-		if isUploadTempName(info.Name()) && isStaleUploadTemp(info) {
-			_ = api.filesystem.Remove(filepath.Join(dir, info.Name()))
+		if isUploadTempName(info.Name()) && isUploadTempOlderThan(info, olderThan) {
+			api.logUploadTempRemoval(ctx, dir, info.Name(), api.filesystem.Remove(filepath.Join(dir, info.Name())))
 		}
+	}
+}
+
+func (api *API) logUploadTempRemoval(ctx context.Context, dir, name string, err error) {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		api.logger.Warn(ctx, "remove abandoned workspace chat file upload temp",
+			slog.F("dir", dir),
+			slog.F("name", name),
+			slog.Error(err),
+		)
 	}
 }
 
@@ -427,6 +450,6 @@ func isUploadTempName(name string) bool {
 	return strings.HasPrefix(name, ".") && strings.Contains(name, uploadTempMarker)
 }
 
-func isStaleUploadTemp(info os.FileInfo) bool {
-	return info.Mode().IsRegular() && time.Since(info.ModTime()) > staleUploadTempAge
+func isUploadTempOlderThan(info os.FileInfo, age time.Duration) bool {
+	return info.Mode().IsRegular() && time.Since(info.ModTime()) > age
 }
