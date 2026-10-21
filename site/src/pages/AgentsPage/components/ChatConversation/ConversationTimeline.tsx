@@ -28,7 +28,7 @@ import { TextPreviewDialog } from "../TextPreviewDialog";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
 import { FileProbeProvider } from "./FileProbeContext";
-import { FoldFocusRestorer } from "./FoldFocusRestorer";
+import { FoldFocusRestorer, foldFocusItems } from "./FoldFocusRestorer";
 import {
 	emptyLiveBlockKeys,
 	reconcileLiveBlockKeys,
@@ -59,7 +59,6 @@ import {
 	groupWorkingBlocks,
 	isAgentAttachmentOnlyRow,
 	type RowSlice,
-	rowMessageIds,
 	type WorkingBlock,
 	wholeRowItem,
 } from "./workingBlockGrouping";
@@ -794,19 +793,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					);
 				})}
 				<FoldFocusRestorer
-					items={layout.items.map((item) =>
-						item.type === "block"
-							? {
-									itemKey: getItemKey(item.block),
-									memberIds: item.block.memberIds,
-									isFold: item.block.turnKey !== undefined,
-								}
-							: {
-									itemKey: item.slice.key,
-									memberIds: rowMessageIds(renderRows[item.slice.rowIndex]),
-									isFold: false,
-								},
-					)}
+					items={foldFocusItems(layout.items, renderRows, getItemKey)}
 				/>
 			</FileProbeProvider>
 		);

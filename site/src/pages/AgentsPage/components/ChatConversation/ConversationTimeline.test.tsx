@@ -109,6 +109,21 @@ const mockNote: ChatMessage = {
 	content: [{ type: "text", text: "Found the config." }],
 };
 
+// MockWorkingMessages' second step, its result, and the answer, renumbered to
+// follow mockNote.
+const mockLiveStep: ChatMessage = { ...MockWorkingMessages[3], id: 5 };
+const mockLiveStepResult: ChatMessage = { ...MockWorkingMessages[4], id: 6 };
+const mockAnswerAfterNote: ChatMessage = { ...MockWorkingMessages[5], id: 7 };
+
+/** MockWorkingMessages' second step, called after text with a link. */
+const mockLinkBeforeSecondStep: ChatMessage = {
+	...MockWorkingMessages[3],
+	content: [
+		{ type: "text", text: "See [the trial plan](https://docs.example.com)." },
+		...(MockWorkingMessages[3].content ?? []),
+	],
+};
+
 const focusCopyCommand = (messageId: number) => {
 	const button = within(
 		screen.getByTestId(`chat-message-message:${messageId}`),
@@ -232,16 +247,7 @@ describe("ConversationTimeline working blocks", () => {
 
 	const linkSplitTurn = [
 		...MockWorkingMessages.slice(0, 3),
-		{
-			...MockTextBeforeSecondStepMessage,
-			content: [
-				{
-					type: "text",
-					text: "See [the trial plan](https://docs.example.com).",
-				},
-				...(MockWorkingMessages[3].content ?? []),
-			],
-		} satisfies ChatMessage,
+		mockLinkBeforeSecondStep,
 	];
 	const runningStage = (messages: ChatMessage[]): TimelineStage => ({
 		messages,
@@ -288,10 +294,9 @@ describe("ConversationTimeline working blocks", () => {
 			[
 				...MockWorkingMessages.slice(0, 3),
 				mockNote,
-				...MockWorkingMessages.slice(3).map((message) => ({
-					...message,
-					id: message.id + 1,
-				})),
+				mockLiveStep,
+				mockLiveStepResult,
+				mockAnswerAfterNote,
 			],
 		],
 	])(
@@ -415,7 +420,6 @@ describe("ConversationTimeline working blocks", () => {
 
 	it("keeps an open live block mounted when an older page reveals an earlier block of its turn", async () => {
 		const user = userEvent.setup();
-		const mockLiveStep: ChatMessage = { ...MockWorkingMessages[3], id: 5 };
 		const stage = (messages: ChatMessage[]): TimelineStage => ({
 			messages,
 			pendingToolCallIDs: new Set(["second"]),

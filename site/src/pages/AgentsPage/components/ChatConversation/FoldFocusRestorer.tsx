@@ -1,13 +1,39 @@
 import { Component } from "react";
+import type { TimelineRow } from "./timelineRows";
+import {
+	rowMessageIds,
+	type WorkingBlock,
+	type WorkingBlockLayout,
+} from "./workingBlockGrouping";
 
 type FocusItem = {
-	/** The item's MessageScroller message ID. */
+	/** Matches the item element's data-message-id. */
 	itemKey: string;
 	/** Persisted message IDs of the rows the item renders. */
 	memberIds: readonly number[];
 	/** A working block whose turn has ended. */
 	isFold: boolean;
 };
+
+/** The timeline's items as the restorer tracks them. */
+export const foldFocusItems = (
+	items: WorkingBlockLayout["items"],
+	rows: readonly TimelineRow[],
+	getItemKey: (block: WorkingBlock) => string,
+): FocusItem[] =>
+	items.map((item) =>
+		item.type === "block"
+			? {
+					itemKey: getItemKey(item.block),
+					memberIds: item.block.memberIds,
+					isFold: item.block.turnKey !== undefined,
+				}
+			: {
+					itemKey: item.slice.key,
+					memberIds: rowMessageIds(rows[item.slice.rowIndex]),
+					isFold: false,
+				},
+	);
 
 type FoldFocusRestorerProps = {
 	/** Every timeline item, working blocks and row slices. */
@@ -21,25 +47,23 @@ type LostFocus = {
 };
 
 /**
- * When a turn ends, its fold starts collapsed and takes in the turn's earlier
- * blocks and text, unmounting whatever the reader had focused there. This
- * focuses the summary of the fold that now holds the focused item's rows. A
- * class, so getSnapshotBeforeUpdate reads the focus before the commit.
+ * An ended turn's fold unmounts the content the reader had focused. A class,
+ * so getSnapshotBeforeUpdate reads that focus before the commit.
  */
 export class FoldFocusRestorer extends Component<FoldFocusRestorerProps> {
 	getSnapshotBeforeUpdate(previous: FoldFocusRestorerProps): LostFocus | null {
 		const control = document.activeElement;
 		const itemElement = control?.closest("[data-message-id]");
-		const source = previous.items.find(
+		const focusedItem = previous.items.find(
 			({ itemKey }) => itemKey === itemElement?.getAttribute("data-message-id"),
 		);
-		if (!control || !itemElement?.parentElement || !source) {
+		if (!control || !itemElement?.parentElement || !focusedItem) {
 			return null;
 		}
 		return {
 			control,
 			scrollerContent: itemElement.parentElement,
-			memberIds: source.memberIds,
+			memberIds: focusedItem.memberIds,
 		};
 	}
 
