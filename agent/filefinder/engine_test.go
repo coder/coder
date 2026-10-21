@@ -49,6 +49,21 @@ func TestEngine_SearchFindsKnownFile(t *testing.T) {
 	requireResultHasPath(t, results, "src/main.go")
 }
 
+func TestEngine_ResultRootAndCase(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	createFile(t, dir, "Src/MainHandler.go", "package main")
+
+	eng, ctx := newTestEngine(t)
+	require.NoError(t, eng.AddRoot(ctx, dir))
+
+	results, err := eng.Search(ctx, "mainhandler", filefinder.DefaultSearchOptions())
+	require.NoError(t, err)
+	require.NotEmpty(t, results)
+	require.Equal(t, "Src/MainHandler.go", results[0].Path)
+	require.Equal(t, dir, results[0].Root)
+}
+
 func TestEngine_SearchFuzzyMatch(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
