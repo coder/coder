@@ -44,6 +44,7 @@ export type SubmitChatTurnParams = {
 	isEditReasoningEffortDirtyRef: { current: boolean };
 	personalSkills: readonly { name: string }[] | undefined;
 	organizationSkills: readonly { name: string }[] | undefined;
+	projectSkills: readonly { name: string }[] | undefined;
 	workspaceSkills: readonly { name: string }[] | undefined;
 	compact: () => Promise<unknown>;
 	clearChatContext: () => Promise<unknown>;
@@ -257,6 +258,7 @@ export async function submitChatTurn(
 		hasModelOptions,
 		personalSkills,
 		organizationSkills,
+		projectSkills,
 		workspaceSkills,
 		compact,
 		clearChatContext,
@@ -297,6 +299,7 @@ export async function submitChatTurn(
 		? resolveChatSlashCommandAvailability(builtInCommand, [
 				{ source: "personal", skills: personalSkills },
 				{ source: "org", skills: organizationSkills },
+				{ source: "project", skills: projectSkills },
 				{ source: "workspace", skills: workspaceSkills },
 			])
 		: undefined;
