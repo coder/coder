@@ -4,13 +4,15 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 
 /**
- * The key holds only the project ID, so it matches chatProjectSkills() for
- * any organization ID.
+ * Keys a project's skill list. It holds only the project ID, so it matches
+ * chatProjectSkills() for any organization ID. It prefixes each skill's
+ * detail key, so invalidating it without `exact` also hits the details.
  */
 export const chatProjectSkillsKey = (projectId: string) =>
 	["chat-project-skills", projectId] as const;
 
-const chatProjectSkillKey = (projectId: string, name: string) =>
+/** Keys one project skill, under its project's list key. */
+export const chatProjectSkillKey = (projectId: string, name: string) =>
 	[...chatProjectSkillsKey(projectId), name] as const;
 
 /** Lists the skills of a chat project, including disabled ones. */
