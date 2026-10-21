@@ -19264,12 +19264,11 @@ func TestGetOrganizationAIProviderModelPrice(t *testing.T) {
 func TestUpsertOrganizationAIProviderModelPrice(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitShort)
 	db, _ := dbtestutil.NewDB(t)
 	org := dbgen.Organization(t, db, database.Organization{})
 	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
 
-	get := func(model string) database.AIModelConfig {
+	get := func(ctx context.Context, t *testing.T, model string) database.AIModelConfig {
 		t.Helper()
 		got, err := db.GetOrganizationAIProviderModelPrice(ctx, database.GetOrganizationAIProviderModelPriceParams{
 			OrganizationID: org.ID, ProviderID: provider.ID, Model: model,
@@ -19282,20 +19281,20 @@ func TestUpsertOrganizationAIProviderModelPrice(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "identical", 1)
-		before := get("identical")
+		before := get(ctx, t, "identical")
 
 		upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "identical", 1)
-		require.Equal(t, before, get("identical"))
+		require.Equal(t, before, get(ctx, t, "identical"))
 	})
 
 	t.Run("ChangedPricesAdvanceUpdatedAt", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "changed", 1)
-		before := get("changed")
+		before := get(ctx, t, "changed")
 
 		upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "changed", 2)
-		after := get("changed")
+		after := get(ctx, t, "changed")
 		require.Equal(t, int64(2), after.InputPrice.Int64)
 		require.Equal(t, before.CreatedAt, after.CreatedAt)
 		require.True(t, after.UpdatedAt.After(before.UpdatedAt), "updated_at must advance")
