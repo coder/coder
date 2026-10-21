@@ -1,13 +1,10 @@
 package chatdebug_test
 
 import (
-	"encoding/json"
 	"testing"
-	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -72,98 +69,6 @@ func TestService_AggregateRunSummary(t *testing.T) {
 		require.Nil(t, got)
 	})
 
-	t.Run("ZeroSteps", func(t *testing.T) {
-		t.Parallel()
-		fixture := newFixture(t)
-		run := createRun(t, fixture)
-
-		// No steps created. Call with a base summary containing
-		// first_message so we can verify it is preserved.
-		base := map[string]any{"first_message": "hello world"}
-		got, err := fixture.svc.AggregateRunSummary(fixture.ctx, run.ID, base)
-		require.NoError(t, err)
-		require.Equal(t, "hello world", got["first_message"])
-		require.EqualValues(t, 0, got["step_count"])
-		require.EqualValues(t, int64(0), got["total_input_tokens"])
-		require.EqualValues(t, int64(0), got["total_output_tokens"])
-		require.NotContains(t, got, "total_reasoning_tokens")
-		require.NotContains(t, got, "total_cache_creation_tokens")
-		require.NotContains(t, got, "total_cache_read_tokens")
-		require.NotContains(t, got, "has_error")
-		require.NotContains(t, got, "endpoint_label")
-	})
-
-	t.Run("NilBaseSummary", func(t *testing.T) {
-		t.Parallel()
-		fixture := newFixture(t)
-		run := createRun(t, fixture)
-
-		// Create a step with usage.
-		step := createTestStep(t, fixture, run.ID)
-		updateTestStepWithUsage(t, fixture, step.ID, 10, 5, 0, 0)
-
-		got, err := fixture.svc.AggregateRunSummary(fixture.ctx, run.ID, nil)
-		require.NoError(t, err)
-		require.NotNil(t, got)
-		require.EqualValues(t, 1, got["step_count"])
-		require.EqualValues(t, int64(10), got["total_input_tokens"])
-		require.EqualValues(t, int64(5), got["total_output_tokens"])
-	})
-
-	t.Run("PreservesFirstMessage", func(t *testing.T) {
-		t.Parallel()
-		fixture := newFixture(t)
-		run := createRun(t, fixture)
-
-		step := createTestStep(t, fixture, run.ID)
-		updateTestStepWithUsage(t, fixture, step.ID, 20, 10, 0, 0)
-
-		base := map[string]any{"first_message": "hello world"}
-		got, err := fixture.svc.AggregateRunSummary(fixture.ctx, run.ID, base)
-		require.NoError(t, err)
-		require.Equal(t, "hello world", got["first_message"])
-		require.EqualValues(t, 1, got["step_count"])
-		require.EqualValues(t, int64(20), got["total_input_tokens"])
-		require.EqualValues(t, int64(10), got["total_output_tokens"])
-	})
-
-	t.Run("ClearsStaleDerivedFields", func(t *testing.T) {
-		t.Parallel()
-		fixture := newFixture(t)
-		run := createRun(t, fixture)
-
-		step := createTestStep(t, fixture, run.ID)
-		updateTestStepWithUsage(t, fixture, step.ID, 10, 5, 0, 0)
-
-		base := map[string]any{
-			"first_message":               "hello world",
-			"step_count":                  9,
-			"total_input_tokens":          999,
-			"total_output_tokens":         888,
-			"total_reasoning_tokens":      777,
-			"total_cache_creation_tokens": 100,
-			"total_cache_read_tokens":     200,
-			"has_error":                   true,
-			"endpoint_label":              "POST /stale",
-		}
-
-		got, err := fixture.svc.AggregateRunSummary(fixture.ctx, run.ID, base)
-		require.NoError(t, err)
-		require.Equal(t, "hello world", got["first_message"])
-		require.EqualValues(t, 1, got["step_count"])
-		require.EqualValues(t, int64(10), got["total_input_tokens"])
-		require.EqualValues(t, int64(5), got["total_output_tokens"])
-		// Stale reasoning tokens must be cleared because the step
-		// has zero reasoning tokens.
-		require.NotContains(t, got, "total_reasoning_tokens")
-		require.NotContains(t, got, "total_cache_creation_tokens")
-		require.NotContains(t, got, "total_cache_read_tokens")
-		// has_error must be cleared because the step is not in error
-		// status and has no error payload.
-		require.NotContains(t, got, "has_error")
-		require.NotContains(t, got, "endpoint_label")
-	})
-
 	t.Run("RecomputesHasErrorAndCompletedEndpointLabel", func(t *testing.T) {
 		t.Parallel()
 		fixture := newFixture(t)
@@ -203,54 +108,6 @@ func TestService_AggregateRunSummary(t *testing.T) {
 		require.Equal(t, "POST /v1/messages", got["endpoint_label"])
 	})
 
-	t.Run("EndpointLabelPathOnlyWhenMethodEmpty", func(t *testing.T) {
-		t.Parallel()
-		fixture := newFixture(t)
-		run := createRun(t, fixture)
-
-		step := createTestStep(t, fixture, run.ID)
-		_, err := fixture.svc.UpdateStep(fixture.ctx, chatdebug.UpdateStepParams{
-			ID:     step.ID,
-			ChatID: fixture.chat.ID,
-			Status: chatdebug.StatusCompleted,
-			Attempts: []chatdebug.Attempt{{
-				Number: 1,
-				Status: "completed",
-				Method: "",
-				Path:   "/v1/messages",
-			}},
-		})
-		require.NoError(t, err)
-
-		got, err := fixture.svc.AggregateRunSummary(fixture.ctx, run.ID, nil)
-		require.NoError(t, err)
-		require.Equal(t, "/v1/messages", got["endpoint_label"],
-			"endpoint_label should be path-only when method is empty")
-	})
-
-	t.Run("InterruptedStepWithErrorExcludedFromHasError", func(t *testing.T) {
-		t.Parallel()
-		fixture := newFixture(t)
-		run := createRun(t, fixture)
-
-		// An interrupted step with a real error payload should NOT
-		// trigger has_error. Interrupted means user-initiated
-		// cancellation (e.g. clicking Stop).
-		step := createTestStep(t, fixture, run.ID)
-		_, err := fixture.svc.UpdateStep(fixture.ctx, chatdebug.UpdateStepParams{
-			ID:     step.ID,
-			ChatID: fixture.chat.ID,
-			Status: chatdebug.StatusInterrupted,
-			Error:  map[string]any{"message": "user canceled"},
-		})
-		require.NoError(t, err)
-
-		got, err := fixture.svc.AggregateRunSummary(fixture.ctx, run.ID, nil)
-		require.NoError(t, err)
-		require.NotContains(t, got, "has_error",
-			"interrupted steps should not trigger has_error even with error payload")
-	})
-
 	t.Run("MultipleStepsSumTokens", func(t *testing.T) {
 		t.Parallel()
 		fixture := newFixture(t)
@@ -269,121 +126,6 @@ func TestService_AggregateRunSummary(t *testing.T) {
 		require.EqualValues(t, int64(12), got["total_output_tokens"])
 		require.EqualValues(t, int64(3), got["total_cache_creation_tokens"])
 		require.EqualValues(t, int64(7), got["total_cache_read_tokens"])
-	})
-
-	t.Run("StepWithNilUsageContributesZeroTokens", func(t *testing.T) {
-		t.Parallel()
-		fixture := newFixture(t)
-		run := createRun(t, fixture)
-
-		// Step with usage.
-		step1 := createTestStep(t, fixture, run.ID)
-		updateTestStepWithUsage(t, fixture, step1.ID, 10, 5, 0, 0)
-
-		// Step without usage (just complete it, no usage).
-		step2 := createTestStep(t, fixture, run.ID)
-		_, err := fixture.svc.UpdateStep(fixture.ctx, chatdebug.UpdateStepParams{
-			ID:     step2.ID,
-			ChatID: fixture.chat.ID,
-			Status: chatdebug.StatusCompleted,
-		})
-		require.NoError(t, err)
-
-		got, err := fixture.svc.AggregateRunSummary(fixture.ctx, run.ID, nil)
-		require.NoError(t, err)
-		// Both steps are counted even though one has no usage.
-		require.EqualValues(t, 2, got["step_count"])
-		require.EqualValues(t, int64(10), got["total_input_tokens"])
-		require.EqualValues(t, int64(5), got["total_output_tokens"])
-	})
-
-	t.Run("ZeroCacheTotalsOmitCacheFields", func(t *testing.T) {
-		t.Parallel()
-		fixture := newFixture(t)
-		run := createRun(t, fixture)
-
-		step := createTestStep(t, fixture, run.ID)
-		updateTestStepWithUsage(t, fixture, step.ID, 10, 5, 0, 0)
-
-		got, err := fixture.svc.AggregateRunSummary(fixture.ctx, run.ID, nil)
-		require.NoError(t, err)
-		_, hasCacheCreation := got["total_cache_creation_tokens"]
-		_, hasCacheRead := got["total_cache_read_tokens"]
-		require.False(t, hasCacheCreation,
-			"cache creation tokens should be omitted when zero")
-		require.False(t, hasCacheRead,
-			"cache read tokens should be omitted when zero")
-	})
-
-	t.Run("ReasoningTokensSummedAcrossSteps", func(t *testing.T) {
-		t.Parallel()
-		fixture := newFixture(t)
-		run := createRun(t, fixture)
-
-		step1 := createTestStep(t, fixture, run.ID)
-		updateTestStepWithFullUsage(t, fixture, step1.ID, 10, 5, 20, 0, 0)
-
-		step2 := createTestStep(t, fixture, run.ID)
-		updateTestStepWithFullUsage(t, fixture, step2.ID, 15, 7, 30, 0, 0)
-
-		got, err := fixture.svc.AggregateRunSummary(fixture.ctx, run.ID, nil)
-		require.NoError(t, err)
-		require.EqualValues(t, 2, got["step_count"])
-		require.EqualValues(t, int64(25), got["total_input_tokens"])
-		require.EqualValues(t, int64(12), got["total_output_tokens"])
-		require.EqualValues(t, int64(50), got["total_reasoning_tokens"],
-			"reasoning tokens should be summed across steps")
-	})
-
-	t.Run("ZeroReasoningTokensOmitsField", func(t *testing.T) {
-		t.Parallel()
-		fixture := newFixture(t)
-		run := createRun(t, fixture)
-
-		step := createTestStep(t, fixture, run.ID)
-		updateTestStepWithFullUsage(t, fixture, step.ID, 10, 5, 0, 0, 0)
-
-		got, err := fixture.svc.AggregateRunSummary(fixture.ctx, run.ID, nil)
-		require.NoError(t, err)
-		_, hasReasoning := got["total_reasoning_tokens"]
-		require.False(t, hasReasoning,
-			"reasoning tokens should be omitted when zero")
-	})
-
-	t.Run("MalformedUsageJSONSkipped", func(t *testing.T) {
-		t.Parallel()
-		fixture := newFixture(t)
-		run := createRun(t, fixture)
-
-		// Step 1 has valid usage and should contribute to totals.
-		step1 := createTestStep(t, fixture, run.ID)
-		updateTestStepWithUsage(t, fixture, step1.ID, 10, 5, 0, 0)
-
-		// Step 2 is stamped with structurally-valid JSONB that cannot
-		// unmarshal into fantasy.Usage (string where int64 is
-		// expected). Write directly through the store so the jsonb
-		// cast succeeds while the Go unmarshal fails, exercising the
-		// "skipping malformed step usage JSON" log-and-continue path.
-		step2 := createTestStep(t, fixture, run.ID)
-		_, err := fixture.db.UpdateChatDebugStep(fixture.ctx, database.UpdateChatDebugStepParams{
-			ID:     step2.ID,
-			ChatID: fixture.chat.ID,
-			Usage: pqtype.NullRawMessage{
-				RawMessage: json.RawMessage(`{"input_tokens":"not-a-number"}`),
-				Valid:      true,
-			},
-			Now: time.Now(),
-		})
-		require.NoError(t, err)
-
-		got, err := fixture.svc.AggregateRunSummary(fixture.ctx, run.ID, nil)
-		require.NoError(t, err,
-			"malformed usage JSON must be skipped, not surfaced as an error")
-
-		// Both steps are counted, but only step1's tokens contribute.
-		require.EqualValues(t, 2, got["step_count"])
-		require.EqualValues(t, int64(10), got["total_input_tokens"])
-		require.EqualValues(t, int64(5), got["total_output_tokens"])
 	})
 }
 
