@@ -8,7 +8,7 @@ import type React from "react";
 import { useState } from "react";
 import { getChatFileURL } from "../../../utils/chatAttachments";
 import { useFileProbes } from "../../ChatConversation/FileProbeContext";
-import { useLightbox } from "../../LightboxHost";
+import { LightboxSlot, useLightbox } from "../../LightboxHost";
 import { VideoLightbox } from "../../VideoLightbox";
 import {
 	DEFAULT_ASPECT,
@@ -101,7 +101,7 @@ export const RecordingPreview: React.FC<RecordingPreviewProps> = ({
 					<PlayIcon className="size-5 text-white" />
 				</span>
 			</button>
-			{lightbox}
+			<LightboxSlot lightbox={lightbox} />
 		</div>
 	);
 };

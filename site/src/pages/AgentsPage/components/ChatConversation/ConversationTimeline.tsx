@@ -24,7 +24,7 @@ import { Message, MessageContent } from "../ChatElements/Message";
 import { Response } from "../ChatElements/Response";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ImageLightbox } from "../ImageLightbox";
-import { LightboxHost, useLightbox } from "../LightboxHost";
+import { LightboxHost, LightboxSlot, useLightbox } from "../LightboxHost";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
@@ -440,7 +440,7 @@ const ChatMessageItem = memo<{
 				{displayState?.needsAssistantBottomSpacer && !isLastMessage && (
 					<div className="min-h-6" data-testid="assistant-bottom-spacer" />
 				)}
-				{lightbox}
+				<LightboxSlot lightbox={lightbox} />
 			</div>
 		);
 	},

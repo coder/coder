@@ -2,6 +2,9 @@ import { createContext, useContext, useState } from "react";
 
 type RenderLightbox = (close: () => void) => React.ReactNode;
 
+/** An open lightbox and the function that closes it. */
+type OpenLightbox = { render: RenderLightbox; close: () => void };
+
 const LightboxHostContext = createContext<
 	((render: RenderLightbox) => void) | undefined
 >(undefined);
@@ -15,14 +18,18 @@ const useLightboxSlot = () => {
 	return {
 		openLightbox: (render: RenderLightbox) =>
 			setOpen((current) => current ?? { render }),
-		lightbox: open?.render(() => setOpen(null)),
+		lightbox: open && { render: open.render, close: () => setOpen(null) },
 	};
 };
 
+/** Renders the lightbox {@link useLightbox} returned, if one is open. */
+export const LightboxSlot: React.FC<{ lightbox: OpenLightbox | null }> = ({
+	lightbox,
+}) => lightbox?.render(lightbox.close);
+
 /**
  * Renders the lightbox a descendant opens with {@link useLightbox}, so it
- * stays open while the content that opened it unmounts, as when a finished
- * turn folds into one collapsed block.
+ * stays open while the content that opened it unmounts.
  */
 export const LightboxHost: React.FC<React.PropsWithChildren> = ({
 	children,
@@ -31,14 +38,14 @@ export const LightboxHost: React.FC<React.PropsWithChildren> = ({
 	return (
 		<LightboxHostContext value={openLightbox}>
 			{children}
-			{lightbox}
+			<LightboxSlot lightbox={lightbox} />
 		</LightboxHostContext>
 	);
 };
 
 /**
  * Opens a lightbox in the nearest {@link LightboxHost}. Outside one, the
- * caller renders the returned `lightbox` itself.
+ * caller renders the returned `lightbox` in a {@link LightboxSlot}.
  */
 export const useLightbox = () => {
 	const openInHost = useContext(LightboxHostContext);

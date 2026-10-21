@@ -1,5 +1,5 @@
 import { ImageLightbox } from "../../ImageLightbox";
-import { useLightbox } from "../../LightboxHost";
+import { LightboxSlot, useLightbox } from "../../LightboxHost";
 
 export const ToolResultImage: React.FC<{
 	data: string;
@@ -28,7 +28,7 @@ export const ToolResultImage: React.FC<{
 					/>
 				</button>
 			</div>
-			{lightbox}
+			<LightboxSlot lightbox={lightbox} />
 		</>
 	);
 };

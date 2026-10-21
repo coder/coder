@@ -1,5 +1,6 @@
 import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 import { Response } from "./ChatElements/Response";
+import { LightboxHost } from "./LightboxHost";
 
 type TextPreviewDialogProps = {
 	content: string;
@@ -50,8 +51,11 @@ export const TextPreviewDialog: React.FC<TextPreviewDialogProps> = ({
 					{renderAsMarkdown ? (
 						// Reuse the same Markdown renderer used for chat messages
 						// so attached markdown previews look consistent with the
-						// rest of the conversation.
-						<Response className="max-w-3xl">{content}</Response>
+						// rest of the conversation. This dialog can fill its
+						// opener's lightbox host, so its diagrams get their own.
+						<LightboxHost>
+							<Response className="max-w-3xl">{content}</Response>
+						</LightboxHost>
 					) : (
 						<pre className="whitespace-pre-wrap wrap-break-word text-sm text-content-primary font-mono m-0">
 							{content}

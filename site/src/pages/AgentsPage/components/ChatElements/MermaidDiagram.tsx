@@ -7,7 +7,7 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { useTheme } from "#/theme/context";
 import { generateUUID } from "#/utils/random";
 import { Lightbox } from "../Lightbox";
-import { useLightbox } from "../LightboxHost";
+import { LightboxSlot, useLightbox } from "../LightboxHost";
 
 type RenderState =
 	| { status: "pending" }
@@ -200,7 +200,7 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 					<Maximize2Icon className="size-3.5" />
 				</span>
 			</button>
-			{lightbox}
+			<LightboxSlot lightbox={lightbox} />
 		</>
 	);
 };
