@@ -51,13 +51,13 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { belowLgViewportMediaQuery } from "#/utils/mobile";
-import AgentChatPage from "./AgentChatPage";
-import type { AgentsPageOutletContext } from "./AgentsPageLayout";
+import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import {
 	buildLongConversation,
 	MockWorkingMessages,
-} from "./components/ChatConversation/storyFixtures";
-import { RIGHT_PANEL_OPEN_KEY } from "./components/RightPanel/RightPanel";
+} from "../components/ChatConversation/storyFixtures";
+import { RIGHT_PANEL_OPEN_KEY } from "../components/RightPanel/RightPanel";
+import AgentChatPage from "./AgentChatPage";
 
 // ---------------------------------------------------------------------------
 // Layout wrapper: provides outlet context for the child route.

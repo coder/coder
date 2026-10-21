@@ -1,6 +1,6 @@
 import { Outlet, useLocation } from "react-router";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
-import { AgentPageHeader } from "./components/AgentPageHeader";
+import { AgentPageHeader } from "../components/AgentPageHeader";
 
 const AgentSettingsLayout: React.FC = () => {
 	const location = useLocation();

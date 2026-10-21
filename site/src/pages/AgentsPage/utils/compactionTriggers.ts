@@ -3,7 +3,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import {
 	filterModelsWithEnabledProvider,
 	type ProviderInfo,
-} from "./utils/modelOptions";
+} from "./modelOptions";
 
 export type CompactionTrigger = {
 	readonly thresholdPercent: number;

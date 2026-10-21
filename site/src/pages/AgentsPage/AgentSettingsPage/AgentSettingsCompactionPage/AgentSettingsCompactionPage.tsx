@@ -7,13 +7,13 @@ import {
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { AgentSettingsCompactionPageView } from "./AgentSettingsCompactionPageView";
-import { resolveCompactionTriggersByOrganization } from "./compactionTriggers";
-import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
+import { useOrganizationChatModels } from "../../hooks/useOrganizationChatModels";
+import { resolveCompactionTriggersByOrganization } from "../../utils/compactionTriggers";
 import {
 	providerInfoByIDFromDescriptors,
 	providerTypeByIDFromUserConfigs,
-} from "./utils/modelOptions";
+} from "../../utils/modelOptions";
+import { AgentSettingsCompactionPageView } from "./AgentSettingsCompactionPageView";
 
 const AgentSettingsCompactionPage: React.FC = () => {
 	const queryClient = useQueryClient();
