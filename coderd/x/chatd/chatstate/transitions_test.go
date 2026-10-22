@@ -1063,9 +1063,9 @@ func TestTransitionAcquire_ExecutionStateOrthogonal(t *testing.T) {
 }
 
 // TestQueueAdvanceKeepsLastError checks that promoting the queue head
-// when a turn or an interruption ends keeps last_error: only leaving
-// error clears it. No transition sets last_error on a running or
-// interrupting chat, so the test writes it directly.
+// when a turn or an interruption ends keeps the chat's last_error. No
+// transition sets last_error on a running or interrupting chat, so the
+// test writes it directly.
 func TestQueueAdvanceKeepsLastError(t *testing.T) {
 	t.Parallel()
 	lastError := pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"message":"kept"}`), Valid: true}
