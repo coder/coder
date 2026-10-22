@@ -128,7 +128,11 @@ func (api *API) Close() error {
 // agent user's home directory; they are skipped if it is unknown.
 func (api *API) getIgnorer() *filefinder.Ignorer {
 	api.ignorerOnce.Do(func() {
-		home, _ := api.envInfo.HomeDir()
+		home, err := api.envInfo.HomeDir()
+		if err != nil {
+			api.logger.Warn(context.Background(), "home directory unknown, skipping global gitignore excludes in the fallback", slog.Error(err))
+			home = ""
+		}
 		api.ignorer = filefinder.NewIgnorer(api.filesystem, home,
 			filefinder.WithGit(api.execer, "git"),
 			filefinder.WithIgnorerLogger(api.logger.Named("gitignore")),
