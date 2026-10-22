@@ -368,6 +368,30 @@ export const TurnAttachmentsPillViewTextDeleted: Story = {
 	play: viewFindingsFile,
 };
 
+// A view that finds the file deleted also expires its tile in the steps.
+export const TurnAttachmentsPillViewTextDeletedBlockExpanded: Story = {
+	beforeEach: () => {
+		const mockNotFound = mockApiError({ message: "File not found." });
+		spyOn(API.experimental, "getChatFileText").mockRejectedValue({
+			...mockNotFound,
+			response: { ...mockNotFound.response, status: 404 },
+		});
+	},
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+	},
+	play: async (context) => {
+		await viewFindingsFile(context);
+		await screen.findByRole("img", { name: "Attachment expired: findings.md" });
+		await userEvent.keyboard("{Escape}");
+		await userEvent.click(
+			within(context.canvasElement).getByRole("button", {
+				name: "Worked for 7s (4 steps)",
+			}),
+		);
+	},
+};
+
 export const TurnAttachmentsPillViewEmptyText: Story = {
 	parameters: {
 		queries: [

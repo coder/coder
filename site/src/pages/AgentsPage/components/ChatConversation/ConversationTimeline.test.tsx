@@ -538,30 +538,6 @@ describe("ConversationTimeline turn attachments", () => {
 			).toHaveFocus(),
 		);
 	});
-
-	it("expires a text file in its turn's steps once its view finds it deleted", async () => {
-		const user = userEvent.setup();
-		server.use(
-			http.get(
-				"/api/v2/chats/files/:fileId",
-				() => new HttpResponse(null, { status: 404 }),
-			),
-		);
-		renderTimeline({ messages: MockMixedAttachmentMessages });
-		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
-		await user.click(
-			await screen.findByRole("button", { name: "findings.md View file" }),
-		);
-		await screen.findByRole("img", { name: "Attachment expired: findings.md" });
-		await user.keyboard("{Escape}");
-		await user.click(
-			screen.getByRole("button", { name: "Worked for 7s (4 steps)" }),
-		);
-
-		expect(
-			screen.getByRole("img", { name: "Attachment expired" }),
-		).toBeInTheDocument();
-	});
 });
 
 describe("ConversationTimeline live working blocks", () => {

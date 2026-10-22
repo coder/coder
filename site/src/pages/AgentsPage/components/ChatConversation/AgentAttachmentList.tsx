@@ -224,10 +224,7 @@ type AgentAttachmentListProps = {
 	isExpired: (fileId: string) => boolean;
 };
 
-/**
- * Cards for agent attachments. Only stored files can be expired, since inline
- * attachments carry no file ID.
- */
+/** Only stored files can be expired: inline attachments carry no file ID. */
 export const AgentAttachmentList: React.FC<AgentAttachmentListProps> = ({
 	attachments,
 	isExpired,
