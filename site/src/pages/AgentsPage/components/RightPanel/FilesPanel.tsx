@@ -476,8 +476,11 @@ const DirectoryTree: React.FC<DirectoryTreeProps> = ({
 								aria-expanded={entry.is_dir ? isExpanded : undefined}
 								tabIndex={path === tabStopPath ? 0 : -1}
 								className={cn(
-									"flex cursor-pointer items-center gap-1 rounded-sm py-1 pr-2 text-content-primary outline-none",
+									"flex cursor-pointer items-center gap-1 rounded-sm py-1 pr-2 outline-none",
 									"hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
+									entry.ignored
+										? "text-content-disabled"
+										: "text-content-primary",
 								)}
 								style={{ paddingLeft: `${(row.level - 1) * 12 + 4}px` }}
 								onFocus={() => setFocusedPath(path)}
