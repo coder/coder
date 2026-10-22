@@ -247,6 +247,15 @@ export const DeleteSkillDialog: React.FC<DialogProps<SkillDeleteState>> = ({
 	);
 };
 
+const SkillNameCell: React.FC<{ skill: SkillMetadata }> = ({ skill }) => (
+	<TableCell className="max-w-48" title={skill.name}>
+		<div className="flex items-center gap-1.5">
+			<span className="truncate">{skill.name}</span>
+			{!skill.model_invocable && <Badge size="xs">Manual only</Badge>}
+		</div>
+	</TableCell>
+);
+
 export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	scope,
 	skills,
@@ -383,16 +392,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 					) : (
 						skills.map((skill) => (
 							<TableRow key={skill.id}>
-								<TableCell className="max-w-48" title={skill.name}>
-									<div className="flex items-center gap-1.5">
-										<span className="truncate">{skill.name}</span>
-										{!skill.model_invocable && (
-											<Badge size="xs" className="shrink-0">
-												Manual only
-											</Badge>
-										)}
-									</div>
-								</TableCell>
+								<SkillNameCell skill={skill} />
 								<TableCell
 									className="w-full max-w-0 truncate"
 									title={skill.description || undefined}

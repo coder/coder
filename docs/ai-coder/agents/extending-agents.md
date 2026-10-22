@@ -301,7 +301,7 @@ Turn it off to keep agents from loading the skill on their own, so it runs only 
 Skill lists mark these skills **Manual only**.
 The agent's list of skills leaves them out, and `read_skill` reports that the skill was not found.
 
-When you create a skill by importing a `SKILL.md` file with `disable-model-invocation: true` in its frontmatter, the switch starts off.
+Importing a `SKILL.md` file with `disable-model-invocation: true` in its frontmatter turns the switch off.
 Downloading or exporting a manual-only skill adds that line back, so Claude Code, Cursor, and VS Code also treat the file as manual-only.
 
 In the API, the switch is the `model_invocable` field.

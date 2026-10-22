@@ -304,6 +304,16 @@ export const withDisabledModelInvocation = (content: string): string => {
 		: marked;
 };
 
+/**
+ * Returns the SKILL.md file to download for a skill. Manual-only skills get
+ * `disable-model-invocation: true`, so Claude Code, Cursor, and VS Code treat
+ * the file as manual-only too, and re-importing it keeps the setting.
+ */
+export const skillFileContent = (skill: Skill): string =>
+	skill.model_invocable
+		? skill.content
+		: withDisabledModelInvocation(skill.content);
+
 export const getSkillContentSizeBytes = (content: string): number =>
 	textEncoder.encode(content).length;
 

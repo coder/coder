@@ -12,8 +12,8 @@ import {
 	type SkillAccess,
 	type SkillsCopy,
 	type SkillsScope,
+	skillFileContent,
 	skillFormValuesFromSkill,
-	withDisabledModelInvocation,
 } from "../utils/skills";
 import type { SectionHeaderLevel } from "./SectionHeader";
 import type { SkillErrorDisplay } from "./SkillEditor";
@@ -200,16 +200,8 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 		},
 	});
 
-	// Downloads mark manual-only skills in the frontmatter, so the file keeps
-	// the setting in other agents and when it is uploaded again.
 	const fetchSkillContent = (name: string): Promise<string> =>
-		queryClient
-			.fetchQuery(scope.detail(name))
-			.then((detail) =>
-				detail.model_invocable
-					? detail.content
-					: withDisabledModelInvocation(detail.content),
-			);
+		queryClient.fetchQuery(scope.detail(name)).then(skillFileContent);
 
 	const downloadMutation = useMutation({
 		mutationFn: (name: string) => downloadSkillFile(name, fetchSkillContent),

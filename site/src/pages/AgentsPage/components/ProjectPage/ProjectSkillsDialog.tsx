@@ -41,8 +41,8 @@ import {
 	SKILLS_MAX_PER_OWNER,
 	type SkillFormValues,
 	type SkillsScope,
+	skillFileContent,
 	skillFormValuesFromSkill,
-	withDisabledModelInvocation,
 } from "../../utils/skills";
 import { RetryButton } from "../RetryButton";
 import {
@@ -125,13 +125,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 	const downloadMutation = useMutation({
 		mutationFn: (name: string) =>
 			downloadSkillFile(name, (skillName) =>
-				queryClient
-					.fetchQuery(scope.detail(skillName))
-					.then((skill) =>
-						skill.model_invocable
-							? skill.content
-							: withDisabledModelInvocation(skill.content),
-					),
+				queryClient.fetchQuery(scope.detail(skillName)).then(skillFileContent),
 			),
 		onError: (error) => {
 			toast.error(getErrorMessage(error, `Failed to download ${NOUN}.`), {
@@ -484,7 +478,7 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 				/>
 				<SkillEditorFields>
 					<SkillEditorSubmitError error={submitError} />
-					{canEdit && <SkillEditorImport resetsModelInvocable />}
+					{canEdit && <SkillEditorImport />}
 					<SkillEditorNameField hint="Lowercase letters, numbers, and hyphens." />
 					<SkillEditorDescriptionField />
 					<SkillEditorProjectSettings />
