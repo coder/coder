@@ -371,8 +371,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const availableBrowserApp = getAgentBrowserApp(workspaceAgent);
 
 	const singletonTabSupport: Record<SingletonRightPanelTabId, boolean> = {
-		// FilesPanel shows its own state when the workspace has no agent.
-		files: Boolean(workspaceFilesEnabled),
 		browser: availableBrowserApp !== undefined,
 		desktop: availableDesktopChatId !== undefined,
 		debug: debugLoggingEnabled === true,
@@ -695,7 +693,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										canSubmitChatTurn ? onImplementPlan : undefined
 									}
 									onSendAskUserQuestionResponse={
-										canSubmitChatTurn ? onSendAskUserQuestionResponse : undefined
+										canSubmitChatTurn
+											? onSendAskUserQuestionResponse
+											: undefined
 									}
 									footer={
 										chat.queued_for_capacity ? (
@@ -717,7 +717,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 											isOtherUserReadOnly ? undefined : handleEditQueuedMessage
 										}
 										onEndQueuedMessageEdit={
-											isOtherUserReadOnly ? undefined : handleEndQueuedMessageEdit
+											isOtherUserReadOnly
+												? undefined
+												: handleEndQueuedMessageEdit
 										}
 										onInterrupt={handleInterrupt}
 										isInputDisabled={isInputDisabled}
@@ -807,6 +809,13 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								/>
 							</SidebarTab>
 
+							{/* FilesPanel shows its own state when the workspace has no agent. */}
+							{workspaceFilesEnabled && (
+								<SidebarTab id="files" label="Files">
+									<FilesPanel chatId={agentId} />
+								</SidebarTab>
+							)}
+
 							<SidebarTab id="git" label="Git">
 								<GitPanel
 									chatId={agentId}
@@ -822,16 +831,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									chatInputRef={editing.chatInputRef}
 								/>
 							</SidebarTab>
-
-							{isSingletonTabShown("files") && (
-								<SidebarTab
-									id="files"
-									label="Files"
-									onClose={(next) => handleCloseTab("files", next)}
-								>
-									<FilesPanel chatId={agentId} />
-								</SidebarTab>
-							)}
 
 							{isSingletonTabShown("debug") && (
 								<SidebarTab
