@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { findFilePathMentions, parseFilePathMention } from "./filePathMentions";
+import {
+	findFilePathCandidates,
+	findFilePathMentions,
+	getFilePathCandidateStarts,
+	isWholeFilePathCandidate,
+	parseFilePathMention,
+	verifyFilePath,
+} from "./filePathMentions";
 
 describe("parseFilePathMention", () => {
 	it.each([
@@ -85,5 +92,125 @@ describe("findFilePathMentions", () => {
 		expect(findFilePathMentions("at coderd/chat.go:120:5.")).toEqual([
 			{ path: "coderd/chat.go", line: 120, start: 3, end: 23 },
 		]);
+	});
+});
+
+describe("findFilePathCandidates", () => {
+	const candidateText = (text: string) =>
+		findFilePathCandidates(text).map(({ start, end }) =>
+			text.slice(start, end),
+		);
+
+	it.each([
+		["Open /path/to/file (2).txt now", ["/path/to/file (2).txt now"]],
+		["In /home/coder/my dir/a.ts.\nNext line", ["/home/coder/my dir/a.ts."]],
+		["Edit src/my dir/a.ts please", ["src/my dir/a.ts please"]],
+		["See ~/My Documents/x.md", ["~/My Documents/x.md"]],
+		["Edit site/src/a.ts and b.go", ["site/src/a.ts and b.go"]],
+		["Edit a.ts and b.go", []],
+		["Ends with /home/coder/a.ts", []],
+		["Ends with /home/coder/a.ts\nnext", []],
+		["Visit https://example.com/my page", []],
+		["Visit example.com/my page", []],
+		["Edit C:/Users/my dir/a.ts", []],
+		["Two /a/b c\n/d/e f", ["/a/b c", "/d/e f"]],
+	])("finds candidates in %j", (text, expected) => {
+		expect(candidateText(text)).toEqual(expected);
+	});
+
+	it("caps the tail and covers a mention it overlaps", () => {
+		const text = `/a/b ${"x".repeat(155)} c/d.go end`;
+		expect(candidateText(text)).toEqual([text.slice(0, text.length - 4)]);
+	});
+});
+
+describe("isWholeFilePathCandidate", () => {
+	it.each([
+		["/path/to/file (2).txt", true],
+		["my dir/a.ts", true],
+		["~/My Documents/x.md", true],
+		["/home/coder/a.ts", false],
+		["git status", false],
+		['git commit -m "fix/thing x"', false],
+		["curl https://example.com/a b", false],
+	])("classifies %j", (text, expected) => {
+		expect(isWholeFilePathCandidate(text)).toBe(expected);
+	});
+});
+
+describe("getFilePathCandidateStarts", () => {
+	it.each([
+		["/path/to/file (2).txt", [], [{ directory: "/path/to", offset: 9 }]],
+		["/file (2).txt", [], [{ directory: "/", offset: 1 }]],
+		["~/My Documents/x.md", [], [{ directory: "~", offset: 2 }]],
+		["~/a/my dir/x.md", [], [{ directory: "~/a", offset: 4 }]],
+		[
+			"src/my dir/a.ts",
+			["/r1", "/r2/"],
+			[
+				{ directory: "/r1/src", offset: 4 },
+				{ directory: "/r2/src", offset: 4 },
+			],
+		],
+		["my dir/a.ts", [], [{ directory: "", offset: 0 }]],
+		["src/my dir/a.ts", [], [{ directory: "src", offset: 4 }]],
+	])("starts %j in %j", (text, roots, expected) => {
+		expect(getFilePathCandidateStarts(text, roots)).toEqual(expected);
+	});
+});
+
+describe("verifyFilePath", () => {
+	const tree: Record<string, string[]> = {
+		"/path/to": ["file", "file (2).txt", "file (2)"],
+		"/home/coder": ["my", "my dir/"],
+		"/home/coder/my dir": ["a.ts"],
+	};
+	const listDirectory = async (directory: string) => {
+		const names = tree[directory];
+		if (!names) {
+			throw new Error("not found");
+		}
+		return names.map((name) => {
+			const isDir = name.endsWith("/");
+			const entryName = isDir ? name.slice(0, -1) : name;
+			return {
+				name: entryName,
+				is_dir: isDir,
+				absolute_path_string: `${directory}/${entryName}`,
+			};
+		});
+	};
+
+	it.each([
+		[
+			"/path/to",
+			"file (2).txt now",
+			{ absolutePath: "/path/to/file (2).txt", length: 12 },
+		],
+		[
+			"/path/to",
+			"file (2).txt:7, then",
+			{ absolutePath: "/path/to/file (2).txt", length: 14, line: 7 },
+		],
+		["/path/to", "file and more", { absolutePath: "/path/to/file", length: 4 }],
+		[
+			"/home/coder",
+			"my dir/a.ts.",
+			{ absolutePath: "/home/coder/my dir/a.ts", length: 11 },
+		],
+		["/home/coder", "my dir/b.ts", null],
+		["/home/coder", "my dirt", { absolutePath: "/home/coder/my", length: 2 }],
+		["/missing", "a b.ts", null],
+	])("walks from %j through %j", async (directory, text, expected) => {
+		expect(await verifyFilePath(directory, text, listDirectory)).toEqual(
+			expected,
+		);
+	});
+
+	it("stops at the depth cap", async () => {
+		const listing = async (directory: string) => [
+			{ name: "d", is_dir: true, absolute_path_string: `${directory}/d` },
+		];
+		expect(await verifyFilePath("/", "d/d/d/d/d/d/a.ts", listing)).toBeNull();
 	});
 });
