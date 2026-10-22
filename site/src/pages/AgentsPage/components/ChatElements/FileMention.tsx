@@ -25,6 +25,7 @@ import {
 import { toast } from "#/components/Toaster/toast";
 import { useWorkspaceFiles } from "../../context/WorkspaceFilesContext";
 import {
+	findCandidateTokenStarts,
 	findFilePathMentions,
 	getFilePathCandidateStarts,
 	walkFilePath,
@@ -406,15 +407,24 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 
 	// The text renders from the same keyed segments before and after
 	// verification, so links and text nodes that do not change keep their
-	// DOM nodes, focus, and selection.
+	// DOM nodes, focus, and selection. A later path-like token on the line
+	// may start another spaced path, so once this walk has settled, and the
+	// extent of this path no longer moves, the rest of the text from that
+	// token is its own candidate.
 	const segments: React.ReactNode[] = [];
 	let offset = 0;
 	if (lead) {
 		segments.push(lead);
 		offset = end;
 	}
+	const next = settled
+		? findCandidateTokenStarts(text).find(
+				(start) => start > 0 && start >= offset,
+			)
+		: undefined;
+	const segmentsEnd = next ?? text.length;
 	for (const mention of mentions) {
-		if (mention.start < offset) {
+		if (mention.start < offset || mention.start >= segmentsEnd) {
 			continue;
 		}
 		if (mention.start > offset) {
@@ -431,8 +441,16 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 		);
 		offset = mention.end;
 	}
-	if (offset < text.length) {
-		segments.push(text.slice(offset));
+	if (offset < segmentsEnd) {
+		segments.push(text.slice(offset, segmentsEnd));
+	}
+	if (next !== undefined) {
+		const rest = text.slice(next);
+		segments.push(
+			<FileMentionCandidate key={`candidate-${next}`} text={rest} whole={false}>
+				{rest}
+			</FileMentionCandidate>,
+		);
 	}
 	return <span ref={ref}>{segments}</span>;
 };
