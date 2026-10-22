@@ -28,7 +28,6 @@ const avatarVariants = cva(
 				lg: "size-(--avatar-lg) rounded-[6px] text-sm font-medium",
 				md: "size-(--avatar-default) text-2xs",
 				sm: "size-(--avatar-sm) text-[8px]",
-				// Matches the height of the xs Badge.
 				xs: "size-(--avatar-xs) text-[6px]",
 			},
 			variant: {
