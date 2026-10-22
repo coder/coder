@@ -458,7 +458,12 @@ export const MockMixedAttachmentMessages: TypesGen.ChatMessage[] = [
 
 /** MockMixedAttachmentMessages' chat files once findings.md is evicted. */
 export const MockFindingsEvictedChatFiles: TypesGen.ChatFileMetadata[] = [
-	{ ...MockChatFileMetadata, id: "spec-file" },
+	{
+		...MockChatFileMetadata,
+		id: "spec-file",
+		name: "spec.pdf",
+		mime_type: "application/pdf",
+	},
 ];
 
 /** MockMixedAttachmentMessages before the newest turn answers. */
