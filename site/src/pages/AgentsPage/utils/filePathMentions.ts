@@ -134,16 +134,17 @@ const candidateTokenRegExp =
 const isPathLike = (token: string) =>
 	token.startsWith("/") || token.startsWith("~/") || token.includes("/");
 
-const findCandidates = (
-	text: string,
-	mentions: readonly TextRange[],
-): TextRange[] => {
-	const found: TextRange[] = [];
+type CandidateToken = {
+	start: number;
+	token: string;
+};
+
+const findCandidateTokens = (text: string): CandidateToken[] => {
+	const tokens: CandidateToken[] = [];
 	for (const match of text.matchAll(candidateTokenRegExp)) {
 		const token = match[1];
 		const start = match.index;
-		const previous = found[found.length - 1];
-		if (!isPathLike(token) || (previous && start < previous.end)) {
+		if (!isPathLike(token)) {
 			continue;
 		}
 		const before = text[start - 1];
@@ -156,6 +157,28 @@ const findCandidates = (
 		}
 		const first = token.split("/")[0];
 		if (first.includes(".") && !first.startsWith(".")) {
+			continue;
+		}
+		tokens.push({ start, token });
+	}
+	return tokens;
+};
+
+/**
+ * Lists where a path with spaces could start in `text`, including starts
+ * inside another candidate's tail, as in "a/my x.md and b/my y.md".
+ */
+export const findCandidateTokenStarts = (text: string): number[] =>
+	findCandidateTokens(text).map(({ start }) => start);
+
+const findCandidates = (
+	text: string,
+	mentions: readonly TextRange[],
+): TextRange[] => {
+	const found: TextRange[] = [];
+	for (const { start, token } of findCandidateTokens(text)) {
+		const previous = found[found.length - 1];
+		if (previous && start < previous.end) {
 			continue;
 		}
 		const lineEnd = text.indexOf("\n", start);
