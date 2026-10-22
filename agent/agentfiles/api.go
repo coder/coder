@@ -12,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentgit"
 	"github.com/coder/coder/v2/agent/filefinder"
 	"github.com/coder/coder/v2/agent/usershell"
@@ -26,6 +27,7 @@ type API struct {
 	envInfo           usershell.EnvInfoer
 	workingDir        func() string
 	bundleFilesLimits workspacesdk.BundleFilesLimits
+	execer            agentexec.Execer
 
 	ignorerOnce sync.Once
 	ignorer     *filefinder.Ignorer
@@ -37,7 +39,6 @@ type API struct {
 	finderRoots   []string
 	finderPending map[string]*pendingRoot
 	finderPins    map[string]int
-	finderWalks   chan struct{}
 	closed        bool
 }
 
@@ -58,6 +59,14 @@ func WithEnvInfo(envInfo usershell.EnvInfoer) Option {
 	}
 }
 
+// WithExecer sets how git is run to classify gitignored paths. The
+// default is agentexec.DefaultExecer.
+func WithExecer(execer agentexec.Execer) Option {
+	return func(api *API) {
+		api.execer = execer
+	}
+}
+
 // WithWorkingDir sets the agent's configured working directory, used
 // as the default directory for path forms. It may return "".
 func WithWorkingDir(workingDir func() string) Option {
@@ -72,6 +81,7 @@ func NewAPI(logger slog.Logger, filesystem afero.Fs, pathStore *agentgit.PathSto
 		filesystem:        filesystem,
 		pathStore:         pathStore,
 		envInfo:           usershell.SystemEnvInfo{},
+		execer:            agentexec.DefaultExecer,
 		bundleFilesLimits: defaultBundleFilesLimits,
 	}
 	for _, opt := range opts {
@@ -119,7 +129,7 @@ func (api *API) Close() error {
 func (api *API) getIgnorer() *filefinder.Ignorer {
 	api.ignorerOnce.Do(func() {
 		home, _ := api.envInfo.HomeDir()
-		api.ignorer = filefinder.NewIgnorer(api.filesystem, home)
+		api.ignorer = filefinder.NewIgnorer(api.filesystem, home, filefinder.WithGit(api.execer, "git"))
 	})
 	return api.ignorer
 }

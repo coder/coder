@@ -233,7 +233,8 @@ func TestHandleFindFiles_Gitignore(t *testing.T) {
 	t.Parallel()
 
 	repo := t.TempDir()
-	for _, rel := range []string{".git/HEAD", "src/ignorecheck_main.go", "dist/ignorecheck_bundle.js", "ignorecheck.log"} {
+	initRepo(t, repo)
+	for _, rel := range []string{"src/ignorecheck_main.go", "dist/ignorecheck_bundle.js", "ignorecheck.log"} {
 		p := filepath.Join(repo, filepath.FromSlash(rel))
 		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
 		require.NoError(t, os.WriteFile(p, nil, 0o600))
