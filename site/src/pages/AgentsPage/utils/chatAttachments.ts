@@ -72,9 +72,8 @@ export async function classifyAttachmentFailureResponse(
  */
 export async function probeAttachmentFailure(
 	src: string,
-	signal?: AbortSignal,
 ): Promise<AttachmentFailure> {
-	const response = await fetch(src, { signal });
+	const response = await fetch(src);
 	return classifyAttachmentFailureResponse(response);
 }
 
