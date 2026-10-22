@@ -3,7 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { useParams } from "react-router";
 import { getErrorMessage } from "#/api/errors";
-import { workspaceAgentFindFiles } from "#/api/queries/workspaceFiles";
+import {
+	workspaceAgentDirectory,
+	workspaceAgentFindFiles,
+} from "#/api/queries/workspaceFiles";
 import {
 	Command,
 	CommandInput,
@@ -18,7 +21,10 @@ import {
 	type WorkspaceFilesContextValue,
 } from "../../context/WorkspaceFilesContext";
 import { getPathBasename } from "../../utils/path";
-import { useFilesPanelRoot } from "../RightPanel/FilesPanel";
+import {
+	abbreviateHomePath,
+	useFilesPanelRoot,
+} from "../RightPanel/FilesPanel";
 
 /** Opens a workspace file by fuzzy name search on Cmd+P (macOS) or Ctrl+P. */
 export const QuickOpenDialog: React.FC = () => {
@@ -51,6 +57,13 @@ const QuickOpen: React.FC<{ workspaceFiles: WorkspaceFilesContextValue }> = ({
 		enabled: open && debouncedQuery !== "",
 		placeholderData: keepPreviousData,
 	});
+	// Roots often share a name (home and a repo both called coder), so with
+	// several roots each result shows its path from home instead.
+	const homeQuery = useQuery({
+		...workspaceAgentDirectory(agentId, "~"),
+		enabled: open && roots.length > 1,
+	});
+	const homePath = homeQuery.data?.absolute_path_string;
 	// The dialog has no Radix trigger, so focus returns to the element that
 	// had it when the shortcut fired. Opening a file skips this because the
 	// file tab takes focus.
@@ -165,7 +178,7 @@ const QuickOpen: React.FC<{ workspaceFiles: WorkspaceFilesContextValue }> = ({
 								</span>
 								<span className="truncate text-xs font-normal text-content-secondary">
 									{roots.length > 1
-										? `${getPathBasename(result.root)}/${result.path}`
+										? abbreviateHomePath(result.absolute_path, homePath)
 										: result.path}
 								</span>
 							</CommandItem>
