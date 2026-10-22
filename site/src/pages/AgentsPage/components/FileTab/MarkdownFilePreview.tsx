@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { type Components, defaultRehypePlugins } from "streamdown";
-import {
-	workspaceAgentDirectory,
-	workspaceAgentFile,
-} from "#/api/queries/workspaceFiles";
+import { workspaceAgentFileHead } from "#/api/queries/workspaceFiles";
+import { Button } from "#/components/Button/Button";
 import { useTheme } from "#/theme/context";
 import { useWorkspaceFiles } from "../../context/WorkspaceFilesContext";
 import {
@@ -16,7 +14,7 @@ import {
 	resolvePreviewLink,
 	resolveWorkspaceUrl,
 } from "../../utils/markdownPreview";
-import { getPathBasename, getPathDirname } from "../../utils/path";
+import { getPathDirname } from "../../utils/path";
 import { MarkdownImage } from "../ChatElements/MarkdownImage";
 import { Response } from "../ChatElements/Response";
 
@@ -63,6 +61,11 @@ export const MarkdownFilePreview: React.FC<MarkdownFilePreviewProps> = ({
 	const files = useWorkspaceFiles();
 	const theme = useTheme();
 	const containerRef = useRef<HTMLDivElement>(null);
+	// Remote images would tell whoever controls their URL that this viewer
+	// opened the file, so each preview loads them only on request.
+	const [remoteImagesAllowed, setRemoteImagesAllowed] = useState(false);
+	const hasRemoteImages =
+		/!\[|<img\b/i.test(content) && /https?:\/\//i.test(content);
 	const directory = getPathDirname(path);
 	let repoRoot: string | undefined;
 	for (const root of files?.repoRoots ?? []) {
@@ -157,9 +160,9 @@ export const MarkdownFilePreview: React.FC<MarkdownFilePreviewProps> = ({
 				return null;
 			}
 			if (/^https?:\/\//i.test(src)) {
-				// Like GitHub, previews load remote images directly. Chat gates
-				// them behind consent instead, and its consent button cannot
-				// nest inside the links that README badges wrap images in.
+				if (!remoteImagesAllowed) {
+					return <ImagePlaceholder alt={alt} reason="blocked" />;
+				}
 				return (
 					<img
 						src={src}
@@ -195,7 +198,27 @@ export const MarkdownFilePreview: React.FC<MarkdownFilePreviewProps> = ({
 			ref={containerRef}
 			className="min-h-0 flex-1 overflow-y-auto px-6 py-4"
 		>
-			<Response rehypePlugins={previewRehypePlugins} components={components}>
+			{hasRemoteImages && !remoteImagesAllowed && (
+				<div className="mb-3 flex items-center gap-3 rounded-md border border-solid border-border bg-surface-secondary px-3 py-1.5 text-xs text-content-secondary">
+					<span className="min-w-0 flex-1">
+						Remote images are blocked so their hosts do not see your IP address.
+					</span>
+					<Button
+						size="xs"
+						variant="outline"
+						onClick={() => setRemoteImagesAllowed(true)}
+					>
+						Load remote images
+					</Button>
+				</div>
+			)}
+			{/* Streamdown's block memo ignores new components, so the overrides
+			    that read these values remount the rendered markdown. */}
+			<Response
+				key={`${theme.palette.mode}:${remoteImagesAllowed}:${repoRoot}`}
+				rehypePlugins={previewRehypePlugins}
+				components={components}
+			>
 				{content}
 			</Response>
 		</div>
@@ -222,22 +245,19 @@ const WorkspaceImage: React.FC<WorkspaceImageProps> = ({
 	path,
 	alt,
 }) => {
-	const listing = useQuery(
-		workspaceAgentDirectory(agentId, getPathDirname(path)),
+	// One byte past the cap shows the file is too large without trusting
+	// listing metadata or reading the whole file.
+	const file = useQuery(
+		workspaceAgentFileHead(agentId, path, maxPreviewImageBytes + 1),
 	);
-	const name = getPathBasename(path);
-	const entry = listing.data?.contents.find((item) => item.name === name);
-	const fits =
-		entry !== undefined && !entry.is_dir && entry.size <= maxPreviewImageBytes;
-	const file = useQuery({
-		...workspaceAgentFile(agentId, path),
-		enabled: fits,
-	});
 	const data = file.data;
+	const fits =
+		data !== undefined && data.data.byteLength <= maxPreviewImageBytes;
+	const isImage = data?.contentType.startsWith("image/") ?? false;
 	const [url, setUrl] = useState<string>();
 
 	useEffect(() => {
-		if (!data?.contentType.startsWith("image/")) {
+		if (!data || !fits || !isImage) {
 			return;
 		}
 		const objectUrl = URL.createObjectURL(
@@ -245,23 +265,15 @@ const WorkspaceImage: React.FC<WorkspaceImageProps> = ({
 		);
 		setUrl(objectUrl);
 		return () => URL.revokeObjectURL(objectUrl);
-	}, [data]);
+	}, [data, fits, isImage]);
 
-	if (listing.isError || file.isError) {
+	if (file.isError) {
 		return <ImagePlaceholder alt={alt} reason="not found" />;
 	}
-	if (listing.isSuccess && !entry) {
-		return (
-			<ImagePlaceholder
-				alt={alt}
-				reason={listing.data.truncated ? "not loaded" : "not found"}
-			/>
-		);
-	}
-	if (entry && !fits) {
+	if (data && !fits) {
 		return <ImagePlaceholder alt={alt} reason="too large to preview" />;
 	}
-	if (data && !data.contentType.startsWith("image/")) {
+	if (data && !isImage) {
 		return <ImagePlaceholder alt={alt} reason="not an image" />;
 	}
 	if (!url) {
