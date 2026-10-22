@@ -20,7 +20,7 @@ export const AUTH_TYPE_LABELS = Object.fromEntries(
 ) as Record<string, string>;
 
 export const AVAILABILITY_FOOTNOTE =
-	"Required is always on. Users can change the others from the chat's + menu.";
+	"Users can switch defaults from the chat's + menu. Required can't be turned off.";
 
 export const AVAILABILITY_OPTIONS = [
 	{ value: "force_on", label: "Required" },
