@@ -740,6 +740,17 @@ export const ReadOnlyNotice: Story = {
 	},
 };
 
+/** A read-only viewer cannot send, so the Bedrock InvokeModel notice is hidden. */
+export const ReadOnlyWithBedrockInvokeModel: Story = {
+	args: {
+		selectedModel: MockBedrockInvokeModelSelectorOption.id,
+		modelOptions: [MockBedrockInvokeModelSelectorOption],
+		isDisabled: true,
+		isReadOnly: true,
+		readOnlyNotice: "This chat is owned by Tyler. It is read-only.",
+	},
+};
+
 /** The pill lists only its active servers; Notion stays in the plus menu. */
 export const MCPGroupPopoverOpen: Story = {
 	args: {

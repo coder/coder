@@ -15,6 +15,7 @@ import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
+import { MockBedrockInvokeModelSelectorOption } from "#/modules/aiModels/modelSelectorFixtures";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { MockChatProject } from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
@@ -161,6 +162,23 @@ describe("AgentChatInput", () => {
 
 		expect(screen.getByTestId("chat-composer").parentElement).toHaveClass(
 			"max-w-full",
+		);
+	});
+
+	it("describes the input with the prefill warning and the Bedrock InvokeModel notice", () => {
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				warning="Review this prefilled prompt."
+				selectedModel={MockBedrockInvokeModelSelectorOption.id}
+				modelOptions={[MockBedrockInvokeModelSelectorOption]}
+			/>,
+		);
+
+		expect(
+			screen.getByRole("textbox", { name: "Chat message" }),
+		).toHaveAccessibleDescription(
+			/^Review this prefilled prompt\. The AWS Bedrock provider uses the Bedrock InvokeModel protocol/,
 		);
 	});
 
