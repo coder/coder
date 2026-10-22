@@ -64,8 +64,7 @@ describe("AgentAttachmentList", () => {
 					: HttpResponse.text("# Findings");
 			}),
 		);
-		// Two lists of one file share its text, like the Summary panel and a
-		// turn's popover.
+		// Two lists of one file share its text.
 		renderComponent(
 			<QueryClientProvider client={createTestQueryClient()}>
 				<AgentAttachmentList
@@ -78,7 +77,7 @@ describe("AgentAttachmentList", () => {
 				/>
 			</QueryClientProvider>,
 		);
-		const [failedCard, loadingCard] = screen.getAllByRole("button", {
+		const [failedCard, loadedCard] = screen.getAllByRole("button", {
 			name: "findings.md View file",
 		});
 		await user.click(failedCard);
@@ -86,10 +85,10 @@ describe("AgentAttachmentList", () => {
 			name: "findings.md Couldn't load preview. Select again to retry.",
 		});
 
-		await user.click(loadingCard);
+		await user.click(loadedCard);
 		await screen.findByRole("dialog", { name: "findings.md" });
 		await user.keyboard("{Escape}");
 
-		await waitFor(() => expect(loadingCard).toHaveFocus());
+		await waitFor(() => expect(loadedCard).toHaveFocus());
 	});
 });
