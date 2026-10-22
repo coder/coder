@@ -1,3 +1,7 @@
+import type { Nodes as MdastNodes } from "mdast";
+import remarkParse from "remark-parse";
+import { unified } from "unified";
+
 type HastNode = {
 	type: string;
 	tagName?: string;
@@ -12,22 +16,44 @@ export const previewIdPrefix = "user-content-";
 /** At most this many workspace images load in one preview. */
 export const maxPreviewImages = 20;
 
-const linkDefinitionRegExp = /^ {0,3}\[[^\]\n]+\]:[ \t]*\S.*$/gm;
+// A block that may hold a link reference definition; only those are parsed.
+const definitionLineRegExp = /^ {0,3}(?:> ?)*\[[^\]\n]+\]:/m;
+
+const markdownParser = unified().use(remarkParse);
+
+const findDefinitions = (node: MdastNodes, found: string[]) => {
+	if (node.type === "definition") {
+		// Rebuilt from the parsed fields so a definition that spans lines, or
+		// sits in a block quote, still resolves at the top level of a chunk.
+		const title =
+			node.title === null || node.title === undefined
+				? ""
+				: ` "${node.title.replace(/[\\"]/g, "\\$&")}"`;
+		found.push(`[${node.label ?? node.identifier}]: <${node.url}>${title}`);
+		return;
+	}
+	if ("children" in node) {
+		for (const child of node.children) {
+			findDefinitions(child, found);
+		}
+	}
+};
 
 /**
  * Groups markdown blocks into chunks of about `chunkSize` characters so a
  * large file renders and parses a piece at a time. Parsing one document
  * is superlinear in its size (GFM tables), and one render blocks the page
- * until all of it is done. Link reference definitions are repeated in
- * every chunk so references resolve across chunk boundaries.
+ * until all of it is done. The file's link reference definitions, taken
+ * from the parsed blocks so ones in code or comments do not count, lead
+ * every chunk: CommonMark uses the first definition of a label, so each
+ * chunk resolves references the way the whole file does.
  */
 export const groupMarkdownBlocks = (
-	content: string,
 	blocks: readonly string[],
 	chunkSize: number,
 ): string[] => {
-	const definitions = content.match(linkDefinitionRegExp)?.join("\n") ?? "";
 	const chunks: string[] = [];
+	const definitions: string[] = [];
 	let current = "";
 	for (const block of blocks) {
 		if (current && current.length + block.length > chunkSize) {
@@ -35,14 +61,18 @@ export const groupMarkdownBlocks = (
 			current = "";
 		}
 		current += block;
+		if (definitionLineRegExp.test(block)) {
+			findDefinitions(markdownParser.parse(block), definitions);
+		}
 	}
 	if (current) {
 		chunks.push(current);
 	}
-	if (!definitions || chunks.length < 2) {
+	if (definitions.length === 0 || chunks.length < 2) {
 		return chunks;
 	}
-	return chunks.map((chunk) => `${chunk}\n\n${definitions}\n`);
+	const prefix = `${definitions.join("\n")}\n\n`;
+	return chunks.map((chunk) => prefix + chunk);
 };
 
 /**
@@ -136,17 +166,13 @@ export const getHastText = (node: HastNode): string => {
 };
 
 // GitHub's heading anchors: lowercase, punctuation removed, spaces to
-// hyphens, and a numeric suffix for repeats.
-const slugify = (text: string, seen: Map<string, number>) => {
-	const base = text
+// hyphens. Repeats get a numeric suffix.
+const slugBase = (text: string) =>
+	text
 		.trim()
 		.toLowerCase()
 		.replace(/[^\p{L}\p{M}\p{N}\p{Pc} -]/gu, "")
 		.replace(/ /g, "-");
-	const count = seen.get(base) ?? 0;
-	seen.set(base, count + 1);
-	return count === 0 ? base : `${base}-${count}`;
-};
 
 const removeStyleElements = (node: HastNode) => {
 	if (!node.children) {
@@ -169,6 +195,7 @@ export const rehypeRemoveStyleElements = () => (tree: HastNode) =>
 
 type PreviewState = {
 	slugs: Map<string, number>;
+	bases: string[];
 	images: number;
 };
 
@@ -183,7 +210,11 @@ const markPreviewNode = (node: HastNode, state: PreviewState) => {
 			}
 		}
 		if (/^h[1-6]$/.test(node.tagName ?? "") && properties.id === undefined) {
-			properties.id = `${previewIdPrefix}${slugify(getHastText(node), state.slugs)}`;
+			const base = slugBase(getHastText(node));
+			const count = state.slugs.get(base) ?? 0;
+			state.slugs.set(base, count + 1);
+			state.bases.push(base);
+			properties.id = `${previewIdPrefix}${count === 0 ? base : `${base}-${count}`}`;
 		}
 		const src = properties.src;
 		if (
@@ -199,13 +230,43 @@ const markPreviewNode = (node: HastNode, state: PreviewState) => {
 	}
 };
 
+/** Heading slug bases of a preview's chunks, by chunk index. */
+export type PreviewHeadings = Map<number, readonly string[]>;
+
+type FilePreviewOptions = {
+	/** Number of the chunk's first workspace image. */
+	firstImage?: number;
+	/** Index of the chunk in the file. */
+	chunk?: number;
+	/**
+	 * Slug bases of the file's chunks. Earlier chunks render first, so a
+	 * repeated heading gets the suffix it has in the whole file; the chunk
+	 * records its own bases for the chunks after it.
+	 */
+	headings?: PreviewHeadings;
+	/** Distinguishes the plugin options of one preview from another's. */
+	preview?: string;
+};
+
 /**
  * Rehype plugin, run after sanitizing, that prepares a previewed file:
  * prefixes ids and names so they cannot clobber document properties, gives
- * headings GitHub-style anchor ids, and numbers workspace images, starting
- * at `firstImage`, so the preview can cap how many it loads.
+ * headings GitHub-style anchor ids, and numbers workspace images so the
+ * preview can cap how many it loads.
  */
 export const rehypeFilePreview =
-	({ firstImage = 0 }: { firstImage?: number } = {}) =>
-	(tree: HastNode) =>
-		markPreviewNode(tree, { slugs: new Map(), images: firstImage });
+	({ firstImage = 0, chunk = 0, headings }: FilePreviewOptions = {}) =>
+	(tree: HastNode) => {
+		const slugs = new Map<string, number>();
+		for (const [index, bases] of headings ?? []) {
+			if (index >= chunk) {
+				continue;
+			}
+			for (const base of bases) {
+				slugs.set(base, (slugs.get(base) ?? 0) + 1);
+			}
+		}
+		const state = { slugs, bases: [], images: firstImage };
+		markPreviewNode(tree, state);
+		headings?.set(chunk, state.bases);
+	};

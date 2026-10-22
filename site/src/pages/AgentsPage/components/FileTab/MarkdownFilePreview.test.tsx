@@ -235,6 +235,87 @@ describe("MarkdownFilePreview", () => {
 		expect(screen.queryByRole("status")).toBeNull();
 	});
 
+	it("resolves references across chunks the way the whole file does", async () => {
+		const user = userEvent.setup();
+		const { files } = renderPreview(
+			[
+				"Read the [Guide][guide].",
+				filler(),
+				"```\n[guide]: ./wrong.md\n```",
+				filler(),
+				"[guide]:\n  ./correct.md",
+			].join("\n\n"),
+		);
+
+		await user.click(await screen.findByRole("button", { name: "Guide" }));
+
+		expect(files.openFile).toHaveBeenCalledWith("/repo/correct.md", {
+			line: undefined,
+		});
+	});
+
+	it("numbers repeated headings across the whole file", async () => {
+		const user = userEvent.setup();
+		const scrolled: string[] = [];
+		vi.spyOn(HTMLElement.prototype, "scrollIntoView").mockImplementation(
+			function (this: HTMLElement) {
+				scrolled.push(this.id);
+			},
+		);
+		renderPreview(
+			[
+				"[Second example](#example-1)",
+				"## Example",
+				filler(),
+				"## Example",
+				filler(),
+			].join("\n\n"),
+		);
+		await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+
+		expect(
+			screen
+				.getAllByRole("heading", { name: "Example" })
+				.map((heading) => heading.id),
+		).toEqual(["user-content-example", "user-content-example-1"]);
+		await user.click(screen.getByRole("link", { name: "Second example" }));
+		expect(scrolled).toEqual(["user-content-example-1"]);
+	});
+
+	it("keeps rendered chunks when the file is reread", async () => {
+		const user = userEvent.setup();
+		const base = ["# Part 1", filler(), "# Part 2", filler(), "# Part 3"].join(
+			"\n\n",
+		);
+		const Harness = () => {
+			const [content, setContent] = useState(base);
+			return (
+				<>
+					<button
+						type="button"
+						onClick={() => setContent(`${content}\n\nAppended line.`)}
+					>
+						Append
+					</button>
+					<MarkdownFilePreview
+						agentId={agentId}
+						path={path}
+						content={content}
+					/>
+				</>
+			);
+		};
+		renderWithProviders(<Harness />);
+		await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+		const first = screen.getByRole("heading", { name: "Part 1" });
+
+		await user.click(screen.getByRole("button", { name: "Append" }));
+
+		expect(screen.getByRole("heading", { name: "Part 1" })).toBe(first);
+		expect(screen.getByRole("heading", { name: "Part 3" })).toBeDefined();
+		expect(await screen.findByText("Appended line.")).toBeDefined();
+	});
+
 	it("shows code in large files as plain text", async () => {
 		const code = "func main() {}";
 		renderPreview(

@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import {
 	type Components,
@@ -17,6 +17,7 @@ import {
 	groupMarkdownBlocks,
 	isWorkspaceImageSource,
 	maxPreviewImages,
+	type PreviewHeadings,
 	previewIdPrefix,
 	rehypeFilePreview,
 	rehypeRemoveStyleElements,
@@ -41,12 +42,12 @@ const maxPreviewImageBytes = 2 * 1024 * 1024;
 // relative links to the Coder origin; sanitizing already blocks unsafe
 // protocols.
 const previewRehypePlugins = (
-	firstImage: number,
+	options: Parameters<typeof rehypeFilePreview>[0],
 ): StreamdownProps["rehypePlugins"] => [
 	defaultRehypePlugins.raw,
 	rehypeRemoveStyleElements,
 	defaultRehypePlugins.sanitize,
-	[rehypeFilePreview, { firstImage }],
+	[rehypeFilePreview, options],
 ];
 
 // A chunk this size parses and renders in tens of milliseconds, so the
@@ -54,22 +55,17 @@ const previewRehypePlugins = (
 const previewChunkSize = 16 * 1024;
 
 const prepareChunks = (content: string) => {
-	const chunks = groupMarkdownBlocks(
-		content,
+	const texts = groupMarkdownBlocks(
 		parseMarkdownIntoBlocks(content),
 		previewChunkSize,
 	);
-	const chunkStarts: number[] = [];
-	const firstImages: number[] = [];
-	let chunkStart = 0;
+	const chunks: { index: number; text: string; firstImage: number }[] = [];
 	let images = 0;
-	for (const chunk of chunks) {
-		chunkStarts.push(chunkStart);
-		firstImages.push(images);
-		chunkStart += chunk.length;
-		images += countImageCandidates(chunk);
+	for (const [index, text] of texts.entries()) {
+		chunks.push({ index, text, firstImage: images });
+		images += countImageCandidates(text);
 	}
-	return { content, chunks, chunkStarts, firstImages };
+	return { content, chunks };
 };
 
 const linkClassName =
@@ -105,18 +101,26 @@ export const MarkdownFilePreview: React.FC<MarkdownFilePreviewProps> = ({
 	// Splitting lexes the whole file, so it runs once per content, not on
 	// every render that adds a chunk. Chunks then render one per task, so a
 	// large file never blocks the page for long; small files are one chunk.
+	// A reread of the file keeps the chunks already shown, keyed by
+	// position, so unchanged ones keep their DOM and the reader's scroll
+	// position.
 	const [prepared, setPrepared] = useState(() => prepareChunks(content));
-	const [renderedChunks, setRenderedChunks] = useState(1);
+	const [shownChunks, setShownChunks] = useState(1);
+	const [headings] = useState<PreviewHeadings>(() => new Map());
+	// Streamdown caches processors by plugin names and JSON options, and
+	// the headings map serializes to {}, so the id keeps one preview from
+	// reusing another's processor and its headings.
+	const previewId = useId();
 	if (prepared.content !== content) {
 		setPrepared(prepareChunks(content));
-		setRenderedChunks(1);
 	}
-	const { chunks, chunkStarts, firstImages } = prepared;
+	const { chunks } = prepared;
+	const renderedChunks = Math.min(shownChunks, chunks.length);
 	useEffect(() => {
 		if (renderedChunks >= chunks.length) {
 			return;
 		}
-		const timer = setTimeout(() => setRenderedChunks((count) => count + 1), 0);
+		const timer = setTimeout(() => setShownChunks(renderedChunks + 1), 0);
 		return () => clearTimeout(timer);
 	}, [renderedChunks, chunks.length]);
 	const directory = getPathDirname(path);
@@ -289,22 +293,27 @@ export const MarkdownFilePreview: React.FC<MarkdownFilePreviewProps> = ({
 				key={`${theme.palette.mode}:${remoteImagesAllowed}:${repoRoot}`}
 				className="space-y-4"
 			>
-				{chunks.slice(0, renderedChunks).map((chunk, index) => (
+				{chunks.slice(0, renderedChunks).map((chunk) => (
 					// In large files, off-screen chunks skip style and layout, so
 					// showing the tab again or scrolling does not lay out the whole
 					// file.
 					<div
-						key={chunkStarts[index]}
+						key={chunk.index}
 						className={cn(
 							isLargeFile &&
 								"[contain-intrinsic-size:auto_1000px] [content-visibility:auto]",
 						)}
 					>
 						<Response
-							rehypePlugins={previewRehypePlugins(firstImages[index])}
+							rehypePlugins={previewRehypePlugins({
+								firstImage: chunk.firstImage,
+								chunk: chunk.index,
+								headings,
+								preview: previewId,
+							})}
 							components={components}
 						>
-							{chunk}
+							{chunk.text}
 						</Response>
 					</div>
 				))}
