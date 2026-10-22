@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockSkill } from "#/testHelpers/skills";
 import {
 	buildSkillMarkdown,
 	filterSkillsByQuery,
@@ -10,8 +11,8 @@ import {
 	parseSkillMarkdown,
 	parseSkillTrigger,
 	SKILL_MAX_SIZE_BYTES,
+	skillFileContent,
 	tryParseSkillMarkdown,
-	withDisabledModelInvocation,
 } from "./skills";
 
 const now = "2026-05-08T00:00:00Z";
@@ -356,7 +357,18 @@ describe("getSkillContentSizeBytes", () => {
 	});
 });
 
-describe("withDisabledModelInvocation", () => {
+describe("skillFileContent", () => {
+	const manualSkill = (content: string): TypesGen.Skill => ({
+		...MockSkill,
+		model_invocable: false,
+		content,
+	});
+
+	it("leaves an automatic skill's content unchanged", () => {
+		const content = "---\nname: triage\n---\nTriage issues.\n";
+		expect(skillFileContent({ ...MockSkill, content })).toBe(content);
+	});
+
 	it.each([
 		["LF", "---\nname: triage\n---\nTriage issues.\n"],
 		["CRLF", "---\r\nname: triage\r\n---\r\nTriage issues.\r\n"],
@@ -364,13 +376,14 @@ describe("withDisabledModelInvocation", () => {
 		"marks %s frontmatter so re-importing keeps the skill manual",
 		(_, content) => {
 			expect(
-				parseSkillMarkdown(withDisabledModelInvocation(content)).modelInvocable,
+				parseSkillMarkdown(skillFileContent(manualSkill(content)))
+					.modelInvocable,
 			).toBe(false);
 		},
 	);
 
 	it("leaves content unmarked when the marker would pass the size limit", () => {
 		const content = `---\nname: big\n---\n${"a".repeat(SKILL_MAX_SIZE_BYTES - 20)}`;
-		expect(withDisabledModelInvocation(content)).toBe(content);
+		expect(skillFileContent(manualSkill(content))).toBe(content);
 	});
 });

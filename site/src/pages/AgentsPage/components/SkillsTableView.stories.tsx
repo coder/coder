@@ -55,6 +55,16 @@ const MockDebugHTTPSkill = {
 	description: "",
 };
 
+const MockManualReviewSQLSkill = {
+	...MockReviewSQLSkill,
+	model_invocable: false,
+};
+
+const MockManualFrontendReviewSkill = {
+	...MockFrontendReviewSkill,
+	model_invocable: false,
+};
+
 const MockPersonalSkills = [MockReviewSQLSkill, MockReleaseNotesSkill];
 
 const baseArgs: SkillsTableViewProps = {
@@ -114,9 +124,9 @@ export const LongDescriptionNarrow: Story = {
 export const ManualOnlySkills: Story = {
 	args: {
 		skills: [
-			{ ...MockReviewSQLSkill, model_invocable: false },
+			MockManualReviewSQLSkill,
 			MockReleaseNotesSkill,
-			{ ...MockFrontendReviewSkill, model_invocable: false },
+			MockManualFrontendReviewSkill,
 		],
 	},
 };

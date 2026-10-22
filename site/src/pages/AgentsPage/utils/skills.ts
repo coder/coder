@@ -288,7 +288,7 @@ export const buildSkillMarkdown = (values: SkillFormValues): string => {
  * it, so a downloaded manual-only skill keeps that setting when re-imported.
  * Content the marker would push past the size limit is returned unchanged.
  */
-export const withDisabledModelInvocation = (content: string): string => {
+const withDisabledModelInvocation = (content: string): string => {
 	const opening = /^---(\r?\n)/.exec(content);
 	const frontmatterEnd = content.search(/\r?\n---/);
 	if (!opening || frontmatterEnd < 3) {

@@ -247,7 +247,11 @@ export const DeleteSkillDialog: React.FC<DialogProps<SkillDeleteState>> = ({
 	);
 };
 
-const SkillNameCell: React.FC<{ skill: SkillMetadata }> = ({ skill }) => (
+type SkillNameCellProps = {
+	skill: SkillMetadata;
+};
+
+const SkillNameCell: React.FC<SkillNameCellProps> = ({ skill }) => (
 	<TableCell className="max-w-48" title={skill.name}>
 		<div className="flex items-center gap-1.5">
 			<span className="truncate">{skill.name}</span>
