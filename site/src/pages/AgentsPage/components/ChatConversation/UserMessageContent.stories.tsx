@@ -5,7 +5,7 @@ import type { MessageDisplayState } from "./messageHelpers";
 import { UserMessageContent } from "./UserMessageContent";
 
 const messageText =
-	"compare `/home/coder/coder/cmd/coder/main.go` with `/home/coder/coder/site/src/` and keep `make gen` as is";
+	"compare `/home/coder/coder/cmd/coder/main.go` with `/home/coder/coder/site/src/` and `/home/coder/coder/docs/Release Notes.md` but keep `make gen` as is";
 
 const displayState: MessageDisplayState = {
 	shouldHide: false,

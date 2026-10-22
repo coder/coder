@@ -23,12 +23,29 @@ describe("splitWorkspacePathReferences", () => {
 	});
 
 	it.each([
+		["/repo/My File.ts", false],
+		["/repo/two  spaces /dir", true],
+		["/repo/a`b.ts", false],
+		["/repo/ends-with`", false],
+		["/repo/``double``/x", true],
+		["~/notes/line\nbreak.md", false],
+	])("round-trips %j", (path, isDirectory) => {
+		const reference = formatWorkspacePathReference(path, isDirectory);
+		expect(splitWorkspacePathReferences(`open ${reference} now`)).toEqual([
+			{ type: "text", text: "open " },
+			{ type: "path", path, isDirectory },
+			{ type: "text", text: " now" },
+		]);
+	});
+
+	it.each([
 		"run `make gen` first",
 		"edit `src/main.go`",
-		"the `/usr/bin/env python` line",
 		"see `/repo/a.ts`.",
 		"(`/repo/a.ts`)",
 		"x`/repo/a.ts` y",
+		"`/repo/a`b` is not one span",
+		"` /repo/a.ts `",
 		"`/` and `~/`",
 	])("leaves other inline code alone: %s", (text) => {
 		expect(splitWorkspacePathReferences(text)).toEqual([
