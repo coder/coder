@@ -279,7 +279,10 @@ The chip shows the skill's qualified alias, such as `/project/triage`, even when
 Coder reads the skill when you send the message, so a queued message keeps the version of the skill it was sent with.
 If the skill is turned off, deleted, or no longer available to you, Coder rejects the message with an error such as `Skill project/triage is not available.`
 Remove the chip, or turn the skill back on, and send the message again.
-Text such as `/triage` that you type without choosing it from the menu is sent as plain text, and the agent decides whether to read the skill.
+Typing a skill's full alias followed by a space also attaches the skill as a chip.
+The alias can be the one the menu shows, such as `/triage`, or the qualified alias, such as `/project/triage`.
+Partial names, text that doesn't match an available skill, and a bare name that more than one source shares are sent as plain text, and the agent decides whether to read the skill.
+A typed alias also stays plain text if the message already has a chip for that skill, or already has the maximum of 8 skills.
 
 ### Turn a skill on or off
 
@@ -294,7 +297,7 @@ When a chat has no skills left to load, the agent doesn't get the `read_skill` t
 ### Keep agents from using a skill on their own
 
 Personal, organization, and project skills have an **Agents can use it automatically** switch in their skill editor, which is on by default.
-Turn it off to keep agents from loading the skill on their own, so it runs only when someone invokes it from the `/` menu or, for a project skill, an action button.
+Turn it off to keep agents from loading the skill on their own, so it runs only when someone invokes it from the `/` menu, by typing its alias, or, for a project skill, with an action button.
 Skill lists mark these skills **Manual only**.
 The agent's list of skills leaves them out, and `read_skill` reports that the skill was not found.
 
