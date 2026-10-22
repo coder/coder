@@ -1,16 +1,20 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useEffect, useRef } from "react";
-import { QueryClientProvider } from "react-query";
+import { useEffect, useRef, useSyncExternalStore } from "react";
+import { focusManager, QueryClientProvider } from "react-query";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { API } from "#/api/api";
+import { API, type WorkspaceAgentFileContents } from "#/api/api";
+import type { WorkspaceAgentRepoChanges } from "#/api/typesGenerated";
+import { createDeferred } from "#/testHelpers/deferred";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { WorkspaceFilesContext } from "../../context/WorkspaceFilesContext";
 import {
 	getPersistedMainTabs,
 	savePersistedMainTabs,
 } from "../../utils/mainTabStorage";
+import { type ChatStore, createChatStore } from "../ChatConversation/chatStore";
+import type { StreamState } from "../ChatConversation/types";
 import type FileEditor from "../FileTab/FileEditor";
 import { MainTabs } from "./MainTabs";
 import { useMainTabs } from "./useMainTabs";
@@ -56,17 +60,48 @@ const ChatStub: React.FC<{ ref: React.Ref<HTMLTextAreaElement> }> = ({
 	return <textarea ref={ref} aria-label="Message" />;
 };
 
+type Repositories = ReadonlyMap<string, WorkspaceAgentRepoChanges>;
+
+/** Stands in for the git watcher, whose state the tests set. */
+const createRepositoriesStore = () => {
+	let repositories: Repositories = new Map();
+	const listeners = new Set<() => void>();
+	return {
+		get: () => repositories,
+		set: (next: Repositories) => {
+			repositories = next;
+			for (const listener of listeners) {
+				listener();
+			}
+		},
+		subscribe: (listener: () => void) => {
+			listeners.add(listener);
+			return () => {
+				listeners.delete(listener);
+			};
+		},
+	};
+};
+
 type HarnessProps = {
 	paths: readonly string[];
 	isAgentConnected?: boolean;
+	store: ChatStore;
+	repositoriesStore: ReturnType<typeof createRepositoriesStore>;
 };
 
 const Harness: React.FC<HarnessProps> = ({
 	paths,
 	isAgentConnected = true,
+	store,
+	repositoriesStore,
 }) => {
 	const mainTabs = useMainTabs(chatId);
 	const chatInputRef = useRef<HTMLTextAreaElement>(null);
+	const repositories = useSyncExternalStore(
+		repositoriesStore.subscribe,
+		repositoriesStore.get,
+	);
 	return (
 		<WorkspaceFilesContext
 			value={
@@ -75,7 +110,7 @@ const Harness: React.FC<HarnessProps> = ({
 							agentId: "agent-1",
 							defaultDirectory: "/home/coder",
 							repoRoots: ["/repo"],
-							repositories: new Map(),
+							repositories,
 							openFile: mainTabs.openFile,
 						}
 					: undefined
@@ -105,6 +140,7 @@ const Harness: React.FC<HarnessProps> = ({
 			</div>
 			<MainTabs
 				mainTabs={mainTabs}
+				store={store}
 				readOnly={false}
 				filesEnabled
 				focusChatInput={() => chatInputRef.current?.focus()}
@@ -117,13 +153,26 @@ const Harness: React.FC<HarnessProps> = ({
 
 const renderHarness = (
 	paths: readonly string[] = [],
-	{ isAgentConnected }: { isAgentConnected?: boolean } = {},
+	{
+		isAgentConnected,
+		streamState = null,
+	}: { isAgentConnected?: boolean; streamState?: StreamState | null } = {},
 ) => {
 	const queryClient = createTestQueryClient();
+	const store = createChatStore();
+	store.setStreamState(streamState);
+	const repositoriesStore = createRepositoriesStore();
 	const router = createMemoryRouter([
 		{
 			path: "/",
-			element: <Harness paths={paths} isAgentConnected={isAgentConnected} />,
+			element: (
+				<Harness
+					paths={paths}
+					isAgentConnected={isAgentConnected}
+					store={store}
+					repositoriesStore={repositoriesStore}
+				/>
+			),
 		},
 		{ path: "/other", element: <p>Other page</p> },
 	]);
@@ -132,8 +181,37 @@ const renderHarness = (
 			<RouterProvider router={router} />
 		</QueryClientProvider>,
 	);
-	return { ...result, router };
+	return {
+		...result,
+		router,
+		setStreamState: (state: StreamState) =>
+			act(() => store.setStreamState(state)),
+		setRepositories: (repositories: Repositories) =>
+			act(() => repositoriesStore.set(repositories)),
+	};
 };
+
+const repoWithDiff = (unifiedDiff: string): Repositories =>
+	new Map([
+		[
+			"/repo",
+			{ repo_root: "/repo", branch: "main", unified_diff: unifiedDiff },
+		],
+	]);
+
+const fileDiff = (path: string, line: string) =>
+	`diff --git a/${path} b/${path}\n--- a/${path}\n+++ b/${path}\n@@ -1 +1 @@\n-package main\n+${line}\n`;
+
+const fileToolStream = (
+	id: string,
+	name: string,
+	args: unknown,
+): StreamState => ({
+	blocks: [],
+	toolCalls: { [id]: { id, name, args } },
+	toolResults: { [id]: { id, name, isError: false } },
+	sources: [],
+});
 
 const getTab = (name: string | RegExp) => screen.getByRole("tab", { name });
 
@@ -461,6 +539,112 @@ describe("MainTabs", () => {
 		});
 		await waitFor(() => {
 			expect(screen.getByLabelText("Message")).toHaveFocus();
+		});
+	});
+
+	describe("refreshing files", () => {
+		const reads = (path: string) =>
+			vi
+				.mocked(API.readWorkspaceAgentFile)
+				.mock.calls.filter(([, readPath]) => readPath === path).length;
+		const textFile = (content: string): WorkspaceAgentFileContents => ({
+			data: new TextEncoder().encode(content).buffer,
+			contentType: "text/plain; charset=utf-8",
+			etag: `"${content}"`,
+		});
+
+		afterEach(() => {
+			focusManager.setFocused(undefined);
+		});
+
+		it("rereads the active file when its diff changes, and others once activated", async () => {
+			const user = userEvent.setup();
+			const { setRepositories } = renderHarness(["/repo/a.go", "/repo/b.go"]);
+			await user.click(screen.getByRole("button", { name: "Open /repo/a.go" }));
+			await user.click(screen.getByRole("button", { name: "Open /repo/b.go" }));
+			setRepositories(repoWithDiff(""));
+
+			setRepositories(repoWithDiff(fileDiff("a.go", "// a")));
+			setRepositories(
+				repoWithDiff(fileDiff("a.go", "// a") + fileDiff("b.go", "// b")),
+			);
+			await waitFor(() => {
+				expect(reads("/repo/b.go")).toBe(2);
+			});
+			expect(reads("/repo/a.go")).toBe(1);
+
+			await user.click(getTab("a.go"));
+			await waitFor(() => {
+				expect(reads("/repo/a.go")).toBe(2);
+			});
+			await user.click(getTab("b.go"));
+			expect(reads("/repo/b.go")).toBe(2);
+		});
+
+		it("shows the newest content when the diff changes during a read", async () => {
+			const user = userEvent.setup();
+			const { setRepositories } = renderHarness(["/repo/a.go"]);
+			await user.click(screen.getByRole("button", { name: "Open /repo/a.go" }));
+			const editor = await screen.findByLabelText("File contents");
+			setRepositories(repoWithDiff(""));
+
+			const staleRead = createDeferred<WorkspaceAgentFileContents>();
+			vi.mocked(API.readWorkspaceAgentFile).mockReturnValueOnce(
+				staleRead.promise,
+			);
+			setRepositories(repoWithDiff(fileDiff("a.go", "// one")));
+			vi.mocked(API.readWorkspaceAgentFile).mockResolvedValueOnce(
+				textFile("latest"),
+			);
+			setRepositories(repoWithDiff(fileDiff("a.go", "// two")));
+			await waitFor(() => {
+				expect(editor).toHaveValue("latest");
+			});
+
+			await act(async () => {
+				staleRead.resolve(textFile("stale"));
+				await staleRead.promise;
+			});
+			expect(editor).toHaveValue("latest");
+		});
+
+		it("rereads a file that a tool call in the chat writes", async () => {
+			savePersistedMainTabs(chatId, {
+				paths: ["/repo/a.go"],
+				activePath: "/repo/a.go",
+			});
+			// Completed before the page loaded, so the first read covers it.
+			const { setStreamState } = renderHarness([], {
+				streamState: fileToolStream("call-1", "write_file", {
+					path: "/repo/a.go",
+				}),
+			});
+			await screen.findByLabelText("File contents");
+			expect(reads("/repo/a.go")).toBe(1);
+
+			setStreamState(
+				fileToolStream("call-2", "edit_files", {
+					files: [{ path: "a.go", edits: [] }],
+				}),
+			);
+			await waitFor(() => {
+				expect(reads("/repo/a.go")).toBe(2);
+			});
+		});
+
+		it("rereads the active file when the window regains focus", async () => {
+			const user = userEvent.setup();
+			renderHarness(["/repo/a.go"]);
+			await user.click(screen.getByRole("button", { name: "Open /repo/a.go" }));
+			await screen.findByLabelText("File contents");
+
+			act(() => {
+				focusManager.setFocused(false);
+				focusManager.setFocused(true);
+			});
+			await waitFor(() => {
+				expect(reads("/repo/a.go")).toBe(2);
+			});
 		});
 	});
 

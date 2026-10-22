@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
 import type { WorkspaceAgentFileContents } from "#/api/api";
 import { workspaceAgentFileKey } from "#/api/queries/workspaceFiles";
 import { WorkspaceFilesContext } from "../../context/WorkspaceFilesContext";
@@ -6,6 +7,7 @@ import {
 	type PersistedMainTabs,
 	savePersistedMainTabs,
 } from "../../utils/mainTabStorage";
+import { createChatStore } from "../ChatConversation/chatStore";
 import { MainTabs } from "./MainTabs";
 import { useMainTabs } from "./useMainTabs";
 
@@ -37,6 +39,7 @@ const fileQueries = [
 
 const StoryMainTabs: React.FC = () => {
 	const mainTabs = useMainTabs(chatId);
+	const [store] = useState(createChatStore);
 	return (
 		<WorkspaceFilesContext
 			value={{
@@ -50,6 +53,7 @@ const StoryMainTabs: React.FC = () => {
 			<div className="flex h-[480px] flex-col">
 				<MainTabs
 					mainTabs={mainTabs}
+					store={store}
 					readOnly={false}
 					filesEnabled
 					focusChatInput={() => {}}
