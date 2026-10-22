@@ -95,4 +95,24 @@ describe("UserMessageContent", () => {
 			"/personal/reviewer check this",
 		);
 	});
+
+	it("spaces skill chips from the trimmed text around them", () => {
+		renderMessage("Review this usingReply in one line.", vi.fn(), [
+			{ type: "response", text: "Review this using" },
+			{
+				type: "skill-invocation",
+				skill_source: "personal",
+				skill_name: "reviewer",
+			},
+			{ type: "response", text: "Reply in one line." },
+		]);
+		const message = screen.getByText(/Review this using/);
+		window.getSelection()?.selectAllChildren(message);
+		const setData = vi.fn();
+		fireEvent.copy(message, { clipboardData: { setData } });
+		expect(setData).toHaveBeenCalledWith(
+			"text/plain",
+			"Review this using /personal/reviewer Reply in one line.",
+		);
+	});
 });
