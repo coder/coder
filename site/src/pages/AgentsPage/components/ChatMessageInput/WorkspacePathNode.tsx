@@ -1,4 +1,3 @@
-import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { cn } from "cn";
 import {
 	$getNodeByKey,
@@ -88,6 +87,13 @@ export class WorkspacePathNode extends DecoratorNode<React.ReactNode> {
 		return true;
 	}
 
+	// A keyboard-selected decorator becomes a NodeSelection, which clears
+	// the DOM caret while the editor keeps focus, so the next keystroke
+	// lands at the start of the editor. Arrow keys step over the chip.
+	isKeyboardSelectable(): boolean {
+		return false;
+	}
+
 	decorate(editor: LexicalEditor): React.ReactNode {
 		return (
 			<WorkspacePathChipWrapper
@@ -106,7 +112,6 @@ const WorkspacePathChipWrapper: React.FC<{
 	path: string;
 	isDirectory: boolean;
 }> = ({ editor, nodeKey, path, isDirectory }) => {
-	const [isSelected] = useLexicalNodeSelection(nodeKey);
 	const spacing = useFileReferenceSpacing(editor, nodeKey);
 
 	const handleRemove = () => {
@@ -119,7 +124,6 @@ const WorkspacePathChipWrapper: React.FC<{
 		<EditableWorkspacePathChip
 			path={path}
 			isDirectory={isDirectory}
-			selected={isSelected}
 			onRemove={handleRemove}
 			className={cn(spacing.before && "ml-1", spacing.after && "mr-1")}
 		/>
