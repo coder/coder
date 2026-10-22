@@ -45,4 +45,28 @@ describe("WorkspacePathNode", () => {
 
 		expect(text).toBe("see ");
 	});
+
+	it("exports its sent text to HTML", () => {
+		const editor = createEditor({
+			namespace: "workspace-path-test",
+			nodes: [WorkspacePathNode],
+			onError: (error) => {
+				throw error;
+			},
+		});
+		let html: string | undefined;
+
+		editor.update(
+			() => {
+				const { element } = $createWorkspacePathNode(
+					"/repo/My File.ts",
+					false,
+				).exportDOM(editor);
+				html = element instanceof HTMLElement ? element.outerHTML : undefined;
+			},
+			{ discrete: true },
+		);
+
+		expect(html).toBe("<span>`/repo/My File.ts`</span>");
+	});
 });
