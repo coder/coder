@@ -991,6 +991,41 @@ describe("ChatMessageInput", () => {
 			await waitFor(() => expect(inputRef.current?.getValue()).toBe(" "));
 		});
 
+		it("reopens an edited message with its path chips in place", async () => {
+			const content: ChatMessagePart[] = [
+				{
+					type: "text",
+					text: "see `/home/coder/a/src/main.go` and\n`/home/coder/b/src/` ",
+				},
+			];
+			const { text, editorState } = getEditableUserMessagePayload({
+				...MockChatMessage,
+				content,
+			});
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					initialValue={text}
+					initialEditorState={editorState}
+					aria-label="Chat message input"
+				/>,
+			);
+			await waitFor(() => {
+				expect(getRequestContent(inputRef)).toEqual(content);
+			});
+			const user = userEvent.setup();
+			await user.click(
+				await screen.findByRole("button", { name: "Remove main.go" }),
+			);
+			await waitFor(() =>
+				expect(inputRef.current?.getValue()).toBe(
+					"see  and\n`/home/coder/b/src/` ",
+				),
+			);
+		});
+
 		it("lets Enter send after Escape dismisses the picker", async () => {
 			mockFindFiles();
 			const { inputRef, onEnter } = renderWithWorkspaceFiles(workspaceFiles);
