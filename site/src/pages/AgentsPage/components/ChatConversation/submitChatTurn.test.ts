@@ -17,7 +17,7 @@ import {
 import { createDeferred } from "#/testHelpers/deferred";
 import { BuiltInCommandPendingError } from "../../hooks/useConversationEditingState";
 import { NIL_UUID } from "../../utils/modelOptions";
-import { createChatStore, selectIsRunAfterNewestTurn } from "./chatStore";
+import { createChatStore, selectIsCompactionStarting } from "./chatStore";
 import {
 	resolveEditModelConfigID,
 	type SubmitChatTurnParams,
@@ -210,23 +210,23 @@ describe("submitChatTurn", () => {
 		);
 	});
 
-	it("runs after the newest turn once /compact starts, and a rejected repeat keeps it", async () => {
+	it("reports a starting compaction after /compact, and a rejected repeat keeps it", async () => {
 		const store = createChatStore();
 		store.setActiveChatID("chat-1");
 		store.upsertDurableMessage({ ...MockChatMessage, role: "assistant" });
 		store.setChatStatus("waiting");
 
 		await submitChatTurn(buildParams({ message: "/compact", store }));
-		expect(selectIsRunAfterNewestTurn(store.getSnapshot())).toBe(true);
+		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(true);
 
 		const compact = vi.fn().mockRejectedValue(new Error("chat is busy"));
 		await expect(
 			submitChatTurn(buildParams({ message: "/compact", store, compact })),
 		).rejects.toThrow("chat is busy");
-		expect(selectIsRunAfterNewestTurn(store.getSnapshot())).toBe(true);
+		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(true);
 	});
 
-	it("does not run after the newest turn while a running chat's /compact is pending", async () => {
+	it("reports no starting compaction while a running chat's /compact is pending", async () => {
 		const store = createChatStore();
 		store.setActiveChatID("chat-1");
 		store.upsertDurableMessage({ ...MockChatMessage, role: "assistant" });
@@ -238,12 +238,12 @@ describe("submitChatTurn", () => {
 			buildParams({ message: "/compact", store, compact }),
 		);
 
-		expect(selectIsRunAfterNewestTurn(store.getSnapshot())).toBe(false);
+		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
 		request.reject(new Error("chat is busy"));
 		await expect(submission).rejects.toThrow("chat is busy");
 	});
 
-	it("does not run after the newest turn after a rejected /compact", async () => {
+	it("reports no starting compaction after a rejected /compact", async () => {
 		const store = createChatStore();
 		store.setActiveChatID("chat-1");
 		store.upsertDurableMessage({ ...MockChatMessage, role: "assistant" });
@@ -255,7 +255,7 @@ describe("submitChatTurn", () => {
 		).rejects.toThrow("Nothing to compact.");
 		store.setChatStatus("running");
 
-		expect(selectIsRunAfterNewestTurn(store.getSnapshot())).toBe(false);
+		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
 	});
 
 	it("compacts instead of sending and restores state if compact fails", async () => {

@@ -16,7 +16,7 @@ export const useTurnAttachmentsByRow = (
 	{
 		hidesAttachmentRows,
 		isChatActive,
-		isRunAfterNewestTurn,
+		isNextTurnStarting,
 		isCompacting,
 		hasMoreMessages,
 	}: TurnAttachmentsOptions,
@@ -27,7 +27,7 @@ export const useTurnAttachmentsByRow = (
 		{
 			hidesAttachmentRows,
 			isChatActive,
-			isRunAfterNewestTurn,
+			isNextTurnStarting,
 			isCompacting,
 			hasMoreMessages,
 		},

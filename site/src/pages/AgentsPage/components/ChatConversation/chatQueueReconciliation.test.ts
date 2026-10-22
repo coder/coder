@@ -16,7 +16,7 @@ import {
 	settlePromotedQueueHead,
 	submitEdit,
 } from "./chatQueueReconciliation";
-import { createChatStore, selectIsRunAfterNewestTurn } from "./chatStore";
+import { createChatStore, selectIsNextTurnStarting } from "./chatStore";
 
 describe("restoreOptimisticRequestSnapshot", () => {
 	it("restores queued messages, stream output, status, and stream error", () => {
@@ -131,7 +131,7 @@ describe("runPromoteQueuedMessage", () => {
 		["error", true],
 		["running", false],
 	])(
-		"promoted from %s, runs after the newest turn: %s",
+		"promoted from %s, reports the next turn starting: %s",
 		async (status, expected) => {
 			const store = createChatStore();
 			store.upsertDurableMessage({ ...MockChatMessage, id: 1, role: "user" });
@@ -153,7 +153,7 @@ describe("runPromoteQueuedMessage", () => {
 				onError: vi.fn(),
 			});
 
-			expect(selectIsRunAfterNewestTurn(store.getSnapshot())).toBe(expected);
+			expect(selectIsNextTurnStarting(store.getSnapshot())).toBe(expected);
 		},
 	);
 });

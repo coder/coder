@@ -478,7 +478,8 @@ type ConversationTimelineProps = {
 	showDesktopPreviews: boolean;
 	hasActiveStream: boolean;
 	isAwaitingFirstStreamChunk: boolean;
-	isRunAfterNewestTurn: boolean;
+	isCompactionStarting: boolean;
+	isNextTurnStarting: boolean;
 };
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
@@ -505,7 +506,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		showDesktopPreviews,
 		hasActiveStream,
 		isAwaitingFirstStreamChunk,
-		isRunAfterNewestTurn,
+		isCompactionStarting,
+		isNextTurnStarting,
 	}) => {
 		const { scrollToMessage } = useMessageScroller();
 		const preferences = useQuery(preferenceSettings());
@@ -543,8 +545,10 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			// streamed answer persists, so the live row keeps the turn open.
 			isChatActive:
 				isActiveChatStatus(chatStatus) || shouldRenderLiveAssistant(liveStatus),
-			isRunAfterNewestTurn,
-			isCompacting: liveTools.some((tool) => tool.name === "chat_summarized"),
+			isNextTurnStarting,
+			isCompacting:
+				isCompactionStarting ||
+				liveTools.some((tool) => tool.name === "chat_summarized"),
 			hasMoreMessages,
 		});
 		const workingBlocks = collapseSteps

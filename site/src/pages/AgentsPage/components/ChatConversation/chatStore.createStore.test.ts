@@ -3,7 +3,8 @@ import type * as TypesGen from "#/api/typesGenerated";
 import {
 	createChatStore,
 	selectIsAwaitingFirstStreamChunk,
-	selectIsRunAfterNewestTurn,
+	selectIsCompactionStarting,
+	selectIsNextTurnStarting,
 } from "./chatStore";
 
 // ---------------------------------------------------------------------------
@@ -1039,47 +1040,54 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 	});
 });
 
-describe("selectIsRunAfterNewestTurn", () => {
-	const requestIdleRun = () => {
+describe("selectIsCompactionStarting", () => {
+	const requestCompaction = () => {
 		const store = createChatStore();
 		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
 		store.upsertDurableMessage(makeMessage(2, "assistant", "hi there"));
 		store.setChatStatus("waiting");
-		store.markIdleRunRequested();
-		store.setChatStatus("running");
+		store.startRequestedRun("compaction");
 		return store;
 	};
 
-	it("lasts while the run streams and saves a summary", () => {
-		const store = requestIdleRun();
-		expect(selectIsRunAfterNewestTurn(store.getSnapshot())).toBe(true);
+	it("lasts from the request until the first part streams", () => {
+		const store = requestCompaction();
+		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(true);
 
 		store.applyMessagePart({
 			type: "tool-call",
 			tool_call_id: "compact",
 			tool_name: "chat_summarized",
 		});
+
+		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
+	});
+
+	it("ends once a newer message is saved", () => {
+		const store = requestCompaction();
+
 		store.upsertDurableMessage(makeMessage(3, "assistant", "summary"));
 
-		expect(selectIsRunAfterNewestTurn(store.getSnapshot())).toBe(true);
+		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
 	});
 
-	it("ends once a user message starts the next turn", () => {
-		const store = requestIdleRun();
-
-		store.upsertDurableMessage(makeMessage(3, "user", "next"));
-
-		expect(selectIsRunAfterNewestTurn(store.getSnapshot())).toBe(false);
-	});
-
-	it("ends when its run stops, so a later run continues the turn", () => {
-		const store = requestIdleRun();
+	it("ends when its run stops, so a later run is not a compaction", () => {
+		const store = requestCompaction();
 
 		store.setChatStatus("error");
-		expect(selectIsRunAfterNewestTurn(store.getSnapshot())).toBe(false);
+		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
 
 		store.setChatStatus("running");
-		expect(selectIsRunAfterNewestTurn(store.getSnapshot())).toBe(false);
+		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
+	});
+
+	it("ends when the server reports that its run stopped", () => {
+		const store = requestCompaction();
+
+		store.applyServerChatStatus("waiting");
+		store.applyServerChatStatus("running");
+
+		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
 	});
 
 	it("is false for a running chat without a request", () => {
@@ -1088,7 +1096,47 @@ describe("selectIsRunAfterNewestTurn", () => {
 		store.upsertDurableMessage(makeMessage(2, "assistant", "hi there"));
 		store.setChatStatus("running");
 
-		expect(selectIsRunAfterNewestTurn(store.getSnapshot())).toBe(false);
+		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
+	});
+});
+
+describe("selectIsNextTurnStarting", () => {
+	const startRun = (
+		messages: readonly TypesGen.ChatMessage[],
+		kind: "compaction" | "promotion",
+	) => {
+		const store = createChatStore();
+		store.upsertDurableMessages(messages);
+		store.setChatStatus("error");
+		store.startRequestedRun(kind);
+		return store;
+	};
+	const answeredTurn = [
+		makeMessage(1, "user", "hello"),
+		makeMessage(2, "assistant", "hi there"),
+	];
+
+	it("lasts after a promotion until a user message starts the next turn", () => {
+		const store = startRun(answeredTurn, "promotion");
+		expect(selectIsNextTurnStarting(store.getSnapshot())).toBe(true);
+
+		store.applyMessagePart({ type: "text", text: "Sure" });
+		expect(selectIsNextTurnStarting(store.getSnapshot())).toBe(true);
+
+		store.upsertDurableMessage(makeMessage(3, "user", "next"));
+		expect(selectIsNextTurnStarting(store.getSnapshot())).toBe(false);
+	});
+
+	it("holds when the newest message was a prompt with no reply", () => {
+		const store = startRun([makeMessage(1, "user", "hello")], "promotion");
+
+		expect(selectIsNextTurnStarting(store.getSnapshot())).toBe(true);
+	});
+
+	it("is false after a compaction, which can resume the newest turn", () => {
+		const store = startRun(answeredTurn, "compaction");
+
+		expect(selectIsNextTurnStarting(store.getSnapshot())).toBe(false);
 	});
 });
 

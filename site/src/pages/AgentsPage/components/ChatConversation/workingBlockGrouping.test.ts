@@ -1302,7 +1302,7 @@ describe("getTurnAttachmentsByRow", () => {
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: false,
 					isChatActive: false,
-					isRunAfterNewestTurn: false,
+					isNextTurnStarting: false,
 					isCompacting: false,
 					hasMoreMessages: false,
 				}),
@@ -1323,7 +1323,7 @@ describe("getTurnAttachmentsByRow", () => {
 			...getTurnAttachmentsByRow(rows, {
 				hidesAttachmentRows,
 				isChatActive: false,
-				isRunAfterNewestTurn: false,
+				isNextTurnStarting: false,
 				isCompacting: false,
 				hasMoreMessages: false,
 			}).keys(),
@@ -1349,7 +1349,7 @@ describe("getTurnAttachmentsByRow", () => {
 					getTurnAttachmentsByRow(rows, {
 						hidesAttachmentRows: false,
 						isChatActive: false,
-						isRunAfterNewestTurn: false,
+						isNextTurnStarting: false,
 						isCompacting: false,
 						hasMoreMessages: false,
 					}),
@@ -1369,7 +1369,7 @@ describe("getTurnAttachmentsByRow", () => {
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: false,
 					isChatActive: false,
-					isRunAfterNewestTurn: false,
+					isNextTurnStarting: false,
 					isCompacting: false,
 					hasMoreMessages,
 				}),
@@ -1402,7 +1402,7 @@ describe("getTurnAttachmentsByRow", () => {
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: true,
 					isChatActive: true,
-					isRunAfterNewestTurn: false,
+					isNextTurnStarting: false,
 					isCompacting: false,
 					hasMoreMessages: false,
 				}),
@@ -1422,7 +1422,7 @@ describe("getTurnAttachmentsByRow", () => {
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: false,
 					isChatActive: true,
-					isRunAfterNewestTurn: false,
+					isNextTurnStarting: false,
 					isCompacting: false,
 					hasMoreMessages: false,
 				}),
@@ -1446,7 +1446,7 @@ describe("getTurnAttachmentsByRow", () => {
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: false,
 					isChatActive: true,
-					isRunAfterNewestTurn: false,
+					isNextTurnStarting: false,
 					isCompacting: false,
 					hasMoreMessages: false,
 				}),
@@ -1469,7 +1469,7 @@ describe("getTurnAttachmentsByRow", () => {
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: false,
 					isChatActive: true,
-					isRunAfterNewestTurn: false,
+					isNextTurnStarting: false,
 					isCompacting: false,
 					hasMoreMessages: false,
 				}),
@@ -1477,7 +1477,7 @@ describe("getTurnAttachmentsByRow", () => {
 		).toEqual([["message:2", ["a"]]]);
 	});
 
-	it("keeps an unanswered turn's entry while the chat runs after it", () => {
+	it("keeps an unanswered turn's entry while the next turn starts", () => {
 		const { rows } = group([
 			user("Build the report"),
 			message("assistant", [
@@ -1486,14 +1486,14 @@ describe("getTurnAttachmentsByRow", () => {
 			]),
 			message("assistant", [file("a")]),
 		]);
-		// A compaction mid-turn looks the same unless this client started the
-		// run after the turn ended.
-		const rowFileIds = (isRunAfterNewestTurn: boolean) =>
+		// A compaction alone leaves a turn without an answer open, since the
+		// server can resume that turn after compacting it.
+		const rowFileIds = (isNextTurnStarting: boolean) =>
 			fileIdsByRow(
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: false,
 					isChatActive: true,
-					isRunAfterNewestTurn,
+					isNextTurnStarting,
 					isCompacting: true,
 					hasMoreMessages: false,
 				}),

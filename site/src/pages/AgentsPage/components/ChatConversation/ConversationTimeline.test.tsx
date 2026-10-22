@@ -75,7 +75,8 @@ function renderTimeline(initial: TimelineStage = {}) {
 								showDesktopPreviews={false}
 								hasActiveStream={false}
 								isAwaitingFirstStreamChunk={false}
-								isRunAfterNewestTurn={false}
+								isCompactionStarting={false}
+								isNextTurnStarting={false}
 								onSendAskUserQuestionResponse={vi.fn()}
 								{...props}
 							/>

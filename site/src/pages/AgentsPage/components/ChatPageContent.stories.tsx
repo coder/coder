@@ -32,7 +32,9 @@ import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
 import {
 	FIXTURE_NOW,
+	MockCollapsedStepsPreferences,
 	MockMixedAttachmentMessages,
+	MockUnansweredAttachmentMessages,
 } from "./ChatConversation/storyFixtures";
 import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
 
@@ -397,8 +399,36 @@ export const TurnAttachmentsPillCompactionStarting: Story = {
 		const store = createChatStore();
 		store.replaceMessages(MockMixedAttachmentMessages);
 		store.setChatStatus("waiting");
-		store.markIdleRunRequested();
-		store.setChatStatus("running");
+		store.startRequestedRun("compaction");
+
+		return <StoryChatPageTimeline store={store} />;
+	},
+};
+
+// A queued message sent now on an errored chat gets its user row after the
+// run starts, so the turn before it keeps its pill under the live block.
+export const TurnAttachmentsPillNextTurnStarting: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
+			},
+		],
+	},
+	render: () => {
+		const store = createChatStore();
+		store.replaceMessages(MockUnansweredAttachmentMessages);
+		store.setChatStatus("error");
+		store.startRequestedRun("promotion");
 
 		return <StoryChatPageTimeline store={store} />;
 	},
