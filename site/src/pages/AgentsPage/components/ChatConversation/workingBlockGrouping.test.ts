@@ -1296,7 +1296,7 @@ describe("getTurnAttachmentsByRow", () => {
 		message("tool", [result("attach", undefined, { name: "attach_file" })]),
 	];
 
-	it("lists the newest turn's agent files on its last assistant row", () => {
+	it("lists each turn's agent files on its last assistant row", () => {
 		const { rows } = group([
 			user("Build the first report"),
 			message("assistant", [text("Here:"), file("old")]),
@@ -1316,10 +1316,13 @@ describe("getTurnAttachmentsByRow", () => {
 					hasMoreMessages: false,
 				}),
 			),
-		).toEqual([["message:6", ["a", "b"]]]);
+		).toEqual([
+			["message:2", ["old"]],
+			["message:6", ["a", "b"]],
+		]);
 	});
 
-	it("gives an answered earlier turn's files no pill once a newer turn settles", () => {
+	it("keeps an answered earlier turn's pill once a newer turn settles", () => {
 		const { rows } = group([
 			user("Build the report"),
 			message("assistant", [text("Here:"), file("a")]),
@@ -1341,7 +1344,7 @@ describe("getTurnAttachmentsByRow", () => {
 					hasMoreMessages: false,
 				}),
 			),
-		).toEqual([]);
+		).toEqual([["message:2", ["a"]]]);
 	});
 
 	it("keeps the pill of an earlier turn that stopped before answering", () => {
@@ -1492,7 +1495,7 @@ describe("getTurnAttachmentsByRow", () => {
 		]);
 	});
 
-	it("shows no pill while the newest turn runs", () => {
+	it("shows no pill for the newest turn while it runs", () => {
 		const { rows } = group(
 			[
 				user("Build the report"),
@@ -1517,7 +1520,7 @@ describe("getTurnAttachmentsByRow", () => {
 					hasMoreMessages: false,
 				}),
 			),
-		).toEqual([]);
+		).toEqual([["message:2", ["a"]]]);
 	});
 
 	it("leaves an answered turn out while the chat keeps running it", () => {

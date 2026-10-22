@@ -20,10 +20,10 @@ describe("useTurnAttachmentsByRow", () => {
 				}),
 			{ initialProps: true },
 		);
-		expect([...result.current.keys()]).toEqual([]);
+		expect([...result.current.keys()]).toEqual(["message:9"]);
 
 		rerender(false);
 
-		expect([...result.current.keys()]).toEqual(["message:20"]);
+		expect([...result.current.keys()]).toEqual(["message:9", "message:20"]);
 	});
 });

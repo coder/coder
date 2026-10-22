@@ -203,8 +203,8 @@ const startTurn = (hasPrompt: boolean): TurnDraft => ({
 
 /**
  * Agent attachments keyed by the row hosting their turn's pill: the turn's last
- * shown assistant row other than a clear or summary. The newest turn gets one
- * once settled, an earlier turn only if unanswered. Reads only rows and flags.
+ * shown assistant row other than a clear or summary. Every earlier turn keeps
+ * its pill, and the newest gets one once settled. Reads only rows and flags.
  */
 export const getTurnAttachmentsByRow = (
 	rows: readonly TimelineRow[],
@@ -253,16 +253,16 @@ export const getTurnAttachmentsByRow = (
 		}
 
 		const { blocks, tools } = lastShownRow.entry.parsed;
-		const endsWithAnswer = splitRowBlocks(blocks, tools).answer.length > 0;
-		// A compaction adds nothing to an answered turn. An unanswered turn goes
-		// on after one, mid-turn or resumed after a manual /compact. Summary rows
-		// persist before the stop, so they count too.
+		// Every earlier turn is done. A compaction adds nothing to an answered
+		// newest turn, while an unanswered one goes on after it, mid-turn or
+		// resumed after a manual /compact. Summary rows persist before the stop,
+		// so they count too.
 		const showsPill =
-			index === turns.length - 1
-				? !isChatActive ||
-					isNextTurnStarting ||
-					(endsWithAnswer && (isCompacting || turn.boundaryFollowsLastShownRow))
-				: !endsWithAnswer;
+			index < turns.length - 1 ||
+			!isChatActive ||
+			isNextTurnStarting ||
+			((isCompacting || turn.boundaryFollowsLastShownRow) &&
+				splitRowBlocks(blocks, tools).answer.length > 0);
 		if (showsPill) {
 			byRow.set(lastShownRow.key, [first, ...turn.attachments.slice(1)]);
 		}

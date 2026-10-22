@@ -303,8 +303,8 @@ export const TurnAttachmentsPillBrokenImage: Story = {
 	},
 };
 
-// The running turn gets its pill once it settles, and the answered turn before
-// it gets none.
+// The running turn gets its pill once it settles; the answered turn before it
+// keeps its own.
 export const TurnAttachmentsPillRunningTurn: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(
