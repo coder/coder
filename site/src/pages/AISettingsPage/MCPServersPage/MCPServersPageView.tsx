@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import {
 	InputGroup,
 	InputGroupAddon,
@@ -25,8 +26,10 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { TooltipMessage } from "#/components/Tooltip/Tooltip";
 import { docs } from "#/utils/docs";
 import { MCPServerRow } from "./components/MCPServerRow";
+import { AVAILABILITY_HELP_TEXT } from "./components/mcpServerFormLogic";
 import { OrganizationPicker } from "./components/OrganizationPicker";
 import { addMCPServerPath, updateMCPServerPath } from "./organizationParam";
 
@@ -138,9 +141,19 @@ const MCPServersPageView: React.FC<MCPServersPageViewProps> = ({
 			<Table className="table-fixed min-w-[640px]" aria-label="MCP servers">
 				<TableHeader>
 					<TableRow>
-						<TableHead className="w-1/2">Name</TableHead>
+						<TableHead className="w-2/5">Name</TableHead>
 						<TableHead className="w-1/5">Auth Method</TableHead>
-						<TableHead className="w-1/5">Availability</TableHead>
+						<TableHead className="w-[30%]">
+							<div className="flex items-center gap-1">
+								Availability in chats
+								<InfoTooltip
+									size="small"
+									ariaLabel="About availability in chats"
+								>
+									<TooltipMessage>{AVAILABILITY_HELP_TEXT}</TooltipMessage>
+								</InfoTooltip>
+							</div>
+						</TableHead>
 						<TableHead className="w-12">
 							<span className="sr-only">Open server</span>
 						</TableHead>

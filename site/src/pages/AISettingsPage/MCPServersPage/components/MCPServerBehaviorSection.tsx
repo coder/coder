@@ -33,7 +33,7 @@ export const MCPServerBehaviorSection: React.FC<
 	return (
 		<>
 			<Field
-				label="Availability"
+				label="Availability in chats"
 				htmlFor={`${formId}-availability`}
 				className="max-w-md"
 				description={

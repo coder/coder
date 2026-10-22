@@ -22,24 +22,30 @@ export const AUTH_TYPE_LABELS = Object.fromEntries(
 export const AVAILABILITY_OPTIONS = [
 	{
 		value: "force_on",
-		label: "Force on",
-		description: "Always injected into every conversation.",
+		label: "Required",
+		description: "Always included in every chat. Users can't turn it off.",
 	},
 	{
 		value: "default_on",
-		label: "Default on",
-		description: "Pre-selected but users can opt out.",
+		label: "On by default",
+		description: "Selected in new chats. Users can turn it off.",
 	},
 	{
 		value: "default_off",
-		label: "Default off",
-		description: "Available but users must opt in.",
+		label: "Off by default",
+		description: "Not selected in new chats. Users can turn it on.",
 	},
 ] as const;
 
 export const AVAILABILITY_LABELS = Object.fromEntries(
 	AVAILABILITY_OPTIONS.map(({ value, label }) => [value, label]),
 ) as Record<string, string>;
+
+// Shown in place of the availability policy when the server is disabled.
+export const DISABLED_AVAILABILITY_LABEL = "Disabled";
+
+export const AVAILABILITY_HELP_TEXT =
+	"Required and Disabled apply to every user. On by default and Off by default only set where a user starts. After a user changes their selection, it carries over to their new chats.";
 
 export type MCPServerFormValues = {
 	displayName: string;

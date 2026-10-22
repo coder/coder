@@ -45,11 +45,17 @@ The add and update views always show the target organization, as a read-only fie
 
 #### Availability policies
 
-| Policy        | Behavior                                                                          |
-|---------------|-----------------------------------------------------------------------------------|
-| `force_on`    | Injected into every chat whose owner has ACL access to the server. No opting out. |
-| `default_on`  | Pre-selected in new chats. Users can opt out.                                     |
-| `default_off` | Available in the server list but users must opt in.                               |
+| Policy        | Label in the UI | Behavior                                                                          |
+|---------------|-----------------|-----------------------------------------------------------------------------------|
+| `force_on`    | Required        | Injected into every chat whose owner has ACL access to the server. No opting out. |
+| `default_on`  | On by default   | Pre-selected in new chats. Users can opt out.                                     |
+| `default_off` | Off by default  | Available in the server list but users must opt in.                               |
+
+When `enabled` is false, the MCP servers settings page shows the server as **Disabled** instead of its availability policy.
+
+`default_on` and `default_off` only set a user's starting selection.
+After a user changes which servers are selected, that selection carries over to their new chats, so later changes to these policies don't affect them.
+`force_on` servers are always included.
 
 ## Authentication
 
