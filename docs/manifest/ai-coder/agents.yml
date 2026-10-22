@@ -3,7 +3,7 @@ description: Delegate development work to coding agents in your deployment with 
 path: ./ai-coder/agents/index.md
 children:
   - title: Getting started
-    description: Enable Coder Agents, prepare your deployment, and run your first Coder Agent
+    description: Enable Coder Agents, prepare your deployment, and run your first Coder Agent.
     path: ./ai-coder/agents/getting-started.md
   - title: Architecture
     description: Learn how the Coder Agents control-plane agent communicates with your workspaces.
@@ -16,7 +16,7 @@ children:
     description: Configure the LLM providers and models that power Coder Agents from Admin settings.
     path: ./ai-coder/agents/models.md
   - title: Tools
-    description: How Coder Agents uses tool calls to select templates and create workspaces
+    description: How Coder Agents uses tool calls to select templates and create workspaces.
     path: ./ai-coder/agents/tools.md
   - title: Chat sharing
     description: Give other users and groups read-only access to a Coder Agents conversation with chat sharing.

@@ -33,7 +33,7 @@ Our scale tests include the following stages:
 
 The scale tests runner can distribute the workload to overlap single scenarios based on the workflow configuration:
 
-|                      | T0 | T1 | T2 | T3 | T4 | T5 | T6 |
+| Scenario             | T0 | T1 | T2 | T3 | T4 | T5 | T6 |
 |----------------------|----|----|----|----|----|----|----|
 | SSH connections      | X  | X  | X  | X  |    |    |    |
 | Web Terminal (PTY)   |    | X  | X  | X  | X  |    |    |
