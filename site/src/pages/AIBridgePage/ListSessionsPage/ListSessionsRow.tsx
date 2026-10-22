@@ -130,7 +130,7 @@ const SessionCell: React.FC<SessionCellProps> = ({ column, session }) => {
 								DATE_FORMAT.MEDIUM_DATE,
 							)}
 						</span>
-						<span className="text-xs text-content-secondary">
+						<span className="text-content-secondary">
 							{formatDateTime(
 								new Date(session.last_active_at),
 								DATE_FORMAT.TIME_12H,
