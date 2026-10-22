@@ -450,7 +450,6 @@ const reparseSecondBody = [
 	"+const c = 3;",
 ].join("\n");
 
-// FileDiff renders hunks synchronously enough for play tests.
 const ReparseSamePath: React.FC = () => {
 	const [body, setBody] = useState(reparseFirstBody);
 	const file = parseDiffString(body)[0];
@@ -504,8 +503,6 @@ export const ReparseSamePathAfterEdit: StoryObj = {
 	},
 };
 
-// The Git panel refresh path: CodeView stays mounted while the same file
-// arrives with a new body.
 const RefreshSamePath: React.FC = () => {
 	const [body, setBody] = useState(reparseFirstBody);
 	return (

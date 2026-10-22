@@ -21,10 +21,7 @@ import { useActiveFileTracking } from "./useActiveFileTracking";
 
 type DiffViewerProps = {
 	parsedFiles: readonly FileDiffMetadata[];
-	/**
-	 * CodeView item version. CodeView keeps its stored copy of an item until
-	 * this changes, so callers bump it whenever files or annotations change.
-	 */
+	/** Bump when files or annotations change. */
 	version: number;
 	isExpanded: boolean;
 	isLoading?: boolean;

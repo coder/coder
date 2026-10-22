@@ -209,9 +209,8 @@ export const CommentableDiffViewer: React.FC<CommentableDiffViewerProps> = ({
 		range: SelectedLineRange;
 	} | null>(null);
 
-	// CodeView re-reads an item only when its version changes, so bump it
-	// whenever the diff or the comment box changes. A fresh parse yields a
-	// new parsedFiles array, so identity catches every content change.
+	// CodeView ignores same-version updates to existing items. Callers supply
+	// a new parsedFiles array when diff content changes.
 	const [version, setVersion] = useState(0);
 	const [prevParsedFiles, setPrevParsedFiles] = useState(parsedFiles);
 	if (prevParsedFiles !== parsedFiles) {
