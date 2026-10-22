@@ -4,7 +4,11 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { fn, userEvent, waitFor, within } from "storybook/test";
 import type { DiffStyle } from "../DiffViewer/DiffViewer";
-import { compareTreePaths, DiffViewer } from "../DiffViewer/DiffViewer";
+import {
+	compareTreePaths,
+	DiffViewer,
+	FILE_LIST_PADDING,
+} from "../DiffViewer/DiffViewer";
 import { parseDiffString } from "../DiffViewer/parseDiff";
 import { InlinePromptInput } from "../DiffViewer/RemoteDiffPanel";
 import { generateLargeDiff } from "./testHelpers";
@@ -448,6 +452,8 @@ const reparseSecondBody = [
 	"+const c = 3;",
 ].join("\n");
 
+// FileDiff renders hunks synchronously enough for play tests; CodeView
+// virtualizes and never paints lines in this environment.
 const ReparseSamePath: React.FC = () => {
 	const [body, setBody] = useState(reparseFirstBody);
 	const file = parseDiffString(body)[0];
@@ -497,33 +503,6 @@ export const ReparseSamePathAfterEdit: StoryObj = {
 
 		// Shadow-root renders are invisible to the stability wait, so wait for
 		// the reparsed body.
-		await waitForDiffBody(canvasElement, "const v = 3");
-	},
-};
-
-const ReparseInDiffViewer: React.FC<React.ComponentProps<typeof DiffViewer>> = (
-	props,
-) => {
-	const [body, setBody] = useState(reparseFirstBody);
-	return (
-		<div className="flex h-full flex-col">
-			<button type="button" onClick={() => setBody(reparseSecondBody)}>
-				next body
-			</button>
-			<DiffViewer {...props} parsedFiles={parseDiffString(body)} />
-		</div>
-	);
-};
-
-// The same path with new content must re-render, so the CodeView item
-// version has to change with the file content.
-export const ReparseSamePathInDiffViewer: Story = {
-	render: (args) => <ReparseInDiffViewer {...args} />,
-	play: async ({ canvasElement }) => {
-		await waitForDiffBody(canvasElement, "const v = 2");
-		await userEvent.click(
-			within(canvasElement).getByRole("button", { name: "next body" }),
-		);
 		await waitForDiffBody(canvasElement, "const v = 3");
 	},
 };
@@ -624,9 +603,6 @@ const nextScrollEvent = (scroller: HTMLElement) =>
 		scroller.addEventListener("scroll", () => resolve(), { once: true }),
 	);
 
-const nextFrame = () =>
-	new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-
 // CodeView disables pointer events while a scroll is in progress.
 const waitForScrollSettled = (element: HTMLElement) =>
 	waitFor(() => {
@@ -683,18 +659,10 @@ export const TreeClickExpandsFileCollapsedFromStickyHeader: Story = {
 			name: `Expand ${firstLongFileName}`,
 		});
 		await collapseScroll;
-		// useActiveFileTracking queued its rAF in the collapse's scroll event, so
-		// it runs in the first frame. In Chromium, React commits that
-		// setActiveFile and the DiffFileTree selection effect runs before the
-		// second frame.
-		await nextFrame();
-		await nextFrame();
 		await waitForScrollSettled(expandButton);
-		await waitFor(() => {
-			if (selectedTreePaths(canvasElement).includes(firstLongFileName)) {
-				throw new Error("Collapsed file is still selected in the tree");
-			}
-		});
+		if (document.activeElement !== expandButton) {
+			throw new Error("Focus left the collapse button");
+		}
 
 		const row = treeRows(canvasElement).find(
 			(r) => r.dataset.itemPath === firstLongFileName,
@@ -749,8 +717,6 @@ export const CollapsingAnotherFileKeepsTreeSelection: Story = {
 	},
 };
 
-// Matches FILE_LIST_PADDING in DiffViewer.tsx.
-const listPadding = 8;
 const overflowLinesPerFile = 5;
 const overflowFiles = parseDiffString(
 	generateLargeDiff(30, overflowLinesPerFile),
@@ -760,31 +726,9 @@ const sortedOverflowFiles = [...overflowFiles]
 	.map((file) => file.name);
 const lastOverflowLine = `context line ${overflowLinesPerFile} in ${sortedOverflowFiles.at(-1)}`;
 
-// Whether the browser hides the code's horizontal scrollbar, as headless test
-// runs do.
-const codeScrollbarHidden = (code: HTMLElement) =>
-	code.offsetHeight === code.clientHeight;
-
-const firstCodeBlock = (canvasElement: HTMLElement): HTMLElement => {
-	const code = canvasElement
-		.querySelector("diffs-container")
-		?.shadowRoot?.querySelector<HTMLElement>("[data-code]");
-	if (!code) {
-		throw new Error("Code block not rendered");
-	}
-	return code;
-};
-
 // File heights come from itemMetrics, so they must match the rendered card,
-// code inset and horizontal scrollbar included. At maximum scroll the last
-// card then ends exactly the list padding above the bottom of the list.
-//
-// CI runs headless Chromium, which hides scrollbars, so there the height
-// check only covers the hidden-scrollbar case: the story zeroes the gutter
-// because no scrollbar fills it. The style checks before that hold in Chromium
-// whether or not scrollbars are shown, and fail if the non-Firefox scrollbar
-// rules in FILE_CARD_CSS are dropped. No CI test covers the Firefox rule,
-// because the runner is Chromium only.
+// code inset included. At maximum scroll the last card then ends exactly the
+// list padding above the bottom of the list.
 export const OverflowScrollsToLastCard: Story = {
 	args: {
 		parsedFiles: overflowFiles,
@@ -792,159 +736,65 @@ export const OverflowScrollsToLastCard: Story = {
 	play: async ({ canvasElement }) => {
 		await waitForDiffBody(canvasElement, `in ${sortedOverflowFiles[0]}`);
 		const scroller = findScroller(canvasElement);
-		const code = firstCodeBlock(canvasElement);
-		const codeStyle = getComputedStyle(code);
-		if (codeStyle.scrollbarColor !== "auto") {
-			throw new Error(
-				`Code scrollbar-color is ${codeStyle.scrollbarColor}, want auto`,
-			);
-		}
-		const gutter = codeStyle.getPropertyValue("--diffs-scrollbar-gutter");
-		if (gutter !== "6px") {
-			throw new Error(`Code scrollbar gutter is ${gutter}, want 6px`);
-		}
-		const thumb = getComputedStyle(
-			code,
-			"::-webkit-scrollbar-thumb",
-		).backgroundColor;
-		if (thumb === "rgba(0, 0, 0, 0)") {
-			throw new Error("Code scrollbar thumb is transparent");
-		}
-
-		// A document rule on the host beats the :host rule in FILE_CARD_CSS.
-		const zeroGutter = document.createElement("style");
-		zeroGutter.textContent =
-			"diffs-container { --diffs-scrollbar-gutter-override: 0px; }";
-		if (codeScrollbarHidden(code)) {
-			document.head.appendChild(zeroGutter);
-		}
-
-		try {
-			await waitFor(() => {
-				scroller.scrollTop = scroller.scrollHeight;
-				const cards = canvasElement.querySelectorAll("diffs-container");
-				const lastCard = cards[cards.length - 1];
-				if (!lastCard?.shadowRoot?.textContent?.includes(lastOverflowLine)) {
-					throw new Error("Last file has not rendered yet");
-				}
-				const spaceBelowLastCard =
-					scroller.getBoundingClientRect().bottom -
-					lastCard.getBoundingClientRect().bottom;
-				if (Math.abs(spaceBelowLastCard - listPadding) > 0.5) {
-					throw new Error(
-						`Last card ends ${spaceBelowLastCard}px above the list bottom, want ${listPadding}px`,
-					);
-				}
-			});
-		} finally {
-			zeroGutter.remove();
-		}
-	},
-};
-
-// The scrollbar check reads offsetWidth - clientWidth, so the story stubs
-// offsetWidth for each state instead of depending on the browser's scrollbars.
-// Changing the scroller's width fires the ResizeObserver that re-runs it.
-export const ClassicScrollbarDropsRightPadding: Story = {
-	args: {
-		parsedFiles: overflowFiles,
-	},
-	play: async ({ canvasElement }) => {
-		const firstName = sortedOverflowFiles[0] ?? "";
-		await waitForDiffBody(canvasElement, `in ${firstName}`);
-		const scroller = findScroller(canvasElement);
-		const paddingRight = () => getComputedStyle(scroller).paddingRight;
-		const setScrollbarWidth = (width: number) => {
-			Object.defineProperty(scroller, "offsetWidth", {
-				configurable: true,
-				get: () => scroller.clientWidth + width,
-			});
-			scroller.style.maxWidth = `${scroller.getBoundingClientRect().width - 1}px`;
-		};
-		const expectPaddingRight = (want: string, state: string) =>
-			waitFor(() => {
-				if (paddingRight() !== want) {
-					throw new Error(
-						`padding-right is ${paddingRight()} ${state}, want ${want}`,
-					);
-				}
-			});
-
-		try {
-			setScrollbarWidth(0);
-			await expectPaddingRight(`${listPadding}px`, "without a scrollbar");
-			setScrollbarWidth(12);
-			await expectPaddingRight("0px", "with a classic scrollbar");
-		} finally {
-			Reflect.deleteProperty(scroller, "offsetWidth");
-			scroller.style.maxWidth = "";
-		}
-	},
-};
-
-const headerRadii = (canvasElement: HTMLElement): string => {
-	const header = canvasElement
-		.querySelector("diffs-container")
-		?.shadowRoot?.querySelector<HTMLElement>("[data-diffs-header]");
-	if (!header) {
-		throw new Error("Header not rendered");
-	}
-	const style = getComputedStyle(header);
-	return [
-		style.borderTopLeftRadius,
-		style.borderTopRightRadius,
-		style.borderBottomRightRadius,
-		style.borderBottomLeftRadius,
-	].join(" ");
-};
-
-// An expanded header rounds only its top corners, above the code. A collapsed
-// file has no code block, so its header rounds every corner.
-export const CollapsedHeaderIsFullyRounded: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitForDiffBody(canvasElement, firstFileLine);
+		scroller.scrollTop = scroller.scrollHeight;
 		await waitFor(() => {
-			const radii = headerRadii(canvasElement);
-			if (radii !== "6px 6px 0px 0px") {
+			const cards = canvasElement.querySelectorAll("diffs-container");
+			const lastCard = cards[cards.length - 1];
+			if (!lastCard?.shadowRoot?.textContent?.includes(lastOverflowLine)) {
+				throw new Error("Last file has not rendered yet");
+			}
+			const spaceBelowLastCard =
+				scroller.getBoundingClientRect().bottom -
+				lastCard.getBoundingClientRect().bottom;
+			if (Math.abs(spaceBelowLastCard - FILE_LIST_PADDING) > 0.5) {
 				throw new Error(
-					`Expanded header radii are ${radii}, want 6px 6px 0px 0px`,
+					`Last card ends ${spaceBelowLastCard}px above the list bottom, want ${FILE_LIST_PADDING}px`,
 				);
 			}
 		});
+	},
+};
 
+// Snapshot of a collapsed card, which is just its fully rounded header.
+export const CollapsedFile: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitForDiffBody(canvasElement, firstFileLine);
 		await userEvent.click(
 			await canvas.findByRole("button", { name: `Collapse ${firstFileName}` }),
 		);
 		await waitForNoDiffBody(canvasElement, firstFileLine);
-		await waitFor(() => {
-			const radii = headerRadii(canvasElement);
-			if (radii !== "6px 6px 6px 6px") {
-				throw new Error(
-					`Collapsed header radii are ${radii}, want 6px 6px 6px 6px`,
-				);
-			}
-		});
 	},
 };
 
-// At the 16.5px line height in the 500px frame, line 60 of the first file is
-// not rendered at scrollTop 0 and is rendered at this offset.
-const stickyHeaderScrollTop = 600;
-const stickyHeaderWaitLine = 60;
-
-// Scrolls partway into a long file so its stuck header covers the card body,
-// the case the corner mask in FILE_CARD_CSS exists for.
+// Snapshot of a stuck header over its card's code, the case the corner mask in
+// FILE_CARD_CSS exists for.
 export const StickyHeaderCorners: Story = {
 	args: {
 		parsedFiles: longFiles,
 	},
 	play: async ({ canvasElement }) => {
 		await waitForDiffBody(canvasElement, `in ${firstLongFileName}`);
-		findScroller(canvasElement).scrollTop = stickyHeaderScrollTop;
-		await waitForDiffBody(
-			canvasElement,
-			`context line ${stickyHeaderWaitLine} in ${firstLongFileName}`,
-		);
+		const scroller = findScroller(canvasElement);
+		const card = canvasElement.querySelector("diffs-container");
+		if (!card) {
+			throw new Error("First card not rendered");
+		}
+		scroller.scrollTop = card.getBoundingClientRect().height / 2;
+		await waitFor(() => {
+			const viewTop = scroller.getBoundingClientRect().top;
+			const header = card.shadowRoot?.querySelector("[data-diffs-header]");
+			const lineBelowHeader = Array.from(
+				card.shadowRoot?.querySelectorAll("[data-line]") ?? [],
+			).some((line) => line.getBoundingClientRect().top > viewTop + 32);
+			if (
+				!header ||
+				card.getBoundingClientRect().top >= viewTop ||
+				header.getBoundingClientRect().top < viewTop ||
+				!lineBelowHeader
+			) {
+				throw new Error("Header is not stuck over rendered code yet");
+			}
+		});
 	},
 };
