@@ -5101,8 +5101,6 @@ CREATE INDEX idx_chat_debug_runs_chat_started ON chat_debug_runs USING btree (ch
 
 CREATE UNIQUE INDEX idx_chat_debug_runs_id_chat ON chat_debug_runs USING btree (id, chat_id);
 
-CREATE INDEX idx_chat_debug_runs_stale ON chat_debug_runs USING btree (updated_at) WHERE (finished_at IS NULL);
-
 CREATE INDEX idx_chat_debug_runs_updated_at ON chat_debug_runs USING btree (updated_at);
 
 CREATE INDEX idx_chat_debug_steps_chat_assistant_msg ON chat_debug_steps USING btree (chat_id, assistant_message_id) WHERE (assistant_message_id IS NOT NULL);
@@ -5110,8 +5108,6 @@ CREATE INDEX idx_chat_debug_steps_chat_assistant_msg ON chat_debug_steps USING b
 CREATE INDEX idx_chat_debug_steps_chat_tip ON chat_debug_steps USING btree (chat_id, history_tip_message_id);
 
 CREATE UNIQUE INDEX idx_chat_debug_steps_run_step ON chat_debug_steps USING btree (run_id, step_number);
-
-CREATE INDEX idx_chat_debug_steps_stale ON chat_debug_steps USING btree (updated_at) WHERE (finished_at IS NULL);
 
 CREATE INDEX idx_chat_diff_statuses_pr_title_fts ON chat_diff_statuses USING gin (to_tsvector('simple'::regconfig, pull_request_title));
 
