@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
+import { useParams } from "react-router";
 import { getErrorMessage, getErrorStatus } from "#/api/errors";
 import { workspaceAgentFindFiles } from "#/api/queries/workspaceFiles";
 import {
@@ -16,6 +17,7 @@ import {
 	type WorkspaceFilesContextValue,
 } from "../../context/WorkspaceFilesContext";
 import { getPathBasename } from "../../utils/path";
+import { useFilesPanelRoot } from "../RightPanel/FilesPanel";
 
 /** Opens a workspace file by fuzzy name search on Cmd+P (macOS) or Ctrl+P. */
 export const QuickOpenDialog: React.FC = () => {
@@ -34,7 +36,15 @@ const QuickOpen: React.FC<{ workspaceFiles: WorkspaceFilesContextValue }> = ({
 	const [query, setQuery] = useState("");
 	const trimmedQuery = query.trim();
 	const debouncedQuery = useDebouncedValue(trimmedQuery, 150);
-	const roots = repoRoots.length > 0 ? repoRoots : [""];
+	// The chat route's id keys the Files panel root, so a root picked there
+	// is searched too. "/" would scan the whole filesystem.
+	const { agentId: chatId } = useParams();
+	const { root: panelRoot } = useFilesPanelRoot(chatId, repoRoots);
+	const searchRoots =
+		panelRoot === "/" || repoRoots.includes(panelRoot)
+			? repoRoots
+			: [...repoRoots, panelRoot];
+	const roots = searchRoots.length > 0 ? searchRoots : [""];
 	const findQuery = useQuery({
 		...workspaceAgentFindFiles(agentId, roots, debouncedQuery),
 		enabled: open && debouncedQuery !== "",

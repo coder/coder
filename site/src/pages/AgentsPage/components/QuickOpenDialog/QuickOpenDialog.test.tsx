@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
+import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
@@ -8,6 +9,7 @@ import {
 	WorkspaceFilesContext,
 	type WorkspaceFilesContextValue,
 } from "../../context/WorkspaceFilesContext";
+import { filesPanelRootStorageKeyPrefix } from "../RightPanel/FilesPanel";
 import { QuickOpenDialog } from "./QuickOpenDialog";
 
 const contextValue = (
@@ -32,6 +34,7 @@ const renderDialog = (value: WorkspaceFilesContextValue | undefined) =>
 
 describe("QuickOpenDialog", () => {
 	beforeEach(() => {
+		localStorage.clear();
 		vi.spyOn(API, "findWorkspaceAgentFiles").mockResolvedValue({
 			results: [
 				{
@@ -77,6 +80,36 @@ describe("QuickOpenDialog", () => {
 			expect(
 				screen.queryByRole("combobox", { name: "Search files" }),
 			).toBeNull(),
+		);
+	});
+
+	it("also searches the Files panel root of the chat", async () => {
+		const user = userEvent.setup();
+		localStorage.setItem(`${filesPanelRootStorageKeyPrefix}chat-1`, "~/demo");
+		render(
+			<QueryClientProvider client={createTestQueryClient()}>
+				<WorkspaceFilesContext value={contextValue()}>
+					<MemoryRouter initialEntries={["/agents/chat-1"]}>
+						<Routes>
+							<Route path="/agents/:agentId" element={<QuickOpenDialog />} />
+						</Routes>
+					</MemoryRouter>
+				</WorkspaceFilesContext>
+			</QueryClientProvider>,
+		);
+
+		await user.keyboard("{Control>}p{/Control}");
+		await user.type(
+			screen.getByRole("combobox", { name: "Search files" }),
+			"hello",
+		);
+
+		await waitFor(() =>
+			expect(API.findWorkspaceAgentFiles).toHaveBeenCalledWith(
+				"agent-1",
+				["/home/coder/a", "/home/coder/b", "~/demo"],
+				"hello",
+			),
 		);
 	});
 
