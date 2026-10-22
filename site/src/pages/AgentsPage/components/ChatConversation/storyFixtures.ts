@@ -470,6 +470,24 @@ export const MockFindingsEvictedChatFiles: TypesGen.ChatFileMetadata[] = [
 export const MockUnansweredAttachmentMessages: TypesGen.ChatMessage[] =
 	MockMixedAttachmentMessages.slice(0, -1);
 
+/** MockUnansweredAttachmentMessages continued by a new prompt and answer. */
+export const MockContinuedAttachmentMessages: TypesGen.ChatMessage[] = [
+	...MockUnansweredAttachmentMessages,
+	{
+		...MockChatMessage,
+		id: 23,
+		created_at: workingFixtureTime(31),
+		content: [{ type: "text", text: "Continue" }],
+	},
+	{
+		...MockChatMessage,
+		id: 24,
+		role: "assistant",
+		created_at: workingFixtureTime(33),
+		content: [{ type: "text", text: "The dashboard matches the spec." }],
+	},
+];
+
 /** MockMixedAttachmentMessages followed by a manual context clear. */
 export const MockClearedAttachmentMessages: TypesGen.ChatMessage[] = [
 	...MockMixedAttachmentMessages,

@@ -2,16 +2,16 @@ import { renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import { MockUnansweredAttachmentMessages } from "./storyFixtures";
-import { useNewestTurnAttachments } from "./useNewestTurnAttachments";
+import { useTurnAttachmentsByRow } from "./useTurnAttachmentsByRow";
 
-describe("useNewestTurnAttachments", () => {
-	it("hosts the newest turn's pill once the chat stops", () => {
+describe("useTurnAttachmentsByRow", () => {
+	it("adds the newest turn's entry once the chat stops", () => {
 		const parsedMessages = parseMessagesWithMergedTools(
 			MockUnansweredAttachmentMessages,
 		);
 		const { result, rerender } = renderHook(
 			(isChatActive: boolean) =>
-				useNewestTurnAttachments(parsedMessages, {
+				useTurnAttachmentsByRow(parsedMessages, {
 					hidesAttachmentRows: true,
 					isChatActive,
 					isNextTurnStarting: false,
@@ -20,10 +20,10 @@ describe("useNewestTurnAttachments", () => {
 				}),
 			{ initialProps: true },
 		);
-		expect(result.current).toBeUndefined();
+		expect([...result.current.keys()]).toEqual([]);
 
 		rerender(false);
 
-		expect(result.current?.rowKey).toBe("message:20");
+		expect([...result.current.keys()]).toEqual(["message:20"]);
 	});
 });

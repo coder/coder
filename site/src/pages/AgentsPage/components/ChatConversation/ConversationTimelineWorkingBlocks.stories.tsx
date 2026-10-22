@@ -17,6 +17,7 @@ import {
 	MockBrokenImageAttachmentMessages,
 	MockClearedAttachmentMessages,
 	MockCollapsedStepsPreferences,
+	MockContinuedAttachmentMessages,
 	MockFindingsEvictedChatFiles,
 	MockLeadInSearchMessages,
 	MockLongTurnPageLoads,
@@ -302,7 +303,8 @@ export const TurnAttachmentsPillBrokenImage: Story = {
 	},
 };
 
-// The running turn gets its pill once it settles, and earlier turns get none.
+// The running turn gets its pill once it settles, and the answered turn before
+// it gets none.
 export const TurnAttachmentsPillRunningTurn: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(
@@ -362,6 +364,16 @@ export const TurnAttachmentsPillWithoutAnswer: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(
 			MockUnansweredAttachmentMessages,
+		),
+	},
+};
+
+// A turn stopped before its answer keeps its pill under its block after the
+// next prompt continues it.
+export const TurnAttachmentsPillStoppedTurn: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockContinuedAttachmentMessages,
 		),
 	},
 };

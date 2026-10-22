@@ -55,7 +55,7 @@ import type {
 	StreamState,
 } from "./types";
 import { UserMessageContent } from "./UserMessageContent";
-import { useNewestTurnAttachments } from "./useNewestTurnAttachments";
+import { useTurnAttachmentsByRow } from "./useTurnAttachmentsByRow";
 import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
 import {
 	getBlockTurnAttachments,
@@ -538,7 +538,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const isTurnActive =
 			chatStatus === "running" || chatStatus === "interrupting";
 		const collapseSteps = Boolean(preferences.data?.collapse_assistant_steps);
-		const newestTurnHost = useNewestTurnAttachments(parsedMessages, {
+		const turnAttachmentsByRow = useTurnAttachmentsByRow(parsedMessages, {
 			hidesAttachmentRows: collapseSteps,
 			// Unlike isTurnActive, requires_action counts, since the submitted
 			// tool result resumes the turn. The status can also settle before the
@@ -724,9 +724,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						section === "work" || (!isUser && !row.isLastInAssistantChain)
 					}
 					turnAttachments={
-						rendersAtTopLevel && newestTurnHost?.rowKey === row.key
-							? newestTurnHost.attachments
-							: undefined
+						rendersAtTopLevel ? turnAttachmentsByRow.get(row.key) : undefined
 					}
 					hasActiveStream={hasActiveStream}
 					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
@@ -770,7 +768,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						const blockAttachments = getBlockTurnAttachments(
 							block,
 							memberKeys,
-							newestTurnHost,
+							turnAttachmentsByRow,
 						);
 
 						return [
