@@ -71,8 +71,23 @@ const UserMessageText: React.FC<{ text: string }> = ({ text }) => {
 	);
 };
 
+type CopySegment = { text: string; isChip: boolean };
+
+// The text runs and chip copy texts of a copied fragment, in document order.
+const getCopySegments = (node: Node): CopySegment[] => {
+	if (node instanceof Element && node.hasAttribute("data-copy-text")) {
+		return [{ text: node.getAttribute("data-copy-text") ?? "", isChip: true }];
+	}
+	if (node.nodeType === Node.TEXT_NODE) {
+		return [{ text: node.textContent ?? "", isChip: false }];
+	}
+	return Array.from(node.childNodes).flatMap(getCopySegments);
+};
+
 // Chips are not selectable, so a copy of a selection within the message
 // writes each chip's text form, its data-copy-text, in place of the chip.
+// The server trims each sent text part, so one space separates a chip from
+// text it would otherwise touch.
 const handleMessageCopy = (event: React.ClipboardEvent<HTMLElement>) => {
 	const selection = window.getSelection();
 	const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
@@ -80,14 +95,26 @@ const handleMessageCopy = (event: React.ClipboardEvent<HTMLElement>) => {
 		return;
 	}
 	const fragment = range.cloneContents();
-	const chips = fragment.querySelectorAll("[data-copy-text]");
-	if (chips.length === 0) {
+	if (!fragment.querySelector("[data-copy-text]")) {
 		return;
 	}
-	for (const chip of chips) {
-		chip.replaceWith(chip.getAttribute("data-copy-text") ?? "");
+	let text = "";
+	let previousIsChip = false;
+	for (const segment of getCopySegments(fragment)) {
+		if (!segment.text) {
+			continue;
+		}
+		if (
+			(segment.isChip || previousIsChip) &&
+			/\S$/.test(text) &&
+			/^\S/.test(segment.text)
+		) {
+			text += " ";
+		}
+		text += segment.text;
+		previousIsChip = segment.isChip;
 	}
-	event.clipboardData.setData("text/plain", fragment.textContent ?? "");
+	event.clipboardData.setData("text/plain", text);
 	event.preventDefault();
 };
 
