@@ -257,6 +257,7 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 								className="absolute inset-0 flex flex-col bg-surface-primary"
 							>
 								<FileTab
+									chatId={mainTabs.chatId}
 									agentId={workspaceFiles.agentId}
 									path={file.path}
 									reveal={file.reveal}
