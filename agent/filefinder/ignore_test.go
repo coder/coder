@@ -221,7 +221,9 @@ func TestIgnorer_GitParity(t *testing.T) {
 		extra := filepath.Join(t.TempDir(), "extra.gitconfig")
 		excludes := filepath.Join(t.TempDir(), "excludes")
 		require.NoError(t, os.WriteFile(excludes, []byte("*.swp\n"), 0o600))
-		require.NoError(t, os.WriteFile(extra, []byte("[core]\n\texcludesFile = "+excludes+"\n"), 0o600))
+		// Git config treats a backslash as an escape, so Windows paths
+		// must use forward slashes, which git accepts there.
+		require.NoError(t, os.WriteFile(extra, []byte("[core]\n\texcludesFile = "+filepath.ToSlash(excludes)+"\n"), 0o600))
 		runGit(t, repo, "config", "include.path", extra)
 		createFile(t, repo, "a.swp", "")
 		require.Equal(t, []bool{true}, ig.Ignored(context.Background(), []filefinder.IgnoreQuery{{Path: filepath.Join(repo, "a.swp")}}))
