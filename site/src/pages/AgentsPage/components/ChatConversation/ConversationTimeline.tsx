@@ -12,7 +12,6 @@ import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
-import { CopyButton } from "#/components/CopyButton/CopyButton";
 import {
 	Tooltip,
 	TooltipContent,
@@ -207,12 +206,14 @@ const ChatMessageItem = memo<{
 			isUser &&
 			Boolean(onJumpToUserMessage) &&
 			(prevUserMessageKey !== undefined || nextUserMessageKey !== undefined);
-		const showsActionButtons =
+		const copyText =
+			displayState?.hasCopyableContent && parsed && !hideActions
+				? parsed.markdown
+				: undefined;
+		const showsHoverActions =
 			displayState !== undefined &&
 			!hideActions &&
-			(displayState.hasCopyableContent ||
-				canEditUserMessage ||
-				canJumpBetweenUserMessages);
+			(canEditUserMessage || canJumpBetweenUserMessages);
 		if (displayState?.shouldHide) {
 			return null;
 		}
@@ -326,20 +327,13 @@ const ChatMessageItem = memo<{
 						{notice}
 					</LifecycleHookNotice>
 				))}
-				{(showsActionButtons || turnAttachments) && (
+				{(copyText !== undefined || showsHoverActions || turnAttachments) && (
 					<MessageActionBar
 						isUser={isUser}
+						copyText={copyText}
 						turnAttachments={turnAttachments}
-						showsActionButtons={showsActionButtons}
+						showsHoverActions={showsHoverActions}
 					>
-						{displayState?.hasCopyableContent && parsed && (
-							<CopyButton
-								text={parsed.markdown}
-								label="Copy message"
-								className="size-6"
-								tooltipSide="bottom"
-							/>
-						)}
 						{canEditUserMessage && messageId !== undefined && (
 							<Tooltip>
 								<TooltipTrigger asChild>
@@ -423,9 +417,10 @@ const ChatMessageItem = memo<{
 							)}
 					</MessageActionBar>
 				)}
-				{/* The bottom spacer fakes the hidden action bar's height so chain-end
-				    messages keep even spacing. A row with a pill shows its bar, and the
-				    last message has nothing after it, so neither gets the spacer. */}
+				{/* The bottom spacer fakes the action bar's height so chain-end
+				    messages without one keep even spacing. A row with a pill shows its
+				    bar, and the last message has nothing after it, so neither gets the
+				    spacer. */}
 				{displayState?.needsAssistantBottomSpacer &&
 					!isLastMessage &&
 					!turnAttachments && (
@@ -805,8 +800,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								{blockAttachments && (
 									<MessageActionBar
 										isUser={false}
+										copyText={undefined}
 										turnAttachments={blockAttachments}
-										showsActionButtons={false}
+										showsHoverActions={false}
 									/>
 								)}
 							</MessageScroller.Item>,

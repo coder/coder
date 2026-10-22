@@ -1852,21 +1852,9 @@ export const CopyButtonWritesToClipboard: Story = {
 
 		try {
 			const canvas = within(canvasElement);
-			// Force the hover-reveal toolbar visible.
-			for (const el of canvasElement.querySelectorAll("[class]")) {
-				if (
-					el instanceof HTMLElement &&
-					el.className.includes("group-hover/msg:opacity-100")
-				) {
-					el.style.opacity = "1";
-				}
-			}
-			// Find the assistant's copy button (last message-actions).
-			const actions = canvas.getAllByTestId("message-actions");
-			const assistantActions = actions[actions.length - 1];
-			const copyBtn = within(assistantActions).getByRole("button", {
-				name: "Copy message",
-			});
+			const copyBtn = within(
+				canvas.getByTestId("chat-message-message:2"),
+			).getByRole("button", { name: "Copy message" });
 			await userEvent.click(copyBtn);
 			expect(writeText).toHaveBeenCalledWith("Here is the **answer**.");
 		} finally {
@@ -1970,18 +1958,6 @@ export const AssistantActionBarAfterHiddenMessages: Story = {
 				content: [{ type: "text", text: "Thanks!" }],
 			},
 		]),
-	},
-	play: async ({ canvasElement }) => {
-		// Force the hover-reveal action bars visible using stable test IDs.
-		// The invisible provider-executed tool-result message (id=3)
-		// must not prevent the assistant (id=2) from showing its bar.
-		for (const el of canvasElement.querySelectorAll(
-			'[data-testid="message-actions"]',
-		)) {
-			if (el instanceof HTMLElement) {
-				el.style.opacity = "1";
-			}
-		}
 	},
 };
 
