@@ -468,8 +468,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const availableBrowserApp = getAgentBrowserApp(workspaceAgent);
 
 	const singletonTabSupport: Record<SingletonRightPanelTabId, boolean> = {
-		// FilesPanel shows its own state when the workspace has no agent.
-		files: Boolean(workspaceFilesEnabled),
 		browser: availableBrowserApp !== undefined,
 		desktop: availableDesktopChatId !== undefined,
 		debug: debugLoggingEnabled === true,
@@ -499,8 +497,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	// sync. Desktop is ordered before terminals so terminals are rightmost.
 	const builtInSidebarTabConfigs = [
 		{ id: "summary", label: "Summary" },
+		// FilesPanel shows its own state when the workspace has no agent.
+		...(workspaceFilesEnabled ? [{ id: "files", label: "Files" }] : []),
 		{ id: "git", label: "Git" },
-		...(isSingletonTabShown("files") ? [{ id: "files", label: "Files" }] : []),
 		...(isSingletonTabShown("debug") ? [{ id: "debug", label: "Debug" }] : []),
 		...(isSingletonTabShown("browser")
 			? [{ id: "browser", label: "Browser" }]

@@ -504,6 +504,13 @@ index abc1234..def5678 100644
 	},
 };
 
+/** With workspace files on, Files is a fixed tab between Summary and Git. */
+export const WithFilesTab: Story = {
+	render: () => (
+		<StoryAgentChatPageView showSidebarPanel workspaceFilesEnabled />
+	),
+};
+
 export const NarrowWithSidebarPanel: Story = {
 	render: () => <StoryAgentChatPageView showSidebarPanel />,
 	decorators: [

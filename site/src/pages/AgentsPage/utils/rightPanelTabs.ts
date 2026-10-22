@@ -16,7 +16,6 @@ import { findWorkspaceAgent } from "#/utils/workspace";
  * Each one can appear at most once, so the tab ID is the panel ID.
  */
 export const singletonRightPanelTabIds = [
-	"files",
 	"browser",
 	"desktop",
 	"debug",
