@@ -104,7 +104,7 @@ Chats in that organization offer no MCP servers.
 - Users with read access to an organization's models can open the **Models** page and the **Coder Agents** page, and Coder shows the fields as read-only.
 - Users with access to an organization's MCP servers can open the **MCP servers** page.
 - Users who can edit an organization's skills decide whether members of that organization can turn off organization skills for their own chats.
-  Refer to [Let members turn off organization skills](../extending-agents.md#let-members-turn-off-organization-skills).
+  Refer to [Let members turn off organization skills](../extending-agents.md#let-members-turn-off-organization-skills) for more information.
 - Auditors and custom roles can hold read access without edit access.
 - Users with a custom role that grants edit access without read access can save organization instructions through the API, but they can't view them.
 
