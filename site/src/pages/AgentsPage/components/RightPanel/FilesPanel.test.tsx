@@ -454,6 +454,43 @@ describe("FilesPanel", () => {
 		screen.getByRole("treeitem", { name: ".bashrc" });
 	});
 
+	it("returns focus to the picker after Open path only if the form kept it", async () => {
+		const user = userEvent.setup();
+		const release = holdListings("/home/coder/repo/src");
+		renderPanel(contextValue());
+		render(<input aria-label="Composer" />);
+		const trigger = await screen.findByRole("combobox", {
+			name: "Root directory",
+		});
+		const openPath = async () => {
+			await user.click(trigger);
+			await user.click(screen.getByRole("option", { name: "Open path..." }));
+			await user.type(
+				screen.getByRole("textbox", { name: "Path" }),
+				"/home/coder/repo/src{Enter}",
+			);
+		};
+
+		await openPath();
+		const composer = screen.getByRole("textbox", { name: "Composer" });
+		await user.click(composer);
+		await user.keyboard("hi");
+		const releaseAll = () =>
+			waitFor(() => {
+				release();
+				expect(
+					vi.mocked(API.listWorkspaceAgentDirectory).mock.settledResults,
+				).not.toContainEqual({ type: "incomplete", value: undefined });
+			});
+		await releaseAll();
+		await screen.findByRole("treeitem", { name: "main.go" });
+		expect(composer).toHaveFocus();
+
+		await openPath();
+		await releaseAll();
+		await waitFor(() => expect(trigger).toHaveFocus());
+	});
+
 	it("coalesces repository refreshes into one request and one trailing request", async () => {
 		const user = userEvent.setup();
 		const repository: WorkspaceAgentRepoChanges = {
