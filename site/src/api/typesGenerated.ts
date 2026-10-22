@@ -2724,6 +2724,11 @@ export interface ChatFilePart {
 }
 
 // From codersdk/chats.go
+export type ChatFilePurpose = "prompt" | "workspace";
+
+export const ChatFilePurposes: ChatFilePurpose[] = ["prompt", "workspace"];
+
+// From codersdk/chats.go
 export interface ChatFileReferencePart {
 	readonly type: "file-reference";
 	readonly file_name: string;
@@ -2873,12 +2878,14 @@ export type ChatInputPartType =
 	| "file"
 	| "file-reference"
 	| "text"
+	| "workspace-attachment"
 	| "workspace-file-reference";
 
 export const ChatInputPartTypes: ChatInputPartType[] = [
 	"file",
 	"file-reference",
 	"text",
+	"workspace-attachment",
 	"workspace-file-reference",
 ];
 
@@ -2950,6 +2957,7 @@ export type ChatMessagePart =
 	| ChatContextFilePart
 	| ChatSkillPart
 	| ChatWorkspaceFileReferencePart
+	| ChatWorkspaceAttachmentPart
 	| ChatHookNoticePart;
 
 // From codersdk/chats.go
@@ -2965,6 +2973,7 @@ export type ChatMessagePartType =
 	| "text"
 	| "tool-call"
 	| "tool-result"
+	| "workspace-attachment"
 	| "workspace-file-reference";
 
 export const ChatMessagePartTypes: ChatMessagePartType[] = [
@@ -2979,6 +2988,7 @@ export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"text",
 	"tool-call",
 	"tool-result",
+	"workspace-attachment",
 	"workspace-file-reference",
 ];
 
@@ -3985,6 +3995,19 @@ export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 	"summary_change",
 	"title_change",
 ];
+
+// From codersdk/chats.go
+export interface ChatWorkspaceAttachmentPart {
+	readonly type: "workspace-attachment";
+	readonly media_type: string;
+	readonly file_id: string;
+	readonly name?: string;
+	/**
+	 * Size is the byte size of a workspace attachment, filled in by the
+	 * server.
+	 */
+	readonly size?: number;
+}
 
 // From codersdk/chats.go
 export interface ChatWorkspaceFileReferencePart {
@@ -6805,6 +6828,13 @@ export const MaxChatFileSizeBytes = 10485760;
  * counted in Unicode code points after trimming.
  */
 export const MaxChatTitleRunes = 200;
+
+// From codersdk/chats.go
+/**
+ * MaxChatWorkspaceFileSizeBytes is the upload-endpoint cap for chat files
+ * uploaded with ChatFilePurposeWorkspace.
+ */
+export const MaxChatWorkspaceFileSizeBytes = 104857600;
 
 // From codersdk/chats.go
 /**

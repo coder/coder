@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -310,4 +311,30 @@ func TestChatFileResolver_UnknownProviderSkipsCapCheck(t *testing.T) {
 	got, err := resolver(ctx, []uuid.UUID{fileID})
 	require.NoError(t, err)
 	require.Contains(t, got, fileID)
+}
+
+// TestChatWorkspaceAttachmentResolver confirms workspace attachments are
+// resolved from metadata, so their bytes are never loaded, and that an
+// evicted file is left out.
+func TestChatWorkspaceAttachmentResolver(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	server := &Server{db: db}
+
+	stored := database.GetChatFilesMetadataByIDsRow{ID: uuid.New(), Name: "report.zip", Mimetype: "application/zip"}
+	evictedID := uuid.New()
+	ids := []uuid.UUID{stored.ID, evictedID}
+	db.EXPECT().
+		GetChatFilesMetadataByIDs(gomock.Any(), ids).
+		Return([]database.GetChatFilesMetadataByIDsRow{stored}, nil).
+		Times(1)
+
+	got, err := server.chatWorkspaceAttachmentResolver()(ctx, ids)
+	require.NoError(t, err)
+	require.Equal(t, map[uuid.UUID]chatprompt.FileData{
+		stored.ID: {Name: "report.zip", MediaType: "application/zip"},
+	}, got)
 }

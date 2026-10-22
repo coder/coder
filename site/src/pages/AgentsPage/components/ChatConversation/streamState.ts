@@ -238,9 +238,10 @@ export const applyMessagePartToStreamState = (
 		// Hook notices may arrive in durable message events, but not in
 		// streaming part deltas.
 		case "hook-notice":
-		// workspace-file-reference parts only appear in persisted
-		// user messages, never via SSE streaming.
+		// workspace-file-reference and workspace-attachment parts only
+		// appear in persisted user messages, never via SSE streaming.
 		case "workspace-file-reference":
+		case "workspace-attachment":
 			return prev;
 		default: {
 			const _exhaustive: never = part;

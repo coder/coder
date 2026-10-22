@@ -70,6 +70,9 @@ func executeWriteFileTool(
 	if requestedPath == "" {
 		return fantasy.NewTextErrorResponse("path is required"), nil
 	}
+	if err := resolveHomePaths(ctx, conn, &requestedPath); err != nil {
+		return fantasy.NewTextErrorResponse(err.Error()), nil
+	}
 
 	hasPlanFileName := looksLikePlanFileName(requestedPath)
 	if hasPlanFileName && !isAbsolutePath(requestedPath) {
