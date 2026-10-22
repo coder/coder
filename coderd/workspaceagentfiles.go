@@ -107,7 +107,7 @@ func (api *API) workspaceAgentFilesReadFile(rw http.ResponseWriter, r *http.Requ
 func (api *API) workspaceAgentFilesWriteFile(rw http.ResponseWriter, r *http.Request) {
 	api.proxyWorkspaceAgentFiles(rw, r, workspaceAgentFilesRoute{
 		path:        "/api/v0/write-file",
-		queryParams: []string{"path", "if_match"},
+		queryParams: []string{"path", "if_match", "if_none_match"},
 	})
 }
 
