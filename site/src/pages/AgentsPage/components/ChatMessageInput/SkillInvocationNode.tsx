@@ -18,7 +18,11 @@ import {
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import type { SkillSource } from "../../utils/skillAliases";
-import { useFileReferenceSpacing } from "./FileReferenceNode";
+import {
+	$createFileReferenceNode,
+	FileReferenceNode,
+	useFileReferenceSpacing,
+} from "./FileReferenceNode";
 import { EditableSkillChip } from "./SkillChip";
 
 type SerializedSkillInvocationNode = Spread<
@@ -176,12 +180,15 @@ export function $insertSkillInvocation(
 	chip.selectNext().insertText(" ");
 }
 
-/** Serializes a sent message's text and skill chips as a composer draft. */
+/**
+ * Serializes a sent message's text, skill chips and file-reference chips as
+ * a composer draft.
+ */
 export const serializeMessageDraft = (
 	content: readonly ChatMessagePart[],
 ): string => {
 	const editor = createEditor({
-		nodes: [SkillInvocationNode],
+		nodes: [SkillInvocationNode, FileReferenceNode],
 		onError: (error) => {
 			throw error;
 		},
@@ -193,6 +200,15 @@ export const serializeMessageDraft = (
 				if (part.type === "skill-invocation") {
 					paragraph.append(
 						new SkillInvocationNode(part.skill_source, part.skill_name),
+					);
+				} else if (part.type === "file-reference") {
+					paragraph.append(
+						$createFileReferenceNode(
+							part.file_name,
+							part.start_line,
+							part.end_line,
+							part.content,
+						),
 					);
 				} else if (part.type === "text") {
 					for (const [index, line] of part.text.split("\n").entries()) {
