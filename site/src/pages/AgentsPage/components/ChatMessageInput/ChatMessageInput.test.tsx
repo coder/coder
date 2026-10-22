@@ -989,6 +989,9 @@ describe("ChatMessageInput", () => {
 			);
 			await user.click(screen.getByRole("button", { name: "Remove main.go" }));
 			await waitFor(() => expect(inputRef.current?.getValue()).toBe(" "));
+			expect(
+				screen.getByRole("textbox", { name: "Chat message input" }),
+			).toHaveFocus();
 		});
 
 		it("reopens an edited message with its path chips in place", async () => {
