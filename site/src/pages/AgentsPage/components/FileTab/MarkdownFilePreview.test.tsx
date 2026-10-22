@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { QueryClientProvider } from "react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { API, type WorkspaceAgentFile } from "#/api/api";
+import { API } from "#/api/api";
 import {
 	createTestQueryClient,
 	renderComponent,
@@ -56,15 +56,6 @@ const renderPreview = (content: string) =>
 	renderWithProviders(
 		<MarkdownFilePreview agentId={agentId} path={path} content={content} />,
 	);
-
-const directoryEntry = (name: string, size: number): WorkspaceAgentFile => ({
-	name,
-	absolute_path_string: `/repo/docs/${name}`,
-	is_dir: false,
-	is_symlink: false,
-	size,
-	mod_time: "2026-01-01T00:00:00Z",
-});
 
 const pngContents = () => ({
 	data: new Uint8Array([137, 80, 78, 71]).buffer,
@@ -126,21 +117,27 @@ describe("MarkdownFilePreview", () => {
 		).toBe("_blank");
 	});
 
-	it("loads remote images directly, including badges inside file links", async () => {
+	it("blocks remote images until the viewer loads them", async () => {
 		const user = userEvent.setup();
 		const { files } = renderPreview(
 			"[![license](https://img.shields.io/github/license/coder/coder)](./LICENSE)",
 		);
 
-		const badge = await screen.findByRole("img", { name: "license" });
-		expect(badge.getAttribute("src")).toBe(
-			"https://img.shields.io/github/license/coder/coder",
+		await user.click(
+			await screen.findByRole("button", { name: "license (image blocked)" }),
 		);
-		await user.click(screen.getByRole("button", { name: "license" }));
-
 		expect(files.openFile).toHaveBeenCalledWith("/repo/LICENSE", {
 			line: undefined,
 		});
+		expect(screen.queryByRole("img")).toBeNull();
+
+		await user.click(
+			screen.getByRole("button", { name: "Load remote images" }),
+		);
+
+		expect(
+			(await screen.findByRole("img", { name: "license" })).getAttribute("src"),
+		).toBe("https://img.shields.io/github/license/coder/coder");
 	});
 
 	it("scrolls to a heading when an anchor link is clicked", async () => {
@@ -158,18 +155,17 @@ describe("MarkdownFilePreview", () => {
 		expect(scrolled).toEqual(["Getting Started!"]);
 	});
 
-	it("loads relative images from the workspace and revokes them on unmount", async () => {
-		vi.spyOn(API, "listWorkspaceAgentDirectory").mockResolvedValue({
-			absolute_path: ["repo", "docs"],
-			absolute_path_string: "/repo/docs",
-			contents: [
-				directoryEntry("logo.png", 1024),
-				directoryEntry("huge.png", 10 * 1024 * 1024),
-			],
-		});
+	it("loads workspace images with a bounded read and revokes them on unmount", async () => {
 		const readFile = vi
 			.spyOn(API, "readWorkspaceAgentFile")
-			.mockResolvedValue(pngContents());
+			.mockImplementation(async (_agentId, path) =>
+				path.endsWith("huge.png")
+					? {
+							...pngContents(),
+							data: new ArrayBuffer(2 * 1024 * 1024 + 1),
+						}
+					: pngContents(),
+			);
 		const { unmount } = renderPreview(
 			'![Logo](./docs/logo.png) <img src="docs/huge.png" alt="Huge">',
 		);
@@ -177,21 +173,16 @@ describe("MarkdownFilePreview", () => {
 		const logo = await screen.findByRole("img", { name: "Logo" });
 		expect(logo.getAttribute("src")).toMatch(/^blob:preview-/);
 		await screen.findByText("Huge (image too large to preview)");
-		expect(readFile).toHaveBeenCalledTimes(1);
-		expect(readFile).toHaveBeenCalledWith(agentId, "/repo/docs/logo.png");
+		expect(readFile).toHaveBeenCalledWith(agentId, "/repo/docs/huge.png", {
+			limit: 2 * 1024 * 1024 + 1,
+		});
+		expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
 
 		unmount();
 		expect(URL.revokeObjectURL).toHaveBeenCalledWith(logo.getAttribute("src"));
 	});
 
 	it("loads at most 20 workspace images", async () => {
-		vi.spyOn(API, "listWorkspaceAgentDirectory").mockResolvedValue({
-			absolute_path: ["repo", "docs"],
-			absolute_path_string: "/repo/docs",
-			contents: Array.from({ length: 25 }, (_, index) =>
-				directoryEntry(`${index}.png`, 10),
-			),
-		});
 		const readFile = vi
 			.spyOn(API, "readWorkspaceAgentFile")
 			.mockResolvedValue(pngContents());

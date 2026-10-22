@@ -94,6 +94,21 @@ export const workspaceAgentFile = (agentId: string, path: string) => {
 	} satisfies UseQueryOptions<WorkspaceAgentFileQueryData>;
 };
 
+/**
+ * Reads at most `limit` bytes of a file. The result is cached apart from
+ * full reads, under the file's key, so invalidating the file refreshes it.
+ */
+export const workspaceAgentFileHead = (
+	agentId: string,
+	path: string,
+	limit: number,
+) => {
+	return {
+		queryKey: [...workspaceAgentFileKey(agentId, path), "head", limit],
+		queryFn: () => API.readWorkspaceAgentFile(agentId, path, { limit }),
+	} satisfies UseQueryOptions<WorkspaceAgentFileContents>;
+};
+
 export const workspaceAgentFindFiles = (
 	agentId: string,
 	roots: readonly string[],
