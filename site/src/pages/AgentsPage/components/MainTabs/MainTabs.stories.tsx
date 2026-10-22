@@ -49,8 +49,13 @@ const StoryMainTabs: React.FC = () => {
 		>
 			<div className="flex h-[480px] flex-col">
 				<MainTabs mainTabs={mainTabs} readOnly={false}>
-					<div className="flex flex-1 items-center justify-center text-sm text-content-secondary">
+					<div className="relative flex flex-1 items-center justify-center text-sm text-content-secondary">
 						Chat transcript
+						{/* Stands in for Monaco widgets, whose `visible` class matches
+						    Tailwind's utility. It must not show over an active file tab. */}
+						<div className="visible absolute right-4 top-4 z-10 rounded-md border border-solid border-border bg-surface-secondary px-3 py-2 text-xs">
+							Floating chat widget
+						</div>
 					</div>
 				</MainTabs>
 			</div>
