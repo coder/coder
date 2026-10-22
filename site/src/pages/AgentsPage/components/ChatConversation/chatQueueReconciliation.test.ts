@@ -140,12 +140,12 @@ describe("runPromoteQueuedMessage", () => {
 				id: 2,
 				role: "assistant",
 			});
-			const queued = buildQueuedMessage(3, "next");
-			store.setQueuedMessages([queued]);
+			const mockQueuedMessage = buildQueuedMessage(3, "next");
+			store.setQueuedMessages([mockQueuedMessage]);
 			store.setChatStatus(status);
 
 			await runPromoteQueuedMessage({
-				id: queued.id,
+				id: mockQueuedMessage.id,
 				store,
 				promoteQueuedMessage: vi.fn(async (_id: number) => undefined),
 				agentId: "chat-1",

@@ -1112,13 +1112,13 @@ describe("selectIsNextTurnStarting", () => {
 		store.startRequestedRun(kind);
 		return store;
 	};
-	const answeredTurn = [
+	const mockAnsweredTurn = [
 		makeMessage(1, "user", "hello"),
 		makeMessage(2, "assistant", "hi there"),
 	];
 
 	it("lasts after a promotion until a user message starts the next turn", () => {
-		const store = startRun(answeredTurn, "promotion");
+		const store = startRun(mockAnsweredTurn, "promotion");
 		expect(selectIsNextTurnStarting(store.getSnapshot())).toBe(true);
 
 		store.applyMessagePart({ type: "text", text: "Sure" });
@@ -1135,7 +1135,7 @@ describe("selectIsNextTurnStarting", () => {
 	});
 
 	it("is false after a compaction, which can resume the newest turn", () => {
-		const store = startRun(answeredTurn, "compaction");
+		const store = startRun(mockAnsweredTurn, "compaction");
 
 		expect(selectIsNextTurnStarting(store.getSnapshot())).toBe(false);
 	});

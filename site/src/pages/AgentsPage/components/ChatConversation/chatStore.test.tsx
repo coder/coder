@@ -2564,13 +2564,23 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(createMockSocket());
 
 		// Message IDs are global, so the older running chat holds lower IDs.
-		const erroredChat: TypesGen.Chat = {
+		const mockErroredChat: TypesGen.Chat = {
 			...buildChat("chat-errored"),
 			status: "error",
 		};
-		const runningChat = buildChat("chat-running");
-		const newerPrompt = buildMessage(erroredChat.id, 5, "user", "newer");
-		const olderPrompt = buildMessage(runningChat.id, 1, "user", "older");
+		const mockRunningChat = buildChat("chat-running");
+		const mockNewerPrompt = buildMessage(
+			mockErroredChat.id,
+			5,
+			"user",
+			"newer",
+		);
+		const mockOlderPrompt = buildMessage(
+			mockRunningChat.id,
+			1,
+			"user",
+			"older",
+		);
 		const optionsFor = (
 			chat: TypesGen.Chat,
 			message: TypesGen.ChatMessage,
@@ -2599,20 +2609,26 @@ describe("useChatStore", () => {
 					isNextTurnStarting: useChatSelector(store, selectIsNextTurnStarting),
 				};
 			},
-			{ initialProps: optionsFor(erroredChat, newerPrompt), wrapper },
+			{ initialProps: optionsFor(mockErroredChat, mockNewerPrompt), wrapper },
 		);
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(erroredChat.id, newerPrompt.id);
+			expect(watchChat).toHaveBeenCalledWith(
+				mockErroredChat.id,
+				mockNewerPrompt.id,
+			);
 		});
 		act(() => {
 			result.current.store.startRequestedRun("promotion");
 		});
 		expect(result.current.isNextTurnStarting).toBe(true);
 
-		rerender(optionsFor(runningChat, olderPrompt));
+		rerender(optionsFor(mockRunningChat, mockOlderPrompt));
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(runningChat.id, olderPrompt.id);
+			expect(watchChat).toHaveBeenCalledWith(
+				mockRunningChat.id,
+				mockOlderPrompt.id,
+			);
 		});
 		expect(result.current.isNextTurnStarting).toBe(false);
 	});
