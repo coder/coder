@@ -2,6 +2,7 @@ import { cn } from "cn";
 import {
 	$getNodeByKey,
 	DecoratorNode,
+	type DOMConversionMap,
 	type DOMExportOutput,
 	type LexicalEditor,
 	type NodeKey,
@@ -64,6 +65,12 @@ export class WorkspacePathNode extends DecoratorNode<React.ReactNode> {
 		const span = document.createElement("span");
 		span.textContent = this.getTextContent();
 		return { element: span };
+	}
+
+	// Imported HTML keeps the exported span as text. The composer pastes
+	// chips from its own Lexical JSON, never from HTML.
+	static importDOM(): DOMConversionMap | null {
+		return null;
 	}
 
 	exportJSON(): SerializedWorkspacePathNode {
