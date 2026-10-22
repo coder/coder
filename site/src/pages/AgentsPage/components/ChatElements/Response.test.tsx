@@ -171,14 +171,40 @@ describe("Response", () => {
 				"agent-1",
 				["/home/coder/coder", "/home/coder/other"],
 				"api/api.ts",
+				200,
 			);
 		});
 
-		it("lets the user choose between several matching files", async () => {
+		it("prefers the file whose repository path equals the mention", async () => {
+			const user = userEvent.setup();
+			vi.spyOn(API, "findWorkspaceAgentFiles").mockResolvedValue({
+				results: [
+					findResult("/home/coder/coder", "enterprise/coderd/x/chatd/chatd.go"),
+					findResult("/home/coder/coder", "coderd/x/chatd/chatd.go"),
+				],
+			});
+			const { files } = renderWithFiles("See `coderd/x/chatd/chatd.go:603`.");
+
+			await user.click(
+				await screen.findByRole("button", {
+					name: "coderd/x/chatd/chatd.go:603",
+				}),
+			);
+
+			await waitFor(() =>
+				expect(files.openFile).toHaveBeenCalledWith(
+					"/home/coder/coder/coderd/x/chatd/chatd.go",
+					{ line: 603 },
+				),
+			);
+		});
+
+		it("lets the user choose between several matching files with the keyboard", async () => {
 			const user = userEvent.setup();
 			vi.spyOn(API, "findWorkspaceAgentFiles").mockResolvedValue({
 				results: [
 					findResult("/home/coder/coder", "README.md"),
+					findResult("/home/coder/other", "README.md"),
 					findResult("/home/coder/other", "docs/README.md"),
 				],
 			});
@@ -190,14 +216,41 @@ describe("Response", () => {
 			const picker = await screen.findByRole("dialog", {
 				name: "Files matching README.md",
 			});
-			await user.click(
-				within(picker).getByRole("button", { name: "docs/README.md in other" }),
-			);
+			expect(
+				within(picker)
+					.getAllByRole("option")
+					.map((option) => option.getAttribute("aria-label")),
+			).toEqual(["README.md in coder", "README.md in other"]);
+			await user.keyboard("{ArrowDown}{Enter}");
 
 			expect(files.openFile).toHaveBeenCalledWith(
-				"/home/coder/other/docs/README.md",
+				"/home/coder/other/README.md",
 				{ line: undefined },
 			);
+		});
+
+		it("closes the picker with Escape and notes truncated results", async () => {
+			const user = userEvent.setup();
+			vi.spyOn(API, "findWorkspaceAgentFiles").mockResolvedValue({
+				results: Array.from({ length: 200 }, (_, index) =>
+					findResult("/home/coder/coder", `pkg${index}/README.md`),
+				),
+			});
+			const { files } = renderWithFiles("See README.md for setup.");
+
+			await user.click(
+				await screen.findByRole("button", { name: "README.md" }),
+			);
+			const picker = await screen.findByRole("dialog", {
+				name: "Files matching README.md",
+			});
+			expect(
+				within(picker).getByText(/^Showing 200 matches from the first 200/),
+			).toBeDefined();
+			await user.keyboard("{Escape}");
+
+			await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+			expect(files.openFile).not.toHaveBeenCalled();
 		});
 
 		it("reports when no file matches", async () => {

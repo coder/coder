@@ -11,6 +11,13 @@ import {
 	workspaceAgentFindFiles,
 } from "#/api/queries/workspaceFiles";
 import {
+	Command,
+	CommandEmpty,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "#/components/Command/Command";
+import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
@@ -24,6 +31,32 @@ import {
 	verifyFilePath,
 } from "../../utils/filePathMentions";
 import { getPathBasename } from "../../utils/path";
+
+// The agent's maximum; common names such as README.md can match many files.
+const findFilesLimit = 200;
+
+/**
+ * Keeps the search results the mention names. A result whose root-relative
+ * path equals the mention wins over results that only end with it, so
+ * coderd/x.go does not also offer enterprise/coderd/x.go.
+ */
+const pickMentionedFiles = (
+	results: readonly WorkspaceAgentFindFilesResult[],
+	relativePath: string,
+	inHome: boolean,
+) => {
+	const candidates = results.filter((result) => !result.is_dir);
+	const exact = candidates.filter(
+		(result) =>
+			result.path === relativePath || result.absolute_path === relativePath,
+	);
+	if (exact.length > 0 || inHome) {
+		return exact;
+	}
+	return candidates.filter((result) =>
+		result.absolute_path.endsWith(`/${relativePath}`),
+	);
+};
 
 type FileMentionProps = {
 	/** Absolute, `~/`-prefixed, or relative path without a line suffix. */
@@ -47,6 +80,7 @@ export const FileMention: React.FC<FileMentionProps> = ({
 	const [matches, setMatches] = useState<
 		readonly WorkspaceAgentFindFilesResult[]
 	>([]);
+	const [truncated, setTruncated] = useState(false);
 	// Identifies the latest lookup; unmounting or a new agent or path makes
 	// an in-flight lookup stale so it neither opens a file nor toasts.
 	const lookupRef = useRef(0);
@@ -81,24 +115,23 @@ export const FileMention: React.FC<FileMentionProps> = ({
 		const lookup = ++lookupRef.current;
 		try {
 			const { results } = await queryClient.fetchQuery(
-				workspaceAgentFindFiles(files.agentId, roots, relativePath),
+				workspaceAgentFindFiles(
+					files.agentId,
+					roots,
+					relativePath,
+					findFilesLimit,
+				),
 			);
 			if (lookup !== lookupRef.current) {
 				return;
 			}
-			const found = results.filter(
-				(result) =>
-					!result.is_dir &&
-					(inHome
-						? result.path === relativePath
-						: result.absolute_path === relativePath ||
-							result.absolute_path.endsWith(`/${relativePath}`)),
-			);
+			const found = pickMentionedFiles(results, relativePath, inHome);
 			setPending(false);
 			if (found.length === 1) {
 				files.openFile(found[0].absolute_path, { line });
 			} else if (found.length > 1) {
 				setMatches(found);
+				setTruncated(results.length >= findFilesLimit);
 			} else {
 				toast.error(`No file matching ${path} in this chat's repositories`);
 			}
@@ -153,30 +186,41 @@ export const FileMention: React.FC<FileMentionProps> = ({
 			<PopoverContent
 				align="start"
 				aria-label={`Files matching ${path}`}
-				className="w-auto max-w-md p-1"
+				className="w-96 max-w-[90vw] p-0"
 			>
-				<ul className="m-0 list-none p-0">
-					{matches.map((match) => (
-						<li key={match.absolute_path}>
-							<button
-								type="button"
-								aria-label={`${match.path} in ${getPathBasename(match.root)}`}
-								className="flex w-full cursor-pointer items-baseline gap-2 rounded border-0 bg-transparent px-2 py-1 text-left text-content-primary hover:bg-surface-secondary focus-visible:bg-surface-secondary"
-								onClick={() => {
-									setMatches([]);
-									files.openFile(match.absolute_path, { line });
-								}}
-							>
-								<span className="min-w-0 truncate font-mono text-xs">
-									{match.path}
-								</span>
-								<span className="shrink-0 text-xs text-content-secondary">
-									{getPathBasename(match.root)}
-								</span>
-							</button>
-						</li>
-					))}
-				</ul>
+				<Command label={`Files matching ${path}`}>
+					<CommandInput placeholder="Filter matching files" />
+					<CommandList>
+						<CommandEmpty>No matching files</CommandEmpty>
+						{matches.map((match) => {
+							const rootName = getPathBasename(match.root);
+							return (
+								<CommandItem
+									key={match.absolute_path}
+									value={match.absolute_path}
+									aria-label={`${match.path} in ${rootName}`}
+									className="items-baseline py-1.5"
+									onSelect={() => {
+										setMatches([]);
+										files.openFile(match.absolute_path, { line });
+									}}
+								>
+									<span className="min-w-0 truncate font-mono text-xs text-content-primary">
+										{match.path}
+									</span>
+									<span className="ml-auto shrink-0 text-xs font-normal">
+										{rootName}
+									</span>
+								</CommandItem>
+							);
+						})}
+					</CommandList>
+					<p className="m-0 border-0 border-t border-solid border-border px-3 py-1.5 text-xs text-content-secondary">
+						{truncated
+							? `Showing ${matches.length} matches from the first ${findFilesLimit} search results. Mention a longer path to narrow them down.`
+							: `${matches.length} files match ${path}.`}
+					</p>
+				</Command>
 			</PopoverContent>
 		</Popover>
 	);
