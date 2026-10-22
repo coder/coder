@@ -45,7 +45,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
 			? "success"
 			: "error";
 	const badge = (
-		<Badge size="sm" variant={themeRoleToBadgeVariant(role)}>
+		<Badge size="sm" className="px-2.5" variant={themeRoleToBadgeVariant(role)}>
 			{code.toString()}
 		</Badge>
 	);
