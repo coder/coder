@@ -4,6 +4,8 @@ import type { WorkspaceAgentRepoChanges } from "#/api/typesGenerated";
 export type OpenFileOptions = {
 	/** 1-based line to reveal. */
 	line?: number;
+	/** Move keyboard focus to the file. Defaults to true. */
+	focus?: boolean;
 };
 
 export type WorkspaceFilesContextValue = {
