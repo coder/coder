@@ -109,6 +109,7 @@ type WriteWorkspaceAgentFileVariables = {
 	path: string;
 	content: string;
 	ifMatch?: string;
+	createOnly?: boolean;
 };
 
 export const writeWorkspaceAgentFile = (
@@ -120,8 +121,11 @@ export const writeWorkspaceAgentFile = (
 			path,
 			content,
 			ifMatch,
+			createOnly,
 		}: WriteWorkspaceAgentFileVariables) =>
-			API.writeWorkspaceAgentFile(agentId, path, content, ifMatch),
+			API.writeWorkspaceAgentFile(agentId, path, content, ifMatch, {
+				createOnly: createOnly ?? false,
+			}),
 		onSuccess: (
 			{ etag }: { etag: string },
 			{ path, content }: WriteWorkspaceAgentFileVariables,
