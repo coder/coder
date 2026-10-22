@@ -42,7 +42,6 @@ import {
 	deriveMessageDisplayState,
 	getVisibleContent,
 } from "./messageHelpers";
-import { getEditableContentPayload } from "./messageParsing";
 import { assignTimelineRows } from "./timelineRows";
 import type {
 	MergedTool,
@@ -118,12 +117,7 @@ const ChatMessageItem = memo<{
 	liveBlocks?: readonly RenderBlock[];
 	liveTools?: readonly MergedTool[];
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
-	onEditUserMessage?: (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly TypesGen.ChatMessagePart[],
-		editorState?: string,
-	) => void;
+	onEditUserMessage?: (messageId: number) => void;
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
 	hideActions?: boolean;
@@ -346,16 +340,7 @@ const ChatMessageItem = memo<{
 											variant="subtle"
 											className="size-6"
 											aria-label="Edit message"
-											onClick={() => {
-												const { text, fileBlocks, editorState } =
-													getEditableContentPayload(message.content);
-												onEditUserMessage?.(
-													messageId,
-													text,
-													fileBlocks,
-													editorState,
-												);
-											}}
+											onClick={() => onEditUserMessage?.(messageId)}
 										>
 											<PencilIcon />
 											<span className="sr-only">Edit message</span>
@@ -456,12 +441,7 @@ type ConversationTimelineProps = {
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 	subagentTitles: Map<string, string>;
 	subagentVariants: Map<string, SubagentVariant>;
-	onEditUserMessage?: (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly TypesGen.ChatMessagePart[],
-		editorState?: string,
-	) => void;
+	onEditUserMessage?: (messageId: number) => void;
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;

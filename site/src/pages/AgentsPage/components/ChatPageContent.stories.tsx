@@ -150,6 +150,7 @@ const StoryChatPageInput: React.FC<{
 			onMCPSelectionChange={fn()}
 			onMCPAuthComplete={fn()}
 			isWorkspaceLoading={false}
+			queuedMessageUnderEditID={null}
 		/>
 	</div>
 );
@@ -495,6 +496,7 @@ const CompactionChatPageInput: React.FC = () => {
 				onMCPSelectionChange={fn()}
 				onMCPAuthComplete={fn()}
 				isWorkspaceLoading={false}
+				queuedMessageUnderEditID={null}
 			/>
 		</div>
 	);

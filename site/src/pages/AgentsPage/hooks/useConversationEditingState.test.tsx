@@ -1,0 +1,1721 @@
+import { act, render, renderHook, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import {
+	$getRoot,
+	$isElementNode,
+	$isTextNode,
+	getNearestEditorFromDOMNode,
+} from "lexical";
+import {
+	createRef,
+	useImperativeHandle,
+	useLayoutEffect,
+	useState,
+} from "react";
+import { QueryClientProvider } from "react-query";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ChatMessagePart } from "#/api/typesGenerated";
+import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import type { ChatMessageInputRef } from "../components/AgentChatInput";
+import type { EditingTarget } from "../components/ChatConversation/types";
+import { ChatMessageInput } from "../components/ChatMessageInput/ChatMessageInput";
+import { FileReferenceNode } from "../components/ChatMessageInput/FileReferenceNode";
+import { SkillInvocationNode } from "../components/ChatMessageInput/SkillInvocationNode";
+import type { PendingAttachment } from "../components/ChatPageContent";
+import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../utils/agentChatSendShortcut";
+import type { ChatComposerContentPart } from "../utils/chatInputContent";
+import {
+	draftInputStorageKeyPrefix,
+	getChipNodes,
+	parseStoredDraft,
+} from "../utils/draftStorage";
+import {
+	type SendChatTurnOptions,
+	useConversationEditingState,
+} from "./useConversationEditingState";
+import {
+	type ComposerMode,
+	deriveComposerTarget,
+	type MarkerRequest,
+} from "./useQueuedMessageEdit";
+
+const idleMarker: MarkerRequest = { isPending: false, variables: undefined };
+const pendingBegin = (id: number): MarkerRequest => ({
+	isPending: true,
+	variables: { queuedMessageId: id, req: { editing: true } },
+});
+
+const textContent = (
+	text: string,
+	fileBlocks: readonly ChatMessagePart[] = [],
+): readonly ChatMessagePart[] => [{ type: "text", text }, ...fileBlocks];
+
+const skillPart = (name: string): ChatMessagePart => ({
+	type: "skill-invocation",
+	skill_source: "project",
+	skill_name: name,
+});
+
+// A row with a skill chip and a file-reference chip between text, as the
+// composer sends it.
+const contentWithChips: readonly ChatMessagePart[] = [
+	{ type: "text", text: "Use " },
+	skillPart("triage"),
+	{ type: "text", text: " on " },
+	{
+		type: "file-reference",
+		file_name: "main.go",
+		start_line: 3,
+		end_line: 5,
+		content: "func main() {}",
+	},
+	{ type: "text", text: " now" },
+];
+
+type MockChatInputHandle = {
+	handle: ChatMessageInputRef;
+	setValue: ReturnType<typeof vi.fn>;
+	clear: ReturnType<typeof vi.fn>;
+	focus: ReturnType<typeof vi.fn>;
+	getValue: ReturnType<typeof vi.fn>;
+	currentValue: { value: string };
+};
+
+const createMockChatInputHandle = (initialValue = ""): MockChatInputHandle => {
+	const currentValue = { value: initialValue };
+	const setValue = vi.fn((text: string) => {
+		currentValue.value = text;
+	});
+	const clear = vi.fn(() => {
+		currentValue.value = "";
+	});
+	const focus = vi.fn();
+	const getValue = vi.fn(() => currentValue.value);
+
+	return {
+		handle: {
+			setValue,
+			insertText: vi.fn(),
+			clear,
+			focus,
+			getValue,
+			addFileReference: vi.fn(),
+			insertSkill: vi.fn(),
+			removeSkills: vi.fn(),
+			getEditorState: vi.fn(() => ""),
+			restoreEditorState: vi.fn(),
+			getContentParts: vi.fn(() => []),
+		},
+		setValue,
+		clear,
+		focus,
+		getValue,
+		currentValue,
+	};
+};
+
+const setMobileViewport = (isMobile: boolean) => {
+	Object.defineProperty(window, "matchMedia", {
+		writable: true,
+		value: vi.fn((query: string): MediaQueryList => {
+			return {
+				matches: query === "(max-width: 639px)" ? isMobile : false,
+				media: query,
+				onchange: null,
+				addEventListener: vi.fn(),
+				removeEventListener: vi.fn(),
+				dispatchEvent: vi.fn(() => true),
+				addListener: vi.fn(),
+				removeListener: vi.fn(),
+			} as MediaQueryList;
+		}),
+	});
+};
+
+// The row the store marks, or none, and the latest marker request.
+type ServerProps = {
+	serverMarkedID: number | null;
+	marker: MarkerRequest;
+};
+
+type EditingHarnessHandle = ReturnType<typeof useConversationEditingState> & {
+	composerMode: ComposerMode;
+	setComposerMode: (mode: ComposerMode) => void;
+};
+
+// Wires the hook to the real Lexical editor the way the page does, so the
+// hook sees the editor's own update sequence, including remounts.
+const EditingWithEditor = ({
+	chatID,
+	contents,
+	serverMarkedID,
+	marker,
+	ref,
+	onCommit,
+	onSend,
+}: ServerProps & {
+	chatID: string;
+	contents: ReadonlyMap<number, readonly ChatMessagePart[]>;
+	ref: React.Ref<EditingHarnessHandle>;
+	// Called with each send and the composer parts the page reads with it.
+	onSend: (
+		options: SendChatTurnOptions,
+		composerParts: readonly ChatComposerContentPart[],
+	) => void;
+	// Called with the editing target of every commit, including commits a
+	// layout effect replaces before paint.
+	onCommit: (editingTarget: EditingTarget | null) => void;
+}) => {
+	const [chatInputRef] = useState(() => createRef<ChatMessageInputRef>());
+	const [inputValueRef] = useState(() => ({ current: "" }));
+	const [composerMode, setComposerMode] = useState<ComposerMode>("follow");
+	const target = deriveComposerTarget(
+		composerMode,
+		serverMarkedID,
+		marker,
+		true,
+	);
+	const editing = useConversationEditingState({
+		chatID,
+		onSend: async (options) =>
+			onSend(options, chatInputRef.current?.getContentParts() ?? []),
+		chatInputRef,
+		inputValueRef,
+		composerMode,
+		setComposerMode,
+		target,
+		targetContent: target ? contents.get(target.id) : undefined,
+	});
+	useImperativeHandle(ref, () => ({
+		...editing,
+		composerMode,
+		setComposerMode,
+	}));
+	useLayoutEffect(() => {
+		onCommit(editing.editingTarget);
+	});
+	return (
+		<ChatMessageInput
+			ref={chatInputRef}
+			aria-label="Chat message"
+			placeholder="Type a message..."
+			initialValue={editing.editorInitialValue}
+			initialEditorState={editing.initialEditorState}
+			remountKey={editing.remountKey}
+			onChange={editing.handleContentChange}
+			onEnter={vi.fn()}
+			sendShortcut={DEFAULT_AGENT_CHAT_SEND_SHORTCUT}
+			disabled={false}
+			hasWorkspace={false}
+		/>
+	);
+};
+
+beforeAll(() => {
+	// Lexical measures the selection to scroll it into view; jsdom has no
+	// layout.
+	Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+		configurable: true,
+		value: () => new DOMRect(0, 0, 1, 16),
+	});
+});
+
+describe("useConversationEditingState", () => {
+	const chatID = "chat-abc-123";
+	const expectedKey = `${draftInputStorageKeyPrefix}${chatID}`;
+
+	beforeEach(() => {
+		localStorage.clear();
+		setMobileViewport(false);
+	});
+
+	// The harness owns composerMode and derives the target the way the page
+	// does: from the mode, the store marker and the marker request.
+	const renderEditing = (...args: [] | [string]) => {
+		const onSend = vi.fn().mockResolvedValue(undefined);
+		const onLoadedTargetChange = vi.fn();
+		const chatInputRef = createRef<ChatMessageInputRef>();
+		const inputValueRef = { current: "" };
+		const contents = new Map<string, readonly ChatMessagePart[]>();
+		const contentKey = (target: EditingTarget) => `${target.kind}:${target.id}`;
+
+		const resolvedChatID = args.length === 0 ? chatID : args[0];
+		const initialProps: ServerProps = {
+			serverMarkedID: null,
+			marker: idleMarker,
+		};
+
+		const hook = renderHook(
+			(props: ServerProps) => {
+				const [composerMode, setComposerMode] =
+					useState<ComposerMode>("follow");
+				const target = deriveComposerTarget(
+					composerMode,
+					props.serverMarkedID,
+					props.marker,
+					true,
+				);
+				const editing = useConversationEditingState({
+					chatID: resolvedChatID,
+					onSend,
+					chatInputRef,
+					inputValueRef,
+					composerMode,
+					setComposerMode,
+					target,
+					targetContent: target ? contents.get(contentKey(target)) : undefined,
+					onLoadedTargetChange,
+				});
+				return { ...editing, composerMode, setComposerMode };
+			},
+			{ initialProps },
+		);
+
+		// Callers wrap this in act. A queued target is marked on the server
+		// first, as a settled begin request does on the page.
+		const beginEdit = (
+			target: EditingTarget,
+			text: string,
+			fileBlocks?: readonly ChatMessagePart[],
+		) => {
+			contents.set(contentKey(target), textContent(text, fileBlocks));
+			if (target.kind === "queued") {
+				hook.rerender({ serverMarkedID: target.id, marker: idleMarker });
+			}
+			hook.result.current.setComposerMode(target);
+		};
+		// The store marks a row, or none, with the latest marker request.
+		const markOnServer = (
+			id: number | null,
+			text = "queued text",
+			marker = idleMarker,
+		) => {
+			if (id !== null) {
+				contents.set(contentKey({ kind: "queued", id }), textContent(text));
+			}
+			hook.rerender({ serverMarkedID: id, marker });
+		};
+
+		// Sets the content a row loads with, without marking it.
+		const setRowContent = (target: EditingTarget, text: string) => {
+			contents.set(contentKey(target), textContent(text));
+		};
+		// Edit on another row as the page does it: the begin request is
+		// pending while the server still marks the previous row.
+		const openEditWhileBeginPending = (
+			id: number,
+			text: string,
+			serverMarkedID: number | null,
+		) => {
+			setRowContent({ kind: "queued", id }, text);
+			hook.rerender({ serverMarkedID, marker: pendingBegin(id) });
+			act(() => hook.result.current.setComposerMode({ kind: "queued", id }));
+		};
+
+		return {
+			...hook,
+			onSend,
+			onLoadedTargetChange,
+			inputValueRef,
+			beginEdit,
+			markOnServer,
+			openEditWhileBeginPending,
+		};
+	};
+
+	// Renders the hook with the real editor. Rows are queued rows keyed by
+	// id; the user types through the editor rather than handleContentChange.
+	const renderEditingWithEditor = () => {
+		const user = userEvent.setup();
+		const handle = createRef<EditingHarnessHandle>();
+		const contents = new Map<number, readonly ChatMessagePart[]>();
+		const queryClient = createTestQueryClient();
+		const committedTargets: (EditingTarget | null)[] = [];
+		const sends: {
+			editingTarget: EditingTarget | undefined;
+			composerParts: readonly ChatComposerContentPart[];
+		}[] = [];
+		const ui = (props: ServerProps) => (
+			<QueryClientProvider client={queryClient}>
+				<EditingWithEditor
+					ref={handle}
+					chatID={chatID}
+					contents={contents}
+					onCommit={(editingTarget) => committedTargets.push(editingTarget)}
+					onSend={({ editingTarget }, composerParts) =>
+						sends.push({ editingTarget, composerParts })
+					}
+					{...props}
+				/>
+			</QueryClientProvider>
+		);
+		const view = render(ui({ serverMarkedID: null, marker: idleMarker }));
+		const current = () => {
+			if (!handle.current) {
+				throw new Error("harness is not mounted");
+			}
+			return handle.current;
+		};
+		const editorText = () =>
+			screen.getByRole("textbox", { name: "Chat message" }).textContent;
+		// Async act, so the editor's remount commits settle inside it.
+		const markOnServer = async (
+			id: number | null,
+			content?: string | readonly ChatMessagePart[],
+		) => {
+			if (id !== null && content !== undefined) {
+				contents.set(
+					id,
+					typeof content === "string" ? textContent(content) : content,
+				);
+			}
+			await act(async () =>
+				view.rerender(ui({ serverMarkedID: id, marker: idleMarker })),
+			);
+		};
+		// Edit on a row as the page does it once the begin request settles.
+		const beginEdit = async (
+			id: number,
+			content: string | readonly ChatMessagePart[],
+		) => {
+			await markOnServer(id, content);
+			await act(async () => current().setComposerMode({ kind: "queued", id }));
+		};
+		// Lexical does not handle userEvent keystrokes in jsdom; a paste goes
+		// through its input path.
+		const type = async (text: string) => {
+			await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+			await user.paste(text);
+		};
+		// Backspace does not reach Lexical in jsdom either, so this removes the
+		// last characters through an editor update, as Backspace does.
+		const deleteBack = async (count: number) => {
+			const editor = getNearestEditorFromDOMNode(
+				screen.getByRole("textbox", { name: "Chat message" }),
+			);
+			await act(async () =>
+				editor?.update(() => {
+					const node = $getRoot().getLastDescendant();
+					if ($isTextNode(node)) {
+						node.spliceText(node.getTextContentSize() - count, count, "", true);
+					}
+				}),
+			);
+		};
+		// Types into the editor, and for "reverted" deletes it again.
+		const change = async (kind: "none" | "typed" | "reverted") => {
+			if (kind === "none") {
+				return;
+			}
+			const before = editorText();
+			await type(" edit");
+			if (kind === "reverted") {
+				await deleteBack(" edit".length);
+				expect(editorText()).toBe(before);
+			}
+		};
+		const addFileReference = async (fileName: string) => {
+			await act(async () =>
+				current().chatInputRef.current?.addFileReference({
+					fileName,
+					startLine: 1,
+					endLine: 2,
+					content: "file content",
+				}),
+			);
+		};
+		const removeFirstFileReference = async () => {
+			const editor = getNearestEditorFromDOMNode(
+				screen.getByRole("textbox", { name: "Chat message" }),
+			);
+			await act(async () =>
+				editor?.update(() => {
+					$getRoot()
+						.getChildren()
+						.flatMap((node) => ($isElementNode(node) ? node.getChildren() : []))
+						.find((node) => node instanceof FileReferenceNode)
+						?.remove();
+				}),
+			);
+		};
+		const editorUpdate = async (update: () => void) => {
+			const editor = getNearestEditorFromDOMNode(
+				screen.getByRole("textbox", { name: "Chat message" }),
+			);
+			await act(async () => editor?.update(update));
+		};
+		// Appends a chip without the space insertSkill types after it, so
+		// removing it again restores the text exactly.
+		const appendSkill = (name: string) =>
+			editorUpdate(() => {
+				const paragraph = $getRoot().getLastChild();
+				if ($isElementNode(paragraph)) {
+					paragraph.append(new SkillInvocationNode("project", name));
+				}
+			});
+		const removeSkill = (name: string) =>
+			editorUpdate(() => {
+				$getRoot()
+					.getChildren()
+					.flatMap((node) => ($isElementNode(node) ? node.getChildren() : []))
+					.find(
+						(node) =>
+							node instanceof SkillInvocationNode && node.__name === name,
+					)
+					?.remove();
+			});
+		const setRowContent = (id: number, content: readonly ChatMessagePart[]) =>
+			contents.set(id, content);
+		const contentParts = () =>
+			current().chatInputRef.current?.getContentParts() ?? [];
+		return {
+			...view,
+			current,
+			editorText,
+			markOnServer,
+			beginEdit,
+			type,
+			deleteBack,
+			change,
+			addFileReference,
+			removeFirstFileReference,
+			appendSkill,
+			removeSkill,
+			setRowContent,
+			contentParts,
+			committedTargets,
+			sends,
+		};
+	};
+
+	it("persists and removes drafts via handleContentChange", () => {
+		const { result, unmount } = renderEditing();
+
+		act(() => {
+			result.current.handleContentChange(
+				"work in progress",
+				"work in progress",
+				false,
+			);
+		});
+		expect(localStorage.getItem(expectedKey)).toBe("work in progress");
+		// handleContentChange persists only; it must not advance the seed.
+		expect(result.current.editorInitialValue).toBe("");
+		expect(result.current.initialEditorState).toBeUndefined();
+
+		act(() => {
+			// Even though the serialized state is non-empty (Lexical always
+			// produces a JSON object), the draft is removed when the plain
+			// text content is empty.
+			result.current.handleContentChange("", '{"root":{"children":[]}}', false);
+		});
+		expect(localStorage.getItem(expectedKey)).toBeNull();
+
+		unmount();
+	});
+
+	it("carries a draft typed during loading into the seed for the loaded editor", () => {
+		const { result, unmount } = renderEditing();
+
+		// handleContentChange persists but does not advance the seed.
+		const editorState =
+			'{"root":{"children":[{"text":"typed while loading"}]}}';
+		act(() => {
+			result.current.handleLoadingDraftChange(
+				"typed while loading",
+				editorState,
+				false,
+			);
+		});
+
+		expect(localStorage.getItem(expectedKey)).toBe(editorState);
+		expect(result.current.editorInitialValue).toBe("typed while loading");
+		expect(result.current.initialEditorState).toBe(editorState);
+
+		unmount();
+	});
+
+	it("loads edit text into the composer and restores the prior draft on cancel without refocusing", () => {
+		const { result, unmount, beginEdit } = renderEditing();
+
+		// Simulate the user typing a draft via handleContentChange.
+		act(() => {
+			result.current.handleContentChange(
+				"work in progress",
+				"work in progress",
+				false,
+			);
+		});
+
+		const remountKeyBefore = result.current.remountKey;
+
+		act(() => {
+			beginEdit({ kind: "history", id: 7 }, "edited message");
+		});
+
+		expect(result.current.editingTarget).toEqual({ kind: "history", id: 7 });
+		expect(result.current.editorInitialValue).toBe("edited message");
+		expect(result.current.remountKey).toBe(remountKeyBefore + 1);
+
+		const remountKeyAfterEdit = result.current.remountKey;
+
+		act(() => {
+			result.current.handleCancelEdit();
+		});
+
+		expect(result.current.editingTarget).toBeNull();
+		expect(result.current.editorInitialValue).toBe("work in progress");
+		expect(result.current.remountKey).toBe(remountKeyAfterEdit + 1);
+		unmount();
+	});
+
+	it("does not force focus when replacing input values on mobile", () => {
+		setMobileViewport(true);
+		const { result, unmount, beginEdit } = renderEditing();
+		const mockInput = createMockChatInputHandle("draft before edit");
+		result.current.chatInputRef.current = mockInput.handle;
+
+		// Edit/cancel now drive the editor via editorInitialValue +
+		// remountKey, so focus is never called on the mock during
+		// edit and cancel flows. handleSendFromInput is the only
+		// path that calls focus and it skips on mobile viewports.
+		act(() => {
+			beginEdit({ kind: "history", id: 7 }, "edited message");
+		});
+		expect(mockInput.focus).not.toHaveBeenCalled();
+
+		act(() => {
+			result.current.handleCancelEdit();
+		});
+		expect(mockInput.focus).not.toHaveBeenCalled();
+		unmount();
+	});
+
+	it("falls back to the persisted draft when history edit starts before hydration", () => {
+		localStorage.setItem(expectedKey, "persisted draft");
+		const { result, unmount, beginEdit } = renderEditing();
+
+		act(() => {
+			beginEdit({ kind: "history", id: 7 }, "edited message");
+		});
+
+		act(() => {
+			result.current.handleCancelEdit();
+		});
+
+		// The hook reads the persisted draft from localStorage when
+		// inputValueRef hasn't been updated by handleContentChange yet.
+		expect(result.current.editorInitialValue).toBe("persisted draft");
+		unmount();
+	});
+
+	it("prefers the live editor value over stale persisted draft state", () => {
+		localStorage.setItem(expectedKey, "stale persisted draft");
+		const { result, unmount, beginEdit } = renderEditing();
+
+		// Simulate the editor emitting a content change, which updates
+		// inputValueRef to the live value.
+		act(() => {
+			result.current.handleContentChange("live draft", "live draft", false);
+		});
+
+		act(() => {
+			beginEdit({ kind: "history", id: 7 }, "edited message");
+		});
+
+		act(() => {
+			result.current.handleCancelEdit();
+		});
+
+		expect(result.current.editorInitialValue).toBe("live draft");
+		unmount();
+	});
+
+	it("can load the same edit text again after send", async () => {
+		const { result, onSend, unmount, beginEdit } = renderEditing();
+		const mockInput = createMockChatInputHandle();
+		result.current.chatInputRef.current = mockInput.handle;
+
+		const remountKeyBefore = result.current.remountKey;
+
+		act(() => {
+			beginEdit({ kind: "history", id: 7 }, "hello");
+		});
+
+		expect(result.current.remountKey).toBe(remountKeyBefore + 1);
+
+		await act(async () => {
+			await result.current.handleSendFromInput({ message: "hello" });
+		});
+
+		const remountKeyAfterSend = result.current.remountKey;
+
+		act(() => {
+			beginEdit({ kind: "history", id: 7 }, "hello");
+		});
+
+		// remountKey increments each time an edit is loaded, even for
+		// the same text, so the editor is forced to reinitialize.
+		expect(result.current.remountKey).toBe(remountKeyAfterSend + 1);
+		expect(result.current.editorInitialValue).toBe("hello");
+		expect(onSend).toHaveBeenCalledWith({
+			message: "hello",
+			attachments: undefined,
+			workspaceUploads: undefined,
+			editingTarget: { kind: "history", id: 7 },
+		});
+		unmount();
+	});
+
+	it("forwards pending attachments through history-edit send", async () => {
+		const { result, onSend, unmount, beginEdit } = renderEditing();
+		const attachments: PendingAttachment[] = [
+			{ fileId: "file-1", mediaType: "image/png" },
+		];
+
+		act(() => {
+			beginEdit({ kind: "history", id: 7 }, "hello");
+		});
+
+		await act(async () => {
+			await result.current.handleSendFromInput({
+				message: "hello",
+				attachments,
+			});
+		});
+
+		expect(onSend).toHaveBeenCalledWith({
+			message: "hello",
+			attachments,
+			workspaceUploads: undefined,
+			editingTarget: { kind: "history", id: 7 },
+		});
+		unmount();
+	});
+
+	it("restores the edit draft and file-block seed when an edit submission fails", async () => {
+		const { result, onSend, unmount, beginEdit } = renderEditing();
+		const mockInput = createMockChatInputHandle("edited message");
+		const fileBlocks = [
+			{ type: "file", file_id: "file-1", media_type: "image/png" },
+		] as const;
+		result.current.chatInputRef.current = mockInput.handle;
+		onSend.mockRejectedValueOnce(new Error("boom"));
+		const editorState = JSON.stringify({
+			root: {
+				children: [
+					{
+						children: [{ text: "edited message" }],
+						type: "paragraph",
+					},
+				],
+				type: "root",
+			},
+		});
+
+		act(() => {
+			beginEdit({ kind: "history", id: 7 }, "edited message", fileBlocks);
+		});
+		// The remounted editor echoes the loaded text with its serialized state.
+		act(() => {
+			result.current.handleContentChange("edited message", editorState, false);
+		});
+
+		await act(async () => {
+			await expect(
+				result.current.handleSendFromInput({ message: "edited message" }),
+			).rejects.toThrow("boom");
+		});
+
+		expect(mockInput.clear).toHaveBeenCalled();
+		expect(result.current.inputValueRef.current).toBe("edited message");
+		expect(result.current.editingTarget).toEqual({ kind: "history", id: 7 });
+		expect(result.current.editingFileBlocks).toEqual(fileBlocks);
+		expect(result.current.editorInitialValue).toBe("edited message");
+		expect(result.current.initialEditorState).toBe(editorState);
+		unmount();
+	});
+
+	it("preserves the composer and draft when send fails", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("hello");
+		result.current.chatInputRef.current = mockInput.handle;
+		onSend.mockRejectedValueOnce(new Error("boom"));
+
+		act(() => {
+			result.current.handleContentChange("hello", "hello", false);
+		});
+
+		await act(async () => {
+			await expect(
+				result.current.handleSendFromInput({ message: "hello" }),
+			).rejects.toThrow("boom");
+		});
+
+		expect(mockInput.clear).not.toHaveBeenCalled();
+		expect(mockInput.focus).not.toHaveBeenCalled();
+		expect(result.current.inputValueRef.current).toBe("hello");
+		expect(localStorage.getItem(expectedKey)).toBe("hello");
+		unmount();
+	});
+
+	it("clears the composer and persisted draft after a successful send", async () => {
+		localStorage.setItem(expectedKey, "draft to clear");
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("hello");
+		result.current.chatInputRef.current = mockInput.handle;
+
+		await act(async () => {
+			await result.current.handleSendFromInput({ message: "hello" });
+		});
+
+		expect(onSend).toHaveBeenCalledWith({
+			message: "hello",
+			attachments: undefined,
+			workspaceUploads: undefined,
+			editingTarget: undefined,
+		});
+		expect(mockInput.clear).toHaveBeenCalled();
+		expect(mockInput.focus).toHaveBeenCalled();
+		expect(localStorage.getItem(expectedKey)).toBeNull();
+		unmount();
+	});
+
+	it("calls focus on the input ref after a successful send", async () => {
+		const { result, onSend, unmount } = renderEditing();
+
+		// Attach a mock ChatMessageInputRef to the chatInputRef
+		const mockFocus = vi.fn();
+		const mockClear = vi.fn();
+		const mockInputRef = {
+			focus: mockFocus,
+			clear: mockClear,
+			setValue: vi.fn(),
+			insertText: vi.fn(),
+			getValue: vi.fn().mockReturnValue(""),
+			addFileReference: vi.fn(),
+			insertSkill: vi.fn(),
+			removeSkills: vi.fn(),
+			getEditorState: vi.fn(() => ""),
+			restoreEditorState: vi.fn(),
+			getContentParts: vi.fn().mockReturnValue([]),
+		}; // The hook exposes chatInputRef, so assign the mock to it.
+		result.current.chatInputRef.current = mockInputRef;
+
+		await act(async () => {
+			result.current.handleSendFromInput({ message: "hello" });
+			await vi.waitFor(() => {
+				expect(onSend).toHaveBeenCalledWith({
+					message: "hello",
+					attachments: undefined,
+					workspaceUploads: undefined,
+					editingTarget: undefined,
+				});
+			});
+		});
+
+		expect(mockClear).toHaveBeenCalled();
+		expect(mockFocus).toHaveBeenCalled();
+		unmount();
+	});
+
+	it("initializes with the correct draft for each chatID", () => {
+		const chatA = "chat-aaa";
+		const chatB = "chat-bbb";
+		localStorage.setItem(`${draftInputStorageKeyPrefix}${chatA}`, "draft A");
+		localStorage.setItem(`${draftInputStorageKeyPrefix}${chatB}`, "draft B");
+
+		// Each chatID should initialize with its own draft. This is
+		// what the key={agentId} wrapper guarantees at the component
+		// level (a new chatID means a full remount).
+		const hookA = renderEditing(chatA);
+		expect(hookA.result.current.editorInitialValue).toBe("draft A");
+		hookA.unmount();
+
+		const hookB = renderEditing(chatB);
+		expect(hookB.result.current.editorInitialValue).toBe("draft B");
+		hookB.unmount();
+	});
+
+	it("clears the draft from localStorage on successful send", async () => {
+		localStorage.setItem(expectedKey, "draft to clear");
+
+		const { result, unmount } = renderEditing();
+
+		expect(localStorage.getItem(expectedKey)).toBe("draft to clear");
+
+		await act(async () => {
+			result.current.handleSendFromInput({ message: "hello" });
+			await vi.waitFor(() => {
+				expect(localStorage.getItem(expectedKey)).toBeNull();
+			});
+		});
+		unmount();
+	});
+
+	it("persists serialized editor state when provided", () => {
+		const { result, unmount } = renderEditing();
+		const editorState = JSON.stringify({
+			root: {
+				children: [
+					{
+						children: [
+							{ text: "review this" },
+							{
+								type: "file-reference",
+								version: 1,
+								fileName: "main.go",
+								startLine: 1,
+								endLine: 10,
+								content: "code",
+							},
+						],
+						type: "paragraph",
+					},
+				],
+				type: "root",
+			},
+		});
+
+		act(() => {
+			result.current.handleContentChange("review this", editorState, true);
+		});
+
+		// The serialized editor state should be stored, not the plain text.
+		expect(localStorage.getItem(expectedKey)).toBe(editorState);
+		expect(result.current.inputValueRef.current).toBe("review this");
+		unmount();
+	});
+
+	it("restores editorInitialState from a Lexical JSON draft", () => {
+		const editorState = JSON.stringify({
+			root: {
+				children: [
+					{
+						children: [{ text: "hello" }],
+						type: "paragraph",
+					},
+				],
+				type: "root",
+			},
+		});
+		localStorage.setItem(expectedKey, editorState);
+
+		const { result, unmount } = renderEditing();
+
+		expect(result.current.initialEditorState).toBe(editorState);
+		expect(result.current.editorInitialValue).toBe("hello");
+		unmount();
+	});
+
+	it("falls back to plain text for legacy drafts", () => {
+		localStorage.setItem(expectedKey, "legacy plain text");
+
+		const { result, unmount } = renderEditing();
+
+		expect(result.current.initialEditorState).toBeUndefined();
+		expect(result.current.editorInitialValue).toBe("legacy plain text");
+		unmount();
+	});
+
+	it("persists file-reference-only drafts (no text content)", () => {
+		const { result, unmount } = renderEditing();
+		const editorState = JSON.stringify({
+			root: {
+				children: [
+					{
+						children: [
+							{
+								type: "file-reference",
+								version: 1,
+								fileName: "main.go",
+								startLine: 1,
+								endLine: 10,
+								content: "code",
+							},
+						],
+						type: "paragraph",
+					},
+				],
+				type: "root",
+			},
+		});
+
+		act(() => {
+			// Empty text but hasFileReferences=true should still persist.
+			result.current.handleContentChange("", editorState, true);
+		});
+
+		expect(localStorage.getItem(expectedKey)).toBe(editorState);
+		unmount();
+	});
+
+	it("removes draft for whitespace-only content without file references", () => {
+		localStorage.setItem(expectedKey, "old draft");
+		const { result, unmount } = renderEditing();
+
+		act(() => {
+			result.current.handleContentChange("   ", '{"root":{}}', false);
+		});
+
+		expect(localStorage.getItem(expectedKey)).toBeNull();
+		unmount();
+	});
+
+	it("preserves serialized editor state across history edit then cancel", () => {
+		const editorState = JSON.stringify({
+			root: {
+				children: [
+					{
+						children: [
+							{ text: "my draft", type: "text" },
+							{
+								type: "file-reference",
+								version: 1,
+								fileName: "main.go",
+								startLine: 1,
+								endLine: 10,
+								content: "code",
+							},
+						],
+						type: "paragraph",
+					},
+				],
+				type: "root",
+			},
+		});
+		localStorage.setItem(expectedKey, editorState);
+
+		const { result, unmount, beginEdit } = renderEditing();
+
+		expect(result.current.initialEditorState).toBe(editorState);
+		expect(result.current.editorInitialValue).toBe("my draft");
+
+		// Simulate typing so localStorage reflects the current draft.
+		act(() => {
+			result.current.handleContentChange("my draft", editorState, true);
+		});
+
+		// Start editing a history message.
+		act(() => {
+			beginEdit({ kind: "history", id: 42 }, "old message text");
+		});
+
+		expect(result.current.editingTarget).toEqual({ kind: "history", id: 42 });
+		expect(result.current.initialEditorState).toBeUndefined();
+		expect(result.current.editorInitialValue).toBe("old message text");
+
+		// Cancel should restore both plain text and serialized state.
+		act(() => {
+			result.current.handleCancelEdit();
+		});
+
+		expect(result.current.editingTarget).toBeNull();
+		expect(result.current.initialEditorState).toBe(editorState);
+		expect(result.current.editorInitialValue).toBe("my draft");
+		unmount();
+	});
+
+	it("returns undefined initialEditorState after edit then cancel with plain-text draft", () => {
+		localStorage.setItem(expectedKey, "plain text draft");
+
+		const { result, unmount, beginEdit } = renderEditing();
+
+		expect(result.current.initialEditorState).toBeUndefined();
+
+		act(() => {
+			result.current.handleContentChange(
+				"plain text draft",
+				"plain text draft",
+				false,
+			);
+		});
+
+		act(() => {
+			beginEdit({ kind: "history", id: 1 }, "editing");
+		});
+
+		act(() => {
+			result.current.handleCancelEdit();
+		});
+
+		expect(result.current.initialEditorState).toBeUndefined();
+		expect(result.current.editorInitialValue).toBe("plain text draft");
+		unmount();
+	});
+
+	it("does not overwrite the persisted draft while editing a message", () => {
+		const { result, unmount, beginEdit } = renderEditing();
+
+		act(() => {
+			result.current.handleContentChange("draft", "draft", false);
+			beginEdit({ kind: "history", id: 7 }, "old text");
+		});
+		act(() => {
+			result.current.handleContentChange("edited text", "edited text", false);
+		});
+
+		expect(localStorage.getItem(expectedKey)).toBe("draft");
+		unmount();
+	});
+
+	describe("queued message editing", () => {
+		it("saving a queued row passes the queued target and restores the draft from before the edit", async () => {
+			localStorage.setItem(expectedKey, "draft");
+			const { result, onSend, unmount, beginEdit } = renderEditing();
+			const mockInput = createMockChatInputHandle("queued edit");
+			result.current.chatInputRef.current = mockInput.handle;
+			const attachments: PendingAttachment[] = [
+				{ fileId: "file-1", mediaType: "image/png" },
+			];
+
+			act(() => {
+				result.current.handleContentChange("draft", "draft", false);
+				beginEdit({ kind: "queued", id: 42 }, "queued text");
+			});
+
+			await act(async () => {
+				await result.current.handleSendFromInput({
+					message: "queued edit",
+					attachments,
+				});
+			});
+
+			expect(onSend).toHaveBeenCalledWith({
+				message: "queued edit",
+				attachments,
+				workspaceUploads: undefined,
+				editingTarget: { kind: "queued", id: 42 },
+			});
+			expect(mockInput.clear).toHaveBeenCalled();
+			expect(mockInput.focus).toHaveBeenCalled();
+			expect(result.current.editingTarget).toBeNull();
+			expect(result.current.editingFileBlocks).toEqual([]);
+			expect(result.current.editorInitialValue).toBe("draft");
+			expect(result.current.inputValueRef.current).toBe("draft");
+			expect(localStorage.getItem(expectedKey)).toBe("draft");
+			unmount();
+		});
+
+		// These drive the real editor: its remount on load emits updates of
+		// its own, which must not count as the user changing the edit. The
+		// row's text is "queued text"; the draft before the edit is "draft".
+		// Text typed and deleted again leaves the edit unmodified.
+		it.each([
+			["modified text stays as a new-message draft", "typed"],
+			[
+				"unmodified text gives way to the draft from before the edit and the composer counts as untouched",
+				"none",
+			],
+			[
+				"text typed and deleted again gives way to the draft from before the edit",
+				"reverted",
+			],
+		] as const)(
+			"when the server ends the edit and marks no other row, %s",
+			async (_name, edit) => {
+				const {
+					unmount,
+					current,
+					editorText,
+					beginEdit,
+					markOnServer,
+					type,
+					change,
+				} = renderEditingWithEditor();
+
+				await type("draft");
+				await beginEdit(42, "queued text");
+				expect(editorText()).toBe("queued text");
+				await change(edit);
+				const textWhileEditing = editorText();
+
+				await markOnServer(null);
+
+				const modify = edit === "typed";
+				const expectedDraft = modify ? textWhileEditing : "draft";
+				expect(current().editingTarget).toBeNull();
+				expect(current().composerMode).toBe(modify ? "draft" : "follow");
+				expect(editorText()).toBe(expectedDraft);
+				expect(parseStoredDraft(localStorage.getItem(expectedKey)).text).toBe(
+					expectedDraft,
+				);
+				unmount();
+			},
+		);
+
+		// An edit is opened with Edit, or followed because the server marked
+		// its row while the composer was in follow mode.
+		it.each([
+			[
+				"modified text stays as a new-message draft and no edit opens",
+				"edit",
+				"typed",
+			],
+			[
+				"unmodified text follows the edit to the newly marked row",
+				"edit",
+				"none",
+			],
+			[
+				"text typed and deleted again follows the edit to the newly marked row",
+				"edit",
+				"reverted",
+			],
+			[
+				"modified text of a followed edit stays as a new-message draft and no edit opens",
+				"follow",
+				"typed",
+			],
+			[
+				"text typed into a followed edit and deleted again follows the edit to the newly marked row",
+				"follow",
+				"reverted",
+			],
+		] as const)(
+			"when another client moves the edit to a different row, %s",
+			async (_name, opened, edit) => {
+				// A stored draft leaves the composer unchanged, so it can follow.
+				localStorage.setItem(expectedKey, "draft");
+				const {
+					unmount,
+					current,
+					editorText,
+					beginEdit,
+					markOnServer,
+					change,
+				} = renderEditingWithEditor();
+
+				if (opened === "edit") {
+					await beginEdit(42, "queued text");
+				} else {
+					await markOnServer(42, "queued text");
+				}
+				expect(editorText()).toBe("queued text");
+				await change(edit);
+				const textWhileEditing = editorText();
+
+				await markOnServer(6, "other row");
+
+				const modify = edit === "typed";
+				expect(current().editingTarget).toEqual(
+					modify ? null : { kind: "queued", id: 6 },
+				);
+				expect(editorText()).toBe(modify ? textWhileEditing : "other row");
+				if (modify) {
+					expect(current().composerMode).toBe("draft");
+					expect(parseStoredDraft(localStorage.getItem(expectedKey)).text).toBe(
+						textWhileEditing,
+					);
+				}
+
+				// The followed edit is untouched too, so its end gives the draft back.
+				if (!modify) {
+					await markOnServer(null);
+					expect(current().composerMode).toBe("follow");
+					expect(editorText()).toBe("draft");
+				}
+				unmount();
+			},
+		);
+
+		// No edit is open; the composer is untouched, empty or with a stored
+		// draft, until the user changes it.
+		it.each([
+			[
+				"an empty composer typed into and cleared again follows it",
+				"",
+				"reverted",
+			],
+			[
+				"a stored draft typed into and deleted back follows it",
+				"saved draft",
+				"reverted",
+			],
+			["an empty composer typed into keeps its text", "", "typed"],
+			["a stored draft typed into keeps its text", "saved draft", "typed"],
+		] as const)(
+			"when another client begins an edit, %s",
+			async (_name, storedDraft, edit) => {
+				if (storedDraft) {
+					localStorage.setItem(expectedKey, storedDraft);
+				}
+				const {
+					unmount,
+					current,
+					editorText,
+					markOnServer,
+					change,
+					committedTargets,
+				} = renderEditingWithEditor();
+				expect(editorText()).toBe(storedDraft);
+				await change(edit);
+				const textBeforeMarker = editorText();
+
+				await markOnServer(6, "other row");
+
+				if (edit === "typed") {
+					// No commit shows the edit, so edit chrome such as the row's
+					// Edit button and the slash command menu stay as they were.
+					expect(committedTargets).not.toContainEqual({
+						kind: "queued",
+						id: 6,
+					});
+					expect(current().editingTarget).toBeNull();
+					expect(editorText()).toBe(textBeforeMarker);
+					expect(parseStoredDraft(localStorage.getItem(expectedKey)).text).toBe(
+						textBeforeMarker,
+					);
+				} else {
+					expect(current().editingTarget).toEqual({ kind: "queued", id: 6 });
+					expect(editorText()).toBe("other row");
+					await markOnServer(null);
+					expect(editorText()).toBe(storedDraft);
+				}
+				unmount();
+			},
+		);
+
+		it("on reload, opens the marked row and keeps the saved draft for when the edit ends", () => {
+			localStorage.setItem(expectedKey, "saved draft");
+			const { result, unmount, markOnServer } = renderEditing();
+			expect(result.current.editingTarget).toBeNull();
+
+			// Reload: the store hydrates after the first render.
+			markOnServer(5, "run the migrations");
+
+			expect(result.current.editingTarget).toEqual({ kind: "queued", id: 5 });
+			expect(result.current.editorInitialValue).toBe("run the migrations");
+			expect(result.current.composerMode).toBe("follow");
+
+			// The seed echo does not count as input; the composer stays untouched.
+			act(() => {
+				result.current.handleContentChange(
+					"run the migrations",
+					"run the migrations",
+					false,
+				);
+			});
+			expect(result.current.composerMode).toBe("follow");
+
+			markOnServer(null);
+			expect(result.current.editingTarget).toBeNull();
+			expect(result.current.editorInitialValue).toBe("saved draft");
+			unmount();
+		});
+
+		it("text changed while following the marked row stays as a draft when the marker leaves, so a later marker on another row does not open it", () => {
+			const { result, unmount, markOnServer } = renderEditing();
+			markOnServer(5);
+
+			act(() => {
+				result.current.handleContentChange(
+					"queued text!",
+					"queued text!",
+					false,
+				);
+			});
+			expect(result.current.editingTarget).toEqual({ kind: "queued", id: 5 });
+
+			markOnServer(null);
+			expect(result.current.editingTarget).toBeNull();
+			expect(result.current.inputValueRef.current).toBe("queued text!");
+
+			markOnServer(6);
+			expect(result.current.editingTarget).toBeNull();
+			expect(result.current.inputValueRef.current).toBe("queued text!");
+			unmount();
+		});
+
+		it.each([
+			[
+				"a file reference added during an edit keeps the edit as a new-message draft",
+				"queued text",
+				false,
+			],
+			[
+				"an edit reduced to a file reference keeps its draft",
+				"queued text",
+				true,
+			],
+			[
+				"a file reference added to a row with no text keeps the edit as a new-message draft",
+				"",
+				false,
+			],
+		])(
+			"when the server ends the edit, %s",
+			async (_name, rowText, deleteText) => {
+				const {
+					unmount,
+					current,
+					editorText,
+					beginEdit,
+					markOnServer,
+					deleteBack,
+					addFileReference,
+				} = renderEditingWithEditor();
+				await beginEdit(42, rowText);
+				if (deleteText) {
+					await deleteBack(rowText.length);
+				}
+				await addFileReference("main.go");
+				const textWhileEditing = editorText();
+
+				await markOnServer(null);
+
+				expect(current().composerMode).toBe("draft");
+				expect(editorText()).toBe(textWhileEditing);
+				const stored = localStorage.getItem(expectedKey) ?? undefined;
+				expect(parseStoredDraft(stored ?? null).text).toBe(
+					deleteText ? "" : rowText,
+				);
+				expect(getChipNodes(stored)).toHaveLength(1);
+				unmount();
+			},
+		);
+
+		it.each(["queued", "history"] as const)(
+			"Edit on a %s row loads its chips, and saving sends them",
+			async (kind) => {
+				const {
+					unmount,
+					current,
+					markOnServer,
+					setRowContent,
+					contentParts,
+					sends,
+				} = renderEditingWithEditor();
+				setRowContent(42, contentWithChips);
+				if (kind === "queued") {
+					await markOnServer(42);
+				}
+				await act(async () => current().setComposerMode({ kind, id: 42 }));
+				const loadedParts: readonly ChatComposerContentPart[] = [
+					{ type: "text", text: "Use " },
+					{ type: "skill-invocation", source: "project", name: "triage" },
+					{ type: "text", text: " on " },
+					{
+						type: "file-reference",
+						reference: {
+							fileName: "main.go",
+							startLine: 3,
+							endLine: 5,
+							content: "func main() {}",
+						},
+					},
+					{ type: "text", text: " now" },
+				];
+				expect(contentParts()).toEqual(loadedParts);
+
+				await act(async () => {
+					await current().handleSendFromInput({
+						message: current().inputValueRef.current,
+					});
+				});
+
+				expect(sends).toEqual([
+					{ editingTarget: { kind, id: 42 }, composerParts: loadedParts },
+				]);
+				unmount();
+			},
+		);
+
+		it.each([
+			["untouched chips give the draft back", "none", false],
+			[
+				"a skill chip added and removed again gives the draft back",
+				"reverted",
+				false,
+			],
+			[
+				"an added skill chip keeps the edit as a new-message draft",
+				"added",
+				true,
+			],
+			[
+				"a removed skill chip keeps the edit as a new-message draft",
+				"removed",
+				true,
+			],
+			[
+				"an added file reference keeps the edit as a new-message draft",
+				"file reference added",
+				true,
+			],
+			[
+				"a removed file reference keeps the edit as a new-message draft",
+				"file reference removed",
+				true,
+			],
+		] as const)(
+			"when the server ends an edit of a row with chips, %s",
+			async (_name, edit, modified) => {
+				const {
+					unmount,
+					current,
+					editorText,
+					beginEdit,
+					markOnServer,
+					type,
+					appendSkill,
+					removeSkill,
+					addFileReference,
+					removeFirstFileReference,
+				} = renderEditingWithEditor();
+				await type("draft");
+				await beginEdit(42, contentWithChips);
+				if (edit === "reverted" || edit === "added") {
+					await appendSkill("review");
+				}
+				if (edit === "reverted") {
+					await removeSkill("review");
+				}
+				if (edit === "removed") {
+					await removeSkill("triage");
+				}
+				if (edit === "file reference added") {
+					await addFileReference("other.go");
+				}
+				if (edit === "file reference removed") {
+					await removeFirstFileReference();
+				}
+				const stateWhileEditing =
+					current().chatInputRef.current?.getEditorState();
+
+				await markOnServer(null);
+
+				expect(current().composerMode).toBe(modified ? "draft" : "follow");
+				if (modified) {
+					expect(current().inputValueRef.current).toBe("Use  on  now");
+					expect(
+						getChipNodes(localStorage.getItem(expectedKey) ?? undefined),
+					).toEqual(getChipNodes(stateWhileEditing));
+				} else {
+					expect(editorText()).toBe("draft");
+				}
+				unmount();
+			},
+		);
+
+		// The editor is empty after the send; the stored draft it started from
+		// is no longer what it holds.
+		it("after a new message is sent, the empty composer follows a newly marked row", async () => {
+			localStorage.setItem(expectedKey, "saved draft");
+			const { unmount, current, editorText, markOnServer, change } =
+				renderEditingWithEditor();
+			await change("typed");
+			await act(async () => {
+				await current().handleSendFromInput({ message: editorText() ?? "" });
+			});
+			expect(editorText()).toBe("");
+
+			await markOnServer(6, "other row");
+
+			expect(current().editingTarget).toEqual({ kind: "queued", id: 6 });
+			expect(editorText()).toBe("other row");
+			unmount();
+		});
+
+		// The text is unchanged, so only the file references tell the change.
+		it("a stored draft that loses one of its file references keeps it when another client begins an edit", async () => {
+			const first = renderEditingWithEditor();
+			await first.type("saved draft");
+			await first.addFileReference("a.go");
+			await first.addFileReference("b.go");
+			first.unmount();
+
+			const { unmount, current, markOnServer, removeFirstFileReference } =
+				renderEditingWithEditor();
+			await removeFirstFileReference();
+			const stored = localStorage.getItem(expectedKey) ?? undefined;
+			expect(getChipNodes(stored)).toHaveLength(1);
+
+			await markOnServer(6, "other row");
+
+			expect(current().editingTarget).toBeNull();
+			expect(localStorage.getItem(expectedKey)).toBe(stored);
+			unmount();
+		});
+
+		it("reports a loaded target change when a marked row loads or leaves, and not when the composer picks the loaded row", () => {
+			const { result, unmount, markOnServer, onLoadedTargetChange } =
+				renderEditing();
+
+			markOnServer(5);
+			expect(onLoadedTargetChange).toHaveBeenCalledTimes(1);
+
+			act(() => {
+				result.current.setComposerMode({ kind: "queued", id: 5 });
+			});
+			expect(onLoadedTargetChange).toHaveBeenCalledTimes(1);
+
+			markOnServer(null);
+			expect(onLoadedTargetChange).toHaveBeenCalledTimes(2);
+			unmount();
+		});
+
+		describe("edit sessions", () => {
+			it("cancelling a modified history edit while a row is marked opens that row, and its end gives the draft back", () => {
+				const { result, unmount, beginEdit, markOnServer } = renderEditing();
+				act(() => {
+					result.current.handleContentChange("my draft", "my draft", false);
+					beginEdit({ kind: "history", id: 7 }, "old message");
+				});
+				act(() => {
+					result.current.handleContentChange(
+						"old message!",
+						"old message!",
+						false,
+					);
+				});
+				markOnServer(5, "queued text");
+
+				act(() => {
+					result.current.handleCancelEdit({ kind: "queued", id: 5 });
+				});
+				expect(result.current.editingTarget).toEqual({ kind: "queued", id: 5 });
+				expect(result.current.editorInitialValue).toBe("queued text");
+
+				markOnServer(null);
+				expect(result.current.editingTarget).toBeNull();
+				expect(result.current.editorInitialValue).toBe("my draft");
+				unmount();
+			});
+
+			it("Cancel after switching to another row gives the draft from before the first edit back", () => {
+				const { result, unmount, beginEdit, openEditWhileBeginPending } =
+					renderEditing();
+				act(() => {
+					result.current.handleContentChange("draft", "draft", false);
+					beginEdit({ kind: "queued", id: 42 }, "queued text");
+				});
+				act(() => {
+					result.current.handleContentChange(
+						"queued edit",
+						"queued edit",
+						false,
+					);
+				});
+
+				openEditWhileBeginPending(6, "other row", 42);
+				expect(result.current.editingTarget).toEqual({ kind: "queued", id: 6 });
+
+				act(() => {
+					result.current.handleCancelEdit();
+				});
+				expect(result.current.editorInitialValue).toBe("draft");
+				expect(result.current.inputValueRef.current).toBe("draft");
+				unmount();
+			});
+
+			it("an edit opened while a save is in flight keeps its row and typed text after the save, and Cancel gives the draft back", async () => {
+				const {
+					result,
+					unmount,
+					onSend,
+					beginEdit,
+					openEditWhileBeginPending,
+				} = renderEditing();
+				let resolveSave: () => void = () => undefined;
+				onSend.mockImplementationOnce(
+					() =>
+						new Promise<void>((resolve) => {
+							resolveSave = resolve;
+						}),
+				);
+				act(() => {
+					result.current.handleContentChange("draft", "draft", false);
+					beginEdit({ kind: "queued", id: 42 }, "queued text");
+				});
+				act(() => {
+					result.current.handleContentChange(
+						"queued edit",
+						"queued edit",
+						false,
+					);
+				});
+
+				let save: Promise<void> = Promise.resolve();
+				act(() => {
+					save = result.current.handleSendFromInput({ message: "queued edit" });
+				});
+				openEditWhileBeginPending(6, "other row", 42);
+				act(() => {
+					result.current.handleContentChange("other row!", "other row!", false);
+				});
+				await act(async () => {
+					resolveSave();
+					await save;
+				});
+
+				expect(result.current.editingTarget).toEqual({ kind: "queued", id: 6 });
+				expect(result.current.inputValueRef.current).toBe("other row!");
+
+				act(() => {
+					result.current.handleCancelEdit();
+				});
+				expect(result.current.editorInitialValue).toBe("draft");
+				unmount();
+			});
+
+			it("a save that fails after the row was dropped keeps the text as a new-message draft", async () => {
+				const { result, unmount, onSend, beginEdit, markOnServer } =
+					renderEditing();
+				let rejectSave: (error: Error) => void = () => undefined;
+				onSend.mockImplementationOnce(
+					() =>
+						new Promise<void>((_, reject) => {
+							rejectSave = reject;
+						}),
+				);
+				act(() => {
+					result.current.handleContentChange("draft", "draft", false);
+					beginEdit({ kind: "queued", id: 42 }, "queued text");
+				});
+				act(() => {
+					result.current.handleContentChange(
+						"queued edit",
+						"queued edit",
+						false,
+					);
+				});
+
+				let save: Promise<void> = Promise.resolve();
+				act(() => {
+					save = result.current.handleSendFromInput({ message: "queued edit" });
+				});
+				markOnServer(null);
+				await act(async () => {
+					rejectSave(new Error("gone"));
+					await save.catch(() => undefined);
+				});
+
+				expect(result.current.editingTarget).toBeNull();
+				expect(result.current.composerMode).toBe("draft");
+				expect(result.current.inputValueRef.current).toBe("queued edit");
+				unmount();
+			});
+		});
+
+		it("Cancel restores the draft from before the edit and leaves the composer in draft mode", () => {
+			const { result, unmount, beginEdit } = renderEditing();
+			act(() => {
+				result.current.handleContentChange("draft", "draft", false);
+				beginEdit({ kind: "queued", id: 42 }, "queued text");
+			});
+			act(() => {
+				result.current.handleContentChange("queued edit", "queued edit", false);
+			});
+
+			act(() => {
+				result.current.handleCancelEdit();
+			});
+			expect(result.current.composerMode).toBe("draft");
+			expect(result.current.editingTarget).toBeNull();
+			expect(result.current.editorInitialValue).toBe("draft");
+			expect(result.current.inputValueRef.current).toBe("draft");
+			unmount();
+		});
+	});
+});
