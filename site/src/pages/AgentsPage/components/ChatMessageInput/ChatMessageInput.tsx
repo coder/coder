@@ -84,14 +84,14 @@ import {
 	SkillsTriggerMenu,
 } from "./SkillsTriggerMenu";
 import {
-	type ActiveTypeaheadTrigger,
-	TypeaheadTriggerPlugin,
-} from "./TypeaheadTriggerPlugin";
-import {
 	$insertClipboardNodes,
 	getClipboardNodes,
 	registerSkillAliasCopy,
 } from "./skillClipboard";
+import {
+	type ActiveTypeaheadTrigger,
+	TypeaheadTriggerPlugin,
+} from "./TypeaheadTriggerPlugin";
 import { WorkspacePathNode } from "./WorkspacePathNode";
 import { WorkspacePathPicker } from "./WorkspacePathPicker";
 
