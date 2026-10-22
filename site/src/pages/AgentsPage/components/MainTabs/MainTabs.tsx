@@ -283,6 +283,7 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 							role="tabpanel"
 							aria-labelledby={ids.tabId}
 							isActive={isActive}
+							skipsHiddenContent
 							className="absolute inset-0 flex flex-col bg-surface-primary"
 						>
 							{workspaceFiles ? (
@@ -347,18 +348,23 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 
 type MainTabPanelProps = React.ComponentProps<"div"> & {
 	isActive: boolean;
+	/**
+	 * Also skip rendering the contents while inactive. Not for the chat:
+	 * content-visibility withholds ResizeObserver callbacks inside, and the
+	 * transcript scroller needs them to resume following a reply that
+	 * outgrows the space below its anchored turn.
+	 */
+	skipsHiddenContent?: boolean;
 };
 
 /**
  * Inactive panels stay mounted and laid out so editors and the transcript
- * keep their state. `invisible` alone does not hide a descendant that sets
- * `visibility: visible`, such as Monaco's find widget, whose `visible` state
- * class matches Tailwind's utility of the same name, so content-visibility
- * also skips rendering the contents. Unlike display:none, it keeps sizes and
- * scroll offsets, so Monaco and the transcript scroller do not relayout.
+ * keep their state. Unlike display:none, hiding keeps sizes and scroll
+ * offsets, so Monaco and the transcript scroller do not relayout.
  */
 const MainTabPanel: React.FC<MainTabPanelProps> = ({
 	isActive,
+	skipsHiddenContent = false,
 	className,
 	...props
 }) => (
@@ -366,7 +372,11 @@ const MainTabPanel: React.FC<MainTabPanelProps> = ({
 		{...props}
 		className={cn(
 			className,
-			!isActive && "invisible [content-visibility:hidden]",
+			// A descendant that sets `visibility: visible`, such as Tailwind's
+			// `visible` on a control that touch screens show without hover,
+			// would show through `invisible` alone.
+			!isActive && "invisible [&_*]:invisible!",
+			!isActive && skipsHiddenContent && "[content-visibility:hidden]",
 		)}
 		inert={!isActive}
 	/>
