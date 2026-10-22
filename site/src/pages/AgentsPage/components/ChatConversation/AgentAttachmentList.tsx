@@ -18,6 +18,7 @@ import {
 	isTextPreviewAttachmentMediaType,
 	ViewableFileCard,
 } from "./AttachmentBlocks";
+import { useFileProbes } from "./FileProbeContext";
 import type { AgentAttachment } from "./messageHelpers";
 import { useAttachmentFailure } from "./useAttachmentFailure";
 
@@ -106,6 +107,9 @@ const ImageAttachmentCard: React.FC<AttachmentCardProps> = ({
 
 type StoredTextAttachmentCardProps = AttachmentCardProps & { fileId: string };
 
+const isExpiredFileError = (error: unknown) =>
+	isAxiosError(error) && error.response?.status === 404;
+
 /** Loads the file's text on the first view; a 404 shows it expired. */
 const StoredTextAttachmentCard: React.FC<StoredTextAttachmentCardProps> = ({
 	attachment: { file, href },
@@ -114,13 +118,11 @@ const StoredTextAttachmentCard: React.FC<StoredTextAttachmentCardProps> = ({
 }) => {
 	const viewer = useAttachmentViewer();
 	const swapFocusRef = useSwapFocusRef();
-	const textQuery = useQuery({
-		...chatFileText(fileId),
-		enabled: viewer.isViewing,
-	});
-	const isExpired =
-		expired ||
-		(isAxiosError(textQuery.error) && textQuery.error.response?.status === 404);
+	const { markExpired } = useFileProbes();
+	// Only the view handler fetches, so that it can share a 404 with the
+	// timeline's other views of the file.
+	const textQuery = useQuery({ ...chatFileText(fileId), enabled: false });
+	const isExpired = expired || isExpiredFileError(textQuery.error);
 	const isLoadingText = textQuery.isFetching && textQuery.data === undefined;
 	const loadError = textQuery.isError
 		? (getTextAttachmentErrorMessage(textQuery.error) ?? undefined)
@@ -145,11 +147,14 @@ const StoredTextAttachmentCard: React.FC<StoredTextAttachmentCardProps> = ({
 				status={isLoadingText ? "Loading file" : loadError}
 				onView={(event) => {
 					viewer.open(event);
-					// A failed load leaves the query enabled, so only a refetch
-					// retries it.
-					if (textQuery.isError) {
-						void textQuery.refetch();
+					if (textQuery.data !== undefined) {
+						return;
 					}
+					void textQuery.refetch().then(({ error }) => {
+						if (isExpiredFileError(error)) {
+							markExpired(fileId);
+						}
+					});
 				}}
 				ref={swapFocusRef}
 			/>
@@ -219,7 +224,10 @@ type AgentAttachmentListProps = {
 	isExpired: (fileId: string) => boolean;
 };
 
-/** Cards for agent attachments, in the given order. */
+/**
+ * Cards for agent attachments. Only stored files can be expired, since inline
+ * attachments carry no file ID.
+ */
 export const AgentAttachmentList: React.FC<AgentAttachmentListProps> = ({
 	attachments,
 	isExpired,
@@ -229,7 +237,6 @@ export const AgentAttachmentList: React.FC<AgentAttachmentListProps> = ({
 			<li key={attachment.key}>
 				<AgentAttachmentCard
 					attachment={attachment}
-					// Inline attachments carry no file ID, so only stored files can expire.
 					expired={
 						attachment.file.file_id !== undefined &&
 						isExpired(attachment.file.file_id)

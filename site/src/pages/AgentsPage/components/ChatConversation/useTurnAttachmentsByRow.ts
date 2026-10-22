@@ -9,7 +9,7 @@ import {
 /**
  * "use memo" keys this cache on the messages and destructured flags; inlined,
  * the call would share the timeline body's cache scope, which every stream
- * chunk invalidates. It builds no live row: only message rows host a pill.
+ * chunk invalidates.
  */
 export const useTurnAttachmentsByRow = (
 	parsedMessages: readonly ParsedMessageEntry[],

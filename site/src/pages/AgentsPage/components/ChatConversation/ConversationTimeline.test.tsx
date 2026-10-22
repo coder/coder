@@ -448,6 +448,30 @@ describe("ConversationTimeline turn attachments", () => {
 		expect(requestedFileIDs).toEqual(["findings-file"]);
 	});
 
+	it("views a loaded text file again without requesting it", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get("/api/v2/chats/files/:fileId", () =>
+				HttpResponse.text("# Findings"),
+			),
+		);
+		const getChatFileText = vi.spyOn(API.experimental, "getChatFileText");
+		renderTimeline({ messages: MockMixedAttachmentMessages });
+		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
+		const viewButton = await screen.findByRole("button", {
+			name: "findings.md View file",
+		});
+		await user.click(viewButton);
+		await screen.findByRole("dialog", { name: "findings.md" });
+		await user.keyboard("{Escape}");
+		await waitFor(() => expect(viewButton).toHaveFocus());
+
+		await user.click(viewButton);
+
+		await screen.findByRole("dialog", { name: "findings.md" });
+		expect(getChatFileText.mock.calls).toEqual([["findings-file"]]);
+	});
+
 	it("returns focus to an image card once its viewer closes", async () => {
 		const user = userEvent.setup();
 		renderTimeline({ messages: MockMixedAttachmentMessages });
@@ -513,6 +537,30 @@ describe("ConversationTimeline turn attachments", () => {
 				screen.getByRole("img", { name: "Attachment expired: findings.md" }),
 			).toHaveFocus(),
 		);
+	});
+
+	it("expires a text file in its turn's steps once its view finds it deleted", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get(
+				"/api/v2/chats/files/:fileId",
+				() => new HttpResponse(null, { status: 404 }),
+			),
+		);
+		renderTimeline({ messages: MockMixedAttachmentMessages });
+		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
+		await user.click(
+			await screen.findByRole("button", { name: "findings.md View file" }),
+		);
+		await screen.findByRole("img", { name: "Attachment expired: findings.md" });
+		await user.keyboard("{Escape}");
+		await user.click(
+			screen.getByRole("button", { name: "Worked for 7s (4 steps)" }),
+		);
+
+		expect(
+			screen.getByRole("img", { name: "Attachment expired" }),
+		).toBeInTheDocument();
 	});
 });
 
