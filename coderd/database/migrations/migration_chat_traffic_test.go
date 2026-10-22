@@ -73,13 +73,15 @@ func TestMigrationUpgradeFromReleaseDuringChatTraffic(t *testing.T) {
 }
 
 func testUpgradeFromReleaseDuringChatTraffic(t *testing.T, target int, request func(ctx context.Context, conn *sql.Conn, chatID, userID uuid.UUID) error) {
-	// Each request gets its own deadlock_timeout, so the checks land at
-	// different points of a lock-retry cycle and at least one lands in a
-	// pause. requestDeadlockTimeout is much longer than the time between the
-	// first request waiting and the migration waiting, so every check finds
-	// the migration waiting. migrationDeadlockTimeout keeps the migration's
-	// own check from firing first; in production the requests start waiting
-	// first and every check uses the same timeout, with the same result.
+	// Each request gets its own deadlock_timeout, requestDeadlockTimeoutStep
+	// apart, and all requests start waiting at about the same time, so their
+	// deadlock checks land 50ms apart over 150ms. A migration that alternates
+	// 100ms lock waits with 100ms pauses is therefore paused for at least one
+	// check. requestDeadlockTimeout is much longer than the time between the
+	// requests waiting and the migration waiting, so every check finds the
+	// migration waiting. migrationDeadlockTimeout keeps the migration's own
+	// check from firing first; in production the requests start waiting first
+	// and every check uses the same timeout, with the same result.
 	const (
 		requests                   = 4
 		requestDeadlockTimeout     = 2 * time.Second
@@ -120,21 +122,30 @@ func testUpgradeFromReleaseDuringChatTraffic(t *testing.T, target int, request f
 		require.NoError(t, err, "migration %d", version)
 	}
 
-	var requestResults []<-chan error
+	requestConns := make([]*sql.Conn, requests)
+	requestPIDs := make([]int, requests)
 	for i := range requests {
-		requestConn, requestPID := dedicatedConn(ctx, t, sqlDB)
+		requestConns[i], requestPIDs[i] = dedicatedConn(ctx, t, sqlDB)
 		timeout := requestDeadlockTimeout + time.Duration(i)*requestDeadlockTimeoutStep
-		_, err := requestConn.ExecContext(ctx, fmt.Sprintf("SET deadlock_timeout = '%dms'", timeout.Milliseconds()))
+		_, err := requestConns[i].ExecContext(ctx, fmt.Sprintf("SET deadlock_timeout = '%dms'", timeout.Milliseconds()))
 		require.NoError(t, err)
-		requestResults = append(requestResults, async(func() error {
-			return request(ctx, requestConn, chatID, userID)
-		}))
-		require.Eventually(t, func() bool {
-			var blocked bool
-			err := sqlDB.QueryRowContext(ctx, `SELECT $2::int = ANY(pg_blocking_pids($1))`, requestPID, migrationPID).Scan(&blocked)
-			return err == nil && blocked
-		}, testutil.WaitMedium, testutil.IntervalFast, "the chat request never waited for the upgrade")
 	}
+	requestResults := make([]<-chan error, requests)
+	for i, conn := range requestConns {
+		requestResults[i] = async(func() error {
+			return request(ctx, conn, chatID, userID)
+		})
+	}
+	require.Eventually(t, func() bool {
+		for _, pid := range requestPIDs {
+			var blocked bool
+			err := sqlDB.QueryRowContext(ctx, `SELECT $2::int = ANY(pg_blocking_pids($1))`, pid, migrationPID).Scan(&blocked)
+			if err != nil || !blocked {
+				return false
+			}
+		}
+		return true
+	}, testutil.WaitMedium, testutil.IntervalFast, "the chat requests never waited for the upgrade")
 
 	targetSQL := readUpMigration(t, target)
 	migrated := async(func() error {
