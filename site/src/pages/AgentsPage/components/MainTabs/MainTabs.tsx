@@ -222,7 +222,10 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 								: undefined;
 						const name = parentHint ? `${label} ${parentHint}` : label;
 						return (
-							<div key={file.path} className="flex shrink-0 items-center">
+							<div
+								key={file.path}
+								className="group/tab flex shrink-0 items-center"
+							>
 								<Button
 									ref={trackElement(tabButtonsRef, file.path)}
 									id={`${idPrefix}-tab-${index}`}
@@ -252,12 +255,6 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 										}
 									}}
 								>
-									{isDirty && (
-										<span
-											aria-hidden
-											className="size-1.5 shrink-0 rounded-full bg-content-primary"
-										/>
-									)}
 									<span className="truncate">{label}</span>
 									{parentHint && (
 										<span className="truncate text-content-secondary">
@@ -272,13 +269,27 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 									aria-label={`Close ${name}`}
 									title={`Close ${file.path}`}
 									className={cn(
-										"size-6 rounded-l-none rounded-r-md bg-surface-primary p-0 text-content-secondary hover:text-content-primary [&>svg]:size-3",
+										"group/close size-6 rounded-l-none rounded-r-md bg-surface-primary p-0 text-content-secondary hover:text-content-primary [&>svg]:size-3",
 										isActive &&
 											"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
 									)}
 									onClick={() => requestCloseFile(file.path)}
 								>
-									<XIcon />
+									{/* The unsaved dot takes the close button's slot so the tab
+									    keeps its width; hovering the tab or focusing the button
+									    shows the X. */}
+									{isDirty && (
+										<span
+											aria-hidden
+											className="size-2 rounded-full bg-current group-hover/tab:hidden group-focus-visible/close:hidden"
+										/>
+									)}
+									<XIcon
+										className={cn(
+											isDirty &&
+												"hidden group-hover/tab:block group-focus-visible/close:block",
+										)}
+									/>
 								</Button>
 							</div>
 						);
