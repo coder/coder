@@ -973,12 +973,14 @@ func TestStopAfterBehaviorTools(t *testing.T) {
 
 // TestWaitForActiveChatStop and TestWaitForActiveChatStop_WaitsForReplacementRun
 // were removed along with the process-local activeChats mechanism.
-// Debug cleanup is now best-effort; stale finalization handles orphaned rows.
+// Debug cleanup is now best-effort; dbpurge removes orphaned rows
+// after the debug retention window.
 
 // TestArchiveChatWaitsForActiveChatStop and
 // TestArchiveChatWaitsForEveryInterruptedChat were removed along with
 // the process-local activeChats mechanism. Archive cleanup is now
-// best-effort; stale finalization handles any orphaned rows.
+// best-effort; dbpurge removes any orphaned rows after the debug
+// retention window.
 
 // A rename is skipped only when the stored title is already this user
 // title; any other source is replaced even when the text is unchanged.
@@ -2085,6 +2087,7 @@ func TestPersonalSkillsInSystemPrompt(t *testing.T) {
 			}},
 			nil,
 			nil,
+			nil,
 		),
 		"",
 		"",
@@ -2107,6 +2110,7 @@ func TestPersonalAndWorkspaceSkillCollisionInSystemPrompt(t *testing.T) {
 			Description: "Personal deployment process",
 			Source:      skillspkg.SourcePersonal,
 		}},
+		nil,
 		nil,
 		[]chattool.SkillMeta{{
 			Name:        "deploy",
@@ -2436,6 +2440,60 @@ func TestLoadOrganizationSkillBody(t *testing.T) {
 		{name: "Missing", reader: member.ID, skill: "missing-review"},
 	} {
 		_, err := server.loadOrganizationSkillBody(ctx, subject(tc.reader), org.ID, tc.skill)
+		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound, tc.name)
+	}
+}
+
+// TestLoadProjectSkillBody covers the loader directly because a turn only
+// reaches it for skills it already listed, so the not-found mapping for
+// disabled and missing skills is otherwise unreachable.
+func TestLoadProjectSkillBody(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	authzDB := dbauthz.New(db, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), nil)
+	server := &Server{
+		db:     authzDB,
+		logger: slogtest.Make(t, nil),
+	}
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	for _, name := range []string{"project-review", "disabled-review"} {
+		_, err := db.InsertProjectSkill(ctx, database.InsertProjectSkillParams{
+			ID:        uuid.New(),
+			ProjectID: project.ID,
+			Name:      name,
+			Content:   "---\nname: " + name + "\ndescription: Review\n---\n\nProject instructions.\n",
+		})
+		require.NoError(t, err)
+	}
+	_, err := db.UpdateProjectSkillByProjectIDAndName(ctx, database.UpdateProjectSkillByProjectIDAndNameParams{
+		Enabled:   sql.NullBool{Bool: false, Valid: true},
+		ProjectID: project.ID,
+		Name:      "disabled-review",
+	})
+	require.NoError(t, err)
+
+	chatdCtx := dbauthz.AsChatd(ctx)
+	got, err := server.loadProjectSkillBody(chatdCtx, project.ID, "project-review")
+	require.NoError(t, err)
+	require.Equal(t, skillspkg.SourceProject, got.Source)
+	require.Equal(t, "Project instructions.", got.Body)
+
+	for _, tc := range []struct {
+		name      string
+		projectID uuid.UUID
+		skill     string
+	}{
+		{name: "Disabled", projectID: project.ID, skill: "disabled-review"},
+		{name: "Missing", projectID: project.ID, skill: "missing-review"},
+		{name: "MissingProject", projectID: uuid.New(), skill: "project-review"},
+	} {
+		_, err := server.loadProjectSkillBody(chatdCtx, tc.projectID, tc.skill)
 		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound, tc.name)
 	}
 }

@@ -844,15 +844,17 @@ lint/emdash:
 # Fails when docs Markdown contains invalid inline HTML the docs site drops or
 # mangles: swallowed angle-bracket placeholders (e.g. <region>), void-element
 # end tags (</br>), capitalized or unregistered component tags (e.g. <Image>),
-# and unclosed container tags.
+# and unclosed container tags. Also fails on table header cells with no text.
 lint/docs-html:
-	echo "--- check for invalid inline HTML in docs"
+	echo "--- check for invalid inline HTML and empty table headers in docs"
 	go run ./scripts/docshtmlcheck
 .PHONY: lint/docs-html
 
 # Fails when the YAML sidebar sources under docs/manifest are unformatted or
 # invalid: unknown or misordered keys, missing pages, overlays that match no
-# generated route, or source files that nothing references.
+# generated route, source files that nothing references, or a page description
+# (in the sources, a generated fragment, or page front matter) that doesn't end
+# with a period.
 lint/docs-manifest: _gen/bin/docsmanifestgen
 	echo "--- check docs sidebar sources"
 	_gen/bin/docsmanifestgen check
