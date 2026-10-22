@@ -253,9 +253,10 @@ func (b *eventBatch) take() []FSEvent {
 	return events
 }
 
-// filterIgnored drops created and modified paths that git ignores,
-// with one classification per batch, and expands each remaining
-// created directory into its contents.
+// filterIgnored classifies created and modified paths with one call per
+// batch and expands each remaining created directory into its
+// contents. An ignored path becomes a removal rather than being
+// dropped: a walk running when it was created may have indexed it.
 func (fw *fsWatcher) filterIgnored(ctx context.Context, events []FSEvent) []FSEvent {
 	var queries []IgnoreQuery
 	for _, ev := range events {
@@ -274,6 +275,7 @@ func (fw *fsWatcher) filterIgnored(ctx context.Context, events []FSEvent) []FSEv
 			skip := ignored[q]
 			q++
 			if skip {
+				out = append(out, FSEvent{Op: OpRemove, Path: ev.Path, IsDir: ev.IsDir})
 				continue
 			}
 		}
