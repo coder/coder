@@ -1819,6 +1819,20 @@ func AIModelPrice(dbPrice database.AIModelPrice) codersdk.AIModelPrice {
 	}
 }
 
+func OrganizationAIModelPrice(dbPrice database.AIModelConfig) codersdk.OrganizationAIModelPrice {
+	return codersdk.OrganizationAIModelPrice{
+		OrganizationID:  dbPrice.OrganizationID,
+		ProviderID:      dbPrice.ProviderID,
+		Model:           dbPrice.Model,
+		InputPrice:      nullInt64Ptr(dbPrice.InputPrice),
+		OutputPrice:     nullInt64Ptr(dbPrice.OutputPrice),
+		CacheReadPrice:  nullInt64Ptr(dbPrice.CacheReadPrice),
+		CacheWritePrice: nullInt64Ptr(dbPrice.CacheWritePrice),
+		CreatedAt:       dbPrice.CreatedAt,
+		UpdatedAt:       dbPrice.UpdatedAt,
+	}
+}
+
 func nullUUIDPtr(v uuid.NullUUID) *uuid.UUID {
 	if !v.Valid {
 		return nil
