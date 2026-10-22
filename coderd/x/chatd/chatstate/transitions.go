@@ -927,6 +927,8 @@ type DeleteQueuedMessageInput struct {
 // DeleteQueuedMessageResult is returned by [Tx.DeleteQueuedMessage].
 type DeleteQueuedMessageResult struct {
 	DeletedQueuedMessage database.ChatQueuedMessage
+	// Chat is the updated chat when the transition left P, else nil.
+	Chat *database.Chat
 	// PromotedQueuedAt is zero when no queue head was promoted.
 	PromotedQueuedAt time.Time
 }
@@ -959,17 +961,14 @@ func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedM
 	if rows == 0 {
 		return DeleteQueuedMessageResult{}, ErrQueuedMessageNotFound
 	}
-	var promotedQueuedAt time.Time
+	result := DeleteQueuedMessageResult{DeletedQueuedMessage: target}
 	if from == StateP {
-		promotedQueuedAt, err = tx.leavePaused(chat)
+		result.Chat, result.PromotedQueuedAt, err = tx.leavePaused(chat)
 		if err != nil {
 			return DeleteQueuedMessageResult{}, err
 		}
 	}
-	return DeleteQueuedMessageResult{
-		DeletedQueuedMessage: target,
-		PromotedQueuedAt:     promotedQueuedAt,
-	}, nil
+	return result, nil
 }
 
 // EditQueuedMessageInput configures [Tx.EditQueuedMessage]. Nil fields
@@ -989,6 +988,8 @@ type EditQueuedMessageInput struct {
 // EditQueuedMessageResult is returned by [Tx.EditQueuedMessage].
 type EditQueuedMessageResult struct {
 	QueuedMessage database.ChatQueuedMessage
+	// Chat is the updated chat when the transition left P, else nil.
+	Chat *database.Chat
 	// PromotedQueuedAt is zero when no queue head was promoted.
 	PromotedQueuedAt time.Time
 }
@@ -1022,7 +1023,7 @@ func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessage
 	if from == StateP && input.Editing != nil && *input.Editing && !row.EditingSince.Valid {
 		return EditQueuedMessageResult{}, ErrPausedQueuedHeadUnderEdit
 	}
-	var promotedQueuedAt time.Time
+	var result EditQueuedMessageResult
 	if input.Content != nil {
 		modelConfig := row.ModelConfigID
 		if input.ModelConfigIDOverride.Valid {
@@ -1058,13 +1059,14 @@ func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessage
 			return EditQueuedMessageResult{}, xerrors.Errorf("update queued editing: %w", err)
 		}
 		if from == StateP && !*input.Editing {
-			promotedQueuedAt, err = tx.leavePaused(chat)
+			result.Chat, result.PromotedQueuedAt, err = tx.leavePaused(chat)
 			if err != nil {
 				return EditQueuedMessageResult{}, err
 			}
 		}
 	}
-	return EditQueuedMessageResult{QueuedMessage: row, PromotedQueuedAt: promotedQueuedAt}, nil
+	result.QueuedMessage = row
+	return result, nil
 }
 
 // endOtherEdit clears editing_since on the chat's row under edit if it
@@ -1090,11 +1092,14 @@ func (tx *Tx) endOtherEdit(exceptID int64) error {
 }
 
 // leavePaused advances the queue of a chat in P (see advanceQueue). It
-// returns the promoted head's queued time, or zero when nothing was
-// promoted.
-func (tx *Tx) leavePaused(chat database.Chat) (time.Time, error) {
-	_, promoted, err := tx.advanceQueue(chat)
-	return promoted.QueuedAt, err
+// returns the updated chat when the chat left P, else nil, and the
+// promoted head's queued time, or zero when nothing was promoted.
+func (tx *Tx) leavePaused(chat database.Chat) (*database.Chat, time.Time, error) {
+	updated, promoted, err := tx.advanceQueue(chat)
+	if err != nil || updated.Status == chat.Status {
+		return nil, time.Time{}, err
+	}
+	return &updated, promoted.QueuedAt, nil
 }
 
 // advanceQueue moves the chat on by its queue head when a turn or an

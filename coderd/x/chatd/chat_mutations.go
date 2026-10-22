@@ -551,43 +551,22 @@ func (p *Server) DeleteQueued(
 		return xerrors.New("chat_id is required")
 	}
 
-	var (
-		after            database.Chat
-		statusChanged    bool
-		promotedQueuedAt time.Time
-	)
-	machine := p.newChatMachine(chatID)
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		before, err := store.GetChatByID(ctx, chatID)
-		if err != nil {
-			return xerrors.Errorf("load chat: %w", err)
-		}
-		deleted, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
+	var deleted chatstate.DeleteQueuedMessageResult
+	err := p.newChatMachine(chatID).Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		var err error
+		deleted, err = tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
 			QueuedMessageID: queuedMessageID,
 		})
-		if err != nil {
-			return err
-		}
-		promotedQueuedAt = deleted.PromotedQueuedAt
-		after, statusChanged, err = reloadChatAndStatusChanged(ctx, store, before)
 		return err
 	})
 	if err != nil {
 		return err
 	}
-	if statusChanged {
-		p.publishChatPubsubEvent(after, codersdk.ChatWatchEventKindStatusChange, nil)
+	if deleted.Chat != nil {
+		p.publishChatPubsubEvent(*deleted.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
+		p.recordQueueWait(ctx, *deleted.Chat, deleted.PromotedQueuedAt)
 	}
-	p.recordQueueWait(ctx, after, promotedQueuedAt)
 	return nil
-}
-
-func reloadChatAndStatusChanged(ctx context.Context, store database.Store, before database.Chat) (database.Chat, bool, error) {
-	after, err := store.GetChatByID(ctx, before.ID)
-	if err != nil {
-		return database.Chat{}, false, xerrors.Errorf("reload chat: %w", err)
-	}
-	return after, after.Status != before.Status, nil
 }
 
 // EditQueuedMessageOptions controls [Server.EditQueuedMessage]. Zero
@@ -679,11 +658,7 @@ func (p *Server) EditQueuedMessage(
 		}
 	}
 
-	var (
-		after            database.Chat
-		statusChanged    bool
-		promotedQueuedAt time.Time
-	)
+	var edited chatstate.EditQueuedMessageResult
 	machine := p.newChatMachine(opts.ChatID)
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
@@ -699,27 +674,25 @@ func (p *Server) EditQueuedMessage(
 				return err
 			}
 		}
-		edited, err := tx.EditQueuedMessage(input)
+		edited, err = tx.EditQueuedMessage(input)
 		if err != nil {
 			return err
 		}
-		promotedQueuedAt = edited.PromotedQueuedAt
 		if len(contentParts) > 0 {
 			// File-link errors must roll back the edit.
 			if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
 				return err
 			}
 		}
-		after, statusChanged, err = reloadChatAndStatusChanged(ctx, store, lockedChat)
-		return err
+		return nil
 	})
 	if err != nil {
 		return err
 	}
-	if statusChanged {
-		p.publishChatPubsubEvent(after, codersdk.ChatWatchEventKindStatusChange, nil)
+	if edited.Chat != nil {
+		p.publishChatPubsubEvent(*edited.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
+		p.recordQueueWait(ctx, *edited.Chat, edited.PromotedQueuedAt)
 	}
-	p.recordQueueWait(ctx, after, promotedQueuedAt)
 	return nil
 }
 
