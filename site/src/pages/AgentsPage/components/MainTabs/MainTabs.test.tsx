@@ -191,12 +191,9 @@ const renderHarness = (
 	};
 };
 
-const repoWithDiff = (unifiedDiff: string): Repositories =>
+const repoWithDiff = (unifiedDiff: string, branch = "main"): Repositories =>
 	new Map([
-		[
-			"/repo",
-			{ repo_root: "/repo", branch: "main", unified_diff: unifiedDiff },
-		],
+		["/repo", { repo_root: "/repo", branch, unified_diff: unifiedDiff }],
 	]);
 
 const fileDiff = (path: string, line: string) =>
@@ -579,6 +576,18 @@ describe("MainTabs", () => {
 			});
 			await user.click(getTab("b.go"));
 			expect(reads("/repo/b.go")).toBe(2);
+		});
+
+		it("rereads clean files when the branch changes", async () => {
+			const user = userEvent.setup();
+			const { setRepositories } = renderHarness(["/repo/a.go"]);
+			await user.click(screen.getByRole("button", { name: "Open /repo/a.go" }));
+			setRepositories(repoWithDiff(""));
+
+			setRepositories(repoWithDiff("", "feature"));
+			await waitFor(() => {
+				expect(reads("/repo/a.go")).toBe(2);
+			});
 		});
 
 		it("shows the newest content when the diff changes during a read", async () => {
