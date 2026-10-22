@@ -1,8 +1,10 @@
 package chatstate_test
 
 import (
+	"encoding/json"
 	"testing"
 
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -138,5 +140,75 @@ func TestEditing_SendCapacityInPausedStates(t *testing.T) {
 		} else {
 			require.NoError(t, err, "%s: an interrupt runs ahead of the full queue", tc.state)
 		}
+	}
+}
+
+// TestEditing_LeavingPaused covers the DeleteQueuedMessage and
+// end-of-edit paths from P. A path that stays in P does not rewrite the
+// chat row and returns no chat, so chatd publishes no status change. A
+// path that leaves P returns the updated chat: an emptied queue waits
+// with last_error kept, and a promoted head runs with last_error
+// cleared, as PromoteQueuedMessage from P does.
+func TestEditing_LeavingPaused(t *testing.T) {
+	t.Parallel()
+	lastError := pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"message":"paused"}`), Valid: true}
+	deleteAt := func(idx int) func(*chatstate.Tx, seededChat) (*database.Chat, error) {
+		return func(tx *chatstate.Tx, seeded seededChat) (*database.Chat, error) {
+			res, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{QueuedMessageID: seeded.queuedMessageIDs[idx]})
+			return res.Chat, err
+		}
+	}
+	endEditAt := func(idx int) func(*chatstate.Tx, seededChat) (*database.Chat, error) {
+		return func(tx *chatstate.Tx, seeded seededChat) (*database.Chat, error) {
+			res, err := tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{QueuedMessageID: seeded.queuedMessageIDs[idx], Editing: new(false)})
+			return res.Chat, err
+		}
+	}
+
+	for _, tc := range []struct {
+		name  string
+		extra int
+		apply func(*chatstate.Tx, seededChat) (*database.Chat, error)
+		want  chatstate.ExecutionState
+		// keepsLastError is false where the head is promoted.
+		keepsLastError bool
+	}{
+		{"DeleteBehindHead", 1, deleteAt(1), chatstate.StateP, true},
+		{"EndEditBehindHead", 1, endEditAt(1), chatstate.StateP, true},
+		{"DeleteLastRow", 0, deleteAt(0), chatstate.StateW, true},
+		{"DeleteHead", 1, deleteAt(0), chatstate.StateR0, false},
+		{"EndHeadEdit", 0, endEditAt(0), chatstate.StateR0, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			seeded := seedPaused(t, f, tc.extra)
+			before := seedLastError(ctx, t, f, seeded.chatID, lastError)
+			require.Equal(t, chatstate.StateP, f.classify(ctx, t, seeded.chatID))
+
+			var chat *database.Chat
+			require.NoError(t, chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID).Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+				var err error
+				chat, err = tc.apply(tx, seeded)
+				return err
+			}))
+			require.Equal(t, tc.want, f.classify(ctx, t, seeded.chatID))
+			after := f.readChat(ctx, t, seeded.chatID)
+			if tc.want == chatstate.StateP {
+				require.Nil(t, chat, "staying in P reports no chat")
+				require.True(t, before.UpdatedAt.Equal(after.UpdatedAt), "staying in P does not rewrite the chat row")
+			} else {
+				require.NotNil(t, chat, "leaving P reports the updated chat")
+				require.Equal(t, after.Status, chat.Status)
+				require.Equal(t, after.SnapshotVersion, chat.SnapshotVersion)
+			}
+			if tc.keepsLastError {
+				require.True(t, after.LastError.Valid, "last_error is kept")
+				require.JSONEq(t, string(lastError.RawMessage), string(after.LastError.RawMessage))
+			} else {
+				require.False(t, after.LastError.Valid, "the promoted head runs with last_error cleared")
+			}
+		})
 	}
 }

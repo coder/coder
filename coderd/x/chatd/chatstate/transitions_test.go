@@ -1062,73 +1062,103 @@ func TestTransitionAcquire_ExecutionStateOrthogonal(t *testing.T) {
 	}
 }
 
-// TestQueueAdvanceKeepsLastError checks that promoting the queue head
-// when a turn or an interruption ends keeps the chat's last_error. No
-// transition sets last_error on a running or interrupting chat, so the
-// test writes it directly.
+// seedLastError writes lastError onto the chat directly, keeping every
+// other execution-state field. No transition stores a last_error outside
+// error, so tests of the other states seed it this way.
+func seedLastError(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID, lastError pqtype.NullRawMessage) database.Chat {
+	t.Helper()
+	chat := f.readChat(ctx, t, chatID)
+	updated, err := f.DB.UpdateChatExecutionState(ctx, database.UpdateChatExecutionStateParams{
+		ID:                       chat.ID,
+		Status:                   chat.Status,
+		Archived:                 chat.Archived,
+		WorkerID:                 chat.WorkerID,
+		RunnerID:                 chat.RunnerID,
+		LastError:                lastError,
+		RequiresActionDeadlineAt: chat.RequiresActionDeadlineAt,
+		CompactionRequestedAt:    chat.CompactionRequestedAt,
+	})
+	require.NoError(t, err)
+	return updated
+}
+
+// TestQueueAdvanceKeepsLastError checks that every outcome of a finished
+// turn or interruption keeps the chat's last_error: waiting, paused, and
+// running with the queue head promoted.
 func TestQueueAdvanceKeepsLastError(t *testing.T) {
 	t.Parallel()
 	lastError := pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"message":"kept"}`), Valid: true}
-	setLastError := func(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID) {
-		t.Helper()
-		chat := f.readChat(ctx, t, chatID)
-		_, err := f.DB.UpdateChatExecutionState(ctx, database.UpdateChatExecutionStateParams{
-			ID:                       chat.ID,
-			Status:                   chat.Status,
-			Archived:                 chat.Archived,
-			WorkerID:                 chat.WorkerID,
-			RunnerID:                 chat.RunnerID,
-			LastError:                lastError,
-			RequiresActionDeadlineAt: chat.RequiresActionDeadlineAt,
-			CompactionRequestedAt:    chat.CompactionRequestedAt,
+	endTurn := func(tx *chatstate.Tx) (*database.ChatMessage, error) {
+		res, err := tx.FinishTurn(chatstate.FinishTurnInput{})
+		return res.PromotedMessage, err
+	}
+	endInterruption := func(tx *chatstate.Tx) (*database.ChatMessage, error) {
+		res, err := tx.FinishInterruption(chatstate.FinishInterruptionInput{})
+		return res.PromotedMessage, err
+	}
+	// running seeds R0 and returns its chat ID.
+	running := func(t *testing.T, f *testFixture) uuid.UUID {
+		return createTestChat(t, f).Chat.ID
+	}
+	// interrupting seeds an owned I0.
+	interrupting := func(t *testing.T, f *testFixture) uuid.UUID {
+		chatID := createTestChat(t, f).Chat.ID
+		ctx := testutil.Context(t, testutil.WaitShort)
+		require.NoError(t, chatstate.NewChatMachine(f.DB, f.Pub, chatID).Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+			if err := ownChat(ctx, tx, store, chatID); err != nil {
+				return err
+			}
+			_, err := tx.Interrupt(chatstate.InterruptInput{})
+			return err
+		}))
+		return chatID
+	}
+	withQueued := func(seed func(*testing.T, *testFixture) uuid.UUID) func(*testing.T, *testFixture) uuid.UUID {
+		return func(t *testing.T, f *testFixture) uuid.UUID {
+			chatID := seed(t, f)
+			sendQueuedMessage(t, f, chatstate.NewChatMachine(f.DB, f.Pub, chatID), "queued")
+			return chatID
+		}
+	}
+	blocked := func(ready chatstate.ExecutionState) func(*testing.T, *testFixture) uuid.UUID {
+		return func(t *testing.T, f *testFixture) uuid.UUID { return seedBlockedHead(t, f, ready, 0).chatID }
+	}
+
+	for _, tc := range []struct {
+		from, want chatstate.ExecutionState
+		seed       func(*testing.T, *testFixture) uuid.UUID
+		apply      func(*chatstate.Tx) (*database.ChatMessage, error)
+		promotes   bool
+	}{
+		{chatstate.StateR0, chatstate.StateW, running, endTurn, false},
+		{chatstate.StateR1, chatstate.StateR0, withQueued(running), endTurn, true},
+		{chatstate.StateR1P, chatstate.StateP, blocked(chatstate.StateR1), endTurn, false},
+		{chatstate.StateI0, chatstate.StateW, interrupting, endInterruption, false},
+		{chatstate.StateI1, chatstate.StateR0, withQueued(interrupting), endInterruption, true},
+		{chatstate.StateI1P, chatstate.StateP, blocked(chatstate.StateI1), endInterruption, false},
+	} {
+		t.Run(tc.from.String(), func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			chatID := tc.seed(t, f)
+			require.Equal(t, tc.from, f.classify(ctx, t, chatID))
+			seedLastError(ctx, t, f, chatID, lastError)
+
+			var promoted *database.ChatMessage
+			require.NoError(t, chatstate.NewChatMachine(f.DB, f.Pub, chatID).Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+				var err error
+				promoted, err = tc.apply(tx)
+				return err
+			}))
+			require.Equal(t, tc.want, f.classify(ctx, t, chatID))
+			require.Equal(t, tc.promotes, promoted != nil)
+			if promoted != nil {
+				require.True(t, promoted.QueuedMessageID.Valid, "the promoted message links its queue row")
+			}
+			after := f.readChat(ctx, t, chatID)
+			require.True(t, after.LastError.Valid, "%s keeps last_error", tc.from)
+			require.JSONEq(t, string(lastError.RawMessage), string(after.LastError.RawMessage))
 		})
-		require.NoError(t, err)
 	}
-	requirePromotedKeepingLastError := func(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID, promoted *database.ChatMessage, queuedID int64) {
-		t.Helper()
-		require.NotNil(t, promoted)
-		requireQueuedMessageLink(t, *promoted, queuedID)
-		require.Equal(t, chatstate.StateR0, f.classify(ctx, t, chatID))
-		after := f.readChat(ctx, t, chatID)
-		require.True(t, after.LastError.Valid, "promoting the queue head keeps last_error")
-		require.JSONEq(t, string(lastError.RawMessage), string(after.LastError.RawMessage))
-	}
-
-	t.Run("FinishTurn", func(t *testing.T) {
-		t.Parallel()
-		f := newTestFixture(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-		chatID := createTestChat(t, f).Chat.ID
-		m := chatstate.NewChatMachine(f.DB, f.Pub, chatID)
-		queued := sendQueuedMessage(t, f, m, "queued").QueuedMessage
-		require.Equal(t, chatstate.StateR1, f.classify(ctx, t, chatID))
-		setLastError(ctx, t, f, chatID)
-
-		var res chatstate.FinishTurnResult
-		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-			var err error
-			res, err = tx.FinishTurn(chatstate.FinishTurnInput{})
-			return err
-		}))
-		requirePromotedKeepingLastError(ctx, t, f, chatID, res.PromotedMessage, queued.ID)
-	})
-
-	t.Run("FinishInterruption", func(t *testing.T) {
-		t.Parallel()
-		f := newTestFixture(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-		chatID := createTestChat(t, f).Chat.ID
-		m := chatstate.NewChatMachine(f.DB, f.Pub, chatID)
-		queued := sendInterruptMessage(t, f, m, chatID, "interrupt").QueuedMessage
-		require.Equal(t, chatstate.StateI1, f.classify(ctx, t, chatID))
-		setLastError(ctx, t, f, chatID)
-
-		var res chatstate.FinishInterruptionResult
-		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-			var err error
-			res, err = tx.FinishInterruption(chatstate.FinishInterruptionInput{})
-			return err
-		}))
-		requirePromotedKeepingLastError(ctx, t, f, chatID, res.PromotedMessage, queued.ID)
-	})
 }
