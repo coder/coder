@@ -175,7 +175,7 @@ export type TurnAttachmentsOptions = {
 	 * none of them hosts the pill.
 	 */
 	hidesAttachmentRows: boolean;
-	/** The newest turn gets no entry unless a flag below settles it. */
+	/** The chat may still add to its newest turn. */
 	isChatActive: boolean;
 	/** The next turn's prompt is yet to arrive, so the newest turn is done. */
 	isNextTurnStarting: boolean;
@@ -242,9 +242,9 @@ export const getTurnAttachmentsByRow = (
 			boundaryFollowsLastShownRow = false;
 		}
 	}
-	// A compaction adds nothing to an answered turn. An unanswered one gets more
-	// steps, between steps or when the server resumes it after a manual /compact.
-	// The summary rows persist before the chat stops, so they count too.
+	// A compaction adds nothing to an answered turn. An unanswered turn goes on:
+	// the compaction ran between its steps, or the server resumes it after a
+	// manual /compact. Summary rows persist before the stop, so they count too.
 	const lastParsed = lastShownRow?.entry.parsed;
 	const lastShownRowEndsWithAnswer =
 		lastParsed !== undefined &&

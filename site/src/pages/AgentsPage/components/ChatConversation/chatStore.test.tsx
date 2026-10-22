@@ -2589,6 +2589,8 @@ describe("useChatStore", () => {
 			clearChatErrorReason: vi.fn(),
 		});
 
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
 		const { result, rerender } = renderHook(
 			(options: Parameters<typeof useChatStore>[0]) => {
 				const { store } = useChatStore(options);
@@ -2597,10 +2599,7 @@ describe("useChatStore", () => {
 					isNextTurnStarting: useChatSelector(store, selectIsNextTurnStarting),
 				};
 			},
-			{
-				initialProps: optionsFor(erroredChat, newerPrompt),
-				wrapper: createWrapper(createTestQueryClient()),
-			},
+			{ initialProps: optionsFor(erroredChat, newerPrompt), wrapper },
 		);
 		await waitFor(() => {
 			expect(watchChat).toHaveBeenCalledWith(erroredChat.id, newerPrompt.id);

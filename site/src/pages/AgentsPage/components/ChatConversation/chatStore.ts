@@ -109,6 +109,7 @@ export const isActiveChatStatus = (
 	status === "requires_action" ||
 	status === "interrupting";
 
+/** A run this client requested, with the newest message at request time. */
 export type IdleRunRequest = {
 	kind: "compaction" | "promotion";
 	latestMessageID: number;
