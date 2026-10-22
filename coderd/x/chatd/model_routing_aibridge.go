@@ -11,6 +11,7 @@ import (
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/aibridge"
@@ -18,9 +19,70 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+type modelClientRequest struct {
+	Chat         database.Chat
+	ModelName    string
+	UserAgent    string
+	ExtraHeaders map[string]string
+	CallConfig   codersdk.ChatModelCallConfig
+}
+
+type modelBuildOptions struct {
+	ActiveAPIKeyID string
+	RecordHTTP     bool
+	StageModel     chatloop.StageModel
+}
+
+func (p *Server) enabledAIProviderByID(ctx context.Context, providerID uuid.UUID) (database.AIProvider, error) {
+	provider, err := p.db.GetAIProviderByID(ctx, providerID)
+	if err != nil {
+		return database.AIProvider{}, xerrors.Errorf("get AI provider: %w", err)
+	}
+	if !provider.Enabled {
+		return database.AIProvider{}, xerrors.Errorf("AI provider %s is disabled", provider.ID)
+	}
+	return provider, nil
+}
+
+func newLanguageModel(
+	providerHint string,
+	modelName string,
+	providerKeys chatprovider.ProviderAPIKeys,
+	userAgent string,
+	extraHeaders map[string]string,
+	httpClient *http.Client,
+	callConfig *codersdk.ChatModelCallConfig,
+) (chatprovider.Model, error) {
+	model, err := chatprovider.ModelFromConfig(
+		providerHint,
+		modelName,
+		providerKeys,
+		userAgent,
+		extraHeaders,
+		httpClient,
+		callConfig,
+	)
+	if err != nil {
+		return chatprovider.Model{}, err
+	}
+	if !model.Valid() {
+		provider, resolvedModel, resolveErr := chatprovider.ResolveModelWithProviderHint(modelName, providerHint)
+		if resolveErr != nil {
+			return chatprovider.Model{}, resolveErr
+		}
+		return chatprovider.Model{}, xerrors.Errorf(
+			"create model for %s/%s returned nil",
+			provider,
+			resolvedModel,
+		)
+	}
+	return model, nil
+}
 
 const (
 	aibridgeLocalBaseURL = "http://coder-aibridge"
@@ -66,6 +128,35 @@ const (
 	aiGatewayRequestFormatOpenAI aiGatewayRequestFormat = iota
 	aiGatewayRequestFormatAnthropic
 )
+
+// stageSpanRoundTripper records a provider_attempt stage per round trip,
+// so each retry gets its own span.
+type stageSpanRoundTripper struct {
+	base       http.RoundTripper
+	stages     *chatloop.StageTracer
+	stageModel chatloop.StageModel
+}
+
+var _ http.RoundTripper = (*stageSpanRoundTripper)(nil)
+
+func (t *stageSpanRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	ctx, span := t.stages.Start(req.Context(), chatloop.StageProviderAttempt,
+		attribute.String(chatloop.AttrHTTPMethod, req.Method),
+	)
+	span.SetModel(t.stageModel)
+	resp, err := t.base.RoundTrip(req.WithContext(ctx))
+	if resp != nil {
+		span.SetAttributes(attribute.Int(chatloop.AttrHTTPStatusCode, resp.StatusCode))
+		if err == nil && resp.StatusCode >= http.StatusBadRequest {
+			err = xerrors.Errorf("provider returned status %d", resp.StatusCode)
+			span.End(err)
+			return resp, nil
+		}
+	}
+	// Ends on response headers; the streamed body outlives this call.
+	span.End(err)
+	return resp, err
+}
 
 type aiGatewayRoundTripper struct {
 	base         http.RoundTripper
@@ -172,6 +263,7 @@ func (p *Server) newModel(
 	if opts.RecordHTTP {
 		baseRT = &chatdebug.RecordingTransport{Base: baseRT}
 	}
+	stageRT := &stageSpanRoundTripper{base: baseRT, stages: p.stages, stageModel: opts.StageModel}
 
 	config := fantasyConfigForAIBridge(route.Provider.Type, req.ModelName)
 	openAIConfig := req.CallConfig.OpenAIConfig
@@ -188,15 +280,21 @@ func (p *Server) newModel(
 	extraHeaders := mergeConfigBetaHeaders(req.ExtraHeaders, config.ProviderHint, req.CallConfig)
 	callConfig := req.CallConfig
 	callConfig.OpenAIConfig = openAIConfig
-	return newLanguageModel(
+	model, err := newLanguageModel(
 		config.ProviderHint,
 		req.ModelName,
 		config.Keys,
 		req.UserAgent,
 		extraHeaders,
-		&http.Client{Transport: baseRT},
+		&http.Client{Transport: stageRT},
 		&callConfig,
 	)
+	if err != nil {
+		return chatprovider.Model{}, err
+	}
+	// Safe to mutate: the model has not sent a request yet.
+	stageRT.stageModel.Provider = model.Provider()
+	return model, nil
 }
 
 func coerceBedrockReasoningSummary(providerType database.AIProviderType, model string, callConfig codersdk.ChatModelCallConfig) codersdk.ChatModelCallConfig {

@@ -344,7 +344,6 @@ func TestUpdateStats(t *testing.T) {
 		// need to overwrite the cached fields for this test, but the struct has a lock
 		ws := agentapi.CachedWorkspaceFields{}
 		ws.UpdateValues(workspace)
-		// ws.AutostartSchedule = workspace.AutostartSchedule
 
 		api := agentapi.StatsAPI{
 			AgentID:   agent.ID,
@@ -708,7 +707,7 @@ func TestUpdateStats(t *testing.T) {
 						counts[fmt.Sprintf("app-%03d", i)] = 2
 						counts["zzz-busy"+strings.Repeat(" ", i)] = 1
 					}
-					want := map[string]int64{"vscode": 300, "ssh": 1, "zzz_busy": 300, "unknown": 478}
+					want := map[string]int64{"vscode": 300, "ssh": 1, "zzz_busy": 300, codersdk.AppNameOverflow: 478}
 					for i := range 61 {
 						want[fmt.Sprintf("app_%03d", i)] = 2
 					}

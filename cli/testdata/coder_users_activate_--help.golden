@@ -14,5 +14,8 @@ OPTIONS:
   -c, --column [username|email|created at|status] (default: username,email,created at,status)
           Specify a column to filter in the table.
 
+  -y, --yes bool
+          Bypass confirmation prompts.
+
 ———
 Run `coder --help` for a list of global options.

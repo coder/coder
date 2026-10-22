@@ -1,21 +1,41 @@
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import type { ProviderInfo } from "#/pages/AgentsPage/utils/modelOptions";
-import { SubagentModelOverrideSettings } from "#/pages/AISettingsPage/CoderAgentsPage/components/SubagentModelOverrideSettings";
+import {
+	bindingCompactionTriggerSource,
+	compactionDisabledThresholdPercent,
+	isCompactionPointBeyondWindow,
+	modelCompactionTrigger,
+	resolveOrganizationCompactionTrigger,
+} from "#/pages/AgentsPage/utils/compactionTriggers";
+import {
+	getModelLabel,
+	type ProviderInfo,
+} from "#/pages/AgentsPage/utils/modelOptions";
+import { DefaultModelSettings } from "#/pages/AISettingsPage/CoderAgentsPage/components/DefaultModelSettings";
+import {
+	type MutationCallbacks,
+	SubagentModelOverrideSettings,
+} from "#/pages/AISettingsPage/CoderAgentsPage/components/SubagentModelOverrideSettings";
 
 export type SaveModelOverride = (
 	req: TypesGen.UpdateChatModelOverrideRequest,
-	options?: { onSuccess?: () => void; onError?: () => void },
+	options?: MutationCallbacks,
 ) => void;
 
 type OrganizationAgentSettingsViewProps = {
+	defaultModelID: string | undefined;
+	onSaveDefaultModel: (modelID: string, options: MutationCallbacks) => void;
+	isSavingDefaultModel: boolean;
+	isSaveDefaultModelError: boolean;
 	overrides: readonly TypesGen.ChatModelOverrideResponse[] | undefined;
 	enabledModels: readonly TypesGen.ChatModel[];
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
-	isLoading: boolean;
-	loadError: unknown;
-	refetchError: unknown;
+	isModelsLoading: boolean;
+	isOverridesLoading: boolean;
+	overridesLoadError: unknown;
+	overridesRefetchError: unknown;
+	modelsError: unknown;
 	canEdit: boolean;
 	showAdvisor: boolean;
 	saveByContext: ReadonlyMap<
@@ -65,35 +85,120 @@ const settings: readonly {
 	},
 ];
 
-const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
+const formatModelList = (modelNames: readonly string[]) => {
+	const visibleNames = modelNames.slice(0, 3);
+	const remainingCount = modelNames.length - visibleNames.length;
+	return remainingCount > 0
+		? `${visibleNames.join(", ")} and ${remainingCount} more`
+		: visibleNames.join(", ");
+};
+
+type CompactionOverrideAlertProps = {
+	selectedModelID: string;
+	enabledModels: readonly TypesGen.ChatModel[];
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
+};
+
+const CompactionOverrideAlert: React.FC<CompactionOverrideAlertProps> = ({
+	selectedModelID,
+	enabledModels,
+	providerInfoByID,
+}) => {
+	const organizationTrigger = resolveOrganizationCompactionTrigger(
+		selectedModelID,
+		enabledModels,
+		providerInfoByID,
+		"organization",
+	);
+	if (!organizationTrigger) {
+		return null;
+	}
+
+	const compactionModel = organizationTrigger.model;
+	const undercutModels = enabledModels.filter(
+		(model) =>
+			bindingCompactionTriggerSource(
+				modelCompactionTrigger(model),
+				organizationTrigger.trigger,
+			) === "organization" &&
+			!isCompactionPointBeyondWindow(
+				organizationTrigger.pointTokens,
+				model.context_limit,
+			),
+	);
+	if (undercutModels.length === 0) {
+		return null;
+	}
+	const offModelsNote = undercutModels.some(
+		(model) =>
+			model.compression_threshold >= compactionDisabledThresholdPercent,
+	)
+		? ", including models with compaction off,"
+		: "";
+
+	return (
+		<Alert severity="warning">
+			<AlertDescription>
+				{`Chats using ${formatModelList(undercutModels.map(getModelLabel))} may compact earlier than their models' thresholds${offModelsNote} because the organization override compacts chats at ${organizationTrigger.trigger.thresholdPercent}% of ${getModelLabel(compactionModel)}'s ${compactionModel.context_limit.toLocaleString("en-US")}-token window. Personal thresholds that trigger compaction sooner still apply first.`}
+			</AlertDescription>
+		</Alert>
+	);
+};
+
+const OrganizationAgentSettingsView: React.FC<
+	OrganizationAgentSettingsViewProps
+> = ({
+	defaultModelID,
+	onSaveDefaultModel,
+	isSavingDefaultModel,
+	isSaveDefaultModelError,
 	overrides,
 	enabledModels,
 	providerInfoByID,
-	isLoading,
-	loadError,
-	refetchError,
+	isModelsLoading,
+	isOverridesLoading,
+	overridesLoadError,
+	overridesRefetchError,
+	modelsError,
 	canEdit,
 	showAdvisor,
 	saveByContext,
 	savingContexts,
 	errorContexts,
 }) => {
-	if (loadError) {
-		return <ErrorAlert error={loadError} />;
-	}
-	const visibleSettings = settings.filter(
-		(setting) => setting.context !== "advisor" || showAdvisor,
-	);
+	const bannerError =
+		overridesLoadError ?? overridesRefetchError ?? modelsError;
+	// The default row only needs the model catalog, so a failed initial
+	// overrides load removes just the override rows.
+	const visibleSettings =
+		overridesLoadError == null
+			? settings.filter(
+					(setting) => setting.context !== "advisor" || showAdvisor,
+				)
+			: [];
 
 	return (
 		<div className="flex flex-col gap-6">
-			{refetchError != null && <ErrorAlert error={refetchError} />}
-			{enabledModels.length === 0 && !isLoading && refetchError == null && (
-				<p role="status" className="m-0 text-content-secondary">
-					This organization has no enabled chat models.
-				</p>
-			)}
+			{bannerError != null && <ErrorAlert error={bannerError} />}
+			{enabledModels.length === 0 &&
+				!isModelsLoading &&
+				modelsError == null && (
+					<p role="status" className="m-0 text-content-secondary">
+						This organization has no enabled chat models.
+					</p>
+				)}
 			<div className="flex flex-col gap-6 rounded-lg border border-solid border-border px-6 py-7">
+				<DefaultModelSettings
+					defaultModelID={defaultModelID}
+					enabledModels={enabledModels}
+					providerInfoByID={providerInfoByID}
+					modelsError={modelsError}
+					isLoading={isModelsLoading}
+					onSaveDefaultModel={onSaveDefaultModel}
+					isSaving={isSavingDefaultModel}
+					isSaveError={isSaveDefaultModelError}
+					disabled={!canEdit}
+				/>
 				{visibleSettings.map((setting) => {
 					const saved = overrides?.find(
 						(override) => override.context === setting.context,
@@ -110,14 +215,25 @@ const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 							modelOverrideData={overrides === undefined ? undefined : saved}
 							enabledModels={enabledModels}
 							providerInfoByID={providerInfoByID}
-							modelsError={refetchError}
-							isLoading={isLoading}
+							modelsError={modelsError}
+							isLoading={isModelsLoading || isOverridesLoading}
 							onSaveModelOverride={onSave}
 							isSaving={savingContexts.has(setting.context)}
 							isSaveError={errorContexts.has(setting.context)}
 							saveErrorMessage={`Failed to save ${setting.title.toLowerCase()} override.`}
 							unavailableModelWarning={setting.unavailableModelWarning}
-							unsetPlaceholder="Use default"
+							renderSelectedModelAlert={
+								setting.context === "compaction"
+									? (selectedModelID) => (
+											<CompactionOverrideAlert
+												selectedModelID={selectedModelID}
+												enabledModels={enabledModels}
+												providerInfoByID={providerInfoByID}
+											/>
+										)
+									: undefined
+							}
+							unsetPlaceholder="Use chat model"
 							disabled={!canEdit}
 						/>
 					);

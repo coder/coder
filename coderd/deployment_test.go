@@ -4,10 +4,13 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -52,13 +55,27 @@ func TestDeploymentValues(t *testing.T) {
 
 func TestDeploymentStats(t *testing.T) {
 	t.Parallel()
-	t.Log("This test is time-sensitive. It may fail if the deployment is not ready in time.")
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-	client := coderdtest.New(t, &coderdtest.Options{})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		ConnectionMedianLatencyMS: 10,
+		SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"vscode": 1, "cursor": 2, "future_ide": 3}),
+	})
+	client := coderdtest.New(t, &coderdtest.Options{Database: db})
 	_ = coderdtest.CreateFirstUser(t, client)
-	assert.True(t, testutil.Eventually(ctx, t, func(tctx context.Context) bool {
-		_, err := client.DeploymentStats(tctx)
+	var stats codersdk.DeploymentStats
+	require.True(t, testutil.Eventually(ctx, t, func(tctx context.Context) bool {
+		var err error
+		stats, err = client.DeploymentStats(tctx)
 		return err == nil
 	}, testutil.IntervalMedium), "failed to get deployment stats in time")
+	// The legacy total folds both known names into VS Code.
+	require.Equal(t, codersdk.SessionCountDeploymentStats{
+		Apps: map[string]codersdk.SessionCountApp{
+			"vscode":     {Count: 1, DisplayName: "VS Code", Icon: "/icon/code.svg", Family: codersdk.AppFamilyVSCode},
+			"cursor":     {Count: 2, DisplayName: "Cursor", Icon: "/icon/cursor.svg", Family: codersdk.AppFamilyVSCode},
+			"future_ide": {Count: 3, DisplayName: "future_ide", Family: codersdk.AppFamilyUnknown},
+		},
+		VSCode: 3,
+	}, stats.SessionCount)
 }

@@ -1153,6 +1153,60 @@ func TestCreateChatUsesOrganizationLocalModel(t *testing.T) {
 	require.True(t, found, "chat should be visible in list")
 }
 
+func TestCreateChatAgentsAccessDefaultRole(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureMultipleOrganizations: 1,
+			},
+		},
+	})
+	expClient := codersdk.NewExperimentalClient(client)
+	provider := createOpenAIProviderForTest(ctx, t, expClient, "test-key", "https://example.com")
+	_, err := expClient.CreateChatModel(ctx, firstUser.OrganizationID, codersdk.CreateChatModelRequest{
+		AIProviderID: &provider.ID,
+		Model:        "gpt-4o-mini",
+		IsDefault:    new(true),
+		ContextLimit: new(int64(1000)),
+	})
+	require.NoError(t, err)
+
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+	createChat := func() error {
+		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "hello"},
+			},
+		})
+		return err
+	}
+	setDefaults := func(roles []string) {
+		t.Helper()
+		//nolint:gocritic // Only owners can update organization settings.
+		updated, err := client.UpdateOrganization(ctx, firstUser.OrganizationID.String(), codersdk.UpdateOrganizationRequest{
+			DefaultOrgMemberRoles: &roles,
+		})
+		require.NoError(t, err)
+		require.Equal(t, roles, updated.DefaultOrgMemberRoles)
+	}
+
+	require.NoError(t, createChat())
+
+	setDefaults([]string{codersdk.RoleOrganizationWorkspaceAccess})
+	err = createChat()
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+	setDefaults(rbac.DefaultOrgMemberRoles())
+	require.NoError(t, createChat())
+}
+
 // TestCreateChatCrossOrgModelConfigRejected proves an explicit
 // model_config_id naming a config in a DIFFERENT org than the chat is
 // rejected as unavailable: post-cutover validation is org-aware, so a

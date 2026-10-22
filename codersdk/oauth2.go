@@ -15,10 +15,14 @@ import (
 )
 
 type OAuth2ProviderApp struct {
-	ID          uuid.UUID `json:"id" format:"uuid"`
-	Name        string    `json:"name"`
-	CallbackURL string    `json:"callback_url"`
-	Icon        string    `json:"icon"`
+	ID   uuid.UUID `json:"id" format:"uuid"`
+	Name string    `json:"name"`
+	// RedirectURIs are the app's registered redirect URIs, primary first.
+	RedirectURIs []string `json:"redirect_uris"`
+	// Deprecated: equal to the first entry of redirect_uris. Read
+	// redirect_uris instead.
+	CallbackURL string `json:"callback_url"`
+	Icon        string `json:"icon"`
 	// Scope is the space-separated list of scopes this app's tokens may be
 	// granted. Empty means unrestricted. A non-empty value with no names is a
 	// configured allowlist that grants nothing.
@@ -26,6 +30,9 @@ type OAuth2ProviderApp struct {
 
 	// ClientType is "confidential" or "public".
 	ClientType OAuth2ClientType `json:"client_type"`
+	// DynamicallyRegistered is true when the app registered itself through
+	// Dynamic Client Registration rather than being created by an admin.
+	DynamicallyRegistered bool `json:"dynamically_registered"`
 
 	// Endpoints are included in the app response for easier discovery. The OAuth2
 	// spec does not have a defined place to find these (for comparison, OIDC has
@@ -83,8 +90,14 @@ func (c *Client) OAuth2ProviderApp(ctx context.Context, id uuid.UUID) (OAuth2Pro
 }
 
 type PostOAuth2ProviderAppRequest struct {
-	Name        string `json:"name" validate:"required,oauth2_app_name"`
-	CallbackURL string `json:"callback_url" validate:"required,oauth2_callback_url"`
+	Name string `json:"name" validate:"required,oauth2_app_name"`
+	// RedirectURIs is the ordered list of URIs the app may redirect to. The
+	// first entry is the primary. Required, unless the deprecated
+	// callback_url is sent instead.
+	RedirectURIs []string `json:"redirect_uris,omitzero"`
+	// Deprecated: send redirect_uris instead. If both are sent, callback_url
+	// must equal the first entry of redirect_uris.
+	CallbackURL string `json:"callback_url,omitempty" validate:"omitempty"`
 	Icon        string `json:"icon" validate:"omitempty"`
 	// Scope is the space-separated list of scopes this app's tokens may be
 	// granted. Leave empty, or omit, for unrestricted.
@@ -107,9 +120,18 @@ func (c *Client) PostOAuth2ProviderApp(ctx context.Context, app PostOAuth2Provid
 }
 
 type PutOAuth2ProviderAppRequest struct {
-	Name        string `json:"name" validate:"required,oauth2_app_name"`
-	CallbackURL string `json:"callback_url" validate:"required,oauth2_callback_url"`
-	Icon        string `json:"icon" validate:"omitempty"`
+	Name string `json:"name" validate:"required,oauth2_app_name"`
+	// RedirectURIs is the ordered list of URIs the app may redirect to. The
+	// first entry is the primary. Omit both this and callback_url to keep the
+	// stored redirect URIs. Other fields are replaced. Sending an empty list
+	// is an error, not a way to keep the stored list.
+	RedirectURIs []string `json:"redirect_uris,omitzero"`
+	// Deprecated: send redirect_uris instead. If both are sent, callback_url
+	// must equal the first entry of redirect_uris.
+	CallbackURL string `json:"callback_url,omitempty" validate:"omitempty"`
+	// Icon replaces the app's stored icon. Omitting it clears the stored
+	// icon rather than leaving it unchanged.
+	Icon string `json:"icon" validate:"omitempty"`
 	// Scope replaces the app's current allowlist. Omit to leave the existing
 	// allowlist untouched. Set to an empty string to clear it, making the app
 	// unrestricted.

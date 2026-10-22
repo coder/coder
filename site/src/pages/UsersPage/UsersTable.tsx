@@ -116,7 +116,7 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 			>
 				<div>{user.status}</div>
 				{(user.status === "active" || user.status === "dormant") && (
-					<LastSeen at={user.last_seen_at} className="text-xs" />
+					<LastSeen at={user.last_seen_at} exactDays className="text-xs" />
 				)}
 			</TableCell>
 

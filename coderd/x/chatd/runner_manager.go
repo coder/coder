@@ -39,14 +39,17 @@ type spawnRunnerRequest struct {
 	ChatID   uuid.UUID
 	WorkerID uuid.UUID
 	RunnerID uuid.UUID
+	// TakenOver means the previous owner's heartbeat went stale.
+	TakenOver bool
 }
 
 type runnerRecord struct {
-	key      runnerKey
-	workerID uuid.UUID
-	cancel   context.CancelFunc
-	done     <-chan struct{}
-	stateCh  chan runnerStateUpdate
+	key       runnerKey
+	workerID  uuid.UUID
+	takenOver bool
+	cancel    context.CancelFunc
+	done      <-chan struct{}
+	stateCh   chan runnerStateUpdate
 
 	mu             sync.Mutex
 	unsubscribe    func()
@@ -221,11 +224,12 @@ func (m *runnerManager) handleSpawn(req spawnRunnerRequest) {
 	runnerCtx, cancel := context.WithCancel(m.ctx)
 	done := make(chan struct{})
 	rec := &runnerRecord{
-		key:      key,
-		workerID: req.WorkerID,
-		cancel:   cancel,
-		done:     done,
-		stateCh:  make(chan runnerStateUpdate, m.opts.StateChannelSize),
+		key:       key,
+		workerID:  req.WorkerID,
+		takenOver: req.TakenOver,
+		cancel:    cancel,
+		done:      done,
+		stateCh:   make(chan runnerStateUpdate, m.opts.StateChannelSize),
 	}
 	m.runners[key] = rec
 	if m.runnersByChat[req.ChatID] == nil {
@@ -474,10 +478,61 @@ func (m *runnerManager) heartbeatOnce(ctx context.Context) error {
 		chatIDs = append(chatIDs, key.ChatID)
 		runnerIDs = append(runnerIDs, key.RunnerID)
 	}
-	return m.opts.Store.BatchUpsertChatHeartbeats(ctx, database.BatchUpsertChatHeartbeatsParams{
-		ChatIds:   chatIDs,
-		RunnerIds: runnerIDs,
-	})
+	renewed, err := m.renewHeartbeats(ctx, chatIDs, runnerIDs)
+	if err != nil {
+		// A failed or timed-out tick says nothing about individual
+		// leases, so no runner is cleaned up. The next tick retries.
+		return xerrors.Errorf("renew chat heartbeats: %w", err)
+	}
+	renewedKeys := make(map[runnerKey]struct{}, len(renewed))
+	for _, row := range renewed {
+		renewedKeys[runnerKey{ChatID: row.ChatID, RunnerID: row.RunnerID}] = struct{}{}
+	}
+	for _, key := range keys {
+		if _, ok := renewedKeys[key]; ok {
+			continue
+		}
+		// The lease went stale or lost ownership, so its capacity slot
+		// may belong to another chat. Stop generating; the chat stays
+		// owned by the stale lease until an admitted worker takes it over.
+		m.opts.Logger.Warn(ctx, "chatworker heartbeat lease lost, stopping runner",
+			slog.F("chat_id", key.ChatID), slog.F("runner_id", key.RunnerID))
+		m.requestCleanup(ctx, key)
+	}
+	return nil
+}
+
+// renewHeartbeats renews the given leases under the capacity admission
+// lock and returns the renewed pairs. The tick is bounded by
+// HeartbeatRenewalTimeout and its lock wait by HeartbeatLockTimeout, so a
+// stalled lock holder fails the tick instead of blocking it past the
+// stale threshold.
+func (m *runnerManager) renewHeartbeats(ctx context.Context, chatIDs, runnerIDs []uuid.UUID) ([]database.RenewChatHeartbeatsRow, error) {
+	ctx, cancel := context.WithTimeout(ctx, m.opts.HeartbeatRenewalTimeout)
+	defer cancel()
+	var renewed []database.RenewChatHeartbeatsRow
+	// Renewal serializes with capacity admission so that a lease an
+	// admission counted as stale, and whose slot it gave away, cannot be
+	// renewed afterwards.
+	err := m.opts.Store.InTx(func(tx database.Store) error {
+		if err := tx.SetTransactionLockTimeout(ctx, m.opts.HeartbeatLockTimeout.Milliseconds()); err != nil {
+			return xerrors.Errorf("set lock timeout: %w", err)
+		}
+		if err := tx.AcquireLock(ctx, database.LockIDChatCapacityAdmission); err != nil {
+			return xerrors.Errorf("acquire capacity admission lock: %w", err)
+		}
+		var err error
+		renewed, err = tx.RenewChatHeartbeats(ctx, database.RenewChatHeartbeatsParams{
+			ChatIds:      chatIDs,
+			RunnerIds:    runnerIDs,
+			StaleSeconds: m.opts.HeartbeatStaleSeconds,
+		})
+		return err
+	}, nil)
+	if err != nil {
+		return nil, err
+	}
+	return renewed, nil
 }
 
 func (m *runnerManager) heartbeatCleanupLoop() {

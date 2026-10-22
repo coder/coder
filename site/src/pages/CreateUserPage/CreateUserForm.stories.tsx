@@ -109,7 +109,12 @@ export const WithOrganizations: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByLabelText("Organization"));
+		const organization = canvas.getByRole("combobox", {
+			name: "Organization",
+		});
+		await expect(organization).toHaveAttribute("aria-expanded", "false");
+		await userEvent.click(organization);
+		await expect(organization).toHaveAttribute("aria-expanded", "true");
 	},
 };
 

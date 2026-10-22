@@ -1,10 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { FC } from "react";
-import { expect, spyOn, waitFor, within } from "storybook/test";
+import { expect, fn, spyOn, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
+import { chatCostTreeKey, chatEntityKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChat } from "#/testHelpers/chatEntities";
+import {
+	MockChat,
+	MockChatFileMetadata,
+	MockChatMessage,
+} from "#/testHelpers/chatEntities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
+import { createChatStore } from "./ChatConversation/chatStore";
+import { attachmentStepMessages } from "./ChatConversation/storyFixtures";
 import { ChatSummaryPanel } from "./ChatSummaryPanel";
 
 const ROOT_CHAT_ID = "root-chat-id";
@@ -48,8 +54,8 @@ const mockRequests = ({
 };
 
 // The Summary tab fills the right panel, so give stories a bounded height.
-const PanelFrame = (Story: FC) => (
-	<div className="h-[420px] w-[420px] max-w-full border border-solid border-border-default">
+const PanelFrame = (Story: React.FC) => (
+	<div className="h-[420px] w-[420px] max-w-full border border-solid border-border">
 		<Story />
 	</div>
 );
@@ -62,11 +68,68 @@ const meta: Meta<typeof ChatSummaryPanel> = {
 	args: {
 		chatId: MockChat.id,
 		isVisible: true,
+		hasMoreMessages: false,
+		isFetchingMoreMessages: false,
+		isHydratingMessages: false,
+		hasFetchMoreError: false,
+		onFetchMoreMessages: fn(),
 	},
+	render: (args) => <ChatSummaryPanel {...args} store={createChatStore()} />,
 };
 
 export default meta;
 type Story = StoryObj<typeof ChatSummaryPanel>;
+
+const mockAttachmentMessages: TypesGen.ChatMessage[] = [
+	{
+		...MockChatMessage,
+		id: 1,
+		role: "user",
+		content: [
+			{ type: "text", text: "Here is the failing log." },
+			{
+				type: "file",
+				media_type: "text/plain",
+				name: "uploaded-ci.log",
+				file_id: "upload-file",
+			},
+		],
+	},
+	...attachmentStepMessages({
+		id: 2,
+		toolCallId: "attach",
+		callAt: 1,
+		toolName: "attach_file",
+		args: { path: "/home/coder/flaky-runs.csv" },
+		file: {
+			type: "file",
+			media_type: "text/csv",
+			name: "flaky-runs.csv",
+			file_id: "runs-file",
+		},
+		result: { name: "flaky-runs.csv" },
+	}),
+	...attachmentStepMessages({
+		id: 5,
+		toolCallId: "screenshot",
+		callAt: 3,
+		toolName: "computer",
+		args: { action: "screenshot" },
+		file: {
+			type: "file",
+			media_type: "image/png",
+			name: "ci-dashboard.png",
+			file_id: "screenshot-file",
+		},
+		result: { data: "", mime_type: "image/png" },
+	}),
+];
+
+const createAttachmentStore = () => {
+	const store = createChatStore();
+	store.replaceMessages(mockAttachmentMessages);
+	return store;
+};
 
 export const WithSummary: Story = {
 	beforeEach: () =>
@@ -97,8 +160,14 @@ export const SubagentTreeCost: Story = {
 		expect(
 			canvas.getByText(/Cost covers this agent's whole chat/),
 		).toBeInTheDocument();
-		expect(API.experimental.getChatCost).toHaveBeenCalledWith(ROOT_CHAT_ID);
-		expect(API.experimental.getChatCost).not.toHaveBeenCalledWith(MockChat.id);
+		expect(API.experimental.getChatCost).toHaveBeenCalledWith(
+			ROOT_CHAT_ID,
+			expect.any(AbortSignal),
+		);
+		expect(API.experimental.getChatCost).not.toHaveBeenCalledWith(
+			MockChat.id,
+			expect.any(AbortSignal),
+		);
 	},
 };
 
@@ -111,7 +180,6 @@ export const NotVisible: Story = {
 	beforeEach: () => mockRequests({ summary: "Should never be fetched." }),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Gating disables both queries, so nothing renders and no API call fires.
 		expect(API.experimental.getChat).not.toHaveBeenCalled();
 		expect(API.experimental.getChatCost).not.toHaveBeenCalled();
 		expect(
@@ -131,5 +199,70 @@ export const GatewayUnavailable: Story = {
 		});
 		expect(canvas.queryByText("Cost:")).not.toBeInTheDocument();
 		expect(API.experimental.getChatCost).not.toHaveBeenCalled();
+	},
+};
+
+const mockSummaryChat: TypesGen.Chat = {
+	...MockChat,
+	summary:
+		"Investigated the flaky CI job, traced it to a cache-layer race, and added a regression test.",
+};
+
+export const WithAttachments: Story = {
+	render: (args) => (
+		<ChatSummaryPanel {...args} store={createAttachmentStore()} />
+	),
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
+	},
+};
+
+export const LoadingMessages: Story = {
+	args: { isHydratingMessages: true },
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
+	},
+};
+
+export const LiveMessageArriving: Story = {
+	args: { isHydratingMessages: true },
+	render: (args) => (
+		<ChatSummaryPanel {...args} store={createAttachmentStore()} />
+	),
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
+	},
+};
+
+const mockScreenshotFile: TypesGen.ChatFileMetadata = {
+	...MockChatFileMetadata,
+	id: "screenshot-file",
+	name: "ci-dashboard.png",
+	mime_type: "image/png",
+};
+
+const mockScreenshotOnlyChat: TypesGen.Chat = {
+	...MockChat,
+	files: [mockScreenshotFile],
+};
+
+export const ExpiredAttachment: Story = {
+	render: (args) => (
+		<ChatSummaryPanel {...args} store={createAttachmentStore()} />
+	),
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: mockScreenshotOnlyChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
 	},
 };

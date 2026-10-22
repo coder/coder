@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Link as RouterLink } from "react-router";
 import type {
 	ProvisionerDaemon,
@@ -38,7 +38,7 @@ type ProvisionerRowProps = {
 	defaultIsOpen: boolean;
 };
 
-export const ProvisionerRow: FC<ProvisionerRowProps> = ({
+export const ProvisionerRow: React.FC<ProvisionerRowProps> = ({
 	provisioner,
 	buildVersion,
 	defaultIsOpen = false,

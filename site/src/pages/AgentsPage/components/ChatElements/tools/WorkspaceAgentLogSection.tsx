@@ -1,0 +1,104 @@
+import { useQuery } from "react-query";
+import { workspaceById } from "#/api/queries/workspaces";
+import type { WorkspaceAgent } from "#/api/typesGenerated";
+import type { Line } from "#/components/Logs/LogLine";
+import { Logs, LogsHeader } from "#/components/Logs/Logs";
+import { AgentLogOutput } from "#/modules/resources/AgentLogs/AgentLogLine";
+import { useAgentLogs } from "#/modules/resources/useAgentLogs";
+import { useChatWorkspace } from "../../../context/ChatWorkspaceContext";
+import { getWorkspaceAgent } from "../../ChatConversation/chatHelpers";
+import { LogNotice } from "./LogNotice";
+import { ToolCall } from "./ToolCall";
+import type { ToolStatus } from "./utils";
+
+type WorkspaceAgentLogSectionProps = {
+	status: ToolStatus;
+	/** Build ID from the completed tool result. */
+	buildId?: string;
+};
+
+/**
+ * Agent startup logs for a start or create call. Renders nothing unless
+ * the call's build is the workspace's latest build and that build has
+ * started the workspace.
+ */
+export const WorkspaceAgentLogSection: React.FC<
+	WorkspaceAgentLogSectionProps
+> = ({ status, buildId }) => {
+	const isRunning = status === "running";
+	const {
+		workspaceId,
+		buildId: chatBuildId,
+		agentId: chatAgentId,
+	} = useChatWorkspace();
+
+	// Updated live by the workspace watch socket; do not poll.
+	const workspaceQuery = useQuery({
+		...workspaceById(workspaceId ?? ""),
+		enabled: Boolean(workspaceId),
+	});
+	const workspace = workspaceQuery.data;
+	const callBuildId = isRunning ? chatBuildId : buildId;
+	// The agent lookup searches only the latest build.
+	if (
+		!workspace ||
+		!callBuildId ||
+		workspace.latest_build.id !== callBuildId ||
+		workspace.latest_build.status !== "running"
+	) {
+		return null;
+	}
+
+	const agent = getWorkspaceAgent(workspace, chatAgentId);
+	if (!agent) {
+		return isRunning ? <WaitingForAgentStartup /> : null;
+	}
+
+	return (
+		<AgentStartupLogs key={agent.id} agent={agent} isCallRunning={isRunning} />
+	);
+};
+
+type AgentStartupLogsProps = {
+	agent: WorkspaceAgent;
+	isCallRunning: boolean;
+};
+
+const AgentStartupLogs: React.FC<AgentStartupLogsProps> = ({
+	agent,
+	isCallRunning,
+}) => {
+	const logs = useAgentLogs({ agentId: agent.id });
+
+	if (logs.length === 0) {
+		return isCallRunning ? <WaitingForAgentStartup /> : null;
+	}
+
+	const lines = logs.map<Line>((log) => ({
+		id: log.id,
+		time: log.created_at,
+		output: log.output,
+		level: log.level,
+		sourceId: log.source_id,
+	}));
+
+	return (
+		<ToolCall.Scrollable
+			className="mt-1.5 rounded-md border border-solid border-border text-2xs"
+			viewportClassName="max-h-64"
+			ariaLabel="Workspace agent startup log"
+			followEnd
+		>
+			<div className="font-mono">
+				<LogsHeader title="Agent startup" detail={agent.name} />
+				<Logs lines={lines} LineOutput={AgentLogOutput} className="min-h-0" />
+			</div>
+		</ToolCall.Scrollable>
+	);
+};
+
+const WaitingForAgentStartup: React.FC = () => (
+	<LogNotice icon="loading">
+		Waiting for workspace agent startup to complete…
+	</LogNotice>
+);

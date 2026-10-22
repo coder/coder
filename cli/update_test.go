@@ -67,7 +67,7 @@ func TestUpdate(t *testing.T) {
 		require.True(t, ws.Outdated, "workspace must be outdated after template version update")
 
 		// When: the workspace is updated
-		inv, root := clitest.New(t, "update", ws.Name)
+		inv, root := clitest.New(t, "update", ws.Name, "-y")
 		clitest.SetupConfig(t, member, root)
 
 		err = inv.Run()
@@ -154,6 +154,97 @@ func TestUpdate(t *testing.T) {
 		require.Equal(t, int32(3), ws.LatestBuild.BuildNumber, "workspace must have 3 builds after update")
 	})
 
+	t.Run("PromptWhenRunning", func(t *testing.T) {
+		t.Parallel()
+
+		logger := testutil.Logger(t)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version1 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version1.ID)
+
+		ws := coderdtest.CreateWorkspace(t, member, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.Name = "my-workspace"
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		version2 := coderdtest.UpdateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionPlan:  echo.PlanComplete,
+		}, template.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version2.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
+			ID: version2.ID,
+		})
+		require.NoError(t, err, "failed to update active template version")
+
+		inv, root := clitest.New(t, "update", ws.Name)
+		clitest.SetupConfig(t, member, root)
+
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+
+		execDone := make(chan error, 1)
+		go func() {
+			execDone <- inv.WithContext(ctx).Run()
+		}()
+
+		stdout.ExpectMatch(ctx, "delete non-persistent data")
+		stdin.WriteLine("yes")
+
+		require.NoError(t, <-execDone)
+
+		updated, err := member.WorkspaceByOwnerAndName(ctx, codersdk.Me, ws.Name, codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		require.False(t, updated.Outdated)
+	})
+
+	t.Run("SkipPromptWithYes", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version1 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version1.ID)
+
+		ws := coderdtest.CreateWorkspace(t, member, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.Name = "my-workspace"
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		version2 := coderdtest.UpdateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionPlan:  echo.PlanComplete,
+		}, template.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version2.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
+			ID: version2.ID,
+		})
+		require.NoError(t, err, "failed to update active template version")
+
+		// No stdin answer is provided: if the confirmation prompt were
+		// not skipped, this would fail on EOF instead of succeeding.
+		inv, root := clitest.New(t, "update", ws.Name, "-y")
+		clitest.SetupConfig(t, member, root)
+
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		updated, err := member.WorkspaceByOwnerAndName(ctx, codersdk.Me, ws.Name, codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		require.False(t, updated.Outdated)
+	})
+
 	// Verifies that --use-parameter-defaults auto-accepts new
 	// parameters added in a template version update.
 	t.Run("UseParameterDefaults", func(t *testing.T) {
@@ -181,7 +272,7 @@ func TestUpdate(t *testing.T) {
 		err := client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{ID: version2.ID})
 		require.NoError(t, err)
 
-		inv, root := clitest.New(t, "update", "my-workspace", "--use-parameter-defaults")
+		inv, root := clitest.New(t, "update", "my-workspace", "--use-parameter-defaults", "-y")
 		clitest.SetupConfig(t, member, root)
 		err = inv.Run()
 		require.NoError(t, err, "update with --use-parameter-defaults should not prompt")
@@ -251,7 +342,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		err := inv.Run()
 		assert.NoError(t, err)
 
-		inv, root = clitest.New(t, "update", "my-workspace", "--always-prompt")
+		inv, root = clitest.New(t, "update", "my-workspace", "--always-prompt", "-y")
 		clitest.SetupConfig(t, member, root)
 
 		doneChan := make(chan struct{})
@@ -307,7 +398,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		err := inv.Run()
 		assert.NoError(t, err)
 
-		inv, root = clitest.New(t, "update", workspaceName, "--prompt-ephemeral-parameters")
+		inv, root = clitest.New(t, "update", workspaceName, "--prompt-ephemeral-parameters", "-y")
 		clitest.SetupConfig(t, member, root)
 
 		doneChan := make(chan struct{})
@@ -370,7 +461,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		assert.NoError(t, err)
 
 		inv, root = clitest.New(t, "update", workspaceName,
-			"--ephemeral-parameter", fmt.Sprintf("%s=%s", ephemeralParameterName, ephemeralParameterValue))
+			"--ephemeral-parameter", fmt.Sprintf("%s=%s", ephemeralParameterName, ephemeralParameterValue), "-y")
 		clitest.SetupConfig(t, member, root)
 
 		doneChan := make(chan struct{})
@@ -449,7 +540,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		inv, root = clitest.New(t, "update", "my-workspace", "--always-prompt")
+		inv, root = clitest.New(t, "update", "my-workspace", "--always-prompt", "-y")
 		inv = inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
@@ -497,7 +588,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		inv, root = clitest.New(t, "update", "my-workspace", "--always-prompt")
+		inv, root = clitest.New(t, "update", "my-workspace", "--always-prompt", "-y")
 		inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
@@ -545,7 +636,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		inv, root = clitest.New(t, "update", "my-workspace", "--always-prompt")
+		inv, root = clitest.New(t, "update", "my-workspace", "--always-prompt", "-y")
 		inv = inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
@@ -614,7 +705,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 
 		// Update the workspace
 		ctx := testutil.Context(t, testutil.WaitLong)
-		inv, root = clitest.New(t, "update", "my-workspace")
+		inv, root = clitest.New(t, "update", "my-workspace", "-y")
 		inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
@@ -687,7 +778,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 
 		// Update the workspace
 		ctx := testutil.Context(t, testutil.WaitLong)
-		inv, root = clitest.New(t, "update", "my-workspace")
+		inv, root = clitest.New(t, "update", "my-workspace", "-y")
 		inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
@@ -778,7 +869,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 
 				// Update the workspace
 				ctx := testutil.Context(t, testutil.WaitLong)
-				inv, root = clitest.New(t, "update", "my-workspace")
+				inv, root = clitest.New(t, "update", "my-workspace", "-y")
 				inv.WithContext(ctx)
 				clitest.SetupConfig(t, member, root)
 				doneChan := make(chan struct{})
@@ -840,7 +931,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 
 		// Update the workspace
 		ctx := testutil.Context(t, testutil.WaitLong)
-		inv, root = clitest.New(t, "update", "my-workspace", "--always-prompt=true")
+		inv, root = clitest.New(t, "update", "my-workspace", "--always-prompt=true", "-y")
 		inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 
@@ -908,7 +999,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 
 		// Update the workspace
 		ctx := testutil.Context(t, testutil.WaitLong)
-		inv, root = clitest.New(t, "update", "my-workspace")
+		inv, root = clitest.New(t, "update", "my-workspace", "-y")
 		inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
@@ -982,7 +1073,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 
 		// Update the workspace
 		ctx := testutil.Context(t, testutil.WaitLong)
-		inv, root = clitest.New(t, "update", "my-workspace")
+		inv, root = clitest.New(t, "update", "my-workspace", "-y")
 		inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
@@ -1054,7 +1145,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		// the --parameter flag. This should succeed because it's the
 		// first time this parameter is being set.
 		inv, root = clitest.New(t, "update", "my-workspace",
-			"--parameter", fmt.Sprintf("%s=%s", immutableParameterName, "II"))
+			"--parameter", fmt.Sprintf("%s=%s", immutableParameterName, "II"), "-y")
 		clitest.SetupConfig(t, member, root)
 
 		stdout := expecter.NewAttachedToInvocation(t, inv)

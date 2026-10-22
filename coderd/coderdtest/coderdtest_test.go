@@ -28,7 +28,7 @@ func TestNew(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-	_, _ = coderdtest.NewGoogleInstanceIdentity(t, "example", false)
+	_, _ = coderdtest.NewGoogleInstanceIdentity(t, "example", false, "coder")
 	_, _ = coderdtest.NewAWSInstanceIdentity(t, "an-instance")
 }
 

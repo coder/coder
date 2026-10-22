@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { Badge, type BadgeProps } from "#/components/Badge/Badge";
 import {
 	Tooltip,
@@ -35,7 +34,7 @@ type StatusBadgeProps = {
 	label?: string;
 };
 
-export const StatusBadge: FC<StatusBadgeProps> = ({
+export const StatusBadge: React.FC<StatusBadgeProps> = ({
 	code,
 	isHttpCode,
 	label,

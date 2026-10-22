@@ -1,4 +1,3 @@
-import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import {
 	expect,
@@ -10,12 +9,17 @@ import {
 	waitFor,
 	within,
 } from "storybook/test";
+import { defaultUrlTransform } from "streamdown";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatFileMetadata } from "#/testHelpers/chatEntities";
+import { MockUserPreferenceSettings } from "#/testHelpers/entities";
+import { MessageScroller } from "#/vendor/message-scroller";
 import { getChatFileURL } from "../../utils/chatAttachments";
 import { ChatMessageScroller } from "../ChatMessageScroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
+import { buildLiveStatus } from "./storyFixtures";
 import type { ParsedMessageEntry } from "./types";
 
 // The timeline renders scroller items, so every story needs the scroller
@@ -431,13 +435,28 @@ const defaultArgs: Omit<
 	"parsedMessages"
 > = {
 	organizationId: "organization-id",
+	urlTransform: defaultUrlTransform,
+	mcpServers: [],
+	streamTools: [],
+	liveStatus: buildLiveStatus(),
+	subagentStatusOverrides: new Map(),
 	subagentTitles: new Map(),
+	subagentVariants: new Map(),
+	isChatCompleted: true,
+	showDesktopPreviews: false,
+	hasActiveStream: false,
+	isAwaitingFirstStreamChunk: false,
+	chatStatus: null,
+	hasMoreMessages: false,
 };
 
 const meta: Meta<typeof ConversationTimeline> = {
 	title: "pages/AgentsPage/ChatConversation/ConversationTimeline",
 	component: ConversationTimeline,
 	decorators: [withMessageScroller],
+	parameters: {
+		queries: [{ key: preferenceSettingsKey, data: MockUserPreferenceSettings }],
+	},
 	beforeEach: () => {
 		attachmentFetchCounts = new Map();
 		mockAttachmentFetch();
@@ -883,8 +902,6 @@ export const UserMessageWithExpiredImage: Story = {
 			name: "Image expired",
 		});
 
-		// The tooltip names the attachment cap and describes retention
-		// generically so the copy survives any operator-chosen window.
 		await hoverAttachmentTile(expiredTile);
 	},
 };
@@ -1163,8 +1180,6 @@ export const UserMessageWithExpiredTextAttachment: Story = {
 			name: "Attachment expired",
 		});
 
-		// The tooltip names the attachment cap and describes retention
-		// generically so the copy survives any operator-chosen window.
 		await hoverAttachmentTile(expiredTile);
 	},
 };
@@ -2098,8 +2113,48 @@ export const ThinkingBlockAlwaysCollapsed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByText("Thinking"));
-		await canvas.findByText(/Let me think about this step by step/);
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: /Let me think about this step by step/,
+			}),
+		);
+		await canvas.findByText(/Let me think about this step by step/, {
+			selector: "p",
+		});
+	},
+};
+
+export const ThinkingBlockLongPreview: Story = {
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: {
+					...MockUserPreferenceSettings,
+					thinking_display_mode: "always_collapsed",
+				},
+			},
+		],
+	},
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{
+						type: "reasoning",
+						text: "This pattern looks like stacked merges through a merge queue or Graphite-style tool, where commits land in order once each parent branch is merged.",
+					},
+					{
+						type: "text",
+						text: "Here is the answer.",
+					},
+				],
+			},
+		]),
 	},
 };
 
@@ -2388,6 +2443,31 @@ export const ThinkingBlockWithShellTools: Story = {
 						tool_call_id: "tool-2",
 						tool_name: "process_output",
 						result: { output: "Spacing looks stable." },
+					},
+				],
+			},
+		]),
+	},
+};
+
+export const UserMessageWithWorkspaceFileReference: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "Unzip this in my workspace" },
+					{
+						type: "workspace-file-reference",
+						workspace_file_path:
+							"/home/coder/.coder/chats/story-chat/files/dataset.zip",
+						workspace_file_name: "dataset.zip",
+						workspace_file_size: 4096,
+						workspace_file_media_type: "application/zip",
+						workspace_file_workspace_id: "ws-1",
 					},
 				],
 			},

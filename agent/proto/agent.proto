@@ -58,6 +58,30 @@ message WorkspaceAgentScript {
 	google.protobuf.Duration timeout = 8;
 	string display_name = 9;
 	bytes id = 10;
+	// resource_address is the full Terraform address of the coder_script
+	// resource, for example "coder_script.install_tools". Empty for scripts
+	// that are not coder_script resources.
+	string resource_address = 11;
+	// dependencies lists the scripts this one waits for, in the order the
+	// provisioner resolved them. Empty when no rule orders this script.
+	repeated WorkspaceAgentScriptDependency dependencies = 12;
+}
+
+// WorkspaceAgentScriptDependency names a prerequisite script and the
+// outcome it must reach before the dependent script may run.
+message WorkspaceAgentScriptDependency {
+	// The agent rejects a Requirement value it does not know and fails its
+	// whole manifest, which keeps networking, SSH and apps down until the
+	// agent binary is replaced. So coderd must send a value only to agents
+	// whose reported API version is at or above the version that added it.
+	enum Requirement {
+		REQUIREMENT_UNSPECIFIED = 0;
+		REQUIREMENT_SUCCESS = 1;
+		REQUIREMENT_COMPLETION = 2;
+	}
+
+	string prerequisite_resource_address = 1;
+	Requirement requirement = 2;
 }
 
 message WorkspaceAgentMetadata {
@@ -100,6 +124,7 @@ message Manifest {
 	repeated WorkspaceAgentMetadata.Description metadata = 12;
 	repeated WorkspaceAgentDevcontainer devcontainers = 17;
 	repeated WorkspaceSecret secrets = 19;
+	bytes workspace_build_id = 20;
 }
 
 // WorkspaceSecret is a secret included in the agent manifest
@@ -324,6 +349,16 @@ message Timing {
         EXIT_FAILURE = 1;
         TIMED_OUT = 2;
         PIPES_LEFT_OPEN = 3;
+        // The script never ran because a prerequisite did not reach the
+        // outcome it needed. Start and end are both the moment of the skip
+        // and exit_code is 0.
+        SKIPPED = 4;
+        // The agent shut down before the script finished, usually because
+        // the workspace stopped. A script that was running keeps its real
+        // interval and the exit code its process returned; one that never
+        // started has start equal to end at the moment of cancellation and
+        // exit_code 0.
+        CANCELED = 5;
     }
     Status status = 6;
 }
@@ -386,14 +421,26 @@ message Connection {
 		JETBRAINS = 3;
 		RECONNECTING_PTY = 4;
 	}
+	enum Method {
+		METHOD_UNSPECIFIED = 0;
+		METHOD_SSH = 1;
+		METHOD_RECONNECTING_PTY = 2;
+		METHOD_PORT_FORWARDING = 3;
+	}
 
 	bytes id = 1;
 	Action action = 2;
-	Type type = 3;
+	// Superseded by connection_method and app_name.
+	Type type = 3 [deprecated = true];
 	google.protobuf.Timestamp timestamp = 4;
 	string ip = 5;
 	int32 status_code = 6;
 	optional string reason = 7;
+	string client_session_id = 8;
+	string app_name = 9;
+	Method connection_method = 10;
+	optional int64 rx_bytes = 11;
+	optional int64 tx_bytes = 12;
 }
 
 message ReportConnectionRequest {
@@ -561,6 +608,7 @@ message ContextResource {
 	// source_path is the user-declared scan root that produced
 	// this resource (empty for built-in roots, set to the owning
 	// .mcp.json for mcp_server entries declared in a user config).
+	// For ACP harnesses, it is the harness configuration directory.
 	optional string source_path = 2;
 	// content_hash is sha256 over the original on-disk bytes (or
 	// over the agent's canonical encoding for non-file kinds).
@@ -591,6 +639,7 @@ message ContextResource {
 		SkillMetaBody skill = 11;
 		MCPConfigBody mcp_config = 12;
 		MCPServerBody mcp_server = 13;
+		ACPHarnessBody acp_harness = 17;
 	}
 
 	// Reserved tags from the legacy v2.10 schema that carried
@@ -682,4 +731,30 @@ service Agent {
 	rpc ReportBoundaryLogs(ReportBoundaryLogsRequest) returns (ReportBoundaryLogsResponse);
 	rpc UpdateAppStatus(UpdateAppStatusRequest) returns (UpdateAppStatusResponse);
 	rpc PushContextState(PushContextStateRequest) returns (PushContextStateResponse);
+}
+
+// ACPHarnessBody advertises cached harness metadata without launch configuration.
+message ACPHarnessBody {
+	string slug = 1;
+	string display_name = 2;
+	repeated ACPConfigOption config_options = 3;
+}
+
+// ACPConfigOption preserves a harness's selectable configuration and default.
+message ACPConfigOption {
+	string id = 1;
+	string name = 2;
+	string description = 3;
+	string current_value = 4;
+	repeated ACPConfigValue values = 5;
+	string category = 6;
+}
+
+// ACPConfigValue is a selectable configuration value.
+message ACPConfigValue {
+	string id = 1;
+	string name = 2;
+	string description = 3;
+	string group = 4;
+	string group_name = 5;
 }

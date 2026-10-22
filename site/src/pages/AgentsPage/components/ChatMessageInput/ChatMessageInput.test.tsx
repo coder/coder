@@ -1,21 +1,37 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {
-	createRef,
-	type FC,
-	type ReactNode,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { createRef, useLayoutEffect, useRef, useState } from "react";
 import { type QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import type { AgentChatSendShortcut } from "#/api/typesGenerated";
+import { API } from "#/api/api";
+import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
+import { organizationSkills } from "#/api/queries/organizationSkills";
+import { userSkills } from "#/api/queries/userSkills";
+import type {
+	AgentChatSendShortcut,
+	ChatProject,
+	SkillMetadata,
+} from "#/api/typesGenerated";
+import { MockChatProject } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import { MockSkill } from "#/testHelpers/skills";
+import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
+import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import { ChatMessageInput, type ChatMessageInputRef } from "./ChatMessageInput";
 
+const requiredProps = () => ({
+	placeholder: "Type a message...",
+	initialValue: "",
+	onChange: vi.fn(),
+	onEnter: vi.fn(),
+	sendShortcut: DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
+	disabled: false,
+	hasWorkspace: false,
+});
+
 const renderWithQueryClient = (
-	children: ReactNode,
+	children: React.ReactNode,
 	queryClient: QueryClient = createTestQueryClient(),
 ) => {
 	return render(
@@ -23,7 +39,7 @@ const renderWithQueryClient = (
 	);
 };
 
-const InitialValueHarness: FC<{ initialValue: string }> = ({
+const InitialValueHarness: React.FC<{ initialValue: string }> = ({
 	initialValue,
 }) => {
 	const inputRef = useRef<ChatMessageInputRef>(null);
@@ -37,6 +53,7 @@ const InitialValueHarness: FC<{ initialValue: string }> = ({
 		<>
 			<div data-testid="observed-value">{observedValue}</div>
 			<ChatMessageInput
+				{...requiredProps()}
 				ref={inputRef}
 				initialValue={initialValue}
 				aria-label="Chat message input"
@@ -45,7 +62,7 @@ const InitialValueHarness: FC<{ initialValue: string }> = ({
 	);
 };
 
-const QueuedReplacementHarness: FC<{
+const QueuedReplacementHarness: React.FC<{
 	initialValue: string;
 	replacementValue: string;
 }> = ({ initialValue, replacementValue }) => {
@@ -61,6 +78,7 @@ const QueuedReplacementHarness: FC<{
 		<>
 			<div data-testid="observed-value">{observedValue}</div>
 			<ChatMessageInput
+				{...requiredProps()}
 				ref={inputRef}
 				initialValue={initialValue}
 				aria-label="Chat message input"
@@ -157,6 +175,7 @@ describe("ChatMessageInput", () => {
 					const onEnter = vi.fn();
 					renderWithQueryClient(
 						<ChatMessageInput
+							{...requiredProps()}
 							ref={inputRef}
 							aria-label="Chat message input"
 							sendShortcut={shortcut}
@@ -215,10 +234,14 @@ describe("ChatMessageInput", () => {
 		});
 	});
 
-	it("returns updated content even without an external onChange prop", async () => {
+	it("returns content inserted through the ref handle", async () => {
 		const inputRef = { current: null as ChatMessageInputRef | null };
 		renderWithQueryClient(
-			<ChatMessageInput ref={inputRef} aria-label="Chat message input" />,
+			<ChatMessageInput
+				{...requiredProps()}
+				ref={inputRef}
+				aria-label="Chat message input"
+			/>,
 		);
 
 		await waitFor(() => {
@@ -229,6 +252,225 @@ describe("ChatMessageInput", () => {
 
 		await waitFor(() => {
 			expect(inputRef.current?.getValue()).toBe("typed content");
+		});
+	});
+
+	describe("slash menu skill sources", () => {
+		const organizationId = "org-1";
+		const mockReviewerSkill: SkillMetadata = {
+			...MockSkill,
+			id: "skill-reviewer",
+			name: "reviewer",
+		};
+		const mockCompactorSkill: SkillMetadata = {
+			...MockSkill,
+			id: "skill-compactor",
+			name: "compactor",
+		};
+
+		const renderWithSkills = ({
+			personal,
+			organization,
+			projectId,
+			projects = projectId ? [{ ...MockChatProject, id: projectId }] : [],
+			staleProject,
+			queryClient = createTestQueryClient(),
+		}: {
+			personal: SkillMetadata[];
+			organization?: SkillMetadata[];
+			projectId?: string;
+			projects?: ChatProject[];
+			// Project skills loaded long ago, so opening the menu refetches.
+			staleProject?: SkillMetadata[];
+			queryClient?: QueryClient;
+		}) => {
+			queryClient.setQueryData(userSkills().queryKey, personal);
+			vi.spyOn(API.experimental, "getChatProjects").mockResolvedValue(projects);
+			if (projectId && staleProject) {
+				queryClient.setQueryData(
+					chatProjectSkillsKey(projectId),
+					staleProject,
+					{ updatedAt: 0 },
+				);
+			}
+			if (organization) {
+				queryClient.setQueryData(
+					organizationSkills(organizationId).queryKey,
+					organization,
+				);
+			} else {
+				vi.spyOn(API.experimental, "getOrganizationSkills").mockRejectedValue(
+					new Error("Failed to load organization skills."),
+				);
+			}
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					aria-label="Chat message input"
+					organizationId={organizationId}
+					projectId={projectId}
+					slashCommands={[COMPACT_SLASH_COMMAND]}
+				/>,
+				queryClient,
+			);
+			return inputRef;
+		};
+
+		const pasteTrigger = async (text: string) => {
+			const user = userEvent.setup();
+			await user.click(
+				screen.getByRole("textbox", { name: "Chat message input" }),
+			);
+			await user.paste(text);
+			return user;
+		};
+
+		it("inserts the bare trigger of an organization skill chosen with arrow keys", async () => {
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [
+					{ ...MockSkill, id: "skill-release-notes", name: "release-notes" },
+				],
+			});
+			const user = await pasteTrigger("/");
+			await screen.findByRole("option", { name: /release-notes/ });
+			await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+			expect(inputRef.current?.getValue()).toBe("/release-notes");
+		});
+
+		it("ignores disabled skills when qualifying triggers", async () => {
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [{ ...mockReviewerSkill, enabled: false }],
+			});
+			const user = await pasteTrigger("/rev");
+			await user.click(await screen.findByRole("option", { name: /reviewer/ }));
+			expect(inputRef.current?.getValue()).toBe("/reviewer");
+		});
+
+		it("hides built-in commands when the organization list fails", async () => {
+			// With /compact hidden, Enter picks the qualified personal match.
+			const inputRef = renderWithSkills({
+				personal: [mockCompactorSkill],
+			});
+			const user = await pasteTrigger("/comp");
+			await screen.findByText(/Could not load organization skills/);
+			await user.keyboard("{Enter}");
+			expect(inputRef.current?.getValue()).toBe("/personal/compactor");
+		});
+
+		it.each([403, 404])(
+			"offers built-in commands when the project list fails with %i",
+			async (status) => {
+				vi.spyOn(API.experimental, "getChatProjectSkills").mockRejectedValue({
+					isAxiosError: true,
+					response: { status, data: { message: "Project not found." } },
+				});
+				const queryClient = createTestQueryClient();
+				const inputRef = renderWithSkills({
+					personal: [mockCompactorSkill],
+					organization: [],
+					projectId: "project-1",
+					queryClient,
+				});
+				const user = await pasteTrigger("/comp");
+				await waitFor(() => {
+					expect(
+						queryClient.getQueryState(chatProjectSkillsKey("project-1"))
+							?.status,
+					).toBe("error");
+				});
+				await user.keyboard("{Enter}");
+				expect(inputRef.current?.getValue()).toBe("/compact");
+			},
+		);
+
+		it("drops loaded project skills when a refetch shows lost access", async () => {
+			vi.spyOn(API.experimental, "getChatProjectSkills").mockRejectedValue({
+				isAxiosError: true,
+				response: { status: 404, data: { message: "Project not found." } },
+			});
+			const queryClient = createTestQueryClient();
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [],
+				projectId: "project-1",
+				staleProject: [mockReviewerSkill],
+				queryClient,
+			});
+			const user = await pasteTrigger("/rev");
+			await waitFor(() => {
+				expect(
+					queryClient.getQueryState(chatProjectSkillsKey("project-1"))?.status,
+				).toBe("error");
+			});
+			await user.keyboard("{Enter}");
+			// Without a project reviewer to collide with, the trigger stays bare.
+			expect(inputRef.current?.getValue()).toBe("/reviewer");
+		});
+
+		it("drops project skills when the caller's project list lacks the project", async () => {
+			// An administrator role can read the skills of a project that is
+			// not shared with the caller, but chatd does not load them.
+			vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([
+				mockReviewerSkill,
+			]);
+			const queryClient = createTestQueryClient();
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [],
+				projectId: "project-1",
+				projects: [],
+				queryClient,
+			});
+			const user = await pasteTrigger("/rev");
+			await waitFor(() => {
+				expect(
+					queryClient.getQueryState(chatProjectSkillsKey("project-1"))?.status,
+				).toBe("success");
+				expect(queryClient.getQueryState(chatProjectsKey)?.status).toBe(
+					"success",
+				);
+			});
+			await user.keyboard("{Enter}");
+			expect(inputRef.current?.getValue()).toBe("/reviewer");
+		});
+
+		it("hides built-in commands when the project list fails transiently", async () => {
+			// Fake timers skip the delays of the query's retries.
+			vi.useFakeTimers({ shouldAdvanceTime: true });
+			try {
+				const getChatProjectSkills = vi
+					.spyOn(API.experimental, "getChatProjectSkills")
+					.mockRejectedValue({
+						isAxiosError: true,
+						response: { status: 500, data: { message: "Internal error." } },
+					});
+				const inputRef = renderWithSkills({
+					personal: [mockCompactorSkill],
+					organization: [],
+					projectId: "project-1",
+				});
+				const user = await pasteTrigger("/comp");
+				await vi.advanceTimersByTimeAsync(10_000);
+				await screen.findByText(/Could not load project skills/);
+				expect(getChatProjectSkills).toHaveBeenCalledTimes(4);
+				// With /compact hidden, Enter picks the qualified personal match.
+				await user.keyboard("{Enter}");
+				expect(inputRef.current?.getValue()).toBe("/personal/compactor");
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		it("keeps triggers qualified when the organization list fails", async () => {
+			const inputRef = renderWithSkills({ personal: [mockReviewerSkill] });
+			const user = await pasteTrigger("/rev");
+			await screen.findByText(/Could not load organization skills/);
+			await user.click(screen.getByRole("option", { name: /reviewer/ }));
+			expect(inputRef.current?.getValue()).toBe("/personal/reviewer");
 		});
 	});
 });

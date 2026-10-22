@@ -81,7 +81,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -245,7 +245,7 @@ jobs:
       - name: Build binaries
         run: |
           set -euo pipefail
-          ./.github/scripts/retry.sh -- go mod download
+          ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
           version="$(./scripts/version.sh)"
           make gen/mark-fresh
@@ -548,7 +548,7 @@ jobs:
       # App is added to that ruleset's bypass list as an Integration actor.
       - name: Generate release App token
         id: release_app_token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           app-id: ${{ secrets.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
@@ -620,7 +620,7 @@ jobs:
       - name: Complete Linear release
         if: ${{ !inputs.dry_run && steps.linear_version.outputs.skip != 'true' }}
         continue-on-error: true
-        uses: linear/linear-release-action@53ad0f863963e7f8e270fba18426bbb55ef55384 # v0.17.2
+        uses: linear/linear-release-action@30f9ae77461ec29f07fffe0c52edd1909bfbb6f5 # v0.18.1
         with:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
           command: complete
@@ -645,12 +645,24 @@ jobs:
           cp "build/coder_helm_${version}.tgz" build/helm
           cp "build/provisioner_helm_${version}.tgz" build/helm
           cp "build/ai-gateway_helm_${version}.tgz" build/helm
-          gsutil cp gs://helm.coder.com/v2/index.yaml build/helm/index.yaml
-          helm repo index build/helm --url https://helm.coder.com/v2 --merge build/helm/index.yaml
           gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/coder_helm_${version}.tgz" gs://helm.coder.com/v2
           gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/provisioner_helm_${version}.tgz" gs://helm.coder.com/v2
           gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/ai-gateway_helm_${version}.tgz" gs://helm.coder.com/v2
-          gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/index.yaml" gs://helm.coder.com/v2
+
+          # index.yaml is shared by every release, so two releases publishing
+          # concurrently would each merge only their own charts and the last
+          # writer would drop the other's entries. The if-generation-match
+          # precondition makes the loser fail instead; re-running the job
+          # merges against the fresh index.
+          index_url=gs://helm.coder.com/v2/index.yaml
+          generation="$(gsutil stat "$index_url" | awk '/^ *Generation:/ {print $2}')"
+          gsutil cp "$index_url" build/helm/index.yaml
+          helm repo index build/helm --url https://helm.coder.com/v2 --merge build/helm/index.yaml
+          if ! gsutil -h "Cache-Control:no-cache,max-age=0" -h "x-goog-if-generation-match:${generation}" cp build/helm/index.yaml "$index_url"; then
+            echo "::error::index.yaml was modified by another release since it was read (generation $generation). Re-run this job to merge against the current index." >&2
+            exit 1
+          fi
+
           gsutil -h "Cache-Control:no-cache,max-age=0" cp "helm/artifacthub-repo.yml" gs://helm.coder.com/v2
           helm push "build/coder_helm_${version}.tgz" oci://ghcr.io/coder/chart
           helm push "build/provisioner_helm_${version}.tgz" oci://ghcr.io/coder/chart
@@ -658,7 +670,7 @@ jobs:
 
       - name: Upload artifacts to actions (if dry-run)
         if: ${{ inputs.dry_run }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-artifacts
           path: |
@@ -674,7 +686,7 @@ jobs:
 
       - name: Upload latest sbom artifact to actions (if dry-run)
         if: inputs.dry_run && steps.build_docker.outputs.created_latest_tag == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: latest-sbom-artifact
           path: ./coder_latest_sbom.spdx.json
@@ -697,7 +709,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -773,7 +785,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 

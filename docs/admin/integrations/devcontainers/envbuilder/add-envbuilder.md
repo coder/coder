@@ -2,15 +2,11 @@
 title: Add an Envbuilder template
 ---
 
-A Coder administrator adds an Envbuilder-compatible template to Coder. This
-allows the template to prompt the developer for their dev container repository's
-URL as a [parameter](../../../templates/extending-templates/parameters.md) when they create
-their workspace. Envbuilder clones the repo and builds a container from the
-`devcontainer.json` specified in the repo.
+A Coder administrator adds an Envbuilder-compatible template to Coder.
+This allows the template to prompt the developer for their dev container repository's URL as a [parameter](../../../templates/extending-templates/parameters/index.md) when they create their workspace.
+Envbuilder clones the repo and builds a container from the `devcontainer.json` specified in the repo.
 
-You can create template files through the Coder dashboard, CLI, or you can
-choose a template from the
-[Coder registry](https://registry.coder.com/templates):
+You can create template files through the Coder dashboard, CLI, or you can choose a template from the [Coder registry](https://registry.coder.com/templates):
 
 <div class="tabs">
 
@@ -31,8 +27,7 @@ choose a template from the
    coder template init --id kubernetes-devcontainer
    ```
 
-   A list of available templates is shown in the
-   [templates_init](../../../../reference/cli/templates.md) reference.
+   A list of available templates is shown in the [templates_init](../../../../reference/cli/templates/index.md) reference.
 
 1. `cd` into the directory and push the template to your Coder deployment:
 
@@ -40,13 +35,11 @@ choose a template from the
    cd kubernetes-devcontainer && coder templates push
    ```
 
-   You can also edit the files or make changes to the files before you push them
-   to Coder.
+   You can also edit the files or make changes to the files before you push them to Coder.
 
 ## Registry
 
-1. Go to the [Coder registry](https://registry.coder.com/templates) and select a
-   dev container-compatible template.
+1. Go to the [Coder registry](https://registry.coder.com/templates) and select a dev container-compatible template.
 
 1. Copy the files to your local device, then edit them to fit your needs.
 
@@ -62,8 +55,8 @@ choose a template from the
 
    1. Create a `.zip` of the template files:
 
-      - On Mac or Windows, highlight the files and then right click. A
-        "compress" option is available through the right-click context menu.
+      - On Mac or Windows, highlight the files and then right click.
+        A "compress" option is available through the right-click context menu.
 
       - To zip the files through the command line:
 
@@ -76,27 +69,21 @@ choose a template from the
 
       ![Upload template](../../../../images/templates/upload-create-your-first-template.png)
 
-   1. Drag the `.zip` file into the **Upload template** section and fill out the
-      details, then select **Create template**.
+   1. Drag the `.zip` file into the **Upload template** section and fill out the details, then select **Create template**.
 
       ![Upload the template files](../../../../images/templates/upload-create-template-form.png)
 
 </div>
 
-To set variables such as the namespace, go to the template in your Coder
-dashboard and select **Settings** from the **⋮** (vertical ellipsis) menu:
+To set variables such as the namespace, go to the template in your Coder dashboard and select **Settings** from the **⋮** (vertical ellipsis) menu:
 
 <img height="255px" src="../../../../images/templates/template-menu-settings.png" alt="Choose Settings from the template's menu" align="center" />
 
 ## Envbuilder Terraform provider
 
-When using the
-[Envbuilder Terraform provider](https://registry.terraform.io/providers/coder/envbuilder/latest/docs),
-a previously built and cached image can be reused directly, allowing dev
-containers to start instantaneously.
+When using the [Envbuilder Terraform provider](https://registry.terraform.io/providers/coder/envbuilder/latest/docs), a previously built and cached image can be reused directly, allowing dev containers to start instantaneously.
 
-Developers can edit the `devcontainer.json` in their workspace to customize
-their development environments:
+Developers can edit the `devcontainer.json` in their workspace to customize their development environments:
 
 ```json
 # …
@@ -117,17 +104,14 @@ their development environments:
 | [Google Compute Engine dev container](../../../../../examples/templates/gcp-devcontainer) | Runs a development container inside a single GCP instance. It also mounts the Docker socket from the VM inside the container to enable Docker inside the workspace. |
 | [AWS EC2 dev container](../../../../../examples/templates/aws-devcontainer)               | Runs a development container inside a single EC2 instance. It also mounts the Docker socket from the VM inside the container to enable Docker inside the workspace. |
 
-Your template can prompt the user for a repo URL with
-[parameters](../../../templates/extending-templates/parameters.md):
+Your template can prompt the user for a repo URL with [parameters](../../../templates/extending-templates/parameters/index.md):
 
 ![Dev container parameter screen](../../../../images/templates/devcontainers.png)
 
 ## Dev container lifecycle scripts
 
-The `onCreateCommand`, `updateContentCommand`, `postCreateCommand`, and
-`postStartCommand` lifecycle scripts are run each time the container is started.
-This could be used, for example, to fetch or update project dependencies before
-a user begins using the workspace.
+The `onCreateCommand`, `updateContentCommand`, `postCreateCommand`, and `postStartCommand` lifecycle scripts are run each time the container is started.
+This could be used, for example, to fetch or update project dependencies before a user begins using the workspace.
 
 Lifecycle scripts are managed by project developers.
 

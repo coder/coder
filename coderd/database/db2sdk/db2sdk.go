@@ -478,13 +478,19 @@ func TemplateVersionParameterOptionFromPreview(option *previewtypes.ParameterOpt
 }
 
 func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
+	uris := dbApp.RegisteredRedirectURIs()
 	return codersdk.OAuth2ProviderApp{
-		ID:          dbApp.ID,
-		Name:        dbApp.Name,
-		CallbackURL: dbApp.CallbackURL,
-		Icon:        dbApp.Icon,
-		Scope:       rbac.CanonicalScopeList(dbApp.Scope.String),
-		ClientType:  codersdk.OAuth2ClientType(dbApp.ClientType),
+		ID:           dbApp.ID,
+		Name:         dbApp.Name,
+		RedirectURIs: uris,
+		CallbackURL:  uris[0],
+		Icon:         dbApp.Icon,
+		Scope:        rbac.CanonicalScopeList(dbApp.Scope.String),
+		ClientType:   codersdk.OAuth2ClientType(dbApp.ClientType),
+		// The column allows NULL, although every write path sets a value. A
+		// NULL reads as false, which keeps the client update guards closed but
+		// hides the scope narrowing warning for that app.
+		DynamicallyRegistered: dbApp.DynamicallyRegistered.Bool,
 		Endpoints: codersdk.OAuth2AppEndpoints{
 			Authorization: accessURL.ResolveReference(&url.URL{
 				Path: "/oauth2/authorize",
@@ -762,7 +768,31 @@ func WorkspaceAgentLog(log database.WorkspaceAgentLog) codersdk.WorkspaceAgentLo
 	}
 }
 
-func WorkspaceAgentScript(dbScript database.GetWorkspaceAgentScriptsByAgentIDsRow) codersdk.WorkspaceAgentScript {
+// WorkspaceAgentScript converts a script row to the SDK type. It fails on a
+// dependencies column that cannot be decoded or that holds an entry the SDK
+// cannot represent, so a caller never receives a partial list. The write
+// path already rejects such rows, so one here means a bug or a manual edit
+// of the database.
+func WorkspaceAgentScript(dbScript database.GetWorkspaceAgentScriptsByAgentIDsRow) (codersdk.WorkspaceAgentScript, error) {
+	var dependencies []codersdk.WorkspaceAgentScriptDependency
+	if len(dbScript.Dependencies) > 0 {
+		if err := json.Unmarshal(dbScript.Dependencies, &dependencies); err != nil {
+			return codersdk.WorkspaceAgentScript{}, xerrors.Errorf("decode dependencies: %w", err)
+		}
+	}
+	if len(dependencies) == 0 {
+		// nil rather than an empty slice so omitempty leaves the key out.
+		dependencies = nil
+	}
+	for i, dependency := range dependencies {
+		if dependency.PrerequisiteResourceAddress == "" {
+			return codersdk.WorkspaceAgentScript{}, xerrors.Errorf("dependency %d has an empty prerequisite resource address", i)
+		}
+		if !dependency.Requirement.Valid() {
+			return codersdk.WorkspaceAgentScript{}, xerrors.Errorf("dependency %d has unsupported requirement %q", i, dependency.Requirement)
+		}
+	}
+
 	script := codersdk.WorkspaceAgentScript{
 		ID:               dbScript.ID,
 		LogPath:          dbScript.LogPath,
@@ -774,13 +804,15 @@ func WorkspaceAgentScript(dbScript database.GetWorkspaceAgentScriptsByAgentIDsRo
 		StartBlocksLogin: dbScript.StartBlocksLogin,
 		Timeout:          time.Duration(dbScript.TimeoutSeconds) * time.Second,
 		DisplayName:      dbScript.DisplayName,
+		ResourceAddress:  dbScript.ResourceAddress,
+		Dependencies:     dependencies,
 		ExitCode:         nullInt32Ptr(dbScript.ExitCode),
 	}
 	if dbScript.Status.Valid {
 		status := codersdk.WorkspaceAgentScriptStatus(dbScript.Status.WorkspaceAgentScriptTimingStatus)
 		script.Status = &status
 	}
-	return script
+	return script, nil
 }
 
 func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {
@@ -989,6 +1021,19 @@ func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
 	return []policy.Action{}
 }
 
+// ChatProjectRoleActions returns the chat project actions a role grants.
+// Project read also grants instructions read and memory read and write;
+// update grants instructions write.
+func ChatProjectRoleActions(role codersdk.ChatProjectRole) []policy.Action {
+	switch role {
+	case codersdk.ChatProjectRoleAdmin:
+		return []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionShare}
+	case codersdk.ChatProjectRoleUse:
+		return []policy.Action{policy.ActionRead}
+	}
+	return []policy.Action{}
+}
+
 func ChatRoleActions(role codersdk.ChatRole) []policy.Action {
 	if role == codersdk.ChatRoleRead {
 		return []policy.Action{policy.ActionRead}
@@ -996,20 +1041,16 @@ func ChatRoleActions(role codersdk.ChatRole) []policy.Action {
 	return []policy.Action{}
 }
 
-func ConnectionLogConnectionTypeFromAgentProtoConnectionType(typ agentproto.Connection_Type) (database.ConnectionType, error) {
-	switch typ {
-	case agentproto.Connection_SSH:
-		return database.ConnectionTypeSsh, nil
-	case agentproto.Connection_JETBRAINS:
-		return database.ConnectionTypeJetbrains, nil
-	case agentproto.Connection_VSCODE:
-		return database.ConnectionTypeVscode, nil
-	case agentproto.Connection_RECONNECTING_PTY:
-		return database.ConnectionTypeReconnectingPty, nil
-	default:
-		// Also Connection_TYPE_UNSPECIFIED, no mapping.
-		return "", xerrors.Errorf("unknown agent connection type %q", typ)
+// ConnectionLogType returns the deprecated ConnectionLog.Type. The legacy
+// type search filter mirrors it, so change both together.
+func ConnectionLogType(method database.ConnectionLogMethod, appNameOrPort string) string {
+	if method == database.ConnectionLogMethodSSH {
+		switch family := codersdk.AppNameFamily(appNameOrPort); family {
+		case codersdk.AppFamilyVSCode, codersdk.AppFamilyJetBrains:
+			return string(family)
+		}
 	}
+	return string(method)
 }
 
 func ConnectionLogStatusFromAgentProtoConnectionAction(action agentproto.Connection_Action) (database.ConnectionStatus, error) {
@@ -1654,12 +1695,13 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 		createdBy = nil
 	}
 	msg := codersdk.ChatMessage{
-		ID:            m.ID,
-		ChatID:        m.ChatID,
-		CreatedBy:     createdBy,
-		ModelConfigID: modelConfigID,
-		CreatedAt:     m.CreatedAt,
-		Role:          codersdk.ChatMessageRole(m.Role),
+		ID:              m.ID,
+		ChatID:          m.ChatID,
+		CreatedBy:       createdBy,
+		ModelConfigID:   modelConfigID,
+		CreatedAt:       m.CreatedAt,
+		Role:            codersdk.ChatMessageRole(m.Role),
+		QueuedMessageID: nullInt64Ptr(m.QueuedMessageID),
 	}
 	if m.Content.Valid {
 		parts, err := chatMessageParts(m)
@@ -1844,6 +1886,66 @@ func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
 	return &payload
 }
 
+// ChatProject converts a project with the caller's permissions on it.
+func ChatProject(project database.ChatProject, permissions codersdk.ChatProjectPermissions) codersdk.ChatProject {
+	return codersdk.ChatProject{
+		Permissions:    permissions,
+		ID:             project.ID,
+		OrganizationID: project.OrganizationID,
+		OwnerID:        project.OwnerID,
+		Name:           project.Name,
+		Description:    project.Description,
+		Icon:           project.Icon,
+		CreatedAt:      project.CreatedAt,
+		UpdatedAt:      project.UpdatedAt,
+	}
+}
+
+// ChatProjectInstructions converts a project's stored instructions.
+func ChatProjectInstructions(row database.GetChatProjectInstructionsByProjectIDRow) codersdk.ChatProjectInstructions {
+	updatedAt := row.ChatProjectInstruction.UpdatedAt
+	instructions := codersdk.ChatProjectInstructions{
+		ProjectID:    row.ChatProjectInstruction.ProjectID,
+		Instructions: row.ChatProjectInstruction.Instructions,
+		UpdatedAt:    &updatedAt,
+	}
+	if row.ChatProjectInstruction.UpdatedBy.Valid && row.UpdatedByUsername.Valid {
+		instructions.UpdatedBy = &codersdk.MinimalUser{
+			ID:        row.ChatProjectInstruction.UpdatedBy.UUID,
+			Username:  row.UpdatedByUsername.String,
+			Name:      row.UpdatedByName.String,
+			AvatarURL: row.UpdatedByAvatarUrl.String,
+		}
+	}
+	return instructions
+}
+
+func ChatProjectMemory(row database.GetChatProjectMemoryByIDRow) codersdk.ChatProjectMemory {
+	return convertChatProjectMemory(row.ChatProjectMemory, row.CreatedByUsername)
+}
+
+func ChatProjectMemoryRows(rows []database.GetChatProjectMemoriesByProjectIDRow) []codersdk.ChatProjectMemory {
+	memories := make([]codersdk.ChatProjectMemory, len(rows))
+	for i, row := range rows {
+		memories[i] = convertChatProjectMemory(row.ChatProjectMemory, row.CreatedByUsername)
+	}
+	return memories
+}
+
+func convertChatProjectMemory(memory database.ChatProjectMemory, createdByUsername string) codersdk.ChatProjectMemory {
+	return codersdk.ChatProjectMemory{
+		ID:                memory.ID,
+		ProjectID:         memory.ProjectID,
+		OrganizationID:    memory.OrganizationID,
+		Name:              memory.Name,
+		Description:       memory.Description,
+		Body:              memory.Body,
+		CreatedBy:         memory.CreatedBy,
+		CreatedByUsername: createdByUsername,
+		CreatedAt:         memory.CreatedAt,
+	}
+}
+
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
 // nil slices and maps to empty values for JSON serialization and
 // derives RootChatID from the parent chain when not explicitly set.
@@ -1851,6 +1953,17 @@ func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
 // When files is non-empty the response includes file metadata;
 // pass nil to omit the files field (e.g. list endpoints).
 func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database.GetChatFileMetadataByChatIDRow) codersdk.Chat {
+	return ChatWithDiffStatuses(c, diffStatus, nil, files)
+}
+
+// ChatWithDiffStatuses converts a chat with its per-ref diff status
+// list. diffStatus is the primary shown in the diff_status field.
+func ChatWithDiffStatuses(
+	c database.Chat,
+	diffStatus *database.ChatDiffStatus,
+	diffStatuses []database.ChatDiffStatus,
+	files []database.GetChatFileMetadataByChatIDRow,
+) codersdk.Chat {
 	mcpServerIDs := c.MCPServerIDs
 	if mcpServerIDs == nil {
 		mcpServerIDs = []uuid.UUID{}
@@ -1868,6 +1981,8 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		OwnerName:         c.OwnerName,
 		LastModelConfigID: c.LastModelConfigID,
 		Title:             c.Title,
+		TitleSource:       codersdk.ChatTitleSource(c.TitleSource),
+		TitleUpdatedAt:    c.TitleUpdatedAt,
 		Status:            codersdk.ChatStatus(c.Status),
 		Archived:          c.Archived,
 		Shared:            len(c.UserACL) > 0 || len(c.GroupACL) > 0,
@@ -1915,6 +2030,9 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	if c.WorkspaceID.Valid {
 		chat.WorkspaceID = &c.WorkspaceID.UUID
 	}
+	if c.ProjectID.Valid {
+		chat.ProjectID = &c.ProjectID.UUID
+	}
 	if c.BuildID.Valid {
 		chat.BuildID = &c.BuildID.UUID
 	}
@@ -1924,6 +2042,12 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	if diffStatus != nil {
 		convertedDiffStatus := ChatDiffStatus(c.ID, diffStatus)
 		chat.DiffStatus = &convertedDiffStatus
+	}
+	if len(diffStatuses) > 0 {
+		chat.DiffStatuses = make([]codersdk.ChatDiffStatus, 0, len(diffStatuses))
+		for i := range diffStatuses {
+			chat.DiffStatuses = append(chat.DiffStatuses, ChatDiffStatus(c.ID, &diffStatuses[i]))
+		}
 	}
 	if len(files) > 0 {
 		chat.Files = make([]codersdk.ChatFileMetadata, 0, len(files))
@@ -2010,6 +2134,35 @@ func nullRawJSONObject(raw pqtype.NullRawMessage) map[string]any {
 	return rawJSONObject(raw.RawMessage)
 }
 
+// InlineMCPServer converts a database.ChatMCPServer to its redacted
+// codersdk.InlineMCPServer view, which reports only whether headers are
+// set.
+func InlineMCPServer(row database.ChatMCPServer) (codersdk.InlineMCPServer, error) {
+	var headers map[string]string
+	if err := json.Unmarshal([]byte(row.Headers), &headers); err != nil {
+		return codersdk.InlineMCPServer{}, xerrors.Errorf("parse headers for chat MCP server %q: %w", row.Slug, err)
+	}
+	return codersdk.InlineMCPServer{
+		ID:                  row.ID,
+		Slug:                row.Slug,
+		URL:                 row.Url,
+		HasCustomHeaders:    len(headers) > 0,
+		ToolAllowList:       nonNilStrings(row.ToolAllowList),
+		ToolDenyList:        nonNilStrings(row.ToolDenyList),
+		AllowInSubagents:    row.AllowInSubagents,
+		ForwardCoderHeaders: row.ForwardCoderHeaders,
+		CreatedAt:           row.CreatedAt,
+		UpdatedAt:           row.UpdatedAt,
+	}, nil
+}
+
+func nonNilStrings(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
+}
+
 // ChatDebugRunSummary converts a database.ChatDebugRun to a
 // codersdk.ChatDebugRunSummary.
 func ChatDebugRunSummary(r database.ChatDebugRun) codersdk.ChatDebugRunSummary {
@@ -2083,13 +2236,13 @@ func ChatDebugRunDetail(r database.ChatDebugRun, steps []database.ChatDebugStep)
 // is non-nil, children without an entry receive an empty DiffStatus.
 func ChildChatRows(
 	children []database.GetChildChatsByParentIDsRow,
-	diffStatuses map[uuid.UUID]database.ChatDiffStatus,
+	diffStatuses map[uuid.UUID][]database.ChatDiffStatus,
 ) []codersdk.Chat {
 	result := make([]codersdk.Chat, len(children))
 	for i, row := range children {
-		diffStatus, ok := diffStatuses[row.Chat.ID]
+		statuses, ok := diffStatuses[row.Chat.ID]
 		if ok {
-			result[i] = Chat(row.Chat, &diffStatus, nil)
+			result[i] = ChatWithDiffStatuses(row.Chat, PrimaryChatDiffStatus(statuses), statuses, nil)
 		} else {
 			result[i] = Chat(row.Chat, nil, nil)
 			if diffStatuses != nil {
@@ -2108,7 +2261,7 @@ func ChildChatRows(
 func ChatRowsWithChildren(
 	roots []database.GetChatsRow,
 	children []database.GetChildChatsByParentIDsRow,
-	diffStatuses map[uuid.UUID]database.ChatDiffStatus,
+	diffStatuses map[uuid.UUID][]database.ChatDiffStatus,
 ) []codersdk.Chat {
 	// Group children by parent ID.
 	childrenByParent := make(map[uuid.UUID][]database.GetChildChatsByParentIDsRow, len(children))
@@ -2119,9 +2272,9 @@ func ChatRowsWithChildren(
 
 	result := make([]codersdk.Chat, len(roots))
 	for i, row := range roots {
-		diffStatus, ok := diffStatuses[row.Chat.ID]
+		statuses, ok := diffStatuses[row.Chat.ID]
 		if ok {
-			result[i] = Chat(row.Chat, &diffStatus, nil)
+			result[i] = ChatWithDiffStatuses(row.Chat, PrimaryChatDiffStatus(statuses), statuses, nil)
 		} else {
 			result[i] = Chat(row.Chat, nil, nil)
 			if diffStatuses != nil {
@@ -2151,6 +2304,14 @@ func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.
 	}
 
 	result.ChatID = status.ChatID
+	if status.GitRemoteOrigin != "" {
+		remoteOrigin := status.GitRemoteOrigin
+		result.RemoteOrigin = &remoteOrigin
+	}
+	if status.GitBranch != "" {
+		gitBranch := status.GitBranch
+		result.GitBranch = &gitBranch
+	}
 	if status.Url.Valid {
 		u := strings.TrimSpace(status.Url.String)
 		if u != "" {
@@ -2222,6 +2383,24 @@ func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.
 	return result
 }
 
+// PrimaryChatDiffStatus returns the row with the most recent git
+// report, or nil when statuses is empty. Only a git report sets
+// updated_at. Ties go to the lowest origin, then the lowest branch.
+func PrimaryChatDiffStatus(statuses []database.ChatDiffStatus) *database.ChatDiffStatus {
+	if len(statuses) == 0 {
+		return nil
+	}
+
+	primary := slices.MinFunc(statuses, func(a, b database.ChatDiffStatus) int {
+		return cmp.Or(
+			b.UpdatedAt.Compare(a.UpdatedAt),
+			cmp.Compare(a.GitRemoteOrigin, b.GitRemoteOrigin),
+			cmp.Compare(a.GitBranch, b.GitBranch),
+		)
+	})
+	return &primary
+}
+
 // UserSecret converts a database ListUserSecretsRow (metadata only,
 // no value) to an SDK UserSecret.
 func UserSecret(secret database.ListUserSecretsRow) codersdk.UserSecret {
@@ -2262,13 +2441,37 @@ func UserSecrets(secrets []database.ListUserSecretsRow) []codersdk.UserSecret {
 	return result
 }
 
-// UserSkill converts a database UserSkill to an SDK UserSkill.
-func UserSkill(skill database.UserSkill) codersdk.UserSkill {
-	return codersdk.UserSkill{
-		UserSkillMetadata: codersdk.UserSkillMetadata{
+// WorkspaceBuildSecret converts workspace secret metadata to an SDK
+// WorkspaceSecret. Build secrets have no description, cannot be disabled,
+// and are never updated, so Enabled is true and UpdatedAt is CreatedAt.
+func WorkspaceBuildSecret(secret database.GetWorkspaceSecretsHistoryRow) codersdk.WorkspaceSecret {
+	out := codersdk.WorkspaceSecret{
+		UserSecret: codersdk.UserSecret{
+			ID:        secret.ID,
+			Name:      secret.Name,
+			EnvName:   secret.EnvName,
+			FilePath:  secret.FilePath,
+			Enabled:   true,
+			CreatedAt: secret.CreatedAt,
+			UpdatedAt: secret.CreatedAt,
+		},
+		WorkspaceBuildID: secret.WorkspaceBuildID,
+		Ephemeral:        secret.Ephemeral,
+	}
+	if secret.ClearedAt.Valid {
+		out.ClearedAt = &secret.ClearedAt.Time
+	}
+	return out
+}
+
+// Skill converts a database Skill to an SDK Skill.
+func Skill(skill database.Skill) codersdk.Skill {
+	return codersdk.Skill{
+		SkillMetadata: codersdk.SkillMetadata{
 			ID:          skill.ID,
 			Name:        skill.Name,
 			Description: skill.Description,
+			Enabled:     skill.Enabled,
 			CreatedAt:   skill.CreatedAt,
 			UpdatedAt:   skill.UpdatedAt,
 		},
@@ -2276,22 +2479,52 @@ func UserSkill(skill database.UserSkill) codersdk.UserSkill {
 	}
 }
 
-// UserSkillMetadata converts database user skill metadata to an SDK UserSkillMetadata.
-func UserSkillMetadata(skill database.ListUserSkillMetadataByUserIDRow) codersdk.UserSkillMetadata {
-	return codersdk.UserSkillMetadata{
-		ID:          skill.ID,
-		Name:        skill.Name,
-		Description: skill.Description,
-		CreatedAt:   skill.CreatedAt,
-		UpdatedAt:   skill.UpdatedAt,
+// ProjectSkillMetadataList converts chat project skill metadata rows to SDK
+// values.
+func ProjectSkillMetadataList(rows []database.ListProjectSkillMetadataByProjectIDRow) []codersdk.SkillMetadata {
+	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
+	for _, row := range rows {
+		metadata = append(metadata, codersdk.SkillMetadata{
+			ID:          row.ID,
+			Name:        row.Name,
+			Description: row.Description,
+			Enabled:     row.Enabled,
+			CreatedAt:   row.CreatedAt,
+			UpdatedAt:   row.UpdatedAt,
+		})
 	}
+	return metadata
 }
 
-// UserSkillMetadataList converts database user skill metadata rows to SDK values.
-func UserSkillMetadataList(rows []database.ListUserSkillMetadataByUserIDRow) []codersdk.UserSkillMetadata {
-	metadata := make([]codersdk.UserSkillMetadata, 0, len(rows))
+// OrganizationSkillMetadataList converts organization skill metadata rows to
+// SDK values.
+func OrganizationSkillMetadataList(rows []database.ListOrganizationSkillMetadataByOrganizationIDRow) []codersdk.SkillMetadata {
+	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
 	for _, row := range rows {
-		metadata = append(metadata, UserSkillMetadata(row))
+		metadata = append(metadata, codersdk.SkillMetadata{
+			ID:          row.ID,
+			Name:        row.Name,
+			Description: row.Description,
+			Enabled:     row.Enabled,
+			CreatedAt:   row.CreatedAt,
+			UpdatedAt:   row.UpdatedAt,
+		})
+	}
+	return metadata
+}
+
+// UserSkillMetadataList converts personal skill metadata rows to SDK values.
+func UserSkillMetadataList(rows []database.ListUserSkillMetadataByUserIDRow) []codersdk.SkillMetadata {
+	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
+	for _, row := range rows {
+		metadata = append(metadata, codersdk.SkillMetadata{
+			ID:          row.ID,
+			Name:        row.Name,
+			Description: row.Description,
+			Enabled:     row.Enabled,
+			CreatedAt:   row.CreatedAt,
+			UpdatedAt:   row.UpdatedAt,
+		})
 	}
 	return metadata
 }

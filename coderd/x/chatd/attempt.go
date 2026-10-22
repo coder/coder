@@ -5,8 +5,6 @@ import (
 	"time"
 
 	"charm.land/fantasy"
-
-	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 )
 
 type runnerActionKind string
@@ -20,10 +18,11 @@ const (
 
 // stepData is the durable content produced by one provider attempt.
 type stepData struct {
-	Content      []fantasy.Content
-	Usage        fantasy.Usage
-	ContextLimit sql.NullInt64
-	Runtime      time.Duration
+	Content            []fantasy.Content
+	Usage              fantasy.Usage
+	ContextLimit       sql.NullInt64
+	Runtime            time.Duration
+	ProviderResponseID string
 
 	// BatchRuntime is the local-tool batch window. Model steps use Runtime.
 	BatchRuntime time.Duration
@@ -42,21 +41,6 @@ type pendingDynamicToolCall struct {
 	ToolCallID string
 	ToolName   string
 	Args       string
-}
-
-// compactionOutcome contains a generated context summary. It must stay
-// field-compatible with chatloop.CompactionResult; generateCompaction
-// converts between the two directly.
-type compactionOutcome struct {
-	SystemSummary          string
-	SummaryReport          string
-	Source                 chatloop.CompactionSource
-	ThresholdPercent       int32
-	UsagePercent           float64
-	ContextTokens          int64
-	ContextLimit           int64
-	EstimatedContextTokens int64
-	Runtime                time.Duration
 }
 
 type compactionStatus int

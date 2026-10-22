@@ -35,7 +35,7 @@ Go to the Azure Portal > **Azure Active Directory** > **App registrations** > Yo
    - Verify a Client secret (or certificate) is valid.
      Coder uses it to redeem refresh tokens.
 
-1. In your [Coder configuration](../../../reference/cli/server.md#--oidc-auth-url-params), request the same scopes:
+1. In your [Coder configuration](../../../reference/cli/server/index.md#--oidc-auth-url-params), request the same scopes:
 
    ```dotenv
    CODER_OIDC_SCOPES=openid,profile,email,offline_access
@@ -43,10 +43,9 @@ Go to the Azure Portal > **Azure Active Directory** > **App registrations** > Yo
 
 1. Restart Coder and have users log out and back again for the changes to take effect.
 
-   Alternatively, you can force a sign-out for all users with the
-   [sign-out request process](https://learn.microsoft.com/en-us/entra/identity-platform/v2-protocols-oidc#send-a-sign-out-request).
+   Alternatively, you can force a sign-out for all users with the [sign-out request process](https://learn.microsoft.com/en-us/entra/identity-platform/v2-protocols-oidc#send-a-sign-out-request).
 
-1. Azure issues rolling refresh tokens with a default absolute expiration of 90 days and inactivity expiration of 24 hours.
+1. Azure issues rolling refresh tokens with a default absolute expiration of 90&nbsp;days and inactivity expiration of 24&nbsp;hours.
 
    You can adjust these settings under **Authentication methods** > **Token lifetime** (or use Conditional-Access policies in Entra ID).
 
@@ -56,11 +55,10 @@ Learn more in the [Microsoft Entra documentation](https://learn.microsoft.com/en
 
 ### Google
 
-To ensure Coder receives a refresh token when users authenticate with Google directly, set the `prompt` to `consent`
-in the auth URL parameters (`CODER_OIDC_AUTH_URL_PARAMS`).
+To ensure Coder receives a refresh token when users authenticate with Google directly, set the `prompt` to `consent` in the auth URL parameters (`CODER_OIDC_AUTH_URL_PARAMS`).
 Without this, users will be logged out when their access token expires.
 
-In your [Coder configuration](../../../reference/cli/server.md#--oidc-auth-url-params):
+In your [Coder configuration](../../../reference/cli/server/index.md#--oidc-auth-url-params):
 
 ```dotenv
 CODER_OIDC_SCOPES=openid,profile,email
@@ -72,11 +70,9 @@ CODER_OIDC_AUTH_URL_PARAMS='{"access_type": "offline", "prompt": "consent"}'
 The `access_type` parameter has two possible values: `online` and `offline`.
 By default, the value is set to `offline`.
 
-This means that when a user authenticates using OIDC, the application requests offline access to the user's resources,
-including the ability to refresh access tokens without requiring the user to reauthenticate.
+This means that when a user authenticates using OIDC, the application requests offline access to the user's resources, including the ability to refresh access tokens without requiring the user to reauthenticate.
 
-Add the `offline_access` scope to enable refresh tokens in your
-[Coder configuration](../../../reference/cli/server.md#--oidc-auth-url-params):
+Add the `offline_access` scope to enable refresh tokens in your [Coder configuration](../../../reference/cli/server/index.md#--oidc-auth-url-params):
 
 ```dotenv
 CODER_OIDC_SCOPES=openid,profile,email,offline_access
@@ -89,17 +85,22 @@ CODER_OIDC_AUTH_URL_PARAMS='{"access_type":"offline"}'
 
 1. On the **Client** tab:
 
-   - **Grant Types**: Enable `refresh_token`
-   - **Allowed Scopes**: Add `offline_access` and keep `openid`, `profile`, and `email`
+   - **Grant Types**:
+     Enable `refresh_token`
+   - **Allowed Scopes**:
+     Add `offline_access` and keep `openid`, `profile`, and `email`
 
 1. Optionally, in **Token Settings**
 
-   - **Refresh Token Lifetime**: set a value that matches your security policy. Ping's default is 30 days.
-   - **Idle Timeout**: ensure it's more than or equal to the lifetime of the access token so that refreshes don't fail prematurely.
+   - **Refresh Token Lifetime**:
+     set a value that matches your security policy.
+     Ping's default is 30&nbsp;days.
+   - **Idle Timeout**:
+     ensure it's more than or equal to the lifetime of the access token so that refreshes don't fail prematurely.
 
 1. Save your changes in PingFederate.
 
-1. In your [Coder configuration](../../../reference/cli/server.md#--oidc-scopes), add the `offline_access` scope:
+1. In your [Coder configuration](../../../reference/cli/server/index.md#--oidc-scopes), add the `offline_access` scope:
 
    ```dotenv
    CODER_OIDC_SCOPES=openid,profile,email,offline_access
@@ -147,7 +148,7 @@ To verify refresh tokens are working correctly:
 
    </div>
 
-1. Verify users can stay logged in beyond the identity provider's access token expiration period (typically 1 hour).
+1. Verify users can stay logged in beyond the identity provider's access token expiration period (typically 1&nbsp;hour).
 
 1. Monitor Coder logs for `failed to renew OIDC token: token has expired` messages.
    There should not be any.
@@ -161,7 +162,7 @@ If all verification steps pass successfully, your refresh token configuration is
 **Symptoms**:
 
 - Users experience session timeouts and must re-authenticate.
-- Session timeouts typically occur after the access token expiration period (varies by provider, commonly 1 hour).
+- Session timeouts typically occur after the access token expiration period (varies by provider, commonly 1&nbsp;hour).
 
 **Causes**:
 

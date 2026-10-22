@@ -55,6 +55,13 @@ curl -X GET http://coder-server:8080/api/v2/ai-gateway/models \
 
 Alias: also available at /api/v2/aibridge/models for backward compatibility.
 
+### Parameters
+
+| Name    | In    | Type   | Required | Description                                                                                              |
+|---------|-------|--------|----------|----------------------------------------------------------------------------------------------------------|
+| `q`     | query | string | false    | Search query in the format `key:value`. Available keys are: model. A bare term searches by model prefix. |
+| `model` | query | string | false    | Literal model identifier prefix. Cannot be combined with q.                                              |
+
 ### Example responses
 
 > 200 Response

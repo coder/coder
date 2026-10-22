@@ -1,0 +1,122 @@
+[
+	{
+		"title": "General",
+		"path": "./reference/api/general.md"
+	},
+	{
+		"title": "AI Gateway",
+		"path": "./reference/api/aigateway.md"
+	},
+	{
+		"title": "AI Providers",
+		"path": "./reference/api/aiproviders.md"
+	},
+	{
+		"title": "Agents",
+		"path": "./reference/api/agents.md"
+	},
+	{
+		"title": "Applications",
+		"path": "./reference/api/applications.md"
+	},
+	{
+		"title": "Audit",
+		"path": "./reference/api/audit.md"
+	},
+	{
+		"title": "Authentication",
+		"path": "./reference/api/authentication.md"
+	},
+	{
+		"title": "Authorization",
+		"path": "./reference/api/authorization.md"
+	},
+	{
+		"title": "Builds",
+		"path": "./reference/api/builds.md"
+	},
+	{
+		"title": "Chats",
+		"path": "./reference/api/chats.md"
+	},
+	{
+		"title": "Debug",
+		"path": "./reference/api/debug.md"
+	},
+	{
+		"title": "Enterprise",
+		"path": "./reference/api/enterprise.md"
+	},
+	{
+		"title": "Files",
+		"path": "./reference/api/files.md"
+	},
+	{
+		"title": "Git",
+		"path": "./reference/api/git.md"
+	},
+	{
+		"title": "InitScript",
+		"path": "./reference/api/initscript.md"
+	},
+	{
+		"title": "Insights",
+		"path": "./reference/api/insights.md"
+	},
+	{
+		"title": "MCP",
+		"path": "./reference/api/mcp.md"
+	},
+	{
+		"title": "Members",
+		"path": "./reference/api/members.md"
+	},
+	{
+		"title": "Notifications",
+		"path": "./reference/api/notifications.md"
+	},
+	{
+		"title": "Organizations",
+		"path": "./reference/api/organizations.md"
+	},
+	{
+		"title": "PortSharing",
+		"path": "./reference/api/portsharing.md"
+	},
+	{
+		"title": "Prebuilds",
+		"path": "./reference/api/prebuilds.md"
+	},
+	{
+		"title": "Provisioning",
+		"path": "./reference/api/provisioning.md"
+	},
+	{
+		"title": "Schemas",
+		"path": "./reference/api/schemas.md"
+	},
+	{
+		"title": "Secrets",
+		"path": "./reference/api/secrets.md"
+	},
+	{
+		"title": "TemplateBuilder",
+		"path": "./reference/api/templatebuilder.md"
+	},
+	{
+		"title": "Templates",
+		"path": "./reference/api/templates.md"
+	},
+	{
+		"title": "Users",
+		"path": "./reference/api/users.md"
+	},
+	{
+		"title": "WorkspaceProxies",
+		"path": "./reference/api/workspaceproxies.md"
+	},
+	{
+		"title": "Workspaces",
+		"path": "./reference/api/workspaces.md"
+	}
+]

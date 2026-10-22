@@ -3,8 +3,7 @@ title: Xum
 ---
 
 > [!NOTE]
-> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
-> included with a Premium license.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is included with a Premium license.
 
 Xum (formerly Mux) makes it easy to run parallel coding agents, each with its own isolated workspace, from your browser or desktop; it is open source and provider-agnostic.
 
@@ -58,7 +57,7 @@ export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/ai-gateway/anthropic
 
 ## Run Xum in a Coder workspace
 
-To run Xum inside a Coder workspace (for example, as a Coder app), you can install it with the [`mux` module](https://registry.coder.com/modules/coder/mux) (still published under its pre-rename name) and pre-configure AI Gateway via environment variables on the agent:
+To run Xum inside a Coder workspace (for example, as a Coder app), you can install it with the [`mux` module](https://registry.coder.com/modules/coder/mux) (still published under its pre-rename name) and pre-configure AI Gateway via environment variables on the workspace agent:
 
 ```tf
 data "coder_workspace" "me" {}
@@ -99,4 +98,5 @@ If you prefer a file-based config, edit `~/.xum/providers.jsonc`:
 }
 ```
 
-**References:** [Xum provider environment variables](https://xum.coder.com/config/providers#environment-variables)
+**References:**
+[Xum provider environment variables](https://xum.coder.com/config/providers#environment-variables)

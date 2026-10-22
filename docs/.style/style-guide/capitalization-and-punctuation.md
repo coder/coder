@@ -1,6 +1,6 @@
 # Capitalization and punctuation
 
-Coder documentation uses sentence-case headings, the Oxford comma, US-style quotation, and no em-dashes or en-dashes in prose.
+Coder documentation uses sentence-case headings, the Oxford comma, US-style quotation, no semicolons in prose, and no em-dashes or en-dashes in prose.
 The rules on this page set those defaults.
 
 For heading structure (H1, H2, H3 placement and order), refer to [Accessibility and inclusion](./accessibility-and-inclusion.md#heading-structure-and-placement).
@@ -27,7 +27,7 @@ This rule covers H1 through H6 and matches the way the heading reads aloud.
 ### Connect Through JetBrains Toolbox
 ```
 
-*Enforced by `Google.Headings` (scope adjusted to skip CLI flag fragments and acronyms).*
+*Enforced by `Google.Headings` (planned; third-party rules aren't loaded by default), with scope adjusted to skip CLI flag fragments and acronyms.*
 
 ## No gerund-leading headings
 
@@ -101,9 +101,8 @@ Reword as a noun phrase ("What a workspace is") or drop the question mark.
 The second and third are decorative.
 The fourth treats the heading as a sentence.
 
-*Periods and exclamation points enforced by `Google.HeadingPunctuation` at `error` severity.
-Question marks enforced by `Google.HeadingPunctuation` at `suggestion` severity.
-Both ignore characters inside backticks.*
+*Enforced by `Google.HeadingPunctuation` (planned; third-party rules aren't loaded by default).
+When it lands, it flags periods and exclamation points at `error` severity and question marks at `suggestion` severity, ignoring characters inside backticks.*
 
 ## No em-dashes or en-dashes
 
@@ -190,7 +189,7 @@ Use a comma before the conjunction in a list of three or more items.
 
 > The provisioner builds, configures and starts the workspace.
 
-*Enforced by `Google.OxfordComma`.*
+*Enforced by `Google.OxfordComma` (planned; third-party rules aren't loaded by default).*
 
 ## US-style quotation
 
@@ -200,30 +199,59 @@ This placement is the United States convention and matches the dominant style of
 
 **Do**:
 
-> The error message reads, "workspace not found."
+> Developers call this pattern "infrastructure as code."
 
 **Don't**:
 
-> The error message reads, "workspace not found".
+> Developers call this pattern "infrastructure as code".
 
-*Enforced by `Google.Quotes`.*
+To quote literal text that the product displays, such as an error message, use a code span instead of quotation marks (refer to [Code font](./formatting.md#code-font)).
 
-## Semicolons sparingly
+*Enforced by `Google.Quotes` (planned; third-party rules aren't loaded by default).*
 
-Prefer two sentences.
-A semicolon joins two complete thoughts when they're tightly related and a period would lose the connection, but in technical prose two sentences read more clearly.
+## No semicolons in prose
+
+Write two sentences instead of joining them with a semicolon.
+In technical prose, two sentences read more clearly, and the reader doesn't need to parse where one thought ends.
+When the semicolon implied a relationship between the two thoughts, keep it with a connecting word such as `because`, `as a result`, or `however`.
+
+The rule covers prose, list items, and callouts.
+Code, configuration values, and table cells, where space is limited, keep their semicolons.
 
 **Do**:
 
 > The provisioner uses Terraform.
 > It reads the template files and creates the workspace.
+>
+> The proxy is in another region.
+> As a result, connections through it are slower.
 
 **Don't**:
 
 > The provisioner uses Terraform; it reads the template files and creates the workspace.
+>
+> The proxy is in another region; connections through it are slower.
 
-*Documentation-only.
-No Vale rule.*
+*Adapted from ASD-STE100 Issue 9, rule 8.1.
+Enforced by `Coder.Semicolons` (planned).*
+
+## No periods in acronyms
+
+Write acronyms and initialisms without periods: `API`, `US`, `URL`.
+Periods inside an acronym add noise and break search.
+
+The rule covers capitalized acronyms.
+Lowercase Latin abbreviations such as `e.g.` keep their periods (refer to [Latin abbreviations](./accessibility-and-inclusion.md#latin-abbreviations)).
+
+**Do**:
+
+> The API returns the user's region, such as US or EU.
+
+**Don't**:
+
+> The A.P.I. returns the user's region, such as U.S. or E.U.
+
+*Enforced by `Coder.AcronymPeriods` (planned).*
 
 ## Exclamation points rare in prose
 
@@ -238,7 +266,7 @@ Reserve them for code blocks, direct quotes from error messages, and rare moment
 
 > Coder is ready to use!
 
-*Enforced by `Google.Exclamation`.*
+*Enforced by `Google.Exclamation` (planned; third-party rules aren't loaded by default).*
 
 ## Numeric ranges
 
@@ -254,7 +282,7 @@ In code blocks, terse reference material, and tables where space matters, the hy
 
 > The agent retries 5-10 times before giving up.
 
-*Enforced by `Google.Ranges`.*
+*Enforced by `Google.Ranges` (planned; third-party rules aren't loaded by default).*
 
 ## Learn more
 

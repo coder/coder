@@ -2,17 +2,14 @@
 title: Quotas
 ---
 
-Quotas are a mechanism for controlling spend by associating costs with workspace
-templates and assigning budgets to users. Users that exceed their budget will be
-blocked from launching more workspaces until they either delete their other
-workspaces or get their budget extended.
+Quotas are a mechanism for controlling spend by associating costs with workspace templates and assigning budgets to users.
+Users that exceed their budget will be blocked from launching more workspaces until they either delete their other workspaces or get their budget extended.
 
-For example: A template is configured with a cost of 5 credits per day, and the
-user is granted 15 credits, which can be consumed by both started and stopped
-workspaces. This budget limits the user to 3 concurrent workspaces.
+For example: A template is configured with a cost of 5 credits per day, and the user is granted 15 credits, which can be consumed by both started and stopped workspaces.
+This budget limits the user to 3 concurrent workspaces.
 
-Quotas are scoped to [Groups](./groups-roles.md) in Enterprise and
-[organizations](./organizations.md) in Premium.
+Quotas are a Premium feature.
+You grant quota allowances to [groups](./groups-roles.md), and Coder calculates each user's budget separately in each [organization](./organizations.md).
 
 ## Definitions
 
@@ -21,15 +18,14 @@ Quotas are scoped to [Groups](./groups-roles.md) in Enterprise and
 - **Budget** is the per-user, enforced, upper limit to credit spend.
 - **Allowance** is a grant of credits to the budget.
 
-## Establishing Costs
+<a id="establishing-costs"></a>
 
-Templates describe their cost through the `daily_cost` attribute in
-[`resource_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata).
-Since costs are associated with resources, an offline workspace may consume less
-quota than an online workspace.
+## Establish costs
 
-A common use case is separating costs for a persistent volume and ephemeral
-compute:
+Templates describe their cost through the `daily_cost` attribute in [`resource_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata).
+Since costs are associated with resources, an offline workspace may consume less quota than an online workspace.
+
+A common use case is separating costs for a persistent volume and ephemeral compute:
 
 ```tf
 resource "docker_volume" "home_volume" {
@@ -59,19 +55,18 @@ resource "coder_metadata" "workspace" {
 }
 ```
 
-When the workspace above is shut down, the `docker_container` and
-`coder_metadata` both get deleted. This reduces the cost from 30 credits to 10
-credits.
+When the workspace above is shut down, the `docker_container` and `coder_metadata` both get deleted.
+This reduces the cost from 30 credits to 10 credits.
 
-Resources without a `daily_cost` value are considered to cost 0. If the cost was
-removed on the `docker_volume` above, the template would consume 0 credits when
-it's offline. This technique is good for incentivizing users to shut down their
-unused workspaces and freeing up compute in the cluster.
+Resources without a `daily_cost` value are considered to cost 0. If the cost was removed on the `docker_volume` above, the template would consume 0 credits when it's offline.
+This technique is good for incentivizing users to shut down their unused workspaces and freeing up compute in the cluster.
 
-## Establishing Budgets
+<a id="establishing-budgets"></a>
 
-Each group has a configurable Quota Allowance. A user's budget is calculated as
-the sum of their allowances.
+## Establish budgets
+
+Each group has a configurable Quota Allowance.
+A user's budget is calculated as the sum of their allowances.
 
 ![group-settings](../../images/admin/users/quotas/quota-groups.png)
 
@@ -96,10 +91,9 @@ By default, groups are assumed to have a default allowance of 0.
 
 ## Quota Enforcement
 
-Coder enforces Quota on workspace start and stop operations. The workspace build
-process dynamically calculates costs, so quota violation fails builds as opposed
-to failing the build-triggering operation. For example, the Workspace Create
-Form will never get held up by quota enforcement.
+Coder enforces Quota on workspace start and stop operations.
+The workspace build process dynamically calculates costs, so quota violation fails builds as opposed to failing the build-triggering operation.
+For example, the Workspace Create Form will never get held up by quota enforcement.
 
 ![build-log](../../images/admin/quota-buildlog.png)
 

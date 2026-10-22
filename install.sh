@@ -5,7 +5,7 @@ set -eu
 # See https://github.com/coder/coder#install
 #
 # To run:
-# curl -L https://coder.com/install.sh | sh
+# curl -fsSL https://coder.com/install.sh | sh
 
 usage() {
 	arg0="$0"
@@ -276,7 +276,7 @@ EOF
 main() {
 	MAINLINE=1
 	STABLE=0
-	TERRAFORM_VERSION="1.16.2"
+	TERRAFORM_VERSION="1.16.6"
 
 	if [ "${TRACE-}" ]; then
 		set -x

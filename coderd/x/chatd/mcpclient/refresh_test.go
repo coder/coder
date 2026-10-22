@@ -6,12 +6,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
@@ -129,10 +131,10 @@ func TestBuildAuthHeadersSkipsFailedToken(t *testing.T) {
 	t.Parallel()
 
 	logger := slogtest.Make(t, nil)
-	cfg := database.MCPServerConfig{
+	cfg := mcpclient.Server{
 		ID:       uuid.New(),
 		Slug:     "revoked",
-		AuthType: "oauth2",
+		UserAuth: mcpclient.UserAuthOAuth2,
 	}
 
 	t.Run("FailureReasonSet", func(t *testing.T) {
@@ -165,5 +167,120 @@ func TestBuildAuthHeadersSkipsFailedToken(t *testing.T) {
 			uuid.New(), nil,
 		)
 		require.Equal(t, "Bearer valid", headers["Authorization"])
+	})
+}
+
+func TestRefreshOAuth2TokenResourceIndicator(t *testing.T) {
+	t.Parallel()
+
+	const resource = "https://mcp.example.com/mcp"
+	cases := []struct {
+		name     string
+		resource string
+	}{
+		{name: "Set", resource: resource},
+		{name: "Unset"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			forms := make(chan url.Values, 1)
+			tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if !assert.NoError(t, r.ParseForm()) {
+					http.Error(w, "bad form", http.StatusBadRequest)
+					return
+				}
+				// Auth style auto-detection may retry a rejected request.
+				select {
+				case forms <- r.PostForm:
+				default:
+				}
+				w.Header().Set("Content-Type", "application/json")
+				if r.PostForm.Get("resource") != tc.resource {
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = w.Write([]byte(`{"error":"invalid_target"}`))
+					return
+				}
+				_, _ = w.Write([]byte(`{"access_token":"fresh","token_type":"Bearer","expires_in":3600}`))
+			}))
+			defer tokenSrv.Close()
+
+			cfg := database.MCPServerConfig{
+				OAuth2ClientID: "cid",
+				OAuth2TokenURL: tokenSrv.URL,
+				OAuth2Resource: tc.resource,
+			}
+			tok := database.MCPServerUserToken{
+				AccessToken:  "expired",
+				RefreshToken: "refresh",
+				TokenType:    "Bearer",
+				Expiry:       sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+			}
+
+			result, err := mcpclient.RefreshOAuth2Token(context.Background(), testMCPHTTPClient(nil), cfg, tok)
+			require.NoError(t, err)
+			require.True(t, result.Refreshed)
+			require.Equal(t, "fresh", result.AccessToken)
+			// The provider did not rotate, so the stored refresh token is kept.
+			require.Equal(t, "refresh", result.RefreshToken)
+
+			form := <-forms
+			require.Equal(t, "refresh_token", form.Get("grant_type"))
+			require.Equal(t, "refresh", form.Get("refresh_token"))
+			require.False(t, form.Has("scope"))
+			if tc.resource == "" {
+				require.False(t, form.Has("resource"))
+			}
+		})
+	}
+}
+
+func TestRefreshOAuth2TokenWithoutRequest(t *testing.T) {
+	t.Parallel()
+
+	var hits atomic.Int64
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"fresh","token_type":"Bearer","expires_in":3600}`))
+	}))
+	t.Cleanup(tokenSrv.Close)
+
+	cfg := database.MCPServerConfig{
+		OAuth2ClientID: "cid",
+		OAuth2TokenURL: tokenSrv.URL,
+		OAuth2Resource: "https://mcp.example.com/mcp",
+	}
+
+	t.Run("ValidToken", func(t *testing.T) {
+		t.Parallel()
+		expiry := time.Now().Add(time.Hour)
+		result, err := mcpclient.RefreshOAuth2Token(context.Background(), testMCPHTTPClient(nil), cfg, database.MCPServerUserToken{
+			AccessToken:  "still-valid",
+			RefreshToken: "refresh",
+			TokenType:    "Bearer",
+			Expiry:       sql.NullTime{Time: expiry, Valid: true},
+		})
+		require.NoError(t, err)
+		require.False(t, result.Refreshed)
+		require.Equal(t, "still-valid", result.AccessToken)
+		require.Equal(t, "refresh", result.RefreshToken)
+		require.Equal(t, "Bearer", result.TokenType)
+		require.True(t, expiry.Equal(result.Expiry))
+	})
+
+	t.Run("ExpiredWithoutRefreshToken", func(t *testing.T) {
+		t.Parallel()
+		_, err := mcpclient.RefreshOAuth2Token(context.Background(), testMCPHTTPClient(nil), cfg, database.MCPServerUserToken{
+			AccessToken: "expired",
+			TokenType:   "Bearer",
+			Expiry:      sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+		})
+		require.Error(t, err)
+	})
+
+	t.Cleanup(func() {
+		require.Zero(t, hits.Load(), "no token request may be made")
 	})
 }

@@ -2,17 +2,13 @@
 title: Additional clusters
 ---
 
-With Coder, you can deploy workspaces in additional Kubernetes clusters using
-different
-[authentication methods](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs#authentication)
-in the Terraform provider.
+With Coder, you can deploy workspaces in additional Kubernetes clusters using different [authentication methods](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs#authentication) in the Terraform provider.
 
 ![Region picker in "Create Workspace" screen](../../images/admin/integrations/kube-region-picker.png)
 
 ## Option 1) Kubernetes contexts and kubeconfig
 
-First, create a kubeconfig file with
-[multiple contexts](https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/).
+First, create a kubeconfig file with [multiple contexts](https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/).
 
 ```sh
 kubectl config get-contexts
@@ -26,8 +22,7 @@ CURRENT   NAME                        CLUSTER
 
 If you deployed Coder on Kubernetes, you can attach a kubeconfig as a secret.
 
-This assumes Coder is deployed on the `coder` namespace and your kubeconfig file
-is in ~/.kube/config.
+This assumes Coder is deployed on the `coder` namespace and your kubeconfig file is in ~/.kube/config.
 
 ```sh
 kubectl create secret generic kubeconfig-secret -n coder --from-file=~/.kube/config
@@ -48,21 +43,16 @@ coder:
       readOnly: true
 ```
 
-[Upgrade Coder](../../install/kubernetes.md#upgrade-coder-via-helm) with these
-new values.
+[Upgrade Coder](../../install/server/kubernetes/index.md#upgrade-coder-via-helm) with these new values.
 
 ### VM control plane
 
-If you deployed Coder on a VM, copy the kubeconfig file to
-`/home/coder/.kube/config`.
+If you deployed Coder on a VM, copy the kubeconfig file to `/home/coder/.kube/config`.
 
 ### Create a Coder template
 
-You can start from our
-[example template](../../../examples/templates/kubernetes).
-From there, add
-[template parameters](../templates/extending-templates/parameters.md) to allow
-developers to pick their desired cluster.
+You can start from our [example template](../../../examples/templates/kubernetes).
+From there, add [template parameters](../templates/extending-templates/parameters/index.md) to allow developers to pick their desired cluster.
 
 ```tf
 # main.tf
@@ -92,19 +82,17 @@ provider "kubernetes" {
 
 ## Option 2) Kubernetes ServiceAccounts
 
-Alternatively, you can authenticate with remote clusters with ServiceAccount
-tokens. Coder can store these secrets on your behalf with
-[managed Terraform variables](../templates/extending-templates/variables.md).
+Alternatively, you can authenticate with remote clusters with ServiceAccount tokens.
+Coder can store these secrets on your behalf with [managed Terraform variables](../templates/extending-templates/variables.md).
 
 Alternatively, these could also be fetched from Kubernetes secrets or even [HashiCorp Vault](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/data-sources/generic_secret).
 
-This guide assumes you have a `coder-workspaces` namespace on your remote
-cluster. Change the namespace accordingly.
+This guide assumes you have a `coder-workspaces` namespace on your remote cluster.
+Change the namespace accordingly.
 
 ### Create a ServiceAccount
 
-Run this command against your remote cluster to create a ServiceAccount, Role,
-RoleBinding, and token:
+Run this command against your remote cluster to create a ServiceAccount, Role, RoleBinding, and token:
 
 ```sh
 kubectl apply -n coder-workspaces -f - <<EOF
@@ -158,8 +146,7 @@ rolebinding.rbac.authorization.k8s.io/coder-v2 created
 
 ### 2. Modify the Kubernetes template
 
-You can start from our
-[example template](../../../examples/templates/kubernetes).
+You can start from our [example template](../../../examples/templates/kubernetes).
 
 ```tf
 variable "host" {
@@ -190,8 +177,8 @@ provider "kubernetes" {
 
 ### Create Coder template with managed variables
 
-Fetch the values from the secret and pass them to Coder. This should work on
-macOS and Linux.
+Fetch the values from the secret and pass them to Coder.
+This should work on macOS and Linux.
 
 To get the cluster address:
 
@@ -220,8 +207,7 @@ coder templates push \
     --variable namespace=coder-workspaces
 ```
 
-If you're on a Windows machine (or if one of the commands fail), try grabbing
-the values manually:
+If you're on a Windows machine (or if one of the commands fail), try grabbing the values manually:
 
 ```sh
 # Get cluster API address

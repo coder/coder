@@ -114,6 +114,21 @@ func (mr *MockAgentConnMockRecorder) CallMCPTool(ctx, req any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CallMCPTool", reflect.TypeOf((*MockAgentConn)(nil).CallMCPTool), ctx, req)
 }
 
+// CancelToolCall mocks base method.
+func (m *MockAgentConn) CancelToolCall(ctx context.Context, id uuid.UUID) (workspacesdk.CancelToolCallResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CancelToolCall", ctx, id)
+	ret0, _ := ret[0].(workspacesdk.CancelToolCallResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CancelToolCall indicates an expected call of CancelToolCall.
+func (mr *MockAgentConnMockRecorder) CancelToolCall(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelToolCall", reflect.TypeOf((*MockAgentConn)(nil).CancelToolCall), ctx, id)
+}
+
 // Close mocks base method.
 func (m *MockAgentConn) Close() error {
 	m.ctrl.T.Helper()
@@ -294,6 +309,21 @@ func (m *MockAgentConn) LS(ctx context.Context, path string, req workspacesdk.LS
 func (mr *MockAgentConnMockRecorder) LS(ctx, path, req any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LS", reflect.TypeOf((*MockAgentConn)(nil).LS), ctx, path, req)
+}
+
+// ListACPHarnesses mocks base method.
+func (m *MockAgentConn) ListACPHarnesses(ctx context.Context) ([]workspacesdk.ACPHarness, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListACPHarnesses", ctx)
+	ret0, _ := ret[0].([]workspacesdk.ACPHarness)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListACPHarnesses indicates an expected call of ListACPHarnesses.
+func (mr *MockAgentConnMockRecorder) ListACPHarnesses(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListACPHarnesses", reflect.TypeOf((*MockAgentConn)(nil).ListACPHarnesses), ctx)
 }
 
 // ListContainers mocks base method.
@@ -544,6 +574,21 @@ func (mr *MockAgentConnMockRecorder) SSHOnPort(ctx, port any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SSHOnPort", reflect.TypeOf((*MockAgentConn)(nil).SSHOnPort), ctx, port)
 }
 
+// SSHTCPConn mocks base method.
+func (m *MockAgentConn) SSHTCPConn(ctx context.Context) (workspacesdk.TCPConn, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SSHTCPConn", ctx)
+	ret0, _ := ret[0].(workspacesdk.TCPConn)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SSHTCPConn indicates an expected call of SSHTCPConn.
+func (mr *MockAgentConnMockRecorder) SSHTCPConn(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SSHTCPConn", reflect.TypeOf((*MockAgentConn)(nil).SSHTCPConn), ctx)
+}
+
 // SetExtraHeaders mocks base method.
 func (m *MockAgentConn) SetExtraHeaders(h http.Header) {
 	m.ctrl.T.Helper()
@@ -641,6 +686,21 @@ func (m *MockAgentConn) TailnetConn() *tailnet.Conn {
 func (mr *MockAgentConnMockRecorder) TailnetConn() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TailnetConn", reflect.TypeOf((*MockAgentConn)(nil).TailnetConn))
+}
+
+// UploadChatFile mocks base method.
+func (m *MockAgentConn) UploadChatFile(ctx context.Context, req workspacesdk.UploadChatFileRequest) (workspacesdk.AgentUploadChatFileResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UploadChatFile", ctx, req)
+	ret0, _ := ret[0].(workspacesdk.AgentUploadChatFileResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UploadChatFile indicates an expected call of UploadChatFile.
+func (mr *MockAgentConnMockRecorder) UploadChatFile(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UploadChatFile", reflect.TypeOf((*MockAgentConn)(nil).UploadChatFile), ctx, req)
 }
 
 // WatchContainers mocks base method.

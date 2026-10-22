@@ -1,11 +1,11 @@
 import { cn } from "cn";
 import { InfoIcon, TriangleAlertIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import {
 	TOOLTIP_DELAY_DURATION,
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
+	type TooltipSide,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
@@ -16,7 +16,9 @@ type InfoTooltipSize = "small" | "medium";
 type InfoTooltipProps = {
 	type?: InfoTooltipType;
 	size?: InfoTooltipSize;
-	children: ReactNode;
+	ariaLabel?: string;
+	side?: TooltipSide;
+	children: React.ReactNode;
 };
 
 const typeIcon: Record<InfoTooltipType, typeof InfoIcon> = {
@@ -25,7 +27,7 @@ const typeIcon: Record<InfoTooltipType, typeof InfoIcon> = {
 };
 
 const typeIconColor: Record<InfoTooltipType, string> = {
-	info: "text-content-secondary",
+	info: "text-content-secondary hover:text-content-primary",
 	warning: "text-content-warning",
 };
 
@@ -34,10 +36,12 @@ const sizeClasses: Record<InfoTooltipSize, string> = {
 	medium: "[&_svg]:size-4",
 };
 
-export const InfoTooltip: FC<InfoTooltipProps> = ({
+export const InfoTooltip: React.FC<InfoTooltipProps> = ({
 	children,
 	type = "info",
 	size = "medium",
+	ariaLabel = "More info",
+	side = "right",
 }) => {
 	const Icon = typeIcon[type];
 
@@ -46,18 +50,18 @@ export const InfoTooltip: FC<InfoTooltipProps> = ({
 			<Tooltip>
 				<TooltipTrigger
 					type="button"
-					aria-label="More info"
+					aria-label={ariaLabel}
 					className={cn(
 						"flex items-center justify-center p-0",
 						"border-0 border-none bg-transparent cursor-default",
-						"opacity-75 hover:opacity-100 transition-opacity",
+						"transition-colors",
 						sizeClasses[size],
 						typeIconColor[type],
 					)}
 				>
 					<Icon />
 				</TooltipTrigger>
-				<TooltipContent side="right" align="center" className="max-w-xs">
+				<TooltipContent side={side} align="center" className="max-w-xs">
 					{children}
 				</TooltipContent>
 			</Tooltip>

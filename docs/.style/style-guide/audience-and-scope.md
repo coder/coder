@@ -48,6 +48,9 @@ This page covers Visual Studio Code, Cursor, Windsurf, JetBrains, Vim, the web t
 Operators provisioning the workspace template should refer to the template configuration page.
 ```
 
+*Documentation-only.
+No Vale rule.*
+
 ## Pick one outcome per page
 
 The outcome is the specific task, or the small set of related tasks, the page helps the reader accomplish.
@@ -80,8 +83,11 @@ For Google Workspace, refer to [Configure SSO with Google Workspace](./sso-googl
 # Authentication
 
 This page covers OIDC providers (Okta, Azure AD, Google Workspace, generic OIDC),
-SAML providers, GitHub OAuth, password authentication, and the API token model.
+GitHub OAuth, password authentication, and the API token model.
 ```
+
+*Documentation-only.
+No Vale rule.*
 
 ## Hub pages and category landing pages
 
@@ -107,8 +113,8 @@ This page is the entry point for configuring authentication in Coder.
 Pick the provider that matches your identity source:
 
 - [OpenID Connect (OIDC)](./oidc.md), for Okta, Auth0, Azure AD, Google Workspace, and other OIDC providers.
-- [SAML](./saml.md), for SAML 2.0 identity providers.
 - [GitHub OAuth](./github-oauth.md), for GitHub-hosted teams.
+- [Headless authentication](./headless-auth.md), for service accounts and automation.
 - [Password authentication](./password.md), for self-hosted local accounts.
 ```
 
@@ -117,13 +123,13 @@ Pick the provider that matches your identity source:
 ```md
 # Authentication
 
-This page covers OIDC, SAML, GitHub OAuth, password authentication, and the API token model.
+This page covers OIDC, GitHub OAuth, password authentication, and the API token model.
 
 ## OIDC
 
 [300 lines of provider-specific configuration]
 
-## SAML
+## GitHub OAuth
 
 [300 lines of provider-specific configuration]
 ```
@@ -133,6 +139,9 @@ The Do example routes them to the right page in 4 lines.
 
 A hub page doesn't need every link to be a direct child page in the file tree.
 Cross-references to sibling sections of the docs are valid when that's where the reader's next step lives.
+
+*Documentation-only.
+No Vale rule.*
 
 ## Declare audience and scope up front
 
@@ -176,6 +185,9 @@ The body doesn't name an audience.
 If the page is a hub that routes the reader, use the pattern in [Hub pages and category landing pages](#hub-pages-and-category-landing-pages).
 If the page teaches a single outcome, rename the title and rewrite the opening paragraph.
 
+*Documentation-only.
+No Vale rule.*
+
 ### Gate privileged pages with a prerequisite callout
 
 Some pages walk through steps that only one role should run.
@@ -196,6 +208,9 @@ This guide is for a Coder deployment administrator who has access to both the Co
 ```
 
 The prerequisite callout uses the role the reader recognizes (`Coder deployment administrator`), not the writer-facing persona name (`Perry the Platform Engineer`).
+
+*Documentation-only.
+No Vale rule.*
 
 ## Give the audience only what it needs
 
@@ -229,6 +244,9 @@ On a Quickstart that walked the same reader through starting the server, the rea
 
 A page may assume a persona, as long as it knows which persona it assumes and matches its depth and its caveats to what that persona can already do.
 This is the complement of [gating privileged pages](#gate-privileged-pages-with-a-prerequisite-callout): add a prerequisite callout when the reader might be the wrong role, and cut wrong-role caveats when the audience is, by definition, the right role.
+
+*Documentation-only.
+No Vale rule.*
 
 ## Personas the Coder docs serve
 
@@ -281,7 +299,7 @@ Ada runs the underlying infrastructure that Coder deploys onto: Kubernetes clust
 They need deployment, operation, and recovery docs: install paths, upgrade and rollback, IAM and SSO, monitoring and alerting, and operational playbooks for capacity and incidents.
 Their success metric is uptime, so they trust proven, well-documented configurations over unproven defaults.
 
-*Coder surface:* control plane install (Helm, Docker, VM, airgapped), database, networking and DERP, IAM and SSO/OIDC/SAML, telemetry and audit logs, backup and disaster recovery.
+*Coder surface:* control plane install (Helm, Docker, VM, airgapped), database, networking and DERP, IAM and SSO/OIDC, telemetry and audit logs, backup and disaster recovery.
 
 #### Steven the Sponsor
 
@@ -333,7 +351,7 @@ Sergio is the IT security officer at an organization with strict compliance requ
 They need docs for the security architecture, identity and access control, secrets management, audit and compliance evidence (SOC 2, FedRAMP-style controls), and data residency and supply-chain posture.
 They are skeptical of new tools by default and want documented, auditable behavior.
 
-*Coder surface:* SSO and OIDC/SAML, RBAC, secrets management, audit logs, security architecture pages, compliance and trust-center content, allowlists and network policies.
+*Coder surface:* SSO and OIDC, RBAC, secrets management, audit logs, security architecture pages, compliance and trust-center content, allowlists and network policies.
 
 #### Tara the Team Leader
 
@@ -343,9 +361,6 @@ They aren't the platform owner.
 They run their team inside the guardrails Perry or Ada set up.
 
 *Coder surface:* groups, group memberships, group-owned secrets, group-scoped templates, group audit logs.
-
-*Documentation-only.
-No Vale rule.*
 
 ## Learn more
 

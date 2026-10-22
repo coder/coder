@@ -1,11 +1,11 @@
-# Junie
+---
+title: Junie
+---
 
 > [!NOTE]
-> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
-> included with a Premium license.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is included with a Premium license.
 
-[Junie CLI](https://junie.jetbrains.com/docs/junie-cli.html) supports AI Gateway
-through [custom model profiles](https://junie.jetbrains.com/docs/custom-llm-models.html#using-custom-models).
+[Junie CLI](https://junie.jetbrains.com/docs/junie-cli.html) supports AI Gateway through [custom model profiles](https://junie.jetbrains.com/docs/custom-llm-models.html#using-custom-models).
 
 | Provider  | API type          | Endpoint                 |
 |-----------|-------------------|--------------------------|
@@ -16,8 +16,10 @@ For Junie inside JetBrains IDEs, refer to [JetBrains IDEs](./jetbrains.md).
 
 ## Prerequisites
 
-* **Junie CLI**: Installed with `curl -fsSL https://junie.jetbrains.com/install.sh | bash`.
-* **Authentication**: Your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
+* **Junie CLI**:
+  Installed with `curl -fsSL https://junie.jetbrains.com/install.sh | bash`.
+* **Authentication**:
+  Your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
 
 ## Centralized API Key
 
@@ -57,12 +59,10 @@ Or for the Anthropic endpoint:
 *Replace `coder.example.com` with your Coder deployment URL.*
 
 > [!NOTE]
-> `baseUrl` is the complete endpoint URL. Junie does not append a path to it, so
-> include `/v1/responses` for `OpenAIResponses` and `/v1/messages` for
-> `Anthropic`.
+> `baseUrl` is the complete endpoint URL.
+> Junie does not append a path to it, so include `/v1/responses` for `OpenAIResponses` and `/v1/messages` for `Anthropic`.
 
-Junie resolves `${VAR}` references in `apiKey` and `extraHeaders` from the
-environment, so the token never has to be written to disk:
+Junie resolves `${VAR}` references in `apiKey` and `extraHeaders` from the environment, so the token never has to be written to disk:
 
 ```sh
 export CODER_API_TOKEN=$(coder login token)
@@ -74,13 +74,11 @@ Run Junie with the profile:
 junie --model custom:ai-gateway
 ```
 
-Custom profiles also appear in the model selection list of the interactive TUI
-and in the `/model` slash command.
+Custom profiles also appear in the model selection list of the interactive TUI and in the `/model` slash command.
 
 ## BYOK (Personal API Key)
 
-Junie supports custom headers, so BYOK works by sending your personal provider
-key as the API key and the Coder API token as the governance token:
+Junie supports custom headers, so BYOK works by sending your personal provider key as the API key and the Coder API token as the governance token:
 
 ```json
 {
@@ -104,9 +102,7 @@ export CODER_API_TOKEN="<your-coder-api-token>"
 
 ## Pre-configuring in Templates
 
-Commit the profile to your repository at `.junie/models/ai-gateway.json` and
-inject the token from the template, so users get a working configuration without
-manual setup:
+Commit the profile to your repository at `.junie/models/ai-gateway.json` and inject the token from the template, so users get a working configuration without manual setup:
 
 ```tf
 data "coder_workspace_owner" "me" {}
@@ -120,8 +116,7 @@ resource "coder_env" "coder_api_token" {
 }
 ```
 
-Reference the deployment URL in the profile with
-`${data.coder_workspace.me.access_url}/api/v2/ai-gateway/openai/v1/responses`
-if you generate the file from the template instead of committing it.
+Reference the deployment URL in the profile with `${data.coder_workspace.me.access_url}/api/v2/ai-gateway/openai/v1/responses` if you generate the file from the template instead of committing it.
 
-**References:** [Junie custom LLMs](https://junie.jetbrains.com/docs/custom-llm-models.html#using-custom-models)
+**References:**
+[Junie custom LLMs](https://junie.jetbrains.com/docs/custom-llm-models.html#using-custom-models)

@@ -1,11 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type {
-	ElementType,
-	FC,
-	MouseEventHandler,
-	PropsWithChildren,
-} from "react";
+import { createPortal } from "react-dom";
 import { type ClickableAriaRole, useClickable } from "./useClickable";
 
 /**
@@ -15,14 +10,14 @@ import { type ClickableAriaRole, useClickable } from "./useClickable";
  */
 type NonNativeButtonProps<TElement extends HTMLElement = HTMLElement> =
 	Readonly<
-		PropsWithChildren<{
-			as?: Exclude<ElementType, "button">;
+		React.PropsWithChildren<{
+			as?: Exclude<React.ElementType, "button">;
 			role?: ClickableAriaRole;
-			onInteraction: MouseEventHandler<TElement>;
+			onInteraction: React.MouseEventHandler<TElement>;
 		}>
 	>;
 
-const NonNativeButton: FC<NonNativeButtonProps<HTMLElement>> = ({
+const NonNativeButton: React.FC<NonNativeButtonProps<HTMLElement>> = ({
 	as,
 	onInteraction,
 	children,
@@ -86,7 +81,7 @@ describe(useClickable.name, () => {
 
 		await user.keyboard("[Tab][Tab]");
 		await user.keyboard(" ");
-		expect(mockCallback).toBeCalledTimes(1);
+		expect(mockCallback).toHaveBeenCalledTimes(1);
 	});
 
 	it("Allows an element to respond to clicks and Space/Enter, following all rules for native Button element interactions", async () => {
@@ -97,13 +92,13 @@ describe(useClickable.name, () => {
 		await user.click(document.body);
 		await user.keyboard(" ");
 		await user.keyboard("[Enter]");
-		expect(mockCallback).not.toBeCalled();
+		expect(mockCallback).not.toHaveBeenCalled();
 
 		const button = screen.getByRole("button");
 		await user.click(button);
 		await user.keyboard(" ");
 		await user.keyboard("[Enter]");
-		expect(mockCallback).toBeCalledTimes(3);
+		expect(mockCallback).toHaveBeenCalledTimes(3);
 	});
 
 	it("Will keep firing events if the Enter key is held down", async () => {
@@ -115,7 +110,7 @@ describe(useClickable.name, () => {
 		// (count determined by browser/library), and then release the Enter key
 		const keydownCount = 5;
 		await user.keyboard(`[Tab]{Enter>${keydownCount}}{/Enter}`);
-		expect(mockCallback).toBeCalledTimes(keydownCount);
+		expect(mockCallback).toHaveBeenCalledTimes(keydownCount);
 	});
 
 	it("Will NOT keep firing events if the Space key is held down", async () => {
@@ -125,11 +120,11 @@ describe(useClickable.name, () => {
 
 		// Focus over to element, and then hold down Space for 100 keydown cycles
 		await user.keyboard("[Tab]{ >100}");
-		expect(mockCallback).not.toBeCalled();
+		expect(mockCallback).not.toHaveBeenCalled();
 
 		// Then explicitly release the space bar
 		await user.keyboard("{/ }");
-		expect(mockCallback).toBeCalledTimes(1);
+		expect(mockCallback).toHaveBeenCalledTimes(1);
 	});
 
 	test("If focus is lost while Space is held down, then releasing the key will do nothing", async () => {
@@ -148,6 +143,40 @@ describe(useClickable.name, () => {
 		// Focus over to element, hold down Space for an indefinite amount of time,
 		// move focus away from element, and then release Space
 		await user.keyboard("[Tab]{ >}[Tab]{/ }");
-		expect(mockCallback).not.toBeCalled();
+		expect(mockCallback).not.toHaveBeenCalled();
+	});
+
+	it("Ignores Enter and Space from descendants, including portaled content", async () => {
+		const mockCallback = vi.fn();
+		const user = userEvent.setup();
+		render(
+			<NonNativeButton role="button" onInteraction={mockCallback}>
+				<input aria-label="Inline input" />
+				{createPortal(<input aria-label="Portaled input" />, document.body)}
+			</NonNativeButton>,
+		);
+
+		for (const name of ["Inline input", "Portaled input"]) {
+			screen.getByLabelText(name).focus();
+			await user.keyboard("a b{Enter}");
+		}
+		expect(mockCallback).not.toHaveBeenCalled();
+	});
+
+	it("Responds to clicks on inline descendants but not on portaled content", async () => {
+		const mockCallback = vi.fn();
+		const user = userEvent.setup();
+		render(
+			<NonNativeButton role="button" onInteraction={mockCallback}>
+				<span>Inline content</span>
+				{createPortal(<span>Portaled content</span>, document.body)}
+			</NonNativeButton>,
+		);
+
+		await user.click(screen.getByText("Portaled content"));
+		expect(mockCallback).not.toHaveBeenCalled();
+
+		await user.click(screen.getByText("Inline content"));
+		expect(mockCallback).toHaveBeenCalledTimes(1);
 	});
 });

@@ -13,27 +13,23 @@ November 15, 2024
 
 ## Overview
 
-This guide demonstrates how to test and publish Coder templates in a Continuous
-Integration (CI) pipeline using the
-[coder/setup-action](https://github.com/coder/setup-coder). This workflow
-ensures your templates are validated, tested, and promoted seamlessly.
+This guide demonstrates how to test and publish Coder templates in a Continuous Integration (CI) pipeline using the [coder/setup-action](https://github.com/coder/setup-coder).
+This workflow ensures your templates are validated, tested, and promoted seamlessly.
 
 ## Prerequisites
 
 - Install and configure Coder CLI in your environment.
 - Install Terraform CLI in your CI environment.
-- Create a [headless user](../admin/users/headless-auth.md) with the
-  [user roles and permissions](../admin/users/groups-roles.md#roles) to manage
-  templates and run workspaces.
+- Create a [headless user](../admin/users/headless-auth.md) with the [user roles and permissions](../admin/users/groups-roles.md#roles) to manage templates and run workspaces.
 
-## Creating the headless user
+<a id="creating-the-headless-user"></a>
+
+## Create the headless user
 
 > [!WARNING]
 > Creating users with `--login-type none` is deprecated.
-> For [Premium](https://coder.com/pricing) deployments, use
-> [service accounts](../admin/users/headless-auth.md) instead.
-> For OSS deployments, use a regular account with password, GitHub, or OIDC
-> authentication.
+> For [Premium](https://coder.com/pricing) deployments, use [service accounts](../admin/users/headless-auth.md) instead.
+> For OSS deployments, use a regular account with password, GitHub, or OIDC authentication.
 
 For Premium deployments, create a service account:
 
@@ -71,8 +67,7 @@ The workflow:
 
 ### Workflow File
 
-Save the following workflow file as `.github/workflows/publish-template.yaml` in
-your repository:
+Save the following workflow file as `.github/workflows/publish-template.yaml` in your repository:
 
 ```yaml
 name: Test and Publish Coder Template

@@ -691,6 +691,11 @@ func TestAcquireJob(t *testing.T) {
 
 				<-startPublished
 
+				if wk, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_); ok {
+					slices.SortFunc(wk.WorkspaceBuild.Metadata.WorkspaceOwnerRbacRoles, func(a, b *sdkproto.Role) int {
+						return strings.Compare(a.Name+a.OrgId, b.Name+b.OrgId)
+					})
+				}
 				got, err := json.Marshal(job.Type)
 				require.NoError(t, err)
 
@@ -724,7 +729,7 @@ func TestAcquireJob(t *testing.T) {
 					WorkspaceOwnerSshPrivateKey:   sshKey.PrivateKey,
 					WorkspaceBuildId:              build.ID.String(),
 					WorkspaceOwnerLoginType:       string(user.LoginType),
-					WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: rbac.RoleOrgMember(), OrgId: pd.OrganizationID.String()}, {Name: "member", OrgId: ""}, {Name: rbac.RoleOrgAuditor(), OrgId: pd.OrganizationID.String()}, {Name: rbac.RoleOrgWorkspaceAccess(), OrgId: pd.OrganizationID.String()}},
+					WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: rbac.RoleOrgMember(), OrgId: pd.OrganizationID.String()}, {Name: "member", OrgId: ""}, {Name: rbac.RoleOrgAuditor(), OrgId: pd.OrganizationID.String()}, {Name: rbac.RoleOrgWorkspaceAccess(), OrgId: pd.OrganizationID.String()}, {Name: rbac.RoleAgentsAccess(), OrgId: pd.OrganizationID.String()}},
 				}
 				if prebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
 					// For claimed prebuilds, we expect the prebuild state to be set to CLAIM
@@ -1798,7 +1803,10 @@ func TestCompleteJob(t *testing.T) {
 							Name: "test-resource",
 							Type: "aws_instance",
 						}},
-						Plan: []byte("{}"),
+						Plan: []byte(`{"configuration":{"root_module":{"resources":[
+							{"mode":"data","type":"coder_script_order","expressions":{"rule":[{},{}]}},
+							{"mode":"data","type":"coder_script_order","expressions":{"rule":[{}]}}
+						]}}}`),
 					},
 				},
 			})
@@ -1814,6 +1822,12 @@ func TestCompleteJob(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, resources, 1, "Expected one resource to be created")
 			require.Equal(t, "test-resource", resources[0].Name)
+
+			// Verify script-order counts were persisted.
+			version, err := db.GetTemplateVersionByID(ctx, versionID)
+			require.NoError(t, err)
+			require.Equal(t, int32(2), version.ScriptOrderDataSourceCount)
+			require.Equal(t, int32(3), version.ScriptOrderRuleCount)
 		})
 
 		// Test TemplateDryRun transaction
@@ -1974,8 +1988,7 @@ func TestCompleteJob(t *testing.T) {
 								Source:   "test-source2",
 								Resource: "test-resource2",
 								Action:   "test-action2",
-								// Start: omitted
-								// End: omitted
+								// Start and End are omitted.
 							},
 							{
 								Stage:    "test3",
@@ -3260,6 +3273,112 @@ func TestCompleteJob(t *testing.T) {
 		}
 	})
 
+	t.Run("WorkspaceBuildRejectsBadScriptDependency", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		srv, db, ps, pd := setup(t, false, &overrides{})
+
+		user := dbgen.User(t, db, database.User{})
+		template := dbgen.Template(t, db, database.Template{
+			CreatedBy:      user.ID,
+			Name:           "template",
+			Provisioner:    database.ProvisionerTypeEcho,
+			OrganizationID: pd.OrganizationID,
+		})
+		file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
+		workspaceTable := dbgen.Workspace(t, db, database.WorkspaceTable{
+			TemplateID:     template.ID,
+			OwnerID:        user.ID,
+			OrganizationID: pd.OrganizationID,
+		})
+		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			CreatedBy:      user.ID,
+			OrganizationID: pd.OrganizationID,
+			TemplateID: uuid.NullUUID{
+				UUID:  template.ID,
+				Valid: true,
+			},
+			JobID: uuid.New(),
+		})
+		buildID := uuid.New()
+		job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+			FileID:      file.ID,
+			InitiatorID: user.ID,
+			Type:        database.ProvisionerJobTypeWorkspaceBuild,
+			Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+				WorkspaceBuildID: buildID,
+			})),
+			OrganizationID: pd.OrganizationID,
+		})
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			ID:                buildID,
+			JobID:             job.ID,
+			WorkspaceID:       workspaceTable.ID,
+			InitiatorID:       user.ID,
+			TemplateVersionID: version.ID,
+			Transition:        database.WorkspaceTransitionStart,
+			Reason:            database.BuildReasonInitiator,
+		})
+		_, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+			OrganizationID: pd.OrganizationID,
+			WorkerID: uuid.NullUUID{
+				UUID:  pd.ID,
+				Valid: true,
+			},
+			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+			ProvisionerTags: must(json.Marshal(job.Tags)),
+			StartedAt:       sql.NullTime{Time: job.CreatedAt, Valid: true},
+		})
+		require.NoError(t, err)
+
+		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+			JobId: job.ID.String(),
+			Type: &proto.CompletedJob_WorkspaceBuild_{
+				WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+					State: []byte{},
+					Resources: []*sdkproto.Resource{
+						{
+							Name: "vm-ok",
+							Type: "aws_instance",
+							Agents: []*sdkproto.Agent{{
+								Name: "main",
+								Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+								Scripts: []*sdkproto.Script{
+									{DisplayName: "Clone repo", ResourceAddress: "coder_script.clone_repo"},
+								},
+							}},
+						},
+						{
+							Name: "vm-bad",
+							Type: "aws_instance",
+							Agents: []*sdkproto.Agent{{
+								Name: "other",
+								Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+								Scripts: []*sdkproto.Script{
+									{
+										DisplayName:     "Install tools",
+										ResourceAddress: "coder_script.install_tools",
+										Dependencies: []*sdkproto.ScriptDependency{{
+											PrerequisiteResourceAddress: "coder_script.clone_repo",
+											// Requirement is left at UNSPECIFIED on purpose.
+										}},
+									},
+								},
+							}},
+						},
+					},
+				},
+			},
+		})
+		require.ErrorContains(t, err, `script "coder_script.install_tools" dependencies: dependency 0: unsupported requirement`)
+
+		// The first resource was valid, but the whole job rolls back.
+		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
+		require.NoError(t, err)
+		require.Empty(t, resources, "the transaction must roll back every row of the job")
+	})
+
 	t.Run("PrebuiltWorkspaceClaimWithResourceReplacements", func(t *testing.T) {
 		t.Parallel()
 
@@ -3846,10 +3965,26 @@ func TestInsertWorkspaceResource(t *testing.T) {
 						Value: "I laugh in the face of danger.",
 					},
 				},
-				Scripts: []*sdkproto.Script{{
-					DisplayName: "Startup",
-					Icon:        "/test.png",
-				}},
+				Scripts: []*sdkproto.Script{
+					{
+						// A legacy inline startup_script has no Terraform
+						// address of its own.
+						DisplayName: "Startup",
+						Icon:        "/test.png",
+					},
+					{
+						DisplayName:     "Clone repo",
+						ResourceAddress: "coder_script.clone_repo",
+					},
+					{
+						DisplayName:     "Install tools",
+						ResourceAddress: "coder_script.install_tools",
+						Dependencies: []*sdkproto.ScriptDependency{{
+							PrerequisiteResourceAddress: "coder_script.clone_repo",
+							Requirement:                 sdkproto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_SUCCESS,
+						}},
+					},
+				},
 				DisplayApps: &sdkproto.DisplayApps{
 					Vscode:               true,
 					PortForwardingHelper: true,
@@ -3882,6 +4017,48 @@ func TestInsertWorkspaceResource(t *testing.T) {
 			database.DisplayAppSSHHelper,
 			database.DisplayAppVscode,
 		}, agent.DisplayApps)
+
+		scripts, err := db.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{agent.ID})
+		require.NoError(t, err)
+		require.Len(t, scripts, 3)
+		byName := make(map[string]database.GetWorkspaceAgentScriptsByAgentIDsRow, len(scripts))
+		for _, script := range scripts {
+			byName[script.DisplayName] = script
+		}
+		require.Equal(t, "", byName["Startup"].ResourceAddress)
+		require.JSONEq(t, `[]`, string(byName["Startup"].Dependencies))
+		require.Equal(t, "coder_script.clone_repo", byName["Clone repo"].ResourceAddress)
+		require.JSONEq(t, `[]`, string(byName["Clone repo"].Dependencies))
+		require.Equal(t, "coder_script.install_tools", byName["Install tools"].ResourceAddress)
+		require.JSONEq(t,
+			`[{"prerequisite_resource_address":"coder_script.clone_repo","requirement":"success"}]`,
+			string(byName["Install tools"].Dependencies),
+		)
+	})
+
+	t.Run("RejectsBadDependency", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+		err := insert(db, job.ID, &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Name: "dev",
+				Scripts: []*sdkproto.Script{
+					{DisplayName: "Clone repo", ResourceAddress: "coder_script.clone_repo"},
+					{
+						DisplayName:     "Install tools",
+						ResourceAddress: "coder_script.install_tools",
+						Dependencies: []*sdkproto.ScriptDependency{{
+							PrerequisiteResourceAddress: "coder_script.clone_repo",
+							// Requirement is left at UNSPECIFIED on purpose.
+						}},
+					},
+				},
+			}},
+		})
+		require.ErrorContains(t, err, `script "coder_script.install_tools" dependencies: dependency 0: unsupported requirement`)
 	})
 
 	t.Run("AllDisplayApps", func(t *testing.T) {
@@ -4112,6 +4289,89 @@ func TestInsertWorkspaceResource(t *testing.T) {
 					} else {
 						assert.Equal(t, subAgent.ID, devcontainers[0].SubagentID.UUID)
 					}
+				},
+			},
+			{
+				name: "SubAgentWithOrderedScripts",
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   agentID.String(),
+						Name: "dev",
+						Devcontainers: []*sdkproto.Devcontainer{{
+							Id:              devcontainerID.String(),
+							Name:            "repo",
+							WorkspaceFolder: "/workspace",
+							SubagentId:      subAgentID.String(),
+							Scripts: []*sdkproto.Script{
+								{DisplayName: "a", ResourceAddress: "coder_script.a", RunOnStart: true},
+								{
+									DisplayName:     "b",
+									ResourceAddress: "coder_script.b",
+									RunOnStart:      true,
+									Dependencies: []*sdkproto.ScriptDependency{{
+										PrerequisiteResourceAddress: "coder_script.a",
+										Requirement:                 sdkproto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_COMPLETION,
+									}},
+								},
+							},
+						}},
+					}},
+				},
+				expectSubAgentCount: 1,
+				check: func(t *testing.T, db database.Store, parentAgent database.WorkspaceAgent, subAgents []database.WorkspaceAgent, _ bool) {
+					require.Len(t, subAgents, 1)
+
+					// The devcontainer's own scripts live under the subagent.
+					scripts, err := db.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{subAgents[0].ID})
+					require.NoError(t, err)
+					require.Len(t, scripts, 2)
+					byName := make(map[string]database.GetWorkspaceAgentScriptsByAgentIDsRow, len(scripts))
+					for _, script := range scripts {
+						byName[script.DisplayName] = script
+					}
+					assert.Equal(t, "coder_script.a", byName["a"].ResourceAddress)
+					assert.JSONEq(t, `[]`, string(byName["a"].Dependencies))
+					assert.Equal(t, "coder_script.b", byName["b"].ResourceAddress)
+					assert.JSONEq(t,
+						`[{"prerequisite_resource_address":"coder_script.a","requirement":"completion"}]`,
+						string(byName["b"].Dependencies),
+					)
+
+					// The start script coderd adds to the parent has no
+					// address and nothing can order it.
+					parentScripts, err := db.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{parentAgent.ID})
+					require.NoError(t, err)
+					require.Len(t, parentScripts, 1)
+					assert.Equal(t, "Dev Container (repo)", parentScripts[0].DisplayName)
+					assert.Equal(t, "", parentScripts[0].ResourceAddress)
+					assert.JSONEq(t, `[]`, string(parentScripts[0].Dependencies))
+				},
+			},
+			{
+				name:    "SubAgentRejectsBadDependency",
+				wantErr: `script "coder_script.b" dependencies: dependency 0: unsupported requirement`,
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   agentID.String(),
+						Name: "dev",
+						Devcontainers: []*sdkproto.Devcontainer{{
+							Id:              devcontainerID.String(),
+							Name:            "repo",
+							WorkspaceFolder: "/workspace",
+							SubagentId:      subAgentID.String(),
+							Scripts: []*sdkproto.Script{{
+								DisplayName:     "b",
+								ResourceAddress: "coder_script.b",
+								Dependencies: []*sdkproto.ScriptDependency{{
+									PrerequisiteResourceAddress: "coder_script.a",
+								}},
+							}},
+						}},
+					}},
 				},
 			},
 			{

@@ -185,6 +185,34 @@ func (c *Client) ConnectRPC211WithRole(ctx context.Context, _ string) (
 	return c.ConnectRPC210(ctx)
 }
 
+// v2.12 adds no RPCs, so the v2.11 client satisfies it as-is.
+func (c *Client) ConnectRPC212WithRole(ctx context.Context, role string) (
+	agentproto.DRPCAgentClient212, proto.DRPCTailnetClient28, error,
+) {
+	return c.ConnectRPC211WithRole(ctx, role)
+}
+
+// v2.13 adds no RPCs, so the v2.12 client satisfies it as-is.
+func (c *Client) ConnectRPC213WithRole(ctx context.Context, role string) (
+	agentproto.DRPCAgentClient213, proto.DRPCTailnetClient28, error,
+) {
+	return c.ConnectRPC212WithRole(ctx, role)
+}
+
+// v2.14 adds no RPCs, so the v2.13 client satisfies it as-is.
+func (c *Client) ConnectRPC214WithRole(ctx context.Context, role string) (
+	agentproto.DRPCAgentClient214, proto.DRPCTailnetClient28, error,
+) {
+	return c.ConnectRPC213WithRole(ctx, role)
+}
+
+// v2.15 adds no RPCs, so the v2.14 client satisfies it as-is.
+func (c *Client) ConnectRPC215WithRole(ctx context.Context, role string) (
+	agentproto.DRPCAgentClient215, proto.DRPCTailnetClient28, error,
+) {
+	return c.ConnectRPC214WithRole(ctx, role)
+}
+
 func (c *Client) ConnectRPC29(ctx context.Context) (
 	agentproto.DRPCAgentClient29, proto.DRPCTailnetClient28, error,
 ) {
@@ -224,6 +252,10 @@ func (c *Client) GetStartupLogs() []agentsdk.Log {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.logs
+}
+
+func (c *Client) GetTimings() []*agentproto.Timing {
+	return c.fakeAgentAPI.GetTimings()
 }
 
 func (c *Client) SetAnnouncementBannersFunc(f func() ([]codersdk.BannerConfig, error)) {

@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
+	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
@@ -120,6 +122,7 @@ func ConvertMessagesWithFiles(
 	resolver FileResolver,
 	logger slog.Logger,
 	acceptsFilePart func(mediaType string) bool,
+	chatWorkspaceID uuid.NullUUID,
 ) ([]fantasy.Message, error) {
 	// Phase 1: Parse all messages via ParseContent (→ SDK parts)
 	// and collect file_id references from user messages for batch
@@ -202,6 +205,7 @@ func ConvertMessagesWithFiles(
 				resolved,
 				userMissingFilePolicy,
 				acceptsFilePart,
+				chatWorkspaceID,
 			)
 			if len(userParts) == 0 {
 				continue
@@ -212,7 +216,7 @@ func ConvertMessagesWithFiles(
 			})
 		case codersdk.ChatMessageRoleAssistant:
 			fantasyParts := normalizeAssistantToolCallInputs(
-				partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles, nil),
+				partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles, nil, chatWorkspaceID),
 			)
 			for _, toolCall := range ExtractToolCalls(fantasyParts) {
 				if toolCall.ToolCallID == "" || strings.TrimSpace(toolCall.ToolName) == "" {
@@ -236,7 +240,7 @@ func ConvertMessagesWithFiles(
 					}
 				}
 			}
-			toolParts := partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles, nil)
+			toolParts := partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles, nil, chatWorkspaceID)
 			if len(toolParts) == 0 {
 				continue
 			}
@@ -648,12 +652,14 @@ func sdkPartFromContent(
 		return codersdk.ChatMessagePart{
 			Type:             codersdk.ChatMessagePartTypeText,
 			Text:             value.Text,
+			Narration:        IsNarration(value.ProviderMetadata),
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case *fantasy.TextContent:
 		return codersdk.ChatMessagePart{
 			Type:             codersdk.ChatMessagePartTypeText,
 			Text:             value.Text,
+			Narration:        IsNarration(value.ProviderMetadata),
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case fantasy.ReasoningContent:
@@ -727,6 +733,17 @@ func sdkPartFromContent(
 	default:
 		return codersdk.ChatMessagePart{}
 	}
+}
+
+// IsNarration reports whether the provider labeled text as commentary on
+// the model's work rather than its answer.
+func IsNarration(metadata fantasy.ProviderMetadata) bool {
+	for _, data := range metadata {
+		if text, ok := data.(*fantasyopenai.ResponsesTextMetadata); ok && text != nil {
+			return text.Phase == "commentary"
+		}
+	}
+	return false
 }
 
 // toolResultContentToPart converts a fantasy ToolResultContent into a
@@ -1292,6 +1309,58 @@ func fileReferencePartToText(part codersdk.ChatMessagePart) string {
 	return sb.String()
 }
 
+// workspaceFilePartToText formats a workspace-file-reference SDK
+// part as plain text for LLM consumption. The uploaded bytes stay on
+// the workspace filesystem; only the metadata reference reaches the
+// model, which can read the file with its workspace tools.
+//
+// References carry the workspace they were uploaded to. When the chat
+// has since been rebound (or unbound), the path no longer exists for
+// the current agent, so the reference renders as unavailable instead
+// of steering the model toward a dead path.
+func workspaceFilePartToText(part codersdk.ChatMessagePart, chatWorkspaceID uuid.NullUUID) string {
+	var sb strings.Builder
+	_, _ = sb.WriteString("[workspace file: ")
+	_, _ = sb.WriteString(part.WorkspaceFileName)
+	if part.WorkspaceFileSize > 0 {
+		_, _ = fmt.Fprintf(&sb, " (%s)", humanize.IBytes(uint64(part.WorkspaceFileSize)))
+	}
+	if !chatWorkspaceID.Valid || part.WorkspaceFileWorkspaceID != chatWorkspaceID.UUID {
+		_, _ = sb.WriteString(", uploaded to a previously attached workspace and no longer accessible]")
+		return sb.String()
+	}
+	_, _ = sb.WriteString(" at ")
+	_, _ = sb.WriteString(part.WorkspaceFilePath)
+	_, _ = sb.WriteString("]")
+	return sb.String()
+}
+
+// SkillInvocationAlias returns the source-qualified name of the skill a
+// skill-invocation part invokes, such as "project/triage".
+func SkillInvocationAlias(part codersdk.ChatMessagePart) string {
+	return string(part.SkillSource) + "/" + part.SkillName
+}
+
+// invokedSkillTagPattern matches opening and closing <invoked-skill> tags,
+// including case and spacing variants.
+var invokedSkillTagPattern = regexp.MustCompile(`(?i)<\s*/?\s*invoked-skill\b[^>]*>`)
+
+// skillInvocationPartToText tells the model which skill the user invoked
+// and includes the skill body loaded at send time. Wrapper tags inside the
+// body are escaped so it cannot end the block early.
+func skillInvocationPartToText(part codersdk.ChatMessagePart) string {
+	alias := SkillInvocationAlias(part)
+	text := fmt.Sprintf("The user invoked the %s skill for this message. Follow its instructions.", alias)
+	body := strings.TrimSpace(codersdk.SanitizePromptText(part.SkillBody))
+	if body == "" {
+		return text
+	}
+	body = invokedSkillTagPattern.ReplaceAllStringFunc(body, func(tag string) string {
+		return "&lt;" + tag[1:len(tag)-1] + "&gt;"
+	})
+	return text + "\n<invoked-skill name=\"" + alias + "\">\n" + body + "\n</invoked-skill>"
+}
+
 // toolResultPartToMessagePart converts an SDK tool-result part
 // into a fantasy ToolResultPart for LLM dispatch.
 func toolResultPartToMessagePart(logger slog.Logger, part codersdk.ChatMessagePart) fantasy.ToolResultPart {
@@ -1432,6 +1501,7 @@ func partsToMessageParts(
 	resolved map[uuid.UUID]FileData,
 	policy missingFilePolicy,
 	acceptsFilePart func(mediaType string) bool,
+	chatWorkspaceID uuid.NullUUID,
 ) []fantasy.MessagePart {
 	result := make([]fantasy.MessagePart, 0, len(parts))
 	for _, part := range parts {
@@ -1451,7 +1521,9 @@ func partsToMessageParts(
 			})
 		case codersdk.ChatMessagePartTypeReasoning:
 			opts := providerMetadataToOptions(logger, part.ProviderMetadata)
-			if strings.TrimSpace(part.Text) == "" && !chatsanitize.HasAnthropicSignedReasoningOptions(opts) {
+			if strings.TrimSpace(part.Text) == "" &&
+				!chatsanitize.HasAnthropicSignedReasoningOptions(opts) &&
+				!chatsanitize.HasOpenAIReasoningOptions(opts) {
 				continue
 			}
 			result = append(result, fantasy.ReasoningPart{
@@ -1547,6 +1619,14 @@ func partsToMessageParts(
 			// LLMs don't understand file-reference natively.
 			result = append(result, fantasy.TextPart{
 				Text: fileReferencePartToText(part),
+			})
+		case codersdk.ChatMessagePartTypeWorkspaceFileReference:
+			result = append(result, fantasy.TextPart{
+				Text: workspaceFilePartToText(part, chatWorkspaceID),
+			})
+		case codersdk.ChatMessagePartTypeSkillInvocation:
+			result = append(result, fantasy.TextPart{
+				Text: skillInvocationPartToText(part),
 			})
 		case codersdk.ChatMessagePartTypeContextFile:
 			if part.ContextFileContent == "" {
@@ -1855,15 +1935,20 @@ var partNulFields = []partNulField{
 	{name: "ArgsDelta", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.ArgsDelta }},
 	{name: "Result", policy: nulEncode, raw: func(p *codersdk.ChatMessagePart) *json.RawMessage { return &p.Result }},
 	{name: "ResultDelta", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.ResultDelta }},
+	{name: "ReasoningDelta", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.ReasoningDelta }},
 	{name: "Title", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.Title }},
 	{name: "Content", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.Content }},
 	{name: "ProviderMetadata", policy: nulEncode, raw: func(p *codersdk.ChatMessagePart) *json.RawMessage { return &p.ProviderMetadata }},
 	{name: "ContextFileContent", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.ContextFileContent }},
 	{name: "SkillDescription", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillDescription }},
+	{name: "SkillBody", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillBody }},
 	{name: "Type", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return (*string)(&p.Type) }},
 	{name: "ToolCallID", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ToolCallID }},
 	{name: "ToolName", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ToolName }},
 	{name: "ParsedCommands", policy: nulReject, grid: func(p *codersdk.ChatMessagePart) [][]string { return p.ParsedCommands }},
+	{name: "ProviderIdentity", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ProviderIdentity }},
+	{name: "ProviderModel", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ProviderModel }},
+	{name: "ProviderCredential", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ProviderCredential }},
 	{name: "SourceID", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.SourceID }},
 	{name: "URL", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.URL }},
 	{name: "MediaType", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.MediaType }},
@@ -1874,7 +1959,11 @@ var partNulFields = []partNulField{
 	{name: "ContextFileDirectory", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ContextFileDirectory }},
 	{name: "ContextFileSkillMetaFile", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ContextFileSkillMetaFile }},
 	{name: "SkillName", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillName }},
+	{name: "SkillSource", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return (*string)(&p.SkillSource) }},
 	{name: "SkillDir", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillDir }},
+	{name: "WorkspaceFilePath", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.WorkspaceFilePath }},
+	{name: "WorkspaceFileName", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.WorkspaceFileName }},
+	{name: "WorkspaceFileMediaType", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.WorkspaceFileMediaType }},
 }
 
 // encode applies the reversible NUL encoding to a nulEncode field.

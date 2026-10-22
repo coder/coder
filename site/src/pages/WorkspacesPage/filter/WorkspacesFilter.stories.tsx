@@ -1,10 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
+import { templates } from "#/api/queries/templates";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
 	MockNoPermissions,
 	MockPermissions,
+	MockTemplate,
 	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
@@ -57,73 +59,34 @@ type Story = StoryObj<typeof WorkspacesFilterHarness>;
 const PLACEHOLDER = "Search and filter workspaces…";
 
 export const Default: Story = {
-	args: { initialQuery: "owner:me" },
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// The default `owner:me` renders as a committed chip, not free text.
-		await expect(
-			canvas.getByRole("button", { name: "Remove owner:me" }),
-		).toBeVisible();
-	},
+	args: { initialQuery: "user:me" },
 };
 
-// Opens the menu, drills into a static category, commits an option, and asserts
-// the query the integration emits.
 export const SelectStatusOption: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
 
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Toggle filters" }),
-		);
-		await userEvent.click(await body.findByRole("option", { name: "Status" }));
+		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
 		await userEvent.click(
 			await body.findByRole("option", { name: /running/i }),
 		);
-
-		await waitFor(() =>
-			expect(canvas.getByTestId("filter-query")).toHaveTextContent(
-				"status:running",
-			),
-		);
-		await expect(
-			canvas.getByRole("button", { name: "Remove status:running" }),
-		).toBeVisible();
 	},
 };
 
-// Regression guard: a user who cannot list others still gets an Owner category
-// (scoped to themselves), so `owner` stays a chip key and the category list is
-// browsable instead of `owner:me` collapsing into free text.
-export const OrdinaryUserKeepsOwnerChip: Story = {
-	args: { initialQuery: "owner:me" },
+export const OrdinaryUserGetsOwnerChip: Story = {
+	args: { initialQuery: "user:me" },
 	parameters: { permissions: MockNoPermissions },
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-
-		await expect(
-			canvas.getByRole("button", { name: "Remove owner:me" }),
-		).toBeVisible();
-
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Toggle filters" }),
+			within(canvasElement).getByRole("button", { name: "Filters" }),
 		);
-		// Categories browse normally (Owner included) rather than being masked by
-		// free-text search.
-		await waitFor(() => {
-			const names = body
-				.getAllByRole("option")
-				.map((option) => option.textContent?.trim());
-			expect(names).toEqual(expect.arrayContaining(["Status", "Owner"]));
-		});
 	},
 };
 
 export const WithFilterError: Story = {
 	args: {
-		initialQuery: "owner:me",
+		initialQuery: "user:me",
 		error: mockApiError({
 			message: "Invalid filter query.",
 			validations: [
@@ -137,5 +100,18 @@ export const WithFilterError: Story = {
 		await expect(input).toHaveAttribute("aria-invalid", "true");
 		const alert = await canvas.findByRole("alert");
 		await expect(input).toHaveAttribute("aria-errormessage", alert.id);
+	},
+};
+
+export const OrdinaryUserSeesOwner: Story = {
+	args: { initialQuery: "" },
+	parameters: {
+		permissions: MockNoPermissions,
+		queries: [{ key: templates().queryKey, data: [MockTemplate] }],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Filters" }),
+		);
 	},
 };

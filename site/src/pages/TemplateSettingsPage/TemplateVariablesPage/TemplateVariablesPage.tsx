@@ -1,4 +1,4 @@
-import { type FC, useCallback } from "react";
+import { useCallback } from "react";
 import {
 	keepPreviousData,
 	useMutation,
@@ -6,7 +6,6 @@ import {
 	useQueryClient,
 } from "react-query";
 import { useNavigate } from "react-router";
-import { toast } from "sonner";
 import {
 	createAndBuildTemplateVersion,
 	templateVersion,
@@ -20,12 +19,13 @@ import type {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
+import { toast } from "#/components/Toaster/toast";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { pageTitle } from "#/utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
 
-const TemplateVariablesPage: FC = () => {
+const TemplateVariablesPage: React.FC = () => {
 	const getLink = useLinks();
 	const { template } = useTemplateSettings();
 	const navigate = useNavigate();

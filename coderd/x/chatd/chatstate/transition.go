@@ -10,6 +10,7 @@ type Transition string
 const (
 	TransitionCreateChat              Transition = "CreateChat"
 	TransitionSetArchived             Transition = "SetArchived"
+	TransitionSetProject              Transition = "SetProject"
 	TransitionSendMessage             Transition = "SendMessage"
 	TransitionEditMessage             Transition = "EditMessage"
 	TransitionRequestCompaction       Transition = "RequestCompaction"
@@ -46,10 +47,11 @@ func (t Transition) String() string { return string(t) }
 // included; they are orthogonal to execution state.
 var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 	StateN: {
-		TransitionCreateChat: {StateR0},
+		TransitionCreateChat: {StateR0, StateW},
 	},
 	StateW: {
 		TransitionSetArchived:       {StateXW},
+		TransitionSetProject:        {StateW},
 		TransitionSendMessage:       {StateR0},
 		TransitionEditMessage:       {StateR0},
 		TransitionRequestCompaction: {StateR0},
@@ -58,6 +60,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 	},
 	StateE0: {
 		TransitionSetArchived:       {StateXE0},
+		TransitionSetProject:        {StateE0},
 		TransitionSendMessage:       {StateR0},
 		TransitionEditMessage:       {StateR0},
 		TransitionRequestCompaction: {StateR0},
@@ -65,6 +68,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 	},
 	StateE1: {
 		TransitionSetArchived:          {StateXE1},
+		TransitionSetProject:           {StateE1},
 		TransitionSendMessage:          {StateR1},
 		TransitionEditMessage:          {StateR0},
 		TransitionDeleteQueuedMessage:  {StateE0, StateE1},
@@ -108,7 +112,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionFinishInterruption:   {StateR0, StateR1},
 	},
 	StateA0: {
-		TransitionSendMessage:            {StateA1, StateR1},
+		TransitionSendMessage:            {StateA1, StateR0},
 		TransitionEditMessage:            {StateR0},
 		TransitionInterrupt:              {StateR0},
 		TransitionCompleteRequiresAction: {StateR0},

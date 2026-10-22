@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"sync/atomic"
 
 	"charm.land/fantasy"
 	"golang.org/x/xerrors"
@@ -11,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -68,8 +70,27 @@ type resolvedModelCall struct {
 	providerOptions  fantasy.ProviderOptions
 	resolvedProvider string
 	resolvedModel    string
+	resolvedEffort   string
 	route            aiGatewayModelRoute
 	debugEnabled     bool
+	// reasoningRejected reports whether the provider rejected encrypted
+	// reasoning replayed into a call to model.
+	reasoningRejected *atomic.Bool
+}
+
+// stageModel uses the configured provider type rather than
+// resolvedProvider, which is inferred from the model name for types such
+// as copilot.
+func (r resolvedModelCall) stageModel() chatloop.StageModel {
+	stageModel := chatloop.StageModel{
+		ProviderType: string(r.route.Provider.Type),
+		Model:        r.resolvedModel,
+		Effort:       r.resolvedEffort,
+	}
+	if r.model.Valid() {
+		stageModel.Provider = r.model.Provider()
+	}
+	return stageModel
 }
 
 // resolveModelCall is the single pipeline from a spec to a ready model
@@ -146,8 +167,14 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 	debugSvc := p.debugService()
 	out.debugEnabled = debugSvc != nil && debugSvc.IsEnabled(ctx, spec.chat.ID, spec.chat.OwnerID)
 
+	// Coder-scale effort, before provider mapping can change or drop it.
+	if effectiveEffort := chatprovider.ResolveReasoningEffort(spec.requestedEffort, out.callConfig.ReasoningEffort); effectiveEffort != nil {
+		out.resolvedEffort = *effectiveEffort
+	}
+
 	buildOpts := spec.buildOptions
 	buildOpts.RecordHTTP = out.debugEnabled
+	buildOpts.StageModel = out.stageModel()
 	model, err := p.newModel(ctx, modelClientRequest{
 		Chat:         spec.chat,
 		ModelName:    modelName,
@@ -158,6 +185,9 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 	if err != nil {
 		return resolvedModelCall{}, xerrors.Errorf("create model: %w", err)
 	}
+	model = p.withThinkingDropBlock(model, out.route.Provider.ID, clientCallConfig, spec.chat.ID)
+	out.reasoningRejected = &atomic.Bool{}
+	model = p.withEncryptedReasoningFallback(model, spec.chat.ID, out.reasoningRejected)
 
 	if out.debugEnabled {
 		model = model.WithLanguageModel(chatdebug.WrapModel(model.LanguageModel(), debugSvc, chatdebug.RecorderOptions{
@@ -181,6 +211,7 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 		slog.F("chat_id", spec.chat.ID),
 		slog.F("provider", out.resolvedProvider),
 		slog.F("model", out.resolvedModel),
+		slog.F("reasoning_effort", out.resolvedEffort),
 		slog.F("debug_enabled", out.debugEnabled),
 	)
 	return out, nil
@@ -202,19 +233,13 @@ func (r resolvedModelCall) newCall() fantasy.Call {
 // must not call tools. Streaming avoids the Anthropic SDK's non-streaming
 // duration limit, while the explicit cap prevents adaptive thinking from
 // exhausting fantasy's smaller provider default before producing summary text.
-// The cap gets 50% headroom because the summary must fit reasoning plus
-// summary text in one response; a low configured chat cap could otherwise
-// truncate the summary that replaces pruned history. The headroom stays
-// modest because a cap configured at a provider's output ceiling overshoots
-// it; that residual overshoot is an accepted tradeoff. GenerateCompaction
-// bounds the increased cap by the remaining context window at trigger time.
+// The cap is not raised: the configured cap is the provider ceiling chatd
+// knows, and providers reject a larger one. GenerateCompaction can only
+// lower it, to the remaining context window.
 func compactionSummaryCall(resolved resolvedModelCall) fantasy.Call {
 	call := resolved.newCall()
 	toolChoiceNone := fantasy.ToolChoiceNone
 	call.ToolChoice = &toolChoiceNone
-	if call.MaxOutputTokens != nil {
-		call.MaxOutputTokens = ptr.Ref(*call.MaxOutputTokens * 3 / 2)
-	}
 	return call
 }
 

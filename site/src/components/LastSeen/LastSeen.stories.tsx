@@ -41,6 +41,13 @@ export const OneMonthAgo: Story = {
 	},
 };
 
+export const ExactlyFortyFiveDaysAgo: Story = {
+	args: {
+		at: dayjs().subtract(45, "day"),
+		exactDays: true,
+	},
+};
+
 export const OneYearAgo: Story = {
 	args: {
 		at: dayjs().subtract(1, "year"),

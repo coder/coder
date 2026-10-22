@@ -43,9 +43,7 @@ type SpeechRecognitionInstance = EventTarget & {
 	abort(): void;
 };
 
-type SpeechRecognitionConstructor = {
-	new (): SpeechRecognitionInstance;
-};
+type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
 
 /**
  * Returns the SpeechRecognition constructor if the browser supports it,

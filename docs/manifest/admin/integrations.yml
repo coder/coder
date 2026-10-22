@@ -1,0 +1,31 @@
+title: Integrations
+description: Extend Coder with integrations for observability, secrets, source control, and other platforms.
+path: ./admin/integrations/index.md
+icon_path: ./images/icons/puzzle.svg
+children:
+  - title: Prometheus
+    description: Collect and export Coder deployment metrics to a Prometheus server for monitoring.
+    path: ./admin/integrations/prometheus.md
+  - title: Kubernetes event logs
+    description: Stream Kubernetes event logs into workspace startup logs to debug pod scheduling issues.
+    path: ./admin/integrations/kubernetes-logs.md
+  - title: Additional clusters
+    description: Deploy Coder workspaces across additional Kubernetes clusters beyond the control plane cluster.
+    path: ./admin/integrations/multiple-kube-clusters.md
+  - title: JFrog Artifactory
+    description: Integrate Coder with JFrog Artifactory to secure workspaces and manage packages and tokens.
+    path: ./admin/integrations/jfrog-artifactory.md
+  - title: Island browser integration
+    description: Integrate Coder with the Island Enterprise Browser for secure, policy-controlled workspace access.
+    path: ./admin/integrations/island.md
+  - title: DX PlatformX
+    description: Forward Coder notifications to DX PlatformX to measure and improve developer experience.
+    path: ./admin/integrations/platformx.md
+  - title: DX Data Cloud
+    description: Tag and sync Coder users with DX Data Cloud to measure developer productivity.
+    path: ./admin/integrations/dx-data-cloud.md
+  - title: HashiCorp Vault
+    description: Integrate Coder with HashiCorp Vault to inject secrets securely into your workspaces.
+    path: ./admin/integrations/vault.md
+  - include: admin/integrations/oauth2-provider.yml
+  - include: admin/integrations/devcontainers.yml

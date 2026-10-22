@@ -1,6 +1,6 @@
 import { cva } from "class-variance-authority";
 import { cn } from "cn";
-import { createContext, type PropsWithChildren, useContext } from "react";
+import { createContext, useContext } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
 import type { StepId } from "./steps";
 
@@ -131,7 +131,7 @@ const stepCircleVariants = cva(
 			variant: {
 				complete: "border-border-success bg-surface-green",
 				current: "border-border-success",
-				upcoming: "border-border text-content-disabled",
+				upcoming: "border-border text-content-secondary",
 			},
 		},
 	},
@@ -142,12 +142,12 @@ const stepLabelVariants = cva("font-normal mr-2", {
 		variant: {
 			complete: "text-content-primary",
 			current: "text-content-primary",
-			upcoming: "text-content-disabled",
+			upcoming: "text-content-secondary",
 		},
 	},
 });
 
-type StepIndicatorProps = PropsWithChildren<{
+type StepIndicatorProps = React.PropsWithChildren<{
 	step: number;
 	onClick?: () => void;
 }>;
@@ -185,20 +185,25 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({
 	);
 };
 
+// CSS dashed borders cannot set dash length, so draw a 4px dash,
+// 4px gap pattern under a transparent border instead.
+const dashedDivider =
+	"border-transparent bg-origin-border bg-repeat-y bg-left-top bg-size-[1px_8px] bg-[linear-gradient(var(--color-border)_4px,transparent_4px)]";
+
 const stepDividerVariants = cva(
 	"border-0 border-l border-solid mx-3 -translate-x-px",
 	{
 		variants: {
 			variant: {
 				complete: "border-border-success",
-				current: "border-border",
-				upcoming: "border-border",
+				current: dashedDivider,
+				upcoming: dashedDivider,
 			},
 		},
 	},
 );
 
-type StepDividerProps = PropsWithChildren<{
+type StepDividerProps = React.PropsWithChildren<{
 	className?: string;
 }>;
 

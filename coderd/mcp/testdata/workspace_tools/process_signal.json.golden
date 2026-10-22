@@ -1,0 +1,15 @@
+{
+  "description": "Send a signal to a tracked process. Use \"terminate\" (SIGTERM) for graceful shutdown or \"kill\" (SIGKILL) to force stop. Use the process_id returned by execute with run_in_background=true or from process_list.",
+  "parameters": {
+    "process_id": {
+      "type": "string"
+    },
+    "signal": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "process_id",
+    "signal"
+  ]
+}

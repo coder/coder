@@ -1,17 +1,17 @@
 import { cn } from "cn";
 import type { MotionProps } from "motion/react";
 import { MotionConfig, MotionConfigContext, motion } from "motion/react";
-import { type ElementType, type JSX, useContext } from "react";
+import { useContext } from "react";
 
 type MotionHTMLProps = MotionProps & Record<string, unknown>;
 
 // Cache motion components at module level to avoid creating during render
 const motionComponentCache = new Map<
-	keyof JSX.IntrinsicElements,
+	keyof React.JSX.IntrinsicElements,
 	React.ComponentType<MotionHTMLProps>
 >();
 
-const getMotionComponent = (element: keyof JSX.IntrinsicElements) => {
+const getMotionComponent = (element: keyof React.JSX.IntrinsicElements) => {
 	let component = motionComponentCache.get(element);
 	if (!component) {
 		component = motion.create(element);
@@ -22,7 +22,7 @@ const getMotionComponent = (element: keyof JSX.IntrinsicElements) => {
 
 type TextShimmerProps = {
 	children: string;
-	as?: ElementType;
+	as?: React.ElementType;
 	className?: string;
 	duration?: number;
 	spread?: number;
@@ -36,7 +36,7 @@ const ShimmerComponent = ({
 	spread = 2,
 }: TextShimmerProps) => {
 	const MotionComponent = getMotionComponent(
-		Component as keyof JSX.IntrinsicElements,
+		Component as keyof React.JSX.IntrinsicElements,
 	);
 
 	// skipAnimations jumps to the final keyframe, which leaves the

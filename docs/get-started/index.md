@@ -2,24 +2,22 @@
 title: Quickstart
 ---
 
-Follow this guide to get your first Coder development environment
-running in under 10 minutes. This guide covers the essential concepts and shows
-you how to create your first workspace and open it in your preferred editor.
+Follow this guide to get your first Coder development environment running in under 10&nbsp;minutes.
+This guide covers the essential concepts and shows you how to create your first workspace and open it in your preferred editor.
 This workspace includes a basic set of tools to edit most code bases.
 
 ## What you'll do
 
 In this quickstart, you'll:
 
-- ✅ Install Coder server.
+- ✅ Install the Coder control plane.
 - ✅ Create a **template** (blueprint for dev environments).
 - ✅ Launch a **workspace** (your actual dev environment).
 - ✅ Connect from your favorite IDE.
 
 ## A 30-second metaphor for Coder
 
-Before diving in, the following table breaks down the core concepts that power Coder,
-explained through a cooking analogy:
+Before diving in, the following table breaks down the core concepts that power Coder, explained through a cooking analogy:
 
 | Component      | What It Is                                                                           | Real-World Analogy             |
 |----------------|--------------------------------------------------------------------------------------|--------------------------------|
@@ -28,21 +26,23 @@ explained through a cooking analogy:
 | **Workspaces** | The actual running environment created from the template                             | The cooked meal                |
 | **Users**      | A developer who launches the workspace from a template and does their work inside it | The people eating the meal     |
 
-**Putting it Together:** Coder separates who _defines_ environments from who _uses_ them. Admins create and manage Templates, the recipes, while developers use those Templates to launch Workspaces, the meals.
+**Putting it Together:**
+Coder separates who _defines_ environments from who _uses_ them.
+Admins create and manage Templates, the recipes, while developers use those Templates to launch Workspaces, the meals.
 
 ## Prerequisites
 
-- A machine with 2+ CPU cores and 4GB+ RAM (ideally a separate machine or VM, not your primary dev machine)
+- A machine with 2+ CPU cores and 4&nbsp;GB+ RAM (ideally a separate machine or VM, not your primary dev machine)
 - Familiarity with running commands in the terminal
-- 10 minutes of your time
+- 10&nbsp;minutes of your time
 
 <details>
 <summary>Why a separate machine?</summary>
 
 Coder's value comes from remote development.
-Hosting the Coder server on a separate machine, such as a cloud VM, a spare desktop, or on-premises hardware, gives you and your team infrastructure that's more powerful, always-on, and reachable from anywhere, instead of tying your dev environment to your own laptop.
+Hosting the control plane on a separate machine, such as a cloud VM, a spare desktop, or on-premises hardware, gives you and your team infrastructure that's more powerful, always-on, and reachable from anywhere, instead of tying your dev environment to your own laptop.
 
-When you're ready to move past this tutorial, install the Coder server on a separate machine and connect to it remotely.
+When you're ready to move past this tutorial, install the control plane on a separate machine and connect to it remotely.
 Refer to the [Install guide](../install/index.md) for supported platforms and installation methods.
 
 </details>
@@ -52,13 +52,9 @@ Refer to the [Install guide](../install/index.md) for supported platforms and in
 
 ## Step 1: Install a container runtime
 
-Coder needs a Docker-compatible container runtime running on the host, such as
-[Colima](https://colima.run), [Rancher Desktop](https://rancherdesktop.io),
-[Podman](https://podman.io), or
-[Docker Desktop](https://www.docker.com/products/docker-desktop/). If you
-already have one installed and running, skip ahead to
-[Step 2](#step-2-install-and-start-coder). Otherwise, follow the steps below to
-install a free runtime quickly on your platform.
+Coder needs a Docker-compatible container runtime running on the host, such as [Colima](https://colima.run), [Rancher Desktop](https://rancherdesktop.io), [Podman](https://podman.io), or [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+If you already have one installed and running, skip ahead to [Step 2](#step-2-install-and-start-coder).
+Otherwise, follow the steps below to install a free runtime quickly on your platform.
 
 <div class="tabs">
 
@@ -84,8 +80,7 @@ install a free runtime quickly on your platform.
    newgrp docker
    ```
 
-   You might need to log out of and back into your machine or restart your
-   machine for changes to take effect.
+   You might need to log out of and back into your machine or restart your machine for changes to take effect.
 
 1. Launch the Docker daemon:
 
@@ -95,8 +90,7 @@ install a free runtime quickly on your platform.
 
 ### macOS
 
-[Colima](https://colima.run) is a free, lightweight container runtime that
-provides the Docker daemon on macOS without the overhead of Docker Desktop.
+[Colima](https://colima.run) is a free, lightweight container runtime that provides the Docker daemon on macOS without the overhead of Docker Desktop.
 
 1. Install Colima and the Docker CLI with [Homebrew](https://brew.sh):
 
@@ -122,23 +116,16 @@ provides the Docker daemon on macOS without the overhead of Docker Desktop.
 
 ### Windows
 
-If you plan to use the built-in PostgreSQL database, ensure that the
-[Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
-is installed.
+If you plan to use the built-in PostgreSQL database, ensure that the [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version) is installed.
 
 [Podman Desktop](https://podman-desktop.io) is a free GUI for the Podman container runtime.
-Its onboarding installs and configures the required
-Windows Subsystem for Linux (WSL2) or Hyper-V layer if it isn't already enabled.
+Its onboarding installs and configures the required Windows Subsystem for Linux (WSL2) or Hyper-V layer if it isn't already enabled.
 
 1. Download and install [Podman Desktop](https://podman-desktop.io/downloads).
 
 1. Follow the onboarding to configure Podman.
 
-1. If you configured Podman to use WSL2, then you will need to do either
-   upgrade WSL2 to version 2.5.1 or later
-   (which uses [cgroups](https://wikipedia.org/wiki/Cgroups) v2 by default)
-   or create a `.wslconfig` file in the `%USERPROFILE%` directory
-   with the following contents
+1. If you configured Podman to use WSL2, then you will need to do either upgrade WSL2 to version 2.5.1 or later (which uses [cgroups](https://wikipedia.org/wiki/Cgroups) v2 by default) or create a `.wslconfig` file in the `%USERPROFILE%` directory with the following contents
 
    ```txt
    [wsl2]
@@ -147,11 +134,9 @@ Windows Subsystem for Linux (WSL2) or Hyper-V layer if it isn't already enabled.
 
    This is not required for Podman with Hyper-V.
 
-1. Open Podman Desktop and complete the onboarding to create and start a
-   Podman machine.
+1. Open Podman Desktop and complete the onboarding to create and start a Podman machine.
 
-   Podman Desktop enables Docker socket compatibility by default, so tools
-   that expect the Docker daemon work without additional configuration.
+   Podman Desktop enables Docker socket compatibility by default, so tools that expect the Docker daemon work without additional configuration.
 
 </div>
 
@@ -166,12 +151,10 @@ Install the `coder` CLI to get started:
 1. Install Coder:
 
    ```sh
-   curl -L https://coder.com/install.sh | sh
+   curl -fsSL https://coder.com/install.sh | sh
    ```
 
-   - For standalone binaries, system packages, or other alternate installation
-     methods, refer to the
-     [latest release on GitHub](https://github.com/coder/coder/releases/latest).
+   - For standalone binaries, system packages, or other alternate installation methods, refer to the [latest release on GitHub](https://github.com/coder/coder/releases/latest).
 
 1. Start Coder:
 
@@ -181,13 +164,9 @@ Install the `coder` CLI to get started:
 
 ### Windows
 
-If you plan to use the built-in PostgreSQL database, ensure that the
-[Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
-is installed.
+If you plan to use the built-in PostgreSQL database, ensure that the [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version) is installed.
 
-1. Use the
-   [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget)
-   package manager to install Coder:
+1. Use the [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget) package manager to install Coder:
 
    ```ps1
    winget install Coder.Coder
@@ -201,18 +180,17 @@ is installed.
 
 </div>
 
-Coder will attempt to open the setup page in your browser. If it doesn't open
-automatically, go to <http://localhost:3000>.
+Coder will attempt to open the setup page in your browser.
+If it doesn't open automatically, go to <http://localhost:3000>.
 
-- If you get a browser warning similar to `Secure Site Not Available`, you can
-  ignore the warning and continue to the setup page.
+- If you get a browser warning similar to `Secure Site Not Available`, you can ignore the warning and continue to the setup page.
 
-If your Coder server is on a network or cloud device, or you are having trouble
-viewing the page, locate the web UI URL in Coder logs in your terminal. It looks
-like `https://<CUSTOM-STRING>.<TUNNEL>.try.coder.app`. It's one of the first
-lines of output, so you might have to scroll up to find it.
+If your control plane is on a network or cloud device, or you are having trouble viewing the page, locate the web UI URL in Coder logs in your terminal.
+It looks like `https://<CUSTOM-STRING>.<TUNNEL>.try.coder.app`.
+It's one of the first lines of output, so you might have to scroll up to find it.
 
-This section includes some of the quicker ways to install Coder. For more detailed options, visit the [Install](../install/index.md) page.
+This section includes some of the quicker ways to install Coder.
+For more detailed options, visit the [Install](../install/index.md) page.
 
 ## Step 3: Initial setup
 
@@ -220,8 +198,8 @@ This section includes some of the quicker ways to install Coder. For more detail
    - Email: `your.email@example.com`
    - Password: Choose a strong password.
 
-   You can also choose to **Continue with GitHub** instead of creating an admin
-   account. Coder automatically grants admin permissions to the first user that signs in.
+   You can also choose to **Continue with GitHub** instead of creating an admin account.
+   Coder automatically grants admin permissions to the first user that signs in.
 
    ![Welcome to Coder - Create admin user](../images/screenshots/welcome-create-admin-user.png)
 
@@ -230,8 +208,8 @@ This section includes some of the quicker ways to install Coder. For more detail
 > [!TIP]
 > If you use an AI coding assistant, the [coder-templates](https://github.com/coder/registry/blob/main/.agents/skills/coder-templates/SKILL.md) agent skill can guide you through creating and customizing templates with best practices built-in.
 
-Templates define what's in your development environment. The template builder
-guides you through creating one without writing any Terraform.
+Templates define what's in your development environment.
+The template builder guides you through creating one without writing any Terraform.
 
 1. Coder opens the template builder after initial setup.
    To open it again later, select **Templates** > **New Template**.
@@ -241,35 +219,33 @@ guides you through creating one without writing any Terraform.
    > [!NOTE]
    > This template requires Docker to be running in the background, so make sure Docker is running.
 
-1. Skip or configure any base template parameters, then select modules to add
-   IDEs and tools to your template. For example, add **code-server** to get
-   VS Code in the browser. You can skip module selection for now and add
-   modules later.
+1. Skip or configure any base template parameters, then select modules to add IDEs and tools to your template.
+   For example, add **code-server** to get VS Code in the browser.
+   You can skip module selection for now and add modules later.
 
 1. On the final step, name your template:
-   - **Name**: `my-docker-template`
+   - **Name**:
+     `my-docker-template`
    - **Display name** and **Description**: fill in as you like.
 
-1. Select **Create Template**. Coder composes and validates the Terraform
-   configuration, then creates your template.
+1. Select **Create Template**.
+   Coder composes and validates the Terraform configuration, then creates your template.
 
    ![Template builder base selection step](../images/templatebuilder_01_bases.png)
 
 **What just happened?**
-The template builder selected a base infrastructure template, composed it with
-any modules you chose, and generated a valid Terraform configuration. Coder
-validated the configuration server-side, then created a reusable template in
-your organization's template list. You and any teammates in the same
-organization can now create workspaces from it.
+The template builder selected a base infrastructure template, composed it with any modules you chose, and generated a valid Terraform configuration.
+Coder validated the configuration server-side, then created a reusable template in your organization's template list.
+You and any teammates in the same organization can now create workspaces from it.
 
 <details>
 <summary>What happens under the hood?</summary>
 
 A Coder template is a [Terraform](https://developer.hashicorp.com/terraform/intro) configuration, and Coder is built on top of Terraform.
-When you create a workspace from this template, a Coder [provisioner](../admin/infrastructure/architecture.md#provisionerd) runs a Terraform job from the template's configuration to build your environment.
+When you create a workspace from this template, a Coder [provisioner](../install/plan/architecture.md#provisionerd) runs a Terraform job from the template's configuration to build your environment.
 For the Docker base template, that job starts a Docker container with the Coder agent pre-configured, along with any modules you selected.
 
-To learn how Coder uses Terraform to provision and run workspaces, refer to the [architecture overview](../admin/infrastructure/architecture.md).
+To learn how Coder uses Terraform to provision and run workspaces, refer to the [architecture overview](../install/plan/architecture.md).
 
 </details>
 
@@ -279,17 +255,15 @@ Now it's time to launch a workspace.
 
 1. After the template is ready, select **+ Create Workspace**.
 
-1. Give the workspace a name. If you need a suggestion, you can select the
-   automatically generated name next to the **Need a suggestion?** label.
+1. Give the workspace a name.
+   If you need a suggestion, you can select the automatically generated name next to the **Need a suggestion?** label.
 
-1. If the template has any
-   [parameters](../admin/templates/extending-templates/parameters.md), fill
-   them in. Parameters vary by template and the modules you selected in the
-   builder.
+1. If the template has any [parameters](../admin/templates/extending-templates/parameters/index.md), fill them in.
+   Parameters vary by template and the modules you selected in the builder.
 
 1. Select **Create workspace**.
 
-After a short wait (10-15 seconds on most modern computers), Coder will start your new workspace:
+After a short wait (10-15&nbsp;seconds on most modern computers), Coder will start your new workspace:
 
 ![getting-started-workspace is running](../images/screenshots/workspace-running-with-topbar.png)_Workspace is running_
 
@@ -303,24 +277,20 @@ This guide uses **VS Code Desktop**, which opens the workspace in the VS Code in
 To stay in the browser instead, select the browser-based VS Code option.
 The remaining steps are similar for other IDEs and editors.
 
-After VS Code loads the remote environment, you can select **Open Folder** to
-explore directories in the Docker container or work on something new.
+After VS Code loads the remote environment, you can select **Open Folder** to explore directories in the Docker container or work on something new.
 
 ![Changing directories in VS Code](../images/screenshots/change-directory-vscode.png)
 
-If you didn't clone an existing Git repository when you created your
-workspace, you can clone it manually if you want:
+If you didn't clone an existing Git repository when you created your workspace, you can clone it manually if you want:
 
 1. Select **Clone Repository** and enter the repository URL.
 
-   For example, to clone the Coder repo, enter
-   `https://github.com/coder/coder.git`.
+   For example, to clone the Coder repo, enter `https://github.com/coder/coder.git`.
 
-   Learn more about how to find the repository URL in the
-   [GitHub documentation](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository).
+   Learn more about how to find the repository URL in the [GitHub documentation](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository).
 
-2. Choose the folder to which VS Code should clone the repo. It will be in its
-   own directory within this folder.
+2. Choose the folder to which VS Code should clone the repo.
+   It will be in its own directory within this folder.
 
    Note that you cannot create a new parent directory in this step.
 
@@ -332,22 +302,44 @@ workspace, you can clone it manually if you want:
 
 You now have:
 
-- A Coder server running locally.
+- A control plane running locally.
 - A template defining your environment.
 - A workspace running that environment.
 - IDE access to code remotely.
 
-Now that you have your own workspace running, you can [customize your template](./customize-your-template/index.md) to fit your needs.
+Pick the goal that matches what you want to do next.
+Each path starts from the deployment you just built.
+
+### Hand a task to a coding agent
+
+[Coder Agents](../ai-coder/agents/index.md) is a chat interface where you first describe the work you want performed, and then an agent provisions a workspace from your templates and does it.
+Community deployments can run up to five agents at a time at no cost, so you can try Coder Agents on this deployment right away.
+You need an API key for a [supported LLM provider](../ai-coder/agents/models.md).
+Follow [Get started with Coder Agents](../ai-coder/agents/getting-started.md) to configure a provider and run your first agent.
+
+If you don't have a project in mind, ask the agent to generate something small you can check in a few minutes, such as a command-line to-do app in the language you picked for your workspace, or a README for a repository you cloned.
+
+### Make the workspace fit how you work
+
+The Quickstart template is a starting point.
+[Customize your template](./customize-your-template/index.md) walks you through adding a language, installing your own command-line tools, and cloning private repositories.
+Each task takes about 10 minutes.
+
+To carry your shell and editor settings into every workspace without editing the template, use [dotfiles](../user-guides/workspace-dotfiles.md).
+
+### Bring in your team
+
+Coder is built for shared, remote infrastructure.
+When you're ready for other people to use it:
+
+1. Install the control plane on a separate machine by following the [Install guide](../install/index.md).
+1. [Create users](../admin/users/index.md#create-a-user) for your teammates, or connect an SSO provider.
+1. Have each teammate launch their own workspace from your template, which everyone in the organization can use by default; refer to [Workspace management](../user-guides/workspace-management.md).
 
 ## Learn more
 
-- [Try Coder Agents](../ai-coder/agents/getting-started.md), the chat
-  interface and API for delegating development work to coding agents in your
-  Coder deployment.
-
-- [Read about managing Workspaces for your team](../user-guides/workspace-management.md)
-
-- [Read about implementing monitoring tools for your Coder Deployment](../admin/monitoring/index.md)
+- [Monitor your Coder deployment](../admin/monitoring/index.md)
+- [Browse the Coder Registry](https://registry.coder.com) for templates and modules you can add to your own deployment.
 
 ## Troubleshooting
 
@@ -364,7 +356,7 @@ A runtime must be running before you create a workspace from a Docker-based temp
 
 If the runtime is running but Coder still cannot connect, the daemon may expose its socket at a path other than `/var/run/docker.sock`.
 This is common with Colima on macOS and with rootless Docker on Linux.
-In that case, point Coder at the socket with the `DOCKER_HOST` environment variable, then restart the Coder server.
+In that case, point Coder at the socket with the `DOCKER_HOST` environment variable, then restart the control plane.
 
 <div class="tabs">
 
@@ -382,8 +374,7 @@ In that case, point Coder at the socket with the `DOCKER_HOST` environment varia
    sudo systemctl start docker
    ```
 
-1. Assign your user to the `docker` group so Coder can access the daemon
-   without root:
+1. Assign your user to the `docker` group so Coder can access the daemon without root:
 
    ```sh
    sudo usermod -aG docker $USER
@@ -417,7 +408,7 @@ In that case, point Coder at the socket with the `DOCKER_HOST` environment varia
    docker ps
    ```
 
-1. If `docker ps` works but Coder still cannot connect, point `DOCKER_HOST` at the Colima socket, then restart the Coder server:
+1. If `docker ps` works but Coder still cannot connect, point `DOCKER_HOST` at the Colima socket, then restart the control plane:
 
    ```sh
    export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
@@ -427,22 +418,21 @@ In that case, point Coder at the socket with the `DOCKER_HOST` environment varia
 
 #### Windows
 
-1. If Podman Desktop is not installed,
-   [download and install it](https://podman-desktop.io/downloads).
+1. If Podman Desktop is not installed, [download and install it](https://podman-desktop.io/downloads).
 
 1. Open Podman Desktop and verify that a Podman machine is running.
 
 </div>
 
-### Can't start Coder server: Address already in use
+### Can't start `coder server`: Address already in use
 
 ```txt
 Encountered an error running "coder server", see "coder server --help" for more information
 error: configure http(s): listen tcp 127.0.0.1:3000: bind: address already in use
 ```
 
-Another process is already listening on port 3000. Identify and stop it,
-then start the server again.
+Another process is already listening on port 3000.
+Identify and stop it, then start the control plane again.
 
 <div class="tabs">
 

@@ -1,10 +1,31 @@
-import { type FC, useState } from "react";
-import { useQuery } from "react-query";
-import { useLocation, useParams } from "react-router";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useLocation, useNavigate, useParams } from "react-router";
+import { getErrorMessage } from "#/api/errors";
+import {
+	chatProjects,
+	createChatProject,
+	deleteChatProject,
+	updateChatProject,
+} from "#/api/queries/chatProjects";
 import { userChatProviderConfigs } from "#/api/queries/chats";
-import type { Chat, ChatModel } from "#/api/typesGenerated";
+import type { Chat, ChatModel, ChatProject } from "#/api/typesGenerated";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
+import { toast } from "#/components/Toaster/toast";
+import {
+	getDefaultOrganizationId,
+	useDashboard,
+} from "#/modules/dashboard/useDashboard";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
+import { buildAgentProjectPath } from "../../utils/navigation";
+import { draftStorageKeys } from "../AgentCreateForm";
 import { ChatsPanel } from "./chats/ChatsPanel";
+import type { ProjectDialogState } from "./chats/ProjectFolders";
+import { getOrganizationLabels } from "./chats/projectGrouping";
+import {
+	ChatProjectDialog,
+	type ChatProjectFormValues,
+} from "./dialogs/ChatProjectDialog";
 import { ChatSearchDialog } from "./dialogs/ChatSearchDialog";
 import { RenameChatDialog } from "./dialogs/RenameChatDialog";
 import { SettingsPanel } from "./settings/SettingsPanel";
@@ -17,12 +38,8 @@ type ChatsSidebarProps = {
 	chatErrorReasons: Record<string, string>;
 	modelConfigs: readonly ChatModel[];
 	isLoadingModelConfigs?: boolean;
-	onArchiveAgent: (chatId: string) => void;
-	onUnarchiveAgent: (chatId: string) => void;
-	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
-	onPinAgent: (chatId: string) => void;
-	onUnpinAgent: (chatId: string) => void;
-	onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
+	onArchiveSuccess?: (chatId: string) => void;
+	navigateAfterArchive: (chatId: string) => void;
 	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
 	onProposeTitle?: (chatId: string) => Promise<string>;
 	/**
@@ -37,8 +54,6 @@ type ChatsSidebarProps = {
 	isSearchDialogOpen: boolean;
 	onSearchDialogOpenChange: (open: boolean) => void;
 	isCreating: boolean;
-	isArchiving?: boolean;
-	archivingChatId?: string | null;
 	isLoading?: boolean;
 	loadError?: unknown;
 	onRetryLoad?: () => void;
@@ -59,18 +74,14 @@ type ChatsSidebarProps = {
 	currentUserId: string;
 };
 
-export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
+export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 	const {
 		chats,
 		chatErrorReasons,
 		modelConfigs,
 		isLoadingModelConfigs = false,
-		onArchiveAgent,
-		onUnarchiveAgent,
-		onArchiveAndDeleteWorkspace,
-		onPinAgent,
-		onUnpinAgent,
-		onReorderPinnedAgent,
+		onArchiveSuccess,
+		navigateAfterArchive,
 		onRenameTitle,
 		onProposeTitle,
 		chatPendingRename: chatPendingRenameProp,
@@ -79,8 +90,6 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		isSearchDialogOpen,
 		onSearchDialogOpenChange,
 		isCreating,
-		isArchiving = false,
-		archivingChatId = null,
 		isLoading = false,
 		loadError,
 		onRetryLoad,
@@ -95,13 +104,134 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		canManageAgentSettings = false,
 		currentUserId,
 	} = props;
+	const { organizations, experiments } = useDashboard();
+	const initialOrganizationId =
+		getDefaultOrganizationId(organizations) ?? organizations[0]?.id;
+	// The sidebar lists the user's projects across organizations.
+	const chatProjectsEnabled =
+		experiments.includes("chat-projects") &&
+		initialOrganizationId !== undefined;
+	const queryClient = useQueryClient();
+	const navigate = useNavigate();
+	const location = useLocation();
+	const sidebarView = sidebarViewFromPath(location.pathname);
+	const viewedProjectId =
+		sidebarView.panel === "chats" ? sidebarView.projectId : undefined;
+	const projectsQuery = useQuery({
+		...chatProjects(),
+		enabled: chatProjectsEnabled,
+	});
+	const createProjectMutation = useMutation(createChatProject(queryClient));
+	const updateProjectMutation = useMutation(updateChatProject(queryClient));
+	const deleteProjectMutation = useMutation({
+		...deleteChatProject(queryClient),
+		// Leaves the deleted project's page before the project list refetches,
+		// so the page never shows "Project not found". A pending mutation picks
+		// up each render's options, so this reads the current location.
+		onSuccess: (_, project) => {
+			if (viewedProjectId === project.id) {
+				navigate(
+					{ pathname: "/agents", search: location.search },
+					{ replace: true },
+				);
+			}
+		},
+	});
+
+	// Each dialog keeps its content after closing so the exit animation does
+	// not flash empty.
+	const [projectDialog, setProjectDialog] = useState<ProjectDialogState>({
+		mode: "create",
+	});
+	const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false);
+	const [deleteDialog, setDeleteDialog] = useState<{
+		project: ChatProject | null;
+		organizationLabel?: string;
+		open: boolean;
+	}>({ project: null, open: false });
+
+	const openProjectDialog = (dialog: ProjectDialogState) => {
+		if (dialog.mode === "create") {
+			createProjectMutation.reset();
+		} else {
+			updateProjectMutation.reset();
+		}
+		setProjectDialog(dialog);
+		setIsProjectDialogOpen(true);
+	};
+	const closeProjectDialog = () => setIsProjectDialogOpen(false);
+
+	const handleProjectSubmit = ({
+		organizationId,
+		...request
+	}: ChatProjectFormValues) => {
+		if (projectDialog.mode === "edit") {
+			updateProjectMutation.mutate(
+				{ project: projectDialog.project, request },
+				{ onSuccess: closeProjectDialog },
+			);
+			return;
+		}
+		if (organizationId) {
+			createProjectMutation.mutate(
+				{ organizationId, request },
+				{
+					onSuccess: (project) => {
+						closeProjectDialog();
+						navigate({
+							pathname: buildAgentProjectPath({ projectId: project.id }),
+							search: location.search,
+						});
+					},
+				},
+			);
+		}
+	};
+
+	// The label is captured on open because deleting the project can end the
+	// name collision before the dialog finishes closing.
+	const openDeleteProjectDialog = (project: ChatProject) =>
+		setDeleteDialog({
+			project,
+			organizationLabel: getOrganizationLabels(
+				projectsQuery.data ?? [],
+				organizations,
+			).get(project.id),
+			open: true,
+		});
+	const closeDeleteProjectDialog = () =>
+		setDeleteDialog((current) => ({ ...current, open: false }));
+
+	const handleDeleteProject = () => {
+		const project = deleteDialog.project;
+		if (!project) {
+			return;
+		}
+		deleteProjectMutation.mutate(project, {
+			onSuccess: () => {
+				// Nothing can open the deleted project's composer again.
+				const draftKeys = draftStorageKeys(project.id);
+				localStorage.removeItem(draftKeys.text);
+				localStorage.removeItem(draftKeys.attachments);
+				// The dialog can be dismissed while the delete is in flight and
+				// reopened for another project, which must stay open.
+				setDeleteDialog((current) =>
+					current.project?.id === project.id
+						? { ...current, open: false }
+						: current,
+				);
+			},
+			onError: (error) => {
+				toast.error(getErrorMessage(error, "Failed to delete project."));
+			},
+		});
+	};
+
 	const { agentId, chatId } = useParams<{
 		agentId?: string;
 		chatId?: string;
 	}>();
 	const activeChatId = agentId ?? chatId;
-	const location = useLocation();
-	const sidebarView = sidebarViewFromPath(location.pathname);
 	const isSettingsPanel = isSettingsView(sidebarView);
 	const settingsSection = isSettingsPanel ? sidebarView.section : undefined;
 	const providerConfigsQuery = useQuery({
@@ -128,22 +258,25 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 	return (
 		<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
 			<ChatsPanel
+				chatProjectsEnabled={chatProjectsEnabled}
+				projects={projectsQuery.data ?? []}
+				organizations={organizations}
+				isProjectsLoading={projectsQuery.isLoading}
+				projectsError={projectsQuery.error}
+				isProjectsLoadError={projectsQuery.isLoadingError}
+				onRetryProjects={() => void projectsQuery.refetch()}
+				onOpenProjectDialog={openProjectDialog}
+				onDeleteProject={openDeleteProjectDialog}
 				chats={chats}
 				chatErrorReasons={chatErrorReasons}
 				modelConfigs={modelConfigs}
 				isLoadingModelConfigs={isLoadingModelConfigs}
-				onArchiveAgent={onArchiveAgent}
-				onUnarchiveAgent={onUnarchiveAgent}
-				onArchiveAndDeleteWorkspace={onArchiveAndDeleteWorkspace}
-				onPinAgent={onPinAgent}
-				onUnpinAgent={onUnpinAgent}
-				onReorderPinnedAgent={onReorderPinnedAgent}
+				onArchiveSuccess={onArchiveSuccess}
+				navigateAfterArchive={navigateAfterArchive}
 				onBeforeNewAgent={onBeforeNewAgent}
 				onOpenSearchDialog={() => onSearchDialogOpenChange(true)}
 				onOpenRenameDialog={onRenameTitle ? setChatPendingRename : undefined}
 				isCreating={isCreating}
-				isArchiving={isArchiving}
-				archivingChatId={archivingChatId}
 				isLoading={isLoading}
 				loadError={loadError}
 				onRetryLoad={onRetryLoad}
@@ -154,8 +287,13 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				onSidebarFiltersChange={onSidebarFiltersChange}
 				onCollapse={onCollapse}
 				activeChatId={activeChatId}
+				viewedProjectId={viewedProjectId}
 				isSettingsPanel={isSettingsPanel}
-				isChatsActive={!activeChatId && sidebarView.panel === "chats"}
+				isChatsActive={
+					!activeChatId &&
+					sidebarView.panel === "chats" &&
+					!sidebarView.projectId
+				}
 				location={location}
 				currentUserId={currentUserId}
 			/>
@@ -173,6 +311,42 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				onOpenChange={onSearchDialogOpenChange}
 				location={location}
 				recentChats={chats}
+			/>
+			<ChatProjectDialog
+				organizations={organizations}
+				initialOrganizationId={initialOrganizationId}
+				project={
+					projectDialog.mode === "edit" ? projectDialog.project : undefined
+				}
+				open={isProjectDialogOpen}
+				onOpenChange={(open) => {
+					if (!open) closeProjectDialog();
+				}}
+				isSubmitting={
+					projectDialog.mode === "edit"
+						? updateProjectMutation.isPending
+						: createProjectMutation.isPending
+				}
+				error={
+					projectDialog.mode === "edit"
+						? updateProjectMutation.error
+						: createProjectMutation.error
+				}
+				onSubmit={handleProjectSubmit}
+			/>
+			<DeleteDialog
+				isOpen={deleteDialog.open}
+				onConfirm={handleDeleteProject}
+				onCancel={closeDeleteProjectDialog}
+				entity="project"
+				name={deleteDialog.project?.name ?? ""}
+				title={
+					deleteDialog.organizationLabel
+						? `Delete "${deleteDialog.project?.name}" from ${deleteDialog.organizationLabel}`
+						: undefined
+				}
+				confirmLoading={deleteProjectMutation.isPending}
+				info="Its memories and instructions will be deleted. Chats in it, including chats started by people it is shared with, will be kept and move back to each owner's Chats list."
 			/>
 			{onRenameTitle && (
 				<RenameChatDialog

@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { Workspace } from "#/api/typesGenerated";
 import { lastUsedMessage } from "#/utils/workspace";
 import { WorkspaceDormantBadge } from "../WorkspaceDormantBadge/WorkspaceDormantBadge";
@@ -8,7 +7,9 @@ type WorkspaceStatusProps = {
 	workspace: Workspace;
 };
 
-export const WorkspaceStatus: FC<WorkspaceStatusProps> = ({ workspace }) => {
+export const WorkspaceStatus: React.FC<WorkspaceStatusProps> = ({
+	workspace,
+}) => {
 	return (
 		<div className="flex flex-col">
 			<WorkspaceStatusIndicator workspace={workspace}>

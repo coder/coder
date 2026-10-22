@@ -1,4 +1,4 @@
-import { createContext, type FC, Suspense, useContext } from "react";
+import { createContext, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useParams } from "react-router";
 import { organizationsPermissions } from "#/api/queries/organizations";
@@ -46,7 +46,7 @@ export const useOrganizationSettings = (): OrganizationSettingsValue => {
 	return context;
 };
 
-const OrganizationSettingsLayout: FC = () => {
+const OrganizationSettingsLayout: React.FC = () => {
 	const { organizations } = useDashboard();
 	const { organization: orgName } = useParams() as {
 		organization?: string;

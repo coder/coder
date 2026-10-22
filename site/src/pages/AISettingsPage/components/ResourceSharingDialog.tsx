@@ -1,6 +1,6 @@
 import isEqual from "lodash/isEqual";
 import { Trash2Icon, UserPlusIcon } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import { useState } from "react";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
@@ -63,7 +63,7 @@ type SharingAutocompleteProps<Option> = {
 
 type ResourceSharingDialogProps<Role extends string, Option> = {
 	title: string;
-	description: ReactNode;
+	description: React.ReactNode;
 	loadingLabel: string;
 	emptyTitle: string;
 	tableLabel: string;
@@ -76,9 +76,12 @@ type ResourceSharingDialogProps<Role extends string, Option> = {
 	isSaving: boolean;
 	readRole: Role;
 	deletedRole: Role;
-	renderAutocomplete: (props: SharingAutocompleteProps<Option>) => ReactNode;
+	renderAutocomplete: (
+		props: SharingAutocompleteProps<Option>,
+	) => React.ReactNode;
 	getPrincipal: (option: Option) => SharingPrincipalSelection;
 	onClose: () => void;
+	onCloseAutoFocus?: (event: Event) => void;
 	onSave: (update: SharingACLUpdate<Role>) => void;
 };
 
@@ -129,7 +132,7 @@ type PrincipalRowProps = {
 	onRemove: () => void;
 };
 
-const PrincipalRow: FC<PrincipalRowProps> = ({
+const PrincipalRow: React.FC<PrincipalRowProps> = ({
 	principal,
 	roleLabel,
 	isSaving,
@@ -396,6 +399,7 @@ export const ResourceSharingDialog = <Role extends string, Option>({
 	renderAutocomplete,
 	getPrincipal,
 	onClose,
+	onCloseAutoFocus,
 	onSave,
 }: ResourceSharingDialogProps<Role, Option>) => (
 	<Dialog
@@ -406,7 +410,7 @@ export const ResourceSharingDialog = <Role extends string, Option>({
 			}
 		}}
 	>
-		<DialogContent className="max-w-2xl">
+		<DialogContent className="max-w-2xl" onCloseAutoFocus={onCloseAutoFocus}>
 			<DialogHeader>
 				<DialogTitle>{title}</DialogTitle>
 				<DialogDescription>{description}</DialogDescription>

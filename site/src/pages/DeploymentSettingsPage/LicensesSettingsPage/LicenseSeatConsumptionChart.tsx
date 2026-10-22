@@ -1,5 +1,4 @@
 import { ChevronRightIcon } from "lucide-react";
-import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import {
 	Area,
@@ -15,6 +14,7 @@ import {
 	ChartContainer,
 	ChartTooltip,
 	ChartTooltipContent,
+	getDailyChartDescription,
 } from "#/components/Chart/Chart";
 import {
 	Collapsible,
@@ -43,7 +43,7 @@ type LicenseSeatConsumptionChartProps = {
 		| undefined;
 };
 
-export const LicenseSeatConsumptionChart: FC<
+export const LicenseSeatConsumptionChart: React.FC<
 	LicenseSeatConsumptionChartProps
 > = ({ data, limit }) => {
 	return (
@@ -140,6 +140,13 @@ export const LicenseSeatConsumptionChart: FC<
 							>
 								<AreaChart
 									accessibilityLayer
+									role="group"
+									aria-roledescription="chart"
+									title="License seat consumption"
+									desc={getDailyChartDescription(
+										"Daily license seats used",
+										data.map((d) => d.date),
+									)}
 									data={data}
 									margin={{
 										top: 5,

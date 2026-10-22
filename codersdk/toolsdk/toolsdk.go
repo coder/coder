@@ -29,7 +29,6 @@ import (
 
 // Tool name constants to avoid hardcoded strings
 const (
-	ToolNameReportTask                  = "coder_report_task"
 	ToolNameGetWorkspace                = "coder_get_workspace"
 	ToolNameCreateWorkspace             = "coder_create_workspace"
 	ToolNameListWorkspaces              = "coder_list_workspaces"
@@ -47,13 +46,15 @@ const (
 	ToolNameUploadTarFile               = "coder_upload_tar_file"
 	ToolNameCreateTemplate              = "coder_create_template"
 	ToolNameDeleteTemplate              = "coder_delete_template"
-	ToolNameWorkspaceBash               = "coder_workspace_bash"
+	ToolNameWorkspaceExecute            = "coder_workspace_execute"
+	ToolNameWorkspaceProcessOutput      = "coder_workspace_process_output"
+	ToolNameWorkspaceProcessList        = "coder_workspace_process_list"
+	ToolNameWorkspaceProcessSignal      = "coder_workspace_process_signal"
 	ToolNameChatGPTSearch               = "search"
 	ToolNameChatGPTFetch                = "fetch"
 	ToolNameWorkspaceLS                 = "coder_workspace_ls"
 	ToolNameWorkspaceReadFile           = "coder_workspace_read_file"
 	ToolNameWorkspaceWriteFile          = "coder_workspace_write_file"
-	ToolNameWorkspaceEditFile           = "coder_workspace_edit_file"
 	ToolNameWorkspaceEditFiles          = "coder_workspace_edit_files"
 	ToolNameWorkspacePortForward        = "coder_workspace_port_forward"
 	ToolNameWorkspaceListApps           = "coder_workspace_list_apps"
@@ -94,7 +95,6 @@ func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
 // Deps provides access to tool dependencies.
 type Deps struct {
 	coderClient *codersdk.Client
-	report      func(ReportTaskArgs) error
 	agentConnFn workspacesdk.AgentConnFunc
 }
 
@@ -103,12 +103,6 @@ func (d Deps) ServerURL() string {
 	serverURLCopy.Path = ""
 	serverURLCopy.RawQuery = ""
 	return serverURLCopy.String()
-}
-
-func WithTaskReporter(fn func(ReportTaskArgs) error) func(*Deps) {
-	return func(d *Deps) {
-		d.report = fn
-	}
 }
 
 // WithAgentConnFunc overrides how workspace tools open logical connections to
@@ -412,16 +406,17 @@ var All = []GenericTool{
 	GetWorkspace.Generic(),
 	GetWorkspaceAgentLogs.Generic(),
 	GetWorkspaceBuildLogs.Generic(),
-	ReportTask.Generic(),
 	UploadTarFile.Generic(),
 	UpdateTemplateActiveVersion.Generic(),
-	WorkspaceBash.Generic(),
+	WorkspaceExecute.Generic(),
+	WorkspaceProcessOutput.Generic(),
+	WorkspaceProcessList.Generic(),
+	WorkspaceProcessSignal.Generic(),
 	ChatGPTSearch.Generic(),
 	ChatGPTFetch.Generic(),
 	WorkspaceLS.Generic(),
 	WorkspaceReadFile.Generic(),
 	WorkspaceWriteFile.Generic(),
-	WorkspaceEditFile.Generic(),
 	WorkspaceEditFiles.Generic(),
 	WorkspacePortForward.Generic(),
 	WorkspaceListApps.Generic(),
@@ -435,79 +430,6 @@ var All = []GenericTool{
 	InterruptChat.Generic(),
 	ArchiveChat.Generic(),
 	ListChatModelConfigs.Generic(),
-}
-
-type ReportTaskArgs struct {
-	Link    string `json:"link"`
-	State   string `json:"state"`
-	Summary string `json:"summary"`
-}
-
-var ReportTask = Tool[ReportTaskArgs, codersdk.Response]{
-	Tool: aisdk.Tool{
-		Name: ToolNameReportTask,
-		Description: `Report progress on your work.
-
-The user observes your work through a Task UI. To keep them updated
-on your progress, or if you need help - use this tool.
-
-Good Tasks
-- "Cloning the repository <repository-url>"
-- "Working on <feature-name>"
-- "Figuring our why <issue> is happening"
-
-Bad Tasks
-- "I'm working on it"
-- "I'm trying to fix it"
-- "I'm trying to implement <feature-name>"
-
-Use the "state" field to indicate your progress. Periodically report
-progress with state "working" to keep the user updated. It is not possible to send too many updates!
-
-ONLY report a "complete", "idle", or "failure" state if you have FULLY completed the task.
-`,
-		Schema: aisdk.Schema{
-			Properties: map[string]any{
-				"summary": map[string]any{
-					"type":        "string",
-					"description": "A concise summary of your current progress on the task. This must be less than 160 characters in length and must not include newlines or other control characters.",
-				},
-				"link": map[string]any{
-					"type":        "string",
-					"description": "A link to a relevant resource, such as a PR or issue.",
-				},
-				"state": map[string]any{
-					"type":        "string",
-					"description": "The state of your task. This can be one of the following: working, complete, idle, or failure. Select the state that best represents your current progress.",
-					"enum": []string{
-						string(codersdk.WorkspaceAppStatusStateWorking),
-						string(codersdk.WorkspaceAppStatusStateComplete),
-						string(codersdk.WorkspaceAppStatusStateIdle),
-						string(codersdk.WorkspaceAppStatusStateFailure),
-					},
-				},
-			},
-			Required: []string{"summary", "link", "state"},
-		},
-	},
-	MCPAnnotations:     mcpMutationAnnotations,
-	UserClientOptional: true,
-	Handler: func(_ context.Context, deps Deps, args ReportTaskArgs) (codersdk.Response, error) {
-		if len(args.Summary) > 160 {
-			return codersdk.Response{}, xerrors.New("summary must be less than 160 characters")
-		}
-		// Check if task reporting is available to prevent nil pointer dereference
-		if deps.report == nil {
-			return codersdk.Response{}, xerrors.New("task reporting not available. Please ensure a task reporter is configured.")
-		}
-		err := deps.report(args)
-		if err != nil {
-			return codersdk.Response{}, err
-		}
-		return codersdk.Response{
-			Message: "Thanks for reporting!",
-		}, nil
-	},
 }
 
 type GetWorkspaceArgs struct {
@@ -1890,308 +1812,6 @@ var WorkspaceLS = Tool[WorkspaceLSArgs, WorkspaceLSResponse]{
 			}
 		}
 		return WorkspaceLSResponse{Contents: contents}, nil
-	},
-}
-
-type WorkspaceReadFileArgs struct {
-	Workspace string `json:"workspace"`
-	Path      string `json:"path"`
-	Offset    int64  `json:"offset"`
-	Limit     int64  `json:"limit"`
-}
-
-type WorkspaceReadFileResponse struct {
-	// Content is the base64-encoded bytes from the file.
-	Content  []byte `json:"content"`
-	MimeType string `json:"mimeType"`
-}
-
-const maxFileLimit = 1 << 20 // 1MiB
-
-var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
-	Tool: aisdk.Tool{
-		Name:        ToolNameWorkspaceReadFile,
-		Description: `Read from a file in a workspace.`,
-		Schema: aisdk.Schema{
-			Properties: map[string]any{
-				"workspace": map[string]any{
-					"type":        "string",
-					"description": workspaceAgentDescription,
-				},
-				"path": map[string]any{
-					"type":        "string",
-					"description": "The absolute path of the file to read in the workspace.",
-				},
-				"offset": map[string]any{
-					"type":        "integer",
-					"description": "A byte offset indicating where in the file to start reading. Defaults to zero. An empty string indicates the end of the file has been reached.",
-				},
-				"limit": map[string]any{
-					"type":        "integer",
-					"description": "The number of bytes to read. Cannot exceed 1 MiB. Defaults to the full size of the file or 1 MiB, whichever is lower.",
-				},
-			},
-			Required: []string{"path", "workspace"},
-		},
-	},
-	MCPAnnotations:     mcpReadOnlyAnnotations,
-	UserClientOptional: true,
-	Handler: func(ctx context.Context, deps Deps, args WorkspaceReadFileArgs) (WorkspaceReadFileResponse, error) {
-		conn, err := openAgentConn(ctx, deps, args.Workspace)
-		if err != nil {
-			return WorkspaceReadFileResponse{}, err
-		}
-		defer conn.Close()
-
-		// Ideally we could stream this all the way back, but it looks like the MCP
-		// interfaces only allow returning full responses which means the whole
-		// thing has to be read into memory.  So, add a maximum limit to compensate.
-		limit := args.Limit
-		if limit == 0 {
-			limit = maxFileLimit
-		} else if limit > maxFileLimit {
-			return WorkspaceReadFileResponse{}, xerrors.Errorf("limit must be %d or less, got %d", maxFileLimit, limit)
-		}
-
-		reader, mimeType, err := conn.ReadFile(ctx, args.Path, args.Offset, limit)
-		if err != nil {
-			return WorkspaceReadFileResponse{}, err
-		}
-		defer reader.Close()
-
-		bs, err := io.ReadAll(reader)
-		if err != nil {
-			return WorkspaceReadFileResponse{}, xerrors.Errorf("read response body: %w", err)
-		}
-
-		return WorkspaceReadFileResponse{Content: bs, MimeType: mimeType}, nil
-	},
-}
-
-type WorkspaceWriteFileArgs struct {
-	Workspace string `json:"workspace"`
-	Path      string `json:"path"`
-	Content   []byte `json:"content"`
-}
-
-var WorkspaceWriteFile = Tool[WorkspaceWriteFileArgs, codersdk.Response]{
-	Tool: aisdk.Tool{
-		Name: ToolNameWorkspaceWriteFile,
-		Description: `Write a file in a workspace.
-
-If a file write fails due to syntax errors or encoding issues, do NOT switch
-to using bash commands as a workaround. Instead:
-
-	1. Read the error message carefully to identify the issue
-	2. Fix the content encoding/syntax
-	3. Retry with this tool
-
-The content parameter expects base64-encoded bytes. Ensure your source content
-is correct before encoding it. If you encounter errors, decode and verify the
-content you are trying to write, then re-encode it properly.
-`,
-		Schema: aisdk.Schema{
-			Properties: map[string]any{
-				"workspace": map[string]any{
-					"type":        "string",
-					"description": workspaceAgentDescription,
-				},
-				"path": map[string]any{
-					"type":        "string",
-					"description": "The absolute path of the file to write in the workspace.",
-				},
-				"content": map[string]any{
-					"type":        "string",
-					"description": "The base64-encoded bytes to write to the file.",
-				},
-			},
-			Required: []string{"path", "workspace", "content"},
-		},
-	},
-	MCPAnnotations:     mcpDestructiveAnnotations,
-	UserClientOptional: true,
-	Handler: func(ctx context.Context, deps Deps, args WorkspaceWriteFileArgs) (codersdk.Response, error) {
-		conn, err := openAgentConn(ctx, deps, args.Workspace)
-		if err != nil {
-			return codersdk.Response{}, err
-		}
-		defer conn.Close()
-
-		reader := bytes.NewReader(args.Content)
-		err = conn.WriteFile(ctx, args.Path, reader)
-		if err != nil {
-			return codersdk.Response{}, err
-		}
-
-		return codersdk.Response{
-			Message: "File written successfully.",
-		}, nil
-	},
-}
-
-type WorkspaceEditFileArgs struct {
-	Workspace string                  `json:"workspace"`
-	Path      string                  `json:"path"`
-	Edits     []workspacesdk.FileEdit `json:"edits"`
-}
-
-// WorkspaceEditFilesResponse is the response shape for the edit-file
-// and edit-files tools. Message preserves the existing success text.
-// Files carries the per-file results returned by the agent
-// (populated when the agent-side IncludeDiff flag was set). The
-// field is named Files (matching the agent's FileEditResponse.Files)
-// so future per-file error or status fields can be added without a
-// second wire break.
-type WorkspaceEditFilesResponse struct {
-	Message string                        `json:"message"`
-	Files   []workspacesdk.FileEditResult `json:"files,omitempty"`
-}
-
-var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, WorkspaceEditFilesResponse]{
-	Tool: aisdk.Tool{
-		Name:        ToolNameWorkspaceEditFile,
-		Description: `Edit a file in a workspace.`,
-		Schema: aisdk.Schema{
-			Properties: map[string]any{
-				"workspace": map[string]any{
-					"type":        "string",
-					"description": workspaceAgentDescription,
-				},
-				"path": map[string]any{
-					"type":        "string",
-					"description": "The absolute path of the file to write in the workspace.",
-				},
-				"edits": map[string]any{
-					"type":        "array",
-					"description": "An array of edit operations.",
-					"items": map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"old_text": map[string]any{
-								"type":        "string",
-								"description": "The existing text to replace. Matching is fuzzy: whitespace and indentation differences are tolerated. Must uniquely match exactly one location in the file unless replace_all is true. Include enough surrounding context to make the match unique.",
-							},
-							"new_text": map[string]any{
-								"type":        "string",
-								"description": "The new text that replaces the old text.",
-							},
-							"replace_all": map[string]any{
-								"type":        "boolean",
-								"description": "When true, replaces all occurrences of old_text. Defaults to false, which requires old_text to match exactly once.",
-							},
-						},
-						"required": []string{"old_text", "new_text"},
-					},
-				},
-			},
-			Required: []string{"path", "workspace", "edits"},
-		},
-	},
-	MCPAnnotations:     mcpDestructiveAnnotations,
-	UserClientOptional: true,
-	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFileArgs) (WorkspaceEditFilesResponse, error) {
-		conn, err := openAgentConn(ctx, deps, args.Workspace)
-		if err != nil {
-			return WorkspaceEditFilesResponse{}, err
-		}
-		defer conn.Close()
-
-		resp, err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{
-			Files: []workspacesdk.FileEdits{
-				{
-					Path:  args.Path,
-					Edits: args.Edits,
-				},
-			},
-			IncludeDiff: true,
-		})
-		if err != nil {
-			return WorkspaceEditFilesResponse{}, err
-		}
-
-		return WorkspaceEditFilesResponse{
-			Message: "File edited successfully.",
-			Files:   resp.Files,
-		}, nil
-	},
-}
-
-type WorkspaceEditFilesArgs struct {
-	Workspace string                   `json:"workspace"`
-	Files     []workspacesdk.FileEdits `json:"files"`
-}
-
-var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, WorkspaceEditFilesResponse]{
-	Tool: aisdk.Tool{
-		Name:        ToolNameWorkspaceEditFiles,
-		Description: `Edit one or more files in a workspace.`,
-		Schema: aisdk.Schema{
-			Properties: map[string]any{
-				"workspace": map[string]any{
-					"type":        "string",
-					"description": workspaceAgentDescription,
-				},
-				"files": map[string]any{
-					"type":        "array",
-					"description": "An array of files to edit.",
-					"items": map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"path": map[string]any{
-								"type":        "string",
-								"description": "The absolute path of the file to write in the workspace.",
-							},
-							"edits": map[string]any{
-								"type":        "array",
-								"description": "An array of edit operations.",
-								"items": map[string]any{
-									"type": "object",
-									"properties": map[string]any{
-										"old_text": map[string]any{
-											"type":        "string",
-											"description": "The existing text to replace. Matching is fuzzy: whitespace and indentation differences are tolerated. Must uniquely match exactly one location in the file unless replace_all is true. Include enough surrounding context to make the match unique.",
-										},
-										"new_text": map[string]any{
-											"type":        "string",
-											"description": "The new text that replaces the old text.",
-										},
-										"replace_all": map[string]any{
-											"type":        "boolean",
-											"description": "When true, replaces all occurrences of old_text. Defaults to false, which requires old_text to match exactly once.",
-										},
-									},
-									"required": []string{"old_text", "new_text"},
-								},
-							},
-						},
-						"required": []string{"path", "edits"},
-					},
-				},
-			},
-			Required: []string{"workspace", "files"},
-		},
-	},
-	MCPAnnotations:     mcpDestructiveAnnotations,
-	UserClientOptional: true,
-	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFilesArgs) (WorkspaceEditFilesResponse, error) {
-		conn, err := openAgentConn(ctx, deps, args.Workspace)
-		if err != nil {
-			return WorkspaceEditFilesResponse{}, err
-		}
-		defer conn.Close()
-
-		resp, err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{
-			Files:       args.Files,
-			IncludeDiff: true,
-		})
-		if err != nil {
-			return WorkspaceEditFilesResponse{}, err
-		}
-
-		return WorkspaceEditFilesResponse{
-			Message: "File(s) edited successfully.",
-			Files:   resp.Files,
-		}, nil
 	},
 }
 

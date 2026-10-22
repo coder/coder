@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -669,7 +670,7 @@ func TestSearchConnectionLogs(t *testing.T) {
 			OrganizationID:      orgID,
 			WorkspaceOwner:      "testowner",
 			WorkspaceOwnerEmail: "owner@example.com",
-			Type:                string(database.ConnectionTypePortForwarding),
+			ConnectionMethod:    string(database.ConnectionLogMethodPortForwarding),
 			Username:            "testuser",
 			UserEmail:           "test@example.com",
 			ConnectedAfter:      time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -680,6 +681,81 @@ func TestSearchConnectionLogs(t *testing.T) {
 		}
 
 		require.Equal(t, expected, values)
+	})
+
+	// type: is the legacy filter. No query has an organization term, so no
+	// database is needed.
+	t.Run("Type", func(t *testing.T) {
+		t.Parallel()
+
+		parse := func(q string) database.GetConnectionLogsOffsetParams {
+			values, count, errs := searchquery.ConnectionLogs(context.Background(), nil, q, database.APIKey{})
+			require.Len(t, errs, 0, q)
+			require.Equal(t, values.ConnectionMethod, count.ConnectionMethod, q)
+			require.Equal(t, values.AppNames, count.AppNames, q)
+			require.Equal(t, values.ExcludedAppNames, count.ExcludedAppNames, q)
+			return values
+		}
+
+		// The families grow, so check membership rather than the list.
+		vscode := parse("type:vscode")
+		require.Equal(t, string(database.ConnectionLogMethodSSH), vscode.ConnectionMethod)
+		require.Contains(t, vscode.AppNames, "cursor")
+		require.NotContains(t, vscode.AppNames, "goland")
+		require.Empty(t, vscode.ExcludedAppNames)
+
+		jetbrains := parse("type:jetbrains")
+		require.Contains(t, jetbrains.AppNames, "goland")
+		require.NotContains(t, jetbrains.AppNames, "cursor")
+
+		// Plain SSH also matches absent and unregistered apps.
+		ssh := parse("type:ssh")
+		require.Equal(t, string(database.ConnectionLogMethodSSH), ssh.ConnectionMethod)
+		require.Empty(t, ssh.AppNames)
+		require.ElementsMatch(t, slices.Concat(vscode.AppNames, jetbrains.AppNames), ssh.ExcludedAppNames)
+
+		pty := parse("type:reconnecting_pty")
+		require.Equal(t, string(database.ConnectionLogMethodReconnectingPTY), pty.ConnectionMethod)
+		require.Empty(t, pty.AppNames)
+		require.Empty(t, pty.ExcludedAppNames)
+
+		// An app is not a type, and type cannot be combined with its replacements.
+		for _, q := range []string{"type:cursor", "type:unknown", "type:ssh method:ssh", "type:vscode app:cursor"} {
+			_, _, errs := searchquery.ConnectionLogs(context.Background(), nil, q, database.APIKey{})
+			require.Len(t, errs, 1, q)
+		}
+	})
+
+	t.Run("Method", func(t *testing.T) {
+		t.Parallel()
+
+		values, count, errs := searchquery.ConnectionLogs(context.Background(), nil, "method:reconnecting_pty", database.APIKey{})
+		require.Len(t, errs, 0)
+		require.Equal(t, string(database.ConnectionLogMethodReconnectingPTY), values.ConnectionMethod)
+		require.Equal(t, values.ConnectionMethod, count.ConnectionMethod)
+
+		// A legacy type is not a method.
+		for _, q := range []string{"method:vscode", "method:unknown"} {
+			_, _, errs = searchquery.ConnectionLogs(context.Background(), nil, q, database.APIKey{})
+			require.Len(t, errs, 1, q)
+		}
+	})
+
+	// app: matches the normalized name of the connecting application.
+	t.Run("App", func(t *testing.T) {
+		t.Parallel()
+
+		values, count, errs := searchquery.ConnectionLogs(context.Background(), nil, "app:Code-Server", database.APIKey{})
+		require.Len(t, errs, 0)
+		require.Equal(t, []string{"code_server"}, values.AppNames)
+		require.Equal(t, values.AppNames, count.AppNames)
+
+		// Repeated app terms match any of them.
+		values, count, errs = searchquery.ConnectionLogs(context.Background(), nil, "app:vscode app:Cursor app:cursor method:ssh", database.APIKey{})
+		require.Len(t, errs, 0)
+		require.Equal(t, []string{"cursor", "vscode"}, values.AppNames)
+		require.Equal(t, values.AppNames, count.AppNames)
+		require.Equal(t, string(database.ConnectionLogMethodSSH), values.ConnectionMethod)
 	})
 
 	t.Run("Me", func(t *testing.T) {
@@ -1108,14 +1184,19 @@ func TestSearchChatsFrontendEmitted(t *testing.T) {
 		{name: "HasUnread", query: "has_unread:true"},
 		{name: "Archived", query: "archived:true"},
 		{name: "PRStatuses", query: "pr_status:open,merged"},
+		{name: "ChatStatuses", query: "status:error,running"},
+		{name: "PRStatusNone", query: "pr_status:none"},
 		{name: "DiffURL", query: `diff_url:"https://github.com/coder/coder/pull/1"`},
 		{name: "FilterAndSearch", query: `has_unread:true search:"fix auth"`},
 		{name: "SidebarDefault", query: "archived:false"},
 		{name: "SidebarUnread", query: "archived:false has_unread:true"},
+		{name: "SidebarStatus", query: "archived:false status:requires_action,running,interrupting"},
+		{name: "SidebarUnreadStatus", query: "archived:false has_unread:true status:requires_action,running,interrupting"},
 		{
 			name:  "SidebarFiltered",
 			query: "archived:false pr_status:draft,closed source:created_by_me,shared_with_me",
 		},
+		{name: "SidebarNoPR", query: "archived:false pr_status:none"},
 	}
 
 	for _, testCase := range testCases {
@@ -1126,7 +1207,7 @@ func TestSearchChatsFrontendEmitted(t *testing.T) {
 		})
 	}
 
-	rejectedQueries := []string{"pr_status:banana", "has_unread:maybe"}
+	rejectedQueries := []string{"pr_status:banana", "has_unread:maybe", "status:working"}
 	for _, query := range rejectedQueries {
 		t.Run("Rejects"+query, func(t *testing.T) {
 			t.Parallel()
@@ -1207,6 +1288,29 @@ func TestSearchChats(t *testing.T) {
 			ExpectedErrorContains: "has_unread",
 		},
 		{
+			Name:  "ChatStatusRunning",
+			Query: "status:running",
+			Expected: database.GetChatsParams{
+				Archived:     sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:    true,
+				ChatStatuses: []string{"running"},
+			},
+		},
+		{
+			Name:  "ChatStatusMultiple",
+			Query: "status:waiting,error",
+			Expected: database.GetChatsParams{
+				Archived:     sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:    true,
+				ChatStatuses: []string{"waiting", "error"},
+			},
+		},
+		{
+			Name:                  "ChatStatusInvalid",
+			Query:                 "status:working",
+			ExpectedErrorContains: "status",
+		},
+		{
 			Name:  "PRStatusDraft",
 			Query: "pr_status:draft",
 			Expected: database.GetChatsParams{
@@ -1240,6 +1344,24 @@ func TestSearchChats(t *testing.T) {
 				Archived:            sql.NullBool{Bool: false, Valid: true},
 				OwnedOnly:           true,
 				PullRequestStatuses: []string{"closed"},
+			},
+		},
+		{
+			Name:  "PRStatusNone",
+			Query: "pr_status:none",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:           true,
+				PullRequestStatuses: []string{"none"},
+			},
+		},
+		{
+			Name:  "PRStatusNoneAndOpen",
+			Query: "pr_status:none,open",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:           true,
+				PullRequestStatuses: []string{"none", "open"},
 			},
 		},
 		{

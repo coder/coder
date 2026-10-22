@@ -1,29 +1,30 @@
 import { ArrowLeftIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { postApp } from "#/api/queries/oauth2";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { pageTitle } from "#/utils/page";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 
 const BACK_HREF = "/deployment/oauth2-provider/apps";
 
-export const CreateOAuth2AppPageView: FC = () => {
+export const CreateOAuth2AppPageView: React.FC = () => {
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
 	const postAppMutation = useMutation(postApp(queryClient));
 
+	const callbackURL = searchParams.get("callback_url");
 	const defaultValues = {
 		name: searchParams.get("name") ?? "",
-		callback_url: searchParams.get("callback_url") ?? "",
+		redirect_uris: callbackURL ? [callbackURL] : [],
 		icon: searchParams.get("icon") ?? "",
 	};
 	const [icon, setIcon] = useState(defaultValues.icon);
@@ -50,6 +51,9 @@ export const CreateOAuth2AppPageView: FC = () => {
 
 				<div className="border border-solid p-6 rounded-lg">
 					<OAuth2AppForm
+						// Apps created here are confidential. Public clients only come
+						// from dynamic client registration.
+						clientType="confidential"
 						onSubmit={async (req) => {
 							try {
 								const app = await postAppMutation.mutateAsync(req);

@@ -1,4 +1,4 @@
-# Coder Docs Content Guidelines
+# Coder docs content guidelines
 
 > [!NOTE]
 > This is the **canonical** guidance for what belongs in the Coder documentation under `docs/` (published to [coder.com/docs](https://coder.com/docs)) and what doesn't.
@@ -18,7 +18,7 @@ When you have a candidate change for the docs, apply these rules in order:
 ## Quick decision checklist
 
 Triage a piece of content fast.
-If any answer routes you away from the docs, see the [routing table](#routing-table) for the correct destination.
+If any answer routes you away from the docs, refer to the [routing table](#routing-table) for the correct destination.
 
 1. Does it describe how the product works or how to use it, from the end user's perspective?
    **Likely docs.**
@@ -72,11 +72,11 @@ Docs claims should be checked against the actual implementation, not approximati
 - Exact RBAC action names.
   Example: `template:view_insights`, not "view insights".
 - Real thresholds and defaults.
-  Example: `green < 150ms, yellow 150-300ms, red ≥300ms`, not "around 150 ms".
+  Example: `green < 150ms, yellow 150-300ms, red ≥300ms`, not "around 150&nbsp;ms".
 - Full API paths.
   Example: `/api/v2/insights/templates`, not `/insights/templates`.
 
-*Why:* Precise values are what make accuracy checkable; "roughly 5 minutes" can't drift-fail, but `300s default` can.
+*Why:* Precise values are what make accuracy checkable; "roughly 5&nbsp;minutes" can't drift-fail, but `300s default` can.
 Whether an exact value belongs on the page at all is a separate question; refer to [Evidence justifies a claim; it does not belong in the claim](#evidence-justifies-a-claim-it-does-not-belong-in-the-claim).
 
 ### Evidence justifies a claim; it does not belong in the claim
@@ -138,7 +138,7 @@ Don't conflate them:
 - **Experiments** are the feature flagging system: the `--experiments` flag on `coder server` and the `CODER_EXPERIMENTS` environment variable.
   An experiment is either *safe* (ready for users to try) or *unsafe* (active development, not designed for users at all).
 - **Feature stages** describe how production-ready a feature is: Early Access, Beta, or General Availability.
-  Refer to [Feature stages](../install/releases/feature-stages.md).
+  Refer to [Feature stages](../reference/feature-stages.md).
 
 Practical impact for docs:
 
@@ -198,7 +198,7 @@ Each entry includes the reason it belongs in the docs.
   Once a migration path is no longer relevant to the supported upgrade path, it ages out like any other stale content.
 
 - **Tutorials and guides that go beyond an API reference.**
-  Walkthroughs using the CLI (or chained commands) with expected outputs.
+  Tutorials using the CLI (or chained commands) with expected outputs.
 
   *Why:* Reference docs tell users what exists; guides teach them how to accomplish something with it.
 
@@ -216,53 +216,55 @@ Each entry includes the reason it belongs in the docs.
   1. No PHI or PII.
   2. No internal secrets leaked without properly obfuscating the text.
   3. Capture the minimally necessary surface area.
-     The more area a
-     screenshot includes, the more likely it becomes out of date.
-  4. Alt text is always required, and must properly explain the purpose
-     of the screenshot for accessibility.
+     The more area a screenshot includes, the more likely it becomes out of date.
+  4. Alt text is always required, and must properly explain the purpose of the screenshot for accessibility.
 
   *Why:* Screenshots must be kept up to date and risk going stale if not actively monitored, and users who rely on screen readers or other assistive technology cannot get the same value from screenshots that sighted users can.
   Each screenshot must earn its place, stay small, and carry alt text that conveys its purpose.
 
   *Note:* This policy supersedes the older "image-driven documentation" guidance (structuring sections around screenshots, inserting placeholders for missing screenshots).
-  It may be loosened if automated screenshot generation becomes real (see [Open items](#open-items)).
+  It might be loosened if automated screenshot generation becomes real (refer to [Open items](#open-items)).
 
 ## Structural rules
 
 These govern *how* content enters the docs, for both humans and the doc-check agent.
 
-- **Every new page must be added to `docs/manifest.json`.**
-  Pages not in the manifest don't appear in navigation and effectively don't exist on [coder.com/docs](https://coder.com/docs).
+- **Every new page must be added to the sidebar sources in `docs/manifest/`.**
+  Pages not in the sidebar don't appear in navigation and effectively don't exist on [coder.com/docs](https://coder.com/docs).
+  Run `make gen/docs-manifest` to rebuild `docs/manifest.json` from the sources; don't edit the JSON directly.
 - **Never hand-edit auto-generated content.**
   Files under `docs/reference/cli/` are generated from Go code; changes go in the CLI definitions (typically under `cli/`), then regenerate.
   Generated sections are marked with `<!-- Code generated ... DO NOT EDIT -->`.
-- **Premium features are marked explicitly.**
-  Both of the following are required for a Premium page:
-  1. The H1 title takes a `(Premium)` suffix.
-     Example: `# Template
-     Insights (Premium)`.
-  2. The page's `docs/manifest.json` entry gets `"state": ["premium"]`.
+- **Feature states are marked in navigation metadata.**
+  The page's route in `docs/manifest/` must include its state, such as `state: [premium]` or `state: [beta]`.
+  Do not add a feature-state suffix to the page title or H1.
 - **Moving or renaming a page requires link updates and a redirect.**
   If a page changes its position in the directory structure:
   1. Update every link that relies on its existing location.
-  2. Add a redirect in the
-     [`coder/coder.com`](https://github.com/coder/coder.com/blob/master/redirects.json)
-     repo (`redirects.json`).
+  2. Add a rule to `docs/redirects.json` in the same PR that moves the page.
+     Each rule has a `source` and a `destination`, both full `/docs/...` paths, and an optional `permanent` flag that defaults to `true`.
+     A `destination` can also be an external `http` or `https` URL.
+     A `source` is an exact path, a path ending in `/:path*`, or a path with a `:slug(.*)` capture.
+     For example: `{"source": "/docs/about/architecture", "destination": "/docs/about"}`.
+
+  The website reads `docs/redirects.json` at build time, and a change to the file starts a website rebuild.
+  The redirect is therefore live in the build that the merge triggers.
+  Each release branch has its own copy of the file, and the unversioned docs are served from the mainline release branch.
+  Backport the move and its redirect together so the old URL keeps working there.
+  Redirects that predate this file stay where they are and keep working.
 
   Do not create a `docs/_redirects` file.
   That format isn't processed by [coder.com](https://coder.com).
 - **No emdash, endash, or ` -- ` as punctuation.**
   This applies in docs prose, code blocks, comments, and string literals.
-  Use commas, semicolons, or periods, or restructure the sentence.
-  For numeric ranges, use a plain hyphen (e.g., `0-100`).
+  Use commas, parentheses, or periods, or restructure the sentence.
+  For numeric ranges in code and tables, a plain hyphen is fine (`0-100`).
+  In prose, spell out the joiner (`0 to 100`), as [Numeric ranges](./style-guide/capitalization-and-punctuation.md#numeric-ranges) describes.
   The rule is enforced by `make lint/emdash`.
 - **Terminology changes update the glossary.**
   When a change introduces, renames, or deprecates a Coder product or feature name, update the [glossary](../reference/glossary.md) in the same change, the way a user-facing feature lands with its docs:
-  1. New name: add an entry with a short definition and a link to the
-     page that covers the term.
-  2. Rename: update the entry and record the former name (for example,
-     "previously named ...") so a reader who searches the old term still
-     lands in the right place.
+  1. New name: add an entry with a short definition and a link to the page that covers the term.
+  2. Rename: update the entry and record the former name (for example, "previously named ...") so a reader who searches the old term still lands in the right place.
   3. Deprecation: mark the term deprecated and name its replacement.
 
   A term earns an entry when it is a Coder-specific product or feature proper noun, or a word that collides with another Coder meaning (for example, the several senses of "agent").
@@ -307,7 +309,7 @@ Each entry includes the destination and the reason.
 
   *Why:* Don't predict the future; don't carry forward material that no longer applies.
   Version-scoped content is what keeps the docs trustworthy and drift-detectable.
-  See the multi-PR launch exception in [Documentation lands with the change](#documentation-lands-with-the-change).
+  Refer to the multi-PR launch exception in [Documentation lands with the change](#documentation-lands-with-the-change).
 
 - **Feature announcements and launch rationale.**
   Route to blog.
@@ -337,7 +339,7 @@ When content doesn't belong in the docs, here's where it goes.
 | Launch rationale ("why we built this")   | Blog                                   | Casual, narrative voice belongs on the blog                                                                                                          |
 | Performance improvements                 | Changelog or blog                      | No change to how the user interacts with the product                                                                                                 |
 | Release-by-release changes               | Changelog                              | The changelog is the record of what changed and when                                                                                                 |
-| Known bugs or undesired behavior         | Changelog                              | Docs shouldn't highlight deficiencies (see exception above)                                                                                          |
+| Known bugs or undesired behavior         | Changelog                              | Docs shouldn't highlight deficiencies (refer to the exception in the previous section)                                                               |
 | Troubleshooting ("when things go wrong") | Support KB (Pylon)                     | Support is primary owner of failure-mode content (Docs secondary where needed); docs own intended behavior and link to the KB via an embedded widget |
 | Contributing guides                      | GitHub (or public Notion)              | Audience is contributors, not end users                                                                                                              |
 | Style guides (code and docs)             | GitHub, with the codebase              | Same audience as contributing guides; enables CI enforcement                                                                                         |
@@ -360,4 +362,4 @@ Update this section as they land.
   If it becomes real, revisit loosening the screenshots policy.
   Until then, the screenshot rules in [What belongs in the docs](#what-belongs-in-the-docs) govern.
 - **doc-check redirect suggestions.**
-  When doc-check detects a moved or renamed page, it should suggest the exact `redirects.json` entry for `coder/coder.com` in a code block, so applying it is at most a copy-paste job.
+  When doc-check detects a moved or renamed page, it should suggest the exact `docs/redirects.json` entry in a code block, so applying it is at most a copy-paste job.

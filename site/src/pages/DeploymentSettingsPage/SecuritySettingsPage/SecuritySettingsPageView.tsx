@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { SerpentOption } from "#/api/typesGenerated";
 import { BadgeGroup } from "#/components/Badge/Badge";
 import { DisabledBadge, EnabledBadge } from "#/components/Badge/PresetBadges";
@@ -24,11 +23,9 @@ type SecuritySettingsPageViewProps = {
 	featureBrowserOnlyEnabled: boolean;
 };
 
-export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
-	options,
-	isBrowserOnlyEntitled,
-	featureBrowserOnlyEnabled,
-}) => {
+export const SecuritySettingsPageView: React.FC<
+	SecuritySettingsPageViewProps
+> = ({ options, isBrowserOnlyEntitled, featureBrowserOnlyEnabled }) => {
 	const tlsOptions = options.filter((o) =>
 		deploymentGroupHasParent(o.group, "TLS"),
 	);

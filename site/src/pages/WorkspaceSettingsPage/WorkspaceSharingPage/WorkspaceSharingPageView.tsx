@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type {
 	Group,
 	Workspace,
@@ -21,7 +20,7 @@ import { docs } from "#/utils/docs";
 type WorkspaceSharingPageViewProps = {
 	workspace: Workspace;
 	workspaceACL: WorkspaceACL | undefined;
-	canUpdatePermissions: boolean;
+	canShareWorkspace: boolean;
 	error: unknown;
 	onAddUser: (
 		user: WorkspaceUser,
@@ -40,10 +39,12 @@ type WorkspaceSharingPageViewProps = {
 	hasRemovedMember?: boolean;
 };
 
-export const WorkspaceSharingPageView: FC<WorkspaceSharingPageViewProps> = ({
+export const WorkspaceSharingPageView: React.FC<
+	WorkspaceSharingPageViewProps
+> = ({
 	workspace,
 	workspaceACL,
-	canUpdatePermissions,
+	canShareWorkspace,
 	error,
 	onAddUser,
 	isAddingUser,
@@ -72,7 +73,7 @@ export const WorkspaceSharingPageView: FC<WorkspaceSharingPageViewProps> = ({
 			<WorkspaceSharingForm
 				organizationId={workspace.organization_id}
 				workspaceACL={workspaceACL}
-				canUpdatePermissions={canUpdatePermissions}
+				canShareWorkspace={canShareWorkspace}
 				error={error}
 				updatingUserId={updatingUserId}
 				onUpdateUser={onUpdateUser}

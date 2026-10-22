@@ -1,9 +1,8 @@
 import { TriangleAlertIcon } from "lucide-react";
 import type React from "react";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Response } from "../Response";
 import { ToolCall } from "./ToolCall";
-import { formatModelIntentLabel, type ToolStatus } from "./utils";
+import type { ToolStatus } from "./utils";
 
 export type AdvisorToolResultType = "advice" | "limit_reached" | "error";
 
@@ -13,8 +12,9 @@ type AdvisorToolProps = {
 	isError: boolean;
 	resultType?: AdvisorToolResultType;
 	advice?: string;
+	/** Streamed advisor reasoning, present only while the advisor runs. */
+	reasoning?: string;
 	errorMessage?: string;
-	modelIntent?: string;
 };
 
 export const AdvisorTool: React.FC<AdvisorToolProps> = ({
@@ -23,27 +23,27 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 	isError,
 	resultType,
 	advice,
+	reasoning,
 	errorMessage,
-	modelIntent,
 }) => {
 	const questionText = question.trim() || "No question provided.";
 	const adviceText = advice?.trim() ?? "";
+	const reasoningText = reasoning?.trim() ?? "";
 	const effectiveErrorMessage =
 		errorMessage?.trim() || "Advisor could not return guidance.";
 	const isRunning = status === "running";
 	const showLimitReached = resultType === "limit_reached";
 	const showError = isError || resultType === "error";
+	const showThinking = isRunning && reasoningText.length > 0;
+	const showAdvice = adviceText.length > 0 || !isRunning;
 
-	const intent = formatModelIntentLabel(modelIntent);
 	const label = showLimitReached
 		? "Advisor limit reached"
-		: intent && !showError
-			? intent
-			: isRunning
-				? "Consulting the advisor"
-				: showError
-					? "Failed to consult the advisor"
-					: "Consulted the advisor";
+		: isRunning
+			? "Consulting the advisor"
+			: showError
+				? "Failed to consult the advisor"
+				: "Consulted the advisor";
 
 	return (
 		<ToolCall.Root
@@ -64,18 +64,16 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 				}
 			/>
 			<ToolCall.Content>
-				<ScrollArea
-					className="mt-1.5 rounded-md border border-solid border-border-default"
+				<ToolCall.Scrollable
+					className="mt-1.5 rounded-md border border-solid border-border"
 					viewportClassName="max-h-64"
-					viewportTabIndex={0}
-					viewportAriaLabel="Advisor response"
-					scrollBarClassName="w-1.5"
+					ariaLabel="Advisor response"
 				>
 					<div className="space-y-2 px-3 py-2">
 						<p className="m-0 whitespace-pre-wrap wrap-break-word text-[13px] italic leading-5 text-content-secondary wrap-anywhere">
 							{questionText}
 						</p>
-						<div className="border-0 border-t border-solid border-border-default pt-2">
+						<div className="border-0 border-t border-solid border-border pt-2">
 							{showError ? (
 								<div role="alert" className="text-sm">
 									<p className="m-0 font-medium text-content-primary">
@@ -94,7 +92,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 										You have reached the advisor limit for this conversation.
 									</p>
 								</div>
-							) : isRunning && adviceText.length === 0 ? (
+							) : !showThinking && !showAdvice ? (
 								<div
 									role="status"
 									className="text-[13px] text-content-secondary"
@@ -102,16 +100,43 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 									Reviewing context and preparing guidance.
 								</div>
 							) : (
-								<Response
-									streaming={isRunning}
-									className="text-[13px] leading-5"
-								>
-									{adviceText || "Advisor returned no guidance."}
-								</Response>
+								<div className="space-y-3">
+									{showThinking && (
+										<section
+											aria-label="Advisor thinking"
+											className="space-y-1"
+										>
+											<p className="m-0 text-[13px] font-medium text-content-secondary">
+												Thinking
+											</p>
+											<Response
+												streaming
+												className="text-[13px] leading-5 text-content-secondary"
+											>
+												{reasoningText}
+											</Response>
+										</section>
+									)}
+									{showAdvice && (
+										<section aria-label="Advisor advice" className="space-y-1">
+											{showThinking && (
+												<p className="m-0 text-[13px] font-medium text-content-secondary">
+													Advice
+												</p>
+											)}
+											<Response
+												streaming={isRunning}
+												className="text-[13px] leading-5"
+											>
+												{adviceText || "Advisor returned no guidance."}
+											</Response>
+										</section>
+									)}
+								</div>
 							)}
 						</div>
 					</div>
-				</ScrollArea>
+				</ToolCall.Scrollable>
 			</ToolCall.Content>
 		</ToolCall.Root>
 	);

@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useFormik } from "formik";
-import type { FC } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { SelectItem } from "#/components/Select/Select";
 import { SelectField } from "./SelectField";
@@ -18,7 +17,7 @@ type ExampleSelectFieldProps = {
 	disabled?: boolean;
 };
 
-const ExampleSelectField: FC<ExampleSelectFieldProps> = ({
+const ExampleSelectField: React.FC<ExampleSelectFieldProps> = ({
 	id,
 	label,
 	description,

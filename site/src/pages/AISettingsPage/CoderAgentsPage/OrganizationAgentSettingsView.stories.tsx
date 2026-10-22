@@ -1,7 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatModel } from "#/testHelpers/chatModels";
+import {
+	MockChatModel,
+	MockCompactionChatModel,
+} from "#/testHelpers/chatModels";
+import { mockApiError } from "#/testHelpers/entities";
 import OrganizationAgentSettingsView from "./OrganizationAgentSettingsView";
 
 const model: TypesGen.ChatModel = {
@@ -15,6 +19,23 @@ const alternateModel: TypesGen.ChatModel = {
 	model: "model-two",
 	display_name: "Model Two",
 };
+const mockTinyModelWithCompactionOff: TypesGen.ChatModel = {
+	...MockChatModel,
+	id: "tiny-model",
+	model: "tiny",
+	display_name: "Tiny Model",
+	context_limit: 8_000,
+	compression_threshold: 100,
+};
+const mockWarningModels = [
+	MockCompactionChatModel,
+	model,
+	{ ...alternateModel, compression_threshold: 100 },
+	mockTinyModelWithCompactionOff,
+];
+const mockWarningOverrides: readonly TypesGen.ChatModelOverrideResponse[] = [
+	{ context: "compaction", model_config_id: model.id },
+];
 const saveGeneralOverride = fn();
 const saveExploreOverride = fn();
 const overrides: readonly TypesGen.ChatModelOverrideResponse[] = [
@@ -36,6 +57,10 @@ const meta: Meta<typeof OrganizationAgentSettingsView> = {
 	title: "pages/AISettingsPage/CoderAgentsPage/OrganizationAgentSettingsView",
 	component: OrganizationAgentSettingsView,
 	args: {
+		defaultModelID: model.id,
+		onSaveDefaultModel: fn(),
+		isSavingDefaultModel: false,
+		isSaveDefaultModelError: false,
 		overrides,
 		enabledModels: [model, alternateModel],
 		providerInfoByID: new Map([
@@ -44,9 +69,11 @@ const meta: Meta<typeof OrganizationAgentSettingsView> = {
 				{ provider: "openai", displayName: "OpenAI", icon: "" },
 			],
 		]),
-		isLoading: false,
-		loadError: null,
-		refetchError: null,
+		isModelsLoading: false,
+		isOverridesLoading: false,
+		overridesLoadError: null,
+		overridesRefetchError: null,
+		modelsError: null,
 		canEdit: true,
 		showAdvisor: true,
 		saveByContext,
@@ -56,6 +83,53 @@ const meta: Meta<typeof OrganizationAgentSettingsView> = {
 };
 export default meta;
 type Story = StoryObj<typeof OrganizationAgentSettingsView>;
+
+export const DefaultModelOpen: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", {
+				name: /^Default model,/,
+			}),
+		);
+	},
+};
+
+export const UnavailableDefaultModel: Story = {
+	args: { defaultModelID: "model-gone" },
+};
+
+export const NoDefaultModel: Story = {
+	args: { defaultModelID: undefined },
+};
+
+export const ModelsLoadError: Story = {
+	args: {
+		defaultModelID: undefined,
+		enabledModels: [],
+		modelsError: mockApiError({ message: "Failed to load chat models." }),
+	},
+};
+
+export const SavingDefaultModel: Story = {
+	args: { isSavingDefaultModel: true },
+};
+
+export const DefaultModelSaveError: Story = {
+	args: { isSaveDefaultModelError: true },
+	// The error follows a failed save of a new pick, so the row is dirty.
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", {
+				name: /^Default model,/,
+			}),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", {
+				name: new RegExp(alternateModel.display_name),
+			}),
+		);
+	},
+};
 
 export const SetAndUnset: Story = {
 	beforeEach: () => {
@@ -73,7 +147,9 @@ export const SetAndUnset: Story = {
 		});
 
 		await userEvent.click(
-			within(exploreSection).getByRole("combobox", { name: "Use default" }),
+			within(exploreSection).getByRole("combobox", {
+				name: "Explore subagent, Use chat model",
+			}),
 		);
 		await userEvent.click(
 			await body.findByRole("option", { name: /Model Two/i }),
@@ -106,6 +182,62 @@ export const SetAndUnset: Story = {
 		});
 	},
 };
+
+export const CompactionTriggerWarning: Story = {
+	args: {
+		overrides: mockWarningOverrides,
+		enabledModels: mockWarningModels,
+		// Unavailable to this viewer; the admin alert must still warn because it
+		// ignores per-user provider access.
+		providerInfoByID: new Map([
+			[
+				model.ai_provider_id,
+				{
+					provider: "openai",
+					displayName: "OpenAI",
+					icon: "",
+					available: false,
+				},
+			],
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const section = within(
+			within(canvasElement).getByRole("form", { name: "Compaction" }),
+		);
+
+		await userEvent.click(
+			section.getByRole("combobox", { name: /Model One/i }),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", { name: /Compact Mini/i }),
+		);
+	},
+};
+
+export const CompactionTriggerWarningWithoutCompactionOff: Story = {
+	args: {
+		overrides: mockWarningOverrides,
+		enabledModels: [MockCompactionChatModel, model, alternateModel],
+	},
+	play: CompactionTriggerWarning.play,
+};
+
+export const CompactionTriggerWarningManyModels: Story = {
+	args: {
+		overrides: mockWarningOverrides,
+		enabledModels: [
+			MockCompactionChatModel,
+			model,
+			alternateModel,
+			{ ...MockChatModel, id: "model-3", display_name: "Model Three" },
+			{ ...MockChatModel, id: "model-4", display_name: "Model Four" },
+			{ ...MockChatModel, id: "model-5", display_name: "Model Five" },
+		],
+	},
+	play: CompactionTriggerWarning.play,
+};
+
 export const AdvisorDisabled: Story = {
 	args: { showAdvisor: false },
 	play: async ({ canvasElement }) => {
@@ -130,6 +262,55 @@ export const UnavailableSavedModels: Story = {
 			{ context: "general", model_config_id: "model-gone" },
 			{ context: "title_generation", model_config_id: "model-gone" },
 		],
+	},
+};
+
+export const Loading: Story = {
+	args: {
+		isModelsLoading: true,
+		isOverridesLoading: true,
+		defaultModelID: undefined,
+		overrides: undefined,
+		enabledModels: [],
+	},
+};
+
+export const OverridesLoading: Story = {
+	args: {
+		isOverridesLoading: true,
+		overrides: undefined,
+	},
+};
+
+export const OverridesRefetchError: Story = {
+	args: {
+		overridesRefetchError: mockApiError({
+			message: "Failed to refresh model overrides.",
+		}),
+	},
+};
+
+export const ModelsRefetchError: Story = {
+	args: {
+		modelsError: mockApiError({ message: "Failed to refresh chat models." }),
+	},
+};
+
+export const OverridesLoadError: Story = {
+	args: {
+		overrides: undefined,
+		overridesLoadError: mockApiError({
+			message: "Failed to load model overrides.",
+		}),
+	},
+};
+
+export const NoModelsWithOverridesRefetchError: Story = {
+	args: {
+		enabledModels: [],
+		overridesRefetchError: mockApiError({
+			message: "Failed to refresh model overrides.",
+		}),
 	},
 };
 

@@ -26,13 +26,13 @@ You already met one [data source](https://developer.hashicorp.com/terraform/lang
 
 `coder_external_auth` is a data source you add for its side effect rather than its value.
 Its presence tells Coder that a workspace requires an authenticated session with a provider before it starts.
-The `id` points at a provider configured on the Coder deployment, and the local Coder server you started in Part 1 already has a `github` provider available.
+The `id` points at a provider configured on the Coder deployment, and the local control plane you started in Part 1 already has a `github` provider available.
 
 > [!NOTE]
 > External authentication lets a workspace sign in to an outside service, such as a Git provider, before it starts.
 > A default Coder install includes a built-in GitHub app, so `id = "github"` works without extra setup.
 > An admin can configure other providers (GitLab, Bitbucket, Azure DevOps, or generic OIDC) or replace the built-in GitHub app.
-> To learn more, refer to [External authentication](../../admin/external-auth/index.md).
+> To learn more, refer to [External authentication](../../admin/external-auth.md).
 
 ## Step 1: Require GitHub authentication
 
@@ -70,7 +70,7 @@ coder templates push -d ~/coder-quickstart -y quickstart
 ## Step 2: Connect your workspace to GitHub
 
 Update the workspace you built in [Launch your first workspace](../index.md) to the version you just published.
-Because the local Coder server is already connected to GitHub, you don't configure an OAuth app; you only authorize the workspace.
+Because the local control plane is already connected to GitHub, you don't configure an OAuth app; you only authorize the workspace.
 
 <div class="tabs">
 
@@ -80,7 +80,7 @@ On your workspace, select **Update**.
 The update form shows a **Login with GitHub** button: select it, follow the prompts to authorize Coder, then select **Update and restart**.
 The following screenshot shows the **External Authentication** section of the workspace creation screen before connecting GitHub:
 
-![External Authentication with GitHub before logging in](../../images/screenshots/login-with-github-logged-out.png)_External Authentication with GitHub before logging in_
+![External Authentication panel with GitHub marked Required and a Login with GitHub button](../../images/screenshots/login-with-github-logged-out.png)_External Authentication with GitHub before logging in_
 
 ### CLI
 
@@ -97,7 +97,7 @@ If you aren't authenticated yet, Coder prints a URL to log in with GitHub; open 
 Once you authorize Coder, the workspace starts, and Coder stores and refreshes your GitHub token for later builds.
 After authorizing Coder, Coder replaces the **Login with GitHub** button with an **Authenticated** message:
 
-![External Authentication with GitHub after logging in](../../images/screenshots/login-with-github-logged-in.png)_External Authentication with GitHub after logging in_
+![External Authentication panel with GitHub marked Authenticated](../../images/screenshots/login-with-github-logged-in.png)_External Authentication with GitHub after logging in_
 
 ## Step 3: Clone a private repository
 
@@ -593,7 +593,8 @@ resource "docker_container" "workspace" {
 
 You finished the Customize your template series, and your workspaces can now clone private repositories.
 
-This is the last guide in the series. To keep going, explore more of what Coder offers:
+This is the last guide in the series.
+To keep going, explore more of what Coder offers:
 
 - [Manage workspaces for your team](../../user-guides/workspace-management.md).
 - [Try Coder Agents](../../ai-coder/agents/getting-started.md), the chat interface and API for delegating work to coding agents.
@@ -602,6 +603,6 @@ Or revisit the [Customize your template overview](./index.md) for the full list 
 
 ## Learn more
 
-- [External authentication](../../admin/external-auth/index.md) in the Coder documentation
+- [External authentication](../../admin/external-auth.md) in the Coder documentation
 - [coder_external_auth data source](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/external_auth) in the Terraform Registry
 - [Terraform data sources](https://developer.hashicorp.com/terraform/language/data-sources)

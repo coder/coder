@@ -173,65 +173,6 @@ func Test_diffValues(t *testing.T) {
 			},
 		})
 	})
-
-	// We currently don't support nested structs.
-	// t.Run("NestedStruct", func(t *testing.T) {
-	// 	t.Parallel()
-
-	// 	type bar struct {
-	// 		Baz string `json:"baz"`
-	// 	}
-
-	// 	type foo struct {
-	// 		Bar *bar `json:"bar"`
-	// 	}
-
-	// 	table := auditMap(map[any]map[string]Action{
-	// 		&foo{}: {
-	// 			"bar": ActionTrack,
-	// 		},
-	// 		&bar{}: {
-	// 			"baz": ActionTrack,
-	// 		},
-	// 	})
-
-	// 	runDiffValuesTests(t, table, []diffTest{
-	// 		{
-	// 			name: "LeftEmpty",
-	// 			left: foo{Bar: &bar{}}, right: foo{Bar: &bar{Baz: "baz"}},
-	// 			exp: audit.Map{
-	// 				"bar": audit.Map{
-	// 					"baz": audit.OldNew{Old: "", New: "baz"},
-	// 				},
-	// 			},
-	// 		},
-	// 		{
-	// 			name: "RightEmpty",
-	// 			left: foo{Bar: &bar{Baz: "baz"}}, right: foo{Bar: &bar{}},
-	// 			exp: audit.Map{
-	// 				"bar": audit.Map{
-	// 					"baz": audit.OldNew{Old: "baz", New: ""},
-	// 				},
-	// 			},
-	// 		},
-	// 		{
-	// 			name: "LeftNil",
-	// 			left: foo{Bar: nil}, right: foo{Bar: &bar{}},
-	// 			exp: audit.Map{
-	// 				"bar": audit.Map{},
-	// 			},
-	// 		},
-	// 		{
-	// 			name: "RightNil",
-	// 			left: foo{Bar: &bar{Baz: "baz"}}, right: foo{Bar: nil},
-	// 			exp: audit.Map{
-	// 				"bar": audit.Map{
-	// 					"baz": audit.OldNew{Old: "baz", New: ""},
-	// 				},
-	// 			},
-	// 		},
-	// 	})
-	// })
 }
 
 type diffTest struct {
@@ -392,20 +333,44 @@ func Test_diff(t *testing.T) {
 
 	runDiffTests(t, []diffTest{
 		{
+			name: "ConditionTracked",
+			left: database.ExperimentRule{
+				ID:         uuid.UUID{1},
+				Experiment: "example",
+				Mode:       "condition",
+				Condition:  `"coder/beta" in user.groups`,
+				Revision:   1,
+			},
+			right: database.ExperimentRule{
+				ID:         uuid.UUID{1},
+				Experiment: "example",
+				Mode:       "condition",
+				Condition:  `user.email == "alice@example.com"`,
+				Revision:   2,
+			},
+			exp: audit.Map{
+				"condition": audit.OldNew{Old: `"coder/beta" in user.groups`, New: `user.email == "alice@example.com"`},
+				"revision":  audit.OldNew{Old: int64(1), New: int64(2)},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
 			// User skill content is user-authored instruction text, not secret
 			// material, so audit diffs can include the content change.
 			name: "UserSkillContentTracked",
-			left: audit.Empty[database.UserSkill](),
-			right: database.UserSkill{
+			left: audit.Empty[database.Skill](),
+			right: database.Skill{
 				ID:          uuid.UUID{1},
-				UserID:      uuid.UUID{2},
+				UserID:      uuid.NullUUID{UUID: uuid.UUID{2}, Valid: true},
 				Name:        "review-guidance",
 				Description: "How to review private projects",
 				Content:     "review markdown",
 			},
 			exp: audit.Map{
 				"id":          audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
-				"user_id":     audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"user_id":     audit.OldNew{Old: "null", New: uuid.UUID{2}.String()},
 				"name":        audit.OldNew{Old: "", New: "review-guidance"},
 				"description": audit.OldNew{Old: "", New: "How to review private projects"},
 				"content":     audit.OldNew{Old: "", New: "review markdown"},
@@ -586,6 +551,7 @@ func Test_diff(t *testing.T) {
 				ToolAllowList:      []string{"issues"},
 				ToolDenyList:       []string{"delete_repository"},
 				OAuth2ClientSecret: "plaintext-oauth-secret",
+				SigningSecret:      "plaintext-signing-secret",
 				Enabled:            true,
 				CreatedBy:          uuid.NullUUID{UUID: uuid.UUID{2}, Valid: true},
 				UpdatedBy:          uuid.NullUUID{UUID: uuid.UUID{2}, Valid: true},
@@ -602,6 +568,7 @@ func Test_diff(t *testing.T) {
 				"tool_allow_list":      audit.OldNew{Old: []string(nil), New: []string{"issues"}},
 				"tool_deny_list":       audit.OldNew{Old: []string(nil), New: []string{"delete_repository"}},
 				"oauth2_client_secret": audit.OldNew{Old: "", New: "", Secret: true},
+				"signing_secret":       audit.OldNew{Old: "", New: "", Secret: true},
 				"enabled":              audit.OldNew{Old: false, New: true},
 				"created_by":           audit.OldNew{Old: "null", New: uuid.UUID{2}.String()},
 				"updated_by":           audit.OldNew{Old: "null", New: uuid.UUID{2}.String()},
@@ -641,6 +608,8 @@ func Test_diff(t *testing.T) {
 				APIKeyValueKeyID:   sql.NullString{String: "key-1", Valid: true},
 				CustomHeaders:      `{"Authorization":"Bearer old-plaintext"}`,
 				CustomHeadersKeyID: sql.NullString{String: "key-1", Valid: true},
+				SigningSecret:      "old-plaintext-signing-secret",
+				SigningSecretKeyID: sql.NullString{String: "key-1", Valid: true},
 				OrganizationID:     uuid.UUID{4},
 			},
 			right: database.MCPServerConfig{
@@ -649,12 +618,14 @@ func Test_diff(t *testing.T) {
 				AuthType:       "api_key",
 				APIKeyValue:    "new-plaintext-api-key",
 				CustomHeaders:  `{"Authorization":"Bearer new-plaintext"}`,
+				SigningSecret:  "new-plaintext-signing-secret",
 				OrganizationID: uuid.UUID{4},
 			},
 			exp: audit.Map{
 				"display_name":   audit.OldNew{Old: "GitHub MCP", New: "Renamed MCP"},
 				"api_key_value":  audit.OldNew{Old: "", New: "", Secret: true},
 				"custom_headers": audit.OldNew{Old: "", New: "", Secret: true},
+				"signing_secret": audit.OldNew{Old: "", New: "", Secret: true},
 			},
 		},
 	})
@@ -667,6 +638,7 @@ func Test_mcpServerConfigSecretsNeverSerialized(t *testing.T) {
 		"plaintext-oauth-secret",
 		"plaintext-api-key",
 		"Bearer plaintext-header",
+		"plaintext-signing-secret",
 	}
 	left := audit.Empty[database.MCPServerConfig]()
 	right := database.MCPServerConfig{
@@ -677,6 +649,7 @@ func Test_mcpServerConfigSecretsNeverSerialized(t *testing.T) {
 		OAuth2ClientSecret: secrets[0],
 		APIKeyValue:        secrets[1],
 		CustomHeaders:      `{"Authorization":"` + secrets[2] + `"}`,
+		SigningSecret:      secrets[3],
 		OrganizationID:     uuid.UUID{4},
 	}
 

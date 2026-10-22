@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type { ConcreteThemeName } from "#/theme";
 import type { ThemeModeDraft } from "#/theme/themeMode";
 import { Section } from "../Section";
@@ -40,7 +40,7 @@ const initialDraft: ThemeModeDraft = {
 	dark: "dark",
 };
 
-const ThemeModeSectionsStory: FC<ThemeModeSectionsStoryProps> = ({
+const ThemeModeSectionsStory: React.FC<ThemeModeSectionsStoryProps> = ({
 	activeScheme,
 	mode,
 }) => {

@@ -85,6 +85,9 @@ type AgentCoordinateeAuth struct {
 }
 
 func (a AgentCoordinateeAuth) Authorize(_ context.Context, req *proto.CoordinateRequest) error {
+	if err := validateUpdateSelf(req); err != nil {
+		return err
+	}
 	if req.GetAddTunnel() != nil {
 		return xerrors.New("agents cannot open tunnels")
 	}
@@ -161,6 +164,9 @@ func (a ClientUserCoordinateeAuth) Authorize(ctx context.Context, req *proto.Coo
 
 // handleClientNodeRequests validates GetUpdateSelf requests and declines ReadyForHandshake requests
 func handleClientNodeRequests(req *proto.CoordinateRequest) error {
+	if err := validateUpdateSelf(req); err != nil {
+		return err
+	}
 	if upd := req.GetUpdateSelf(); upd != nil {
 		for _, addrStr := range upd.Node.Addresses {
 			pre, err := netip.ParsePrefix(addrStr)

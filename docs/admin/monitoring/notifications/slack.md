@@ -1,18 +1,13 @@
 ---
-title: Slack Notifications
+title: Slack notifications
 ---
 
-[Slack](https://slack.com/) is a popular messaging platform designed for teams
-and businesses, enabling real-time collaboration through channels, direct
-messages, and integrations with external tools. With Coder's integration, you
-can enable automated notifications directly within a self-hosted
-[Slack app](https://api.slack.com/apps), keeping your team updated on key events
-in your Coder environment.
+[Slack](https://slack.com/) is a popular messaging platform designed for teams and businesses, enabling real-time collaboration through channels, direct messages, and integrations with external tools.
+With Coder's integration, you can enable automated notifications directly within a self-hosted [Slack app](https://api.slack.com/apps), keeping your team updated on key events in your Coder environment.
 
-Administrators can configure Coder to send notifications via an incoming webhook
-endpoint. These notifications will be delivered as Slack messages direct to the
-user. Routing is based on the user's email address, and this should be
-consistent between Slack and their Coder login.
+Administrators can configure Coder to send notifications via an incoming webhook endpoint.
+These notifications will be delivered as Slack messages direct to the user.
+Routing is based on the user's email address, and this should be consistent between Slack and their Coder login.
 
 ## Requirements
 
@@ -25,13 +20,10 @@ Before setting up Slack notifications, ensure that you have the following:
 
 To integrate Slack with Coder, follow these steps to create a Slack application:
 
-1. Go to the [Slack Apps](https://api.slack.com/apps) dashboard and create a new
-   Slack App.
+1. Go to the [Slack Apps](https://api.slack.com/apps) dashboard and create a new Slack App.
 
-2. Under "Basic Information," you'll find a "Signing Secret." The Slack
-   application uses it to
-   [verify requests](https://api.slack.com/authentication/verifying-requests-from-slack)
-   coming from Slack.
+2. Under "Basic Information," you'll find a "Signing Secret."
+   The Slack application uses it to [verify requests](https://api.slack.com/authentication/verifying-requests-from-slack) coming from Slack.
 
 3. Under "OAuth & Permissions", add the following OAuth scopes:
 
@@ -39,15 +31,12 @@ To integrate Slack with Coder, follow these steps to create a Slack application:
    - `users:read`: To find the user details.
    - `users:read.email`: To find user emails.
 
-4. Install the app to your workspace and note down the **Bot User OAuth Token**
-   from the "OAuth & Permissions" section.
+4. Install the app to your workspace and note down the **Bot User OAuth Token** from the "OAuth & Permissions" section.
 
 ## Build a Webserver to Receive Webhooks
 
-The Slack bot for Coder runs as a _Bolt application_, which is a framework
-designed for building Slack apps using the Slack API.
-[Bolt for JavaScript](https://github.com/slackapi/bolt-js) provides an
-easy-to-use API for responding to events, commands, and interactions from Slack.
+The Slack bot for Coder runs as a _Bolt application_, which is a framework designed for building Slack apps using the Slack API.
+[Bolt for JavaScript](https://github.com/slackapi/bolt-js) provides an easy-to-use API for responding to events, commands, and interactions from Slack.
 
 To build the server to receive webhooks and interact with Slack:
 
@@ -63,8 +52,8 @@ To build the server to receive webhooks and interact with Slack:
    npm install @slack/bolt
    ```
 
-3. Create and edit the `app.js` file. Below is an example of the basic
-   structure:
+3. Create and edit the `app.js` file.
+   Below is an example of the basic structure:
 
    ```js
    const { App, LogLevel, ExpressReceiver } = require("@slack/bolt");
@@ -183,23 +172,19 @@ To build the server to receive webhooks and interact with Slack:
 Slack requires the bot to acknowledge when a user selects a URL action button.
 This is handled by setting up interactivity.
 
-Under "Interactivity & Shortcuts" in your Slack app settings, set the Request
-URL to match the public URL of your web server's endpoint.
+Under "Interactivity & Shortcuts" in your Slack app settings, set the Request URL to match the public URL of your web server's endpoint.
 
 You can use any public endpoint that accepts and responds to POST requests with HTTP 200.
 For temporary testing, you can set it to `https://httpbin.org/status/200`.
 
-Once this is set, Slack will send interaction payloads to your server, which
-must respond appropriately.
+Once this is set, Slack will send interaction payloads to your server, which must respond appropriately.
 
 ## Enable Webhook Integration in Coder
 
-To enable webhook integration in Coder, define the POST webhook endpoint
-matching the deployed Slack bot:
+To enable webhook integration in Coder, define the POST webhook endpoint matching the deployed Slack bot:
 
 ```sh
 export CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT=http://localhost:6000/v1/webhook
 ```
 
-Finally, go to the **Notification Settings** in Coder and switch the notifier to
-**Webhook**.
+Finally, go to the **Notification Settings** in Coder and switch the notifier to **Webhook**.

@@ -48,11 +48,13 @@ import (
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/agenttoolcall"
 	"github.com/coder/coder/v2/agent/boundarylogproxy"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
 	"github.com/coder/coder/v2/agent/usershell"
+	"github.com/coder/coder/v2/agent/x/agentacp"
 	"github.com/coder/coder/v2/agent/x/agentdesktop"
 	"github.com/coder/coder/v2/agent/x/agentmcp"
 	"github.com/coder/coder/v2/buildinfo"
@@ -127,10 +129,10 @@ type Options struct {
 }
 
 type Client interface {
-	// ConnectRPC211WithRole connects to the Agent API v2.11. The workspace
+	// ConnectRPC215WithRole connects to the Agent API v2.15. The workspace
 	// agent should use role "agent" to enable connection monitoring.
-	ConnectRPC211WithRole(ctx context.Context, role string) (
-		proto.DRPCAgentClient211, tailnetproto.DRPCTailnetClient28, error,
+	ConnectRPC215WithRole(ctx context.Context, role string) (
+		proto.DRPCAgentClient215, tailnetproto.DRPCTailnetClient28, error,
 	)
 	tailnet.DERPMapRewriter
 	agentsdk.RefreshableSessionTokenProvider
@@ -202,25 +204,25 @@ func New(options Options) Agent {
 	hardCtx, hardCancel := context.WithCancel(context.Background())
 	gracefulCtx, gracefulCancel := context.WithCancel(hardCtx)
 	a := &agent{
-		clock:                   options.Clock,
-		tailnetListenPort:       options.TailnetListenPort,
-		reconnectingPTYTimeout:  options.ReconnectingPTYTimeout,
-		logger:                  options.Logger,
-		gracefulCtx:             gracefulCtx,
-		gracefulCancel:          gracefulCancel,
-		hardCtx:                 hardCtx,
-		hardCancel:              hardCancel,
-		coordDisconnected:       make(chan struct{}),
-		environmentVariables:    options.EnvironmentVariables,
-		client:                  options.Client,
-		filesystem:              options.Filesystem,
-		logDir:                  options.LogDir,
-		tempDir:                 options.TempDir,
-		scriptDataDir:           options.ScriptDataDir,
-		lifecycleUpdate:         make(chan struct{}, 1),
-		lifecycleReported:       make(chan codersdk.WorkspaceAgentLifecycle, 1),
-		lifecycleStates:         []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
-		reportConnectionsUpdate: make(chan struct{}, 1),
+		clock:                  options.Clock,
+		tailnetListenPort:      options.TailnetListenPort,
+		reconnectingPTYTimeout: options.ReconnectingPTYTimeout,
+		logger:                 options.Logger,
+		gracefulCtx:            gracefulCtx,
+		gracefulCancel:         gracefulCancel,
+		hardCtx:                hardCtx,
+		hardCancel:             hardCancel,
+		coordDisconnected:      make(chan struct{}),
+		environmentVariables:   options.EnvironmentVariables,
+		client:                 options.Client,
+		filesystem:             options.Filesystem,
+		logDir:                 options.LogDir,
+		tempDir:                options.TempDir,
+		scriptDataDir:          options.ScriptDataDir,
+		lifecycleUpdate:        make(chan struct{}, 1),
+		lifecycleReported:      make(chan codersdk.WorkspaceAgentLifecycle, 1),
+		lifecycleStates:        []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
+		connectionReporter:     newConnectionReporter(hardCtx, options.Logger),
 		listeningPortsHandler: listeningPortsHandler{
 			getter:      options.ListeningPortsGetter,
 			ignorePorts: maps.Clone(options.IgnorePorts),
@@ -318,9 +320,7 @@ type agent struct {
 	lifecycleStates            []agentsdk.PostLifecycleRequest
 	lifecycleLastReportedIndex int // Keeps track of the last lifecycle state we successfully reported.
 
-	reportConnectionsUpdate chan struct{}
-	reportConnectionsMu     sync.Mutex
-	reportConnections       []*proto.ReportConnectionRequest
+	connectionReporter *connectionReporter
 
 	logSender *agentsdk.LogSender
 
@@ -344,8 +344,11 @@ type agent struct {
 	filesAPI         *agentfiles.API
 	gitAPI           *agentgit.API
 	processAPI       *agentproc.API
+	toolCalls        *agenttoolcall.Table
 	desktopAPI       *agentdesktop.API
 	mcpManager       *agentmcp.Manager
+	acpManager       *agentacp.Manager
+	acpAPI           *agentacp.API
 	mcpAPI           *agentmcp.API
 	contextConfigAPI *agentcontextconfig.API
 	contextManager   *agentcontext.Manager
@@ -411,25 +414,8 @@ func (a *agent) init() {
 		BlockFileTransfer:          a.blockFileTransfer,
 		BlockReversePortForwarding: a.blockReversePortForwarding,
 		BlockLocalPortForwarding:   a.blockLocalPortForwarding,
-		ReportConnection: func(id uuid.UUID, appName string, ip string) func(code int, reason string) {
-			var connectionType proto.Connection_Type
-			// Connection_Type is a fixed enum, stored as a database enum in
-			// the connection log, so it can only hold a family.
-			switch codersdk.AppNameFamily(appName) {
-			case codersdk.AppFamilySSH:
-				connectionType = proto.Connection_SSH
-			case codersdk.AppFamilyVSCode:
-				connectionType = proto.Connection_VSCODE
-			case codersdk.AppFamilyJetBrains:
-				connectionType = proto.Connection_JETBRAINS
-			default:
-				connectionType = proto.Connection_TYPE_UNSPECIFIED
-			}
-
-			return a.reportConnection(id, connectionType, ip)
-		},
-
-		ExperimentalContainers: a.devcontainers,
+		ConnectionReporter:         a.connectionReporter,
+		ExperimentalContainers:     a.devcontainers,
 	})
 	if err != nil {
 		panic(err)
@@ -439,6 +425,7 @@ func (a *agent) init() {
 		LogDir:      a.logDir,
 		DataDirBase: a.scriptDataDir,
 		Logger:      a.logger,
+		Clock:       a.clock,
 		SSHServer:   sshSrv,
 		Filesystem:  a.filesystem,
 		GetScriptLogger: func(logSourceID uuid.UUID) agentscripts.ScriptLogger {
@@ -470,13 +457,16 @@ func (a *agent) init() {
 		return ""
 	}
 	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, workingDirFn)
-	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock)}, a.gitAPIOptions...)
+	a.toolCalls = agenttoolcall.New(a.clock, a.processAPI.CancelToolCall)
+	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock), agentgit.WithExecer(a.execer)}, a.gitAPIOptions...)
 	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)
 	desktop := agentdesktop.NewPortableDesktop(
 		a.logger.Named("desktop"), a.execer, a.scriptRunner.ScriptBinDir(), nil,
 	)
 	a.desktopAPI = agentdesktop.NewAPI(a.logger.Named("desktop"), desktop, a.clock)
 	a.mcpManager = agentmcp.NewManager(a.gracefulCtx, a.logger.Named("mcp"), a.execer, a.filesystem, a.envInfo, a.updateCommandEnv, workingDirFn)
+	a.acpManager = agentacp.NewManager(a.gracefulCtx, agentacp.Options{Logger: a.logger.Named("acp"), Clock: a.clock, Execer: a.execer, Filesystem: a.filesystem, EnvInfo: a.envInfo, UpdateEnv: a.updateCommandEnv, WorkingDir: workingDirFn})
+	a.acpAPI = agentacp.NewAPI(a.acpManager)
 	a.contextConfigAPI = agentcontextconfig.NewAPI(workingDirFn, a.contextConfig)
 	a.mcpAPI = agentmcp.NewAPI(a.mcpManager)
 
@@ -498,17 +488,18 @@ func (a *agent) init() {
 		MCPCatalog: func() []agentcontext.MCPServerStatus {
 			return mcpCatalogToContext(a.mcpManager.Catalog())
 		},
+		MCPReconnect: a.mcpManager.Reconnect,
+		ACPResources: a.acpManager.ContextResources,
 	})
 	a.contextAPI = agentcontext.NewAPI(a.contextManager)
 	// Re-resolve and re-push KindMCPServer resources whenever the MCP
 	// engine's catalog changes (startup connect, .mcp.json edits).
 	a.mcpManager.SetOnReload(a.contextManager.Trigger)
+	a.acpManager.SetOnChange(a.contextManager.Trigger)
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
-		func(id uuid.UUID, ip string) func(code int, reason string) {
-			return a.reportConnection(id, proto.Connection_RECONNECTING_PTY, ip)
-		},
+		a.connectionReporter,
 		a.metrics.connectionsTotal, a.metrics.reconnectingPTYErrors,
 		a.reconnectingPTYTimeout,
 		func(s *reconnectingpty.Server) {
@@ -596,7 +587,10 @@ func (a *agent) runLoop() {
 			return
 		}
 		if errors.Is(err, io.EOF) {
-			a.logger.Info(ctx, "disconnected from coderd",
+			// Lost the connection to coderd. Flush the recorded debug history so the
+			// detail leading up to the disconnect is available in the logs.
+			a.logger.Flush(ctx)
+			a.logger.Warn(ctx, "disconnected from coderd",
 				codersdk.ConnectionDirectionServerToAgent.SlogField(),
 				codersdk.DisconnectReasonNetworkError.SlogField(),
 				codersdk.DisconnectReasonNetworkError.SlogExpectedField(),
@@ -604,6 +598,9 @@ func (a *agent) runLoop() {
 			)
 			continue
 		}
+		// Flush the recorded debug history so the detail leading up to the failure
+		// is available in the logs.
+		a.logger.Flush(ctx)
 		a.logger.Warn(ctx, "run exited with error", slog.Error(err))
 	}
 }
@@ -980,139 +977,6 @@ func (a *agent) setLifecycle(state codersdk.WorkspaceAgentLifecycle) {
 	}
 }
 
-// reportConnectionsLoop reports connections to the agent for auditing.
-func (a *agent) reportConnectionsLoop(ctx context.Context, aAPI proto.DRPCAgentClient28) error {
-	for {
-		select {
-		case <-a.reportConnectionsUpdate:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-
-		for {
-			a.reportConnectionsMu.Lock()
-			if len(a.reportConnections) == 0 {
-				a.reportConnectionsMu.Unlock()
-				break
-			}
-			payload := a.reportConnections[0]
-			// Release lock while we send the payload, this is safe
-			// since we only append to the slice.
-			a.reportConnectionsMu.Unlock()
-
-			logger := a.logger.With(slog.F("payload", payload))
-			logger.Debug(ctx, "reporting connection")
-			_, err := aAPI.ReportConnection(ctx, payload)
-			if err != nil {
-				// Do not fail the loop if we fail to report a connection, just
-				// log a warning.
-				// Related to https://github.com/coder/coder/issues/20194
-				logger.Warn(ctx, "failed to report connection to server", slog.Error(err))
-				// keep going, we still need to remove it from the slice
-			} else {
-				logger.Debug(ctx, "successfully reported connection")
-			}
-
-			// Remove the payload we sent.
-			a.reportConnectionsMu.Lock()
-			a.reportConnections[0] = nil // Release the pointer from the underlying array.
-			a.reportConnections = a.reportConnections[1:]
-			a.reportConnectionsMu.Unlock()
-		}
-	}
-}
-
-const (
-	// reportConnectionBufferLimit limits the number of connection reports we
-	// buffer to avoid growing the buffer indefinitely. This should not happen
-	// unless the agent has lost connection to coderd for a long time or if
-	// the agent is being spammed with connections.
-	//
-	// If we assume ~150 byte per connection report, this would be around 300KB
-	// of memory which seems acceptable. We could reduce this if necessary by
-	// not using the proto struct directly.
-	reportConnectionBufferLimit = 2048
-)
-
-func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_Type, ip string) (disconnected func(code int, reason string)) {
-	// A blank IP can unfortunately happen if the connection is broken in a data race before we get to introspect it. We
-	// still report it, and the recipient can handle a blank IP.
-	if ip != "" {
-		// Remove the port from the IP because ports are not supported in coderd.
-		if host, _, err := net.SplitHostPort(ip); err != nil {
-			a.logger.Error(a.hardCtx, "split host and port for connection report failed", slog.F("ip", ip), slog.Error(err))
-		} else {
-			// Best effort.
-			ip = host
-		}
-	}
-
-	// If the IP is "localhost" (which it can be in some cases), set it to
-	// 127.0.0.1 instead.
-	// Related to https://github.com/coder/coder/issues/20194
-	if ip == "localhost" {
-		ip = "127.0.0.1"
-	}
-
-	a.reportConnectionsMu.Lock()
-	defer a.reportConnectionsMu.Unlock()
-
-	if len(a.reportConnections) >= reportConnectionBufferLimit {
-		a.logger.Warn(a.hardCtx, "connection report buffer limit reached, dropping connect",
-			slog.F("limit", reportConnectionBufferLimit),
-			slog.F("connection_id", id),
-			slog.F("connection_type", connectionType),
-			slog.F("ip", ip),
-		)
-	} else {
-		a.reportConnections = append(a.reportConnections, &proto.ReportConnectionRequest{
-			Connection: &proto.Connection{
-				Id:         id[:],
-				Action:     proto.Connection_CONNECT,
-				Type:       connectionType,
-				Timestamp:  timestamppb.New(time.Now()),
-				Ip:         ip,
-				StatusCode: 0,
-				Reason:     nil,
-			},
-		})
-		select {
-		case a.reportConnectionsUpdate <- struct{}{}:
-		default:
-		}
-	}
-
-	return func(code int, reason string) {
-		a.reportConnectionsMu.Lock()
-		defer a.reportConnectionsMu.Unlock()
-		if len(a.reportConnections) >= reportConnectionBufferLimit {
-			a.logger.Warn(a.hardCtx, "connection report buffer limit reached, dropping disconnect",
-				slog.F("limit", reportConnectionBufferLimit),
-				slog.F("connection_id", id),
-				slog.F("connection_type", connectionType),
-				slog.F("ip", ip),
-			)
-			return
-		}
-
-		a.reportConnections = append(a.reportConnections, &proto.ReportConnectionRequest{
-			Connection: &proto.Connection{
-				Id:         id[:],
-				Action:     proto.Connection_DISCONNECT,
-				Type:       connectionType,
-				Timestamp:  timestamppb.New(time.Now()),
-				Ip:         ip,
-				StatusCode: int32(code), //nolint:gosec
-				Reason:     &reason,
-			},
-		})
-		select {
-		case a.reportConnectionsUpdate <- struct{}{}:
-		default:
-		}
-	}
-}
-
 // fetchServiceBannerLoop fetches the service banner on an interval.  It will
 // not be fetched immediately; the expectation is that it is primed elsewhere
 // (and must be done before the session actually starts).
@@ -1153,7 +1017,7 @@ func (a *agent) run() (retErr error) {
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs.
 	// We pass role "agent" to enable connection monitoring on the server, which tracks
 	// the agent's connectivity state (first_connected_at, last_connected_at, disconnected_at).
-	aAPI, tAPI, err := a.client.ConnectRPC211WithRole(a.hardCtx, "agent")
+	aAPI, tAPI, err := a.client.ConnectRPC215WithRole(a.hardCtx, "agent")
 	if err != nil {
 		return err
 	}
@@ -1245,7 +1109,9 @@ func (a *agent) run() (retErr error) {
 
 	// Connection reports are part of auditing, we should keep sending them via
 	// gracefulShutdownBehaviorRemain.
-	connMan.startAgentAPI("report connections", gracefulShutdownBehaviorRemain, a.reportConnectionsLoop)
+	connMan.startAgentAPI("connections report loop", gracefulShutdownBehaviorRemain, func(ctx context.Context, aAPI proto.DRPCAgentClient28) error {
+		return a.connectionReporter.reportLoop(ctx, aAPI)
+	})
 
 	// Push resolved workspace context (instructions, skills, MCP
 	// configs, MCP server tool lists) to coderd. The push loop
@@ -1533,6 +1399,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				// re-trigger a push once up, so we don't block readiness
 				// on them.
 				a.contextManager.SetReady()
+				a.acpManager.RunDiscovery()
 
 				// Connect to workspace MCP servers after the
 				// lifecycle transition to avoid delaying Ready.
@@ -1695,6 +1562,11 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 		envs["VSCODE_PROXY_URI"] = manifest.VSCodePortProxyURI
 	}
 
+	// Older servers do not send the build ID.
+	if manifest.WorkspaceBuildID != uuid.Nil {
+		envs["CODER_WORKSPACE_BUILD_ID"] = manifest.WorkspaceBuildID.String()
+	}
+
 	// Allow any of the current env to override what we defined above.
 	for _, env := range current {
 		parts := strings.SplitN(env, "=", 2)
@@ -1847,10 +1719,19 @@ func (a *agent) createTailnet(
 	keySeed int64,
 ) (_ *tailnet.Conn, err error) {
 	// Inject `CODER_AGENT_HEADER` into the DERP header.
-	var header http.Header
+	var getHeaders func() http.Header
 	if client, ok := a.client.(*agentsdk.Client); ok {
-		if headerTransport, ok := client.SDK.HTTPClient.Transport.(*codersdk.HeaderTransport); ok {
-			header = headerTransport.Header
+		if headerTransport, ok := client.SDK.HTTPClient.Transport.(*codersdk.HeaderTransport); ok && headerTransport.Provider != nil {
+			getHeaders = func() http.Header {
+				refreshCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+				defer cancel()
+				headers, err := headerTransport.Provider.Headers(refreshCtx)
+				if err != nil {
+					a.logger.Error(ctx, "get connection headers", slog.Error(err))
+					return nil
+				}
+				return headers
+			}
 		}
 	}
 	network, err := tailnet.NewConn(&tailnet.Options{
@@ -1858,7 +1739,7 @@ func (a *agent) createTailnet(
 		Addresses:           a.wireguardAddresses(agentID),
 		DERPMap:             derpMap,
 		DERPForceWebSockets: derpForceWebSockets,
-		DERPHeader:          &header,
+		DERPGetHeaders:      getHeaders,
 		DERPTLSConfig:       a.derpTLSConfig,
 		Logger:              a.logger.Named("net.tailnet"),
 		ListenPort:          a.tailnetListenPort,
@@ -1972,9 +1853,52 @@ func (a *agent) createTailnet(
 			_ = apiListener.Close()
 		}
 	}()
+
+	upgrader := &httpUpgrader{
+		logger: a.logger,
+		addr:   apiListener.Addr(),
+	}
+	sshUpgradeListener := upgrader.listen(workspacesdk.AgentStandardSSHPort)
+	ptyUpgradeListener := upgrader.listen(workspacesdk.AgentReconnectingPTYPort)
+	defer func() {
+		if err != nil {
+			_ = sshUpgradeListener.Close()
+			_ = ptyUpgradeListener.Close()
+		}
+	}()
+
+	if err = a.trackGoroutine(func() {
+		// The SSH server should close all listeners passed into it, but we are
+		// seeing cases in CI where the upgrade listener is never closed during
+		// tests.  For now, ensure it is closed as a precaution.
+		go func() {
+			select {
+			case <-ctx.Done():
+			case <-a.hardCtx.Done():
+			}
+			_ = sshUpgradeListener.Close()
+		}()
+		_ = a.sshServer.Serve(sshUpgradeListener)
+	}); err != nil {
+		return nil, err
+	}
+
+	if err = a.trackGoroutine(func() {
+		go func() {
+			select {
+			case <-ctx.Done():
+			case <-a.hardCtx.Done():
+			}
+			_ = ptyUpgradeListener.Close()
+		}()
+		_ = a.reconnectingPTYServer.Serve(a.gracefulCtx, a.hardCtx, ptyUpgradeListener)
+	}); err != nil {
+		return nil, err
+	}
+
 	if err = a.trackGoroutine(func() {
 		defer apiListener.Close()
-		apiHandler := a.apiHandler()
+		apiHandler := a.apiHandler(upgrader)
 		server := &http.Server{
 			BaseContext:       func(net.Listener) context.Context { return ctx },
 			Handler:           apiHandler,
@@ -2382,6 +2306,9 @@ func (a *agent) Close() error {
 		a.logger.Error(a.hardCtx, "desktop API close", slog.Error(err))
 	}
 
+	if err := a.acpManager.Close(); err != nil {
+		a.logger.Error(a.hardCtx, "close ACP manager", slog.Error(err))
+	}
 	if err := a.mcpManager.Close(); err != nil {
 		a.logger.Error(a.hardCtx, "mcp manager close", slog.Error(err))
 	}
@@ -2445,6 +2372,14 @@ lifecycleWaitLoop:
 	err = a.logSender.WaitUntilEmpty(a.hardCtx)
 	if err != nil {
 		a.logger.Warn(context.Background(), "timed out waiting for all logs to be sent", slog.Error(err))
+	}
+
+	// Wait for the connections closed by this shutdown to report their
+	// disconnects, and for those reports to be sent, so coderd can record why
+	// each connection closed.
+	err = a.connectionReporter.waitUntilReported(a.hardCtx)
+	if err != nil {
+		a.logger.Warn(context.Background(), "timed out waiting for all connection reports to be sent", slog.Error(err))
 	}
 
 	a.hardCancel()

@@ -46,7 +46,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 	return fantasy.NewAgentTool(
 		"start_workspace",
 		"Start the chat's workspace if it is currently stopped. "+
-			"This tool is idempotent — if the workspace is already "+
+			"This tool is idempotent: if the workspace is already "+
 			"running, it returns immediately. Use create_workspace "+
 			"first if no workspace exists yet. Provide parameter "+
 			"values (from read_template) only if necessary or "+
@@ -95,7 +95,9 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				database.ProvisionerJobStatusRunning:
 				// Publish the build ID to the frontend so it
 				// can start streaming logs immediately.
-				publishBuildBinding(ctx, db, options.Logger, chatID, ws.ID, build.ID, options.OnChatUpdated)
+				if err := publishBuildBinding(ctx, db, chatID, ws.ID, build.ID, options.OnChatUpdated); err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
 				if err := waitForBuild(ctx, db, build.ID); err != nil {
 					// newBuildError returns via toolResponse (IsError: false)
 					// rather than NewTextErrorResponse (IsError: true) so the
@@ -114,22 +116,38 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 						xerrors.Errorf("waiting for in-progress build: %w", err),
 					), nil
 				}
-				result := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, build.ID)
+				result, err := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, build.ID)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
 				// Re-fire after the agent is fully ready so
 				// callers can load instruction files (AGENTS.md).
 				// This must happen after waitForAgentAndRespond —
 				// firing earlier races with agent startup.
 				if options.OnChatUpdated != nil {
-					if latest, err := db.GetChatByID(ctx, chatID); err == nil {
-						options.OnChatUpdated(latest)
+					latest, err := db.GetChatByID(ctx, chatID)
+					if err != nil {
+						return fantasy.NewTextErrorResponse(
+							xerrors.Errorf("load chat: %w", err).Error(),
+						), nil
 					}
+					options.OnChatUpdated(latest)
 				}
 				return toolResponse(result), nil
 			case database.ProvisionerJobStatusSucceeded:
 				// If the latest successful build is a start
 				// transition, the workspace should be running.
 				if build.Transition == database.WorkspaceTransitionStart {
-					return toolResponse(waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, uuid.Nil)), nil
+					if chat.BuildID.UUID != build.ID {
+						if err := publishBuildBinding(ctx, db, chatID, ws.ID, build.ID, options.OnChatUpdated); err != nil {
+							return fantasy.NewTextErrorResponse(err.Error()), nil
+						}
+					}
+					result, err := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, uuid.Nil)
+					if err != nil {
+						return fantasy.NewTextErrorResponse(err.Error()), nil
+					}
+					return toolResponse(result), nil
 				}
 				// Otherwise it is stopped (or deleted) — proceed
 				// to start it below.
@@ -171,7 +189,9 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 
 			// Persist the build ID on the chat binding so the
 			// frontend can stream logs without polling.
-			publishBuildBinding(ctx, db, options.Logger, chatID, ws.ID, startBuild.ID, options.OnChatUpdated)
+			if err := publishBuildBinding(ctx, db, chatID, ws.ID, startBuild.ID, options.OnChatUpdated); err != nil {
+				return fantasy.NewTextErrorResponse(err.Error()), nil
+			}
 			if err := waitForBuild(ctx, db, startBuild.ID); err != nil {
 				return buildFailureToolResponse(
 					ctx,
@@ -185,7 +205,10 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				), nil
 			}
 
-			result := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, startBuild.ID)
+			result, err := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, startBuild.ID)
+			if err != nil {
+				return fantasy.NewTextErrorResponse(err.Error()), nil
+			}
 
 			// If the template version changed, annotate the
 			// response so the model knows an auto-update
@@ -203,9 +226,13 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 			// This must happen after waitForAgentAndRespond —
 			// firing earlier races with agent startup.
 			if options.OnChatUpdated != nil {
-				if latest, err := db.GetChatByID(ctx, chatID); err == nil {
-					options.OnChatUpdated(latest)
+				latest, err := db.GetChatByID(ctx, chatID)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(
+						xerrors.Errorf("load chat: %w", err).Error(),
+					), nil
 				}
+				options.OnChatUpdated(latest)
 			}
 			return toolResponse(result), nil
 		})
@@ -228,9 +255,12 @@ func waitForAgentAndRespond(
 	agentConnFn AgentConnFunc,
 	ws database.Workspace,
 	buildID uuid.UUID,
-) map[string]any {
+) (map[string]any, error) {
 	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
-	if err != nil || len(agents) == 0 {
+	if err != nil {
+		return nil, xerrors.Errorf("get workspace agents: %w", err)
+	}
+	if len(agents) == 0 {
 		// Workspace started but no agent found - still report
 		// success so the model knows the workspace is up.
 		result := map[string]any{
@@ -240,7 +270,7 @@ func waitForAgentAndRespond(
 		}
 		setBuildID(result, buildID)
 		setNoBuild(result, buildID)
-		return result
+		return result, nil
 	}
 
 	selected, err := agentselect.FindChatAgent(agents)
@@ -253,7 +283,7 @@ func waitForAgentAndRespond(
 		}
 		setBuildID(result, buildID)
 		setNoBuild(result, buildID)
-		return result
+		return result, nil
 	}
 
 	result := map[string]any{
@@ -262,8 +292,12 @@ func waitForAgentAndRespond(
 	}
 	setBuildID(result, buildID)
 	setNoBuild(result, buildID)
-	for k, v := range waitForAgentReady(ctx, db, selected, agentConnFn) {
+	agentStatus, err := waitForAgentReady(ctx, db, selected, agentConnFn)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range agentStatus {
 		result[k] = v
 	}
-	return result
+	return result, nil
 }

@@ -29,7 +29,7 @@ Skipping a level breaks the outline.
 ```md
 # Configure your workspace
 
-This page walks through the configuration options exposed on a Coder workspace.
+This page describes the configuration options exposed on a Coder workspace.
 The following sections cover SSH access and environment variables.
 
 ## Set up SSH access
@@ -83,7 +83,7 @@ Avoid `he or she`, `(s)he`, and similar constructions.
 
 > When a user opens a workspace, he or she connects to the agent over a Tailscale tunnel.
 
-*Enforced by `Google.Gender` and `Google.GenderBias`.*
+*Enforced by `Google.Gender` (planned) and `Google.GenderBias` (planned); third-party rules aren't loaded by default.*
 
 ## Inclusive-language substitutions
 
@@ -98,8 +98,36 @@ Use the industry-standard inclusive substitutions for terms that have transition
 | replica, secondary                                    | slave                                         |
 | placeholder, sample, mock                             | dummy                                         |
 | smoke testing, confidence testing, acceptance testing | sanity check, sanity test                     |
+| legacy, pre-existing, exempt                          | grandfathered, grandfather clause             |
 
-*Enforced by `Coder.InclusiveLanguage` (planned), with additional coverage from the curated `alex.*` lexicon.*
+For information on why "grandfathered" is on the list, visit [the Wikipedia page on the history of the grandfather clause](https://en.wikipedia.org/wiki/Grandfather_clause).
+
+*Enforced by `Coder.InclusiveLanguage` (planned), with additional coverage from the curated `alex.*` lexicon (also planned; `.vale.ini` loads no third-party style).
+The rule leaves bare `master` to reviewers, because the word has many legitimate technical uses, such as `master key` and Git branch names.*
+
+## Inclusive LGBTQ terms
+
+When the prose needs to describe sex, gender, or sexual orientation, use current terms.
+Outdated terms are inaccurate, and some are slurs.
+The Coder docs rarely need these terms, but sample data, persona examples, and form-field descriptions sometimes do.
+
+| Do                                               | Don't                                             |
+|--------------------------------------------------|---------------------------------------------------|
+| assigned female at birth, assigned male at birth | biologically female, born a man, genetically male |
+| intersex, intersex person                        | hermaphrodite                                     |
+| gay, lesbian, gay person                         | homosexual (as a noun)                            |
+| pronouns                                         | gender pronouns, preferred pronouns               |
+| transgender person                               | transgendered, a transgender                      |
+
+**Do**:
+
+> The form has an optional field for the user's pronouns.
+
+**Don't**:
+
+> The form has an optional field for the user's preferred gender pronouns.
+
+*Enforced by `Coder.LGBTQ` (planned), adapted from the curated alex lexicon.*
 
 ## Descriptive link text
 
@@ -261,9 +289,14 @@ Planned Vale rule `Coder.Idioms`.*
 
 ### Latin abbreviations
 
-The following Latin abbreviations are fine in Coder docs.
-Use them when they fit the sentence.
-The English equivalent is also fine.
+Prefer the English forms of `e.g.`, `i.e.`, and `etc.` in prose: `for example`, `that is`, and `and so on`.
+The English forms read more easily for non-native readers, and screen readers announce them as words instead of letters.
+The abbreviations fit best in tables and other places where space is limited.
+
+Either form is accepted wherever it appears.
+The preference is a suggestion, not a requirement.
+
+The following Latin abbreviations are the only ones allowed in Coder docs:
 
 | Abbreviation | Meaning                                        | Notes                                                                      |
 |--------------|------------------------------------------------|----------------------------------------------------------------------------|
@@ -280,13 +313,13 @@ The parentheses make the sentence structure obvious and avoid a cascade of comma
 
 > Many compute platforms work (e.g., AWS, GCP, or a self-managed Kubernetes cluster).
 >
-> The agent exits when the workspace stops (i.e., when the build phase tears down).
+> The agent exits when the workspace stops (i.e., when the build deletes its resources).
 
 **Don't**:
 
 > Many compute platforms work, e.g., AWS, GCP, or a self-managed Kubernetes cluster.
 >
-> The agent exits when the workspace stops, i.e., when the build phase tears down.
+> The agent exits when the workspace stops, i.e., when the build deletes its resources.
 
 The **Don't** versions are grammatical, but the comma cascade makes the sentence structure harder to follow.
 
@@ -335,14 +368,14 @@ Replace them with plain English.
 Major plain-language guides such as the [Google developer documentation style guide](https://developers.google.com/style/abbreviations), the [Microsoft Writing Style Guide](https://learn.microsoft.com/en-us/style-guide/abbreviations/), the [18F Content Guide](https://content-guide.18f.gov/our-style/inclusive-language/), and the [Plain Language Action and Information Network (PLAIN) federal guidance](https://www.plainlanguage.gov/guidelines/words/use-simple-words-phrases/) recommend English equivalents for all Latin abbreviations.
 The argument is that the abbreviations are unfamiliar to many readers and frequently misused (`i.e.` confused with `e.g.`).
 
-The Coder docs follow the spirit of that guidance for less common Latin but make an exception for `e.g.`, `i.e.`, `etc.`, `vs.`, and `et al.`
+The Coder docs follow the spirit of that guidance for less common Latin and prefer the English forms in prose, but they still accept `e.g.`, `i.e.`, `etc.`, `vs.`, and `et al.`
 These five are near-universal in industry technical writing.
-Restricting them burdens writers without a matching gain for readers familiar with the conventions of the genre.
+Banning them burdens writers without a matching gain for readers familiar with the conventions of the genre.
 
 </details>
 
-*Documentation-only.
-No Vale rule.*
+*Enforced by `Coder.LatinAbbreviations` (planned) at `suggestion` level, for `e.g.`, `i.e.`, and `etc.` only.
+The rule suggests the English form and never blocks either form.*
 
 ## Page title and sidebar title
 
@@ -353,7 +386,7 @@ A page's H1 and its sidebar title serve different jobs and may diverge.
   Refer to [Declare audience and scope up front](./audience-and-scope.md#declare-audience-and-scope-up-front) for how the H1 names the outcome.
 - The **sidebar title** is a navigation label.
   It fits the limited horizontal space of the sidebar and reads fast when the reader is scanning a tree of dozens of pages.
-  The Coder docs site reads the sidebar title from the `title` field in [`docs/manifest.json`](../../manifest.json).
+  The Coder docs site reads the sidebar title from the `title` field of the page's route in the sidebar sources under [`docs/manifest/`](../../manifest/index.yml).
 
 The two must each stand alone, but they don't need to be identical.
 Breadcrumb depth already supplies one layer of context.
@@ -396,15 +429,13 @@ No Vale rule.*
 ## Page descriptions
 
 Each page declares a description that appears in search engine results, in social-media previews, and in screen-reader page summaries.
-The Coder docs site reads descriptions from [`docs/manifest.json`](../../manifest.json), not from YAML front matter inside the Markdown file.
-The manifest maps each page to a `title` and a `description`:
+The Coder docs site reads descriptions from `docs/manifest.json`, not from YAML front matter inside the Markdown file.
+That file is compiled from the sidebar sources under [`docs/manifest/`](../../manifest/index.yml), where each route maps a page to a `title` and a `description`:
 
-```json
-{
-  "title": "Configure your workspace",
-  "description": "Configure SSH access, environment variables, and autostart for a Coder workspace.",
-  "path": "./admin/workspaces/configure.md"
-}
+```yaml
+- title: Configure your workspace
+  description: Configure SSH access, environment variables, and autostart for a Coder workspace.
+  path: ./admin/workspaces/configure.md
 ```
 
 A good description:
@@ -413,29 +444,30 @@ A good description:
 - Stays under roughly 160 characters so search engines don't truncate it.
 - Avoids marketing language and superlatives.
 - Reads as a complete sentence.
+- Ends with a period.
 
 **Do**:
 
-```json
-"description": "Configure SSH access, environment variables, and autostart for a Coder workspace."
+```yaml
+description: Configure SSH access, environment variables, and autostart for a Coder workspace.
 ```
 
 **Don't**:
 
-```json
-"description": "Workspace configuration"
+```yaml
+description: Workspace configuration
 ```
 
-```json
-"description": "The best, fastest, most reliable way to configure everything you need to know about Coder workspaces."
+```yaml
+description: The best, fastest, most reliable way to configure everything you need to know about Coder workspaces.
 ```
 
 The short description tells the reader nothing.
 The marketing description doesn't survive truncation and adds no information.
 
-If a page doesn't yet have a description in the manifest, add one in the same PR that touches the page.
+If a page doesn't yet have a description in the sidebar sources, add one in the same PR that touches the page.
 
-*Documentation-only.
+*Enforced by `scripts/docsmanifestgen` (`make lint/docs-manifest`) for the trailing period only.
 No Vale rule.*
 
 ## Reading level

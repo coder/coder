@@ -12,6 +12,13 @@ describe("sidebarViewFromPath", () => {
 		});
 	});
 
+	it("returns the viewed project for project routes", () => {
+		expect(sidebarViewFromPath("/agents/projects/project-1")).toEqual({
+			panel: "chats",
+			projectId: "project-1",
+		});
+	});
+
 	it("returns the settings index for /agents/settings", () => {
 		expect(sidebarViewFromPath("/agents/settings")).toEqual({
 			panel: "settings",

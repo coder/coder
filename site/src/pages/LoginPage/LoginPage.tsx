@@ -1,4 +1,4 @@
-import { type FC, useEffect } from "react";
+import { useEffect } from "react";
 import { useQuery } from "react-query";
 import { Navigate, useLocation } from "react-router";
 import { buildInfo } from "#/api/queries/buildInfo";
@@ -10,7 +10,7 @@ import { retrieveRedirect, sanitizeRedirect } from "#/utils/redirect";
 import { sendDeploymentEvent } from "#/utils/telemetry";
 import { LoginPageView } from "./LoginPageView";
 
-const LoginPage: FC = () => {
+const LoginPage: React.FC = () => {
 	const routerLocation = useLocation();
 	const {
 		isLoading,

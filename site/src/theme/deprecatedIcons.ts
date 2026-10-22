@@ -6,24 +6,27 @@
  */
 
 export const DEPRECATED_ICONS = [
-	// we have alternatives in `apple-black.svg`.
+	// Use amp.svg instead
+	"sourcegraph-amp.svg",
+	// Use apple.svg instead
+	"apple-black.svg",
 	"apple-grey.svg",
-	// we have alternatives in `aws.svg`.
+	// Use aws.svg instead
 	"aws-monochrome.svg",
-	// we already serve this in `aws.svg`.
 	"aws.png",
-	// we already serve this in `azure.svg`.
+	// Use azure.svg instead
 	"azure.png",
-	// we already serve this in `do.svg`.
+	// Use do.svg instead
 	"do.png",
-	// we already serve this in `docker.svg`.
+	// Use docker.svg instead
 	"docker.png",
-	// we have alternatives in `docker.svg`.
 	"docker-white.svg",
-	// we already serve this in `gcp.svg`.
+	// Use gcp.svg instead
 	"gcp.png",
-	// we already serve this in `k8s.svg`.
+	// Use k8s.svg instead
 	"k8s.png",
-	// we already serve this in `ruby.svg`.
+	// Use nodejs.svg instead
+	"node.svg",
+	// Use ruby.svg instead
 	"ruby.png",
 ] satisfies string[];

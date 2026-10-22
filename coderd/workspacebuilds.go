@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
@@ -385,6 +386,9 @@ func (api *API) postWorkspaceBuildsInternal(
 	if err := validateCreateWorkspaceBuildOnSuccess(createBuild); err != nil {
 		return codersdk.WorkspaceBuild{}, err
 	}
+	if err := api.validateWorkspaceSecretInputs(createBuild.Secrets); err != nil {
+		return codersdk.WorkspaceBuild{}, err
+	}
 
 	var childParameterValuesJSON json.RawMessage
 	if createBuild.OnSuccess != nil {
@@ -410,6 +414,7 @@ func (api *API) postWorkspaceBuildsInternal(
 	builder := wsbuilder.New(workspace, transition, *api.BuildUsageChecker.Load()).
 		Initiator(apiKey.UserID).
 		RichParameterValues(createBuild.RichParameterValues).
+		Secrets(createBuild.Secrets).
 		LogLevel(string(createBuild.LogLevel)).
 		DeploymentValues(api.Options.DeploymentValues).
 		Experiments(api.Experiments).
@@ -590,13 +595,11 @@ func (api *API) postWorkspaceBuildsInternal(
 				slog.F("workspace_build_id", workspaceBuild.ID),
 				slog.F("provisioner_job_id", provisionerJob.ID),
 			)
-			buildResourceInfo := audit.AdditionalFields{
-				WorkspaceName:  workspace.Name,
-				BuildNumber:    strconv.Itoa(int(workspaceBuild.BuildNumber)),
-				BuildReason:    workspaceBuild.Reason,
-				WorkspaceID:    workspace.ID,
-				WorkspaceOwner: workspace.OwnerName,
+			buildResourceInfo, err := audit.WorkspaceBuildFields(ctx, api.Database, workspace, *workspaceBuild)
+			if err != nil {
+				api.Logger.Error(ctx, "failed to list workspace build secrets for audit", slog.Error(err))
 			}
+			buildResourceInfo.WorkspaceOwner = workspace.OwnerName
 			briBytes, err := json.Marshal(buildResourceInfo)
 			if err != nil {
 				api.Logger.Error(ctx, "failed to marshal build resource info for audit", slog.Error(err))
@@ -772,6 +775,68 @@ func (api *API) notifyWorkspaceUpdated(
 	); err != nil {
 		log.Warn(ctx, "failed to notify of workspace update", slog.Error(err))
 	}
+}
+
+// @Summary Report a workspace build debug click
+// @ID report-a-workspace-build-debug-click
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Builds
+// @Param workspacebuild path string true "Workspace build ID"
+// @Param request body codersdk.WorkspaceBuildDebugEventRequest true "Debug event"
+// @Success 204
+// @Router /api/v2/workspacebuilds/{workspacebuild}/debug-events [post]
+// @x-apidocgen {"skip": true}
+func (api *API) postWorkspaceBuildDebugEvent(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	workspaceBuild := httpmw.WorkspaceBuildParam(r)
+
+	if !api.Experiments.Enabled(codersdk.ExperimentEnableAIWorkspaceDebug) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String()).AnyOrganization()) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	job, err := api.Database.GetProvisionerJobByID(ctx, workspaceBuild.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if job.JobStatus != database.ProvisionerJobStatusFailed {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Only failed workspace builds can be debugged.",
+		})
+		return
+	}
+
+	var req codersdk.WorkspaceBuildDebugEventRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	api.Telemetry.Report(&telemetry.Snapshot{
+		WorkspaceBuildDebugEvents: []telemetry.WorkspaceBuildDebugEvent{
+			{
+				ID:               req.ID,
+				EventType:        telemetry.WorkspaceBuildDebugEventClick,
+				UserID:           apiKey.UserID,
+				WorkspaceID:      workspaceBuild.WorkspaceID,
+				WorkspaceBuildID: workspaceBuild.ID,
+				Transition:       string(workspaceBuild.Transition),
+				Reason:           string(workspaceBuild.Reason),
+				CreatedAt:        dbtime.Now(),
+			},
+		},
+	})
+
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // @Summary Cancel workspace build
@@ -1488,8 +1553,12 @@ func (api *API) convertWorkspaceBuild(
 			scripts := index.scriptsByAgentID[agent.ID]
 			statuses := index.statusesByAgentID[agent.ID]
 			logSources := index.logSourcesByAgentID[agent.ID]
+			apiScripts, err := convertScripts(scripts)
+			if err != nil {
+				return codersdk.WorkspaceBuild{}, xerrors.Errorf("converting workspace agent scripts: %w", err)
+			}
 			apiAgent, err := db2sdk.WorkspaceAgent(
-				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, db2sdk.Apps(apps, statuses, agent, workspace.OwnerUsername, workspace.WorkspaceTable()), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
+				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, db2sdk.Apps(apps, statuses, agent, workspace.OwnerUsername, workspace.WorkspaceTable()), apiScripts, convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 			)
 			if err != nil {
@@ -1643,7 +1712,7 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 			EndedAt:            t.EndedAt,
 			ExitCode:           t.ExitCode,
 			Stage:              codersdk.TimingStage(t.Stage),
-			Status:             string(t.Status),
+			Status:             codersdk.WorkspaceAgentScriptStatus(t.Status),
 			DisplayName:        t.DisplayName,
 			WorkspaceAgentID:   t.WorkspaceAgentID.String(),
 			WorkspaceAgentName: t.WorkspaceAgentName,

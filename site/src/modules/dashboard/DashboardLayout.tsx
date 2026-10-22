@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type ComponentProps, type FC, Suspense } from "react";
+import { Suspense } from "react";
 import { Outlet } from "react-router";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -10,7 +10,7 @@ import { Navbar } from "./Navbar/Navbar";
 import { UpdateCheckNotice } from "./UpdateCheckNotice/UpdateCheckNotice";
 import { useUpdateCheck } from "./useUpdateCheck";
 
-export const DashboardLayout: FC = () => {
+export const DashboardLayout: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const updateCheck = useUpdateCheck(permissions.viewDeploymentConfig);
 	const canViewDeployment = Boolean(permissions.viewDeploymentConfig);
@@ -63,7 +63,7 @@ export const DashboardLayout: FC = () => {
 	);
 };
 
-export const DashboardFullPage: FC<ComponentProps<"div">> = ({
+export const DashboardFullPage: React.FC<React.ComponentProps<"div">> = ({
 	children,
 	...attrs
 }) => {

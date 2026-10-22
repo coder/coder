@@ -27,9 +27,10 @@ const (
 )
 
 var (
-	constFunctionCallOutput = string(constant.ValueOf[constant.FunctionCallOutput]())
-	constInputText          = string(constant.ValueOf[constant.InputText]())
-	constUser               = string(constant.ValueOf[constant.User]())
+	constCustomToolCallOutput = string(constant.ValueOf[constant.CustomToolCallOutput]())
+	constFunctionCallOutput   = string(constant.ValueOf[constant.FunctionCallOutput]())
+	constInputText            = string(constant.ValueOf[constant.InputText]())
+	constUser                 = string(constant.ValueOf[constant.User]())
 
 	reqPathContent = string(constant.ValueOf[constant.Content]())
 	reqPathModel   = string(constant.ValueOf[constant.Model]())
@@ -58,7 +59,8 @@ func (p RequestPayload) Stream() bool {
 	return gjson.GetBytes(p, reqPathStream).Bool()
 }
 
-func (p RequestPayload) model() string {
+// Model returns the model from the request body.
+func (p RequestPayload) Model() string {
 	return gjson.GetBytes(p, reqPathModel).String()
 }
 
@@ -77,8 +79,13 @@ func (p RequestPayload) correlatingToolCallID() *string {
 		return nil
 	}
 
+	// Both function and custom (freeform) tool results reference the
+	// originating tool call by call_id. Codex sends custom_tool_call_output
+	// for custom tools such as apply_patch.
 	last := arr[len(arr)-1]
-	if last.Get(reqPathType).String() != constFunctionCallOutput {
+	switch last.Get(reqPathType).String() {
+	case constFunctionCallOutput, constCustomToolCallOutput:
+	default:
 		return nil
 	}
 

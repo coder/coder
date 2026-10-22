@@ -82,6 +82,20 @@ export const Default: Story = {
 	},
 };
 
+export const APIKeyAuthentication: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /authentication/i }),
+		);
+		await userEvent.click(
+			canvas.getByRole("combobox", { name: /authentication method/i }),
+		);
+		await userEvent.click(body.getByRole("option", { name: "API key" }));
+	},
+};
+
 export const UserOIDCRequiresDeploymentPermission: Story = {
 	args: {
 		canSelectUserOIDC: false,

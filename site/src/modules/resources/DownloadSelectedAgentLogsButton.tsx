@@ -1,7 +1,6 @@
 import { saveAs } from "file-saver";
 import { ChevronDownIcon, DownloadIcon, PackageIcon } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
-import { toast } from "sonner";
+import { useState } from "react";
 import { getErrorDetail } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
 import {
@@ -10,12 +9,13 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { toast } from "#/components/Toaster/toast";
 
 type DownloadableLogSet = {
 	label: string;
 	filenameSuffix: string;
 	logsText: string;
-	startIcon?: ReactNode;
+	startIcon?: React.ReactNode;
 };
 
 type DownloadSelectedAgentLogsButtonProps = {
@@ -26,7 +26,7 @@ type DownloadSelectedAgentLogsButtonProps = {
 	download?: (file: Blob, filename: string) => void | Promise<void>;
 };
 
-export const DownloadSelectedAgentLogsButton: FC<
+export const DownloadSelectedAgentLogsButton: React.FC<
 	DownloadSelectedAgentLogsButtonProps
 > = ({
 	agentName,

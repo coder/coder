@@ -70,7 +70,18 @@ func Tool(opts ToolOptions) fantasy.AgentTool {
 							ResultDelta: delta,
 						})
 					},
-					OnAdviceReset: func() {
+					OnReasoningDelta: func(delta string) {
+						if delta == "" {
+							return
+						}
+						publish(codersdk.ChatMessageRoleTool, codersdk.ChatMessagePart{
+							Type:           codersdk.ChatMessagePartTypeToolResult,
+							ToolCallID:     call.ID,
+							ToolName:       ToolName,
+							ReasoningDelta: delta,
+						})
+					},
+					OnLiveOutputReset: func() {
 						publish(codersdk.ChatMessageRoleTool, codersdk.ChatMessagePart{
 							Type:        codersdk.ChatMessagePartTypeToolResult,
 							ToolCallID:  call.ID,

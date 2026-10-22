@@ -2,14 +2,17 @@ package agentssh
 
 import (
 	"context"
+	"io"
 	"strings"
 	"sync"
 
 	"github.com/gliderlabs/ssh"
 	"github.com/google/uuid"
+	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -30,13 +33,23 @@ type localForwardChannelData struct {
 // of ssh sessions but only one persistent forwarded channel.
 type JetbrainsChannelWatcher struct {
 	gossh.NewChannel
-	startSession     startSessionFunc
-	logger           slog.Logger
-	originAddr       string
-	reportConnection reportConnectionFunc
+	startSession       startSessionFunc
+	logger             slog.Logger
+	originAddr         string
+	clientSessionID    string
+	connectionReporter proto.ConnectionReporter
+	isClosing          func() bool
+	trackChannel       func(add bool) bool
 }
 
-func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, reportConnection reportConnectionFunc, newChannel gossh.NewChannel, startSession startSessionFunc) gossh.NewChannel {
+func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger,
+	connectionReporter proto.ConnectionReporter,
+	newChannel gossh.NewChannel, startSession startSessionFunc,
+	isClosing func() bool, trackChannel func(add bool) bool,
+	clientSessionID string,
+) gossh.NewChannel {
+	logger = logger.With(slog.F("client_session_id", clientSessionID))
+
 	d := localForwardChannelData{}
 	if err := gossh.Unmarshal(newChannel.ExtraData(), &d); err != nil {
 		// If the data fails to unmarshal, do nothing.
@@ -64,52 +77,115 @@ func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, reportConne
 		slog.F("destination_port", d.DestPort))
 
 	return &JetbrainsChannelWatcher{
-		NewChannel:       newChannel,
-		startSession:     startSession,
-		logger:           logger.With(slog.F("destination_port", d.DestPort)),
-		originAddr:       d.OriginAddr,
-		reportConnection: reportConnection,
+		NewChannel:         newChannel,
+		startSession:       startSession,
+		logger:             logger.With(slog.F("destination_port", d.DestPort)),
+		originAddr:         d.OriginAddr,
+		connectionReporter: connectionReporter,
+		clientSessionID:    clientSessionID,
+		isClosing:          isClosing,
+		trackChannel:       trackChannel,
 	}
 }
 
 func (w *JetbrainsChannelWatcher) Accept() (gossh.Channel, <-chan *gossh.Request, error) {
-	disconnected := w.reportConnection(uuid.New(), string(codersdk.AppFamilyJetBrains), w.originAddr)
+	connReporter := w.connectionReporter.Connect(proto.ConnectEvent{
+		ID:              uuid.New(),
+		Method:          proto.Connection_METHOD_SSH,
+		AppName:         string(codersdk.AppFamilyJetBrains),
+		IP:              w.originAddr,
+		ClientSessionID: w.clientSessionID,
+	})
 
 	c, r, err := w.NewChannel.Accept()
 	if err != nil {
-		disconnected(1, err.Error())
+		connReporter.Disconnect(proto.DisconnectEvent{
+			Code:    1,
+			Reason:  err.Error(),
+			RxBytes: 0,
+			TxBytes: 0,
+		})
 		return c, r, err
 	}
 	endSession := w.startSession(string(codersdk.AppFamilyJetBrains))
+	// The channel handler outlives its connection's tracking, so register the
+	// channel until its close is reported with the server's shutdown state.
+	tracked := w.trackChannel(true)
 	// nolint: gocritic // JetBrains is a proper noun and should be capitalized
 	w.logger.Debug(context.Background(), "JetBrains watcher accepted channel")
 
-	return &ChannelOnClose{
+	return &ChannelTracker{
 		Channel: c,
-		done: func() {
+		done: func(rxbytes, txbytes int64) {
+			if tracked {
+				defer w.trackChannel(false)
+			}
 			endSession()
-			disconnected(0, "normal close")
+			detail := "normal close"
+			fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField()}
+			if w.isClosing() {
+				detail = string(codersdk.DisconnectReasonServerShutdown)
+				fields = append(fields, serverShutdownFields()...)
+			} else {
+				reason := codersdk.DisconnectReasonGraceful
+				fields = append(fields, reason.SlogField(), reason.SlogExpectedField())
+			}
+			connReporter.Disconnect(proto.DisconnectEvent{
+				Code:    0,
+				Reason:  detail,
+				RxBytes: rxbytes,
+				TxBytes: txbytes,
+			})
 			// nolint: gocritic // JetBrains is a proper noun and should be capitalized
 			w.logger.Debug(context.Background(), "JetBrains channel closed",
-				codersdk.ConnectionDirectionAgentToClient.SlogField(),
-				codersdk.DisconnectReasonGraceful.SlogField(),
-				codersdk.DisconnectReasonGraceful.SlogExpectedField(),
+				fields...,
 			)
 		},
 	}, r, err
 }
 
-type ChannelOnClose struct {
+// ChannelTracker is a wrapper around gossh.Channel that tracks the number of
+// bytes transferred and calls done() with the byte counts when when the
+// connection is closed.
+type ChannelTracker struct {
 	gossh.Channel
 	// once ensures close only decrements the counter once.
 	// Because close can be called multiple times.
-	once sync.Once
-	done func()
+	once    sync.Once
+	done    func(int64, int64)
+	rxBytes atomic.Int64
+	txBytes atomic.Int64
 }
 
-func (c *ChannelOnClose) Close() error {
-	c.once.Do(c.done)
+func (c *ChannelTracker) Close() error {
+	c.once.Do(func() {
+		c.done(c.rxBytes.Load(), c.txBytes.Load())
+	})
 	return c.Channel.Close()
+}
+
+func (c *ChannelTracker) Read(p []byte) (int, error) {
+	n, err := c.Channel.Read(p)
+	if n > 0 {
+		c.rxBytes.Add(int64(n))
+	}
+	return n, err
+}
+
+func (c *ChannelTracker) Write(p []byte) (int, error) {
+	n, err := c.Channel.Write(p)
+	if n > 0 {
+		c.txBytes.Add(int64(n))
+	}
+	return n, err
+}
+
+func (c *ChannelTracker) Stderr() io.ReadWriter {
+	return &readWriterTracker{
+		ReadWriter: c.Channel.Stderr(),
+		rxBytes:    &c.rxBytes,
+		txBytes:    &c.txBytes,
+	}
 }
 
 func isJetbrainsProcess(cmdline string) bool {

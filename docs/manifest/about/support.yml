@@ -1,0 +1,7 @@
+title: Support
+description: Get help with your Coder deployment through GitHub issues, our Discord community, and premium support.
+path: ./support/index.md
+children:
+  - title: Support bundle
+    description: Generate a support bundle and share workspace and deployment diagnostics with Coder support to troubleshoot issues.
+    path: ./support/support-bundle.md

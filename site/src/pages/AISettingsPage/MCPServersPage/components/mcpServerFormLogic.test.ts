@@ -28,6 +28,7 @@ describe("mcpServerFormLogic", () => {
 
 		expect(values.oauth2ClientSecret).toBe(SECRET_PLACEHOLDER);
 		expect(values.apiKeyValue).toBe(SECRET_PLACEHOLDER);
+		expect(values.signingSecret).toBe(SECRET_PLACEHOLDER);
 	});
 
 	it("requires display name, slug, and URL before submitting", () => {
@@ -82,6 +83,31 @@ describe("mcpServerFormLogic", () => {
 		expect(changed.api_key_value).toBe("new-key");
 	});
 
+	it.each([
+		{ value: SECRET_PLACEHOLDER, touched: false, expected: undefined },
+		{ value: SECRET_PLACEHOLDER, touched: true, expected: undefined },
+		{ value: "", touched: true, expected: undefined },
+		{
+			value: "new-signing-secret",
+			touched: true,
+			expected: "new-signing-secret",
+		},
+	])(
+		"sends only a replacement signing secret: $value/$touched",
+		({ value, touched, expected }) => {
+			const values = validValues({
+				signingSecret: value,
+				signingSecretTouched: touched,
+			});
+			expect(buildCreateMCPServerConfigRequest(values).signing_secret).toBe(
+				expected,
+			);
+			expect(buildUpdateMCPServerConfigRequest(values).signing_secret).toBe(
+				expected,
+			);
+		},
+	);
+
 	it("omits enabled from update requests", () => {
 		const request = buildUpdateMCPServerConfigRequest(
 			validValues({ enabled: false }),
@@ -89,16 +115,33 @@ describe("mcpServerFormLogic", () => {
 		expect(request.enabled).toBeUndefined();
 	});
 
-	it("sends an empty revocation URL on update so it can be cleared", () => {
-		const cleared = buildUpdateMCPServerConfigRequest(
-			validValues({ authType: "oauth2", oauth2RevocationURL: "" }),
-		);
+	it("sends empty revocation URL and resource on update so they can be cleared", () => {
+		const clearedOAuth2Values = validValues({
+			authType: "oauth2",
+			oauth2RevocationURL: "",
+			oauth2Resource: " ",
+		});
+		const cleared = buildUpdateMCPServerConfigRequest(clearedOAuth2Values);
 		expect(cleared.oauth2_revocation_url).toBe("");
+		expect(cleared.oauth2_resource).toBe("");
 
-		const created = buildCreateMCPServerConfigRequest(
-			validValues({ authType: "oauth2", oauth2RevocationURL: "" }),
-		);
+		const created = buildCreateMCPServerConfigRequest(clearedOAuth2Values);
 		expect(created.oauth2_revocation_url).toBeUndefined();
+		expect(created.oauth2_resource).toBeUndefined();
+	});
+
+	it("round-trips the stored OAuth2 resource", () => {
+		const values = buildInitialMCPServerFormValues({
+			...MockCoderMCPServer,
+			oauth2_resource: "https://mcp.example.com/mcp",
+		});
+		expect(values.oauth2Resource).toBe("https://mcp.example.com/mcp");
+		expect(buildUpdateMCPServerConfigRequest(values).oauth2_resource).toBe(
+			"https://mcp.example.com/mcp",
+		);
+		expect(buildCreateMCPServerConfigRequest(values).oauth2_resource).toBe(
+			"https://mcp.example.com/mcp",
+		);
 	});
 
 	it("initializes slugTouched true for edit and false for create", () => {

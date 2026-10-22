@@ -3,8 +3,7 @@ title: Authentication
 ---
 
 > [!NOTE]
-> AI Gateway is part of [AI Governance](../ai-governance.md), which is
-> included with a Premium license.
+> AI Gateway is part of [AI Governance](../ai-governance.md), which is included with a Premium license.
 
 AI Gateway uses different credentials for different kinds of connections:
 
@@ -36,7 +35,7 @@ From the dashboard, go to **Account settings** > **Tokens** and create a new tok
 For long-lived tokens, refer to [Sessions and API tokens](../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself).
 For headless or service-account use, refer to [Headless authentication](../../admin/users/headless-auth.md).
 
-From the CLI, print your current session token with [`coder login token`](../../reference/cli/login_token.md):
+From the CLI, print your current session token with [`coder login token`](../../reference/cli/login/token.md):
 
 ```sh
 coder login token
@@ -52,7 +51,7 @@ Use short lifetimes for automation and CI to limit the blast radius if a token l
 
 ### Retrieve your session token
 
-If you're logged in with the Coder CLI, retrieve your current session token with [`coder login token`](../../reference/cli/login_token.md):
+If you're logged in with the Coder CLI, retrieve your current session token with [`coder login token`](../../reference/cli/login/token.md):
 
 ```sh
 export ANTHROPIC_API_KEY=$(coder login token)
@@ -61,8 +60,7 @@ export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/ai-gateway/anthropic
 
 ### AI Gateway Proxy authentication
 
-For tools that don't support a configurable base URL,
-[AI Gateway Proxy](./ai-gateway-proxy/index.md) intercepts traffic and forwards it to AI Gateway.
+For tools that don't support a configurable base URL, [AI Gateway Proxy](./ai-gateway-proxy/index.md) intercepts traffic and forwards it to AI Gateway.
 The Coder token is supplied in the proxy URL:
 
 ```sh
@@ -108,11 +106,11 @@ List keys and the most recent heartbeat for each:
 coder ai-gateway keys list
 ```
 
-A replica records a heartbeat when its control connection is established, then refreshes it every 60 seconds while that connection is active.
+A replica records a heartbeat when its control connection is established, then refreshes it every 60&nbsp;seconds while that connection is active.
 The heartbeat reports control-connection liveness rather than client request volume.
 Coder stores one timestamp per key, so replicas that share a key cannot be distinguished.
 
-For usage and flags, refer to the generated CLI reference for [creating](../../reference/cli/ai-gateway_keys_create.md), [listing](../../reference/cli/ai-gateway_keys_list.md), and [deleting](../../reference/cli/ai-gateway_keys_delete.md) gateway keys.
+For usage and flags, refer to the generated CLI reference for [creating](../../reference/cli/ai-gateway/keys/create.md), [listing](../../reference/cli/ai-gateway/keys/list.md), and [deleting](../../reference/cli/ai-gateway/keys/delete.md) gateway keys.
 
 ### Rotate a gateway key
 
@@ -134,7 +132,7 @@ coder ai-gateway keys delete standalone-production
 Add `--yes` to skip the confirmation prompt in automation.
 
 Deleting a key rejects new connections immediately.
-An established session closes when its next heartbeat detects the deletion, within 60 seconds.
+An established session closes when its next heartbeat detects the deletion, within 60&nbsp;seconds.
 The replica then tries to reconnect, receives HTTP 401, and treats that as fatal: the process exits non-zero rather than retrying.
 Stop or update every replica before deleting its key for an orderly rotation.
 
@@ -148,9 +146,7 @@ For provider setup and credential failover, refer to [Provider configuration](./
 ## Bring Your Own Key (BYOK)
 
 In addition to centralized key management, AI Gateway supports Bring Your Own Key (BYOK) mode.
-Users can provide their own LLM API keys or provider subscriptions,
-such as Claude Pro or Max and ChatGPT Plus or Pro,
-while AI Gateway continues to provide observability and governance.
+Users can provide their own LLM API keys or provider subscriptions, such as Claude Pro or Max and ChatGPT Plus or Pro, while AI Gateway continues to provide observability and governance.
 
 ![BYOK authentication flow](../../images/aibridge/clients/byok_auth_flow.png)
 
@@ -162,16 +158,15 @@ In BYOK mode, users need two credentials:
 BYOK and centralized modes can be used together.
 When a user provides their own credential, AI Gateway forwards it directly.
 When no user credential is present, AI Gateway uses the administrator-configured provider key.
-This approach offers centralized keys as a default
-while allowing individual users to bring their own key.
+This approach offers centralized keys as a default while allowing individual users to bring their own key.
 
 > [!NOTE]
-> When a BYOK credential is present, [key failover](./providers.md#key-failover)
-> is skipped.
+> When a BYOK credential is present, [key failover](./providers.md#key-failover) is skipped.
 
 Coder Agents requests routed through AI Gateway are in-process control plane requests, not external client requests that send their own AI Gateway bearer token.
 Coder Agents use the same global BYOK setting.
 When BYOK is enabled, users can save personal API keys for any enabled AI provider from the Agents settings page.
+For AWS Bedrock providers, the personal key is an AWS Bedrock API key that AI Gateway forwards as a bearer token in place of the deployment-managed AWS credentials, for every model family Bedrock serves.
 Refer to [Agents credential selection](../agents/models.md#credential-selection) for the Agents-specific behavior.
 
 Visit individual [client pages](./clients/index.md) for configuration details.

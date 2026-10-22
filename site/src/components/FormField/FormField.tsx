@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type ComponentProps, type FC, type ReactNode, useId } from "react";
+import { useId } from "react";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import {
@@ -8,14 +8,14 @@ import {
 } from "#/utils/formUtils";
 
 type ControlProps = Pick<
-	ComponentProps<"input">,
+	React.ComponentProps<"input">,
 	"id" | "aria-invalid" | "aria-describedby"
 >;
 
 type FormFieldProps = React.ComponentProps<"input"> & {
 	field: FormHelpers;
-	label: ReactNode;
-	description?: ReactNode;
+	label: React.ReactNode;
+	description?: React.ReactNode;
 	/**
 	 * When true, discourages password managers (1Password, LastPass, Bitwarden,
 	 * etc.) from offering to autofill or save this field. Has no effect when a
@@ -25,10 +25,10 @@ type FormFieldProps = React.ComponentProps<"input"> & {
 	/**
 	 * Renders in place of the default `Input` element
 	 */
-	control?: (props: ControlProps) => ReactNode;
+	control?: (props: ControlProps) => React.ReactNode;
 };
 
-export const FormField: FC<FormFieldProps> = ({
+export const FormField: React.FC<FormFieldProps> = ({
 	field,
 	label,
 	description,
