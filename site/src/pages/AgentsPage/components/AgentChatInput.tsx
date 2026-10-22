@@ -195,6 +195,7 @@ type AgentChatInputProps = {
 	warning?: string;
 	// When set, also hides the editor and every control (view-only mode).
 	readOnlyNotice?: string;
+	isChatPaused?: boolean;
 	// Editing state, owned by the parent.
 	editingKind?: EditingTarget["kind"];
 	onCancelEdit?: () => void;
@@ -536,6 +537,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	onPromoteQueuedMessage,
 	warning,
 	readOnlyNotice,
+	isChatPaused = false,
 	editingKind,
 	onCancelEdit,
 	userPromptHistory = [],
@@ -1151,7 +1153,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const handleSubmit = () => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
 
-		// An empty composer sends the queue head.
+		// An empty composer sends the queue head unless the head is under edit.
 		if (
 			!text &&
 			!hasUploadedAttachments &&
@@ -1161,6 +1163,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			!isLoading &&
 			!hasActiveUploads &&
 			queuedMessages.length > 0 &&
+			!queuedMessages[0].editing_since &&
 			onPromoteQueuedMessage
 		) {
 			void onPromoteQueuedMessage(queuedMessages[0].id);
@@ -1305,11 +1308,14 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		applyCycleValue(nextPrompt);
 	};
 
-	const sendButtonLabel = isEditingMessage
-		? "Save Edit"
-		: isStreaming
-			? "Queue"
-			: "Send";
+	let sendButtonLabel = "Send";
+	if (isEditingMessage) {
+		sendButtonLabel = "Save Edit";
+	} else if (isStreaming || isChatPaused || queuedMessages[0]?.editing_since) {
+		// The server queues a send while a turn runs or the queue head is
+		// under edit.
+		sendButtonLabel = "Queue";
+	}
 	// Stop and the send button are mutually exclusive while streaming; a
 	// non-empty draft or a live recording selects the send button. A live
 	// recording also takes precedence over history editing.

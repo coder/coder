@@ -62,7 +62,10 @@ import {
 	isChatHookDispatchFailedResponse,
 } from "../components/ChatConversation/chatError";
 import { getWorkspaceAgent } from "../components/ChatConversation/chatHelpers";
-import { runPromoteQueuedMessage } from "../components/ChatConversation/chatQueueReconciliation";
+import {
+	runDeleteQueuedMessage,
+	runPromoteQueuedMessage,
+} from "../components/ChatConversation/chatQueueReconciliation";
 import {
 	selectChatStatus,
 	useChatSelector,
@@ -571,24 +574,19 @@ const AgentChatPage: React.FC = () => {
 		});
 	};
 
-	const handleDeleteQueuedMessage = async (id: number) => {
-		const previousQueuedMessages = store.getSnapshot().queuedMessages;
-		store.setQueuedMessages(
-			previousQueuedMessages.filter((message) => message.id !== id),
-		);
-		try {
-			await deleteQueuedMessage(id);
-		} catch (error) {
-			store.setQueuedMessages(previousQueuedMessages);
-			throw error;
-		}
-	};
+	const handleDeleteQueuedMessage = (id: number) =>
+		runDeleteQueuedMessage({ id, store, deleteQueuedMessage });
+
+	const fetchQueueConvergence = (chatId: string) =>
+		queryClient.fetchQuery(chatQueueConvergence(chatId));
 
 	const handlePromoteQueuedMessage = (id: number) =>
 		runPromoteQueuedMessage({
 			id,
 			store,
 			promoteQueuedMessage,
+			fetchQueueConvergence,
+			setCacheQueuedMessages,
 			agentId,
 			clearChatErrorReason,
 			onError: handleRequestError,
@@ -699,8 +697,7 @@ const AgentChatPage: React.FC = () => {
 		upsertCacheMessages,
 		getCacheQueuedMessages,
 		setCacheQueuedMessages,
-		fetchQueueConvergence: (chatId: string) =>
-			queryClient.fetchQuery(chatQueueConvergence(chatId)),
+		fetchQueueConvergence,
 		setCachedChatPlanMode,
 	};
 

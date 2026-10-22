@@ -15,7 +15,11 @@ import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
-import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
+import {
+	MockChatQueuedMessage,
+	MockChatQueuedMessageUnderEdit,
+	MockMCPServerConfig,
+} from "#/testHelpers/chatEntities";
 import { MockChatProject } from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
@@ -1000,5 +1004,57 @@ describe("AgentChatInput", () => {
 		expect(toastError).toHaveBeenCalledWith(
 			"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
 		);
+	});
+
+	it.each([
+		["sends the queue head when nothing is under edit", {}, true],
+		[
+			"does not send a queue head the server marks as under edit",
+			{ queuedMessages: [MockChatQueuedMessageUnderEdit] },
+			false,
+		],
+	] satisfies Array<
+		[string, Partial<React.ComponentProps<typeof AgentChatInput>>, boolean]
+	>)("Enter with an empty composer %s", async (_name, props, sendsHead) => {
+		const user = userEvent.setup();
+		const onPromoteQueuedMessage = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				onSend={vi.fn()}
+				isDisabled={false}
+				isLoading={false}
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
+				queuedMessages={[MockChatQueuedMessage]}
+				onPromoteQueuedMessage={onPromoteQueuedMessage}
+				{...props}
+			/>,
+		);
+
+		// Plain Enter sends only once the shortcut preference has loaded.
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: /^(Send|Queue)$/ }),
+			).toHaveAttribute("aria-keyshortcuts", "Enter");
+		});
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.keyboard("{Enter}");
+		if (sendsHead) {
+			expect(onPromoteQueuedMessage).toHaveBeenCalledWith(
+				MockChatQueuedMessage.id,
+			);
+		} else {
+			expect(onPromoteQueuedMessage).not.toHaveBeenCalled();
+		}
 	});
 });
