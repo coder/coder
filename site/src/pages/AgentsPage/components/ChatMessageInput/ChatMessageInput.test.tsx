@@ -1130,7 +1130,9 @@ describe("ChatMessageInput", () => {
 			const { inputRef } = renderWithWorkspaceFiles(workspaceFiles);
 			const user = await pasteText("/rev");
 			await user.click(await screen.findByRole("option", { name: /reviewer/ }));
-			expect(inputRef.current?.getValue()).toBe("/reviewer");
+			expect(getRequestContent(inputRef)).toEqual([
+				mockSkillPart("personal", "reviewer"),
+			]);
 			expect(API.findWorkspaceAgentFiles).not.toHaveBeenCalled();
 		});
 	});
