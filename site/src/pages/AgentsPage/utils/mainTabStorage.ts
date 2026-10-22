@@ -1,3 +1,5 @@
+import type { editor } from "monaco-editor";
+
 const mainTabsStorageKeyPrefix = "agents.main-tabs.";
 
 export type PersistedMainTabs = {
@@ -53,4 +55,44 @@ export function savePersistedMainTabs(
 		return;
 	}
 	localStorage.setItem(key, JSON.stringify(tabs));
+}
+
+// Session storage, so a reload restores where the user was in each file
+// while a new browser tab starts fresh. Entries outlive their tabs, so a
+// file reopened in the same session also returns to where the user left it.
+const fileViewStateKey = (chatID: string, path: string) =>
+	`agents.file-view-state.${chatID}:${path}`;
+
+/** The editor view state saved for a file in a chat, as Monaco returned it. */
+export function getFileViewState(
+	chatID: string,
+	path: string,
+): editor.ICodeEditorViewState | undefined {
+	const value = sessionStorage.getItem(fileViewStateKey(chatID, path));
+	if (!value) {
+		return undefined;
+	}
+	try {
+		const parsed: unknown = JSON.parse(value);
+		return typeof parsed === "object" && parsed !== null
+			? (parsed as editor.ICodeEditorViewState)
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+export function saveFileViewState(
+	chatID: string,
+	path: string,
+	viewState: editor.ICodeEditorViewState,
+): void {
+	try {
+		sessionStorage.setItem(
+			fileViewStateKey(chatID, path),
+			JSON.stringify(viewState),
+		);
+	} catch {
+		// A full storage quota only costs the restored position.
+	}
 }

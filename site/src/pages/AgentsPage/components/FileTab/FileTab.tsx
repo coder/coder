@@ -45,6 +45,7 @@ export type FileDraftUpdate = (
 ) => FileDraft | undefined;
 
 type FileTabProps = {
+	chatId: string;
 	agentId: string;
 	path: string;
 	reveal: FileReveal | undefined;
@@ -75,7 +76,16 @@ const decodeUtf8 = (data: ArrayBuffer): string | undefined => {
 };
 
 export const FileTab = memo<FileTabProps>(
-	({ agentId, path, reveal, repository, draft, onDraftChange, readOnly }) => {
+	({
+		chatId,
+		agentId,
+		path,
+		reveal,
+		repository,
+		draft,
+		onDraftChange,
+		readOnly,
+	}) => {
 		const queryClient = useQueryClient();
 		const fileQuery = useQuery({
 			...workspaceAgentFile(agentId, path),
@@ -287,6 +297,7 @@ export const FileTab = memo<FileTabProps>(
 			body = (
 				<Suspense fallback={<Loader label="Loading editor" />}>
 					<FileEditor
+						chatId={chatId}
 						path={path}
 						value={value}
 						reveal={pendingReveal}

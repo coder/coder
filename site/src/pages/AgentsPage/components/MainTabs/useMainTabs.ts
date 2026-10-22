@@ -133,6 +133,7 @@ export const useMainTabs = (chatId: string) => {
 	};
 
 	return {
+		chatId,
 		files: state.files,
 		activePath: state.activePath,
 		activation: state.activation,
