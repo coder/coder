@@ -8,7 +8,7 @@ import type { EditingTarget } from "../components/ChatConversation/types";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import {
 	draftInputStorageKeyPrefix,
-	getFileReferenceNodes,
+	getChipNodes,
 	type ParsedDraft,
 	parseStoredDraft,
 } from "../utils/draftStorage";
@@ -116,18 +116,18 @@ export function useConversationEditingState(deps: {
 		loadedContentRef.current = { text, editorState };
 	};
 
-	// The editor is plain text apart from file-reference chips, which have no
-	// text, so the text and the chips in order identify its content; only a
-	// chip moved within unchanged text goes unseen. Whole serialized states
-	// are not compared because a stored state need not match how the editor
-	// serializes it once loaded.
+	// The editor is plain text apart from file-reference and skill chips,
+	// which have no text, so the text and the chips in order identify its
+	// content; only a chip moved within unchanged text goes unseen. Whole
+	// serialized states are not compared because a stored state need not
+	// match how the editor serializes it once loaded.
 	const isEditorChanged = () => {
 		const loaded = loadedContentRef.current;
 		return (
 			inputValueRef.current !== loaded.text ||
 			!isEqual(
-				getFileReferenceNodes(serializedEditorStateRef.current),
-				getFileReferenceNodes(loaded.editorState),
+				getChipNodes(serializedEditorStateRef.current),
+				getChipNodes(loaded.editorState),
 			)
 		);
 	};
@@ -193,7 +193,8 @@ export function useConversationEditingState(deps: {
 			setComposerMode("follow");
 			return;
 		}
-		const { text, fileBlocks } = getEditableContentPayload(targetContent);
+		const { text, fileBlocks, editorState } =
+			getEditableContentPayload(targetContent);
 		if (draftBeforeEdit === null) {
 			// localStorage holds the serialized state handleContentChange
 			// persisted; the initialEditorState React state is stale.
@@ -203,7 +204,7 @@ export function useConversationEditingState(deps: {
 					.editorState,
 			});
 		}
-		loadEditorText(text, undefined);
+		loadEditorText(text, editorState);
 		setLoadedTarget({ target, text, fileBlocks: fileBlocks ?? noFileBlocks });
 		targetLoadCountRef.current++;
 	});

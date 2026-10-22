@@ -477,11 +477,12 @@ const getRestorableRootChildren = (
 // it restores the full editor state including file-reference chips.
 // Falls back to plain-text seeding via initialValue.
 //
-// The seed commits synchronously in a layout effect, so onChange reports
-// it during the commit that mounts this editor, before any parent layout
-// effect runs. A parent that loads other text in its layout effect, and so
-// remounts the editor again, never sees this editor's seed after its own
-// load.
+// A plain-text seed commits synchronously in a layout effect, so onChange
+// reports it during the commit that mounts this editor, before any parent
+// layout effect runs. A parent that loads other text in its layout effect,
+// and so remounts the editor again, never sees this editor's seed after its
+// own load. A restored state commits later instead, see below; an editor
+// superseded by then has unmounted and removed its onChange listener.
 const ValueSyncPlugin: React.FC<{
 	initialValue: string;
 	initialEditorState?: string;
@@ -495,8 +496,9 @@ const ValueSyncPlugin: React.FC<{
 		}
 		hasInitialized.current = true;
 
-		// Restore via editor.update, not setEditorState: a synchronous
-		// commit here makes chip decorators flushSync inside this effect.
+		// Restore via a deferred editor.update, not setEditorState or a
+		// discrete update: a synchronous commit here makes chip decorators
+		// flushSync inside this effect.
 		const restoredChildren = initialEditorState
 			? getRestorableRootChildren(editor, initialEditorState)
 			: null;

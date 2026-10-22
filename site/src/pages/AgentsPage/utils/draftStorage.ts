@@ -103,11 +103,16 @@ function extractPlainText(state: { root?: Record<string, unknown> }): string {
 
 type SerializedNode = { type?: string; children?: SerializedNode[] };
 
+const chipNodeTypes: ReadonlySet<string> = new Set([
+	"file-reference",
+	"skill-invocation",
+]);
+
 /**
- * The serialized file-reference nodes of a Lexical editor state, in
- * document order. A plain-text or malformed state has none.
+ * The serialized chip nodes, file references and skills, of a Lexical
+ * editor state in document order. A plain-text or malformed state has none.
  */
-export function getFileReferenceNodes(
+export function getChipNodes(
 	editorState: string | undefined,
 ): SerializedNode[] {
 	if (!editorState) {
@@ -121,7 +126,7 @@ export function getFileReferenceNodes(
 	}
 	const nodes: SerializedNode[] = [];
 	const collect = (node: SerializedNode) => {
-		if (node.type === "file-reference") {
+		if (node.type !== undefined && chipNodeTypes.has(node.type)) {
 			nodes.push(node);
 		}
 		node.children?.forEach(collect);
