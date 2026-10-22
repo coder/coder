@@ -8,8 +8,9 @@ type TextPreviewDialogProps = {
 	mediaType?: string;
 	onClose: () => void;
 	/**
-	 * Radix returns focus to the dialog's Trigger on close, and this dialog
-	 * has none, so focus would otherwise fall to the page body.
+	 * Radix focuses the dialog's Trigger after this runs unless it calls
+	 * event.preventDefault(), and this dialog has none, so focus would
+	 * otherwise fall to the page body.
 	 */
 	onCloseAutoFocus?: (event: Event) => void;
 };

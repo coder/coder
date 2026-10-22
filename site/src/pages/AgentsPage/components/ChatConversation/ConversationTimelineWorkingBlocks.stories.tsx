@@ -31,6 +31,8 @@ import {
 	MockCollapsedStepsPreferences,
 	MockContinuedAttachmentMessages,
 	MockFindingsEvictedChatFiles,
+	MockFindingsText,
+	MockInlineTextAttachmentMessages,
 	MockLeadInSearchMessages,
 	MockLongTurnPageLoads,
 	MockMixedAttachmentMessages,
@@ -319,10 +321,7 @@ export const TurnAttachmentsPillViewText: Story = {
 	parameters: {
 		queries: [
 			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
-			{
-				key: chatFileTextKey("findings-file"),
-				data: "# Findings\n\nThe dashboard matches the spec.",
-			},
+			{ key: chatFileTextKey("findings-file"), data: MockFindingsText },
 		],
 	},
 	args: {
@@ -378,6 +377,16 @@ export const TurnAttachmentsPillViewEmptyText: Story = {
 	},
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+	},
+	play: viewFindingsFile,
+};
+
+// An inline file previews the same as a stored one.
+export const TurnAttachmentsPillViewInlineText: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockInlineTextAttachmentMessages,
+		),
 	},
 	play: viewFindingsFile,
 };

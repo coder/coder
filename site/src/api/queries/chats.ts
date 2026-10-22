@@ -20,6 +20,7 @@ import {
 	reconcileEditedMessageInCache,
 } from "./chatMessageEdits";
 import { organizationsPermissions } from "./organizations";
+import { disabledRefetchOptions } from "./util";
 import { workspaceQuotaKey } from "./workspaceQuota";
 import { invalidateWorkspaceListQueries } from "./workspaces";
 
@@ -3208,14 +3209,14 @@ export const chatFileTextKey = (fileId: string) =>
 
 /**
  * A stored chat file's text, which never changes once uploaded, so the cache
- * keeps it, or the 404 of a deleted file, for the whole session.
+ * keeps it, or the 404 of a deleted file, for the whole session and never
+ * refetches it on its own.
  */
 export const chatFileText = (fileId: string) =>
 	queryOptions({
 		queryKey: chatFileTextKey(fileId),
 		queryFn: () => API.experimental.getChatFileText(fileId),
-		staleTime: Number.POSITIVE_INFINITY,
-		gcTime: Number.POSITIVE_INFINITY,
+		...disabledRefetchOptions,
 	});
 
 const GATEWAY_REQUEST_STALE_MS = 30_000;

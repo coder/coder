@@ -1,9 +1,16 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { QueryClientProvider } from "react-query";
+import { onlineManager, QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage } from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
@@ -374,6 +381,37 @@ describe("ConversationTimeline turn attachments", () => {
 		);
 	});
 
+	it("keeps focus on an image card whose thumbnail fails to load", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get(
+				"/api/v2/chats/files/:fileId",
+				() => new HttpResponse(null, { status: 404 }),
+			),
+		);
+		renderTimeline({ messages: mockStoredImageAttachmentMessages });
+		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
+		const viewButton = await screen.findByRole("button", {
+			name: "dashboard-before.png View file",
+		});
+		viewButton.focus();
+
+		fireEvent.error(within(viewButton).getByRole("img"));
+
+		// The failed thumbnail leaves a download card until the probe's 404
+		// expires the file.
+		expect(
+			screen.getByRole("link", { name: "dashboard-before.png Download file" }),
+		).toHaveFocus();
+		await waitFor(() =>
+			expect(
+				screen.getByRole("img", {
+					name: "Attachment expired: dashboard-before.png",
+				}),
+			).toHaveFocus(),
+		);
+	});
+
 	it("focuses the popover instead of an expired file when it opens", async () => {
 		const user = userEvent.setup();
 		renderTimeline({
@@ -425,30 +463,35 @@ describe("ConversationTimeline turn attachments", () => {
 		await waitFor(() => expect(viewButton).toHaveFocus());
 	});
 
-	it("requests a text file again when viewed after a failed load", async () => {
+	it("requests a failed text file again only when viewed again", async () => {
 		const user = userEvent.setup();
-		const requestedFileIDs: string[] = [];
 		server.use(
-			http.get("/api/v2/chats/files/:fileId", ({ params }) => {
-				requestedFileIDs.push(String(params.fileId));
-				return new HttpResponse(null, { status: 500 });
-			}),
+			http.get(
+				"/api/v2/chats/files/:fileId",
+				() => new HttpResponse(null, { status: 500 }),
+			),
 		);
+		const getChatFileText = vi.spyOn(API.experimental, "getChatFileText");
 		renderTimeline({ messages: MockMixedAttachmentMessages });
 		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
 		await user.click(
 			await screen.findByRole("button", { name: "findings.md View file" }),
 		);
+		const retryButton = await screen.findByRole("button", {
+			name: "findings.md Couldn't load preview. Select again to retry.",
+		});
 
-		await user.click(
-			await screen.findByRole("button", {
-				name: "findings.md Couldn't load preview. Select again to retry.",
-			}),
-		);
+		// A reconnect refetch that succeeded would open the preview unasked.
+		act(() => {
+			onlineManager.setOnline(false);
+			onlineManager.setOnline(true);
+		});
+		await user.click(retryButton);
 
-		await waitFor(() =>
-			expect(requestedFileIDs).toEqual(["findings-file", "findings-file"]),
-		);
+		expect(getChatFileText.mock.calls).toEqual([
+			["findings-file"],
+			["findings-file"],
+		]);
 	});
 
 	it("moves focus to a text file's expired tile once its view finds it deleted", async () => {

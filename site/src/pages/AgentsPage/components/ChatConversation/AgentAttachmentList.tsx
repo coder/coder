@@ -1,5 +1,5 @@
 import { isAxiosError } from "axios";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { chatFileText } from "#/api/queries/chats";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -43,14 +43,37 @@ const useAttachmentViewer = () => {
 	};
 };
 
-/** A thumbnail that fails to load skips the viewer, which would fail too. */
+/**
+ * A ref for each root a card swaps between, so that when a failure swaps out
+ * the root holding focus, its replacement takes focus, not the page body.
+ */
+const useSwapFocusRef = () => {
+	const hadFocusRef = useRef(false);
+	return (node: HTMLElement | null) => {
+		if (!node) {
+			return;
+		}
+		if (hadFocusRef.current && document.activeElement === document.body) {
+			node.focus();
+		}
+		hadFocusRef.current = false;
+		// React runs ref cleanups before it removes the node, so focus inside
+		// it has not fallen to the page body yet.
+		return () => {
+			hadFocusRef.current = node.contains(document.activeElement);
+		};
+	};
+};
+
 const ImageAttachmentCard: React.FC<AttachmentCardProps> = ({
 	attachment: { file, href },
 	expired,
 }) => {
 	const [failure, onError] = useAttachmentFailure(file.file_id, href);
 	const viewer = useAttachmentViewer();
+	const swapFocusRef = useSwapFocusRef();
 
+	// The viewer would show the same broken image as a failed thumbnail.
 	if (expired || failure.kind !== "idle") {
 		return (
 			<FileCard
@@ -58,6 +81,7 @@ const ImageAttachmentCard: React.FC<AttachmentCardProps> = ({
 				href={href}
 				expired={expired || failure.kind === "expired"}
 				fullWidth
+				ref={swapFocusRef}
 			/>
 		);
 	}
@@ -77,6 +101,7 @@ const ImageAttachmentCard: React.FC<AttachmentCardProps> = ({
 					/>
 				}
 				onView={viewer.open}
+				ref={swapFocusRef}
 			/>
 			{viewer.isViewing && <ImageLightbox src={href} {...viewer.dialogProps} />}
 		</>
@@ -92,12 +117,12 @@ const StoredTextAttachmentCard: React.FC<StoredTextAttachmentCardProps> = ({
 	fileId,
 }) => {
 	const viewer = useAttachmentViewer();
-	const expiredTileRef = useRef<HTMLDivElement>(null);
+	const swapFocusRef = useSwapFocusRef();
 	const textQuery = useQuery({
 		...chatFileText(fileId),
 		enabled: viewer.isViewing,
 	});
-	const isDeleted =
+	const isExpired =
 		expired ||
 		(isAxiosError(textQuery.error) && textQuery.error.response?.status === 404);
 	const isLoadingText = textQuery.isFetching && textQuery.data === undefined;
@@ -105,27 +130,9 @@ const StoredTextAttachmentCard: React.FC<StoredTextAttachmentCardProps> = ({
 		? (getTextAttachmentErrorMessage(textQuery.error) ?? undefined)
 		: undefined;
 
-	// The focused View button unmounts once a view finds the file deleted, so
-	// focus moves to the expired tile instead of falling to the page body.
-	useEffect(() => {
-		if (
-			isDeleted &&
-			viewer.isViewing &&
-			document.activeElement === document.body
-		) {
-			expiredTileRef.current?.focus();
-		}
-	}, [isDeleted, viewer.isViewing]);
-
-	if (isDeleted) {
+	if (isExpired) {
 		return (
-			<FileCard
-				block={file}
-				href={href}
-				expired
-				fullWidth
-				expiredTileRef={expiredTileRef}
-			/>
+			<FileCard block={file} href={href} expired fullWidth ref={swapFocusRef} />
 		);
 	}
 
@@ -148,6 +155,7 @@ const StoredTextAttachmentCard: React.FC<StoredTextAttachmentCardProps> = ({
 						void textQuery.refetch();
 					}
 				}}
+				ref={swapFocusRef}
 			/>
 			{viewer.isViewing && textQuery.data !== undefined && (
 				<TextPreviewDialog
@@ -196,7 +204,7 @@ const AgentAttachmentCard: React.FC<AttachmentCardProps> = (props) => {
 		if (file.file_id) {
 			return <StoredTextAttachmentCard {...props} fileId={file.file_id} />;
 		}
-		if (file.data !== undefined) {
+		if (file.data) {
 			return (
 				<InlineTextAttachmentCard
 					attachment={props.attachment}

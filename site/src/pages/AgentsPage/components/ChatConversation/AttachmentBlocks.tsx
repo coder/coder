@@ -177,6 +177,7 @@ const AttachmentDownloadLink: React.FC<
 		AttachmentDownload & {
 			className: string;
 			labelledBy?: string;
+			ref?: React.Ref<HTMLAnchorElement>;
 		}
 	>
 > = ({
@@ -186,9 +187,11 @@ const AttachmentDownloadLink: React.FC<
 	mediaType,
 	className,
 	labelledBy,
+	ref,
 	children,
 }) => (
 	<a
+		ref={ref}
 		href={href}
 		download={downloadName}
 		onClick={(event) => {
@@ -537,8 +540,9 @@ export const FileCard: React.FC<{
 	href: string;
 	expired: boolean;
 	fullWidth?: boolean;
-	expiredTileRef?: React.Ref<HTMLDivElement>;
-}> = ({ block, href, expired, fullWidth = false, expiredTileRef }) => {
+	/** Gets the download link, or the expired tile in its place. */
+	ref?: React.RefCallback<HTMLElement>;
+}> = ({ block, href, expired, fullWidth = false, ref }) => {
 	const nameId = useId();
 	const statusId = useId();
 	const download = getAttachmentDownload(block, href);
@@ -546,7 +550,7 @@ export const FileCard: React.FC<{
 	if (expired) {
 		return (
 			<AttachmentFallbackTile
-				ref={expiredTileRef}
+				ref={ref}
 				state={{ kind: "expired" }}
 				labels={fileAttachmentFailureLabels}
 				name={download.displayName}
@@ -558,6 +562,7 @@ export const FileCard: React.FC<{
 	return (
 		<AttachmentDownloadLink
 			{...download}
+			ref={ref}
 			labelledBy={`${nameId} ${statusId}`}
 			className={cn(
 				"inline-flex h-16 items-center gap-3 rounded-md border border-solid border-border bg-surface-tertiary px-3 py-2 no-underline transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
@@ -591,13 +596,17 @@ export const ViewableFileCard: React.FC<{
 	tile?: React.ReactNode;
 	/** Shown under the name in place of "View file". */
 	status?: string;
-}> = ({ block, href, onView, tile, status = "View file" }) => {
+	ref?: React.Ref<HTMLDivElement>;
+}> = ({ block, href, onView, tile, status = "View file", ref }) => {
 	const nameId = useId();
 	const statusId = useId();
 	const download = getAttachmentDownload(block, href);
 
 	return (
-		<div className="inline-flex h-16 w-full items-center gap-1 rounded-md border border-solid border-border bg-surface-tertiary pr-2 transition-colors has-[>button:hover]:bg-surface-quaternary has-[>button:focus-visible]:ring-2 has-[>button:focus-visible]:ring-content-link">
+		<div
+			ref={ref}
+			className="inline-flex h-16 w-full items-center gap-1 rounded-md border border-solid border-border bg-surface-tertiary pr-2 transition-colors has-[>button:hover]:bg-surface-quaternary has-[>button:focus-visible]:ring-2 has-[>button:focus-visible]:ring-content-link"
+		>
 			<button
 				type="button"
 				aria-labelledby={`${nameId} ${statusId}`}

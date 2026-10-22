@@ -4,6 +4,7 @@ import {
 	MockChatMessage,
 } from "#/testHelpers/chatEntities";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
+import { encodeInlineTextAttachment } from "../../utils/fetchTextAttachment";
 import {
 	type DeriveLiveStatusParams,
 	deriveLiveStatus,
@@ -526,6 +527,24 @@ export const MockBrokenImageAttachmentMessages: TypesGen.ChatMessage[] =
 		content: message.content?.map((part) =>
 			part.type === "file" && part.name === "dashboard-after.png"
 				? { ...part, data: "not-valid-base64" }
+				: part,
+		),
+	}));
+
+/** The text of findings.md, stored or inline, in the attachment stories. */
+export const MockFindingsText = "# Findings\n\nThe dashboard matches the spec.";
+
+/** MockMixedAttachmentMessages whose findings.md arrives inline. */
+export const MockInlineTextAttachmentMessages: TypesGen.ChatMessage[] =
+	MockMixedAttachmentMessages.map((message) => ({
+		...message,
+		content: message.content?.map((part) =>
+			part.type === "file" && part.name === "findings.md"
+				? {
+						...part,
+						file_id: undefined,
+						data: encodeInlineTextAttachment(MockFindingsText),
+					}
 				: part,
 		),
 	}));
