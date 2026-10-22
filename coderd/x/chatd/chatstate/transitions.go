@@ -1093,9 +1093,11 @@ func (tx *Tx) endOtherEdit(exceptID int64) error {
 
 // leavePaused advances the queue of a chat in P (see advanceQueue). It
 // returns the updated chat when the chat left P, else nil, and the
-// promoted head's queued time, or zero when nothing was promoted.
+// promoted head's queued time, or zero when nothing was promoted. A
+// promoted head runs with last_error cleared, as PromoteQueuedMessage
+// from P does.
 func (tx *Tx) leavePaused(chat database.Chat) (*database.Chat, time.Time, error) {
-	updated, promoted, err := tx.advanceQueue(chat)
+	updated, promoted, err := tx.advanceQueue(chat, pqtype.NullRawMessage{})
 	if err != nil || updated.Status == chat.Status {
 		return nil, time.Time{}, err
 	}
@@ -1104,10 +1106,11 @@ func (tx *Tx) leavePaused(chat database.Chat) (*database.Chat, time.Time, error)
 
 // advanceQueue moves the chat on by its queue head when a turn or an
 // interruption ends, or when P may resume: an empty queue sets W, a
-// blocked head sets P, and a ready head is promoted and the chat runs.
-// A chat already in the resulting status is not written. last_error is
-// kept, because none of these input states is error.
-func (tx *Tx) advanceQueue(chat database.Chat) (database.Chat, promotedQueuedRow, error) {
+// blocked head sets P, and a ready head is promoted and the chat runs
+// with promotedLastError. The W and P writes keep last_error, because
+// none of the input states is error. A chat already in the resulting
+// status is not written.
+func (tx *Tx) advanceQueue(chat database.Chat, promotedLastError pqtype.NullRawMessage) (database.Chat, promotedQueuedRow, error) {
 	head, err := tx.store.GetChatQueuedMessageHead(tx.ctx, tx.chatID)
 	status := database.ChatStatusWaiting
 	switch {
@@ -1117,7 +1120,7 @@ func (tx *Tx) advanceQueue(chat database.Chat) (database.Chat, promotedQueuedRow
 	case queuePaused(head):
 		status = database.ChatStatusPaused
 	default:
-		return tx.promoteQueuedRow(chat, head, chat.LastError)
+		return tx.promoteQueuedRow(chat, head, promotedLastError)
 	}
 	if chat.Status == status {
 		return chat, promotedQueuedRow{}, nil
@@ -1778,7 +1781,7 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 		)
 	}
 
-	_, promoted, err := tx.advanceQueue(chat)
+	_, promoted, err := tx.advanceQueue(chat, chat.LastError)
 	if err != nil {
 		return FinishInterruptionResult{}, err
 	}
@@ -1809,7 +1812,7 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 	if err != nil {
 		return FinishTurnResult{}, err
 	}
-	updated, promoted, err := tx.advanceQueue(chat)
+	updated, promoted, err := tx.advanceQueue(chat, chat.LastError)
 	if err != nil {
 		return FinishTurnResult{}, err
 	}
