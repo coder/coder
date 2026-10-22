@@ -32,7 +32,6 @@ export const AVAILABILITY_LABELS = Object.fromEntries(
 	AVAILABILITY_OPTIONS.map(({ value, label }) => [value, label]),
 ) as Record<string, string>;
 
-// Shown in place of the availability policy when the server is disabled.
 export const DISABLED_AVAILABILITY_LABEL = "Disabled";
 
 export const AVAILABILITY_HELP_TEXT =
