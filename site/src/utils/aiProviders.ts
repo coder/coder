@@ -26,3 +26,7 @@ export const formatProviderLabel = (provider: string): string => {
 			return `${normalized[0].toUpperCase()}${normalized.slice(1)}`;
 	}
 };
+
+/** Docs path explaining how Bedrock InvokeModel providers choose the model. */
+export const bedrockInvokeModelDocsPath =
+	"/ai-coder/ai-gateway/providers#how-invokemodel-selects-the-model";

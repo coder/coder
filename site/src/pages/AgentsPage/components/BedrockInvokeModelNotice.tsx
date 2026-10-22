@@ -3,6 +3,7 @@ import {
 	getProviderLabel,
 	type ModelSelectorOption,
 } from "#/modules/aiModels/ModelSelector";
+import { bedrockInvokeModelDocsPath } from "#/utils/aiProviders";
 import { docs } from "#/utils/docs";
 import { ComposerNoticeRow } from "./ComposerNoticeRow";
 
@@ -25,9 +26,7 @@ export const BedrockInvokeModelNotice: React.FC<
 				InvokeModel protocol, so requests use the model configured on the
 				provider instead of {modelOption.displayName}.{" "}
 				<Link
-					href={docs(
-						"/ai-coder/ai-gateway/providers#how-invokemodel-selects-the-model",
-					)}
+					href={docs(bedrockInvokeModelDocsPath)}
 					target="_blank"
 					rel="noreferrer"
 					size="sm"
