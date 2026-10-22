@@ -34,7 +34,7 @@ const badgeVariants = cva(
 			size: {
 				// Small badges never render a border, regardless of variant.
 				sm: "h-[18px] border-0 rounded-sm text-2xs font-normal",
-				md: "h-[26px] px-2 py-1 text-xs font-normal",
+				md: "h-[26px] py-1 text-xs font-normal",
 			},
 			svgSize: {
 				xs: "[&_svg]:size-icon-xs",
