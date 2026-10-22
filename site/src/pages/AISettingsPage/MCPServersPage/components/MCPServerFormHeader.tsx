@@ -100,7 +100,7 @@ export const MCPServerFormHeader: React.FC<MCPServerFormHeaderProps> = ({
 			{isEditing && server && (
 				<div className="flex items-center justify-between w-full pt-6">
 					<p className="text-sm text-content-secondary m-0">
-						Disabled servers are hidden from agents.
+						Disabled servers aren't available in any chat.
 					</p>
 					<div className="flex shrink-0 items-center gap-2">
 						<Tooltip>
@@ -125,8 +125,8 @@ export const MCPServerFormHeader: React.FC<MCPServerFormHeaderProps> = ({
 								{lacksUpdatePermission
 									? "You do not have permission to update this server."
 									: server.enabled
-										? "Disable this server. It will be hidden from agents."
-										: "Enable this server. It will be visible to agents."}
+										? "Disable this server. It won't be available in any chat."
+										: "Enable this server. Its availability setting controls how it appears in chats."}
 							</TooltipContent>
 						</Tooltip>
 						{lacksUpdatePermission && (

@@ -23,17 +23,19 @@ export const AVAILABILITY_OPTIONS = [
 	{
 		value: "force_on",
 		label: "Required",
-		description: "Always included in every chat. Users can't turn it off.",
+		description: "On in every chat for every user. Users can't turn it off.",
 	},
 	{
 		value: "default_on",
 		label: "On by default",
-		description: "Selected in new chats. Users can turn it off.",
+		description:
+			"On when users start a chat. Users can turn it off from the + menu in the chat input, and their choice carries over to their new chats.",
 	},
 	{
 		value: "default_off",
 		label: "Off by default",
-		description: "Not selected in new chats. Users can turn it on.",
+		description:
+			"Off when users start a chat. Users can turn it on from the + menu in the chat input, and their choice carries over to their new chats.",
 	},
 ] as const;
 
