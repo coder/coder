@@ -103,20 +103,32 @@ const directoryErrorMessage = (error: unknown, path: string) => {
 const isWithin = (path: string, directory: string) =>
 	path === directory || path.startsWith(`${directory}/`);
 
-/** Expanded directories whose ancestors up to the root are all expanded. */
+/**
+ * Expanded directories the current listings show: each one's parent listing
+ * contains it, up to the root. Deleted or moved directories drop out once
+ * their parent refetches.
+ */
 const getVisibleExpandedPaths = (
-	rootPath: string,
+	rootListing: WorkspaceAgentListDirectoryResponse,
 	expandedPaths: readonly string[],
+	cachedListings: ReadonlyMap<
+		string,
+		WorkspaceAgentListDirectoryResponse | undefined
+	>,
 ): string[] => {
 	const expanded = new Set(expandedPaths);
-	const isVisible = (path: string): boolean => {
-		const parent = getPathDirname(path);
-		if (parent === rootPath) {
-			return true;
+	const visible: string[] = [];
+	const visit = (listing: WorkspaceAgentListDirectoryResponse | undefined) => {
+		for (const entry of listing?.contents ?? []) {
+			const path = entry.absolute_path_string;
+			if (entry.is_dir && expanded.has(path)) {
+				visible.push(path);
+				visit(cachedListings.get(path));
+			}
 		}
-		return parent !== path && expanded.has(parent) && isVisible(parent);
 	};
-	return expandedPaths.filter(isVisible);
+	visit(rootListing);
+	return visible;
 };
 
 type FilesPanelProps = {
@@ -156,27 +168,65 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 
 	const rootQuery = useQuery(directoryQuery(agentId, root));
 	const rootPath = rootQuery.data?.absolute_path_string;
+	// Read-only observers: they expose cached listings of every expanded
+	// directory, and of the default directory and home, without fetching.
+	const cachedPaths = [...expandedPaths, "", "~"];
+	const cachedListings = useQueries({
+		queries: cachedPaths.map((path) => ({
+			...workspaceAgentDirectory(agentId, path),
+			enabled: false,
+		})),
+	});
+	const cachedListing = (path: string) =>
+		cachedListings[cachedPaths.indexOf(path)]?.data;
 	const visibleExpandedPaths =
-		rootPath === undefined
+		rootQuery.data === undefined
 			? []
-			: getVisibleExpandedPaths(rootPath, expandedPaths);
+			: getVisibleExpandedPaths(
+					rootQuery.data,
+					expandedPaths,
+					new Map(expandedPaths.map((path) => [path, cachedListing(path)])),
+				);
 	const childQueries = useQueries({
 		queries: visibleExpandedPaths.map((path) => directoryQuery(agentId, path)),
 	});
 	const isFetching =
 		rootQuery.isFetching || childQueries.some((query) => query.isFetching);
 
+	// One request per directory at a time: a refresh asked for while one is
+	// running, or while a background fetch that predates the change is
+	// running, waits and then runs once.
+	const refreshes = useRef(new Map<string, "running" | "trailing">());
+	const refreshDirectory = (path: string) => {
+		if (refreshes.current.has(path)) {
+			refreshes.current.set(path, "trailing");
+			return;
+		}
+		const queryKey = workspaceAgentDirectoryKey(agentId, path);
+		refreshes.current.set(
+			path,
+			queryClient.isFetching({ queryKey, exact: true }) > 0
+				? "trailing"
+				: "running",
+		);
+		void queryClient
+			.invalidateQueries({ queryKey, exact: true }, { cancelRefetch: false })
+			.finally(() => {
+				const again = refreshes.current.get(path) === "trailing";
+				refreshes.current.delete(path);
+				if (again) {
+					refreshDirectory(path);
+				}
+			});
+	};
+
 	const refetchDirectories = (absolutePaths: readonly string[]) => {
 		if (rootPath === undefined || absolutePaths.includes(rootPath)) {
-			void queryClient.invalidateQueries({
-				queryKey: workspaceAgentDirectoryKey(agentId, root),
-			});
+			refreshDirectory(root);
 		}
 		for (const path of visibleExpandedPaths) {
 			if (absolutePaths.includes(path)) {
-				void queryClient.invalidateQueries({
-					queryKey: workspaceAgentDirectoryKey(agentId, path),
-				});
+				refreshDirectory(path);
 			}
 		}
 	};
@@ -217,10 +267,16 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 		setIsEnteringPath(false);
 	};
 
+	// Bumped by any newer navigation so a slow Open path lookup cannot move
+	// the root after the user went elsewhere.
+	const openPathRequest = useRef(0);
 	const openPathMutation = useMutation({
-		mutationFn: async (
-			path: string,
-		): Promise<{ root: string; file?: string }> => {
+		mutationFn: async ({
+			path,
+		}: {
+			path: string;
+			request: number;
+		}): Promise<{ root: string; file?: string }> => {
 			try {
 				await queryClient.fetchQuery(workspaceAgentDirectory(agentId, path));
 				return { root: path };
@@ -244,7 +300,10 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 				return { root: parent, file: file.absolute_path_string };
 			}
 		},
-		onSuccess: (result) => {
+		onSuccess: (result, { request }) => {
+			if (request !== openPathRequest.current) {
+				return;
+			}
 			selectRoot(result.root);
 			if (result.file) {
 				openFile(result.file);
@@ -252,7 +311,19 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 		},
 	});
 
-	const homeIsDefault = defaultDirectory === undefined;
+	const cancelOpenPath = () => {
+		openPathRequest.current += 1;
+		openPathMutation.reset();
+	};
+
+	// The agent's default directory is home when it reports none, and the two
+	// are also one place once both resolve to the same absolute path.
+	const homePath = cachedListing("~")?.absolute_path_string;
+	const defaultPath =
+		defaultDirectory ?? cachedListing("")?.absolute_path_string;
+	const homeIsDefault =
+		defaultDirectory === undefined ||
+		(homePath !== undefined && homePath === defaultPath);
 	const resolvedTitle = (path: string, fallback: string) =>
 		root === path && rootPath !== undefined ? rootPath : fallback;
 	const rootOptions = [
@@ -261,14 +332,18 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 			label: getPathBasename(path),
 			title: path,
 		})),
-		{
-			root: "",
-			label: homeIsDefault ? "Default directory (~)" : "Default directory",
-			title: defaultDirectory ?? resolvedTitle("", "~"),
-		},
-		...(homeIsDefault && root !== "~"
-			? []
-			: [{ root: "~", label: "Home", title: resolvedTitle("~", "~") }]),
+		...(homeIsDefault
+			? [
+					{
+						root: root === "~" ? "~" : "",
+						label: "Default directory (~)",
+						title: defaultPath ?? homePath ?? "~",
+					},
+				]
+			: [
+					{ root: "", label: "Default directory", title: defaultDirectory },
+					{ root: "~", label: "Home", title: homePath ?? "~" },
+				]),
 		{ root: "/", label: "/", title: "/" },
 	];
 	if (!rootOptions.some((option) => option.root === root)) {
@@ -276,8 +351,8 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 	}
 
 	const handleRootValueChange = (value: string) => {
+		cancelOpenPath();
 		if (value === openPathValue) {
-			openPathMutation.reset();
 			focusPathInputOnClose.current = true;
 			setIsEnteringPath(true);
 			return;
@@ -302,7 +377,11 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 		}
 		const trimmed = path.trim().replace(/(.)\/+$/, "$1");
 		if (trimmed !== "") {
-			openPathMutation.mutate(trimmed);
+			openPathRequest.current += 1;
+			openPathMutation.mutate({
+				path: trimmed,
+				request: openPathRequest.current,
+			});
 		}
 	};
 
@@ -406,6 +485,7 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 							className="h-7 text-xs"
 							onKeyDown={(event) => {
 								if (event.key === "Escape") {
+									cancelOpenPath();
 									setIsEnteringPath(false);
 								}
 							}}
@@ -424,7 +504,7 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 						<p role="alert" className="m-0 text-xs text-content-destructive">
 							{directoryErrorMessage(
 								openPathMutation.error,
-								openPathMutation.variables,
+								openPathMutation.variables?.path ?? "",
 							)}
 						</p>
 					)}
@@ -539,7 +619,6 @@ const DirectoryTree: React.FC<DirectoryTreeProps> = ({
 	onOpenFile,
 }) => {
 	const [focusedPath, setFocusedPath] = useState<string>();
-	const treeRef = useRef<HTMLDivElement>(null);
 	const rowElements = useRef(new Map<string, HTMLDivElement>());
 	const typeahead = useRef({ prefix: "", timeStamp: 0 });
 
@@ -626,8 +705,10 @@ const DirectoryTree: React.FC<DirectoryTreeProps> = ({
 				activate(row.entry);
 				break;
 			case "Escape":
-				treeRef.current?.focus();
-				break;
+				// Focus stays on the row, per the WAI-ARIA tree pattern; Escape only
+				// ends a type-to-jump prefix.
+				typeahead.current = { prefix: "", timeStamp: 0 };
+				return;
 			default:
 				if (
 					event.key.length !== 1 ||
@@ -669,11 +750,9 @@ const DirectoryTree: React.FC<DirectoryTreeProps> = ({
 				</p>
 			) : (
 				<div
-					ref={treeRef}
 					role="tree"
 					aria-label="Files"
-					tabIndex={-1}
-					className="min-h-0 flex-1 overflow-auto p-1 text-xs outline-none"
+					className="min-h-0 flex-1 overflow-auto p-1 text-xs"
 				>
 					{rows.map((row) => {
 						if (row.type === "status") {
