@@ -862,14 +862,18 @@ const ChatMessageInput = ({
 	);
 	// While the caller's project list is unsettled, the menu shows the
 	// project source as loading or failed, as it does for the skills request.
+	// A project the caller cannot use is a known empty source, not a failure.
 	const isProjectUsabilityUnknown =
 		hasProject && projectUsability === "unknown";
+	const isProjectUnusable = hasProject && projectUsability === "unusable";
 	const isProjectLoading =
-		projectSource.isLoading ||
-		(isProjectUsabilityUnknown && projectQuery.isFetching);
+		!isProjectUnusable &&
+		(projectSource.isLoading ||
+			(isProjectUsabilityUnknown && projectQuery.isFetching));
 	const isProjectError =
-		projectSource.isError ||
-		(isProjectUsabilityUnknown && projectQuery.isError);
+		!isProjectUnusable &&
+		(projectSource.isError ||
+			(isProjectUsabilityUnknown && projectQuery.isError));
 	// chatd skips disabled skills, so they never offer or collide.
 	const personalSkills = (personalSkillsOverride ?? skillsQuery.data)?.filter(
 		(skill) => skill.enabled,
@@ -911,7 +915,7 @@ const ChatMessageInput = ({
 		(hasPersonalSkillsOverride || !skillsQuery.isFetching) &&
 		organizationSource.isResolvedEmpty &&
 		(!hasProject ||
-			projectUsability === "unusable" ||
+			isProjectUnusable ||
 			(projectUsability === "usable" && projectSource.isResolvedEmpty)) &&
 		loadedWorkspaceSkills?.length === 0;
 	// Without built-in commands, "/" is plain text when every skills
