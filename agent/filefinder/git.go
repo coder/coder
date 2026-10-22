@@ -123,6 +123,11 @@ func (g *gitRunner) run(ctx context.Context, timeout time.Duration, dir string, 
 	if err := cmd.Start(); err != nil {
 		return xerrors.Errorf("start git %s: %w", args[0], err)
 	}
+	// Killing git does not unblock the read below if a detached
+	// descendant still holds stdout, and WaitDelay only applies once
+	// Wait runs, so close the read end on cancellation.
+	stopClosing := context.AfterFunc(ctx, func() { _ = stdout.Close() })
+	defer stopClosing()
 
 	sc := bufio.NewScanner(stdout)
 	sc.Buffer(make([]byte, 0, 4096), maxGitRecordBytes)
@@ -147,6 +152,9 @@ func (g *gitRunner) run(ctx context.Context, timeout time.Duration, dir string, 
 		} else if err != nil {
 			readErr = err
 		}
+	}
+	if readErr != nil && ctx.Err() != nil {
+		readErr = ctx.Err()
 	}
 	if readErr != nil {
 		cancel()
