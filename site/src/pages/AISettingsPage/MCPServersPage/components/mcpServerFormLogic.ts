@@ -36,7 +36,7 @@ export const AVAILABILITY_LABELS = Object.fromEntries(
 export const DISABLED_AVAILABILITY_LABEL = "Disabled";
 
 export const AVAILABILITY_HELP_TEXT =
-	"Required and Disabled apply to every user. On by default and Off by default only set where a user starts. After a user changes their selection, it carries over to their new chats.";
+	"Required and Disabled are enforced for every user. On by default and Off by default set a starting point that users can change, and their choice carries over to new chats.";
 
 export type MCPServerFormValues = {
 	displayName: string;
