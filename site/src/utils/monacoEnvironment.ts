@@ -1,4 +1,3 @@
-import * as monaco from "monaco-editor";
 import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import CssWorker from "monaco-editor/esm/vs/language/css/css.worker?worker";
 import HtmlWorker from "monaco-editor/esm/vs/language/html/html.worker?worker";
@@ -32,10 +31,3 @@ self.MonacoEnvironment = {
 		}
 	},
 };
-
-// A standalone editor has no project to resolve imports and types from, so
-// semantic checks report errors for every import. Syntax checks still run.
-monaco.typescript.typescriptDefaults.setDiagnosticsOptions({
-	...monaco.typescript.typescriptDefaults.getDiagnosticsOptions(),
-	noSemanticValidation: true,
-});
