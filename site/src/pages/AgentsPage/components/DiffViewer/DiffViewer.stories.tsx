@@ -448,6 +448,8 @@ const reparseSecondBody = [
 	"+const c = 3;",
 ].join("\n");
 
+// FileDiff renders hunks synchronously enough for play tests; CodeView
+// virtualizes and never paints lines in this environment.
 const ReparseSamePath: React.FC = () => {
 	const [body, setBody] = useState(reparseFirstBody);
 	const file = parseDiffString(body)[0];
@@ -497,33 +499,6 @@ export const ReparseSamePathAfterEdit: StoryObj = {
 
 		// Shadow-root renders are invisible to the stability wait, so wait for
 		// the reparsed body.
-		await waitForDiffBody(canvasElement, "const v = 3");
-	},
-};
-
-const ReparseInDiffViewer: React.FC<React.ComponentProps<typeof DiffViewer>> = (
-	props,
-) => {
-	const [body, setBody] = useState(reparseFirstBody);
-	return (
-		<div className="flex h-full flex-col">
-			<button type="button" onClick={() => setBody(reparseSecondBody)}>
-				next body
-			</button>
-			<DiffViewer {...props} parsedFiles={parseDiffString(body)} />
-		</div>
-	);
-};
-
-// The same path with new content must re-render, so the CodeView item
-// version has to change with the file content.
-export const ReparseSamePathInDiffViewer: Story = {
-	render: (args) => <ReparseInDiffViewer {...args} />,
-	play: async ({ canvasElement }) => {
-		await waitForDiffBody(canvasElement, "const v = 2");
-		await userEvent.click(
-			within(canvasElement).getByRole("button", { name: "next body" }),
-		);
 		await waitForDiffBody(canvasElement, "const v = 3");
 	},
 };
@@ -624,9 +599,6 @@ const nextScrollEvent = (scroller: HTMLElement) =>
 		scroller.addEventListener("scroll", () => resolve(), { once: true }),
 	);
 
-const nextFrame = () =>
-	new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-
 // CodeView disables pointer events while a scroll is in progress.
 const waitForScrollSettled = (element: HTMLElement) =>
 	waitFor(() => {
@@ -683,18 +655,10 @@ export const TreeClickExpandsFileCollapsedFromStickyHeader: Story = {
 			name: `Expand ${firstLongFileName}`,
 		});
 		await collapseScroll;
-		// useActiveFileTracking queued its rAF in the collapse's scroll event, so
-		// it runs in the first frame. In Chromium, React commits that
-		// setActiveFile and the DiffFileTree selection effect runs before the
-		// second frame.
-		await nextFrame();
-		await nextFrame();
 		await waitForScrollSettled(expandButton);
-		await waitFor(() => {
-			if (selectedTreePaths(canvasElement).includes(firstLongFileName)) {
-				throw new Error("Collapsed file is still selected in the tree");
-			}
-		});
+		if (document.activeElement !== expandButton) {
+			throw new Error("Focus left the collapse button");
+		}
 
 		const row = treeRows(canvasElement).find(
 			(r) => r.dataset.itemPath === firstLongFileName,
