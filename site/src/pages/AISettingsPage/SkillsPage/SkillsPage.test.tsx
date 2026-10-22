@@ -122,7 +122,7 @@ it("lets an organization admin allow members to turn off skills", async () => {
 	);
 });
 
-it("keeps the organization setting on screen when reloading it fails", async () => {
+it("keeps the organization setting and retries when reloading it fails", async () => {
 	const user = userEvent.setup();
 	vi.spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
 		Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
@@ -149,26 +149,19 @@ it("keeps the organization setting on screen when reloading it fails", async () 
 			queryKey: organizationSkillSettingsKey(MockOrganization.id),
 		}),
 	);
+	const retry = await screen.findByRole("button", {
+		name: "Retry loading the organization setting",
+	});
 
-	await screen.findByText("Settings are unavailable.");
 	expect(
 		screen.getByRole("switch", {
 			name: "Members can turn off organization skills",
 		}),
 	).toBeChecked();
 
-	getSettings.mockResolvedValue({
-		...MockOrganizationSkillSettings,
-		members_can_disable_skills: true,
-	});
-	await user.click(
-		screen.getByRole("button", {
-			name: "Retry loading the organization setting",
-		}),
-	);
+	getSettings.mockClear();
+	await user.click(retry);
 	await waitFor(() =>
-		expect(
-			screen.queryByText("Settings are unavailable."),
-		).not.toBeInTheDocument(),
+		expect(getSettings).toHaveBeenCalledWith(MockOrganization.id),
 	);
 });

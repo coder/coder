@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { type QueryClient, useQueryClient } from "react-query";
 import { spyOn } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
@@ -161,6 +162,47 @@ export const MembersCanTurnOffSkillsError: Story = {
 		spyOn(API.experimental, "getOrganizationSkillSettings").mockRejectedValue(
 			new Error("Failed to load the organization setting."),
 		);
+	},
+};
+
+let capturedQueryClient: QueryClient | undefined;
+
+export const MembersCanTurnOffSkillsReloadError: Story = {
+	decorators: [
+		(Story) => {
+			capturedQueryClient = useQueryClient();
+			return <Story />;
+		},
+	],
+	parameters: {
+		queries: [
+			{
+				key: organizationsPermissions([MockDefaultOrganization.id]).queryKey,
+				data: { [MockDefaultOrganization.id]: MockOrganizationPermissions },
+			},
+			{
+				key: organizationSkills(MockDefaultOrganization.id).queryKey,
+				data: mockOrganizationSkills,
+			},
+			{
+				key: organizationSkillSettingsKey(MockDefaultOrganization.id),
+				data: mockMembersCanDisableSkillsSettings,
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getOrganizationSkillSettings").mockRejectedValue(
+			new Error("Failed to load the organization setting."),
+		);
+	},
+	play: async () => {
+		if (!capturedQueryClient) {
+			throw new Error("query client was not captured by the story decorator");
+		}
+		await capturedQueryClient.refetchQueries({
+			queryKey: organizationSkillSettingsKey(MockDefaultOrganization.id),
+			exact: true,
+		});
 	},
 };
 
