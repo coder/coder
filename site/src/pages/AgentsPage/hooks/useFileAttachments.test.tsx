@@ -269,3 +269,47 @@ describe("useFileAttachments org scoping", () => {
 		);
 	});
 });
+
+describe("useFileAttachments workspace purpose", () => {
+	beforeEach(() => {
+		localStorage.clear();
+	});
+
+	it("stages a workspace image without resizing it and restores its purpose", async () => {
+		const resolveUpload = mockDeferredUpload();
+		const resize = await import("../utils/resizeImage");
+		const resizeSpy = vi.spyOn(resize, "resizeImageToMaxBytes");
+		const { result, unmount } = renderHook(() =>
+			useFileAttachments("org-a", { persist: true, provider: "anthropic" }),
+		);
+		await waitFor(() => {
+			expect(result.current.organizationAdopted).toBe(true);
+		});
+		// Larger than the prompt cap and the provider image budget.
+		const file = new File([new Uint8Array(12 * 1024 * 1024)], "scan.bmp", {
+			type: "image/bmp",
+		});
+
+		act(() => {
+			result.current.handleAttach([file], "workspace");
+		});
+		await act(async () => {
+			resolveUpload({ id: "file-staged" });
+		});
+
+		expect(API.experimental.uploadChatFile).toHaveBeenCalledWith(
+			file,
+			"org-a",
+			"workspace",
+		);
+		expect(resizeSpy).not.toHaveBeenCalled();
+		unmount();
+
+		const restored = renderAttachments({ orgId: "org-a" });
+		await waitFor(() => {
+			expect([...restored.result.current.uploadStates.values()]).toEqual([
+				{ status: "uploaded", fileId: "file-staged", purpose: "workspace" },
+			]);
+		});
+	});
+});

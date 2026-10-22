@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { mockApiError } from "#/testHelpers/entities";
-import { formatAgentAttachmentUploadError } from "./fileAttachmentLimits";
+import {
+	formatAgentAttachmentTooLargeError,
+	formatAgentAttachmentUploadError,
+} from "./fileAttachmentLimits";
 
 const axiosApiError = (message: string, detail?: string) =>
 	Object.assign(
@@ -44,5 +47,22 @@ describe("formatAgentAttachmentUploadError", () => {
 		expect(formatAgentAttachmentUploadError(new Error("Network Error"))).toBe(
 			"Network Error",
 		);
+	});
+});
+
+describe("formatAgentAttachmentTooLargeError", () => {
+	it.each([
+		[
+			"prompt",
+			12 * 1024 * 1024,
+			"File too large (12.0 MiB). Maximum is 10 MiB.",
+		],
+		[
+			"workspace",
+			120 * 1024 * 1024,
+			"File too large (120.0 MiB). Maximum is 100 MiB.",
+		],
+	] as const)("names the %s file cap", (purpose, size, message) => {
+		expect(formatAgentAttachmentTooLargeError(size, purpose)).toBe(message);
 	});
 });

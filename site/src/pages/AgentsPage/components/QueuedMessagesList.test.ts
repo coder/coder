@@ -60,11 +60,16 @@ describe("getQueuedMessageInfo", () => {
 			buildMessage([
 				{ type: "file", file_id: "a", media_type: "image/png" },
 				{ type: "file", file_id: "b", media_type: "image/png" },
+				{
+					type: "workspace-attachment",
+					file_id: "c",
+					media_type: "application/zip",
+				},
 			]),
 		);
 		expect(result).toEqual({
 			displayText: "[Queued message]",
-			attachmentCount: 2,
+			attachmentCount: 3,
 			hookNotices: [],
 		});
 	});

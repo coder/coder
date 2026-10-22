@@ -3254,9 +3254,14 @@ class ExperimentalApiMethods {
 	uploadChatFile = async (
 		file: File,
 		organizationId: string,
+		purpose: TypesGen.ChatFilePurpose,
 	): Promise<TypesGen.UploadChatFileResponse> => {
+		const params = new URLSearchParams({
+			organization: organizationId,
+			purpose,
+		});
 		const response = await this.axios.post(
-			`/api/v2/chats/files?organization=${organizationId}`,
+			`/api/v2/chats/files?${params.toString()}`,
 			file,
 			{
 				headers: chatFileUploadHeaders(file),

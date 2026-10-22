@@ -36,7 +36,11 @@ export const getQueuedMessageInfo = (
 	const textParts: string[] = [];
 	const hookNotices: string[] = [];
 	for (const part of message.content) {
-		if (part.type === "file" || part.type === "workspace-file-reference") {
+		if (
+			part.type === "file" ||
+			part.type === "workspace-file-reference" ||
+			part.type === "workspace-attachment"
+		) {
 			attachmentCount++;
 		} else if (part.type === "text" && part.text?.trim()) {
 			textParts.push(part.text);

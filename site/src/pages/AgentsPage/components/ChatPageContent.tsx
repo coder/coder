@@ -25,6 +25,7 @@ import {
 import {
 	getChatFileURL,
 	isWorkspaceFileReferencePart,
+	type StagedFilePurpose,
 } from "../utils/chatAttachments";
 import { resolveChatCompactionThreshold } from "../utils/compactionTriggers";
 import {
@@ -250,6 +251,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 export type PendingAttachment = {
 	fileId: string;
 	mediaType: string;
+	purpose?: StagedFilePurpose;
 };
 
 export type PendingWorkspaceUpload = {

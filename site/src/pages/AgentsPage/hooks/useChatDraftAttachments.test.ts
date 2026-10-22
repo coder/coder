@@ -361,6 +361,55 @@ describe("useChatDraftAttachments", () => {
 		unmount();
 	});
 
+	it("stages a workspace image without resizing it or saving its payload", async () => {
+		const upload = createDeferred<{ id: string }>();
+		const uploadSpy = vi
+			.spyOn(API.experimental, "uploadChatFile")
+			.mockReturnValue(upload.promise);
+		const resize = await import("../utils/resizeImage");
+		const resizeSpy = vi.spyOn(resize, "resizeImageToMaxBytes");
+		const storage = await import("../utils/chatDraftAttachmentStorage");
+		const payloadSpy = vi.spyOn(storage, "fileToDataURL");
+		const { result, unmount } = renderHook(() =>
+			useChatDraftAttachments(orgID, chatID, { provider: "anthropic" }),
+		);
+		// Larger than the prompt cap and the provider image budget.
+		const file = new File([new Uint8Array(12 * 1024 * 1024)], "scan.bmp", {
+			type: "image/bmp",
+			lastModified: 400,
+		});
+
+		act(() => {
+			result.current.handleAttach([file], "workspace");
+		});
+
+		expect(uploadSpy).toHaveBeenCalledWith(file, orgID, "workspace");
+		expect(resizeSpy).not.toHaveBeenCalled();
+		expect(payloadSpy).not.toHaveBeenCalled();
+		expect(
+			result.current.uploadStates.get(result.current.attachments[0]),
+		).toMatchObject({ status: "uploading", draftWarning: expect.any(String) });
+		await act(async () => {
+			upload.resolve({ id: "file-staged" });
+		});
+		expect(parseStoredDrafts()).toMatchObject([
+			{ status: "uploaded", fileId: "file-staged", purpose: "workspace" },
+		]);
+		unmount();
+
+		const restored = renderHook(() => useChatDraftAttachments(orgID, chatID));
+		expect(
+			restored.result.current.uploadStates.get(
+				restored.result.current.attachments[0],
+			),
+		).toMatchObject({
+			status: "uploaded",
+			fileId: "file-staged",
+			purpose: "workspace",
+		});
+		restored.unmount();
+	});
+
 	it("resetAttachments clears storage, registry entries, and previews", async () => {
 		const upload = createDeferred<{ id: string }>();
 		vi.spyOn(API.experimental, "uploadChatFile").mockReturnValue(
@@ -585,7 +634,7 @@ describe("useChatDraftAttachments", () => {
 			});
 			expect(result.current.uploadStates.get(original)).toBeUndefined();
 			expect(uploadSpy).toHaveBeenCalledTimes(1);
-			expect(uploadSpy).toHaveBeenCalledWith(replacement, orgID);
+			expect(uploadSpy).toHaveBeenCalledWith(replacement, orgID, "prompt");
 
 			await act(async () => {
 				upload.resolve({ id: "file-resized" });
@@ -780,7 +829,7 @@ describe("useChatDraftAttachments", () => {
 			expect(resizeSpy).not.toHaveBeenCalled();
 			await vi.waitFor(() => {
 				expect(uploadSpy).toHaveBeenCalledTimes(1);
-				expect(uploadSpy).toHaveBeenCalledWith(file, orgID);
+				expect(uploadSpy).toHaveBeenCalledWith(file, orgID, "prompt");
 			});
 
 			await act(async () => {

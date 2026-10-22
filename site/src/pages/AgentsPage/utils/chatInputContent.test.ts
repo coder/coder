@@ -118,6 +118,25 @@ describe("buildChatInputContent", () => {
 		});
 	});
 
+	it("sends staged workspace files as workspace-attachment parts", () => {
+		expect(
+			buildChatInputContent({
+				message: "",
+				attachments: [
+					{ fileId: "file-1", mediaType: "image/png" },
+					{
+						fileId: "file-2",
+						mediaType: "application/zip",
+						purpose: "workspace",
+					},
+				],
+			}).content,
+		).toEqual([
+			{ type: "file", file_id: "file-1" },
+			{ type: "workspace-attachment", file_id: "file-2" },
+		]);
+	});
+
 	it("appends workspace file references after attachments", () => {
 		expect(
 			buildChatInputContent({

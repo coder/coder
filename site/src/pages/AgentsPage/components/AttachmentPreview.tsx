@@ -8,7 +8,11 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useLatestAbortController } from "../hooks/useLatestAbortController";
-import { isAbortError, isRasterImageMediaType } from "../utils/chatAttachments";
+import {
+	isAbortError,
+	isRasterImageMediaType,
+	type StagedFilePurpose,
+} from "../utils/chatAttachments";
 import {
 	fetchTextAttachmentContent,
 	formatTextAttachmentPreview,
@@ -23,6 +27,9 @@ export type UploadState = {
 	fileId?: string;
 	error?: string;
 	draftWarning?: string;
+	// Workspace files are stored by Coder and copied into the chat's
+	// workspace when it starts, never sent to the model provider.
+	purpose?: StagedFilePurpose;
 };
 
 export const isUploadInProgress = (state: UploadState | undefined): boolean =>
