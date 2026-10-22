@@ -106,7 +106,12 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 					{provider.status?.warnings && provider.status.warnings.length > 0 && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Badge asChild variant="warning" onClick={stopPropagation}>
+								<Badge
+									asChild
+									size="sm"
+									variant="warning"
+									onClick={stopPropagation}
+								>
 									<button
 										type="button"
 										aria-label={`Warning: ${provider.status.warnings.join("; ")}`}
