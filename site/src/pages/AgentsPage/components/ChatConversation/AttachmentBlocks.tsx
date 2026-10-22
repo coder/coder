@@ -116,7 +116,7 @@ const getAttachmentExtension = (
 export const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
 	TEXT_ATTACHMENT_MEDIA_TYPES.has(mediaType);
 
-const getAttachmentDisplayName = (
+export const getAttachmentDisplayName = (
 	block: Pick<FileAttachmentBlock, "media_type" | "name">,
 ): string => {
 	const name = block.name?.trim();
@@ -461,18 +461,62 @@ const RemoteImageBlock: React.FC<{
 	);
 };
 
+const FileDownloadLink: React.FC<
+	React.PropsWithChildren<{
+		block: FileAttachmentBlock;
+		href: string;
+		className: string;
+	}>
+> = ({ block, href, className, children }) => {
+	const downloadName = getAttachmentDownloadName(block);
+	return (
+		<a
+			href={href}
+			download={downloadName}
+			onClick={(event) => {
+				event.stopPropagation();
+				void handleAttachmentDownloadClick(event, {
+					href,
+					fileName: downloadName,
+					mediaType: block.media_type,
+				});
+			}}
+			aria-label={`Download ${getAttachmentDisplayName(block)}`}
+			className={className}
+		>
+			{children}
+		</a>
+	);
+};
+
 /**
- * Download card for a chat file, or the expired tile. Callers decide expiry;
- * the card never probes the file.
+ * Card for a chat file, or the expired tile. With onView, the card opens the
+ * file and its own button downloads it; without, the whole card downloads.
+ * Callers decide expiry; the card never probes the file.
  */
 export const FileCard: React.FC<{
 	block: FileAttachmentBlock;
 	href: string;
 	expired: boolean;
 	fullWidth?: boolean;
-}> = ({ block, href, expired, fullWidth = false }) => {
+	onView?: () => void;
+	/** Where a viewer returns focus once it closes. */
+	viewButtonRef?: React.Ref<HTMLButtonElement>;
+	/** Shown in the tile in place of the type badge. */
+	tile?: React.ReactNode;
+	/** Shown under the name in place of "View file". */
+	viewStatus?: string;
+}> = ({
+	block,
+	href,
+	expired,
+	fullWidth = false,
+	onView,
+	viewButtonRef,
+	tile,
+	viewStatus = "View file",
+}) => {
 	const displayName = getAttachmentDisplayName(block);
-	const downloadName = getAttachmentDownloadName(block);
 	const badgeLabel = getAttachmentBadgeLabel(block);
 
 	if (expired) {
@@ -486,47 +530,76 @@ export const FileCard: React.FC<{
 		);
 	}
 
-	return (
-		<a
-			href={href}
-			download={downloadName}
-			onClick={(event) => {
-				event.stopPropagation();
-				void handleAttachmentDownloadClick(event, {
-					href,
-					fileName: downloadName,
-					mediaType: block.media_type,
-				});
-			}}
-			aria-label={`Download ${displayName}`}
-			className={cn(
-				"inline-flex h-16 items-center gap-3 rounded-md border border-solid border-border bg-surface-tertiary px-3 py-2 no-underline transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
-				fullWidth ? "w-full" : "max-w-sm",
-			)}
-		>
-			<div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-surface-secondary">
-				{badgeLabel ? (
-					<span className="text-[10px] font-semibold tracking-wide text-content-secondary">
-						{badgeLabel}
-					</span>
-				) : (
-					<FileIcon
-						aria-hidden="true"
-						className="size-4 text-content-secondary"
-					/>
-				)}
+	const details = (
+		<>
+			<div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface-secondary">
+				{tile ??
+					(badgeLabel ? (
+						<span className="text-[10px] font-semibold tracking-wide text-content-secondary">
+							{badgeLabel}
+						</span>
+					) : (
+						<FileIcon
+							aria-hidden="true"
+							className="size-4 text-content-secondary"
+						/>
+					))}
 			</div>
 			<div className="min-w-0 flex-1">
 				<div className="truncate text-sm text-content-primary">
 					{displayName}
 				</div>
-				<div className="text-xs text-content-secondary">Download file</div>
+				<div className="text-xs text-content-secondary">
+					{onView ? viewStatus : "Download file"}
+				</div>
 			</div>
-			<DownloadIcon
-				aria-hidden="true"
-				className="size-4 shrink-0 text-content-secondary"
-			/>
-		</a>
+		</>
+	);
+	const width = fullWidth ? "w-full" : "max-w-sm";
+
+	if (!onView) {
+		return (
+			<FileDownloadLink
+				block={block}
+				href={href}
+				className={cn(
+					"inline-flex h-16 items-center gap-3 rounded-md border border-solid border-border bg-surface-tertiary px-3 py-2 no-underline transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
+					width,
+				)}
+			>
+				{details}
+				<DownloadIcon
+					aria-hidden="true"
+					className="size-4 shrink-0 text-content-secondary"
+				/>
+			</FileDownloadLink>
+		);
+	}
+
+	return (
+		<div
+			className={cn(
+				"inline-flex h-16 items-center gap-1 rounded-md border border-solid border-border bg-surface-tertiary pr-2 transition-colors has-[>button:hover]:bg-surface-quaternary has-[>button:focus-visible]:ring-2 has-[>button:focus-visible]:ring-content-link",
+				width,
+			)}
+		>
+			<button
+				ref={viewButtonRef}
+				type="button"
+				aria-label={`View ${displayName}`}
+				className="flex h-full min-w-0 flex-1 items-center gap-3 border-0 bg-transparent py-2 pl-3 text-left focus-visible:outline-hidden"
+				onClick={onView}
+			>
+				{details}
+			</button>
+			<FileDownloadLink
+				block={block}
+				href={href}
+				className="flex size-6 shrink-0 items-center justify-center rounded-md text-content-secondary transition-colors hover:bg-surface-secondary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+			>
+				<DownloadIcon aria-hidden="true" className="size-4" />
+			</FileDownloadLink>
+		</div>
 	);
 };
 

@@ -85,9 +85,7 @@ export const HeaderFocused: Story = {
 
 export const AttachmentFocused: Story = {
 	play: async ({ canvasElement }) => {
-		within(canvasElement)
-			.getByRole("link", { name: "Download PLAN.md" })
-			.focus();
+		within(canvasElement).getByRole("button", { name: "View PLAN.md" }).focus();
 	},
 };
 

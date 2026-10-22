@@ -1,6 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { fireEvent, fn, userEvent, waitFor, within } from "storybook/test";
+import {
+	fireEvent,
+	fn,
+	screen,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { defaultUrlTransform } from "streamdown";
 import { chatFileTextKey } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
@@ -293,6 +300,28 @@ export const TurnAttachmentsPillExpired: Story = {
 		chatFiles: MockFindingsEvictedChatFiles,
 	},
 	play: openAttachmentsPill,
+};
+
+// The preview opens over the popover, which stays open beneath it.
+export const TurnAttachmentsPillViewText: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+			{
+				key: chatFileTextKey("findings-file"),
+				data: "# Findings\n\nThe dashboard matches the spec.",
+			},
+		],
+	},
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+	},
+	play: async (context) => {
+		await openAttachmentsPill(context);
+		await userEvent.click(
+			await screen.findByRole("button", { name: "View findings.md" }),
+		);
+	},
 };
 
 export const TurnAttachmentsPillBrokenImage: Story = {

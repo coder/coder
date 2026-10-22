@@ -386,6 +386,49 @@ describe("ConversationTimeline turn attachments", () => {
 			await screen.findByRole("dialog", { name: "Attachments" }),
 		).toHaveFocus();
 	});
+
+	it("previews a text file over the popover and returns to its card", async () => {
+		const user = userEvent.setup();
+		const requestedFileIDs: string[] = [];
+		server.use(
+			http.get("/api/v2/chats/files/:fileId", ({ params }) => {
+				requestedFileIDs.push(String(params.fileId));
+				return HttpResponse.text("# Findings");
+			}),
+		);
+		renderTimeline({ messages: MockMixedAttachmentMessages });
+		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
+		const viewButton = await screen.findByRole("button", {
+			name: "View findings.md",
+		});
+
+		await user.click(viewButton);
+		within(
+			await screen.findByRole("dialog", { name: "findings.md" }),
+		).getByRole("heading", { name: "Findings" });
+		await user.keyboard("{Escape}");
+
+		await waitFor(() => expect(viewButton).toHaveFocus());
+		expect(requestedFileIDs).toEqual(["findings-file"]);
+	});
+
+	it("shows a text file expired once its preview finds it deleted", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get(
+				"/api/v2/chats/files/:fileId",
+				() => new HttpResponse(null, { status: 404 }),
+			),
+		);
+		renderTimeline({ messages: MockMixedAttachmentMessages });
+		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
+
+		await user.click(
+			await screen.findByRole("button", { name: "View findings.md" }),
+		);
+
+		await screen.findByRole("img", { name: "Attachment expired: findings.md" });
+	});
 });
 
 describe("ConversationTimeline live working blocks", () => {
