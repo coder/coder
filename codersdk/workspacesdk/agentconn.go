@@ -1149,6 +1149,10 @@ type LSFile struct {
 	IsSymlink bool      `json:"is_symlink"`
 	Size      int64     `json:"size"`
 	ModTime   time.Time `json:"mod_time" format:"date-time"`
+	// Ignored reports whether the entry is gitignored by the rules of
+	// its enclosing repository. Entries outside a repository are never
+	// ignored.
+	Ignored bool `json:"ignored,omitempty"`
 }
 
 // FindFilesResponse is the response of the agent find-files endpoint.
