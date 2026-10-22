@@ -10,6 +10,10 @@ import {
 } from "lexical";
 import { getSkillAlias, type SkillSource } from "../../utils/skillAliases";
 import {
+	formatWorkspacePathReference,
+	isSerializedWorkspacePath,
+} from "../../utils/workspacePathReference";
+import {
 	$getSkillInvocationNodes,
 	$hasSkillInvocationNode,
 	isSerializedSkillInvocationNode,
@@ -103,6 +107,9 @@ const getSerializedNodeText = (node: SerializedLexicalNode): string => {
 	if (isSerializedSkillInvocationNode(node)) {
 		return getSkillAlias(node.source, node.name);
 	}
+	if (isSerializedWorkspacePath(node)) {
+		return formatWorkspacePathReference(node.path, node.isDirectory === true);
+	}
 	if (node.type === "linebreak") {
 		return "\n";
 	}
@@ -117,7 +124,8 @@ const getSerializedNodeText = (node: SerializedLexicalNode): string => {
 
 /**
  * Rewrites the plain-text form of content copied or cut from the editor
- * so skill chips, which have no text content, appear as their aliases.
+ * so skill chips, which have no text content, appear as their aliases and
+ * workspace path chips as the backticked paths they send.
  * Lexical's own handlers fill the clipboard first because they listen on
  * the root element before this listener is added.
  */
