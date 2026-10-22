@@ -349,14 +349,14 @@ type sqlcQuerier interface {
 	// returning the matched key. The lookup is an exact match on a unique index,
 	// so a returned row is itself proof the secret is valid.
 	GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (AIGatewayKey, error)
-	// Returns the price in effect for the requested model, falling back to the
-	// model reported by the provider when the requested model has no price.
-	// Rows are ordered by model first, then by source, so the lookup order is:
-	//   1. Custom price for the requested model.
-	//   2. Price book price for the requested model.
-	//   3. Custom price for the provider-reported model.
-	//   4. Price book price for the provider-reported model.
-	GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AIModelPrice, error)
+	// Returns the price in effect for the model served by the configured provider,
+	// most specific first: the organization's price for the provider, a site-wide
+	// custom price, then the price book. The requested model is preferred over the
+	// model reported by the provider, whatever the kind of price. A NULL
+	// organization_id matches no organization price, so only site-wide prices
+	// apply. Soft-deleted organization prices are ignored. Each branch is a unique
+	// index lookup.
+	GetAIModelPriceForProvider(ctx context.Context, arg GetAIModelPriceForProviderParams) (GetAIModelPriceForProviderRow, error)
 	// Returns the price in effect for each model, preferring a custom price over
 	// the price book. Filtering by source narrows the rows considered first, so a
 	// model carrying both prices reports the one from the named source.
