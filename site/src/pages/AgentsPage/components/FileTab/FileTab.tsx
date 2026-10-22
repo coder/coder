@@ -132,6 +132,9 @@ export const FileTab = memo<FileTabProps>(
 			data && !isImage && !data.partial ? decodeUtf8(data.data) : undefined;
 		const isText = text !== undefined && !isBinaryData(text);
 		const value = draft?.content ?? text ?? "";
+		// Images, binary files and partial reads have no complete text to
+		// write back.
+		const canRecreate = isText && !readOnly;
 		// A failed refetch keeps the content of the last successful read, so
 		// the buffer outlives the file's deletion.
 		const isDeleted =
@@ -159,7 +162,10 @@ export const FileTab = memo<FileTabProps>(
 			});
 		};
 
-		const write = (content: string, ifMatch: string | undefined) => {
+		const write = (
+			content: string,
+			precondition: { ifMatch?: string; createOnly?: boolean },
+		) => {
 			if (readOnly || writeMutation.isPending) {
 				return;
 			}
@@ -169,7 +175,7 @@ export const FileTab = memo<FileTabProps>(
 				queryKey: workspaceAgentFileKey(agentId, path),
 			});
 			writeMutation.mutate(
-				{ path, content, ifMatch },
+				{ path, content, ...precondition },
 				{
 					onSuccess: ({ etag }) => {
 						restoreFocus();
@@ -189,9 +195,11 @@ export const FileTab = memo<FileTabProps>(
 								: current,
 						);
 						if (isAxiosError(error) && error.response?.status === 412) {
-							setHasSaveConflict(true);
-							// The agent also rejects a file deleted since the read;
-							// a read tells a deletion from a change.
+							// Without unsaved edits, the reread content has nothing
+							// to conflict with.
+							setHasSaveConflict(draft !== undefined);
+							// The agent also rejects a file deleted since the read,
+							// and a file created since a deletion; a read tells which.
 							void fileQuery.refetch();
 							return;
 						}
@@ -202,14 +210,19 @@ export const FileTab = memo<FileTabProps>(
 				},
 			);
 		};
-		const save = (ifMatch: string | undefined) => {
+		const save = (precondition: { ifMatch?: string; createOnly?: boolean }) => {
 			if (draft) {
-				write(draft.content, ifMatch);
+				write(draft.content, precondition);
 			}
 		};
-		// A deleted file has no version to conflict with.
+		// A deleted file has no version to match. Creating it fails instead
+		// when another process created it again in the meantime.
 		const handleSave = () =>
-			save(isDeleted ? undefined : draft?.baseEtag || undefined);
+			save(
+				isDeleted
+					? { createOnly: true }
+					: { ifMatch: draft?.baseEtag || undefined },
+			);
 
 		const handleReload = () => {
 			const reloadedDraft = draft;
@@ -338,13 +351,17 @@ export const FileTab = memo<FileTabProps>(
 					{isDeleted ? (
 						<FileNotice
 							title="Deleted on disk"
-							description="The file was deleted on disk. Recreate it from the open content, or close the tab."
+							description={
+								canRecreate
+									? "The file was deleted on disk. Recreate it from the open content, or close the tab."
+									: "The file was deleted on disk."
+							}
 						>
-							{!readOnly && (
+							{canRecreate && (
 								<PendingButton
 									isPending={writeMutation.isPending}
 									disabled={writeMutation.isPending}
-									onClick={() => write(value, undefined)}
+									onClick={() => write(value, { createOnly: true })}
 								>
 									Recreate
 								</PendingButton>
@@ -372,7 +389,7 @@ export const FileTab = memo<FileTabProps>(
 							<PendingButton
 								isPending={writeMutation.isPending}
 								disabled={fileQuery.isFetching || writeMutation.isPending}
-								onClick={() => save(undefined)}
+								onClick={() => save({})}
 							>
 								Overwrite
 							</PendingButton>
