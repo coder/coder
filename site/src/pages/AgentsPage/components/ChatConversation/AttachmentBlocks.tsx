@@ -173,8 +173,21 @@ const getAttachmentDownload = (
 });
 
 const AttachmentDownloadLink: React.FC<
-	React.PropsWithChildren<AttachmentDownload & { className: string }>
-> = ({ href, displayName, downloadName, mediaType, className, children }) => (
+	React.PropsWithChildren<
+		AttachmentDownload & {
+			className: string;
+			labelledBy?: string;
+		}
+	>
+> = ({
+	href,
+	displayName,
+	downloadName,
+	mediaType,
+	className,
+	labelledBy,
+	children,
+}) => (
 	<a
 		href={href}
 		download={downloadName}
@@ -186,7 +199,8 @@ const AttachmentDownloadLink: React.FC<
 				mediaType,
 			});
 		}}
-		aria-label={`Download ${displayName}`}
+		aria-label={labelledBy ? undefined : `Download ${displayName}`}
+		aria-labelledby={labelledBy}
 		className={className}
 	>
 		{children}
@@ -245,7 +259,8 @@ const AttachmentFallbackTile: React.FC<{
 	labels: AttachmentFailureLabels;
 	name?: string;
 	className?: string;
-}> = ({ state, labels, name, className = "size-16" }) => {
+	ref?: React.Ref<HTMLDivElement>;
+}> = ({ state, labels, name, className = "size-16", ref }) => {
 	const label = state.kind === "expired" ? labels.expired : labels.failed;
 	// A bare "failed" (e.g. an inline base64 decode failure) has nothing to add.
 	const tooltipBody =
@@ -253,6 +268,7 @@ const AttachmentFallbackTile: React.FC<{
 
 	const tile = (
 		<div
+			ref={ref}
 			role="img"
 			aria-label={name ? `${label}: ${name}` : label}
 			// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- needed to surface the explanation tooltip via keyboard focus.
@@ -482,7 +498,6 @@ const RemoteImageBlock: React.FC<{
 	);
 };
 
-/** The file type badge, or a file icon for a type without one. */
 const FileTypeTile: React.FC<{ block: FileAttachmentBlock }> = ({ block }) => {
 	const badgeLabel = getAttachmentBadgeLabel(block);
 	return badgeLabel ? (
@@ -498,8 +513,8 @@ const FileCardDetails: React.FC<{
 	tile: React.ReactNode;
 	name: string;
 	status: string;
-	nameId?: string;
-	statusId?: string;
+	nameId: string;
+	statusId: string;
 }> = ({ tile, name, status, nameId, statusId }) => (
 	<>
 		<span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface-secondary">
@@ -516,21 +531,22 @@ const FileCardDetails: React.FC<{
 	</>
 );
 
-/**
- * Download card for a chat file, or the expired tile. Callers decide expiry;
- * the card never probes the file.
- */
+/** Callers decide expiry; the card never probes the file. */
 export const FileCard: React.FC<{
 	block: FileAttachmentBlock;
 	href: string;
 	expired: boolean;
 	fullWidth?: boolean;
-}> = ({ block, href, expired, fullWidth = false }) => {
+	expiredTileRef?: React.Ref<HTMLDivElement>;
+}> = ({ block, href, expired, fullWidth = false, expiredTileRef }) => {
+	const nameId = useId();
+	const statusId = useId();
 	const download = getAttachmentDownload(block, href);
 
 	if (expired) {
 		return (
 			<AttachmentFallbackTile
+				ref={expiredTileRef}
 				state={{ kind: "expired" }}
 				labels={fileAttachmentFailureLabels}
 				name={download.displayName}
@@ -542,6 +558,7 @@ export const FileCard: React.FC<{
 	return (
 		<AttachmentDownloadLink
 			{...download}
+			labelledBy={`${nameId} ${statusId}`}
 			className={cn(
 				"inline-flex h-16 items-center gap-3 rounded-md border border-solid border-border bg-surface-tertiary px-3 py-2 no-underline transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 				fullWidth ? "w-full" : "max-w-sm",
@@ -551,6 +568,8 @@ export const FileCard: React.FC<{
 				tile={<FileTypeTile block={block} />}
 				name={download.displayName}
 				status="Download file"
+				nameId={nameId}
+				statusId={statusId}
 			/>
 			<DownloadIcon
 				aria-hidden="true"
@@ -561,21 +580,18 @@ export const FileCard: React.FC<{
 };
 
 /**
- * Full-width card whose main button opens the file, beside an icon link that
- * downloads it. The visible name and status name the main button, so speech
- * input can use either.
+ * The visible name and status name the main button, so speech input can use
+ * either.
  */
 export const ViewableFileCard: React.FC<{
 	block: FileAttachmentBlock;
 	href: string;
-	onView: () => void;
-	/** Where a viewer returns focus once it closes. */
-	viewButtonRef: React.Ref<HTMLButtonElement>;
+	onView: (event: React.MouseEvent<HTMLButtonElement>) => void;
 	/** Shown in place of the file type badge. */
 	tile?: React.ReactNode;
 	/** Shown under the name in place of "View file". */
 	status?: string;
-}> = ({ block, href, onView, viewButtonRef, tile, status = "View file" }) => {
+}> = ({ block, href, onView, tile, status = "View file" }) => {
 	const nameId = useId();
 	const statusId = useId();
 	const download = getAttachmentDownload(block, href);
@@ -583,7 +599,6 @@ export const ViewableFileCard: React.FC<{
 	return (
 		<div className="inline-flex h-16 w-full items-center gap-1 rounded-md border border-solid border-border bg-surface-tertiary pr-2 transition-colors has-[>button:hover]:bg-surface-quaternary has-[>button:focus-visible]:ring-2 has-[>button:focus-visible]:ring-content-link">
 			<button
-				ref={viewButtonRef}
 				type="button"
 				aria-labelledby={`${nameId} ${statusId}`}
 				className="flex h-full min-w-0 flex-1 items-center gap-3 border-0 bg-transparent py-2 pl-3 text-left focus-visible:outline-hidden"

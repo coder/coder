@@ -1113,7 +1113,7 @@ export const UserMessageWithDownloadableFile: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const downloadLink = canvas.getByRole("link", {
-			name: "Download deployment-report.pdf",
+			name: "deployment-report.pdf Download file",
 		});
 		expect(downloadLink).toHaveAttribute(
 			"href",
@@ -1373,7 +1373,7 @@ export const AssistantMessageWithUnnamedDownloadableFile: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const downloadLink = canvas.getByRole("link", {
-			name: "Download Attached file",
+			name: "Attached file Download file",
 		});
 		expect(downloadLink).toBeInTheDocument();
 		expect(downloadLink).toHaveAttribute("download", "attachment.pdf");
@@ -1407,7 +1407,7 @@ export const AssistantMessageWithMismatchedExtensionFile: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const downloadLink = canvas.getByRole("link", {
-			name: "Download release-notes.txt",
+			name: "release-notes.txt Download file",
 		});
 		expect(downloadLink).toHaveAttribute("download", "release-notes.txt");
 	},

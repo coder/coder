@@ -3,7 +3,7 @@ import { Lightbox } from "./Lightbox";
 type ImageLightboxProps = {
 	src: string;
 	onClose: () => void;
-	onCloseAutoFocus?: () => void;
+	onCloseAutoFocus?: (event: Event) => void;
 };
 
 export const ImageLightbox: React.FC<ImageLightboxProps> = ({

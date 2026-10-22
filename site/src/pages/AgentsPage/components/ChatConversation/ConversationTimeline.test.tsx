@@ -450,6 +450,27 @@ describe("ConversationTimeline turn attachments", () => {
 			expect(requestedFileIDs).toEqual(["findings-file", "findings-file"]),
 		);
 	});
+
+	it("moves focus to a text file's expired tile once its view finds it deleted", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get(
+				"/api/v2/chats/files/:fileId",
+				() => new HttpResponse(null, { status: 404 }),
+			),
+		);
+		renderTimeline({ messages: MockMixedAttachmentMessages });
+		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
+		await user.click(
+			await screen.findByRole("button", { name: "findings.md View file" }),
+		);
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("img", { name: "Attachment expired: findings.md" }),
+			).toHaveFocus(),
+		);
+	});
 });
 
 describe("ConversationTimeline live working blocks", () => {

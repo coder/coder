@@ -4,23 +4,13 @@ type LightboxProps = {
 	/** Screen-reader title for the dialog. */
 	title: string;
 	onClose: () => void;
-	/** Overrides where focus lands after closing. Radix restores it to
-	 * the previously focused element by default, which is unreliable
-	 * when the trigger lives inside a re-rendering message tree. */
-	onCloseAutoFocus?: () => void;
+	/** Overrides where focus lands after closing when it calls
+	 * event.preventDefault(). Radix restores it to the previously focused
+	 * element by default, which is unreliable when the trigger lives
+	 * inside a re-rendering message tree. */
+	onCloseAutoFocus?: (event: Event) => void;
 	children: React.ReactNode;
 };
-
-/**
- * A DialogContent onCloseAutoFocus that runs focus in place of Radix's own
- * close focus, or undefined to keep Radix's.
- */
-export const replaceCloseAutoFocus = (focus: (() => void) | undefined) =>
-	focus &&
-	((event: Event) => {
-		event.preventDefault();
-		focus();
-	});
 
 /**
  * Chat preview dialog for media that should be shown as large as the
@@ -39,7 +29,7 @@ export const Lightbox: React.FC<LightboxProps> = ({
 			<DialogContent
 				className="max-h-[85vh] max-w-[90vw] w-fit border-0 bg-transparent p-0 shadow-none"
 				aria-describedby={undefined}
-				onCloseAutoFocus={replaceCloseAutoFocus(onCloseAutoFocus)}
+				onCloseAutoFocus={onCloseAutoFocus}
 			>
 				<DialogTitle className="sr-only">{title}</DialogTitle>
 				{children}

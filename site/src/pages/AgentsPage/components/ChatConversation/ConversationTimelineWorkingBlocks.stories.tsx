@@ -355,13 +355,12 @@ export const TurnAttachmentsPillViewTextFailed: Story = {
 	play: viewFindingsFile,
 };
 
-const findingsFileNotFound = mockApiError({ message: "File not found." });
-
 export const TurnAttachmentsPillViewTextDeleted: Story = {
 	beforeEach: () => {
+		const mockNotFound = mockApiError({ message: "File not found." });
 		spyOn(API.experimental, "getChatFileText").mockRejectedValue({
-			...findingsFileNotFound,
-			response: { ...findingsFileNotFound.response, status: 404 },
+			...mockNotFound,
+			response: { ...mockNotFound.response, status: 404 },
 		});
 	},
 	args: {

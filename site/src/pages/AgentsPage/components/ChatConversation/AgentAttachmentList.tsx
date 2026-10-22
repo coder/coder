@@ -1,5 +1,5 @@
 import { isAxiosError } from "axios";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { chatFileText } from "#/api/queries/chats";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -11,6 +11,7 @@ import {
 import { ImageThumbnail } from "../AttachmentPreview";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
+import { useDialogFocusReturn } from "../useDialogFocusReturn";
 import {
 	FileCard,
 	getAttachmentDisplayName,
@@ -28,22 +29,21 @@ type AttachmentCardProps = {
 /** A card's viewer: whether it is open, and focus back on the card on close. */
 const useAttachmentViewer = () => {
 	const [isViewing, setIsViewing] = useState(false);
-	const viewButtonRef = useRef<HTMLButtonElement>(null);
+	const { rememberTrigger, restoreFocus } = useDialogFocusReturn();
 	return {
 		isViewing,
-		open: () => setIsViewing(true),
-		viewButtonRef,
+		open: (event: React.MouseEvent<HTMLButtonElement>) => {
+			rememberTrigger(event);
+			setIsViewing(true);
+		},
 		dialogProps: {
 			onClose: () => setIsViewing(false),
-			onCloseAutoFocus: () => viewButtonRef.current?.focus(),
+			onCloseAutoFocus: restoreFocus,
 		},
 	};
 };
 
-/**
- * A thumbnail that fails to load shows the download card, or the expired tile
- * once the probe finds the file deleted, since the viewer would fail too.
- */
+/** A thumbnail that fails to load skips the viewer, which would fail too. */
 const ImageAttachmentCard: React.FC<AttachmentCardProps> = ({
 	attachment: { file, href },
 	expired,
@@ -77,7 +77,6 @@ const ImageAttachmentCard: React.FC<AttachmentCardProps> = ({
 					/>
 				}
 				onView={viewer.open}
-				viewButtonRef={viewer.viewButtonRef}
 			/>
 			{viewer.isViewing && <ImageLightbox src={href} {...viewer.dialogProps} />}
 		</>
@@ -93,20 +92,41 @@ const StoredTextAttachmentCard: React.FC<StoredTextAttachmentCardProps> = ({
 	fileId,
 }) => {
 	const viewer = useAttachmentViewer();
+	const expiredTileRef = useRef<HTMLDivElement>(null);
 	const textQuery = useQuery({
 		...chatFileText(fileId),
 		enabled: viewer.isViewing,
 	});
+	const isDeleted =
+		expired ||
+		(isAxiosError(textQuery.error) && textQuery.error.response?.status === 404);
 	const isLoadingText = textQuery.isFetching && textQuery.data === undefined;
 	const loadError = textQuery.isError
 		? (getTextAttachmentErrorMessage(textQuery.error) ?? undefined)
 		: undefined;
 
-	if (
-		expired ||
-		(isAxiosError(textQuery.error) && textQuery.error.response?.status === 404)
-	) {
-		return <FileCard block={file} href={href} expired fullWidth />;
+	// The focused View button unmounts once a view finds the file deleted, so
+	// focus moves to the expired tile instead of falling to the page body.
+	useEffect(() => {
+		if (
+			isDeleted &&
+			viewer.isViewing &&
+			document.activeElement === document.body
+		) {
+			expiredTileRef.current?.focus();
+		}
+	}, [isDeleted, viewer.isViewing]);
+
+	if (isDeleted) {
+		return (
+			<FileCard
+				block={file}
+				href={href}
+				expired
+				fullWidth
+				expiredTileRef={expiredTileRef}
+			/>
+		);
 	}
 
 	return (
@@ -120,15 +140,14 @@ const StoredTextAttachmentCard: React.FC<StoredTextAttachmentCardProps> = ({
 					) : undefined
 				}
 				status={isLoadingText ? "Loading file" : loadError}
-				onView={() => {
-					viewer.open();
+				onView={(event) => {
+					viewer.open(event);
 					// A failed load leaves the query enabled, so only a refetch
 					// retries it.
 					if (textQuery.isError) {
 						void textQuery.refetch();
 					}
 				}}
-				viewButtonRef={viewer.viewButtonRef}
 			/>
 			{viewer.isViewing && textQuery.data !== undefined && (
 				<TextPreviewDialog
@@ -155,12 +174,7 @@ const InlineTextAttachmentCard: React.FC<InlineTextAttachmentCardProps> = ({
 
 	return (
 		<>
-			<ViewableFileCard
-				block={file}
-				href={href}
-				onView={viewer.open}
-				viewButtonRef={viewer.viewButtonRef}
-			/>
+			<ViewableFileCard block={file} href={href} onView={viewer.open} />
 			{viewer.isViewing && (
 				<TextPreviewDialog
 					content={decodeInlineTextAttachment(data)}
@@ -182,7 +196,7 @@ const AgentAttachmentCard: React.FC<AttachmentCardProps> = (props) => {
 		if (file.file_id) {
 			return <StoredTextAttachmentCard {...props} fileId={file.file_id} />;
 		}
-		if (file.data) {
+		if (file.data !== undefined) {
 			return (
 				<InlineTextAttachmentCard
 					attachment={props.attachment}

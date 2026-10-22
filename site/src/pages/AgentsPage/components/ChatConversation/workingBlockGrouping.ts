@@ -253,9 +253,9 @@ export const getTurnAttachmentsByRow = (
 		}
 
 		const { blocks, tools } = lastShownRow.entry.parsed;
-		// Earlier turns are done. A compaction adds nothing to an answered newest
-		// turn, but an unanswered one goes on after it, mid-turn or resumed after a
-		// manual /compact. Summary rows persist before the stop, so they count too.
+		// Earlier turns are done, and so is the newest once a queued message is sent
+		// now. A compaction leaves an answered newest turn done, but chatd resumes
+		// an unanswered one. Summary rows persist before the stop, so they count too.
 		const showsPill =
 			index < turns.length - 1 ||
 			!isChatActive ||
