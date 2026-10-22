@@ -9984,6 +9984,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "skill_name": "string",
+      "skill_source": "personal",
       "start_line": 0,
       "text": "string",
       "type": "text",

@@ -360,7 +360,7 @@ Status Code **200**
 |----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `client_type`  | `api`, `ui`                                                                                                                                                                                                                                                                      |
 | `kind`         | `acp_harness`, `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
-| `status`       | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                                          |
+| `status`       | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `paused`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                                |
 | `plan_mode`    | `plan`                                                                                                                                                                                                                                                                           |
 | `title_source` | `fallback`, `generated`, `user`                                                                                                                                                                                                                                                  |
 
@@ -3843,6 +3843,8 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage}
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "skill_name": "string",
+      "skill_source": "personal",
       "start_line": 0,
       "text": "string",
       "type": "text",
@@ -4660,7 +4662,7 @@ Status Code **200**
 | `skill_source` | `org`, `personal`, `project`, `workspace`                                                                                                                                                                                                                                                                               |
 | `type`         | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `skill-invocation`, `source`, `status`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
 | `role`         | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                                                   |
-| `status`       | `error`, `interrupting`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                                                        |
+| `status`       | `error`, `interrupting`, `paused`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                                              |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

@@ -113,8 +113,6 @@ type sqlcQuerier interface {
 	CountChatCapacityQueuedByPool(ctx context.Context, staleSeconds int32) (CountChatCapacityQueuedByPoolRow, error)
 	CountChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) (int64, error)
 	CountChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error)
-	// Queue-length check used for the queue capacity limit. Held rows
-	// count: a hold does not free capacity.
 	CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error)
 	CountConnectionLogs(ctx context.Context, arg CountConnectionLogsParams) (int64, error)
 	// CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by preset ID and transition.
@@ -572,9 +570,7 @@ type sqlcQuerier interface {
 	// Pool fullness distinguishes capacity waits from worker pickup delays.
 	GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error)
 	GetChatQueuedMessageByID(ctx context.Context, arg GetChatQueuedMessageByIDParams) (ChatQueuedMessage, error)
-	// Returns the queue head (lowest position, then lowest id). The head
-	// may be held; chatstate.LoadQueueState decides whether it is
-	// promotable.
+	// Returns the queue head (lowest position, then lowest id).
 	GetChatQueuedMessageHead(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
 	// Returns the queue in promotion order (position ASC, id ASC), the same
 	// order chatstate uses to pick the head. Clients read the queue through
@@ -904,10 +900,9 @@ type sqlcQuerier interface {
 	//   1. Running chats whose heartbeat has expired (worker crash).
 	//   2. requires_action chats past the timeout threshold (client
 	//      disappeared).
-	//   3. Waiting chats with a promotable queue head and stale updated_at
+	//   3. Waiting chats with a non-empty queue and stale updated_at
 	//      (deferred-promote stranding when the worker dies before its
-	//      post-cancel cleanup runs). A held head is not promotable, so
-	//      a waiting chat whose head is held is idle, not stranded.
+	//      post-cancel cleanup runs).
 	GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]Chat, error)
 	GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]TailnetPeer, error)
 	GetTailnetTunnelPeerBindingsBatch(ctx context.Context, ids []uuid.UUID) ([]GetTailnetTunnelPeerBindingsBatchRow, error)
@@ -1646,9 +1641,9 @@ type sqlcQuerier interface {
 	UpdateChatProjectIDByID(ctx context.Context, arg UpdateChatProjectIDByIDParams) error
 	// Replaces the content and per-message overrides of a queued message.
 	UpdateChatQueuedMessageContent(ctx context.Context, arg UpdateChatQueuedMessageContentParams) (ChatQueuedMessage, error)
-	// Sets or clears held_at. Setting is idempotent: an already-held row
-	// keeps its original held_at.
-	UpdateChatQueuedMessageHeld(ctx context.Context, arg UpdateChatQueuedMessageHeldParams) (ChatQueuedMessage, error)
+	// Begins (@editing = true) or ends the row's edit. Beginning keeps an
+	// existing editing_since, so the timestamp marks the first begin.
+	UpdateChatQueuedMessageEditing(ctx context.Context, arg UpdateChatQueuedMessageEditingParams) (ChatQueuedMessage, error)
 	// Stores the client-visible retry payload. retry_state_version is
 	// assigned by trigger from the current snapshot_version.
 	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error)
