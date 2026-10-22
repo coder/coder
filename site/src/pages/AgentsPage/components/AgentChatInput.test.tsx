@@ -631,13 +631,13 @@ describe("AgentChatInput", () => {
 	it("lets Escape on a chip's remove button cancel a history edit", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();
-		const onCancelHistoryEdit = vi.fn();
+		const onCancelEdit = vi.fn();
 		renderInput(
 			<AgentChatInput
 				{...inputProps}
 				inputRef={inputRef}
-				isEditingHistoryMessage
-				onCancelHistoryEdit={onCancelHistoryEdit}
+				editingKind="history"
+				onCancelEdit={onCancelEdit}
 			/>,
 		);
 		await waitFor(() => expect(inputRef.current).not.toBeNull());
@@ -648,7 +648,7 @@ describe("AgentChatInput", () => {
 		act(() => remove.focus());
 
 		await user.keyboard("{Escape}");
-		expect(onCancelHistoryEdit).toHaveBeenCalledTimes(1);
+		expect(onCancelEdit).toHaveBeenCalledTimes(1);
 	});
 
 	it("keeps skill chips through a voice recording and its cancellation", async () => {
