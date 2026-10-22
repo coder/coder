@@ -258,17 +258,66 @@ describe("FilesPanel", () => {
 		await screen.findByRole("treeitem", { name: "util.go" });
 	});
 
-	it("focuses the path input when Open path is chosen", async () => {
+	it("focuses the path input when Open path is chosen, and the picker on Escape", async () => {
 		const user = userEvent.setup();
 		renderPanel(contextValue());
 
 		await screen.findByRole("treeitem", { name: "src" });
-		await user.click(screen.getByRole("combobox", { name: "Root directory" }));
+		const trigger = screen.getByRole("combobox", { name: "Root directory" });
+		await user.click(trigger);
 		await user.click(screen.getByRole("option", { name: "Open path..." }));
 
 		await waitFor(() =>
 			expect(screen.getByRole("textbox", { name: "Path" })).toHaveFocus(),
 		);
+		await user.keyboard("{Escape}");
+		expect(trigger).toHaveFocus();
+	});
+
+	it("keeps Refresh busy for a full spinner turn after a fast refresh", async () => {
+		const user = userEvent.setup();
+		renderPanel(contextValue());
+		await screen.findByRole("treeitem", { name: "src" });
+		const refresh = screen.getByRole("button", { name: "Refresh files" });
+
+		await user.click(refresh);
+		await settled();
+
+		expect(refresh).toHaveAttribute("aria-busy", "true");
+		await waitFor(() => expect(refresh).toHaveAttribute("aria-busy", "false"), {
+			timeout: 2000,
+		});
+	});
+
+	it("moves focus to a remaining row when a refresh drops the focused one", async () => {
+		const user = userEvent.setup();
+		const listDirectory = vi.mocked(API.listWorkspaceAgentDirectory);
+		const fallback = listDirectory.getMockImplementation();
+		let mainDeleted = false;
+		listDirectory.mockImplementation(async (agentId, path, signal) => {
+			if (mainDeleted && path === "/home/coder/repo/src") {
+				return {
+					...listings[path],
+					contents: [entry("/home/coder/repo/src/lib", true)],
+				};
+			}
+			return fallback ? fallback(agentId, path, signal) : Promise.reject();
+		});
+		renderPanel(contextValue());
+
+		await user.click(await screen.findByRole("treeitem", { name: "src" }));
+		const main = await screen.findByRole("treeitem", { name: "main.go" });
+		act(() => main.focus());
+		mainDeleted = true;
+		act(() => {
+			focusManager.setFocused(false);
+			focusManager.setFocused(true);
+		});
+
+		await waitFor(() =>
+			expect(screen.getByRole("treeitem", { name: "lib" })).toHaveFocus(),
+		);
+		focusManager.setFocused(undefined);
 	});
 
 	it.each([400, 500])(
