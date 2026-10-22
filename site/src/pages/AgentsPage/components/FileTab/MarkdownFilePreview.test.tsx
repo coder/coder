@@ -126,6 +126,23 @@ describe("MarkdownFilePreview", () => {
 		).toBe("_blank");
 	});
 
+	it("loads remote images directly, including badges inside file links", async () => {
+		const user = userEvent.setup();
+		const { files } = renderPreview(
+			"[![license](https://img.shields.io/github/license/coder/coder)](./LICENSE)",
+		);
+
+		const badge = await screen.findByRole("img", { name: "license" });
+		expect(badge.getAttribute("src")).toBe(
+			"https://img.shields.io/github/license/coder/coder",
+		);
+		await user.click(screen.getByRole("button", { name: "license" }));
+
+		expect(files.openFile).toHaveBeenCalledWith("/repo/LICENSE", {
+			line: undefined,
+		});
+	});
+
 	it("scrolls to a heading when an anchor link is clicked", async () => {
 		const user = userEvent.setup();
 		const scrolled: string[] = [];
