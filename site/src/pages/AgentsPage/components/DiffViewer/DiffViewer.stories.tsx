@@ -4,7 +4,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { fn, userEvent, waitFor, within } from "storybook/test";
 import type { DiffStyle } from "../DiffViewer/DiffViewer";
-import { DiffViewer } from "../DiffViewer/DiffViewer";
+import { compareTreePaths, DiffViewer } from "../DiffViewer/DiffViewer";
 import { parseDiffString } from "../DiffViewer/parseDiff";
 import { InlinePromptInput } from "../DiffViewer/RemoteDiffPanel";
 import { generateLargeDiff } from "./testHelpers";
@@ -500,5 +500,215 @@ export const ReparseSamePathAfterEdit: StoryObj = {
 		// Shadow-root renders are invisible to the stability wait, so wait for
 		// the reparsed body.
 		await waitForDiffBody(canvasElement, "const v = 3");
+	},
+};
+
+const waitForNoDiffBody = (canvasElement: HTMLElement, text: string) =>
+	waitFor(() => {
+		const rendered = Array.from(
+			canvasElement.querySelectorAll("diffs-container"),
+		).some((host) => host.shadowRoot?.textContent?.includes(text));
+		if (rendered) {
+			throw new Error(`Diff body is still rendered: ${text}`);
+		}
+	});
+
+// A line from src/main.ts in sampleDiff.
+const firstFileLine = "Starting server...";
+
+export const CollapseAndExpandFile: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitForDiffBody(canvasElement, firstFileLine);
+
+		await userEvent.click(
+			await canvas.findByRole("button", { name: `Collapse ${firstFileName}` }),
+		);
+		await waitForNoDiffBody(canvasElement, firstFileLine);
+
+		await userEvent.click(
+			await canvas.findByRole("button", { name: `Expand ${firstFileName}` }),
+		);
+		await waitForDiffBody(canvasElement, firstFileLine);
+	},
+};
+
+const ScrollToCollapsedFile: React.FC<
+	React.ComponentProps<typeof DiffViewer>
+> = (props) => {
+	const [target, setTarget] = useState<string | null>(null);
+	return (
+		<div className="flex h-full flex-col">
+			<button type="button" onClick={() => setTarget(firstFileName)}>
+				jump to file
+			</button>
+			<DiffViewer
+				{...props}
+				scrollToFile={target}
+				onScrollToFileComplete={() => setTarget(null)}
+			/>
+		</div>
+	);
+};
+
+export const ScrollToFileExpandsCollapsedFile: Story = {
+	render: (args) => <ScrollToCollapsedFile {...args} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitForDiffBody(canvasElement, firstFileLine);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: `Collapse ${firstFileName}` }),
+		);
+		await waitForNoDiffBody(canvasElement, firstFileLine);
+
+		await userEvent.click(canvas.getByRole("button", { name: "jump to file" }));
+		await waitForDiffBody(canvasElement, firstFileLine);
+	},
+};
+
+// CodeView's scroll root is the nearest scrolling ancestor of a
+// `diffs-container` host.
+const findScroller = (canvasElement: HTMLElement): HTMLElement => {
+	let el = canvasElement.querySelector("diffs-container")?.parentElement;
+	while (el && getComputedStyle(el).overflowY !== "auto") {
+		el = el.parentElement;
+	}
+	if (!el) {
+		throw new Error("CodeView scroll root not found");
+	}
+	return el;
+};
+
+// The file tree renders its rows in a shadow root.
+const treeRows = (canvasElement: HTMLElement): HTMLElement[] =>
+	Array.from(canvasElement.querySelectorAll("*")).flatMap((el) =>
+		el.shadowRoot
+			? Array.from(
+					el.shadowRoot.querySelectorAll<HTMLElement>("[data-item-path]"),
+				)
+			: [],
+	);
+
+const selectedTreePaths = (canvasElement: HTMLElement): string[] =>
+	treeRows(canvasElement)
+		.filter((row) => row.getAttribute("aria-selected") === "true")
+		.map((row) => row.dataset.itemPath ?? "");
+
+const nextScrollEvent = (scroller: HTMLElement) =>
+	new Promise<void>((resolve) =>
+		scroller.addEventListener("scroll", () => resolve(), { once: true }),
+	);
+
+// CodeView disables pointer events while a scroll is in progress.
+const waitForScrollSettled = (element: HTMLElement) =>
+	waitFor(() => {
+		if (getComputedStyle(element).pointerEvents === "none") {
+			throw new Error("Scroll still in progress");
+		}
+	});
+
+const clickAfterScroll = async (element: HTMLElement) => {
+	await waitForScrollSettled(element);
+	await userEvent.click(element);
+};
+
+const longFileLineCount = 300;
+const longFiles = parseDiffString(generateLargeDiff(4, longFileLineCount));
+const firstLongFileName =
+	[...longFiles].sort((a, b) => compareTreePaths(a.name, b.name))[0]?.name ??
+	"";
+
+// Inside the first file's longFileLineCount lines, so its header is stuck.
+const insideFirstLongFileScrollTop = 2000;
+
+// The sticky-header collapse calls scrollTo, and its scroll event makes the
+// collapsed file active again.
+export const TreeClickExpandsFileCollapsedFromStickyHeader: Story = {
+	args: {
+		parsedFiles: longFiles,
+		isExpanded: true,
+	},
+	decorators: [
+		(Story) => (
+			<div style={{ height: 600, width: 1000 }}>
+				<Story />
+			</div>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const bodyText = `in ${firstLongFileName}`;
+		await waitForDiffBody(canvasElement, bodyText);
+		const scroller = findScroller(canvasElement);
+		const initialScroll = nextScrollEvent(scroller);
+		scroller.scrollTop = insideFirstLongFileScrollTop;
+		await initialScroll;
+
+		const collapseScroll = nextScrollEvent(scroller);
+		await clickAfterScroll(
+			await canvas.findByRole("button", {
+				name: `Collapse ${firstLongFileName}`,
+			}),
+		);
+		await waitForNoDiffBody(canvasElement, bodyText);
+		const expandButton = await canvas.findByRole("button", {
+			name: `Expand ${firstLongFileName}`,
+		});
+		await collapseScroll;
+		await waitForScrollSettled(expandButton);
+		if (document.activeElement !== expandButton) {
+			throw new Error("Focus left the collapse button");
+		}
+
+		const row = treeRows(canvasElement).find(
+			(r) => r.dataset.itemPath === firstLongFileName,
+		);
+		if (!row) {
+			throw new Error(`Tree row not found: ${firstLongFileName}`);
+		}
+		await userEvent.click(row);
+		await waitForDiffBody(canvasElement, bodyText);
+	},
+};
+
+const shortFiles = parseDiffString(generateLargeDiff(20, 3));
+const sortedShortFileNames = [...shortFiles]
+	.sort((a, b) => compareTreePaths(a.name, b.name))
+	.map((file) => file.name);
+
+export const CollapsingAnotherFileKeepsTreeSelection: Story = {
+	args: {
+		parsedFiles: shortFiles,
+		isExpanded: true,
+	},
+	decorators: [
+		(Story) => (
+			<div style={{ height: 600, width: 1000 }}>
+				<Story />
+			</div>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const [activeName, otherName] = sortedShortFileNames;
+		await waitForDiffBody(canvasElement, `in ${otherName}`);
+		// Any nonzero offset fires the scroll event that sets the active file.
+		findScroller(canvasElement).scrollTop = 5;
+		await waitFor(() => {
+			if (!selectedTreePaths(canvasElement).includes(activeName)) {
+				throw new Error(`${activeName} is not selected yet`);
+			}
+		});
+
+		await clickAfterScroll(
+			await canvas.findByRole("button", { name: `Collapse ${otherName}` }),
+		);
+		await waitForNoDiffBody(canvasElement, `in ${otherName}`);
+		await waitFor(() => {
+			const selected = selectedTreePaths(canvasElement);
+			if (selected.length !== 1 || selected[0] !== activeName) {
+				throw new Error(`Tree selection is ${JSON.stringify(selected)}`);
+			}
+		});
 	},
 };

@@ -7,17 +7,23 @@ import type {
 	VirtualFileMetrics,
 } from "@pierre/diffs/react";
 import { CodeView } from "@pierre/diffs/react";
-import type { FileTreeSortComparator, GitStatusEntry } from "@pierre/trees";
+import type {
+	FileTree as FileTreeModel,
+	FileTreeSortComparator,
+	GitStatusEntry,
+} from "@pierre/trees";
 import { FileTree, useFileTree } from "@pierre/trees/react";
 import { cn } from "cn";
+import { ChevronDownIcon } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { useTheme } from "#/theme/context";
 import { countChangedLines } from "../../utils/countChangedLines";
 import { changeColor, changeLabel } from "../../utils/diffColors";
 import { SEPARATOR_CSS } from "../ChatElements/tools/utils";
-import { useActiveFileTracking } from "./useActiveFileTracking";
+import { getActiveFile, useActiveFileTracking } from "./useActiveFileTracking";
 
 type DiffViewerProps = {
 	parsedFiles: readonly FileDiffMetadata[];
@@ -197,27 +203,54 @@ function gitStatusForFile(
 	}
 }
 
-function HeaderContent({ fileDiff }: { fileDiff: FileDiffMetadata }) {
+function HeaderContent({
+	fileDiff,
+	collapsed,
+	onToggleCollapsed,
+}: {
+	fileDiff: FileDiffMetadata;
+	collapsed: boolean;
+	onToggleCollapsed: () => void;
+}) {
 	const { additions, deletions } = countChangedLines(fileDiff);
 	return (
-		<div className="flex h-8 min-w-0 items-center justify-between gap-3 border-0 border-b border-solid border-border bg-surface-secondary py-2 pr-1.5 pl-2.5 font-sans text-sm">
-			<div className="flex min-w-0 items-baseline gap-2 overflow-hidden">
-				<span
-					className={cn(
-						"shrink-0 text-[11px] font-semibold leading-none",
-						changeColor(fileDiff.type),
-					)}
+		<div className="flex h-8 min-w-0 items-center justify-between gap-3 border-0 border-b border-solid border-border bg-surface-secondary py-2 pr-1.5 pl-1 font-sans text-sm">
+			{/* Not overflow-hidden: it would clip the button's focus ring. The
+			    name container below does the truncation. */}
+			<div className="flex min-w-0 items-center gap-1.5">
+				<Button
+					variant="subtle"
+					size="icon"
+					aria-expanded={!collapsed}
+					aria-label={`${collapsed ? "Expand" : "Collapse"} ${fileDiff.name}`}
+					onClick={onToggleCollapsed}
+					className="size-5 rounded-sm p-0 hover:bg-surface-tertiary [&>svg]:p-0"
 				>
-					{changeLabel(fileDiff.type)}
-				</span>
-				{fileDiff.prevName && fileDiff.prevName !== fileDiff.name && (
-					<span className="truncate text-xs text-content-secondary">
-						{fileDiff.prevName}
+					<ChevronDownIcon
+						className={cn(
+							"size-3.5! transition-transform",
+							collapsed && "-rotate-90",
+						)}
+					/>
+				</Button>
+				<div className="flex min-w-0 items-baseline gap-2 overflow-hidden">
+					<span
+						className={cn(
+							"shrink-0 text-[11px] font-semibold leading-none",
+							changeColor(fileDiff.type),
+						)}
+					>
+						{changeLabel(fileDiff.type)}
 					</span>
-				)}
-				<span className="truncate text-xs font-medium text-content-primary">
-					{fileDiff.name}
-				</span>
+					{fileDiff.prevName && fileDiff.prevName !== fileDiff.name && (
+						<span className="truncate text-xs text-content-secondary">
+							{fileDiff.prevName}
+						</span>
+					)}
+					<span className="truncate text-xs font-medium text-content-primary">
+						{fileDiff.name}
+					</span>
+				</div>
 			</div>
 			{(additions > 0 || deletions > 0) && (
 				<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border font-mono text-xs font-medium leading-5">
@@ -237,80 +270,34 @@ function HeaderContent({ fileDiff }: { fileDiff: FileDiffMetadata }) {
 	);
 }
 
-function DiffFileTree({
-	files,
-	activePath,
-	onUserSelectPath,
-}: {
-	files: readonly FileDiffMetadata[];
-	activePath: string | null;
-	onUserSelectPath: (fileName: string) => void;
-}) {
-	const paths = files.map((file) => file.name);
-	const gitStatus = files.map((file) => ({
-		path: file.name,
-		status: gitStatusForFile(file),
-	}));
-	// Tracks the row currently selected in the model so scroll-driven syncing
-	// can skip redundant selects.
-	const selectedPathRef = useRef<string | null>(null);
-	// Set while we replace the selection programmatically. The model emits
-	// selection events synchronously, so this drops the echoes from our own
-	// deselect/select calls in one window instead of looping back into
-	// onUserSelectPath. A user click can only land between effect runs, when
-	// the flag is already false.
-	const isSyncingSelectionRef = useRef(false);
-	const { model } = useFileTree({
-		density: "compact",
-		flattenEmptyDirectories: false,
-		gitStatus,
-		initialExpansion: "open",
-		sort: treeSortComparator,
-		unsafeCSS: fileTreeUnsafeCSS,
-		onSelectionChange: (selectedPaths) => {
-			const selectedPath = selectedPaths.at(-1) ?? null;
-			selectedPathRef.current = selectedPath;
-			if (isSyncingSelectionRef.current) {
-				return;
-			}
-			if (selectedPath) {
-				onUserSelectPath(selectedPath);
-			}
-		},
-		paths,
-	});
+// Makes `path` the only selected row. The tree's select() adds to the
+// selection, so the previous rows have to be deselected first.
+function replaceTreeSelection(model: FileTreeModel, path: string): void {
+	const item = model.getItem(path);
+	if (!item) {
+		return;
+	}
 
-	useEffect(() => {
-		model.resetPaths(paths);
-		model.setGitStatus(gitStatus);
-	}, [gitStatus, model, paths]);
+	const selectedPaths = model.getSelectedPaths();
+	const isAlreadyOnlySelection =
+		selectedPaths.length === 1 && selectedPaths[0] === path;
+	if (isAlreadyOnlySelection) {
+		return;
+	}
 
-	// Drive the tree selection from the active file. The @pierre/trees item
-	// handle's select() is additive, so a scrolled-past file stays
-	// highlighted unless its selection is cleared. Replace the whole
-	// selection with just the active file, suppressing the echoed events.
-	useEffect(() => {
-		if (!activePath || selectedPathRef.current === activePath) return;
-		const item = model.getItem(activePath);
-		if (!item) return;
-		isSyncingSelectionRef.current = true;
-		for (const path of model.getSelectedPaths()) {
-			if (path !== activePath) {
-				model.getItem(path)?.deselect();
-			}
+	for (const selectedPath of selectedPaths) {
+		if (selectedPath !== path) {
+			model.getItem(selectedPath)?.deselect();
 		}
-		item.select();
-		isSyncingSelectionRef.current = false;
-		selectedPathRef.current = activePath;
-	}, [activePath, model]);
+	}
 
-	return (
-		<FileTree
-			model={model}
-			className="block h-full min-h-0 w-full"
-			style={fileTreeStyle}
-		/>
-	);
+	item.select();
+}
+
+function clearTreeSelection(model: FileTreeModel): void {
+	for (const selectedPath of model.getSelectedPaths()) {
+		model.getItem(selectedPath)?.deselect();
+	}
 }
 
 export function loadDiffStyle(): DiffStyle {
@@ -354,8 +341,9 @@ function SkeletonSeparator() {
 function SkeletonFile({ groups }: { groups: readonly (readonly string[])[] }) {
 	return (
 		<div>
-			<div className="flex h-8 items-center justify-between gap-3 border-0 border-b border-solid border-border bg-surface-secondary py-2 pr-1.5 pl-2.5">
-				<div className="flex items-center gap-2">
+			<div className="flex h-8 items-center justify-between gap-3 border-0 border-b border-solid border-border bg-surface-secondary py-2 pr-1.5 pl-1">
+				<div className="flex items-center gap-1.5">
+					<div className="size-5 shrink-0" />
 					<Skeleton className="size-3 rounded-[2px]" />
 					<Skeleton className="h-3 w-44" />
 				</div>
@@ -415,7 +403,26 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 	const theme = useTheme();
 	const codeViewRef = useRef<CodeViewHandle<string, undefined>>(null);
 	const isDark = theme.palette.mode === "dark";
-	const [activeFile, setActiveFile] = useState<string | null>(null);
+
+	// Names persist for the mount, so a file that leaves the diff and later
+	// returns keeps its collapsed state.
+	const [collapsedFiles, setCollapsedFiles] = useState<ReadonlySet<string>>(
+		() => new Set(),
+	);
+
+	// Tree selections call this on every scroll, so keep the same Set when the
+	// file is already expanded to avoid a re-render.
+	const expandFile = (fileName: string) => {
+		setCollapsedFiles((current) => {
+			if (!current.has(fileName)) {
+				return current;
+			}
+
+			const next = new Set(current);
+			next.delete(fileName);
+			return next;
+		});
+	};
 
 	// Measure the diff container so the file tree only appears when there is
 	// enough horizontal room, rather than keying off the viewport width.
@@ -431,11 +438,77 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 		return () => observer.disconnect();
 	}, [containerEl]);
 
+	// Render the diff in the same order the sidebar tree lays out its leaves so
+	// scrolling moves monotonically down the tree.
+	const sortedFiles = [...parsedFiles].sort((a, b) =>
+		compareTreePaths(a.name, b.name),
+	);
+
+	const treePaths = sortedFiles.map((file) => file.name);
+	const treeGitStatus = sortedFiles.map((file) => ({
+		path: file.name,
+		status: gitStatusForFile(file),
+	}));
+
+	// useFileTree keeps the options from the first render, so this handler
+	// must only use values that never change, like refs and state setters.
+	const handleTreeSelectionChange = (selectedPaths: readonly string[]) => {
+		const fileName = selectedPaths.at(-1);
+		const viewer = codeViewRef.current?.getInstance();
+		if (!fileName || !viewer) {
+			return;
+		}
+
+		expandFile(fileName);
+
+		// Scroll tracking also selects rows, and the tree reports those
+		// selections here. They name the file already at the top, so
+		// scrolling to it would only snap the diff back to the file's start.
+		if (getActiveFile(viewer.getScrollTop(), viewer) === fileName) {
+			return;
+		}
+
+		viewer.scrollTo({
+			type: "item",
+			id: fileName,
+			align: "start",
+			behavior: "instant",
+		});
+	};
+
+	const { model: fileTreeModel } = useFileTree({
+		density: "compact",
+		flattenEmptyDirectories: false,
+		gitStatus: treeGitStatus,
+		initialExpansion: "open",
+		sort: treeSortComparator,
+		unsafeCSS: fileTreeUnsafeCSS,
+		onSelectionChange: handleTreeSelectionChange,
+		paths: treePaths,
+	});
+
+	useEffect(() => {
+		fileTreeModel.resetPaths(treePaths);
+		fileTreeModel.setGitStatus(treeGitStatus);
+	}, [fileTreeModel, treeGitStatus, treePaths]);
+
+	// Scroll tracking updates the tree directly, so it follows the diff
+	// without an active-file state or an effect. A collapsed file's row is
+	// never selected, so clicking it registers as a selection change and
+	// expands the file.
+	const handleActiveFileChange = (path: string) => {
+		if (collapsedFiles.has(path)) {
+			clearTreeSelection(fileTreeModel);
+			return;
+		}
+
+		replaceTreeSelection(fileTreeModel, path);
+	};
+
 	const showTree = isExpanded || containerWidth >= FILE_TREE_THRESHOLD;
 	const handleScroll = useActiveFileTracking({
 		enabled: showTree,
-		onActiveFileChange: (path) =>
-			setActiveFile((current) => (current === path ? current : path)),
+		onActiveFileChange: handleActiveFileChange,
 	});
 
 	const options: React.ComponentProps<typeof CodeView<string>>["options"] = {
@@ -473,20 +546,17 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 		},
 	};
 
-	// Render the diff in the same order the sidebar tree lays out its leaves so
-	// scrolling moves monotonically down the tree.
-	const sortedFiles = [...parsedFiles].sort((a, b) =>
-		compareTreePaths(a.name, b.name),
-	);
-
 	const items: CodeViewItem<string>[] = sortedFiles.map((fileDiff) => {
 		const annotations = getLineAnnotations(fileDiff.name);
+		const collapsed = collapsedFiles.has(fileDiff.name);
 		return {
 			id: fileDiff.name,
 			type: "diff",
 			fileDiff,
 			annotations,
-			version: annotationsVersion(annotations),
+			collapsed,
+			// CodeView only re-syncs an item when its version changes.
+			version: annotationsVersion(annotations) * 2 + (collapsed ? 1 : 0),
 		};
 	});
 
@@ -506,6 +576,9 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 		// null. Skip the scroll without signalling completion so the parent
 		// keeps the pending target and retries once the view is ready.
 		if (!canScroll || !codeViewRef.current) return;
+
+		// A file reference must land on visible code.
+		expandFile(scrollToFile);
 		codeViewRef.current.scrollTo({
 			type: "item",
 			id: scrollToFile,
@@ -514,6 +587,34 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 		});
 		onScrollToFileComplete?.();
 	}, [scrollToFile, onScrollToFileComplete, canScroll]);
+
+	const collapseFile = (fileName: string) => {
+		// The collapse button lives in this file's header, which CodeView
+		// renders, so both values always exist here. The check is for the types.
+		const viewer = codeViewRef.current?.getInstance();
+		const fileTop = viewer?.getTopForItem(fileName);
+		if (!viewer || fileTop === undefined) {
+			return;
+		}
+
+		// A stuck header means the file starts above the viewport. Collapsing
+		// keeps scrollTop, so scroll to the file's start first or the collapsed
+		// header ends up above the viewport.
+		if (fileTop < viewer.getScrollTop()) {
+			viewer.scrollTo({
+				type: "item",
+				id: fileName,
+				align: "start",
+				behavior: "instant",
+			});
+		}
+
+		if (fileTreeModel.getSelectedPaths().includes(fileName)) {
+			clearTreeSelection(fileTreeModel);
+		}
+
+		setCollapsedFiles((current) => new Set(current).add(fileName));
+	};
 
 	if (isLoading) {
 		return <DiffViewerSkeleton />;
@@ -538,18 +639,10 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 		>
 			{showTree && (
 				<aside className="h-full min-h-0 w-72 shrink-0 border-0 border-r border-solid border-border">
-					<DiffFileTree
-						files={sortedFiles}
-						activePath={activeFile}
-						onUserSelectPath={(fileName) => {
-							setActiveFile(fileName);
-							codeViewRef.current?.scrollTo({
-								type: "item",
-								id: fileName,
-								align: "start",
-								behavior: "instant",
-							});
-						}}
+					<FileTree
+						model={fileTreeModel}
+						className="block h-full min-h-0 w-full"
+						style={fileTreeStyle}
 					/>
 				</aside>
 			)}
@@ -563,7 +656,17 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 				onScroll={handleScroll}
 				renderCustomHeader={(item) =>
 					item.type === "diff" ? (
-						<HeaderContent fileDiff={item.fileDiff} />
+						<HeaderContent
+							fileDiff={item.fileDiff}
+							collapsed={item.collapsed === true}
+							onToggleCollapsed={() => {
+								if (item.collapsed) {
+									expandFile(item.id);
+								} else {
+									collapseFile(item.id);
+								}
+							}}
+						/>
 					) : null
 				}
 				renderAnnotation={(annotation) =>
