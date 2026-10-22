@@ -470,10 +470,21 @@ export const MockFindingsEvictedChatFiles: TypesGen.ChatFileMetadata[] = [
 export const MockUnansweredAttachmentMessages: TypesGen.ChatMessage[] =
 	MockMixedAttachmentMessages.slice(0, -1);
 
-const mockMixedAnswer = MockMixedAttachmentMessages.at(-1);
-if (!mockMixedAnswer) {
-	throw new Error("MockMixedAttachmentMessages has no answer.");
-}
+const getFixtureAnswer = (
+	messages: readonly TypesGen.ChatMessage[],
+	fixtureName: string,
+): TypesGen.ChatMessage => {
+	const answer = messages.at(-1);
+	if (!answer) {
+		throw new Error(`${fixtureName} has no answer.`);
+	}
+	return answer;
+};
+
+const mockMixedAnswer = getFixtureAnswer(
+	MockMixedAttachmentMessages,
+	"MockMixedAttachmentMessages",
+);
 
 /** MockUnansweredAttachmentMessages continued by a new prompt and answer. */
 export const MockContinuedAttachmentMessages: TypesGen.ChatMessage[] = [
@@ -497,10 +508,10 @@ export const MockClearedAttachmentMessages: TypesGen.ChatMessage[] = [
 	}),
 ];
 
-const mockSearchAnswer = MockWebSearchAnswerMessages.at(-1);
-if (!mockSearchAnswer) {
-	throw new Error("MockWebSearchAnswerMessages has no answer.");
-}
+const mockSearchAnswer = getFixtureAnswer(
+	MockWebSearchAnswerMessages,
+	"MockWebSearchAnswerMessages",
+);
 
 /** MockAttachmentWorkingMessages ending in a searched answer. */
 export const MockSearchAnswerAttachmentMessages: TypesGen.ChatMessage[] =
