@@ -195,13 +195,16 @@ type TurnDraft = {
 	boundaryFollowsLastShownRow: boolean;
 };
 
+const startTurn = (hasPrompt: boolean): TurnDraft => ({
+	hasPrompt,
+	attachments: [],
+	boundaryFollowsLastShownRow: false,
+});
+
 /**
- * Agent attachments keyed by the row that hosts their turn's pill: the turn's
- * last shown assistant row other than a context clear or summary. The newest
- * turn gets a pill once it settles. An earlier turn keeps one only if it ended
- * without an answer, as a stopped turn does, so its files stay listed after
- * the next prompt continues it. Reads only the rows and flags, never working
- * blocks or stream state.
+ * Agent attachments keyed by the row hosting their turn's pill: the turn's last
+ * shown assistant row other than a clear or summary. The newest turn gets one
+ * once settled, an earlier turn only if unanswered. Reads only rows and flags.
  */
 export const getTurnAttachmentsByRow = (
 	rows: readonly TimelineRow[],
@@ -213,43 +216,38 @@ export const getTurnAttachmentsByRow = (
 		hasMoreMessages,
 	}: TurnAttachmentsOptions,
 ): ReadonlyMap<string, TurnAttachmentList> => {
-	const startTurn = (hasPrompt: boolean): TurnDraft => ({
-		hasPrompt,
-		attachments: [],
-		boundaryFollowsLastShownRow: false,
-	});
-	let turn = startTurn(false);
-	const turns = [turn];
+	let current = startTurn(false);
+	const turns = [current];
 	for (const row of rows) {
 		if (row.type !== "message") {
 			continue;
 		}
 		const { message } = row.entry;
 		if (message.role === "user") {
-			turn = startTurn(true);
-			turns.push(turn);
+			current = startTurn(true);
+			turns.push(current);
 			continue;
 		}
 		if (message.role !== "assistant") {
 			continue;
 		}
-		turn.attachments.push(...getMessageAgentAttachments(message));
+		current.attachments.push(...getMessageAgentAttachments(message));
 		if (isContextBoundaryRow(row)) {
-			turn.boundaryFollowsLastShownRow = true;
+			current.boundaryFollowsLastShownRow = true;
 		} else if (!isHiddenAttachmentRow(row, hidesAttachmentRows)) {
-			turn.lastShownRow = row;
-			turn.boundaryFollowsLastShownRow = false;
+			current.lastShownRow = row;
+			current.boundaryFollowsLastShownRow = false;
 		}
 	}
 
 	const byRow = new Map<string, TurnAttachmentList>();
-	for (const [index, draft] of turns.entries()) {
-		const { lastShownRow } = draft;
-		const first = draft.attachments.at(0);
+	for (const [index, turn] of turns.entries()) {
+		const { lastShownRow } = turn;
+		const first = turn.attachments.at(0);
 		if (
 			lastShownRow === undefined ||
 			first === undefined ||
-			(!draft.hasPrompt && hasMoreMessages)
+			(!turn.hasPrompt && hasMoreMessages)
 		) {
 			continue;
 		}
@@ -257,18 +255,16 @@ export const getTurnAttachmentsByRow = (
 		const { blocks, tools } = lastShownRow.entry.parsed;
 		const endsWithAnswer = splitRowBlocks(blocks, tools).answer.length > 0;
 		// A compaction adds nothing to an answered turn. An unanswered turn goes
-		// on: the compaction ran between its steps, or the server resumes it
-		// after a manual /compact. Summary rows persist before the stop, so they
-		// count too.
+		// on after one, mid-turn or resumed after a manual /compact. Summary rows
+		// persist before the stop, so they count too.
 		const showsPill =
 			index === turns.length - 1
 				? !isChatActive ||
 					isNextTurnStarting ||
-					(endsWithAnswer &&
-						(isCompacting || draft.boundaryFollowsLastShownRow))
+					(endsWithAnswer && (isCompacting || turn.boundaryFollowsLastShownRow))
 				: !endsWithAnswer;
 		if (showsPill) {
-			byRow.set(lastShownRow.key, [first, ...draft.attachments.slice(1)]);
+			byRow.set(lastShownRow.key, [first, ...turn.attachments.slice(1)]);
 		}
 	}
 	return byRow;

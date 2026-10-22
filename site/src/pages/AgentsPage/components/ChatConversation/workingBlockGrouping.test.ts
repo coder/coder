@@ -1,6 +1,9 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
-import { type AgentAttachment, buildDisplayMessages } from "./messageHelpers";
+import {
+	buildDisplayMessages,
+	type TurnAttachmentList,
+} from "./messageHelpers";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
 	workingFixtureTime as at,
@@ -1281,11 +1284,16 @@ describe("getTurnAttachmentsByRow", () => {
 		...mockAttachment,
 		file_id: fileId,
 	});
-	const fileIdsByRow = (map: ReadonlyMap<string, readonly AgentAttachment[]>) =>
+	const fileIdsByRow = (map: ReadonlyMap<string, TurnAttachmentList>) =>
 		[...map].map(([key, attachments]) => [
 			key,
 			attachments.map(({ file }) => file.file_id),
 		]);
+	const attachSteps = (fileId: string) => [
+		message("assistant", [call("attach", undefined, "attach_file")]),
+		message("assistant", [file(fileId)]),
+		message("tool", [result("attach", undefined, { name: "attach_file" })]),
+	];
 
 	it("lists the newest turn's agent files on its last assistant row", () => {
 		const { rows } = group([
@@ -1334,9 +1342,7 @@ describe("getTurnAttachmentsByRow", () => {
 	it("keeps the pill of an earlier turn that stopped before answering", () => {
 		const { rows } = group([
 			user("Attach the report"),
-			message("assistant", [call("attach", undefined, "attach_file")]),
-			message("assistant", [file("a")]),
-			message("tool", [result("attach", undefined, { name: "attach_file" })]),
+			...attachSteps("a"),
 			user("Continue"),
 			message("assistant", [text("The report shows no errors.")]),
 		]);
@@ -1420,9 +1426,7 @@ describe("getTurnAttachmentsByRow", () => {
 
 	it("leaves out only the turn whose prompt is on an unloaded page", () => {
 		const { rows } = group([
-			message("assistant", [call("attach", undefined, "attach_file")]),
-			message("assistant", [file("a")]),
-			message("tool", [result("attach", undefined, { name: "attach_file" })]),
+			...attachSteps("a"),
 			user("Continue"),
 			message("assistant", [text("Here:"), file("b")]),
 		]);
