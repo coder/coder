@@ -6,12 +6,13 @@ import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { useWorkspaceFiles } from "../../context/WorkspaceFilesContext";
-import { getPathBasename, getPathDirname } from "../../utils/path";
+import { getPathBasename } from "../../utils/path";
 import {
 	type FileDraft,
 	type FileDraftUpdate,
 	FileTab,
 } from "../FileTab/FileTab";
+import { getTabHints } from "./tabHints";
 import type { MainTabsController } from "./useMainTabs";
 
 type MainTabsProps = {
@@ -180,11 +181,7 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 		return () => window.removeEventListener("keydown", cycleTabs, true);
 	}, [hasFileTabs]);
 
-	const basenameCounts = new Map<string, number>();
-	for (const file of files) {
-		const basename = getPathBasename(file.path);
-		basenameCounts.set(basename, (basenameCounts.get(basename) ?? 0) + 1);
-	}
+	const hints = getTabHints(files.map((file) => file.path));
 
 	const chatTabId = `${idPrefix}-tab-chat`;
 	const chatPanelId = `${idPrefix}-panel-chat`;
@@ -216,10 +213,7 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 						const isActive = file.path === activePath;
 						const isDirty = drafts.has(file.path);
 						const label = getPathBasename(file.path);
-						const parentHint =
-							(basenameCounts.get(label) ?? 0) > 1
-								? getPathBasename(getPathDirname(file.path))
-								: undefined;
+						const parentHint = hints.get(file.path);
 						const name = parentHint ? `${label} ${parentHint}` : label;
 						return (
 							<div
