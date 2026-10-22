@@ -57,6 +57,8 @@ type FileTabProps = {
 	repository: WorkspaceAgentRepoChanges | undefined;
 	draft: FileDraft | undefined;
 	onDraftChange: (path: string, update: FileDraftUpdate) => void;
+	/** Closes the tab, asking first when `hasUnsavedEdits`. */
+	onClose: (path: string, hasUnsavedEdits: boolean) => void;
 	/** Archived chats and chats owned by another user cannot edit files. */
 	readOnly: boolean;
 };
@@ -85,6 +87,7 @@ export const FileTab = memo<FileTabProps>(
 		repository,
 		draft,
 		onDraftChange,
+		onClose,
 		readOnly,
 	}) => {
 		const queryClient = useQueryClient();
@@ -150,6 +153,12 @@ export const FileTab = memo<FileTabProps>(
 			data && !isImage && !data.partial ? decodeUtf8(data.data) : undefined;
 		const isText = text !== undefined && !isBinaryData(text);
 		const value = draft?.content ?? text ?? "";
+		// A failed refetch keeps the content of the last successful read, so
+		// the buffer outlives the file's deletion.
+		const isDeleted =
+			data !== undefined &&
+			isAxiosError(fileQuery.error) &&
+			fileQuery.error.response?.status === 404;
 		const hasExternalChange =
 			draft !== undefined &&
 			data !== undefined &&
@@ -171,18 +180,17 @@ export const FileTab = memo<FileTabProps>(
 			});
 		};
 
-		const save = (ifMatch: string | undefined) => {
-			if (readOnly || !draft || writeMutation.isPending) {
+		const write = (content: string, ifMatch: string | undefined) => {
+			if (readOnly || writeMutation.isPending) {
 				return;
 			}
-			const saved = draft;
 			// A read that started before the write would land after it and
 			// replace the saved content with the old one.
 			void queryClient.cancelQueries({
 				queryKey: workspaceAgentFileKey(agentId, path),
 			});
 			writeMutation.mutate(
-				{ path, content: saved.content, ifMatch },
+				{ path, content, ifMatch },
 				{
 					onSuccess: ({ etag }) => {
 						restoreFocus();
@@ -190,9 +198,9 @@ export const FileTab = memo<FileTabProps>(
 						// The saved snapshot is the new base, so edits made during
 						// the save, including an undo, stay dirty against it.
 						onDraftChange(path, (current) =>
-							!current || current.content === saved.content
+							!current || current.content === content
 								? undefined
-								: { ...current, baseContent: saved.content, baseEtag: etag },
+								: { ...current, baseContent: content, baseEtag: etag },
 						);
 					},
 					onError: (error) => {
@@ -203,6 +211,9 @@ export const FileTab = memo<FileTabProps>(
 						);
 						if (isAxiosError(error) && error.response?.status === 412) {
 							setHasSaveConflict(true);
+							// The agent also rejects a file deleted since the read;
+							// a read tells a deletion from a change.
+							void fileQuery.refetch();
 							return;
 						}
 						toast.error(getErrorMessage(error, "Failed to save file."), {
@@ -212,7 +223,14 @@ export const FileTab = memo<FileTabProps>(
 				},
 			);
 		};
-		const handleSave = () => save(draft?.baseEtag || undefined);
+		const save = (ifMatch: string | undefined) => {
+			if (draft) {
+				write(draft.content, ifMatch);
+			}
+		};
+		// A deleted file has no version to conflict with.
+		const handleSave = () =>
+			save(isDeleted ? undefined : draft?.baseEtag || undefined);
 
 		const handleReload = () => {
 			const reloadedDraft = draft;
@@ -338,25 +356,66 @@ export const FileTab = memo<FileTabProps>(
 					>
 						{path}
 					</span>
-					{hasSaveConflict && draft && (
-						<ChangedOnDiskNotice
+					{isDeleted ? (
+						<FileNotice
+							title="Deleted on disk"
+							description="The file was deleted on disk. Recreate it from the open content, or close the tab."
+						>
+							{!readOnly && (
+								<PendingButton
+									isPending={writeMutation.isPending}
+									disabled={writeMutation.isPending}
+									onClick={() => write(value, undefined)}
+								>
+									Recreate
+								</PendingButton>
+							)}
+							<Button
+								size="xs"
+								variant="outline"
+								onClick={() => onClose(path, draft !== undefined)}
+							>
+								Close
+							</Button>
+						</FileNotice>
+					) : hasSaveConflict && draft ? (
+						<FileNotice
+							title="Changed on disk"
 							description="The file changed on disk after you started editing."
-							keepLabel="Overwrite"
-							isReloading={fileQuery.isFetching}
-							isKeeping={writeMutation.isPending}
-							onReload={handleReload}
-							onKeep={() => save(undefined)}
-						/>
-					)}
-					{!hasSaveConflict && hasExternalChange && (
-						<ChangedOnDiskNotice
-							description="The file changed on disk while you have unsaved edits."
-							keepLabel="Keep mine"
-							isReloading={fileQuery.isFetching}
-							isKeeping={false}
-							onReload={handleReload}
-							onKeep={handleKeepMine}
-						/>
+						>
+							<PendingButton
+								isPending={fileQuery.isFetching}
+								disabled={fileQuery.isFetching || writeMutation.isPending}
+								onClick={handleReload}
+							>
+								Reload
+							</PendingButton>
+							<PendingButton
+								isPending={writeMutation.isPending}
+								disabled={fileQuery.isFetching || writeMutation.isPending}
+								onClick={() => save(undefined)}
+							>
+								Overwrite
+							</PendingButton>
+						</FileNotice>
+					) : (
+						hasExternalChange && (
+							<FileNotice
+								title="Changed on disk"
+								description="The file changed on disk while you have unsaved edits."
+							>
+								<PendingButton
+									isPending={fileQuery.isFetching}
+									disabled={fileQuery.isFetching}
+									onClick={handleReload}
+								>
+									Reload
+								</PendingButton>
+								<Button size="xs" variant="outline" onClick={handleKeepMine}>
+									Keep mine
+								</Button>
+							</FileNotice>
+						)
 					)}
 					{isMarkdown && isText && (
 						<div role="group" aria-label="View mode" className="flex gap-1">
@@ -413,22 +472,18 @@ const PendingButton: React.FC<PendingButtonProps> = ({
 	</Button>
 );
 
-type ChangedOnDiskNoticeProps = {
+type FileNoticeProps = {
+	title: string;
 	description: string;
-	keepLabel: string;
-	isReloading: boolean;
-	isKeeping: boolean;
-	onReload: () => void;
-	onKeep: () => void;
+	/** The notice's actions. */
+	children: React.ReactNode;
 };
 
-const ChangedOnDiskNotice: React.FC<ChangedOnDiskNoticeProps> = ({
+/** A warning in the file header, where it does not move the content. */
+const FileNotice: React.FC<FileNoticeProps> = ({
+	title,
 	description,
-	keepLabel,
-	isReloading,
-	isKeeping,
-	onReload,
-	onKeep,
+	children,
 }) => (
 	<div
 		role="alert"
@@ -440,23 +495,10 @@ const ChangedOnDiskNotice: React.FC<ChangedOnDiskNoticeProps> = ({
 			className="size-icon-sm shrink-0 text-content-warning"
 		/>
 		<span className="truncate text-xs font-medium text-content-warning">
-			Changed on disk
+			{title}
 			<span className="sr-only">. {description}</span>
 		</span>
-		<PendingButton
-			isPending={isReloading}
-			disabled={isReloading || isKeeping}
-			onClick={onReload}
-		>
-			Reload
-		</PendingButton>
-		<PendingButton
-			isPending={isKeeping}
-			disabled={isReloading || isKeeping}
-			onClick={onKeep}
-		>
-			{keepLabel}
-		</PendingButton>
+		{children}
 	</div>
 );
 
