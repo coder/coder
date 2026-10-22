@@ -3163,6 +3163,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "end_line": 0,
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "file_name": "string",
+  "skill_name": "string",
+  "skill_source": "personal",
   "start_line": 0,
   "text": "string",
   "type": "text",
@@ -3182,6 +3184,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `end_line`                    | integer                                                  | false    |              |                                                                                                                                                                |
 | `file_id`                     | string                                                   | false    |              |                                                                                                                                                                |
 | `file_name`                   | string                                                   | false    |              | The following fields are only set when Type is ChatInputPartTypeFileReference.                                                                                 |
+| `skill_name`                  | string                                                   | false    |              |                                                                                                                                                                |
+| `skill_source`                | [codersdk.ChatSkillSource](#codersdkchatskillsource)     | false    |              | The following fields are only set when Type is ChatInputPartTypeSkillInvocation. The server loads the skill as the chat owner when the message is sent.        |
 | `start_line`                  | integer                                                  | false    |              |                                                                                                                                                                |
 | `text`                        | string                                                   | false    |              |                                                                                                                                                                |
 | `type`                        | [codersdk.ChatInputPartType](#codersdkchatinputparttype) | false    |              |                                                                                                                                                                |
@@ -3201,9 +3205,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                     |
-|--------------------------------------------------------------|
-| `file`, `file-reference`, `text`, `workspace-file-reference` |
+| Value(s)                                                                         |
+|----------------------------------------------------------------------------------|
+| `file`, `file-reference`, `skill-invocation`, `text`, `workspace-file-reference` |
 
 ## codersdk.ChatMessage
 
@@ -3257,6 +3261,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
+      "skill_source": "personal",
       "source_id": "string",
       "start_line": 0,
       "text": "string",
@@ -3353,6 +3358,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "skill_description": "string",
   "skill_dir": "string",
   "skill_name": "string",
+  "skill_source": "personal",
   "source_id": "string",
   "start_line": 0,
   "text": "string",
@@ -3405,7 +3411,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `result_reset`                 | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `skill_description`            | string                                                       | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
 | `skill_dir`                    | string                                                       | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                                                                                                      |
-| `skill_name`                   | string                                                       | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                                                                                                    |
+| `skill_name`                   | string                                                       | false    |              | Skill name is the kebab-case name of the skill.                                                                                                                                                                                                                                                                                                                                                            |
+| `skill_source`                 | [codersdk.ChatSkillSource](#codersdkchatskillsource)         | false    |              | Skill source is where the invoked skill of a skill-invocation part is stored.                                                                                                                                                                                                                                                                                                                              |
 | `source_id`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `start_line`                   | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `text`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3430,9 +3437,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
+| Value(s)                                                                                                                                                                                    |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `reasoning`, `skill`, `skill-invocation`, `source`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
 
 ## codersdk.ChatMessageRole
 
@@ -3529,6 +3536,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -3611,6 +3619,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -5195,6 +5204,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
+      "skill_source": "personal",
       "source_id": "string",
       "start_line": 0,
       "text": "string",
@@ -5253,6 +5263,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s)   |
 |------------|
 | ``, `read` |
+
+## codersdk.ChatSkillSource
+
+```json
+"personal"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                  |
+|-------------------------------------------|
+| `org`, `personal`, `project`, `workspace` |
 
 ## codersdk.ChatStatus
 
@@ -5359,6 +5383,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
+        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -5439,6 +5464,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
+      "skill_source": "personal",
       "source_id": "string",
       "start_line": 0,
       "text": "string",
@@ -5506,6 +5532,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -5622,6 +5649,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "skill_description": "string",
     "skill_dir": "string",
     "skill_name": "string",
+    "skill_source": "personal",
     "source_id": "string",
     "start_line": 0,
     "text": "string",
@@ -6374,6 +6402,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "skill_name": "string",
+      "skill_source": "personal",
       "start_line": 0,
       "text": "string",
       "type": "text",
@@ -6482,6 +6512,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
+        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -6563,6 +6594,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -6645,6 +6677,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
+        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -6909,6 +6942,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "skill_name": "string",
+      "skill_source": "personal",
       "start_line": 0,
       "text": "string",
       "type": "text",
@@ -9510,6 +9545,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "skill_name": "string",
+      "skill_source": "personal",
       "start_line": 0,
       "text": "string",
       "type": "text",
@@ -9593,6 +9630,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
+        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -9674,6 +9712,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
