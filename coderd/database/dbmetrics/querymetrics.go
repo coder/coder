@@ -104,6 +104,14 @@ func (m queryMetricsStore) DeleteOrganization(ctx context.Context, id uuid.UUID)
 	return r0
 }
 
+func (m queryMetricsStore) AcquireChatWorkspaceFileDeliveries(ctx context.Context, arg database.AcquireChatWorkspaceFileDeliveriesParams) ([]database.AcquireChatWorkspaceFileDeliveriesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.AcquireChatWorkspaceFileDeliveries(ctx, arg)
+	m.queryLatencies.WithLabelValues("AcquireChatWorkspaceFileDeliveries").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AcquireChatWorkspaceFileDeliveries").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 	start := time.Now()
 	r0, r1 := m.s.AcquireExternalAuthLinkRefreshLease(ctx, arg)
@@ -326,6 +334,14 @@ func (m queryMetricsStore) ClearWorkspaceSecretsByWorkspaceID(ctx context.Contex
 	m.queryLatencies.WithLabelValues("ClearWorkspaceSecretsByWorkspaceID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClearWorkspaceSecretsByWorkspaceID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) CompleteChatWorkspaceFileDelivery(ctx context.Context, arg database.CompleteChatWorkspaceFileDeliveryParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CompleteChatWorkspaceFileDelivery(ctx, arg)
+	m.queryLatencies.WithLabelValues("CompleteChatWorkspaceFileDelivery").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CompleteChatWorkspaceFileDelivery").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
@@ -1104,6 +1120,14 @@ func (m queryMetricsStore) ExportOrganizationAISpend(ctx context.Context, arg da
 	return r0, r1
 }
 
+func (m queryMetricsStore) FailChatWorkspaceFileDelivery(ctx context.Context, arg database.FailChatWorkspaceFileDeliveryParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.FailChatWorkspaceFileDelivery(ctx, arg)
+	m.queryLatencies.WithLabelValues("FailChatWorkspaceFileDelivery").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "FailChatWorkspaceFileDelivery").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.FavoriteWorkspace(ctx, id)
@@ -1685,6 +1709,14 @@ func (m queryMetricsStore) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUI
 	r0, r1 := m.s.GetChatFilesByIDs(ctx, ids)
 	m.queryLatencies.WithLabelValues("GetChatFilesByIDs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatFilesByIDs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatFilesMetadataByIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetChatFilesMetadataByIDsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatFilesMetadataByIDs(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetChatFilesMetadataByIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatFilesMetadataByIDs").Inc()
 	return r0, r1
 }
 
@@ -5413,6 +5445,14 @@ func (m queryMetricsStore) ReorderChatQueuedMessageToHead(ctx context.Context, a
 	r0, r1 := m.s.ReorderChatQueuedMessageToHead(ctx, arg)
 	m.queryLatencies.WithLabelValues("ReorderChatQueuedMessageToHead").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReorderChatQueuedMessageToHead").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) RetryChatWorkspaceFileDeliveries(ctx context.Context, chatID database.RetryChatWorkspaceFileDeliveriesParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.RetryChatWorkspaceFileDeliveries(ctx, chatID)
+	m.queryLatencies.WithLabelValues("RetryChatWorkspaceFileDeliveries").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RetryChatWorkspaceFileDeliveries").Inc()
 	return r0, r1
 }
 
