@@ -2095,6 +2095,44 @@ func TestChatProjectUserACLDroppedOnOrgMemberDelete(t *testing.T) {
 	require.False(t, usable)
 }
 
+// A PATCH that omits templates must not write back the project snapshot it
+// loaded, or it would undo a concurrent template change.
+func TestUpdateChatProjectByIDKeepsOmittedTemplates(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	tpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: owner.ID})
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+
+	// Another request sets templates after this one loaded the project.
+	_, err := db.UpdateChatProjectByID(ctx, database.UpdateChatProjectByIDParams{
+		ID:                project.ID,
+		Name:              project.Name,
+		UpdateTemplates:   true,
+		TemplateIDs:       []uuid.UUID{tpl.ID},
+		DefaultTemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
+		DefaultParameters: pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"region":"us"}`), Valid: true},
+	})
+	require.NoError(t, err)
+
+	renamed, err := db.UpdateChatProjectByID(ctx, database.UpdateChatProjectByIDParams{
+		ID:   project.ID,
+		Name: "renamed",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "renamed", renamed.Name)
+	require.Equal(t, []uuid.UUID{tpl.ID}, renamed.TemplateIDs)
+	require.Equal(t, uuid.NullUUID{UUID: tpl.ID, Valid: true}, renamed.DefaultTemplateID)
+	require.JSONEq(t, `{"region":"us"}`, string(renamed.DefaultParameters))
+}
+
 func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {

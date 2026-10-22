@@ -554,6 +554,7 @@ export const MockChatProject: TypesGen.ChatProject = {
 	name: "Launch",
 	description: "Chats for the launch work.",
 	icon: "",
+	templates: { template_ids: [] },
 	created_at: "2026-09-01T12:00:00Z",
 	updated_at: "2026-09-02T12:00:00Z",
 	permissions: { update: true, delete: true, share: true },

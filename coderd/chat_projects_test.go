@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -795,4 +796,183 @@ func createChatInProject(t testing.TB, client *codersdk.ExperimentalClient, orga
 	})
 	require.NoError(t, err)
 	return chat
+}
+
+func TestChatProjectTemplates(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatProjectClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	orgID := firstUser.OrganizationID
+
+	first, firstPreset := createAgentTemplate(t, db, orgID, firstUser.UserID, true, false)
+	second, secondPreset := createAgentTemplate(t, db, orgID, firstUser.UserID, true, true)
+	notAllowed, _ := createAgentTemplate(t, db, orgID, firstUser.UserID, false, false)
+	otherOrganization := dbgen.Organization(t, db, database.Organization{})
+	otherOrgTemplate, _ := createAgentTemplate(t, db, otherOrganization.ID, firstUser.UserID, true, false)
+
+	// A new project has no templates.
+	project := createChatProject(t, client, orgID, "No Templates")
+	require.Equal(t, codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{}}, project.Templates)
+
+	withPreset := codersdk.ChatProjectTemplates{
+		TemplateIDs:       []uuid.UUID{first.ID, second.ID, first.ID},
+		DefaultTemplateID: &first.ID,
+		DefaultPresetID:   &firstPreset.ID,
+	}
+	project, err := client.CreateChatProject(ctx, orgID, codersdk.CreateChatProjectRequest{Name: "Templates", Templates: &withPreset})
+	require.NoError(t, err)
+	withPreset.TemplateIDs = []uuid.UUID{first.ID, second.ID}
+	require.Equal(t, withPreset, project.Templates)
+	fetched, err := client.GetChatProject(ctx, orgID, project.ID)
+	require.NoError(t, err)
+	require.Equal(t, withPreset, fetched.Templates)
+
+	// Updating other fields keeps the templates.
+	name := "Renamed"
+	updated, err := client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{Name: &name})
+	require.NoError(t, err)
+	require.Equal(t, withPreset, updated.Templates)
+
+	// Templates are replaced as a whole.
+	withParameters := codersdk.ChatProjectTemplates{
+		TemplateIDs:       []uuid.UUID{second.ID},
+		DefaultTemplateID: &second.ID,
+		DefaultParameters: map[string]string{"region": "eu"},
+	}
+	updated, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{Templates: &withParameters})
+	require.NoError(t, err)
+	require.Equal(t, withParameters, updated.Templates)
+
+	updated, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{Templates: &codersdk.ChatProjectTemplates{}})
+	require.NoError(t, err)
+	require.Equal(t, codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{}}, updated.Templates)
+
+	unknownID := uuid.New()
+	for _, tc := range []struct {
+		name      string
+		templates codersdk.ChatProjectTemplates
+		field     string
+		detail    string
+	}{
+		{"NotAllowed", codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{notAllowed.ID}}, "templates.template_ids", "Template " + notAllowed.ID.String() + " is not available to agents in this organization."},
+		{"OtherOrganization", codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{otherOrgTemplate.ID}}, "templates.template_ids", "Template " + otherOrgTemplate.ID.String() + " is not available to agents in this organization."},
+		{"Unknown", codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{unknownID}}, "templates.template_ids", "Template " + unknownID.String() + " is not available to agents in this organization."},
+		{"DefaultNotListed", codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{first.ID}, DefaultTemplateID: &second.ID}, "templates.default_template_id", "The default template must be one of the project's templates."},
+		{"PresetWithoutDefault", codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{first.ID}, DefaultPresetID: &firstPreset.ID}, "templates.default_template_id", "Default preset and parameters require a default template."},
+		{"PresetAndParameters", codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{first.ID}, DefaultTemplateID: &first.ID, DefaultPresetID: &firstPreset.ID, DefaultParameters: map[string]string{"region": "eu"}}, "templates.default_preset_id", "Choose a default preset or default parameters, not both."},
+		{"PresetOfOtherTemplate", codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{first.ID}, DefaultTemplateID: &first.ID, DefaultPresetID: &secondPreset.ID}, "templates.default_preset_id", "The default preset must belong to the default template's active version."},
+		{"UnknownClassicParameter", codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{second.ID}, DefaultTemplateID: &second.ID, DefaultParameters: map[string]string{"size": "xl"}}, "templates.default_parameters", `Parameter "size" does not exist on the default template's active version.`},
+	} {
+		_, err := client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{Templates: &tc.templates})
+		requireChatProjectFieldError(t, err, tc.field, tc.detail)
+	}
+
+	// Classic parameter values are checked against the parameter's rules.
+	_, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{Templates: &codersdk.ChatProjectTemplates{
+		TemplateIDs:       []uuid.UUID{second.ID},
+		DefaultTemplateID: &second.ID,
+		DefaultParameters: map[string]string{"cpu": "99"},
+	}})
+	sdkErr := coderdtest.SDKError(t, err)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	require.Len(t, sdkErr.Validations, 1)
+	require.Equal(t, "templates.default_parameters", sdkErr.Validations[0].Field)
+	require.True(t, strings.HasPrefix(sdkErr.Message, `Parameter "cpu" has an invalid value: `), sdkErr.Message)
+
+	// Dynamic parameter names and values are left for the build to validate,
+	// since a parameter can exist only for some values of the others.
+	_, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{Templates: &codersdk.ChatProjectTemplates{
+		TemplateIDs:       []uuid.UUID{first.ID},
+		DefaultTemplateID: &first.ID,
+		DefaultParameters: map[string]string{"cpu": "99", "gpu_type": "a100"},
+	}})
+	require.NoError(t, err)
+}
+
+// createAgentTemplate creates a template whose active version has a "region"
+// parameter and one preset.
+func createAgentTemplate(t testing.TB, db database.Store, orgID, userID uuid.UUID, agentsAllowed, classicParameters bool) (database.Template, database.TemplateVersionPreset) {
+	t.Helper()
+
+	versionID := uuid.New()
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID:  orgID,
+		CreatedBy:       userID,
+		ActiveVersionID: versionID,
+		AgentsAllowed:   agentsAllowed,
+
+		UseClassicParameterFlow: classicParameters,
+	})
+	preset := database.TemplateVersionPreset{ID: uuid.New(), Name: "default"}
+	dbfake.TemplateVersion(t, db).
+		Seed(database.TemplateVersion{
+			ID:             versionID,
+			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+			OrganizationID: orgID,
+			CreatedBy:      userID,
+		}).
+		Params(
+			database.TemplateVersionParameter{Name: "region"},
+			database.TemplateVersionParameter{
+				Name:          "cpu",
+				Type:          "number",
+				DefaultValue:  "2",
+				ValidationMin: sql.NullInt32{Int32: 1, Valid: true},
+				ValidationMax: sql.NullInt32{Int32: 8, Valid: true},
+			},
+		).
+		Preset(preset).
+		Do()
+	return template, preset
+}
+
+func TestChatProjectWorkspaceTemplates(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatProjectClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModel(t, client)
+	orgID := firstUser.OrganizationID
+
+	allowed, _ := createAgentTemplate(t, db, orgID, firstUser.UserID, true, false)
+	other, _ := createAgentTemplate(t, db, orgID, firstUser.UserID, true, false)
+	project, err := client.CreateChatProject(ctx, orgID, codersdk.CreateChatProjectRequest{
+		Name:      "Workspace Templates",
+		Templates: &codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{allowed.ID}},
+	})
+	require.NoError(t, err)
+	workspace := func(templateID uuid.UUID) uuid.UUID {
+		return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: orgID,
+			OwnerID:        firstUser.UserID,
+			TemplateID:     templateID,
+		}).Do().Workspace.ID
+	}
+	allowedWorkspace, otherWorkspace := workspace(allowed.ID), workspace(other.ID)
+	createChat := func(workspaceID uuid.UUID) (codersdk.Chat, error) {
+		return client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: orgID,
+			ProjectID:      &project.ID,
+			WorkspaceID:    &workspaceID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "attach"}},
+		})
+	}
+	const notAllowed = "This workspace's template is not allowed in the chat's project."
+
+	_, err = createChat(otherWorkspace)
+	sdkErr := coderdtest.SDKError(t, err)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	require.Equal(t, notAllowed, sdkErr.Message)
+
+	chat, err := createChat(allowedWorkspace)
+	require.NoError(t, err)
+
+	err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{WorkspaceID: &otherWorkspace})
+	sdkErr = coderdtest.SDKError(t, err)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	require.Equal(t, notAllowed, sdkErr.Message)
+	require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{WorkspaceID: &allowedWorkspace}))
 }
