@@ -99,6 +99,14 @@ export const TurnAttachments: React.FC<TurnAttachmentsProps> = ({
 				side="top"
 				align="start"
 				className="w-80 max-w-(--radix-popper-available-width) p-2"
+				onOpenAutoFocus={(event) => {
+					// Radix focuses the first tabbable that is not a link: an
+					// expired file's tile, whose tooltip would cover the list.
+					event.preventDefault();
+					if (event.currentTarget instanceof HTMLElement) {
+						event.currentTarget.focus({ preventScroll: true });
+					}
+				}}
 			>
 				<AgentAttachmentList attachments={attachments} isExpired={hasExpired} />
 			</PopoverContent>

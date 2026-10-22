@@ -6,7 +6,10 @@ import { defaultUrlTransform } from "streamdown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage } from "#/api/typesGenerated";
-import { MockChatMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChatFileMetadata,
+	MockChatMessage,
+} from "#/testHelpers/chatEntities";
 import {
 	createTestQueryClient,
 	renderComponent,
@@ -370,6 +373,24 @@ describe("ConversationTimeline turn attachments", () => {
 				"stored-dashboard-before.png",
 			]),
 		);
+	});
+
+	it("focuses the popover instead of an expired file when it opens", async () => {
+		const user = userEvent.setup();
+		renderTimeline({
+			messages: MockMixedAttachmentMessages,
+			chatFiles: [{ ...MockChatFileMetadata, id: "spec-file" }],
+		});
+		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
+
+		const popover = await screen.findByRole("dialog", { name: "Attachments" });
+		expect(popover).toHaveFocus();
+		await user.tab();
+		expect(
+			within(popover).getByRole("link", {
+				name: "Download dashboard-before.png",
+			}),
+		).toHaveFocus();
 	});
 });
 

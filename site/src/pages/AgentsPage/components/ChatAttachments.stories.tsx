@@ -128,7 +128,7 @@ export const ExpiredAttachment: Story = {
 };
 
 export const ExpiredAttachmentFocused: Story = {
-	args: { evictedFileIds: new Set(["report-file"]) },
+	args: ExpiredAttachment.args,
 	play: async ({ canvasElement }) => {
 		within(canvasElement)
 			.getByRole("img", { name: "Attachment expired: latency-report.csv" })
