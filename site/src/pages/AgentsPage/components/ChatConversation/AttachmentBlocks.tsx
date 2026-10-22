@@ -222,16 +222,25 @@ const expiredAttachmentExplanation =
 const AttachmentFallbackTile: React.FC<{
 	state: AttachmentFailure;
 	labels: AttachmentFailureLabels;
+	name?: string;
 	className?: string;
-}> = ({ state, labels, className = "size-16" }) => {
+}> = ({ state, labels, name, className = "size-16" }) => {
 	const label = state.kind === "expired" ? labels.expired : labels.failed;
+	// Only surface a tooltip when we have something to add:
+	// - "expired" explains why the file is gone.
+	// - "failed" with a detail surfaces the API error or network reason.
+	// A bare "failed" (e.g. an inline base64 decode failure, where the
+	// browser exposes nothing useful) stays a plain tile.
+	const tooltipBody =
+		state.kind === "expired" ? expiredAttachmentExplanation : state.detail;
 
 	const tile = (
 		<div
 			role="img"
-			aria-label={label}
+			aria-label={name ? `${label}: ${name}` : label}
+			tabIndex={tooltipBody ? 0 : undefined}
 			className={cn(
-				"flex flex-col items-center justify-center gap-1 rounded-md border border-border bg-surface-tertiary px-1 text-center text-2xs text-content-secondary",
+				"flex flex-col items-center justify-center gap-1 rounded-md border border-border bg-surface-tertiary px-1 text-center text-2xs text-content-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 				className,
 			)}
 		>
@@ -243,13 +252,6 @@ const AttachmentFallbackTile: React.FC<{
 		</div>
 	);
 
-	// Only surface a tooltip when we have something to add:
-	// - "expired" explains why the file is gone.
-	// - "failed" with a detail surfaces the API error or network reason.
-	// A bare "failed" (e.g. an inline base64 decode failure, where the
-	// browser exposes nothing useful) stays a plain tile.
-	const tooltipBody =
-		state.kind === "expired" ? expiredAttachmentExplanation : state.detail;
 	if (!tooltipBody) {
 		return tile;
 	}
@@ -481,6 +483,7 @@ export const FileCard: React.FC<{
 			<AttachmentFallbackTile
 				state={{ kind: "expired" }}
 				labels={fileAttachmentFailureLabels}
+				name={displayName}
 				className={cn("h-16", fullWidth ? "w-full" : "w-28")}
 			/>
 		);

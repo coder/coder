@@ -1,12 +1,6 @@
 import { FileCard } from "./AttachmentBlocks";
 import type { AgentAttachment } from "./messageHelpers";
 
-/** Inline attachments carry no file ID, so only stored files can expire. */
-const isAgentAttachmentExpired = (
-	{ file }: AgentAttachment,
-	isExpired: (fileId: string) => boolean,
-): boolean => file.file_id !== undefined && isExpired(file.file_id);
-
 type AgentAttachmentListProps = {
 	attachments: readonly AgentAttachment[];
 	isExpired: (fileId: string) => boolean;
@@ -23,7 +17,10 @@ export const AgentAttachmentList: React.FC<AgentAttachmentListProps> = ({
 				<FileCard
 					block={attachment.file}
 					href={attachment.href}
-					expired={isAgentAttachmentExpired(attachment, isExpired)}
+					expired={
+						attachment.file.file_id !== undefined &&
+						isExpired(attachment.file.file_id)
+					}
 					fullWidth
 				/>
 			</li>

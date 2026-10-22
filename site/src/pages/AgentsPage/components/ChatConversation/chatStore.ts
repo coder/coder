@@ -127,7 +127,7 @@ export type ChatStoreState = {
 	// contained their promoted user rows.
 	promotedQueuedMessageIDs: ReadonlySet<number>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
-	// null before any request, so it never matches a message ID.
+	// Cleared once the requested run stops; null never matches a message ID.
 	latestMessageIDAtCompactionRequest: number | null;
 };
 
@@ -179,7 +179,6 @@ export type ChatStore = {
 	clearSuppressedQueuedMessageIDs: () => void;
 	setChatStatus: (status: TypesGen.ChatStatus | null) => void;
 	markCompactionRequested: () => void;
-	clearCompactionRequest: () => void;
 	setStreamState: (streamState: StreamState | null) => void;
 	setStreamError: (reason: ChatDetailError | null) => void;
 	clearStreamError: () => void;
@@ -584,6 +583,10 @@ export const createChatStore = (): ChatStore => {
 			setState((current) => ({
 				...current,
 				chatStatus: status,
+				latestMessageIDAtCompactionRequest:
+					status === "running"
+						? current.latestMessageIDAtCompactionRequest
+						: null,
 			}));
 		},
 		markCompactionRequested: () => {
@@ -591,12 +594,6 @@ export const createChatStore = (): ChatStore => {
 				...current,
 				latestMessageIDAtCompactionRequest:
 					selectLatestDurableMessage(current)?.id ?? null,
-			}));
-		},
-		clearCompactionRequest: () => {
-			setState((current) => ({
-				...current,
-				latestMessageIDAtCompactionRequest: null,
 			}));
 		},
 		setActiveChatID: (chatID) => {

@@ -1071,11 +1071,13 @@ describe("selectIsCompactionStarting", () => {
 		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
 	});
 
-	it("ends when the chat stops", () => {
+	it("ends when its run stops, so a later run is not a compaction", () => {
 		const store = requestCompaction();
 
-		store.setChatStatus("waiting");
+		store.setChatStatus("error");
+		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
 
+		store.setChatStatus("running");
 		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
 	});
 
