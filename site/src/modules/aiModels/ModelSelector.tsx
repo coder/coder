@@ -86,9 +86,12 @@ export const formatContextLimit = (tokens: number): string => {
 	return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
 };
 
-const getProviderLabel = (
+/** Returns the provider name the model selector shows for an option. */
+export const getProviderLabel = (
 	option: ModelSelectorOption,
-	formatProviderLabel: (provider: string) => string,
+	formatProviderLabel: (
+		provider: string,
+	) => string = defaultFormatProviderLabel,
 ) => option.providerLabel?.trim() || formatProviderLabel(option.provider);
 
 const getSearchText = (option: ModelSelectorOption, providerLabel: string) =>
