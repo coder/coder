@@ -354,14 +354,16 @@ export const TurnAttachmentsPillViewTextFailed: Story = {
 	play: viewFindingsFile,
 };
 
+const mockDeletedFindingsText = () => {
+	const mockNotFound = mockApiError({ message: "File not found." });
+	spyOn(API.experimental, "getChatFileText").mockRejectedValue({
+		...mockNotFound,
+		response: { ...mockNotFound.response, status: 404 },
+	});
+};
+
 export const TurnAttachmentsPillViewTextDeleted: Story = {
-	beforeEach: () => {
-		const mockNotFound = mockApiError({ message: "File not found." });
-		spyOn(API.experimental, "getChatFileText").mockRejectedValue({
-			...mockNotFound,
-			response: { ...mockNotFound.response, status: 404 },
-		});
-	},
+	beforeEach: mockDeletedFindingsText,
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
 	},
@@ -370,20 +372,14 @@ export const TurnAttachmentsPillViewTextDeleted: Story = {
 
 // A view that finds the file deleted also expires its tile in the steps.
 export const TurnAttachmentsPillViewTextDeletedBlockExpanded: Story = {
-	beforeEach: () => {
-		const mockNotFound = mockApiError({ message: "File not found." });
-		spyOn(API.experimental, "getChatFileText").mockRejectedValue({
-			...mockNotFound,
-			response: { ...mockNotFound.response, status: 404 },
-		});
-	},
+	beforeEach: mockDeletedFindingsText,
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
 	},
 	play: async (context) => {
 		await viewFindingsFile(context);
 		await screen.findByRole("img", { name: "Attachment expired: findings.md" });
-		await userEvent.keyboard("{Escape}");
+		// This press lands outside the popover, which closes it.
 		await userEvent.click(
 			within(context.canvasElement).getByRole("button", {
 				name: "Worked for 7s (4 steps)",
