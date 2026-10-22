@@ -302,7 +302,7 @@ export const TurnAttachmentsPillBrokenImage: Story = {
 	},
 };
 
-// The running turn gets its pill once it settles; earlier turns keep theirs.
+// The running turn gets its pill once it settles, and earlier turns get none.
 export const TurnAttachmentsPillRunningTurn: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(
@@ -378,8 +378,8 @@ export const TurnAttachmentsPillStepsShown: Story = {
 	},
 };
 
-// Expanded, the block shows the first answer's steps; the pill stays under
-// the answer text below it.
+// Expanded, the block shows the answer's steps; the pill stays under the
+// answer text below it.
 export const TurnAttachmentsPillBlockExpanded: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(
@@ -413,13 +413,17 @@ export const TurnAttachmentsPillLiveAnswer: Story = {
 	},
 };
 
-// The first turn's prompt is on an unloaded page, so only the second turn's
-// answer has a pill.
+// The newest turn's prompt is on an unloaded page, so its answer has no pill
+// until that page loads.
 export const TurnAttachmentsPillPartialTurn: Story = {
 	args: {
 		hasMoreMessages: true,
 		parsedMessages: parseMessagesWithMergedTools(
-			MockMixedAttachmentMessages.slice(1),
+			MockMixedAttachmentMessages.slice(
+				MockMixedAttachmentMessages.findLastIndex(
+					(message) => message.role === "user",
+				) + 1,
+			),
 		),
 	},
 };

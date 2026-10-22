@@ -2,7 +2,7 @@ import { buildDisplayMessages } from "./messageHelpers";
 import { assignTimelineRows } from "./timelineRows";
 import type { ParsedMessageEntry } from "./types";
 import {
-	getTurnAttachmentsByRow,
+	getNewestTurnAttachments,
 	type TurnAttachmentsOptions,
 } from "./workingBlockGrouping";
 
@@ -11,7 +11,7 @@ import {
  * the call would share the timeline body's cache scope, which every stream
  * chunk invalidates. It builds no live row: only message rows host a pill.
  */
-export const useTurnAttachmentsByRow = (
+export const useNewestTurnAttachments = (
 	parsedMessages: readonly ParsedMessageEntry[],
 	{
 		hidesAttachmentRows,
@@ -22,7 +22,7 @@ export const useTurnAttachmentsByRow = (
 	}: TurnAttachmentsOptions,
 ) => {
 	"use memo";
-	return getTurnAttachmentsByRow(
+	return getNewestTurnAttachments(
 		assignTimelineRows(buildDisplayMessages(parsedMessages), false),
 		{
 			hidesAttachmentRows,

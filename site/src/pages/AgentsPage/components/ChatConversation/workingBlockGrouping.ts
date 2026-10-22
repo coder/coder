@@ -182,18 +182,25 @@ export type TurnAttachmentsOptions = {
 	/** A starting or streaming compaction adds no answer or file to a turn. */
 	isCompacting: boolean;
 	/**
-	 * Older messages exist that the rows do not include, so a first turn
-	 * without its prompt gets no entry.
+	 * Older messages exist that the rows do not include, so a newest turn
+	 * without its prompt gets no pill.
 	 */
 	hasMoreMessages: boolean;
 };
 
+/** The newest turn's agent attachments and the row whose footer shows them. */
+export type TurnAttachmentsHost = {
+	rowKey: string;
+	attachments: TurnAttachmentList;
+};
+
 /**
- * Each settled turn's agent attachments, keyed by its last shown assistant
- * row other than a context clear or summary. Reads only the rows and flags,
- * never working blocks or stream state.
+ * The newest turn's agent attachments once it settles, hosted by its last
+ * shown assistant row other than a context clear or summary. Earlier turns
+ * get no pill. Reads only the rows and flags, never working blocks or stream
+ * state.
  */
-export const getTurnAttachmentsByRow = (
+export const getNewestTurnAttachments = (
 	rows: readonly TimelineRow[],
 	{
 		hidesAttachmentRows,
@@ -202,39 +209,21 @@ export const getTurnAttachmentsByRow = (
 		isCompacting,
 		hasMoreMessages,
 	}: TurnAttachmentsOptions,
-): ReadonlyMap<string, TurnAttachmentList> => {
-	const byRow = new Map<string, TurnAttachmentList>();
-	let attachments: AgentAttachment[] = [];
+): TurnAttachmentsHost | undefined => {
+	const promptIndex = rows.findLastIndex(
+		(row) => row.type === "message" && row.entry.message.role === "user",
+	);
+	if (promptIndex === -1 && hasMoreMessages) {
+		return undefined;
+	}
+	const attachments: AgentAttachment[] = [];
 	let lastShownRow: TimelineMessageRow | undefined;
 	let boundaryFollowsLastShownRow = false;
-	let isTurnStartLoaded = !hasMoreMessages;
-	const settleTurn = () => {
-		const first = attachments.at(0);
-		if (
-			isTurnStartLoaded &&
-			lastShownRow !== undefined &&
-			first !== undefined
-		) {
-			byRow.set(lastShownRow.key, [first, ...attachments.slice(1)]);
-		}
-		attachments = [];
-		lastShownRow = undefined;
-		isTurnStartLoaded = true;
-	};
-
-	for (const row of rows) {
-		if (row.type !== "message") {
+	for (const row of rows.slice(promptIndex + 1)) {
+		if (row.type !== "message" || row.entry.message.role !== "assistant") {
 			continue;
 		}
-		const { message } = row.entry;
-		if (message.role === "user") {
-			settleTurn();
-			continue;
-		}
-		if (message.role !== "assistant") {
-			continue;
-		}
-		attachments.push(...getMessageAgentAttachments(message));
+		attachments.push(...getMessageAgentAttachments(row.entry.message));
 		if (isContextBoundaryRow(row)) {
 			boundaryFollowsLastShownRow = true;
 		} else if (!isHiddenAttachmentRow(row, hidesAttachmentRows)) {
@@ -242,36 +231,38 @@ export const getTurnAttachmentsByRow = (
 			boundaryFollowsLastShownRow = false;
 		}
 	}
+	const first = attachments.at(0);
+	if (lastShownRow === undefined || first === undefined) {
+		return undefined;
+	}
 	// A compaction adds nothing to an answered turn. An unanswered turn goes on:
 	// the compaction ran between its steps, or the server resumes it after a
 	// manual /compact. Summary rows persist before the stop, so they count too.
-	const lastParsed = lastShownRow?.entry.parsed;
-	const lastShownRowEndsWithAnswer =
-		lastParsed !== undefined &&
-		splitRowBlocks(lastParsed.blocks, lastParsed.tools).answer.length > 0;
-	if (
+	const { blocks, tools } = lastShownRow.entry.parsed;
+	const endsWithAnswer = splitRowBlocks(blocks, tools).answer.length > 0;
+	const isSettled =
 		!isChatActive ||
 		isNextTurnStarting ||
-		(lastShownRowEndsWithAnswer &&
-			(isCompacting || boundaryFollowsLastShownRow))
-	) {
-		settleTurn();
-	}
-
-	return byRow;
+		(endsWithAnswer && (isCompacting || boundaryFollowsLastShownRow));
+	return isSettled
+		? {
+				rowKey: lastShownRow.key,
+				attachments: [first, ...attachments.slice(1)],
+			}
+		: undefined;
 };
 
 /** A block without an answer row shows the pill its members would host. */
 export const getBlockTurnAttachments = (
 	block: WorkingBlock,
 	memberKeys: readonly string[],
-	turnAttachmentsByRow: ReadonlyMap<string, TurnAttachmentList>,
+	newestTurnAttachments: TurnAttachmentsHost | undefined,
 ): TurnAttachmentList | undefined =>
-	block.endsWithAnswer
-		? undefined
-		: memberKeys
-				.map((key) => turnAttachmentsByRow.get(key))
-				.find((attachments) => attachments !== undefined);
+	!block.endsWithAnswer &&
+	newestTurnAttachments !== undefined &&
+	memberKeys.includes(newestTurnAttachments.rowKey)
+		? newestTurnAttachments.attachments
+		: undefined;
 
 type RowContent = ReturnType<typeof getVisibleContent>;
 

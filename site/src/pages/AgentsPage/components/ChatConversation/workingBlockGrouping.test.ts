@@ -1,6 +1,6 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
-import { type AgentAttachment, buildDisplayMessages } from "./messageHelpers";
+import { buildDisplayMessages } from "./messageHelpers";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
 	workingFixtureTime as at,
@@ -10,10 +10,11 @@ import {
 import { assignTimelineRows, type TimelineRow } from "./timelineRows";
 import {
 	type GroupWorkingBlocksOptions,
+	getNewestTurnAttachments,
 	getRowBlocks,
-	getTurnAttachmentsByRow,
 	groupWorkingBlocks,
 	isAgentAttachmentOnlyRow,
+	type TurnAttachmentsHost,
 	type WorkingBlock,
 } from "./workingBlockGrouping";
 
@@ -1276,30 +1277,27 @@ describe("isAgentAttachmentOnlyRow", () => {
 	});
 });
 
-describe("getTurnAttachmentsByRow", () => {
+describe("getNewestTurnAttachments", () => {
 	const file = (fileId: string): TypesGen.ChatMessagePart => ({
 		...mockAttachment,
 		file_id: fileId,
 	});
-	const fileIdsByRow = (map: ReadonlyMap<string, readonly AgentAttachment[]>) =>
-		[...map].map(([key, attachments]) => [
-			key,
-			attachments.map(({ file }) => file.file_id),
-		]);
+	const hostFileIds = (host: TurnAttachmentsHost | undefined) =>
+		host && [host.rowKey, host.attachments.map(({ file }) => file.file_id)];
 
-	it("lists each turn's agent files on its last assistant row", () => {
+	it("lists the newest turn's agent files on its last assistant row", () => {
 		const { rows } = group([
+			user("Build the first report"),
+			message("assistant", [text("Here:"), file("old")]),
 			message("user", [text("Build the reports"), file("upload")]),
 			message("assistant", [text("First:"), file("a")]),
 			message("assistant", [file("b"), text("Then the second.")]),
 			message("assistant", [text("Both reports are ready.")]),
-			user("One more"),
-			message("assistant", [text("Here:"), file("c")]),
 		]);
 
 		expect(
-			fileIdsByRow(
-				getTurnAttachmentsByRow(rows, {
+			hostFileIds(
+				getNewestTurnAttachments(rows, {
 					hidesAttachmentRows: false,
 					isChatActive: false,
 					isNextTurnStarting: false,
@@ -1307,10 +1305,26 @@ describe("getTurnAttachmentsByRow", () => {
 					hasMoreMessages: false,
 				}),
 			),
-		).toEqual([
-			["message:4", ["a", "b"]],
-			["message:6", ["c"]],
+		).toEqual(["message:6", ["a", "b"]]);
+	});
+
+	it("gives an earlier turn's files no pill once a newer turn settles", () => {
+		const { rows } = group([
+			user("Build the report"),
+			message("assistant", [text("Here:"), file("a")]),
+			user("Thanks"),
+			message("assistant", [text("You're welcome.")]),
 		]);
+
+		expect(
+			getNewestTurnAttachments(rows, {
+				hidesAttachmentRows: false,
+				isChatActive: false,
+				isNextTurnStarting: false,
+				isCompacting: false,
+				hasMoreMessages: false,
+			}),
+		).toBeUndefined();
 	});
 
 	it("skips hidden attachment-only rows when picking the pill's row", () => {
@@ -1319,18 +1333,17 @@ describe("getTurnAttachmentsByRow", () => {
 			message("assistant", [text("Report attached.")]),
 			message("assistant", [file("a")]),
 		]);
-		const pillRowKeys = (hidesAttachmentRows: boolean) => [
-			...getTurnAttachmentsByRow(rows, {
+		const pillRowKey = (hidesAttachmentRows: boolean) =>
+			getNewestTurnAttachments(rows, {
 				hidesAttachmentRows,
 				isChatActive: false,
 				isNextTurnStarting: false,
 				isCompacting: false,
 				hasMoreMessages: false,
-			}).keys(),
-		];
+			})?.rowKey;
 
-		expect(pillRowKeys(true)).toEqual(["message:2"]);
-		expect(pillRowKeys(false)).toEqual(["message:3"]);
+		expect(pillRowKey(true)).toBe("message:2");
+		expect(pillRowKey(false)).toBe("message:3");
 	});
 
 	it.each(["chat_cleared", "chat_summarized"])(
@@ -1341,12 +1354,11 @@ describe("getTurnAttachmentsByRow", () => {
 				message("assistant", [text("Here:"), file("a")]),
 				message("assistant", [call("boundary", undefined, toolName)]),
 				message("tool", [result("boundary", undefined, { name: toolName })]),
-				user("Start over"),
 			]);
 
 			expect(
-				fileIdsByRow(
-					getTurnAttachmentsByRow(rows, {
+				hostFileIds(
+					getNewestTurnAttachments(rows, {
 						hidesAttachmentRows: false,
 						isChatActive: false,
 						isNextTurnStarting: false,
@@ -1354,19 +1366,17 @@ describe("getTurnAttachmentsByRow", () => {
 						hasMoreMessages: false,
 					}),
 				),
-			).toEqual([["message:2", ["a"]]]);
+			).toEqual(["message:2", ["a"]]);
 		},
 	);
 
-	it("leaves out a first turn whose prompt is on an unloaded page", () => {
+	it("leaves out a newest turn whose prompt is on an unloaded page", () => {
 		const { rows } = group([
 			message("assistant", [text("Continuing:"), file("a")]),
-			user("One more"),
-			message("assistant", [text("Here:"), file("b")]),
 		]);
 		const rowFileIds = (hasMoreMessages: boolean) =>
-			fileIdsByRow(
-				getTurnAttachmentsByRow(rows, {
+			hostFileIds(
+				getNewestTurnAttachments(rows, {
 					hidesAttachmentRows: false,
 					isChatActive: false,
 					isNextTurnStarting: false,
@@ -1375,14 +1385,11 @@ describe("getTurnAttachmentsByRow", () => {
 				}),
 			);
 
-		expect(rowFileIds(true)).toEqual([["message:3", ["b"]]]);
-		expect(rowFileIds(false)).toEqual([
-			["message:1", ["a"]],
-			["message:3", ["b"]],
-		]);
+		expect(rowFileIds(true)).toBeUndefined();
+		expect(rowFileIds(false)).toEqual(["message:1", ["a"]]);
 	});
 
-	it("leaves the active turn out until it settles", () => {
+	it("shows no pill while the newest turn runs", () => {
 		const { rows } = group(
 			[
 				user("Build the report"),
@@ -1398,16 +1405,14 @@ describe("getTurnAttachmentsByRow", () => {
 		);
 
 		expect(
-			fileIdsByRow(
-				getTurnAttachmentsByRow(rows, {
-					hidesAttachmentRows: true,
-					isChatActive: true,
-					isNextTurnStarting: false,
-					isCompacting: false,
-					hasMoreMessages: false,
-				}),
-			),
-		).toEqual([["message:2", ["a"]]]);
+			getNewestTurnAttachments(rows, {
+				hidesAttachmentRows: true,
+				isChatActive: true,
+				isNextTurnStarting: false,
+				isCompacting: false,
+				hasMoreMessages: false,
+			}),
+		).toBeUndefined();
 	});
 
 	it("leaves an answered turn out while the chat keeps running it", () => {
@@ -1418,16 +1423,14 @@ describe("getTurnAttachmentsByRow", () => {
 		]);
 
 		expect(
-			fileIdsByRow(
-				getTurnAttachmentsByRow(rows, {
-					hidesAttachmentRows: false,
-					isChatActive: true,
-					isNextTurnStarting: false,
-					isCompacting: false,
-					hasMoreMessages: false,
-				}),
-			),
-		).toEqual([]);
+			getNewestTurnAttachments(rows, {
+				hidesAttachmentRows: false,
+				isChatActive: true,
+				isNextTurnStarting: false,
+				isCompacting: false,
+				hasMoreMessages: false,
+			}),
+		).toBeUndefined();
 	});
 
 	it("leaves a turn out once the agent answers again after a compaction", () => {
@@ -1442,19 +1445,17 @@ describe("getTurnAttachmentsByRow", () => {
 		]);
 
 		expect(
-			fileIdsByRow(
-				getTurnAttachmentsByRow(rows, {
-					hidesAttachmentRows: false,
-					isChatActive: true,
-					isNextTurnStarting: false,
-					isCompacting: false,
-					hasMoreMessages: false,
-				}),
-			),
-		).toEqual([]);
+			getNewestTurnAttachments(rows, {
+				hidesAttachmentRows: false,
+				isChatActive: true,
+				isNextTurnStarting: false,
+				isCompacting: false,
+				hasMoreMessages: false,
+			}),
+		).toBeUndefined();
 	});
 
-	it("keeps an answered turn's entry once a compaction after it persists", () => {
+	it("keeps an answered turn's pill once a compaction after it persists", () => {
 		const { rows } = group([
 			user("Build the report"),
 			message("assistant", [text("Here:"), file("a")]),
@@ -1465,8 +1466,8 @@ describe("getTurnAttachmentsByRow", () => {
 		]);
 
 		expect(
-			fileIdsByRow(
-				getTurnAttachmentsByRow(rows, {
+			hostFileIds(
+				getNewestTurnAttachments(rows, {
 					hidesAttachmentRows: false,
 					isChatActive: true,
 					isNextTurnStarting: false,
@@ -1474,10 +1475,10 @@ describe("getTurnAttachmentsByRow", () => {
 					hasMoreMessages: false,
 				}),
 			),
-		).toEqual([["message:2", ["a"]]]);
+		).toEqual(["message:2", ["a"]]);
 	});
 
-	it("keeps an unanswered turn's entry while the next turn starts", () => {
+	it("keeps an unanswered turn's pill while the next turn starts", () => {
 		const { rows } = group([
 			user("Build the report"),
 			message("assistant", [
@@ -1489,8 +1490,8 @@ describe("getTurnAttachmentsByRow", () => {
 		// A compaction alone leaves a turn without an answer open, since the
 		// server can resume that turn after compacting it.
 		const rowFileIds = (isNextTurnStarting: boolean) =>
-			fileIdsByRow(
-				getTurnAttachmentsByRow(rows, {
+			hostFileIds(
+				getNewestTurnAttachments(rows, {
 					hidesAttachmentRows: false,
 					isChatActive: true,
 					isNextTurnStarting,
@@ -1499,7 +1500,7 @@ describe("getTurnAttachmentsByRow", () => {
 				}),
 			);
 
-		expect(rowFileIds(false)).toEqual([]);
-		expect(rowFileIds(true)).toEqual([["message:3", ["a"]]]);
+		expect(rowFileIds(false)).toBeUndefined();
+		expect(rowFileIds(true)).toEqual(["message:3", ["a"]]);
 	});
 });

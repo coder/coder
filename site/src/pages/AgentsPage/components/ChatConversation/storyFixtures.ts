@@ -485,9 +485,9 @@ if (!mockSearchAnswer) {
 	throw new Error("MockWebSearchAnswerMessages has no answer.");
 }
 
-/** MockMixedAttachmentMessages whose first turn ends in a searched answer. */
+/** MockAttachmentWorkingMessages ending in a searched answer. */
 export const MockSearchAnswerAttachmentMessages: TypesGen.ChatMessage[] =
-	MockMixedAttachmentMessages.map((message) =>
+	MockAttachmentWorkingMessages.map((message) =>
 		message.id === 9 ? { ...mockSearchAnswer, id: message.id } : message,
 	);
 
