@@ -22,6 +22,7 @@ func TestComputeCost(t *testing.T) {
 		name                                                         string
 		price                                                        priceSet
 		inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens int64
+		cacheWrite1hTokens                                           int64
 		want                                                         int64
 		wantOutOfRange                                               bool
 	}{
@@ -54,6 +55,17 @@ func TestComputeCost(t *testing.T) {
 			cacheWriteTokens: 10,
 			// 300 + 1200 + 15 + 0.
 			want: 1515,
+		},
+		{
+			name: "1h cache writes use the 1h price",
+			price: priceSet{
+				cacheWrite:   nullInt64(3_750_000),
+				cacheWrite1h: nullInt64(6_000_000),
+			},
+			cacheWriteTokens:   10,
+			cacheWrite1hTokens: 4,
+			// 22 + 24 (6*3_750_000/1e6 = 22, integer division).
+			want: 46,
 		},
 		{
 			name:             "all prices null is zero cost",
@@ -175,10 +187,11 @@ func TestComputeCost(t *testing.T) {
 			t.Parallel()
 
 			got, err := computeCost(tt.price, usageTokens{
-				input:      tt.inputTokens,
-				output:     tt.outputTokens,
-				cacheRead:  tt.cacheReadTokens,
-				cacheWrite: tt.cacheWriteTokens,
+				input:        tt.inputTokens,
+				output:       tt.outputTokens,
+				cacheRead:    tt.cacheReadTokens,
+				cacheWrite:   tt.cacheWriteTokens,
+				cacheWrite1h: tt.cacheWrite1hTokens,
 			})
 			if tt.wantOutOfRange {
 				if !errors.Is(err, errCostOutOfRange) {
@@ -234,6 +247,11 @@ func TestValidateTokenUsage(t *testing.T) {
 			wantOutOfRange: true,
 		},
 		{
+			name:           "negative 1h cache write",
+			request:        &proto.RecordTokenUsageRequest{CacheWriteOneHourInputTokens: -1},
+			wantOutOfRange: true,
+		},
+		{
 			name:           "negative prompt tokens",
 			request:        &proto.RecordTokenUsageRequest{PromptTokens: -1},
 			wantOutOfRange: true,
@@ -271,11 +289,12 @@ func TestPricesForPrompt(t *testing.T) {
 	t.Parallel()
 
 	base := database.AIModelPrice{
-		Model:           "m",
-		InputPrice:      nullInt64(1_000),
-		OutputPrice:     nullInt64(2_000),
-		CacheReadPrice:  nullInt64(100),
-		CacheWritePrice: nullInt64(1_250),
+		Model:             "m",
+		InputPrice:        nullInt64(1_000),
+		OutputPrice:       nullInt64(2_000),
+		CacheReadPrice:    nullInt64(100),
+		CacheWritePrice:   nullInt64(1_250),
+		CacheWrite1hPrice: nullInt64(2_000),
 	}
 	withTiers := func(tiers string) database.AIModelPrice {
 		row := base
@@ -296,19 +315,28 @@ func TestPricesForPrompt(t *testing.T) {
 			prompt: 1_000_000,
 			want: priceSet{
 				input: nullInt64(1_000), output: nullInt64(2_000), cacheRead: nullInt64(100),
-				cacheWrite: nullInt64(1_250),
+				cacheWrite: nullInt64(1_250), cacheWrite1h: nullInt64(2_000),
 			},
+		},
+		{
+			name: "no 1h price uses the cache write price",
+			row: database.AIModelPrice{
+				InputPrice:      nullInt64(1_000),
+				CacheWritePrice: nullInt64(1_250),
+				Tiers:           []byte(`[]`),
+			},
+			want: priceSet{input: nullInt64(1_000), cacheWrite: nullInt64(1_250), cacheWrite1h: nullInt64(1_250)},
 		},
 		{
 			name: "highest tier below the prompt applies",
 			row: withTiers(`[
-				{"threshold_tokens": 200, "input_price": 3000, "output_price": 3000, "cache_read_price": 300, "cache_write_price": 3000},
-				{"threshold_tokens": 500, "input_price": 5000, "output_price": 5000, "cache_read_price": 500, "cache_write_price": 5000}
+				{"threshold_tokens": 200, "input_price": 3000, "output_price": 3000, "cache_read_price": 300, "cache_write_price": 3000, "cache_write_1h_price": 3000},
+				{"threshold_tokens": 500, "input_price": 5000, "output_price": 5000, "cache_read_price": 500, "cache_write_price": 5000, "cache_write_1h_price": 5000}
 			]`),
 			prompt: 501,
 			want: priceSet{
 				input: nullInt64(5_000), output: nullInt64(5_000), cacheRead: nullInt64(500),
-				cacheWrite: nullInt64(5_000), tierThreshold: nullInt64(500),
+				cacheWrite: nullInt64(5_000), cacheWrite1h: nullInt64(5_000), tierThreshold: nullInt64(500),
 			},
 		},
 		{
@@ -318,7 +346,16 @@ func TestPricesForPrompt(t *testing.T) {
 			prompt: 201,
 			want: priceSet{
 				input: nullInt64(3_000), output: nullInt64(2_000), cacheRead: nullInt64(300),
-				cacheWrite: nullInt64(1_250), tierThreshold: nullInt64(200),
+				cacheWrite: nullInt64(1_250), cacheWrite1h: nullInt64(1_250), tierThreshold: nullInt64(200),
+			},
+		},
+		{
+			name:   "tier without 1h price uses the tier cache write price",
+			row:    withTiers(`[{"threshold_tokens": 200, "cache_write_price": 4000}]`),
+			prompt: 201,
+			want: priceSet{
+				input: nullInt64(1_000), output: nullInt64(2_000), cacheRead: nullInt64(100),
+				cacheWrite: nullInt64(4_000), cacheWrite1h: nullInt64(4_000), tierThreshold: nullInt64(200),
 			},
 		},
 		{

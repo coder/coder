@@ -1745,7 +1745,9 @@ CREATE TABLE ai_model_prices (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     source ai_model_price_source NOT NULL,
     tiers jsonb DEFAULT '[]'::jsonb NOT NULL,
+    cache_write_1h_price bigint,
     CONSTRAINT ai_model_prices_cache_read_price_check CHECK ((cache_read_price >= 0)),
+    CONSTRAINT ai_model_prices_cache_write_1h_price_check CHECK ((cache_write_1h_price >= 0)),
     CONSTRAINT ai_model_prices_cache_write_price_check CHECK ((cache_write_price >= 0)),
     CONSTRAINT ai_model_prices_input_price_check CHECK ((input_price >= 0)),
     CONSTRAINT ai_model_prices_output_price_check CHECK ((output_price >= 0)),
@@ -1756,7 +1758,9 @@ COMMENT ON TABLE ai_model_prices IS 'Per-model token prices used by AI Bridge to
 
 COMMENT ON COLUMN ai_model_prices.source IS 'Where the price came from: default for the embedded price book, custom for a price set through the API. Both can exist for the same model.';
 
-COMMENT ON COLUMN ai_model_prices.tiers IS 'Long-context prices as a JSON array sorted by threshold_tokens. A tier applies when the prompt of a request is over its threshold_tokens; a missing tier price uses the base price.';
+COMMENT ON COLUMN ai_model_prices.tiers IS 'Long-context prices as a JSON array sorted by threshold_tokens. A tier applies when the prompt of a request is over its threshold_tokens; a missing tier price uses the base price, except a missing cache_write_1h_price, which uses the cache write price that applies to the tier.';
+
+COMMENT ON COLUMN ai_model_prices.cache_write_1h_price IS 'Price per million tokens of a cache write with a 1-hour TTL. NULL when a 1-hour write costs the cache write price.';
 
 CREATE TABLE ai_provider_keys (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -1907,7 +1911,11 @@ CREATE TABLE aibridge_token_usages (
     priced_model text,
     prompt_tokens bigint,
     price_tier_threshold_tokens bigint,
+    cache_write_1h_input_tokens bigint DEFAULT 0 NOT NULL,
+    cache_write_1h_price_micros bigint,
     CONSTRAINT aibridge_token_usages_cache_read_price_micros_check CHECK ((cache_read_price_micros >= 0)),
+    CONSTRAINT aibridge_token_usages_cache_write_1h_input_tokens_check CHECK (((cache_write_1h_input_tokens >= 0) AND (cache_write_1h_input_tokens <= cache_write_input_tokens))),
+    CONSTRAINT aibridge_token_usages_cache_write_1h_price_micros_check CHECK ((cache_write_1h_price_micros >= 0)),
     CONSTRAINT aibridge_token_usages_cache_write_price_micros_check CHECK ((cache_write_price_micros >= 0)),
     CONSTRAINT aibridge_token_usages_cost_micros_check CHECK ((cost_micros >= 0)),
     CONSTRAINT aibridge_token_usages_input_price_micros_check CHECK ((input_price_micros >= 0)),
@@ -1925,6 +1933,10 @@ COMMENT ON COLUMN aibridge_token_usages.priced_model IS 'The model whose price w
 COMMENT ON COLUMN aibridge_token_usages.prompt_tokens IS 'The prompt size of the upstream request, which selects the long-context price tier. NULL on rows recorded before it was tracked.';
 
 COMMENT ON COLUMN aibridge_token_usages.price_tier_threshold_tokens IS 'The threshold_tokens of the long-context price tier that applied. NULL when the base prices applied.';
+
+COMMENT ON COLUMN aibridge_token_usages.cache_write_1h_input_tokens IS 'The part of cache_write_input_tokens written with a 1-hour TTL.';
+
+COMMENT ON COLUMN aibridge_token_usages.cache_write_1h_price_micros IS 'The price per million tokens applied to 1-hour cache writes.';
 
 CREATE TABLE aibridge_tool_usages (
     id uuid NOT NULL,

@@ -19844,6 +19844,9 @@ const docTemplate = `{
                 "cache_read_price": {
                     "type": "integer"
                 },
+                "cache_write_1h_price": {
+                    "type": "integer"
+                },
                 "cache_write_price": {
                     "type": "integer"
                 },
@@ -19896,6 +19899,10 @@ const docTemplate = `{
                 "cache_read_price": {
                     "type": "integer"
                 },
+                "cache_write_1h_price": {
+                    "description": "CacheWrite1hPrice falls back to the cache write price that applies to\nthe tier when nil, not to the base CacheWrite1hPrice.",
+                    "type": "integer"
+                },
                 "cache_write_price": {
                     "type": "integer"
                 },
@@ -19914,6 +19921,9 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "cache_read_price": {
+                    "type": "integer"
+                },
+                "cache_write_1h_price": {
                     "type": "integer"
                 },
                 "cache_write_price": {

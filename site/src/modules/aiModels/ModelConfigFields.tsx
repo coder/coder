@@ -674,6 +674,7 @@ type ModelCosts = {
 	outputCost?: number;
 	cacheReadCost?: number;
 	cacheWriteCost?: number;
+	cacheWrite1hCost?: number;
 };
 
 const priceEstimateFields: ReadonlyArray<[string, keyof ModelCosts]> = [
@@ -719,17 +720,25 @@ export const PricingEstimateFields: React.FC<{
 		findKnownModelByExactAlias(normalizedProvider, trimmedModel);
 
 	// A price book row is the deployment's own pricing for the model, so it
-	// wins outright. A null field on that row means the category is unpriced
-	// (the cost engine bills it as zero), not that the catalog should fill it
-	// in. The catalog is only the fallback when the model has no row at all.
+	// wins outright. A null input, output, cache read, or cache write price on
+	// that row bills as zero, so the catalog does not fill it in. The catalog
+	// is only the fallback when the model has no row at all.
 	const costs: ModelCosts | undefined = livePrice
 		? {
 				inputCost: priceOrUndefined(livePrice.input_price),
 				outputCost: priceOrUndefined(livePrice.output_price),
 				cacheReadCost: priceOrUndefined(livePrice.cache_read_price),
 				cacheWriteCost: priceOrUndefined(livePrice.cache_write_price),
+				cacheWrite1hCost: priceOrUndefined(livePrice.cache_write_1h_price),
 			}
 		: knownModel;
+	// A null 1h price bills at the cache write price, which the cache write
+	// field already shows. The catalog has no 1h price, so catalog estimates
+	// hide the field too.
+	const visibleFields: ReadonlyArray<[string, keyof ModelCosts]> =
+		costs?.cacheWrite1hCost === undefined
+			? priceEstimateFields
+			: [...priceEstimateFields, ["Cache write (1h)", "cacheWrite1hCost"]];
 
 	if (!debouncePending && livePricesQuery.isError) {
 		return (
@@ -754,7 +763,7 @@ export const PricingEstimateFields: React.FC<{
 
 	return (
 		<>
-			{priceEstimateFields.map(([label, key]) => {
+			{visibleFields.map(([label, key]) => {
 				const cost = costs?.[key];
 				const fieldId = `${fieldIdPrefix}-${label.toLowerCase().replace(/\s+/g, "-")}`;
 				const price =

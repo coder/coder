@@ -156,6 +156,7 @@ export const MockGPT5ModelPrice: AIModelPrice = {
 	output_price: 10000000,
 	cache_read_price: 125000,
 	cache_write_price: null,
+	cache_write_1h_price: null,
 	tiers: [],
 	source: "default",
 	created_at: MOCK_TIMESTAMP,
@@ -169,6 +170,7 @@ export const MockClaudeSonnetModelPrice: AIModelPrice = {
 	output_price: 15000000,
 	cache_read_price: 300000,
 	cache_write_price: 3750000,
+	cache_write_1h_price: 6000000,
 	tiers: [
 		{
 			threshold_tokens: 200000,
@@ -176,6 +178,7 @@ export const MockClaudeSonnetModelPrice: AIModelPrice = {
 			output_price: 22500000,
 			cache_read_price: 600000,
 			cache_write_price: 7500000,
+			cache_write_1h_price: 12000000,
 		},
 		{
 			threshold_tokens: 500000,
@@ -183,6 +186,7 @@ export const MockClaudeSonnetModelPrice: AIModelPrice = {
 			output_price: 30000000,
 			cache_read_price: null,
 			cache_write_price: 10000000,
+			cache_write_1h_price: null,
 		},
 	],
 	source: "custom",

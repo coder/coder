@@ -32,11 +32,15 @@ func TestDRPCRecorderRecordTokenUsage(t *testing.T) {
 		return client, nil
 	})
 	require.NoError(t, rec.RecordTokenUsage(t.Context(), &recorder.TokenUsageRecord{
-		InterceptionID: uuid.NewString(),
-		Output:         10,
-		PromptTokens:   1001,
-		CreatedAt:      time.Now(),
+		InterceptionID:          uuid.NewString(),
+		Output:                  10,
+		CacheWriteInputTokens:   40,
+		CacheWrite1hInputTokens: 6,
+		PromptTokens:            1001,
+		CreatedAt:               time.Now(),
 	}))
 	require.EqualValues(t, 10, client.got.GetOutputTokens())
+	require.EqualValues(t, 40, client.got.GetCacheWriteInputTokens())
+	require.EqualValues(t, 6, client.got.GetCacheWriteOneHourInputTokens())
 	require.EqualValues(t, 1001, client.got.GetPromptTokens())
 }

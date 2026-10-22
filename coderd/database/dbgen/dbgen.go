@@ -2180,7 +2180,9 @@ func AIBridgeTokenUsage(t testing.TB, db database.Store, seed database.InsertAIB
 		ProviderModel:         seed.ProviderModel,
 		PricedModel:           seed.PricedModel,
 
+		CacheWrite1hInputTokens:  seed.CacheWrite1hInputTokens,
 		PromptTokens:             seed.PromptTokens,
+		CacheWrite1hPriceMicros:  seed.CacheWrite1hPriceMicros,
 		PriceTierThresholdTokens: seed.PriceTierThresholdTokens,
 	})
 	require.NoError(t, err, "insert aibridge token usage")

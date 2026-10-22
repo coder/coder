@@ -15,6 +15,7 @@ const (
 	CheckAIModelConfigsModelCheck                            CheckConstraint = "ai_model_configs_model_check"                              // ai_model_configs
 	CheckAIModelConfigsOutputPriceCheck                      CheckConstraint = "ai_model_configs_output_price_check"                       // ai_model_configs
 	CheckAIModelPricesCacheReadPriceCheck                    CheckConstraint = "ai_model_prices_cache_read_price_check"                    // ai_model_prices
+	CheckAIModelPricesCacheWrite1hPriceCheck                 CheckConstraint = "ai_model_prices_cache_write_1h_price_check"                // ai_model_prices
 	CheckAIModelPricesCacheWritePriceCheck                   CheckConstraint = "ai_model_prices_cache_write_price_check"                   // ai_model_prices
 	CheckAIModelPricesInputPriceCheck                        CheckConstraint = "ai_model_prices_input_price_check"                         // ai_model_prices
 	CheckAIModelPricesOutputPriceCheck                       CheckConstraint = "ai_model_prices_output_price_check"                        // ai_model_prices
@@ -22,6 +23,8 @@ const (
 	CheckAIProvidersNameCheck                                CheckConstraint = "ai_providers_name_check"                                   // ai_providers
 	CheckAIUserDailySpendSpendMicrosCheck                    CheckConstraint = "ai_user_daily_spend_spend_micros_check"                    // ai_user_daily_spend
 	CheckAibridgeTokenUsagesCacheReadPriceMicrosCheck        CheckConstraint = "aibridge_token_usages_cache_read_price_micros_check"       // aibridge_token_usages
+	CheckAibridgeTokenUsagesCacheWrite1hInputTokensCheck     CheckConstraint = "aibridge_token_usages_cache_write_1h_input_tokens_check"   // aibridge_token_usages
+	CheckAibridgeTokenUsagesCacheWrite1hPriceMicrosCheck     CheckConstraint = "aibridge_token_usages_cache_write_1h_price_micros_check"   // aibridge_token_usages
 	CheckAibridgeTokenUsagesCacheWritePriceMicrosCheck       CheckConstraint = "aibridge_token_usages_cache_write_price_micros_check"      // aibridge_token_usages
 	CheckAibridgeTokenUsagesCostMicrosCheck                  CheckConstraint = "aibridge_token_usages_cost_micros_check"                   // aibridge_token_usages
 	CheckAibridgeTokenUsagesInputPriceMicrosCheck            CheckConstraint = "aibridge_token_usages_input_price_micros_check"            // aibridge_token_usages
