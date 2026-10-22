@@ -30,7 +30,7 @@ import {
 	settlePromotedQueueHead,
 	submitEdit,
 } from "./chatQueueReconciliation";
-import type { ChatStore } from "./chatStore";
+import { type ChatStore, isActiveChatStatus } from "./chatStore";
 
 export type SubmitChatTurnParams = {
 	message: string;
@@ -158,7 +158,11 @@ const runBuiltInChatCommand = async ({
 			clearChatErrorReason(agentId);
 			store.clearStreamError();
 			store.clearStreamState();
-			store.markCompactionRequested();
+			// The server rejects compaction during an active turn, so marking
+			// one would flash that turn's attachments until the 409 arrives.
+			if (!isActiveChatStatus(previousSnapshot.chatStatus)) {
+				store.markCompactionRequested();
+			}
 			store.setChatStatus("running");
 			try {
 				await compact();

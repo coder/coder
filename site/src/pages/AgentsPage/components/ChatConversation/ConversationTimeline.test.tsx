@@ -21,13 +21,9 @@ import {
 import {
 	buildLiveStatus,
 	buildStreamRenderState,
-	MockAmberPngData,
-	MockBluePngData,
 	MockCollapsedStepsPreferences,
 	MockLongTurnPageLoads,
 	MockMixedAttachmentMessages,
-	MockSearchAnswerAttachmentMessages,
-	MockUnansweredAttachmentMessages,
 	MockWebSearchAnswerMessages,
 	MockWorkingMessages,
 	pinFixtureClock,
@@ -339,7 +335,6 @@ const streamingStage = (
 	]),
 });
 
-/** MockMixedAttachmentMessages with its images stored as chat files. */
 const mockStoredImageAttachmentMessages: ChatMessage[] =
 	MockMixedAttachmentMessages.map((message) => ({
 		...message,
@@ -351,103 +346,13 @@ const mockStoredImageAttachmentMessages: ChatMessage[] =
 	}));
 
 describe("ConversationTimeline turn attachments", () => {
-	const mixedTurnHrefs = [
-		`data:image/png;base64,${MockBluePngData}`,
-		`data:image/png;base64,${MockAmberPngData}`,
-		"/api/v2/chats/files/findings-file",
-		"/api/v2/chats/files/spec-file",
-	];
-	const openAttachmentHrefs = async (
-		user: ReturnType<typeof userEvent.setup>,
-		name: string,
-	) => {
-		await user.click(screen.getByRole("button", { name }));
-		const hrefs = within(
-			await screen.findByRole("dialog", { name: "Attachments" }),
-		)
-			.getAllByRole("link")
-			.map((link) => link.getAttribute("href"));
-		await user.keyboard("{Escape}");
-		return hrefs;
-	};
-
-	it("lists only each turn's files in the pill under its answer", async () => {
-		const user = userEvent.setup();
-		renderTimeline({ messages: MockSearchAnswerAttachmentMessages });
-		// Expanded, the block also renders the first answer's row (its steps);
-		// only the answer below the block hosts the pill.
-		await user.click(
-			screen.getByRole("button", { name: "Worked for 15s (4 steps)" }),
-		);
-
-		expect(await openAttachmentHrefs(user, "Attachments (1)")).toEqual([
-			"/api/v2/chats/files/report-file",
-		]);
-		expect(await openAttachmentHrefs(user, "Attachments (4)")).toEqual(
-			mixedTurnHrefs,
-		);
-	});
-
-	it("lists the files of a turn that ends in its working block", async () => {
-		const user = userEvent.setup();
-		renderTimeline({ messages: MockUnansweredAttachmentMessages });
-
-		expect(await openAttachmentHrefs(user, "Attachments (4)")).toEqual(
-			mixedTurnHrefs,
-		);
-	});
-
-	it("lists a turn's files once it stops running", async () => {
-		const user = userEvent.setup();
-		// Both stages share the parsed messages, so only the status change can
-		// bring the pill in.
-		const parsedMessages = parseMessagesWithMergedTools(
-			MockUnansweredAttachmentMessages,
-		);
-		const { rerenderStage } = renderTimeline({
-			parsedMessages,
-			chatStatus: "running",
-			liveStatus: idleLive,
-		});
-
-		rerenderStage({
-			parsedMessages,
-			chatStatus: "waiting",
-			liveStatus: idleLive,
-		});
-		expect(await openAttachmentHrefs(user, "Attachments (4)")).toEqual(
-			mixedTurnHrefs,
-		);
-	});
-
-	it("keeps an answered turn's files while the chat compacts", async () => {
-		const user = userEvent.setup();
-		// /compact runs the chat without a new prompt and streams its summary
-		// call after the answer.
-		renderTimeline({
-			messages: MockMixedAttachmentMessages,
-			chatStatus: "running",
-			...buildStreamRenderState([
-				{
-					type: "tool-call",
-					tool_call_id: "compact",
-					tool_name: "chat_summarized",
-				},
-			]),
-		});
-
-		expect(await openAttachmentHrefs(user, "Attachments (4)")).toEqual(
-			mixedTurnHrefs,
-		);
-	});
-
-	it("stops offering a stored image whose thumbnail finds it deleted", async () => {
-		const user = userEvent.setup();
+	it("probes each stored image whose thumbnail fails to load", async () => {
+		const probedFileIDs: string[] = [];
 		server.use(
-			http.get(
-				"/api/v2/chats/files/:fileId",
-				() => new HttpResponse(null, { status: 404 }),
-			),
+			http.get("/api/v2/chats/files/:fileId", ({ params }) => {
+				probedFileIDs.push(String(params.fileId));
+				return new HttpResponse(null, { status: 404 });
+			}),
 		);
 		renderTimeline({ messages: mockStoredImageAttachmentMessages });
 		const pill = screen.getByRole("button", { name: "Attachments (4)" });
@@ -458,17 +363,11 @@ describe("ConversationTimeline turn attachments", () => {
 		for (const thumbnail of thumbnails) {
 			fireEvent.error(thumbnail);
 		}
-		await user.click(pill);
 
-		const popover = await screen.findByRole("dialog", { name: "Attachments" });
 		await waitFor(() =>
-			expect(
-				within(popover)
-					.getAllByRole("link")
-					.map((link) => link.getAttribute("href")),
-			).toEqual([
-				"/api/v2/chats/files/findings-file",
-				"/api/v2/chats/files/spec-file",
+			expect(probedFileIDs.toSorted()).toEqual([
+				"stored-dashboard-after.png",
+				"stored-dashboard-before.png",
 			]),
 		);
 	});

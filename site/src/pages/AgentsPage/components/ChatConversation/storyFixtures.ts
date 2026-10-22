@@ -391,10 +391,10 @@ export const MockAttachmentWorkingMessages: TypesGen.ChatMessage[] = [
 ];
 
 /** Base64 1x1 blue PNG, so thumbnails render without a file server. */
-export const MockBluePngData =
+const MockBluePngData =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGOw6P4LAAK/AcFWgzAqAAAAAElFTkSuQmCC";
 /** Base64 1x1 amber PNG, so stacked thumbnails differ from MockBluePngData. */
-export const MockAmberPngData =
+const MockAmberPngData =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4Oo8bAAQqAZ9sWGBkAAAAAElFTkSuQmCC";
 
 /** MockAttachmentWorkingMessages and a turn that attaches four mixed files. */

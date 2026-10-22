@@ -30,7 +30,10 @@ import {
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
-import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
+import {
+	FIXTURE_NOW,
+	MockMixedAttachmentMessages,
+} from "./ChatConversation/storyFixtures";
 import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
 
 // These stories cover transcript rendering, so history paging stays idle.
@@ -382,6 +385,20 @@ export const MergedMessagesRenderInIDOrder: Story = {
 			batched(1, "user", "alpha"),
 			batched(2, "assistant", "bravo"),
 		]);
+
+		return <StoryChatPageTimeline store={store} />;
+	},
+};
+
+// A requested /compact runs the chat without a new prompt, so the answered
+// turn keeps its pill before the summary starts streaming.
+export const TurnAttachmentsPillCompactionStarting: Story = {
+	render: () => {
+		const store = createChatStore();
+		store.replaceMessages(MockMixedAttachmentMessages);
+		store.setChatStatus("waiting");
+		store.markCompactionRequested();
+		store.setChatStatus("running");
 
 		return <StoryChatPageTimeline store={store} />;
 	},

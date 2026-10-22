@@ -330,15 +330,6 @@ export const TurnAttachmentsPillCompacting: Story = {
 	},
 };
 
-// A requested compaction keeps the pill before its summary starts streaming.
-export const TurnAttachmentsPillCompactionStarting: Story = {
-	args: {
-		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
-		chatStatus: "running",
-		isCompactionStarting: true,
-	},
-};
-
 // A stop hook can nudge the agent past its answer, so the turn shows no pill
 // until the chat stops.
 export const TurnAttachmentsPillContinuedTurn: Story = {

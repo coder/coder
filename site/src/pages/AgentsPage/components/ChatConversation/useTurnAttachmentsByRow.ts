@@ -8,8 +8,9 @@ import {
 
 /**
  * "use memo" keys this cache on the messages and the destructured flags, not
- * the options object. Inlined in the timeline body, the call gets no cache,
- * so every stream chunk would re-render each row with a pill.
+ * the options object. Inlined, the call would share the timeline body's
+ * cache scope, which every stream chunk invalidates, so each row with a pill
+ * would re-render.
  */
 export const useTurnAttachmentsByRow = (
 	parsedMessages: readonly ParsedMessageEntry[],
@@ -21,9 +22,8 @@ export const useTurnAttachmentsByRow = (
 	}: TurnAttachmentsOptions,
 ) => {
 	"use memo";
-	const withLiveRow = false;
 	return getTurnAttachmentsByRow(
-		assignTimelineRows(buildDisplayMessages(parsedMessages), withLiveRow),
+		assignTimelineRows(buildDisplayMessages(parsedMessages), false),
 		{ hidesAttachmentRows, isChatActive, isCompacting, hasMoreMessages },
 	);
 };

@@ -179,7 +179,10 @@ export type TurnAttachmentsOptions = {
 	isChatActive: boolean;
 	/** A starting or streaming compaction adds no answer or file to a turn. */
 	isCompacting: boolean;
-	/** More history exists, so a first turn without its prompt gets no entry. */
+	/**
+	 * Older messages exist that the rows do not include, so a first turn
+	 * without its prompt gets no entry.
+	 */
 	hasMoreMessages: boolean;
 };
 

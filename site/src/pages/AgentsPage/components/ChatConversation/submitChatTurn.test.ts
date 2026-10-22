@@ -220,16 +220,34 @@ describe("submitChatTurn", () => {
 		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(true);
 	});
 
-	it("reports no starting compaction after a rejected /compact", async () => {
+	it("reports no starting compaction while a running chat's /compact is pending", async () => {
 		const store = createChatStore();
 		store.setActiveChatID("chat-1");
 		store.upsertDurableMessage({ ...MockChatMessage, role: "assistant" });
 		store.setChatStatus("running");
-		const compact = vi.fn().mockRejectedValue(new Error("chat is busy"));
+		const request = Promise.withResolvers<never>();
+		const compact = vi.fn(() => request.promise);
+
+		const submission = submitChatTurn(
+			buildParams({ message: "/compact", store, compact }),
+		);
+
+		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
+		request.reject(new Error("chat is busy"));
+		await expect(submission).rejects.toThrow("chat is busy");
+	});
+
+	it("reports no starting compaction after a rejected /compact", async () => {
+		const store = createChatStore();
+		store.setActiveChatID("chat-1");
+		store.upsertDurableMessage({ ...MockChatMessage, role: "assistant" });
+		store.setChatStatus("waiting");
+		const compact = vi.fn().mockRejectedValue(new Error("Nothing to compact."));
 
 		await expect(
 			submitChatTurn(buildParams({ message: "/compact", store, compact })),
-		).rejects.toThrow("chat is busy");
+		).rejects.toThrow("Nothing to compact.");
+		store.setChatStatus("running");
 
 		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
 	});

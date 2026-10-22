@@ -8,12 +8,10 @@ import {
 import { isRasterImageMediaType } from "../../utils/chatAttachments";
 import { ImageThumbnail } from "../AttachmentPreview";
 import { AgentAttachmentList } from "./AgentAttachmentList";
-import {
-	isTextPreviewAttachmentMediaType,
-	useRemoteImageFailure,
-} from "./AttachmentBlocks";
+import { isTextPreviewAttachmentMediaType } from "./AttachmentBlocks";
 import { useFileProbes } from "./FileProbeContext";
 import type { AgentAttachment, TurnAttachmentList } from "./messageHelpers";
+import { useAttachmentFailure } from "./useAttachmentFailure";
 
 const THUMBNAIL_STACK_MAX = 3;
 
@@ -37,7 +35,7 @@ type AttachmentThumbnailProps = {
 const AttachmentThumbnail: React.FC<AttachmentThumbnailProps> = ({
 	attachment: { file, href },
 }) => {
-	const [failure, onError] = useRemoteImageFailure(file.file_id, href);
+	const [failure, onError] = useAttachmentFailure(file.file_id, href);
 
 	if (isRasterImageMediaType(file.media_type) && failure.kind === "idle") {
 		return (
