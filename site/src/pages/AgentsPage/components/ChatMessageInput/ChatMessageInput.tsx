@@ -34,7 +34,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { type UseQueryResult, useQuery } from "react-query";
+import { useQuery } from "react-query";
 import {
 	chatProjectSkills,
 	chatProjectUsability,
@@ -707,30 +707,6 @@ const isSameSkillsTrigger = (
 	);
 };
 
-type StoredSkillRequest = Pick<
-	UseQueryResult<unknown>,
-	"data" | "isFetching" | "isError"
->;
-
-// Only requests without data report loading or failure, so a background
-// refetch never blanks a loaded source.
-const storedSkillSourceState = (
-	skills: SkillMetadata[] | undefined,
-	requests: readonly StoredSkillRequest[],
-	queryEnabled: boolean,
-) => {
-	const unresolved = queryEnabled
-		? requests.filter((request) => request.data === undefined)
-		: [];
-	return {
-		skills,
-		isResolvedEmpty:
-			skills?.length === 0 && !requests.some((request) => request.isFetching),
-		isLoading: unresolved.some((request) => request.isFetching),
-		isError: unresolved.some((request) => request.isError),
-	};
-};
-
 /**
  * Loads a Coder-stored skill source for the "/" menu while a trigger is
  * active, without the disabled skills chatd skips.
@@ -749,42 +725,14 @@ const useStoredSkillSource = (
 		staleTime: 60_000,
 	});
 	const skills = hasSource ? query.data?.filter((skill) => skill.enabled) : [];
+	const isUnresolved = queryEnabled && query.data === undefined;
 	return {
-		...storedSkillSourceState(skills, [query], queryEnabled),
+		skills,
+		isResolvedEmpty: skills?.length === 0 && !query.isFetching,
+		isLoading: isUnresolved && query.isFetching,
+		isError: isUnresolved && query.isError,
 		error: query.error,
 	};
-};
-
-/**
- * Loads the organization skills chatd uses for the member: the admin-enabled
- * skills minus the member's opt-outs while the organization allows them.
- */
-const useOrganizationSkillSource = (
-	organizationId: string | undefined,
-	isTriggerActive: boolean,
-) => {
-	const hasOrganization = Boolean(organizationId);
-	const queryEnabled = isTriggerActive && hasOrganization;
-	const skillsQuery = useQuery({
-		...organizationSkills(organizationId ?? ""),
-		enabled: queryEnabled,
-		staleTime: 60_000,
-	});
-	const preferencesQuery = useQuery({
-		...organizationSkillPreferences(organizationId ?? ""),
-		enabled: queryEnabled,
-		staleTime: 60_000,
-	});
-	const skills = hasOrganization
-		? activeOrganizationSkills(skillsQuery.data, preferencesQuery.data)
-		: [];
-	// The preferences decide whether opt-outs apply, so a source with skills
-	// resolves only after both requests do.
-	return storedSkillSourceState(
-		skills,
-		skills?.length === 0 ? [skillsQuery] : [skillsQuery, preferencesQuery],
-		queryEnabled,
-	);
 };
 
 const ChatMessageInput = ({
@@ -848,10 +796,18 @@ const ChatMessageInput = ({
 		// Avoid refetching on each trigger toggle from caret movement.
 		staleTime: 60_000,
 	});
-	const organizationSource = useOrganizationSkillSource(
-		organizationId,
-		hasSkillsTrigger,
-	);
+	const organizationQueriesEnabled =
+		hasSkillsTrigger && Boolean(organizationId);
+	const organizationSkillsQuery = useQuery({
+		...organizationSkills(organizationId ?? ""),
+		enabled: organizationQueriesEnabled,
+		staleTime: 60_000,
+	});
+	const organizationPreferencesQuery = useQuery({
+		...organizationSkillPreferences(organizationId ?? ""),
+		enabled: organizationQueriesEnabled,
+		staleTime: 60_000,
+	});
 	const hasProject = Boolean(organizationId && projectId);
 	const projectSource = useStoredSkillSource(
 		chatProjectSkills(organizationId ?? "", projectId ?? ""),
@@ -884,6 +840,24 @@ const ChatMessageInput = ({
 	const personalSkills = (personalSkillsOverride ?? skillsQuery.data)?.filter(
 		(skill) => skill.enabled,
 	);
+	const organizationSkillList = organizationId
+		? activeOrganizationSkills(
+				organizationSkillsQuery.data,
+				organizationPreferencesQuery.data,
+			)
+		: [];
+	// The list waits for the skills request and then, when it returns enabled
+	// skills, for the preferences that decide the member's opt-outs.
+	const pendingOrganizationQuery =
+		organizationSkillsQuery.data === undefined
+			? organizationSkillsQuery
+			: organizationPreferencesQuery;
+	const isOrganizationUnresolved =
+		organizationQueriesEnabled && organizationSkillList === undefined;
+	const isOrganizationLoading =
+		isOrganizationUnresolved && pendingOrganizationQuery.isFetching;
+	const isOrganizationError =
+		isOrganizationUnresolved && pendingOrganizationQuery.isError;
 	const loadedWorkspaceSkills =
 		workspaceSkills ?? (hasWorkspace ? undefined : []);
 	// A list stays undefined until its source loads, even after an error,
@@ -894,7 +868,7 @@ const ChatMessageInput = ({
 	// turns without project skills.
 	const skillLists: SkillSourceList<SkillMetadata>[] = [
 		{ source: "personal", skills: personalSkills },
-		{ source: "org", skills: organizationSource.skills },
+		{ source: "org", skills: organizationSkillList },
 		{
 			source: "project",
 			skills: hasProject
@@ -919,7 +893,8 @@ const ChatMessageInput = ({
 	const isResolvedEmptySkills =
 		personalSkills?.length === 0 &&
 		(hasPersonalSkillsOverride || !skillsQuery.isFetching) &&
-		organizationSource.isResolvedEmpty &&
+		organizationSkillList?.length === 0 &&
+		!organizationSkillsQuery.isFetching &&
 		(!hasProject ||
 			isProjectUnusable ||
 			(projectUsability === "usable" && projectSource.isResolvedEmpty)) &&
@@ -1299,7 +1274,7 @@ const ChatMessageInput = ({
 					skills={allFilteredSkills}
 					skillsLoading={
 						isPersonalSkillsLoading ||
-						organizationSource.isLoading ||
+						isOrganizationLoading ||
 						isProjectLoading ||
 						isWorkspaceSkillsLoading
 					}
@@ -1331,8 +1306,8 @@ const ChatMessageInput = ({
 						skillsQuery.isError &&
 						skillsQuery.data === undefined
 					}
-					isOrganizationLoading={organizationSource.isLoading}
-					isOrganizationError={organizationSource.isError}
+					isOrganizationLoading={isOrganizationLoading}
+					isOrganizationError={isOrganizationError}
 					isProjectLoading={isProjectLoading}
 					isProjectError={isProjectError}
 					isWorkspaceLoading={isWorkspaceSkillsLoading}
