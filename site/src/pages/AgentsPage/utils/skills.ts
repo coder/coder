@@ -42,22 +42,22 @@ export type SkillFormValues = {
 	body: string;
 	/** Project skills only: offers the skill above project composers. */
 	action?: boolean;
-	/** Project skills only: lets agents find and load the skill. */
+	/** Lets agents find and load the skill on their own. */
 	modelInvocable?: boolean;
 };
 
-/** The fields of a skill that has not been written yet. */
+/** The fields and API defaults of a skill that has not been written yet. */
 export const emptySkillFormValues: SkillFormValues = {
 	name: "",
 	description: "",
 	body: "",
+	modelInvocable: true,
 };
 
 /** The fields and API defaults of a project skill not written yet. */
 export const emptyProjectSkillFormValues: SkillFormValues = {
 	...emptySkillFormValues,
 	action: false,
-	modelInvocable: true,
 };
 
 type SkillSearchMetadata = {

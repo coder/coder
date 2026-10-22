@@ -2,6 +2,7 @@ import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
 import type { SkillMetadata } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
@@ -382,8 +383,15 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 					) : (
 						skills.map((skill) => (
 							<TableRow key={skill.id}>
-								<TableCell className="max-w-48 truncate" title={skill.name}>
-									{skill.name}
+								<TableCell className="max-w-48" title={skill.name}>
+									<div className="flex items-center gap-1.5">
+										<span className="truncate">{skill.name}</span>
+										{!skill.model_invocable && (
+											<Badge size="xs" className="shrink-0">
+												Manual only
+											</Badge>
+										)}
+									</div>
 								</TableCell>
 								<TableCell
 									className="w-full max-w-0 truncate"

@@ -254,7 +254,6 @@ An administrator role that can view every project does not count.
 A sub-agent chat uses the skills of the project its top-level chat belongs to.
 
 **Show as action** adds a button that inserts the skill into your message, above the composer on the project page and in the project's chats.
-Turn off **Agents can use it automatically** to keep agents from loading the skill on their own, so it runs only when someone invokes it from the `/` menu or an action button.
 
 The project skill API lives under `/api/experimental/organizations/{organization}/chats/projects/{project}/skills`.
 It is experimental and might change.
@@ -294,12 +293,16 @@ When a chat has no skills left to load, the agent doesn't get the `read_skill` t
 
 ### Keep agents from using a skill on their own
 
-Personal, organization, and project skills have a `model_invocable` setting that is on by default.
-When it is off, the skill is left out of the list of skills the agent can choose from, and `read_skill` reports that the skill was not found.
-You can still invoke the skill from the `/` menu.
+Personal, organization, and project skills have an **Agents can use it automatically** switch in their skill editor, which is on by default.
+Turn it off to keep agents from loading the skill on their own, so it runs only when someone invokes it from the `/` menu or, for a project skill, an action button.
+Skill lists mark these skills **Manual only**.
+The agent's list of skills leaves them out, and `read_skill` reports that the skill was not found.
 
+When you create a skill by importing a `SKILL.md` file with `disable-model-invocation: true` in its frontmatter, the switch starts off.
+Downloading or exporting a manual-only skill adds that line back, so Claude Code, Cursor, and VS Code also treat the file as manual-only.
+
+In the API, the switch is the `model_invocable` field.
 When you create or update a stored skill through the API without setting `model_invocable`, a `disable-model-invocation: true` line in the `SKILL.md` frontmatter turns the setting off.
-Claude Code, Cursor, and VS Code read the same line.
 A `model_invocable` value in the request always wins, and new content without the line leaves the setting unchanged.
 Coder removes the `disable-model-invocation` line before it stores the file, so the stored file never disagrees with the setting.
 Workspace skills ignore the line, so the agent can always choose them.

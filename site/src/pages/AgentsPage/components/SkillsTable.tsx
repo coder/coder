@@ -13,6 +13,7 @@ import {
 	type SkillsCopy,
 	type SkillsScope,
 	skillFormValuesFromSkill,
+	withDisabledModelInvocation,
 } from "../utils/skills";
 import type { SectionHeaderLevel } from "./SectionHeader";
 import type { SkillErrorDisplay } from "./SkillEditor";
@@ -199,8 +200,16 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 		},
 	});
 
+	// Downloads mark manual-only skills in the frontmatter, so the file keeps
+	// the setting in other agents and when it is uploaded again.
 	const fetchSkillContent = (name: string): Promise<string> =>
-		queryClient.fetchQuery(scope.detail(name)).then((detail) => detail.content);
+		queryClient
+			.fetchQuery(scope.detail(name))
+			.then((detail) =>
+				detail.model_invocable
+					? detail.content
+					: withDisabledModelInvocation(detail.content),
+			);
 
 	const downloadMutation = useMutation({
 		mutationFn: (name: string) => downloadSkillFile(name, fetchSkillContent),
@@ -249,13 +258,16 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 						)
 					: undefined,
 			isSubmitting: createMutation.isPending,
-			onSubmit: (_values, content, onSettled) => {
+			onSubmit: (values, content, onSettled) => {
 				setDialogState((current) =>
 					current?.type === "create"
 						? { ...current, submittedContent: content }
 						: current,
 				);
-				createMutation.mutate({ content }, { onSettled });
+				createMutation.mutate(
+					{ content, model_invocable: values.modelInvocable },
+					{ onSettled },
+				);
 			},
 			onClose: () => setDialogState(null),
 		};
@@ -283,14 +295,17 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 			onRetry: () => {
 				void editSkillQuery.refetch();
 			},
-			onSubmit: (_values, content, onSettled) => {
+			onSubmit: (values, content, onSettled) => {
 				setDialogState((current) =>
 					current?.type === "edit" && current.name === dialogState.name
 						? { ...current, submittedContent: content }
 						: current,
 				);
 				updateMutation.mutate(
-					{ name: dialogState.name, req: { content } },
+					{
+						name: dialogState.name,
+						req: { content, model_invocable: values.modelInvocable },
+					},
 					{ onSettled },
 				);
 			},

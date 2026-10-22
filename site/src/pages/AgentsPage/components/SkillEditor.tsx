@@ -591,16 +591,24 @@ export const SkillEditorProjectSettings: React.FC = () => {
 					void form.setFieldValue("action", checked)
 				}
 			/>
-			<SkillSettingSwitch
-				label="Agents can use it automatically"
-				description="When off, agents use the skill only when someone invokes it."
-				checked={form.values.modelInvocable ?? true}
-				disabled={readOnly || isBusy}
-				onCheckedChange={(checked) =>
-					void form.setFieldValue("modelInvocable", checked)
-				}
-			/>
+			<SkillEditorAutomaticUseSetting />
 		</>
+	);
+};
+
+/** The switch that lets agents load the skill without being asked. */
+const SkillEditorAutomaticUseSetting: React.FC = () => {
+	const { form, readOnly, isBusy } = useSkillEditorContext();
+	return (
+		<SkillSettingSwitch
+			label="Agents can use it automatically"
+			description="When off, agents use the skill only when someone invokes it."
+			checked={form.values.modelInvocable ?? true}
+			disabled={readOnly || isBusy}
+			onCheckedChange={(checked) =>
+				void form.setFieldValue("modelInvocable", checked)
+			}
+		/>
 	);
 };
 
@@ -720,9 +728,10 @@ export const SkillEditorDialog: React.FC<SkillEditorDialogProps> = ({
 					</DialogHeader>
 					<SkillEditorFields>
 						<SkillEditorSubmitError error={submitError} />
-						{!readOnly && <SkillEditorImport />}
+						{!readOnly && <SkillEditorImport resetsModelInvocable />}
 						<SkillEditorNameField />
 						<SkillEditorDescriptionField />
+						<SkillEditorAutomaticUseSetting />
 						<SkillEditorBodyField />
 					</SkillEditorFields>
 					<SkillEditorDialogFooter

@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { SKILL_MAX_SIZE_BYTES } from "../utils/skills";
+import { emptySkillFormValues, SKILL_MAX_SIZE_BYTES } from "../utils/skills";
 import { SkillEditorDialog } from "./SkillEditor";
 
 const markdown =
@@ -18,11 +18,12 @@ const renderEditor = (mode: "create" | "edit" = "create", readOnly = false) => {
 			editorDescription="Personal skill guidance."
 			initialValues={
 				mode === "create"
-					? { name: "", description: "", body: "" }
+					? emptySkillFormValues
 					: {
 							name: "existing-skill",
 							description: "Existing guidance.",
 							body: "Existing instructions.",
+							modelInvocable: true,
 						}
 			}
 			existingNames={[]}
@@ -100,6 +101,7 @@ describe("SkillEditorDialog file import", () => {
 						name,
 						description: "Imported guidance.",
 						body: "Use imported instructions.",
+						modelInvocable: true,
 					},
 					`---\nname: ${name}\ndescription: "Imported guidance."\n---\nUse imported instructions.\n`,
 					expect.any(Function),
@@ -137,6 +139,7 @@ describe("SkillEditorDialog file import", () => {
 					name: "existing-skill",
 					description: "Existing guidance.",
 					body: "Unsaved instructions.",
+					modelInvocable: true,
 				},
 				'---\nname: existing-skill\ndescription: "Existing guidance."\n---\nUnsaved instructions.\n',
 				expect.any(Function),
@@ -163,6 +166,7 @@ describe("SkillEditorDialog file import", () => {
 					name: "imported-skill",
 					description: "Imported guidance.",
 					body: "Use imported instructions.",
+					modelInvocable: true,
 				},
 				'---\nname: imported-skill\ndescription: "Imported guidance."\n---\nUse imported instructions.\n',
 				expect.any(Function),
