@@ -261,7 +261,7 @@ describe("MainTabs", () => {
 		});
 		expect(getPersistedMainTabs(chatId).paths).toEqual(["/repo/main.go"]);
 
-		await user.click(screen.getByRole("button", { name: "Close main.go" }));
+		await user.keyboard("{Enter}");
 		await user.click(
 			within(await screen.findByRole("dialog")).getByRole("button", {
 				name: "Discard",
