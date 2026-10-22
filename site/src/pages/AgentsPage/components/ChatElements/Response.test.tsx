@@ -629,6 +629,46 @@ describe("Response", () => {
 				);
 			});
 
+			it("waits for every repository before linking a spaced path", async () => {
+				const user = userEvent.setup();
+				const slowRoot = createDeferred<ReturnType<typeof listing>>();
+				const tree: Record<string, string[]> = {
+					"/home/coder/coder": ["my dir/"],
+					"/home/coder/coder/my dir": ["a.ts"],
+					"/home/coder/other/my dir": ["a.ts"],
+				};
+				vi.spyOn(API, "listWorkspaceAgentDirectory").mockImplementation(
+					async (_agentId, path) =>
+						path === "/home/coder/other"
+							? slowRoot.promise
+							: listing(path, tree[path] ?? []),
+				);
+				const { files } = renderWithFiles("Open `my dir/a.ts` next");
+				await waitFor(() =>
+					expect(API.listWorkspaceAgentDirectory).toHaveBeenCalledWith(
+						"agent-1",
+						"/home/coder/coder/my dir",
+					),
+				);
+				await flush();
+				expect(buttonTexts()).toEqual([]);
+
+				await act(async () => {
+					slowRoot.resolve(listing("/home/coder/other", ["my dir/"]));
+					await flush();
+				});
+				await user.click(
+					await screen.findByRole("button", { name: "my dir/a.ts" }),
+				);
+
+				expect(
+					await screen.findByRole("dialog", {
+						name: "Files matching my dir/a.ts",
+					}),
+				).toBeDefined();
+				expect(files.openFile).not.toHaveBeenCalled();
+			});
+
 			it("does not verify again for a new agent while off screen", async () => {
 				const user = userEvent.setup();
 				const list = mockTree({ "/path/to": ["file (2).txt"] });
