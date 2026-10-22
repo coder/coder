@@ -2180,8 +2180,26 @@ export interface ChatAttachment {
 	 */
 	readonly part_index: number;
 	readonly role: ChatMessageRole;
-	readonly file: ChatFilePart;
+	readonly file: ChatAttachmentFile;
 }
+
+// From codersdk/chats.go
+/**
+ * ChatAttachmentFile holds the fields of a file part, the only part type
+ * the attachments endpoint returns.
+ */
+export interface ChatAttachmentFile {
+	readonly type: ChatAttachmentFileType;
+	readonly media_type: string;
+	readonly name?: string;
+	readonly data?: string;
+	readonly file_id?: string;
+}
+
+// From codersdk/chats.go
+export type ChatAttachmentFileType = "file";
+
+export const ChatAttachmentFileTypes: ChatAttachmentFileType[] = ["file"];
 
 // From codersdk/chats.go
 export type ChatAttachmentMediaType =

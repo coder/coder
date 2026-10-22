@@ -2124,11 +2124,7 @@ func (api *API) getChatUserPrompts(rw http.ResponseWriter, r *http.Request) {
 // @Param before_id query int false "Return attachments from messages with id < before_id"
 // @Success 200 {object} codersdk.ChatAttachmentsResponse
 // @Router /api/v2/chats/{chat}/attachments [get]
-// @Description
-// @Description Returns every file part in the user-visible user and
-// @Description assistant messages of a chat, newest first, so a client can
-// @Description list a chat's attachments without paging through every
-// @Description message in the chat.
+// @Description Returns every file part in the user-visible user and assistant messages of a chat, newest first, so a client can list a chat's attachments without paging through every message in the chat.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatAttachments(rw http.ResponseWriter, r *http.Request) {
@@ -2163,14 +2159,21 @@ func (api *API) getChatAttachments(rw http.ResponseWriter, r *http.Request) {
 		// part match what GET /messages returns for the same message.
 		msg := convertChatMessage(m)
 		for i := len(msg.Content) - 1; i >= 0; i-- {
-			if msg.Content[i].Type != codersdk.ChatMessagePartTypeFile {
+			part := msg.Content[i]
+			if part.Type != codersdk.ChatMessagePartTypeFile {
 				continue
 			}
 			attachments = append(attachments, codersdk.ChatAttachment{
 				MessageID: msg.ID,
 				PartIndex: i,
 				Role:      msg.Role,
-				File:      msg.Content[i],
+				File: codersdk.ChatAttachmentFile{
+					Type:      codersdk.ChatAttachmentFileTypeFile,
+					MediaType: part.MediaType,
+					Name:      part.Name,
+					Data:      part.Data,
+					FileID:    part.FileID,
+				},
 			})
 		}
 	}

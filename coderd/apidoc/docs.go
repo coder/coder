@@ -4133,7 +4133,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/attachments": {
             "get": {
-                "description": "Returns every file part in the user-visible user and\nassistant messages of a chat, newest first, so a client can\nlist a chat's attachments without paging through every\nmessage in the chat.",
+                "description": "Returns every file part in the user-visible user and assistant messages of a chat, newest first, so a client can list a chat's attachments without paging through every message in the chat.",
                 "produces": [
                     "application/json"
                 ],
@@ -21598,7 +21598,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "file": {
-                    "$ref": "#/definitions/codersdk.ChatMessagePart"
+                    "$ref": "#/definitions/codersdk.ChatAttachmentFile"
                 },
                 "message_id": {
                     "type": "integer"
@@ -21611,6 +21611,39 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ChatMessageRole"
                 }
             }
+        },
+        "codersdk.ChatAttachmentFile": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "file_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "media_type": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.ChatAttachmentFileType"
+                }
+            }
+        },
+        "codersdk.ChatAttachmentFileType": {
+            "type": "string",
+            "enum": [
+                "file"
+            ],
+            "x-enum-varnames": [
+                "ChatAttachmentFileTypeFile"
+            ]
         },
         "codersdk.ChatAttachmentsResponse": {
             "type": "object",
