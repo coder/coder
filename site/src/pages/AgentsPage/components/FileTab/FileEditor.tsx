@@ -4,6 +4,7 @@ import { useEffect, useEffectEvent, useState } from "react";
 import { useCoderTheme } from "#/components/SyntaxHighlighter/coderTheme";
 import { MONOSPACE_FONT_FAMILY } from "#/theme/constants";
 import { useTheme } from "#/theme/context";
+import "#/utils/monacoEnvironment";
 import type { FileReveal } from "../MainTabs/useMainTabs";
 
 loader.config({ monaco });
