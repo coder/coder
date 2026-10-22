@@ -2,7 +2,6 @@ import { cn } from "cn";
 import {
 	BugIcon,
 	ChevronDownIcon,
-	FolderTreeIcon,
 	GlobeIcon,
 	LayoutGridIcon,
 	MonitorIcon,
@@ -45,7 +44,6 @@ const singletonTabMenuEntries: readonly {
 	label: string;
 	icon: React.ReactNode;
 }[] = [
-	{ id: "files", label: "Files", icon: <FolderTreeIcon /> },
 	{ id: "browser", label: "Browser", icon: <GlobeIcon /> },
 	{ id: "desktop", label: "Desktop", icon: <MonitorIcon /> },
 	{ id: "debug", label: "Debug", icon: <BugIcon /> },
