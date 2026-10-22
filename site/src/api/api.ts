@@ -2524,11 +2524,12 @@ class ApiMethods {
 	listWorkspaceAgentDirectory = async (
 		agentId: string,
 		path: string,
+		signal?: AbortSignal,
 	): Promise<WorkspaceAgentListDirectoryResponse> => {
 		const response = await this.axios.post<WorkspaceAgentListDirectoryResponse>(
 			workspaceAgentFilesPath(agentId, "list-directory"),
 			{},
-			{ params: { path } },
+			{ params: { path }, signal },
 		);
 		return response.data;
 	};

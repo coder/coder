@@ -15,7 +15,8 @@ export const workspaceAgentDirectoryKey = (agentId: string, path: string) =>
 export const workspaceAgentDirectory = (agentId: string, path: string) => {
 	return {
 		queryKey: workspaceAgentDirectoryKey(agentId, path),
-		queryFn: () => API.listWorkspaceAgentDirectory(agentId, path),
+		queryFn: ({ signal }) =>
+			API.listWorkspaceAgentDirectory(agentId, path, signal),
 	} satisfies UseQueryOptions<WorkspaceAgentListDirectoryResponse>;
 };
 
