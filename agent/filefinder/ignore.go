@@ -323,8 +323,10 @@ func (ig *Ignorer) gitScope(ctx context.Context, dir string) (walkScope, error) 
 
 // recheckDir classifies the entries of dir again when dir changed
 // after s was listed, adding ignored ones to s. Entries created after
-// the listing would otherwise be indexed; their create events are
-// filtered, but nothing would remove them.
+// the listing would otherwise be indexed. Entries created after this
+// snapshot, including during its git call, are covered by the watch
+// the caller added on dir first: the watcher turns their ignored
+// create events into removals.
 func (ig *Ignorer) recheckDir(ctx context.Context, dir string, d fs.DirEntry, s walkScope) {
 	if s.set == nil || s.listedAt.IsZero() {
 		return
@@ -404,6 +406,14 @@ func (ig *Ignorer) walkScoped(ctx context.Context, root string, rootScope walkSc
 			return nil
 		}
 		if isDir {
+			// Index and watch the directory before re-checking its
+			// entries. An entry created after the watch is added
+			// produces an event, and an ignored one is retracted from
+			// the index by the watcher; an entry created before it
+			// marks the directory modified, so recheckDir lists it.
+			if err := fn(path, d); err != nil {
+				return err
+			}
 			var s walkScope
 			switch {
 			case ig.repoTop(path) == path:
@@ -419,6 +429,7 @@ func (ig *Ignorer) walkScoped(ctx context.Context, root string, rootScope walkSc
 			}
 			scopes[path] = s
 			ig.recheckDir(ctx, path, d, s)
+			return nil
 		}
 		return fn(path, d)
 	})

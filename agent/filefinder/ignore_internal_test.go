@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -64,12 +65,44 @@ func TestFSWatcher_FlushAfterIgnoredBatch(t *testing.T) {
 	writeTestFile(t, filepath.Join(dir, "a.log"), "")
 	trap.MustWait(ctx).MustRelease(ctx)
 	mClock.Advance(50 * time.Millisecond).MustWait(ctx)
+	// An ignored create becomes a removal, in case a walk indexed it.
+	require.Equal(t, []FSEvent{{Op: OpRemove, Path: filepath.Join(dir, "a.log")}}, testutil.RequireReceive(ctx, t, w.Events()))
 
 	writeTestFile(t, filepath.Join(dir, "b.go"), "")
 	trap.MustWait(ctx).MustRelease(ctx)
 	mClock.Advance(50 * time.Millisecond).MustWait(ctx)
 	events := testutil.RequireReceive(ctx, t, w.Events())
 	require.Equal(t, []FSEvent{{Op: OpCreate, Path: filepath.Join(dir, "b.go")}}, events)
+}
+
+// TestEngine_IgnoredCreateRetractsWalkedEntry covers an ignored file
+// that a walk indexed because it appeared after the walk's ignore
+// snapshot: its create event must remove it again.
+func TestEngine_IgnoredCreateRetractsWalkedEntry(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".git"), 0o755))
+	writeTestFile(t, filepath.Join(dir, ".gitignore"), "*.log\n")
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	e := NewEngine(logger, WithIgnorer(NewIgnorer(afero.NewOsFs(), "", WithGit(nil, ""))))
+	t.Cleanup(func() { _ = e.Close() })
+	ctx := testutil.Context(t, testutil.WaitShort)
+	require.NoError(t, e.AddRoot(ctx, dir))
+
+	// Simulate the walk having indexed the file before it existed on
+	// disk, then create it.
+	e.mu.Lock()
+	gen := e.roots[dir].gen
+	e.mu.Unlock()
+	late := filepath.Join(dir, "late.log")
+	e.applyEvents(rootEvent{root: dir, gen: gen, events: []FSEvent{{Op: OpCreate, Path: late}}})
+	writeTestFile(t, late, "")
+
+	require.Eventually(t, func() bool {
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		return !e.roots[dir].index.Has("late.log")
+	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
 // TestWalk_RevalidatesChangedDirectories walks with a listing taken
@@ -207,4 +240,46 @@ func TestEngine_ReaddedRootRejectsOldEvents(t *testing.T) {
 	defer e.mu.Unlock()
 	require.NotEqual(t, oldGen, e.roots[dir].gen)
 	require.False(t, e.roots[dir].index.Has("old.go"))
+}
+
+// detachedExecer starts a child in its own session, outside git's
+// process group, that holds only stdout and records its PID.
+type detachedExecer struct {
+	agentexec.Execer
+	pidFile string
+}
+
+func (e detachedExecer) CommandContext(ctx context.Context, _ string, _ ...string) *exec.Cmd {
+	//nolint:gosec // Test-controlled arguments.
+	return exec.CommandContext(ctx, "sh", "-c",
+		`setsid sh -c 'echo $$ > "$0"; exec sleep 60' "$1" 2>/dev/null </dev/null & sleep 60`, "sh", e.pidFile)
+}
+
+func TestGitRunner_CancelUnblocksDetachedStdout(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("setsid"); err != nil {
+		t.Skip("setsid is not installed")
+	}
+	pidFile := filepath.Join(t.TempDir(), "pid")
+	g := newGitRunner(detachedExecer{pidFile: pidFile}, "sh")
+	require.NotNil(t, g)
+	t.Cleanup(func() {
+		if data, err := os.ReadFile(pidFile); err == nil {
+			_ = exec.Command("kill", "-9", strings.TrimSpace(string(data))).Run()
+		}
+	})
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	runCtx, cancel := context.WithCancel(ctx)
+	done := make(chan error, 1)
+	go func() {
+		done <- g.run(runCtx, time.Minute, t.TempDir(), nil, func(string) error { return nil }, "ls-files")
+	}()
+	// Cancel once the detached child is running and holding stdout.
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(pidFile)
+		return err == nil
+	}, testutil.WaitShort, testutil.IntervalFast)
+	cancel()
+	require.ErrorIs(t, testutil.RequireReceive(ctx, t, done), context.Canceled)
 }
