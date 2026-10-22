@@ -807,17 +807,13 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		!isReadOnlyView && selectedModelOption?.bedrockInvokeModel
 			? selectedModelOption
 			: undefined;
-	const composerDescriptionIds: string[] = [];
-	if (warning) {
-		composerDescriptionIds.push(warningId);
-	}
-	if (bedrockInvokeModelOption) {
-		composerDescriptionIds.push(bedrockInvokeModelNoticeId);
-	}
 	const composerDescribedBy =
-		composerDescriptionIds.length > 0
-			? composerDescriptionIds.join(" ")
-			: undefined;
+		[
+			warning && warningId,
+			bedrockInvokeModelOption && bedrockInvokeModelNoticeId,
+		]
+			.filter(Boolean)
+			.join(" ") || undefined;
 	const handleRemoveWorkspace = () => onWorkspaceChange?.(null);
 	const removeWorkspaceHandler =
 		onWorkspaceChange && !isReadOnlyView ? handleRemoveWorkspace : undefined;
