@@ -107,8 +107,12 @@ func (f *fakeHarness) options() []acp.SessionConfigOption {
 }
 
 func (*fakeHarness) check(cwd string, servers []acp.McpServer) error {
-	actual, err := os.Getwd()
-	if err != nil || cwd != actual || len(servers) != 0 {
+	requested, err := os.Stat(cwd)
+	if err != nil {
+		return err
+	}
+	actual, err := os.Stat(".")
+	if err != nil || !os.SameFile(requested, actual) || len(servers) != 0 {
 		return xerrors.New("unexpected directory or MCP configuration")
 	}
 	return nil

@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/spf13/afero"
@@ -93,6 +94,20 @@ func TestDiscoveryCatalog(t *testing.T) {
 		}
 		require.True(t, found, "the invalid directory must be reported in the catalog")
 	}
+}
+
+func TestDiscoverySymlinkedDirectory(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("os.Symlink requires developer mode or admin on Windows")
+	}
+	m, dir, _ := newTestManager(t, fakeHarnessModeBoth)
+	link := filepath.Join(t.TempDir(), "workspace")
+	require.NoError(t, os.Symlink(dir, link))
+	m.workingDir = func() string { return link }
+	require.NoError(t, m.Reload(testutil.Context(t, testutil.WaitLong)))
+	require.Len(t, m.Catalog(), 1)
+	require.Empty(t, m.Catalog()[0].Error)
 }
 
 func TestDiscoveryDirectoryCreation(t *testing.T) {
