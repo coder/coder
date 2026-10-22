@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	findCandidateTokenStarts,
 	findFilePathCandidates,
 	findFilePathMentions,
 	getFilePathCandidateStarts,
@@ -232,5 +233,23 @@ describe("walkFilePath", () => {
 		]);
 		expect(walk.verified).toBeNull();
 		expect(walk.directories).toHaveLength(5);
+	});
+});
+
+describe("findCandidateTokenStarts", () => {
+	const tokens = (text: string) =>
+		findCandidateTokenStarts(text).map((start) =>
+			text.slice(start, text.indexOf(" ", start)),
+		);
+
+	it.each([
+		[
+			"/r/ux-notes/my notes/notes (2).md and in ux-notes/my notes/notes (2).md as well.",
+			["/r/ux-notes/my", "notes/notes", "ux-notes/my", "notes/notes"],
+		],
+		["Edit a.ts and b.go", []],
+		["Visit https://example.com/my page or example.com/a b", []],
+	])("lists the starts in %j", (text, expected) => {
+		expect(tokens(text)).toEqual(expected);
 	});
 });

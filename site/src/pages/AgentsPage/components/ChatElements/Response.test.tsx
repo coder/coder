@@ -607,6 +607,32 @@ describe("Response", () => {
 				expect(document.activeElement).toBe(link);
 			});
 
+			it("links every spaced path on a line, absolute and repository-relative", async () => {
+				const user = userEvent.setup();
+				mockTree({
+					"/home/coder/coder/ux-notes": ["my notes/"],
+					"/home/coder/coder/ux-notes/my notes": ["notes (2).md"],
+				});
+				const { files } = renderWithFiles(
+					"The notes live in /home/coder/coder/ux-notes/my notes/notes (2).md and in ux-notes/my notes/notes (2).md as well.",
+				);
+
+				await user.click(
+					await screen.findByRole("button", {
+						name: "ux-notes/my notes/notes (2).md",
+					}),
+				);
+
+				expect(buttonTexts()).toEqual([
+					"/home/coder/coder/ux-notes/my notes/notes (2).md",
+					"ux-notes/my notes/notes (2).md",
+				]);
+				expect(files.openFile).toHaveBeenCalledWith(
+					"/home/coder/coder/ux-notes/my notes/notes (2).md",
+					{ line: undefined },
+				);
+			});
+
 			it("offers equally long matches from several repositories", async () => {
 				const user = userEvent.setup();
 				mockTree({
