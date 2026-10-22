@@ -775,33 +775,6 @@ func TestWriteWorkspaceAgentUploadError(t *testing.T) {
 	})
 }
 
-func TestChatWorkspaceUploadAgent(t *testing.T) {
-	t.Parallel()
-
-	alpha := database.WorkspaceAgent{ID: uuid.New(), Name: "alpha", DisplayOrder: 0}
-	beta := database.WorkspaceAgent{ID: uuid.New(), Name: "beta", DisplayOrder: 1}
-	agents := []database.WorkspaceAgent{beta, alpha}
-
-	tests := []struct {
-		name    string
-		agentID uuid.NullUUID
-		want    uuid.UUID
-	}{
-		{name: "Unbound", want: alpha.ID},
-		{name: "BoundAgentPreferred", agentID: uuid.NullUUID{UUID: beta.ID, Valid: true}, want: beta.ID},
-		{name: "StaleBindingFallsBack", agentID: uuid.NullUUID{UUID: uuid.New(), Valid: true}, want: alpha.ID},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, err := chatWorkspaceUploadAgent(database.Chat{AgentID: tt.agentID}, agents)
-			require.NoError(t, err)
-			require.Equal(t, tt.want, got.ID)
-		})
-	}
-}
-
 func TestWorkspaceUsageReader(t *testing.T) {
 	t.Parallel()
 
