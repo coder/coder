@@ -145,6 +145,7 @@ func TestResolveSkillInvocations(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, "Deploy steps.", resolved[0].SkillBody)
+		require.Equal(t, "/home/coder/.agents/skills/deploy", resolved[0].SkillDir)
 
 		_, err = server.resolveSkillInvocations(context.Background(), chat, []codersdk.ChatMessagePart{
 			codersdk.ChatMessageSkillInvocation(codersdk.ChatSkillSourceWorkspace, "missing"),

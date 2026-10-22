@@ -657,7 +657,9 @@ type ChatMessagePart struct {
 	SkillDescription string `json:"skill_description,omitempty" variants:"skill?"`
 	// SkillDir is the absolute path to the skill directory inside
 	// the workspace filesystem. Internal only: used by
-	// read_skill/read_skill_file tools to locate skill files.
+	// read_skill/read_skill_file tools to locate skill files, and
+	// shown to the model for an invoked workspace skill so it can
+	// run the skill's scripts.
 	SkillDir string `json:"skill_dir,omitempty" typescript:"-"`
 	// ContextFileSkillMetaFile is the basename of the skill
 	// meta file (e.g. "SKILL.md") at the time of persistence.

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"html"
 	"mime"
 	"regexp"
 	"strings"
@@ -1346,8 +1347,11 @@ func SkillInvocationAlias(part codersdk.ChatMessagePart) string {
 var invokedSkillTagPattern = regexp.MustCompile(`(?i)<\s*/?\s*invoked-skill\b[^>]*>`)
 
 // skillInvocationPartToText tells the model which skill the user invoked
-// and includes the skill body loaded at send time. Wrapper tags inside the
-// body are escaped so it cannot end the block early.
+// and includes the skill body loaded at send time, plus the directory of a
+// workspace skill so the model can run the scripts its body references.
+// Wrapper tags inside the body are escaped so it cannot end the block
+// early, and the directory is escaped as an attribute value so it cannot
+// end the opening tag.
 func skillInvocationPartToText(part codersdk.ChatMessagePart) string {
 	alias := SkillInvocationAlias(part)
 	text := fmt.Sprintf("The user invoked the %s skill for this message. Follow its instructions.", alias)
@@ -1358,7 +1362,11 @@ func skillInvocationPartToText(part codersdk.ChatMessagePart) string {
 	body = invokedSkillTagPattern.ReplaceAllStringFunc(body, func(tag string) string {
 		return "&lt;" + tag[1:len(tag)-1] + "&gt;"
 	})
-	return text + "\n<invoked-skill name=\"" + alias + "\">\n" + body + "\n</invoked-skill>"
+	openTag := "<invoked-skill name=\"" + alias + "\""
+	if part.SkillDir != "" {
+		openTag += " dir=\"" + html.EscapeString(part.SkillDir) + "\""
+	}
+	return text + "\n" + openTag + ">\n" + body + "\n</invoked-skill>"
 }
 
 // toolResultPartToMessagePart converts an SDK tool-result part
