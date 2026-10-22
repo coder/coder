@@ -28,6 +28,9 @@ const (
 	OpRemove
 	OpRename
 	OpModify
+	// OpIgnoreChanged reports that a .gitignore or exclude file under
+	// the root changed. It has no path; the engine re-indexes the root.
+	OpIgnoreChanged
 )
 
 var skipDirs = map[string]struct{}{
@@ -38,6 +41,7 @@ var skipDirs = map[string]struct{}{
 type fsWatcher struct {
 	w      *fsnotify.Watcher
 	root   string
+	ig     *Ignorer
 	events chan []FSEvent
 	logger slog.Logger
 	mu     sync.Mutex
@@ -47,7 +51,7 @@ type fsWatcher struct {
 	done    chan struct{}
 }
 
-func newFSWatcher(root string, logger slog.Logger) (*fsWatcher, error) {
+func newFSWatcher(root string, logger slog.Logger, ig *Ignorer) (*fsWatcher, error) {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
@@ -55,6 +59,7 @@ func newFSWatcher(root string, logger slog.Logger) (*fsWatcher, error) {
 	return &fsWatcher{
 		w:      w,
 		root:   root,
+		ig:     ig,
 		events: make(chan []FSEvent, 64),
 		logger: logger,
 		done:   make(chan struct{}),
@@ -146,6 +151,17 @@ func (fw *fsWatcher) loop(ctx context.Context) {
 			if fsev == nil {
 				continue
 			}
+			if isIgnoreFile(fsev.Path) {
+				addToBatch(FSEvent{Op: OpIgnoreChanged})
+			}
+			// .git/info is watched only to see exclude changes.
+			if isGitInfoPath(fsev.Path) {
+				continue
+			}
+			if (fsev.Op == OpCreate || fsev.Op == OpModify) &&
+				fw.ig.rulesBelow(filepath.Dir(fsev.Path), fw.root).Ignored(fsev.Path, fsev.IsDir) {
+				continue
+			}
 			if fsev.IsDir && fsev.Op == OpCreate {
 				for _, s := range fw.addRecursive(ctx, fsev.Path) {
 					addToBatch(s)
@@ -207,39 +223,42 @@ func (b *eventBatch) take() []FSEvent {
 	return events
 }
 
+// addRecursive watches dir and its subdirectories, skipping skipDirs
+// and gitignored directories, and returns create events for the
+// entries below dir. It also watches each repository's .git/info so
+// exclude changes are seen.
 func (fw *fsWatcher) addRecursive(ctx context.Context, dir string) []FSEvent {
+	if _, skip := skipDirs[filepath.Base(dir)]; skip {
+		return nil
+	}
 	var events []FSEvent
-	if walkErr := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if ctx.Err() != nil {
-			return filepath.SkipAll
-		}
-		if err != nil {
-			return nil //nolint:nilerr // best-effort
-		}
+	fw.watchDir(dir)
+	walkErr := walkIndexable(ctx, fw.ig, dir, func(path string, info os.FileInfo) error {
 		if len(events) >= maxIndexEntries {
 			return filepath.SkipAll
 		}
-		base := filepath.Base(path)
-		if _, skip := skipDirs[base]; skip && info.IsDir() {
-			return filepath.SkipDir
-		}
 		if info.IsDir() {
-			if addErr := fw.w.Add(path); addErr != nil {
-				fw.logger.Debug(context.Background(), "failed to add watch",
-					slog.F("path", path), slog.Error(addErr))
-			}
-			if path != dir {
-				events = append(events, FSEvent{Op: OpCreate, Path: path, IsDir: true})
-			}
-			return nil
+			fw.watchDir(path)
 		}
-		events = append(events, FSEvent{Op: OpCreate, Path: path, IsDir: false})
+		events = append(events, FSEvent{Op: OpCreate, Path: path, IsDir: info.IsDir()})
 		return nil
-	}); walkErr != nil {
+	})
+	if walkErr != nil && ctx.Err() == nil {
 		fw.logger.Warn(context.Background(), "failed to walk directory",
 			slog.F("dir", dir), slog.Error(walkErr))
 	}
 	return events
+}
+
+func (fw *fsWatcher) watchDir(dir string) {
+	if addErr := fw.w.Add(dir); addErr != nil {
+		fw.logger.Debug(context.Background(), "failed to add watch",
+			slog.F("path", dir), slog.Error(addErr))
+	}
+	info := filepath.Join(dir, ".git", "info")
+	if fi, err := os.Stat(info); err == nil && fi.IsDir() {
+		_ = fw.w.Add(info)
+	}
 }
 
 func translateEvent(ev fsnotify.Event) *FSEvent {

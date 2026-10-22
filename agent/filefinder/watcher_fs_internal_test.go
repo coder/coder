@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
@@ -25,7 +26,7 @@ func requireCloses(t *testing.T, w *fsWatcher) {
 func TestFSWatcher_CloseUnstarted(t *testing.T) {
 	t.Parallel()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	w, err := newFSWatcher(t.TempDir(), logger)
+	w, err := newFSWatcher(t.TempDir(), logger, NewIgnorer(afero.NewOsFs(), ""))
 	require.NoError(t, err)
 	requireCloses(t, w)
 	// Start after Close does nothing.
@@ -37,7 +38,7 @@ func TestFSWatcher_CloseAfterCanceledStart(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.go"), nil, 0o600))
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	w, err := newFSWatcher(dir, logger)
+	w, err := newFSWatcher(dir, logger, NewIgnorer(afero.NewOsFs(), ""))
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
