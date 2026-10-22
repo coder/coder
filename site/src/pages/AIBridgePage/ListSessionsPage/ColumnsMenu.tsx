@@ -79,7 +79,11 @@ export const ColumnsMenu: React.FC<ColumnsMenuProps> = ({
 	return (
 		<Popover>
 			<PopoverTrigger asChild>
-				<Button variant="outline" className="shrink-0 text-content-secondary">
+				<Button
+					variant="outline"
+					size="sm"
+					className="shrink-0 text-content-secondary"
+				>
 					<Columns3CogIcon />
 					Customize view
 				</Button>

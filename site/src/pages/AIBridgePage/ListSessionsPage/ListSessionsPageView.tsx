@@ -161,11 +161,14 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 					<div className="min-w-0 flex-1">
 						<ListSessionsFilter {...filterProps} />
 					</div>
-					<ColumnsMenu
-						settings={columnSettings}
-						onSettingsChange={updateColumnSettings}
-						fittingCount={fittingCount}
-					/>
+					{/* Centers the small trigger on the 40px filter controls. */}
+					<div className="flex h-10 shrink-0 items-center">
+						<ColumnsMenu
+							settings={columnSettings}
+							onSettingsChange={updateColumnSettings}
+							fittingCount={fittingCount}
+						/>
+					</div>
 				</div>
 			</div>
 
