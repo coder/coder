@@ -42,6 +42,7 @@ import {
 	selectChatStatus,
 	selectHasStreamState,
 	selectIsAwaitingFirstStreamChunk,
+	selectIsNextTurnStarting,
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
@@ -2556,6 +2557,65 @@ describe("useChatStore", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID2, undefined);
 		});
 		expect(result.current.queuedMessages).toEqual([]);
+	});
+
+	it("drops a sent queued message's run record when another chat opens", async () => {
+		immediateAnimationFrame();
+		mockWatchChatReturn(createMockSocket());
+
+		// Message IDs are global, so the older running chat holds lower IDs.
+		const erroredChat: TypesGen.Chat = {
+			...buildChat("chat-errored"),
+			status: "error",
+		};
+		const runningChat = buildChat("chat-running");
+		const newerPrompt = buildMessage(erroredChat.id, 5, "user", "newer");
+		const olderPrompt = buildMessage(runningChat.id, 1, "user", "older");
+		const optionsFor = (
+			chat: TypesGen.Chat,
+			message: TypesGen.ChatMessage,
+		): Parameters<typeof useChatStore>[0] => ({
+			chatRecordUpdatedAt: 0,
+			chatID: chat.id,
+			chatMessages: [message],
+			chatRecord: chat,
+			chatMessagesData: {
+				messages: [message],
+				queued_messages: [],
+				has_more: false,
+			},
+			chatQueuedMessages: [],
+			setChatErrorReason: vi.fn(),
+			clearChatErrorReason: vi.fn(),
+		});
+
+		const { result, rerender } = renderHook(
+			(options: Parameters<typeof useChatStore>[0]) => {
+				const { store } = useChatStore(options);
+				return {
+					store,
+					isNextTurnStarting: useChatSelector(store, selectIsNextTurnStarting),
+				};
+			},
+			{
+				initialProps: optionsFor(erroredChat, newerPrompt),
+				wrapper: createWrapper(createTestQueryClient()),
+			},
+		);
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(erroredChat.id, newerPrompt.id);
+		});
+		act(() => {
+			result.current.store.startRequestedRun("promotion");
+		});
+		expect(result.current.isNextTurnStarting).toBe(true);
+
+		rerender(optionsFor(runningChat, olderPrompt));
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(runningChat.id, olderPrompt.id);
+		});
+		expect(result.current.isNextTurnStarting).toBe(false);
 	});
 
 	it("does not apply message parts after status changes to waiting", async () => {

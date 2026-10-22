@@ -132,7 +132,7 @@ export type ChatStoreState = {
 	// contained their promoted user rows.
 	promotedQueuedMessageIDs: ReadonlySet<number>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
-	// Cleared once the run it records stops.
+	// Cleared once the run it records stops or another chat opens.
 	idleRunRequest: IdleRunRequest | null;
 };
 
@@ -750,7 +750,8 @@ export const createChatStore = (): ChatStore => {
 				state.streamError === null &&
 				state.retryState === null &&
 				state.reconnectState === null &&
-				state.subagentStatusOverrides.size === 0
+				state.subagentStatusOverrides.size === 0 &&
+				state.idleRunRequest === null
 			) {
 				return;
 			}
@@ -761,6 +762,7 @@ export const createChatStore = (): ChatStore => {
 				retryState: null,
 				reconnectState: null,
 				subagentStatusOverrides: new Map(),
+				idleRunRequest: null,
 			}));
 		},
 	};
