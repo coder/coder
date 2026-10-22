@@ -30,6 +30,7 @@ const listings: Record<string, WorkspaceAgentListDirectoryResponse> = {
 		contents: [
 			entry("/home/coder/repo/src", true),
 			entry("/home/coder/repo/README.md", false),
+			{ ...entry("/home/coder/repo/debug.log", false), ignored: true },
 		],
 	},
 	"/home/coder/repo/src": {
@@ -99,6 +100,18 @@ describe("FilesPanel", () => {
 			"/home/coder/repo/src",
 		);
 		expect(value.openFile).toHaveBeenCalledWith("/home/coder/repo/src/main.go");
+	});
+
+	it("opens a gitignored file", async () => {
+		const user = userEvent.setup();
+		const value = contextValue();
+		renderPanel(value);
+
+		await user.click(
+			await screen.findByRole("treeitem", { name: "debug.log" }),
+		);
+
+		expect(value.openFile).toHaveBeenCalledWith("/home/coder/repo/debug.log");
 	});
 
 	it("expands and opens with the keyboard", async () => {

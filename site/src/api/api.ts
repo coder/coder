@@ -480,6 +480,8 @@ export type WorkspaceAgentFile = {
 	size: number;
 	/** RFC 3339. */
 	mod_time: string;
+	/** Ignored by the .gitignore rules of the enclosing git repository. */
+	ignored?: boolean;
 };
 
 export type WorkspaceAgentListDirectoryResponse = {
