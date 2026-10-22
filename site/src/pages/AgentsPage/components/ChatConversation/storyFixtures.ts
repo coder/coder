@@ -531,7 +531,7 @@ export const MockBrokenImageAttachmentMessages: TypesGen.ChatMessage[] =
 		),
 	}));
 
-/** The text of findings.md, stored or inline, in the attachment stories. */
+/** findings.md's text, whether stored or inline. */
 export const MockFindingsText = "# Findings\n\nThe dashboard matches the spec.";
 
 /** MockMixedAttachmentMessages whose findings.md arrives inline. */

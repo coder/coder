@@ -49,14 +49,10 @@ const useAttachmentViewer = () => {
  */
 const useSwapFocusRef = () => {
 	const hadFocusRef = useRef(false);
-	return (node: HTMLElement | null) => {
-		if (!node) {
-			return;
-		}
+	return (node: HTMLElement) => {
 		if (hadFocusRef.current && document.activeElement === document.body) {
 			node.focus();
 		}
-		hadFocusRef.current = false;
 		// React runs ref cleanups before it removes the node, so focus inside
 		// it has not fallen to the page body yet.
 		return () => {

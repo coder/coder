@@ -3209,8 +3209,7 @@ export const chatFileTextKey = (fileId: string) =>
 
 /**
  * A stored chat file's text, which never changes once uploaded, so the cache
- * keeps it, or the 404 of a deleted file, for the whole session and never
- * refetches it on its own.
+ * keeps it, or the 404 of a deleted file, for the whole session.
  */
 export const chatFileText = (fileId: string) =>
 	queryOptions({

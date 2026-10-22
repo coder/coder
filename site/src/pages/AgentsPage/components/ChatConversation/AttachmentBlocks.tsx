@@ -596,7 +596,7 @@ export const ViewableFileCard: React.FC<{
 	tile?: React.ReactNode;
 	/** Shown under the name in place of "View file". */
 	status?: string;
-	ref?: React.Ref<HTMLDivElement>;
+	ref?: React.RefCallback<HTMLElement>;
 }> = ({ block, href, onView, tile, status = "View file", ref }) => {
 	const nameId = useId();
 	const statusId = useId();
