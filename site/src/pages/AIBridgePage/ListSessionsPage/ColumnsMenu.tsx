@@ -8,12 +8,11 @@ import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import { cn } from "cn";
 import {
 	CheckIcon,
-	ChevronDownIcon,
 	CoinsIcon,
+	Columns3CogIcon,
 	Columns3Icon,
 	GripVerticalIcon,
 	type LucideIcon,
-	Settings2Icon,
 	ShieldCheckIcon,
 } from "lucide-react";
 import { Fragment, useId, useState } from "react";
@@ -80,10 +79,9 @@ export const ColumnsMenu: React.FC<ColumnsMenuProps> = ({
 	return (
 		<Popover>
 			<PopoverTrigger asChild>
-				<Button variant="outline" className="shrink-0">
-					<Settings2Icon />
-					Columns
-					<ChevronDownIcon />
+				<Button variant="outline" className="shrink-0 text-content-secondary">
+					<Columns3CogIcon />
+					Customize view
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent

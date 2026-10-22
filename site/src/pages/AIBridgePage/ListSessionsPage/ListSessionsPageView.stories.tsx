@@ -157,7 +157,7 @@ const withColumnSettings = (settings: SessionColumnSettings) => () => {
 };
 
 const openColumnsMenu = async () => {
-	await userEvent.click(screen.getByRole("button", { name: "Columns" }));
+	await userEvent.click(screen.getByRole("button", { name: "Customize view" }));
 };
 
 export const ColumnsMenuOpen: Story = {

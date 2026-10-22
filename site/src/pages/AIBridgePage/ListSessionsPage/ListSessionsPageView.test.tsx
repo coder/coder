@@ -45,7 +45,9 @@ const savedSettings = (id: string) =>
 
 const openColumnsMenu = async () => {
 	const user = userEvent.setup();
-	await user.click(await screen.findByRole("button", { name: "Columns" }));
+	await user.click(
+		await screen.findByRole("button", { name: "Customize view" }),
+	);
 	return user;
 };
 

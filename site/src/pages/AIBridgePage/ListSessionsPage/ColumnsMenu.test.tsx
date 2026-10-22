@@ -23,7 +23,7 @@ const renderMenu = (settings: SessionColumnSettings) => {
 
 const openMenu = async () => {
 	const user = userEvent.setup();
-	await user.click(screen.getByRole("button", { name: "Columns" }));
+	await user.click(screen.getByRole("button", { name: "Customize view" }));
 	return user;
 };
 
