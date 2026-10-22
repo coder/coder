@@ -19,23 +19,32 @@ export const AUTH_TYPE_LABELS = Object.fromEntries(
 	AUTH_TYPE_OPTIONS.map(({ value, label }) => [value, label]),
 ) as Record<string, string>;
 
+export const AVAILABILITY_FIELD_DESCRIPTION =
+	"Whether this server is on when users start a chat, and whether they can change it.";
+
+// `description` is the short subline shown in the dropdown. `helpText` is the
+// more specific note shown below the dropdown for the selected option.
 export const AVAILABILITY_OPTIONS = [
 	{
 		value: "force_on",
 		label: "Required",
-		description: "On in every chat for every user. Users can't turn it off.",
+		description: "Always on. Users can't turn it off.",
+		helpText:
+			"On in every chat for every user. It can't be turned off in chats.",
 	},
 	{
 		value: "default_on",
 		label: "On by default",
-		description:
-			"On when users start a chat. Users can turn it off from the + menu in the chat input, and their choice carries over to their new chats.",
+		description: "On in new chats. Users can turn it off.",
+		helpText:
+			"Users can turn it off from the + menu in the chat input. Their choice carries over to their new chats.",
 	},
 	{
 		value: "default_off",
 		label: "Off by default",
-		description:
-			"Off when users start a chat. Users can turn it on from the + menu in the chat input, and their choice carries over to their new chats.",
+		description: "Off in new chats. Users can turn it on.",
+		helpText:
+			"Users can turn it on from the + menu in the chat input. Their choice carries over to their new chats.",
 	},
 ] as const;
 
