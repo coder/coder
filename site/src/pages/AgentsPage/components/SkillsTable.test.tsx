@@ -121,10 +121,16 @@ describe("SkillsTable automatic use", () => {
 		]);
 	});
 
-	it("saves a change to only the automatic-use switch", async () => {
-		const { user, updateSkill } = renderTable();
+	it("keeps the stored SKILL.md when only the automatic-use switch changes", async () => {
+		const { user, updateSkill, getSkill } = renderTable();
+		getSkill.mockResolvedValue({
+			...mockReviewSkill,
+			content:
+				'---\nname: review-sql\ndescription: "Review SQL."\nallowed-tools: Bash\n---\nCheck the queries.\n',
+		});
 
-		await user.click(await screen.findByRole("button", { name: "Open menu" }));
+		const menuButton = await screen.findByRole("button", { name: "Open menu" });
+		await user.click(menuButton);
 		await user.click(await screen.findByRole("menuitem", { name: "Edit" }));
 		await user.click(
 			await screen.findByRole("switch", {
@@ -137,8 +143,10 @@ describe("SkillsTable automatic use", () => {
 		expect(updateSkill.mock.calls[0]).toStrictEqual([
 			MockOrganization.id,
 			"review-sql",
-			{ content: mockReviewSkillContent, model_invocable: false },
+			{ model_invocable: false },
 		]);
+		// Focus returns to the row menu once the save closes the dialog.
+		await waitFor(() => expect(menuButton).toHaveFocus());
 	});
 
 	it("marks a downloaded manual-only skill so re-importing keeps it manual", async () => {
