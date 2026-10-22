@@ -64,17 +64,35 @@ describe("groupMarkdownBlocks", () => {
 			expected: ["a".repeat(30), "b\n"],
 		},
 		{
-			name: "repeats link definitions in every chunk",
-			blocks: ["[ref]: ./x.md\n\n", "See [x][ref].\n"],
+			name: "leads every chunk with the file's definitions",
+			blocks: ["See [x][ref].\n\n", "[ref]: ./x.md\n"],
 			size: 10,
 			expected: [
-				"[ref]: ./x.md\n\n\n\n[ref]: ./x.md\n",
-				"See [x][ref].\n\n\n[ref]: ./x.md\n",
+				"[ref]: <./x.md>\n\nSee [x][ref].\n\n",
+				"[ref]: <./x.md>\n\n[ref]: ./x.md\n",
 			],
 		},
-	])("$name", ({ blocks, size, expected }) => {
-		expect(groupMarkdownBlocks(blocks.join(""), blocks, size)).toEqual(
-			expected,
-		);
+		{
+			name: "takes only real definitions, complete",
+			blocks: [
+				"```\n[guide]: ./wrong.md\n```\n\n",
+				"<!--\n[c]: ./comment.md\n-->\n\n",
+				"para\n[p]: ./paragraph.md\n\n",
+				'[guide]: ./correct.md\n[multi]:\n  ./multi.md\n  "A \\"T\\""\n\n',
+				"> [quoted]: ./quoted.md\n",
+			],
+			size: 10,
+			prefix:
+				'[guide]: <./correct.md>\n[multi]: <./multi.md> "A \\"T\\""\n[quoted]: <./quoted.md>\n\n',
+		},
+	])("$name", ({ blocks, size, expected, prefix }) => {
+		const chunks = groupMarkdownBlocks(blocks, size);
+		if (prefix) {
+			expect(chunks.map((chunk) => chunk.slice(0, prefix.length))).toEqual(
+				blocks.map(() => prefix),
+			);
+		} else {
+			expect(chunks).toEqual(expected);
+		}
 	});
 });
