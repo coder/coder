@@ -229,8 +229,58 @@ export const WorkspacePathIcon: React.FC<{
 	);
 };
 
-/** A whole workspace file or folder referenced from the composer. */
+/** A workspace file or folder reference in a sent message. */
 export function WorkspacePathChip({
+	path,
+	isDirectory,
+	onOpen,
+	className,
+}: {
+	path: string;
+	isDirectory: boolean;
+	/** Makes the chip a button. */
+	onOpen?: () => void;
+	className?: string;
+}) {
+	const name = getPathBasename(path);
+	const title = isDirectory ? `${path}/` : path;
+	const content = (
+		<>
+			<WorkspacePathIcon name={name} isDirectory={isDirectory} />
+			<span className="min-w-0 truncate">{name}</span>
+		</>
+	);
+
+	if (!onOpen) {
+		return (
+			<span
+				data-slot="file-reference-chip"
+				className={cn(fileReferenceChipVariants(), className)}
+				title={title}
+			>
+				{content}
+			</span>
+		);
+	}
+	return (
+		<button
+			data-slot="file-reference-chip"
+			type="button"
+			className={cn(
+				fileReferenceChipVariants({ interactive: true }),
+				className,
+			)}
+			title={title}
+			aria-label={`Open ${title}`}
+			onClick={onOpen}
+		>
+			{content}
+		</button>
+	);
+}
+
+/** A workspace file or folder chip inside the composer. */
+export function EditableWorkspacePathChip({
 	path,
 	isDirectory,
 	selected,
