@@ -24,7 +24,7 @@ boundary creates an isolated network environment for target processes, intercept
 
 ### --config
 
-|             |                               |
+| Property    | Value                         |
 |-------------|-------------------------------|
 | Type        | <code>yaml-config-path</code> |
 | Environment | <code>$BOUNDARY_CONFIG</code> |
@@ -33,7 +33,7 @@ Path to YAML config file.
 
 ### --allow
 
-|             |                              |
+| Property    | Value                        |
 |-------------|------------------------------|
 | Type        | <code>string</code>          |
 | Environment | <code>$BOUNDARY_ALLOW</code> |
@@ -42,7 +42,7 @@ Allow rule (repeatable). These are merged with allowlist from config file. Forma
 
 ### --log-level
 
-|             |                                  |
+| Property    | Value                            |
 |-------------|----------------------------------|
 | Type        | <code>string</code>              |
 | Environment | <code>$BOUNDARY_LOG_LEVEL</code> |
@@ -53,7 +53,7 @@ Set log level (error, warn, info, debug).
 
 ### --log-dir
 
-|             |                                |
+| Property    | Value                          |
 |-------------|--------------------------------|
 | Type        | <code>string</code>            |
 | Environment | <code>$BOUNDARY_LOG_DIR</code> |
@@ -63,7 +63,7 @@ Set a directory to write logs to rather than stderr.
 
 ### --proxy-port
 
-|             |                          |
+| Property    | Value                    |
 |-------------|--------------------------|
 | Type        | <code>int</code>         |
 | Environment | <code>$PROXY_PORT</code> |
@@ -74,7 +74,7 @@ Set a port for HTTP proxy.
 
 ### --pprof
 
-|             |                              |
+| Property    | Value                        |
 |-------------|------------------------------|
 | Type        | <code>bool</code>            |
 | Environment | <code>$BOUNDARY_PPROF</code> |
@@ -84,7 +84,7 @@ Enable pprof profiling server.
 
 ### --pprof-port
 
-|             |                                   |
+| Property    | Value                             |
 |-------------|-----------------------------------|
 | Type        | <code>int</code>                  |
 | Environment | <code>$BOUNDARY_PPROF_PORT</code> |
@@ -95,7 +95,7 @@ Set port for pprof profiling server.
 
 ### --jail-type
 
-|             |                                  |
+| Property    | Value                            |
 |-------------|----------------------------------|
 | Type        | <code>string</code>              |
 | Environment | <code>$BOUNDARY_JAIL_TYPE</code> |
@@ -106,7 +106,7 @@ Jail type to use for network isolation. Options: nsjail (default), landjail.
 
 ### --use-real-dns
 
-|             |                                     |
+| Property    | Value                               |
 |-------------|-------------------------------------|
 | Type        | <code>bool</code>                   |
 | Environment | <code>$BOUNDARY_USE_REAL_DNS</code> |
@@ -116,7 +116,7 @@ Use real DNS in the jail instead of the dummy DNS (allows DNS exfiltration). Def
 
 ### --no-user-namespace
 
-|             |                                          |
+| Property    | Value                                    |
 |-------------|------------------------------------------|
 | Type        | <code>bool</code>                        |
 | Environment | <code>$BOUNDARY_NO_USER_NAMESPACE</code> |
@@ -126,7 +126,7 @@ Do not create a user namespace. Use in restricted environments that disallow use
 
 ### --disable-audit-logs
 
-|             |                                  |
+| Property    | Value                            |
 |-------------|----------------------------------|
 | Type        | <code>bool</code>                |
 | Environment | <code>$DISABLE_AUDIT_LOGS</code> |
@@ -136,7 +136,7 @@ Disable sending of audit logs to the workspace agent when set to true.
 
 ### --log-proxy-socket-path
 
-|             |                                                          |
+| Property    | Value                                                    |
 |-------------|----------------------------------------------------------|
 | Type        | <code>string</code>                                      |
 | Environment | <code>$CODER_AGENT_BOUNDARY_LOG_PROXY_SOCKET_PATH</code> |
@@ -146,15 +146,15 @@ Path to the socket where the boundary log proxy server listens for audit logs.
 
 ### --version
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Print version information and exit.
 
 ### --enable-session-correlation
 
-|             |                                                    |
+| Property    | Value                                              |
 |-------------|----------------------------------------------------|
 | Type        | <code>bool</code>                                  |
 | Environment | <code>$BOUNDARY_SESSION_CORRELATION_ENABLED</code> |
@@ -164,7 +164,7 @@ Enable session correlation header injection. When no inject targets are configur
 
 ### --session-id-inject-target
 
-|             |                                                 |
+| Property    | Value                                           |
 |-------------|-------------------------------------------------|
 | Type        | <code>string</code>                             |
 | Environment | <code>$BOUNDARY_SESSION_ID_INJECT_TARGET</code> |

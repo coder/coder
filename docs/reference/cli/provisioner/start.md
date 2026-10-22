@@ -18,7 +18,7 @@ coder provisioner start [flags]
 
 ### -c, --cache-dir
 
-|             |                                     |
+| Property    | Value                               |
 |-------------|-------------------------------------|
 | Type        | <code>string</code>                 |
 | Environment | <code>$CODER_CACHE_DIRECTORY</code> |
@@ -28,7 +28,7 @@ Directory to store cached data.
 
 ### -t, --tag
 
-|             |                                       |
+| Property    | Value                                 |
 |-------------|---------------------------------------|
 | Type        | <code>string-array</code>             |
 | Environment | <code>$CODER_PROVISIONERD_TAGS</code> |
@@ -37,7 +37,7 @@ Tags to filter provisioner jobs by.
 
 ### --poll-interval
 
-|             |                                                |
+| Property    | Value                                          |
 |-------------|------------------------------------------------|
 | Type        | <code>duration</code>                          |
 | Environment | <code>$CODER_PROVISIONERD_POLL_INTERVAL</code> |
@@ -47,7 +47,7 @@ Deprecated and ignored.
 
 ### --poll-jitter
 
-|             |                                              |
+| Property    | Value                                        |
 |-------------|----------------------------------------------|
 | Type        | <code>duration</code>                        |
 | Environment | <code>$CODER_PROVISIONERD_POLL_JITTER</code> |
@@ -57,7 +57,7 @@ Deprecated and ignored.
 
 ### --psk
 
-|             |                                            |
+| Property    | Value                                      |
 |-------------|--------------------------------------------|
 | Type        | <code>string</code>                        |
 | Environment | <code>$CODER_PROVISIONER_DAEMON_PSK</code> |
@@ -66,7 +66,7 @@ Pre-shared key to authenticate with Coder server.
 
 ### --key
 
-|             |                                            |
+| Property    | Value                                      |
 |-------------|--------------------------------------------|
 | Type        | <code>string</code>                        |
 | Environment | <code>$CODER_PROVISIONER_DAEMON_KEY</code> |
@@ -75,7 +75,7 @@ Provisioner key to authenticate with Coder server.
 
 ### --name
 
-|             |                                             |
+| Property    | Value                                       |
 |-------------|---------------------------------------------|
 | Type        | <code>string</code>                         |
 | Environment | <code>$CODER_PROVISIONER_DAEMON_NAME</code> |
@@ -84,7 +84,7 @@ Name of this provisioner daemon. Defaults to the current hostname without FQDN.
 
 ### --verbose
 
-|             |                                                |
+| Property    | Value                                          |
 |-------------|------------------------------------------------|
 | Type        | <code>bool</code>                              |
 | Environment | <code>$CODER_PROVISIONER_DAEMON_VERBOSE</code> |
@@ -94,7 +94,7 @@ Output debug-level logs.
 
 ### --log-human
 
-|             |                                                      |
+| Property    | Value                                                |
 |-------------|------------------------------------------------------|
 | Type        | <code>string</code>                                  |
 | Environment | <code>$CODER_PROVISIONER_DAEMON_LOGGING_HUMAN</code> |
@@ -104,7 +104,7 @@ Output human-readable logs to a given file.
 
 ### --log-json
 
-|             |                                                     |
+| Property    | Value                                               |
 |-------------|-----------------------------------------------------|
 | Type        | <code>string</code>                                 |
 | Environment | <code>$CODER_PROVISIONER_DAEMON_LOGGING_JSON</code> |
@@ -113,7 +113,7 @@ Output JSON logs to a given file.
 
 ### --log-stackdriver
 
-|             |                                                            |
+| Property    | Value                                                      |
 |-------------|------------------------------------------------------------|
 | Type        | <code>string</code>                                        |
 | Environment | <code>$CODER_PROVISIONER_DAEMON_LOGGING_STACKDRIVER</code> |
@@ -122,7 +122,7 @@ Output Stackdriver compatible logs to a given file.
 
 ### --log-filter
 
-|             |                                                   |
+| Property    | Value                                             |
 |-------------|---------------------------------------------------|
 | Type        | <code>string-array</code>                         |
 | Environment | <code>$CODER_PROVISIONER_DAEMON_LOG_FILTER</code> |
@@ -131,7 +131,7 @@ Filter debug logs by matching against a given regex. Use .* to match all debug l
 
 ### --prometheus-enable
 
-|             |                                       |
+| Property    | Value                                 |
 |-------------|---------------------------------------|
 | Type        | <code>bool</code>                     |
 | Environment | <code>$CODER_PROMETHEUS_ENABLE</code> |
@@ -141,7 +141,7 @@ Serve prometheus metrics on the address defined by prometheus address.
 
 ### --prometheus-address
 
-|             |                                        |
+| Property    | Value                                  |
 |-------------|----------------------------------------|
 | Type        | <code>string</code>                    |
 | Environment | <code>$CODER_PROMETHEUS_ADDRESS</code> |
@@ -151,7 +151,7 @@ The bind address to serve prometheus metrics.
 
 ### --experiments
 
-|             |                                 |
+| Property    | Value                           |
 |-------------|---------------------------------|
 | Type        | <code>string-array</code>       |
 | Environment | <code>$CODER_EXPERIMENTS</code> |
@@ -161,7 +161,7 @@ Enable one or more experiments. These are not ready for production. Separate mul
 
 ### -O, --org
 
-|             |                                  |
+| Property    | Value                            |
 |-------------|----------------------------------|
 | Type        | <code>string</code>              |
 | Environment | <code>$CODER_ORGANIZATION</code> |

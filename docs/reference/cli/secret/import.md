@@ -24,8 +24,8 @@ Every key in the file becomes a secret. Keys allowed as environment variable nam
 
 ### --input-format
 
-|      |                              |
-|------|------------------------------|
-| Type | <code>env\|json\|yaml</code> |
+| Property | Value                        |
+|----------|------------------------------|
+| Type     | <code>env\|json\|yaml</code> |
 
 Format of the secrets file. Inferred from the file extension when unset, and required when reading from stdin.

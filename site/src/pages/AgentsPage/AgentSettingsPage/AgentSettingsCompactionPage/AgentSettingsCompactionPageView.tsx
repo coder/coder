@@ -1,10 +1,10 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { SectionHeader } from "../../components/SectionHeader";
+import { UserCompactionThresholdSettings } from "../../components/UserCompactionThresholdSettings";
 import type {
 	CompactionTriggerLoadError,
 	OrganizationCompactionTrigger,
-} from "./compactionTriggers";
-import { SectionHeader } from "./components/SectionHeader";
-import { UserCompactionThresholdSettings } from "./components/UserCompactionThresholdSettings";
+} from "../../utils/compactionTriggers";
 
 export type AgentSettingsCompactionPageViewProps = {
 	models: readonly TypesGen.ChatModel[];

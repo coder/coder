@@ -18,7 +18,7 @@ coder provisioner jobs cancel [flags] <job_id>
 
 ### -O, --org
 
-|             |                                  |
+| Property    | Value                            |
 |-------------|----------------------------------|
 | Type        | <code>string</code>              |
 | Environment | <code>$CODER_ORGANIZATION</code> |

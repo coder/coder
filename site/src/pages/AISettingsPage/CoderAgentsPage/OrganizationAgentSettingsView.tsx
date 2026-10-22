@@ -7,7 +7,7 @@ import {
 	isCompactionPointBeyondWindow,
 	modelCompactionTrigger,
 	resolveOrganizationCompactionTrigger,
-} from "#/pages/AgentsPage/compactionTriggers";
+} from "#/pages/AgentsPage/utils/compactionTriggers";
 import {
 	getModelLabel,
 	type ProviderInfo,

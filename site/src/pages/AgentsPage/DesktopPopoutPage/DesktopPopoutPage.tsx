@@ -7,23 +7,23 @@ import type { Workspace, WorkspaceAgentStatus } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { getWorkspaceAgent } from "./components/ChatConversation/chatHelpers";
-import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWatch";
+import { getWorkspaceAgent } from "../components/ChatConversation/chatHelpers";
+import { useWorkspaceWatch } from "../components/ChatConversation/useWorkspaceWatch";
 import {
 	DesktopToolbar,
 	type ScaleMode,
-} from "./components/RightPanel/DesktopToolbar";
+} from "../components/RightPanel/DesktopToolbar";
 import {
 	DesktopWorkspaceState,
 	type DesktopWorkspaceStateProps,
 	isDesktopReachable,
 	useStartDesktopWorkspace,
-} from "./components/RightPanel/DesktopWorkspaceState";
+} from "../components/RightPanel/DesktopWorkspaceState";
 import {
 	type DesktopConnectionStatus,
 	useDesktopConnection,
-} from "./hooks/useDesktopConnection";
-import { useZoomShortcuts } from "./hooks/useZoomShortcuts";
+} from "../hooks/useDesktopConnection";
+import { useZoomShortcuts } from "../hooks/useZoomShortcuts";
 
 export default function DesktopPopoutPage() {
 	const { agentId } = useParams() as { agentId: string };

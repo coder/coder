@@ -1,7 +1,7 @@
 import { RotateCcwIcon } from "lucide-react";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
-import { ChatTopBar } from "./components/ChatTopBar";
+import { ChatTopBar } from "../components/ChatTopBar";
 
 type AgentChatPageErrorViewProps = {
 	error: unknown;
