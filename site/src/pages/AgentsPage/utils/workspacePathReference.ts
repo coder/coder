@@ -1,6 +1,24 @@
 /** Lexical node type of a workspace file or folder chip in the composer. */
 export const workspacePathNodeType = "workspace-path";
 
+/** The JSON a workspace path chip serializes to in drafts and copies. */
+export type SerializedWorkspacePath = {
+	type: typeof workspacePathNodeType;
+	path: string;
+	isDirectory?: unknown;
+};
+
+/**
+ * Matches a serialized workspace path chip in JSON read from a draft or the
+ * clipboard, where nothing guarantees the shape.
+ */
+export const isSerializedWorkspacePath = (node: {
+	type?: unknown;
+	path?: unknown;
+	isDirectory?: unknown;
+}): node is SerializedWorkspacePath =>
+	node.type === workspacePathNodeType && typeof node.path === "string";
+
 /**
  * The text a workspace file or folder chip sends: the path as Markdown inline
  * code, with a trailing "/" for a folder. The fence is one backtick longer
