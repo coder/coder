@@ -262,6 +262,7 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 	const [isEnteringPath, setIsEnteringPath] = useState(false);
 	const pathInputRef = useRef<HTMLInputElement>(null);
 	const rootTriggerRef = useRef<HTMLButtonElement>(null);
+	const pathFormRef = useRef<HTMLFormElement>(null);
 	const focusPathInputOnClose = useRef(false);
 	// A refresh usually answers in tens of milliseconds, too fast to see, so
 	// the button stays busy for at least one turn of the spinner.
@@ -449,10 +450,16 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 			if (request !== openPathRequest.current) {
 				return;
 			}
+			// The lookup can outlast the user's attention: only a form that still
+			// holds focus (or lost it to the body) hands it back to the picker.
+			const active = document.activeElement;
+			const formHadFocus =
+				active === document.body ||
+				(active !== null && pathFormRef.current?.contains(active) === true);
 			selectRoot(result.root);
 			if (result.file) {
 				openFile(result.file);
-			} else {
+			} else if (formHadFocus) {
 				// The path form closes with the selection; keep focus on the picker
 				// that opened it rather than the page body.
 				rootTriggerRef.current?.focus();
@@ -624,6 +631,7 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 			</div>
 			{isEnteringPath && (
 				<form
+					ref={pathFormRef}
 					className="flex shrink-0 flex-col gap-1 border-0 border-b border-solid border-border p-2"
 					onSubmit={handleOpenPath}
 				>
