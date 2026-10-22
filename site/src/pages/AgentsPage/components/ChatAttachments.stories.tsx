@@ -1,9 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn, userEvent, within } from "storybook/test";
+import { fn, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
+import { mockApiError } from "#/testHelpers/entities";
 import { ChatAttachments } from "./ChatAttachments";
 import { getMessageAttachments } from "./ChatConversation/messageHelpers";
+
+// A 120x80 bar chart, inline so the thumbnail loads without a server.
+const mockDashboardScreenshotPng =
+	"iVBORw0KGgoAAAANSUhEUgAAAHgAAABQBAMAAAAgtay6AAAAFVBMVEX7vySni/o005lgpfr4cXE4QlYYHiqCUmhAAAAAYklEQVR42mMMZSAfMDGMah7VPDw1swiOBthQiSo8crMgVNpogI1qHsJp+yyEMh4NsAErSbCC1RAqdDS0qRHafw5AxB1GA2zk5ap/DyA2KYwG2KjmUc2jmoePZsa00QAbIpoBDsAId7SA4AAAAAAASUVORK5CYII=";
 
 const mockAttachmentMessage: TypesGen.ChatMessage = {
 	...MockChatMessage,
@@ -36,7 +42,7 @@ const mockAttachmentMessage: TypesGen.ChatMessage = {
 			type: "file",
 			media_type: "image/png",
 			name: "dashboard-screenshot.png",
-			file_id: "screenshot-file",
+			data: mockDashboardScreenshotPng,
 		},
 	],
 };
@@ -51,6 +57,20 @@ const mockUploadMessage: TypesGen.ChatMessage = {
 			media_type: "text/plain",
 			name: "uploaded-ci.log",
 			file_id: "upload-file",
+		},
+	],
+};
+
+const mockBrokenImageMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	role: "assistant",
+	content: [
+		{
+			type: "file",
+			media_type: "image/png",
+			name: "broken-screenshot.png",
+			// "not a png", base64-encoded.
+			data: "bm90IGEgcG5n",
 		},
 	],
 };
@@ -103,8 +123,78 @@ export const HeaderFocused: Story = {
 export const AttachmentFocused: Story = {
 	play: async ({ canvasElement }) => {
 		within(canvasElement)
+			.getByRole("button", { name: "PLAN.md View file" })
+			.focus();
+	},
+};
+
+export const DownloadLinkFocused: Story = {
+	play: async ({ canvasElement }) => {
+		within(canvasElement)
 			.getByRole("link", { name: "Download PLAN.md" })
 			.focus();
+	},
+};
+
+export const DownloadCardFocused: Story = {
+	play: async ({ canvasElement }) => {
+		within(canvasElement)
+			.getByRole("link", { name: "Download Attached file" })
+			.focus();
+	},
+};
+
+const viewPlan: Story["play"] = async ({ canvasElement }) => {
+	await userEvent.click(
+		within(canvasElement).getByRole("button", { name: "PLAN.md View file" }),
+	);
+};
+
+export const TextFileLoading: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatFileText").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	play: viewPlan,
+};
+
+export const TextFileFailed: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatFileText").mockRejectedValue(
+			mockApiError({ message: "Internal error reading the file." }),
+		);
+	},
+	play: viewPlan,
+};
+
+export const TextFileExpired: Story = {
+	beforeEach: () => {
+		const notFound = mockApiError({ message: "File not found." });
+		spyOn(API.experimental, "getChatFileText").mockRejectedValue({
+			...notFound,
+			response: { ...notFound.response, status: 404 },
+		});
+	},
+	play: viewPlan,
+};
+
+export const ImageThumbnailFailed: Story = {
+	args: { attachments: getMessageAttachments([mockBrokenImageMessage]) },
+};
+
+export const AgentAttachmentsOnly: Story = {
+	args: { attachments: getMessageAttachments([mockAttachmentMessage]) },
+};
+
+export const UploadsOnly: Story = {
+	args: { attachments: getMessageAttachments([mockUploadMessage]) },
+};
+
+export const AllAttachmentsExpired: Story = {
+	args: {
+		attachments: getMessageAttachments([mockUploadMessage]),
+		evictedFileIds: new Set(["upload-file"]),
 	},
 };
 

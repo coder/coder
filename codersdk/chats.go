@@ -3687,6 +3687,7 @@ func (c *Client) GetChatPrompts(ctx context.Context, chatID uuid.UUID, opts *Cha
 
 // ChatAttachmentsOptions are optional query parameters for
 // GetChatAttachments.
+// @typescript-ignore ChatAttachmentsOptions
 type ChatAttachmentsOptions struct {
 	// BeforeID, when > 0, restricts results to messages with id strictly
 	// less than BeforeID. 0 returns every attachment in the chat.
