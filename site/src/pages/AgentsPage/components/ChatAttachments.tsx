@@ -24,8 +24,7 @@ import { RetryButton } from "./RetryButton";
 import { SectionHeader } from "./SectionHeader";
 
 type ChatAttachmentsProps = {
-	/** Newest first; undefined until the first message page loads. */
-	attachments: readonly MessageAttachment[] | undefined;
+	attachments: readonly AgentAttachment[];
 	evictedFileIds: ReadonlySet<string>;
 	isLoadingEarlierAttachments: boolean;
 	earlierAttachmentsError: unknown;
@@ -67,9 +66,7 @@ export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 				level="section"
 				label={
 					<CollapsibleTrigger className="group inline-flex appearance-none items-center gap-1 rounded-md focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link">
-						{isComplete
-							? `Attachments (${unexpiredCount.toLocaleString("en-US")})`
-							: "Attachments"}
+						{`Attachments (${attachments.length.toLocaleString("en-US")})`}
 						<ChevronDownIcon
 							aria-hidden
 							className="size-3.5 text-content-secondary"
@@ -77,36 +74,43 @@ export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 					</CollapsibleTrigger>
 				}
 			/>
-			{/* Stays mounted while loading so the open trigger's aria-controls resolves. */}
 			<CollapsibleContent className="flex flex-col gap-3">
-				<AttachmentGroup
-					label="From the agent"
-					attachments={kept.filter(({ role }) => role !== "user")}
-				/>
-				<AttachmentGroup
-					label="From you"
-					attachments={kept.filter(({ role }) => role === "user")}
-				/>
-				{evicted.length > 0 && <ExpiredAttachments attachments={evicted} />}
-				{isLoading && <Spinner loading size="sm" label="Loading attachments" />}
-				{isComplete && listed.length === 0 && (
+				{attachments.length > 0 && (
+					<ul className="flex flex-col gap-2">
+						{attachments.map(({ key, file, href }) => (
+							<li key={key}>
+								<FileCard
+									block={file}
+									href={href}
+									expired={
+										file.file_id !== undefined &&
+										evictedFileIds.has(file.file_id)
+									}
+									fullWidth
+								/>
+							</li>
+						))}
+					</ul>
+				)}
+				{attachments.length === 0 && (
 					<p className="m-0 text-sm text-content-secondary">
 						No attachments yet.
 					</p>
 				)}
-				{earlierAttachmentsError ? (
-					<ErrorAlert
-						error={earlierAttachmentsError}
-						actions={
-							<RetryButton
-								variant="outline"
-								size="sm"
-								isRetrying={isRetrying}
-								onRetry={onRetry}
-							/>
-						}
-					/>
-				) : null}
+				{hasMoreMessages && (
+					<Button
+						variant="outline"
+						size="sm"
+						className="self-start"
+						disabled={isFetchingMoreMessages}
+						onClick={() => void onFetchMoreMessages()}
+					>
+						<Spinner loading={isFetchingMoreMessages} />
+						{hasFetchMoreError
+							? "Retry loading earlier messages"
+							: "Load earlier messages"}
+					</Button>
+				)}
 			</CollapsibleContent>
 		</Collapsible>
 	);
