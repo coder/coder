@@ -10,6 +10,8 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
+	"github.com/coder/quartz"
+
 	"cdr.dev/slog/v3"
 )
 
@@ -45,6 +47,7 @@ type fsWatcher struct {
 	ig     *Ignorer
 	events chan []FSEvent
 	logger slog.Logger
+	clock  quartz.Clock
 	mu     sync.Mutex
 	closed bool
 	// started is set once Start runs; done is only closed after that.
@@ -71,6 +74,7 @@ func newFSWatcher(root string, logger slog.Logger, ig *Ignorer) (*fsWatcher, err
 		ig:        ig,
 		events:    make(chan []FSEvent, 64),
 		logger:    logger,
+		clock:     quartz.NewReal(),
 		done:      make(chan struct{}),
 		ruleFiles: make(map[string]struct{}),
 		ruleDirs:  make(map[string]struct{}),
@@ -144,10 +148,17 @@ func (fw *fsWatcher) loop(ctx context.Context) {
 	const batchWindow = 50 * time.Millisecond
 	var (
 		batch  eventBatch
-		timer  *time.Timer
+		timer  *quartz.Timer
 		timerC <-chan time.Time
 	)
 	flush := func() {
+		// Reset the timer first so the next event arms a new one even
+		// when filtering leaves nothing to send.
+		if timer != nil {
+			timer.Stop()
+		}
+		timer = nil
+		timerC = nil
 		events := fw.filterIgnored(ctx, batch.take())
 		if len(events) == 0 {
 			return
@@ -157,16 +168,11 @@ func (fw *fsWatcher) loop(ctx context.Context) {
 		default:
 			fw.logger.Warn(ctx, "fs watcher dropping batch", slog.F("count", len(events)))
 		}
-		if timer != nil {
-			timer.Stop()
-		}
-		timer = nil
-		timerC = nil
 	}
 	addToBatch := func(ev FSEvent) {
 		batch.add(ev)
 		if timer == nil {
-			timer = time.NewTimer(batchWindow)
+			timer = fw.clock.NewTimer(batchWindow, "fsWatcher", "batch")
 			timerC = timer.C
 		}
 	}
