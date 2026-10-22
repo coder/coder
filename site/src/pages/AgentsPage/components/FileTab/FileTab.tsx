@@ -18,8 +18,11 @@ import { toast } from "#/components/Toaster/toast";
 import { isBinaryData } from "#/modules/templates/TemplateFiles/isBinaryData";
 import { getOSKey } from "#/utils/platform";
 import { getPathBasename } from "../../utils/path";
-import { Response } from "../ChatElements/Response";
 import type { FileReveal } from "../MainTabs/useMainTabs";
+import {
+	MarkdownFilePreview,
+	maxMarkdownPreviewBytes,
+} from "./MarkdownFilePreview";
 
 const FileEditor = lazy(() => import("./FileEditor"));
 
@@ -97,8 +100,8 @@ export const FileTab = memo<FileTabProps>(
 		);
 		const [hasSaveConflict, setHasSaveConflict] = useState(false);
 		const isMarkdown = isMarkdownPath(path);
-		const [mode, setMode] = useState<"edit" | "preview">(
-			isMarkdown && reveal?.line === undefined ? "preview" : "edit",
+		const [mode, setMode] = useState<"edit" | "preview" | undefined>(
+			isMarkdown && reveal?.line === undefined ? undefined : "edit",
 		);
 		const rootRef = useRef<HTMLDivElement>(null);
 		// Cleared once applied, so an editor that remounts, such as after
@@ -141,6 +144,8 @@ export const FileTab = memo<FileTabProps>(
 			data !== undefined &&
 			isAxiosError(fileQuery.error) &&
 			fileQuery.error.response?.status === 404;
+		const isLargeFile = (data?.data.byteLength ?? 0) > maxMarkdownPreviewBytes;
+		const viewMode = mode ?? (isLargeFile ? "edit" : "preview");
 		const hasExternalChange =
 			draft !== undefined &&
 			data !== undefined &&
@@ -295,13 +300,11 @@ export const FileTab = memo<FileTabProps>(
 					description={`${data.data.byteLength.toLocaleString("en-US")} bytes. Binary files cannot be displayed.`}
 				/>
 			);
-		} else if (isMarkdown && mode === "preview" && !value) {
+		} else if (isMarkdown && viewMode === "preview" && !value) {
 			body = <EmptyState message="Empty file" />;
-		} else if (isMarkdown && mode === "preview") {
+		} else if (isMarkdown && viewMode === "preview") {
 			body = (
-				<div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-					<Response>{value}</Response>
-				</div>
+				<MarkdownFilePreview agentId={agentId} path={path} content={value} />
 			);
 		} else {
 			showsEditor = true;
@@ -417,16 +420,16 @@ export const FileTab = memo<FileTabProps>(
 						<div role="group" aria-label="View mode" className="flex gap-1">
 							<Button
 								size="xs"
-								variant={mode === "preview" ? "outline" : "subtle"}
-								aria-pressed={mode === "preview"}
+								variant={viewMode === "preview" ? "outline" : "subtle"}
+								aria-pressed={viewMode === "preview"}
 								onClick={() => setMode("preview")}
 							>
-								Preview
+								{isLargeFile ? "Preview (large file)" : "Preview"}
 							</Button>
 							<Button
 								size="xs"
-								variant={mode === "edit" ? "outline" : "subtle"}
-								aria-pressed={mode === "edit"}
+								variant={viewMode === "edit" ? "outline" : "subtle"}
+								aria-pressed={viewMode === "edit"}
 								onClick={() => setMode("edit")}
 							>
 								Edit
