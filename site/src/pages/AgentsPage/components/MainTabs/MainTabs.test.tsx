@@ -58,7 +58,10 @@ const Harness: React.FC<{ paths: readonly string[] }> = ({ paths }) => {
 					{`Open ${path}`}
 				</button>
 			))}
-			<textarea aria-label="Terminal" />
+			<textarea aria-label="Files filter" />
+			<div className="xterm">
+				<textarea aria-label="Terminal" />
+			</div>
 			<MainTabs mainTabs={mainTabs} readOnly={false}>
 				<ChatStub />
 			</MainTabs>
@@ -195,16 +198,34 @@ describe("MainTabs", () => {
 		);
 	});
 
-	it("leaves Alt+[ and Alt+] to focus outside the main tabs", async () => {
+	it("cycles tabs from anywhere but a terminal", async () => {
 		const user = userEvent.setup();
 		renderHarness(["/repo/a.go"]);
 
 		await user.click(screen.getByRole("button", { name: "Open /repo/a.go" }));
 		await user.click(screen.getByLabelText("Terminal"));
 		await user.keyboard("{Alt>}[BracketRight]{/Alt}");
-
 		expect(getTab("a.go")).toHaveAttribute("aria-selected", "true");
 		expect(screen.getByLabelText("Terminal")).toHaveFocus();
+
+		await user.click(screen.getByLabelText("Files filter"));
+		await user.keyboard("{Alt>}[BracketRight]{/Alt}");
+		expect(getTab("Chat")).toHaveAttribute("aria-selected", "true");
+	});
+
+	it("closes the focused tab with Delete", async () => {
+		const user = userEvent.setup();
+		renderHarness(["/repo/a.go", "/repo/b.go"]);
+
+		await user.click(screen.getByRole("button", { name: "Open /repo/a.go" }));
+		await user.click(screen.getByRole("button", { name: "Open /repo/b.go" }));
+		await user.click(getTab("a.go"));
+		await user.keyboard("{Delete}");
+
+		expect(getPersistedMainTabs(chatId)).toEqual({
+			paths: ["/repo/b.go"],
+			activePath: "/repo/b.go",
+		});
 	});
 
 	it("moves between tabs with the arrow keys", async () => {
@@ -255,13 +276,11 @@ describe("MainTabs", () => {
 		await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
 		expect(getTab("main.go, unsaved")).toHaveAttribute("aria-selected", "true");
 		await waitFor(() => {
-			expect(
-				screen.getByRole("button", { name: "Close main.go" }),
-			).toHaveFocus();
+			expect(getTab("main.go, unsaved")).toHaveFocus();
 		});
 		expect(getPersistedMainTabs(chatId).paths).toEqual(["/repo/main.go"]);
 
-		await user.keyboard("{Enter}");
+		await user.keyboard("{Delete}");
 		await user.click(
 			within(await screen.findByRole("dialog")).getByRole("button", {
 				name: "Discard",
