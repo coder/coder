@@ -545,7 +545,11 @@ describe("Response", () => {
 				await user.click(screen.getByRole("button", { name: "Finish" }));
 
 				await screen.findByRole("button", { name: "/path/to/file (2).txt" });
-				expect(list).toHaveBeenCalledWith("agent-1", "/path/to");
+				expect(list).toHaveBeenCalledWith(
+					"agent-1",
+					"/path/to",
+					expect.any(AbortSignal),
+				);
 			});
 
 			it("keeps a mention's link, focus, and selected text when verification does not extend it", async () => {
@@ -648,6 +652,7 @@ describe("Response", () => {
 					expect(API.listWorkspaceAgentDirectory).toHaveBeenCalledWith(
 						"agent-1",
 						"/home/coder/coder/my dir",
+						expect.any(AbortSignal),
 					),
 				);
 				await flush();
@@ -697,7 +702,11 @@ describe("Response", () => {
 				expect(list.mock.calls.map((call) => call[0])).toEqual(["agent-1"]);
 				setOnScreen(true);
 				await waitFor(() =>
-					expect(list).toHaveBeenCalledWith("agent-2", "/path/to"),
+					expect(list).toHaveBeenCalledWith(
+						"agent-2",
+						"/path/to",
+						expect.any(AbortSignal),
+					),
 				);
 			});
 
@@ -729,7 +738,11 @@ describe("Response", () => {
 				};
 				render(<Harness />);
 				await waitFor(() =>
-					expect(list).toHaveBeenCalledWith("agent-1", "/home/coder"),
+					expect(list).toHaveBeenCalledWith(
+						"agent-1",
+						"/home/coder",
+						expect.any(AbortSignal),
+					),
 				);
 
 				await user.click(screen.getByRole("button", { name: "Disable files" }));
