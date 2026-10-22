@@ -89,3 +89,45 @@ export const IgnoredEntries: Story = {
 		await canvas.findByRole("treeitem", { name: "main.go" });
 	},
 };
+
+export const RootPicker: Story = {
+	args: { chatId: "story-files-panel-root-picker" },
+	decorators: [
+		(Story) => (
+			<WorkspaceFilesContext
+				value={{
+					agentId,
+					defaultDirectory: "/home/coder",
+					repoRoots: ["/home/coder/coder", "/home/coder/demo/site"],
+					repositories: new Map(),
+					openFile: () => {},
+				}}
+			>
+				<Story />
+			</WorkspaceFilesContext>
+		),
+	],
+	parameters: {
+		queries: [
+			{
+				key: workspaceAgentDirectoryKey(agentId, "/home/coder/coder"),
+				data: listing("/home/coder/coder", [
+					entry("/home/coder/coder/coderd", true),
+					entry("/home/coder/coder/site", true),
+					entry("/home/coder/coder/go.mod", false),
+				]),
+			},
+			{
+				key: workspaceAgentDirectoryKey(agentId, "~"),
+				data: listing("/home/coder", [entry("/home/coder/coder", true)]),
+			},
+		],
+	},
+	// Opens the picker so the screenshot shows its groups and paths.
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("combobox", { name: "Root directory" }),
+		);
+	},
+};
