@@ -84,18 +84,26 @@ export const useMainTabs = (chatId: string) => {
 		}));
 	};
 
-	const closeFile = (path: string) => {
+	const closeFiles = (paths: readonly string[]) => {
 		setState((current) => {
-			const index = current.files.findIndex((file) => file.path === path);
-			if (index < 0) {
+			const closing = new Set(paths);
+			const files = current.files.filter((file) => !closing.has(file.path));
+			if (files.length === current.files.length) {
 				return current;
 			}
-			const files = current.files.filter((file) => file.path !== path);
 			const activation = current.activation + 1;
-			if (current.activePath !== path) {
+			if (current.activePath === null || !closing.has(current.activePath)) {
 				return { ...current, files, activation };
 			}
-			const neighbor = files[Math.min(index, files.length - 1)];
+			// The nearest remaining tab to the right of the closed active tab,
+			// else the nearest to its left.
+			const activeIndex = current.files.findIndex(
+				(file) => file.path === current.activePath,
+			);
+			const isRemaining = (file: MainFileTab) => !closing.has(file.path);
+			const neighbor =
+				current.files.slice(activeIndex + 1).find(isRemaining) ??
+				current.files.slice(0, activeIndex).findLast(isRemaining);
 			return { files, activePath: neighbor?.path ?? null, activation };
 		});
 	};
@@ -106,7 +114,7 @@ export const useMainTabs = (chatId: string) => {
 		activation: state.activation,
 		openFile,
 		activate,
-		closeFile,
+		closeFiles,
 	};
 };
 
