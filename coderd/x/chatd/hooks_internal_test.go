@@ -69,7 +69,7 @@ func TestSessionStartDispatchFailureFinishesGeneration(t *testing.T) {
 	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
 	starter.server.hooks = chathooks.NewTrigger(dispatcher)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	debugTurn := newRunnerDebugTurn(ctx, starter.opts.Logger)
+	debugTurn := newRunnerDebugTurn(starter.opts.Logger)
 	defer debugTurn.Finalize(ctx)
 	err := starter.StartGeneration(ctx, chatWorkerTaskStartInput{
 		ChatID:            chat.ID,
