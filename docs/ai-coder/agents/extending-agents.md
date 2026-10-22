@@ -278,7 +278,7 @@ For site owners, organization admins, and auditors, the group lists every organi
 Choosing a skill from the `/` menu attaches it to your message as a chip, so the agent always loads that skill for the message instead of deciding whether to read it.
 The chip shows the skill's qualified alias, such as `/project/triage`, even when the menu lists the skill by its bare name.
 Coder reads the skill when you send the message, so a queued message keeps the version of the skill it was sent with.
-If the skill is turned off, deleted, or no longer available to you at that point, Coder rejects the message with an error such as `Skill project/triage is not available.`
+If the skill is turned off, deleted, or no longer available to you, Coder rejects the message with an error such as `Skill project/triage is not available.`
 Remove the chip, or turn the skill back on, and send the message again.
 Text such as `/triage` that you type without choosing it from the menu is sent as plain text, and the agent decides whether to read the skill.
 
