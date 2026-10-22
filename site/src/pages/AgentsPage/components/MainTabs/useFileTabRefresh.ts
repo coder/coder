@@ -113,10 +113,13 @@ export const useFileTabRefresh = ({
 			return;
 		}
 		for (const path of refreshed) {
-			void queryClient.invalidateQueries({
-				queryKey: workspaceAgentFileKey(workspaceFiles.agentId, path),
-				exact: true,
-			});
+			const queryKey = workspaceAgentFileKey(workspaceFiles.agentId, path);
+			// A read in flight may predate the change. Invalidating restarts
+			// it only once the file has data, and joins the first read, so
+			// the read is canceled first.
+			void queryClient
+				.cancelQueries({ queryKey, exact: true })
+				.then(() => queryClient.invalidateQueries({ queryKey, exact: true }));
 		}
 	});
 
