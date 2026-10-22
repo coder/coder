@@ -5,8 +5,10 @@ import { expect, fn, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
 import { organizationSkills } from "#/api/queries/organizationSkills";
+import { workspaceAgentFindFiles } from "#/api/queries/workspaceFiles";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockSkill, MockSkills } from "#/testHelpers/skills";
+import { WorkspaceFilesContext } from "../../context/WorkspaceFilesContext";
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import { ChatMessageInput } from "./ChatMessageInput";
@@ -220,6 +222,87 @@ export const ArrowDownSelectsWorkspaceSkill: Story = {
 	play: async ({ canvasElement }) => {
 		await typeInEditor(canvasElement, "/");
 		await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{Enter}");
+	},
+};
+
+const workspaceFilesRoots = ["/home/coder/coder", "/home/coder/vscode"];
+
+const withWorkspaceFiles: Decorator = (Story) => (
+	<WorkspaceFilesContext
+		value={{
+			agentId: "agent-1",
+			defaultDirectory: "/home/coder",
+			repoRoots: workspaceFilesRoots,
+			repositories: new Map(),
+			openFile: fn(),
+		}}
+	>
+		<Story />
+	</WorkspaceFilesContext>
+);
+
+const workspaceFilesQueries = [
+	{
+		key: workspaceAgentFindFiles("agent-1", workspaceFilesRoots, "main")
+			.queryKey,
+		data: {
+			results: [
+				{
+					absolute_path: "/home/coder/coder/cmd/coder/main.go",
+					path: "cmd/coder/main.go",
+					root: "/home/coder/coder",
+					is_dir: false,
+					score: 30,
+				},
+				{
+					absolute_path: "/home/coder/coder/site/src/main.tsx",
+					path: "site/src/main.tsx",
+					root: "/home/coder/coder",
+					is_dir: false,
+					score: 20,
+				},
+				{
+					absolute_path: "/home/coder/vscode/src/vs/workbench/contrib/main",
+					path: "src/vs/workbench/contrib/main",
+					root: "/home/coder/vscode",
+					is_dir: true,
+					score: 10,
+				},
+			],
+		},
+	},
+];
+
+export const OpensWithWorkspaceFiles: Story = {
+	decorators: [withWorkspaceFiles],
+	parameters: { queries: workspaceFilesQueries },
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "explain @main");
+	},
+};
+
+export const InsertsWorkspaceFileChips: Story = {
+	decorators: [withWorkspaceFiles],
+	parameters: { queries: workspaceFilesQueries },
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "compare @main");
+		await findVisibleText("main.go");
+		await userEvent.keyboard("{Enter}with @main");
+		await findVisibleText("main/");
+		await userEvent.keyboard("{ArrowUp}{Enter}");
+	},
+};
+
+export const WorkspaceFilesNeedAgentUpdate: Story = {
+	decorators: [withWorkspaceFiles],
+	beforeEach: () => {
+		spyOn(API, "findWorkspaceAgentFiles").mockRejectedValue({
+			isAxiosError: true,
+			response: { status: 404, data: "404 page not found\n" },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "@main");
 	},
 };
 

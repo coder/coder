@@ -20,6 +20,10 @@ import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { MockChatProject } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
+import {
+	WorkspaceFilesContext,
+	type WorkspaceFilesContextValue,
+} from "../../context/WorkspaceFilesContext";
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
 import { buildChatInputContent } from "../../utils/chatInputContent";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
@@ -839,6 +843,188 @@ describe("ChatMessageInput", () => {
 			await waitFor(() => {
 				expect(getRequestContent(inputRef)).toEqual(content);
 			});
+		});
+	});
+
+	describe("@ workspace file references", () => {
+		const workspaceFiles: WorkspaceFilesContextValue = {
+			agentId: "agent-1",
+			defaultDirectory: "/home/coder",
+			repoRoots: ["/home/coder/a", "/home/coder/b"],
+			repositories: new Map(),
+			openFile: vi.fn(),
+		};
+
+		const mockFindFiles = () =>
+			vi.spyOn(API, "findWorkspaceAgentFiles").mockResolvedValue({
+				results: [
+					{
+						absolute_path: "/home/coder/a/src/main.go",
+						path: "src/main.go",
+						root: "/home/coder/a",
+						is_dir: false,
+						score: 10,
+					},
+					{
+						absolute_path: "/home/coder/b/src",
+						path: "src",
+						root: "/home/coder/b",
+						is_dir: true,
+						score: 5,
+					},
+				],
+			});
+
+		const renderWithWorkspaceFiles = (
+			value: WorkspaceFilesContextValue | undefined,
+		) => {
+			const inputRef = createRef<ChatMessageInputRef>();
+			const onEnter = vi.fn();
+			const queryClient = createTestQueryClient();
+			queryClient.setQueryData(userSkills().queryKey, [
+				{ ...MockSkill, name: "reviewer" },
+			]);
+			renderWithQueryClient(
+				<WorkspaceFilesContext value={value}>
+					<ChatMessageInput
+						{...requiredProps()}
+						ref={inputRef}
+						onEnter={onEnter}
+						aria-label="Chat message input"
+					/>
+				</WorkspaceFilesContext>,
+				queryClient,
+			);
+			return { inputRef, onEnter };
+		};
+
+		const pasteText = async (text: string) => {
+			const user = userEvent.setup();
+			await user.click(
+				screen.getByRole("textbox", { name: "Chat message input" }),
+			);
+			await user.paste(text);
+			return user;
+		};
+
+		it("searches the repo roots and inserts the chosen file on Enter", async () => {
+			mockFindFiles();
+			const { inputRef, onEnter } = renderWithWorkspaceFiles(workspaceFiles);
+			const user = await pasteText("see @main");
+			await screen.findByRole("option", { name: /main\.go/ });
+			expect(API.findWorkspaceAgentFiles).toHaveBeenLastCalledWith(
+				"agent-1",
+				["/home/coder/a", "/home/coder/b"],
+				"main",
+			);
+
+			await user.keyboard("{Enter}");
+			expect(onEnter).not.toHaveBeenCalled();
+			expect(inputRef.current?.getContentParts()).toEqual([
+				{ type: "text", text: "see `/home/coder/a/src/main.go` " },
+			]);
+
+			await user.keyboard("{Enter}");
+			expect(onEnter).toHaveBeenCalledTimes(1);
+		});
+
+		it("searches the default directory without repo roots", async () => {
+			mockFindFiles();
+			renderWithWorkspaceFiles({ ...workspaceFiles, repoRoots: [] });
+			await pasteText("@x");
+			await waitFor(() =>
+				expect(API.findWorkspaceAgentFiles).toHaveBeenCalledWith(
+					"agent-1",
+					[""],
+					"x",
+				),
+			);
+		});
+
+		it("references a folder with a trailing slash", async () => {
+			mockFindFiles();
+			const { inputRef } = renderWithWorkspaceFiles(workspaceFiles);
+			const user = await pasteText("@src");
+			await user.click(await screen.findByRole("option", { name: /^src\// }));
+			expect(inputRef.current?.getValue()).toBe("`/home/coder/b/src/` ");
+		});
+
+		it("restores chips from a saved draft", async () => {
+			mockFindFiles();
+			const onChange =
+				vi.fn<(content: string, serializedEditorState: string) => void>();
+			const queryClient = createTestQueryClient();
+			const { unmount } = renderWithQueryClient(
+				<WorkspaceFilesContext value={workspaceFiles}>
+					<ChatMessageInput
+						{...requiredProps()}
+						onChange={onChange}
+						aria-label="Chat message input"
+					/>
+				</WorkspaceFilesContext>,
+				queryClient,
+			);
+			const user = await pasteText("@main");
+			await screen.findByRole("option", { name: /main\.go/ });
+			await user.keyboard("{Enter}");
+			const [content, draft] = onChange.mock.lastCall ?? [];
+			expect(content).toBe("`/home/coder/a/src/main.go` ");
+			unmount();
+
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					initialEditorState={draft}
+					aria-label="Chat message input"
+				/>,
+			);
+			await waitFor(() =>
+				expect(inputRef.current?.getValue()).toBe(
+					"`/home/coder/a/src/main.go` ",
+				),
+			);
+			await user.click(screen.getByRole("button", { name: "Remove main.go" }));
+			await waitFor(() => expect(inputRef.current?.getValue()).toBe(" "));
+		});
+
+		it("lets Enter send after Escape dismisses the picker", async () => {
+			mockFindFiles();
+			const { inputRef, onEnter } = renderWithWorkspaceFiles(workspaceFiles);
+			const user = await pasteText("@main");
+			await screen.findByRole("option", { name: /main\.go/ });
+			await user.keyboard("{Escape}{Enter}");
+			expect(onEnter).toHaveBeenCalledTimes(1);
+			expect(inputRef.current?.getValue()).toBe("@main");
+		});
+
+		it("does not open inside a word", async () => {
+			mockFindFiles();
+			const { onEnter } = renderWithWorkspaceFiles(workspaceFiles);
+			const user = await pasteText("mail user@host");
+			await user.keyboard("{Enter}");
+			expect(onEnter).toHaveBeenCalledTimes(1);
+			expect(API.findWorkspaceAgentFiles).not.toHaveBeenCalled();
+		});
+
+		it("is plain text without workspace files", async () => {
+			mockFindFiles();
+			const { inputRef, onEnter } = renderWithWorkspaceFiles(undefined);
+			const user = await pasteText("@main");
+			await user.keyboard("{Enter}");
+			expect(onEnter).toHaveBeenCalledTimes(1);
+			expect(inputRef.current?.getValue()).toBe("@main");
+			expect(API.findWorkspaceAgentFiles).not.toHaveBeenCalled();
+		});
+
+		it("keeps the skills trigger working", async () => {
+			mockFindFiles();
+			const { inputRef } = renderWithWorkspaceFiles(workspaceFiles);
+			const user = await pasteText("/rev");
+			await user.click(await screen.findByRole("option", { name: /reviewer/ }));
+			expect(inputRef.current?.getValue()).toBe("/reviewer");
+			expect(API.findWorkspaceAgentFiles).not.toHaveBeenCalled();
 		});
 	});
 });
