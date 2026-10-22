@@ -20,37 +20,37 @@ import { findWorkspaceAgent } from "#/utils/workspace";
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,
-} from "./components/AgentChatInput";
+} from "../components/AgentChatInput";
 import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
-} from "./components/AgentsSkeletons";
-import type { ChatDetailError } from "./components/ChatConversation/chatError";
+} from "../components/AgentsSkeletons";
+import type { ChatDetailError } from "../components/ChatConversation/chatError";
 import {
 	selectChatStatus,
 	useChatSelector,
 	type useChatStore,
-} from "./components/ChatConversation/chatStore";
+} from "../components/ChatConversation/chatStore";
 
-import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedForCapacityCallout";
-import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
-import type { SendChatMessageOptions } from "./components/ChatPageContent";
-import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
-import { ChatSummaryPanel } from "./components/ChatSummaryPanel";
-import { getEffectiveTabId } from "./components/ChatsSidebar/tabs/getEffectiveTabId";
-import { SidebarTabView } from "./components/ChatsSidebar/tabs/SidebarTabView";
-import { ChatTopBar } from "./components/ChatTopBar";
-import { GitPanel } from "./components/GitPanel/GitPanel";
-import { DebugPanel } from "./components/RightPanel/DebugPanel/DebugPanel";
-import { DesktopPanel } from "./components/RightPanel/DesktopPanel";
-import { PortPreviewPanel } from "./components/RightPanel/PortPreviewPanel";
-import { RightPanel } from "./components/RightPanel/RightPanel";
-import { RightPanelAddTabControl } from "./components/RightPanel/RightPanelAddTabControl";
-import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
-import { TerminalPanel } from "./components/TerminalPanel";
-import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
-import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
-import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
+import { QueuedForCapacityCallout } from "../components/ChatConversation/QueuedForCapacityCallout";
+import { DesktopPanelContext } from "../components/ChatElements/tools/DesktopPanelContext";
+import type { SendChatMessageOptions } from "../components/ChatPageContent";
+import { ChatPageInput, ChatPageTimeline } from "../components/ChatPageContent";
+import { ChatSummaryPanel } from "../components/ChatSummaryPanel";
+import { getEffectiveTabId } from "../components/ChatsSidebar/tabs/getEffectiveTabId";
+import { SidebarTabView } from "../components/ChatsSidebar/tabs/SidebarTabView";
+import { ChatTopBar } from "../components/ChatTopBar";
+import { GitPanel } from "../components/GitPanel/GitPanel";
+import { DebugPanel } from "../components/RightPanel/DebugPanel/DebugPanel";
+import { DesktopPanel } from "../components/RightPanel/DesktopPanel";
+import { PortPreviewPanel } from "../components/RightPanel/PortPreviewPanel";
+import { RightPanel } from "../components/RightPanel/RightPanel";
+import { RightPanelAddTabControl } from "../components/RightPanel/RightPanelAddTabControl";
+import { getWorkspaceStatus, StatusIcon } from "../components/StatusIcon";
+import { TerminalPanel } from "../components/TerminalPanel";
+import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
+import { TerminalClientSessionContext } from "../context/TerminalClientSessionContext";
+import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import {
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
@@ -58,7 +58,7 @@ import {
 	savePersistedDefaultTerminalHidden,
 	savePersistedRightPanelTabs,
 	savePersistedVisibleSingletonTabs,
-} from "./utils/rightPanelTabStorage";
+} from "../utils/rightPanelTabStorage";
 import {
 	isSingletonRightPanelTabId,
 	type PortSelection,
@@ -66,11 +66,11 @@ import {
 	singletonRightPanelTabIds,
 	type UserRightPanelTab,
 	validateUserRightPanelTabs,
-} from "./utils/rightPanelTabs";
+} from "../utils/rightPanelTabs";
 import {
 	getPersistedSidebarTabId,
 	savePersistedSidebarTabId,
-} from "./utils/sidebarTabStorage";
+} from "../utils/sidebarTabStorage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -85,6 +85,7 @@ type EditingState = {
 		messageId: number,
 		text: string,
 		fileBlocks?: readonly ChatMessagePart[],
+		editorState?: string,
 	) => void;
 	handleCancelHistoryEdit: () => void;
 	handleSendFromInput: (options: SendChatMessageOptions) => void;

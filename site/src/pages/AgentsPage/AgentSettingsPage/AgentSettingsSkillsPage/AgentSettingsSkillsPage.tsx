@@ -8,17 +8,17 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { OrganizationField } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { OrganizationSkillPreferenceSwitch } from "./components/OrganizationSkillPreferenceSwitch";
-import { OrganizationSkillsMasterSwitch } from "./components/OrganizationSkillsMasterSwitch";
-import { RetryButton } from "./components/RetryButton";
-import { SectionHeader } from "./components/SectionHeader";
-import { SkillsTable } from "./components/SkillsTable";
+import { OrganizationSkillPreferenceSwitch } from "../../components/OrganizationSkillPreferenceSwitch";
+import { OrganizationSkillsMasterSwitch } from "../../components/OrganizationSkillsMasterSwitch";
+import { RetryButton } from "../../components/RetryButton";
+import { SectionHeader } from "../../components/SectionHeader";
+import { SkillsTable } from "../../components/SkillsTable";
 import {
 	fullSkillAccess,
 	organizationSkillsScope,
 	readOnlySkillAccess,
 	userSkillsScope,
-} from "./utils/skills";
+} from "../../utils/skills";
 
 type QueryErrorAlertProps = {
 	query: Pick<UseQueryResult<unknown>, "error" | "isFetching" | "refetch">;

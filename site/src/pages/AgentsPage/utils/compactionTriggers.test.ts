@@ -18,7 +18,7 @@ import {
 	resolveCompactionTriggersByOrganization,
 	resolveOrganizationCompactionTrigger,
 } from "./compactionTriggers";
-import { providerInfoByIDFromDescriptors } from "./utils/modelOptions";
+import { providerInfoByIDFromDescriptors } from "./modelOptions";
 
 const mockChatModel: TypesGen.ChatModel = {
 	...MockChatModel,

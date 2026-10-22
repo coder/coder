@@ -20101,6 +20101,17 @@
 					"description": "The following fields are only set when Type is\nChatInputPartTypeFileReference.",
 					"type": "string"
 				},
+				"skill_name": {
+					"type": "string"
+				},
+				"skill_source": {
+					"description": "The following fields are only set when Type is\nChatInputPartTypeSkillInvocation. The server loads the skill\nas the chat owner when the message is sent.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.ChatSkillSource"
+						}
+					]
+				},
 				"start_line": {
 					"type": "integer"
 				},
@@ -20132,12 +20143,19 @@
 		},
 		"codersdk.ChatInputPartType": {
 			"type": "string",
-			"enum": ["text", "file", "file-reference", "workspace-file-reference"],
+			"enum": [
+				"text",
+				"file",
+				"file-reference",
+				"workspace-file-reference",
+				"skill-invocation"
+			],
 			"x-enum-varnames": [
 				"ChatInputPartTypeText",
 				"ChatInputPartTypeFile",
 				"ChatInputPartTypeFileReference",
-				"ChatInputPartTypeWorkspaceFileReference"
+				"ChatInputPartTypeWorkspaceFileReference",
+				"ChatInputPartTypeSkillInvocation"
 			]
 		},
 		"codersdk.ChatMessage": {
@@ -20320,8 +20338,16 @@
 					"type": "string"
 				},
 				"skill_name": {
-					"description": "SkillName is the kebab-case name of a discovered skill\nfrom the workspace's .agents/skills/ directory.",
+					"description": "SkillName is the kebab-case name of the skill.",
 					"type": "string"
+				},
+				"skill_source": {
+					"description": "SkillSource is where the invoked skill of a skill-invocation\npart is stored.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.ChatSkillSource"
+						}
+					]
 				},
 				"source_id": {
 					"type": "string"
@@ -20383,6 +20409,7 @@
 				"context-file",
 				"skill",
 				"workspace-file-reference",
+				"skill-invocation",
 				"hook-context",
 				"hook-notice"
 			],
@@ -20397,6 +20424,7 @@
 				"ChatMessagePartTypeContextFile",
 				"ChatMessagePartTypeSkill",
 				"ChatMessagePartTypeWorkspaceFileReference",
+				"ChatMessagePartTypeSkillInvocation",
 				"ChatMessagePartTypeHookContext",
 				"ChatMessagePartTypeHookNotice"
 			]
@@ -21375,6 +21403,16 @@
 			"type": "string",
 			"enum": ["read", ""],
 			"x-enum-varnames": ["ChatRoleRead", "ChatRoleDeleted"]
+		},
+		"codersdk.ChatSkillSource": {
+			"type": "string",
+			"enum": ["personal", "org", "project", "workspace"],
+			"x-enum-varnames": [
+				"ChatSkillSourcePersonal",
+				"ChatSkillSourceOrganization",
+				"ChatSkillSourceProject",
+				"ChatSkillSourceWorkspace"
+			]
 		},
 		"codersdk.ChatStatus": {
 			"type": "string",

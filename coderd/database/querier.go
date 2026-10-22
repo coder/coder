@@ -247,6 +247,9 @@ type sqlcQuerier interface {
 	DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) (int64, error)
 	DeleteOldWorkspaceAgentStats(ctx context.Context) error
 	DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg DeleteOldWorkspaceBuildOrchestrationsParams) (int64, error)
+	// Soft deletes the organization's live config for one model on one configured
+	// provider. Returns zero rows when there is no live config.
+	DeleteOrganizationAIProviderModelConfig(ctx context.Context, arg DeleteOrganizationAIProviderModelConfigParams) (int64, error)
 	DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error
 	DeleteOrganizationMemberDisabledSkill(ctx context.Context, arg DeleteOrganizationMemberDisabledSkillParams) error
 	DeleteOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg DeleteOrganizationSkillByOrganizationIDAndNameParams) (Skill, error)
@@ -347,14 +350,18 @@ type sqlcQuerier interface {
 	// returning the matched key. The lookup is an exact match on a unique index,
 	// so a returned row is itself proof the secret is valid.
 	GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (AIGatewayKey, error)
-	// Returns the price in effect for the requested model, falling back to the
-	// model reported by the provider when the requested model has no price.
-	// Rows are ordered by model first, then by source, so the lookup order is:
-	//   1. Custom price for the requested model.
-	//   2. Price book price for the requested model.
-	//   3. Custom price for the provider-reported model.
-	//   4. Price book price for the provider-reported model.
-	GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AIModelPrice, error)
+	// Returns the price in effect for the model served by the configured provider.
+	// The requested model is preferred over the model reported by the provider,
+	// whatever the kind of price. For each model, the lookup order is:
+	//   1. The organization's price for the provider.
+	//   2. A site-wide custom price.
+	//   3. The price book price.
+	// A NULL organization_id matches no organization price, so only site-wide
+	// prices apply. Soft-deleted organization configs, and those that set no
+	// price, are ignored. A matched price is used as a whole: its NULL prices are
+	// not filled in from a less specific price. Each branch is a unique index
+	// lookup.
+	GetAIModelPriceForProvider(ctx context.Context, arg GetAIModelPriceForProviderParams) (GetAIModelPriceForProviderRow, error)
 	// Returns the price in effect for each model, preferring a custom price over
 	// the price book. Filtering by source narrows the rows considered first, so a
 	// model carrying both prices reports the one from the named source.
@@ -783,6 +790,9 @@ type sqlcQuerier interface {
 	GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid.UUID) ([]GetOAuth2ProviderAppsByUserIDRow, error)
 	// Locks candidate rows against foreign-key inserts for the transaction.
 	GetOldUnlinkedChatFileIDs(ctx context.Context, arg GetOldUnlinkedChatFileIDsParams) ([]uuid.UUID, error)
+	// Returns the organization's live config for one model on one configured
+	// provider. Soft-deleted rows are ignored.
+	GetOrganizationAIProviderModelConfig(ctx context.Context, arg GetOrganizationAIProviderModelConfigParams) (AIModelConfig, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, arg GetOrganizationByNameParams) (Organization, error)
 	// Returns AI spend limits and aggregate spend for groups in @group_ids that
@@ -1837,6 +1847,11 @@ type sqlcQuerier interface {
 	UpsertNotificationsSettings(ctx context.Context, value string) error
 	UpsertOAuth2DCREnabled(ctx context.Context, enabled bool) error
 	UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligible bool) error
+	// Sets the organization's config for one model on one configured provider. A
+	// NULL price is unknown. An existing live row is only rewritten when a price
+	// differs, so updated_at records when a price last changed. Soft-deleted rows
+	// are left untouched, and a new live row is inserted beside them.
+	UpsertOrganizationAIProviderModelConfig(ctx context.Context, arg UpsertOrganizationAIProviderModelConfigParams) error
 	UpsertOrganizationMemberSkillSettings(ctx context.Context, arg UpsertOrganizationMemberSkillSettingsParams) error
 	UpsertPrebuildsSettings(ctx context.Context, value string) error
 	UpsertProvisionerDaemon(ctx context.Context, arg UpsertProvisionerDaemonParams) (ProvisionerDaemon, error)

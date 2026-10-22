@@ -320,6 +320,7 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 		"context_file_directory":       "internal only, used during prompt expansion (typescript:\"-\")",
 		"skill_dir":                    "internal only, used by read_skill tools (typescript:\"-\")",
 		"context_file_skill_meta_file": "internal only, restored on subsequent turns (typescript:\"-\")",
+		"skill_body":                   "internal only, stripped before API responses (typescript:\"-\")",
 	}
 	// Part types intentionally excluded from all generated variants.
 	// If you add a new part type, either reference it in a variants

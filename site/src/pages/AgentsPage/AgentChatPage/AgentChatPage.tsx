@@ -56,48 +56,42 @@ import {
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
 import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
-import { AgentChatPageErrorView } from "./AgentChatPageErrorView";
-import {
-	AgentChatPageLoadingView,
-	AgentChatPageNotFoundView,
-	AgentChatPageView,
-} from "./AgentChatPageView";
-import type { AgentsPageOutletContext } from "./AgentsPageLayout";
-import type { ChatMessageInputRef } from "./components/AgentChatInput";
+import type { AgentsPageOutletContext } from "../AgentsPageLayout";
+import type { ChatMessageInputRef } from "../components/AgentChatInput";
 import {
 	type ChatDetailError,
 	getPersistedDetailError,
 	isChatHookDeniedResponse,
 	isChatHookDispatchFailedResponse,
-} from "./components/ChatConversation/chatError";
-import { getWorkspaceAgent } from "./components/ChatConversation/chatHelpers";
-import { runPromoteQueuedMessage } from "./components/ChatConversation/chatQueueReconciliation";
+} from "../components/ChatConversation/chatError";
+import { getWorkspaceAgent } from "../components/ChatConversation/chatHelpers";
+import { runPromoteQueuedMessage } from "../components/ChatConversation/chatQueueReconciliation";
 import {
 	selectChatStatus,
 	useChatSelector,
 	useChatStore,
-} from "./components/ChatConversation/chatStore";
-import { submitChatTurn } from "./components/ChatConversation/submitChatTurn";
-import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
-import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWatch";
-import { isChatAgentBindingUnresolved } from "./components/ChatConversation/watchedWorkspace";
-import { workspaceSkillsFromChat } from "./components/ChatPageContent";
-import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
-import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
+} from "../components/ChatConversation/chatStore";
+import { submitChatTurn } from "../components/ChatConversation/submitChatTurn";
+import { useChatToolInvalidations } from "../components/ChatConversation/useChatToolInvalidations";
+import { useWorkspaceWatch } from "../components/ChatConversation/useWorkspaceWatch";
+import { isChatAgentBindingUnresolved } from "../components/ChatConversation/watchedWorkspace";
+import { workspaceSkillsFromChat } from "../components/ChatPageContent";
+import { getModelSelectorHelp } from "../components/ModelSelectorHelp";
+import { useAgentChatPanelPreference } from "../components/RightPanel/useAgentChatPanelPreference";
 import {
 	type SendChatTurnOptions,
 	useConversationEditingState,
-} from "./hooks/useConversationEditingState";
-import { useGitWatcher } from "./hooks/useGitWatcher";
+} from "../hooks/useConversationEditingState";
+import { useGitWatcher } from "../hooks/useGitWatcher";
 import {
 	draftInputStorageKeyPrefix,
 	parseStoredDraft,
-} from "./utils/draftStorage";
+} from "../utils/draftStorage";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
 	saveMCPSelection,
-} from "./utils/mcpSelection";
+} from "../utils/mcpSelection";
 import {
 	countConfiguredProviderConfigs,
 	getModelSelectorPlaceholder,
@@ -107,9 +101,15 @@ import {
 	isUnavailableHistoricalModelID,
 	resolveModelOptionId,
 	resolveModelSelector,
-} from "./utils/modelOptions";
-import { pickReasoningEffort } from "./utils/reasoningEffort";
-import { activeOrganizationSkills } from "./utils/skills";
+} from "../utils/modelOptions";
+import { pickReasoningEffort } from "../utils/reasoningEffort";
+import { activeOrganizationSkills } from "../utils/skills";
+import { AgentChatPageErrorView } from "./AgentChatPageErrorView";
+import {
+	AgentChatPageLoadingView,
+	AgentChatPageNotFoundView,
+	AgentChatPageView,
+} from "./AgentChatPageView";
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 

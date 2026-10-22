@@ -17,7 +17,7 @@ import { Loader } from "#/components/Loader/Loader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
 import { getFormHelpers } from "#/utils/formUtils";
-import { SectionHeader } from "./components/SectionHeader";
+import { SectionHeader } from "../../components/SectionHeader";
 
 const API_KEY_PLACEHOLDER = "••••••••••••••••";
 
