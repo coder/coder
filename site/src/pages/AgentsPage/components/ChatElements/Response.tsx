@@ -10,6 +10,7 @@ import {
 	defaultRehypePlugins,
 	defaultRemarkPlugins,
 	Streamdown,
+	type StreamdownProps,
 	type UrlTransform,
 } from "streamdown";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
@@ -41,6 +42,10 @@ type ResponseProps = Omit<React.ComponentProps<"div">, "children"> & {
 	streaming?: boolean;
 	/** Keep single line breaks, the way the user typed them. */
 	preserveLineBreaks?: boolean;
+	/** Replaces the chat's rehype plugins, as file previews do. */
+	rehypePlugins?: StreamdownProps["rehypePlugins"];
+	/** Overrides individual elements of the chat markdown components. */
+	components?: Components;
 };
 
 // Omit rehype-raw so HTML-like syntax in LLM output is rendered as
@@ -96,6 +101,7 @@ type MarkdownComponentProps = {
 	src?: string;
 	alt?: string;
 	children?: React.ReactNode;
+	id?: string;
 	node?: HastNode;
 	type?: string;
 	checked?: boolean;
@@ -190,33 +196,51 @@ const createComponents = (
 		),
 		// Headings scaled for a 13px base using a tight,
 		// Apple-like progression.
-		h1: ({ children }: MarkdownComponentProps) => (
-			<h1 className="mb-3 mt-5 text-xl font-semibold leading-snug first:mt-0">
+		h1: ({ children, id }: MarkdownComponentProps) => (
+			<h1
+				id={id}
+				className="mb-3 mt-5 text-xl font-semibold leading-snug first:mt-0"
+			>
 				{children}
 			</h1>
 		),
-		h2: ({ children }: MarkdownComponentProps) => (
-			<h2 className="mb-2 mt-4 text-base font-semibold leading-snug first:mt-0">
+		h2: ({ children, id }: MarkdownComponentProps) => (
+			<h2
+				id={id}
+				className="mb-2 mt-4 text-base font-semibold leading-snug first:mt-0"
+			>
 				{children}
 			</h2>
 		),
-		h3: ({ children }: MarkdownComponentProps) => (
-			<h3 className="mb-1.5 mt-3 text-[15px] font-semibold leading-snug first:mt-0">
+		h3: ({ children, id }: MarkdownComponentProps) => (
+			<h3
+				id={id}
+				className="mb-1.5 mt-3 text-[15px] font-semibold leading-snug first:mt-0"
+			>
 				{children}
 			</h3>
 		),
-		h4: ({ children }: MarkdownComponentProps) => (
-			<h4 className="mb-1 mt-3 text-sm font-semibold leading-snug first:mt-0">
+		h4: ({ children, id }: MarkdownComponentProps) => (
+			<h4
+				id={id}
+				className="mb-1 mt-3 text-sm font-semibold leading-snug first:mt-0"
+			>
 				{children}
 			</h4>
 		),
-		h5: ({ children }: MarkdownComponentProps) => (
-			<h5 className="mb-1 mt-2 text-[13px] font-semibold leading-snug first:mt-0">
+		h5: ({ children, id }: MarkdownComponentProps) => (
+			<h5
+				id={id}
+				className="mb-1 mt-2 text-[13px] font-semibold leading-snug first:mt-0"
+			>
 				{children}
 			</h5>
 		),
-		h6: ({ children }: MarkdownComponentProps) => (
-			<h6 className="mb-1 mt-2 text-xs font-semibold leading-snug text-content-secondary first:mt-0">
+		h6: ({ children, id }: MarkdownComponentProps) => (
+			<h6
+				id={id}
+				className="mb-1 mt-2 text-xs font-semibold leading-snug text-content-secondary first:mt-0"
+			>
 				{children}
 			</h6>
 		),
@@ -407,6 +431,8 @@ export const Response = ({
 	children,
 	ref,
 	urlTransform,
+	rehypePlugins: rehypePluginsOverride,
+	components: componentOverrides,
 	streaming,
 	preserveLineBreaks,
 	...props
@@ -414,7 +440,10 @@ export const Response = ({
 	const theme = useTheme();
 	const fileViewerThemeType: FileViewerThemeType =
 		theme.palette.mode === "dark" ? "dark" : "light";
-	const components = componentsByTheme[fileViewerThemeType];
+	const themeComponents = componentsByTheme[fileViewerThemeType];
+	const components = componentOverrides
+		? { ...themeComponents, ...componentOverrides }
+		: themeComponents;
 	const { markdown, inlineNodes } =
 		typeof children === "string"
 			? { markdown: children, inlineNodes: undefined }
@@ -439,7 +468,8 @@ export const Response = ({
 							preserveLineBreaks ? lineBreakRemarkPlugins : undefined
 						}
 						rehypePlugins={
-							inlineNodes ? inlineNodeRehypePlugins : chatRehypePlugins
+							rehypePluginsOverride ??
+							(inlineNodes ? inlineNodeRehypePlugins : chatRehypePlugins)
 						}
 						mode={streaming ? "streaming" : "static"}
 						parseIncompleteMarkdown={streaming}
