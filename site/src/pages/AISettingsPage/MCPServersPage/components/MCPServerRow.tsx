@@ -1,5 +1,6 @@
 import { ChevronRightIcon } from "lucide-react";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
 import { TableCell, TableRow } from "#/components/Table/Table";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { MCPServerIcon } from "#/modules/mcpServers/MCPServerIcon";
@@ -30,6 +31,11 @@ export const MCPServerRow: React.FC<MCPServerRowProps> = ({
 					<span className="truncate text-sm font-medium text-content-primary">
 						{server.display_name}
 					</span>
+					{!server.enabled && (
+						<Badge asChild size="sm" variant="default" className="shrink-0">
+							<span>Disabled</span>
+						</Badge>
+					)}
 				</div>
 			</TableCell>
 			<TableCell className="text-sm">

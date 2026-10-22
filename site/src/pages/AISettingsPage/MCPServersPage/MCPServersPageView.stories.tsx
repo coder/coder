@@ -71,9 +71,10 @@ export const Default: Story = {
 		await expect(
 			within(githubRow).getByText("Off by default"),
 		).toBeInTheDocument();
-		// Disabled servers show "Disabled" in place of their availability policy.
+		// Disabled servers get a badge next to the name and show "Disabled" in
+		// place of their availability policy.
 		const disabledRow = canvas.getByRole("button", { name: /Image/i });
-		await expect(within(disabledRow).getByText("Disabled")).toBeInTheDocument();
+		await expect(within(disabledRow).getAllByText("Disabled")).toHaveLength(2);
 		await expect(
 			within(disabledRow).queryByText("Off by default"),
 		).not.toBeInTheDocument();
