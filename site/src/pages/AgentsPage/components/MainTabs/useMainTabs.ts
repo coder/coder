@@ -6,10 +6,15 @@ import {
 } from "../../utils/mainTabStorage";
 
 /**
- * A request to reveal a line. Each request is a new object, so revealing the
- * same line twice still scrolls the editor.
+ * A request to reveal a line, move focus into the file, or both, applied once
+ * the file's content is ready. Each request is a new object, so repeating a
+ * request applies it again.
  */
-export type FileReveal = { line: number };
+export type FileReveal = {
+	/** 1-based line to reveal. */
+	line?: number;
+	focus: boolean;
+};
 
 type MainFileTab = {
 	/** Absolute path, also the tab's identity. */
@@ -27,6 +32,15 @@ type MainTabsState = {
 	 */
 	activation: number;
 };
+
+const setReveal = (
+	files: MainFileTab[],
+	path: string,
+	reveal: FileReveal | undefined,
+) =>
+	reveal
+		? files.map((file) => (file.path === path ? { ...file, reveal } : file))
+		: files;
 
 /**
  * Open file tabs and the active tab of the chat view, persisted per chat.
@@ -51,43 +65,47 @@ export const useMainTabs = (chatId: string) => {
 	}, [chatId, state]);
 
 	const openFile = (path: string, options?: OpenFileOptions) => {
+		const focus = options?.focus ?? true;
 		const reveal =
-			options?.line === undefined ? undefined : { line: options.line };
+			options?.line === undefined && !focus
+				? undefined
+				: { line: options?.line, focus };
 		setState((current) => {
-			const activation = current.activation + 1;
 			const isOpen = current.files.some((file) => file.path === path);
-			if (!isOpen) {
-				return {
-					files: [...current.files, { path, reveal }],
-					activePath: path,
-					activation,
-				};
-			}
-			if (!reveal) {
-				return { ...current, activePath: path, activation };
-			}
 			return {
-				files: current.files.map((file) =>
-					file.path === path ? { ...file, reveal } : file,
-				),
+				files: isOpen
+					? setReveal(current.files, path, reveal)
+					: [...current.files, { path, reveal }],
 				activePath: path,
-				activation,
+				activation: current.activation + 1,
 			};
 		});
 	};
 
-	const activate = (path: string | null) => {
+	/**
+	 * Activates a tab. With `focus`, a file tab also moves focus into the file;
+	 * the Chat tab's composer lives outside this state, so callers focus it.
+	 */
+	const activate = (path: string | null, options?: { focus?: boolean }) => {
 		setState((current) => ({
-			...current,
+			files:
+				path === null || !options?.focus
+					? current.files
+					: setReveal(current.files, path, { focus: true }),
 			activePath: path,
 			activation: current.activation + 1,
 		}));
 	};
 
+	/**
+	 * Closes the tabs at `paths`. When that closes the active tab, its nearest
+	 * remaining neighbor becomes active and takes focus.
+	 */
 	const closeFiles = (paths: readonly string[]) => {
 		setState((current) => {
 			const closing = new Set(paths);
-			const files = current.files.filter((file) => !closing.has(file.path));
+			const isRemaining = (file: MainFileTab) => !closing.has(file.path);
+			const files = current.files.filter(isRemaining);
 			if (files.length === current.files.length) {
 				return current;
 			}
@@ -100,11 +118,17 @@ export const useMainTabs = (chatId: string) => {
 			const activeIndex = current.files.findIndex(
 				(file) => file.path === current.activePath,
 			);
-			const isRemaining = (file: MainFileTab) => !closing.has(file.path);
 			const neighbor =
 				current.files.slice(activeIndex + 1).find(isRemaining) ??
 				current.files.slice(0, activeIndex).findLast(isRemaining);
-			return { files, activePath: neighbor?.path ?? null, activation };
+			if (!neighbor) {
+				return { files, activePath: null, activation };
+			}
+			return {
+				files: setReveal(files, neighbor.path, { focus: true }),
+				activePath: neighbor.path,
+				activation,
+			};
 		});
 	};
 

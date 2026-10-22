@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { QueryClientProvider } from "react-query";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,32 +13,49 @@ import { MainTabs } from "./MainTabs";
 import { useMainTabs } from "./useMainTabs";
 
 vi.mock("../FileTab/FileEditor", () => ({
-	default: ({
+	default: function MockFileEditor({
 		value,
+		reveal,
 		readOnly,
 		onChange,
-	}: React.ComponentProps<typeof FileEditor>) => (
-		<textarea
-			aria-label="File contents"
-			value={value}
-			readOnly={readOnly}
-			onChange={(event) => onChange(event.target.value)}
-		/>
-	),
+		onRevealed,
+	}: React.ComponentProps<typeof FileEditor>) {
+		const ref = useRef<HTMLTextAreaElement>(null);
+		useEffect(() => {
+			if (reveal) {
+				if (reveal.focus) {
+					ref.current?.focus();
+				}
+				onRevealed();
+			}
+		}, [reveal, onRevealed]);
+		return (
+			<textarea
+				ref={ref}
+				aria-label="File contents"
+				value={value}
+				readOnly={readOnly}
+				onChange={(event) => onChange(event.target.value)}
+			/>
+		);
+	},
 }));
 
 const chatId = "chat-main-tabs";
 const chatMounted = vi.fn();
 
-const ChatStub: React.FC = () => {
+const ChatStub: React.FC<{ ref: React.Ref<HTMLTextAreaElement> }> = ({
+	ref,
+}) => {
 	useEffect(() => {
 		chatMounted();
 	}, []);
-	return <textarea aria-label="Message" />;
+	return <textarea ref={ref} aria-label="Message" />;
 };
 
 const Harness: React.FC<{ paths: readonly string[] }> = ({ paths }) => {
 	const mainTabs = useMainTabs(chatId);
+	const chatInputRef = useRef<HTMLTextAreaElement>(null);
 	return (
 		<WorkspaceFilesContext
 			value={{
@@ -58,12 +75,25 @@ const Harness: React.FC<{ paths: readonly string[] }> = ({ paths }) => {
 					{`Open ${path}`}
 				</button>
 			))}
+			{paths.map((path) => (
+				<button
+					key={path}
+					type="button"
+					onClick={() => mainTabs.openFile(path, { focus: false })}
+				>
+					{`Preview ${path}`}
+				</button>
+			))}
 			<textarea aria-label="Files filter" />
 			<div className="xterm">
 				<textarea aria-label="Terminal" />
 			</div>
-			<MainTabs mainTabs={mainTabs} readOnly={false}>
-				<ChatStub />
+			<MainTabs
+				mainTabs={mainTabs}
+				readOnly={false}
+				focusChatInput={() => chatInputRef.current?.focus()}
+			>
+				<ChatStub ref={chatInputRef} />
 			</MainTabs>
 		</WorkspaceFilesContext>
 	);
@@ -173,7 +203,7 @@ describe("MainTabs", () => {
 		expect(getTab("b.go")).toHaveAttribute("aria-selected", "false");
 	});
 
-	it("cycles tabs with Alt+[ and Alt+], also from the editor", async () => {
+	it("cycles tabs with Alt+[ and Alt+] and focuses their content", async () => {
 		const user = userEvent.setup();
 		renderHarness(["/repo/a.go", "/repo/b.go"]);
 
@@ -183,16 +213,18 @@ describe("MainTabs", () => {
 
 		await user.keyboard("{Alt>}[BracketRight]{/Alt}");
 		expect(getTab("Chat")).toHaveAttribute("aria-selected", "true");
-		expect(getTab("Chat")).toHaveFocus();
+		expect(screen.getByLabelText("Message")).toHaveFocus();
 
 		await user.keyboard("{Alt>}[BracketRight]{/Alt}");
 		expect(getTab("a.go")).toHaveAttribute("aria-selected", "true");
-
 		const panel = screen.getByRole("tabpanel", { name: "a.go" });
-		await user.click(await within(panel).findByLabelText("File contents"));
+		await waitFor(() => {
+			expect(within(panel).getByLabelText("File contents")).toHaveFocus();
+		});
+
 		await user.keyboard("{Alt>}[BracketLeft]{/Alt}");
 		expect(getTab("Chat")).toHaveAttribute("aria-selected", "true");
-		expect(getTab("Chat")).toHaveFocus();
+		expect(screen.getByLabelText("Message")).toHaveFocus();
 		expect(within(panel).getByLabelText("File contents")).toHaveValue(
 			"package main\n",
 		);
@@ -211,6 +243,41 @@ describe("MainTabs", () => {
 		await user.click(screen.getByLabelText("Files filter"));
 		await user.keyboard("{Alt>}[BracketRight]{/Alt}");
 		expect(getTab("Chat")).toHaveAttribute("aria-selected", "true");
+		expect(screen.getByLabelText("Message")).toHaveFocus();
+	});
+
+	it("focuses a file once it opens, unless asked not to", async () => {
+		const user = userEvent.setup();
+		renderHarness(["/repo/a.go", "/repo/b.go"]);
+
+		await user.click(screen.getByRole("button", { name: "Open /repo/a.go" }));
+		await waitFor(() => {
+			expect(screen.getByLabelText("File contents")).toHaveFocus();
+		});
+
+		const preview = screen.getByRole("button", { name: "Preview /repo/b.go" });
+		await user.click(preview);
+		const panel = screen.getByRole("tabpanel", { name: "b.go" });
+		await within(panel).findByLabelText("File contents");
+		expect(getTab("b.go")).toHaveAttribute("aria-selected", "true");
+		expect(preview).toHaveFocus();
+	});
+
+	it("focuses the next tab's content after closing the active tab", async () => {
+		const user = userEvent.setup();
+		renderHarness(["/repo/a.go", "/repo/b.go"]);
+
+		await user.click(screen.getByRole("button", { name: "Open /repo/a.go" }));
+		await user.click(screen.getByRole("button", { name: "Open /repo/b.go" }));
+		await user.click(getTab("b.go"));
+		await user.keyboard("{Delete}");
+		const panel = screen.getByRole("tabpanel", { name: "a.go" });
+		await waitFor(() => {
+			expect(within(panel).getByLabelText("File contents")).toHaveFocus();
+		});
+
+		await user.click(screen.getByRole("button", { name: "Close a.go" }));
+		expect(screen.getByLabelText("Message")).toHaveFocus();
 	});
 
 	it("closes the focused tab with Delete", async () => {
@@ -272,7 +339,9 @@ describe("MainTabs", () => {
 		expect(writeText).toHaveBeenLastCalledWith("src/a.go");
 
 		await user.pointer({ keys: "[MouseRight]", target: getTab("a.go") });
-		await user.click(await screen.findByRole("menuitem", { name: "Copy path" }));
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Copy path" }),
+		);
 		expect(writeText).toHaveBeenLastCalledWith("/repo/src/a.go");
 	});
 
@@ -352,6 +421,9 @@ describe("MainTabs", () => {
 		);
 		await waitFor(() => {
 			expect(getPersistedMainTabs(chatId).paths).toEqual([]);
+		});
+		await waitFor(() => {
+			expect(screen.getByLabelText("Message")).toHaveFocus();
 		});
 	});
 

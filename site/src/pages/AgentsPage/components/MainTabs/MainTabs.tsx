@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { useWorkspaceFiles } from "../../context/WorkspaceFilesContext";
@@ -18,6 +19,8 @@ type MainTabsProps = {
 	readOnly: boolean;
 	/** The chat transcript and composer, rendered in the pinned Chat tab. */
 	children: React.ReactNode;
+	/** Moves focus to the composer in `children`. */
+	focusChatInput: () => void;
 };
 
 /**
@@ -29,6 +32,7 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 	mainTabs,
 	readOnly,
 	children,
+	focusChatInput,
 }) => {
 	const workspaceFiles = useWorkspaceFiles();
 	const idPrefix = useId();
@@ -47,6 +51,7 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 		/** The tab that asked to close them, which Cancel focuses again. */
 		source: string;
 		isOpen: boolean;
+		isConfirmed?: boolean;
 	}>();
 
 	const files = workspaceFiles ? mainTabs.files : [];
@@ -79,18 +84,41 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 		});
 	};
 
+	/** Activates a tab and moves focus into its content. */
+	const focusTab = (key: TabKey) => {
+		if (key !== null) {
+			mainTabs.activate(key, { focus: true });
+			return;
+		}
+		// The composer cannot take focus until its panel is no longer inert.
+		flushSync(() => mainTabs.activate(null));
+		focusChatInput();
+	};
+
 	const closeFiles = (paths: readonly string[]) => {
-		mainTabs.closeFiles(paths);
-		setDrafts((current) => {
-			if (!paths.some((path) => current.has(path))) {
-				return current;
-			}
-			const nextDrafts = new Map(current);
-			for (const path of paths) {
-				nextDrafts.delete(path);
-			}
-			return nextDrafts;
-		});
+		const update = () => {
+			mainTabs.closeFiles(paths);
+			setDrafts((current) => {
+				if (!paths.some((path) => current.has(path))) {
+					return current;
+				}
+				const nextDrafts = new Map(current);
+				for (const path of paths) {
+					nextDrafts.delete(path);
+				}
+				return nextDrafts;
+			});
+		};
+		// Closing the active tab focuses the next active tab's content. A file
+		// tab focuses itself through its reveal; the Chat tab becomes active
+		// only once every file tab closes.
+		const closesActive = activePath !== null && paths.includes(activePath);
+		if (closesActive && files.every((file) => paths.includes(file.path))) {
+			flushSync(update);
+			focusChatInput();
+			return;
+		}
+		update();
 	};
 
 	const requestCloseFiles = (paths: readonly string[], source: string) => {
@@ -104,8 +132,11 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 
 	const requestCloseFile = (path: string) => requestCloseFiles([path], path);
 
+	const tabAt = (index: number) =>
+		tabOrder[(index + tabOrder.length) % tabOrder.length] ?? null;
+
 	const selectTabAt = (index: number) => {
-		const key = tabOrder[(index + tabOrder.length) % tabOrder.length] ?? null;
+		const key = tabAt(index);
 		mainTabs.activate(key);
 		// The panel that had focus turns inert, so focus follows the tab.
 		tabButtonsRef.current.get(key)?.focus();
@@ -164,7 +195,7 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 		}
 		event.preventDefault();
 		event.stopPropagation();
-		selectTabAt(tabOrder.indexOf(activePath) + offset);
+		focusTab(tabAt(tabOrder.indexOf(activePath) + offset));
 	});
 
 	useEffect(() => {
@@ -255,21 +286,25 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 				onConfirm={() => {
 					if (closeRequest) {
 						closeFiles(closeRequest.paths);
-						setCloseRequest({ ...closeRequest, isOpen: false });
+						setCloseRequest({
+							...closeRequest,
+							isOpen: false,
+							isConfirmed: true,
+						});
 					}
 				}}
 				onClose={() =>
 					setCloseRequest((current) => current && { ...current, isOpen: false })
 				}
 				onCloseAutoFocus={(event) => {
-					// Back to the tab after Cancel; to the active tab once Discard
-					// removed it.
-					const target =
-						(closeRequest && tabButtonsRef.current.get(closeRequest.source)) ??
-						tabButtonsRef.current.get(activePath);
-					if (target) {
-						event.preventDefault();
-						target.focus();
+					// The dialog traps focus until now, so focus moves to the active
+					// tab's content only here after Discard. Cancel returns it to the
+					// tab that asked to close.
+					event.preventDefault();
+					if (closeRequest?.isConfirmed) {
+						focusTab(activePath);
+					} else if (closeRequest) {
+						tabButtonsRef.current.get(closeRequest.source)?.focus();
 					}
 					setCloseRequest(undefined);
 				}}

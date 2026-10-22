@@ -89,15 +89,33 @@ export const FileTab = memo<FileTabProps>(
 		const [hasSaveConflict, setHasSaveConflict] = useState(false);
 		const isMarkdown = isMarkdownPath(path);
 		const [mode, setMode] = useState<"edit" | "preview">(
-			isMarkdown && !reveal ? "preview" : "edit",
+			isMarkdown && reveal?.line === undefined ? "preview" : "edit",
 		);
+		const rootRef = useRef<HTMLDivElement>(null);
+		// Cleared once applied, so an editor that remounts, such as after
+		// switching to Preview and back, does not apply it again.
+		const [pendingReveal, setPendingReveal] = useState(reveal);
 		const [prevReveal, setPrevReveal] = useState(reveal);
 		if (reveal !== prevReveal) {
 			setPrevReveal(reveal);
-			if (reveal) {
+			setPendingReveal(reveal);
+			if (reveal?.line !== undefined) {
 				setMode("edit");
 			}
 		}
+		// Banner and Save buttons disable or unmount while their action runs,
+		// which drops focus to the page; it returns to the editor once the
+		// action settles, unless the user moved it elsewhere meanwhile.
+		const restoreFocus = () => {
+			const focused = document.activeElement;
+			if (
+				!focused ||
+				focused === document.body ||
+				rootRef.current?.contains(focused)
+			) {
+				setPendingReveal({ focus: true });
+			}
+		};
 
 		const refetchFile = useEffectEvent(() => {
 			void fileQuery.refetch();
@@ -156,6 +174,7 @@ export const FileTab = memo<FileTabProps>(
 				{ path, content: saved.content, ifMatch },
 				{
 					onSuccess: ({ etag }) => {
+						restoreFocus();
 						setHasSaveConflict(false);
 						// The saved snapshot is the new base, so edits made during
 						// the save, including an undo, stay dirty against it.
@@ -192,6 +211,7 @@ export const FileTab = memo<FileTabProps>(
 					return;
 				}
 				setHasSaveConflict(false);
+				restoreFocus();
 				// Edits typed while the read was in flight stay a draft.
 				onDraftChange(path, (current) =>
 					current === reloadedDraft ? undefined : current,
@@ -203,6 +223,7 @@ export const FileTab = memo<FileTabProps>(
 			if (!data || text === undefined) {
 				return;
 			}
+			restoreFocus();
 			onDraftChange(
 				path,
 				(current) =>
@@ -214,6 +235,7 @@ export const FileTab = memo<FileTabProps>(
 		};
 
 		let body: React.ReactNode;
+		let showsEditor = false;
 		if (fileQuery.isLoading) {
 			body = <Loader label="Loading file" />;
 		} else if (!data) {
@@ -261,22 +283,40 @@ export const FileTab = memo<FileTabProps>(
 				</div>
 			);
 		} else {
+			showsEditor = true;
 			body = (
 				<Suspense fallback={<Loader label="Loading editor" />}>
 					<FileEditor
 						path={path}
 						value={value}
-						reveal={reveal}
+						reveal={pendingReveal}
 						readOnly={readOnly}
 						onChange={handleChange}
 						onSave={handleSave}
+						onRevealed={() => setPendingReveal(undefined)}
 					/>
 				</Suspense>
 			);
 		}
 
+		const isLoading = fileQuery.isLoading;
+		// Content without an editor takes focus on the tab itself.
+		useEffect(() => {
+			if (!pendingReveal || isLoading || showsEditor) {
+				return;
+			}
+			if (pendingReveal.focus) {
+				rootRef.current?.focus();
+			}
+			setPendingReveal(undefined);
+		}, [pendingReveal, isLoading, showsEditor]);
+
 		return (
-			<div className="flex min-h-0 flex-1 flex-col">
+			<div
+				ref={rootRef}
+				tabIndex={-1}
+				className="flex min-h-0 flex-1 flex-col outline-none"
+			>
 				<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-3 py-1">
 					<span
 						className="min-w-0 flex-1 truncate font-mono text-xs text-content-secondary"
