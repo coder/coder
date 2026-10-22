@@ -619,7 +619,10 @@ func (p *Server) EditQueuedMessage(
 		return xerrors.New("content or editing is required")
 	}
 
-	contentParts := opts.Content
+	contentParts, err := p.resolveChatSkillInvocations(ctx, opts.ChatID, opts.Content)
+	if err != nil {
+		return err
+	}
 	if len(contentParts) > 0 && p.hooks.Enabled() {
 		turnID := uuid.New()
 		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
@@ -682,7 +685,7 @@ func (p *Server) EditQueuedMessage(
 		promotedQueuedAt time.Time
 	)
 	machine := p.newChatMachine(opts.ChatID)
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)

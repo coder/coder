@@ -3702,6 +3702,9 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 
 	err = api.chatDaemon.EditQueuedMessage(ctx, opts)
 	if err != nil {
+		if writeChatSkillInvocationError(ctx, rw, err) {
+			return
+		}
 		if writeChatHookErr(ctx, rw, err, "Chat message denied by lifecycle hook.") {
 			return
 		}
