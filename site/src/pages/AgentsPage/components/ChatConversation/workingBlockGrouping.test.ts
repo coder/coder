@@ -1405,6 +1405,48 @@ describe("getTurnAttachmentsByRow", () => {
 		).toEqual([["message:2", ["a"]]]);
 	});
 
+	it("leaves an answered turn out while the chat keeps running it", () => {
+		// A stop hook can nudge the agent past its answer within the turn.
+		const { rows } = group([
+			user("Build the report"),
+			message("assistant", [text("Here:"), file("a")]),
+		]);
+
+		expect(
+			fileIdsByRow(
+				getTurnAttachmentsByRow(rows, {
+					hidesAttachmentRows: false,
+					isChatActive: true,
+					isCompacting: false,
+					hasMoreMessages: false,
+				}),
+			),
+		).toEqual([]);
+	});
+
+	it("leaves a turn out once the agent answers again after a compaction", () => {
+		const { rows } = group([
+			user("Build the report"),
+			message("assistant", [text("Here:"), file("a")]),
+			message("assistant", [call("compact", undefined, "chat_summarized")]),
+			message("tool", [
+				result("compact", undefined, { name: "chat_summarized" }),
+			]),
+			message("assistant", [text("Rechecked: all good.")]),
+		]);
+
+		expect(
+			fileIdsByRow(
+				getTurnAttachmentsByRow(rows, {
+					hidesAttachmentRows: false,
+					isChatActive: true,
+					isCompacting: false,
+					hasMoreMessages: false,
+				}),
+			),
+		).toEqual([]);
+	});
+
 	it("keeps an answered turn's entry once a compaction after it persists", () => {
 		const { rows } = group([
 			user("Build the report"),

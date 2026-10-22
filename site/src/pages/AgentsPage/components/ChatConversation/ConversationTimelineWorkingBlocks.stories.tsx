@@ -338,20 +338,30 @@ export const TurnAttachmentsPillContinuedTurn: Story = {
 	},
 };
 
-const mockPendingQuestionMessage = {
-	...MockQuestionCallMessage,
-	id: 23,
-	created_at: workingFixtureTime(30),
-};
-
 // The pending client tool's result resumes the turn, so it has no pill yet.
 export const TurnAttachmentsPillRequiresAction: Story = {
 	args: {
 		chatStatus: "requires_action",
-		onSendAskUserQuestionResponse: fn(),
 		parsedMessages: parseMessagesWithMergedTools(
-			[...MockUnansweredAttachmentMessages, mockPendingQuestionMessage],
-			{ pendingToolCallIDs: new Set(["question"]) },
+			[
+				...MockUnansweredAttachmentMessages,
+				{
+					...MockChatMessage,
+					id: 23,
+					role: "assistant",
+					created_at: workingFixtureTime(30),
+					content: [
+						{
+							type: "tool-call",
+							tool_call_id: "confirm",
+							tool_name: "confirm_with_user",
+							args: { message: "Ship the report?" },
+							created_at: workingFixtureTime(30),
+						},
+					],
+				},
+			],
+			{ pendingToolCallIDs: new Set(["confirm"]) },
 		),
 	},
 };

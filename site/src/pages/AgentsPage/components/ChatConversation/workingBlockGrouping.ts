@@ -177,7 +177,7 @@ export type TurnAttachmentsOptions = {
 	hidesAttachmentRows: boolean;
 	/** The chat may still add to the newest turn, which then gets no entry. */
 	isChatActive: boolean;
-	/** The live stream is a compaction, which adds nothing to a turn. */
+	/** The live stream is a compaction, which adds no answer or file to a turn. */
 	isCompacting: boolean;
 	/** More history exists, so a first turn without its prompt gets no entry. */
 	hasMoreMessages: boolean;
@@ -213,7 +213,6 @@ export const getTurnAttachmentsByRow = (
 		}
 		attachments = [];
 		lastShownRow = undefined;
-		boundaryFollowsLastShownRow = false;
 		isTurnStartLoaded = true;
 	};
 
@@ -237,9 +236,9 @@ export const getTurnAttachmentsByRow = (
 			boundaryFollowsLastShownRow = false;
 		}
 	}
-	// A manual /compact runs the chat after the answer without adding to the
-	// turn, while a compaction between steps leaves more steps to come. The
-	// summary rows persist before the chat stops, so they count as well.
+	// A manual /compact runs the chat after the answer but adds no answer or
+	// file to the turn, while a compaction between steps leaves more steps to
+	// come. The summary rows persist before the chat stops, so they count too.
 	const lastParsed = lastShownRow?.entry.parsed;
 	const lastShownRowEndsWithAnswer =
 		lastParsed !== undefined &&
