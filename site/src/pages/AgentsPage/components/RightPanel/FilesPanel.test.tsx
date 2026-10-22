@@ -492,6 +492,47 @@ describe("FilesPanel", () => {
 		).toEqual(["repo", "Default directory (~)", "/", "Open path..."]);
 	});
 
+	it("cancels a hidden directory's fetch and lets Refresh restart a stalled one", async () => {
+		const user = userEvent.setup();
+		const listDirectory = vi.mocked(API.listWorkspaceAgentDirectory);
+		const fallback = listDirectory.getMockImplementation();
+		const libSignals: (AbortSignal | undefined)[] = [];
+		let stallLib = false;
+		listDirectory.mockImplementation(async (agentId, path, signal) => {
+			if (path === "/home/coder/repo/src/lib") {
+				libSignals.push(signal);
+				if (stallLib) {
+					return new Promise(() => {});
+				}
+				return {
+					...listings[path],
+					contents: [entry("/home/coder/repo/src/lib/fresh.go", false)],
+				};
+			}
+			return fallback ? fallback(agentId, path, signal) : Promise.reject();
+		});
+		stallLib = true;
+		renderPanel(contextValue());
+		const refresh = await screen.findByRole("button", {
+			name: "Refresh files",
+		});
+		const src = await screen.findByRole("treeitem", { name: "src" });
+		await user.click(src);
+		await user.click(await screen.findByRole("treeitem", { name: "lib" }));
+		await waitFor(() => expect(libSignals).toHaveLength(1));
+
+		await user.click(src);
+		await waitFor(() => expect(libSignals[0]?.aborted).toBe(true));
+
+		await user.click(src);
+		await waitFor(() => expect(libSignals).toHaveLength(2));
+		stallLib = false;
+		await user.click(refresh);
+
+		await screen.findByRole("treeitem", { name: "fresh.go" });
+		expect(libSignals[1]?.aborted).toBe(true);
+	});
+
 	it("does not list files without a workspace agent", () => {
 		renderPanel(undefined);
 		expect(API.listWorkspaceAgentDirectory).not.toHaveBeenCalled();
