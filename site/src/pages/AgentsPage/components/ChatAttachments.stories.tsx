@@ -41,6 +41,20 @@ const mockAttachmentMessage: TypesGen.ChatMessage = {
 	],
 };
 
+const mockUploadMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 2,
+	content: [
+		{ type: "text", text: "Here is the failing log." },
+		{
+			type: "file",
+			media_type: "text/plain",
+			name: "uploaded-ci.log",
+			file_id: "upload-file",
+		},
+	],
+};
+
 const meta: Meta<typeof ChatAttachments> = {
 	title: "pages/AgentsPage/ChatAttachments",
 	component: ChatAttachments,
@@ -52,8 +66,12 @@ const meta: Meta<typeof ChatAttachments> = {
 		),
 	],
 	args: {
-		attachments: getMessageAttachments([mockAttachmentMessage]),
+		attachments: getMessageAttachments([
+			mockAttachmentMessage,
+			mockUploadMessage,
+		]),
 		evictedFileIds: new Set(),
+		isLoadingEarlierAttachments: false,
 		hasEarlierAttachmentsError: false,
 		isRetrying: false,
 		onRetry: fn(),
@@ -69,7 +87,7 @@ export const Collapsed: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Attachments (5)" }),
+			canvas.getByRole("button", { name: "Attachments (6)" }),
 		);
 	},
 };
@@ -77,7 +95,7 @@ export const Collapsed: Story = {
 export const HeaderFocused: Story = {
 	play: async ({ canvasElement }) => {
 		within(canvasElement)
-			.getByRole("button", { name: "Attachments (5)" })
+			.getByRole("button", { name: "Attachments (6)" })
 			.focus();
 	},
 };
@@ -98,6 +116,10 @@ export const LoadingAttachments: Story = {
 	args: { attachments: undefined },
 };
 
+export const LoadingEarlierAttachments: Story = {
+	args: { isLoadingEarlierAttachments: true },
+};
+
 export const EarlierAttachmentsFailed: Story = {
 	args: { hasEarlierAttachmentsError: true },
 };
@@ -112,4 +134,15 @@ export const EmptyWithEarlierAttachmentsFailed: Story = {
 
 export const ExpiredAttachment: Story = {
 	args: { evictedFileIds: new Set(["report-file"]) },
+};
+
+export const ExpiredAttachmentsShown: Story = {
+	args: {
+		evictedFileIds: new Set(["report-file", "unnamed-file", "upload-file"]),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "3 expired" }),
+		);
+	},
 };

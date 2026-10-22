@@ -367,6 +367,7 @@ export const deriveEvictedFileIds = (
 /** A downloadable file in a chat message, keyed by message and part. */
 export type MessageAttachment = {
 	key: string;
+	role: TypesGen.ChatMessageRole;
 	file: TypesGen.ChatFilePart;
 	href: string;
 };
@@ -374,10 +375,11 @@ export type MessageAttachment = {
 const toMessageAttachments = (
 	messageId: number,
 	partIndex: number,
+	role: TypesGen.ChatMessageRole,
 	file: TypesGen.ChatFilePart,
 ): MessageAttachment[] => {
 	const href = getAttachmentHref(file);
-	return href ? [{ key: `${messageId}:${partIndex}`, file, href }] : [];
+	return href ? [{ key: `${messageId}:${partIndex}`, role, file, href }] : [];
 };
 
 /**
@@ -393,7 +395,7 @@ export const getMessageAttachments = (
 		.flatMap((message) =>
 			(message.content ?? []).flatMap((part, partIndex) =>
 				part.type === "file"
-					? toMessageAttachments(message.id, partIndex, part)
+					? toMessageAttachments(message.id, partIndex, message.role, part)
 					: [],
 			),
 		)
@@ -410,6 +412,7 @@ export const getEarlierMessageAttachments = (
 		toMessageAttachments(
 			attachment.message_id,
 			attachment.part_index,
+			attachment.role,
 			attachment.file,
 		),
 	);

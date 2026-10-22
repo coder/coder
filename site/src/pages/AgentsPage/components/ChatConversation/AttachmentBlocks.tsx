@@ -112,7 +112,7 @@ const getAttachmentExtension = (
 const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
 	TEXT_ATTACHMENT_MEDIA_TYPES.has(mediaType);
 
-const getAttachmentDisplayName = (
+export const getAttachmentDisplayName = (
 	block: Pick<FileAttachmentBlock, "media_type" | "name">,
 ): string => {
 	const name = block.name?.trim();
@@ -214,7 +214,7 @@ const fileAttachmentFailureLabels: AttachmentFailureLabels = {
 	failed: "Attachment failed to load",
 };
 
-const expiredAttachmentExplanation =
+export const expiredAttachmentExplanation =
 	"Attaching a file beyond a chat's attachment limit permanently deletes the chat's earliest-uploaded attachments. Attachments that no chat references are deleted after this deployment's retention window.";
 
 const AttachmentFallbackTile: React.FC<{

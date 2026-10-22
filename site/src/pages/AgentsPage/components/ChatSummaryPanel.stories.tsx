@@ -283,6 +283,22 @@ export const WithEarlierAttachments: Story = {
 	},
 };
 
+export const EarlierAttachmentsLoading: Story = {
+	args: { hasMoreMessages: true },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatAttachments").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	render: renderWithLatestMessages,
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
+	},
+};
+
 export const EarlierAttachmentsFailed: Story = {
 	args: { hasMoreMessages: true },
 	beforeEach: () => {

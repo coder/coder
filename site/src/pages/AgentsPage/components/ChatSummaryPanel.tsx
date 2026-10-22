@@ -9,7 +9,6 @@ import {
 	deriveEvictedFileIds,
 	getEarlierMessageAttachments,
 	getMessageAttachments,
-	type MessageAttachment,
 	partFileIds,
 } from "./ChatConversation/messageHelpers";
 import type { EarlierMessagesProps } from "./ChatMessageScroller";
@@ -57,18 +56,17 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 		hasMoreMessages &&
 		!earlierAttachmentsQuery.data &&
 		earlierAttachmentsQuery.errorUpdateCount > 0;
+	const isLoadingEarlierAttachments =
+		hasMoreMessages &&
+		!earlierAttachmentsQuery.data &&
+		!hasEarlierAttachmentsError;
 
-	const loadedAttachments = getMessageAttachments(messages);
-	let attachments: MessageAttachment[] | undefined;
 	// Gating on isHydratingMessages alone would blank the list on every live
 	// message.
-	if (isHydratingMessages && messages.length === 0) {
-		attachments = undefined;
-	} else if (!hasMoreMessages || hasEarlierAttachmentsError) {
-		attachments = loadedAttachments;
-	} else if (earlierAttachmentsQuery.data) {
-		attachments = [...loadedAttachments, ...earlierAttachments];
-	}
+	const attachments =
+		isHydratingMessages && messages.length === 0
+			? undefined
+			: [...getMessageAttachments(messages), ...earlierAttachments];
 
 	const evictedFileIds = deriveEvictedFileIds(
 		messages.map((message) => ({ message })),
@@ -101,6 +99,7 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 			<ChatAttachments
 				attachments={attachments}
 				evictedFileIds={evictedFileIds}
+				isLoadingEarlierAttachments={isLoadingEarlierAttachments}
 				hasEarlierAttachmentsError={hasEarlierAttachmentsError}
 				isRetrying={earlierAttachmentsQuery.isFetching}
 				onRetry={() => void earlierAttachmentsQuery.refetch()}
