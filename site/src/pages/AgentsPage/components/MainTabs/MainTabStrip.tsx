@@ -18,6 +18,8 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { useClipboard } from "#/hooks/useClipboard";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
+import { noHoverMediaQuery } from "#/utils/mobile";
 import { getPathBasename } from "../../utils/path";
 import { getTabHints } from "./tabHints";
 
@@ -114,6 +116,7 @@ export const MainTabStrip: React.FC<MainTabStripProps> = ({
 	onClose,
 }) => {
 	const { copyToClipboard } = useClipboard();
+	const canHover = !useMediaQuery(noHoverMediaQuery);
 	const stripRef = useRef<HTMLDivElement>(null);
 	// File tabs scroll into view with their close buttons.
 	const fileTabsRef = useRef(new Map<string, HTMLDivElement>());
@@ -274,22 +277,30 @@ export const MainTabStrip: React.FC<MainTabStripProps> = ({
 										aria-label={`Close ${accessibleName}`}
 										title={`Close ${path}`}
 										className={cn(
-											"size-6 rounded-l-none rounded-r-md bg-surface-primary p-0 text-content-secondary hover:text-content-primary [&>svg]:size-3",
+											"relative size-6 rounded-l-none rounded-r-md bg-surface-primary p-0 text-content-secondary hover:text-content-primary [&>svg]:size-3",
 											isActive &&
 												"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
 										)}
 										onClick={() => onClose([path], path)}
 									>
 										{/* The unsaved dot takes the close button's slot so the tab
-								    keeps its width; hovering the tab shows the X. */}
+									    keeps its width; hovering the tab shows the X. Without
+									    hover, the X always shows and the dot sits on its corner. */}
 										{isDirty && (
 											<span
 												aria-hidden
-												className="size-2 rounded-full bg-current group-hover/tab:hidden"
+												className={cn(
+													"rounded-full bg-current",
+													canHover
+														? "size-2 group-hover/tab:hidden"
+														: "absolute right-0.5 top-0.5 size-1.5",
+												)}
 											/>
 										)}
 										<XIcon
-											className={cn(isDirty && "hidden group-hover/tab:block")}
+											className={cn(
+												isDirty && canHover && "hidden group-hover/tab:block",
+											)}
 										/>
 									</Button>
 								</div>

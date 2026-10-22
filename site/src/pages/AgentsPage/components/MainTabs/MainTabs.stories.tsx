@@ -1,9 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import * as monaco from "monaco-editor";
 import { useEffect, useState } from "react";
-import { userEvent, within } from "storybook/test";
+import { userEvent, waitFor, within } from "storybook/test";
 import type { WorkspaceAgentFileContents } from "#/api/api";
 import { workspaceAgentFileKey } from "#/api/queries/workspaceFiles";
 import { Button } from "#/components/Button/Button";
+import { setupMatchMedia } from "#/testHelpers/matchMedia";
+import { noHoverMediaQuery } from "#/utils/mobile";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { WorkspaceFilesContext } from "../../context/WorkspaceFilesContext";
 import {
@@ -213,4 +216,63 @@ export const ChatFollowsReplyWhileHidden: Story = {
 		await canvas.findByText("Reply complete", undefined, { timeout: 5000 });
 		await userEvent.click(canvas.getByRole("tab", { name: "Chat" }));
 	},
+};
+
+/** Edits the file's editor through Monaco, which synthetic typing cannot reach. */
+const editFile = async (path: string) => {
+	const editor = await waitFor(
+		() => {
+			const found = monaco.editor
+				.getEditors()
+				.find((candidate) => candidate.getModel()?.uri.path === path);
+			// The file tab hears about edits from when the editor turns opaque.
+			if (!found || found.getContainerDomNode().closest(".opacity-0")) {
+				throw new Error(`No editor is ready for ${path} yet.`);
+			}
+			return found;
+		},
+		{ timeout: 10000 },
+	);
+	editor.executeEdits("story", [
+		{ range: new monaco.Range(1, 1, 1, 1), text: "// edited\n" },
+	]);
+	// The edit moves the cursor, which starts Monaco's 50 ms word highlight
+	// delay. Unmounting the story before it ends rejects an unhandled promise.
+	await new Promise((resolve) => setTimeout(resolve, 100));
+};
+
+const unsavedTabs: PersistedMainTabs = {
+	paths: ["/repo/README.md", "/repo/src/index.ts"],
+	activePath: "/repo/src/index.ts",
+};
+
+export const UnsavedFile: Story = {
+	beforeEach: persistTabs(unsavedTabs),
+	play: () => editFile("/repo/src/index.ts"),
+};
+
+export const UnsavedFileFocused: Story = {
+	beforeEach: persistTabs(unsavedTabs),
+	play: async ({ canvasElement }) => {
+		await editFile("/repo/src/index.ts");
+		const tab = await within(canvasElement).findByRole("tab", {
+			name: "index.ts, unsaved",
+		});
+		tab.focus();
+		// A key press makes the focus ring show; End keeps the last tab active.
+		await userEvent.keyboard("{End}");
+	},
+};
+
+/** Touch screens cannot hover, so the close button always shows its X. */
+export const UnsavedFileWithoutHover: Story = {
+	beforeEach: () => {
+		const media = setupMatchMedia({ [noHoverMediaQuery]: true });
+		const restoreTabs = persistTabs(unsavedTabs)();
+		return () => {
+			media.restore();
+			restoreTabs();
+		};
+	},
+	play: () => editFile("/repo/src/index.ts"),
 };
