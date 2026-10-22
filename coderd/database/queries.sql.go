@@ -2817,7 +2817,7 @@ func (q *sqlQuerier) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID)
 	return i, err
 }
 
-const deleteOrganizationAIProviderModelPrice = `-- name: DeleteOrganizationAIProviderModelPrice :execrows
+const deleteOrganizationAIProviderModelConfig = `-- name: DeleteOrganizationAIProviderModelConfig :execrows
 UPDATE ai_model_configs
 SET deleted = TRUE,
 	updated_at = NOW()
@@ -2827,16 +2827,16 @@ WHERE organization_id = $1
 	AND deleted = FALSE
 `
 
-type DeleteOrganizationAIProviderModelPriceParams struct {
+type DeleteOrganizationAIProviderModelConfigParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	ProviderID     uuid.UUID `db:"provider_id" json:"provider_id"`
 	Model          string    `db:"model" json:"model"`
 }
 
-// Soft deletes the organization's live price for one model on one configured
-// provider. Returns zero rows when there is no live price.
-func (q *sqlQuerier) DeleteOrganizationAIProviderModelPrice(ctx context.Context, arg DeleteOrganizationAIProviderModelPriceParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteOrganizationAIProviderModelPrice, arg.OrganizationID, arg.ProviderID, arg.Model)
+// Soft deletes the organization's live config for one model on one configured
+// provider. Returns zero rows when there is no live config.
+func (q *sqlQuerier) DeleteOrganizationAIProviderModelConfig(ctx context.Context, arg DeleteOrganizationAIProviderModelConfigParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOrganizationAIProviderModelConfig, arg.OrganizationID, arg.ProviderID, arg.Model)
 	if err != nil {
 		return 0, err
 	}
@@ -3312,7 +3312,7 @@ func (q *sqlQuerier) GetHighestGroupAIBudgetByUser(ctx context.Context, userID u
 	return i, err
 }
 
-const getOrganizationAIProviderModelPrice = `-- name: GetOrganizationAIProviderModelPrice :one
+const getOrganizationAIProviderModelConfig = `-- name: GetOrganizationAIProviderModelConfig :one
 SELECT id, organization_id, provider_id, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at, deleted
 FROM ai_model_configs
 WHERE organization_id = $1
@@ -3321,16 +3321,16 @@ WHERE organization_id = $1
 	AND deleted = FALSE
 `
 
-type GetOrganizationAIProviderModelPriceParams struct {
+type GetOrganizationAIProviderModelConfigParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	ProviderID     uuid.UUID `db:"provider_id" json:"provider_id"`
 	Model          string    `db:"model" json:"model"`
 }
 
-// Returns the organization's live price for one model on one configured
+// Returns the organization's live config for one model on one configured
 // provider. Soft-deleted rows are ignored.
-func (q *sqlQuerier) GetOrganizationAIProviderModelPrice(ctx context.Context, arg GetOrganizationAIProviderModelPriceParams) (AIModelConfig, error) {
-	row := q.db.QueryRowContext(ctx, getOrganizationAIProviderModelPrice, arg.OrganizationID, arg.ProviderID, arg.Model)
+func (q *sqlQuerier) GetOrganizationAIProviderModelConfig(ctx context.Context, arg GetOrganizationAIProviderModelConfigParams) (AIModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationAIProviderModelConfig, arg.OrganizationID, arg.ProviderID, arg.Model)
 	var i AIModelConfig
 	err := row.Scan(
 		&i.ID,
@@ -3969,7 +3969,7 @@ func (q *sqlQuerier) UpsertGroupAIBudget(ctx context.Context, arg UpsertGroupAIB
 	return i, err
 }
 
-const upsertOrganizationAIProviderModelPrice = `-- name: UpsertOrganizationAIProviderModelPrice :exec
+const upsertOrganizationAIProviderModelConfig = `-- name: UpsertOrganizationAIProviderModelConfig :exec
 INSERT INTO ai_model_configs (
 	organization_id, provider_id, model, input_price, output_price, cache_read_price, cache_write_price
 ) VALUES (
@@ -3994,7 +3994,7 @@ WHERE (
 )
 `
 
-type UpsertOrganizationAIProviderModelPriceParams struct {
+type UpsertOrganizationAIProviderModelConfigParams struct {
 	OrganizationID  uuid.UUID     `db:"organization_id" json:"organization_id"`
 	ProviderID      uuid.UUID     `db:"provider_id" json:"provider_id"`
 	Model           string        `db:"model" json:"model"`
@@ -4004,12 +4004,12 @@ type UpsertOrganizationAIProviderModelPriceParams struct {
 	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
 }
 
-// Sets the organization's price for one model on one configured provider. A
+// Sets the organization's config for one model on one configured provider. A
 // NULL price is unknown. An existing live row is only rewritten when a price
 // differs, so updated_at records when a price last changed. Soft-deleted rows
 // are left untouched, and a new live row is inserted beside them.
-func (q *sqlQuerier) UpsertOrganizationAIProviderModelPrice(ctx context.Context, arg UpsertOrganizationAIProviderModelPriceParams) error {
-	_, err := q.db.ExecContext(ctx, upsertOrganizationAIProviderModelPrice,
+func (q *sqlQuerier) UpsertOrganizationAIProviderModelConfig(ctx context.Context, arg UpsertOrganizationAIProviderModelConfigParams) error {
+	_, err := q.db.ExecContext(ctx, upsertOrganizationAIProviderModelConfig,
 		arg.OrganizationID,
 		arg.ProviderID,
 		arg.Model,

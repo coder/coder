@@ -52,8 +52,8 @@ ORDER BY
 	CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
 LIMIT 1;
 
--- name: GetOrganizationAIProviderModelPrice :one
--- Returns the organization's live price for one model on one configured
+-- name: GetOrganizationAIProviderModelConfig :one
+-- Returns the organization's live config for one model on one configured
 -- provider. Soft-deleted rows are ignored.
 SELECT *
 FROM ai_model_configs
@@ -62,8 +62,8 @@ WHERE organization_id = @organization_id
 	AND model = @model
 	AND deleted = FALSE;
 
--- name: UpsertOrganizationAIProviderModelPrice :exec
--- Sets the organization's price for one model on one configured provider. A
+-- name: UpsertOrganizationAIProviderModelConfig :exec
+-- Sets the organization's config for one model on one configured provider. A
 -- NULL price is unknown. An existing live row is only rewritten when a price
 -- differs, so updated_at records when a price last changed. Soft-deleted rows
 -- are left untouched, and a new live row is inserted beside them.
@@ -90,9 +90,9 @@ WHERE (
 	EXCLUDED.cache_write_price
 );
 
--- name: DeleteOrganizationAIProviderModelPrice :execrows
--- Soft deletes the organization's live price for one model on one configured
--- provider. Returns zero rows when there is no live price.
+-- name: DeleteOrganizationAIProviderModelConfig :execrows
+-- Soft deletes the organization's live config for one model on one configured
+-- provider. Returns zero rows when there is no live config.
 UPDATE ai_model_configs
 SET deleted = TRUE,
 	updated_at = NOW()

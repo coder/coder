@@ -7585,31 +7585,31 @@ func (s *MethodTestSuite) TestAIBridge() {
 		check.Args(database.GetAIModelPriceByProviderModelParams{}).Asserts(rbac.ResourceAiModelPrice, policy.ActionRead)
 	}))
 
-	s.Run("GetOrganizationAIProviderModelPrice", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+	s.Run("GetOrganizationAIProviderModelConfig", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		orgID := uuid.New()
 		price := database.AIModelConfig{OrganizationID: orgID, ProviderID: uuid.New(), Model: "claude-sonnet-4-5"}
-		db.EXPECT().GetOrganizationAIProviderModelPrice(gomock.Any(), gomock.Any()).Return(price, nil).AnyTimes()
-		check.Args(database.GetOrganizationAIProviderModelPriceParams{
+		db.EXPECT().GetOrganizationAIProviderModelConfig(gomock.Any(), gomock.Any()).Return(price, nil).AnyTimes()
+		check.Args(database.GetOrganizationAIProviderModelConfigParams{
 			OrganizationID: orgID,
 			ProviderID:     price.ProviderID,
 			Model:          price.Model,
 		}).Asserts(rbac.ResourceAiModelPrice.InOrg(orgID), policy.ActionRead).Returns(price)
 	}))
 
-	s.Run("UpsertOrganizationAIProviderModelPrice", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+	s.Run("UpsertOrganizationAIProviderModelConfig", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		orgID := uuid.New()
-		db.EXPECT().UpsertOrganizationAIProviderModelPrice(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-		check.Args(database.UpsertOrganizationAIProviderModelPriceParams{
+		db.EXPECT().UpsertOrganizationAIProviderModelConfig(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		check.Args(database.UpsertOrganizationAIProviderModelConfigParams{
 			OrganizationID: orgID,
 			ProviderID:     uuid.New(),
 			Model:          "claude-sonnet-4-5",
 		}).Asserts(rbac.ResourceAiModelPrice.InOrg(orgID), policy.ActionUpdate)
 	}))
 
-	s.Run("DeleteOrganizationAIProviderModelPrice", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+	s.Run("DeleteOrganizationAIProviderModelConfig", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		orgID := uuid.New()
-		db.EXPECT().DeleteOrganizationAIProviderModelPrice(gomock.Any(), gomock.Any()).Return(int64(1), nil).AnyTimes()
-		check.Args(database.DeleteOrganizationAIProviderModelPriceParams{
+		db.EXPECT().DeleteOrganizationAIProviderModelConfig(gomock.Any(), gomock.Any()).Return(int64(1), nil).AnyTimes()
+		check.Args(database.DeleteOrganizationAIProviderModelConfigParams{
 			OrganizationID: orgID,
 			ProviderID:     uuid.New(),
 			Model:          "claude-sonnet-4-5",

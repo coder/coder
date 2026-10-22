@@ -880,11 +880,11 @@ func (m queryMetricsStore) DeleteOldWorkspaceBuildOrchestrations(ctx context.Con
 	return r0, r1
 }
 
-func (m queryMetricsStore) DeleteOrganizationAIProviderModelPrice(ctx context.Context, arg database.DeleteOrganizationAIProviderModelPriceParams) (int64, error) {
+func (m queryMetricsStore) DeleteOrganizationAIProviderModelConfig(ctx context.Context, arg database.DeleteOrganizationAIProviderModelConfigParams) (int64, error) {
 	start := time.Now()
-	r0, r1 := m.s.DeleteOrganizationAIProviderModelPrice(ctx, arg)
-	m.queryLatencies.WithLabelValues("DeleteOrganizationAIProviderModelPrice").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOrganizationAIProviderModelPrice").Inc()
+	r0, r1 := m.s.DeleteOrganizationAIProviderModelConfig(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteOrganizationAIProviderModelConfig").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOrganizationAIProviderModelConfig").Inc()
 	return r0, r1
 }
 
@@ -2816,11 +2816,11 @@ func (m queryMetricsStore) GetOldUnlinkedChatFileIDs(ctx context.Context, arg da
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetOrganizationAIProviderModelPrice(ctx context.Context, arg database.GetOrganizationAIProviderModelPriceParams) (database.AIModelConfig, error) {
+func (m queryMetricsStore) GetOrganizationAIProviderModelConfig(ctx context.Context, arg database.GetOrganizationAIProviderModelConfigParams) (database.AIModelConfig, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetOrganizationAIProviderModelPrice(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetOrganizationAIProviderModelPrice").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationAIProviderModelPrice").Inc()
+	r0, r1 := m.s.GetOrganizationAIProviderModelConfig(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetOrganizationAIProviderModelConfig").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationAIProviderModelConfig").Inc()
 	return r0, r1
 }
 
@@ -6977,11 +6977,11 @@ func (m queryMetricsStore) UpsertOAuth2GithubDefaultEligible(ctx context.Context
 	return r0
 }
 
-func (m queryMetricsStore) UpsertOrganizationAIProviderModelPrice(ctx context.Context, arg database.UpsertOrganizationAIProviderModelPriceParams) error {
+func (m queryMetricsStore) UpsertOrganizationAIProviderModelConfig(ctx context.Context, arg database.UpsertOrganizationAIProviderModelConfigParams) error {
 	start := time.Now()
-	r0 := m.s.UpsertOrganizationAIProviderModelPrice(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertOrganizationAIProviderModelPrice").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertOrganizationAIProviderModelPrice").Inc()
+	r0 := m.s.UpsertOrganizationAIProviderModelConfig(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertOrganizationAIProviderModelConfig").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertOrganizationAIProviderModelConfig").Inc()
 	return r0
 }
 

@@ -19222,7 +19222,7 @@ func TestGetAIModelPrices(t *testing.T) {
 // configured provider, with only an input price.
 func upsertOrgProviderPrice(ctx context.Context, t *testing.T, db database.Store, orgID, providerID uuid.UUID, model string, inputPrice int64) {
 	t.Helper()
-	require.NoError(t, db.UpsertOrganizationAIProviderModelPrice(ctx, database.UpsertOrganizationAIProviderModelPriceParams{
+	require.NoError(t, db.UpsertOrganizationAIProviderModelConfig(ctx, database.UpsertOrganizationAIProviderModelConfigParams{
 		OrganizationID: orgID,
 		ProviderID:     providerID,
 		Model:          model,
@@ -19230,7 +19230,7 @@ func upsertOrgProviderPrice(ctx context.Context, t *testing.T, db database.Store
 	}))
 }
 
-func TestGetOrganizationAIProviderModelPrice(t *testing.T) {
+func TestGetOrganizationAIProviderModelConfig(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -19245,7 +19245,7 @@ func TestGetOrganizationAIProviderModelPrice(t *testing.T) {
 	upsertOrgProviderPrice(ctx, t, db, org.ID, otherProvider.ID, "model-a", 3)
 	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "model-b", 4)
 
-	got, err := db.GetOrganizationAIProviderModelPrice(ctx, database.GetOrganizationAIProviderModelPriceParams{
+	got, err := db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
 		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
 	})
 	require.NoError(t, err)
@@ -19255,13 +19255,13 @@ func TestGetOrganizationAIProviderModelPrice(t *testing.T) {
 	require.Equal(t, sql.NullInt64{Int64: 1, Valid: true}, got.InputPrice)
 	require.False(t, got.OutputPrice.Valid)
 
-	_, err = db.GetOrganizationAIProviderModelPrice(ctx, database.GetOrganizationAIProviderModelPriceParams{
+	_, err = db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
 		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-c",
 	})
 	require.ErrorIs(t, err, sql.ErrNoRows)
 }
 
-func TestUpsertOrganizationAIProviderModelPrice(t *testing.T) {
+func TestUpsertOrganizationAIProviderModelConfig(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
@@ -19270,7 +19270,7 @@ func TestUpsertOrganizationAIProviderModelPrice(t *testing.T) {
 
 	get := func(ctx context.Context, t *testing.T, model string) database.AIModelConfig {
 		t.Helper()
-		got, err := db.GetOrganizationAIProviderModelPrice(ctx, database.GetOrganizationAIProviderModelPriceParams{
+		got, err := db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
 			OrganizationID: org.ID, ProviderID: provider.ID, Model: model,
 		})
 		require.NoError(t, err)
@@ -19303,7 +19303,7 @@ func TestUpsertOrganizationAIProviderModelPrice(t *testing.T) {
 	t.Run("EmptyModel", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
-		err := db.UpsertOrganizationAIProviderModelPrice(ctx, database.UpsertOrganizationAIProviderModelPriceParams{
+		err := db.UpsertOrganizationAIProviderModelConfig(ctx, database.UpsertOrganizationAIProviderModelConfigParams{
 			OrganizationID: org.ID,
 			ProviderID:     provider.ID,
 			Model:          "",
@@ -19313,7 +19313,7 @@ func TestUpsertOrganizationAIProviderModelPrice(t *testing.T) {
 	})
 }
 
-func TestDeleteOrganizationAIProviderModelPrice(t *testing.T) {
+func TestDeleteOrganizationAIProviderModelConfig(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -19324,14 +19324,14 @@ func TestDeleteOrganizationAIProviderModelPrice(t *testing.T) {
 
 	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "model-a", 1)
 	upsertOrgProviderPrice(ctx, t, db, otherOrg.ID, provider.ID, "model-a", 2)
-	deletedRow, err := db.GetOrganizationAIProviderModelPrice(ctx, database.GetOrganizationAIProviderModelPriceParams{
+	deletedRow, err := db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
 		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
 	})
 	require.NoError(t, err)
 
 	del := func(orgID uuid.UUID, model string) int64 {
 		t.Helper()
-		n, err := db.DeleteOrganizationAIProviderModelPrice(ctx, database.DeleteOrganizationAIProviderModelPriceParams{
+		n, err := db.DeleteOrganizationAIProviderModelConfig(ctx, database.DeleteOrganizationAIProviderModelConfigParams{
 			OrganizationID: orgID, ProviderID: provider.ID, Model: model,
 		})
 		require.NoError(t, err)
@@ -19339,13 +19339,13 @@ func TestDeleteOrganizationAIProviderModelPrice(t *testing.T) {
 	}
 
 	require.EqualValues(t, 1, del(org.ID, "model-a"))
-	_, err = db.GetOrganizationAIProviderModelPrice(ctx, database.GetOrganizationAIProviderModelPriceParams{
+	_, err = db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
 		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
 	})
 	require.ErrorIs(t, err, sql.ErrNoRows)
 
 	// The other organization's price for the same model is untouched.
-	_, err = db.GetOrganizationAIProviderModelPrice(ctx, database.GetOrganizationAIProviderModelPriceParams{
+	_, err = db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
 		OrganizationID: otherOrg.ID, ProviderID: provider.ID, Model: "model-a",
 	})
 	require.NoError(t, err)
@@ -19369,7 +19369,7 @@ func TestDeleteOrganizationAIProviderModelPrice(t *testing.T) {
 	// Setting the price again inserts a new live row and leaves the
 	// soft-deleted row untouched.
 	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "model-a", 5)
-	live, err := db.GetOrganizationAIProviderModelPrice(ctx, database.GetOrganizationAIProviderModelPriceParams{
+	live, err := db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
 		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
 	})
 	require.NoError(t, err)
