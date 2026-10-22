@@ -108,6 +108,19 @@ func WorkspaceUploadDir(homeDir, chatID string) string {
 	return filepath.Join(WorkspaceChatDir(homeDir, chatID), WorkspaceUploadFilesSubdir)
 }
 
+// WorkspaceUploadFileDir returns the directory that holds the write-once
+// workspace upload of one chat file.
+func WorkspaceUploadFileDir(homeDir, chatID, fileID string) string {
+	return filepath.Join(WorkspaceUploadDir(homeDir, chatID), fileID)
+}
+
+// WorkspaceUploadFileHomePath returns the home-relative path, starting
+// with "~/", of the write-once workspace upload of one chat file. The name
+// must already be sanitized with SanitizeWorkspaceUploadName.
+func WorkspaceUploadFileHomePath(chatID, fileID, name string) string {
+	return path.Join("~", WorkspaceChatsDir, chatID, WorkspaceUploadFilesSubdir, fileID, name)
+}
+
 // compoundUploadExts are multi-dot extensions kept intact when adding a
 // collision suffix, so a second archive.tar.gz becomes archive_2.tar.gz.
 var compoundUploadExts = []string{".tar.gz", ".tar.bz2", ".tar.xz", ".tar.zst", ".d.ts", ".min.js"}
