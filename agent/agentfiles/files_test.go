@@ -3598,6 +3598,85 @@ func TestFileETags(t *testing.T) {
 		_, err = os.Stat(missing)
 		require.ErrorIs(t, err, os.ErrNotExist)
 	})
+
+	t.Run("IfNoneMatch", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		create := func(path, query, body string) *httptest.ResponseRecorder {
+			return do(t, http.MethodPost, "/write-file?path="+url.QueryEscape(path)+query, body)
+		}
+
+		// Missing file: written, with its ETag.
+		missing := filepath.Join(dir, "nested", "recreated.txt")
+		w := create(missing, "&if_none_match=*", "new")
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, readETag(t, missing), w.Header().Get("ETag"))
+
+		// Existing file: 412 with its ETag, content untouched.
+		current := readETag(t, missing)
+		w = create(missing, "&if_none_match=*", "clobber")
+		require.Equal(t, http.StatusPreconditionFailed, w.Code)
+		require.Equal(t, current, w.Header().Get("ETag"))
+		data, err := os.ReadFile(missing)
+		require.NoError(t, err)
+		require.Equal(t, "new", string(data))
+
+		// Existing directory: 412.
+		w = create(filepath.Join(dir, "nested"), "&if_none_match=*", "x")
+		require.Equal(t, http.StatusPreconditionFailed, w.Code)
+
+		// Only "*" is valid, and it cannot be combined with if_match.
+		for _, query := range []string{
+			"&if_none_match=",
+			"&if_none_match=" + url.QueryEscape(current),
+			"&if_none_match=*&if_match=" + url.QueryEscape(current),
+		} {
+			other := filepath.Join(dir, "invalid.txt")
+			w = create(other, query, "x")
+			require.Equal(t, http.StatusBadRequest, w.Code, query)
+			_, err = os.Stat(other)
+			require.ErrorIs(t, err, os.ErrNotExist, query)
+		}
+	})
+}
+
+// tempCreateHookFs runs beforeTemp when the atomic write creates its
+// temp file, after the first precondition check and before the rename.
+type tempCreateHookFs struct {
+	afero.Fs
+	beforeTemp func()
+}
+
+func (fs *tempCreateHookFs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
+	if strings.Contains(filepath.Base(name), ".tmp.") {
+		fs.beforeTemp()
+	}
+	return fs.Fs.OpenFile(name, flag, perm)
+}
+
+func TestWriteFile_IfNoneMatchRechecksBeforeRename(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "raced.txt")
+	const concurrent = "created by another process"
+	fs := &tempCreateHookFs{Fs: afero.NewOsFs(), beforeTemp: func() {
+		require.NoError(t, os.WriteFile(path, []byte(concurrent), 0o600))
+	}}
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	handler := agentfiles.NewAPI(logger, fs, nil).Routes()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/write-file?if_none_match=*&path="+url.QueryEscape(path), strings.NewReader("mine"))
+	handler.ServeHTTP(w, r)
+	require.Equal(t, http.StatusPreconditionFailed, w.Code)
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, concurrent, string(data))
+	entries, err := os.ReadDir(filepath.Dir(path))
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "temp file was not cleaned up")
 }
 
 // renameHookFs runs afterRename after each successful rename, to

@@ -307,7 +307,20 @@ func (api *API) HandleWriteFile(rw http.ResponseWriter, r *http.Request) {
 	parser := httpapi.NewQueryParamParser().RequiredNotEmpty("path")
 	path := parser.String(query, "", "path")
 	ifMatchValue := parser.String(query, "", "if_match")
+	ifNoneMatchValue := parser.String(query, "", "if_none_match")
 	parser.ErrorExcessParams(query)
+	if query.Has("if_none_match") && ifNoneMatchValue != "*" {
+		parser.Errors = append(parser.Errors, codersdk.ValidationError{
+			Field:  "if_none_match",
+			Detail: `Query param "if_none_match" only accepts "*"`,
+		})
+	}
+	if query.Has("if_match") && query.Has("if_none_match") {
+		parser.Errors = append(parser.Errors, codersdk.ValidationError{
+			Field:  "if_none_match",
+			Detail: `Query params "if_match" and "if_none_match" cannot be combined`,
+		})
+	}
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Query parameters have invalid values.",
@@ -321,7 +334,7 @@ func (api *API) HandleWriteFile(rw http.ResponseWriter, r *http.Request) {
 		ifMatch = &ifMatchValue
 	}
 
-	status, etag, err := api.writeFile(ctx, r, path, ifMatch)
+	status, etag, err := api.writeFile(ctx, r, path, ifMatch, query.Has("if_none_match"))
 	if etag != "" {
 		rw.Header().Set("ETag", etag)
 	}
@@ -345,10 +358,11 @@ func (api *API) HandleWriteFile(rw http.ResponseWriter, r *http.Request) {
 }
 
 // writeFile writes the request body to path. When ifMatch is non-nil,
-// the write only happens if the current file's ETag equals it;
-// otherwise it returns 412 with the current ETag, if the file exists.
+// the write only happens if the current file's ETag equals it; when
+// ifNoneMatch is set, only if no file exists. Otherwise it returns 412
+// with the current ETag, if the file exists.
 // The returned ETag is the written file's on success.
-func (api *API) writeFile(ctx context.Context, r *http.Request, path string, ifMatch *string) (HTTPResponseCode, string, error) {
+func (api *API) writeFile(ctx context.Context, r *http.Request, path string, ifMatch *string, ifNoneMatch bool) (HTTPResponseCode, string, error) {
 	if !filepath.IsAbs(path) {
 		return http.StatusBadRequest, "", xerrors.Errorf("file path must be absolute: %q", path)
 	}
@@ -364,12 +378,21 @@ func (api *API) writeFile(ctx context.Context, r *http.Request, path string, ifM
 	// concurrent write can be overwritten. It is still not atomic.
 	var currentETag string
 	var precondition func() (int, error)
-	if ifMatch != nil {
+	switch {
+	case ifMatch != nil:
 		precondition = func() (int, error) {
 			status, etag, err := api.checkIfMatch(path, *ifMatch)
 			currentETag = etag
 			return status, err
 		}
+	case ifNoneMatch:
+		precondition = func() (int, error) {
+			status, etag, err := api.checkIfNoneMatch(path)
+			currentETag = etag
+			return status, err
+		}
+	}
+	if precondition != nil {
 		if status, err := precondition(); err != nil {
 			return status, currentETag, err
 		}
@@ -422,6 +445,22 @@ func (api *API) checkIfMatch(path, ifMatch string) (HTTPResponseCode, string, er
 		return http.StatusPreconditionFailed, etag, xerrors.Errorf("file %s was modified: current ETag %s does not match %s", path, etag, ifMatch)
 	}
 	return 0, "", nil
+}
+
+// checkIfNoneMatch returns 412 and the existing file's ETag when
+// path exists.
+func (api *API) checkIfNoneMatch(path string) (HTTPResponseCode, string, error) {
+	stat, err := api.filesystem.Stat(path)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return 0, "", nil
+	case err != nil:
+		return http.StatusInternalServerError, "", xerrors.Errorf("stat %s: %w", path, err)
+	case stat.IsDir():
+		return http.StatusPreconditionFailed, "", xerrors.Errorf("%s already exists as a directory", path)
+	default:
+		return http.StatusPreconditionFailed, fileETag(stat), xerrors.Errorf("file %s already exists", path)
+	}
 }
 
 // fileETag returns a strong ETag derived from the file's modification
