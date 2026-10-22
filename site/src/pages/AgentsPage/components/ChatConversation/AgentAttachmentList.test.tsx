@@ -14,7 +14,7 @@ import { FileProbeProvider, useFileProbes } from "./FileProbeContext";
 import { getAgentAttachments } from "./messageHelpers";
 import { MockMixedAttachmentMessages } from "./storyFixtures";
 
-const findingsAttachments = getAgentAttachments(
+const mockFindingsAttachments = getAgentAttachments(
 	MockMixedAttachmentMessages,
 ).filter((attachment) => attachment.file.file_id === "findings-file");
 
@@ -33,7 +33,7 @@ describe("AgentAttachmentList", () => {
 				<QueryClientProvider client={queryClient}>
 					<TooltipProvider>
 						<FileProbeProvider evictedFileIds={new Set()}>
-							<AgentAttachmentList attachments={findingsAttachments} />
+							<AgentAttachmentList attachments={mockFindingsAttachments} />
 							{children}
 						</FileProbeProvider>
 					</TooltipProvider>
@@ -64,8 +64,8 @@ describe("AgentAttachmentList", () => {
 		// Two lists of one file share its text.
 		renderComponent(
 			<QueryClientProvider client={createTestQueryClient()}>
-				<AgentAttachmentList attachments={findingsAttachments} />
-				<AgentAttachmentList attachments={findingsAttachments} />
+				<AgentAttachmentList attachments={mockFindingsAttachments} />
+				<AgentAttachmentList attachments={mockFindingsAttachments} />
 			</QueryClientProvider>,
 		);
 		const [failedCard, loadedCard] = screen.getAllByRole("button", {

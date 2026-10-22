@@ -18,7 +18,7 @@ import {
 } from "./ChatConversation/FileProbeContext";
 import type { AgentAttachment } from "./ChatConversation/messageHelpers";
 
-const storedChart: AgentAttachment = {
+const mockStoredChart: AgentAttachment = {
 	key: "chart",
 	file: {
 		type: "file",
@@ -110,7 +110,7 @@ describe("ChatAttachments", () => {
 		);
 		renderComponent(
 			<ChatAttachments
-				attachments={[storedChart]}
+				attachments={[mockStoredChart]}
 				evictedFileIds={new Set()}
 				hasMoreMessages={false}
 				isFetchingMoreMessages={false}
@@ -141,7 +141,7 @@ describe("ChatAttachments", () => {
 				<TooltipProvider>
 					<FileProbeProvider>
 						<ChatAttachments
-							attachments={[storedChart]}
+							attachments={[mockStoredChart]}
 							evictedFileIds={new Set()}
 							hasMoreMessages={false}
 							isFetchingMoreMessages={false}

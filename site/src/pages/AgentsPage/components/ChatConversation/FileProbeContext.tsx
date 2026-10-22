@@ -1,6 +1,5 @@
 import { createContext, useContext, useRef, useState } from "react";
 import type { AttachmentFailure } from "../../utils/chatAttachments";
-import { NO_FILE_IDS } from "./messageHelpers";
 
 type FileProbeContextValue = {
 	hasExpired: (fileId: string) => boolean;
@@ -27,12 +26,13 @@ const FileProbeContext = createContext<FileProbeContextValue | undefined>(
 );
 
 /**
- * A provider inside another shares the outer one's probe results and adds its
- * own evicted files, so every view of a chat learns that a file is deleted.
+ * A provider inside another shares the outer one's probe results, so a file
+ * that one view's probe finds deleted is expired in every view. Its own
+ * evicted files are expired only for the views inside it.
  */
 export const FileProbeProvider: React.FC<
 	React.PropsWithChildren<{ evictedFileIds?: ReadonlySet<string> }>
-> = ({ evictedFileIds = NO_FILE_IDS, children }) => {
+> = ({ evictedFileIds, children }) => {
 	const outerProbes = useContext(FileProbeContext);
 	const [expiredFileIds, setExpiredFileIds] = useState<Set<string>>(
 		() => new Set(),
@@ -78,7 +78,7 @@ export const FileProbeProvider: React.FC<
 			value={{
 				...probes,
 				hasExpired: (fileId) =>
-					evictedFileIds.has(fileId) || probes.hasExpired(fileId),
+					evictedFileIds?.has(fileId) || probes.hasExpired(fileId),
 			}}
 		>
 			{children}
@@ -86,4 +86,5 @@ export const FileProbeProvider: React.FC<
 	);
 };
 
+/** The nearest provider's probes; outside any provider, they record nothing. */
 export const useFileProbes = () => useContext(FileProbeContext) ?? noFileProbes;
