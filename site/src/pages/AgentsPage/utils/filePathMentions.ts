@@ -353,6 +353,8 @@ type FilePathCandidateStart = {
 	directory: string;
 	/** Index in the candidate text where the first entry name begins. */
 	offset: number;
+	/** Repository root or default directory a relative path resolves in. */
+	root: string;
 };
 
 const joinPath = (base: string, path: string) => {
@@ -381,13 +383,17 @@ export const getFilePathCandidateStarts = (
 	const offset = slash + 1;
 	const prefix = slash === -1 ? "" : token.slice(0, slash);
 	if (token.startsWith("/")) {
-		return [{ directory: prefix || "/", offset }];
+		return [{ directory: prefix || "/", offset, root: "/" }];
 	}
 	if (token.startsWith("~/")) {
-		return [{ directory: prefix, offset }];
+		return [{ directory: prefix, offset, root: "~" }];
 	}
 	const roots = repoRoots.length > 0 ? repoRoots : [""];
-	return roots.map((root) => ({ directory: joinPath(root, prefix), offset }));
+	return roots.map((root) => ({
+		directory: joinPath(root, prefix),
+		offset,
+		root,
+	}));
 };
 
 type DirectoryEntry = {
@@ -396,7 +402,7 @@ type DirectoryEntry = {
 	absolute_path_string: string;
 };
 
-export type VerifiedFilePath = {
+type VerifiedFilePath = {
 	absolutePath: string;
 	/** Characters of the walked text that the path and line suffix cover. */
 	length: number;
@@ -419,23 +425,42 @@ const isPathEnd = (text: string, index: number) => {
 const lineSuffixRegExp = /^(?::(\d+)(?::\d+)?|#L(\d+))/;
 
 /**
+ * A directory's entries, `null` when listing it failed, or `undefined`
+ * while the listing is not available yet.
+ */
+type DirectoryEntries = readonly DirectoryEntry[] | null | undefined;
+
+type FilePathWalk = {
+	/** The directories the walk has needed so far, in order. */
+	directories: string[];
+	/** The verified file; `null` when none matches, `undefined` while pending. */
+	verified: VerifiedFilePath | null | undefined;
+};
+
+/**
  * Walks directory listings to find the longest file path that `text`
  * starts with, beginning in `directory`. At each level it takes the
  * longest entry name the remaining text starts with, followed by `/` for a
- * directory or a word boundary for a file. Resolves to null when no file
- * matches, a listing fails, or the walk exceeds its depth.
+ * directory or a word boundary for a file. The walk stops with no match
+ * when a listing failed or the walk exceeds its depth, and stays pending at
+ * the first directory whose listing is not available.
  */
-export const verifyFilePath = async (
+export const walkFilePath = (
 	directory: string,
 	text: string,
-	listDirectory: (directory: string) => Promise<readonly DirectoryEntry[]>,
-): Promise<VerifiedFilePath | null> => {
+	getEntries: (directory: string) => DirectoryEntries,
+): FilePathWalk => {
+	const directories: string[] = [];
 	let current = directory;
 	let offset = 0;
 	for (let depth = 0; depth < maxWalkDepth; depth++) {
-		const entries = await listDirectory(current).catch(() => null);
-		if (!entries) {
-			return null;
+		directories.push(current);
+		const entries = getEntries(current);
+		if (entries === undefined) {
+			return { directories, verified: undefined };
+		}
+		if (entries === null) {
+			return { directories, verified: null };
 		}
 		const rest = text.slice(offset);
 		let best: DirectoryEntry | undefined;
@@ -456,7 +481,7 @@ export const verifyFilePath = async (
 			}
 		}
 		if (!best) {
-			return null;
+			return { directories, verified: null };
 		}
 		if (best.is_dir) {
 			current = best.absolute_path_string;
@@ -466,14 +491,15 @@ export const verifyFilePath = async (
 		const end = offset + best.name.length;
 		const suffix = lineSuffixRegExp.exec(text.slice(end));
 		const line = Number(suffix?.[1] ?? suffix?.[2]);
-		if (suffix && line > 0 && isPathEnd(text, end + suffix[0].length)) {
-			return {
-				absolutePath: best.absolute_path_string,
-				length: end + suffix[0].length,
-				line,
-			};
-		}
-		return { absolutePath: best.absolute_path_string, length: end };
+		const verified =
+			suffix && line > 0 && isPathEnd(text, end + suffix[0].length)
+				? {
+						absolutePath: best.absolute_path_string,
+						length: end + suffix[0].length,
+						line,
+					}
+				: { absolutePath: best.absolute_path_string, length: end };
+		return { directories, verified };
 	}
-	return null;
+	return { directories, verified: null };
 };

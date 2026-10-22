@@ -5,7 +5,7 @@ import {
 	getFilePathCandidateStarts,
 	isWholeFilePathCandidate,
 	parseFilePathMention,
-	verifyFilePath,
+	walkFilePath,
 } from "./filePathMentions";
 
 describe("parseFilePathMention", () => {
@@ -140,35 +140,40 @@ describe("isWholeFilePathCandidate", () => {
 
 describe("getFilePathCandidateStarts", () => {
 	it.each([
-		["/path/to/file (2).txt", [], [{ directory: "/path/to", offset: 9 }]],
-		["/file (2).txt", [], [{ directory: "/", offset: 1 }]],
-		["~/My Documents/x.md", [], [{ directory: "~", offset: 2 }]],
-		["~/a/my dir/x.md", [], [{ directory: "~/a", offset: 4 }]],
+		[
+			"/path/to/file (2).txt",
+			[],
+			[{ directory: "/path/to", offset: 9, root: "/" }],
+		],
+		["/file (2).txt", [], [{ directory: "/", offset: 1, root: "/" }]],
+		["~/My Documents/x.md", [], [{ directory: "~", offset: 2, root: "~" }]],
+		["~/a/my dir/x.md", [], [{ directory: "~/a", offset: 4, root: "~" }]],
 		[
 			"src/my dir/a.ts",
 			["/r1", "/r2/"],
 			[
-				{ directory: "/r1/src", offset: 4 },
-				{ directory: "/r2/src", offset: 4 },
+				{ directory: "/r1/src", offset: 4, root: "/r1" },
+				{ directory: "/r2/src", offset: 4, root: "/r2/" },
 			],
 		],
-		["my dir/a.ts", [], [{ directory: "", offset: 0 }]],
-		["src/my dir/a.ts", [], [{ directory: "src", offset: 4 }]],
+		["my dir/a.ts", [], [{ directory: "", offset: 0, root: "" }]],
+		["src/my dir/a.ts", [], [{ directory: "src", offset: 4, root: "" }]],
 	])("starts %j in %j", (text, roots, expected) => {
 		expect(getFilePathCandidateStarts(text, roots)).toEqual(expected);
 	});
 });
 
-describe("verifyFilePath", () => {
-	const tree: Record<string, string[]> = {
+describe("walkFilePath", () => {
+	const tree: Record<string, string[] | null> = {
 		"/path/to": ["file", "file (2).txt", "file (2)"],
 		"/home/coder": ["my", "my dir/"],
 		"/home/coder/my dir": ["a.ts"],
+		"/missing": null,
 	};
-	const listDirectory = async (directory: string) => {
+	const getEntries = (directory: string) => {
 		const names = tree[directory];
-		if (!names) {
-			throw new Error("not found");
+		if (names === undefined || names === null) {
+			return names;
 		}
 		return names.map((name) => {
 			const isDir = name.endsWith("/");
@@ -201,16 +206,31 @@ describe("verifyFilePath", () => {
 		["/home/coder", "my dir/b.ts", null],
 		["/home/coder", "my dirt", { absolutePath: "/home/coder/my", length: 2 }],
 		["/missing", "a b.ts", null],
-	])("walks from %j through %j", async (directory, text, expected) => {
-		expect(await verifyFilePath(directory, text, listDirectory)).toEqual(
+		["/not/listed/yet", "a b.ts", undefined],
+	])("walks from %j through %j", (directory, text, expected) => {
+		expect(walkFilePath(directory, text, getEntries).verified).toEqual(
 			expected,
 		);
 	});
 
-	it("stops at the depth cap", async () => {
-		const listing = async (directory: string) => [
+	it("reports the directories it needed, up to the pending one", () => {
+		expect(
+			walkFilePath("/home/coder", "my dir/sub/a.ts", (directory) =>
+				directory === "/home/coder/my dir/sub"
+					? undefined
+					: getEntries(directory),
+			),
+		).toEqual({
+			directories: ["/home/coder", "/home/coder/my dir"],
+			verified: null,
+		});
+	});
+
+	it("stops at the depth cap", () => {
+		const walk = walkFilePath("/", "d/d/d/d/d/d/a.ts", (directory) => [
 			{ name: "d", is_dir: true, absolute_path_string: `${directory}/d` },
-		];
-		expect(await verifyFilePath("/", "d/d/d/d/d/d/a.ts", listing)).toBeNull();
+		]);
+		expect(walk.verified).toBeNull();
+		expect(walk.directories).toHaveLength(5);
 	});
 });
