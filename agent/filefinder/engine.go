@@ -12,6 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -46,12 +47,20 @@ type Engine struct {
 	closeCh chan struct{}
 	closed  atomic.Bool
 	wg      sync.WaitGroup
+	ignorer *Ignorer
+	// ctx is canceled by Close and bounds background reloads.
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 type rootState struct {
 	root    string
 	index   *Index
 	watcher *fsWatcher
 	cancel  context.CancelFunc
+	// reloading is set while reloadRoot runs; reloadAgain asks it to
+	// run once more because ignore rules changed again meanwhile.
+	reloading   bool
+	reloadAgain bool
 }
 type rootEvent struct {
 	root   string
@@ -67,25 +76,12 @@ const maxIndexEntries = 300_000
 // a populated Index containing all discovered files and directories.
 // It stops early when ctx is canceled or the index reaches
 // maxIndexEntries, reporting the latter as truncated.
-func walkRoot(ctx context.Context, absRoot string) (idx *Index, truncated bool, err error) {
+func walkRoot(ctx context.Context, ig *Ignorer, absRoot string) (idx *Index, truncated bool, err error) {
 	idx = NewIndex()
-	err = filepath.Walk(absRoot, func(path string, info os.FileInfo, walkErr error) error {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if walkErr != nil {
-			return nil //nolint:nilerr
-		}
+	err = walkIndexable(ctx, ig, absRoot, func(path string, info os.FileInfo) error {
 		if idx.Len() >= maxIndexEntries {
 			truncated = true
 			return filepath.SkipAll
-		}
-		base := filepath.Base(path)
-		if _, skip := skipDirs[base]; skip && info.IsDir() {
-			return filepath.SkipDir
-		}
-		if path == absRoot {
-			return nil
 		}
 		relPath, relErr := filepath.Rel(absRoot, path)
 		if relErr != nil {
@@ -104,14 +100,33 @@ func walkRoot(ctx context.Context, absRoot string) (idx *Index, truncated bool, 
 	return idx, truncated, err
 }
 
+// EngineOption configures an Engine.
+type EngineOption func(*Engine)
+
+// WithIgnorer sets the gitignore rules the engine applies. The default
+// reads the OS filesystem and the current user's global excludes.
+func WithIgnorer(ig *Ignorer) EngineOption {
+	return func(e *Engine) {
+		e.ignorer = ig
+	}
+}
+
 // NewEngine creates a new Engine.
-func NewEngine(logger slog.Logger) *Engine {
+func NewEngine(logger slog.Logger, opts ...EngineOption) *Engine {
 	e := &Engine{
 		logger:  logger,
 		roots:   make(map[string]*rootState),
 		eventCh: make(chan rootEvent, 256),
 		closeCh: make(chan struct{}),
 	}
+	for _, opt := range opts {
+		opt(e)
+	}
+	if e.ignorer == nil {
+		home, _ := os.UserHomeDir()
+		e.ignorer = NewIgnorer(afero.NewOsFs(), home)
+	}
+	e.ctx, e.cancel = context.WithCancel(context.Background())
 	empty := make([]*rootSnapshot, 0)
 	e.snap.Store(&empty)
 	e.wg.Add(1)
@@ -142,7 +157,7 @@ func (e *Engine) AddRoot(ctx context.Context, root string) error {
 
 	// Walk and create the watcher outside the lock to avoid
 	// blocking the event pipeline on filesystem I/O.
-	idx, truncated, walkErr := walkRoot(ctx, absRoot)
+	idx, truncated, walkErr := walkRoot(ctx, e.ignorer, absRoot)
 	if walkErr != nil {
 		return xerrors.Errorf("walk root: %w", walkErr)
 	}
@@ -153,7 +168,7 @@ func (e *Engine) AddRoot(ctx context.Context, root string) error {
 		)
 	}
 	wCtx, wCancel := context.WithCancel(context.Background())
-	w, wErr := newFSWatcher(absRoot, e.logger)
+	w, wErr := newFSWatcher(absRoot, e.logger, e.ignorer)
 	if wErr != nil {
 		wCancel()
 		return xerrors.Errorf("create watcher: %w", wErr)
@@ -260,6 +275,7 @@ func (e *Engine) Close() error {
 		return nil
 	}
 	close(e.closeCh)
+	e.cancel()
 	e.mu.Lock()
 	for _, rs := range e.roots {
 		rs.cancel()
@@ -280,7 +296,7 @@ func (e *Engine) Rebuild(ctx context.Context, root string) error {
 
 	// Walk outside the lock to avoid blocking the event
 	// pipeline on potentially slow filesystem I/O.
-	idx, _, walkErr := walkRoot(ctx, absRoot)
+	idx, _, walkErr := walkRoot(ctx, e.ignorer, absRoot)
 	if walkErr != nil {
 		return xerrors.Errorf("rebuild walk: %w", walkErr)
 	}
@@ -349,6 +365,10 @@ func (e *Engine) applyEvents(re rootEvent) {
 	}
 	changed := false
 	for _, ev := range re.events {
+		if ev.Op == OpIgnoreChanged {
+			e.scheduleReloadLocked(rs)
+			continue
+		}
 		relPath, err := filepath.Rel(rs.root, ev.Path)
 		if err != nil {
 			continue
@@ -400,4 +420,69 @@ func (e *Engine) publishSnapshot() {
 		return strings.Compare(a.root, b.root)
 	})
 	e.snap.Store(&roots)
+}
+
+// scheduleReloadLocked starts reloadRoot for rs unless one is running,
+// in which case that one runs again. Must be called with e.mu held.
+func (e *Engine) scheduleReloadLocked(rs *rootState) {
+	if rs.reloading {
+		rs.reloadAgain = true
+		return
+	}
+	rs.reloading = true
+	e.wg.Add(1)
+	go e.reloadRoot(rs)
+}
+
+// reloadRoot re-walks rs and replaces its index and watcher after its
+// ignore rules changed, so newly ignored paths are dropped and newly
+// unignored directories are indexed and watched. The old index serves
+// searches until the new one is ready.
+func (e *Engine) reloadRoot(rs *rootState) {
+	defer e.wg.Done()
+	for {
+		idx, truncated, err := walkRoot(e.ctx, e.ignorer, rs.root)
+		var w *fsWatcher
+		if err == nil {
+			w, err = newFSWatcher(rs.root, e.logger, e.ignorer)
+		}
+
+		e.mu.Lock()
+		if err != nil || e.closed.Load() || e.roots[rs.root] != rs {
+			rs.reloading = false
+			e.mu.Unlock()
+			if w != nil {
+				_ = w.Close()
+			}
+			if err != nil && e.ctx.Err() == nil {
+				e.logger.Warn(e.ctx, "reload root after ignore rules changed", slog.F("root", rs.root), slog.Error(err))
+			}
+			return
+		}
+		oldCancel, oldWatcher := rs.cancel, rs.watcher
+		wCtx, wCancel := context.WithCancel(e.ctx)
+		rs.index, rs.watcher, rs.cancel = idx, w, wCancel
+		e.wg.Add(1)
+		go e.forwardEvents(wCtx, rs.root, w)
+		e.publishSnapshot()
+		again := rs.reloadAgain
+		rs.reloadAgain = false
+		if !again {
+			rs.reloading = false
+		}
+		e.mu.Unlock()
+
+		oldCancel()
+		_ = oldWatcher.Close()
+		w.Start(wCtx)
+		if truncated {
+			e.logger.Warn(e.ctx, "root exceeds the index budget, indexing partially",
+				slog.F("root", rs.root),
+				slog.F("max_entries", maxIndexEntries),
+			)
+		}
+		if !again {
+			return
+		}
+	}
 }

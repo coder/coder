@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
@@ -79,7 +80,7 @@ func buildIndex(t testing.TB, root string) *Index {
 	t.Helper()
 	absRoot, err := filepath.Abs(root)
 	require.NoError(t, err)
-	idx, _, err := walkRoot(context.Background(), absRoot)
+	idx, _, err := walkRoot(context.Background(), NewIgnorer(afero.NewOsFs(), ""), absRoot)
 	require.NoError(t, err)
 	return idx
 }
