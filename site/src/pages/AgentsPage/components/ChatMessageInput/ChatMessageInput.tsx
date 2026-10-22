@@ -17,6 +17,7 @@ import {
 	$isParagraphNode,
 	$isRangeSelection,
 	$isTextNode,
+	$parseSerializedNode,
 	COMMAND_PRIORITY_HIGH,
 	FORMAT_ELEMENT_COMMAND,
 	FORMAT_TEXT_COMMAND,
@@ -24,6 +25,7 @@ import {
 	KEY_ENTER_COMMAND,
 	type LexicalEditor,
 	PASTE_COMMAND,
+	type SerializedLexicalNode,
 } from "lexical";
 import {
 	useEffect,
@@ -70,6 +72,10 @@ import {
 	type PasteCommandEvent,
 } from "./pasteHelpers";
 import {
+	$insertSkillInvocation,
+	SkillInvocationNode,
+} from "./SkillInvocationNode";
+import {
 	createCommandMenuItem,
 	type SkillMenuItem,
 	type SkillMetadata,
@@ -79,6 +85,11 @@ import {
 	type ActiveSkillsTrigger,
 	SkillsTriggerPlugin,
 } from "./SkillsTriggerPlugin";
+import {
+	$insertClipboardNodes,
+	getClipboardNodes,
+	registerSkillAliasCopy,
+} from "./skillClipboard";
 
 // Blocks Cmd+B/I/U and element formatting shortcuts so the editor
 // stays plain-text only.
@@ -155,9 +166,13 @@ function replacePlainTextInEditor(editor: LexicalEditor, text: string) {
 	});
 }
 
+const EDITOR_NAMESPACE = "ChatMessageInput";
+
 // Intercepts paste events and inserts clipboard content as plain text,
 // stripping any rich-text formatting. Image files and large pasted text
 // are forwarded to the parent via the onFilePaste callback instead.
+// Content copied from a chat composer keeps its chips, and copying puts
+// skill chips into the plain-text form as their aliases.
 //
 // Cmd/Ctrl+Shift+V ("paste and match style") is treated as an explicit
 // user intent to paste inline, so the large-paste-to-attachment
@@ -165,9 +180,11 @@ function replacePlainTextInEditor(editor: LexicalEditor, text: string) {
 const PasteSanitizationPlugin: React.FC<{
 	onFilePaste?: (file: File) => boolean;
 	allowTextAttachmentPaste?: boolean;
+	isSkillAvailable: (source: SkillSource, name: string) => boolean;
 }> = function PasteSanitizationPlugin({
 	onFilePaste,
 	allowTextAttachmentPaste = true,
+	isSkillAvailable,
 }) {
 	const [editor] = useLexicalComposerContext();
 	const plainTextPasteRef = useRef(false);
@@ -175,6 +192,7 @@ const PasteSanitizationPlugin: React.FC<{
 
 	useEffect(() => {
 		const unregister = mergeRegister(
+			registerSkillAliasCopy(editor, EDITOR_NAMESPACE),
 			// Detect Cmd/Ctrl+Shift+V so the PASTE_COMMAND handler
 			// can bypass attachment conversion for that shortcut.
 			editor.registerCommand(
@@ -259,6 +277,21 @@ const PasteSanitizationPlugin: React.FC<{
 						// pastes.
 					}
 
+					// Composer content keeps its chips even when its text is long.
+					// Listeners run inside an update, so the paste applies here.
+					const composerNodes = isPlainTextPaste
+						? null
+						: getClipboardNodes(dataTransfer, EDITOR_NAMESPACE);
+					const selection = $getSelection();
+					if (
+						composerNodes &&
+						$isRangeSelection(selection) &&
+						$insertClipboardNodes(selection, composerNodes, isSkillAvailable)
+					) {
+						event.preventDefault();
+						return true;
+					}
+
 					const text = getPastedPlainText(event, dataTransfer);
 					if (!text) return false;
 
@@ -293,7 +326,7 @@ const PasteSanitizationPlugin: React.FC<{
 			}
 			unregister();
 		};
-	}, [allowTextAttachmentPaste, editor, onFilePaste]);
+	}, [allowTextAttachmentPaste, editor, isSkillAvailable, onFilePaste]);
 
 	return null;
 };
@@ -380,7 +413,7 @@ const ContentChangePlugin: React.FC<{
 	onChange: (
 		content: string,
 		serializedEditorState: string,
-		hasFileReferences: boolean,
+		hasChips: boolean,
 	) => void;
 }> = function ContentChangePlugin({ onChange }) {
 	const [editor] = useLexicalComposerContext();
@@ -390,27 +423,44 @@ const ContentChangePlugin: React.FC<{
 			editorState.read(() => {
 				const root = $getRoot();
 				const content = root.getTextContent();
-				let hasRefs = false;
+				let hasChips = false;
 
 				for (const child of root.getChildren()) {
 					if (!$isParagraphNode(child)) continue;
 
 					for (const node of child.getChildren()) {
-						if (node instanceof FileReferenceNode) {
-							hasRefs = true;
+						if (
+							node instanceof FileReferenceNode ||
+							node instanceof SkillInvocationNode
+						) {
+							hasChips = true;
 							break;
 						}
 					}
 
-					if (hasRefs) break;
+					if (hasChips) break;
 				}
 				const serialized = JSON.stringify(editorState.toJSON());
-				onChange(content, serialized, hasRefs);
+				onChange(content, serialized, hasChips);
 			});
 		});
 	}, [editor, onChange]);
 
 	return null;
+};
+
+// Returns the root children of a serialized editor state, or null when
+// the state is malformed or uses node types the editor does not register.
+const getRestorableRootChildren = (
+	editor: LexicalEditor,
+	serializedEditorState: string,
+): SerializedLexicalNode[] | null => {
+	try {
+		return editor.parseEditorState(serializedEditorState).toJSON().root
+			.children;
+	} catch {
+		return null;
+	}
 };
 
 // Seeds the editor with an initial value on first mount. When
@@ -430,25 +480,22 @@ const ValueSyncPlugin: React.FC<{
 		}
 		hasInitialized.current = true;
 
-		// Prefer restoring the full serialized editor state
-		// (preserves file-reference chips and node positions).
-		if (initialEditorState) {
-			try {
-				const parsed = editor.parseEditorState(initialEditorState);
-				editor.setEditorState(parsed);
-				return;
-			} catch {
-				// Malformed state, fall through to plain-text path.
-			}
-		}
-
-		if (initialValue === "") {
+		// Restore via editor.update, not setEditorState: a synchronous
+		// commit here makes chip decorators flushSync inside this effect.
+		const restoredChildren = initialEditorState
+			? getRestorableRootChildren(editor, initialEditorState)
+			: null;
+		if (!restoredChildren && initialValue === "") {
 			return;
 		}
 
 		editor.update(() => {
 			const root = $getRoot();
 			root.clear();
+			if (restoredChildren) {
+				root.append(...restoredChildren.map($parseSerializedNode));
+				return;
+			}
 			const paragraph = $createParagraphNode();
 			const textNode = $createTextNode(initialValue);
 			paragraph.append(textNode);
@@ -483,16 +530,21 @@ type FileReferenceData = {
 	readonly content: string;
 };
 
+type SkillInvocationData = {
+	readonly source: SkillSource;
+	readonly name: string;
+};
+
 /**
  * A content part extracted from the Lexical editor in document order.
- * Either a text segment or a file-reference chip.
  */
 type EditorContentPart =
 	| { readonly type: "text"; readonly text: string }
 	| {
 			readonly type: "file-reference";
 			readonly reference: FileReferenceData;
-	  };
+	  }
+	| ({ readonly type: "skill-invocation" } & SkillInvocationData);
 
 // Mutable variant used internally while building the parts
 // array so we can append to the last text segment without
@@ -502,7 +554,10 @@ type MutableFileRefPart = {
 	type: "file-reference";
 	reference: FileReferenceData;
 };
-type MutableContentPart = MutableTextPart | MutableFileRefPart;
+type MutableContentPart =
+	| MutableTextPart
+	| MutableFileRefPart
+	| ({ type: "skill-invocation" } & SkillInvocationData);
 
 export type ChatMessageInputRef = {
 	setValue: (text: string) => void;
@@ -516,8 +571,14 @@ export type ChatMessageInputRef = {
 	 */
 	addFileReference: (ref: FileReferenceData) => void;
 	/**
+	 * Focus the editor and insert a skill chip at the cursor, or at the
+	 * end when the editor has no selection. A skill already in the
+	 * editor is not added again.
+	 */
+	insertSkill: (source: SkillSource, name: string) => void;
+	/**
 	 * Walk the Lexical tree in document order and return interleaved
-	 * text / file-reference parts. Adjacent text nodes within the same
+	 * text and chip parts. Adjacent text nodes within the same
 	 * paragraph are merged, and paragraphs are separated by newlines.
 	 */
 	getContentParts: () => EditorContentPart[];
@@ -538,7 +599,7 @@ type ChatMessageInputProps = Omit<
 	onChange: (
 		content: string,
 		serializedEditorState: string,
-		hasFileReferences: boolean,
+		hasChips: boolean,
 	) => void;
 	/** Monotonic counter to force editor remount. */
 	remountKey?: number;
@@ -688,12 +749,12 @@ const ChatMessageInput = ({
 	...props
 }: ChatMessageInputProps & { ref?: React.Ref<ChatMessageInputRef> }) => {
 	const initialConfig = {
-		namespace: "ChatMessageInput",
+		namespace: EDITOR_NAMESPACE,
 		theme: {
 			paragraph: "m-0",
 		},
 		onError: (error: Error) => console.error("Lexical error:", error),
-		nodes: [FileReferenceNode],
+		nodes: [FileReferenceNode, SkillInvocationNode],
 		editable: !disabled,
 	};
 	const style = {
@@ -777,6 +838,11 @@ const ChatMessageInput = ({
 		},
 		{ source: "workspace", skills: loadedWorkspaceSkills },
 	];
+	// A skill whose source list has not loaded stays a chip when pasted.
+	const isSkillAvailable = (source: SkillSource, name: string) => {
+		const skills = skillLists.find((list) => list.source === source)?.skills;
+		return !skills || skills.some((skill) => skill.name === name);
+	};
 	const availableSlashCommands = (slashCommands ?? []).filter(
 		(command) =>
 			resolveChatSlashCommandAvailability(command, skillLists) === "available",
@@ -886,7 +952,11 @@ const ChatMessageInput = ({
 
 			selection.anchor.set(trigger.nodeKey, trigger.slashOffset, "text");
 			selection.focus.set(trigger.nodeKey, caretOffset, "text");
-			selection.insertText(skill.triggerText);
+			if (skill.source === "command") {
+				selection.insertText(skill.triggerText);
+			} else {
+				$insertSkillInvocation(selection, skill.source, skill.name);
+			}
 		});
 		setSkillsTrigger(null);
 		setSkillsMenuSelectedIndex(0);
@@ -996,6 +1066,24 @@ const ChatMessageInput = ({
 					chipNode.selectNext();
 				});
 			},
+			insertSkill: (source: SkillSource, name: string) => {
+				const editor = editorRef.current;
+				if (!editor) return;
+
+				editor.update(() => {
+					const selection = $getSelection();
+					$insertSkillInvocation(
+						$isRangeSelection(selection) ? selection : $getRoot().selectEnd(),
+						source,
+						name,
+					);
+				});
+				// Lexical restores the selection but, unlike AutoFocusPlugin,
+				// does not move DOM focus when the editor was blurred.
+				editor.focus(() => {
+					editor.getRootElement()?.focus({ preventScroll: true });
+				});
+			},
 			getContentParts: () => {
 				const editor = editorRef.current;
 				if (!editor) return [];
@@ -1034,6 +1122,12 @@ const ChatMessageInput = ({
 										endLine: node.__endLine,
 										content: node.__content,
 									},
+								});
+							} else if (node instanceof SkillInvocationNode) {
+								parts.push({
+									type: "skill-invocation",
+									source: node.__source,
+									name: node.__name,
 								});
 							} else {
 								const t = node.getTextContent();
@@ -1084,6 +1178,7 @@ const ChatMessageInput = ({
 				<PasteSanitizationPlugin
 					onFilePaste={onFilePaste}
 					allowTextAttachmentPaste={allowTextAttachmentPaste}
+					isSkillAvailable={isSkillAvailable}
 				/>
 				<EnterKeyPlugin
 					onEnter={disabled ? undefined : onEnter}

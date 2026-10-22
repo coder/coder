@@ -28,6 +28,7 @@ import {
 	useWorkspaceFileUploads,
 	type WorkspaceFileUpload,
 } from "../hooks/useWorkspaceFileUploads";
+import type { ChatComposerContentPart } from "../utils/chatInputContent";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
 	getDefaultMCPSelection,
@@ -48,7 +49,7 @@ import {
 	pickReasoningEffort,
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
-import { AgentChatInput } from "./AgentChatInput";
+import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
 import {
 	isChatHookDeniedResponse,
@@ -77,6 +78,8 @@ const attachDuringSubmitMessage =
 
 export type CreateChatOptions = {
 	message: string;
+	/** Composer text and chips in document order. */
+	composerParts?: readonly ChatComposerContentPart[];
 	fileIDs?: string[];
 	workspaceId?: string;
 	model?: string;
@@ -750,6 +753,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 			(agent) => !agent.parent_id && agent.status === "connected",
 		);
 
+	const chatInputRef = useRef<ChatMessageInputRef>(null);
 	const handleSend = async (
 		message: string,
 		fileIDs?: string[],
@@ -758,6 +762,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		submitDraft();
 		await onCreateChat({
 			message,
+			composerParts: chatInputRef.current?.getContentParts(),
 			fileIDs,
 			workspaceId: effectiveWorkspaceId ?? undefined,
 			model: submittedModel,
@@ -1024,6 +1029,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 				<AgentChatInput
 					fillWidth={fillWidth}
 					onSend={handleSendWithAttachments}
+					inputRef={chatInputRef}
 					placeholder="Ask Coder to build, fix bugs, or explore your project..."
 					isDisabled={
 						isSubmitPending ||
