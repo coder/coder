@@ -12,8 +12,13 @@ import {
 	saveFileViewState,
 } from "../../utils/mainTabStorage";
 import type { FileReveal } from "../MainTabs/useMainTabs";
+import { createSemanticDiagnosticsSuppressor } from "./semanticDiagnostics";
 
 loader.config({ monaco });
+
+const suppressSemanticDiagnostics = createSemanticDiagnosticsSuppressor(
+	monaco.typescript.typescriptDefaults,
+);
 
 // Cursor moves and scrolling arrive many times a second.
 const viewStateSaveDelayMs = 250;
@@ -69,6 +74,8 @@ const FileEditor: React.FC<FileEditorProps> = ({
 		// Text measured before the monospace font loads misplaces selections.
 		void document.fonts.ready.then(() => monaco.editor.remeasureFonts());
 	}, []);
+
+	useEffect(() => suppressSemanticDiagnostics(), []);
 
 	useEffect(() => {
 		if (!editor) {
