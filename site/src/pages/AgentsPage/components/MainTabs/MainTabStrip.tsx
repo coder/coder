@@ -4,12 +4,20 @@ import { ChevronDownIcon, XIcon } from "lucide-react";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuSeparator,
+	ContextMenuTrigger,
+} from "#/components/ContextMenu/ContextMenu";
+import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuRadioGroup,
 	DropdownMenuRadioItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { useClipboard } from "#/hooks/useClipboard";
 import { getPathBasename } from "../../utils/path";
 import { getTabHints } from "./tabHints";
 
@@ -35,9 +43,12 @@ type MainTabStripProps = {
 	dirtyPaths: ReadonlySet<string>;
 	/** Receives the tab buttons, which keyboard navigation focuses. */
 	tabButtonsRef: React.RefObject<Map<TabKey, HTMLButtonElement>>;
+	/** The path relative to its repository root, if it is in a repository. */
+	getRelativePath: (path: string) => string | undefined;
 	onActivate: (key: TabKey) => void;
 	onTabKeyDown: (event: React.KeyboardEvent, key: TabKey) => void;
-	onClose: (path: string) => void;
+	/** Closes `paths`, at the request of the tab at `source`. */
+	onClose: (paths: readonly string[], source: string) => void;
 };
 
 const tabButtonVariants = cva(
@@ -97,10 +108,12 @@ export const MainTabStrip: React.FC<MainTabStripProps> = ({
 	activation,
 	dirtyPaths,
 	tabButtonsRef,
+	getRelativePath,
 	onActivate,
 	onTabKeyDown,
 	onClose,
 }) => {
+	const { copyToClipboard } = useClipboard();
 	const stripRef = useRef<HTMLDivElement>(null);
 	// File tabs scroll into view with their close buttons.
 	const fileTabsRef = useRef(new Map<string, HTMLDivElement>());
@@ -207,77 +220,114 @@ export const MainTabStrip: React.FC<MainTabStripProps> = ({
 					const isDirty = dirtyPaths.has(path);
 					const { name, hint, accessibleName } = getLabel(path);
 					const ids = getTabElementIds(idPrefix, index);
+					const relativePath = getRelativePath(path);
 					return (
-						<div
-							key={path}
-							ref={trackElement(fileTabsRef, path)}
-							className="group/tab flex shrink-0 items-center"
-						>
-							<Button
-								ref={trackElement(tabButtonsRef, path)}
-								id={ids.tabId}
-								role="tab"
-								aria-selected={isActive}
-								aria-controls={ids.panelId}
-								aria-label={
-									isDirty ? `${accessibleName}, unsaved` : accessibleName
-								}
-								tabIndex={isActive ? 0 : -1}
-								title={path}
-								variant="outline"
-								size="lg"
-								className={cn(
-									tabButtonVariants({ active: isActive }),
-									"rounded-r-none border-r-0 pr-2.5",
-								)}
-								onClick={() => onActivate(path)}
-								onKeyDown={(event) => onTabKeyDown(event, path)}
-								onMouseDown={(event) => {
-									// Middle-click would otherwise start autoscroll.
-									if (event.button === 1) {
-										event.preventDefault();
-									}
-								}}
-								onAuxClick={(event) => {
-									if (event.button === 1) {
-										onClose(path);
-									}
-								}}
-							>
-								<span className="truncate">{name}</span>
-								{hint && (
-									<span className="truncate text-content-secondary">
-										{hint}
-									</span>
-								)}
-							</Button>
-							<Button
-								variant="outline"
-								size="icon"
-								// Delete on the tab closes it, so the button is not a Tab stop.
-								tabIndex={-1}
-								aria-label={`Close ${accessibleName}`}
-								title={`Close ${path}`}
-								className={cn(
-									"size-6 rounded-l-none rounded-r-md bg-surface-primary p-0 text-content-secondary hover:text-content-primary [&>svg]:size-3",
-									isActive &&
-										"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
-								)}
-								onClick={() => onClose(path)}
-							>
-								{/* The unsaved dot takes the close button's slot so the tab
+						<ContextMenu key={path}>
+							<ContextMenuTrigger asChild>
+								<div
+									ref={trackElement(fileTabsRef, path)}
+									className="group/tab flex shrink-0 items-center"
+								>
+									<Button
+										ref={trackElement(tabButtonsRef, path)}
+										id={ids.tabId}
+										role="tab"
+										aria-selected={isActive}
+										aria-controls={ids.panelId}
+										aria-label={
+											isDirty ? `${accessibleName}, unsaved` : accessibleName
+										}
+										tabIndex={isActive ? 0 : -1}
+										title={path}
+										variant="outline"
+										size="lg"
+										className={cn(
+											tabButtonVariants({ active: isActive }),
+											"rounded-r-none border-r-0 pr-2.5",
+										)}
+										onClick={() => onActivate(path)}
+										onKeyDown={(event) => onTabKeyDown(event, path)}
+										onMouseDown={(event) => {
+											// Middle-click would otherwise start autoscroll.
+											if (event.button === 1) {
+												event.preventDefault();
+											}
+										}}
+										onAuxClick={(event) => {
+											if (event.button === 1) {
+												onClose([path], path);
+											}
+										}}
+									>
+										<span className="truncate">{name}</span>
+										{hint && (
+											<span className="truncate text-content-secondary">
+												{hint}
+											</span>
+										)}
+									</Button>
+									<Button
+										variant="outline"
+										size="icon"
+										// Delete on the tab closes it, so the button is not a Tab stop.
+										tabIndex={-1}
+										aria-label={`Close ${accessibleName}`}
+										title={`Close ${path}`}
+										className={cn(
+											"size-6 rounded-l-none rounded-r-md bg-surface-primary p-0 text-content-secondary hover:text-content-primary [&>svg]:size-3",
+											isActive &&
+												"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
+										)}
+										onClick={() => onClose([path], path)}
+									>
+										{/* The unsaved dot takes the close button's slot so the tab
 								    keeps its width; hovering the tab shows the X. */}
-								{isDirty && (
-									<span
-										aria-hidden
-										className="size-2 rounded-full bg-current group-hover/tab:hidden"
-									/>
+										{isDirty && (
+											<span
+												aria-hidden
+												className="size-2 rounded-full bg-current group-hover/tab:hidden"
+											/>
+										)}
+										<XIcon
+											className={cn(isDirty && "hidden group-hover/tab:block")}
+										/>
+									</Button>
+								</div>
+							</ContextMenuTrigger>
+							<ContextMenuContent>
+								<ContextMenuItem onSelect={() => onClose([path], path)}>
+									Close
+								</ContextMenuItem>
+								<ContextMenuItem
+									disabled={paths.length === 1}
+									onSelect={() =>
+										onClose(
+											paths.filter((other) => other !== path),
+											path,
+										)
+									}
+								>
+									Close others
+								</ContextMenuItem>
+								<ContextMenuItem
+									disabled={index === paths.length - 1}
+									onSelect={() => onClose(paths.slice(index + 1), path)}
+								>
+									Close to the right
+								</ContextMenuItem>
+								<ContextMenuSeparator />
+								<ContextMenuItem onSelect={() => void copyToClipboard(path)}>
+									Copy path
+								</ContextMenuItem>
+								{relativePath !== undefined && (
+									<ContextMenuItem
+										onSelect={() => void copyToClipboard(relativePath)}
+									>
+										Copy relative path
+									</ContextMenuItem>
 								)}
-								<XIcon
-									className={cn(isDirty && "hidden group-hover/tab:block")}
-								/>
-							</Button>
-						</div>
+							</ContextMenuContent>
+						</ContextMenu>
 					);
 				})}
 			</div>

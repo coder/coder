@@ -44,7 +44,7 @@ const Harness: React.FC<{ paths: readonly string[] }> = ({ paths }) => {
 			value={{
 				agentId: "agent-1",
 				defaultDirectory: "/home/coder",
-				repoRoots: [],
+				repoRoots: ["/repo"],
 				repositories: new Map(),
 				openFile: mainTabs.openFile,
 			}}
@@ -226,6 +226,54 @@ describe("MainTabs", () => {
 			paths: ["/repo/b.go"],
 			activePath: "/repo/b.go",
 		});
+	});
+
+	it("closes other tabs and tabs to the right from a tab's menu", async () => {
+		const user = userEvent.setup();
+		renderHarness(["/repo/a.go", "/repo/b.go", "/repo/c.go"]);
+
+		await user.click(screen.getByRole("button", { name: "Open /repo/a.go" }));
+		await user.click(screen.getByRole("button", { name: "Open /repo/b.go" }));
+		await user.click(screen.getByRole("button", { name: "Open /repo/c.go" }));
+
+		await user.pointer({ keys: "[MouseRight]", target: getTab("b.go") });
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Close to the right" }),
+		);
+		expect(getPersistedMainTabs(chatId)).toEqual({
+			paths: ["/repo/a.go", "/repo/b.go"],
+			activePath: "/repo/b.go",
+		});
+
+		await user.pointer({ keys: "[MouseRight]", target: getTab("a.go") });
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Close others" }),
+		);
+		expect(getPersistedMainTabs(chatId)).toEqual({
+			paths: ["/repo/a.go"],
+			activePath: "/repo/a.go",
+		});
+	});
+
+	it("copies a tab's path and its path in the repository", async () => {
+		const user = userEvent.setup();
+		const writeText = vi
+			.spyOn(navigator.clipboard, "writeText")
+			.mockResolvedValue(undefined);
+		renderHarness(["/repo/src/a.go"]);
+
+		await user.click(
+			screen.getByRole("button", { name: "Open /repo/src/a.go" }),
+		);
+		await user.pointer({ keys: "[MouseRight]", target: getTab("a.go") });
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Copy relative path" }),
+		);
+		expect(writeText).toHaveBeenLastCalledWith("src/a.go");
+
+		await user.pointer({ keys: "[MouseRight]", target: getTab("a.go") });
+		await user.click(await screen.findByRole("menuitem", { name: "Copy path" }));
+		expect(writeText).toHaveBeenLastCalledWith("/repo/src/a.go");
 	});
 
 	it("moves between tabs with the arrow keys", async () => {
