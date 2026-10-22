@@ -85,9 +85,14 @@ const repository: WorkspaceAgentRepoChanges = {
 type HarnessProps = {
 	repository?: WorkspaceAgentRepoChanges;
 	readOnly?: boolean;
+	onClose?: (path: string, hasUnsavedEdits: boolean) => void;
 };
 
-const Harness: React.FC<HarnessProps> = ({ repository, readOnly = false }) => {
+const Harness: React.FC<HarnessProps> = ({
+	repository,
+	readOnly = false,
+	onClose = () => {},
+}) => {
 	const [draft, setDraft] = useState<FileDraft>();
 	return (
 		<FileTab
@@ -98,6 +103,7 @@ const Harness: React.FC<HarnessProps> = ({ repository, readOnly = false }) => {
 			repository={repository}
 			draft={draft}
 			onDraftChange={(_, update) => setDraft(update)}
+			onClose={onClose}
 			readOnly={readOnly}
 		/>
 	);
@@ -219,6 +225,48 @@ describe("FileTab", () => {
 		});
 	});
 
+	it("keeps the buffer of a file deleted on disk and recreates it", async () => {
+		const user = userEvent.setup();
+		// The agent rejects a conditional write to a missing file.
+		writeFile.mockRejectedValueOnce(preconditionFailed());
+		renderFileTab({});
+
+		await editFile(user, " world");
+		readFile.mockRejectedValue(responseError(404, "Not Found"));
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			/Deleted on disk/,
+		);
+		expect(screen.getByLabelText("File contents")).toHaveValue("hello world");
+		await user.click(screen.getByRole("button", { name: "Recreate" }));
+		await waitFor(() => {
+			expect(writeFile).toHaveBeenLastCalledWith(
+				agentId,
+				path,
+				"hello world",
+				undefined,
+			);
+		});
+		await waitFor(() => {
+			expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+		});
+	});
+
+	it("closes the tab of a file deleted on disk from its notice", async () => {
+		const user = userEvent.setup();
+		const onClose = vi.fn();
+		writeFile.mockRejectedValueOnce(preconditionFailed());
+		renderFileTab({ onClose });
+
+		await editFile(user, " world");
+		readFile.mockRejectedValue(responseError(404, "Not Found"));
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		await user.click(await screen.findByRole("button", { name: "Close" }));
+
+		expect(onClose).toHaveBeenCalledWith(path, true);
+	});
+
 	it("keeps edits made during a save dirty against the saved content", async () => {
 		const user = userEvent.setup();
 		const write = createDeferred<{ etag: string }>();
@@ -254,11 +302,16 @@ describe("FileTab", () => {
 
 		await editFile(user, " world");
 		await user.click(screen.getByRole("button", { name: "Save" }));
+		const reload = await screen.findByRole("button", { name: "Reload" });
+		// The rejected save rereads the file to tell a change from a deletion.
+		await waitFor(() => {
+			expect(reload).toBeEnabled();
+		});
 		readFile.mockRejectedValueOnce(responseError(502, "Bad Gateway"));
-		await user.click(await screen.findByRole("button", { name: "Reload" }));
+		await user.click(reload);
 
 		await waitFor(() => {
-			expect(readFile).toHaveBeenCalledTimes(2);
+			expect(readFile).toHaveBeenCalledTimes(3);
 		});
 		await waitFor(() => {
 			expect(screen.getByRole("button", { name: "Reload" })).toBeEnabled();
