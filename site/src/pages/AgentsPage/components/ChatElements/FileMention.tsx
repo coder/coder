@@ -27,6 +27,7 @@ import { useWorkspaceFiles } from "../../context/WorkspaceFilesContext";
 import {
 	findCandidateTokenStarts,
 	findFilePathMentions,
+	findRejectedCandidateEnd,
 	getFilePathCandidateStarts,
 	walkFilePath,
 } from "../../utils/filePathMentions";
@@ -410,16 +411,19 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 	// DOM nodes, focus, and selection. A later path-like token on the line
 	// may start another spaced path, so once this walk has settled, and the
 	// extent of this path no longer moves, the rest of the text from that
-	// token is its own candidate.
+	// token is its own candidate. That token must lie past this path, or
+	// past where a rejected one could have ended.
 	const segments: React.ReactNode[] = [];
 	let offset = 0;
 	if (lead) {
 		segments.push(lead);
 		offset = end;
 	}
+	const nextFrom =
+		choices.length > 0 ? Math.max(offset, end) : findRejectedCandidateEnd(text);
 	const next = settled
 		? findCandidateTokenStarts(text).find(
-				(start) => start > 0 && start >= offset,
+				(start) => start > 0 && start >= nextFrom,
 			)
 		: undefined;
 	const segmentsEnd = next ?? text.length;
