@@ -51,6 +51,7 @@ const StoryMainTabs: React.FC = () => {
 				<MainTabs
 					mainTabs={mainTabs}
 					readOnly={false}
+					filesEnabled
 					focusChatInput={() => {}}
 				>
 					<div className="relative flex flex-1 items-center justify-center text-sm text-content-secondary">

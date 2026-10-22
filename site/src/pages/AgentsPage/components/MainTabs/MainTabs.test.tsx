@@ -7,7 +7,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { WorkspaceFilesContext } from "../../context/WorkspaceFilesContext";
-import { getPersistedMainTabs } from "../../utils/mainTabStorage";
+import {
+	getPersistedMainTabs,
+	savePersistedMainTabs,
+} from "../../utils/mainTabStorage";
 import type FileEditor from "../FileTab/FileEditor";
 import { MainTabs } from "./MainTabs";
 import { useMainTabs } from "./useMainTabs";
@@ -53,18 +56,30 @@ const ChatStub: React.FC<{ ref: React.Ref<HTMLTextAreaElement> }> = ({
 	return <textarea ref={ref} aria-label="Message" />;
 };
 
-const Harness: React.FC<{ paths: readonly string[] }> = ({ paths }) => {
+type HarnessProps = {
+	paths: readonly string[];
+	isAgentConnected?: boolean;
+};
+
+const Harness: React.FC<HarnessProps> = ({
+	paths,
+	isAgentConnected = true,
+}) => {
 	const mainTabs = useMainTabs(chatId);
 	const chatInputRef = useRef<HTMLTextAreaElement>(null);
 	return (
 		<WorkspaceFilesContext
-			value={{
-				agentId: "agent-1",
-				defaultDirectory: "/home/coder",
-				repoRoots: ["/repo"],
-				repositories: new Map(),
-				openFile: mainTabs.openFile,
-			}}
+			value={
+				isAgentConnected
+					? {
+							agentId: "agent-1",
+							defaultDirectory: "/home/coder",
+							repoRoots: ["/repo"],
+							repositories: new Map(),
+							openFile: mainTabs.openFile,
+						}
+					: undefined
+			}
 		>
 			{paths.map((path) => (
 				<button
@@ -91,6 +106,7 @@ const Harness: React.FC<{ paths: readonly string[] }> = ({ paths }) => {
 			<MainTabs
 				mainTabs={mainTabs}
 				readOnly={false}
+				filesEnabled
 				focusChatInput={() => chatInputRef.current?.focus()}
 			>
 				<ChatStub ref={chatInputRef} />
@@ -99,10 +115,16 @@ const Harness: React.FC<{ paths: readonly string[] }> = ({ paths }) => {
 	);
 };
 
-const renderHarness = (paths: readonly string[] = []) => {
+const renderHarness = (
+	paths: readonly string[] = [],
+	{ isAgentConnected }: { isAgentConnected?: boolean } = {},
+) => {
 	const queryClient = createTestQueryClient();
 	const router = createMemoryRouter([
-		{ path: "/", element: <Harness paths={paths} /> },
+		{
+			path: "/",
+			element: <Harness paths={paths} isAgentConnected={isAgentConnected} />,
+		},
 		{ path: "/other", element: <p>Other page</p> },
 	]);
 	const result = render(
@@ -201,6 +223,21 @@ describe("MainTabs", () => {
 		renderHarness();
 		expect(getTab("a.go")).toHaveAttribute("aria-selected", "true");
 		expect(getTab("b.go")).toHaveAttribute("aria-selected", "false");
+	});
+
+	it("shows restored tabs before the workspace agent connects", async () => {
+		savePersistedMainTabs(chatId, {
+			paths: ["/repo/a.go"],
+			activePath: "/repo/a.go",
+		});
+		renderHarness([], { isAgentConnected: false });
+
+		const tab = await screen.findByRole("tab", { name: "a.go" });
+		expect(tab).toHaveAttribute("aria-selected", "true");
+		const panel = screen.getByRole("tabpanel", { name: "a.go" });
+		expect(within(panel).getByRole("status")).toHaveAccessibleName(
+			"Waiting for the workspace agent",
+		);
 	});
 
 	it("cycles tabs with Alt+[ and Alt+] and focuses their content", async () => {
