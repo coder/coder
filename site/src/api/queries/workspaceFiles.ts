@@ -98,10 +98,17 @@ export const workspaceAgentFindFiles = (
 	agentId: string,
 	roots: readonly string[],
 	query: string,
+	limit?: number,
 ) => {
 	return {
-		queryKey: [...workspaceAgentFilesKey(agentId), "find", roots, query],
-		queryFn: () => API.findWorkspaceAgentFiles(agentId, roots, query),
+		queryKey: [
+			...workspaceAgentFilesKey(agentId),
+			"find",
+			roots,
+			query,
+			...(limit === undefined ? [] : [limit]),
+		],
+		queryFn: () => API.findWorkspaceAgentFiles(agentId, roots, query, limit),
 	} satisfies UseQueryOptions<WorkspaceAgentFindFilesResponse>;
 };
 
