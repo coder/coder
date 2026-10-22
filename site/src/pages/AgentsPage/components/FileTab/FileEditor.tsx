@@ -6,6 +6,7 @@ import { useCoderTheme } from "#/components/SyntaxHighlighter/coderTheme";
 import { MONOSPACE_FONT_FAMILY } from "#/theme/constants";
 import { useTheme } from "#/theme/context";
 import "#/utils/monacoEnvironment";
+import "./FileEditor.css";
 import {
 	getFileViewState,
 	saveFileViewState,
@@ -123,13 +124,12 @@ const FileEditor: React.FC<FileEditorProps> = ({
 	return (
 		<div
 			data-pixel="ignore"
-			className="relative min-h-0 flex-1"
+			className="agents-file-editor relative min-h-0 flex-1"
 			style={{ backgroundColor: theme.monaco.colors["editor.background"] }}
 		>
 			<div
 				// Monaco paints the top of the file before onMount can restore the
 				// view state or reveal a line, so it stays transparent until then.
-				// Not `invisible`: Monaco's `visible` class would override it.
 				className={cn("absolute inset-0", !editor && "opacity-0")}
 			>
 				<Editor

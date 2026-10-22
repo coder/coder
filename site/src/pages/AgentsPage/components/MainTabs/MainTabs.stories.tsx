@@ -1,13 +1,17 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { userEvent, within } from "storybook/test";
 import type { WorkspaceAgentFileContents } from "#/api/api";
 import { workspaceAgentFileKey } from "#/api/queries/workspaceFiles";
+import { Button } from "#/components/Button/Button";
+import { MessageScroller } from "#/vendor/message-scroller";
 import { WorkspaceFilesContext } from "../../context/WorkspaceFilesContext";
 import {
 	type PersistedMainTabs,
 	savePersistedMainTabs,
 } from "../../utils/mainTabStorage";
 import { createChatStore } from "../ChatConversation/chatStore";
+import { ChatMessageScroller } from "../ChatMessageScroller";
 import { MainTabs } from "./MainTabs";
 import { useMainTabs } from "./useMainTabs";
 
@@ -37,7 +41,9 @@ const fileQueries = [
 	},
 ];
 
-const StoryMainTabs: React.FC = () => {
+const StoryMainTabs: React.FC<{ children?: React.ReactNode }> = ({
+	children = <ChatPlaceholder />,
+}) => {
 	const mainTabs = useMainTabs(chatId);
 	const [store] = useState(createChatStore);
 	return (
@@ -58,17 +64,105 @@ const StoryMainTabs: React.FC = () => {
 					filesEnabled
 					focusChatInput={() => {}}
 				>
-					<div className="relative flex flex-1 items-center justify-center text-sm text-content-secondary">
-						Chat transcript
-						{/* Stands in for Monaco widgets, whose `visible` class matches
-						    Tailwind's utility. It must not show over an active file tab. */}
-						<div className="visible absolute right-4 top-4 z-10 rounded-md border border-solid border-border bg-surface-secondary px-3 py-2 text-xs">
-							Floating chat widget
-						</div>
-					</div>
+					{children}
 				</MainTabs>
 			</div>
 		</WorkspaceFilesContext>
+	);
+};
+
+const ChatPlaceholder: React.FC = () => (
+	<div className="relative flex flex-1 items-center justify-center text-sm text-content-secondary">
+		Chat transcript
+		{/* Stands in for a control with Tailwind's `visible`, such as one that
+		    touch screens show without hover. It must not show over an active
+		    file tab. */}
+		<div className="visible absolute right-4 top-4 z-10 rounded-md border border-solid border-border bg-surface-secondary px-3 py-2 text-xs">
+			Floating chat widget
+		</div>
+	</div>
+);
+
+const replyLineCount = 60;
+
+/**
+ * A transcript in the real scroller, with controls outside the tabs that
+ * send a prompt and stream its reply while a file tab hides the chat.
+ */
+const StreamingChat: React.FC = () => {
+	const [replyLines, setReplyLines] = useState<number>();
+	const [isStreaming, setIsStreaming] = useState(false);
+	const isComplete = replyLines === replyLineCount;
+
+	useEffect(() => {
+		if (!isStreaming || isComplete) {
+			return;
+		}
+		const timer = window.setTimeout(
+			() => setReplyLines((lines) => (lines ?? 0) + 1),
+			20,
+		);
+		return () => window.clearTimeout(timer);
+	}, [isStreaming, isComplete, replyLines]);
+
+	return (
+		<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+			<div className="flex shrink-0 items-center gap-2 p-2">
+				<Button
+					size="sm"
+					variant="outline"
+					disabled={replyLines !== undefined}
+					onClick={() => setReplyLines(0)}
+				>
+					Send message
+				</Button>
+				<Button
+					size="sm"
+					variant="outline"
+					disabled={replyLines === undefined || isStreaming}
+					onClick={() => setIsStreaming(true)}
+				>
+					Stream reply
+				</Button>
+				<span className="text-xs text-content-secondary">
+					{isComplete && "Reply complete"}
+				</span>
+			</div>
+			<StoryMainTabs>
+				<ChatMessageScroller
+					hasMoreMessages={false}
+					isFetchingMoreMessages={false}
+					isHydratingMessages={false}
+					hasFetchMoreError={false}
+					hasTranscriptRows
+					onFetchMoreMessages={async () => {}}
+				>
+					{Array.from({ length: 6 }, (_, turn) => (
+						<MessageScroller.Item key={turn} messageId={`history-${turn}`}>
+							<p className="m-0 text-sm text-content-secondary">
+								Earlier turn {turn + 1}
+							</p>
+						</MessageScroller.Item>
+					))}
+					{replyLines !== undefined && (
+						<>
+							<MessageScroller.Item messageId="prompt" scrollAnchor>
+								<p className="m-0 rounded-md bg-surface-secondary px-3 py-2 text-sm">
+									Summarize the build output
+								</p>
+							</MessageScroller.Item>
+							<MessageScroller.Item messageId="reply">
+								{Array.from({ length: replyLines }, (_, line) => (
+									<p key={line} className="m-0 text-sm">
+										Reply line {line + 1}
+									</p>
+								))}
+							</MessageScroller.Item>
+						</>
+					)}
+				</ChatMessageScroller>
+			</StoryMainTabs>
+		</MessageScroller.Provider>
 	);
 };
 
@@ -98,4 +192,25 @@ export const MarkdownPreview: Story = {
 		paths: ["/repo/src/index.ts", "/repo/README.md"],
 		activePath: "/repo/README.md",
 	}),
+};
+
+/**
+ * The reply outgrows the space below its prompt while a file tab hides the
+ * chat. The chat must follow it to the end, not stay on the prompt.
+ */
+export const ChatFollowsReplyWhileHidden: Story = {
+	render: () => <StreamingChat />,
+	beforeEach: persistTabs({ paths: ["/repo/README.md"], activePath: null }),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "Send message" }));
+		// The scroller anchors the prompt on an animation frame.
+		await new Promise((resolve) =>
+			requestAnimationFrame(() => requestAnimationFrame(resolve)),
+		);
+		await userEvent.click(canvas.getByRole("tab", { name: "README.md" }));
+		await userEvent.click(canvas.getByRole("button", { name: "Stream reply" }));
+		await canvas.findByText("Reply complete", undefined, { timeout: 5000 });
+		await userEvent.click(canvas.getByRole("tab", { name: "Chat" }));
+	},
 };
