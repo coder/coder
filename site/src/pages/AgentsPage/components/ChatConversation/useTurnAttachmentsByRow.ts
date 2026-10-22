@@ -16,6 +16,7 @@ export const useTurnAttachmentsByRow = (
 	{
 		hidesAttachmentRows,
 		isChatActive,
+		isRunAfterNewestTurn,
 		isCompacting,
 		hasMoreMessages,
 	}: TurnAttachmentsOptions,
@@ -23,6 +24,12 @@ export const useTurnAttachmentsByRow = (
 	"use memo";
 	return getTurnAttachmentsByRow(
 		assignTimelineRows(buildDisplayMessages(parsedMessages), false),
-		{ hidesAttachmentRows, isChatActive, isCompacting, hasMoreMessages },
+		{
+			hidesAttachmentRows,
+			isChatActive,
+			isRunAfterNewestTurn,
+			isCompacting,
+			hasMoreMessages,
+		},
 	);
 };

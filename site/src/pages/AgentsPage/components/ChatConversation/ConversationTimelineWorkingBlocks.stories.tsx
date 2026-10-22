@@ -55,7 +55,7 @@ const meta: Meta<typeof ConversationTimeline> = {
 		showDesktopPreviews: false,
 		hasActiveStream: false,
 		isAwaitingFirstStreamChunk: false,
-		isCompactionStarting: false,
+		isRunAfterNewestTurn: false,
 		chatStatus: null,
 		hasMoreMessages: false,
 		parsedMessages: parseMessagesWithMergedTools(MockWorkingMessages),

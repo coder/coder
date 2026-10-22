@@ -161,7 +161,7 @@ const runBuiltInChatCommand = async ({
 			// The server rejects compaction during an active turn, so marking
 			// one would flash that turn's attachments until the 409 arrives.
 			if (!isActiveChatStatus(previousSnapshot.chatStatus)) {
-				store.markCompactionRequested();
+				store.markIdleRunRequested();
 			}
 			store.setChatStatus("running");
 			try {

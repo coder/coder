@@ -14,6 +14,7 @@ describe("useTurnAttachmentsByRow", () => {
 				useTurnAttachmentsByRow(parsedMessages, {
 					hidesAttachmentRows: true,
 					isChatActive,
+					isRunAfterNewestTurn: false,
 					isCompacting: false,
 					hasMoreMessages: false,
 				}),

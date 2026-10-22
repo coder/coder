@@ -127,8 +127,9 @@ export type ChatStoreState = {
 	// contained their promoted user rows.
 	promotedQueuedMessageIDs: ReadonlySet<number>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
-	// Cleared once the requested run stops; null never matches a message ID.
-	latestMessageIDAtCompactionRequest: number | null;
+	// The newest message when this client started a run on an idle chat;
+	// cleared once that run stops.
+	latestMessageIDAtIdleRunRequest: number | null;
 };
 
 export type ChatStore = {
@@ -178,7 +179,7 @@ export type ChatStore = {
 	unsuppressQueuedMessageID: (id: number) => void;
 	clearSuppressedQueuedMessageIDs: () => void;
 	setChatStatus: (status: TypesGen.ChatStatus | null) => void;
-	markCompactionRequested: () => void;
+	markIdleRunRequested: () => void;
 	setStreamState: (streamState: StreamState | null) => void;
 	setStreamError: (reason: ChatDetailError | null) => void;
 	clearStreamError: () => void;
@@ -207,7 +208,7 @@ const createInitialState = (): ChatStoreState => ({
 	suppressedQueuedMessageIDs: new Set(),
 	promotedQueuedMessageIDs: new Set(),
 	subagentStatusOverrides: new Map(),
-	latestMessageIDAtCompactionRequest: null,
+	latestMessageIDAtIdleRunRequest: null,
 });
 
 export const createChatStore = (): ChatStore => {
@@ -583,16 +584,14 @@ export const createChatStore = (): ChatStore => {
 			setState((current) => ({
 				...current,
 				chatStatus: status,
-				latestMessageIDAtCompactionRequest:
-					status === "running"
-						? current.latestMessageIDAtCompactionRequest
-						: null,
+				latestMessageIDAtIdleRunRequest:
+					status === "running" ? current.latestMessageIDAtIdleRunRequest : null,
 			}));
 		},
-		markCompactionRequested: () => {
+		markIdleRunRequested: () => {
 			setState((current) => ({
 				...current,
-				latestMessageIDAtCompactionRequest:
+				latestMessageIDAtIdleRunRequest:
 					selectLatestDurableMessage(current)?.id ?? null,
 			}));
 		},
@@ -793,14 +792,23 @@ export const selectIsAwaitingFirstStreamChunk = (
 };
 
 /**
- * Compaction adds no user message, so until it streams or saves anything, a
- * running chat looks like one that continues after its answer.
+ * A /compact or a sent-now queued message on an idle chat runs the chat after
+ * its newest turn: compaction adds no turn, and the sent message's user row
+ * arrives after the run starts. Until a user message starts the next turn, the
+ * running chat otherwise looks like that turn continuing.
  */
-export const selectIsCompactionStarting = (state: ChatStoreState): boolean =>
-	state.chatStatus === "running" &&
-	state.streamState === null &&
-	selectLatestDurableMessage(state)?.id ===
-		state.latestMessageIDAtCompactionRequest;
+export const selectIsRunAfterNewestTurn = (state: ChatStoreState): boolean => {
+	const requestedAfterID = state.latestMessageIDAtIdleRunRequest;
+	if (state.chatStatus !== "running" || requestedAfterID === null) {
+		return false;
+	}
+	const newerMessageIDs = state.orderedMessageIDs.slice(
+		state.orderedMessageIDs.findLastIndex((id) => id <= requestedAfterID) + 1,
+	);
+	return newerMessageIDs.every(
+		(id) => state.messagesByID.get(id)?.role !== "user",
+	);
+};
 
 export const useChatSelector = <T>(
 	store: ChatStore,

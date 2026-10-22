@@ -1302,6 +1302,7 @@ describe("getTurnAttachmentsByRow", () => {
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: false,
 					isChatActive: false,
+					isRunAfterNewestTurn: false,
 					isCompacting: false,
 					hasMoreMessages: false,
 				}),
@@ -1322,6 +1323,7 @@ describe("getTurnAttachmentsByRow", () => {
 			...getTurnAttachmentsByRow(rows, {
 				hidesAttachmentRows,
 				isChatActive: false,
+				isRunAfterNewestTurn: false,
 				isCompacting: false,
 				hasMoreMessages: false,
 			}).keys(),
@@ -1347,6 +1349,7 @@ describe("getTurnAttachmentsByRow", () => {
 					getTurnAttachmentsByRow(rows, {
 						hidesAttachmentRows: false,
 						isChatActive: false,
+						isRunAfterNewestTurn: false,
 						isCompacting: false,
 						hasMoreMessages: false,
 					}),
@@ -1366,6 +1369,7 @@ describe("getTurnAttachmentsByRow", () => {
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: false,
 					isChatActive: false,
+					isRunAfterNewestTurn: false,
 					isCompacting: false,
 					hasMoreMessages,
 				}),
@@ -1398,6 +1402,7 @@ describe("getTurnAttachmentsByRow", () => {
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: true,
 					isChatActive: true,
+					isRunAfterNewestTurn: false,
 					isCompacting: false,
 					hasMoreMessages: false,
 				}),
@@ -1417,6 +1422,7 @@ describe("getTurnAttachmentsByRow", () => {
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: false,
 					isChatActive: true,
+					isRunAfterNewestTurn: false,
 					isCompacting: false,
 					hasMoreMessages: false,
 				}),
@@ -1440,6 +1446,7 @@ describe("getTurnAttachmentsByRow", () => {
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: false,
 					isChatActive: true,
+					isRunAfterNewestTurn: false,
 					isCompacting: false,
 					hasMoreMessages: false,
 				}),
@@ -1462,10 +1469,37 @@ describe("getTurnAttachmentsByRow", () => {
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: false,
 					isChatActive: true,
+					isRunAfterNewestTurn: false,
 					isCompacting: false,
 					hasMoreMessages: false,
 				}),
 			),
 		).toEqual([["message:2", ["a"]]]);
+	});
+
+	it("keeps an unanswered turn's entry while the chat runs after it", () => {
+		const { rows } = group([
+			user("Build the report"),
+			message("assistant", [
+				text("Working on it:"),
+				call("attach", undefined, "attach_file"),
+			]),
+			message("assistant", [file("a")]),
+		]);
+		// A compaction mid-turn looks the same unless this client started the
+		// run after the turn ended.
+		const rowFileIds = (isRunAfterNewestTurn: boolean) =>
+			fileIdsByRow(
+				getTurnAttachmentsByRow(rows, {
+					hidesAttachmentRows: false,
+					isChatActive: true,
+					isRunAfterNewestTurn,
+					isCompacting: true,
+					hasMoreMessages: false,
+				}),
+			);
+
+		expect(rowFileIds(false)).toEqual([]);
+		expect(rowFileIds(true)).toEqual([["message:3", ["a"]]]);
 	});
 });

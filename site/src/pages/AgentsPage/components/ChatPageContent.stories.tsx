@@ -397,7 +397,7 @@ export const TurnAttachmentsPillCompactionStarting: Story = {
 		const store = createChatStore();
 		store.replaceMessages(MockMixedAttachmentMessages);
 		store.setChatStatus("waiting");
-		store.markCompactionRequested();
+		store.markIdleRunRequested();
 		store.setChatStatus("running");
 
 		return <StoryChatPageTimeline store={store} />;

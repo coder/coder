@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ChatMessage, ChatQueuedMessage } from "#/api/typesGenerated";
+import type {
+	ChatMessage,
+	ChatQueuedMessage,
+	ChatStatus,
+} from "#/api/typesGenerated";
 import {
 	MockChatMessage,
 	MockChatQueuedMessage,
@@ -12,7 +16,7 @@ import {
 	settlePromotedQueueHead,
 	submitEdit,
 } from "./chatQueueReconciliation";
-import { createChatStore } from "./chatStore";
+import { createChatStore, selectIsRunAfterNewestTurn } from "./chatStore";
 
 describe("restoreOptimisticRequestSnapshot", () => {
 	it("restores queued messages, stream output, status, and stream error", () => {
@@ -122,6 +126,36 @@ describe("runPromoteQueuedMessage", () => {
 		expect(snapshot.chatStatus).toBe("waiting");
 		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(false);
 	});
+
+	it.each<[ChatStatus, boolean]>([
+		["error", true],
+		["running", false],
+	])(
+		"promoted from %s, runs after the newest turn: %s",
+		async (status, expected) => {
+			const store = createChatStore();
+			store.upsertDurableMessage({ ...MockChatMessage, id: 1, role: "user" });
+			store.upsertDurableMessage({
+				...MockChatMessage,
+				id: 2,
+				role: "assistant",
+			});
+			const queued = buildQueuedMessage(3, "next");
+			store.setQueuedMessages([queued]);
+			store.setChatStatus(status);
+
+			await runPromoteQueuedMessage({
+				id: queued.id,
+				store,
+				promoteQueuedMessage: vi.fn(async (_id: number) => undefined),
+				agentId: "chat-1",
+				clearChatErrorReason: vi.fn(),
+				onError: vi.fn(),
+			});
+
+			expect(selectIsRunAfterNewestTurn(store.getSnapshot())).toBe(expected);
+		},
+	);
 });
 
 describe("reconcilePromotedQueueHead", () => {

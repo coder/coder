@@ -446,7 +446,7 @@ const defaultArgs: Omit<
 	showDesktopPreviews: false,
 	hasActiveStream: false,
 	isAwaitingFirstStreamChunk: false,
-	isCompactionStarting: false,
+	isRunAfterNewestTurn: false,
 	chatStatus: null,
 	hasMoreMessages: false,
 };

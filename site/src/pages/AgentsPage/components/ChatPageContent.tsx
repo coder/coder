@@ -47,7 +47,7 @@ import {
 	selectChatStatus,
 	selectHasStreamState,
 	selectIsAwaitingFirstStreamChunk,
-	selectIsCompactionStarting,
+	selectIsRunAfterNewestTurn,
 	selectMessagesByID,
 	selectQueuedMessages,
 	selectReconnectState,
@@ -159,9 +159,9 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		store,
 		selectIsAwaitingFirstStreamChunk,
 	);
-	const isCompactionStarting = useChatSelector(
+	const isRunAfterNewestTurn = useChatSelector(
 		store,
-		selectIsCompactionStarting,
+		selectIsRunAfterNewestTurn,
 	);
 	const streamState = useChatSelector(store, selectStreamState);
 	const streamError = useChatSelector(store, selectStreamError);
@@ -236,7 +236,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 					isChatCompleted={isChatCompleted}
 					hasActiveStream={hasStream}
 					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
-					isCompactionStarting={isCompactionStarting}
+					isRunAfterNewestTurn={isRunAfterNewestTurn}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 					showDesktopPreviews={false}

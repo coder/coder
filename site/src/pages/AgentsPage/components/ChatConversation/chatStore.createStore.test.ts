@@ -3,7 +3,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import {
 	createChatStore,
 	selectIsAwaitingFirstStreamChunk,
-	selectIsCompactionStarting,
+	selectIsRunAfterNewestTurn,
 } from "./chatStore";
 
 // ---------------------------------------------------------------------------
@@ -1039,46 +1039,47 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 	});
 });
 
-describe("selectIsCompactionStarting", () => {
-	const requestCompaction = () => {
+describe("selectIsRunAfterNewestTurn", () => {
+	const requestIdleRun = () => {
 		const store = createChatStore();
 		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
 		store.upsertDurableMessage(makeMessage(2, "assistant", "hi there"));
 		store.setChatStatus("waiting");
-		store.markCompactionRequested();
+		store.markIdleRunRequested();
 		store.setChatStatus("running");
 		return store;
 	};
 
-	it("lasts from the request until the first part streams", () => {
-		const store = requestCompaction();
-		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(true);
+	it("lasts while the run streams and saves a summary", () => {
+		const store = requestIdleRun();
+		expect(selectIsRunAfterNewestTurn(store.getSnapshot())).toBe(true);
 
 		store.applyMessagePart({
 			type: "tool-call",
 			tool_call_id: "compact",
 			tool_name: "chat_summarized",
 		});
-
-		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
-	});
-
-	it("ends once a newer message is saved", () => {
-		const store = requestCompaction();
-
 		store.upsertDurableMessage(makeMessage(3, "assistant", "summary"));
 
-		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
+		expect(selectIsRunAfterNewestTurn(store.getSnapshot())).toBe(true);
 	});
 
-	it("ends when its run stops, so a later run is not a compaction", () => {
-		const store = requestCompaction();
+	it("ends once a user message starts the next turn", () => {
+		const store = requestIdleRun();
+
+		store.upsertDurableMessage(makeMessage(3, "user", "next"));
+
+		expect(selectIsRunAfterNewestTurn(store.getSnapshot())).toBe(false);
+	});
+
+	it("ends when its run stops, so a later run continues the turn", () => {
+		const store = requestIdleRun();
 
 		store.setChatStatus("error");
-		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
+		expect(selectIsRunAfterNewestTurn(store.getSnapshot())).toBe(false);
 
 		store.setChatStatus("running");
-		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
+		expect(selectIsRunAfterNewestTurn(store.getSnapshot())).toBe(false);
 	});
 
 	it("is false for a running chat without a request", () => {
@@ -1087,7 +1088,7 @@ describe("selectIsCompactionStarting", () => {
 		store.upsertDurableMessage(makeMessage(2, "assistant", "hi there"));
 		store.setChatStatus("running");
 
-		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
+		expect(selectIsRunAfterNewestTurn(store.getSnapshot())).toBe(false);
 	});
 });
 

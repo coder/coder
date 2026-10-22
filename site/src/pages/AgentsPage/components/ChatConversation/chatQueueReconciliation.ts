@@ -1,5 +1,9 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import type { ChatStore, ChatStoreState } from "./chatStore";
+import {
+	type ChatStore,
+	type ChatStoreState,
+	isActiveChatStatus,
+} from "./chatStore";
 
 /** @internal Exported for testing. */
 export const restoreOptimisticRequestSnapshot = (
@@ -43,6 +47,7 @@ export const runPromoteQueuedMessage = async (params: {
 		| "clearStreamError"
 		| "clearStreamState"
 		| "getSnapshot"
+		| "markIdleRunRequested"
 		| "setChatStatus"
 		| "setQueuedMessages"
 		| "setStreamError"
@@ -71,6 +76,10 @@ export const runPromoteQueuedMessage = async (params: {
 		);
 		store.clearStreamState();
 		store.clearStreamError();
+		// The promoted user row arrives after the run starts.
+		if (!isActiveChatStatus(previousSnapshot.chatStatus)) {
+			store.markIdleRunRequested();
+		}
 		store.setChatStatus("running");
 	});
 	clearChatErrorReason(agentId);
