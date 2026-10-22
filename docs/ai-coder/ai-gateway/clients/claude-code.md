@@ -28,24 +28,15 @@ Merge the following into `~/.claude/settings.json`, preserving your existing set
   "env": {
     "ANTHROPIC_BASE_URL": "<your-deployment-url>/api/v2/ai-gateway/anthropic"
   },
-  "apiKeyHelper": "printenv ANTHROPIC_AUTH_TOKEN"
+  "apiKeyHelper": "token=$(coder login token 2>/dev/null) && [ -n \"$token\" ] && printf \"%s\" \"$token\" || printenv ANTHROPIC_AUTH_TOKEN"
 }
 ```
 
-The helper reads your Coder API token from `ANTHROPIC_AUTH_TOKEN` when Claude Code needs it.
-Keep this variable in the environment of the terminal or IDE that starts Claude Code.
+The helper first runs [`coder login token`](../../../reference/cli/login/token.md).
+If the CLI fails or returns an empty token, the helper reads `ANTHROPIC_AUTH_TOKEN` from the environment.
+A saved CLI login must target the same deployment as `ANTHROPIC_BASE_URL`.
+Keep `ANTHROPIC_AUTH_TOKEN` in the environment of the terminal or IDE that starts Claude Code if you need the fallback.
 The token stays out of the settings file.
-
-If you authenticate through the [Coder CLI](../../../reference/cli/login/index.md), you can use the saved login token instead:
-
-```json
-{
-  "apiKeyHelper": "coder login token"
-}
-```
-
-This alternative requires a saved CLI login for the same deployment as `ANTHROPIC_BASE_URL`.
-Unset `ANTHROPIC_AUTH_TOKEN` so Claude Code uses the saved token.
 
 </details>
 
@@ -88,15 +79,15 @@ Admins can automatically inject the user's Coder session token and the AI Gatewa
 ```tf
 module "claude-code" {
   source            = "registry.coder.com/coder/claude-code/coder"
-  version           = "~> 5.5.1"
+  version           = "~> 5.5.3"
   agent_id          = coder_agent.main.id
   workdir           = "/path/to/project" # Set to your project directory
   enable_ai_gateway = true
-  managed_settings = {
-    apiKeyHelper = "printenv ANTHROPIC_AUTH_TOKEN"
-  }
 }
 ```
+
+The module configures the helper in `~/.claude/settings.json` automatically when you set `enable_ai_gateway = true`.
+It preserves an existing custom helper and other user settings.
 
 Visit the [Claude Code module on the Coder Registry](https://registry.coder.com/modules/coder/claude-code) for the full list of inputs and outputs.
 
