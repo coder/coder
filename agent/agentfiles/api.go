@@ -129,7 +129,10 @@ func (api *API) Close() error {
 func (api *API) getIgnorer() *filefinder.Ignorer {
 	api.ignorerOnce.Do(func() {
 		home, _ := api.envInfo.HomeDir()
-		api.ignorer = filefinder.NewIgnorer(api.filesystem, home, filefinder.WithGit(api.execer, "git"))
+		api.ignorer = filefinder.NewIgnorer(api.filesystem, home,
+			filefinder.WithGit(api.execer, "git"),
+			filefinder.WithIgnorerLogger(api.logger.Named("gitignore")),
+		)
 	})
 	return api.ignorer
 }
