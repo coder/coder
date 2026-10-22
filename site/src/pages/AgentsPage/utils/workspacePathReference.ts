@@ -2,7 +2,7 @@
 export const workspacePathNodeType = "workspace-path";
 
 /** The JSON a workspace path chip serializes to in drafts and copies. */
-export type SerializedWorkspacePath = {
+type SerializedWorkspacePath = {
 	type: typeof workspacePathNodeType;
 	path: string;
 	isDirectory?: unknown;
