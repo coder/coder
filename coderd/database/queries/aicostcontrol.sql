@@ -36,20 +36,59 @@ WHERE (
 	EXCLUDED.cache_write_price
 );
 
--- name: GetAIModelPriceByProviderModel :one
--- Returns the price in effect for the requested model, falling back to the
--- model reported by the provider when the requested model has no price.
--- Rows are ordered by model first, then by source, so the lookup order is:
---   1. Custom price for the requested model.
---   2. Price book price for the requested model.
---   3. Custom price for the provider-reported model.
---   4. Price book price for the provider-reported model.
-SELECT *
-FROM ai_model_prices
-WHERE provider = @provider AND model IN (@model, @provider_model)
+-- name: GetAIModelPriceForProvider :one
+-- Returns the price in effect for the model served by the configured provider.
+-- The requested model is preferred over the model reported by the provider,
+-- whatever the kind of price. For each model, the lookup order is:
+--   1. The organization's price for the provider.
+--   2. A site-wide custom price.
+--   3. The price book price.
+-- A NULL organization_id matches no organization price, so only site-wide
+-- prices apply. Soft-deleted organization configs, and those that set no
+-- price, are ignored. A matched price is used as a whole: its NULL prices are
+-- not filled in from a less specific price. Each branch is a unique index
+-- lookup.
+WITH prices AS (
+	SELECT
+		CASE source WHEN 'custom' THEN 2 ELSE 3 END AS specificity,
+		model,
+		input_price,
+		output_price,
+		cache_read_price,
+		cache_write_price
+	FROM ai_model_prices
+	WHERE ai_model_prices.provider = @provider_type::text
+		AND ai_model_prices.model IN (@model::text, @provider_model::text)
+	UNION ALL
+	SELECT
+		1,
+		model,
+		input_price,
+		output_price,
+		cache_read_price,
+		cache_write_price
+	FROM ai_model_configs
+	WHERE ai_model_configs.organization_id = sqlc.narg('organization_id')::uuid
+		AND ai_model_configs.provider_id = @provider_id::uuid
+		AND ai_model_configs.model IN (@model::text, @provider_model::text)
+		AND ai_model_configs.deleted = FALSE
+		AND COALESCE(
+			ai_model_configs.input_price,
+			ai_model_configs.output_price,
+			ai_model_configs.cache_read_price,
+			ai_model_configs.cache_write_price
+		) IS NOT NULL
+)
+SELECT
+	prices.model,
+	prices.input_price,
+	prices.output_price,
+	prices.cache_read_price,
+	prices.cache_write_price
+FROM prices
 ORDER BY
-	CASE WHEN model = @model THEN 0 ELSE 1 END ASC,
-	CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
+	CASE WHEN prices.model = @model::text THEN 0 ELSE 1 END ASC,
+	prices.specificity ASC
 LIMIT 1;
 
 -- name: GetOrganizationAIProviderModelConfig :one
