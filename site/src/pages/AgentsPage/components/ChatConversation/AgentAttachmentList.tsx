@@ -17,6 +17,7 @@ export const AgentAttachmentList: React.FC<AgentAttachmentListProps> = ({
 				<FileCard
 					block={attachment.file}
 					href={attachment.href}
+					// Inline attachments carry no file ID, so only stored files can expire.
 					expired={
 						attachment.file.file_id !== undefined &&
 						isExpired(attachment.file.file_id)

@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { TooltipProvider } from "#/components/Tooltip/Tooltip";
+import { renderComponent } from "#/testHelpers/renderHelpers";
 import { ChatAttachments } from "./ChatAttachments";
 
 describe("ChatAttachments", () => {
@@ -38,28 +38,26 @@ describe("ChatAttachments", () => {
 
 	it("puts an expired file in the tab order under its name", async () => {
 		const user = userEvent.setup();
-		render(
-			<TooltipProvider>
-				<ChatAttachments
-					attachments={[
-						{
-							key: "old-report",
-							file: {
-								type: "file",
-								media_type: "application/pdf",
-								name: "old-report.pdf",
-								file_id: "expired-file",
-							},
-							href: "/api/v2/chats/files/expired-file",
+		renderComponent(
+			<ChatAttachments
+				attachments={[
+					{
+						key: "old-report",
+						file: {
+							type: "file",
+							media_type: "application/pdf",
+							name: "old-report.pdf",
+							file_id: "expired-file",
 						},
-					]}
-					evictedFileIds={new Set(["expired-file"])}
-					hasMoreMessages={false}
-					isFetchingMoreMessages={false}
-					hasFetchMoreError={false}
-					onFetchMoreMessages={vi.fn()}
-				/>
-			</TooltipProvider>,
+						href: "/api/v2/chats/files/expired-file",
+					},
+				]}
+				evictedFileIds={new Set(["expired-file"])}
+				hasMoreMessages={false}
+				isFetchingMoreMessages={false}
+				hasFetchMoreError={false}
+				onFetchMoreMessages={vi.fn()}
+			/>,
 		);
 
 		await user.tab();

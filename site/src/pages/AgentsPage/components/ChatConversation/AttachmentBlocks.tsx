@@ -226,11 +226,7 @@ const AttachmentFallbackTile: React.FC<{
 	className?: string;
 }> = ({ state, labels, name, className = "size-16" }) => {
 	const label = state.kind === "expired" ? labels.expired : labels.failed;
-	// Only surface a tooltip when we have something to add:
-	// - "expired" explains why the file is gone.
-	// - "failed" with a detail surfaces the API error or network reason.
-	// A bare "failed" (e.g. an inline base64 decode failure, where the
-	// browser exposes nothing useful) stays a plain tile.
+	// A bare "failed" (e.g. an inline base64 decode failure) has nothing to add.
 	const tooltipBody =
 		state.kind === "expired" ? expiredAttachmentExplanation : state.detail;
 
@@ -238,6 +234,7 @@ const AttachmentFallbackTile: React.FC<{
 		<div
 			role="img"
 			aria-label={name ? `${label}: ${name}` : label}
+			// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- needed to surface the explanation tooltip via keyboard focus.
 			tabIndex={tooltipBody ? 0 : undefined}
 			className={cn(
 				"flex flex-col items-center justify-center gap-1 rounded-md border border-border bg-surface-tertiary px-1 text-center text-2xs text-content-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",

@@ -126,3 +126,12 @@ export const LoadEarlierMessagesRetrying: Story = {
 export const ExpiredAttachment: Story = {
 	args: { evictedFileIds: new Set(["report-file"]) },
 };
+
+export const ExpiredAttachmentFocused: Story = {
+	args: { evictedFileIds: new Set(["report-file"]) },
+	play: async ({ canvasElement }) => {
+		within(canvasElement)
+			.getByRole("img", { name: "Attachment expired: latency-report.csv" })
+			.focus();
+	},
+};

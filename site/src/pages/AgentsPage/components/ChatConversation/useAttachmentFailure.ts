@@ -25,20 +25,22 @@ export const useAttachmentFailure = (
 		getProbeResult,
 		setProbeResult,
 	} = useFileProbes();
-	const [hasFailed, setHasFailed] = useState(false);
+	const [failureState, setFailureState] = useState<AttachmentFailureState>({
+		kind: "idle",
+	});
 
 	const onError = () => {
 		// Show the generic failure tile instead of the broken-image icon
 		// until a probe result arrives.
-		setHasFailed(true);
+		setFailureState({ kind: "failed" });
 		// Inline (data:) images have no file ID to expire, and a pending
 		// probe already reports to every image of the file.
 		if (fileId === undefined || hasExpired(fileId) || isPending(fileId)) {
 			return;
 		}
 		markPending(fileId);
-		// No abort on unmount: the result must still reach the file's other
-		// images and download cards.
+		// No abort on unmount: the file's other images still need the result,
+		// and its download cards the expiry.
 		void probeAttachmentFailure(href)
 			.then((reason) => {
 				if (reason.kind === "expired") {
@@ -58,8 +60,5 @@ export const useAttachmentFailure = (
 		return [{ kind: "expired" }, onError];
 	}
 	const sharedResult = fileId ? getProbeResult(fileId) : undefined;
-	const localFailure: AttachmentFailureState = hasFailed
-		? { kind: "failed" }
-		: { kind: "idle" };
-	return [sharedResult ?? localFailure, onError];
+	return [sharedResult ?? failureState, onError];
 };
