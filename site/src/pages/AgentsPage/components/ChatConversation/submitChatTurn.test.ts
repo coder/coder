@@ -345,7 +345,7 @@ describe("submitChatTurn", () => {
 		);
 	});
 
-	it("saves a queued row with its skill chips and the marker cleared and makes no chat send", async () => {
+	it("saves a queued row with its chips and the marker cleared and makes no chat send", async () => {
 		const store = createChatStore();
 		store.setActiveChatID("chat-1");
 		store.setQueuedMessages([
@@ -361,6 +361,15 @@ describe("submitChatTurn", () => {
 				composerParts: [
 					{ type: "text", text: "new text " },
 					{ type: "skill-invocation", source: "project", name: "triage" },
+					{
+						type: "file-reference",
+						reference: {
+							fileName: "main.go",
+							startLine: 3,
+							endLine: 5,
+							content: "func main() {}",
+						},
+					},
 				],
 				editingTarget: { kind: "queued", id: 7 },
 				store,
@@ -377,6 +386,13 @@ describe("submitChatTurn", () => {
 					type: "skill-invocation",
 					skill_source: "project",
 					skill_name: "triage",
+				},
+				{
+					type: "file-reference",
+					file_name: "main.go",
+					start_line: 3,
+					end_line: 5,
+					content: "func main() {}",
 				},
 			],
 			model_config_id: pickerModel.id,

@@ -56,11 +56,20 @@ const skillPart = (name: string): ChatMessagePart => ({
 	skill_name: name,
 });
 
-// A row with a skill chip between text, as the composer sends it.
-const contentWithSkill: readonly ChatMessagePart[] = [
+// A row with a skill chip and a file-reference chip between text, as the
+// composer sends it.
+const contentWithChips: readonly ChatMessagePart[] = [
 	{ type: "text", text: "Use " },
 	skillPart("triage"),
-	{ type: "text", text: " on the diff" },
+	{ type: "text", text: " on " },
+	{
+		type: "file-reference",
+		file_name: "main.go",
+		start_line: 3,
+		end_line: 5,
+		content: "func main() {}",
+	},
+	{ type: "text", text: " now" },
 ];
 
 type MockChatInputHandle = {
@@ -1367,7 +1376,7 @@ describe("useConversationEditingState", () => {
 		);
 
 		it.each(["queued", "history"] as const)(
-			"Edit on a %s row loads its skill chip, and saving sends it",
+			"Edit on a %s row loads its chips, and saving sends them",
 			async (kind) => {
 				const {
 					unmount,
@@ -1377,7 +1386,7 @@ describe("useConversationEditingState", () => {
 					contentParts,
 					sends,
 				} = renderEditingWithEditor();
-				setRowContent(42, contentWithSkill);
+				setRowContent(42, contentWithChips);
 				if (kind === "queued") {
 					await markOnServer(42);
 				}
@@ -1385,7 +1394,17 @@ describe("useConversationEditingState", () => {
 				const loadedParts: readonly ChatComposerContentPart[] = [
 					{ type: "text", text: "Use " },
 					{ type: "skill-invocation", source: "project", name: "triage" },
-					{ type: "text", text: " on the diff" },
+					{ type: "text", text: " on " },
+					{
+						type: "file-reference",
+						reference: {
+							fileName: "main.go",
+							startLine: 3,
+							endLine: 5,
+							content: "func main() {}",
+						},
+					},
+					{ type: "text", text: " now" },
 				];
 				expect(contentParts()).toEqual(loadedParts);
 
@@ -1403,7 +1422,7 @@ describe("useConversationEditingState", () => {
 		);
 
 		it.each([
-			["an untouched skill chip gives the draft back", "none", false],
+			["untouched chips give the draft back", "none", false],
 			[
 				"a skill chip added and removed again gives the draft back",
 				"reverted",
@@ -1419,8 +1438,18 @@ describe("useConversationEditingState", () => {
 				"removed",
 				true,
 			],
+			[
+				"an added file reference keeps the edit as a new-message draft",
+				"file reference added",
+				true,
+			],
+			[
+				"a removed file reference keeps the edit as a new-message draft",
+				"file reference removed",
+				true,
+			],
 		] as const)(
-			"when the server ends an edit of a row with a skill chip, %s",
+			"when the server ends an edit of a row with chips, %s",
 			async (_name, edit, modified) => {
 				const {
 					unmount,
@@ -1431,9 +1460,11 @@ describe("useConversationEditingState", () => {
 					type,
 					appendSkill,
 					removeSkill,
+					addFileReference,
+					removeFirstFileReference,
 				} = renderEditingWithEditor();
 				await type("draft");
-				await beginEdit(42, contentWithSkill);
+				await beginEdit(42, contentWithChips);
 				if (edit === "reverted" || edit === "added") {
 					await appendSkill("review");
 				}
@@ -1443,6 +1474,12 @@ describe("useConversationEditingState", () => {
 				if (edit === "removed") {
 					await removeSkill("triage");
 				}
+				if (edit === "file reference added") {
+					await addFileReference("other.go");
+				}
+				if (edit === "file reference removed") {
+					await removeFirstFileReference();
+				}
 				const stateWhileEditing =
 					current().chatInputRef.current?.getEditorState();
 
@@ -1450,7 +1487,7 @@ describe("useConversationEditingState", () => {
 
 				expect(current().composerMode).toBe(modified ? "draft" : "follow");
 				if (modified) {
-					expect(current().inputValueRef.current).toBe("Use  on the diff");
+					expect(current().inputValueRef.current).toBe("Use  on  now");
 					expect(
 						getChipNodes(localStorage.getItem(expectedKey) ?? undefined),
 					).toEqual(getChipNodes(stateWhileEditing));

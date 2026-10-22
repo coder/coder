@@ -815,26 +815,47 @@ describe("ChatMessageInput", () => {
 			expect(errorSpy).not.toHaveBeenCalled();
 		});
 
-		it("reopens an edited message with its skill chips in place", async () => {
-			const content: ChatMessagePart[] = [
-				{ type: "text", text: "Use " },
-				mockSkillPart("project", "triage"),
-				{ type: "text", text: " on\nthe diff" },
-			];
-			const { text, editorState } = getEditableContentPayload(content);
-			const inputRef = createRef<ChatMessageInputRef>();
-			renderWithQueryClient(
-				<ChatMessageInput
-					{...requiredProps()}
-					ref={inputRef}
-					initialValue={text}
-					initialEditorState={editorState}
-					aria-label="Chat message input"
-				/>,
-			);
-			await waitFor(() => {
-				expect(getRequestContent(inputRef)).toEqual(content);
-			});
-		});
+		const fileReferencePart: ChatMessagePart = {
+			type: "file-reference",
+			file_name: "main.go",
+			start_line: 3,
+			end_line: 5,
+			content: "func main() {}",
+		};
+
+		it.each<[string, ChatMessagePart[]]>([
+			[
+				"skill and file-reference chips",
+				[
+					{ type: "text", text: "Use " },
+					mockSkillPart("project", "triage"),
+					{ type: "text", text: " on\nthe diff" },
+					fileReferencePart,
+					{ type: "text", text: " here" },
+				],
+			],
+			[
+				"file-reference chip",
+				[{ type: "text", text: "Explain " }, fileReferencePart],
+			],
+		])(
+			"reopens an edited message with its %s in place",
+			async (_name, content) => {
+				const { text, editorState } = getEditableContentPayload(content);
+				const inputRef = createRef<ChatMessageInputRef>();
+				renderWithQueryClient(
+					<ChatMessageInput
+						{...requiredProps()}
+						ref={inputRef}
+						initialValue={text}
+						initialEditorState={editorState}
+						aria-label="Chat message input"
+					/>,
+				);
+				await waitFor(() => {
+					expect(getRequestContent(inputRef)).toEqual(content);
+				});
+			},
+		);
 	});
 });
