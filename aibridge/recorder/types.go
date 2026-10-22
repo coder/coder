@@ -129,6 +129,10 @@ type TokenUsageRecord struct {
 	Output                int64
 	CacheReadInputTokens  int64
 	CacheWriteInputTokens int64
+	// PromptTokens is the prompt size of the upstream request, which selects
+	// the long-context price. A record that carries only output tokens still
+	// carries the prompt size of its message. 0 when not reported.
+	PromptTokens int64
 	// ExtraTokenTypes holds token types which *may* exist over and above input/output.
 	// These should ultimately get merged into [Metadata], but it's useful to keep these
 	// with their actual type (int64) since [Metadata] is a map[string]any.

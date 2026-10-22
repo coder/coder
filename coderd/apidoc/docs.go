@@ -19866,6 +19866,13 @@ const docTemplate = `{
                 "source": {
                     "$ref": "#/definitions/codersdk.AIModelPriceSource"
                 },
+                "tiers": {
+                    "description": "Tiers are long-context prices, sorted by ThresholdTokens.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIModelPriceTier"
+                    }
+                },
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
@@ -19882,6 +19889,26 @@ const docTemplate = `{
                 "AIModelPriceSourceDefault",
                 "AIModelPriceSourceCustom"
             ]
+        },
+        "codersdk.AIModelPriceTier": {
+            "type": "object",
+            "properties": {
+                "cache_read_price": {
+                    "type": "integer"
+                },
+                "cache_write_price": {
+                    "type": "integer"
+                },
+                "input_price": {
+                    "type": "integer"
+                },
+                "output_price": {
+                    "type": "integer"
+                },
+                "threshold_tokens": {
+                    "type": "integer"
+                }
+            }
         },
         "codersdk.AIModelPriceUpsert": {
             "type": "object",
@@ -19903,6 +19930,12 @@ const docTemplate = `{
                 },
                 "provider": {
                     "type": "string"
+                },
+                "tiers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIModelPriceTier"
+                    }
                 }
             }
         },

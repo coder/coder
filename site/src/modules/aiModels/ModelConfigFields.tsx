@@ -48,6 +48,7 @@ import {
 	type ModelConfigFormBuildResult,
 	type ModelFormValues,
 } from "./modelConfigFormLogic";
+import { PriceTierNotes } from "./PriceTierNotes";
 
 const booleanFieldOptions = [
 	{ label: "Off", value: "false" },
@@ -795,6 +796,7 @@ export const PricingEstimateFields: React.FC<{
 					</div>
 				);
 			})}
+			{livePrice && <PriceTierNotes price={livePrice} />}
 		</>
 	);
 };
