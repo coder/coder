@@ -2,23 +2,34 @@
 export const workspacePathNodeType = "workspace-path";
 
 /**
- * The text a workspace file or folder chip sends: the path in backticks,
- * with a trailing "/" for a folder.
+ * The text a workspace file or folder chip sends: the path as Markdown inline
+ * code, with a trailing "/" for a folder. The fence is one backtick longer
+ * than any backtick run in the path, so every path stays one code span.
  */
 export const formatWorkspacePathReference = (
 	path: string,
 	isDirectory: boolean,
-): string => `\`${path}${isDirectory ? "/" : ""}\``;
+): string => {
+	const text = `${path}${isDirectory ? "/" : ""}`;
+	let longestRun = 0;
+	for (const run of text.match(/`+/g) ?? []) {
+		longestRun = Math.max(longestRun, run.length);
+	}
+	const fence = "`".repeat(longestRun + 1);
+	// Markdown strips one space from each side, so a path ending in a
+	// backtick stays apart from the closing fence.
+	const padding = text.endsWith("`") ? " " : "";
+	return `${fence}${padding}${text}${padding}${fence}`;
+};
 
 type WorkspacePathTextSegment =
 	| { type: "text"; text: string }
 	| { type: "path"; path: string; isDirectory: boolean };
 
-// Only the exact form formatWorkspacePathReference produces for an absolute
-// or "~/" path, as a whitespace-delimited token, so other inline code in the
-// text stays as typed.
-const workspacePathReferencePattern =
-	/(?<=^|\s)`((?:\/|~\/)[^\s`]+?)(\/?)`(?=\s|$)/g;
+// Candidate code spans that start with an absolute or "~/" path and stand as
+// whitespace-delimited tokens. splitWorkspacePathReferences keeps only those
+// that formatWorkspacePathReference reproduces exactly.
+const candidatePattern = /(?<=^|\s)(`+)( ?)((?:\/|~\/)[\s\S]*?)\2\1(?=\s|$)/g;
 
 /** Splits text into plain text and the workspace path references in it. */
 export const splitWorkspacePathReferences = (
@@ -26,15 +37,21 @@ export const splitWorkspacePathReferences = (
 ): WorkspacePathTextSegment[] => {
 	const segments: WorkspacePathTextSegment[] = [];
 	let offset = 0;
-	for (const match of text.matchAll(workspacePathReferencePattern)) {
+	for (const match of text.matchAll(candidatePattern)) {
+		const body = match[3] ?? "";
+		const isDirectory = body.length > 1 && body.endsWith("/");
+		const path = isDirectory ? body.slice(0, -1) : body;
+		if (
+			path === "/" ||
+			path === "~" ||
+			formatWorkspacePathReference(path, isDirectory) !== match[0]
+		) {
+			continue;
+		}
 		if (match.index > offset) {
 			segments.push({ type: "text", text: text.slice(offset, match.index) });
 		}
-		segments.push({
-			type: "path",
-			path: match[1] ?? "",
-			isDirectory: match[2] === "/",
-		});
+		segments.push({ type: "path", path, isDirectory });
 		offset = match.index + match[0].length;
 	}
 	if (offset < text.length) {
