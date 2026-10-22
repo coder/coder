@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"testing/iotest"
@@ -3716,4 +3717,51 @@ func TestWriteFile_ETagIsOwnWrite(t *testing.T) {
 	require.Equal(t, int64(len(concurrent)), info.Size())
 	// The ETag describes the 4-byte write, not the file now on disk.
 	require.Regexp(t, `^"[0-9a-f]+-4"$`, w.Header().Get("ETag"))
+}
+
+func TestWriteFile_IfNoneMatchConcurrentCreates(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	handler := agentfiles.NewAPI(logger, afero.NewOsFs(), nil).Routes()
+	dir := t.TempDir()
+
+	const rounds, writers = 20, 8
+	for round := range rounds {
+		path := filepath.Join(dir, fmt.Sprintf("created-%d.txt", round))
+		codes := make([]int, writers)
+		var wg sync.WaitGroup
+		for i := range writers {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				ctx := testutil.Context(t, testutil.WaitShort)
+				w := httptest.NewRecorder()
+				r := httptest.NewRequestWithContext(ctx, http.MethodPost,
+					"/write-file?if_none_match=*&path="+url.QueryEscape(path), strings.NewReader(fmt.Sprintf("writer %d", i)))
+				handler.ServeHTTP(w, r)
+				codes[i] = w.Code
+			}()
+		}
+		wg.Wait()
+
+		winner := -1
+		for i, code := range codes {
+			switch code {
+			case http.StatusOK:
+				require.Equal(t, -1, winner, "round %d: writers %d and %d both created the file", round, winner, i)
+				winner = i
+			case http.StatusPreconditionFailed:
+			default:
+				require.Failf(t, "unexpected status", "round %d writer %d: %d", round, i, code)
+			}
+		}
+		require.NotEqual(t, -1, winner, "round %d: no writer created the file", round)
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf("writer %d", winner), string(data))
+	}
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	require.Len(t, entries, rounds, "temp files were left behind")
 }

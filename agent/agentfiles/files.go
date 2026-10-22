@@ -15,6 +15,7 @@ import (
 
 	"github.com/aymanbagabas/go-udiff"
 	"github.com/google/uuid"
+	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -378,6 +379,7 @@ func (api *API) writeFile(ctx context.Context, r *http.Request, path string, ifM
 	// concurrent write can be overwritten. It is still not atomic.
 	var currentETag string
 	var precondition func() (int, error)
+	var publish func(tmp, path string) error
 	switch {
 	case ifMatch != nil:
 		precondition = func() (int, error) {
@@ -391,6 +393,7 @@ func (api *API) writeFile(ctx context.Context, r *http.Request, path string, ifM
 			currentETag = etag
 			return status, err
 		}
+		publish = api.publishNoReplace
 	}
 	if precondition != nil {
 		if status, err := precondition(); err != nil {
@@ -422,8 +425,13 @@ func (api *API) writeFile(ctx context.Context, r *http.Request, path string, ifM
 		mode = &m
 	}
 
-	info, status, err := api.atomicWrite(ctx, path, mode, r.Body, precondition)
+	info, status, err := api.atomicWrite(ctx, path, mode, r.Body, precondition, publish)
 	if err != nil {
+		if status == http.StatusPreconditionFailed && currentETag == "" {
+			if stat, serr := api.filesystem.Stat(path); serr == nil && !stat.IsDir() {
+				currentETag = fileETag(stat)
+			}
+		}
 		return status, currentETag, err
 	}
 	return 0, fileETag(info), nil
@@ -551,7 +559,7 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 	// cross-file atomicity would require filesystem transactions.
 	for _, p := range pending {
 		mode := p.mode
-		_, s, err := api.atomicWrite(ctx, p.path, &mode, strings.NewReader(p.content), nil)
+		_, s, err := api.atomicWrite(ctx, p.path, &mode, strings.NewReader(p.content), nil, nil)
 		if err != nil {
 			httpapi.Write(ctx, rw, s, codersdk.Response{
 				Message: err.Error(),
@@ -671,8 +679,10 @@ func (api *API) prepareFileEdit(path string, edits []workspacesdk.FileEdit) (int
 // written; if it fails, the write is abandoned and its status and
 // error are returned. The returned FileInfo is the temp file's, taken
 // before the rename; its size and modification time are the written
-// file's even if another writer replaces path afterwards.
-func (api *API) atomicWrite(ctx context.Context, path string, mode *os.FileMode, r io.Reader, beforeRename func() (int, error)) (os.FileInfo, int, error) {
+// file's even if another writer replaces path afterwards. publish moves
+// the temp file into place; nil renames it. A publish error matching
+// os.ErrExist returns 412; see publishNoReplace.
+func (api *API) atomicWrite(ctx context.Context, path string, mode *os.FileMode, r io.Reader, beforeRename func() (int, error), publish func(tmp, path string) error) (os.FileInfo, int, error) {
 	logger := api.logger.With(agentchat.Fields(ctx)...)
 
 	dir := filepath.Dir(path)
@@ -732,16 +742,38 @@ func (api *API) atomicWrite(ctx context.Context, path string, mode *os.FileMode,
 		}
 	}
 
-	if err := api.filesystem.Rename(tmpName, path); err != nil {
+	if publish == nil {
+		publish = api.filesystem.Rename
+	}
+	if err := publish(tmpName, path); err != nil {
 		cleanup()
 		status := http.StatusInternalServerError
-		if errors.Is(err, os.ErrPermission) {
+		switch {
+		case errors.Is(err, os.ErrExist):
+			status = http.StatusPreconditionFailed
+		case errors.Is(err, os.ErrPermission):
 			status = http.StatusForbidden
 		}
 		return nil, status, xerrors.Errorf("write %s: %w", path, err)
 	}
 
 	return info, 0, nil
+}
+
+// publishNoReplace moves tmp to path, failing with os.ErrExist instead
+// of replacing an existing file, so concurrent creates cannot
+// overwrite each other. Filesystems that support neither
+// renameat2(RENAME_NOREPLACE) nor hard links, and non-OS filesystems,
+// fall back to a plain rename; the caller's existence checks before it
+// then narrow, but do not close, the race.
+func (api *API) publishNoReplace(tmp, path string) error {
+	if _, ok := api.filesystem.(*afero.OsFs); ok {
+		err := renameNoReplace(tmp, path)
+		if !errors.Is(err, errNoReplaceUnsupported) {
+			return err
+		}
+	}
+	return api.filesystem.Rename(tmp, path)
 }
 
 // splitEnding separates a line produced by strings.SplitAfter(s,
