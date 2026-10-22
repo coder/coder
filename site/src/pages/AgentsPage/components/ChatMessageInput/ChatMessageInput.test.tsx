@@ -15,12 +15,15 @@ import type {
 	ChatSkillSource,
 	SkillMetadata,
 } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
+import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { MockChatProject } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
 import { buildChatInputContent } from "../../utils/chatInputContent";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
+import { getEditableUserMessagePayload } from "../ChatConversation/messageParsing";
 import { ChatMessageInput, type ChatMessageInputRef } from "./ChatMessageInput";
 
 const requiredProps = () => ({
@@ -523,6 +526,31 @@ describe("ChatMessageInput", () => {
 				mockSkillPart("personal", "reviewer"),
 			]);
 		});
+
+		it("drops the slash trigger when the skill limit rejects a menu pick", async () => {
+			const toastError = vi.spyOn(toast, "error");
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [],
+			});
+			await waitFor(() => expect(inputRef.current).not.toBeNull());
+			act(() => {
+				for (let index = 0; index < 8; index++) {
+					inputRef.current?.insertSkill("project", `skill-${index}`);
+				}
+			});
+			const user = await pasteTrigger("/rev");
+			await user.click(await screen.findByRole("option", { name: /reviewer/ }));
+			expect(
+				getRequestContent(inputRef).filter(
+					(part) => part.type === "skill-invocation",
+				),
+			).toHaveLength(8);
+			expect(inputRef.current?.getValue()).not.toContain("/rev");
+			expect(toastError).toHaveBeenCalledWith(
+				"A message can include up to 8 skills.",
+			);
+		});
 	});
 
 	describe("insertSkill", () => {
@@ -581,6 +609,35 @@ describe("ChatMessageInput", () => {
 					{ type: "text", text: " Ytail" },
 				]);
 			});
+		});
+
+		it("refuses a ninth skill chip and says why", async () => {
+			const toastError = vi.spyOn(toast, "error");
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					aria-label="Chat message input"
+				/>,
+			);
+			await waitFor(() => expect(inputRef.current).not.toBeNull());
+			act(() => {
+				for (let index = 0; index < 9; index++) {
+					inputRef.current?.insertSkill("project", `skill-${index}`);
+				}
+			});
+
+			await waitFor(() =>
+				expect(
+					getRequestContent(inputRef).filter(
+						(part) => part.type === "skill-invocation",
+					),
+				).toHaveLength(8),
+			);
+			expect(toastError).toHaveBeenCalledWith(
+				"A message can include up to 8 skills.",
+			);
 		});
 
 		it("removes a chip from the keyboard without sending the message", async () => {
@@ -656,6 +713,64 @@ describe("ChatMessageInput", () => {
 					},
 				]);
 			});
+
+			const mimeType = "application/x-lexical-editor";
+			const payload = JSON.parse(copied?.getData(mimeType) ?? "{}");
+			copied?.setData(
+				mimeType,
+				JSON.stringify({ ...payload, nodes: [{ type: "unregistered" }] }),
+			);
+			act(() => inputRef.current?.clear());
+			await user.paste(copied);
+			await waitFor(() =>
+				expect(getRequestContent(inputRef)).toEqual([
+					{
+						type: "text",
+						text: "Lead/personal/triage /org/release-notes tail",
+					},
+				]),
+			);
+		});
+
+		it("drops pasted skill chips beyond the limit and says why", async () => {
+			vi.stubGlobal("ClipboardEvent", class ClipboardEvent extends Event {});
+			vi.stubGlobal("DragEvent", class DragEvent extends MouseEvent {});
+			const toastError = vi.spyOn(toast, "error");
+			const user = userEvent.setup();
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					aria-label="Chat message input"
+				/>,
+			);
+			await user.click(
+				screen.getByRole("textbox", { name: "Chat message input" }),
+			);
+			act(() => {
+				for (let index = 0; index < 8; index++) {
+					inputRef.current?.insertSkill("personal", `skill-${index}`);
+				}
+			});
+			await user.keyboard("{Control>}a{/Control}");
+			const copied = await user.copy();
+			act(() => {
+				inputRef.current?.clear();
+				inputRef.current?.insertSkill("personal", "extra");
+			});
+			await user.paste(copied);
+
+			await waitFor(() =>
+				expect(
+					getRequestContent(inputRef).filter(
+						(part) => part.type === "skill-invocation",
+					),
+				).toHaveLength(8),
+			);
+			expect(toastError).toHaveBeenCalledWith(
+				"A message can include up to 8 skills.",
+			);
 		});
 
 		it("restores chips from a saved draft without React errors", async () => {
@@ -699,6 +814,31 @@ describe("ChatMessageInput", () => {
 				]);
 			});
 			expect(errorSpy).not.toHaveBeenCalled();
+		});
+
+		it("reopens an edited message with its skill chips in place", async () => {
+			const content: ChatMessagePart[] = [
+				{ type: "text", text: "Use " },
+				mockSkillPart("project", "triage"),
+				{ type: "text", text: " on\nthe diff" },
+			];
+			const { text, editorState } = getEditableUserMessagePayload({
+				...MockChatMessage,
+				content,
+			});
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					initialValue={text}
+					initialEditorState={editorState}
+					aria-label="Chat message input"
+				/>,
+			);
+			await waitFor(() => {
+				expect(getRequestContent(inputRef)).toEqual(content);
+			});
 		});
 	});
 });

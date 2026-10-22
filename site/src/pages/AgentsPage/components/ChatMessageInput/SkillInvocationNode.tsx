@@ -1,9 +1,13 @@
 import { cn } from "cn";
 import {
+	$createLineBreakNode,
+	$createParagraphNode,
+	$createTextNode,
 	$getNodeByKey,
 	$getRoot,
 	$isParagraphNode,
 	$isTextNode,
+	createEditor,
 	DecoratorNode,
 	type LexicalEditor,
 	type NodeKey,
@@ -11,6 +15,8 @@ import {
 	type SerializedLexicalNode,
 	type Spread,
 } from "lexical";
+import type { ChatMessagePart } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import type { SkillSource } from "../../utils/skillAliases";
 import { useFileReferenceSpacing } from "./FileReferenceNode";
 import { EditableSkillChip } from "./SkillChip";
@@ -116,25 +122,35 @@ const SkillChipWrapper: React.FC<{
 	);
 };
 
-export const $hasSkillInvocationNode = (source: SkillSource, name: string) =>
+/** chatd rejects a message that invokes more skills than this. */
+export const MAX_SKILL_INVOCATIONS_PER_MESSAGE = 8;
+
+/** Reports chips rejected by the limit, for direct insertion and paste alike. */
+export const warnSkillLimit = () => {
+	toast.error(
+		`A message can include up to ${MAX_SKILL_INVOCATIONS_PER_MESSAGE} skills.`,
+	);
+};
+
+export const $getSkillInvocationNodes = (): SkillInvocationNode[] =>
 	$getRoot()
 		.getChildren()
-		.some(
-			(paragraph) =>
-				$isParagraphNode(paragraph) &&
-				paragraph
-					.getChildren()
-					.some(
-						(node) =>
-							node instanceof SkillInvocationNode &&
-							node.__source === source &&
-							node.__name === name,
-					),
+		.flatMap((paragraph) =>
+			$isParagraphNode(paragraph)
+				? paragraph
+						.getChildren()
+						.filter((node) => node instanceof SkillInvocationNode)
+				: [],
 		);
+
+export const $hasSkillInvocationNode = (source: SkillSource, name: string) =>
+	$getSkillInvocationNodes().some(
+		(node) => node.__source === source && node.__name === name,
+	);
 
 /**
  * Replaces the selection with a skill chip followed by a space. A skill
- * already in the editor is not added again; the selection is only removed.
+ * already in the editor, or one past the limit, only removes the selection.
  */
 export function $insertSkillInvocation(
 	selection: RangeSelection,
@@ -143,6 +159,11 @@ export function $insertSkillInvocation(
 ) {
 	if ($hasSkillInvocationNode(source, name)) {
 		selection.removeText();
+		return;
+	}
+	if ($getSkillInvocationNodes().length >= MAX_SKILL_INVOCATIONS_PER_MESSAGE) {
+		selection.removeText();
+		warnSkillLimit();
 		return;
 	}
 	const chip = new SkillInvocationNode(source, name);
@@ -154,3 +175,39 @@ export function $insertSkillInvocation(
 	}
 	chip.selectNext().insertText(" ");
 }
+
+/** Serializes a sent message's text and skill chips as a composer draft. */
+export const serializeMessageDraft = (
+	content: readonly ChatMessagePart[],
+): string => {
+	const editor = createEditor({
+		nodes: [SkillInvocationNode],
+		onError: (error) => {
+			throw error;
+		},
+	});
+	editor.update(
+		() => {
+			const paragraph = $createParagraphNode();
+			for (const part of content) {
+				if (part.type === "skill-invocation") {
+					paragraph.append(
+						new SkillInvocationNode(part.skill_source, part.skill_name),
+					);
+				} else if (part.type === "text") {
+					for (const [index, line] of part.text.split("\n").entries()) {
+						if (index > 0) {
+							paragraph.append($createLineBreakNode());
+						}
+						if (line) {
+							paragraph.append($createTextNode(line));
+						}
+					}
+				}
+			}
+			$getRoot().append(paragraph);
+		},
+		{ discrete: true },
+	);
+	return JSON.stringify(editor.getEditorState().toJSON());
+};
