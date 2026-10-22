@@ -128,8 +128,11 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 		update();
 	};
 
-	const requestCloseFiles = (paths: readonly string[], source: string) => {
-		const unsavedPaths = paths.filter((path) => drafts.has(path));
+	const confirmCloseFiles = (
+		paths: readonly string[],
+		unsavedPaths: readonly string[],
+		source: string,
+	) => {
 		if (unsavedPaths.length > 0) {
 			setCloseRequest({ paths, unsavedPaths, source, isOpen: true });
 			return;
@@ -137,7 +140,21 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 		closeFiles(paths);
 	};
 
+	const requestCloseFiles = (paths: readonly string[], source: string) => {
+		confirmCloseFiles(
+			paths,
+			paths.filter((path) => drafts.has(path)),
+			source,
+		);
+	};
+
 	const requestCloseFile = (path: string) => requestCloseFiles([path], path);
+
+	// Not built on requestCloseFile: file tabs are memoized, and a callback
+	// that reads drafts would change, and re-render every tab, on each
+	// keystroke.
+	const closeFileTab = (path: string, hasUnsavedEdits: boolean) =>
+		confirmCloseFiles([path], hasUnsavedEdits ? [path] : [], path);
 
 	const tabAt = (index: number) =>
 		tabOrder[(index + tabOrder.length) % tabOrder.length] ?? null;
@@ -275,6 +292,7 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 									}
 									draft={drafts.get(file.path)}
 									onDraftChange={updateDraft}
+									onClose={closeFileTab}
 									readOnly={readOnly}
 								/>
 							) : (
