@@ -9,7 +9,7 @@
 
 import {
 	formatWorkspacePathReference,
-	workspacePathNodeType,
+	isSerializedWorkspacePath,
 } from "./workspacePathReference";
 
 /** @internal Exported for testing. */
@@ -83,7 +83,7 @@ function extractTextFromNode(node: {
 	if (node.type === "linebreak") {
 		return "\n";
 	}
-	if (node.type === workspacePathNodeType && typeof node.path === "string") {
+	if (isSerializedWorkspacePath(node)) {
 		return formatWorkspacePathReference(node.path, node.isDirectory === true);
 	}
 	// FileReferenceNode and other non-text leaves contribute

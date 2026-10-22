@@ -1092,6 +1092,39 @@ describe("ChatMessageInput", () => {
 			expect(API.findWorkspaceAgentFiles).not.toHaveBeenCalled();
 		});
 
+		it("copies path and skill chips as the text they send", async () => {
+			// Lexical's clipboard handlers check these jsdom-missing classes.
+			vi.stubGlobal("ClipboardEvent", class ClipboardEvent extends Event {});
+			vi.stubGlobal("DragEvent", class DragEvent extends MouseEvent {});
+			mockFindFiles();
+			const { inputRef } = renderWithWorkspaceFiles(workspaceFiles);
+			const user = await pasteText("see @main");
+			await screen.findByRole("option", { name: /main\.go/ });
+			await user.keyboard("{Enter}");
+			act(() => inputRef.current?.insertSkill("personal", "reviewer"));
+			await user.keyboard("{Control>}a{/Control}");
+			const copied = await user.copy();
+			expect(copied?.getData("text/plain")).toBe(
+				"see `/home/coder/a/src/main.go` /personal/reviewer ",
+			);
+
+			act(() => inputRef.current?.clear());
+			await user.paste(copied);
+			await waitFor(() =>
+				expect(getRequestContent(inputRef)).toEqual([
+					{ type: "text", text: "see `/home/coder/a/src/main.go` " },
+					mockSkillPart("personal", "reviewer"),
+				]),
+			);
+			await user.click(screen.getByRole("button", { name: "Remove main.go" }));
+			await waitFor(() =>
+				expect(getRequestContent(inputRef)).toEqual([
+					{ type: "text", text: "see  " },
+					mockSkillPart("personal", "reviewer"),
+				]),
+			);
+		});
+
 		it("keeps the skills trigger working", async () => {
 			mockFindFiles();
 			const { inputRef } = renderWithWorkspaceFiles(workspaceFiles);
