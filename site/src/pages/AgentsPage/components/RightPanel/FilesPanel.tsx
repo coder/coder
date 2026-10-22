@@ -29,7 +29,10 @@ import { Loader } from "#/components/Loader/Loader";
 import {
 	Select,
 	SelectContent,
+	SelectGroup,
 	SelectItem,
+	SelectLabel,
+	SelectSeparator,
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
@@ -103,6 +106,100 @@ const directoryErrorMessage = (error: unknown, path: string) => {
 const isWithin = (path: string, directory: string) =>
 	path === directory || path.startsWith(`${directory}/`);
 
+/** Shows an absolute path under home as `~` or `~/rest`. */
+export const abbreviateHomePath = (
+	path: string,
+	homePath: string | undefined,
+): string => {
+	if (homePath === undefined || homePath === "/" || !isWithin(path, homePath)) {
+		return path;
+	}
+	return `~${path.slice(homePath.length)}`;
+};
+
+type RootOption = {
+	/** The root in list-directory path form, as stored per chat. */
+	root: string;
+	label: string;
+	description: string;
+	title: string;
+};
+
+/**
+ * Picker entries in display order: the fixed places, the chat's repositories,
+ * then the current root when it is none of those (one opened by path).
+ */
+const getRootOptions = ({
+	root,
+	rootPath,
+	homePath,
+	defaultDirectory,
+	repoRoots,
+}: {
+	root: string;
+	rootPath: string | undefined;
+	homePath: string | undefined;
+	/** Undefined when the default directory is home. */
+	defaultDirectory: string | undefined;
+	repoRoots: readonly string[];
+}) => {
+	const places: RootOption[] = [
+		{ root: "/", label: "File system", description: "/", title: "/" },
+		{
+			// One entry serves both forms when home is the default directory, so
+			// a stored "" still shows as selected.
+			root: defaultDirectory === undefined && root === "" ? "" : "~",
+			label: "Home",
+			description: "~",
+			title: homePath ?? "~",
+		},
+	];
+	// A default directory that is also a repository is listed once, under
+	// Repositories, unless it is the current root in its "" form.
+	if (
+		defaultDirectory !== undefined &&
+		(!repoRoots.includes(defaultDirectory) || root === "")
+	) {
+		places.push({
+			root: "",
+			label: getPathBasename(defaultDirectory),
+			description: abbreviateHomePath(defaultDirectory, homePath),
+			title: defaultDirectory,
+		});
+	}
+	const repositories = repoRoots.map(
+		(path): RootOption => ({
+			root: path,
+			label: getPathBasename(path),
+			description: abbreviateHomePath(path, homePath),
+			title: path,
+		}),
+	);
+	const isListed = [...places, ...repositories].some(
+		(option) => option.root === root,
+	);
+	const resolved = rootPath ?? root;
+	const opened: RootOption | undefined = isListed
+		? undefined
+		: {
+				root,
+				label: getPathBasename(resolved) || resolved,
+				description: abbreviateHomePath(resolved, homePath),
+				title: resolved,
+			};
+	return { places, repositories, opened };
+};
+
+const RootSelectItem: React.FC<{ option: RootOption }> = ({ option }) => (
+	<SelectItem
+		value={`${rootValuePrefix}${option.root}`}
+		title={option.title}
+		description={option.description}
+	>
+		{option.label}
+	</SelectItem>
+);
+
 /**
  * Expanded directories the current listings show: each one's parent listing
  * contains it, up to the root. Deleted or moved directories drop out once
@@ -169,8 +266,8 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 	const rootQuery = useQuery(directoryQuery(agentId, root));
 	const rootPath = rootQuery.data?.absolute_path_string;
 	// Read-only observers: they expose cached listings of every expanded
-	// directory, and of the default directory and home, without fetching.
-	const cachedPaths = [...expandedPaths, "", "~"];
+	// directory, and of the default directory, without fetching.
+	const cachedPaths = [...expandedPaths, ""];
 	const cachedListings = useQueries({
 		queries: cachedPaths.map((path) => ({
 			...workspaceAgentDirectory(agentId, path),
@@ -358,39 +455,23 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 		openPathMutation.reset();
 	};
 
-	// The agent's default directory is home when it reports none, and the two
-	// are also one place once both resolve to the same absolute path.
-	const homePath = cachedListing("~")?.absolute_path_string;
+	// The root picker abbreviates paths under home and folds the default
+	// directory into Home when they are the same place, so it needs home's
+	// absolute path.
+	const homeQuery = useQuery(workspaceAgentDirectory(agentId, "~"));
+	const homePath = homeQuery.data?.absolute_path_string;
 	const defaultPath =
 		defaultDirectory ?? cachedListing("")?.absolute_path_string;
 	const homeIsDefault =
 		defaultDirectory === undefined ||
 		(homePath !== undefined && homePath === defaultPath);
-	const resolvedTitle = (path: string, fallback: string) =>
-		root === path && rootPath !== undefined ? rootPath : fallback;
-	const rootOptions = [
-		...repoRoots.map((path) => ({
-			root: path,
-			label: getPathBasename(path),
-			title: path,
-		})),
-		...(homeIsDefault
-			? [
-					{
-						root: root === "~" ? "~" : "",
-						label: "Default directory (~)",
-						title: defaultPath ?? homePath ?? "~",
-					},
-				]
-			: [
-					{ root: "", label: "Default directory", title: defaultDirectory },
-					{ root: "~", label: "Home", title: homePath ?? "~" },
-				]),
-		{ root: "/", label: "/", title: "/" },
-	];
-	if (!rootOptions.some((option) => option.root === root)) {
-		rootOptions.push({ root, label: root, title: resolvedTitle(root, root) });
-	}
+	const rootOptions = getRootOptions({
+		root,
+		rootPath,
+		homePath,
+		defaultDirectory: homeIsDefault ? undefined : defaultDirectory,
+		repoRoots,
+	});
 
 	const handleRootValueChange = (value: string) => {
 		cancelOpenPath();
@@ -487,15 +568,23 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent onCloseAutoFocus={handleSelectCloseAutoFocus}>
-						{rootOptions.map((option) => (
-							<SelectItem
-								key={option.root}
-								value={`${rootValuePrefix}${option.root}`}
-								title={option.title}
-							>
-								{option.label}
-							</SelectItem>
+						{rootOptions.places.map((option) => (
+							<RootSelectItem key={option.root} option={option} />
 						))}
+						{rootOptions.repositories.length > 0 && (
+							<SelectGroup>
+								<SelectLabel className="text-xs font-medium text-content-secondary">
+									Repositories
+								</SelectLabel>
+								{rootOptions.repositories.map((option) => (
+									<RootSelectItem key={option.root} option={option} />
+								))}
+							</SelectGroup>
+						)}
+						{rootOptions.opened && (
+							<RootSelectItem option={rootOptions.opened} />
+						)}
+						<SelectSeparator />
 						<SelectItem value={openPathValue}>Open path...</SelectItem>
 					</SelectContent>
 				</Select>
