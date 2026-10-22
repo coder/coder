@@ -220,6 +220,20 @@ describe("submitChatTurn", () => {
 		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(true);
 	});
 
+	it("reports no starting compaction after a rejected /compact", async () => {
+		const store = createChatStore();
+		store.setActiveChatID("chat-1");
+		store.upsertDurableMessage({ ...MockChatMessage, role: "assistant" });
+		store.setChatStatus("running");
+		const compact = vi.fn().mockRejectedValue(new Error("chat is busy"));
+
+		await expect(
+			submitChatTurn(buildParams({ message: "/compact", store, compact })),
+		).rejects.toThrow("chat is busy");
+
+		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
+	});
+
 	it("compacts instead of sending and restores state if compact fails", async () => {
 		const store = createChatStore();
 		store.setActiveChatID("chat-1");

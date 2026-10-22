@@ -1,11 +1,24 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClientProvider } from "react-query";
 import { describe, expect, it, vi } from "vitest";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
-import { renderWithAuth } from "#/testHelpers/renderHelpers";
+import {
+	createTestQueryClient,
+	renderComponent,
+	renderWithAuth,
+} from "#/testHelpers/renderHelpers";
+import { MessageScroller } from "#/vendor/message-scroller";
 import { createChatStore } from "./ChatConversation/chatStore";
-import { ChatPageInput } from "./ChatPageContent";
+import {
+	MockAmberPngData,
+	MockBluePngData,
+	MockCollapsedStepsPreferences,
+	MockMixedAttachmentMessages,
+} from "./ChatConversation/storyFixtures";
+import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
 
 const renderChatPageInput = (
 	store: ReturnType<typeof createChatStore>,
@@ -114,6 +127,56 @@ describe("ChatPageInput", () => {
 				mediaType: "text/csv",
 				workspaceId: "ws-1",
 			},
+		]);
+	});
+});
+
+describe("ChatPageTimeline", () => {
+	it("lists an answered turn's files while a requested compaction starts", async () => {
+		const user = userEvent.setup();
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryDefaults(preferenceSettingsKey, {
+			staleTime: Number.POSITIVE_INFINITY,
+		});
+		queryClient.setQueryData(
+			preferenceSettingsKey,
+			MockCollapsedStepsPreferences,
+		);
+		const store = createChatStore();
+		store.replaceMessages(MockMixedAttachmentMessages);
+		store.setChatStatus("waiting");
+		store.markCompactionRequested();
+		store.setChatStatus("running");
+
+		renderComponent(
+			<QueryClientProvider client={queryClient}>
+				<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+					<ChatPageTimeline
+						organizationId="organization-id"
+						store={store}
+						persistedError={undefined}
+						hasMoreMessages={false}
+						isFetchingMoreMessages={false}
+						isHydratingMessages={false}
+						hasFetchMoreError={false}
+						onFetchMoreMessages={vi.fn()}
+						urlTransform={(url) => url}
+						mcpServers={[]}
+					/>
+				</MessageScroller.Provider>
+			</QueryClientProvider>,
+		);
+		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
+
+		expect(
+			within(await screen.findByRole("dialog", { name: "Attachments" }))
+				.getAllByRole("link")
+				.map((link) => link.getAttribute("href")),
+		).toEqual([
+			`data:image/png;base64,${MockBluePngData}`,
+			`data:image/png;base64,${MockAmberPngData}`,
+			"/api/v2/chats/files/findings-file",
+			"/api/v2/chats/files/spec-file",
 		]);
 	});
 });

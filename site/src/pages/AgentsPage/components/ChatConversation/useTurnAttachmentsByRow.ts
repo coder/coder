@@ -21,7 +21,6 @@ export const useTurnAttachmentsByRow = (
 	}: TurnAttachmentsOptions,
 ) => {
 	"use memo";
-	// The live row never hosts a pill.
 	const withLiveRow = false;
 	return getTurnAttachmentsByRow(
 		assignTimelineRows(buildDisplayMessages(parsedMessages), withLiveRow),

@@ -424,12 +424,15 @@ const RemoteTextAttachmentButton: React.FC<{
 	);
 };
 
-const RemoteImageBlock: React.FC<{
-	fileId?: string;
-	href: string;
-	displayName: string;
-	onImageClick: (src: string) => void;
-}> = ({ fileId, href, displayName, onImageClick }) => {
+/**
+ * Load failure of a remote image and its error handler. The first image of a
+ * file to fail probes it and shares the result, so every image and card of
+ * that file agrees, including ones whose own image never loads.
+ */
+export const useRemoteImageFailure = (
+	fileId: string | undefined,
+	href: string,
+): [failure: AttachmentFailureState, onError: () => void] => {
 	const {
 		hasExpired,
 		markExpired,
@@ -445,20 +448,77 @@ const RemoteImageBlock: React.FC<{
 	);
 	const probeRequest = useLatestAbortController(isKnownExpired);
 
+	const onError = () => {
+		// Inline (data:) images can't be probed; the browser
+		// already failed to decode them, so fall straight to a
+		// generic failure tile.
+		if (fileId === undefined) {
+			setFailureState({ kind: "failed" });
+			return;
+		}
+		if (hasExpired(fileId)) {
+			setFailureState({ kind: "expired" });
+			return;
+		}
+		// Dedup: skip probe, context will propagate the result.
+		if (isPending(fileId)) {
+			setFailureState({ kind: "failed" });
+			return;
+		}
+
+		markPending(fileId);
+		const controller = probeRequest.start();
+		// Optimistically swap to the generic failure tile. The
+		// probe will either upgrade it to "expired" or fill in
+		// a detail; showing a tile without a label flash is
+		// preferable to leaving the broken-image icon up.
+		setFailureState({ kind: "failed" });
+
+		void probeAttachmentFailure(href, controller.signal)
+			.then((reason) => {
+				clearPending(fileId);
+				// Context writes stay above the clear() guard so
+				// siblings get the result even if this block unmounted.
+				if (reason.kind === "expired") {
+					markExpired(fileId);
+				}
+				setProbeResult(fileId, reason);
+				if (probeRequest.clear(controller)) {
+					setFailureState(reason);
+				}
+			})
+			.catch((error) => {
+				clearPending(fileId);
+				if (isAbortError(error)) {
+					return;
+				}
+				const failure = attachmentFailureFromError(error);
+				setProbeResult(fileId, failure);
+				if (probeRequest.clear(controller)) {
+					setFailureState(failure);
+				}
+			});
+	};
+
 	if (isKnownExpired) {
-		return (
-			<AttachmentFallbackTile
-				state={{ kind: "expired" }}
-				labels={imageAttachmentFailureLabels}
-			/>
-		);
+		return [{ kind: "expired" }, onError];
 	}
 	const sharedResult = fileId ? getProbeResult(fileId) : undefined;
-	const effectiveFailure = sharedResult ?? failureState;
-	if (effectiveFailure.kind !== "idle") {
+	return [sharedResult ?? failureState, onError];
+};
+
+const RemoteImageBlock: React.FC<{
+	fileId?: string;
+	href: string;
+	displayName: string;
+	onImageClick: (src: string) => void;
+}> = ({ fileId, href, displayName, onImageClick }) => {
+	const [failure, onError] = useRemoteImageFailure(fileId, href);
+
+	if (failure.kind !== "idle") {
 		return (
 			<AttachmentFallbackTile
-				state={effectiveFailure}
+				state={failure}
 				labels={imageAttachmentFailureLabels}
 			/>
 		);
@@ -478,57 +538,7 @@ const RemoteImageBlock: React.FC<{
 				previewUrl={href}
 				name={displayName}
 				className="cursor-pointer transition-opacity hover:opacity-80"
-				onError={() => {
-					// Inline (data:) images can't be probed; the browser
-					// already failed to decode them, so fall straight to a
-					// generic failure tile.
-					if (fileId === undefined) {
-						setFailureState({ kind: "failed" });
-						return;
-					}
-					if (hasExpired(fileId)) {
-						setFailureState({ kind: "expired" });
-						return;
-					}
-					// Dedup: skip probe, context will propagate the result.
-					if (isPending(fileId)) {
-						setFailureState({ kind: "failed" });
-						return;
-					}
-
-					markPending(fileId);
-					const controller = probeRequest.start();
-					// Optimistically swap to the generic failure tile. The
-					// probe will either upgrade it to "expired" or fill in
-					// a detail; showing a tile without a label flash is
-					// preferable to leaving the broken-image icon up.
-					setFailureState({ kind: "failed" });
-
-					void probeAttachmentFailure(href, controller.signal)
-						.then((reason) => {
-							clearPending(fileId);
-							// Context writes stay above the clear() guard so
-							// siblings get the result even if this block unmounted.
-							if (reason.kind === "expired") {
-								markExpired(fileId);
-							}
-							setProbeResult(fileId, reason);
-							if (probeRequest.clear(controller)) {
-								setFailureState(reason);
-							}
-						})
-						.catch((error) => {
-							clearPending(fileId);
-							if (isAbortError(error)) {
-								return;
-							}
-							const failure = attachmentFailureFromError(error);
-							setProbeResult(fileId, failure);
-							if (probeRequest.clear(controller)) {
-								setFailureState(failure);
-							}
-						});
-				}}
+				onError={onError}
 			/>
 		</button>
 	);

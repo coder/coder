@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { FileIcon, FileTextIcon } from "lucide-react";
-import { useState } from "react";
 import {
 	Popover,
 	PopoverContent,
@@ -8,11 +7,11 @@ import {
 } from "#/components/Popover/Popover";
 import { isRasterImageMediaType } from "../../utils/chatAttachments";
 import { ImageThumbnail } from "../AttachmentPreview";
+import { AgentAttachmentList } from "./AgentAttachmentList";
 import {
-	AgentAttachmentList,
-	isAgentAttachmentExpired,
-} from "./AgentAttachmentList";
-import { isTextPreviewAttachmentMediaType } from "./AttachmentBlocks";
+	isTextPreviewAttachmentMediaType,
+	useRemoteImageFailure,
+} from "./AttachmentBlocks";
 import { useFileProbes } from "./FileProbeContext";
 import type { AgentAttachment, TurnAttachmentList } from "./messageHelpers";
 
@@ -33,16 +32,14 @@ const StackSlot: React.FC<StackSlotProps> = ({ className, children }) => (
 
 type AttachmentThumbnailProps = {
 	attachment: AgentAttachment;
-	expired: boolean;
 };
 
 const AttachmentThumbnail: React.FC<AttachmentThumbnailProps> = ({
 	attachment: { file, href },
-	expired,
 }) => {
-	const [failed, setFailed] = useState(false);
+	const [failure, onError] = useRemoteImageFailure(file.file_id, href);
 
-	if (isRasterImageMediaType(file.media_type) && !expired && !failed) {
+	if (isRasterImageMediaType(file.media_type) && failure.kind === "idle") {
 		return (
 			<StackSlot>
 				<ImageThumbnail
@@ -50,14 +47,15 @@ const AttachmentThumbnail: React.FC<AttachmentThumbnailProps> = ({
 					name=""
 					className="size-full rounded-none border-0"
 					loading="lazy"
-					onError={() => setFailed(true)}
+					onError={onError}
 				/>
 			</StackSlot>
 		);
 	}
 
 	const Icon =
-		!expired && isTextPreviewAttachmentMediaType(file.media_type)
+		failure.kind !== "expired" &&
+		isTextPreviewAttachmentMediaType(file.media_type)
 			? FileTextIcon
 			: FileIcon;
 	return (
@@ -86,11 +84,7 @@ export const TurnAttachments: React.FC<TurnAttachmentsProps> = ({
 			>
 				<span aria-hidden className="inline-flex items-center">
 					{attachments.slice(0, THUMBNAIL_STACK_MAX).map((attachment) => (
-						<AttachmentThumbnail
-							key={attachment.key}
-							attachment={attachment}
-							expired={isAgentAttachmentExpired(attachment, hasExpired)}
-						/>
+						<AttachmentThumbnail key={attachment.key} attachment={attachment} />
 					))}
 					{overflow > 0 && (
 						<StackSlot className="w-auto min-w-5 px-0.5 text-2xs">

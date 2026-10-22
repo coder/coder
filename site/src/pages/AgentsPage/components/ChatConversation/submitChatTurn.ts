@@ -163,6 +163,7 @@ const runBuiltInChatCommand = async ({
 			try {
 				await compact();
 			} catch (error) {
+				store.clearCompactionRequest();
 				restoreOptimisticRequestSnapshot(store, previousSnapshot);
 				toast.error(getErrorMessage(error, "Failed to compact chat."));
 				throw error;

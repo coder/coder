@@ -127,8 +127,8 @@ export type ChatStoreState = {
 	// contained their promoted user rows.
 	promotedQueuedMessageIDs: ReadonlySet<number>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
-	// The newest durable message ID when a manual compaction was requested.
-	compactionRequestMessageID: number | null;
+	// null before any request, so it never matches a message ID.
+	latestMessageIDAtCompactionRequest: number | null;
 };
 
 export type ChatStore = {
@@ -179,6 +179,7 @@ export type ChatStore = {
 	clearSuppressedQueuedMessageIDs: () => void;
 	setChatStatus: (status: TypesGen.ChatStatus | null) => void;
 	markCompactionRequested: () => void;
+	clearCompactionRequest: () => void;
 	setStreamState: (streamState: StreamState | null) => void;
 	setStreamError: (reason: ChatDetailError | null) => void;
 	clearStreamError: () => void;
@@ -207,7 +208,7 @@ const createInitialState = (): ChatStoreState => ({
 	suppressedQueuedMessageIDs: new Set(),
 	promotedQueuedMessageIDs: new Set(),
 	subagentStatusOverrides: new Map(),
-	compactionRequestMessageID: null,
+	latestMessageIDAtCompactionRequest: null,
 });
 
 export const createChatStore = (): ChatStore => {
@@ -588,8 +589,14 @@ export const createChatStore = (): ChatStore => {
 		markCompactionRequested: () => {
 			setState((current) => ({
 				...current,
-				compactionRequestMessageID:
+				latestMessageIDAtCompactionRequest:
 					selectLatestDurableMessage(current)?.id ?? null,
+			}));
+		},
+		clearCompactionRequest: () => {
+			setState((current) => ({
+				...current,
+				latestMessageIDAtCompactionRequest: null,
 			}));
 		},
 		setActiveChatID: (chatID) => {
@@ -789,14 +796,14 @@ export const selectIsAwaitingFirstStreamChunk = (
 };
 
 /**
- * Whether a requested manual compaction has neither streamed nor saved a
- * message yet. It starts without a user message, so until then nothing else
- * tells the running chat apart from a turn that continues after its answer.
+ * Compaction adds no user message, so until it streams or saves anything, a
+ * running chat looks like one that continues after its answer.
  */
 export const selectIsCompactionStarting = (state: ChatStoreState): boolean =>
 	state.chatStatus === "running" &&
 	state.streamState === null &&
-	selectLatestDurableMessage(state)?.id === state.compactionRequestMessageID;
+	selectLatestDurableMessage(state)?.id ===
+		state.latestMessageIDAtCompactionRequest;
 
 export const useChatSelector = <T>(
 	store: ChatStore,

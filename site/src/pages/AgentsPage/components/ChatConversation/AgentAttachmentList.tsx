@@ -2,7 +2,7 @@ import { FileCard } from "./AttachmentBlocks";
 import type { AgentAttachment } from "./messageHelpers";
 
 /** Inline attachments carry no file ID, so only stored files can expire. */
-export const isAgentAttachmentExpired = (
+const isAgentAttachmentExpired = (
 	{ file }: AgentAttachment,
 	isExpired: (fileId: string) => boolean,
 ): boolean => file.file_id !== undefined && isExpired(file.file_id);

@@ -1039,10 +1039,6 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 	});
 });
 
-// ---------------------------------------------------------------------------
-// selectIsCompactionStarting
-// ---------------------------------------------------------------------------
-
 describe("selectIsCompactionStarting", () => {
 	const requestCompaction = () => {
 		const store = createChatStore();

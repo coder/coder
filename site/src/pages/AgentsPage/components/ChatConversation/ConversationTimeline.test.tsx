@@ -1,5 +1,6 @@
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
 import { QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -10,6 +11,7 @@ import {
 	createTestQueryClient,
 	renderComponent,
 } from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import {
@@ -337,6 +339,17 @@ const streamingStage = (
 	]),
 });
 
+/** MockMixedAttachmentMessages with its images stored as chat files. */
+const mockStoredImageAttachmentMessages: ChatMessage[] =
+	MockMixedAttachmentMessages.map((message) => ({
+		...message,
+		content: message.content?.map((part) =>
+			part.type === "file" && part.media_type === "image/png"
+				? { ...part, data: undefined, file_id: `stored-${part.name}` }
+				: part,
+		),
+	}));
+
 describe("ConversationTimeline turn attachments", () => {
 	const mixedTurnHrefs = [
 		`data:image/png;base64,${MockBluePngData}`,
@@ -425,6 +438,38 @@ describe("ConversationTimeline turn attachments", () => {
 
 		expect(await openAttachmentHrefs(user, "Attachments (4)")).toEqual(
 			mixedTurnHrefs,
+		);
+	});
+
+	it("stops offering a stored image whose thumbnail finds it deleted", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get(
+				"/api/v2/chats/files/:fileId",
+				() => new HttpResponse(null, { status: 404 }),
+			),
+		);
+		renderTimeline({ messages: mockStoredImageAttachmentMessages });
+		const pill = screen.getByRole("button", { name: "Attachments (4)" });
+
+		// Collapsed steps hide the image rows, so only the thumbnails load
+		// these files.
+		const thumbnails = within(pill).getAllByRole("img", { hidden: true });
+		for (const thumbnail of thumbnails) {
+			fireEvent.error(thumbnail);
+		}
+		await user.click(pill);
+
+		const popover = await screen.findByRole("dialog", { name: "Attachments" });
+		await waitFor(() =>
+			expect(
+				within(popover)
+					.getAllByRole("link")
+					.map((link) => link.getAttribute("href")),
+			).toEqual([
+				"/api/v2/chats/files/findings-file",
+				"/api/v2/chats/files/spec-file",
+			]),
 		);
 	});
 });

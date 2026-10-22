@@ -215,7 +215,9 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 					   "disconnected" state. The MonitorIcon variant still
 					   renders correctly. */}
 				<ConversationTimeline
-					hasMoreMessages={hasMoreMessages}
+					// The store takes in fetched pages in an effect, so until then the
+					// rows can miss history that hasMoreMessages already counts as loaded.
+					hasMoreMessages={hasMoreMessages || isHydratingMessages}
 					chatStatus={chatStatus}
 					organizationId={organizationId}
 					parsedMessages={parsedMessages}
