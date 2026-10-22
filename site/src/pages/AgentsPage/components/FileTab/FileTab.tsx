@@ -1,15 +1,7 @@
 import { isAxiosError } from "axios";
 import { cn } from "cn";
 import { TriangleAlertIcon } from "lucide-react";
-import {
-	lazy,
-	memo,
-	Suspense,
-	useEffect,
-	useEffectEvent,
-	useRef,
-	useState,
-} from "react";
+import { lazy, memo, Suspense, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
@@ -18,7 +10,6 @@ import {
 	workspaceAgentFileMaxTextBytes,
 	writeWorkspaceAgentFile,
 } from "#/api/queries/workspaceFiles";
-import type { WorkspaceAgentRepoChanges } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Loader } from "#/components/Loader/Loader";
@@ -51,10 +42,10 @@ type FileTabProps = {
 	path: string;
 	reveal: FileReveal | undefined;
 	/**
-	 * Git watcher state of the repository containing the file. A new object
-	 * means the repository changed, so the file is refetched.
+	 * Only the active tab reads the file. An inactive tab whose file was
+	 * refreshed rereads it when it becomes active.
 	 */
-	repository: WorkspaceAgentRepoChanges | undefined;
+	isActive: boolean;
 	draft: FileDraft | undefined;
 	onDraftChange: (path: string, update: FileDraftUpdate) => void;
 	/** Closes the tab, asking first when `hasUnsavedEdits`. */
@@ -84,7 +75,7 @@ export const FileTab = memo<FileTabProps>(
 		agentId,
 		path,
 		reveal,
-		repository,
+		isActive,
 		draft,
 		onDraftChange,
 		onClose,
@@ -93,9 +84,13 @@ export const FileTab = memo<FileTabProps>(
 		const queryClient = useQueryClient();
 		const fileQuery = useQuery({
 			...workspaceAgentFile(agentId, path),
-			// Files outside a repository have no change signal, so window
-			// focus is the only refresh.
-			refetchOnWindowFocus: repository === undefined,
+			enabled: isActive,
+			// The main tabs refresh files when they may have changed.
+			staleTime: Number.POSITIVE_INFINITY,
+			refetchOnWindowFocus: false,
+			// A closed tab drops the content, so reopening the file reads it
+			// again instead of showing a copy that no refresh reached.
+			gcTime: 0,
 		});
 		const writeMutation = useMutation(
 			writeWorkspaceAgentFile(queryClient, agentId),
@@ -130,22 +125,6 @@ export const FileTab = memo<FileTabProps>(
 				setPendingReveal({ focus: true });
 			}
 		};
-
-		const refetchFile = useEffectEvent(() => {
-			void fileQuery.refetch();
-		});
-		// The mount-time read already covers the repository state at mount.
-		// Later states restart a read in flight so the newest content wins.
-		const refetchedRepositoryRef = useRef(repository);
-		useEffect(() => {
-			if (refetchedRepositoryRef.current === repository) {
-				return;
-			}
-			refetchedRepositoryRef.current = repository;
-			if (repository) {
-				refetchFile();
-			}
-		}, [repository]);
 
 		const data = fileQuery.data;
 		const isImage = data?.contentType.startsWith("image/") ?? false;
@@ -265,7 +244,7 @@ export const FileTab = memo<FileTabProps>(
 
 		let body: React.ReactNode;
 		let showsEditor = false;
-		if (fileQuery.isLoading) {
+		if (fileQuery.isPending) {
 			body = <Loader label="Loading file" />;
 		} else if (!data) {
 			body = (
@@ -329,17 +308,17 @@ export const FileTab = memo<FileTabProps>(
 			);
 		}
 
-		const isLoading = fileQuery.isLoading;
+		const isPending = fileQuery.isPending;
 		// Content without an editor takes focus on the tab itself.
 		useEffect(() => {
-			if (!pendingReveal || isLoading || showsEditor) {
+			if (!pendingReveal || isPending || showsEditor) {
 				return;
 			}
 			if (pendingReveal.focus) {
 				rootRef.current?.focus();
 			}
 			setPendingReveal(undefined);
-		}, [pendingReveal, isLoading, showsEditor]);
+		}, [pendingReveal, isPending, showsEditor]);
 
 		return (
 			<div

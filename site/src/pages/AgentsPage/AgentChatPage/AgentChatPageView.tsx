@@ -646,6 +646,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 						</div>
 						<MainTabs
 							mainTabs={mainTabs}
+							store={store}
 							readOnly={isArchived || isOtherUserReadOnly}
 							filesEnabled={Boolean(workspaceFilesEnabled)}
 							focusChatInput={() => editing.chatInputRef.current?.focus()}
