@@ -283,10 +283,9 @@ export function WorkspacePathChip({
 export function EditableWorkspacePathChip({
 	path,
 	isDirectory,
-	selected,
 	onRemove,
 	className,
-}: FileReferenceChipSelectedProps & {
+}: {
 	path: string;
 	isDirectory: boolean;
 	onRemove: () => void;
@@ -297,11 +296,7 @@ export function EditableWorkspacePathChip({
 	return (
 		<span
 			data-slot="file-reference-chip"
-			className={cn(
-				fileReferenceChipVariants({ selected }),
-				"border-border-secondary bg-surface-tertiary text-content-primary",
-				className,
-			)}
+			className={cn(fileReferenceChipVariants({ editable: true }), className)}
 			contentEditable={false}
 			title={isDirectory ? `${path}/` : path}
 		>
