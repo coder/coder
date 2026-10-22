@@ -3,6 +3,7 @@ import { cn } from "cn";
 import {
 	$getNodeByKey,
 	DecoratorNode,
+	type DOMExportOutput,
 	type LexicalEditor,
 	type NodeKey,
 	type SerializedLexicalNode,
@@ -56,6 +57,14 @@ export class WorkspacePathNode extends DecoratorNode<React.ReactNode> {
 
 	updateDOM(): boolean {
 		return false;
+	}
+
+	// Copied HTML carries the sent text; createDOM's span is empty because
+	// decorate renders the chip.
+	exportDOM(_editor: LexicalEditor): DOMExportOutput {
+		const span = document.createElement("span");
+		span.textContent = this.getTextContent();
+		return { element: span };
 	}
 
 	exportJSON(): SerializedWorkspacePathNode {
