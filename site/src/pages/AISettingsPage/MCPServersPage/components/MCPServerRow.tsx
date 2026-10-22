@@ -33,8 +33,8 @@ export const MCPServerRow: React.FC<MCPServerRowProps> = ({
 						{server.display_name}
 					</span>
 					{!enabled && (
-						<Badge variant="default" className="shrink-0">
-							Disabled
+						<Badge asChild size="sm" variant="default" className="shrink-0">
+							<span>Disabled</span>
 						</Badge>
 					)}
 				</div>
