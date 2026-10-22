@@ -5,7 +5,10 @@ import { focusManager, QueryClientProvider } from "react-query";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API, type WorkspaceAgentFileContents } from "#/api/api";
-import type { WorkspaceAgentRepoChanges } from "#/api/typesGenerated";
+import type {
+	ChatMessage,
+	WorkspaceAgentRepoChanges,
+} from "#/api/typesGenerated";
 import { createDeferred } from "#/testHelpers/deferred";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { WorkspaceFilesContext } from "../../context/WorkspaceFilesContext";
@@ -186,6 +189,8 @@ const renderHarness = (
 		router,
 		setStreamState: (state: StreamState) =>
 			act(() => store.setStreamState(state)),
+		upsertMessages: (messages: readonly ChatMessage[]) =>
+			act(() => store.upsertDurableMessages(messages)),
 		setRepositories: (repositories: Repositories) =>
 			act(() => repositoriesStore.set(repositories)),
 	};
@@ -209,6 +214,42 @@ const fileToolStream = (
 	toolResults: { [id]: { id, name, isError: false } },
 	sources: [],
 });
+
+/** The durable messages of a completed write_file call. */
+const writeFileMessages = (
+	firstMessageID: number,
+	id: string,
+	path: string,
+): ChatMessage[] => [
+	{
+		id: firstMessageID,
+		chat_id: chatId,
+		created_at: "2026-01-01T00:00:00Z",
+		role: "assistant",
+		content: [
+			{
+				type: "tool-call",
+				tool_call_id: id,
+				tool_name: "write_file",
+				args: { path },
+			},
+		],
+	},
+	{
+		id: firstMessageID + 1,
+		chat_id: chatId,
+		created_at: "2026-01-01T00:00:01Z",
+		role: "tool",
+		content: [
+			{
+				type: "tool-result",
+				tool_call_id: id,
+				tool_name: "write_file",
+				result: {},
+			},
+		],
+	},
+];
 
 const getTab = (name: string | RegExp) => screen.getByRole("tab", { name });
 
@@ -549,6 +590,9 @@ describe("MainTabs", () => {
 			contentType: "text/plain; charset=utf-8",
 			etag: `"${content}"`,
 		});
+		// Lets a refresh that is due start its read.
+		const settle = () =>
+			act(() => new Promise((resolve) => setTimeout(resolve, 0)));
 
 		afterEach(() => {
 			focusManager.setFocused(undefined);
@@ -662,6 +706,47 @@ describe("MainTabs", () => {
 			);
 			await waitFor(() => {
 				expect(reads("/repo/a.go")).toBe(2);
+			});
+		});
+
+		it("rereads a file whose tool result arrives only in a durable message", async () => {
+			const user = userEvent.setup();
+			const { upsertMessages } = renderHarness(["/repo/a.go"]);
+			await user.click(screen.getByRole("button", { name: "Open /repo/a.go" }));
+			await screen.findByLabelText("File contents");
+			// History that loads after mount, and an older page loaded later,
+			// precede the reads at mount.
+			await upsertMessages(writeFileMessages(10, "call-1", "/repo/a.go"));
+			await upsertMessages(writeFileMessages(1, "call-0", "/repo/a.go"));
+			await settle();
+			expect(reads("/repo/a.go")).toBe(1);
+
+			await upsertMessages(writeFileMessages(20, "call-2", "/repo/a.go"));
+			await waitFor(() => {
+				expect(reads("/repo/a.go")).toBe(2);
+			});
+		});
+
+		it("rereads once for a tool result in the stream and then in its message", async () => {
+			const user = userEvent.setup();
+			const { setStreamState, upsertMessages } = renderHarness(["/repo/a.go"]);
+			await user.click(screen.getByRole("button", { name: "Open /repo/a.go" }));
+			await screen.findByLabelText("File contents");
+			await upsertMessages(writeFileMessages(1, "call-0", "/repo/b.go"));
+
+			setStreamState(
+				fileToolStream("call-1", "write_file", { path: "/repo/a.go" }),
+			);
+			await waitFor(() => {
+				expect(reads("/repo/a.go")).toBe(2);
+			});
+			await upsertMessages(writeFileMessages(3, "call-1", "/repo/a.go"));
+			await settle();
+			expect(reads("/repo/a.go")).toBe(2);
+
+			await upsertMessages(writeFileMessages(5, "call-2", "/repo/a.go"));
+			await waitFor(() => {
+				expect(reads("/repo/a.go")).toBe(3);
 			});
 		});
 

@@ -1,11 +1,15 @@
 import { useEffect, useEffectEvent, useRef } from "react";
 import { focusManager, useQueryClient } from "react-query";
 import { workspaceAgentFileKey } from "#/api/queries/workspaceFiles";
-import type { WorkspaceAgentRepoChanges } from "#/api/typesGenerated";
+import type {
+	ChatMessage,
+	WorkspaceAgentRepoChanges,
+} from "#/api/typesGenerated";
 import type { WorkspaceFilesContextValue } from "../../context/WorkspaceFilesContext";
 import {
 	type ChatStore,
 	type ChatStoreState,
+	selectMessagesByID,
 	useChatSelector,
 } from "../ChatConversation/chatStore";
 import { asString } from "../ChatElements/runtimeTypeUtils";
@@ -92,6 +96,42 @@ const matchesToolPath = (openPath: string, toolPath: string) =>
 const selectToolResults = (state: ChatStoreState) =>
 	state.streamState?.toolResults ?? null;
 
+type CompletedToolResult = { id: string; name: string };
+
+const getDurableToolResults = (
+	messages: ReadonlyMap<number, ChatMessage>,
+	afterMessageID: number,
+) => {
+	const results: CompletedToolResult[] = [];
+	for (const [messageID, message] of messages) {
+		if (messageID <= afterMessageID) {
+			continue;
+		}
+		for (const part of message.content ?? []) {
+			if (part.type === "tool-result" && part.tool_call_id && part.tool_name) {
+				results.push({ id: part.tool_call_id, name: part.tool_name });
+			}
+		}
+	}
+	return results;
+};
+
+/** The args of a tool call, from the stream or a durable message. */
+const findToolCallArgs = (state: ChatStoreState, id: string): unknown => {
+	const streamed = state.streamState?.toolCalls[id];
+	if (streamed) {
+		return streamed.args;
+	}
+	for (const message of state.messagesByID.values()) {
+		for (const part of message.content ?? []) {
+			if (part.type === "tool-call" && part.tool_call_id === id) {
+				return part.args;
+			}
+		}
+	}
+	return undefined;
+};
+
 /**
  * Rereads open files when something may have changed them: the window
  * regains focus, the git watcher reports a new diff for the file, or a
@@ -107,6 +147,7 @@ export const useFileTabRefresh = ({
 	const queryClient = useQueryClient();
 	const repositories = workspaceFiles?.repositories;
 	const toolResults = useChatSelector(store, selectToolResults);
+	const messages = useChatSelector(store, selectMessagesByID);
 
 	const refresh = useEffectEvent((refreshed: readonly string[]) => {
 		if (!workspaceFiles) {
@@ -166,28 +207,26 @@ export const useFileTabRefresh = ({
 		}
 	}, [repositories]);
 
-	// Results already complete at mount belong to writes the mount-time
-	// reads already see.
-	const handledToolCallsRef = useRef<Set<string>>(undefined);
+	// A result can show in the stream and again in its durable message, so
+	// each tool call refreshes once.
+	const handledToolCallsRef = useRef(new Set<string>());
+	/**
+	 * Rereads the files that the results' tool calls wrote. Baseline results
+	 * are only recorded: the reads at mount already cover their writes.
+	 */
 	const refreshWrittenFiles = useEffectEvent(
-		(results: NonNullable<typeof toolResults>) => {
-			const toolCalls = store.getSnapshot().streamState?.toolCalls ?? {};
-			const isInitial = handledToolCallsRef.current === undefined;
-			const handled = handledToolCallsRef.current ?? new Set();
-			handledToolCallsRef.current = handled;
+		(results: readonly CompletedToolResult[], isBaseline: boolean) => {
+			const handled = handledToolCallsRef.current;
+			const state = store.getSnapshot();
 			const toolPaths: string[] = [];
-			for (const result of Object.values(results)) {
-				if (
-					result.isStreaming ||
-					!fileToolNames.has(result.name) ||
-					handled.has(result.id)
-				) {
+			for (const result of results) {
+				if (!fileToolNames.has(result.name) || handled.has(result.id)) {
 					continue;
 				}
 				handled.add(result.id);
-				if (!isInitial) {
+				if (!isBaseline) {
 					toolPaths.push(
-						...getToolPaths(result.name, toolCalls[result.id]?.args),
+						...getToolPaths(result.name, findToolCallArgs(state, result.id)),
 					);
 				}
 			}
@@ -198,11 +237,30 @@ export const useFileTabRefresh = ({
 			);
 		},
 	);
+
+	const isStreamBaselineRef = useRef(true);
 	useEffect(() => {
-		if (toolResults) {
-			refreshWrittenFiles(toolResults);
-		} else if (!handledToolCallsRef.current) {
-			handledToolCallsRef.current = new Set();
-		}
+		const results = Object.values(toolResults ?? {}).filter(
+			(result) => !result.isStreaming,
+		);
+		refreshWrittenFiles(results, isStreamBaselineRef.current);
+		isStreamBaselineRef.current = false;
 	}, [toolResults]);
+
+	// A batch that commits a turn's messages clears its stream state in the
+	// same update, so a result can reach only the durable messages. Message
+	// IDs grow, so the history at its first load, and older pages loaded
+	// later, stay baseline.
+	const lastBaselineMessageIDRef = useRef<number>(undefined);
+	useEffect(() => {
+		const baselineID = lastBaselineMessageIDRef.current;
+		if (baselineID !== undefined) {
+			refreshWrittenFiles(getDurableToolResults(messages, baselineID), false);
+			return;
+		}
+		if (messages.size > 0) {
+			lastBaselineMessageIDRef.current = Math.max(...messages.keys());
+			refreshWrittenFiles(getDurableToolResults(messages, 0), true);
+		}
+	}, [messages]);
 };
