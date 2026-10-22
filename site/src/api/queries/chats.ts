@@ -5,6 +5,7 @@ import {
 	type QueryClient,
 	type QueryKey,
 	queryOptions,
+	skipToken,
 } from "react-query";
 import {
 	API,
@@ -20,6 +21,7 @@ import {
 	reconcileEditedMessageInCache,
 } from "./chatMessageEdits";
 import { organizationsPermissions } from "./organizations";
+import { disabledRefetchOptions } from "./util";
 import { workspaceQuotaKey } from "./workspaceQuota";
 import { invalidateWorkspaceListQueries } from "./workspaces";
 
@@ -1630,33 +1632,37 @@ export const chatPromptsQuery = (chatId: string) => ({
 const chatAttachmentsFamilyKey = (chatId: string) =>
 	[...chatEntityKey(chatId), "attachments"] as const;
 
-export const chatAttachmentsKey = (chatId: string, beforeId: number) =>
-	[...chatAttachmentsFamilyKey(chatId), beforeId] as const;
+export const chatAttachmentsKey = (
+	chatId: string,
+	beforeId: number | undefined,
+) => [...chatAttachmentsFamilyKey(chatId), beforeId] as const;
 
 /**
- * Attachments in a chat's messages before `beforeId`, newest first; 0 lists
- * every attachment. A cached list for a later boundary holds every entry of
- * an earlier one, so it seeds that boundary without a request.
+ * Attachments in a chat's messages before `beforeId`, newest first. A cached
+ * list for a later boundary holds every entry of an earlier one, so it seeds
+ * that boundary without a request.
  */
 export const chatAttachments = (
 	queryClient: QueryClient,
 	chatId: string,
-	beforeId: number,
+	beforeId: number | undefined,
 ) =>
 	queryOptions({
 		queryKey: chatAttachmentsKey(chatId, beforeId),
-		queryFn: ({ signal }) =>
-			API.experimental.getChatAttachments(
-				chatId,
-				beforeId > 0 ? { before_id: beforeId } : undefined,
-				signal,
-			),
-		// History before an existing message only loses a suffix (an edit
-		// deletes the edited message and every later one), so a boundary's
-		// list never changes.
+		queryFn:
+			beforeId === undefined
+				? skipToken
+				: ({ signal }) =>
+						API.experimental.getChatAttachments(
+							chatId,
+							{ before_id: beforeId },
+							signal,
+						),
+		// An edit deletes the edited message and every later one, so the
+		// history before a message that still exists never changes.
 		staleTime: Number.POSITIVE_INFINITY,
 		initialData: () => {
-			if (beforeId <= 0) {
+			if (beforeId === undefined) {
 				return undefined;
 			}
 			const covering = queryClient
@@ -3259,6 +3265,19 @@ export const deleteChatModel = (queryClient: QueryClient) => ({
 
 export const chatFileTextKey = (fileId: string) =>
 	[...chatFilesKey, fileId, "text"] as const;
+
+/**
+ * A stored file's text never changes, so the cache keeps it, or a deleted
+ * file's 404, for the session. Observers never fetch: a view calls `refetch`,
+ * so a long chat requests only the files someone opens.
+ */
+export const chatFileText = (fileId: string) =>
+	queryOptions({
+		queryKey: chatFileTextKey(fileId),
+		queryFn: () => API.experimental.getChatFileText(fileId),
+		enabled: false,
+		...disabledRefetchOptions,
+	});
 
 const GATEWAY_REQUEST_STALE_MS = 30_000;
 

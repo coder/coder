@@ -1748,12 +1748,6 @@ describe("chatAttachments", () => {
 			beforeId: 10,
 			seeded: false,
 		},
-		{
-			name: "fetches every attachment for boundary 0",
-			chatId: "chat-1",
-			beforeId: 0,
-			seeded: false,
-		},
 	])("$name", ({ chatId, beforeId, seeded }) => {
 		vi.mocked(API.experimental.getChatAttachments).mockReturnValue(
 			new Promise(() => {}),
@@ -1777,6 +1771,18 @@ describe("chatAttachments", () => {
 		expect(API.experimental.getChatAttachments).toHaveBeenCalledTimes(
 			seeded ? 0 : 1,
 		);
+		unsubscribe();
+	});
+
+	it("requests nothing until a boundary exists", () => {
+		const queryClient = createTestQueryClient();
+		const observer = new QueryObserver(
+			queryClient,
+			chatAttachments(queryClient, "chat-1", undefined),
+		);
+		const unsubscribe = observer.subscribe(() => {});
+
+		expect(API.experimental.getChatAttachments).not.toHaveBeenCalled();
 		unsubscribe();
 	});
 });

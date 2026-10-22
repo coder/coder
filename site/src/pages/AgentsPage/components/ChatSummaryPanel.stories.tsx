@@ -13,6 +13,7 @@ import {
 	MockChatFileMetadata,
 	MockChatMessage,
 } from "#/testHelpers/chatEntities";
+import { MockPngBase64 } from "#/testHelpers/files";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { attachmentStepMessages } from "./ChatConversation/storyFixtures";
@@ -82,6 +83,20 @@ const meta: Meta<typeof ChatSummaryPanel> = {
 export default meta;
 type Story = StoryObj<typeof ChatSummaryPanel>;
 
+const mockUploadPart: TypesGen.ChatFilePart = {
+	type: "file",
+	media_type: "text/plain",
+	name: "uploaded-ci.log",
+	file_id: "upload-file",
+};
+
+const mockScreenshotPart: TypesGen.ChatFilePart = {
+	type: "file",
+	media_type: "image/png",
+	name: "ci-dashboard.png",
+	data: MockPngBase64,
+};
+
 const mockAttachmentMessages: TypesGen.ChatMessage[] = [
 	{
 		...MockChatMessage,
@@ -89,12 +104,7 @@ const mockAttachmentMessages: TypesGen.ChatMessage[] = [
 		role: "user",
 		content: [
 			{ type: "text", text: "Here is the failing log." },
-			{
-				type: "file",
-				media_type: "text/plain",
-				name: "uploaded-ci.log",
-				file_id: "upload-file",
-			},
+			mockUploadPart,
 		],
 	},
 	...attachmentStepMessages({
@@ -117,12 +127,7 @@ const mockAttachmentMessages: TypesGen.ChatMessage[] = [
 		callAt: 3,
 		toolName: "computer",
 		args: { action: "screenshot" },
-		file: {
-			type: "file",
-			media_type: "image/png",
-			name: "ci-dashboard.png",
-			file_id: "screenshot-file",
-		},
+		file: mockScreenshotPart,
 		result: { data: "", mime_type: "image/png" },
 	}),
 ];
@@ -248,24 +253,14 @@ const mockEarlierScreenshot: TypesGen.ChatAttachment = {
 	...MockChatAttachment,
 	message_id: 6,
 	role: "assistant",
-	file: {
-		type: "file",
-		media_type: "image/png",
-		name: "ci-dashboard.png",
-		file_id: "screenshot-file",
-	},
+	file: mockScreenshotPart,
 };
 
 const mockEarlierUpload: TypesGen.ChatAttachment = {
 	...MockChatAttachment,
 	message_id: 1,
 	part_index: 1,
-	file: {
-		type: "file",
-		media_type: "text/plain",
-		name: "uploaded-ci.log",
-		file_id: "upload-file",
-	},
+	file: mockUploadPart,
 };
 
 export const WithEarlierAttachments: Story = {
@@ -338,16 +333,16 @@ export const LiveMessageArriving: Story = {
 	},
 };
 
-const mockScreenshotFile: TypesGen.ChatFileMetadata = {
+const mockRunsFile: TypesGen.ChatFileMetadata = {
 	...MockChatFileMetadata,
-	id: "screenshot-file",
-	name: "ci-dashboard.png",
-	mime_type: "image/png",
+	id: "runs-file",
+	name: "flaky-runs.csv",
+	mime_type: "text/csv",
 };
 
-const mockScreenshotOnlyChat: TypesGen.Chat = {
+const mockRunsOnlyChat: TypesGen.Chat = {
 	...MockChat,
-	files: [mockScreenshotFile],
+	files: [mockRunsFile],
 };
 
 export const ExpiredAttachment: Story = {
@@ -356,7 +351,7 @@ export const ExpiredAttachment: Story = {
 	),
 	parameters: {
 		queries: [
-			{ key: chatEntityKey(MockChat.id), data: mockScreenshotOnlyChat },
+			{ key: chatEntityKey(MockChat.id), data: mockRunsOnlyChat },
 			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
 		],
 	},
@@ -369,9 +364,9 @@ const mockReportFile: TypesGen.ChatFileMetadata = {
 	mime_type: "text/csv",
 };
 
-const mockReportAndScreenshotChat: TypesGen.Chat = {
+const mockReportOnlyChat: TypesGen.Chat = {
 	...MockChat,
-	files: [mockReportFile, mockScreenshotFile],
+	files: [mockReportFile],
 };
 
 export const ExpiredEarlierAttachment: Story = {
@@ -379,7 +374,7 @@ export const ExpiredEarlierAttachment: Story = {
 	render: renderWithLatestMessages,
 	parameters: {
 		queries: [
-			{ key: chatEntityKey(MockChat.id), data: mockReportAndScreenshotChat },
+			{ key: chatEntityKey(MockChat.id), data: mockReportOnlyChat },
 			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
 			{
 				key: chatAttachmentsKey(MockChat.id, mockLatestMessages[0].id),

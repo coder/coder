@@ -17,7 +17,6 @@ import {
 	type AttachmentFailure,
 	attachmentFailureFromError,
 	getAttachmentHref,
-	handleAttachmentDownloadClick,
 	isAbortError,
 	isRasterImageMediaType,
 	probeAttachmentFailure,
@@ -28,6 +27,10 @@ import {
 	formatTextAttachmentPreview,
 } from "../../utils/fetchTextAttachment";
 import { ImageThumbnail } from "../AgentChatInput";
+import {
+	type AttachmentDownload,
+	AttachmentDownloadLink,
+} from "./AttachmentDownloadLink";
 import { useFileProbes } from "./FileProbeContext";
 import type { RenderBlock } from "./types";
 
@@ -109,9 +112,11 @@ const getAttachmentExtension = (
 	);
 };
 
-const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
+/** Plain text, Markdown, CSV, and JSON open in the text preview, whatever the file's name. */
+export const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
 	TEXT_ATTACHMENT_MEDIA_TYPES.has(mediaType);
 
+/** The file's name, or a label for its kind when it has none. */
 export const getAttachmentDisplayName = (
 	block: Pick<FileAttachmentBlock, "media_type" | "name">,
 ): string => {
@@ -151,31 +156,25 @@ const getAttachmentBadgeLabel = (
 	return extension === "file" ? "" : extension.toUpperCase();
 };
 
-const DownloadOverlay: React.FC<{
-	href: string;
-	displayName: string;
-	downloadName: string;
-	mediaType: string;
-}> = ({ href, displayName, downloadName, mediaType }) => {
-	return (
-		<a
-			href={href}
-			download={downloadName}
-			onClick={(event) => {
-				event.stopPropagation();
-				void handleAttachmentDownloadClick(event, {
-					href,
-					fileName: downloadName,
-					mediaType,
-				});
-			}}
-			aria-label={`Download ${displayName}`}
-			className="invisible absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-xs backdrop-blur-xs transition-opacity hover:text-content-primary group-hover/attachment:visible group-hover/attachment:opacity-100 group-focus-within/attachment:visible group-focus-within/attachment:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
-		>
-			<DownloadIcon aria-hidden="true" className="size-3.5" />
-		</a>
-	);
-};
+/** A nameless image shows as "Attached image" but saves as "attachment.png". */
+export const getAttachmentDownload = (
+	block: FileAttachmentBlock,
+	href: string,
+): AttachmentDownload => ({
+	href,
+	displayName: getAttachmentDisplayName(block),
+	downloadName: getAttachmentDownloadName(block),
+	mediaType: block.media_type,
+});
+
+const DownloadOverlay: React.FC<AttachmentDownload> = (download) => (
+	<AttachmentDownloadLink
+		{...download}
+		className="invisible absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-xs backdrop-blur-xs transition-opacity hover:text-content-primary group-hover/attachment:visible group-hover/attachment:opacity-100 group-focus-within/attachment:visible group-focus-within/attachment:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+	>
+		<DownloadIcon aria-hidden="true" className="size-3.5" />
+	</AttachmentDownloadLink>
+);
 
 const AttachmentPreviewFrame: React.FC<{
 	href: string;
@@ -209,13 +208,18 @@ const imageAttachmentFailureLabels: AttachmentFailureLabels = {
 	failed: "Image failed to load",
 };
 
-const fileAttachmentFailureLabels: AttachmentFailureLabels = {
+/** Status copy for a non-image file that is gone (`expired`) or would not load (`failed`). */
+export const fileAttachmentFailureLabels: AttachmentFailureLabels = {
 	expired: "Attachment expired",
 	failed: "Attachment failed to load",
 };
 
+/**
+ * Describes the eviction in coderd/database/queries/chats.sql and the
+ * retention purge in coderd/database/dbpurge/dbpurge.go.
+ */
 export const expiredAttachmentExplanation =
-	"Attaching a file beyond a chat's attachment limit permanently deletes the chat's earliest-uploaded attachments. Attachments that no chat references are deleted after this deployment's retention window.";
+	"Attaching a file beyond a chat's attachment limit permanently deletes the chat's earliest-uploaded attachments. When conversation retention is on, attachments that no chat references are deleted after the retention period.";
 
 const AttachmentFallbackTile: React.FC<{
 	state: AttachmentFailure;
@@ -475,7 +479,7 @@ const RemoteImageBlock: React.FC<{
 		>
 			<ImageThumbnail
 				previewUrl={href}
-				name={displayName}
+				alt={displayName}
 				className="cursor-pointer transition-opacity hover:opacity-80"
 				onError={() => {
 					// Inline (data:) images can't be probed; the browser
@@ -533,6 +537,43 @@ const RemoteImageBlock: React.FC<{
 	);
 };
 
+const FileTypeTile: React.FC<{ block: FileAttachmentBlock }> = ({ block }) => {
+	const badgeLabel = getAttachmentBadgeLabel(block);
+	return badgeLabel ? (
+		<span className="text-[10px] font-semibold tracking-wide text-content-secondary">
+			{badgeLabel}
+		</span>
+	) : (
+		<FileIcon aria-hidden="true" className="size-4 text-content-secondary" />
+	);
+};
+
+/**
+ * `tile` replaces the type badge, and `nameId` and `statusId` let a card's
+ * control take its name from the visible text.
+ */
+export const FileCardDetails: React.FC<{
+	block: FileAttachmentBlock;
+	status: string;
+	tile?: React.ReactNode;
+	nameId?: string;
+	statusId?: string;
+}> = ({ block, status, tile, nameId, statusId }) => (
+	<>
+		<span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface-secondary">
+			{tile ?? <FileTypeTile block={block} />}
+		</span>
+		<span className="min-w-0 flex-1">
+			<span id={nameId} className="block truncate text-sm text-content-primary">
+				{getAttachmentDisplayName(block)}
+			</span>
+			<span id={statusId} className="block text-xs text-content-secondary">
+				{status}
+			</span>
+		</span>
+	</>
+);
+
 /**
  * Download card for a chat file, or the expired tile. Callers decide expiry;
  * the card never probes the file.
@@ -542,11 +583,8 @@ export const FileCard: React.FC<{
 	href: string;
 	expired: boolean;
 	fullWidth?: boolean;
-}> = ({ block, href, expired, fullWidth = false }) => {
-	const displayName = getAttachmentDisplayName(block);
-	const downloadName = getAttachmentDownloadName(block);
-	const badgeLabel = getAttachmentBadgeLabel(block);
-
+	ref?: React.RefCallback<HTMLElement>;
+}> = ({ block, href, expired, fullWidth = false, ref }) => {
 	if (expired) {
 		return (
 			<AttachmentFallbackTile
@@ -558,46 +596,20 @@ export const FileCard: React.FC<{
 	}
 
 	return (
-		<a
-			href={href}
-			download={downloadName}
-			onClick={(event) => {
-				event.stopPropagation();
-				void handleAttachmentDownloadClick(event, {
-					href,
-					fileName: downloadName,
-					mediaType: block.media_type,
-				});
-			}}
-			aria-label={`Download ${displayName}`}
+		<AttachmentDownloadLink
+			{...getAttachmentDownload(block, href)}
+			ref={ref}
 			className={cn(
 				"inline-flex h-16 items-center gap-3 rounded-md border border-solid border-border bg-surface-tertiary px-3 py-2 no-underline transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 				fullWidth ? "w-full" : "max-w-sm",
 			)}
 		>
-			<div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-surface-secondary">
-				{badgeLabel ? (
-					<span className="text-[10px] font-semibold tracking-wide text-content-secondary">
-						{badgeLabel}
-					</span>
-				) : (
-					<FileIcon
-						aria-hidden="true"
-						className="size-4 text-content-secondary"
-					/>
-				)}
-			</div>
-			<div className="min-w-0 flex-1">
-				<div className="truncate text-sm text-content-primary">
-					{displayName}
-				</div>
-				<div className="text-xs text-content-secondary">Download file</div>
-			</div>
+			<FileCardDetails block={block} status="Download file" />
 			<DownloadIcon
 				aria-hidden="true"
 				className="size-4 shrink-0 text-content-secondary"
 			/>
-		</a>
+		</AttachmentDownloadLink>
 	);
 };
 

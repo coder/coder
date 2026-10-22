@@ -2229,19 +2229,6 @@ export const ChatAttachmentMediaTypes: ChatAttachmentMediaType[] = [
 
 // From codersdk/chats.go
 /**
- * ChatAttachmentsOptions are optional query parameters for
- * GetChatAttachments.
- */
-export interface ChatAttachmentsOptions {
-	/**
-	 * BeforeID, when > 0, restricts results to messages with id strictly
-	 * less than BeforeID. 0 returns every attachment in the chat.
-	 */
-	readonly BeforeID: number;
-}
-
-// From codersdk/chats.go
-/**
  * ChatAttachmentsResponse is the payload of
  * GET /api/v2/chats/{chat}/attachments. Attachments are returned newest
  * first.

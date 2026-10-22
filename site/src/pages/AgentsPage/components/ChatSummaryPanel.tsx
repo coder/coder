@@ -16,7 +16,7 @@ import { ChatSummary } from "./ChatSummary";
 
 type ChatSummaryPanelProps = {
 	chatId: string;
-	/** Gate reads on tab visibility so the chat and cost queries don't run while the tab is hidden. */
+	/** Gate reads on tab visibility so the chat, cost, and attachments queries don't run while the tab is hidden. */
 	isVisible: boolean;
 	store: ChatStore;
 } & Pick<EarlierMessagesProps, "hasMoreMessages" | "isHydratingMessages">;
@@ -42,9 +42,8 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	const messages = useChatMessages(store);
 	const oldestLoadedMessageId = messages.at(0)?.id;
 	const earlierAttachmentsQuery = useQuery({
-		...chatAttachments(queryClient, chatId, oldestLoadedMessageId ?? 0),
-		enabled:
-			isVisible && hasMoreMessages && oldestLoadedMessageId !== undefined,
+		...chatAttachments(queryClient, chatId, oldestLoadedMessageId),
+		enabled: isVisible && hasMoreMessages,
 	});
 	const earlierAttachments =
 		hasMoreMessages && earlierAttachmentsQuery.data
