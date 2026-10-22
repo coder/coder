@@ -423,6 +423,11 @@ export const FileTab = memo<FileTabProps>(
 								variant={viewMode === "preview" ? "outline" : "subtle"}
 								aria-pressed={viewMode === "preview"}
 								onClick={() => setMode("preview")}
+								title={
+									isLargeFile
+										? "Rendering a large file can freeze the page for several seconds"
+										: undefined
+								}
 							>
 								{isLargeFile ? "Preview (large file)" : "Preview"}
 							</Button>
