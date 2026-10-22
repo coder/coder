@@ -13,6 +13,7 @@ import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	workspaceAgentFile,
 	workspaceAgentFileKey,
+	workspaceAgentFileMaxTextBytes,
 	writeWorkspaceAgentFile,
 } from "#/api/queries/workspaceFiles";
 import type { WorkspaceAgentRepoChanges } from "#/api/typesGenerated";
@@ -116,7 +117,8 @@ export const FileTab = memo<FileTabProps>(
 
 		const data = fileQuery.data;
 		const isImage = data?.contentType.startsWith("image/") ?? false;
-		const text = data && !isImage ? decodeUtf8(data.data) : undefined;
+		const text =
+			data && !isImage && !data.partial ? decodeUtf8(data.data) : undefined;
 		const isText = text !== undefined && !isBinaryData(text);
 		const value = draft?.content ?? text ?? "";
 		const hasExternalChange =
@@ -219,6 +221,20 @@ export const FileTab = memo<FileTabProps>(
 				<FileLoadError
 					error={fileQuery.error}
 					onRetry={() => void fileQuery.refetch()}
+				/>
+			);
+		} else if (data.partial === "too-large") {
+			body = (
+				<EmptyState
+					message="File too large"
+					description={`Files over ${workspaceAgentFileMaxTextBytes / (1 << 20)} MiB do not open here. Open it in an editor in the workspace.`}
+				/>
+			);
+		} else if (data.partial === "binary") {
+			body = (
+				<EmptyState
+					message="Binary file"
+					description="Binary files cannot be displayed."
 				/>
 			);
 		} else if (isImage) {
