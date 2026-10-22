@@ -22,6 +22,7 @@ export const MCPServerRow: React.FC<MCPServerRowProps> = ({
 	const clickableProps = useClickableTableRow({
 		onClick: () => onClick?.(),
 	});
+	const enabled = server.enabled;
 
 	return (
 		<TableRow {...(onClick ? clickableProps : {})}>
@@ -31,9 +32,9 @@ export const MCPServerRow: React.FC<MCPServerRowProps> = ({
 					<span className="truncate text-sm font-medium text-content-primary">
 						{server.display_name}
 					</span>
-					{!server.enabled && (
-						<Badge asChild size="sm" variant="default" className="shrink-0">
-							<span>Disabled</span>
+					{!enabled && (
+						<Badge variant="default" className="shrink-0">
+							Disabled
 						</Badge>
 					)}
 				</div>
@@ -42,7 +43,7 @@ export const MCPServerRow: React.FC<MCPServerRowProps> = ({
 				{AUTH_TYPE_LABELS[server.auth_type] ?? server.auth_type}
 			</TableCell>
 			<TableCell className="text-sm">
-				{server.enabled
+				{enabled
 					? (AVAILABILITY_LABELS[server.availability] ?? server.availability)
 					: DISABLED_AVAILABILITY_LABEL}
 			</TableCell>
