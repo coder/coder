@@ -4333,6 +4333,32 @@ func TestListChatModelConfigs(t *testing.T) {
 		require.Contains(t, invokeModelByProvider, mantle.ID)
 		require.False(t, invokeModelByProvider[mantle.ID])
 	})
+
+	t.Run("BedrockDescriptorToleratesCorruptSettings", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		// Bedrock providers always support ambient credentials, so listing
+		// them must not depend on decoding their settings.
+		provider := dbgen.AIProvider(t, db, database.AIProvider{
+			Type:     database.AIProviderTypeBedrock,
+			Settings: sql.NullString{String: `{"bedrock":`, Valid: true},
+		})
+
+		response, err := client.ChatModels(ctx, firstUser.OrganizationID)
+		require.NoError(t, err)
+		for _, descriptor := range response.Providers {
+			if descriptor.ID == provider.ID {
+				require.True(t, descriptor.HasEffectiveAPIKey)
+				require.False(t, descriptor.BedrockInvokeModel)
+				return
+			}
+		}
+		t.Fatal("bedrock provider descriptor not found")
+	})
 }
 
 func TestGetChatModel(t *testing.T) {

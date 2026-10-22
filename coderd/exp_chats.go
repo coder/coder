@@ -8404,14 +8404,18 @@ func (api *API) chatModelProviderDescriptors(
 			}
 		}
 		hasUserKey := userKeyStatus[provider.ID]
-		settings, err := db2sdk.AIProviderSettings(provider.Settings)
-		if err != nil {
-			return nil, xerrors.Errorf("decode AI provider settings: %w", err)
-		}
+		settings, settingsErr := db2sdk.AIProviderSettings(provider.Settings)
 		// Some provider configurations support ambient credentials rather than a
 		// stored key. Actual credential availability is checked by the gateway.
-		supportsAmbientCredentials := provider.Type == database.AIProviderTypeBedrock ||
-			aiProviderSupportsAmbientCredentials(settings)
+		// Bedrock always supports them, so its settings are only needed for the
+		// InvokeModel hint, which corrupt settings leave false.
+		supportsAmbientCredentials := provider.Type == database.AIProviderTypeBedrock
+		if !supportsAmbientCredentials {
+			if settingsErr != nil {
+				return nil, xerrors.Errorf("decode AI provider settings: %w", settingsErr)
+			}
+			supportsAmbientCredentials = aiProviderSupportsAmbientCredentials(settings)
+		}
 		out = append(out, codersdk.ChatModelProviderDescriptor{
 			ID:                 provider.ID,
 			Type:               string(provider.Type),
