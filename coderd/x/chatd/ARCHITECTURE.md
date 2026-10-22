@@ -80,7 +80,7 @@ The shorthands in the table below use the convention that the first 1 or 2 lette
 | `W` | `waiting` | empty | `false` | There's no work to be done by the chat worker |
 | `E0` | `error` | empty | `false` | The worker encountered an unrecoverable error while processing the chat. There's no more work to be done by the chat worker |
 | `E1` | `error` | non-empty | `false` | The worker encountered an unrecoverable error while processing the chat, and there's currently no work to be done by the chat worker. There's a queued message that should be processed once the error is cleared |
-| `E1P` | `error` | non-empty, head blocked | `false` | The worker encountered an unrecoverable error while processing the chat, and the queue head is under edit. There's no work to be done by the chat worker. Sending a new message appends it to the queue and leaves the head queued |
+| `E1P` | `error` | non-empty, head blocked | `false` | The worker encountered an unrecoverable error while processing the chat, and the queue head is under edit. There's no work to be done by the chat worker |
 | `R0` | `running` | empty | `false` | Running state with no queued messages: a chat worker should be processing the chat |
 | `R1` | `running` | non-empty | `false` | Running state with queued messages: a chat worker should be processing the chat, and there's a queued message that should be processed next |
 | `R1P` | `running` | non-empty, head blocked | `false` | Running state with the queue head under edit: a chat worker should be processing the chat. When the turn finishes, the head is not promoted and the chat enters `paused` |
@@ -95,8 +95,6 @@ The shorthands in the table below use the convention that the first 1 or 2 lette
 | `XE0` | `error` | empty | `true` | The chat was archived while it was in the `error` state, it will go back to `error` once unarchived |
 | `XE1` | `error` | non-empty | `true` | The chat was archived while it was in the `error` state, it will go back to `error` once unarchived, and there's a queued message that should be processed once the error is cleared |
 | `XE1P` | `error` | non-empty, head blocked | `true` | The chat was archived while it was in the `error` state with the queue head under edit; it will go back to `E1P` once unarchived |
-
-TODO: the `E1P` row says a new message is appended to the queue; that holds for `busy_behavior=queue` only. An interrupt inserts the message directly and reaches `R1P`.
 
 If these states seem arbitrary and abstract at this point, that's expected. Each one of these states is needed by some runtime component of chatd for some specific use case, and their purpose will emerge as we discuss the implementation of the HTTP endpoints and the chat worker.
 
@@ -133,10 +131,8 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `Create(initialMessages, initialStatus)` creates a new chat, initializes `snapshot_version` to 1, inserts its initial history, and lands in `initialStatus`. The initial status defaults to `running`; a caller can request `waiting` instead to create an idle chat, which starts running with its first `SendMessage`. The inserted initial history sets `history_version` to 1. Since the queue has not changed, `queue_version` remains 0. This transition is a special case: since the chat does not exist at the time it's run, the chat row cannot be locked before the transition is applied.
 - When `Create(initialMessages, initialStatus)` creates a child chat, it first locks the family's root chat row with `FOR SHARE` and fails if the root is archived, so a new child never joins an archived family.
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
-- `SetProject(project)` sets or clears the project of one chat without changing its execution state. A move of a root chat applies it to the root and each descendant in one transaction, and fails without changing any chat if one of them isn't in `W`, `E0` or `E1`. Only the root's `project_id` changes; subagents go through `SetProject` only so that their execution state is checked too. As in a family archive, the root row is locked first, so a concurrent child creation either joins the move or waits for it. A move to the root's current project applies no transition.
-  - TODO: `SetProject` is also allowed from `E1P` and `P`.
-- `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be either `queue` or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption, or cancels a pending dynamic-tool action and inserts the message directly. When the chat is paused, or in error with a blocked head, the message is queued and the head stays queued.
-  - TODO: with `busy_behavior=interrupt`, `P`, `E1P` and `A1P` insert the message directly ahead of the blocked head (reaching `R1P`), and `R1P` puts it at the queue head ahead of the blocked row; only a queued send waits behind the blocked head.
+- `SetProject(project)` sets or clears the project of one chat without changing its execution state. A move of a root chat applies it to the root and each descendant in one transaction, and fails without changing any chat if one of them isn't in `W`, `E0`, `E1`, `E1P` or `P`. Only the root's `project_id` changes; subagents go through `SetProject` only so that their execution state is checked too. As in a family archive, the root row is locked first, so a concurrent child creation either joins the move or waits for it. A move to the root's current project applies no transition.
+- `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be either `queue` or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption, or cancels a pending dynamic-tool action and inserts the message directly. When the queue head is under edit, a queued send waits behind it and an interrupt send runs ahead of it, except from `I1P`, where an interrupt joins the queue tail as it does from `I1`.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
 - `DeleteQueuedMessage(qid)` removes one queued message without changing the active history. From `P`, removing the head promotes the message behind it and reaches `running`, or reaches `waiting` when the head was the last queued message.
 - `PromoteQueuedMessage(qid)` makes a queued message the next message to process. It reorders the queue, interrupts active work, cancels pending dynamic-tool action, or promotes into history immediately as required by the input state. It ends the target's edit first, so the new head is always ready.
@@ -167,8 +163,6 @@ Every transition that promotes a queued message into history stores the queue ro
 Now comes maybe the densest part of this document. It's a diagram that shows all the possible transitions between all the execution states. Again, I don't recommend reading the diagram thoroughly at first. Take a quick look to get a sense of what it's about and treat is as a reference you can return to later. I recommend reading the diagram as text and not looking at the rendered visual. The text is clearer.
 
 A transition between input state `A` and output state `B` is allowed only if it's listed in the diagram below (`A --> B: Transition Name`). If a transition is not allowed, the core state machine implementation must reject it.
-
-TODO: the diagram below still shows the queue-behind behavior for interrupts in paused states (`E1P --> E1P: SendMessage`, `R1P --> I1P: SendMessage(interrupt)`, `P --> P: SendMessage`). Interrupts from `E1P`, `A1P` and `P` reach `R1P`, and from `R1P` reach `I1`. `SetProject` edges from `E1P` and `P` are missing.
 
 ```mermaid
 stateDiagram-v2
@@ -209,7 +203,9 @@ stateDiagram-v2
     E1 --> XE1: SetArchived(true)
     E1 --> E1: SetProject
 
-    E1P --> E1P: SendMessage
+    E1P --> E1P: SendMessage(queue)
+    E1P --> R1P: SendMessage(interrupt)
+    E1P --> E1P: SetProject
     E1P --> R0: EditMessage
     E1P --> R1P: RequestCompaction
     E1P --> E0: DeleteQueuedMessage / removed last queued
@@ -257,7 +253,7 @@ stateDiagram-v2
     R1P --> R1P: CommitStep
     R1P --> A1P: EnterRequiresAction
     R1P --> I1P: Interrupt
-    R1P --> I1P: SendMessage(interrupt)
+    R1P --> I1: SendMessage(interrupt)
     R1P --> R0: EditMessage
     R1P --> E1P: FinishError
     R1P --> R1P: SendMessage(queue)
@@ -332,7 +328,9 @@ stateDiagram-v2
     A1P --> A1P: EditQueuedMessage / content edit
     A1P --> A1: EditQueuedMessage / end head edit or begin edit behind head
 
-    P --> P: SendMessage
+    P --> P: SendMessage(queue)
+    P --> R1P: SendMessage(interrupt)
+    P --> P: SetProject
     P --> R0: EditMessage
     P --> W: DeleteQueuedMessage / removed last queued
     P --> R0: DeleteQueuedMessage / removed head, promoted last queued
@@ -598,7 +596,8 @@ Setting `project_id` on a root chat moves it into that project, and the nil UUID
 - `W -> SetProject(project) -> W`
 - `E0 -> SetProject(project) -> E0`
 - `E1 -> SetProject(project) -> E1`
-- TODO: `E1P -> SetProject(project) -> E1P` and `P -> SetProject(project) -> P`.
+- `E1P -> SetProject(project) -> E1P`
+- `P -> SetProject(project) -> P`
 
 A move to the chat's current project succeeds without a transition, even while the chat runs. Child chats and archived chats can't be moved, and neither can a chat that the same request archives.
 
@@ -630,22 +629,22 @@ For `busy_behavior=interrupt`, `SendMessage(m, interrupt)` supports:
 
 - `W -> SendMessage(m, interrupt) -> R0`
 - `E0 -> SendMessage(m, interrupt) -> R0`
-- `E1 -> SendMessage(m, interrupt) -> R1` (or `R1P` when the message behind the promoted head is under edit)
-- `E1P -> SendMessage(m, interrupt) -> E1P`
+- `E1 -> SendMessage(m, interrupt) -> R1`
+- `E1P -> SendMessage(m, interrupt) -> R1P`
 - `R0 -> SendMessage(m, interrupt) -> I1`
 - `R1 -> SendMessage(m, interrupt) -> I1`
-- `R1P -> SendMessage(m, interrupt) -> I1P`
+- `R1P -> SendMessage(m, interrupt) -> I1`
 - `I0 -> SendMessage(m, interrupt) -> I1`
 - `I1 -> SendMessage(m, interrupt) -> I1`
 - `I1P -> SendMessage(m, interrupt) -> I1P`
 - `A0 -> SendMessage(m, interrupt) -> R0`
 - `A1 -> SendMessage(m, interrupt) -> R1`
 - `A1P -> SendMessage(m, interrupt) -> R1P`
-- `P -> SendMessage(m, interrupt) -> P`
-- TODO: these interrupt cells changed: `E1 -> R1` (inserted directly, the head is not promoted), `E1P -> R1P`, `R1P -> I1` (owned) or `R1P` (unowned), and `P -> R1P`.
+- `P -> SendMessage(m, interrupt) -> R1P`
 
-When `SendMessage(m, interrupt)` reaches `I1` or `I1P`, `FinishInterruption(partial?)` runs after the interrupted suffix is finalized: from `I1` it promotes the queue head, from `I1P` it reaches `paused`. If no worker owns the chat, the same transaction applies `FinishInterruption` instead, so the chat reaches `R0` or `R1` with the queue head promoted, or `P` from `I1P`, without an owner. From `R0` or `R1`, `m` goes to the queue head, so the promoted head is `m` itself and the response returns it as `message` with `queued` set to false.
-TODO: from `R1P`, `m` also goes to the queue head ahead of the blocked row, so an unowned chat promotes `m` and reaches `R1P`.
+From `E1`, `E1P`, `A0`, `A1`, `A1P` and `P`, `m` goes into history ahead of the queue, and any pending dynamic tool calls are cancelled.
+
+When `SendMessage(m, interrupt)` reaches `I1` or `I1P`, `FinishInterruption(partial?)` runs after the interrupted suffix is finalized: from `I1` it promotes the queue head, from `I1P` it reaches `paused`. If no worker owns the chat, the same transaction applies `FinishInterruption` instead, so the chat reaches `R0`, `R1` or `R1P` with the queue head promoted, or `P` from `I1P`, without an owner. From `R0`, `R1` or `R1P`, `m` goes to the queue head, so the promoted head is `m` itself and the response returns it as `message` with `queued` set to false. From `R1P`, the row under edit is the head again once `m` is promoted, so the chat reaches `R1P`.
 
 From `I1`, the promoted head in `messages` carries the old head's queue ID in `queued_message_id`. `queued_message` is the new tail, so the two IDs differ.
 
@@ -732,9 +731,7 @@ No other input states are supported.
 
 ### `PATCH /api/v2/chats/{chat}/queue/{queuedMessage}`
 
-This endpoint uses `EditQueuedMessage(qid, content?, editing?)`. It is owner-only because ending the head's edit from `P` promotes it, which runs LLM inference with the owner's delegated credentials. The request accepts any of `content`, `model_config_id`, `reasoning_effort`, and `editing`; at least one of `content` or `editing` is required, and empty `content` is rejected. `content` goes through the same input validation, `user_prompt_submit` hook, model and effort checks, and file linking as `POST /api/v2/chats/{chat}/messages`. The response is `204`; the outcome arrives through the stream as a `queue_update` event and, when the status changes, a status event.
-
-TODO: content in this request resolves skill-invocation parts like `SendMessage` and `EditMessage`, so a saved edit stores the skill body and an unavailable skill returns `400`.
+This endpoint uses `EditQueuedMessage(qid, content?, editing?)`. It is owner-only because ending the head's edit from `P` promotes it, which runs LLM inference with the owner's delegated credentials. The request accepts any of `content`, `model_config_id`, `reasoning_effort`, and `editing`; at least one of `content` or `editing` is required, and empty `content` is rejected. `content` goes through the same input validation, skill resolution, `user_prompt_submit` hook, model and effort checks, and file linking as `POST /api/v2/chats/{chat}/messages`. The response is `204`; the outcome arrives through the stream as a `queue_update` event and, when the status changes, a status event.
 
 - `E1 -> EditQueuedMessage(qid, content?, editing?) -> E1P` if `qid` is the head and its edit begins, otherwise `E1`
 - `R1 -> EditQueuedMessage(qid, content?, editing?) -> R1P` if `qid` is the head and its edit begins, otherwise `R1`
