@@ -61,6 +61,36 @@ const listings: Record<string, WorkspaceAgentListDirectoryResponse> = {
 const apiError = (status: number) =>
 	Object.assign(mockApiError({ message: "failed" }), { status });
 
+const listedPaths = () =>
+	vi.mocked(API.listWorkspaceAgentDirectory).mock.calls.map(([, path]) => path);
+
+// Holds list-directory calls for one path until the test releases them.
+const holdListings = (heldPath: string) => {
+	const listDirectory = vi.mocked(API.listWorkspaceAgentDirectory);
+	const fallback = listDirectory.getMockImplementation();
+	const release: (() => void)[] = [];
+	listDirectory.mockImplementation((agentId, path, signal) => {
+		if (path !== heldPath || !fallback) {
+			return fallback ? fallback(agentId, path, signal) : Promise.reject();
+		}
+		return new Promise((resolve) => {
+			release.push(() => resolve(fallback(agentId, path, signal)));
+		});
+	});
+	return () => {
+		for (const resolve of release.splice(0)) {
+			resolve();
+		}
+	};
+};
+
+const settled = () =>
+	waitFor(() =>
+		expect(
+			vi.mocked(API.listWorkspaceAgentDirectory).mock.settledResults,
+		).not.toContainEqual({ type: "incomplete", value: undefined }),
+	);
+
 const renderPanel = (value: WorkspaceFilesContextValue | undefined) => {
 	const queryClient = createTestQueryClient();
 	const panel = (panelValue: WorkspaceFilesContextValue | undefined) => (
@@ -111,10 +141,7 @@ describe("FilesPanel", () => {
 		await user.click(await screen.findByRole("treeitem", { name: "src" }));
 		await user.click(await screen.findByRole("treeitem", { name: "main.go" }));
 
-		expect(API.listWorkspaceAgentDirectory).toHaveBeenCalledWith(
-			"agent-1",
-			"/home/coder/repo/src",
-		);
+		expect(listedPaths()).toContain("/home/coder/repo/src");
 		expect(value.openFile).toHaveBeenCalledWith(
 			"/home/coder/repo/src/main.go",
 			{
@@ -167,10 +194,7 @@ describe("FilesPanel", () => {
 		await user.click(screen.getByRole("option", { name: "Home" }));
 		await screen.findByRole("treeitem", { name: ".bashrc" });
 
-		expect(API.listWorkspaceAgentDirectory).toHaveBeenLastCalledWith(
-			"agent-1",
-			"~",
-		);
+		expect(listedPaths().at(-1)).toBe("~");
 		expect(
 			localStorage.getItem(`${filesPanelRootStorageKeyPrefix}chat-1`),
 		).toBe("~");
@@ -179,26 +203,15 @@ describe("FilesPanel", () => {
 		vi.mocked(API.listWorkspaceAgentDirectory).mockClear();
 		renderPanel(contextValue());
 		await screen.findByRole("treeitem", { name: ".bashrc" });
-		expect(API.listWorkspaceAgentDirectory).toHaveBeenCalledWith(
-			"agent-1",
-			"~",
-		);
-		expect(API.listWorkspaceAgentDirectory).not.toHaveBeenCalledWith(
-			"agent-1",
-			"/home/coder/repo",
-		);
+		expect(listedPaths()).toContain("~");
+		expect(listedPaths()).not.toContain("/home/coder/repo");
 	});
 
 	it("opens a typed path as the root", async () => {
 		const user = userEvent.setup();
 		renderPanel(contextValue({ repoRoots: [] }));
 
-		await waitFor(() =>
-			expect(API.listWorkspaceAgentDirectory).toHaveBeenCalledWith(
-				"agent-1",
-				"",
-			),
-		);
+		await waitFor(() => expect(listedPaths()).toContain(""));
 		await user.click(screen.getByRole("combobox", { name: "Root directory" }));
 		await user.click(screen.getByRole("option", { name: "Open path..." }));
 		await user.type(screen.getByRole("textbox", { name: "Path" }), "~{Enter}");
@@ -238,12 +251,7 @@ describe("FilesPanel", () => {
 		vi.mocked(API.listWorkspaceAgentDirectory).mockClear();
 		await user.click(screen.getByRole("button", { name: "Refresh files" }));
 
-		await waitFor(() =>
-			expect(API.listWorkspaceAgentDirectory).toHaveBeenCalledWith(
-				"agent-1",
-				"/home/coder/repo",
-			),
-		);
+		await waitFor(() => expect(listedPaths()).toContain("/home/coder/repo"));
 		expect(API.listWorkspaceAgentDirectory).toHaveBeenCalledTimes(1);
 
 		await user.click(src);
@@ -336,15 +344,9 @@ describe("FilesPanel", () => {
 		});
 
 		await waitFor(() =>
-			expect(API.listWorkspaceAgentDirectory).toHaveBeenCalledWith(
-				"agent-1",
-				"/home/coder/repo/src",
-			),
+			expect(listedPaths()).toContain("/home/coder/repo/src"),
 		);
-		expect(API.listWorkspaceAgentDirectory).toHaveBeenCalledWith(
-			"agent-1",
-			"/home/coder/repo",
-		);
+		expect(listedPaths()).toContain("/home/coder/repo");
 	});
 
 	it("refetches the tree when the window regains focus", async () => {
@@ -357,12 +359,7 @@ describe("FilesPanel", () => {
 			focusManager.setFocused(true);
 		});
 
-		await waitFor(() =>
-			expect(API.listWorkspaceAgentDirectory).toHaveBeenCalledWith(
-				"agent-1",
-				"/home/coder/repo",
-			),
-		);
+		await waitFor(() => expect(listedPaths()).toContain("/home/coder/repo"));
 		focusManager.setFocused(undefined);
 	});
 
@@ -380,8 +377,119 @@ describe("FilesPanel", () => {
 		expect(value.openFile).toHaveBeenCalledWith("/home/coder/repo/README.md", {
 			focus: false,
 		});
-		await user.keyboard("{Escape}");
-		expect(screen.getByRole("tree", { name: "Files" })).toHaveFocus();
+		await user.keyboard("{Escape}{ArrowDown}");
+		expect(screen.getByRole("treeitem", { name: "debug.log" })).toHaveFocus();
+	});
+
+	it("drops an Open path result after another root is picked", async () => {
+		const user = userEvent.setup();
+		const release = holdListings("/home/coder/repo/src");
+		renderPanel(contextValue());
+
+		await screen.findByRole("treeitem", { name: "src" });
+		await user.click(screen.getByRole("combobox", { name: "Root directory" }));
+		await user.click(screen.getByRole("option", { name: "Open path..." }));
+		await user.type(
+			screen.getByRole("textbox", { name: "Path" }),
+			"/home/coder/repo/src{Enter}",
+		);
+		await user.click(screen.getByRole("combobox", { name: "Root directory" }));
+		await user.click(screen.getByRole("option", { name: "Home" }));
+		await screen.findByRole("treeitem", { name: ".bashrc" });
+		release();
+		await settled();
+
+		expect(
+			localStorage.getItem(`${filesPanelRootStorageKeyPrefix}chat-1`),
+		).toBe("~");
+		screen.getByRole("treeitem", { name: ".bashrc" });
+	});
+
+	it("coalesces repository refreshes into one request and one trailing request", async () => {
+		const user = userEvent.setup();
+		const repository: WorkspaceAgentRepoChanges = {
+			repo_root: "/home/coder/repo",
+			branch: "main",
+		};
+		const value = contextValue({
+			repositories: new Map([[repository.repo_root, repository]]),
+		});
+		const { rerenderPanel } = renderPanel(value);
+		await user.click(await screen.findByRole("treeitem", { name: "src" }));
+		await screen.findByRole("treeitem", { name: "main.go" });
+		const release = holdListings("/home/coder/repo/src");
+		vi.mocked(API.listWorkspaceAgentDirectory).mockClear();
+		const srcRequests = () =>
+			listedPaths().filter((path) => path === "/home/coder/repo/src");
+
+		for (const diff of ["a", "b", "c"]) {
+			rerenderPanel({
+				...value,
+				repositories: new Map([
+					[repository.repo_root, { ...repository, unified_diff: diff }],
+				]),
+			});
+		}
+		await waitFor(() => expect(srcRequests()).toHaveLength(1));
+		expect(
+			vi.mocked(API.listWorkspaceAgentDirectory).mock.calls[0][2],
+		).toBeInstanceOf(AbortSignal);
+
+		release();
+		await waitFor(() => expect(srcRequests()).toHaveLength(2));
+		release();
+		await settled();
+		expect(srcRequests()).toHaveLength(2);
+	});
+
+	it("stops querying an expanded directory once it is deleted", async () => {
+		const user = userEvent.setup();
+		const listDirectory = vi.mocked(API.listWorkspaceAgentDirectory);
+		const fallback = listDirectory.getMockImplementation();
+		let libDeleted = false;
+		listDirectory.mockImplementation(async (agentId, path, signal) => {
+			if (libDeleted && path === "/home/coder/repo/src") {
+				return {
+					...listings[path],
+					contents: [entry("/home/coder/repo/src/main.go", false)],
+				};
+			}
+			return fallback ? fallback(agentId, path, signal) : Promise.reject();
+		});
+		renderPanel(contextValue());
+
+		await user.click(await screen.findByRole("treeitem", { name: "src" }));
+		await user.click(await screen.findByRole("treeitem", { name: "lib" }));
+		await screen.findByRole("treeitem", { name: "util.go" });
+		libDeleted = true;
+		const refresh = screen.getByRole("button", { name: "Refresh files" });
+		await user.click(refresh);
+		await waitFor(() =>
+			expect(screen.queryByRole("treeitem", { name: "lib" })).toBeNull(),
+		);
+		await settled();
+		listDirectory.mockClear();
+		await user.click(refresh);
+
+		await waitFor(() =>
+			expect(listedPaths()).toContain("/home/coder/repo/src"),
+		);
+		expect(listedPaths()).not.toContain("/home/coder/repo/src/lib");
+	});
+
+	it("merges Home into the default directory once both resolve alike", async () => {
+		const user = userEvent.setup();
+		renderPanel(contextValue());
+
+		await screen.findByRole("treeitem", { name: "src" });
+		await user.click(screen.getByRole("combobox", { name: "Root directory" }));
+		await user.click(screen.getByRole("option", { name: "Home" }));
+		await screen.findByRole("treeitem", { name: ".bashrc" });
+		await user.click(screen.getByRole("combobox", { name: "Root directory" }));
+
+		expect(
+			screen.getAllByRole("option").map((option) => option.textContent),
+		).toEqual(["repo", "Default directory (~)", "/", "Open path..."]);
 	});
 
 	it("does not list files without a workspace agent", () => {
