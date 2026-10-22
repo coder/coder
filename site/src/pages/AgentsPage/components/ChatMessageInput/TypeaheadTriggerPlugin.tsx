@@ -12,41 +12,47 @@ import {
 	type NodeKey,
 } from "lexical";
 import { useEffect, useEffectEvent, useLayoutEffect, useRef } from "react";
-import { parseSkillTrigger } from "../../utils/skills";
-import type { SkillMenuItem } from "./SkillsTriggerMenu";
 
-export type ActiveSkillsTrigger = {
-	nodeKey: NodeKey;
-	slashOffset: number;
+/** A trigger character and the query typed after it on the caret's line. */
+export type TypeaheadTriggerMatch = {
+	/** Offset of the trigger character within the parsed line prefix. */
+	offset: number;
 	query: string;
 };
 
-type DismissedSkillsTrigger = Pick<
-	ActiveSkillsTrigger,
-	"nodeKey" | "slashOffset"
->;
+export type ActiveTypeaheadTrigger = {
+	nodeKey: NodeKey;
+	/** Offset of the trigger character within the text node. */
+	offset: number;
+	query: string;
+};
 
-type SkillsTriggerPluginProps = {
+type TriggerLocation = Pick<ActiveTypeaheadTrigger, "nodeKey" | "offset">;
+
+type TypeaheadTriggerPluginProps<T> = {
 	open: boolean;
-	skills: readonly SkillMenuItem[];
-	skillsLoading: boolean;
+	items: readonly T[];
+	loading: boolean;
 	selectedIndex: number;
+	parseTrigger: (linePrefix: string) => TypeaheadTriggerMatch | null;
 	onSelectedIndexChange: (index: number) => void;
-	onTriggerChange: (trigger: ActiveSkillsTrigger | null) => void;
-	onSkillSelect: (skill: SkillMenuItem) => void;
+	onTriggerChange: (trigger: ActiveTypeaheadTrigger | null) => void;
+	onSelect: (item: T) => void;
 };
 
 const isSameTrigger = (
-	trigger: DismissedSkillsTrigger,
-	dismissedTrigger: DismissedSkillsTrigger | null,
+	trigger: TriggerLocation,
+	dismissedTrigger: TriggerLocation | null,
 ): boolean => {
 	return (
 		dismissedTrigger?.nodeKey === trigger.nodeKey &&
-		dismissedTrigger.slashOffset === trigger.slashOffset
+		dismissedTrigger.offset === trigger.offset
 	);
 };
 
-const activeTriggerFromSelection = (): ActiveSkillsTrigger | null => {
+const activeTriggerFromSelection = (
+	parseTrigger: (linePrefix: string) => TypeaheadTriggerMatch | null,
+): ActiveTypeaheadTrigger | null => {
 	const selection = $getSelection();
 	if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
 		return null;
@@ -64,44 +70,52 @@ const activeTriggerFromSelection = (): ActiveSkillsTrigger | null => {
 
 	const textBeforeCaret = node.getTextContent().slice(0, anchor.offset);
 	const lineStart = textBeforeCaret.lastIndexOf("\n") + 1;
-	const trigger = parseSkillTrigger(textBeforeCaret.slice(lineStart));
+	const trigger = parseTrigger(textBeforeCaret.slice(lineStart));
 	if (!trigger) {
 		return null;
 	}
 
 	return {
 		nodeKey: node.getKey(),
-		slashOffset: lineStart + trigger.slashOffset,
+		offset: lineStart + trigger.offset,
 		query: trigger.query,
 	};
 };
 
-export const SkillsTriggerPlugin = ({
+/**
+ * Tracks a typeahead trigger (such as "/" or "@") before the caret and routes
+ * the editor's arrow, Enter, Tab, and Escape keys to its menu while it is open.
+ * A dismissed trigger stays closed until its location changes.
+ */
+export const TypeaheadTriggerPlugin = <T,>({
 	open,
-	skills,
-	skillsLoading,
+	items,
+	loading,
 	selectedIndex,
+	parseTrigger,
 	onSelectedIndexChange,
 	onTriggerChange,
-	onSkillSelect,
-}: SkillsTriggerPluginProps) => {
+	onSelect,
+}: TypeaheadTriggerPluginProps<T>) => {
 	const [editor] = useLexicalComposerContext();
-	const dismissedTriggerRef = useRef<DismissedSkillsTrigger | null>(null);
+	const dismissedTriggerRef = useRef<TriggerLocation | null>(null);
+
+	const readActiveTrigger = useEffectEvent(() =>
+		editor
+			.getEditorState()
+			.read(() => activeTriggerFromSelection(parseTrigger)),
+	);
 
 	const prevOpenRef = useRef(open);
 	useLayoutEffect(() => {
 		if (prevOpenRef.current && !open) {
-			dismissedTriggerRef.current = editor
-				.getEditorState()
-				.read(() => activeTriggerFromSelection());
+			dismissedTriggerRef.current = readActiveTrigger();
 		}
 		prevOpenRef.current = open;
-	}, [open, editor]);
+	}, [open]);
 
 	const refreshTrigger = useEffectEvent(() => {
-		const trigger = editor.getEditorState().read(() => {
-			return editor.isEditable() ? activeTriggerFromSelection() : null;
-		});
+		const trigger = editor.isEditable() ? readActiveTrigger() : null;
 
 		if (!trigger) {
 			dismissedTriggerRef.current = null;
@@ -127,7 +141,7 @@ export const SkillsTriggerPlugin = ({
 				return false;
 			}
 			event.preventDefault();
-			const count = skills.length;
+			const count = items.length;
 			if (count === 0) {
 				return true;
 			}
@@ -144,25 +158,23 @@ export const SkillsTriggerPlugin = ({
 		if (!open) {
 			return false;
 		}
-		const skill = selectedIndex >= 0 ? skills[selectedIndex] : undefined;
-		if (!skill) {
+		const item = selectedIndex >= 0 ? items[selectedIndex] : undefined;
+		if (!item) {
 			// A still-loading source may yet produce matches, so keep
 			// consuming Enter until every source resolves.
-			if (skillsLoading) {
+			if (loading) {
 				event?.preventDefault();
 				return true;
 			}
 			// Nothing is selectable (e.g. the trailing token is a filesystem
 			// path, not a skill): dismiss the menu and let the same keypress
 			// fall through to the submit handler.
-			dismissedTriggerRef.current = editor
-				.getEditorState()
-				.read(() => activeTriggerFromSelection());
+			dismissedTriggerRef.current = readActiveTrigger();
 			onTriggerChange(null);
 			return false;
 		}
 		event?.preventDefault();
-		onSkillSelect(skill);
+		onSelect(item);
 		return true;
 	});
 
@@ -170,12 +182,12 @@ export const SkillsTriggerPlugin = ({
 		if (!open) {
 			return false;
 		}
-		const skill = selectedIndex >= 0 ? skills[selectedIndex] : undefined;
-		if (!skill) {
+		const item = selectedIndex >= 0 ? items[selectedIndex] : undefined;
+		if (!item) {
 			return false;
 		}
 		event?.preventDefault();
-		onSkillSelect(skill);
+		onSelect(item);
 		return true;
 	});
 
@@ -185,9 +197,7 @@ export const SkillsTriggerPlugin = ({
 		}
 		event.preventDefault();
 		event.stopPropagation();
-		dismissedTriggerRef.current = editor
-			.getEditorState()
-			.read(() => activeTriggerFromSelection());
+		dismissedTriggerRef.current = readActiveTrigger();
 		onTriggerChange(null);
 		const rootElement = editor.getRootElement();
 		queueMicrotask(() => {
