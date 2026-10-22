@@ -261,7 +261,13 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 	const [expandedPaths, setExpandedPaths] = useState<readonly string[]>([]);
 	const [isEnteringPath, setIsEnteringPath] = useState(false);
 	const pathInputRef = useRef<HTMLInputElement>(null);
+	const rootTriggerRef = useRef<HTMLButtonElement>(null);
 	const focusPathInputOnClose = useRef(false);
+	// A refresh usually answers in tens of milliseconds, too fast to see, so
+	// the button stays busy for at least one turn of the spinner.
+	const [isRefreshShown, setIsRefreshShown] = useState(false);
+	const refreshShownTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+	useEffect(() => () => clearTimeout(refreshShownTimer.current), []);
 
 	const rootQuery = useQuery(directoryQuery(agentId, root));
 	const rootPath = rootQuery.data?.absolute_path_string;
@@ -446,6 +452,10 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 			selectRoot(result.root);
 			if (result.file) {
 				openFile(result.file);
+			} else {
+				// The path form closes with the selection; keep focus on the picker
+				// that opened it rather than the page body.
+				rootTriggerRef.current?.focus();
 			}
 		},
 	});
@@ -515,6 +525,12 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 	};
 
 	const handleRefresh = () => {
+		setIsRefreshShown(true);
+		clearTimeout(refreshShownTimer.current);
+		refreshShownTimer.current = setTimeout(
+			() => setIsRefreshShown(false),
+			refreshFeedbackMs,
+		);
 		refetchDirectories(
 			[...(rootPath === undefined ? [] : [rootPath]), ...visibleExpandedPaths],
 			true,
@@ -562,6 +578,7 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 					onValueChange={handleRootValueChange}
 				>
 					<SelectTrigger
+						ref={rootTriggerRef}
 						aria-label="Root directory"
 						className="h-7 min-w-0 flex-1 text-xs"
 					>
@@ -593,12 +610,15 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 					size="icon"
 					aria-label="Refresh files"
 					title="Refresh files"
-					aria-busy={isFetching}
+					aria-busy={isFetching || isRefreshShown}
 					className="size-7"
 					onClick={handleRefresh}
 				>
 					<RefreshCwIcon
-						className={cn("size-3.5", isFetching && "animate-spin")}
+						className={cn(
+							"size-3.5",
+							(isFetching || isRefreshShown) && "animate-spin",
+						)}
 					/>
 				</Button>
 			</div>
@@ -618,6 +638,7 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 								if (event.key === "Escape") {
 									cancelOpenPath();
 									setIsEnteringPath(false);
+									rootTriggerRef.current?.focus();
 								}
 							}}
 						/>
@@ -731,6 +752,7 @@ const buildTreeRows = (
 };
 
 const typeaheadTimeoutMs = 500;
+const refreshFeedbackMs = 1000;
 
 type DirectoryTreeProps = {
 	listing: WorkspaceAgentListDirectoryResponse;
@@ -751,6 +773,7 @@ const DirectoryTree: React.FC<DirectoryTreeProps> = ({
 }) => {
 	const [focusedPath, setFocusedPath] = useState<string>();
 	const rowElements = useRef(new Map<string, HTMLDivElement>());
+	const focusedIndex = useRef(0);
 	const typeahead = useRef({ prefix: "", timeStamp: 0 });
 
 	const rows = buildTreeRows(listing.contents, childListings);
@@ -760,6 +783,28 @@ const DirectoryTree: React.FC<DirectoryTreeProps> = ({
 	)
 		? focusedPath
 		: entryRows[0]?.entry.absolute_path_string;
+
+	// A refresh can drop the focused row, which sends focus to the page body
+	// without a blur event. Focus then moves to the row now at its position.
+	const treeHasFocus = useRef(false);
+	const entryPathsKey = entryRows
+		.map((row) => row.entry.absolute_path_string)
+		.join("\n");
+	useEffect(() => {
+		const paths = entryPathsKey === "" ? [] : entryPathsKey.split("\n");
+		if (
+			!treeHasFocus.current ||
+			focusedPath === undefined ||
+			paths.includes(focusedPath) ||
+			document.activeElement !== document.body
+		) {
+			return;
+		}
+		const next = paths[Math.min(focusedIndex.current, paths.length - 1)];
+		if (next !== undefined) {
+			rowElements.current.get(next)?.focus();
+		}
+	}, [entryPathsKey, focusedPath]);
 
 	const focusPath = (path: string | undefined) => {
 		if (path === undefined) {
@@ -884,6 +929,12 @@ const DirectoryTree: React.FC<DirectoryTreeProps> = ({
 					role="tree"
 					aria-label="Files"
 					className="min-h-0 flex-1 overflow-auto p-1 text-xs"
+					onFocus={() => {
+						treeHasFocus.current = true;
+					}}
+					onBlur={() => {
+						treeHasFocus.current = false;
+					}}
 				>
 					{rows.map((row) => {
 						if (row.type === "status") {
@@ -922,11 +973,14 @@ const DirectoryTree: React.FC<DirectoryTreeProps> = ({
 									"flex cursor-pointer items-center gap-1 rounded-sm py-1 pr-2 outline-none",
 									"hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
 									entry.ignored
-										? "text-content-disabled"
+										? "text-content-secondary"
 										: "text-content-primary",
 								)}
 								style={{ paddingLeft: `${(row.level - 1) * 12 + 4}px` }}
-								onFocus={() => setFocusedPath(path)}
+								onFocus={() => {
+									setFocusedPath(path);
+									focusedIndex.current = index;
+								}}
 								onClick={() => activate(entry)}
 								onKeyDown={(event) => handleKeyDown(event, index)}
 							>
