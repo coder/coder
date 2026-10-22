@@ -9,11 +9,10 @@ AI Governance is included with a Premium license.
 Each Premium user gets access to a set of features that help organizations safely roll out AI tooling at scale:
 
 - [AI Gateway](./ai-gateway/index.md): LLM gateway to audit AI sessions, central MCP server management, and policy enforcement
-- [Agent Firewall](./agent-firewall/index.md): Process-level firewalls for agents, restricting which domains can be accessed by AI agents
 
 > [!NOTE]
-> AI Gateway and Agent Firewall require a Premium license.
-> Community deployments cannot access these features.
+> AI Gateway requires a Premium license.
+> Community deployments cannot access this feature.
 
 ## Who should use AI Governance
 
@@ -37,11 +36,6 @@ Organizations adopting AI coding tools at scale often encounter operational and 
 Without centralized monitoring, teams have no way to understand how AI tools are being used across the organization.
 AI Gateway provides audit trails of prompts, token usage, and tool invocations, giving administrators insight into AI adoption patterns and potential issues.
 
-### Restrict agent network access
-
-AI agents can make arbitrary network requests, potentially accessing unauthorized services or exfiltrating data.
-Agent Firewall enforces process-level policies that restrict which domains agents can reach and what actions they can perform, preventing unintended data exposure.
-
 ### Centralize API key management
 
 Managing individual API keys for AI providers across hundreds of developers creates security risks and administrative overhead.
@@ -59,6 +53,6 @@ AI Gateway captures metrics on token spend, adoption rates, and usage patterns t
 
 ## GA status and availability
 
-Starting with Coder v2.30 (February 2026), AI Gateway and Agent Firewall are generally available as part of AI Governance.
+Starting with Coder v2.30 (February 2026), AI Gateway is generally available as part of AI Governance.
 
 To learn more about AI Governance, pricing, or trial options, reach out to your [Coder account team](https://coder.com/contact/sales).

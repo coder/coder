@@ -1208,60 +1208,10 @@
 				},
 				{
 					"title": "AI Governance",
-					"description": "Govern AI usage at scale with AI Governance: Agent Firewall, AI Gateway, and reporting.",
+					"description": "Govern AI usage at scale with AI Governance: AI Gateway and reporting.",
 					"path": "./ai-coder/ai-governance.md",
 					"state": ["premium"],
 					"children": [
-						{
-							"title": "Agent Firewall",
-							"description": "Restrict and audit the network access of AI agents with Agent Firewall, a process-level firewall.",
-							"path": "./ai-coder/agent-firewall/index.md",
-							"state": ["premium"],
-							"children": [
-								{
-									"title": "NsJail jail type",
-									"description": "Learn how Agent Firewall's default NsJail jail type isolates agents using Linux namespaces.",
-									"path": "./ai-coder/agent-firewall/nsjail/index.md",
-									"children": [
-										{
-											"title": "NsJail on Docker",
-											"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on Docker.",
-											"path": "./ai-coder/agent-firewall/nsjail/docker.md"
-										},
-										{
-											"title": "NsJail on Kubernetes",
-											"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on Kubernetes.",
-											"path": "./ai-coder/agent-firewall/nsjail/k8s.md"
-										},
-										{
-											"title": "NsJail on ECS",
-											"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on AWS ECS.",
-											"path": "./ai-coder/agent-firewall/nsjail/ecs.md"
-										}
-									]
-								},
-								{
-									"title": "Landjail jail type",
-									"description": "Learn how Agent Firewall's landjail jail type isolates agents using Landlock v4.",
-									"path": "./ai-coder/agent-firewall/landjail.md"
-								},
-								{
-									"title": "Rules engine",
-									"description": "Learn how the Agent Firewall rules engine filters agent network requests with configurable rules.",
-									"path": "./ai-coder/agent-firewall/rules-engine.md"
-								},
-								{
-									"title": "Example policy",
-									"description": "Review a broad Agent Firewall allowlist policy for multi-language workspaces.",
-									"path": "./ai-coder/agent-firewall/example-policy.md"
-								},
-								{
-									"title": "Version requirements",
-									"description": "Check the Coder and Claude Code module version requirements for running Agent Firewall.",
-									"path": "./ai-coder/agent-firewall/version.md"
-								}
-							]
-						},
 						{
 							"title": "AI Gateway",
 							"description": "Govern and observe AI coding traffic with AI Gateway.",

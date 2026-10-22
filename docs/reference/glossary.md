@@ -21,13 +21,6 @@ Each entry gives a short definition and, where it helps, links to the page that 
 The API a workspace agent uses to report logs, metrics, and activity.
 Refer to the [Agent API reference](./agent-api/index.md).
 
-### Agent Firewall
-
-A process-level firewall that enforces domain and verb allowlists on AI agent processes inside a workspace and streams audit logs to `coderd`.
-It was previously named Agent Boundaries and uses a sandbox backend, `nsjail` by default or `landjail`.
-This feature requires a Premium license.
-Refer to [Agent Firewall](../ai-coder/agent-firewall/index.md).
-
 ### Agent Relay
 
 A feature that connects a supported cloud-hosted AI agent provider's hosted sessions to self-hosted [workspaces](#workspace).
@@ -50,7 +43,7 @@ Refer to [AI Gateway Proxy](../ai-coder/ai-gateway/ai-gateway-proxy/index.md).
 
 ### AI Governance
 
-Included with a Premium license, AI Governance unlocks AI Gateway and Agent Firewall.
+Included with a Premium license, AI Governance unlocks AI Gateway.
 Refer to [AI Governance](../ai-coder/ai-governance.md).
 
 ### Air-gapped deployment

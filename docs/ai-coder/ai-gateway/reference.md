@@ -105,7 +105,7 @@ You can't use any of these reserved names, regardless of casing:
 - **Proxy**:
   `Proxy-Authorization`, `Proxy-Authenticate`.
 - **Coder internal**:
-  `Coder-Session-Token`, `X-Coder-Ai-Governance-Token`, `X-Coder-Ai-Governance-Request-Id`, `X-Coder-Agent-Firewall-Session-Id`, `X-Coder-Agent-Firewall-Sequence-Number`.
+  `Coder-Session-Token`, `X-Coder-Ai-Governance-Token`, `X-Coder-Ai-Governance-Request-Id`.
 
 Names beginning with `X-AI-Bridge-Actor` are also reserved, ignoring case, except for the standard name of the attribute you're configuring.
 For example, `X-User-ID` and `X-Username` are valid custom names.

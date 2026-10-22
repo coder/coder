@@ -70,13 +70,6 @@ These features help administrators understand who is using AI tools, which provi
 
 For more information, visit the [AI Gateway documentation](../../../ai-coder/ai-gateway/index.md).
 
-### Agent Firewall
-
-Agent Firewall, previously Agent Boundaries, moved from an early capability into a stronger governance primitive for AI agents.
-It can audit and restrict network access from agent processes, forward machine-readable logs to the control plane, track usage, and use [landjail mode](../../../ai-coder/agent-firewall/landjail.md) for environments where changing Linux capabilities is not practical.
-
-For more information, visit the [Agent Firewall documentation](../../../ai-coder/agent-firewall/index.md).
-
 ### Service Accounts
 
 [Service accounts](../../../admin/users/headless-auth.md) are a [Premium](../../prepare/licensing.md) feature and now integrate with workspace sharing, user and workspace filtering, organization membership, and role assignment.

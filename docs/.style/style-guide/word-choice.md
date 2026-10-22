@@ -74,7 +74,7 @@ Whether a name means the feature or an instance depends on meaning that Vale can
 > A bare `workspace` or `agent` names the object a developer or a template creates: the on-demand environment the developer connects to, or the process that runs inside it.
 > Capitalize the product name whenever the prose introduces or markets the capability (a page heading like "Coder Workspaces," a comparison of product tiers, a `docs/README.md`-style overview).
 > Keep the generic object lowercase everywhere else, including in step-by-step instructions ("create a workspace," "the agent starts").
-> This mirrors coder.com's marketing usage, where `Coder Workspaces` sits alongside `Coder Agents`, `AI Gateway`, and `Agent Firewall` as one of four named products.
+> This mirrors coder.com's marketing usage, where `Coder Workspaces` sits alongside `Coder Agents` and `AI Gateway` as one of three named products.
 
 The [glossary](../../reference/glossary.md) is the fuller registry of these names and disambiguates collisions like the several senses of "agent".
 When you add, rename, or deprecate a product or feature name, update the glossary in the same change.

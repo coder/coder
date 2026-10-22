@@ -49,8 +49,8 @@ Use the time range filter in the filter bar to widen or narrow the window, for e
 
 Each row shows the last prompt, initiator, provider, client, token usage, network requests, thread count, and timestamp.
 
-The **Network** column reports the total and blocked [Agent Firewall](../agent-firewall/index.md) requests for the session.
-It shows `No activity` when the session made no requests, and `Disabled` when the session did not pass through Agent Firewall, so no network requests were monitored.
+The **Network** column reports the total and blocked network requests for the session.
+It shows `No activity` when the session made no requests, and `Disabled` when network monitoring was not active for the session.
 
 Select one to view its full details.
 
@@ -67,10 +67,10 @@ A "No events match your search in the loaded events." message appears when nothi
 
 Within a thread, each step shows token usage, tool call details (including arguments and MCP server URLs), duration, and any errors or warnings.
 
-The **Session summary** card beside the timeline reports the session's [Agent Firewall](../agent-firewall/index.md) activity:
+The **Session summary** card beside the timeline reports the session's network activity:
 
 - **Network requests** is the total number of requests the session made.
-  It shows `Disabled` when the session did not pass through Agent Firewall, so monitoring was not active, and `No activity` when the session made no requests.
+  It shows `Disabled` when network monitoring was not active for the session, and `No activity` when the session made no requests.
 - **Blocked network requests** is the subset of those requests that the allow-list denied.
   This row appears only when the session made at least one request, and is highlighted when any were blocked.
 - **Top domains** names the destination host the session contacted most, and appears whenever at least one domain was recorded.

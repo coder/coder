@@ -2,5 +2,9 @@
   {
     "source": "/docs/admin/templates/extending-templates/dynamic-parameters",
     "destination": "/docs/admin/templates/extending-templates/parameters"
+  },
+  {
+    "source": "/docs/ai-coder/agent-firewall/:path*",
+    "destination": "/docs/ai-coder/ai-governance"
   }
 ]

@@ -36,14 +36,6 @@ It solves three key problems:
 This is a Premium/Beta feature that intercepts AI traffic to record prompts, token usage, and tool invocations.
 For more information, read our documentation [here](../../../ai-coder/ai-gateway/index.md).
 
-### Agent Firewall
-
-Agent Firewall was introduced in 2.27 and is currently in Early Access.
-Agent Firewall is a process-level firewall in Coder that restricts and audits what autonomous programs (like AI agents) can access and do within a workspace.
-They provide network policy enforcement, blocking specific domains and HTTP verbs to prevent data exfiltration, and write logs to the workspace for auditability.
-Agent Firewall supports any terminal-based agent, including custom ones, and can be easily configured through existing Coder modules like the Claude Code module.
-For more information, read our documentation [here](../../../ai-coder/agent-firewall/index.md).
-
 ### Performance Enhancements
 
 Performance, particularly at scale, improved across nearly every system layer.
