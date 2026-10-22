@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/spf13/afero"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentexec"
@@ -176,7 +177,11 @@ func (ig *Ignorer) excludeFile(ctx context.Context, top string) string {
 	}
 	var path string
 	if ig.git != nil {
-		path, _ = ig.git.excludeFile(ctx, top)
+		gitPath, err := ig.git.excludeFile(ctx, top)
+		if err != nil {
+			ig.degraded(ctx, top, err)
+		}
+		path = gitPath
 	}
 	if path == "" {
 		path = fallbackExcludeFile(ig.fs, top)
@@ -206,15 +211,7 @@ func (ig *Ignorer) Ignored(ctx context.Context, queries []IgnoreQuery) []bool {
 	}
 	for top, indexes := range byTop {
 		if ig.git != nil {
-			rels := make([]string, len(indexes))
-			for j, i := range indexes {
-				// No trailing "/" for directories: git then checks the
-				// path on disk like its own traversal does. With a
-				// trailing "/", "foo/**" would match the directory foo.
-				rel, _ := filepath.Rel(top, queries[i].Path)
-				rels[j] = filepath.ToSlash(rel)
-			}
-			ignored, err := ig.git.checkIgnored(ctx, top, rels)
+			ignored, err := ig.gitIgnored(ctx, top, queries, indexes)
 			if err == nil {
 				for j, i := range indexes {
 					result[i] = ignored[j]
@@ -235,6 +232,23 @@ func (ig *Ignorer) Ignored(ctx context.Context, queries []IgnoreQuery) []bool {
 		}
 	}
 	return result
+}
+
+// gitIgnored asks git about the queries at indexes, all inside the
+// repository at top.
+func (ig *Ignorer) gitIgnored(ctx context.Context, top string, queries []IgnoreQuery, indexes []int) ([]bool, error) {
+	rels := make([]string, len(indexes))
+	for j, i := range indexes {
+		// No trailing "/" for directories: git then checks the path on
+		// disk like its own traversal does. With a trailing "/",
+		// "foo/**" would match the directory foo.
+		rel, err := filepath.Rel(top, queries[i].Path)
+		if err != nil {
+			return nil, xerrors.Errorf("relative path of %s: %w", queries[i].Path, err)
+		}
+		rels[j] = filepath.ToSlash(rel)
+	}
+	return ig.git.checkIgnored(ctx, top, rels)
 }
 
 // walkScope decides which entries of a walked directory are ignored.

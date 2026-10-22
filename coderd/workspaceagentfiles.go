@@ -322,7 +322,8 @@ type workspaceAgentFilesRequestBody struct {
 
 func (b *workspaceAgentFilesRequestBody) Read(p []byte) (int, error) {
 	n, err := b.ReadCloser.Read(p)
-	if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+	var maxBytesErr *http.MaxBytesError
+	if errors.As(err, &maxBytesErr) {
 		b.exceeded.Store(true)
 	}
 	return n, err

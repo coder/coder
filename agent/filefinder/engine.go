@@ -147,7 +147,11 @@ func NewEngine(logger slog.Logger, opts ...EngineOption) *Engine {
 		opt(e)
 	}
 	if e.ignorer == nil {
-		home, _ := os.UserHomeDir()
+		home, err := os.UserHomeDir()
+		if err != nil {
+			e.logger.Warn(context.Background(), "home directory unknown, skipping global gitignore excludes in the fallback", slog.Error(err))
+			home = ""
+		}
 		e.ignorer = NewIgnorer(afero.NewOsFs(), home)
 	}
 	e.ctx, e.cancel = context.WithCancel(context.Background())
