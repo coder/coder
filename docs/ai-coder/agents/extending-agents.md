@@ -303,6 +303,8 @@ The agent's list of skills leaves them out, and `read_skill` reports that the sk
 
 Importing a `SKILL.md` file with `disable-model-invocation: true` in its frontmatter turns the switch off.
 Downloading or exporting a manual-only skill adds that line back, so Claude Code, Cursor, and VS Code also treat the file as manual-only.
+The exception is a skill so close to the 64&nbsp;KB limit that the extra line would push the file over it.
+Coder downloads that file without the line, so other tools let agents use it automatically, and importing it again creates a skill that agents can use automatically.
 
 In the API, the switch is the `model_invocable` field.
 When you create or update a stored skill through the API without setting `model_invocable`, a `disable-model-invocation: true` line in the `SKILL.md` frontmatter turns the setting off.
