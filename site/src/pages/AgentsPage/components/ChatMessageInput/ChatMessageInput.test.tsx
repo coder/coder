@@ -406,13 +406,20 @@ describe("ChatMessageInput", () => {
 					isAxiosError: true,
 					response: { status, data: { message: "Project not found." } },
 				});
+				const queryClient = createTestQueryClient();
 				const inputRef = renderWithSkills({
 					personal: [mockCompactorSkill],
 					organization: [],
 					projectId: "project-1",
+					queryClient,
 				});
 				const user = await pasteTrigger("/comp");
-				await screen.findByText(/Could not load project skills/);
+				await waitFor(() => {
+					expect(
+						queryClient.getQueryState(chatProjectSkillsKey("project-1"))
+							?.status,
+					).toBe("error");
+				});
 				await user.keyboard("{Enter}");
 				expect(getRequestContent(inputRef)).toEqual([
 					{ type: "text", text: "/compact" },

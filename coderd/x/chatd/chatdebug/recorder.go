@@ -237,11 +237,9 @@ func beginStep(
 		}
 	}
 
-	stepNum := nextStepNumber(rc.RunID)
 	step, err := svc.CreateStep(ctx, CreateStepParams{
 		RunID:               rc.RunID,
 		ChatID:              chatID,
-		StepNumber:          stepNum,
 		Operation:           op,
 		Status:              StatusInProgress,
 		HistoryTipMessageID: rc.HistoryTipMessageID,
@@ -256,8 +254,6 @@ func beginStep(
 		)
 		return nil, ctx
 	}
-
-	syncStepCounter(rc.RunID, step.StepNumber)
 
 	sc := &StepContext{
 		StepID: step.ID,
