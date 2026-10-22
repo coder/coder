@@ -770,6 +770,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				MetricsCacheRefreshInterval: vals.MetricsCacheRefreshInterval.Value(),
 				AgentStatsRefreshInterval:   vals.AgentStatRefreshInterval.Value(),
 				DeploymentValues:            vals,
+				NetworkPolicyModulePath:     vals.NetworkPolicyModulePath.String(),
 				// Do not pass secret values to DeploymentOptions. All values should be read from
 				// the DeploymentValues instead, this just serves to indicate the source of each
 				// option. This is just defensive to prevent accidentally leaking.
@@ -1286,10 +1287,24 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				name := fmt.Sprintf("%s-%s", hostname, suffix)
 				daemonCacheDir := filepath.Join(cacheDir, fmt.Sprintf("provisioner-%d", i))
 				daemon, err := newProvisionerDaemon(
-					ctx, coderAPI, provisionerdMetrics, logger, vals, daemonCacheDir, errCh, &provisionerdWaitGroup, name, provisionerTypes,
+					ctx, coderAPI, provisionerdMetrics, logger, vals, daemonCacheDir, errCh, &provisionerdWaitGroup, name, provisionerTypes, nil,
 				)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
+				}
+				provisionerDaemons = append(provisionerDaemons, daemon)
+			}
+			// Untagged jobs require an exact tag match, so policy execution must
+			// use a separate worker instead of adding capability tags to all workers.
+			if networkPolicyProvisionerEnabled(coderAPI) {
+				name := stringutil.Truncate(cliutil.Hostname(), 49) + "-network-policy"
+				daemon, err := newProvisionerDaemon(
+					ctx, coderAPI, provisionerdMetrics, logger, vals,
+					filepath.Join(cacheDir, "provisioner-network-policy"), errCh, &provisionerdWaitGroup,
+					name, provisionerTypes, map[string]string{provisionersdk.TagNetworkPolicy: "1"},
+				)
+				if err != nil {
+					return xerrors.Errorf("create network policy provisioner daemon: %w", err)
 				}
 				provisionerDaemons = append(provisionerDaemons, daemon)
 			}
@@ -1371,7 +1386,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			autobuildTicker := time.NewTicker(vals.AutobuildPollInterval.Value())
 			defer autobuildTicker.Stop()
 			autobuildExecutor := autobuild.NewExecutor(
-				ctx, options.Database, options.Pubsub, coderAPI.FileCache, options.PrometheusRegistry, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, coderAPI.AccessControlStore, coderAPI.BuildUsageChecker, logger, autobuildTicker.C, options.NotificationsEnqueuer, coderAPI.Experiments, coderAPI.WorkspaceBuilderMetrics)
+				ctx, options.Database, options.Pubsub, coderAPI.FileCache, options.PrometheusRegistry, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, coderAPI.AccessControlStore, coderAPI.BuildUsageChecker, logger, autobuildTicker.C, options.NotificationsEnqueuer, coderAPI.Experiments, coderAPI.WorkspaceBuilderMetrics, autobuild.WithNetworkPolicyStartup(options.DeploymentValues))
 			autobuildExecutor.Run()
 
 			jobReaperTicker := time.NewTicker(vals.JobReaperDetectorInterval.Value())
@@ -1660,6 +1675,13 @@ func shutdownWithTimeout(shutdown func(context.Context) error, timeout time.Dura
 	return shutdown(ctx)
 }
 
+func networkPolicyProvisionerEnabled(api *coderd.API) bool {
+	cfg := api.DeploymentValues
+	return cfg.Provisioner.Daemons.Value() > 0 &&
+		api.Experiments.Enabled(codersdk.ExperimentNetworkPolicies) &&
+		(api.NetworkPolicyModulePath != "" || cfg.NetworkPolicyModulePath.String() != "")
+}
+
 // nolint:revive
 func newProvisionerDaemon(
 	ctx context.Context,
@@ -1672,6 +1694,7 @@ func newProvisionerDaemon(
 	wg *sync.WaitGroup,
 	name string,
 	provisionerTypes []codersdk.ProvisionerType,
+	provisionerTags map[string]string,
 ) (srv *provisionerd.Server, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
@@ -1774,7 +1797,7 @@ func newProvisionerDaemon(
 	return provisionerd.New(func(dialCtx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 		// This debounces calls to listen every second. Read the comment
 		// in provisionerdserver.go to learn more!
-		return coderAPI.CreateInMemoryProvisionerDaemon(dialCtx, name, provisionerTypes)
+		return coderAPI.CreateInMemoryTaggedProvisionerDaemon(dialCtx, name, provisionerTypes, provisionerTags)
 	}, &provisionerd.Options{
 		Logger:              provisionerLogger,
 		UpdateInterval:      time.Second,

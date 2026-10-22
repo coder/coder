@@ -176,6 +176,10 @@ type Options struct {
 	ReplicaSyncPubsub pubsub.Pubsub
 	RuntimeConfig     *runtimeconfig.Manager
 
+	// NetworkPolicyModulePath is the trusted local Terraform module snapshotted
+	// into experimental network policy revisions. Empty disables revision saves.
+	NetworkPolicyModulePath string
+
 	// CacheDir is used for caching files served by the API.
 	CacheDir string
 
@@ -1403,6 +1407,22 @@ func New(options *Options) *API {
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
 			api.registerExperimentalOrganizationChatRoutes(r)
+			r.Route("/network-policies", func(r chi.Router) {
+				r.Use(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentNetworkPolicies))
+				r.Get("/", api.networkPolicies)
+				r.Post("/", api.postNetworkPolicy)
+				r.Get("/templates", api.networkPolicyTemplateList)
+				r.Route("/{networkpolicy}", func(r chi.Router) {
+					r.Get("/", api.networkPolicyByID)
+					r.Patch("/", api.patchNetworkPolicy)
+					r.Delete("/", api.deleteNetworkPolicy)
+					r.Post("/revisions", api.postNetworkPolicyRevision)
+					r.Put("/templates", api.putNetworkPolicyTemplates)
+					r.Post("/targets", api.postNetworkPolicyTarget)
+					r.Post("/publications", api.postNetworkPolicyPublication)
+					r.Get("/runs/{run}/logs", api.networkPolicyRunLogs)
+				})
+			})
 		})
 
 		r.Route("/mcp", func(r chi.Router) {
@@ -2226,6 +2246,10 @@ func New(options *Options) *API {
 
 	api.RootHandler = r
 
+	if api.Experiments.Enabled(codersdk.ExperimentNetworkPolicies) {
+		api.networkPolicyDriftClose = api.startNetworkPolicyDrift(options.DeploymentValues.NetworkPolicyDriftInterval.Value())
+	}
+
 	return api
 }
 
@@ -2360,6 +2384,7 @@ type API struct {
 	// profiler is process-global, so concurrent collections would fail.
 	ProfileCollecting atomic.Bool
 
+	networkPolicyDriftClose    func()
 	workspaceAgentConnWatcher  *workspaceconnwatcher.Watcher
 	workspaceBuildOrchestrator *wsbuildorchestrator.Orchestrator
 }
@@ -2388,6 +2413,9 @@ func (api *API) Close() error {
 		return xerrors.New("API already closed")
 	default:
 		api.cancel()
+	}
+	if api.networkPolicyDriftClose != nil {
+		api.networkPolicyDriftClose()
 	}
 
 	wsDone := make(chan struct{})
@@ -2551,7 +2579,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		OrganizationID: defaultOrg.ID,
 		CreatedAt:      dbtime.Now(),
 		Provisioners:   dbTypes,
-		Tags:           provisionersdk.MutateTags(uuid.Nil, provisionerTags),
+		Tags:           provisionersdk.NetworkPolicyProvisionerTags(provisionersdk.MutateTags(uuid.Nil, provisionerTags), apiVersion),
 		LastSeenAt:     sql.NullTime{Time: dbtime.Now(), Valid: true},
 		Version:        buildinfo.Version(),
 		APIVersion:     apiVersion,

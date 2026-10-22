@@ -755,6 +755,10 @@ type DeploymentValues struct {
 	ExternalTokenEncryptionKeys             serpent.StringArray                  `json:"external_token_encryption_keys,omitempty" typescript:",notnull"`
 	Provisioner                             ProvisionerConfig                    `json:"provisioner,omitempty" typescript:",notnull"`
 	RateLimit                               RateLimitConfig                      `json:"rate_limit,omitempty" typescript:",notnull"`
+	NetworkPolicyModulePath                 serpent.String                       `json:"network_policy_module_path,omitempty"`
+	NetworkPolicyStartupMode                serpent.String                       `json:"network_policy_startup_mode,omitempty"`
+	NetworkPolicyDriftAction                serpent.String                       `json:"network_policy_drift_action,omitempty"`
+	NetworkPolicyDriftInterval              serpent.Duration                     `json:"network_policy_drift_interval,omitempty"`
 	Experiments                             serpent.StringArray                  `json:"experiments,omitempty" typescript:",notnull"`
 	UpdateCheck                             serpent.Bool                         `json:"update_check,omitempty" typescript:",notnull"`
 	Swagger                                 SwaggerConfig                        `json:"swagger,omitempty" typescript:",notnull"`
@@ -3490,6 +3494,46 @@ communicating directly.`,
 		},
 		// Misc. settings
 		{
+			Name:        "Network Policy Module Path",
+			Description: "Trusted local Terraform module directory for experimental network policies. Snapshotted into each revision. Requires the network-policies experiment.",
+			Flag:        "network-policy-module-path",
+			Env:         "CODER_NETWORK_POLICY_MODULE_PATH",
+			YAML:        "networkPolicyModulePath",
+			Value:       &c.NetworkPolicyModulePath,
+			Hidden:      true,
+		},
+		{
+			Name:        "Network Policy Startup Mode",
+			Description: "Workspace startup policy readiness requirement. require-current requires the published revision; allow-last-applied permits a proven previous apply only when no mutation or drift makes it unsafe.",
+			Flag:        "network-policy-startup-mode",
+			Env:         "CODER_NETWORK_POLICY_STARTUP_MODE",
+			YAML:        "networkPolicyStartupMode",
+			Default:     "require-current",
+			Value:       serpent.EnumOf((*string)(&c.NetworkPolicyStartupMode), "require-current", "allow-last-applied"),
+			Hidden:      true,
+		},
+		{
+			Name:        "Network Policy Drift Action",
+			Description: "Workspace startup behavior for detected current-revision policy drift. allow is an explicit operator exception, not verification that cluster policy is safe; unknown and partial state remain blocked.",
+			Flag:        "network-policy-drift-action",
+			Env:         "CODER_NETWORK_POLICY_DRIFT_ACTION",
+			YAML:        "networkPolicyDriftAction",
+			Default:     "block",
+			Value:       serpent.EnumOf((*string)(&c.NetworkPolicyDriftAction), "block", "allow"),
+			Hidden:      true,
+		},
+		{
+			Name:        "Network Policy Drift Interval",
+			Description: "Interval between report-only network policy drift plans. Requires the network-policies experiment. Zero disables periodic checks without changing startup readiness requirements.",
+			Flag:        "network-policy-drift-interval",
+			Env:         "CODER_NETWORK_POLICY_DRIFT_INTERVAL",
+			YAML:        "networkPolicyDriftInterval",
+			Default:     "15m",
+			Value:       &c.NetworkPolicyDriftInterval,
+			Hidden:      true,
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
 			Name:        "Experiments",
 			Description: "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.",
 			Flag:        "experiments",
@@ -5498,6 +5542,7 @@ type Experiment string
 
 const (
 	// Add new experiments here!
+	ExperimentNetworkPolicies           Experiment = "network-policies"            // Enables independently provisioned organization network policies.
 	ExperimentExample                   Experiment = "example"                     // This isn't used for anything.
 	ExperimentNotifications             Experiment = "notifications"               // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage            Experiment = "workspace-usage"             // Enables the new workspace usage tracking.
@@ -5519,6 +5564,8 @@ const (
 
 func (e Experiment) DisplayName() string {
 	switch e {
+	case ExperimentNetworkPolicies:
+		return "Network Policies"
 	case ExperimentExample:
 		return "Example Experiment"
 	case ExperimentNotifications:
@@ -5561,6 +5608,7 @@ func (e Experiment) DisplayName() string {
 
 // ExperimentsKnown should include all experiments defined above.
 var ExperimentsKnown = Experiments{
+	ExperimentNetworkPolicies,
 	ExperimentExample,
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,

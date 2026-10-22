@@ -4416,6 +4416,39 @@ export interface CreateMCPServerConfigRequest {
 	readonly signing_secret?: string;
 }
 
+// From codersdk/networkpolicies.go
+/**
+ * CreateNetworkPolicyRequest creates a policy and its first revision.
+ */
+export interface CreateNetworkPolicyRequest {
+	readonly name: string;
+	readonly description: string;
+	readonly hcl: string;
+	readonly template_ids: readonly string[];
+}
+
+// From codersdk/networkpolicies.go
+/**
+ * CreateNetworkPolicyRevisionRequest snapshots HCL and the configured module.
+ */
+export interface CreateNetworkPolicyRevisionRequest {
+	readonly hcl: string;
+	readonly expected_generation: number;
+}
+
+// From codersdk/networkpolicies.go
+/**
+ * CreateNetworkPolicyTargetRequest registers an explicit execution target.
+ */
+export interface CreateNetworkPolicyTargetRequest {
+	readonly name: string;
+	readonly cluster: string;
+	readonly context: string;
+	readonly namespace: string;
+	readonly provisioner_tags: Record<string, string>;
+	readonly expected_generation: number;
+}
+
 // From codersdk/organizations.go
 export interface CreateOrganizationRequest {
 	readonly name: string;
@@ -5147,6 +5180,14 @@ export interface DeleteExternalAuthByIDResponse {
 	readonly token_revocation_error?: string;
 }
 
+// From codersdk/networkpolicies.go
+/**
+ * DeleteNetworkPolicyRequest starts or retries asynchronous infrastructure deletion.
+ */
+export interface DeleteNetworkPolicyRequest {
+	readonly expected_generation: number;
+}
+
 // From codersdk/notifications.go
 export interface DeleteWebpushSubscription {
 	readonly endpoint: string;
@@ -5233,6 +5274,10 @@ export interface DeploymentValues {
 	readonly external_token_encryption_keys?: string;
 	readonly provisioner?: ProvisionerConfig;
 	readonly rate_limit?: RateLimitConfig;
+	readonly network_policy_module_path?: string;
+	readonly network_policy_startup_mode?: string;
+	readonly network_policy_drift_action?: string;
+	readonly network_policy_drift_interval?: number;
 	readonly experiments?: string;
 	readonly update_check?: boolean;
 	readonly swagger?: SwaggerConfig;
@@ -5521,6 +5566,7 @@ export type Experiment =
 	| "example"
 	| "mcp-server-http"
 	| "mcp-tool-search"
+	| "network-policies"
 	| "no_nats_pubsub"
 	| "notifications"
 	| "workspace-build-updates"
@@ -5601,6 +5647,7 @@ export const Experiments: Experiment[] = [
 	"example",
 	"mcp-server-http",
 	"mcp-tool-search",
+	"network-policies",
 	"no_nats_pubsub",
 	"notifications",
 	"workspace-build-updates",
@@ -6961,6 +7008,96 @@ export interface NetcheckReport {
 	 * intercepting HTTP traffic.
 	 */
 	readonly CaptivePortal: boolean | null;
+}
+
+// From codersdk/networkpolicies.go
+/**
+ * NetworkPolicy is an organization-scoped, independently provisioned policy.
+ */
+export interface NetworkPolicy {
+	readonly id: string;
+	readonly organization_id: string;
+	readonly name: string;
+	readonly description: string;
+	readonly generation: number;
+	readonly created_at: string;
+	readonly updated_at: string;
+	readonly deletion_requested_at: string | null;
+	readonly deleted_at: string | null;
+	readonly revisions: readonly NetworkPolicyRevision[];
+	readonly template_ids: readonly string[];
+	readonly targets: readonly NetworkPolicyTarget[];
+	readonly runs: readonly NetworkPolicyRun[];
+}
+
+// From codersdk/networkpolicies.go
+export type NetworkPolicyOperation = "apply" | "destroy" | "plan";
+
+export const NetworkPolicyOperations: NetworkPolicyOperation[] = [
+	"apply",
+	"destroy",
+	"plan",
+];
+
+// From codersdk/networkpolicies.go
+/**
+ * NetworkPolicyRevision is an immutable HCL and trusted module snapshot.
+ */
+export interface NetworkPolicyRevision {
+	readonly id: string;
+	readonly policy_id: string;
+	readonly hcl: string;
+	readonly created_at: string;
+	readonly created_by: string;
+}
+
+// From codersdk/networkpolicies.go
+/**
+ * NetworkPolicyRun records a real provisioner job, not an optimistic apply result.
+ */
+export interface NetworkPolicyRun {
+	/**
+	 * TemplateIDs is the immutable desired attachment snapshot for this run.
+	 */
+	readonly template_ids?: readonly string[];
+	readonly id: string;
+	readonly policy_id: string;
+	readonly target_id: string;
+	readonly revision_id: string;
+	readonly job_id: string;
+	readonly operation: NetworkPolicyOperation;
+	readonly status: string;
+	readonly error: string;
+	/**
+	 * Plan is a bounded text preview of persisted output for completed plan runs.
+	 * Use NetworkPolicyRunLogs for the complete output.
+	 */
+	readonly plan: string;
+	readonly created_at: string;
+	readonly completed_at: string | null;
+}
+
+// From codersdk/networkpolicies.go
+/**
+ * NetworkPolicyTarget identifies explicit infrastructure and provisioner routing.
+ */
+export interface NetworkPolicyTarget {
+	readonly id: string;
+	readonly policy_id: string;
+	readonly name: string;
+	readonly cluster: string;
+	readonly context: string;
+	readonly namespace: string;
+	readonly provisioner_tags: Record<string, string>;
+	readonly desired_revision_id: string | null;
+	readonly applied_revision_id: string | null;
+	readonly status: string;
+	readonly drifted: boolean;
+	readonly last_job_id: string | null;
+	readonly last_error: string;
+	readonly destroyed_at: string | null;
+	readonly created_at: string;
+	readonly updated_at: string;
 }
 
 // From codersdk/notifications.go
@@ -8570,6 +8707,7 @@ export interface ProvisionerJob {
 export interface ProvisionerJobInput {
 	readonly template_version_id?: string;
 	readonly workspace_build_id?: string;
+	readonly network_policy_run_id?: string;
 	readonly error?: string;
 }
 
@@ -8623,11 +8761,13 @@ export const ProvisionerJobStatuses: ProvisionerJobStatus[] = [
 
 // From codersdk/provisionerdaemons.go
 export type ProvisionerJobType =
+	| "network_policy"
 	| "template_version_dry_run"
 	| "template_version_import"
 	| "workspace_build";
 
 export const ProvisionerJobTypes: ProvisionerJobType[] = [
+	"network_policy",
 	"template_version_dry_run",
 	"template_version_import",
 	"workspace_build",
@@ -8725,6 +8865,17 @@ export const ProxyHealthStatuses: ProxyHealthStatus[] = [
 	"unreachable",
 	"unregistered",
 ];
+
+// From codersdk/networkpolicies.go
+/**
+ * PublishNetworkPolicyRequest queues operations for explicit targets.
+ */
+export interface PublishNetworkPolicyRequest {
+	readonly revision_id: string;
+	readonly target_ids: readonly string[];
+	readonly operation: NetworkPolicyOperation;
+	readonly expected_generation: number;
+}
 
 // From codersdk/experimentrules.go
 /**
@@ -9608,6 +9759,16 @@ export interface SessionLifetime {
  * SessionTokenHeader is the custom header to use for authentication.
  */
 export const SessionTokenHeader = "Coder-Session-Token";
+
+// From codersdk/networkpolicies.go
+/**
+ * SetNetworkPolicyTemplatesRequest replaces the desired attachment set and,
+ * when published, queues apply jobs on every target without rebuilding workspaces.
+ */
+export interface SetNetworkPolicyTemplatesRequest {
+	readonly template_ids: readonly string[];
+	readonly expected_generation: number;
+}
 
 // From codersdk/workspacesharing.go
 export type ShareableWorkspaceOwners = "everyone" | "none" | "service_accounts";
@@ -10881,6 +11042,16 @@ export interface UpdateMCPServerConfigRequest {
 	 * an empty string clears it. It is never returned.
 	 */
 	readonly signing_secret?: string;
+}
+
+// From codersdk/networkpolicies.go
+/**
+ * UpdateNetworkPolicyRequest changes policy metadata with optimistic concurrency.
+ */
+export interface UpdateNetworkPolicyRequest {
+	readonly name: string;
+	readonly description: string;
+	readonly expected_generation: number;
 }
 
 // From codersdk/notifications.go

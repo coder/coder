@@ -37,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/networkpolicy"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/promoauth"
@@ -550,7 +551,7 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 		logger.Error(streamCtx, "recv error and failed to cancel acquire job", slog.Error(recvErr))
 		// Well, this is awkward.  We hit an error receiving from the stream, but didn't cancel before we locked a job
 		// in the database.  We need to mark this job as failed so the end user can retry if they want to.
-		s.failAcquiredJob(logger, je.job.ID, "connection to provisioner daemon broken")
+		s.failAcquiredJob(logger, je.job.ID, "connection to provisioner daemon broken", proto.StateDisposition_UNCHANGED)
 		s.jobFinished(je.job.ID)
 		return recvErr
 	}
@@ -564,21 +565,38 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 	err = stream.Send(pj)
 	if err != nil {
 		s.Logger.Error(streamCtx, "failed to send job", slog.Error(err))
-		// The job was locked but never delivered, so mark it failed instead of
-		// leaving it assigned to a worker that does not have it.
-		s.failAcquiredJob(logger, je.job.ID, "connection to provisioner daemon broken")
+		// A send error does not prove that the daemon never received the job.
+		// Native policy applies must retain their reservation in this case.
+		s.failAcquiredJob(logger, je.job.ID, "connection to provisioner daemon broken", proto.StateDisposition_UNKNOWN)
 		s.jobFinished(je.job.ID)
 		return err
 	}
 	return nil
 }
 
-// failAcquiredJob marks a job that was claimed but never delivered to the
-// daemon as failed. It uses a fresh context so the update succeeds even when
-// the session context is canceled.
-func (s *server) failAcquiredJob(logger slog.Logger, jobID uuid.UUID, message string) {
+// failAcquiredJob fails a claimed job using a fresh context. If delivery was
+// attempted, an apply's outcome is unknown and its target stays reserved.
+func (s *server) failAcquiredJob(logger slog.Logger, jobID uuid.UUID, message string, disposition proto.StateDisposition) {
+	//nolint:gocritic // Provisionerd has specific authz rules.
+	ctx, cancel := context.WithTimeout(dbauthz.AsProvisionerd(context.Background()), time.Minute)
+	defer cancel()
+	job, err := s.Database.GetProvisionerJobByID(ctx, jobID)
+	if err != nil {
+		logger.Error(ctx, "get failed acquired job", slog.Error(err))
+		return
+	}
+	if job.Type == database.ProvisionerJobTypeNetworkPolicy {
+		err := s.finalizeNetworkPolicyJob(ctx, jobID, networkPolicyJobResult{
+			disposition: disposition,
+			error:       message,
+		})
+		if err != nil {
+			logger.Error(ctx, "finalize failed acquired network policy job", slog.Error(err))
+		}
+		return
+	}
 	now := s.timeNow()
-	err := s.Database.UpdateProvisionerJobWithCompleteByID(
+	err = s.Database.UpdateProvisionerJobWithCompleteByID(
 		//nolint:gocritic // Provisionerd has specific authz rules.
 		dbauthz.AsProvisionerd(context.Background()),
 		database.UpdateProvisionerJobWithCompleteByIDParams{
@@ -605,6 +623,18 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 	// context is canceled; otherwise the claimed job would stay assigned to
 	// this worker until the job reaper.
 	failJob := func(errorMessage string) error {
+		if job.Type == database.ProvisionerJobTypeNetworkPolicy {
+			//nolint:gocritic // Provisionerd has specific authz rules.
+			ctx, cancel := context.WithTimeout(dbauthz.AsProvisionerd(context.Background()), time.Minute)
+			defer cancel()
+			if err := s.finalizeNetworkPolicyJob(ctx, job.ID, networkPolicyJobResult{
+				disposition: proto.StateDisposition_UNCHANGED,
+				error:       errorMessage,
+			}); err != nil {
+				return xerrors.Errorf("finalize invalid network policy job: %w", err)
+			}
+			return xerrors.Errorf("request job was invalidated: %s", errorMessage)
+		}
 		err := s.Database.UpdateProvisionerJobWithCompleteByID(
 			//nolint:gocritic // Provisionerd has specific authz rules.
 			dbauthz.AsProvisionerd(context.Background()),
@@ -678,6 +708,13 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		template, err := s.Database.GetTemplateByID(ctx, templateVersion.TemplateID.UUID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get template: %s", err))
+		}
+		// A policy may have changed while this workspace job was queued.
+		// Recheck before issuing credentials or delivering Terraform work.
+		if workspaceBuild.Transition == database.WorkspaceTransitionStart {
+			if err := networkpolicy.CheckStartup(ctx, s.Database, template, networkpolicy.StartupOptionsFromDeployment(s.DeploymentValues)); err != nil {
+				return nil, failJob(fmt.Sprintf("network policy startup check: %s", err))
+			}
 		}
 		owner, err := s.Database.GetUserByID(ctx, workspace.OwnerID)
 		if err != nil {
@@ -934,6 +971,12 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				LogLevel: input.LogLevel,
 			},
 		}
+	case database.ProvisionerJobTypeNetworkPolicy:
+		networkPolicy, err := s.acquireNetworkPolicyJob(ctx, job)
+		if err != nil {
+			return nil, failJob(err.Error())
+		}
+		protoJob.Type = &proto.AcquiredJob_NetworkPolicy_{NetworkPolicy: networkPolicy}
 	case database.ProvisionerJobTypeTemplateVersionDryRun:
 		var input TemplateVersionDryRunJob
 		err = json.Unmarshal(job.Input, &input)
@@ -1096,6 +1139,10 @@ func (s *server) CommitQuota(ctx context.Context, request *proto.CommitQuotaRequ
 		return nil, xerrors.New("you don't own this job")
 	}
 
+	if job.Type == database.ProvisionerJobTypeNetworkPolicy {
+		return nil, xerrors.New("network policy jobs do not use workspace quota")
+	}
+
 	q := s.QuotaCommitter.Load()
 	if q == nil {
 		// We're probably in community edition or a test.
@@ -1127,6 +1174,9 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 	}
 	if job.WorkerID.UUID.String() != s.ID.String() {
 		return nil, xerrors.New("you don't own this job")
+	}
+	if job.Type == database.ProvisionerJobTypeNetworkPolicy && job.CompletedAt.Valid {
+		return &proto.UpdateJobResponse{Canceled: true}, nil
 	}
 	err = s.Database.UpdateProvisionerJobByID(ctx, database.UpdateProvisionerJobByIDParams{
 		ID:        parsedID,
@@ -1249,6 +1299,12 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 		s.Logger.Debug(ctx, "published job logs", slog.F("job_id", parsedID))
 	}
 
+	// Native network policy updates contain only logs and heartbeats. They
+	// must never mutate template or workspace resources.
+	if job.Type == database.ProvisionerJobTypeNetworkPolicy {
+		return &proto.UpdateJobResponse{Canceled: job.CanceledAt.Valid || job.CompletedAt.Valid}, nil
+	}
+
 	if len(request.WorkspaceTags) > 0 {
 		templateVersion, err := s.Database.GetTemplateVersionByJobID(ctx, job.ID)
 		if err != nil {
@@ -1353,6 +1409,12 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 	job, err := s.Database.GetProvisionerJobByID(ctx, jobID)
 	if err != nil {
 		return nil, xerrors.Errorf("get provisioner job: %w", err)
+	}
+	if job.Type == database.ProvisionerJobTypeNetworkPolicy {
+		return s.failNetworkPolicyJob(ctx, jobID, failJob)
+	}
+	if failJob.GetNetworkPolicy() != nil {
+		return nil, xerrors.New("network policy payload does not match stored job type")
 	}
 	if job.WorkerID.UUID.String() != s.ID.String() {
 		return nil, xerrors.New("you don't own this job")
@@ -1820,6 +1882,10 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 	}
 	if job.WorkerID.UUID.String() != s.ID.String() {
 		return nil, xerrors.Errorf("you don't own this job")
+	}
+
+	if job.Type == database.ProvisionerJobTypeNetworkPolicy {
+		return s.completeNetworkPolicyJob(ctx, jobID, completed)
 	}
 
 	telemetrySnapshot := &telemetry.Snapshot{}

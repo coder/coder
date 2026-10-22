@@ -58,6 +58,9 @@ type Runner struct {
 	forceCancelInterval time.Duration
 	logBufferInterval   time.Duration
 
+	// Once apply starts, a missing result must not imply unchanged state.
+	networkPolicyApplyStarted atomic.Bool
+
 	// session is the provisioning session with the (possibly remote) provisioner
 	session sdkproto.DRPCProvisioner_SessionClient
 	// closed when the Runner is finished sending any updates/failed/complete.
@@ -273,6 +276,11 @@ func (r *Runner) Fail(ctx context.Context, f *proto.FailedJob) error {
 		return nil // already done
 	}
 	r.Cancel()
+	if r.job.GetNetworkPolicy() != nil {
+		f.Type = &proto.FailedJob_NetworkPolicy_{
+			NetworkPolicy: &proto.FailedJob_NetworkPolicy{StateDisposition: r.networkPolicyStateDisposition()},
+		}
+	}
 	if r.failedJob == nil {
 		r.failedJob = f
 		r.cond.Signal()
@@ -444,6 +452,8 @@ func (r *Runner) do(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob)
 			slog.F("variable_values", redactVariableValues(jobType.TemplateDryRun.VariableValues)),
 		)
 		return r.runTemplateDryRun(ctx)
+	case *proto.AcquiredJob_NetworkPolicy_:
+		return r.runNetworkPolicy(ctx)
 	case *proto.AcquiredJob_WorkspaceBuild_:
 		r.logger.Debug(context.Background(), "acquired job is workspace provision",
 			slog.F("workspace_name", jobType.WorkspaceBuild.WorkspaceName),
@@ -1130,11 +1140,17 @@ func (r *Runner) failedJobf(format string, args ...interface{}) *proto.FailedJob
 			break
 		}
 	}
-	return &proto.FailedJob{
+	failed := &proto.FailedJob{
 		JobId:     r.job.JobId,
 		Error:     message,
 		ErrorCode: code,
 	}
+	if r.job.GetNetworkPolicy() != nil {
+		failed.Type = &proto.FailedJob_NetworkPolicy_{
+			NetworkPolicy: &proto.FailedJob_NetworkPolicy{StateDisposition: r.networkPolicyStateDisposition()},
+		}
+	}
+	return failed
 }
 
 func (r *Runner) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {

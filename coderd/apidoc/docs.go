@@ -975,6 +975,598 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/organizations/{organization}/network-policies": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Network policies"
+                ],
+                "summary": "List network policies",
+                "operationId": "list-network-policies",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.NetworkPolicy"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Network policies"
+                ],
+                "summary": "Create network policy",
+                "operationId": "create-network-policy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Policy",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateNetworkPolicyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.NetworkPolicy"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/network-policies/templates": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Network policies"
+                ],
+                "summary": "List administrable templates for network policies",
+                "operationId": "list-network-policy-templates",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Template"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/network-policies/{networkpolicy}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Network policies"
+                ],
+                "summary": "Get network policy",
+                "operationId": "get-network-policy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Network policy ID",
+                        "name": "networkpolicy",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.NetworkPolicy"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Network policies"
+                ],
+                "summary": "Delete network policy infrastructure",
+                "operationId": "delete-network-policy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Network policy ID",
+                        "name": "networkpolicy",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Deletion",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.DeleteNetworkPolicyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.NetworkPolicy"
+                        }
+                    },
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.NetworkPolicy"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Network policies"
+                ],
+                "summary": "Update network policy",
+                "operationId": "update-network-policy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Network policy ID",
+                        "name": "networkpolicy",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Metadata",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateNetworkPolicyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.NetworkPolicy"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/network-policies/{networkpolicy}/publications": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Network policies"
+                ],
+                "summary": "Publish or plan network policy",
+                "operationId": "publish-network-policy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Network policy ID",
+                        "name": "networkpolicy",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Publication",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PublishNetworkPolicyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.NetworkPolicyRun"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/network-policies/{networkpolicy}/revisions": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Network policies"
+                ],
+                "summary": "Save network policy revision",
+                "operationId": "create-network-policy-revision",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Network policy ID",
+                        "name": "networkpolicy",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Revision",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateNetworkPolicyRevisionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.NetworkPolicyRevision"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/network-policies/{networkpolicy}/runs/{run}/logs": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Network policies"
+                ],
+                "summary": "Get network policy run logs",
+                "operationId": "get-network-policy-run-logs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Network policy ID",
+                        "name": "networkpolicy",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Run ID",
+                        "name": "run",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Return logs after this ID",
+                        "name": "after",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ProvisionerJobLog"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/network-policies/{networkpolicy}/targets": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Network policies"
+                ],
+                "summary": "Create network policy target",
+                "operationId": "create-network-policy-target",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Network policy ID",
+                        "name": "networkpolicy",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Target",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateNetworkPolicyTargetRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.NetworkPolicyTarget"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/network-policies/{networkpolicy}/templates": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Network policies"
+                ],
+                "summary": "Replace network policy template attachments",
+                "operationId": "set-network-policy-templates",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Network policy ID",
+                        "name": "networkpolicy",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Attachments",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.SetNetworkPolicyTemplatesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.NetworkPolicy"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/organizations/{organization}/skills": {
             "get": {
                 "produces": [
@@ -23833,6 +24425,75 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateNetworkPolicyRequest": {
+            "type": "object",
+            "required": [
+                "hcl",
+                "name"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "hcl": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "template_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.CreateNetworkPolicyRevisionRequest": {
+            "type": "object",
+            "required": [
+                "hcl"
+            ],
+            "properties": {
+                "expected_generation": {
+                    "type": "integer"
+                },
+                "hcl": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.CreateNetworkPolicyTargetRequest": {
+            "type": "object",
+            "required": [
+                "cluster",
+                "context",
+                "namespace"
+            ],
+            "properties": {
+                "cluster": {
+                    "type": "string"
+                },
+                "context": {
+                    "type": "string"
+                },
+                "expected_generation": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "namespace": {
+                    "type": "string"
+                },
+                "provisioner_tags": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "codersdk.CreateOrganizationRequest": {
             "type": "object",
             "required": [
@@ -24733,6 +25394,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DeleteNetworkPolicyRequest": {
+            "type": "object",
+            "properties": {
+                "expected_generation": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.DeleteWebpushSubscription": {
             "type": "object",
             "properties": {
@@ -24933,6 +25602,18 @@ const docTemplate = `{
                 },
                 "metrics_cache_refresh_interval": {
                     "type": "integer"
+                },
+                "network_policy_drift_action": {
+                    "type": "string"
+                },
+                "network_policy_drift_interval": {
+                    "type": "integer"
+                },
+                "network_policy_module_path": {
+                    "type": "string"
+                },
+                "network_policy_startup_mode": {
+                    "type": "string"
                 },
                 "notifications": {
                     "$ref": "#/definitions/codersdk.NotificationsConfig"
@@ -25274,6 +25955,7 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
+                "network-policies",
                 "example",
                 "notifications",
                 "workspace-usage",
@@ -25305,6 +25987,7 @@ const docTemplate = `{
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentMCPToolSearch": "Defers MCP tool schemas behind a searchable catalog in agent chats.",
+                "ExperimentNetworkPolicies": "Enables independently provisioned organization network policies.",
                 "ExperimentNoNATSPubsub": "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
@@ -25312,6 +25995,7 @@ const docTemplate = `{
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-descriptions": [
+                "Enables independently provisioned organization network policies.",
                 "This isn't used for anything.",
                 "Sends notifications via SMTP and webhooks following certain events.",
                 "Enables the new workspace usage tracking.",
@@ -25331,6 +26015,7 @@ const docTemplate = `{
                 "Exposes chat lifecycle stage durations as Prometheus metrics."
             ],
             "x-enum-varnames": [
+                "ExperimentNetworkPolicies",
                 "ExperimentExample",
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
@@ -26718,6 +27403,222 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.NetworkPolicy": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "deleted_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "deletion_requested_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "generation": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "revisions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.NetworkPolicyRevision"
+                    }
+                },
+                "runs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.NetworkPolicyRun"
+                    }
+                },
+                "targets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.NetworkPolicyTarget"
+                    }
+                },
+                "template_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.NetworkPolicyOperation": {
+            "type": "string",
+            "enum": [
+                "apply",
+                "plan",
+                "destroy"
+            ],
+            "x-enum-varnames": [
+                "NetworkPolicyOperationApply",
+                "NetworkPolicyOperationPlan",
+                "NetworkPolicyOperationDestroy"
+            ]
+        },
+        "codersdk.NetworkPolicyRevision": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "created_by": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "hcl": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "policy_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.NetworkPolicyRun": {
+            "type": "object",
+            "properties": {
+                "completed_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "job_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "operation": {
+                    "$ref": "#/definitions/codersdk.NetworkPolicyOperation"
+                },
+                "plan": {
+                    "description": "Plan is a bounded text preview of persisted output for completed plan runs.\nUse NetworkPolicyRunLogs for the complete output.",
+                    "type": "string"
+                },
+                "policy_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "revision_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "target_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "template_ids": {
+                    "description": "TemplateIDs is the immutable desired attachment snapshot for this run.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.NetworkPolicyTarget": {
+            "type": "object",
+            "properties": {
+                "applied_revision_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "cluster": {
+                    "type": "string"
+                },
+                "context": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "desired_revision_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "destroyed_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "drifted": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "last_error": {
+                    "type": "string"
+                },
+                "last_job_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "namespace": {
+                    "type": "string"
+                },
+                "policy_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "provisioner_tags": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },
@@ -29153,6 +30054,10 @@ const docTemplate = `{
                 "error": {
                     "type": "string"
                 },
+                "network_policy_run_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "template_version_id": {
                     "type": "string",
                     "format": "uuid"
@@ -29255,12 +30160,14 @@ const docTemplate = `{
             "enum": [
                 "template_version_import",
                 "workspace_build",
-                "template_version_dry_run"
+                "template_version_dry_run",
+                "network_policy"
             ],
             "x-enum-varnames": [
                 "ProvisionerJobTypeTemplateVersionImport",
                 "ProvisionerJobTypeWorkspaceBuild",
-                "ProvisionerJobTypeTemplateVersionDryRun"
+                "ProvisionerJobTypeTemplateVersionDryRun",
+                "ProvisionerJobTypeNetworkPolicy"
             ]
         },
         "codersdk.ProvisionerKey": {
@@ -29386,6 +30293,35 @@ const docTemplate = `{
                 "ProxyUnhealthy",
                 "ProxyUnregistered"
             ]
+        },
+        "codersdk.PublishNetworkPolicyRequest": {
+            "type": "object",
+            "properties": {
+                "expected_generation": {
+                    "type": "integer"
+                },
+                "operation": {
+                    "enum": [
+                        "apply",
+                        "plan"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.NetworkPolicyOperation"
+                        }
+                    ]
+                },
+                "revision_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "target_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
         },
         "codersdk.PutExperimentRuleRequest": {
             "type": "object",
@@ -30145,6 +31081,20 @@ const docTemplate = `{
                 "refresh_default_duration": {
                     "description": "RefreshDefaultDuration is the default lifetime for OAuth2 refresh tokens.\nThis should generally be longer than access token lifetimes to allow\nrefreshing after access token expiry.",
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.SetNetworkPolicyTemplatesRequest": {
+            "type": "object",
+            "properties": {
+                "expected_generation": {
+                    "type": "integer"
+                },
+                "template_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -32027,6 +32977,23 @@ const docTemplate = `{
                     ]
                 },
                 "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateNetworkPolicyRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "expected_generation": {
+                    "type": "integer"
+                },
+                "name": {
                     "type": "string"
                 }
             }

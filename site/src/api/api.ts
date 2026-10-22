@@ -3216,6 +3216,109 @@ type UpdateChatRequestWithClearablePlanMode = Omit<
 class ExperimentalApiMethods {
 	constructor(protected readonly axios: AxiosInstance) {}
 
+	getNetworkPolicyRunLogs = async (
+		organization: string,
+		policyId: string,
+		runId: string,
+	) => {
+		const response = await this.axios.get<TypesGen.ProvisionerJobLog[]>(
+			`/api/experimental/organizations/${encodeURIComponent(organization)}/network-policies/${policyId}/runs/${runId}/logs`,
+		);
+		return response.data;
+	};
+
+	getNetworkPolicyTemplates = async (organization: string) => {
+		const response = await this.axios.get<TypesGen.Template[]>(
+			`/api/experimental/organizations/${encodeURIComponent(organization)}/network-policies/templates`,
+		);
+		return response.data;
+	};
+
+	getNetworkPolicies = async (organization: string) => {
+		const response = await this.axios.get<TypesGen.NetworkPolicy[]>(
+			`/api/experimental/organizations/${encodeURIComponent(organization)}/network-policies`,
+		);
+		return response.data;
+	};
+
+	getNetworkPolicy = async (organization: string, policyId: string) => {
+		const response = await this.axios.get<TypesGen.NetworkPolicy>(
+			`/api/experimental/organizations/${encodeURIComponent(organization)}/network-policies/${policyId}`,
+		);
+		return response.data;
+	};
+
+	createNetworkPolicy = async (
+		organization: string,
+		request: TypesGen.CreateNetworkPolicyRequest,
+	) => {
+		const response = await this.axios.post<TypesGen.NetworkPolicy>(
+			`/api/experimental/organizations/${encodeURIComponent(organization)}/network-policies`,
+			request,
+		);
+		return response.data;
+	};
+
+	deleteNetworkPolicy = async (
+		organization: string,
+		policyId: string,
+		request: TypesGen.DeleteNetworkPolicyRequest,
+	) => {
+		const response = await this.axios.delete<TypesGen.NetworkPolicy>(
+			`/api/experimental/organizations/${encodeURIComponent(organization)}/network-policies/${policyId}`,
+			{ data: request },
+		);
+		return response.data;
+	};
+
+	createNetworkPolicyRevision = async (
+		organization: string,
+		policyId: string,
+		request: TypesGen.CreateNetworkPolicyRevisionRequest,
+	) => {
+		const response = await this.axios.post<TypesGen.NetworkPolicyRevision>(
+			`/api/experimental/organizations/${encodeURIComponent(organization)}/network-policies/${policyId}/revisions`,
+			request,
+		);
+		return response.data;
+	};
+
+	setNetworkPolicyTemplates = async (
+		organization: string,
+		policyId: string,
+		request: TypesGen.SetNetworkPolicyTemplatesRequest,
+	) => {
+		const response = await this.axios.put<TypesGen.NetworkPolicy>(
+			`/api/experimental/organizations/${encodeURIComponent(organization)}/network-policies/${policyId}/templates`,
+			request,
+		);
+		return response.data;
+	};
+
+	createNetworkPolicyTarget = async (
+		organization: string,
+		policyId: string,
+		request: TypesGen.CreateNetworkPolicyTargetRequest,
+	) => {
+		const response = await this.axios.post<TypesGen.NetworkPolicyTarget>(
+			`/api/experimental/organizations/${encodeURIComponent(organization)}/network-policies/${policyId}/targets`,
+			request,
+		);
+		return response.data;
+	};
+
+	publishNetworkPolicy = async (
+		organization: string,
+		policyId: string,
+		request: TypesGen.PublishNetworkPolicyRequest,
+	) => {
+		const response = await this.axios.post<TypesGen.NetworkPolicyRun[]>(
+			`/api/experimental/organizations/${encodeURIComponent(organization)}/network-policies/${policyId}/publications`,
+			request,
+		);
+		return response.data;
+	};
+
 	getChatsByWorkspace = async (
 		workspaceIds: readonly string[],
 		signal?: AbortSignal,

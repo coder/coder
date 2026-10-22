@@ -110,9 +110,16 @@ import "github.com/coder/coder/v2/apiversion"
 //     from the provisioner to coderd. `dependencies` is empty when the script
 //     has no prerequisites. `resource_address` is empty only for the legacy
 //     agent startup and shutdown scripts.
+//
+// API v1.21:
+//   - Added native network policy plan/apply jobs with explicit state disposition.
+//
+// API v1.22:
+//   - Added native network policy destroy jobs, routed using the
+//     coder.network_policy_destroy capability for opted-in workers.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 20
+	CurrentMinor = 22
 )
 
 // CurrentVersion is the current provisionerd API version.

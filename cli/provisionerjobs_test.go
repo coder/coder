@@ -138,6 +138,26 @@ func TestProvisionerJobs(t *testing.T) {
 			{"Owner", client, "WorkspaceBuild", prepareWorkspaceBuildJob, true},
 			{"Owner", client, "TemplateVersionImport", prepareTemplateVersionImportJob, true},
 			{"Owner", client, "TemplateVersionImportDryRun", prepareTemplateVersionImportJobDryRun, true},
+			{"Owner", client, "NetworkPolicy", func(t *testing.T) database.ProvisionerJob {
+				t.Helper()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				now := coderdAPI.Clock.Now()
+				job := prepareJob(t, database.ProvisionerJobTypeNetworkPolicy, json.RawMessage(`{}`))
+				file := dbgen.File(t, db, database.File{ID: job.FileID, CreatedBy: owner.UserID})
+				p, err := db.InsertNetworkPolicy(ctx, database.InsertNetworkPolicyParams{ID: uuid.New(), OrganizationID: job.OrganizationID, Name: uuid.NewString(), CreatedBy: owner.UserID, CreatedAt: now, UpdatedAt: now})
+				require.NoError(t, err)
+				_, err = db.InsertNetworkPolicyAttachment(ctx, database.InsertNetworkPolicyAttachmentParams{PolicyID: p.ID, TemplateID: template.ID, OrganizationID: job.OrganizationID, CreatedAt: now})
+				require.NoError(t, err)
+				revision, err := db.InsertNetworkPolicyRevision(ctx, database.InsertNetworkPolicyRevisionParams{ID: uuid.New(), PolicyID: p.ID, OrganizationID: job.OrganizationID, RevisionNumber: 1, Hcl: "policy {}", FileID: file.ID, CreatedBy: owner.UserID, CreatedAt: now})
+				require.NoError(t, err)
+				target, err := db.InsertNetworkPolicyTarget(ctx, database.InsertNetworkPolicyTargetParams{ID: uuid.New(), PolicyID: p.ID, OrganizationID: job.OrganizationID, Cluster: "cluster", Context: "context", Namespace: "namespace", Tags: json.RawMessage(`{}`), CreatedAt: now, UpdatedAt: now})
+				require.NoError(t, err)
+				target, err = db.StartNetworkPolicyTargetJob(ctx, database.StartNetworkPolicyTargetJobParams{ID: target.ID, JobID: uuid.NullUUID{UUID: job.ID, Valid: true}, DesiredRevisionID: uuid.NullUUID{UUID: revision.ID, Valid: true}, Generation: target.Generation, Status: "planning", UpdatedAt: now})
+				require.NoError(t, err)
+				_, err = db.InsertNetworkPolicyRun(ctx, database.InsertNetworkPolicyRunParams{ID: uuid.New(), JobID: job.ID, PolicyID: p.ID, TargetID: target.ID, RevisionID: revision.ID, OrganizationID: job.OrganizationID, Generation: target.Generation, Operation: "plan", CreatedAt: now})
+				require.NoError(t, err)
+				return job
+			}, false},
 			{"TemplateAdmin", templateAdminClient, "WorkspaceBuild", prepareWorkspaceBuildJob, false},
 			{"TemplateAdmin", templateAdminClient, "TemplateVersionImport", prepareTemplateVersionImportJob, true},
 			{"TemplateAdmin", templateAdminClient, "TemplateVersionImportDryRun", prepareTemplateVersionImportJobDryRun, false},
@@ -160,6 +180,9 @@ func TestProvisionerJobs(t *testing.T) {
 				var buf bytes.Buffer
 				inv.Stdout = &buf
 				err := inv.Run()
+				if tt.name == "NetworkPolicy" {
+					require.ErrorContains(t, err, `canceling provisioner job type "network_policy" is not supported`)
+				}
 				if tt.wantCancelled {
 					assert.NoError(t, err)
 				} else {

@@ -1,0 +1,10 @@
+.local/
+.coder/
+.terraform/
+__pycache__/
+*.pyc
+*.log
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log

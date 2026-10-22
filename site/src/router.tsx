@@ -159,6 +159,9 @@ const CreateOAuth2AppPage = lazy(
 			"./pages/DeploymentSettingsPage/OAuth2AppsSettingsPage/CreateOAuth2AppPage"
 		),
 );
+const NetworkPoliciesPage = lazy(
+	() => import("./pages/NetworkPoliciesPage/NetworkPoliciesPage"),
+);
 const NetworkSettingsPage = lazy(
 	() =>
 		import(
@@ -596,6 +599,12 @@ export const router = createBrowserRouter(
 					<Route path="/audit" element={<AuditPage />} />
 
 					<Route path="/connectionlog" element={<ConnectionLogPage />} />
+
+					<Route path="/organizations/:organization/network-policies">
+						<Route index element={<NetworkPoliciesPage />} />
+						<Route path="new" element={<NetworkPoliciesPage create />} />
+						<Route path=":policyId" element={<NetworkPoliciesPage />} />
+					</Route>
 
 					<Route path="/organizations" element={<OrganizationSettingsLayout />}>
 						<Route path="new" element={<CreateOrganizationPage />} />

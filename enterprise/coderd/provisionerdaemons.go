@@ -264,6 +264,9 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Derive capabilities after authorization resolves provisioner-key tags.
+	tags = provisionersdk.NetworkPolicyProvisionerTags(tags, apiVersion)
+
 	// Create the daemon in the database.
 	now := dbtime.Now()
 	daemon, err := api.Database.UpsertProvisionerDaemon(authCtx, database.UpsertProvisionerDaemonParams{

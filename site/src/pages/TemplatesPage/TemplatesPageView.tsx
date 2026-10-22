@@ -274,6 +274,7 @@ type TemplatesPageViewProps = {
 	templates: Template[] | undefined;
 	templateUpdatePermissions: AuthorizationResponse;
 	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
+	networkPoliciesNavigation?: React.ReactNode;
 };
 
 export const TemplatesPageView: React.FC<TemplatesPageViewProps> = ({
@@ -286,6 +287,7 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = ({
 	templates,
 	templateUpdatePermissions,
 	workspacePermissions,
+	networkPoliciesNavigation,
 }) => {
 	const isLoading = !templates;
 	const isEmpty = !isLoading && templates.length === 0;
@@ -334,6 +336,7 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = ({
 				</PageHeaderSubtitle>
 			</PageHeader>
 
+			{networkPoliciesNavigation}
 			<TemplatesFilter
 				filter={filterState.filter}
 				error={error}

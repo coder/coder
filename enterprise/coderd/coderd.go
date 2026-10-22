@@ -1535,6 +1535,7 @@ func (api *API) setupPrebuilds(featureEnabled bool) (agplprebuilds.Reconciliatio
 		api.TracerProvider,
 		int(api.DeploymentValues.PostgresConnMaxOpen.Value()),
 		api.AGPL.WorkspaceBuilderMetrics,
+		prebuilds.WithNetworkPolicyStartup(api.DeploymentValues),
 	)
 	return reconciler, prebuilds.NewEnterpriseClaimer()
 }

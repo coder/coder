@@ -3557,6 +3557,7 @@ const (
 	ProvisionerJobTypeTemplateVersionImport ProvisionerJobType = "template_version_import"
 	ProvisionerJobTypeWorkspaceBuild        ProvisionerJobType = "workspace_build"
 	ProvisionerJobTypeTemplateVersionDryRun ProvisionerJobType = "template_version_dry_run"
+	ProvisionerJobTypeNetworkPolicy         ProvisionerJobType = "network_policy"
 )
 
 func (e *ProvisionerJobType) Scan(src interface{}) error {
@@ -3598,7 +3599,8 @@ func (e ProvisionerJobType) Valid() bool {
 	switch e {
 	case ProvisionerJobTypeTemplateVersionImport,
 		ProvisionerJobTypeWorkspaceBuild,
-		ProvisionerJobTypeTemplateVersionDryRun:
+		ProvisionerJobTypeTemplateVersionDryRun,
+		ProvisionerJobTypeNetworkPolicy:
 		return true
 	}
 	return false
@@ -3609,6 +3611,7 @@ func AllProvisionerJobTypeValues() []ProvisionerJobType {
 		ProvisionerJobTypeTemplateVersionImport,
 		ProvisionerJobTypeWorkspaceBuild,
 		ProvisionerJobTypeTemplateVersionDryRun,
+		ProvisionerJobTypeNetworkPolicy,
 	}
 }
 
@@ -5773,6 +5776,74 @@ type MCPServerUserToken struct {
 	CreatedAt                 time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt                 time.Time      `db:"updated_at" json:"updated_at"`
 	OauthRefreshFailureReason string         `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
+}
+
+type NetworkPolicy struct {
+	ID                  uuid.UUID     `db:"id" json:"id"`
+	OrganizationID      uuid.UUID     `db:"organization_id" json:"organization_id"`
+	Name                string        `db:"name" json:"name"`
+	Description         string        `db:"description" json:"description"`
+	Generation          int64         `db:"generation" json:"generation"`
+	PublishedRevisionID uuid.NullUUID `db:"published_revision_id" json:"published_revision_id"`
+	CreatedBy           uuid.UUID     `db:"created_by" json:"created_by"`
+	CreatedAt           time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt           time.Time     `db:"updated_at" json:"updated_at"`
+	DeletionRequestedAt sql.NullTime  `db:"deletion_requested_at" json:"deletion_requested_at"`
+	DeletedAt           sql.NullTime  `db:"deleted_at" json:"deleted_at"`
+}
+
+type NetworkPolicyAttachment struct {
+	PolicyID       uuid.UUID `db:"policy_id" json:"policy_id"`
+	TemplateID     uuid.UUID `db:"template_id" json:"template_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+}
+
+type NetworkPolicyRevision struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	PolicyID       uuid.UUID `db:"policy_id" json:"policy_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	RevisionNumber int64     `db:"revision_number" json:"revision_number"`
+	Hcl            string    `db:"hcl" json:"hcl"`
+	FileID         uuid.UUID `db:"file_id" json:"file_id"`
+	CreatedBy      uuid.UUID `db:"created_by" json:"created_by"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+}
+
+type NetworkPolicyRun struct {
+	ID             uuid.UUID   `db:"id" json:"id"`
+	JobID          uuid.UUID   `db:"job_id" json:"job_id"`
+	PolicyID       uuid.UUID   `db:"policy_id" json:"policy_id"`
+	TargetID       uuid.UUID   `db:"target_id" json:"target_id"`
+	RevisionID     uuid.UUID   `db:"revision_id" json:"revision_id"`
+	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
+	Generation     int64       `db:"generation" json:"generation"`
+	TemplateIDs    []uuid.UUID `db:"template_ids" json:"template_ids"`
+	Operation      string      `db:"operation" json:"operation"`
+	CreatedAt      time.Time   `db:"created_at" json:"created_at"`
+}
+
+type NetworkPolicyTarget struct {
+	ID                uuid.UUID       `db:"id" json:"id"`
+	PolicyID          uuid.UUID       `db:"policy_id" json:"policy_id"`
+	OrganizationID    uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Cluster           string          `db:"cluster" json:"cluster"`
+	Context           string          `db:"context" json:"context"`
+	Namespace         string          `db:"namespace" json:"namespace"`
+	Tags              json.RawMessage `db:"tags" json:"tags"`
+	State             []byte          `db:"state" json:"state"`
+	ActiveJobID       uuid.NullUUID   `db:"active_job_id" json:"active_job_id"`
+	LastJobID         uuid.NullUUID   `db:"last_job_id" json:"last_job_id"`
+	AppliedRevisionID uuid.NullUUID   `db:"applied_revision_id" json:"applied_revision_id"`
+	DesiredRevisionID uuid.NullUUID   `db:"desired_revision_id" json:"desired_revision_id"`
+	Generation        int64           `db:"generation" json:"generation"`
+	Status            string          `db:"status" json:"status"`
+	Drifted           bool            `db:"drifted" json:"drifted"`
+	LastError         string          `db:"last_error" json:"last_error"`
+	CreatedAt         time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time       `db:"updated_at" json:"updated_at"`
+	DestroyedAt       sql.NullTime    `db:"destroyed_at" json:"destroyed_at"`
+	StateRunID        uuid.NullUUID   `db:"state_run_id" json:"state_run_id"`
 }
 
 type NotificationMessage struct {

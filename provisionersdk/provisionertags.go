@@ -1,14 +1,39 @@
 package provisionersdk
 
-import "github.com/google/uuid"
+import (
+	"maps"
+
+	"github.com/google/uuid"
+
+	"github.com/coder/coder/v2/apiversion"
+)
 
 const (
 	TagScope = "scope"
 	TagOwner = "owner"
 
+	// TagNetworkPolicy opts upgraded provisioners into native policy jobs.
+	TagNetworkPolicy = "coder.network_policy"
+
+	// TagNetworkPolicyDestroy requires native policy destroy support (API v1.22).
+	TagNetworkPolicyDestroy = "coder.network_policy_destroy"
+
 	ScopeUser         = "user"
 	ScopeOrganization = "organization"
 )
+
+// NetworkPolicyProvisionerTags returns a copy of tags with destroy capability
+// derived from the worker's API version. Only workers already opted into native
+// policy jobs receive it; configured tags cannot grant it to older workers.
+func NetworkPolicyProvisionerTags(tags map[string]string, apiVersion string) map[string]string {
+	tags = maps.Clone(tags)
+	delete(tags, TagNetworkPolicyDestroy)
+	major, minor, err := apiversion.Parse(apiVersion)
+	if err == nil && major == 1 && minor >= 22 && tags[TagNetworkPolicy] == "1" {
+		tags[TagNetworkPolicyDestroy] = "1"
+	}
+	return tags
+}
 
 // MutateTags adjusts the "owner" tag dependent on the "scope".
 // If the scope is "user", the "owner" is changed to the user ID.

@@ -7,13 +7,14 @@ import { templateExamples, templates } from "#/api/queries/templates";
 import type { AuthorizationRequest } from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { NetworkPoliciesNavigation } from "#/pages/NetworkPoliciesPage/NetworkPoliciesNavigation";
 import { pageTitle } from "#/utils/page";
 import { useTemplatesFilter } from "./TemplatesFilter";
 import { TemplatesPageView } from "./TemplatesPageView";
 
 const TemplatesPage: React.FC = () => {
 	const { permissions, user: me } = useAuthenticated();
-	const { organizations, showOrganizations } = useDashboard();
+	const { organizations, showOrganizations, experiments } = useDashboard();
 
 	const [searchParams, setSearchParams] = useSearchParams();
 	const filterState = useTemplatesFilter({
@@ -76,6 +77,16 @@ const TemplatesPage: React.FC = () => {
 				templates={templatesQuery.data}
 				templateUpdatePermissions={templateUpdatePermissionsQuery.data ?? {}}
 				workspacePermissions={workspacePermissionsQuery.data}
+				networkPoliciesNavigation={
+					experiments.includes("network-policies") ? (
+						<NetworkPoliciesNavigation
+							organizations={organizations}
+							templateUpdatePermissions={
+								templateUpdatePermissionsQuery.data ?? {}
+							}
+						/>
+					) : undefined
+				}
 			/>
 		</>
 	);

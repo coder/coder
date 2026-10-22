@@ -20631,6 +20631,953 @@ func (q *sqlQuerier) UpsertMCPServerUserToken(ctx context.Context, arg UpsertMCP
 	return i, err
 }
 
+const completeNetworkPolicyDeletion = `-- name: CompleteNetworkPolicyDeletion :execrows
+UPDATE network_policies SET deleted_at = $1::timestamptz, updated_at = $1,
+    generation = generation + 1
+WHERE network_policies.id = $2 AND deletion_requested_at IS NOT NULL AND deleted_at IS NULL
+    AND NOT EXISTS (SELECT 1 FROM network_policy_targets WHERE policy_id = $2 AND destroyed_at IS NULL)
+`
+
+type CompleteNetworkPolicyDeletionParams struct {
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	ID        uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) CompleteNetworkPolicyDeletion(ctx context.Context, arg CompleteNetworkPolicyDeletionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, completeNetworkPolicyDeletion, arg.UpdatedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const completeNetworkPolicyTargetJob = `-- name: CompleteNetworkPolicyTargetJob :one
+UPDATE network_policy_targets SET active_job_id = NULL, state = $1,
+    applied_revision_id = $2, status = $3, drifted = $4,
+    last_error = $5, updated_at = $6,
+    state_run_id = COALESCE($7::uuid, state_run_id),
+    destroyed_at = COALESCE($8::timestamptz, destroyed_at)
+WHERE id = $9 AND active_job_id = $10 AND generation = $11
+RETURNING id, policy_id, organization_id, cluster, context, namespace, tags, state, active_job_id, last_job_id, applied_revision_id, desired_revision_id, generation, status, drifted, last_error, created_at, updated_at, destroyed_at, state_run_id
+`
+
+type CompleteNetworkPolicyTargetJobParams struct {
+	State             []byte        `db:"state" json:"state"`
+	AppliedRevisionID uuid.NullUUID `db:"applied_revision_id" json:"applied_revision_id"`
+	Status            string        `db:"status" json:"status"`
+	Drifted           bool          `db:"drifted" json:"drifted"`
+	LastError         string        `db:"last_error" json:"last_error"`
+	UpdatedAt         time.Time     `db:"updated_at" json:"updated_at"`
+	StateRunID        uuid.NullUUID `db:"state_run_id" json:"state_run_id"`
+	DestroyedAt       sql.NullTime  `db:"destroyed_at" json:"destroyed_at"`
+	ID                uuid.UUID     `db:"id" json:"id"`
+	JobID             uuid.NullUUID `db:"job_id" json:"job_id"`
+	Generation        int64         `db:"generation" json:"generation"`
+}
+
+func (q *sqlQuerier) CompleteNetworkPolicyTargetJob(ctx context.Context, arg CompleteNetworkPolicyTargetJobParams) (NetworkPolicyTarget, error) {
+	row := q.db.QueryRowContext(ctx, completeNetworkPolicyTargetJob,
+		arg.State,
+		arg.AppliedRevisionID,
+		arg.Status,
+		arg.Drifted,
+		arg.LastError,
+		arg.UpdatedAt,
+		arg.StateRunID,
+		arg.DestroyedAt,
+		arg.ID,
+		arg.JobID,
+		arg.Generation,
+	)
+	var i NetworkPolicyTarget
+	err := row.Scan(
+		&i.ID,
+		&i.PolicyID,
+		&i.OrganizationID,
+		&i.Cluster,
+		&i.Context,
+		&i.Namespace,
+		&i.Tags,
+		&i.State,
+		&i.ActiveJobID,
+		&i.LastJobID,
+		&i.AppliedRevisionID,
+		&i.DesiredRevisionID,
+		&i.Generation,
+		&i.Status,
+		&i.Drifted,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DestroyedAt,
+		&i.StateRunID,
+	)
+	return i, err
+}
+
+const deleteNetworkPolicyAttachment = `-- name: DeleteNetworkPolicyAttachment :execrows
+DELETE FROM network_policy_attachments WHERE network_policy_attachments.policy_id = $1 AND network_policy_attachments.template_id = $2
+AND NOT EXISTS (
+    SELECT 1 FROM network_policy_targets WHERE network_policy_targets.policy_id = $1
+    AND active_job_id IS NOT NULL
+)
+`
+
+type DeleteNetworkPolicyAttachmentParams struct {
+	PolicyID   uuid.UUID `db:"policy_id" json:"policy_id"`
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+}
+
+func (q *sqlQuerier) DeleteNetworkPolicyAttachment(ctx context.Context, arg DeleteNetworkPolicyAttachmentParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteNetworkPolicyAttachment, arg.PolicyID, arg.TemplateID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const destroyUnappliedNetworkPolicyTarget = `-- name: DestroyUnappliedNetworkPolicyTarget :one
+UPDATE network_policy_targets SET destroyed_at = $1::timestamptz, updated_at = $1
+WHERE network_policy_targets.id = $2 AND network_policy_targets.generation = $3 AND active_job_id IS NULL
+    AND destroyed_at IS NULL AND state = ''::bytea AND state_run_id IS NULL AND applied_revision_id IS NULL
+    AND NOT EXISTS (
+        SELECT 1 FROM network_policy_runs AS run JOIN provisioner_jobs AS job ON job.id = run.job_id
+        WHERE run.target_id = network_policy_targets.id AND run.operation != 'plan'
+            AND (job.completed_at IS NULL OR job.error_code IS DISTINCT FROM 'NETWORK_POLICY_STATE_UNCHANGED')
+    )
+RETURNING id, policy_id, organization_id, cluster, context, namespace, tags, state, active_job_id, last_job_id, applied_revision_id, desired_revision_id, generation, status, drifted, last_error, created_at, updated_at, destroyed_at, state_run_id
+`
+
+type DestroyUnappliedNetworkPolicyTargetParams struct {
+	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+	ID         uuid.UUID `db:"id" json:"id"`
+	Generation int64     `db:"generation" json:"generation"`
+}
+
+func (q *sqlQuerier) DestroyUnappliedNetworkPolicyTarget(ctx context.Context, arg DestroyUnappliedNetworkPolicyTargetParams) (NetworkPolicyTarget, error) {
+	row := q.db.QueryRowContext(ctx, destroyUnappliedNetworkPolicyTarget, arg.UpdatedAt, arg.ID, arg.Generation)
+	var i NetworkPolicyTarget
+	err := row.Scan(
+		&i.ID,
+		&i.PolicyID,
+		&i.OrganizationID,
+		&i.Cluster,
+		&i.Context,
+		&i.Namespace,
+		&i.Tags,
+		&i.State,
+		&i.ActiveJobID,
+		&i.LastJobID,
+		&i.AppliedRevisionID,
+		&i.DesiredRevisionID,
+		&i.Generation,
+		&i.Status,
+		&i.Drifted,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DestroyedAt,
+		&i.StateRunID,
+	)
+	return i, err
+}
+
+const getNetworkPoliciesByOrganizationID = `-- name: GetNetworkPoliciesByOrganizationID :many
+SELECT id, organization_id, name, description, generation, published_revision_id, created_by, created_at, updated_at, deletion_requested_at, deleted_at FROM network_policies WHERE organization_id = $1 AND deleted_at IS NULL ORDER BY lower(name), id
+`
+
+func (q *sqlQuerier) GetNetworkPoliciesByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]NetworkPolicy, error) {
+	rows, err := q.db.QueryContext(ctx, getNetworkPoliciesByOrganizationID, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []NetworkPolicy
+	for rows.Next() {
+		var i NetworkPolicy
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.Name,
+			&i.Description,
+			&i.Generation,
+			&i.PublishedRevisionID,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletionRequestedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getNetworkPolicyAttachmentsByPolicyID = `-- name: GetNetworkPolicyAttachmentsByPolicyID :many
+SELECT policy_id, template_id, organization_id, created_at FROM network_policy_attachments WHERE policy_id = $1 ORDER BY template_id
+`
+
+func (q *sqlQuerier) GetNetworkPolicyAttachmentsByPolicyID(ctx context.Context, policyID uuid.UUID) ([]NetworkPolicyAttachment, error) {
+	rows, err := q.db.QueryContext(ctx, getNetworkPolicyAttachmentsByPolicyID, policyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []NetworkPolicyAttachment
+	for rows.Next() {
+		var i NetworkPolicyAttachment
+		if err := rows.Scan(
+			&i.PolicyID,
+			&i.TemplateID,
+			&i.OrganizationID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getNetworkPolicyByID = `-- name: GetNetworkPolicyByID :one
+SELECT id, organization_id, name, description, generation, published_revision_id, created_by, created_at, updated_at, deletion_requested_at, deleted_at FROM network_policies WHERE id = $1
+`
+
+func (q *sqlQuerier) GetNetworkPolicyByID(ctx context.Context, id uuid.UUID) (NetworkPolicy, error) {
+	row := q.db.QueryRowContext(ctx, getNetworkPolicyByID, id)
+	var i NetworkPolicy
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.Name,
+		&i.Description,
+		&i.Generation,
+		&i.PublishedRevisionID,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletionRequestedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const getNetworkPolicyByIDForUpdate = `-- name: GetNetworkPolicyByIDForUpdate :one
+SELECT id, organization_id, name, description, generation, published_revision_id, created_by, created_at, updated_at, deletion_requested_at, deleted_at FROM network_policies WHERE id = $1 FOR UPDATE
+`
+
+func (q *sqlQuerier) GetNetworkPolicyByIDForUpdate(ctx context.Context, id uuid.UUID) (NetworkPolicy, error) {
+	row := q.db.QueryRowContext(ctx, getNetworkPolicyByIDForUpdate, id)
+	var i NetworkPolicy
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.Name,
+		&i.Description,
+		&i.Generation,
+		&i.PublishedRevisionID,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletionRequestedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const getNetworkPolicyRevisionByID = `-- name: GetNetworkPolicyRevisionByID :one
+SELECT id, policy_id, organization_id, revision_number, hcl, file_id, created_by, created_at FROM network_policy_revisions WHERE id = $1
+`
+
+func (q *sqlQuerier) GetNetworkPolicyRevisionByID(ctx context.Context, id uuid.UUID) (NetworkPolicyRevision, error) {
+	row := q.db.QueryRowContext(ctx, getNetworkPolicyRevisionByID, id)
+	var i NetworkPolicyRevision
+	err := row.Scan(
+		&i.ID,
+		&i.PolicyID,
+		&i.OrganizationID,
+		&i.RevisionNumber,
+		&i.Hcl,
+		&i.FileID,
+		&i.CreatedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getNetworkPolicyRevisionsByPolicyID = `-- name: GetNetworkPolicyRevisionsByPolicyID :many
+SELECT id, policy_id, organization_id, revision_number, hcl, file_id, created_by, created_at FROM network_policy_revisions WHERE policy_id = $1 ORDER BY revision_number DESC
+`
+
+func (q *sqlQuerier) GetNetworkPolicyRevisionsByPolicyID(ctx context.Context, policyID uuid.UUID) ([]NetworkPolicyRevision, error) {
+	rows, err := q.db.QueryContext(ctx, getNetworkPolicyRevisionsByPolicyID, policyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []NetworkPolicyRevision
+	for rows.Next() {
+		var i NetworkPolicyRevision
+		if err := rows.Scan(
+			&i.ID,
+			&i.PolicyID,
+			&i.OrganizationID,
+			&i.RevisionNumber,
+			&i.Hcl,
+			&i.FileID,
+			&i.CreatedBy,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getNetworkPolicyRunByID = `-- name: GetNetworkPolicyRunByID :one
+SELECT id, job_id, policy_id, target_id, revision_id, organization_id, generation, template_ids, operation, created_at FROM network_policy_runs WHERE id = $1
+`
+
+func (q *sqlQuerier) GetNetworkPolicyRunByID(ctx context.Context, id uuid.UUID) (NetworkPolicyRun, error) {
+	row := q.db.QueryRowContext(ctx, getNetworkPolicyRunByID, id)
+	var i NetworkPolicyRun
+	err := row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.PolicyID,
+		&i.TargetID,
+		&i.RevisionID,
+		&i.OrganizationID,
+		&i.Generation,
+		pq.Array(&i.TemplateIDs),
+		&i.Operation,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getNetworkPolicyRunByJobID = `-- name: GetNetworkPolicyRunByJobID :one
+SELECT id, job_id, policy_id, target_id, revision_id, organization_id, generation, template_ids, operation, created_at FROM network_policy_runs WHERE job_id = $1
+`
+
+func (q *sqlQuerier) GetNetworkPolicyRunByJobID(ctx context.Context, jobID uuid.UUID) (NetworkPolicyRun, error) {
+	row := q.db.QueryRowContext(ctx, getNetworkPolicyRunByJobID, jobID)
+	var i NetworkPolicyRun
+	err := row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.PolicyID,
+		&i.TargetID,
+		&i.RevisionID,
+		&i.OrganizationID,
+		&i.Generation,
+		pq.Array(&i.TemplateIDs),
+		&i.Operation,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getNetworkPolicyRunsByPolicyID = `-- name: GetNetworkPolicyRunsByPolicyID :many
+SELECT id, job_id, policy_id, target_id, revision_id, organization_id, generation, template_ids, operation, created_at FROM network_policy_runs WHERE policy_id = $1 ORDER BY created_at DESC, id
+`
+
+func (q *sqlQuerier) GetNetworkPolicyRunsByPolicyID(ctx context.Context, policyID uuid.UUID) ([]NetworkPolicyRun, error) {
+	rows, err := q.db.QueryContext(ctx, getNetworkPolicyRunsByPolicyID, policyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []NetworkPolicyRun
+	for rows.Next() {
+		var i NetworkPolicyRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.JobID,
+			&i.PolicyID,
+			&i.TargetID,
+			&i.RevisionID,
+			&i.OrganizationID,
+			&i.Generation,
+			pq.Array(&i.TemplateIDs),
+			&i.Operation,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getNetworkPolicyTargetByID = `-- name: GetNetworkPolicyTargetByID :one
+SELECT id, policy_id, organization_id, cluster, context, namespace, tags, state, active_job_id, last_job_id, applied_revision_id, desired_revision_id, generation, status, drifted, last_error, created_at, updated_at, destroyed_at, state_run_id FROM network_policy_targets WHERE id = $1
+`
+
+func (q *sqlQuerier) GetNetworkPolicyTargetByID(ctx context.Context, id uuid.UUID) (NetworkPolicyTarget, error) {
+	row := q.db.QueryRowContext(ctx, getNetworkPolicyTargetByID, id)
+	var i NetworkPolicyTarget
+	err := row.Scan(
+		&i.ID,
+		&i.PolicyID,
+		&i.OrganizationID,
+		&i.Cluster,
+		&i.Context,
+		&i.Namespace,
+		&i.Tags,
+		&i.State,
+		&i.ActiveJobID,
+		&i.LastJobID,
+		&i.AppliedRevisionID,
+		&i.DesiredRevisionID,
+		&i.Generation,
+		&i.Status,
+		&i.Drifted,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DestroyedAt,
+		&i.StateRunID,
+	)
+	return i, err
+}
+
+const getNetworkPolicyTargetByIDForUpdate = `-- name: GetNetworkPolicyTargetByIDForUpdate :one
+SELECT id, policy_id, organization_id, cluster, context, namespace, tags, state, active_job_id, last_job_id, applied_revision_id, desired_revision_id, generation, status, drifted, last_error, created_at, updated_at, destroyed_at, state_run_id FROM network_policy_targets WHERE id = $1 FOR UPDATE
+`
+
+func (q *sqlQuerier) GetNetworkPolicyTargetByIDForUpdate(ctx context.Context, id uuid.UUID) (NetworkPolicyTarget, error) {
+	row := q.db.QueryRowContext(ctx, getNetworkPolicyTargetByIDForUpdate, id)
+	var i NetworkPolicyTarget
+	err := row.Scan(
+		&i.ID,
+		&i.PolicyID,
+		&i.OrganizationID,
+		&i.Cluster,
+		&i.Context,
+		&i.Namespace,
+		&i.Tags,
+		&i.State,
+		&i.ActiveJobID,
+		&i.LastJobID,
+		&i.AppliedRevisionID,
+		&i.DesiredRevisionID,
+		&i.Generation,
+		&i.Status,
+		&i.Drifted,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DestroyedAt,
+		&i.StateRunID,
+	)
+	return i, err
+}
+
+const getNetworkPolicyTargetsByPolicyID = `-- name: GetNetworkPolicyTargetsByPolicyID :many
+SELECT id, policy_id, organization_id, cluster, context, namespace, tags, state, active_job_id, last_job_id, applied_revision_id, desired_revision_id, generation, status, drifted, last_error, created_at, updated_at, destroyed_at, state_run_id FROM network_policy_targets WHERE policy_id = $1 ORDER BY cluster, context, namespace, id
+`
+
+func (q *sqlQuerier) GetNetworkPolicyTargetsByPolicyID(ctx context.Context, policyID uuid.UUID) ([]NetworkPolicyTarget, error) {
+	rows, err := q.db.QueryContext(ctx, getNetworkPolicyTargetsByPolicyID, policyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []NetworkPolicyTarget
+	for rows.Next() {
+		var i NetworkPolicyTarget
+		if err := rows.Scan(
+			&i.ID,
+			&i.PolicyID,
+			&i.OrganizationID,
+			&i.Cluster,
+			&i.Context,
+			&i.Namespace,
+			&i.Tags,
+			&i.State,
+			&i.ActiveJobID,
+			&i.LastJobID,
+			&i.AppliedRevisionID,
+			&i.DesiredRevisionID,
+			&i.Generation,
+			&i.Status,
+			&i.Drifted,
+			&i.LastError,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DestroyedAt,
+			&i.StateRunID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertNetworkPolicy = `-- name: InsertNetworkPolicy :one
+INSERT INTO network_policies (id, organization_id, name, description, created_by, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, organization_id, name, description, generation, published_revision_id, created_by, created_at, updated_at, deletion_requested_at, deleted_at
+`
+
+type InsertNetworkPolicyParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+	Description    string    `db:"description" json:"description"`
+	CreatedBy      uuid.UUID `db:"created_by" json:"created_by"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) InsertNetworkPolicy(ctx context.Context, arg InsertNetworkPolicyParams) (NetworkPolicy, error) {
+	row := q.db.QueryRowContext(ctx, insertNetworkPolicy,
+		arg.ID,
+		arg.OrganizationID,
+		arg.Name,
+		arg.Description,
+		arg.CreatedBy,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	var i NetworkPolicy
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.Name,
+		&i.Description,
+		&i.Generation,
+		&i.PublishedRevisionID,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletionRequestedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const insertNetworkPolicyAttachment = `-- name: InsertNetworkPolicyAttachment :one
+INSERT INTO network_policy_attachments (policy_id, template_id, organization_id, created_at)
+VALUES ($1, $2, $3, $4)
+RETURNING policy_id, template_id, organization_id, created_at
+`
+
+type InsertNetworkPolicyAttachmentParams struct {
+	PolicyID       uuid.UUID `db:"policy_id" json:"policy_id"`
+	TemplateID     uuid.UUID `db:"template_id" json:"template_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertNetworkPolicyAttachment(ctx context.Context, arg InsertNetworkPolicyAttachmentParams) (NetworkPolicyAttachment, error) {
+	row := q.db.QueryRowContext(ctx, insertNetworkPolicyAttachment,
+		arg.PolicyID,
+		arg.TemplateID,
+		arg.OrganizationID,
+		arg.CreatedAt,
+	)
+	var i NetworkPolicyAttachment
+	err := row.Scan(
+		&i.PolicyID,
+		&i.TemplateID,
+		&i.OrganizationID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertNetworkPolicyRevision = `-- name: InsertNetworkPolicyRevision :one
+INSERT INTO network_policy_revisions (id, policy_id, organization_id, revision_number, hcl, file_id, created_by, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, policy_id, organization_id, revision_number, hcl, file_id, created_by, created_at
+`
+
+type InsertNetworkPolicyRevisionParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	PolicyID       uuid.UUID `db:"policy_id" json:"policy_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	RevisionNumber int64     `db:"revision_number" json:"revision_number"`
+	Hcl            string    `db:"hcl" json:"hcl"`
+	FileID         uuid.UUID `db:"file_id" json:"file_id"`
+	CreatedBy      uuid.UUID `db:"created_by" json:"created_by"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertNetworkPolicyRevision(ctx context.Context, arg InsertNetworkPolicyRevisionParams) (NetworkPolicyRevision, error) {
+	row := q.db.QueryRowContext(ctx, insertNetworkPolicyRevision,
+		arg.ID,
+		arg.PolicyID,
+		arg.OrganizationID,
+		arg.RevisionNumber,
+		arg.Hcl,
+		arg.FileID,
+		arg.CreatedBy,
+		arg.CreatedAt,
+	)
+	var i NetworkPolicyRevision
+	err := row.Scan(
+		&i.ID,
+		&i.PolicyID,
+		&i.OrganizationID,
+		&i.RevisionNumber,
+		&i.Hcl,
+		&i.FileID,
+		&i.CreatedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertNetworkPolicyRun = `-- name: InsertNetworkPolicyRun :one
+INSERT INTO network_policy_runs (id, job_id, policy_id, target_id, revision_id, organization_id, generation, template_ids, operation, created_at)
+SELECT $1, $2, $3, $4, $5, $6, $7,
+    CASE WHEN $8::text = 'destroy' THEN
+        (SELECT template_ids FROM network_policy_runs WHERE network_policy_runs.id = network_policy_targets.state_run_id
+            AND network_policy_runs.target_id = network_policy_targets.id AND network_policy_runs.revision_id = $5)
+    ELSE ARRAY(SELECT template_id FROM network_policy_attachments WHERE network_policy_attachments.policy_id = $3 ORDER BY template_id) END,
+    $8, $9
+FROM network_policy_targets
+WHERE network_policy_targets.id = $4
+    AND network_policy_targets.policy_id = $3
+    AND network_policy_targets.organization_id = $6
+    AND network_policy_targets.active_job_id = $2
+    AND network_policy_targets.desired_revision_id = $5
+    AND network_policy_targets.generation = $7
+RETURNING id, job_id, policy_id, target_id, revision_id, organization_id, generation, template_ids, operation, created_at
+`
+
+type InsertNetworkPolicyRunParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	JobID          uuid.UUID `db:"job_id" json:"job_id"`
+	PolicyID       uuid.UUID `db:"policy_id" json:"policy_id"`
+	TargetID       uuid.UUID `db:"target_id" json:"target_id"`
+	RevisionID     uuid.UUID `db:"revision_id" json:"revision_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Generation     int64     `db:"generation" json:"generation"`
+	Operation      string    `db:"operation" json:"operation"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertNetworkPolicyRun(ctx context.Context, arg InsertNetworkPolicyRunParams) (NetworkPolicyRun, error) {
+	row := q.db.QueryRowContext(ctx, insertNetworkPolicyRun,
+		arg.ID,
+		arg.JobID,
+		arg.PolicyID,
+		arg.TargetID,
+		arg.RevisionID,
+		arg.OrganizationID,
+		arg.Generation,
+		arg.Operation,
+		arg.CreatedAt,
+	)
+	var i NetworkPolicyRun
+	err := row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.PolicyID,
+		&i.TargetID,
+		&i.RevisionID,
+		&i.OrganizationID,
+		&i.Generation,
+		pq.Array(&i.TemplateIDs),
+		&i.Operation,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertNetworkPolicyTarget = `-- name: InsertNetworkPolicyTarget :one
+INSERT INTO network_policy_targets (id, policy_id, organization_id, cluster, context, namespace, tags, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, policy_id, organization_id, cluster, context, namespace, tags, state, active_job_id, last_job_id, applied_revision_id, desired_revision_id, generation, status, drifted, last_error, created_at, updated_at, destroyed_at, state_run_id
+`
+
+type InsertNetworkPolicyTargetParams struct {
+	ID             uuid.UUID       `db:"id" json:"id"`
+	PolicyID       uuid.UUID       `db:"policy_id" json:"policy_id"`
+	OrganizationID uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Cluster        string          `db:"cluster" json:"cluster"`
+	Context        string          `db:"context" json:"context"`
+	Namespace      string          `db:"namespace" json:"namespace"`
+	Tags           json.RawMessage `db:"tags" json:"tags"`
+	CreatedAt      time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time       `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) InsertNetworkPolicyTarget(ctx context.Context, arg InsertNetworkPolicyTargetParams) (NetworkPolicyTarget, error) {
+	row := q.db.QueryRowContext(ctx, insertNetworkPolicyTarget,
+		arg.ID,
+		arg.PolicyID,
+		arg.OrganizationID,
+		arg.Cluster,
+		arg.Context,
+		arg.Namespace,
+		arg.Tags,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	var i NetworkPolicyTarget
+	err := row.Scan(
+		&i.ID,
+		&i.PolicyID,
+		&i.OrganizationID,
+		&i.Cluster,
+		&i.Context,
+		&i.Namespace,
+		&i.Tags,
+		&i.State,
+		&i.ActiveJobID,
+		&i.LastJobID,
+		&i.AppliedRevisionID,
+		&i.DesiredRevisionID,
+		&i.Generation,
+		&i.Status,
+		&i.Drifted,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DestroyedAt,
+		&i.StateRunID,
+	)
+	return i, err
+}
+
+const publishNetworkPolicyRevision = `-- name: PublishNetworkPolicyRevision :one
+UPDATE network_policies SET published_revision_id = $1, generation = generation + 1, updated_at = $2
+WHERE id = $3 AND deletion_requested_at IS NULL AND deleted_at IS NULL RETURNING id, organization_id, name, description, generation, published_revision_id, created_by, created_at, updated_at, deletion_requested_at, deleted_at
+`
+
+type PublishNetworkPolicyRevisionParams struct {
+	PublishedRevisionID uuid.NullUUID `db:"published_revision_id" json:"published_revision_id"`
+	UpdatedAt           time.Time     `db:"updated_at" json:"updated_at"`
+	ID                  uuid.UUID     `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) PublishNetworkPolicyRevision(ctx context.Context, arg PublishNetworkPolicyRevisionParams) (NetworkPolicy, error) {
+	row := q.db.QueryRowContext(ctx, publishNetworkPolicyRevision, arg.PublishedRevisionID, arg.UpdatedAt, arg.ID)
+	var i NetworkPolicy
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.Name,
+		&i.Description,
+		&i.Generation,
+		&i.PublishedRevisionID,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletionRequestedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const requestNetworkPolicyDeletion = `-- name: RequestNetworkPolicyDeletion :one
+UPDATE network_policies SET deletion_requested_at = COALESCE(deletion_requested_at, $1::timestamptz),
+    generation = generation + 1, updated_at = $1
+WHERE id = $2 AND deleted_at IS NULL RETURNING id, organization_id, name, description, generation, published_revision_id, created_by, created_at, updated_at, deletion_requested_at, deleted_at
+`
+
+type RequestNetworkPolicyDeletionParams struct {
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	ID        uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) RequestNetworkPolicyDeletion(ctx context.Context, arg RequestNetworkPolicyDeletionParams) (NetworkPolicy, error) {
+	row := q.db.QueryRowContext(ctx, requestNetworkPolicyDeletion, arg.UpdatedAt, arg.ID)
+	var i NetworkPolicy
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.Name,
+		&i.Description,
+		&i.Generation,
+		&i.PublishedRevisionID,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletionRequestedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const startNetworkPolicyTargetJob = `-- name: StartNetworkPolicyTargetJob :one
+UPDATE network_policy_targets SET active_job_id = $1, last_job_id = $1,
+    desired_revision_id = $2, generation = generation + 1,
+    status = $3, last_error = '', updated_at = $4,
+    state_run_id = COALESCE($5::uuid, state_run_id)
+WHERE id = $6 AND active_job_id IS NULL AND generation = $7 AND destroyed_at IS NULL
+    AND $1::uuid IS NOT NULL AND $2::uuid IS NOT NULL
+RETURNING id, policy_id, organization_id, cluster, context, namespace, tags, state, active_job_id, last_job_id, applied_revision_id, desired_revision_id, generation, status, drifted, last_error, created_at, updated_at, destroyed_at, state_run_id
+`
+
+type StartNetworkPolicyTargetJobParams struct {
+	JobID             uuid.NullUUID `db:"job_id" json:"job_id"`
+	DesiredRevisionID uuid.NullUUID `db:"desired_revision_id" json:"desired_revision_id"`
+	Status            string        `db:"status" json:"status"`
+	UpdatedAt         time.Time     `db:"updated_at" json:"updated_at"`
+	StateRunID        uuid.NullUUID `db:"state_run_id" json:"state_run_id"`
+	ID                uuid.UUID     `db:"id" json:"id"`
+	Generation        int64         `db:"generation" json:"generation"`
+}
+
+func (q *sqlQuerier) StartNetworkPolicyTargetJob(ctx context.Context, arg StartNetworkPolicyTargetJobParams) (NetworkPolicyTarget, error) {
+	row := q.db.QueryRowContext(ctx, startNetworkPolicyTargetJob,
+		arg.JobID,
+		arg.DesiredRevisionID,
+		arg.Status,
+		arg.UpdatedAt,
+		arg.StateRunID,
+		arg.ID,
+		arg.Generation,
+	)
+	var i NetworkPolicyTarget
+	err := row.Scan(
+		&i.ID,
+		&i.PolicyID,
+		&i.OrganizationID,
+		&i.Cluster,
+		&i.Context,
+		&i.Namespace,
+		&i.Tags,
+		&i.State,
+		&i.ActiveJobID,
+		&i.LastJobID,
+		&i.AppliedRevisionID,
+		&i.DesiredRevisionID,
+		&i.Generation,
+		&i.Status,
+		&i.Drifted,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DestroyedAt,
+		&i.StateRunID,
+	)
+	return i, err
+}
+
+const updateNetworkPolicy = `-- name: UpdateNetworkPolicy :one
+UPDATE network_policies SET name = $1, description = $2, generation = generation + 1, updated_at = $3
+WHERE id = $4 AND deletion_requested_at IS NULL AND deleted_at IS NULL RETURNING id, organization_id, name, description, generation, published_revision_id, created_by, created_at, updated_at, deletion_requested_at, deleted_at
+`
+
+type UpdateNetworkPolicyParams struct {
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	ID          uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateNetworkPolicy(ctx context.Context, arg UpdateNetworkPolicyParams) (NetworkPolicy, error) {
+	row := q.db.QueryRowContext(ctx, updateNetworkPolicy,
+		arg.Name,
+		arg.Description,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	var i NetworkPolicy
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.Name,
+		&i.Description,
+		&i.Generation,
+		&i.PublishedRevisionID,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletionRequestedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const updateNetworkPolicyTargetState = `-- name: UpdateNetworkPolicyTargetState :one
+UPDATE network_policy_targets SET state = $1, updated_at = $2
+WHERE id = $3 AND active_job_id = $4 AND generation = $5
+RETURNING id, policy_id, organization_id, cluster, context, namespace, tags, state, active_job_id, last_job_id, applied_revision_id, desired_revision_id, generation, status, drifted, last_error, created_at, updated_at, destroyed_at, state_run_id
+`
+
+type UpdateNetworkPolicyTargetStateParams struct {
+	State      []byte        `db:"state" json:"state"`
+	UpdatedAt  time.Time     `db:"updated_at" json:"updated_at"`
+	ID         uuid.UUID     `db:"id" json:"id"`
+	JobID      uuid.NullUUID `db:"job_id" json:"job_id"`
+	Generation int64         `db:"generation" json:"generation"`
+}
+
+func (q *sqlQuerier) UpdateNetworkPolicyTargetState(ctx context.Context, arg UpdateNetworkPolicyTargetStateParams) (NetworkPolicyTarget, error) {
+	row := q.db.QueryRowContext(ctx, updateNetworkPolicyTargetState,
+		arg.State,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.JobID,
+		arg.Generation,
+	)
+	var i NetworkPolicyTarget
+	err := row.Scan(
+		&i.ID,
+		&i.PolicyID,
+		&i.OrganizationID,
+		&i.Cluster,
+		&i.Context,
+		&i.Namespace,
+		&i.Tags,
+		&i.State,
+		&i.ActiveJobID,
+		&i.LastJobID,
+		&i.AppliedRevisionID,
+		&i.DesiredRevisionID,
+		&i.Generation,
+		&i.Status,
+		&i.Drifted,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DestroyedAt,
+		&i.StateRunID,
+	)
+	return i, err
+}
+
 const acquireNotificationMessages = `-- name: AcquireNotificationMessages :many
 WITH acquired AS (
     UPDATE

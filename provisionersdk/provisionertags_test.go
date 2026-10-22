@@ -1,6 +1,7 @@
 package provisionersdk_test
 
 import (
+	"maps"
 	"testing"
 
 	"github.com/google/uuid"
@@ -8,6 +9,37 @@ import (
 
 	"github.com/coder/coder/v2/provisionersdk"
 )
+
+func TestNetworkPolicyProvisionerTags(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, version string
+		tags          map[string]string
+		wantDestroy   bool
+	}{
+		{name: "Ordinary", version: "1.22"},
+		{name: "PlanApplyOnly", version: "1.21", tags: map[string]string{provisionersdk.TagNetworkPolicy: "1"}},
+		{name: "Destroy", version: "1.22", tags: map[string]string{provisionersdk.TagNetworkPolicy: "1"}, wantDestroy: true},
+		{name: "NewerMinor", version: "1.23", tags: map[string]string{provisionersdk.TagNetworkPolicy: "1"}, wantDestroy: true},
+		{name: "OldWorkerConfiguredTag", version: "1.21", tags: map[string]string{provisionersdk.TagNetworkPolicy: "1", provisionersdk.TagNetworkPolicyDestroy: "1"}},
+		{name: "NotOptedIn", version: "1.22", tags: map[string]string{provisionersdk.TagNetworkPolicy: "0", provisionersdk.TagNetworkPolicyDestroy: "1"}},
+		{name: "InvalidVersion", version: "invalid", tags: map[string]string{provisionersdk.TagNetworkPolicy: "1", provisionersdk.TagNetworkPolicyDestroy: "1"}},
+		{name: "UnknownMajor", version: "2.22", tags: map[string]string{provisionersdk.TagNetworkPolicy: "1", provisionersdk.TagNetworkPolicyDestroy: "1"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			original := maps.Clone(tc.tags)
+			got := provisionersdk.NetworkPolicyProvisionerTags(tc.tags, tc.version)
+			want := maps.Clone(tc.tags)
+			delete(want, provisionersdk.TagNetworkPolicyDestroy)
+			if tc.wantDestroy {
+				want[provisionersdk.TagNetworkPolicyDestroy] = "1"
+			}
+			require.Equal(t, want, got)
+			require.Equal(t, original, tc.tags, "registration must not mutate configured tags")
+		})
+	}
+}
 
 func TestMutateTags(t *testing.T) {
 	t.Parallel()

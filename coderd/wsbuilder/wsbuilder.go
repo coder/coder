@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
+	"github.com/coder/coder/v2/coderd/networkpolicy"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -52,14 +53,15 @@ import (
 // build, job, err := b.Build(...)
 type Builder struct {
 	// settings that control the kind of build you get
-	workspace        database.Workspace
-	trans            database.WorkspaceTransition
-	version          versionTarget
-	state            stateTarget
-	logLevel         string
-	deploymentValues *codersdk.DeploymentValues
-	experiments      codersdk.Experiments
-	usageChecker     UsageChecker
+	workspace            database.Workspace
+	trans                database.WorkspaceTransition
+	version              versionTarget
+	state                stateTarget
+	logLevel             string
+	deploymentValues     *codersdk.DeploymentValues
+	experiments          codersdk.Experiments
+	usageChecker         UsageChecker
+	networkPolicyStartup *networkpolicy.StartupOptions
 
 	richParameterValues     []codersdk.WorkspaceBuildParameter
 	initiator               uuid.UUID
@@ -183,6 +185,13 @@ func (b Builder) LogLevel(l string) Builder {
 func (b Builder) DeploymentValues(dv *codersdk.DeploymentValues) Builder {
 	// nolint: revive
 	b.deploymentValues = dv
+	return b
+}
+
+// NetworkPolicyStartup supplies a snapshot of startup settings for background
+// builders that do not carry the complete deployment configuration.
+func (b Builder) NetworkPolicyStartup(options networkpolicy.StartupOptions) Builder {
+	b.networkPolicyStartup = &options
 	return b
 }
 
@@ -397,6 +406,20 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	template, err := b.getTemplate()
 	if err != nil {
 		return nil, nil, nil, BuildError{http.StatusInternalServerError, "failed to fetch template", err}
+	}
+
+	if b.trans == database.WorkspaceTransitionStart {
+		startupOptions := networkpolicy.StartupOptionsFromDeployment(b.deploymentValues)
+		if b.networkPolicyStartup != nil {
+			startupOptions = *b.networkPolicyStartup
+		}
+		if err := networkpolicy.CheckStartupInTx(b.ctx, b.store, *template, startupOptions); err != nil {
+			status := http.StatusInternalServerError
+			if errors.Is(err, networkpolicy.ErrStartupBlocked) {
+				status = http.StatusConflict
+			}
+			return nil, nil, nil, BuildError{status, "Workspace startup is blocked by attached network policies.", err}
+		}
 	}
 
 	templateVersionJob, err := b.getTemplateVersionJob()

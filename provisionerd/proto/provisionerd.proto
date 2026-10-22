@@ -9,6 +9,23 @@ import "provisionersdk/proto/provisioner.proto";
 // Empty indicates a successful request/response.
 message Empty {}
 
+enum NetworkPolicyOperation {
+  PLAN = 0;
+  APPLY = 1;
+  DESTROY = 2;
+}
+
+// StateDisposition determines whether returned state can replace stored state.
+enum StateDisposition {
+  // State may have changed. Returned bytes are only a checkpoint and do not
+  // permit automatic retry or release of the target reservation.
+  UNKNOWN = 0;
+  // Apply was not started. Stored state must be preserved.
+  UNCHANGED = 1;
+  // Apply succeeded and authoritative state was returned.
+  RETURNED = 2;
+}
+
 // AcquiredJob is returned when a provisioner daemon has a job locked.
 message AcquiredJob {
   message WorkspaceBuild {
@@ -44,6 +61,16 @@ message AcquiredJob {
     provisioner.Metadata metadata = 4;
   }
 
+  message NetworkPolicy {
+    NetworkPolicyOperation operation = 1;
+    bytes state = 2;
+    repeated provisioner.VariableValue variable_values = 3;
+    provisioner.Metadata metadata = 4;
+    optional string run_id = 5;
+    optional string target_id = 6;
+    optional string revision_id = 7;
+  }
+
   string job_id = 1;
   int64 created_at = 2;
   string provisioner = 3;
@@ -53,6 +80,7 @@ message AcquiredJob {
     WorkspaceBuild workspace_build = 6;
     TemplateImport template_import = 7;
     TemplateDryRun template_dry_run = 8;
+    NetworkPolicy network_policy = 10;
   }
   // trace_metadata is currently used for tracing information only. It allows
   // jobs to be tied to the request that created them.
@@ -66,6 +94,11 @@ message FailedJob {
   }
   message TemplateImport {}
   message TemplateDryRun {}
+  message NetworkPolicy {
+    bytes state = 1;
+    StateDisposition state_disposition = 2;
+    repeated provisioner.Timing timings = 3;
+  }
 
   string job_id = 1;
   string error = 2;
@@ -73,6 +106,7 @@ message FailedJob {
     WorkspaceBuild workspace_build = 3;
     TemplateImport template_import = 4;
     TemplateDryRun template_dry_run = 5;
+    NetworkPolicy network_policy = 7;
   }
   string error_code = 6;
 }
@@ -109,11 +143,19 @@ message CompletedJob {
     repeated provisioner.Module modules = 2;
   }
 
+  message NetworkPolicy {
+    bytes plan = 1;
+    bytes state = 2;
+    StateDisposition state_disposition = 3;
+    repeated provisioner.Timing timings = 4;
+  }
+
   string job_id = 1;
   oneof type {
     WorkspaceBuild workspace_build = 2;
     TemplateImport template_import = 3;
     TemplateDryRun template_dry_run = 4;
+    NetworkPolicy network_policy = 5;
   }
 }
 

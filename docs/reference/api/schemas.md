@@ -6996,6 +6996,72 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `availability` | `default_off`, `default_on`, `force_on`                    |
 | `transport`    | `sse`, `streamable_http`                                   |
 
+## codersdk.CreateNetworkPolicyRequest
+
+```json
+{
+  "description": "string",
+  "hcl": "string",
+  "name": "string",
+  "template_ids": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name           | Type            | Required | Restrictions | Description |
+|----------------|-----------------|----------|--------------|-------------|
+| `description`  | string          | false    |              |             |
+| `hcl`          | string          | true     |              |             |
+| `name`         | string          | true     |              |             |
+| `template_ids` | array of string | false    |              |             |
+
+## codersdk.CreateNetworkPolicyRevisionRequest
+
+```json
+{
+  "expected_generation": 0,
+  "hcl": "string"
+}
+```
+
+### Properties
+
+| Name                  | Type    | Required | Restrictions | Description |
+|-----------------------|---------|----------|--------------|-------------|
+| `expected_generation` | integer | false    |              |             |
+| `hcl`                 | string  | true     |              |             |
+
+## codersdk.CreateNetworkPolicyTargetRequest
+
+```json
+{
+  "cluster": "string",
+  "context": "string",
+  "expected_generation": 0,
+  "name": "string",
+  "namespace": "string",
+  "provisioner_tags": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Properties
+
+| Name                  | Type    | Required | Restrictions | Description |
+|-----------------------|---------|----------|--------------|-------------|
+| `cluster`             | string  | true     |              |             |
+| `context`             | string  | true     |              |             |
+| `expected_generation` | integer | false    |              |             |
+| `name`                | string  | false    |              |             |
+| `namespace`           | string  | true     |              |             |
+| `provisioner_tags`    | object  | false    |              |             |
+| » `[any property]`    | string  | false    |              |             |
+
 ## codersdk.CreateOrganizationRequest
 
 ```json
@@ -7816,6 +7882,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `token_revocation_error` | string  | false    |              |                                                                                |
 | `token_revoked`          | boolean | false    |              | Token revoked set to true if token revocation was attempted and was successful |
 
+## codersdk.DeleteNetworkPolicyRequest
+
+```json
+{
+  "expected_generation": 0
+}
+```
+
+### Properties
+
+| Name                  | Type    | Required | Restrictions | Description |
+|-----------------------|---------|----------|--------------|-------------|
+| `expected_generation` | integer | false    |              |             |
+
 ## codersdk.DeleteWebpushSubscription
 
 ```json
@@ -8093,6 +8173,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "string"
     ],
     "metrics_cache_refresh_interval": 0,
+    "network_policy_drift_action": "string",
+    "network_policy_drift_interval": 0,
+    "network_policy_module_path": "string",
+    "network_policy_startup_mode": "string",
     "notifications": {
       "dispatch_timeout": 0,
       "email": {
@@ -8731,6 +8815,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "string"
   ],
   "metrics_cache_refresh_interval": 0,
+  "network_policy_drift_action": "string",
+  "network_policy_drift_interval": 0,
+  "network_policy_module_path": "string",
+  "network_policy_startup_mode": "string",
   "notifications": {
     "dispatch_timeout": 0,
     "email": {
@@ -9073,6 +9161,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `logging`                                      | [codersdk.LoggingConfig](#codersdkloggingconfig)                                                     | false    |              |                                                                           |
 | `mcp_allowed_private_cidrs`                    | array of string                                                                                      | false    |              |                                                                           |
 | `metrics_cache_refresh_interval`               | integer                                                                                              | false    |              |                                                                           |
+| `network_policy_drift_action`                  | string                                                                                               | false    |              |                                                                           |
+| `network_policy_drift_interval`                | integer                                                                                              | false    |              |                                                                           |
+| `network_policy_module_path`                   | string                                                                                               | false    |              |                                                                           |
+| `network_policy_startup_mode`                  | string                                                                                               | false    |              |                                                                           |
 | `notifications`                                | [codersdk.NotificationsConfig](#codersdknotificationsconfig)                                         | false    |              |                                                                           |
 | `oauth2`                                       | [codersdk.OAuth2Config](#codersdkoauth2config)                                                       | false    |              |                                                                           |
 | `oidc`                                         | [codersdk.OIDCConfig](#codersdkoidcconfig)                                                           | false    |              |                                                                           |
@@ -9595,16 +9687,16 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 ## codersdk.Experiment
 
 ```json
-"example"
+"network-policies"
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                 |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-projects`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                     |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-projects`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `network-policies`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 
@@ -11109,6 +11201,215 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `id`         | string | true     |              |             |
 | `name`       | string | false    |              |             |
 | `username`   | string | true     |              |             |
+
+## codersdk.NetworkPolicy
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "deleted_at": "2019-08-24T14:15:22Z",
+  "deletion_requested_at": "2019-08-24T14:15:22Z",
+  "description": "string",
+  "generation": 0,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "revisions": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+      "hcl": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "policy_id": "ee9b03e0-6495-427a-85a5-34444d24ae04"
+    }
+  ],
+  "runs": [
+    {
+      "completed_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
+      "error": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+      "operation": "apply",
+      "plan": "string",
+      "policy_id": "ee9b03e0-6495-427a-85a5-34444d24ae04",
+      "revision_id": "f8f7f022-982b-4bef-ba7d-4bb808fdbe2a",
+      "status": "string",
+      "target_id": "d3bcdc92-4191-401b-ad0c-42056c6efab9",
+      "template_ids": [
+        "string"
+      ]
+    }
+  ],
+  "targets": [
+    {
+      "applied_revision_id": "c4086ff0-926d-4147-b943-1196901a4364",
+      "cluster": "string",
+      "context": "string",
+      "created_at": "2019-08-24T14:15:22Z",
+      "desired_revision_id": "8cfe3b74-6c34-4b94-a0f0-5108aa5cbc07",
+      "destroyed_at": "2019-08-24T14:15:22Z",
+      "drifted": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_error": "string",
+      "last_job_id": "ff50ec87-6f42-4569-b426-b1e2ecfdfc0f",
+      "name": "string",
+      "namespace": "string",
+      "policy_id": "ee9b03e0-6495-427a-85a5-34444d24ae04",
+      "provisioner_tags": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "status": "string",
+      "updated_at": "2019-08-24T14:15:22Z"
+    }
+  ],
+  "template_ids": [
+    "string"
+  ],
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                    | Type                                                                      | Required | Restrictions | Description |
+|-------------------------|---------------------------------------------------------------------------|----------|--------------|-------------|
+| `created_at`            | string                                                                    | false    |              |             |
+| `deleted_at`            | string                                                                    | false    |              |             |
+| `deletion_requested_at` | string                                                                    | false    |              |             |
+| `description`           | string                                                                    | false    |              |             |
+| `generation`            | integer                                                                   | false    |              |             |
+| `id`                    | string                                                                    | false    |              |             |
+| `name`                  | string                                                                    | false    |              |             |
+| `organization_id`       | string                                                                    | false    |              |             |
+| `revisions`             | array of [codersdk.NetworkPolicyRevision](#codersdknetworkpolicyrevision) | false    |              |             |
+| `runs`                  | array of [codersdk.NetworkPolicyRun](#codersdknetworkpolicyrun)           | false    |              |             |
+| `targets`               | array of [codersdk.NetworkPolicyTarget](#codersdknetworkpolicytarget)     | false    |              |             |
+| `template_ids`          | array of string                                                           | false    |              |             |
+| `updated_at`            | string                                                                    | false    |              |             |
+
+## codersdk.NetworkPolicyOperation
+
+```json
+"apply"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                   |
+|----------------------------|
+| `apply`, `destroy`, `plan` |
+
+## codersdk.NetworkPolicyRevision
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+  "hcl": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "policy_id": "ee9b03e0-6495-427a-85a5-34444d24ae04"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+|--------------|--------|----------|--------------|-------------|
+| `created_at` | string | false    |              |             |
+| `created_by` | string | false    |              |             |
+| `hcl`        | string | false    |              |             |
+| `id`         | string | false    |              |             |
+| `policy_id`  | string | false    |              |             |
+
+## codersdk.NetworkPolicyRun
+
+```json
+{
+  "completed_at": "2019-08-24T14:15:22Z",
+  "created_at": "2019-08-24T14:15:22Z",
+  "error": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+  "operation": "apply",
+  "plan": "string",
+  "policy_id": "ee9b03e0-6495-427a-85a5-34444d24ae04",
+  "revision_id": "f8f7f022-982b-4bef-ba7d-4bb808fdbe2a",
+  "status": "string",
+  "target_id": "d3bcdc92-4191-401b-ad0c-42056c6efab9",
+  "template_ids": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name           | Type                                                               | Required | Restrictions | Description                                                                                                                   |
+|----------------|--------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------|
+| `completed_at` | string                                                             | false    |              |                                                                                                                               |
+| `created_at`   | string                                                             | false    |              |                                                                                                                               |
+| `error`        | string                                                             | false    |              |                                                                                                                               |
+| `id`           | string                                                             | false    |              |                                                                                                                               |
+| `job_id`       | string                                                             | false    |              |                                                                                                                               |
+| `operation`    | [codersdk.NetworkPolicyOperation](#codersdknetworkpolicyoperation) | false    |              |                                                                                                                               |
+| `plan`         | string                                                             | false    |              | Plan is a bounded text preview of persisted output for completed plan runs. Use NetworkPolicyRunLogs for the complete output. |
+| `policy_id`    | string                                                             | false    |              |                                                                                                                               |
+| `revision_id`  | string                                                             | false    |              |                                                                                                                               |
+| `status`       | string                                                             | false    |              |                                                                                                                               |
+| `target_id`    | string                                                             | false    |              |                                                                                                                               |
+| `template_ids` | array of string                                                    | false    |              | Template ids is the immutable desired attachment snapshot for this run.                                                       |
+
+## codersdk.NetworkPolicyTarget
+
+```json
+{
+  "applied_revision_id": "c4086ff0-926d-4147-b943-1196901a4364",
+  "cluster": "string",
+  "context": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "desired_revision_id": "8cfe3b74-6c34-4b94-a0f0-5108aa5cbc07",
+  "destroyed_at": "2019-08-24T14:15:22Z",
+  "drifted": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_error": "string",
+  "last_job_id": "ff50ec87-6f42-4569-b426-b1e2ecfdfc0f",
+  "name": "string",
+  "namespace": "string",
+  "policy_id": "ee9b03e0-6495-427a-85a5-34444d24ae04",
+  "provisioner_tags": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "status": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                  | Type    | Required | Restrictions | Description |
+|-----------------------|---------|----------|--------------|-------------|
+| `applied_revision_id` | string  | false    |              |             |
+| `cluster`             | string  | false    |              |             |
+| `context`             | string  | false    |              |             |
+| `created_at`          | string  | false    |              |             |
+| `desired_revision_id` | string  | false    |              |             |
+| `destroyed_at`        | string  | false    |              |             |
+| `drifted`             | boolean | false    |              |             |
+| `id`                  | string  | false    |              |             |
+| `last_error`          | string  | false    |              |             |
+| `last_job_id`         | string  | false    |              |             |
+| `name`                | string  | false    |              |             |
+| `namespace`           | string  | false    |              |             |
+| `policy_id`           | string  | false    |              |             |
+| `provisioner_tags`    | object  | false    |              |             |
+| » `[any property]`    | string  | false    |              |             |
+| `status`              | string  | false    |              |             |
+| `updated_at`          | string  | false    |              |             |
 
 ## codersdk.NotificationMethodsResponse
 
@@ -13682,6 +13983,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "input": {
     "error": "string",
+    "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
   },
@@ -13750,6 +14052,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "error": "string",
+  "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
 }
@@ -13757,11 +14060,12 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                  | Type   | Required | Restrictions | Description |
-|-----------------------|--------|----------|--------------|-------------|
-| `error`               | string | false    |              |             |
-| `template_version_id` | string | false    |              |             |
-| `workspace_build_id`  | string | false    |              |             |
+| Name                    | Type   | Required | Restrictions | Description |
+|-------------------------|--------|----------|--------------|-------------|
+| `error`                 | string | false    |              |             |
+| `network_policy_run_id` | string | false    |              |             |
+| `template_version_id`   | string | false    |              |             |
+| `workspace_build_id`    | string | false    |              |             |
 
 ## codersdk.ProvisionerJobLog
 
@@ -13845,9 +14149,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                 |
-|--------------------------------------------------------------------------|
-| `template_version_dry_run`, `template_version_import`, `workspace_build` |
+| Value(s)                                                                                   |
+|--------------------------------------------------------------------------------------------|
+| `network_policy`, `template_version_dry_run`, `template_version_import`, `workspace_build` |
 
 ## codersdk.ProvisionerKey
 
@@ -14035,6 +14339,34 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Value(s)                                         |
 |--------------------------------------------------|
 | `ok`, `unhealthy`, `unreachable`, `unregistered` |
+
+## codersdk.PublishNetworkPolicyRequest
+
+```json
+{
+  "expected_generation": 0,
+  "operation": "apply",
+  "revision_id": "f8f7f022-982b-4bef-ba7d-4bb808fdbe2a",
+  "target_ids": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name                  | Type                                                               | Required | Restrictions | Description |
+|-----------------------|--------------------------------------------------------------------|----------|--------------|-------------|
+| `expected_generation` | integer                                                            | false    |              |             |
+| `operation`           | [codersdk.NetworkPolicyOperation](#codersdknetworkpolicyoperation) | false    |              |             |
+| `revision_id`         | string                                                             | false    |              |             |
+| `target_ids`          | array of string                                                    | false    |              |             |
+
+#### Enumerated Values
+
+| Property    | Value(s)        |
+|-------------|-----------------|
+| `operation` | `apply`, `plan` |
 
 ## codersdk.PutExperimentRuleRequest
 
@@ -14626,6 +14958,24 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `max_admin_token_lifetime` | integer | false    |              |                                                                                                                                                                                        |
 | `max_token_lifetime`       | integer | false    |              |                                                                                                                                                                                        |
 | `refresh_default_duration` | integer | false    |              | Refresh default duration is the default lifetime for OAuth2 refresh tokens. This should generally be longer than access token lifetimes to allow refreshing after access token expiry. |
+
+## codersdk.SetNetworkPolicyTemplatesRequest
+
+```json
+{
+  "expected_generation": 0,
+  "template_ids": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name                  | Type            | Required | Restrictions | Description |
+|-----------------------|-----------------|----------|--------------|-------------|
+| `expected_generation` | integer         | false    |              |             |
+| `template_ids`        | array of string | false    |              |             |
 
 ## codersdk.ShareableWorkspaceOwners
 
@@ -16054,6 +16404,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "input": {
       "error": "string",
+      "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
@@ -17013,6 +17364,24 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 | `auth_type`    | `api_key`, `custom_headers`, `none`, `oauth2`, `user_oidc` |
 | `availability` | `default_off`, `default_on`, `force_on`                    |
 | `transport`    | `sse`, `streamable_http`                                   |
+
+## codersdk.UpdateNetworkPolicyRequest
+
+```json
+{
+  "description": "string",
+  "expected_generation": 0,
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name                  | Type    | Required | Restrictions | Description |
+|-----------------------|---------|----------|--------------|-------------|
+| `description`         | string  | false    |              |             |
+| `expected_generation` | integer | false    |              |             |
+| `name`                | string  | true     |              |             |
 
 ## codersdk.UpdateOrganizationChatSystemPromptRequest
 
@@ -18456,6 +18825,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
       "input": {
         "error": "string",
+        "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
       },
@@ -19840,6 +20210,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "input": {
       "error": "string",
+      "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
@@ -20731,6 +21102,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
           "input": {
             "error": "string",
+            "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
             "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
             "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
           },

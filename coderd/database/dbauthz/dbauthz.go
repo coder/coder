@@ -1743,6 +1743,10 @@ func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.Prov
 		return nil
 	}
 	switch job.Type {
+	case database.ProvisionerJobTypeNetworkPolicy:
+		if _, err := q.GetNetworkPolicyRunByJobID(ctx, job.ID); err != nil {
+			return xerrors.Errorf("fetch related network policy run: %w", err)
+		}
 	case database.ProvisionerJobTypeWorkspaceBuild:
 		// Authorized call to get workspace build. If we can read the build, we can
 		// read the job.
@@ -4074,7 +4078,21 @@ func (q *querier) GetDeploymentWorkspaceStats(ctx context.Context) (database.Get
 }
 
 func (q *querier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIDs []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetEligibleProvisionerDaemonsByProvisionerJobIDs)(ctx, provisionerJobIDs)
+	rows, err := fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetEligibleProvisionerDaemonsByProvisionerJobIDs)(ctx, provisionerJobIDs)
+	if err != nil || len(rows) == 0 {
+		return rows, err
+	}
+	hidden, err := q.hiddenNetworkPolicyJobs(ctx, provisionerJobIDs)
+	if err != nil {
+		return nil, err
+	}
+	visible := make([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, 0, len(rows))
+	for _, row := range rows {
+		if !hidden[row.JobID] {
+			visible = append(visible, row)
+		}
+	}
+	return visible, nil
 }
 
 func (q *querier) GetEnabledChatModelConfigByID(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
@@ -4814,7 +4832,41 @@ func (q *querier) GetProvisionerDaemonsByOrganization(ctx context.Context, organ
 }
 
 func (q *querier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.Context, arg database.GetProvisionerDaemonsWithStatusByOrganizationParams) ([]database.GetProvisionerDaemonsWithStatusByOrganizationRow, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetProvisionerDaemonsWithStatusByOrganization)(ctx, arg)
+	rows, err := fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetProvisionerDaemonsWithStatusByOrganization)(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+	var jobIDs []uuid.UUID
+	for _, row := range rows {
+		if row.CurrentJobID.Valid {
+			jobIDs = append(jobIDs, row.CurrentJobID.UUID)
+		}
+		if row.PreviousJobID.Valid {
+			jobIDs = append(jobIDs, row.PreviousJobID.UUID)
+		}
+	}
+	hidden, err := q.hiddenNetworkPolicyJobs(ctx, jobIDs)
+	if err != nil {
+		return nil, err
+	}
+	rows = slices.Clone(rows)
+	for i := range rows {
+		if hidden[rows[i].CurrentJobID.UUID] {
+			rows[i].CurrentJobID = uuid.NullUUID{}
+			rows[i].CurrentJobStatus = database.NullProvisionerJobStatus{}
+			rows[i].CurrentJobTemplateName = ""
+			rows[i].CurrentJobTemplateDisplayName = ""
+			rows[i].CurrentJobTemplateIcon = ""
+		}
+		if hidden[rows[i].PreviousJobID.UUID] {
+			rows[i].PreviousJobID = uuid.NullUUID{}
+			rows[i].PreviousJobStatus = database.NullProvisionerJobStatus{}
+			rows[i].PreviousJobTemplateName = ""
+			rows[i].PreviousJobTemplateDisplayName = ""
+			rows[i].PreviousJobTemplateIcon = ""
+		}
+	}
+	return rows, nil
 }
 
 func (q *querier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
@@ -4866,33 +4918,57 @@ func (q *querier) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uui
 func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
 	// TODO: Remove this once we have a proper rbac check for provisioner jobs.
 	// Details in https://github.com/coder/coder/issues/16160
-	return q.db.GetProvisionerJobsByIDs(ctx, ids)
+	rows, err := q.db.GetProvisionerJobsByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	return filterNetworkPolicyJobRows(ctx, q, rows, func(job database.ProvisionerJob) database.ProvisionerJob { return job })
 }
 
 func (q *querier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids database.GetProvisionerJobsByIDsWithQueuePositionParams) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
 	// TODO: Remove this once we have a proper rbac check for provisioner jobs.
 	// Details in https://github.com/coder/coder/issues/16160
-	return q.db.GetProvisionerJobsByIDsWithQueuePosition(ctx, ids)
+	rows, err := q.db.GetProvisionerJobsByIDsWithQueuePosition(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	return filterNetworkPolicyJobRows(ctx, q, rows, func(row database.GetProvisionerJobsByIDsWithQueuePositionRow) database.ProvisionerJob {
+		return row.ProvisionerJob
+	})
 }
 
 func (q *querier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
 	// TODO: Remove this once we have a proper rbac check for provisioner jobs.
 	// Details in https://github.com/coder/coder/issues/16160
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner)(ctx, arg)
+	rows, err := fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner)(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+	return filterNetworkPolicyJobRows(ctx, q, rows, func(row database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow) database.ProvisionerJob {
+		return row.ProvisionerJob
+	})
 }
 
 func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ProvisionerJob, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
 		return nil, err
 	}
-	return q.db.GetProvisionerJobsCreatedAfter(ctx, createdAt)
+	rows, err := q.db.GetProvisionerJobsCreatedAfter(ctx, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	return filterNetworkPolicyJobRows(ctx, q, rows, func(job database.ProvisionerJob) database.ProvisionerJob { return job })
 }
 
 func (q *querier) GetProvisionerJobsToBeReaped(ctx context.Context, arg database.GetProvisionerJobsToBeReapedParams) ([]database.ProvisionerJob, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
 		return nil, err
 	}
-	return q.db.GetProvisionerJobsToBeReaped(ctx, arg)
+	rows, err := q.db.GetProvisionerJobsToBeReaped(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+	return filterNetworkPolicyJobRows(ctx, q, rows, func(job database.ProvisionerJob) database.ProvisionerJob { return job })
 }
 
 func (q *querier) GetProvisionerKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (database.ProvisionerKey, error) {
@@ -8332,6 +8408,10 @@ func (q *querier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg da
 	}
 
 	switch job.Type {
+	case database.ProvisionerJobTypeNetworkPolicy:
+		if _, err := q.GetNetworkPolicyRunByJobID(ctx, job.ID); err != nil {
+			return xerrors.Errorf("authorize network policy cancellation: %w", err)
+		}
 	case database.ProvisionerJobTypeWorkspaceBuild:
 		build, err := q.db.GetWorkspaceBuildByJobID(ctx, arg.ID)
 		if err != nil {

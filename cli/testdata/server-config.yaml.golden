@@ -509,6 +509,25 @@ provisioning:
 # and only needed if a template renders incorrectly with the default.
 # (default: false, type: bool)
 dynamicParametersFullEvaluation: false
+# Trusted local Terraform module directory for experimental network policies.
+# Snapshotted into each revision. Requires the network-policies experiment.
+# (default: <unset>, type: string)
+networkPolicyModulePath: ""
+# Workspace startup policy readiness requirement. require-current requires the
+# published revision; allow-last-applied permits a proven previous apply only when
+# no mutation or drift makes it unsafe.
+# (default: require-current, type: enum[require-current\|allow-last-applied])
+networkPolicyStartupMode: require-current
+# Workspace startup behavior for detected current-revision policy drift. allow is
+# an explicit operator exception, not verification that cluster policy is safe;
+# unknown and partial state remain blocked.
+# (default: block, type: enum[block\|allow])
+networkPolicyDriftAction: block
+# Interval between report-only network policy drift plans. Requires the
+# network-policies experiment. Zero disables periodic checks without changing
+# startup readiness requirements.
+# (default: 15m, type: duration)
+networkPolicyDriftInterval: 15m0s
 # Enable one or more experiments. These are not ready for production. Separate
 # multiple experiments with commas, or enter '*' to opt-in to all available
 # experiments.

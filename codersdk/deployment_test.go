@@ -37,6 +37,7 @@ func TestExperimentDisplayNames(t *testing.T) {
 	t.Parallel()
 
 	expected := map[codersdk.Experiment]string{
+		codersdk.ExperimentNetworkPolicies:           "Network Policies",
 		codersdk.ExperimentExample:                   "Example Experiment",
 		codersdk.ExperimentNotifications:             "SMTP and Webhook Notifications",
 		codersdk.ExperimentWorkspaceUsage:            "Workspace Usage Tracking",
@@ -1717,6 +1718,44 @@ func TestRetentionConfigParsing(t *testing.T) {
 			assert.Equal(t, tt.expectedAPIKeys, dv.Retention.APIKeys.Value(), "api keys retention mismatch")
 		})
 	}
+}
+
+func TestNetworkPolicyDeploymentConfig(t *testing.T) {
+	t.Parallel()
+	dv := codersdk.DeploymentValues{}
+	opts := dv.Options()
+	require.NoError(t, opts.SetDefaults())
+	require.Equal(t, "require-current", dv.NetworkPolicyStartupMode.String())
+	require.Equal(t, "block", dv.NetworkPolicyDriftAction.String())
+	require.Equal(t, 15*time.Minute, dv.NetworkPolicyDriftInterval.Value())
+	require.Empty(t, dv.NetworkPolicyModulePath.String())
+	require.NoError(t, opts.ParseEnv([]serpent.EnvVar{
+		{Name: "CODER_NETWORK_POLICY_STARTUP_MODE", Value: "allow-last-applied"},
+		{Name: "CODER_NETWORK_POLICY_DRIFT_ACTION", Value: "allow"},
+		{Name: "CODER_NETWORK_POLICY_DRIFT_INTERVAL", Value: "0"},
+		{Name: "CODER_NETWORK_POLICY_MODULE_PATH", Value: "/trusted/module"},
+	}))
+	require.Equal(t, "allow-last-applied", dv.NetworkPolicyStartupMode.String())
+	require.Equal(t, "allow", dv.NetworkPolicyDriftAction.String())
+	require.Zero(t, dv.NetworkPolicyDriftInterval.Value(), "explicit zero must disable periodic plans")
+	require.Equal(t, "/trusted/module", dv.NetworkPolicyModulePath.String())
+
+	for _, env := range []string{"CODER_NETWORK_POLICY_STARTUP_MODE", "CODER_NETWORK_POLICY_DRIFT_ACTION"} {
+		invalid := codersdk.DeploymentValues{}
+		invalidOpts := invalid.Options()
+		require.Error(t, invalidOpts.ParseEnv([]serpent.EnvVar{{Name: env, Value: "unsafe"}}))
+	}
+
+	yamlDV := codersdk.DeploymentValues{}
+	yamlOpts := yamlDV.Options()
+	var node yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("networkPolicyStartupMode: allow-last-applied\nnetworkPolicyDriftAction: allow\nnetworkPolicyDriftInterval: 0s\nnetworkPolicyModulePath: /trusted/module\n"), &node))
+	require.NoError(t, node.Decode(&yamlOpts))
+	require.NoError(t, yamlOpts.SetDefaults())
+	require.Equal(t, dv.NetworkPolicyStartupMode, yamlDV.NetworkPolicyStartupMode)
+	require.Equal(t, dv.NetworkPolicyDriftAction, yamlDV.NetworkPolicyDriftAction)
+	require.Equal(t, dv.NetworkPolicyDriftInterval, yamlDV.NetworkPolicyDriftInterval)
+	require.Equal(t, dv.NetworkPolicyModulePath, yamlDV.NetworkPolicyModulePath)
 }
 
 func TestDisableUserSecretFilePath(t *testing.T) {

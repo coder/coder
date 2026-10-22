@@ -1646,6 +1646,10 @@
 							"path": "./reference/api/members.md"
 						},
 						{
+							"title": "Network policies",
+							"path": "./reference/api/networkpolicies.md"
+						},
+						{
 							"title": "Notifications",
 							"path": "./reference/api/notifications.md"
 						},

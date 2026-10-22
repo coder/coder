@@ -381,6 +381,10 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "string"
     ],
     "metrics_cache_refresh_interval": 0,
+    "network_policy_drift_action": "string",
+    "network_policy_drift_interval": 0,
+    "network_policy_module_path": "string",
+    "network_policy_startup_mode": "string",
     "notifications": {
       "dispatch_timeout": 0,
       "email": {
@@ -873,7 +877,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments \
 
 ```json
 [
-  "example"
+  "network-policies"
 ]
 ```
 
@@ -912,7 +916,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments/available \
 
 ```json
 [
-  "example"
+  "network-policies"
 ]
 ```
 

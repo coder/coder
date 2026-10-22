@@ -41,6 +41,64 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestProvisionerDaemonServeNetworkPolicyCapabilities(t *testing.T) {
+	t.Parallel()
+	for _, version := range []string{"1.21", "1.22"} {
+		for _, auth := range []string{"PSK", "Key"} {
+			t.Run(version+"/"+auth, func(t *testing.T) {
+				t.Parallel()
+				// Registration succeeds before the expected missing WebSocket handshake.
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				client, user := coderdenttest.New(t, &coderdenttest.Options{
+					LicenseOptions: &coderdenttest.LicenseOptions{Features: license.Features{
+						codersdk.FeatureExternalProvisionerDaemons: 1,
+					}},
+					ProvisionerDaemonPSK: "policy-worker-test",
+					Options:              &coderdtest.Options{Logger: &logger},
+				})
+				ctx := testutil.Context(t, testutil.WaitLong)
+				tags := map[string]string{provisionersdk.TagNetworkPolicy: "1", provisionersdk.TagNetworkPolicyDestroy: "1"}
+				header, credential := codersdk.ProvisionerDaemonPSK, "policy-worker-test"
+				if auth == "Key" {
+					res, err := client.CreateProvisionerKey(ctx, user.OrganizationID, codersdk.CreateProvisionerKeyRequest{Name: "policy-worker", Tags: tags})
+					require.NoError(t, err)
+					header, credential = codersdk.ProvisionerDaemonKey, res.Key
+				}
+				srvURL, err := client.URL.Parse(fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons/serve", user.OrganizationID))
+				require.NoError(t, err)
+				q := srvURL.Query()
+				q.Set("provisioner", "terraform")
+				q.Set("version", version)
+				if auth == "PSK" {
+					for key, value := range tags {
+						q.Add("tag", key+"="+value)
+					}
+				}
+				srvURL.RawQuery = q.Encode()
+				req, err := http.NewRequestWithContext(ctx, http.MethodGet, srvURL.String(), nil)
+				require.NoError(t, err)
+				req.Header.Set(header, credential)
+				resp, err := client.HTTPClient.Do(req)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				require.Contains(t, string(body), "Internal error accepting websocket connection.")
+				daemons, err := client.ProvisionerDaemons(ctx) //nolint:gocritic // Inspect registered capabilities.
+				require.NoError(t, err)
+				require.Len(t, daemons, 1)
+				require.Equal(t, version, daemons[0].APIVersion)
+				require.Equal(t, "1", daemons[0].Tags[provisionersdk.TagNetworkPolicy])
+				if version == "1.21" {
+					require.NotContains(t, daemons[0].Tags, provisionersdk.TagNetworkPolicyDestroy)
+				} else {
+					require.Equal(t, "1", daemons[0].Tags[provisionersdk.TagNetworkPolicyDestroy])
+				}
+			})
+		}
+	}
+}
+
 func TestProvisionerDaemonServe(t *testing.T) {
 	t.Parallel()
 	t.Run("OK", func(t *testing.T) {

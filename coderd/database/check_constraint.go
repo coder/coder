@@ -61,6 +61,13 @@ const (
 	CheckMcpServerConfigsGroupAclIsObject                    CheckConstraint = "mcp_server_configs_group_acl_is_object"                    // mcp_server_configs
 	CheckMcpServerConfigsTransportCheck                      CheckConstraint = "mcp_server_configs_transport_check"                        // mcp_server_configs
 	CheckMcpServerConfigsUserAclIsObject                     CheckConstraint = "mcp_server_configs_user_acl_is_object"                     // mcp_server_configs
+	CheckNetworkPoliciesDeletionCheck                        CheckConstraint = "network_policies_deletion_check"                           // network_policies
+	CheckNetworkPoliciesGenerationCheck                      CheckConstraint = "network_policies_generation_check"                         // network_policies
+	CheckNetworkPolicyRevisionsRevisionNumberCheck           CheckConstraint = "network_policy_revisions_revision_number_check"            // network_policy_revisions
+	CheckNetworkPolicyRunsGenerationCheck                    CheckConstraint = "network_policy_runs_generation_check"                      // network_policy_runs
+	CheckNetworkPolicyRunsOperationCheck                     CheckConstraint = "network_policy_runs_operation_check"                       // network_policy_runs
+	CheckNetworkPolicyTargetsGenerationCheck                 CheckConstraint = "network_policy_targets_generation_check"                   // network_policy_targets
+	CheckNetworkPolicyTargetsStatusCheck                     CheckConstraint = "network_policy_targets_status_check"                       // network_policy_targets
 	CheckOauth2ProviderAppCodesScopeNotEmpty                 CheckConstraint = "oauth2_provider_app_codes_scope_not_empty"                 // oauth2_provider_app_codes
 	CheckOauth2ProviderAppTokensScopeNotEmpty                CheckConstraint = "oauth2_provider_app_tokens_scope_not_empty"                // oauth2_provider_app_tokens
 	CheckOauth2ProviderAppsClientTypeCheck                   CheckConstraint = "oauth2_provider_apps_client_type_check"                    // oauth2_provider_apps

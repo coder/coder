@@ -1243,6 +1243,13 @@ func expectDB(t *testing.T, opts ...txExpect) *dbmock.MockStore {
 }
 
 func withTemplate(mTx *dbmock.MockStore) {
+	withTemplateRecord(mTx)
+	// Unrelated builder tests have no attached policies. Policy-gating tests
+	// use withTemplateRecord and explicit readiness expectations instead.
+	mTx.EXPECT().GetNetworkPoliciesByOrganizationID(gomock.Any(), orgID).Return(nil, nil).AnyTimes()
+}
+
+func withTemplateRecord(mTx *dbmock.MockStore) {
 	mTx.EXPECT().GetTemplateByID(gomock.Any(), templateID).
 		Times(1).
 		Return(database.Template{

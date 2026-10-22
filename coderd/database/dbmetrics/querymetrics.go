@@ -312,6 +312,22 @@ func (m queryMetricsStore) ClearChatDiffStatusPR(ctx context.Context, arg databa
 	return r0
 }
 
+func (m queryMetricsStore) CompleteNetworkPolicyDeletion(ctx context.Context, arg database.CompleteNetworkPolicyDeletionParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CompleteNetworkPolicyDeletion(ctx, arg)
+	m.queryLatencies.WithLabelValues("CompleteNetworkPolicyDeletion").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CompleteNetworkPolicyDeletion").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) CompleteNetworkPolicyTargetJob(ctx context.Context, arg database.CompleteNetworkPolicyTargetJobParams) (database.NetworkPolicyTarget, error) {
+	start := time.Now()
+	r0, r1 := m.s.CompleteNetworkPolicyTargetJob(ctx, arg)
+	m.queryLatencies.WithLabelValues("CompleteNetworkPolicyTargetJob").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CompleteNetworkPolicyTargetJob").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountAIBridgeSessions(ctx, arg)
@@ -704,6 +720,14 @@ func (m queryMetricsStore) DeleteMCPServerUserTokensByConfigID(ctx context.Conte
 	return r0
 }
 
+func (m queryMetricsStore) DeleteNetworkPolicyAttachment(ctx context.Context, arg database.DeleteNetworkPolicyAttachmentParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteNetworkPolicyAttachment(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteNetworkPolicyAttachment").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteNetworkPolicyAttachment").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteOAuth2ProviderAppByClientID(ctx, id)
@@ -1046,6 +1070,14 @@ func (m queryMetricsStore) DeleteWorkspaceSubAgentByID(ctx context.Context, id u
 	m.queryLatencies.WithLabelValues("DeleteWorkspaceSubAgentByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteWorkspaceSubAgentByID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) DestroyUnappliedNetworkPolicyTarget(ctx context.Context, arg database.DestroyUnappliedNetworkPolicyTargetParams) (database.NetworkPolicyTarget, error) {
+	start := time.Now()
+	r0, r1 := m.s.DestroyUnappliedNetworkPolicyTarget(ctx, arg)
+	m.queryLatencies.WithLabelValues("DestroyUnappliedNetworkPolicyTarget").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DestroyUnappliedNetworkPolicyTarget").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) DisableForeignKeysAndTriggers(ctx context.Context) error {
@@ -2605,6 +2637,102 @@ func (m queryMetricsStore) GetMCPServerUserTokensByUserID(ctx context.Context, u
 	r0, r1 := m.s.GetMCPServerUserTokensByUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetMCPServerUserTokensByUserID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerUserTokensByUserID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetNetworkPoliciesByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.NetworkPolicy, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNetworkPoliciesByOrganizationID(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("GetNetworkPoliciesByOrganizationID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetNetworkPoliciesByOrganizationID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetNetworkPolicyAttachmentsByPolicyID(ctx context.Context, policyID uuid.UUID) ([]database.NetworkPolicyAttachment, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNetworkPolicyAttachmentsByPolicyID(ctx, policyID)
+	m.queryLatencies.WithLabelValues("GetNetworkPolicyAttachmentsByPolicyID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetNetworkPolicyAttachmentsByPolicyID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetNetworkPolicyByID(ctx context.Context, id uuid.UUID) (database.NetworkPolicy, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNetworkPolicyByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetNetworkPolicyByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetNetworkPolicyByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetNetworkPolicyByIDForUpdate(ctx context.Context, id uuid.UUID) (database.NetworkPolicy, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNetworkPolicyByIDForUpdate(ctx, id)
+	m.queryLatencies.WithLabelValues("GetNetworkPolicyByIDForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetNetworkPolicyByIDForUpdate").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetNetworkPolicyRevisionByID(ctx context.Context, id uuid.UUID) (database.NetworkPolicyRevision, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNetworkPolicyRevisionByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetNetworkPolicyRevisionByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetNetworkPolicyRevisionByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetNetworkPolicyRevisionsByPolicyID(ctx context.Context, policyID uuid.UUID) ([]database.NetworkPolicyRevision, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNetworkPolicyRevisionsByPolicyID(ctx, policyID)
+	m.queryLatencies.WithLabelValues("GetNetworkPolicyRevisionsByPolicyID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetNetworkPolicyRevisionsByPolicyID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetNetworkPolicyRunByID(ctx context.Context, id uuid.UUID) (database.NetworkPolicyRun, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNetworkPolicyRunByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetNetworkPolicyRunByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetNetworkPolicyRunByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetNetworkPolicyRunByJobID(ctx context.Context, jobID uuid.UUID) (database.NetworkPolicyRun, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNetworkPolicyRunByJobID(ctx, jobID)
+	m.queryLatencies.WithLabelValues("GetNetworkPolicyRunByJobID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetNetworkPolicyRunByJobID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetNetworkPolicyRunsByPolicyID(ctx context.Context, policyID uuid.UUID) ([]database.NetworkPolicyRun, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNetworkPolicyRunsByPolicyID(ctx, policyID)
+	m.queryLatencies.WithLabelValues("GetNetworkPolicyRunsByPolicyID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetNetworkPolicyRunsByPolicyID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetNetworkPolicyTargetByID(ctx context.Context, id uuid.UUID) (database.NetworkPolicyTarget, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNetworkPolicyTargetByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetNetworkPolicyTargetByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetNetworkPolicyTargetByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetNetworkPolicyTargetByIDForUpdate(ctx context.Context, id uuid.UUID) (database.NetworkPolicyTarget, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNetworkPolicyTargetByIDForUpdate(ctx, id)
+	m.queryLatencies.WithLabelValues("GetNetworkPolicyTargetByIDForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetNetworkPolicyTargetByIDForUpdate").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetNetworkPolicyTargetsByPolicyID(ctx context.Context, policyID uuid.UUID) ([]database.NetworkPolicyTarget, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNetworkPolicyTargetsByPolicyID(ctx, policyID)
+	m.queryLatencies.WithLabelValues("GetNetworkPolicyTargetsByPolicyID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetNetworkPolicyTargetsByPolicyID").Inc()
 	return r0, r1
 }
 
@@ -4544,6 +4672,46 @@ func (m queryMetricsStore) InsertMissingGroups(ctx context.Context, arg database
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertNetworkPolicy(ctx context.Context, arg database.InsertNetworkPolicyParams) (database.NetworkPolicy, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertNetworkPolicy(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertNetworkPolicy").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertNetworkPolicy").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertNetworkPolicyAttachment(ctx context.Context, arg database.InsertNetworkPolicyAttachmentParams) (database.NetworkPolicyAttachment, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertNetworkPolicyAttachment(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertNetworkPolicyAttachment").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertNetworkPolicyAttachment").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertNetworkPolicyRevision(ctx context.Context, arg database.InsertNetworkPolicyRevisionParams) (database.NetworkPolicyRevision, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertNetworkPolicyRevision(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertNetworkPolicyRevision").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertNetworkPolicyRevision").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertNetworkPolicyRun(ctx context.Context, arg database.InsertNetworkPolicyRunParams) (database.NetworkPolicyRun, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertNetworkPolicyRun(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertNetworkPolicyRun").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertNetworkPolicyRun").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertNetworkPolicyTarget(ctx context.Context, arg database.InsertNetworkPolicyTargetParams) (database.NetworkPolicyTarget, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertNetworkPolicyTarget(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertNetworkPolicyTarget").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertNetworkPolicyTarget").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertOAuth2ProviderApp(ctx context.Context, arg database.InsertOAuth2ProviderAppParams) (database.OAuth2ProviderApp, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertOAuth2ProviderApp(ctx, arg)
@@ -5240,6 +5408,14 @@ func (m queryMetricsStore) PopNextQueuedMessage(ctx context.Context, chatID uuid
 	return r0, r1
 }
 
+func (m queryMetricsStore) PublishNetworkPolicyRevision(ctx context.Context, arg database.PublishNetworkPolicyRevisionParams) (database.NetworkPolicy, error) {
+	start := time.Now()
+	r0, r1 := m.s.PublishNetworkPolicyRevision(ctx, arg)
+	m.queryLatencies.WithLabelValues("PublishNetworkPolicyRevision").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PublishNetworkPolicyRevision").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx, templateID)
@@ -5301,6 +5477,14 @@ func (m queryMetricsStore) ReorderChatQueuedMessageToHead(ctx context.Context, a
 	r0, r1 := m.s.ReorderChatQueuedMessageToHead(ctx, arg)
 	m.queryLatencies.WithLabelValues("ReorderChatQueuedMessageToHead").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReorderChatQueuedMessageToHead").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) RequestNetworkPolicyDeletion(ctx context.Context, arg database.RequestNetworkPolicyDeletionParams) (database.NetworkPolicy, error) {
+	start := time.Now()
+	r0, r1 := m.s.RequestNetworkPolicyDeletion(ctx, arg)
+	m.queryLatencies.WithLabelValues("RequestNetworkPolicyDeletion").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RequestNetworkPolicyDeletion").Inc()
 	return r0, r1
 }
 
@@ -5374,6 +5558,14 @@ func (m queryMetricsStore) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Co
 	m.queryLatencies.WithLabelValues("SoftDeleteWorkspaceAgentsByWorkspaceID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SoftDeleteWorkspaceAgentsByWorkspaceID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) StartNetworkPolicyTargetJob(ctx context.Context, arg database.StartNetworkPolicyTargetJobParams) (database.NetworkPolicyTarget, error) {
+	start := time.Now()
+	r0, r1 := m.s.StartNetworkPolicyTargetJob(ctx, arg)
+	m.queryLatencies.WithLabelValues("StartNetworkPolicyTargetJob").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "StartNetworkPolicyTargetJob").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
@@ -5791,6 +5983,22 @@ func (m queryMetricsStore) UpdateMemoryResourceMonitor(ctx context.Context, arg 
 	m.queryLatencies.WithLabelValues("UpdateMemoryResourceMonitor").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateMemoryResourceMonitor").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpdateNetworkPolicy(ctx context.Context, arg database.UpdateNetworkPolicyParams) (database.NetworkPolicy, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateNetworkPolicy(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateNetworkPolicy").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateNetworkPolicy").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateNetworkPolicyTargetState(ctx context.Context, arg database.UpdateNetworkPolicyTargetStateParams) (database.NetworkPolicyTarget, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateNetworkPolicyTargetState(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateNetworkPolicyTargetState").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateNetworkPolicyTargetState").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateNotificationTemplateMethodByID(ctx context.Context, arg database.UpdateNotificationTemplateMethodByIDParams) (database.NotificationTemplate, error) {

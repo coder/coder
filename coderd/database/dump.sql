@@ -585,7 +585,8 @@ CREATE TYPE provisioner_job_timing_stage AS ENUM (
 CREATE TYPE provisioner_job_type AS ENUM (
     'template_version_import',
     'workspace_build',
-    'template_version_dry_run'
+    'template_version_dry_run',
+    'network_policy'
 );
 
 CREATE TYPE provisioner_storage_method AS ENUM (
@@ -2781,6 +2782,81 @@ CREATE TABLE mcp_server_user_tokens (
     oauth_refresh_failure_reason text DEFAULT ''::text NOT NULL
 );
 
+CREATE TABLE network_policies (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    name text NOT NULL,
+    description text DEFAULT ''::text NOT NULL,
+    generation bigint DEFAULT 1 NOT NULL,
+    published_revision_id uuid,
+    created_by uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    deletion_requested_at timestamp with time zone,
+    deleted_at timestamp with time zone,
+    CONSTRAINT network_policies_deletion_check CHECK (((deleted_at IS NULL) OR (deletion_requested_at IS NOT NULL))),
+    CONSTRAINT network_policies_generation_check CHECK ((generation > 0))
+);
+
+CREATE TABLE network_policy_attachments (
+    policy_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL
+);
+
+CREATE TABLE network_policy_revisions (
+    id uuid NOT NULL,
+    policy_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    revision_number bigint NOT NULL,
+    hcl text NOT NULL,
+    file_id uuid NOT NULL,
+    created_by uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    CONSTRAINT network_policy_revisions_revision_number_check CHECK ((revision_number > 0))
+);
+
+CREATE TABLE network_policy_runs (
+    id uuid NOT NULL,
+    job_id uuid NOT NULL,
+    policy_id uuid NOT NULL,
+    target_id uuid NOT NULL,
+    revision_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    generation bigint NOT NULL,
+    template_ids uuid[] NOT NULL,
+    operation text NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    CONSTRAINT network_policy_runs_generation_check CHECK ((generation > 0)),
+    CONSTRAINT network_policy_runs_operation_check CHECK ((operation = ANY (ARRAY['plan'::text, 'apply'::text, 'destroy'::text])))
+);
+
+CREATE TABLE network_policy_targets (
+    id uuid NOT NULL,
+    policy_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    cluster text NOT NULL,
+    context text NOT NULL,
+    namespace text NOT NULL,
+    tags jsonb DEFAULT '{}'::jsonb NOT NULL,
+    state bytea DEFAULT '\x'::bytea NOT NULL,
+    active_job_id uuid,
+    last_job_id uuid,
+    applied_revision_id uuid,
+    desired_revision_id uuid,
+    generation bigint DEFAULT 1 NOT NULL,
+    status text DEFAULT 'idle'::text NOT NULL,
+    drifted boolean DEFAULT false NOT NULL,
+    last_error text DEFAULT ''::text NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    destroyed_at timestamp with time zone,
+    state_run_id uuid,
+    CONSTRAINT network_policy_targets_generation_check CHECK ((generation > 0)),
+    CONSTRAINT network_policy_targets_status_check CHECK ((status = ANY (ARRAY['idle'::text, 'pending'::text, 'planning'::text, 'applying'::text, 'succeeded'::text, 'failed'::text, 'canceled'::text])))
+);
+
 CREATE TABLE notification_messages (
     id uuid NOT NULL,
     notification_template_id uuid NOT NULL,
@@ -4591,6 +4667,42 @@ ALTER TABLE ONLY mcp_server_user_tokens
 ALTER TABLE ONLY mcp_server_user_tokens
     ADD CONSTRAINT mcp_server_user_tokens_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY network_policies
+    ADD CONSTRAINT network_policies_id_organization_id_key UNIQUE (id, organization_id);
+
+ALTER TABLE ONLY network_policies
+    ADD CONSTRAINT network_policies_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY network_policy_attachments
+    ADD CONSTRAINT network_policy_attachments_pkey PRIMARY KEY (policy_id, template_id);
+
+ALTER TABLE ONLY network_policy_revisions
+    ADD CONSTRAINT network_policy_revisions_id_policy_id_organization_id_key UNIQUE (id, policy_id, organization_id);
+
+ALTER TABLE ONLY network_policy_revisions
+    ADD CONSTRAINT network_policy_revisions_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY network_policy_revisions
+    ADD CONSTRAINT network_policy_revisions_policy_id_revision_number_key UNIQUE (policy_id, revision_number);
+
+ALTER TABLE ONLY network_policy_runs
+    ADD CONSTRAINT network_policy_runs_job_id_key UNIQUE (job_id);
+
+ALTER TABLE ONLY network_policy_runs
+    ADD CONSTRAINT network_policy_runs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY network_policy_runs
+    ADD CONSTRAINT network_policy_runs_state_provenance_key UNIQUE (id, target_id, policy_id, organization_id);
+
+ALTER TABLE ONLY network_policy_targets
+    ADD CONSTRAINT network_policy_targets_id_policy_id_organization_id_key UNIQUE (id, policy_id, organization_id);
+
+ALTER TABLE ONLY network_policy_targets
+    ADD CONSTRAINT network_policy_targets_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY network_policy_targets
+    ADD CONSTRAINT network_policy_targets_policy_id_cluster_namespace_key UNIQUE (policy_id, cluster, namespace);
+
 ALTER TABLE ONLY notification_messages
     ADD CONSTRAINT notification_messages_pkey PRIMARY KEY (id);
 
@@ -4650,6 +4762,9 @@ ALTER TABLE ONLY provisioner_daemons
 
 ALTER TABLE ONLY provisioner_job_logs
     ADD CONSTRAINT provisioner_job_logs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY provisioner_jobs
+    ADD CONSTRAINT provisioner_jobs_id_organization_id_key UNIQUE (id, organization_id);
 
 ALTER TABLE ONLY provisioner_jobs
     ADD CONSTRAINT provisioner_jobs_pkey PRIMARY KEY (id);
@@ -4713,6 +4828,9 @@ ALTER TABLE ONLY template_versions
 
 ALTER TABLE ONLY template_versions
     ADD CONSTRAINT template_versions_template_id_name_key UNIQUE (template_id, name);
+
+ALTER TABLE ONLY templates
+    ADD CONSTRAINT templates_id_organization_id_key UNIQUE (id, organization_id);
 
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_pkey PRIMARY KEY (id);
@@ -5103,6 +5221,16 @@ CREATE INDEX idx_workspace_app_statuses_workspace_id_created_at ON workspace_app
 CREATE INDEX idx_workspace_build_orchestrations_pending ON workspace_build_orchestrations USING btree (created_at) WHERE (status = 'pending'::text);
 
 CREATE INDEX idx_workspace_builds_initiator_id ON workspace_builds USING btree (initiator_id);
+
+CREATE UNIQUE INDEX network_policies_organization_id_name_idx ON network_policies USING btree (organization_id, lower(name));
+
+CREATE INDEX network_policy_attachments_template_id_idx ON network_policy_attachments USING btree (template_id);
+
+CREATE INDEX network_policy_runs_policy_id_created_at_idx ON network_policy_runs USING btree (policy_id, created_at);
+
+CREATE INDEX network_policy_runs_target_id_idx ON network_policy_runs USING btree (target_id);
+
+CREATE UNIQUE INDEX network_policy_targets_active_job_id_idx ON network_policy_targets USING btree (active_job_id) WHERE (active_job_id IS NOT NULL);
 
 CREATE UNIQUE INDEX notification_messages_dedupe_hash_idx ON notification_messages USING btree (dedupe_hash);
 
@@ -5546,6 +5674,60 @@ ALTER TABLE ONLY mcp_server_user_tokens
 
 ALTER TABLE ONLY mcp_server_user_tokens
     ADD CONSTRAINT mcp_server_user_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY network_policies
+    ADD CONSTRAINT network_policies_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
+
+ALTER TABLE ONLY network_policies
+    ADD CONSTRAINT network_policies_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id);
+
+ALTER TABLE ONLY network_policies
+    ADD CONSTRAINT network_policies_published_revision_fkey FOREIGN KEY (published_revision_id, id, organization_id) REFERENCES network_policy_revisions(id, policy_id, organization_id);
+
+ALTER TABLE ONLY network_policy_attachments
+    ADD CONSTRAINT network_policy_attachments_policy_id_organization_id_fkey FOREIGN KEY (policy_id, organization_id) REFERENCES network_policies(id, organization_id);
+
+ALTER TABLE ONLY network_policy_attachments
+    ADD CONSTRAINT network_policy_attachments_template_id_organization_id_fkey FOREIGN KEY (template_id, organization_id) REFERENCES templates(id, organization_id);
+
+ALTER TABLE ONLY network_policy_revisions
+    ADD CONSTRAINT network_policy_revisions_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
+
+ALTER TABLE ONLY network_policy_revisions
+    ADD CONSTRAINT network_policy_revisions_file_id_fkey FOREIGN KEY (file_id) REFERENCES files(id);
+
+ALTER TABLE ONLY network_policy_revisions
+    ADD CONSTRAINT network_policy_revisions_policy_id_organization_id_fkey FOREIGN KEY (policy_id, organization_id) REFERENCES network_policies(id, organization_id);
+
+ALTER TABLE ONLY network_policy_runs
+    ADD CONSTRAINT network_policy_runs_job_id_organization_id_fkey FOREIGN KEY (job_id, organization_id) REFERENCES provisioner_jobs(id, organization_id);
+
+ALTER TABLE ONLY network_policy_runs
+    ADD CONSTRAINT network_policy_runs_policy_id_organization_id_fkey FOREIGN KEY (policy_id, organization_id) REFERENCES network_policies(id, organization_id);
+
+ALTER TABLE ONLY network_policy_runs
+    ADD CONSTRAINT network_policy_runs_revision_id_policy_id_organization_id_fkey FOREIGN KEY (revision_id, policy_id, organization_id) REFERENCES network_policy_revisions(id, policy_id, organization_id);
+
+ALTER TABLE ONLY network_policy_runs
+    ADD CONSTRAINT network_policy_runs_target_id_policy_id_organization_id_fkey FOREIGN KEY (target_id, policy_id, organization_id) REFERENCES network_policy_targets(id, policy_id, organization_id);
+
+ALTER TABLE ONLY network_policy_targets
+    ADD CONSTRAINT network_policy_targets_active_job_id_organization_id_fkey FOREIGN KEY (active_job_id, organization_id) REFERENCES provisioner_jobs(id, organization_id);
+
+ALTER TABLE ONLY network_policy_targets
+    ADD CONSTRAINT network_policy_targets_applied_revision_id_policy_id_organ_fkey FOREIGN KEY (applied_revision_id, policy_id, organization_id) REFERENCES network_policy_revisions(id, policy_id, organization_id);
+
+ALTER TABLE ONLY network_policy_targets
+    ADD CONSTRAINT network_policy_targets_desired_revision_id_policy_id_organ_fkey FOREIGN KEY (desired_revision_id, policy_id, organization_id) REFERENCES network_policy_revisions(id, policy_id, organization_id);
+
+ALTER TABLE ONLY network_policy_targets
+    ADD CONSTRAINT network_policy_targets_last_job_id_organization_id_fkey FOREIGN KEY (last_job_id, organization_id) REFERENCES provisioner_jobs(id, organization_id);
+
+ALTER TABLE ONLY network_policy_targets
+    ADD CONSTRAINT network_policy_targets_policy_id_organization_id_fkey FOREIGN KEY (policy_id, organization_id) REFERENCES network_policies(id, organization_id);
+
+ALTER TABLE ONLY network_policy_targets
+    ADD CONSTRAINT network_policy_targets_state_run_fkey FOREIGN KEY (state_run_id, id, policy_id, organization_id) REFERENCES network_policy_runs(id, target_id, policy_id, organization_id);
 
 ALTER TABLE ONLY notification_messages
     ADD CONSTRAINT notification_messages_notification_template_id_fkey FOREIGN KEY (notification_template_id) REFERENCES notification_templates(id) ON DELETE CASCADE;

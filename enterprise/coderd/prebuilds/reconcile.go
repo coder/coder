@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/files"
+	"github.com/coder/coder/v2/coderd/networkpolicy"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -68,6 +69,7 @@ type StoreReconciler struct {
 	// Operational metrics
 	reconciliationDuration  prometheus.Histogram
 	workspaceBuilderMetrics *wsbuilder.Metrics
+	networkPolicyStartup    networkpolicy.StartupOptions
 }
 
 var _ prebuilds.ReconciliationOrchestrator = &StoreReconciler{}
@@ -90,6 +92,16 @@ func (d DeprovisionMode) String() string {
 	}
 }
 
+// StoreReconcilerOption configures a reconciler before it starts running.
+type StoreReconcilerOption func(*StoreReconciler)
+
+// WithNetworkPolicyStartup copies the deployment's policy startup settings.
+// Missing settings retain fail-closed behavior for prebuild creation.
+func WithNetworkPolicyStartup(values *codersdk.DeploymentValues) StoreReconcilerOption {
+	options := networkpolicy.StartupOptionsFromDeployment(values)
+	return func(c *StoreReconciler) { c.networkPolicyStartup = options }
+}
+
 func NewStoreReconciler(store database.Store,
 	ps pubsub.Pubsub,
 	fileCache *files.Cache,
@@ -102,6 +114,7 @@ func NewStoreReconciler(store database.Store,
 	tracerProvider trace.TracerProvider,
 	maxDBConnections int,
 	workspaceBuilderMetrics *wsbuilder.Metrics,
+	options ...StoreReconcilerOption,
 ) *StoreReconciler {
 	reconciliationConcurrency := calculateReconciliationConcurrency(maxDBConnections)
 
@@ -143,6 +156,9 @@ func NewStoreReconciler(store database.Store,
 		})
 	}
 
+	for _, option := range options {
+		option(reconciler)
+	}
 	return reconciler
 }
 
@@ -1120,6 +1136,7 @@ func (c *StoreReconciler) provision(
 		Reason(database.BuildReasonInitiator).
 		Initiator(database.PrebuildsSystemUserID).
 		MarkPrebuild().
+		NetworkPolicyStartup(c.networkPolicyStartup).
 		BuildMetrics(c.workspaceBuilderMetrics)
 
 	if transition != database.WorkspaceTransitionDelete {

@@ -422,6 +422,36 @@ func (mr *MockStoreMockRecorder) ClearChatDiffStatusPR(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearChatDiffStatusPR", reflect.TypeOf((*MockStore)(nil).ClearChatDiffStatusPR), ctx, arg)
 }
 
+// CompleteNetworkPolicyDeletion mocks base method.
+func (m *MockStore) CompleteNetworkPolicyDeletion(ctx context.Context, arg database.CompleteNetworkPolicyDeletionParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CompleteNetworkPolicyDeletion", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CompleteNetworkPolicyDeletion indicates an expected call of CompleteNetworkPolicyDeletion.
+func (mr *MockStoreMockRecorder) CompleteNetworkPolicyDeletion(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteNetworkPolicyDeletion", reflect.TypeOf((*MockStore)(nil).CompleteNetworkPolicyDeletion), ctx, arg)
+}
+
+// CompleteNetworkPolicyTargetJob mocks base method.
+func (m *MockStore) CompleteNetworkPolicyTargetJob(ctx context.Context, arg database.CompleteNetworkPolicyTargetJobParams) (database.NetworkPolicyTarget, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CompleteNetworkPolicyTargetJob", ctx, arg)
+	ret0, _ := ret[0].(database.NetworkPolicyTarget)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CompleteNetworkPolicyTargetJob indicates an expected call of CompleteNetworkPolicyTargetJob.
+func (mr *MockStoreMockRecorder) CompleteNetworkPolicyTargetJob(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteNetworkPolicyTargetJob", reflect.TypeOf((*MockStore)(nil).CompleteNetworkPolicyTargetJob), ctx, arg)
+}
+
 // CountAIBridgeSessions mocks base method.
 func (m *MockStore) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -1180,6 +1210,21 @@ func (mr *MockStoreMockRecorder) DeleteMCPServerUserTokensByConfigID(ctx, mcpSer
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteMCPServerUserTokensByConfigID", reflect.TypeOf((*MockStore)(nil).DeleteMCPServerUserTokensByConfigID), ctx, mcpServerConfigID)
 }
 
+// DeleteNetworkPolicyAttachment mocks base method.
+func (m *MockStore) DeleteNetworkPolicyAttachment(ctx context.Context, arg database.DeleteNetworkPolicyAttachmentParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteNetworkPolicyAttachment", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteNetworkPolicyAttachment indicates an expected call of DeleteNetworkPolicyAttachment.
+func (mr *MockStoreMockRecorder) DeleteNetworkPolicyAttachment(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteNetworkPolicyAttachment", reflect.TypeOf((*MockStore)(nil).DeleteNetworkPolicyAttachment), ctx, arg)
+}
+
 // DeleteOAuth2ProviderAppByClientID mocks base method.
 func (m *MockStore) DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -1813,6 +1858,21 @@ func (m *MockStore) DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UUI
 func (mr *MockStoreMockRecorder) DeleteWorkspaceSubAgentByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkspaceSubAgentByID", reflect.TypeOf((*MockStore)(nil).DeleteWorkspaceSubAgentByID), ctx, id)
+}
+
+// DestroyUnappliedNetworkPolicyTarget mocks base method.
+func (m *MockStore) DestroyUnappliedNetworkPolicyTarget(ctx context.Context, arg database.DestroyUnappliedNetworkPolicyTargetParams) (database.NetworkPolicyTarget, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DestroyUnappliedNetworkPolicyTarget", ctx, arg)
+	ret0, _ := ret[0].(database.NetworkPolicyTarget)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DestroyUnappliedNetworkPolicyTarget indicates an expected call of DestroyUnappliedNetworkPolicyTarget.
+func (mr *MockStoreMockRecorder) DestroyUnappliedNetworkPolicyTarget(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DestroyUnappliedNetworkPolicyTarget", reflect.TypeOf((*MockStore)(nil).DestroyUnappliedNetworkPolicyTarget), ctx, arg)
 }
 
 // DisableForeignKeysAndTriggers mocks base method.
@@ -4899,6 +4959,186 @@ func (m *MockStore) GetMCPServerUserTokensByUserID(ctx context.Context, userID u
 func (mr *MockStoreMockRecorder) GetMCPServerUserTokensByUserID(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerUserTokensByUserID", reflect.TypeOf((*MockStore)(nil).GetMCPServerUserTokensByUserID), ctx, userID)
+}
+
+// GetNetworkPoliciesByOrganizationID mocks base method.
+func (m *MockStore) GetNetworkPoliciesByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.NetworkPolicy, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNetworkPoliciesByOrganizationID", ctx, organizationID)
+	ret0, _ := ret[0].([]database.NetworkPolicy)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNetworkPoliciesByOrganizationID indicates an expected call of GetNetworkPoliciesByOrganizationID.
+func (mr *MockStoreMockRecorder) GetNetworkPoliciesByOrganizationID(ctx, organizationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetworkPoliciesByOrganizationID", reflect.TypeOf((*MockStore)(nil).GetNetworkPoliciesByOrganizationID), ctx, organizationID)
+}
+
+// GetNetworkPolicyAttachmentsByPolicyID mocks base method.
+func (m *MockStore) GetNetworkPolicyAttachmentsByPolicyID(ctx context.Context, policyID uuid.UUID) ([]database.NetworkPolicyAttachment, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNetworkPolicyAttachmentsByPolicyID", ctx, policyID)
+	ret0, _ := ret[0].([]database.NetworkPolicyAttachment)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNetworkPolicyAttachmentsByPolicyID indicates an expected call of GetNetworkPolicyAttachmentsByPolicyID.
+func (mr *MockStoreMockRecorder) GetNetworkPolicyAttachmentsByPolicyID(ctx, policyID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetworkPolicyAttachmentsByPolicyID", reflect.TypeOf((*MockStore)(nil).GetNetworkPolicyAttachmentsByPolicyID), ctx, policyID)
+}
+
+// GetNetworkPolicyByID mocks base method.
+func (m *MockStore) GetNetworkPolicyByID(ctx context.Context, id uuid.UUID) (database.NetworkPolicy, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNetworkPolicyByID", ctx, id)
+	ret0, _ := ret[0].(database.NetworkPolicy)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNetworkPolicyByID indicates an expected call of GetNetworkPolicyByID.
+func (mr *MockStoreMockRecorder) GetNetworkPolicyByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetworkPolicyByID", reflect.TypeOf((*MockStore)(nil).GetNetworkPolicyByID), ctx, id)
+}
+
+// GetNetworkPolicyByIDForUpdate mocks base method.
+func (m *MockStore) GetNetworkPolicyByIDForUpdate(ctx context.Context, id uuid.UUID) (database.NetworkPolicy, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNetworkPolicyByIDForUpdate", ctx, id)
+	ret0, _ := ret[0].(database.NetworkPolicy)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNetworkPolicyByIDForUpdate indicates an expected call of GetNetworkPolicyByIDForUpdate.
+func (mr *MockStoreMockRecorder) GetNetworkPolicyByIDForUpdate(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetworkPolicyByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetNetworkPolicyByIDForUpdate), ctx, id)
+}
+
+// GetNetworkPolicyRevisionByID mocks base method.
+func (m *MockStore) GetNetworkPolicyRevisionByID(ctx context.Context, id uuid.UUID) (database.NetworkPolicyRevision, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNetworkPolicyRevisionByID", ctx, id)
+	ret0, _ := ret[0].(database.NetworkPolicyRevision)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNetworkPolicyRevisionByID indicates an expected call of GetNetworkPolicyRevisionByID.
+func (mr *MockStoreMockRecorder) GetNetworkPolicyRevisionByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetworkPolicyRevisionByID", reflect.TypeOf((*MockStore)(nil).GetNetworkPolicyRevisionByID), ctx, id)
+}
+
+// GetNetworkPolicyRevisionsByPolicyID mocks base method.
+func (m *MockStore) GetNetworkPolicyRevisionsByPolicyID(ctx context.Context, policyID uuid.UUID) ([]database.NetworkPolicyRevision, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNetworkPolicyRevisionsByPolicyID", ctx, policyID)
+	ret0, _ := ret[0].([]database.NetworkPolicyRevision)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNetworkPolicyRevisionsByPolicyID indicates an expected call of GetNetworkPolicyRevisionsByPolicyID.
+func (mr *MockStoreMockRecorder) GetNetworkPolicyRevisionsByPolicyID(ctx, policyID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetworkPolicyRevisionsByPolicyID", reflect.TypeOf((*MockStore)(nil).GetNetworkPolicyRevisionsByPolicyID), ctx, policyID)
+}
+
+// GetNetworkPolicyRunByID mocks base method.
+func (m *MockStore) GetNetworkPolicyRunByID(ctx context.Context, id uuid.UUID) (database.NetworkPolicyRun, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNetworkPolicyRunByID", ctx, id)
+	ret0, _ := ret[0].(database.NetworkPolicyRun)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNetworkPolicyRunByID indicates an expected call of GetNetworkPolicyRunByID.
+func (mr *MockStoreMockRecorder) GetNetworkPolicyRunByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetworkPolicyRunByID", reflect.TypeOf((*MockStore)(nil).GetNetworkPolicyRunByID), ctx, id)
+}
+
+// GetNetworkPolicyRunByJobID mocks base method.
+func (m *MockStore) GetNetworkPolicyRunByJobID(ctx context.Context, jobID uuid.UUID) (database.NetworkPolicyRun, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNetworkPolicyRunByJobID", ctx, jobID)
+	ret0, _ := ret[0].(database.NetworkPolicyRun)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNetworkPolicyRunByJobID indicates an expected call of GetNetworkPolicyRunByJobID.
+func (mr *MockStoreMockRecorder) GetNetworkPolicyRunByJobID(ctx, jobID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetworkPolicyRunByJobID", reflect.TypeOf((*MockStore)(nil).GetNetworkPolicyRunByJobID), ctx, jobID)
+}
+
+// GetNetworkPolicyRunsByPolicyID mocks base method.
+func (m *MockStore) GetNetworkPolicyRunsByPolicyID(ctx context.Context, policyID uuid.UUID) ([]database.NetworkPolicyRun, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNetworkPolicyRunsByPolicyID", ctx, policyID)
+	ret0, _ := ret[0].([]database.NetworkPolicyRun)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNetworkPolicyRunsByPolicyID indicates an expected call of GetNetworkPolicyRunsByPolicyID.
+func (mr *MockStoreMockRecorder) GetNetworkPolicyRunsByPolicyID(ctx, policyID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetworkPolicyRunsByPolicyID", reflect.TypeOf((*MockStore)(nil).GetNetworkPolicyRunsByPolicyID), ctx, policyID)
+}
+
+// GetNetworkPolicyTargetByID mocks base method.
+func (m *MockStore) GetNetworkPolicyTargetByID(ctx context.Context, id uuid.UUID) (database.NetworkPolicyTarget, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNetworkPolicyTargetByID", ctx, id)
+	ret0, _ := ret[0].(database.NetworkPolicyTarget)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNetworkPolicyTargetByID indicates an expected call of GetNetworkPolicyTargetByID.
+func (mr *MockStoreMockRecorder) GetNetworkPolicyTargetByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetworkPolicyTargetByID", reflect.TypeOf((*MockStore)(nil).GetNetworkPolicyTargetByID), ctx, id)
+}
+
+// GetNetworkPolicyTargetByIDForUpdate mocks base method.
+func (m *MockStore) GetNetworkPolicyTargetByIDForUpdate(ctx context.Context, id uuid.UUID) (database.NetworkPolicyTarget, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNetworkPolicyTargetByIDForUpdate", ctx, id)
+	ret0, _ := ret[0].(database.NetworkPolicyTarget)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNetworkPolicyTargetByIDForUpdate indicates an expected call of GetNetworkPolicyTargetByIDForUpdate.
+func (mr *MockStoreMockRecorder) GetNetworkPolicyTargetByIDForUpdate(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetworkPolicyTargetByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetNetworkPolicyTargetByIDForUpdate), ctx, id)
+}
+
+// GetNetworkPolicyTargetsByPolicyID mocks base method.
+func (m *MockStore) GetNetworkPolicyTargetsByPolicyID(ctx context.Context, policyID uuid.UUID) ([]database.NetworkPolicyTarget, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNetworkPolicyTargetsByPolicyID", ctx, policyID)
+	ret0, _ := ret[0].([]database.NetworkPolicyTarget)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNetworkPolicyTargetsByPolicyID indicates an expected call of GetNetworkPolicyTargetsByPolicyID.
+func (mr *MockStoreMockRecorder) GetNetworkPolicyTargetsByPolicyID(ctx, policyID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetworkPolicyTargetsByPolicyID", reflect.TypeOf((*MockStore)(nil).GetNetworkPolicyTargetsByPolicyID), ctx, policyID)
 }
 
 // GetNextPendingWorkspaceBuildOrchestrationForUpdate mocks base method.
@@ -8570,6 +8810,81 @@ func (mr *MockStoreMockRecorder) InsertMissingGroups(ctx, arg any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertMissingGroups", reflect.TypeOf((*MockStore)(nil).InsertMissingGroups), ctx, arg)
 }
 
+// InsertNetworkPolicy mocks base method.
+func (m *MockStore) InsertNetworkPolicy(ctx context.Context, arg database.InsertNetworkPolicyParams) (database.NetworkPolicy, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertNetworkPolicy", ctx, arg)
+	ret0, _ := ret[0].(database.NetworkPolicy)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertNetworkPolicy indicates an expected call of InsertNetworkPolicy.
+func (mr *MockStoreMockRecorder) InsertNetworkPolicy(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertNetworkPolicy", reflect.TypeOf((*MockStore)(nil).InsertNetworkPolicy), ctx, arg)
+}
+
+// InsertNetworkPolicyAttachment mocks base method.
+func (m *MockStore) InsertNetworkPolicyAttachment(ctx context.Context, arg database.InsertNetworkPolicyAttachmentParams) (database.NetworkPolicyAttachment, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertNetworkPolicyAttachment", ctx, arg)
+	ret0, _ := ret[0].(database.NetworkPolicyAttachment)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertNetworkPolicyAttachment indicates an expected call of InsertNetworkPolicyAttachment.
+func (mr *MockStoreMockRecorder) InsertNetworkPolicyAttachment(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertNetworkPolicyAttachment", reflect.TypeOf((*MockStore)(nil).InsertNetworkPolicyAttachment), ctx, arg)
+}
+
+// InsertNetworkPolicyRevision mocks base method.
+func (m *MockStore) InsertNetworkPolicyRevision(ctx context.Context, arg database.InsertNetworkPolicyRevisionParams) (database.NetworkPolicyRevision, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertNetworkPolicyRevision", ctx, arg)
+	ret0, _ := ret[0].(database.NetworkPolicyRevision)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertNetworkPolicyRevision indicates an expected call of InsertNetworkPolicyRevision.
+func (mr *MockStoreMockRecorder) InsertNetworkPolicyRevision(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertNetworkPolicyRevision", reflect.TypeOf((*MockStore)(nil).InsertNetworkPolicyRevision), ctx, arg)
+}
+
+// InsertNetworkPolicyRun mocks base method.
+func (m *MockStore) InsertNetworkPolicyRun(ctx context.Context, arg database.InsertNetworkPolicyRunParams) (database.NetworkPolicyRun, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertNetworkPolicyRun", ctx, arg)
+	ret0, _ := ret[0].(database.NetworkPolicyRun)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertNetworkPolicyRun indicates an expected call of InsertNetworkPolicyRun.
+func (mr *MockStoreMockRecorder) InsertNetworkPolicyRun(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertNetworkPolicyRun", reflect.TypeOf((*MockStore)(nil).InsertNetworkPolicyRun), ctx, arg)
+}
+
+// InsertNetworkPolicyTarget mocks base method.
+func (m *MockStore) InsertNetworkPolicyTarget(ctx context.Context, arg database.InsertNetworkPolicyTargetParams) (database.NetworkPolicyTarget, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertNetworkPolicyTarget", ctx, arg)
+	ret0, _ := ret[0].(database.NetworkPolicyTarget)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertNetworkPolicyTarget indicates an expected call of InsertNetworkPolicyTarget.
+func (mr *MockStoreMockRecorder) InsertNetworkPolicyTarget(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertNetworkPolicyTarget", reflect.TypeOf((*MockStore)(nil).InsertNetworkPolicyTarget), ctx, arg)
+}
+
 // InsertOAuth2ProviderApp mocks base method.
 func (m *MockStore) InsertOAuth2ProviderApp(ctx context.Context, arg database.InsertOAuth2ProviderAppParams) (database.OAuth2ProviderApp, error) {
 	m.ctrl.T.Helper()
@@ -9967,6 +10282,21 @@ func (mr *MockStoreMockRecorder) PopNextQueuedMessage(ctx, chatID any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PopNextQueuedMessage", reflect.TypeOf((*MockStore)(nil).PopNextQueuedMessage), ctx, chatID)
 }
 
+// PublishNetworkPolicyRevision mocks base method.
+func (m *MockStore) PublishNetworkPolicyRevision(ctx context.Context, arg database.PublishNetworkPolicyRevisionParams) (database.NetworkPolicy, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PublishNetworkPolicyRevision", ctx, arg)
+	ret0, _ := ret[0].(database.NetworkPolicy)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PublishNetworkPolicyRevision indicates an expected call of PublishNetworkPolicyRevision.
+func (mr *MockStoreMockRecorder) PublishNetworkPolicyRevision(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PublishNetworkPolicyRevision", reflect.TypeOf((*MockStore)(nil).PublishNetworkPolicyRevision), ctx, arg)
+}
+
 // ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate mocks base method.
 func (m *MockStore) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -10083,6 +10413,21 @@ func (m *MockStore) ReorderChatQueuedMessageToHead(ctx context.Context, arg data
 func (mr *MockStoreMockRecorder) ReorderChatQueuedMessageToHead(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReorderChatQueuedMessageToHead", reflect.TypeOf((*MockStore)(nil).ReorderChatQueuedMessageToHead), ctx, arg)
+}
+
+// RequestNetworkPolicyDeletion mocks base method.
+func (m *MockStore) RequestNetworkPolicyDeletion(ctx context.Context, arg database.RequestNetworkPolicyDeletionParams) (database.NetworkPolicy, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RequestNetworkPolicyDeletion", ctx, arg)
+	ret0, _ := ret[0].(database.NetworkPolicy)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RequestNetworkPolicyDeletion indicates an expected call of RequestNetworkPolicyDeletion.
+func (mr *MockStoreMockRecorder) RequestNetworkPolicyDeletion(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RequestNetworkPolicyDeletion", reflect.TypeOf((*MockStore)(nil).RequestNetworkPolicyDeletion), ctx, arg)
 }
 
 // RevokeDBCryptKey mocks base method.
@@ -10210,6 +10555,21 @@ func (m *MockStore) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, 
 func (mr *MockStoreMockRecorder) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, workspaceID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SoftDeleteWorkspaceAgentsByWorkspaceID", reflect.TypeOf((*MockStore)(nil).SoftDeleteWorkspaceAgentsByWorkspaceID), ctx, workspaceID)
+}
+
+// StartNetworkPolicyTargetJob mocks base method.
+func (m *MockStore) StartNetworkPolicyTargetJob(ctx context.Context, arg database.StartNetworkPolicyTargetJobParams) (database.NetworkPolicyTarget, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StartNetworkPolicyTargetJob", ctx, arg)
+	ret0, _ := ret[0].(database.NetworkPolicyTarget)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StartNetworkPolicyTargetJob indicates an expected call of StartNetworkPolicyTargetJob.
+func (mr *MockStoreMockRecorder) StartNetworkPolicyTargetJob(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartNetworkPolicyTargetJob", reflect.TypeOf((*MockStore)(nil).StartNetworkPolicyTargetJob), ctx, arg)
 }
 
 // SyncAgentChatsContextMCPResources mocks base method.
@@ -10975,6 +11335,36 @@ func (m *MockStore) UpdateMemoryResourceMonitor(ctx context.Context, arg databas
 func (mr *MockStoreMockRecorder) UpdateMemoryResourceMonitor(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMemoryResourceMonitor", reflect.TypeOf((*MockStore)(nil).UpdateMemoryResourceMonitor), ctx, arg)
+}
+
+// UpdateNetworkPolicy mocks base method.
+func (m *MockStore) UpdateNetworkPolicy(ctx context.Context, arg database.UpdateNetworkPolicyParams) (database.NetworkPolicy, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateNetworkPolicy", ctx, arg)
+	ret0, _ := ret[0].(database.NetworkPolicy)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateNetworkPolicy indicates an expected call of UpdateNetworkPolicy.
+func (mr *MockStoreMockRecorder) UpdateNetworkPolicy(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateNetworkPolicy", reflect.TypeOf((*MockStore)(nil).UpdateNetworkPolicy), ctx, arg)
+}
+
+// UpdateNetworkPolicyTargetState mocks base method.
+func (m *MockStore) UpdateNetworkPolicyTargetState(ctx context.Context, arg database.UpdateNetworkPolicyTargetStateParams) (database.NetworkPolicyTarget, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateNetworkPolicyTargetState", ctx, arg)
+	ret0, _ := ret[0].(database.NetworkPolicyTarget)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateNetworkPolicyTargetState indicates an expected call of UpdateNetworkPolicyTargetState.
+func (mr *MockStoreMockRecorder) UpdateNetworkPolicyTargetState(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateNetworkPolicyTargetState", reflect.TypeOf((*MockStore)(nil).UpdateNetworkPolicyTargetState), ctx, arg)
 }
 
 // UpdateNotificationTemplateMethodByID mocks base method.

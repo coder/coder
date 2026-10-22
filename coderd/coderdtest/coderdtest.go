@@ -447,6 +447,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.NotificationsEnqueuer,
 		experiments,
 		options.WorkspaceBuilderMetrics,
+		autobuild.WithNetworkPolicyStartup(options.DeploymentValues),
 	).WithStatsChannel(options.AutobuildStats)
 
 	lifecycleExecutor.Run()

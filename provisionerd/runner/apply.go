@@ -16,7 +16,7 @@ func (r *Runner) apply(ctx context.Context, stage string, req *sdkproto.ApplyReq
 	// will still be available for us to send the cancel to the provisioner
 	err := r.session.Send(&sdkproto.Request{Type: &sdkproto.Request_Apply{Apply: req}})
 	if err != nil {
-		return nil, r.failedWorkspaceBuildf("start provision: %s", err)
+		return nil, r.failedJobf("start provision: %s", err)
 	}
 	nevermind := make(chan struct{})
 	defer close(nevermind)
@@ -38,14 +38,14 @@ func (r *Runner) apply(ctx context.Context, stage string, req *sdkproto.ApplyReq
 	for {
 		msg, err := r.session.Recv()
 		if err != nil {
-			return nil, r.failedWorkspaceBuildf("recv workspace provision: %s", err)
+			return nil, r.failedJobf("recv provision: %s", err)
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Response_Log:
-			r.logProvisionerJobLog(context.Background(), msgType.Log.Level, "workspace provisioner job logged",
+			r.logProvisionerJobLog(context.Background(), msgType.Log.Level, "provisioner job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
-				slog.F("workspace_build_id", r.job.GetWorkspaceBuild().WorkspaceBuildId),
+				slog.F("workspace_build_id", r.job.GetWorkspaceBuild().GetWorkspaceBuildId()),
 			)
 
 			r.queueLog(ctx, &proto.Log{
@@ -58,7 +58,7 @@ func (r *Runner) apply(ctx context.Context, stage string, req *sdkproto.ApplyReq
 		case *sdkproto.Response_Apply:
 			return msgType.Apply, nil
 		default:
-			return nil, r.failedJobf("unexpected plan response type %T", msg.Type)
+			return nil, r.failedJobf("unexpected apply response type %T", msg.Type)
 		}
 	}
 }

@@ -308,6 +308,42 @@ func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub
 
 		// Mark the job as failed.
 		now = dbtime.Now()
+		errorMessage := fmt.Sprintf("Coder: Build has been detected as %s for %.0f minutes and has been terminated by the reaper.", jobToReap.Type, jobToReap.Threshold.Minutes())
+		errorCode := sql.NullString{}
+		if job.Type == database.ProvisionerJobTypeNetworkPolicy {
+			// Match native finalization's lock order: job, policy, target.
+			// Acquired applies and destroys may have uncertain outcomes.
+			run, err := db.GetNetworkPolicyRunByJobID(ctx, job.ID)
+			if err != nil {
+				return xerrors.Errorf("get network policy run: %w", err)
+			}
+			if _, err := db.GetNetworkPolicyByIDForUpdate(ctx, run.PolicyID); err != nil {
+				return xerrors.Errorf("lock network policy: %w", err)
+			}
+			target, err := db.GetNetworkPolicyTargetByIDForUpdate(ctx, run.TargetID)
+			if err != nil {
+				return xerrors.Errorf("lock network policy target: %w", err)
+			}
+			if !target.ActiveJobID.Valid || target.ActiveJobID.UUID != job.ID || target.Generation != run.Generation {
+				return xerrors.New("network policy target reservation is stale")
+			}
+			if run.Operation == "plan" || (!job.StartedAt.Valid && !job.WorkerID.Valid) {
+				errorCode = sql.NullString{String: "NETWORK_POLICY_STATE_UNCHANGED", Valid: true}
+				_, err = db.CompleteNetworkPolicyTargetJob(ctx, database.CompleteNetworkPolicyTargetJobParams{
+					ID: target.ID, JobID: target.ActiveJobID, Generation: target.Generation,
+					State: target.State, AppliedRevisionID: target.AppliedRevisionID,
+					StateRunID: target.StateRunID, DestroyedAt: target.DestroyedAt,
+					Status: "failed", Drifted: target.Drifted, LastError: errorMessage, UpdatedAt: now,
+				})
+				if err != nil {
+					return xerrors.Errorf("release unchanged network policy target: %w", err)
+				}
+			} else {
+				// A retry against old state could orphan cluster resources.
+				errorMessage += " Network policy outcome is unknown; target remains reserved and requires reconciliation."
+				errorCode = sql.NullString{String: "NETWORK_POLICY_STATE_UNKNOWN", Valid: true}
+			}
+		}
 
 		// If the job was never started (pending), set the StartedAt time to the current
 		// time so that the build duration is correct.
@@ -325,12 +361,10 @@ func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub
 				Valid: true,
 			},
 			Error: sql.NullString{
-				String: fmt.Sprintf("Coder: Build has been detected as %s for %.0f minutes and has been terminated by the reaper.", jobToReap.Type, jobToReap.Threshold.Minutes()),
+				String: errorMessage,
 				Valid:  true,
 			},
-			ErrorCode: sql.NullString{
-				Valid: false,
-			},
+			ErrorCode: errorCode,
 			StartedAt: job.StartedAt,
 		})
 		if err != nil {

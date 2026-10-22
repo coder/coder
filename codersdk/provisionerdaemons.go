@@ -135,9 +135,10 @@ func ProvisionerJobStatusEnums() []ProvisionerJobStatus {
 
 // ProvisionerJobInput represents the input for the job.
 type ProvisionerJobInput struct {
-	TemplateVersionID *uuid.UUID `json:"template_version_id,omitempty" format:"uuid" table:"template version id"`
-	WorkspaceBuildID  *uuid.UUID `json:"workspace_build_id,omitempty" format:"uuid" table:"workspace build id"`
-	Error             string     `json:"error,omitempty" table:"-"`
+	TemplateVersionID  *uuid.UUID `json:"template_version_id,omitempty" format:"uuid" table:"template version id"`
+	WorkspaceBuildID   *uuid.UUID `json:"workspace_build_id,omitempty" format:"uuid" table:"workspace build id"`
+	NetworkPolicyRunID *uuid.UUID `json:"network_policy_run_id,omitempty" format:"uuid" table:"network policy run id"`
+	Error              string     `json:"error,omitempty" table:"-"`
 }
 
 // ProvisionerJobMetadata contains metadata for the job.
@@ -159,6 +160,7 @@ const (
 	ProvisionerJobTypeTemplateVersionImport ProvisionerJobType = "template_version_import"
 	ProvisionerJobTypeWorkspaceBuild        ProvisionerJobType = "workspace_build"
 	ProvisionerJobTypeTemplateVersionDryRun ProvisionerJobType = "template_version_dry_run"
+	ProvisionerJobTypeNetworkPolicy         ProvisionerJobType = "network_policy"
 )
 
 // JobErrorCode defines the error code returned by job runner.

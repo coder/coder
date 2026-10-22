@@ -1,0 +1,6 @@
+# Shared cluster infrastructure, not owned by an individual workspace.
+# The built-in dev provisioner uses the existing local cluster kubeconfig.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: workspaces

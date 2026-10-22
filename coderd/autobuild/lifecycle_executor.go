@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/files"
+	"github.com/coder/coder/v2/coderd/networkpolicy"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -52,6 +53,7 @@ type Executor struct {
 	reg                     prometheus.Registerer
 	experiments             codersdk.Experiments
 	workspaceBuilderMetrics *wsbuilder.Metrics
+	networkPolicyStartup    networkpolicy.StartupOptions
 
 	metrics executorMetrics
 }
@@ -67,8 +69,18 @@ type Stats struct {
 	Errors      map[uuid.UUID]error
 }
 
+// ExecutorOption configures an executor before it starts running.
+type ExecutorOption func(*Executor)
+
+// WithNetworkPolicyStartup copies the deployment's policy startup settings.
+// Missing settings retain fail-closed behavior for autostart.
+func WithNetworkPolicyStartup(values *codersdk.DeploymentValues) ExecutorOption {
+	options := networkpolicy.StartupOptionsFromDeployment(values)
+	return func(e *Executor) { e.networkPolicyStartup = options }
+}
+
 // New returns a new wsactions executor.
-func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *files.Cache, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer, exp codersdk.Experiments, workspaceBuilderMetrics *wsbuilder.Metrics) *Executor {
+func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *files.Cache, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer, exp codersdk.Experiments, workspaceBuilderMetrics *wsbuilder.Metrics, options ...ExecutorOption) *Executor {
 	factory := promauto.With(reg)
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
@@ -95,6 +107,9 @@ func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *f
 				Buckets:   prometheus.DefBuckets,
 			}),
 		},
+	}
+	for _, option := range options {
+		option(le)
 	}
 	return le
 }
@@ -358,6 +373,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							SetLastWorkspaceBuildInTx(&latestBuild).
 							SetLastWorkspaceBuildJobInTx(&latestJob).
 							Experiments(e.experiments).
+							NetworkPolicyStartup(e.networkPolicyStartup).
 							Reason(reason).
 							BuildMetrics(e.workspaceBuilderMetrics)
 						log.Debug(e.ctx, "auto building workspace", slog.F("transition", nextTransition))

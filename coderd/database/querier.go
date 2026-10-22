@@ -93,6 +93,8 @@ type sqlcQuerier interface {
 	CleanTailnetTunnels(ctx context.Context) error
 	CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
 	ClearChatDiffStatusPR(ctx context.Context, arg ClearChatDiffStatusPRParams) error
+	CompleteNetworkPolicyDeletion(ctx context.Context, arg CompleteNetworkPolicyDeletionParams) (int64, error)
+	CompleteNetworkPolicyTargetJob(ctx context.Context, arg CompleteNetworkPolicyTargetJobParams) (NetworkPolicyTarget, error)
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	// Excluding the candidate keeps ownership takeover capacity-neutral.
@@ -182,6 +184,7 @@ type sqlcQuerier interface {
 	DeleteMCPServerConfigByID(ctx context.Context, id uuid.UUID) error
 	DeleteMCPServerUserToken(ctx context.Context, arg DeleteMCPServerUserTokenParams) error
 	DeleteMCPServerUserTokensByConfigID(ctx context.Context, mcpServerConfigID uuid.UUID) error
+	DeleteNetworkPolicyAttachment(ctx context.Context, arg DeleteNetworkPolicyAttachmentParams) (int64, error)
 	DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error
 	DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) error
 	// Returns sql.ErrNoRows when the delete removed nothing, so a caller can make
@@ -272,6 +275,7 @@ type sqlcQuerier interface {
 	// agents are never hard-deleted, so the rows would otherwise orphan
 	// forever.
 	DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UUID) error
+	DestroyUnappliedNetworkPolicyTarget(ctx context.Context, arg DestroyUnappliedNetworkPolicyTargetParams) (NetworkPolicyTarget, error)
 	// Disable foreign keys and triggers for all tables.
 	// Deprecated: disable foreign keys was created to aid in migrating off
 	// of the test-only in-memory database. Do not use this in new code.
@@ -748,6 +752,18 @@ type sqlcQuerier interface {
 	GetMCPServerUserToken(ctx context.Context, arg GetMCPServerUserTokenParams) (MCPServerUserToken, error)
 	GetMCPServerUserTokenByID(ctx context.Context, id uuid.UUID) (MCPServerUserToken, error)
 	GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]MCPServerUserToken, error)
+	GetNetworkPoliciesByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]NetworkPolicy, error)
+	GetNetworkPolicyAttachmentsByPolicyID(ctx context.Context, policyID uuid.UUID) ([]NetworkPolicyAttachment, error)
+	GetNetworkPolicyByID(ctx context.Context, id uuid.UUID) (NetworkPolicy, error)
+	GetNetworkPolicyByIDForUpdate(ctx context.Context, id uuid.UUID) (NetworkPolicy, error)
+	GetNetworkPolicyRevisionByID(ctx context.Context, id uuid.UUID) (NetworkPolicyRevision, error)
+	GetNetworkPolicyRevisionsByPolicyID(ctx context.Context, policyID uuid.UUID) ([]NetworkPolicyRevision, error)
+	GetNetworkPolicyRunByID(ctx context.Context, id uuid.UUID) (NetworkPolicyRun, error)
+	GetNetworkPolicyRunByJobID(ctx context.Context, jobID uuid.UUID) (NetworkPolicyRun, error)
+	GetNetworkPolicyRunsByPolicyID(ctx context.Context, policyID uuid.UUID) ([]NetworkPolicyRun, error)
+	GetNetworkPolicyTargetByID(ctx context.Context, id uuid.UUID) (NetworkPolicyTarget, error)
+	GetNetworkPolicyTargetByIDForUpdate(ctx context.Context, id uuid.UUID) (NetworkPolicyTarget, error)
+	GetNetworkPolicyTargetsByPolicyID(ctx context.Context, policyID uuid.UUID) ([]NetworkPolicyTarget, error)
 	// Must be called from within a transaction. The row lock is released
 	// when the transaction ends.
 	GetNextPendingWorkspaceBuildOrchestrationForUpdate(ctx context.Context) (WorkspaceBuildOrchestration, error)
@@ -1244,6 +1260,11 @@ type sqlcQuerier interface {
 	// values for avatar, display name, and quota allowance (all zero values).
 	// If the name conflicts, do nothing.
 	InsertMissingGroups(ctx context.Context, arg InsertMissingGroupsParams) ([]Group, error)
+	InsertNetworkPolicy(ctx context.Context, arg InsertNetworkPolicyParams) (NetworkPolicy, error)
+	InsertNetworkPolicyAttachment(ctx context.Context, arg InsertNetworkPolicyAttachmentParams) (NetworkPolicyAttachment, error)
+	InsertNetworkPolicyRevision(ctx context.Context, arg InsertNetworkPolicyRevisionParams) (NetworkPolicyRevision, error)
+	InsertNetworkPolicyRun(ctx context.Context, arg InsertNetworkPolicyRunParams) (NetworkPolicyRun, error)
+	InsertNetworkPolicyTarget(ctx context.Context, arg InsertNetworkPolicyTargetParams) (NetworkPolicyTarget, error)
 	InsertOAuth2ProviderApp(ctx context.Context, arg InsertOAuth2ProviderAppParams) (OAuth2ProviderApp, error)
 	InsertOAuth2ProviderAppCode(ctx context.Context, arg InsertOAuth2ProviderAppCodeParams) (OAuth2ProviderAppCode, error)
 	InsertOAuth2ProviderAppSecret(ctx context.Context, arg InsertOAuth2ProviderAppSecretParams) (OAuth2ProviderAppSecret, error)
@@ -1439,6 +1460,7 @@ type sqlcQuerier interface {
 	// sequence, so this is acceptable.
 	PinChatByID(ctx context.Context, id uuid.UUID) error
 	PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
+	PublishNetworkPolicyRevision(ctx context.Context, arg PublishNetworkPolicyRevisionParams) (NetworkPolicy, error)
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)
@@ -1459,6 +1481,7 @@ type sqlcQuerier interface {
 	// Sets the target queued message's position to one less than the
 	// current minimum position for that chat, moving it to the head.
 	ReorderChatQueuedMessageToHead(ctx context.Context, arg ReorderChatQueuedMessageToHeadParams) (int64, error)
+	RequestNetworkPolicyDeletion(ctx context.Context, arg RequestNetworkPolicyDeletionParams) (NetworkPolicy, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct
@@ -1497,6 +1520,7 @@ type sqlcQuerier interface {
 	// Agent context rows are hard-deleted for the same reason as in
 	// SoftDeletePriorWorkspaceAgents.
 	SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
+	StartNetworkPolicyTargetJob(ctx context.Context, arg StartNetworkPolicyTargetJobParams) (NetworkPolicyTarget, error)
 	// MCP resources bypass context drift and are live-synced on each push.
 	// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 	// cannot interleave with the replacement.
@@ -1649,6 +1673,8 @@ type sqlcQuerier interface {
 	UpdateMCPServerUserTokenFromRefresh(ctx context.Context, arg UpdateMCPServerUserTokenFromRefreshParams) (MCPServerUserToken, error)
 	UpdateMemberRoles(ctx context.Context, arg UpdateMemberRolesParams) (OrganizationMember, error)
 	UpdateMemoryResourceMonitor(ctx context.Context, arg UpdateMemoryResourceMonitorParams) error
+	UpdateNetworkPolicy(ctx context.Context, arg UpdateNetworkPolicyParams) (NetworkPolicy, error)
+	UpdateNetworkPolicyTargetState(ctx context.Context, arg UpdateNetworkPolicyTargetStateParams) (NetworkPolicyTarget, error)
 	UpdateNotificationTemplateMethodByID(ctx context.Context, arg UpdateNotificationTemplateMethodByIDParams) (NotificationTemplate, error)
 	UpdateOAuth2ProviderAppByClientID(ctx context.Context, arg UpdateOAuth2ProviderAppByClientIDParams) (OAuth2ProviderApp, error)
 	UpdateOAuth2ProviderAppByID(ctx context.Context, arg UpdateOAuth2ProviderAppByIDParams) (OAuth2ProviderApp, error)

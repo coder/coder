@@ -206,7 +206,9 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 	const dropdownRef = useRef<HTMLDivElement>(null);
 	const listRef = useRef<HTMLDivElement>(null);
 
-	const [selected, setSelected] = useState<Option[]>(arrayDefaultOptions ?? []);
+	const [selected, setSelected] = useState<Option[]>(
+		value ?? arrayDefaultOptions,
+	);
 	const [options, setOptions] = useState<GroupOption>(
 		transitionToGroupOption(arrayDefaultOptions, groupBy),
 	);
@@ -502,6 +504,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 									<button
 										type="button"
 										data-testid="clear-option-button"
+										aria-label={`Remove ${option.label}`}
 										className={cn(
 											`ml-1 pr-0 rounded-sm bg-transparent border-none outline-hidden
 												focus-visible:ring-2 focus-visible:ring-content-link focus-visible:ml-2.5 focus-visible:pl-0 cursor-pointer`,
@@ -566,6 +569,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 						<button
 							type="button"
 							data-testid="clear-all-button"
+							aria-label="Clear all selections"
 							onClick={() => {
 								setSelected(fixedOptions);
 								onChange?.(fixedOptions);

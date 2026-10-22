@@ -507,6 +507,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "input": {
       "error": "string",
+      "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
@@ -610,6 +611,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "input": {
       "error": "string",
+      "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
@@ -738,6 +740,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "input": {
       "error": "string",
+      "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
@@ -1372,6 +1375,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
       "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
       "input": {
         "error": "string",
+        "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
       },
@@ -1451,6 +1455,7 @@ Status Code **200**
 | `»» initiator_id`                | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
 | `»» input`                       | [codersdk.ProvisionerJobInput](schemas.md#codersdkprovisionerjobinput)       | false    |              |                                                                                                                                                                     |
 | `»»» error`                      | string                                                                       | false    |              |                                                                                                                                                                     |
+| `»»» network_policy_run_id`      | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
 | `»»» template_version_id`        | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
 | `»»» workspace_build_id`         | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
 | `»» logs_overflowed`             | boolean                                                                      | false    |              |                                                                                                                                                                     |
@@ -1487,12 +1492,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                     | Value(s)                                                                 |
-|------------------------------|--------------------------------------------------------------------------|
-| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                      |
-| `workspace_build_transition` | `delete`, `start`, `stop`                                                |
-| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`     |
-| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build` |
+| Property                     | Value(s)                                                                                   |
+|------------------------------|--------------------------------------------------------------------------------------------|
+| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                                        |
+| `workspace_build_transition` | `delete`, `start`, `stop`                                                                  |
+| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`                       |
+| `type`                       | `network_policy`, `template_version_dry_run`, `template_version_import`, `workspace_build` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1655,6 +1660,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
       "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
       "input": {
         "error": "string",
+        "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
       },
@@ -1734,6 +1740,7 @@ Status Code **200**
 | `»» initiator_id`                | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
 | `»» input`                       | [codersdk.ProvisionerJobInput](schemas.md#codersdkprovisionerjobinput)       | false    |              |                                                                                                                                                                     |
 | `»»» error`                      | string                                                                       | false    |              |                                                                                                                                                                     |
+| `»»» network_policy_run_id`      | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
 | `»»» template_version_id`        | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
 | `»»» workspace_build_id`         | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
 | `»» logs_overflowed`             | boolean                                                                      | false    |              |                                                                                                                                                                     |
@@ -1770,12 +1777,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                     | Value(s)                                                                 |
-|------------------------------|--------------------------------------------------------------------------|
-| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                      |
-| `workspace_build_transition` | `delete`, `start`, `stop`                                                |
-| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`     |
-| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build` |
+| Property                     | Value(s)                                                                                   |
+|------------------------------|--------------------------------------------------------------------------------------------|
+| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                                        |
+| `workspace_build_transition` | `delete`, `start`, `stop`                                                                  |
+| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`                       |
+| `type`                       | `network_policy`, `template_version_dry_run`, `template_version_import`, `workspace_build` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1828,6 +1835,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "input": {
       "error": "string",
+      "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
@@ -1940,6 +1948,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "input": {
       "error": "string",
+      "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
@@ -2140,6 +2149,7 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "input": {
     "error": "string",
+    "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
   },
@@ -2216,6 +2226,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "input": {
     "error": "string",
+    "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
   },
