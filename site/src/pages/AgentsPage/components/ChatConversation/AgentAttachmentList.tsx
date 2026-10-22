@@ -31,14 +31,16 @@ type AttachmentCardProps = {
 const useAttachmentViewer = () => {
 	const [isViewing, setIsViewing] = useState(false);
 	const { rememberTrigger, restoreFocus } = useDialogFocusReturn();
+	const close = () => setIsViewing(false);
 	return {
 		isViewing,
 		open: (event: React.MouseEvent<HTMLButtonElement>) => {
 			rememberTrigger(event);
 			setIsViewing(true);
 		},
+		close,
 		dialogProps: {
-			onClose: () => setIsViewing(false),
+			onClose: close,
 			onCloseAutoFocus: restoreFocus,
 		},
 	};
@@ -150,7 +152,13 @@ const StoredTextAttachmentCard: React.FC<StoredTextAttachmentCardProps> = ({
 					if (textQuery.data !== undefined) {
 						return;
 					}
-					void textQuery.refetch().then(({ error }) => {
+					void textQuery.refetch().then(({ error, isError }) => {
+						if (!isError) {
+							return;
+						}
+						// Left open, this card's preview would show once another
+						// card loads the file.
+						viewer.close();
 						if (isExpiredFileError(error)) {
 							markExpired(fileId);
 						}
