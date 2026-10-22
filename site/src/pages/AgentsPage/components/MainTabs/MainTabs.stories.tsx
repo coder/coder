@@ -48,7 +48,11 @@ const StoryMainTabs: React.FC = () => {
 			}}
 		>
 			<div className="flex h-[480px] flex-col">
-				<MainTabs mainTabs={mainTabs} readOnly={false}>
+				<MainTabs
+					mainTabs={mainTabs}
+					readOnly={false}
+					focusChatInput={() => {}}
+				>
 					<div className="relative flex flex-1 items-center justify-center text-sm text-content-secondary">
 						Chat transcript
 						{/* Stands in for Monaco widgets, whose `visible` class matches

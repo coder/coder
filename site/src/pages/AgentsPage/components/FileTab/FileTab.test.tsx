@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AxiosError, AxiosHeaders } from "axios";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { QueryClientProvider } from "react-query";
 import {
 	afterEach,
@@ -20,18 +20,32 @@ import type FileEditor from "./FileEditor";
 import { type FileDraft, FileTab } from "./FileTab";
 
 vi.mock("./FileEditor", () => ({
-	default: ({
+	default: function MockFileEditor({
 		value,
+		reveal,
 		readOnly,
 		onChange,
-	}: React.ComponentProps<typeof FileEditor>) => (
-		<textarea
-			aria-label="File contents"
-			value={value}
-			readOnly={readOnly}
-			onChange={(event) => onChange(event.target.value)}
-		/>
-	),
+		onRevealed,
+	}: React.ComponentProps<typeof FileEditor>) {
+		const ref = useRef<HTMLTextAreaElement>(null);
+		useEffect(() => {
+			if (reveal) {
+				if (reveal.focus) {
+					ref.current?.focus();
+				}
+				onRevealed();
+			}
+		}, [reveal, onRevealed]);
+		return (
+			<textarea
+				ref={ref}
+				aria-label="File contents"
+				value={value}
+				readOnly={readOnly}
+				onChange={(event) => onChange(event.target.value)}
+			/>
+		);
+	},
 }));
 
 const agentId = "agent-1";
@@ -141,7 +155,7 @@ describe("FileTab", () => {
 		});
 	});
 
-	it("reloads from disk after a conflicting save", async () => {
+	it("reloads from disk after a conflicting save and focuses the editor", async () => {
 		const user = userEvent.setup();
 		writeFile.mockRejectedValueOnce(preconditionFailed());
 		renderFileTab({});
@@ -157,6 +171,9 @@ describe("FileTab", () => {
 			);
 		});
 		expect(writeFile).toHaveBeenCalledTimes(1);
+		await waitFor(() => {
+			expect(screen.getByLabelText("File contents")).toHaveFocus();
+		});
 	});
 
 	it("overwrites the file without a precondition after a conflict", async () => {
