@@ -17,6 +17,8 @@ type FileEditorProps = {
 	readOnly: boolean;
 	onChange: (value: string) => void;
 	onSave: () => void;
+	/** Called once `reveal` is applied. */
+	onRevealed: () => void;
 };
 
 /** Loaded with React.lazy so the Monaco chunk loads only when a file opens. */
@@ -27,11 +29,13 @@ const FileEditor: React.FC<FileEditorProps> = ({
 	readOnly,
 	onChange,
 	onSave,
+	onRevealed,
 }) => {
 	const theme = useTheme();
 	const coderTheme = useCoderTheme();
 	const [editor, setEditor] = useState<monaco.editor.IStandaloneCodeEditor>();
 	const save = useEffectEvent(onSave);
+	const revealed = useEffectEvent(onRevealed);
 
 	useEffect(() => {
 		// Text measured before the monospace font loads misplaces selections.
@@ -55,9 +59,14 @@ const FileEditor: React.FC<FileEditorProps> = ({
 		if (!editor || !reveal) {
 			return;
 		}
-		editor.setPosition({ lineNumber: reveal.line, column: 1 });
-		editor.revealLineInCenter(reveal.line);
-		editor.focus();
+		if (reveal.line !== undefined) {
+			editor.setPosition({ lineNumber: reveal.line, column: 1 });
+			editor.revealLineInCenter(reveal.line);
+		}
+		if (reveal.focus) {
+			editor.focus();
+		}
+		revealed();
 	}, [editor, reveal]);
 
 	if (coderTheme.isLoading) {

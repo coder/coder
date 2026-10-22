@@ -318,16 +318,20 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 					repoRoots,
 					repositories: gitWatcher.repositories,
 					openFile: (path, options) => {
-						mainTabs.openFile(path, options);
+						const closesPanel =
+							showSidebarPanel &&
+							window.matchMedia(belowLgViewportMediaQuery).matches;
+						// Focus cannot stay in a panel that closes.
+						mainTabs.openFile(
+							path,
+							closesPanel ? { ...options, focus: true } : options,
+						);
 						// File tabs render in the chat area, which an expanded right
 						// panel, or an open one below lg, covers.
 						if (visualExpanded) {
 							setIsRightPanelExpanded(false);
 						}
-						if (
-							showSidebarPanel &&
-							window.matchMedia(belowLgViewportMediaQuery).matches
-						) {
+						if (closesPanel) {
 							onSetShowSidebarPanel(false);
 						}
 					},
@@ -643,6 +647,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 						<MainTabs
 							mainTabs={mainTabs}
 							readOnly={isArchived || isOtherUserReadOnly}
+							focusChatInput={() => editing.chatInputRef.current?.focus()}
 						>
 							<ChatWorkspaceContext
 								value={{
