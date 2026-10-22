@@ -247,7 +247,7 @@ describe("submitChatTurn", () => {
 		await submitChatTurn(
 			buildParams({
 				message: "new text",
-				editedMessageID: 5,
+				editingTarget: { kind: "history", id: 5 },
 				chatMessages: [originalMessage],
 				editMessage,
 				scrollToEnd,
@@ -280,7 +280,7 @@ describe("submitChatTurn", () => {
 		await submitChatTurn(
 			buildParams({
 				message: "new text",
-				editedMessageID: 5,
+				editingTarget: { kind: "history", id: 5 },
 				chatMessages: [originalMessage],
 				effectiveReasoningEffort: "high",
 				isEditReasoningEffortDirtyRef: { current: false },

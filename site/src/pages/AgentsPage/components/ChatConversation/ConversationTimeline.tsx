@@ -42,7 +42,7 @@ import {
 	deriveMessageDisplayState,
 	getVisibleContent,
 } from "./messageHelpers";
-import { getEditableUserMessagePayload } from "./messageParsing";
+import { getEditableContentPayload } from "./messageParsing";
 import { assignTimelineRows } from "./timelineRows";
 import type {
 	MergedTool,
@@ -348,7 +348,7 @@ const ChatMessageItem = memo<{
 											aria-label="Edit message"
 											onClick={() => {
 												const { text, fileBlocks, editorState } =
-													getEditableUserMessagePayload(message);
+													getEditableContentPayload(message.content);
 												onEditUserMessage?.(
 													messageId,
 													text,
