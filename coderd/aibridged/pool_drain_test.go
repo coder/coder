@@ -37,10 +37,13 @@ func TestPoolDrain(t *testing.T) {
 		expireBridge bool
 		shutdownPool bool
 		blockAcquire bool
-		aliveFor     time.Duration
-		cancelWithin time.Duration // Zero completes the stream instead of waiting for cancellation.
-		wantBody     string
-		wantWarning  bool
+		// shutdownCtxTimeout bounds the context passed to pool shutdown. Zero
+		// passes a context without a deadline.
+		shutdownCtxTimeout time.Duration
+		aliveFor           time.Duration
+		cancelWithin       time.Duration // Zero completes the stream instead of waiting for cancellation.
+		wantBody           string
+		wantWarning        bool
 	}{
 		{
 			name:         "Complete",
@@ -71,6 +74,15 @@ func TestPoolDrain(t *testing.T) {
 			aliveFor:     aibridged.PoolShutdownTimeout - time.Millisecond,
 			cancelWithin: 2 * time.Millisecond,
 			wantBody:     firstEvent,
+		},
+		{
+			name:               "ShutdownContext",
+			expireBridge:       true,
+			shutdownPool:       true,
+			shutdownCtxTimeout: time.Second,
+			aliveFor:           time.Second - time.Millisecond,
+			cancelWithin:       2 * time.Millisecond,
+			wantBody:           firstEvent,
 		},
 		{
 			name:         "ShutdownBlockedAcquire",
@@ -198,7 +210,14 @@ func TestPoolDrain(t *testing.T) {
 				}
 
 				if tt.shutdownPool {
-					go func() { _ = pool.Shutdown(context.Background()) }()
+					shutdownCtx := context.Background()
+					if tt.shutdownCtxTimeout > 0 {
+						var shutdownCancel context.CancelFunc
+						//nolint:gocritic // The synctest clock makes this an exact simulated caller deadline.
+						shutdownCtx, shutdownCancel = context.WithTimeout(shutdownCtx, tt.shutdownCtxTimeout)
+						defer shutdownCancel()
+					}
+					go func() { _ = pool.Shutdown(shutdownCtx) }()
 					synctest.Wait()
 				}
 				if tt.aliveFor > 0 {

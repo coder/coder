@@ -334,7 +334,9 @@ func (p *CachedBridgePool) CacheMetrics() PoolMetrics {
 }
 
 // Shutdown will close the cache which will trigger eviction of all the Bridge entries.
-func (p *CachedBridgePool) Shutdown(_ context.Context) error {
+// Bridge drains are canceled when ctx ends or after poolShutdownTimeout,
+// whichever comes first.
+func (p *CachedBridgePool) Shutdown(ctx context.Context) error {
 	p.shutDownOnce.Do(func() {
 		// Block new cache use, drain in-flight ops, then close (see cacheMu).
 		p.cacheMu.Lock()
@@ -345,6 +347,8 @@ func (p *CachedBridgePool) Shutdown(_ context.Context) error {
 		// blocked initializing MCP connections. Retired bridges must not
 		// keep draining for the longer eviction grace period during shutdown.
 		time.AfterFunc(poolShutdownTimeout, p.drainCancel)
+		// Drains outlive Shutdown, so the registration is never stopped.
+		_ = context.AfterFunc(ctx, p.drainCancel)
 		p.cacheWG.Wait()
 		p.cache.Close()
 	})
