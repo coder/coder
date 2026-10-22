@@ -156,6 +156,20 @@ export const MarkdownFilePreview: React.FC<MarkdownFilePreviewProps> = ({
 			if (typeof src !== "string" || src.endsWith(hiddenModeSuffix)) {
 				return null;
 			}
+			if (/^https?:\/\//i.test(src)) {
+				// Like GitHub, previews load remote images directly. Chat gates
+				// them behind consent instead, and its consent button cannot
+				// nest inside the links that README badges wrap images in.
+				return (
+					<img
+						src={src}
+						alt={alt ?? ""}
+						loading="lazy"
+						referrerPolicy="no-referrer"
+						className="max-w-full"
+					/>
+				);
+			}
 			if (!isWorkspaceImageSource(src)) {
 				return <MarkdownImage src={src} alt={alt} />;
 			}
