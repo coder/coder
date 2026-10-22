@@ -1,6 +1,6 @@
 /** Every column the sessions table can show, in their canonical order. */
 export const sessionColumnIds = [
-	"last_prompt",
+	"initial_prompt",
 	"user",
 	"provider",
 	"client",
@@ -17,13 +17,13 @@ export type SessionColumnId = (typeof sessionColumnIds)[number];
 
 type SessionColumn = {
 	label: string;
-	/** Pixels the column needs to fit; all but the last prompt render at it. */
+	/** Pixels the column needs to fit; all but the initial prompt render at it. */
 	width: number;
 };
 
 /** Display label and width for each column. */
 export const sessionColumns: Record<SessionColumnId, SessionColumn> = {
-	last_prompt: { label: "Last prompt", width: 320 },
+	initial_prompt: { label: "Initial prompt", width: 320 },
 	user: { label: "User", width: 176 },
 	provider: { label: "Provider", width: 160 },
 	client: { label: "Client", width: 160 },
@@ -59,7 +59,14 @@ export const sessionColumnViews: readonly SessionColumnView[] = [
 		id: "general",
 		label: "General",
 		settings: {
-			shown: ["last_prompt", "user", "client", "tokens", "cost", "last_active"],
+			shown: [
+				"initial_prompt",
+				"user",
+				"client",
+				"tokens",
+				"cost",
+				"last_active",
+			],
 			notShown: ["provider", "model", "threads", "network"],
 		},
 	},
@@ -67,7 +74,7 @@ export const sessionColumnViews: readonly SessionColumnView[] = [
 		id: "security",
 		label: "Security",
 		settings: {
-			shown: ["last_prompt", "user", "network", "threads", "last_active"],
+			shown: ["initial_prompt", "user", "network", "threads", "last_active"],
 			notShown: ["provider", "model", "tokens", "client", "cost"],
 		},
 	},
@@ -75,7 +82,7 @@ export const sessionColumnViews: readonly SessionColumnView[] = [
 		id: "cost",
 		label: "Cost",
 		settings: {
-			shown: ["last_prompt", "user", "client", "cost", "tokens", "threads"],
+			shown: ["initial_prompt", "user", "client", "cost", "tokens", "threads"],
 			notShown: ["last_active", "network", "provider", "model"],
 		},
 	},

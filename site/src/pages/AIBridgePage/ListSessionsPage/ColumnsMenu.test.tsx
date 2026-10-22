@@ -150,7 +150,7 @@ describe("ColumnsMenu", () => {
 					expect.objectContaining({
 						shown: [
 							"user",
-							"last_prompt",
+							"initial_prompt",
 							"client",
 							"tokens",
 							"cost",

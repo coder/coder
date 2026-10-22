@@ -61,8 +61,8 @@ type SessionCellProps = {
 
 const SessionCell: React.FC<SessionCellProps> = ({ column, session }) => {
 	switch (column) {
-		case "last_prompt":
-			return <LastPromptCell session={session} />;
+		case "initial_prompt":
+			return <InitialPromptCell session={session} />;
 		case "user":
 			return <UserCell session={session} />;
 		case "provider":
@@ -146,8 +146,22 @@ type SessionCellContentProps = {
 	session: AIBridgeSession;
 };
 
-const LastPromptCell: React.FC<SessionCellContentProps> = ({ session }) => {
-	const promptPreview = truncatePromptPreview(session.last_prompt ?? "");
+// TODO: Replace with the initial prompt once the sessions API reports it.
+// The API should return, in order of preference:
+//   1. For Coder Agents sessions, the chat summary. The session ID is the
+//      root chat ID (from the X-Coder-Chat-Id header), so it joins to chats.
+//   2. The first user prompt that is not a shared system prompt. A prompt is
+//      shared when its opening matches prompts from five or more other
+//      sessions, which catches tool templates such as sidebar summarizers.
+//   3. The first user prompt.
+// Until then this shows the last prompt, the only prompt the API returns.
+const placeholderInitialPrompt = (session: AIBridgeSession): string =>
+	session.last_prompt ?? "";
+
+const InitialPromptCell: React.FC<SessionCellContentProps> = ({ session }) => {
+	const promptPreview = truncatePromptPreview(
+		placeholderInitialPrompt(session),
+	);
 	return (
 		<TableCell className="font-normal">
 			<TooltipProvider>
@@ -162,7 +176,7 @@ const LastPromptCell: React.FC<SessionCellContentProps> = ({ session }) => {
 						// The portal still bubbles React clicks up to the row.
 						onClick={(event) => event.stopPropagation()}
 					>
-						<div className="font-bold">Last prompt</div>
+						<div className="font-bold">Initial prompt</div>
 						<div className="wrap-anywhere">{promptPreview}</div>
 					</TooltipContent>
 				</Tooltip>

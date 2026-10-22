@@ -180,7 +180,7 @@ export const CostView: Story = {
 export const CustomizedColumns: Story = {
 	args: MultipleSessions.args,
 	beforeEach: withColumnSettings({
-		shown: ["user", "last_prompt", "model", "threads"],
+		shown: ["user", "initial_prompt", "model", "threads"],
 		notShown: [
 			"provider",
 			"client",
@@ -196,7 +196,7 @@ export const CustomizedColumns: Story = {
 export const LastShownColumn: Story = {
 	args: MultipleSessions.args,
 	beforeEach: withColumnSettings({
-		shown: ["last_prompt"],
+		shown: ["initial_prompt"],
 		notShown: [
 			"user",
 			"client",
@@ -211,7 +211,9 @@ export const LastShownColumn: Story = {
 	}),
 	play: async () => {
 		await openColumnsMenu();
-		await userEvent.hover(screen.getByRole("switch", { name: "Last prompt" }));
+		await userEvent.hover(
+			screen.getByRole("switch", { name: "Initial prompt" }),
+		);
 	},
 };
 

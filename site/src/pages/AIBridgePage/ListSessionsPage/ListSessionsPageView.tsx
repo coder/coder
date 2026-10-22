@@ -183,9 +183,9 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 								{visibleColumns.map((id) => (
 									<TableHead
 										key={id}
-										// The last prompt takes the remaining width.
+										// The initial prompt takes the remaining width.
 										style={
-											id === "last_prompt"
+											id === "initial_prompt"
 												? undefined
 												: { width: sessionColumns[id].width }
 										}

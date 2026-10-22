@@ -15,7 +15,7 @@ import {
 } from "./sessionColumns";
 
 const settings: SessionColumnSettings = {
-	shown: ["last_prompt", "user", "client"],
+	shown: ["initial_prompt", "user", "client"],
 	notShown: [
 		"provider",
 		"model",
@@ -57,7 +57,7 @@ describe("getActiveView", () => {
 describe("toggleColumn", () => {
 	it("adds a shown column to the end of the shown list", () => {
 		expect(toggleColumn(settings, "cost").shown).toEqual([
-			"last_prompt",
+			"initial_prompt",
 			"user",
 			"client",
 			"cost",
@@ -66,7 +66,7 @@ describe("toggleColumn", () => {
 
 	it("moves a hidden column to the top of the not shown list", () => {
 		const next = toggleColumn(settings, "user");
-		expect(next.shown).toEqual(["last_prompt", "client"]);
+		expect(next.shown).toEqual(["initial_prompt", "client"]);
 		expect(next.notShown[0]).toBe("user");
 	});
 
@@ -83,7 +83,7 @@ describe("moveShownColumn", () => {
 	it("moves a column to the target index", () => {
 		expect(moveShownColumn(settings, "client", 0).shown).toEqual([
 			"client",
-			"last_prompt",
+			"initial_prompt",
 			"user",
 		]);
 	});
@@ -139,10 +139,10 @@ describe("parseSessionColumnSettings", () => {
 });
 
 describe("countFittingColumns", () => {
-	const shown = ["last_prompt", "user", "client"] as const;
+	const shown = ["initial_prompt", "user", "client"] as const;
 	const fullWidth =
 		chevronColumnWidth +
-		sessionColumns.last_prompt.width +
+		sessionColumns.initial_prompt.width +
 		sessionColumns.user.width +
 		sessionColumns.client.width;
 
