@@ -42,7 +42,10 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 	// Kept after the dialog closes so its text and the focus return target
 	// survive the close animation.
 	const [closeRequest, setCloseRequest] = useState<{
-		path: string;
+		paths: readonly string[];
+		unsavedPaths: readonly string[];
+		/** The tab that asked to close them, which Cancel focuses again. */
+		source: string;
 		isOpen: boolean;
 	}>();
 
@@ -53,6 +56,11 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 	const hasFileTabs = files.length > 0;
 	const isChatActive = activePath === null;
 	const tabOrder: TabKey[] = [null, ...files.map((file) => file.path)];
+
+	const findRepoRoot = (path: string) =>
+		workspaceFiles?.repoRoots.findLast(
+			(root) => path === root || path.startsWith(`${root}/`),
+		);
 
 	const updateDraft = (path: string, update: FileDraftUpdate) => {
 		setDrafts((current) => {
@@ -71,18 +79,30 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 		});
 	};
 
-	const closeFile = (path: string) => {
-		mainTabs.closeFile(path);
-		updateDraft(path, () => undefined);
+	const closeFiles = (paths: readonly string[]) => {
+		mainTabs.closeFiles(paths);
+		setDrafts((current) => {
+			if (!paths.some((path) => current.has(path))) {
+				return current;
+			}
+			const nextDrafts = new Map(current);
+			for (const path of paths) {
+				nextDrafts.delete(path);
+			}
+			return nextDrafts;
+		});
 	};
 
-	const requestCloseFile = (path: string) => {
-		if (drafts.has(path)) {
-			setCloseRequest({ path, isOpen: true });
+	const requestCloseFiles = (paths: readonly string[], source: string) => {
+		const unsavedPaths = paths.filter((path) => drafts.has(path));
+		if (unsavedPaths.length > 0) {
+			setCloseRequest({ paths, unsavedPaths, source, isOpen: true });
 			return;
 		}
-		closeFile(path);
+		closeFiles(paths);
 	};
+
+	const requestCloseFile = (path: string) => requestCloseFiles([path], path);
 
 	const selectTabAt = (index: number) => {
 		const key = tabOrder[(index + tabOrder.length) % tabOrder.length] ?? null;
@@ -168,9 +188,15 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 					activation={mainTabs.activation}
 					dirtyPaths={new Set(drafts.keys())}
 					tabButtonsRef={tabButtonsRef}
+					getRelativePath={(path) => {
+						const root = findRepoRoot(path);
+						return root === undefined || root === path
+							? undefined
+							: path.slice(root.length + 1);
+					}}
 					onActivate={mainTabs.activate}
 					onTabKeyDown={handleTabKeyDown}
-					onClose={requestCloseFile}
+					onClose={requestCloseFiles}
 				/>
 			)}
 			<div className="relative flex min-h-0 flex-1 flex-col">
@@ -188,9 +214,7 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 				{workspaceFiles &&
 					files.map((file, index) => {
 						const isActive = file.path === activePath;
-						const repoRoot = workspaceFiles.repoRoots.findLast(
-							(root) => file.path === root || file.path.startsWith(`${root}/`),
-						);
+						const repoRoot = findRepoRoot(file.path);
 						const ids = getTabElementIds(idPrefix, index);
 						return (
 							<MainTabPanel
@@ -222,11 +246,15 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 				open={closeRequest?.isOpen ?? false}
 				type="delete"
 				title="Discard unsaved changes?"
-				description={`${closeRequest ? getPathBasename(closeRequest.path) : ""} has unsaved changes. Closing the tab discards them.`}
+				description={
+					closeRequest && closeRequest.unsavedPaths.length > 1
+						? `${closeRequest.unsavedPaths.length} files have unsaved changes. Closing their tabs discards them.`
+						: `${getPathBasename(closeRequest?.unsavedPaths[0] ?? "")} has unsaved changes. Closing the tab discards them.`
+				}
 				confirmText="Discard"
 				onConfirm={() => {
 					if (closeRequest) {
-						closeFile(closeRequest.path);
+						closeFiles(closeRequest.paths);
 						setCloseRequest({ ...closeRequest, isOpen: false });
 					}
 				}}
@@ -237,7 +265,7 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 					// Back to the tab after Cancel; to the active tab once Discard
 					// removed it.
 					const target =
-						(closeRequest && tabButtonsRef.current.get(closeRequest.path)) ??
+						(closeRequest && tabButtonsRef.current.get(closeRequest.source)) ??
 						tabButtonsRef.current.get(activePath);
 					if (target) {
 						event.preventDefault();
