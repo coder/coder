@@ -350,7 +350,9 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 	}
 
 	// Equally long matches in different repositories are ambiguous, so the
-	// mention offers all of them.
+	// mention offers all of them. Until every root has answered, a slower
+	// root could still hold another match, so nothing links yet.
+	const settled = walks.every((walk) => walk.verified !== undefined);
 	let end = 0;
 	let line: number | undefined;
 	let choices: WorkspaceAgentFindFilesResult[] = [];
@@ -384,7 +386,9 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 	const mentions = whole ? [] : findFilePathMentions(text);
 	const leadEnd = mentions[0]?.start === 0 ? mentions[0].end : 0;
 	const extended =
-		choices.length > 0 && (whole ? end === text.length : end > leadEnd);
+		settled &&
+		choices.length > 0 &&
+		(whole ? end === text.length : end > leadEnd);
 	const lead = extended && (
 		<FileMention
 			key="lead"
