@@ -188,7 +188,7 @@ export type TurnAttachmentsOptions = {
 	hasMoreMessages: boolean;
 };
 
-/** The newest turn's agent attachments and the row whose footer shows them. */
+/** The newest turn's agent attachments and the row that hosts their pill. */
 export type TurnAttachmentsHost = {
 	rowKey: string;
 	attachments: TurnAttachmentList;
@@ -196,9 +196,8 @@ export type TurnAttachmentsHost = {
 
 /**
  * The newest turn's agent attachments once it settles, hosted by its last
- * shown assistant row other than a context clear or summary. Earlier turns
- * get no pill. Reads only the rows and flags, never working blocks or stream
- * state.
+ * shown assistant row other than a context clear or summary. Reads only the
+ * rows and flags, never working blocks or stream state.
  */
 export const getNewestTurnAttachments = (
 	rows: readonly TimelineRow[],
@@ -216,6 +215,7 @@ export const getNewestTurnAttachments = (
 	if (promptIndex === -1 && hasMoreMessages) {
 		return undefined;
 	}
+
 	const attachments: AgentAttachment[] = [];
 	let lastShownRow: TimelineMessageRow | undefined;
 	let boundaryFollowsLastShownRow = false;
@@ -231,10 +231,12 @@ export const getNewestTurnAttachments = (
 			boundaryFollowsLastShownRow = false;
 		}
 	}
+
 	const first = attachments.at(0);
 	if (lastShownRow === undefined || first === undefined) {
 		return undefined;
 	}
+
 	// A compaction adds nothing to an answered turn. An unanswered turn goes on:
 	// the compaction ran between its steps, or the server resumes it after a
 	// manual /compact. Summary rows persist before the stop, so they count too.
@@ -256,12 +258,12 @@ export const getNewestTurnAttachments = (
 export const getBlockTurnAttachments = (
 	block: WorkingBlock,
 	memberKeys: readonly string[],
-	newestTurnAttachments: TurnAttachmentsHost | undefined,
+	newestTurnHost: TurnAttachmentsHost | undefined,
 ): TurnAttachmentList | undefined =>
 	!block.endsWithAnswer &&
-	newestTurnAttachments !== undefined &&
-	memberKeys.includes(newestTurnAttachments.rowKey)
-		? newestTurnAttachments.attachments
+	newestTurnHost !== undefined &&
+	memberKeys.includes(newestTurnHost.rowKey)
+		? newestTurnHost.attachments
 		: undefined;
 
 type RowContent = ReturnType<typeof getVisibleContent>;

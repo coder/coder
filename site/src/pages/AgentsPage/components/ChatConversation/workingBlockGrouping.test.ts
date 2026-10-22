@@ -1389,6 +1389,26 @@ describe("getNewestTurnAttachments", () => {
 		expect(rowFileIds(false)).toEqual(["message:1", ["a"]]);
 	});
 
+	it("keeps the newest turn's pill while older pages are unloaded", () => {
+		const { rows } = group([
+			message("assistant", [text("Continuing:"), file("a")]),
+			user("One more"),
+			message("assistant", [text("Here:"), file("b")]),
+		]);
+
+		expect(
+			hostFileIds(
+				getNewestTurnAttachments(rows, {
+					hidesAttachmentRows: false,
+					isChatActive: false,
+					isNextTurnStarting: false,
+					isCompacting: false,
+					hasMoreMessages: true,
+				}),
+			),
+		).toEqual(["message:3", ["b"]]);
+	});
+
 	it("shows no pill while the newest turn runs", () => {
 		const { rows } = group(
 			[

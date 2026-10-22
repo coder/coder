@@ -538,7 +538,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const isTurnActive =
 			chatStatus === "running" || chatStatus === "interrupting";
 		const collapseSteps = Boolean(preferences.data?.collapse_assistant_steps);
-		const newestTurnAttachments = useNewestTurnAttachments(parsedMessages, {
+		const newestTurnHost = useNewestTurnAttachments(parsedMessages, {
 			hidesAttachmentRows: collapseSteps,
 			// Unlike isTurnActive, requires_action counts, since the submitted
 			// tool result resumes the turn. The status can also settle before the
@@ -724,8 +724,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						section === "work" || (!isUser && !row.isLastInAssistantChain)
 					}
 					turnAttachments={
-						rendersAtTopLevel && newestTurnAttachments?.rowKey === row.key
-							? newestTurnAttachments.attachments
+						rendersAtTopLevel && newestTurnHost?.rowKey === row.key
+							? newestTurnHost.attachments
 							: undefined
 					}
 					hasActiveStream={hasActiveStream}
@@ -770,7 +770,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						const blockAttachments = getBlockTurnAttachments(
 							block,
 							memberKeys,
-							newestTurnAttachments,
+							newestTurnHost,
 						);
 
 						return [
