@@ -1173,7 +1173,7 @@ describe("resolveModelSelector", () => {
 	});
 
 	it("flags options whose provider uses the Bedrock InvokeModel protocol", () => {
-		const bedrockConfig = createConfig({
+		const mockBedrockConfig = createConfig({
 			id: "config-bedrock",
 			ai_provider_id: "prov-bedrock",
 			model: "claude-sonnet-4-5",
@@ -1184,7 +1184,7 @@ describe("resolveModelSelector", () => {
 					{ provider: "openai", available: true },
 					{ provider: "bedrock", available: true, bedrock_invoke_model: true },
 				]),
-				models: [config, bedrockConfig],
+				models: [config, mockBedrockConfig],
 			},
 			isLoading: false,
 		});
