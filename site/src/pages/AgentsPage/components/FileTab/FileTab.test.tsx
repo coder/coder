@@ -351,10 +351,11 @@ describe("FileTab", () => {
 			contentType: "application/octet-stream",
 			etag: '"v1"',
 		});
-		const serveFile = (size: number, fill: number) =>
+		const serveFile = (size: number | (() => number), fill: number) =>
 			readFile.mockImplementation(async (_agent, _path, range) => {
 				const offset = range?.offset ?? 0;
-				const available = Math.max(size - offset, 0);
+				const currentSize = typeof size === "function" ? size() : size;
+				const available = Math.max(currentSize - offset, 0);
 				return bytes(Math.min(available, range?.limit ?? available), fill);
 			});
 
@@ -385,7 +386,21 @@ describe("FileTab", () => {
 
 			const editor = await screen.findByLabelText("File contents");
 			expect(editor).toHaveValue("a".repeat(20_000));
-			expect(readFile).toHaveBeenLastCalledWith(agentId, path);
+			expect(readFile).toHaveBeenLastCalledWith(agentId, path, {
+				limit: (10 << 20) + 1,
+			});
+		});
+
+		it("refuses text that grows past 10 MiB after its size check", async () => {
+			// The third read, after the size check, sees the grown file.
+			serveFile(
+				() => (readFile.mock.calls.length < 3 ? 20_000 : 20 << 20),
+				0x61,
+			);
+			renderFileTab({});
+
+			await screen.findByText("File too large");
+			expect(readFile).toHaveBeenCalledTimes(3);
 		});
 	});
 });
