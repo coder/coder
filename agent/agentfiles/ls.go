@@ -100,6 +100,15 @@ func (api *API) HandleLS(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if resp.AbsolutePathString != "" {
+		rules := api.getIgnorer().Rules(resp.AbsolutePathString)
+		for i := range resp.Contents {
+			f := &resp.Contents[i]
+			// git matches a symlink as a file, whatever its target.
+			f.Ignored = rules.Ignored(f.AbsolutePathString, f.IsDir && !f.IsSymlink)
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 

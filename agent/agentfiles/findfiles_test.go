@@ -228,3 +228,27 @@ func withoutScores(results []workspacesdk.FindFilesResult) []workspacesdk.FindFi
 	}
 	return out
 }
+
+func TestHandleFindFiles_Gitignore(t *testing.T) {
+	t.Parallel()
+
+	repo := t.TempDir()
+	for _, rel := range []string{".git/HEAD", "src/ignorecheck_main.go", "dist/ignorecheck_bundle.js", "ignorecheck.log"} {
+		p := filepath.Join(repo, filepath.FromSlash(rel))
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+		require.NoError(t, os.WriteFile(p, nil, 0o600))
+	}
+	require.NoError(t, os.WriteFile(filepath.Join(repo, ".gitignore"), []byte("dist/\n*.log\n"), 0o600))
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	api := agentfiles.NewAPI(logger, afero.NewOsFs(), nil, agentfiles.WithEnvInfo(fakeBundleEnvInfo{home: t.TempDir()}))
+	t.Cleanup(func() { require.NoError(t, api.Close()) })
+
+	code, resp := requestFindFiles(t, api.Routes(), url.Values{"root": {repo}, "q": {"ignorecheck"}})
+	require.Equal(t, http.StatusOK, code)
+	paths := make([]string, 0, len(resp.Results))
+	for _, r := range resp.Results {
+		paths = append(paths, r.Path)
+	}
+	require.Equal(t, []string{"src/ignorecheck_main.go"}, paths)
+}

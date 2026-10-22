@@ -27,6 +27,9 @@ type API struct {
 	workingDir        func() string
 	bundleFilesLimits workspacesdk.BundleFilesLimits
 
+	ignorerOnce sync.Once
+	ignorer     *filefinder.Ignorer
+
 	finderMu      sync.Mutex
 	finder        *filefinder.Engine
 	finderCtx     context.Context
@@ -108,6 +111,17 @@ func (api *API) Close() error {
 	}
 	cancel()
 	return engine.Close()
+}
+
+// getIgnorer returns the gitignore rules shared by list-directory and
+// find-files, created on first use. Global excludes are read from the
+// agent user's home directory; they are skipped if it is unknown.
+func (api *API) getIgnorer() *filefinder.Ignorer {
+	api.ignorerOnce.Do(func() {
+		home, _ := api.envInfo.HomeDir()
+		api.ignorer = filefinder.NewIgnorer(api.filesystem, home)
+	})
+	return api.ignorer
 }
 
 // defaultDir returns the agent's configured working directory when it

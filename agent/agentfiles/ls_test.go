@@ -183,3 +183,57 @@ func TestHandleLS_EntryMetadata(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, info.ModTime().Equal(byName["file.txt"].ModTime))
 }
+
+func TestHandleLS_Ignored(t *testing.T) {
+	t.Parallel()
+
+	repo := t.TempDir()
+	write := func(rel, content string) {
+		p := filepath.Join(repo, rel)
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+		require.NoError(t, os.WriteFile(p, []byte(content), 0o600))
+	}
+	require.NoError(t, os.MkdirAll(filepath.Join(repo, ".git"), 0o755))
+	write(".gitignore", "build/\n*.log\n!keep.log\n")
+	write("build/out/x.bin", "")
+	write("a.log", "")
+	write("keep.log", "")
+	write("main.go", "")
+	write("inner/.git/HEAD", "")
+	write("inner/a.log", "")
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	handler := agentfiles.NewAPI(logger, afero.NewOsFs(), nil,
+		agentfiles.WithEnvInfo(fakeBundleEnvInfo{home: t.TempDir()}),
+	).Routes()
+	ignored := func(dir string) map[string]bool {
+		t.Helper()
+		code, resp := requestLS(t, handler, dir, "")
+		require.Equal(t, http.StatusOK, code)
+		got := make(map[string]bool)
+		for _, f := range resp.Contents {
+			got[f.Name] = f.Ignored
+		}
+		return got
+	}
+
+	require.Equal(t, map[string]bool{
+		".git": false, ".gitignore": false, "build": true, "inner": false,
+		"a.log": true, "keep.log": false, "main.go": false,
+	}, ignored(repo))
+	// Entries inside an ignored directory are ignored.
+	require.Equal(t, map[string]bool{"x.bin": true}, ignored(filepath.Join(repo, "build", "out")))
+	// A nested repository uses its own rules.
+	require.Equal(t, map[string]bool{".git": false, "a.log": false}, ignored(filepath.Join(repo, "inner")))
+
+	// Changing .gitignore changes the result.
+	write(".gitignore", "main.go\n")
+	got := ignored(repo)
+	require.True(t, got["main.go"])
+	require.False(t, got["a.log"])
+
+	// Outside any repository nothing is ignored.
+	plain := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(plain, ".gitignore"), []byte("*\n"), 0o600))
+	require.Equal(t, map[string]bool{".gitignore": false}, ignored(plain))
+}
