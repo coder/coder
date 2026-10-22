@@ -156,6 +156,7 @@ describe("FileTab", () => {
 				path,
 				"hello world",
 				'"v1"',
+				{ createOnly: false },
 			);
 		});
 		await waitFor(() => {
@@ -199,6 +200,7 @@ describe("FileTab", () => {
 				path,
 				"hello world",
 				undefined,
+				{ createOnly: false },
 			);
 		});
 		expect(screen.getByLabelText("File contents")).toHaveValue("hello world");
@@ -222,6 +224,7 @@ describe("FileTab", () => {
 				path,
 				"hello world",
 				'"v2"',
+				{ createOnly: false },
 			);
 		});
 	});
@@ -247,11 +250,60 @@ describe("FileTab", () => {
 				path,
 				"hello world",
 				undefined,
+				{ createOnly: true },
 			);
 		});
 		await waitFor(() => {
 			expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 		});
+	});
+
+	it.each(["Recreate", "Save"])(
+		"shows a conflict when %s finds the deleted file created again",
+		async (button) => {
+			const user = userEvent.setup();
+			writeFile.mockRejectedValueOnce(preconditionFailed());
+			renderFileTab({});
+
+			await editFile(user, " world");
+			readFile.mockRejectedValue(responseError(404, "Not Found"));
+			await user.click(screen.getByRole("button", { name: "Save" }));
+			await screen.findByText("Deleted on disk");
+			writeFile.mockRejectedValueOnce(preconditionFailed());
+			readFile.mockResolvedValue(fileContents("created elsewhere", '"v3"'));
+			await user.click(screen.getByRole("button", { name: button }));
+
+			expect(await screen.findByRole("alert")).toHaveTextContent(
+				/Changed on disk/,
+			);
+			expect(writeFile).toHaveBeenLastCalledWith(
+				agentId,
+				path,
+				"hello world",
+				undefined,
+				{ createOnly: true },
+			);
+			expect(screen.getByLabelText("File contents")).toHaveValue("hello world");
+		},
+	);
+
+	it("offers no Recreate for a deleted file without complete text", async () => {
+		readFile.mockResolvedValue({
+			data: new Uint8Array([0, 1, 2]).buffer,
+			contentType: "application/octet-stream",
+			etag: '"v1"',
+		});
+		const { refreshFile } = renderFileTab({});
+		await screen.findByText("Binary file");
+
+		readFile.mockRejectedValue(responseError(404, "Not Found"));
+		await refreshFile();
+
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			/Deleted on disk/,
+		);
+		expect(screen.queryByRole("button", { name: "Recreate" })).toBeNull();
+		expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
 	});
 
 	it("closes the tab of a file deleted on disk from its notice", async () => {
@@ -292,6 +344,7 @@ describe("FileTab", () => {
 				path,
 				"hello",
 				'"v2"',
+				{ createOnly: false },
 			);
 		});
 	});

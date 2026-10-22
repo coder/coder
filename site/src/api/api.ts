@@ -2552,19 +2552,28 @@ class ApiMethods {
 	/**
 	 * Writes a workspace file by absolute path and returns the new ETag. With
 	 * `ifMatch`, the agent rejects the write with 412 when the file changed
-	 * since it was read; the error response carries the current ETag.
+	 * since it was read; the error response carries the current ETag. With
+	 * `createOnly`, it rejects the write with 412 when the file exists.
 	 */
 	writeWorkspaceAgentFile = async (
 		agentId: string,
 		path: string,
 		content: string,
 		ifMatch?: string,
+		options?: { createOnly?: boolean },
 	): Promise<{ etag: string }> => {
+		const params: Record<string, string> = { path };
+		if (ifMatch) {
+			params.if_match = ifMatch;
+		}
+		if (options?.createOnly) {
+			params.if_none_match = "*";
+		}
 		const response = await this.axios.post(
 			workspaceAgentFilesPath(agentId, "write-file"),
 			content,
 			{
-				params: ifMatch ? { path, if_match: ifMatch } : { path },
+				params,
 				headers: { "Content-Type": "application/octet-stream" },
 			},
 		);
