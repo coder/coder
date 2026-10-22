@@ -18,8 +18,8 @@ import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
 import { createMockWebSocket } from "#/testHelpers/websockets";
 import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
+import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import AgentChatPage from "./AgentChatPage";
-import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 
 const mockProjectChat = { ...MockChat, project_id: "project-1" };
 
