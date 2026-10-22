@@ -126,11 +126,12 @@ func LoadQueueState(ctx context.Context, store database.Store, chatID uuid.UUID)
 // archived, queue) tuples in the chat execution state model. A
 // non-empty queue classifies by its head: ready ("1") or blocked by a
 // pause condition ("1P", see [queuePaused]). Status paused classifies
-// P only with a blocked head: P's transitions do not re-read the head,
-// so paused with a ready head or an empty queue is invalid, like
-// waiting with rows. Anything outside the valid set (archived busy
-// states, waiting with a non-empty queue, future enum values) falls
-// through to [StateInvalid].
+// P only with a blocked head: P is not runnable, so a paused chat with
+// a ready head or an empty queue would not advance on its own. It is
+// invalid, like waiting with rows, and reconciles to error. Anything
+// outside the valid set (archived busy states, waiting with a
+// non-empty queue, future enum values) falls through to
+// [StateInvalid].
 //
 //nolint:revive // exists is a simple classifier input.
 func ClassifyExecutionState(chat database.Chat, queue QueueState, exists bool) ExecutionState {

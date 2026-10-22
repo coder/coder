@@ -46,12 +46,8 @@ func (t Transition) String() string { return string(t) }
 // one output.
 //
 // The "1P" states have a blocked queue head (see queuePaused). Each
-// admits the same transitions as its "1" sibling. The outputs differ
-// where the sibling would promote the head: a queued send from E1P
-// stays E1P, and R1P + FinishTurn and I1P + FinishInterruption reach
-// P. An interrupt send runs ahead of a blocked head, so from E1P, A1P,
-// and P it reaches R1P, and from R1P it reaches I1 with the new
-// message at the head.
+// admits the same transitions as its "1" sibling; the outputs differ
+// where the head decides the result.
 //
 // Ownership transitions (Acquire, Abandon) are intentionally not
 // included; they are orthogonal to execution state.
