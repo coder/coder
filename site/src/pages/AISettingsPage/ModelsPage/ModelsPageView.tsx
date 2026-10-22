@@ -60,6 +60,18 @@ const PROVIDER_PARAM = "provider";
 const SEARCH_PARAM = "search";
 const PAGE_PARAM = "page";
 
+const getProviderIconByModelId = (
+	providerStates: readonly ProviderState[],
+): ReadonlyMap<string, string> =>
+	new Map(
+		providerStates.flatMap((providerState) =>
+			providerState.models.map((model): [string, string] => [
+				model.id,
+				providerState.providerDescriptor.icon,
+			]),
+		),
+	);
+
 const AddModelDropdown: React.FC<{
 	providerStates: readonly ProviderState[];
 	align?: "start" | "end";
@@ -96,7 +108,10 @@ const AddModelDropdown: React.FC<{
 								void navigate(organizationAddModelPath(organization, next));
 							}}
 						>
-							<ProviderIcon provider={providerState.provider} />
+							<ProviderIcon
+								provider={providerState.provider}
+								icon={providerState.providerDescriptor.icon}
+							/>
 							<span>{providerState.label}</span>
 						</DropdownMenuItem>
 					))
@@ -166,6 +181,8 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 		}
 		return map;
 	}, [providerStates]);
+
+	const providerIconByModelId = getProviderIconByModelId(providerStates);
 
 	const hasProviderByModelId = useMemo(() => {
 		const map = new Map<string, boolean>();
@@ -325,7 +342,10 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 						{providerStates.map((providerState) => (
 							<SelectItem key={providerState.key} value={providerState.key}>
 								<span className="flex items-center gap-2">
-									<ProviderIcon provider={providerState.provider} />
+									<ProviderIcon
+										provider={providerState.provider}
+										icon={providerState.providerDescriptor.icon}
+									/>
 									{providerState.label}
 								</span>
 							</SelectItem>
@@ -372,6 +392,7 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 								model={model}
 								providerLabel={providerLabelByModelId.get(model.id) ?? ""}
 								providerTypeByID={providerTypeByID}
+								providerIcon={providerIconByModelId.get(model.id)}
 								hasProvider={hasProviderByModelId.get(model.id) ?? false}
 								providerEnabled={
 									providerEnabledByModelId.get(model.id) ?? false

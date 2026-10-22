@@ -12,7 +12,7 @@ import { resolveCompactionTriggersByOrganization } from "./compactionTriggers";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
 import {
 	providerInfoByIDFromDescriptors,
-	providerTypeByIDFromUserConfigs,
+	providerInfoByIDFromUserConfigs,
 } from "./utils/modelOptions";
 
 const AgentSettingsCompactionPage: React.FC = () => {
@@ -44,7 +44,7 @@ const AgentSettingsCompactionPage: React.FC = () => {
 	const handleResetThreshold = (modelId: string) =>
 		resetThresholdMutation.mutateAsync(modelId);
 
-	const providerTypeByID = providerTypeByIDFromUserConfigs(
+	const providerInfoByID = providerInfoByIDFromUserConfigs(
 		providerConfigsQuery.data,
 	);
 	const compactionTriggers = resolveCompactionTriggersByOrganization(
@@ -60,7 +60,7 @@ const AgentSettingsCompactionPage: React.FC = () => {
 	return (
 		<AgentSettingsCompactionPageView
 			models={organizationModels.models}
-			providerTypeByID={providerTypeByID}
+			providerInfoByID={providerInfoByID}
 			organizations={organizations}
 			compactionTriggersByOrganizationID={
 				compactionTriggers.triggersByOrganizationID
