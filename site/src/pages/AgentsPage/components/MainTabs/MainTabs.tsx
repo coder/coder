@@ -62,10 +62,8 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 }) => {
 	const workspaceFiles = useWorkspaceFiles();
 	const idPrefix = useId();
-	const rootRef = useRef<HTMLDivElement>(null);
 	// Keyboard navigation and the close confirmation move focus to these.
 	const tabButtonsRef = useRef(new Map<TabKey, HTMLButtonElement>());
-	const closeButtonsRef = useRef(new Map<string, HTMLButtonElement>());
 	// Drafts change on every keystroke, so they live here instead of in the
 	// page view to keep typing from re-rendering the whole chat page.
 	const [drafts, setDrafts] = useState<ReadonlyMap<string, FileDraft>>(
@@ -127,6 +125,12 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 		const index = tabOrder.indexOf(key);
 		let next: number;
 		switch (event.key) {
+			case "Delete":
+				if (key !== null) {
+					event.preventDefault();
+					requestCloseFile(key);
+				}
+				return;
 			case "ArrowLeft":
 				next = index - 1;
 				break;
@@ -159,12 +163,13 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 		} else {
 			return;
 		}
-		// The right panel (a terminal) and dialogs keep these keys.
+		// Terminals, iframes, and dialogs keep these keys. Keys pressed inside
+		// an iframe never reach this window.
 		const { target } = event;
-		const isInScope =
-			target === document.body ||
-			(target instanceof Node && rootRef.current?.contains(target));
-		if (!isInScope) {
+		if (
+			target instanceof Element &&
+			target.closest(".xterm, [role=dialog], [role=alertdialog]")
+		) {
 			return;
 		}
 		event.preventDefault();
@@ -187,7 +192,7 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 	const chatPanelId = `${idPrefix}-panel-chat`;
 
 	return (
-		<div ref={rootRef} className="flex min-h-0 flex-1 flex-col">
+		<div className="flex min-h-0 flex-1 flex-col">
 			{hasFileTabs && (
 				<div
 					role="tablist"
@@ -257,32 +262,29 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 									)}
 								</Button>
 								<Button
-									ref={trackElement(closeButtonsRef, file.path)}
 									variant="outline"
 									size="icon"
+									// Delete on the tab closes it, so the button is not a Tab stop.
+									tabIndex={-1}
 									aria-label={`Close ${name}`}
 									title={`Close ${file.path}`}
 									className={cn(
-										"group/close size-6 rounded-l-none rounded-r-md bg-surface-primary p-0 text-content-secondary hover:text-content-primary [&>svg]:size-3",
+										"size-6 rounded-l-none rounded-r-md bg-surface-primary p-0 text-content-secondary hover:text-content-primary [&>svg]:size-3",
 										isActive &&
 											"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
 									)}
 									onClick={() => requestCloseFile(file.path)}
 								>
 									{/* The unsaved dot takes the close button's slot so the tab
-									    keeps its width; hovering the tab or focusing the button
-									    shows the X. */}
+									    keeps its width; hovering the tab shows the X. */}
 									{isDirty && (
 										<span
 											aria-hidden
-											className="size-2 rounded-full bg-current group-hover/tab:hidden group-focus-visible/close:hidden"
+											className="size-2 rounded-full bg-current group-hover/tab:hidden"
 										/>
 									)}
 									<XIcon
-										className={cn(
-											isDirty &&
-												"hidden group-hover/tab:block group-focus-visible/close:block",
-										)}
+										className={cn(isDirty && "hidden group-hover/tab:block")}
 									/>
 								</Button>
 							</div>
@@ -350,10 +352,10 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 					setCloseRequest((current) => current && { ...current, isOpen: false })
 				}
 				onCloseAutoFocus={(event) => {
-					// Back to the close button after Cancel; to the active tab once
-					// Discard removed it.
+					// Back to the tab after Cancel; to the active tab once Discard
+					// removed it.
 					const target =
-						(closeRequest && closeButtonsRef.current.get(closeRequest.path)) ??
+						(closeRequest && tabButtonsRef.current.get(closeRequest.path)) ??
 						tabButtonsRef.current.get(activePath);
 					if (target) {
 						event.preventDefault();
