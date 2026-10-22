@@ -8,12 +8,15 @@ DECLARE
 BEGIN
 	LOOP
 		BEGIN
+			-- Well below the default deadlock_timeout of 1s, so this
+			-- transaction gives up before PostgreSQL can choose an
+			-- application transaction as the deadlock victim.
 			PERFORM set_config('lock_timeout', '100ms', true);
 			LOCK TABLE chat_queued_messages IN ACCESS EXCLUSIVE MODE;
 			EXIT;
 		EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
 			IF clock_timestamp() > deadline THEN
-				RAISE EXCEPTION 'migration chat_queued_message_busy_behavior down could not lock chat_queued_messages within 2 minutes';
+				RAISE EXCEPTION 'migration 000633 down could not lock chat_queued_messages within 2 minutes';
 			END IF;
 		END;
 		PERFORM pg_sleep(0.1);
