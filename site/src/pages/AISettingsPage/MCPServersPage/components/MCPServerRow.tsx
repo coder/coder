@@ -40,9 +40,14 @@ export const MCPServerRow: React.FC<MCPServerRowProps> = ({
 					? (AVAILABILITY_LABELS[server.availability] ?? server.availability)
 					: DISABLED_AVAILABILITY_LABEL}
 			</TableCell>
-			<TableCell className="w-12">
+			<TableCell className="w-10 text-center">
 				{onClick && (
-					<ChevronRightIcon className="size-icon-sm text-content-secondary" />
+					<div className="flex items-center justify-end pr-4">
+						<ChevronRightIcon
+							aria-hidden
+							className="size-icon-sm shrink-0 text-content-secondary"
+						/>
+					</div>
 				)}
 			</TableCell>
 		</TableRow>
