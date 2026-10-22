@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -193,13 +194,13 @@ func TestHandleLS_Ignored(t *testing.T) {
 		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
 		require.NoError(t, os.WriteFile(p, []byte(content), 0o600))
 	}
-	require.NoError(t, os.MkdirAll(filepath.Join(repo, ".git"), 0o755))
+	initRepo(t, repo)
 	write(".gitignore", "build/\n*.log\n!keep.log\n")
 	write("build/out/x.bin", "")
 	write("a.log", "")
 	write("keep.log", "")
 	write("main.go", "")
-	write("inner/.git/HEAD", "")
+	initRepo(t, filepath.Join(repo, "inner"))
 	write("inner/a.log", "")
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
@@ -248,4 +249,17 @@ func TestHandleLS_NotADirectory(t *testing.T) {
 
 	code, _ := requestLS(t, handler, file, "")
 	require.Equal(t, http.StatusBadRequest, code)
+}
+
+// initRepo makes dir a git repository: a real one when git is
+// installed, else a .git directory, which the go-git fallback accepts.
+func initRepo(t *testing.T, dir string) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	if _, err := exec.LookPath("git"); err != nil {
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, ".git"), 0o755))
+		return
+	}
+	out, err := exec.Command("git", "-C", dir, "init", "-q").CombinedOutput()
+	require.NoError(t, err, string(out))
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/agent/filefinder"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -104,12 +105,14 @@ func (api *API) HandleLS(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if resp.AbsolutePathString != "" {
-		rules := api.getIgnorer().Rules(resp.AbsolutePathString)
-		for i := range resp.Contents {
-			f := &resp.Contents[i]
+	if resp.AbsolutePathString != "" && len(resp.Contents) > 0 {
+		queries := make([]filefinder.IgnoreQuery, len(resp.Contents))
+		for i, f := range resp.Contents {
 			// git matches a symlink as a file, whatever its target.
-			f.Ignored = rules.Ignored(f.AbsolutePathString, f.IsDir && !f.IsSymlink)
+			queries[i] = filefinder.IgnoreQuery{Path: f.AbsolutePathString, IsDir: f.IsDir && !f.IsSymlink}
+		}
+		for i, ignored := range api.getIgnorer().Ignored(ctx, queries) {
+			resp.Contents[i].Ignored = ignored
 		}
 	}
 

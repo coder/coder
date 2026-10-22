@@ -455,7 +455,7 @@ func (a *agent) init() {
 		}
 		return ""
 	}
-	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore, agentfiles.WithEnvInfo(a.envInfo), agentfiles.WithWorkingDir(workingDirFn))
+	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore, agentfiles.WithEnvInfo(a.envInfo), agentfiles.WithExecer(a.execer), agentfiles.WithWorkingDir(workingDirFn))
 	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, workingDirFn)
 	a.toolCalls = agenttoolcall.New(a.clock, a.processAPI.CancelToolCall)
 	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock), agentgit.WithExecer(a.execer)}, a.gitAPIOptions...)

@@ -23,8 +23,6 @@ const (
 	// maxFinderRoots bounds the memory used by the file finder index.
 	// The least recently used root is evicted when a new one is added.
 	maxFinderRoots = 8
-	// maxFinderWalks bounds concurrent cold root walks.
-	maxFinderWalks = 2
 )
 
 var errFinderBusy = xerrors.New("the file finder is indexing its maximum number of roots for other requests, retry shortly")
@@ -197,7 +195,7 @@ func (api *API) findFiles(ctx context.Context, roots []findRoot, q string, limit
 // ensureFinderRoots pins roots, indexes any not yet in the engine, and
 // returns the engine with a release func that unpins them. Pinned roots
 // are not evicted, so callers must call release after searching. Walks
-// run outside finderMu, at most maxFinderWalks at a time; concurrent
+// run outside finderMu, admitted by the engine's walk limit; concurrent
 // requests for the same root wait for the in-flight walk. Indexed and
 // pending roots together never exceed maxFinderRoots; when no unpinned
 // root can be evicted to make room, errFinderBusy is returned.
@@ -212,9 +210,8 @@ func (api *API) ensureFinderRoots(ctx context.Context, roots []string) (*filefin
 		api.finderCtx, api.finderCancel = context.WithCancel(context.Background())
 		api.finderPending = make(map[string]*pendingRoot)
 		api.finderPins = make(map[string]int)
-		api.finderWalks = make(chan struct{}, maxFinderWalks)
 	}
-	engine, finderCtx, walks := api.finder, api.finderCtx, api.finderWalks
+	engine, finderCtx := api.finder, api.finderCtx
 	for _, root := range roots {
 		api.finderPins[root]++
 	}
@@ -262,7 +259,10 @@ func (api *API) ensureFinderRoots(ctx context.Context, roots []string) (*filefin
 	api.finderMu.Unlock()
 
 	for _, root := range adds {
-		err := api.addFinderRoot(ctx, finderCtx, engine, walks, root)
+		// The walk uses finderCtx rather than ctx so other requests
+		// waiting on the same root are not failed by this request's
+		// cancellation; Close cancels it.
+		err := engine.AddRoot(finderCtx, root)
 
 		api.finderMu.Lock()
 		p := api.finderPending[root]
@@ -293,21 +293,6 @@ func (api *API) ensureFinderRoots(ctx context.Context, roots []string) (*filefin
 		}
 	}
 	return engine, release, nil
-}
-
-// addFinderRoot indexes root once a walk slot is free. The walk uses
-// finderCtx rather than ctx so other requests waiting on the same root
-// are not failed by this request's cancellation; Close cancels it.
-func (*API) addFinderRoot(ctx, finderCtx context.Context, engine *filefinder.Engine, walks chan struct{}, root string) error {
-	select {
-	case walks <- struct{}{}:
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-finderCtx.Done():
-		return finderCtx.Err()
-	}
-	defer func() { <-walks }()
-	return engine.AddRoot(finderCtx, root)
 }
 
 // makeFinderRoomLocked evicts least recently used unpinned roots until
