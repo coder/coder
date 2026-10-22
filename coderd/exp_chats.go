@@ -8426,7 +8426,8 @@ func (api *API) chatModelProviderDescriptors(
 			HasUserAPIKey:      hasUserKey,
 			HasEffectiveAPIKey: hasKey || hasUserKey || supportsAmbientCredentials,
 			AllowUserAPIKey:    api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
-			BedrockInvokeModel: bedrockUsesInvokeModel(settings.Bedrock),
+			BedrockInvokeModel: provider.Type == database.AIProviderTypeBedrock &&
+				bedrockUsesInvokeModel(settings.Bedrock),
 		})
 	}
 	return out, nil
