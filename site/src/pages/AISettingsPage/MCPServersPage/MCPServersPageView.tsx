@@ -149,7 +149,7 @@ const MCPServersPageView: React.FC<MCPServersPageViewProps> = ({
 								<InfoTooltip
 									size="small"
 									side="top"
-									align="start"
+									align="end"
 									ariaLabel="About availability in chats"
 								>
 									<TooltipMessage>{AVAILABILITY_HELP_TEXT}</TooltipMessage>
