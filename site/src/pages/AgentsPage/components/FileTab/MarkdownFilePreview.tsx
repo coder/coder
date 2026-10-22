@@ -23,7 +23,7 @@ import {
 	resolvePreviewLink,
 	resolveWorkspaceUrl,
 } from "../../utils/markdownPreview";
-import { getPathDirname } from "../../utils/path";
+import { getPathBasename, getPathDirname } from "../../utils/path";
 import { MarkdownImage } from "../ChatElements/MarkdownImage";
 import { Response } from "../ChatElements/Response";
 
@@ -259,7 +259,12 @@ export const MarkdownFilePreview: React.FC<MarkdownFilePreviewProps> = ({
 	return (
 		<div
 			ref={containerRef}
-			className="min-h-0 flex-1 overflow-y-auto px-6 py-4"
+			role="region"
+			aria-label={`Preview of ${getPathBasename(path)}`}
+			// Focusable so focus stays in the preview when a control in it,
+			// such as "Load remote images", goes away.
+			tabIndex={-1}
+			className="min-h-0 flex-1 overflow-y-auto px-6 py-4 outline-none"
 		>
 			{hasRemoteImages && !remoteImagesAllowed && (
 				<div className="mb-3 flex items-center gap-3 rounded-md border border-solid border-border bg-surface-secondary px-3 py-1.5 text-xs text-content-secondary">
@@ -269,7 +274,10 @@ export const MarkdownFilePreview: React.FC<MarkdownFilePreviewProps> = ({
 					<Button
 						size="xs"
 						variant="outline"
-						onClick={() => setRemoteImagesAllowed(true)}
+						onClick={() => {
+							containerRef.current?.focus({ preventScroll: true });
+							setRemoteImagesAllowed(true);
+						}}
 					>
 						Load remote images
 					</Button>

@@ -143,6 +143,9 @@ describe("MarkdownFilePreview", () => {
 		expect(
 			(await screen.findByRole("img", { name: "license" })).getAttribute("src"),
 		).toBe("https://img.shields.io/github/license/coder/coder");
+		expect(document.activeElement).toBe(
+			screen.getByRole("region", { name: "Preview of README.md" }),
+		);
 	});
 
 	it("scrolls to a heading when an anchor link is clicked", async () => {
