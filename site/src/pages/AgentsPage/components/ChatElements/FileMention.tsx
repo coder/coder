@@ -27,8 +27,7 @@ import { useWorkspaceFiles } from "../../context/WorkspaceFilesContext";
 import {
 	findFilePathMentions,
 	getFilePathCandidateStarts,
-	type VerifiedFilePath,
-	verifyFilePath,
+	walkFilePath,
 } from "../../utils/filePathMentions";
 import { getPathBasename } from "../../utils/path";
 
@@ -62,6 +61,8 @@ type FileMentionProps = {
 	/** Absolute, `~/`-prefixed, or relative path without a line suffix. */
 	path: string;
 	line?: number;
+	/** Files already known to match; several open the picker directly. */
+	choices?: readonly WorkspaceAgentFindFilesResult[];
 	children: React.ReactNode;
 };
 
@@ -72,6 +73,7 @@ type FileMentionProps = {
 export const FileMention: React.FC<FileMentionProps> = ({
 	path,
 	line,
+	choices,
 	children,
 }) => {
 	const files = useWorkspaceFiles();
@@ -99,6 +101,11 @@ export const FileMention: React.FC<FileMentionProps> = ({
 	}
 
 	const resolve = async () => {
+		if (choices && choices.length > 1) {
+			setMatches(choices);
+			setTruncated(false);
+			return;
+		}
 		if (path.startsWith("/")) {
 			files.openFile(path, { line });
 			return;
@@ -236,6 +243,10 @@ export const FileMentionStreamingContext = createContext(false);
 // candidates instead of refetching per mention.
 const directoryStaleTime = 60_000;
 
+// Prose such as "and/or" makes candidates whose directories do not exist.
+// Remembering the failure keeps every such candidate from listing again.
+const missingDirectoryStaleTime = 30_000;
+
 type FileMentionCandidateProps = {
 	/** Text starting with a path-like token, possibly with spaces in it. */
 	text: string;
@@ -246,9 +257,12 @@ type FileMentionCandidateProps = {
 };
 
 /**
- * Text that may be a file path containing spaces. Once it is on screen and
- * the message has finished streaming, directory listings decide how far
+ * Text that may be a file path containing spaces. While it is on screen
+ * and the message has finished streaming, directory listings decide how far
  * the path extends; only the verified part becomes a link.
+ *
+ * The walk is derived in render from the listings it needs, so it follows
+ * listing refreshes and stops requesting as soon as it is not rendered.
  */
 export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 	text,
@@ -260,94 +274,161 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 	const queryClient = useQueryClient();
 	const ref = useRef<HTMLSpanElement>(null);
 	const [visible, setVisible] = useState(false);
+	const [directories, setDirectories] = useState<readonly string[]>([]);
 	const available = files !== undefined;
 
 	useEffect(() => {
 		const element = ref.current;
-		if (!available || visible || !element) {
+		if (!available || !element) {
 			return;
 		}
 		const observer = new IntersectionObserver((entries) => {
-			if (entries.some((entry) => entry.isIntersecting)) {
-				setVisible(true);
+			const latest = entries[entries.length - 1];
+			if (latest) {
+				setVisible(latest.isIntersecting);
 			}
 		});
 		observer.observe(element);
-		return () => observer.disconnect();
-	}, [available, visible]);
+		return () => {
+			observer.disconnect();
+			setVisible(false);
+		};
+	}, [available]);
 
 	const agentId = files?.agentId ?? "";
-	const starts = files ? getFilePathCandidateStarts(text, files.repoRoots) : [];
-	const walks = useQueries({
-		queries: starts.map((start) => {
-			const rest = text.slice(start.offset);
-			return {
-				queryKey: [
-					...workspaceAgentDirectoryKey(agentId, start.directory),
-					"verifyPath",
-					rest,
-				],
-				queryFn: () =>
-					verifyFilePath(start.directory, rest, async (directory) => {
-						const listing = await queryClient.fetchQuery({
-							...workspaceAgentDirectory(agentId, directory),
-							staleTime: directoryStaleTime,
-						});
-						return listing.contents;
-					}),
-				enabled: available && visible && !streaming,
-				staleTime: directoryStaleTime,
-				retry: false,
-			};
-		}),
+	// Shared listings, observed without fetching, so a refresh from the file
+	// tree or elsewhere changes the walk.
+	const listings = useQueries({
+		queries: directories.map((directory) => ({
+			...workspaceAgentDirectory(agentId, directory),
+			enabled: false,
+		})),
 	});
+	const checks = useQueries({
+		queries: directories.map((directory) => ({
+			queryKey: [
+				...workspaceAgentDirectoryKey(agentId, directory),
+				"verifyPath",
+			],
+			queryFn: () =>
+				queryClient
+					.fetchQuery({
+						...workspaceAgentDirectory(agentId, directory),
+						staleTime: directoryStaleTime,
+					})
+					.then(
+						(listing) => listing.contents,
+						() => null,
+					),
+			enabled: available && visible && !streaming,
+			staleTime: (query: { state: { data: unknown } }) =>
+				query.state.data === null
+					? missingDirectoryStaleTime
+					: directoryStaleTime,
+			retry: false,
+		})),
+	});
+
+	const getEntries = (directory: string) => {
+		const index = directories.indexOf(directory);
+		if (index === -1) {
+			return undefined;
+		}
+		return listings[index].data?.contents ?? checks[index].data;
+	};
+	const starts = files ? getFilePathCandidateStarts(text, files.repoRoots) : [];
+	const walks = starts.map((start) =>
+		walkFilePath(start.directory, text.slice(start.offset), getEntries),
+	);
+	const needed = [...new Set(walks.flatMap((walk) => walk.directories))];
+	if (needed.join("\n") !== directories.join("\n")) {
+		setDirectories(needed);
+	}
 
 	if (!files) {
 		return children;
 	}
 
-	let best: VerifiedFilePath | undefined;
+	// Equally long matches in different repositories are ambiguous, so the
+	// mention offers all of them.
 	let end = 0;
+	let line: number | undefined;
+	let choices: WorkspaceAgentFindFilesResult[] = [];
 	for (const [index, walk] of walks.entries()) {
-		const walkEnd = walk.data ? starts[index].offset + walk.data.length : 0;
-		if (walk.data && walkEnd > end) {
-			best = walk.data;
-			end = walkEnd;
-		}
-	}
-	if (!best || (whole && end !== text.length)) {
-		return <span ref={ref}>{children}</span>;
-	}
-	if (whole) {
-		return (
-			<FileMention path={best.absolutePath} line={best.line}>
-				{children}
-			</FileMention>
-		);
-	}
-
-	const tail: React.ReactNode[] = [];
-	let offset = end;
-	for (const mention of findFilePathMentions(text)) {
-		if (mention.start < end) {
+		const verified = walk.verified;
+		if (!verified) {
 			continue;
 		}
-		tail.push(text.slice(offset, mention.start));
-		tail.push(
-			<FileMention key={mention.start} path={mention.path} line={mention.line}>
+		const walkEnd = starts[index].offset + verified.length;
+		if (walkEnd < end) {
+			continue;
+		}
+		if (walkEnd > end) {
+			end = walkEnd;
+			line = verified.line;
+			choices = [];
+		}
+		if (
+			!choices.some((choice) => choice.absolute_path === verified.absolutePath)
+		) {
+			const root = starts[index].root;
+			choices.push({
+				absolute_path: verified.absolutePath,
+				path: verified.absolutePath.slice(root.replace(/\/$/, "").length + 1),
+				root,
+				is_dir: false,
+				score: 0,
+			});
+		}
+	}
+	const mentions = whole ? [] : findFilePathMentions(text);
+	const leadEnd = mentions[0]?.start === 0 ? mentions[0].end : 0;
+	const extended =
+		choices.length > 0 && (whole ? end === text.length : end > leadEnd);
+	const lead = extended && (
+		<FileMention
+			key="lead"
+			path={choices.length > 1 ? text.slice(0, end) : choices[0].absolute_path}
+			line={line}
+			choices={choices.length > 1 ? choices : undefined}
+		>
+			{whole ? children : text.slice(0, end)}
+		</FileMention>
+	);
+
+	if (whole) {
+		return <span ref={ref}>{lead || children}</span>;
+	}
+
+	// The text renders from the same keyed segments before and after
+	// verification, so links and text nodes that do not change keep their
+	// DOM nodes, focus, and selection.
+	const segments: React.ReactNode[] = [];
+	let offset = 0;
+	if (lead) {
+		segments.push(lead);
+		offset = end;
+	}
+	for (const mention of mentions) {
+		if (mention.start < offset) {
+			continue;
+		}
+		if (mention.start > offset) {
+			segments.push(text.slice(offset, mention.start));
+		}
+		segments.push(
+			<FileMention
+				key={mention.start === 0 ? "lead" : `mention-${mention.start}`}
+				path={mention.path}
+				line={mention.line}
+			>
 				{text.slice(mention.start, mention.end)}
 			</FileMention>,
 		);
 		offset = mention.end;
 	}
-	tail.push(text.slice(offset));
-
-	return (
-		<>
-			<FileMention path={best.absolutePath} line={best.line}>
-				{text.slice(0, end)}
-			</FileMention>
-			{tail}
-		</>
-	);
+	if (offset < text.length) {
+		segments.push(text.slice(offset));
+	}
+	return <span ref={ref}>{segments}</span>;
 };

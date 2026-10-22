@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AxiosError, AxiosHeaders } from "axios";
 import { useState } from "react";
@@ -8,7 +8,9 @@ import {
 	type WorkspaceAgentFile,
 	type WorkspaceAgentFindFilesResult,
 } from "#/api/api";
+import { workspaceAgentDirectoryKey } from "#/api/queries/workspaceFiles";
 import { toast } from "#/components/Toaster/toast";
+import { createDeferred } from "#/testHelpers/deferred";
 import { render } from "#/testHelpers/renderHelpers";
 import {
 	WorkspaceFilesContext,
@@ -50,8 +52,20 @@ describe("Response", () => {
 
 	describe("file mentions", () => {
 		let onScreen = true;
+		const observers = new Set<
+			(entries: Array<{ isIntersecting: boolean }>) => void
+		>();
+		const setOnScreen = (value: boolean) => {
+			onScreen = value;
+			act(() => {
+				for (const callback of observers) {
+					callback([{ isIntersecting: value }]);
+				}
+			});
+		};
 		beforeEach(() => {
 			onScreen = true;
+			observers.clear();
 			vi.stubGlobal(
 				"IntersectionObserver",
 				class {
@@ -62,11 +76,14 @@ describe("Response", () => {
 						this.callback = callback;
 					}
 					observe() {
+						observers.add(this.callback);
 						if (onScreen) {
 							this.callback([{ isIntersecting: true }]);
 						}
 					}
-					disconnect() {}
+					disconnect() {
+						observers.delete(this.callback);
+					}
 				},
 			);
 			vi.spyOn(API, "listWorkspaceAgentDirectory").mockRejectedValue(
@@ -87,12 +104,12 @@ describe("Response", () => {
 
 		const renderWithFiles = (markdown: string) => {
 			const files = makeFiles();
-			const { unmount } = render(
+			const { unmount, queryClient } = render(
 				<WorkspaceFilesContext.Provider value={files}>
 					<Response>{markdown}</Response>
 				</WorkspaceFilesContext.Provider>,
 			);
-			return { files, unmount };
+			return { files, unmount, queryClient };
 		};
 
 		const findResult = (
@@ -361,6 +378,26 @@ describe("Response", () => {
 			const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 			// Directories by the path form the walk lists, with "~" standing for
 			// /home/coder. Names ending in "/" are directories.
+			const listing = (path: string, names: readonly string[]) => {
+				const absolute = path.replace(/^~/, "/home/coder");
+				const contents = names.map((name): WorkspaceAgentFile => {
+					const isDir = name.endsWith("/");
+					const entryName = isDir ? name.slice(0, -1) : name;
+					return {
+						name: entryName,
+						absolute_path_string: `${absolute}/${entryName}`,
+						is_dir: isDir,
+						is_symlink: false,
+						size: 0,
+						mod_time: "2026-01-01T00:00:00Z",
+					};
+				});
+				return {
+					absolute_path: absolute.split("/").filter(Boolean),
+					absolute_path_string: absolute,
+					contents,
+				};
+			};
 			const mockTree = (tree: Record<string, string[]>) =>
 				vi
 					.spyOn(API, "listWorkspaceAgentDirectory")
@@ -369,25 +406,12 @@ describe("Response", () => {
 						if (!names) {
 							throw new Error(`no directory ${path}`);
 						}
-						const absolute = path.replace(/^~/, "/home/coder");
-						const contents = names.map((name): WorkspaceAgentFile => {
-							const isDir = name.endsWith("/");
-							const entryName = isDir ? name.slice(0, -1) : name;
-							return {
-								name: entryName,
-								absolute_path_string: `${absolute}/${entryName}`,
-								is_dir: isDir,
-								is_symlink: false,
-								size: 0,
-								mod_time: "2026-01-01T00:00:00Z",
-							};
-						});
-						return {
-							absolute_path: absolute.split("/").filter(Boolean),
-							absolute_path_string: absolute,
-							contents,
-						};
+						return listing(path, names);
 					});
+			const listCalls = (
+				list: { mock: { calls: unknown[][] } },
+				path: string,
+			) => list.mock.calls.filter((call) => call[1] === path);
 
 			type LinkCase = {
 				markdown: string;
@@ -522,6 +546,214 @@ describe("Response", () => {
 
 				await screen.findByRole("button", { name: "/path/to/file (2).txt" });
 				expect(list).toHaveBeenCalledWith("agent-1", "/path/to");
+			});
+
+			it("keeps a mention's link, focus, and selected text when verification does not extend it", async () => {
+				const pending = createDeferred<ReturnType<typeof listing>>();
+				vi.spyOn(API, "listWorkspaceAgentDirectory").mockReturnValue(
+					pending.promise,
+				);
+				renderWithFiles("Edit /path/to/a.ts and more");
+
+				const link = await screen.findByRole("button", {
+					name: "/path/to/a.ts",
+				});
+				const text = screen.getByText(/and more/).lastChild;
+				if (!text) {
+					throw new Error("missing text node");
+				}
+				link.focus();
+				const range = document.createRange();
+				range.selectNodeContents(text);
+				window.getSelection()?.removeAllRanges();
+				window.getSelection()?.addRange(range);
+
+				await act(async () => {
+					pending.resolve(listing("/path/to", ["a.ts"]));
+					await flush();
+				});
+
+				expect(link.isConnected).toBe(true);
+				expect(document.activeElement).toBe(link);
+				expect(text.isConnected).toBe(true);
+				expect(window.getSelection()?.toString()).toBe(" and more");
+			});
+
+			it("keeps the focused link when verification extends it", async () => {
+				const pending = createDeferred<ReturnType<typeof listing>>();
+				vi.spyOn(API, "listWorkspaceAgentDirectory").mockReturnValue(
+					pending.promise,
+				);
+				renderWithFiles("Open /path/to/file.md (2).md now");
+
+				const link = await screen.findByRole("button", {
+					name: "/path/to/file.md",
+				});
+				link.focus();
+				await act(async () => {
+					pending.resolve(listing("/path/to", ["file.md (2).md"]));
+					await flush();
+				});
+
+				expect(
+					await screen.findByRole("button", {
+						name: "/path/to/file.md (2).md",
+					}),
+				).toBe(link);
+				expect(document.activeElement).toBe(link);
+			});
+
+			it("offers equally long matches from several repositories", async () => {
+				const user = userEvent.setup();
+				mockTree({
+					"/home/coder/coder": ["my dir/"],
+					"/home/coder/coder/my dir": ["a.ts"],
+					"/home/coder/other": ["my dir/"],
+					"/home/coder/other/my dir": ["a.ts"],
+				});
+				const { files } = renderWithFiles("Open `my dir/a.ts` next");
+
+				await user.click(
+					await screen.findByRole("button", { name: "my dir/a.ts" }),
+				);
+				const picker = await screen.findByRole("dialog", {
+					name: "Files matching my dir/a.ts",
+				});
+				await user.click(
+					within(picker).getByRole("option", { name: "my dir/a.ts in other" }),
+				);
+
+				expect(files.openFile).toHaveBeenCalledWith(
+					"/home/coder/other/my dir/a.ts",
+					{ line: undefined },
+				);
+			});
+
+			it("does not verify again for a new agent while off screen", async () => {
+				const user = userEvent.setup();
+				const list = mockTree({ "/path/to": ["file (2).txt"] });
+				const Harness = () => {
+					const [agentId, setAgentId] = useState("agent-1");
+					return (
+						<>
+							<button type="button" onClick={() => setAgentId("agent-2")}>
+								Switch agent
+							</button>
+							<WorkspaceFilesContext.Provider
+								value={{ ...makeFiles(), agentId }}
+							>
+								<Response>{spacedMarkdown}</Response>
+							</WorkspaceFilesContext.Provider>
+						</>
+					);
+				};
+				render(<Harness />);
+				await screen.findByRole("button", { name: "/path/to/file (2).txt" });
+
+				setOnScreen(false);
+				await user.click(screen.getByRole("button", { name: "Switch agent" }));
+				await flush();
+
+				expect(list.mock.calls.map((call) => call[0])).toEqual(["agent-1"]);
+				setOnScreen(true);
+				await waitFor(() =>
+					expect(list).toHaveBeenCalledWith("agent-2", "/path/to"),
+				);
+			});
+
+			it("stops walking when workspace files go away", async () => {
+				const user = userEvent.setup();
+				const pending = createDeferred<ReturnType<typeof listing>>();
+				const list = vi
+					.spyOn(API, "listWorkspaceAgentDirectory")
+					.mockImplementation((_agentId, path) =>
+						path === "/home/coder"
+							? pending.promise
+							: Promise.resolve(listing(path, ["a.ts"])),
+					);
+				const files = makeFiles();
+				const Harness = () => {
+					const [enabled, setEnabled] = useState(true);
+					return (
+						<>
+							<button type="button" onClick={() => setEnabled(false)}>
+								Disable files
+							</button>
+							<WorkspaceFilesContext.Provider
+								value={enabled ? files : undefined}
+							>
+								<Response>See /home/coder/my dir/a.ts now</Response>
+							</WorkspaceFilesContext.Provider>
+						</>
+					);
+				};
+				render(<Harness />);
+				await waitFor(() =>
+					expect(list).toHaveBeenCalledWith("agent-1", "/home/coder"),
+				);
+
+				await user.click(screen.getByRole("button", { name: "Disable files" }));
+				await act(async () => {
+					pending.resolve(listing("/home/coder", ["my dir/"]));
+					await flush();
+				});
+
+				expect(listCalls(list, "/home/coder/my dir")).toEqual([]);
+			});
+
+			it("remembers a missing directory across candidates", async () => {
+				const user = userEvent.setup();
+				const list = mockTree({});
+				const Harness = () => {
+					const [count, setCount] = useState(1);
+					const markdown = Array.from(
+						{ length: count },
+						(_, index) => `Use /r/and/or option ${index}.`,
+					).join("\n\n");
+					return (
+						<>
+							<button type="button" onClick={() => setCount(5)}>
+								More
+							</button>
+							<WorkspaceFilesContext.Provider value={makeFiles()}>
+								<Response>{markdown}</Response>
+							</WorkspaceFilesContext.Provider>
+						</>
+					);
+				};
+				render(<Harness />);
+				await waitFor(() => expect(listCalls(list, "/r/and")).toHaveLength(1));
+				await flush();
+
+				await user.click(screen.getByRole("button", { name: "More" }));
+				await screen.findByText(/option 4/);
+				await flush();
+
+				expect(listCalls(list, "/r/and")).toHaveLength(1);
+			});
+
+			it("follows a refreshed directory listing", async () => {
+				mockTree({ "/r": ["my dir/"], "/r/my dir": ["old.ts"] });
+				const { queryClient } = renderWithFiles("Edit /r/my dir/new.ts now");
+				await waitFor(() =>
+					expect(
+						queryClient.getQueryData(
+							workspaceAgentDirectoryKey("agent-1", "/r/my dir"),
+						),
+					).toBeDefined(),
+				);
+				expect(buttonTexts()).toEqual(["dir/new.ts"]);
+
+				act(() => {
+					queryClient.setQueryData(
+						workspaceAgentDirectoryKey("agent-1", "/r/my dir"),
+						listing("/r/my dir", ["old.ts", "new.ts"]),
+					);
+				});
+
+				expect(
+					await screen.findByRole("button", { name: "/r/my dir/new.ts" }),
+				).toBeDefined();
 			});
 		});
 	});
