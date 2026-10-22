@@ -330,7 +330,7 @@ const ChatMessageItem = memo<{
 					<MessageActionBar
 						isUser={isUser}
 						turnAttachments={turnAttachments}
-						showsActions={showsActionButtons}
+						showsActionButtons={showsActionButtons}
 					>
 						{displayState?.hasCopyableContent && parsed && (
 							<CopyButton
@@ -806,7 +806,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									<MessageActionBar
 										isUser={false}
 										turnAttachments={blockAttachments}
-										showsActions={false}
+										showsActionButtons={false}
 									/>
 								)}
 							</MessageScroller.Item>,

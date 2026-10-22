@@ -5,7 +5,7 @@ import { TurnAttachments } from "./TurnAttachments";
 type MessageActionBarProps = React.PropsWithChildren<{
 	isUser: boolean;
 	turnAttachments: TurnAttachmentList | undefined;
-	showsActions: boolean;
+	showsActionButtons: boolean;
 }>;
 
 /**
@@ -15,7 +15,7 @@ type MessageActionBarProps = React.PropsWithChildren<{
 export const MessageActionBar: React.FC<MessageActionBarProps> = ({
 	isUser,
 	turnAttachments,
-	showsActions,
+	showsActionButtons,
 	children,
 }) => (
 	<div
@@ -25,7 +25,7 @@ export const MessageActionBar: React.FC<MessageActionBarProps> = ({
 		)}
 	>
 		{turnAttachments && <TurnAttachments attachments={turnAttachments} />}
-		{showsActions && (
+		{showsActionButtons && (
 			<div
 				className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100"
 				data-testid="message-actions"
