@@ -541,6 +541,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			// streamed answer persists, so the live row keeps the turn open.
 			isChatActive:
 				isActiveChatStatus(chatStatus) || shouldRenderLiveAssistant(liveStatus),
+			isCompacting: liveTools.some((tool) => tool.name === "chat_summarized"),
 			hasMoreMessages,
 		});
 		const workingBlocks = collapseSteps

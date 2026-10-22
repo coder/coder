@@ -16,6 +16,7 @@ export const useTurnAttachmentsByRow = (
 	{
 		hidesAttachmentRows,
 		isChatActive,
+		isCompacting,
 		hasMoreMessages,
 	}: TurnAttachmentsOptions,
 ) => {
@@ -24,6 +25,6 @@ export const useTurnAttachmentsByRow = (
 	const withLiveRow = false;
 	return getTurnAttachmentsByRow(
 		assignTimelineRows(buildDisplayMessages(parsedMessages), withLiveRow),
-		{ hidesAttachmentRows, isChatActive, hasMoreMessages },
+		{ hidesAttachmentRows, isChatActive, isCompacting, hasMoreMessages },
 	);
 };

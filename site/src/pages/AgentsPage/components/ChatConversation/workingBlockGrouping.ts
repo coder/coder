@@ -175,8 +175,10 @@ export type TurnAttachmentsOptions = {
 	 * none of them hosts the pill.
 	 */
 	hidesAttachmentRows: boolean;
-	/** While true, the newest turn gets no entry until its answer persists. */
+	/** The chat may still add to the newest turn, which then gets no entry. */
 	isChatActive: boolean;
+	/** The live stream is a compaction, which adds nothing to a turn. */
+	isCompacting: boolean;
 	/** More history exists, so a first turn without its prompt gets no entry. */
 	hasMoreMessages: boolean;
 };
@@ -191,12 +193,14 @@ export const getTurnAttachmentsByRow = (
 	{
 		hidesAttachmentRows,
 		isChatActive,
+		isCompacting,
 		hasMoreMessages,
 	}: TurnAttachmentsOptions,
 ): ReadonlyMap<string, TurnAttachmentList> => {
 	const byRow = new Map<string, TurnAttachmentList>();
 	let attachments: AgentAttachment[] = [];
 	let lastShownRow: TimelineMessageRow | undefined;
+	let boundaryFollowsLastShownRow = false;
 	let isTurnStartLoaded = !hasMoreMessages;
 	const settleTurn = () => {
 		const first = attachments.at(0);
@@ -209,6 +213,7 @@ export const getTurnAttachmentsByRow = (
 		}
 		attachments = [];
 		lastShownRow = undefined;
+		boundaryFollowsLastShownRow = false;
 		isTurnStartLoaded = true;
 	};
 
@@ -225,20 +230,25 @@ export const getTurnAttachmentsByRow = (
 			continue;
 		}
 		attachments.push(...getMessageAgentAttachments(message));
-		if (
-			!isHiddenAttachmentRow(row, hidesAttachmentRows) &&
-			!isContextBoundaryRow(row)
-		) {
+		if (isContextBoundaryRow(row)) {
+			boundaryFollowsLastShownRow = true;
+		} else if (!isHiddenAttachmentRow(row, hidesAttachmentRows)) {
 			lastShownRow = row;
+			boundaryFollowsLastShownRow = false;
 		}
 	}
-	// The answer ends the turn's work, so a manual compaction after it, which
-	// runs the chat without a new prompt, keeps the pill.
+	// A manual /compact runs the chat after the answer without adding to the
+	// turn, while a compaction between steps leaves more steps to come. The
+	// summary rows persist before the chat stops, so they count as well.
 	const lastParsed = lastShownRow?.entry.parsed;
 	const lastShownRowEndsWithAnswer =
 		lastParsed !== undefined &&
 		splitRowBlocks(lastParsed.blocks, lastParsed.tools).answer.length > 0;
-	if (!isChatActive || lastShownRowEndsWithAnswer) {
+	if (
+		!isChatActive ||
+		(lastShownRowEndsWithAnswer &&
+			(isCompacting || boundaryFollowsLastShownRow))
+	) {
 		settleTurn();
 	}
 

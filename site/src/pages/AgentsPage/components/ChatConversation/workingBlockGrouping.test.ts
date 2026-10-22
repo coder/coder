@@ -1302,6 +1302,7 @@ describe("getTurnAttachmentsByRow", () => {
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: false,
 					isChatActive: false,
+					isCompacting: false,
 					hasMoreMessages: false,
 				}),
 			),
@@ -1321,6 +1322,7 @@ describe("getTurnAttachmentsByRow", () => {
 			...getTurnAttachmentsByRow(rows, {
 				hidesAttachmentRows,
 				isChatActive: false,
+				isCompacting: false,
 				hasMoreMessages: false,
 			}).keys(),
 		];
@@ -1345,6 +1347,7 @@ describe("getTurnAttachmentsByRow", () => {
 					getTurnAttachmentsByRow(rows, {
 						hidesAttachmentRows: false,
 						isChatActive: false,
+						isCompacting: false,
 						hasMoreMessages: false,
 					}),
 				),
@@ -1363,6 +1366,7 @@ describe("getTurnAttachmentsByRow", () => {
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: false,
 					isChatActive: false,
+					isCompacting: false,
 					hasMoreMessages,
 				}),
 			);
@@ -1394,6 +1398,29 @@ describe("getTurnAttachmentsByRow", () => {
 				getTurnAttachmentsByRow(rows, {
 					hidesAttachmentRows: true,
 					isChatActive: true,
+					isCompacting: false,
+					hasMoreMessages: false,
+				}),
+			),
+		).toEqual([["message:2", ["a"]]]);
+	});
+
+	it("keeps an answered turn's entry once a compaction after it persists", () => {
+		const { rows } = group([
+			user("Build the report"),
+			message("assistant", [text("Here:"), file("a")]),
+			message("assistant", [call("compact", undefined, "chat_summarized")]),
+			message("tool", [
+				result("compact", undefined, { name: "chat_summarized" }),
+			]),
+		]);
+
+		expect(
+			fileIdsByRow(
+				getTurnAttachmentsByRow(rows, {
+					hidesAttachmentRows: false,
+					isChatActive: true,
+					isCompacting: false,
 					hasMoreMessages: false,
 				}),
 			),

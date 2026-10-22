@@ -406,6 +406,22 @@ describe("ConversationTimeline turn attachments", () => {
 		);
 	});
 
+	it("leaves out an answered turn while the agent keeps working on it", () => {
+		// A stop hook can nudge the agent past its answer within the turn.
+		renderTimeline({
+			messages: MockMixedAttachmentMessages,
+			chatStatus: "running",
+			...buildStreamRenderState([{ type: "text", text: "One more check." }]),
+		});
+
+		expect(
+			screen.getByRole("button", { name: "Attachments (1)" }),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: "Attachments (4)" }),
+		).not.toBeInTheDocument();
+	});
+
 	it("keeps an answered turn's files while the chat compacts", async () => {
 		const user = userEvent.setup();
 		// /compact runs the chat without a new prompt and streams its summary

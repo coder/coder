@@ -328,6 +328,16 @@ export const TurnAttachmentsPillCompacting: Story = {
 	},
 };
 
+// A stop hook can nudge the agent past its answer, so the turn shows no pill
+// until the chat stops.
+export const TurnAttachmentsPillContinuedTurn: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+		chatStatus: "running",
+		...buildStreamRenderState([{ type: "text", text: "One more check." }]),
+	},
+};
+
 const mockPendingQuestionMessage = {
 	...MockQuestionCallMessage,
 	id: 23,
