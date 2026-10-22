@@ -296,4 +296,49 @@ describe("FileTab", () => {
 		expect(readFile).toHaveBeenCalledTimes(3);
 		expect(editor).toHaveValue("latest");
 	});
+
+	describe("reading large files", () => {
+		const sniffBytes = 8 << 10;
+		const bytes = (length: number, fill: number) => ({
+			data: new Uint8Array(length).fill(fill).buffer,
+			contentType: "application/octet-stream",
+			etag: '"v1"',
+		});
+		const serveFile = (size: number, fill: number) =>
+			readFile.mockImplementation(async (_agent, _path, range) => {
+				const offset = range?.offset ?? 0;
+				const available = Math.max(size - offset, 0);
+				return bytes(Math.min(available, range?.limit ?? available), fill);
+			});
+
+		it("reads only the first 8 KiB of a binary file", async () => {
+			serveFile(3_300_000, 0);
+			renderFileTab({});
+
+			await screen.findByText("Binary file");
+			expect(readFile.mock.calls).toEqual([
+				[agentId, path, { limit: sniffBytes }],
+			]);
+		});
+
+		it("refuses text over 10 MiB without downloading it", async () => {
+			serveFile((10 << 20) + 1, 0x61);
+			renderFileTab({});
+
+			await screen.findByText("File too large");
+			expect(readFile.mock.calls).toEqual([
+				[agentId, path, { limit: sniffBytes }],
+				[agentId, path, { offset: 10 << 20, limit: 1 }],
+			]);
+		});
+
+		it("opens text over 8 KiB after checking its size", async () => {
+			serveFile(20_000, 0x61);
+			renderFileTab({});
+
+			const editor = await screen.findByLabelText("File contents");
+			expect(editor).toHaveValue("a".repeat(20_000));
+			expect(readFile).toHaveBeenLastCalledWith(agentId, path);
+		});
+	});
 });

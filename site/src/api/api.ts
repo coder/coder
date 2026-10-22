@@ -2529,14 +2529,18 @@ class ApiMethods {
 		return response.data;
 	};
 
-	/** Reads a workspace file by absolute path. */
+	/**
+	 * Reads a workspace file by absolute path. `limit` caps the bytes read from
+	 * `offset`; the ETag still describes the whole file.
+	 */
 	readWorkspaceAgentFile = async (
 		agentId: string,
 		path: string,
+		range?: { offset?: number; limit?: number },
 	): Promise<WorkspaceAgentFileContents> => {
 		const response = await this.axios.get<ArrayBuffer>(
 			workspaceAgentFilesPath(agentId, "read-file"),
-			{ params: { path }, responseType: "arraybuffer" },
+			{ params: { path, ...range }, responseType: "arraybuffer" },
 		);
 		return {
 			data: response.data,

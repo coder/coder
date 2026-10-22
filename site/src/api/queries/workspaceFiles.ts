@@ -23,11 +23,64 @@ export const workspaceAgentDirectory = (agentId: string, path: string) => {
 export const workspaceAgentFileKey = (agentId: string, path: string) =>
 	[...workspaceAgentFilesKey(agentId), "file", path] as const;
 
+/** Text files above this size are not opened in the editor. */
+export const workspaceAgentFileMaxTextBytes = 10 << 20;
+
+// Git treats a file as binary when its first 8000 bytes contain a NUL.
+const sniffBytes = 8 << 10;
+
+export type WorkspaceAgentFileQueryData = WorkspaceAgentFileContents & {
+	/**
+	 * Set when `data` holds only the first bytes, because the file is binary
+	 * or a text file over workspaceAgentFileMaxTextBytes.
+	 */
+	partial?: "binary" | "too-large";
+};
+
+const looksBinary = (head: ArrayBuffer): boolean => {
+	const bytes = new Uint8Array(head);
+	if (bytes.includes(0)) {
+		return true;
+	}
+	try {
+		// stream: a multibyte character cut at the end of the slice is fine.
+		new TextDecoder("utf-8", { fatal: true }).decode(bytes, { stream: true });
+		return false;
+	} catch {
+		return true;
+	}
+};
+
+/**
+ * Reads the first bytes before the whole file, so binary and oversized text
+ * files are never downloaded in full. Most files fit in the first read.
+ */
 export const workspaceAgentFile = (agentId: string, path: string) => {
 	return {
 		queryKey: workspaceAgentFileKey(agentId, path),
-		queryFn: () => API.readWorkspaceAgentFile(agentId, path),
-	} satisfies UseQueryOptions<WorkspaceAgentFileContents>;
+		queryFn: async (): Promise<WorkspaceAgentFileQueryData> => {
+			const head = await API.readWorkspaceAgentFile(agentId, path, {
+				limit: sniffBytes,
+			});
+			if (head.data.byteLength < sniffBytes) {
+				return head;
+			}
+			if (head.contentType.startsWith("image/")) {
+				return API.readWorkspaceAgentFile(agentId, path);
+			}
+			if (looksBinary(head.data)) {
+				return { ...head, partial: "binary" };
+			}
+			const pastCap = await API.readWorkspaceAgentFile(agentId, path, {
+				offset: workspaceAgentFileMaxTextBytes,
+				limit: 1,
+			});
+			if (pastCap.data.byteLength > 0) {
+				return { ...head, partial: "too-large" };
+			}
+			return API.readWorkspaceAgentFile(agentId, path);
+		},
+	} satisfies UseQueryOptions<WorkspaceAgentFileQueryData>;
 };
 
 export const workspaceAgentFindFiles = (
