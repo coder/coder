@@ -1,11 +1,20 @@
+import { cn } from "cn";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
-import { type Components, defaultRehypePlugins } from "streamdown";
+import {
+	type Components,
+	defaultRehypePlugins,
+	parseMarkdownIntoBlocks,
+	type StreamdownProps,
+} from "streamdown";
 import { workspaceAgentFileHead } from "#/api/queries/workspaceFiles";
 import { Button } from "#/components/Button/Button";
 import { useTheme } from "#/theme/context";
 import { useWorkspaceFiles } from "../../context/WorkspaceFilesContext";
 import {
+	countImageCandidates,
+	getHastText,
+	groupMarkdownBlocks,
 	isWorkspaceImageSource,
 	maxPreviewImages,
 	previewIdPrefix,
@@ -31,12 +40,37 @@ const maxPreviewImageBytes = 2 * 1024 * 1024;
 // comments. Streamdown's harden step is left out because it rewrites
 // relative links to the Coder origin; sanitizing already blocks unsafe
 // protocols.
-const previewRehypePlugins = [
+const previewRehypePlugins = (
+	firstImage: number,
+): StreamdownProps["rehypePlugins"] => [
 	defaultRehypePlugins.raw,
 	rehypeRemoveStyleElements,
 	defaultRehypePlugins.sanitize,
-	rehypeFilePreview,
+	[rehypeFilePreview, { firstImage }],
 ];
+
+// A chunk this size parses and renders in tens of milliseconds, so the
+// page stays responsive while a large file fills in.
+const previewChunkSize = 16 * 1024;
+
+const prepareChunks = (content: string) => {
+	const chunks = groupMarkdownBlocks(
+		content,
+		parseMarkdownIntoBlocks(content),
+		previewChunkSize,
+	);
+	const chunkStarts: number[] = [];
+	const firstImages: number[] = [];
+	let chunkStart = 0;
+	let images = 0;
+	for (const chunk of chunks) {
+		chunkStarts.push(chunkStart);
+		firstImages.push(images);
+		chunkStart += chunk.length;
+		images += countImageCandidates(chunk);
+	}
+	return { content, chunks, chunkStarts, firstImages };
+};
 
 const linkClassName =
 	"cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-content-link no-underline hover:underline";
@@ -66,6 +100,25 @@ export const MarkdownFilePreview: React.FC<MarkdownFilePreviewProps> = ({
 	const [remoteImagesAllowed, setRemoteImagesAllowed] = useState(false);
 	const hasRemoteImages =
 		/!\[|<img\b/i.test(content) && /https?:\/\//i.test(content);
+	const isLargeFile = content.length > maxMarkdownPreviewBytes;
+
+	// Splitting lexes the whole file, so it runs once per content, not on
+	// every render that adds a chunk. Chunks then render one per task, so a
+	// large file never blocks the page for long; small files are one chunk.
+	const [prepared, setPrepared] = useState(() => prepareChunks(content));
+	const [renderedChunks, setRenderedChunks] = useState(1);
+	if (prepared.content !== content) {
+		setPrepared(prepareChunks(content));
+		setRenderedChunks(1);
+	}
+	const { chunks, chunkStarts, firstImages } = prepared;
+	useEffect(() => {
+		if (renderedChunks >= chunks.length) {
+			return;
+		}
+		const timer = setTimeout(() => setRenderedChunks((count) => count + 1), 0);
+		return () => clearTimeout(timer);
+	}, [renderedChunks, chunks.length]);
 	const directory = getPathDirname(path);
 	let repoRoot: string | undefined;
 	for (const root of files?.repoRoots ?? []) {
@@ -191,6 +244,16 @@ export const MarkdownFilePreview: React.FC<MarkdownFilePreviewProps> = ({
 		// Sources would load without the image checks; the <img> fallback
 		// inside each <picture> renders instead.
 		source: () => null,
+		// Each highlighted block is a code viewer with its own resize
+		// handling; hundreds of them make showing, hiding, and scrolling the
+		// tab take seconds, so large files show code as plain text.
+		...(isLargeFile && {
+			pre: ({ node }: { node?: Parameters<typeof getHastText>[0] }) => (
+				<pre className="my-4 overflow-x-auto rounded-md border border-solid border-border bg-surface-primary px-3 py-2 font-mono text-xs leading-5">
+					{node ? getHastText(node).trimEnd() : null}
+				</pre>
+			),
+		}),
 	};
 
 	return (
@@ -214,13 +277,35 @@ export const MarkdownFilePreview: React.FC<MarkdownFilePreviewProps> = ({
 			)}
 			{/* Streamdown's block memo ignores new components, so the overrides
 			    that read these values remount the rendered markdown. */}
-			<Response
+			<div
 				key={`${theme.palette.mode}:${remoteImagesAllowed}:${repoRoot}`}
-				rehypePlugins={previewRehypePlugins}
-				components={components}
+				className="space-y-4"
 			>
-				{content}
-			</Response>
+				{chunks.slice(0, renderedChunks).map((chunk, index) => (
+					// In large files, off-screen chunks skip style and layout, so
+					// showing the tab again or scrolling does not lay out the whole
+					// file.
+					<div
+						key={chunkStarts[index]}
+						className={cn(
+							isLargeFile &&
+								"[contain-intrinsic-size:auto_1000px] [content-visibility:auto]",
+						)}
+					>
+						<Response
+							rehypePlugins={previewRehypePlugins(firstImages[index])}
+							components={components}
+						>
+							{chunk}
+						</Response>
+					</div>
+				))}
+			</div>
+			{renderedChunks < chunks.length && (
+				<p role="status" className="my-4 text-xs text-content-secondary">
+					Rendering preview…
+				</p>
+			)}
 		</div>
 	);
 };

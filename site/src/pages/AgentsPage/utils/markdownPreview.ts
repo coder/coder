@@ -12,6 +12,46 @@ export const previewIdPrefix = "user-content-";
 /** At most this many workspace images load in one preview. */
 export const maxPreviewImages = 20;
 
+const linkDefinitionRegExp = /^ {0,3}\[[^\]\n]+\]:[ \t]*\S.*$/gm;
+
+/**
+ * Groups markdown blocks into chunks of about `chunkSize` characters so a
+ * large file renders and parses a piece at a time. Parsing one document
+ * is superlinear in its size (GFM tables), and one render blocks the page
+ * until all of it is done. Link reference definitions are repeated in
+ * every chunk so references resolve across chunk boundaries.
+ */
+export const groupMarkdownBlocks = (
+	content: string,
+	blocks: readonly string[],
+	chunkSize: number,
+): string[] => {
+	const definitions = content.match(linkDefinitionRegExp)?.join("\n") ?? "";
+	const chunks: string[] = [];
+	let current = "";
+	for (const block of blocks) {
+		if (current && current.length + block.length > chunkSize) {
+			chunks.push(current);
+			current = "";
+		}
+		current += block;
+	}
+	if (current) {
+		chunks.push(current);
+	}
+	if (!definitions || chunks.length < 2) {
+		return chunks;
+	}
+	return chunks.map((chunk) => `${chunk}\n\n${definitions}\n`);
+};
+
+/**
+ * Counts the images a chunk might hold, an upper bound on its workspace
+ * images, so the image cap holds across chunks.
+ */
+export const countImageCandidates = (markdown: string) =>
+	markdown.match(/!\[|<img\b/gi)?.length ?? 0;
+
 const schemeRegExp = /^[a-z][a-z0-9+.-]*:/i;
 
 /** True for URLs that leave the workspace, such as https: or mailto:. */
@@ -87,11 +127,12 @@ export const resolvePreviewLink = (
 	return line > 0 ? { kind: "file", path, line } : { kind: "file", path };
 };
 
-const getText = (node: HastNode): string => {
+/** Concatenates the text inside a hast node. */
+export const getHastText = (node: HastNode): string => {
 	if (node.type === "text") {
 		return node.value ?? "";
 	}
-	return (node.children ?? []).map(getText).join("");
+	return (node.children ?? []).map(getHastText).join("");
 };
 
 // GitHub's heading anchors: lowercase, punctuation removed, spaces to
@@ -142,7 +183,7 @@ const markPreviewNode = (node: HastNode, state: PreviewState) => {
 			}
 		}
 		if (/^h[1-6]$/.test(node.tagName ?? "") && properties.id === undefined) {
-			properties.id = `${previewIdPrefix}${slugify(getText(node), state.slugs)}`;
+			properties.id = `${previewIdPrefix}${slugify(getHastText(node), state.slugs)}`;
 		}
 		const src = properties.src;
 		if (
@@ -161,8 +202,10 @@ const markPreviewNode = (node: HastNode, state: PreviewState) => {
 /**
  * Rehype plugin, run after sanitizing, that prepares a previewed file:
  * prefixes ids and names so they cannot clobber document properties, gives
- * headings GitHub-style anchor ids, and numbers workspace images so the
- * preview can cap how many it loads.
+ * headings GitHub-style anchor ids, and numbers workspace images, starting
+ * at `firstImage`, so the preview can cap how many it loads.
  */
-export const rehypeFilePreview = () => (tree: HastNode) =>
-	markPreviewNode(tree, { slugs: new Map(), images: 0 });
+export const rehypeFilePreview =
+	({ firstImage = 0 }: { firstImage?: number } = {}) =>
+	(tree: HastNode) =>
+		markPreviewNode(tree, { slugs: new Map(), images: firstImage });
