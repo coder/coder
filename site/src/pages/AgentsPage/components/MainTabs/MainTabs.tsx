@@ -1,8 +1,5 @@
-import { cva } from "class-variance-authority";
 import { cn } from "cn";
-import { XIcon } from "lucide-react";
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
-import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { useWorkspaceFiles } from "../../context/WorkspaceFilesContext";
@@ -12,7 +9,7 @@ import {
 	type FileDraftUpdate,
 	FileTab,
 } from "../FileTab/FileTab";
-import { getTabHints } from "./tabHints";
+import { getTabElementIds, MainTabStrip, type TabKey } from "./MainTabStrip";
 import type { MainTabsController } from "./useMainTabs";
 
 type MainTabsProps = {
@@ -22,33 +19,6 @@ type MainTabsProps = {
 	/** The chat transcript and composer, rendered in the pinned Chat tab. */
 	children: React.ReactNode;
 };
-
-/** A tab's path, or null for the Chat tab. */
-type TabKey = string | null;
-
-const tabButtonVariants = cva(
-	"h-6 min-w-0 shrink-0 gap-1.5 bg-surface-primary px-2 py-0",
-	{
-		variants: {
-			active: {
-				true: "bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
-				false: "",
-			},
-		},
-	},
-);
-
-const trackElement =
-	<Key,>(elements: React.RefObject<Map<Key, HTMLButtonElement>>, key: Key) =>
-	(element: HTMLButtonElement | null) => {
-		if (!element) {
-			return;
-		}
-		elements.current.set(key, element);
-		return () => {
-			elements.current.delete(key);
-		};
-	};
 
 /**
  * The chat view's main tabs: a pinned Chat tab followed by file tabs. The
@@ -186,118 +156,29 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 		return () => window.removeEventListener("keydown", cycleTabs, true);
 	}, [hasFileTabs]);
 
-	const hints = getTabHints(files.map((file) => file.path));
-
-	const chatTabId = `${idPrefix}-tab-chat`;
-	const chatPanelId = `${idPrefix}-panel-chat`;
+	const chatIds = getTabElementIds(idPrefix);
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			{hasFileTabs && (
-				<div
-					role="tablist"
-					aria-label="Chat and files"
-					className="relative z-10 flex shrink-0 items-center gap-1 overflow-x-auto border-0 border-b border-solid border-border bg-surface-primary px-4 py-1.5 scrollbar-none [&::-webkit-scrollbar]:hidden"
-				>
-					<Button
-						ref={trackElement(tabButtonsRef, null)}
-						id={chatTabId}
-						role="tab"
-						aria-selected={isChatActive}
-						aria-controls={chatPanelId}
-						tabIndex={isChatActive ? 0 : -1}
-						variant="outline"
-						size="lg"
-						className={tabButtonVariants({ active: isChatActive })}
-						onClick={() => mainTabs.activate(null)}
-						onKeyDown={(event) => handleTabKeyDown(event, null)}
-					>
-						Chat
-					</Button>
-					{files.map((file, index) => {
-						const isActive = file.path === activePath;
-						const isDirty = drafts.has(file.path);
-						const label = getPathBasename(file.path);
-						const parentHint = hints.get(file.path);
-						const name = parentHint ? `${label} ${parentHint}` : label;
-						return (
-							<div
-								key={file.path}
-								className="group/tab flex shrink-0 items-center"
-							>
-								<Button
-									ref={trackElement(tabButtonsRef, file.path)}
-									id={`${idPrefix}-tab-${index}`}
-									role="tab"
-									aria-selected={isActive}
-									aria-controls={`${idPrefix}-panel-${index}`}
-									aria-label={isDirty ? `${name}, unsaved` : name}
-									tabIndex={isActive ? 0 : -1}
-									title={file.path}
-									variant="outline"
-									size="lg"
-									className={cn(
-										tabButtonVariants({ active: isActive }),
-										"rounded-r-none border-r-0 pr-2.5",
-									)}
-									onClick={() => mainTabs.activate(file.path)}
-									onKeyDown={(event) => handleTabKeyDown(event, file.path)}
-									onMouseDown={(event) => {
-										// Middle-click would otherwise start autoscroll.
-										if (event.button === 1) {
-											event.preventDefault();
-										}
-									}}
-									onAuxClick={(event) => {
-										if (event.button === 1) {
-											requestCloseFile(file.path);
-										}
-									}}
-								>
-									<span className="truncate">{label}</span>
-									{parentHint && (
-										<span className="truncate text-content-secondary">
-											{parentHint}
-										</span>
-									)}
-								</Button>
-								<Button
-									variant="outline"
-									size="icon"
-									// Delete on the tab closes it, so the button is not a Tab stop.
-									tabIndex={-1}
-									aria-label={`Close ${name}`}
-									title={`Close ${file.path}`}
-									className={cn(
-										"size-6 rounded-l-none rounded-r-md bg-surface-primary p-0 text-content-secondary hover:text-content-primary [&>svg]:size-3",
-										isActive &&
-											"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
-									)}
-									onClick={() => requestCloseFile(file.path)}
-								>
-									{/* The unsaved dot takes the close button's slot so the tab
-									    keeps its width; hovering the tab shows the X. */}
-									{isDirty && (
-										<span
-											aria-hidden
-											className="size-2 rounded-full bg-current group-hover/tab:hidden"
-										/>
-									)}
-									<XIcon
-										className={cn(isDirty && "hidden group-hover/tab:block")}
-									/>
-								</Button>
-							</div>
-						);
-					})}
-				</div>
+				<MainTabStrip
+					idPrefix={idPrefix}
+					paths={files.map((file) => file.path)}
+					activePath={activePath}
+					activation={mainTabs.activation}
+					dirtyPaths={new Set(drafts.keys())}
+					tabButtonsRef={tabButtonsRef}
+					onActivate={mainTabs.activate}
+					onTabKeyDown={handleTabKeyDown}
+					onClose={requestCloseFile}
+				/>
 			)}
 			<div className="relative flex min-h-0 flex-1 flex-col">
 				<MainTabPanel
-					id={chatPanelId}
+					id={chatIds.panelId}
 					{...(hasFileTabs && {
 						role: "tabpanel",
-						"aria-labelledby": chatTabId,
+						"aria-labelledby": chatIds.tabId,
 					})}
 					isActive={isChatActive}
 					className="flex min-h-0 flex-1 flex-col"
@@ -310,12 +191,13 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 						const repoRoot = workspaceFiles.repoRoots.findLast(
 							(root) => file.path === root || file.path.startsWith(`${root}/`),
 						);
+						const ids = getTabElementIds(idPrefix, index);
 						return (
 							<MainTabPanel
 								key={file.path}
-								id={`${idPrefix}-panel-${index}`}
+								id={ids.panelId}
 								role="tabpanel"
-								aria-labelledby={`${idPrefix}-tab-${index}`}
+								aria-labelledby={ids.tabId}
 								isActive={isActive}
 								className="absolute inset-0 flex flex-col bg-surface-primary"
 							>

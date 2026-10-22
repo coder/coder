@@ -21,6 +21,11 @@ type MainTabsState = {
 	files: MainFileTab[];
 	/** Null when the Chat tab is active. */
 	activePath: string | null;
+	/**
+	 * Counts activations, including of the tab that is already active, so the
+	 * tab strip scrolls the active tab into view after each one.
+	 */
+	activation: number;
 };
 
 /**
@@ -34,6 +39,7 @@ export const useMainTabs = (chatId: string) => {
 		return {
 			files: persisted.paths.map((path) => ({ path })),
 			activePath: persisted.activePath,
+			activation: 0,
 		};
 	});
 
@@ -48,27 +54,34 @@ export const useMainTabs = (chatId: string) => {
 		const reveal =
 			options?.line === undefined ? undefined : { line: options.line };
 		setState((current) => {
+			const activation = current.activation + 1;
 			const isOpen = current.files.some((file) => file.path === path);
 			if (!isOpen) {
 				return {
 					files: [...current.files, { path, reveal }],
 					activePath: path,
+					activation,
 				};
 			}
 			if (!reveal) {
-				return { ...current, activePath: path };
+				return { ...current, activePath: path, activation };
 			}
 			return {
 				files: current.files.map((file) =>
 					file.path === path ? { ...file, reveal } : file,
 				),
 				activePath: path,
+				activation,
 			};
 		});
 	};
 
 	const activate = (path: string | null) => {
-		setState((current) => ({ ...current, activePath: path }));
+		setState((current) => ({
+			...current,
+			activePath: path,
+			activation: current.activation + 1,
+		}));
 	};
 
 	const closeFile = (path: string) => {
@@ -78,17 +91,19 @@ export const useMainTabs = (chatId: string) => {
 				return current;
 			}
 			const files = current.files.filter((file) => file.path !== path);
+			const activation = current.activation + 1;
 			if (current.activePath !== path) {
-				return { ...current, files };
+				return { ...current, files, activation };
 			}
 			const neighbor = files[Math.min(index, files.length - 1)];
-			return { files, activePath: neighbor?.path ?? null };
+			return { files, activePath: neighbor?.path ?? null, activation };
 		});
 	};
 
 	return {
 		files: state.files,
 		activePath: state.activePath,
+		activation: state.activation,
 		openFile,
 		activate,
 		closeFile,

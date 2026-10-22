@@ -247,6 +247,22 @@ describe("MainTabs", () => {
 		expect(getTab("Chat")).toHaveFocus();
 	});
 
+	it("lists all tabs in a menu while they overflow the strip", async () => {
+		vi.spyOn(Element.prototype, "scrollWidth", "get").mockReturnValue(1000);
+		vi.spyOn(Element.prototype, "clientWidth", "get").mockReturnValue(100);
+		const user = userEvent.setup();
+		renderHarness(["/repo/a.go", "/repo/b.go"]);
+
+		await user.click(screen.getByRole("button", { name: "Open /repo/a.go" }));
+		await user.click(screen.getByRole("button", { name: "Open /repo/b.go" }));
+		await user.click(screen.getByRole("button", { name: "All tabs" }));
+		await user.click(
+			await screen.findByRole("menuitemradio", { name: "a.go" }),
+		);
+
+		expect(getPersistedMainTabs(chatId).activePath).toBe("/repo/a.go");
+	});
+
 	it("keeps the chat mounted while a file tab is active", async () => {
 		const user = userEvent.setup();
 		renderHarness(["/repo/main.go"]);
