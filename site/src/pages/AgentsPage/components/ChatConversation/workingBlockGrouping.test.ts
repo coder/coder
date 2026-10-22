@@ -13,6 +13,7 @@ import {
 import { assignTimelineRows, type TimelineRow } from "./timelineRows";
 import {
 	type GroupWorkingBlocksOptions,
+	getBlockTurnAttachments,
 	getRowBlocks,
 	getTurnAttachmentsByRow,
 	groupWorkingBlocks,
@@ -1322,6 +1323,10 @@ describe("getTurnAttachmentsByRow", () => {
 		const { rows } = group([
 			user("Build the report"),
 			message("assistant", [text("Here:"), file("a")]),
+			message("assistant", [call("compact", undefined, "chat_summarized")]),
+			message("tool", [
+				result("compact", undefined, { name: "chat_summarized" }),
+			]),
 			user("Thanks"),
 			message("assistant", [text("You're welcome.")]),
 		]);
@@ -1359,6 +1364,45 @@ describe("getTurnAttachmentsByRow", () => {
 
 		expect(pillsWhile(true)).toEqual([["message:2", ["a"]]]);
 		expect(pillsWhile(false)).toEqual([["message:2", ["a"]]]);
+	});
+
+	it("gives a block the pill only when its turn ends without an answer", () => {
+		const blockPills = ({ rows, blocks }: ReturnType<typeof group>) => {
+			const byRow = getTurnAttachmentsByRow(rows, {
+				hidesAttachmentRows: true,
+				isChatActive: false,
+				isNextTurnStarting: false,
+				isCompacting: false,
+				hasMoreMessages: false,
+			});
+			return blocks.map((block) =>
+				getBlockTurnAttachments(
+					block,
+					block.rowIndices.flatMap((index) => {
+						const row = rows[index];
+						return row.type === "message" ? [row.key] : [];
+					}),
+					byRow,
+				)?.map(({ file }) => file.file_id),
+			);
+		};
+
+		expect(
+			blockPills(group([user("Attach the report"), ...attachSteps("a")])),
+		).toEqual([["a"]]);
+		expect(
+			blockPills(
+				group([
+					user("Attach the report"),
+					...attachSteps("b"),
+					message("assistant", [
+						call("check", undefined, "execute"),
+						text("Done."),
+					]),
+					message("tool", [result("check")]),
+				]),
+			),
+		).toEqual([undefined]);
 	});
 
 	it("skips hidden attachment-only rows when picking the pill's row", () => {
