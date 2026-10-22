@@ -345,7 +345,7 @@ describe("submitChatTurn", () => {
 		);
 	});
 
-	it("saves a queued row with the marker cleared and makes no chat send", async () => {
+	it("saves a queued row with its skill chips and the marker cleared and makes no chat send", async () => {
 		const store = createChatStore();
 		store.setActiveChatID("chat-1");
 		store.setQueuedMessages([
@@ -357,7 +357,11 @@ describe("submitChatTurn", () => {
 
 		await submitChatTurn(
 			buildParams({
-				message: "new text",
+				message: "new text ",
+				composerParts: [
+					{ type: "text", text: "new text " },
+					{ type: "skill-invocation", source: "project", name: "triage" },
+				],
 				editingTarget: { kind: "queued", id: 7 },
 				store,
 				saveQueuedMessage,
@@ -367,7 +371,14 @@ describe("submitChatTurn", () => {
 		);
 
 		expect(saveQueuedMessage).toHaveBeenCalledWith(7, {
-			content: [{ type: "text", text: "new text" }],
+			content: [
+				{ type: "text", text: "new text " },
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+			],
 			model_config_id: pickerModel.id,
 			reasoning_effort: undefined,
 			editing: false,

@@ -20,14 +20,19 @@ import type { ChatMessageInputRef } from "../components/AgentChatInput";
 import type { EditingTarget } from "../components/ChatConversation/types";
 import { ChatMessageInput } from "../components/ChatMessageInput/ChatMessageInput";
 import { FileReferenceNode } from "../components/ChatMessageInput/FileReferenceNode";
+import { SkillInvocationNode } from "../components/ChatMessageInput/SkillInvocationNode";
 import type { PendingAttachment } from "../components/ChatPageContent";
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../utils/agentChatSendShortcut";
+import type { ChatComposerContentPart } from "../utils/chatInputContent";
 import {
 	draftInputStorageKeyPrefix,
-	getFileReferenceNodes,
+	getChipNodes,
 	parseStoredDraft,
 } from "../utils/draftStorage";
-import { useConversationEditingState } from "./useConversationEditingState";
+import {
+	type SendChatTurnOptions,
+	useConversationEditingState,
+} from "./useConversationEditingState";
 import {
 	type ComposerMode,
 	deriveComposerTarget,
@@ -44,6 +49,19 @@ const textContent = (
 	text: string,
 	fileBlocks: readonly ChatMessagePart[] = [],
 ): readonly ChatMessagePart[] => [{ type: "text", text }, ...fileBlocks];
+
+const skillPart = (name: string): ChatMessagePart => ({
+	type: "skill-invocation",
+	skill_source: "project",
+	skill_name: name,
+});
+
+// A row with a skill chip between text, as the composer sends it.
+const contentWithSkill: readonly ChatMessagePart[] = [
+	{ type: "text", text: "Use " },
+	skillPart("triage"),
+	{ type: "text", text: " on the diff" },
+];
 
 type MockChatInputHandle = {
 	handle: ChatMessageInputRef;
@@ -125,10 +143,16 @@ const EditingWithEditor = ({
 	marker,
 	ref,
 	onCommit,
+	onSend,
 }: ServerProps & {
 	chatID: string;
-	contents: ReadonlyMap<number, string>;
+	contents: ReadonlyMap<number, readonly ChatMessagePart[]>;
 	ref: React.Ref<EditingHarnessHandle>;
+	// Called with each send and the composer parts the page reads with it.
+	onSend: (
+		options: SendChatTurnOptions,
+		composerParts: readonly ChatComposerContentPart[],
+	) => void;
 	// Called with the editing target of every commit, including commits a
 	// layout effect replaces before paint.
 	onCommit: (editingTarget: EditingTarget | null) => void;
@@ -142,17 +166,16 @@ const EditingWithEditor = ({
 		marker,
 		true,
 	);
-	const targetText = target ? contents.get(target.id) : undefined;
 	const editing = useConversationEditingState({
 		chatID,
-		onSend: vi.fn(),
+		onSend: async (options) =>
+			onSend(options, chatInputRef.current?.getContentParts() ?? []),
 		chatInputRef,
 		inputValueRef,
 		composerMode,
 		setComposerMode,
 		target,
-		targetContent:
-			targetText === undefined ? undefined : textContent(targetText),
+		targetContent: target ? contents.get(target.id) : undefined,
 	});
 	useImperativeHandle(ref, () => ({
 		...editing,
@@ -296,9 +319,13 @@ describe("useConversationEditingState", () => {
 	const renderEditingWithEditor = () => {
 		const user = userEvent.setup();
 		const handle = createRef<EditingHarnessHandle>();
-		const contents = new Map<number, string>();
+		const contents = new Map<number, readonly ChatMessagePart[]>();
 		const queryClient = createTestQueryClient();
 		const committedTargets: (EditingTarget | null)[] = [];
+		const sends: {
+			editingTarget: EditingTarget | undefined;
+			composerParts: readonly ChatComposerContentPart[];
+		}[] = [];
 		const ui = (props: ServerProps) => (
 			<QueryClientProvider client={queryClient}>
 				<EditingWithEditor
@@ -306,6 +333,9 @@ describe("useConversationEditingState", () => {
 					chatID={chatID}
 					contents={contents}
 					onCommit={(editingTarget) => committedTargets.push(editingTarget)}
+					onSend={({ editingTarget }, composerParts) =>
+						sends.push({ editingTarget, composerParts })
+					}
 					{...props}
 				/>
 			</QueryClientProvider>
@@ -320,17 +350,26 @@ describe("useConversationEditingState", () => {
 		const editorText = () =>
 			screen.getByRole("textbox", { name: "Chat message" }).textContent;
 		// Async act, so the editor's remount commits settle inside it.
-		const markOnServer = async (id: number | null, text?: string) => {
-			if (id !== null && text !== undefined) {
-				contents.set(id, text);
+		const markOnServer = async (
+			id: number | null,
+			content?: string | readonly ChatMessagePart[],
+		) => {
+			if (id !== null && content !== undefined) {
+				contents.set(
+					id,
+					typeof content === "string" ? textContent(content) : content,
+				);
 			}
 			await act(async () =>
 				view.rerender(ui({ serverMarkedID: id, marker: idleMarker })),
 			);
 		};
 		// Edit on a row as the page does it once the begin request settles.
-		const beginEdit = async (id: number, text: string) => {
-			await markOnServer(id, text);
+		const beginEdit = async (
+			id: number,
+			content: string | readonly ChatMessagePart[],
+		) => {
+			await markOnServer(id, content);
 			await act(async () => current().setComposerMode({ kind: "queued", id }));
 		};
 		// Lexical does not handle userEvent keystrokes in jsdom; a paste goes
@@ -390,6 +429,36 @@ describe("useConversationEditingState", () => {
 				}),
 			);
 		};
+		const editorUpdate = async (update: () => void) => {
+			const editor = getNearestEditorFromDOMNode(
+				screen.getByRole("textbox", { name: "Chat message" }),
+			);
+			await act(async () => editor?.update(update));
+		};
+		// Appends a chip without the space insertSkill types after it, so
+		// removing it again restores the text exactly.
+		const appendSkill = (name: string) =>
+			editorUpdate(() => {
+				const paragraph = $getRoot().getLastChild();
+				if ($isElementNode(paragraph)) {
+					paragraph.append(new SkillInvocationNode("project", name));
+				}
+			});
+		const removeSkill = (name: string) =>
+			editorUpdate(() => {
+				$getRoot()
+					.getChildren()
+					.flatMap((node) => ($isElementNode(node) ? node.getChildren() : []))
+					.find(
+						(node) =>
+							node instanceof SkillInvocationNode && node.__name === name,
+					)
+					?.remove();
+			});
+		const setRowContent = (id: number, content: readonly ChatMessagePart[]) =>
+			contents.set(id, content);
+		const contentParts = () =>
+			current().chatInputRef.current?.getContentParts() ?? [];
 		return {
 			...view,
 			current,
@@ -401,7 +470,12 @@ describe("useConversationEditingState", () => {
 			change,
 			addFileReference,
 			removeFirstFileReference,
+			appendSkill,
+			removeSkill,
+			setRowContent,
+			contentParts,
 			committedTargets,
+			sends,
 		};
 	};
 
@@ -483,23 +557,6 @@ describe("useConversationEditingState", () => {
 		expect(result.current.editingTarget).toBeNull();
 		expect(result.current.editorInitialValue).toBe("work in progress");
 		expect(result.current.remountKey).toBe(remountKeyAfterEdit + 1);
-		unmount();
-	});
-
-	it("seeds the composer with the edited message's editor state", () => {
-		const { result, unmount } = renderEditing();
-		const editorState = JSON.stringify({ root: { type: "root" } });
-
-		act(() => {
-			result.current.handleBeginEdit(
-				{ kind: "history", id: 7 },
-				"",
-				undefined,
-				editorState,
-			);
-		});
-
-		expect(result.current.initialEditorState).toBe(editorState);
 		unmount();
 	});
 
@@ -1304,7 +1361,102 @@ describe("useConversationEditingState", () => {
 				expect(parseStoredDraft(stored ?? null).text).toBe(
 					deleteText ? "" : rowText,
 				);
-				expect(getFileReferenceNodes(stored)).toHaveLength(1);
+				expect(getChipNodes(stored)).toHaveLength(1);
+				unmount();
+			},
+		);
+
+		it.each(["queued", "history"] as const)(
+			"Edit on a %s row loads its skill chip, and saving sends it",
+			async (kind) => {
+				const {
+					unmount,
+					current,
+					markOnServer,
+					setRowContent,
+					contentParts,
+					sends,
+				} = renderEditingWithEditor();
+				setRowContent(42, contentWithSkill);
+				if (kind === "queued") {
+					await markOnServer(42);
+				}
+				await act(async () => current().setComposerMode({ kind, id: 42 }));
+				const loadedParts: readonly ChatComposerContentPart[] = [
+					{ type: "text", text: "Use " },
+					{ type: "skill-invocation", source: "project", name: "triage" },
+					{ type: "text", text: " on the diff" },
+				];
+				expect(contentParts()).toEqual(loadedParts);
+
+				await act(async () => {
+					await current().handleSendFromInput({
+						message: current().inputValueRef.current,
+					});
+				});
+
+				expect(sends).toEqual([
+					{ editingTarget: { kind, id: 42 }, composerParts: loadedParts },
+				]);
+				unmount();
+			},
+		);
+
+		it.each([
+			["an untouched skill chip gives the draft back", "none", false],
+			[
+				"a skill chip added and removed again gives the draft back",
+				"reverted",
+				false,
+			],
+			[
+				"an added skill chip keeps the edit as a new-message draft",
+				"added",
+				true,
+			],
+			[
+				"a removed skill chip keeps the edit as a new-message draft",
+				"removed",
+				true,
+			],
+		] as const)(
+			"when the server ends an edit of a row with a skill chip, %s",
+			async (_name, edit, modified) => {
+				const {
+					unmount,
+					current,
+					editorText,
+					beginEdit,
+					markOnServer,
+					type,
+					appendSkill,
+					removeSkill,
+				} = renderEditingWithEditor();
+				await type("draft");
+				await beginEdit(42, contentWithSkill);
+				if (edit === "reverted" || edit === "added") {
+					await appendSkill("review");
+				}
+				if (edit === "reverted") {
+					await removeSkill("review");
+				}
+				if (edit === "removed") {
+					await removeSkill("triage");
+				}
+				const stateWhileEditing =
+					current().chatInputRef.current?.getEditorState();
+
+				await markOnServer(null);
+
+				expect(current().composerMode).toBe(modified ? "draft" : "follow");
+				if (modified) {
+					expect(current().inputValueRef.current).toBe("Use  on the diff");
+					expect(
+						getChipNodes(localStorage.getItem(expectedKey) ?? undefined),
+					).toEqual(getChipNodes(stateWhileEditing));
+				} else {
+					expect(editorText()).toBe("draft");
+				}
 				unmount();
 			},
 		);
@@ -1340,7 +1492,7 @@ describe("useConversationEditingState", () => {
 				renderEditingWithEditor();
 			await removeFirstFileReference();
 			const stored = localStorage.getItem(expectedKey) ?? undefined;
-			expect(getFileReferenceNodes(stored)).toHaveLength(1);
+			expect(getChipNodes(stored)).toHaveLength(1);
 
 			await markOnServer(6, "other row");
 
