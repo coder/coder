@@ -21,10 +21,10 @@ const getInlineParts = (
 	blocks: readonly UserInlineRenderBlock[],
 ): InlinePart[] => {
 	return blocks.map((block) => {
-		if (block.type === "file-reference") {
-			return { type: "file-reference" };
+		if (block.type === "response") {
+			return { type: "text", text: block.text };
 		}
-		return { type: "text", text: block.text };
+		return { type: "chip" };
 	});
 };
 

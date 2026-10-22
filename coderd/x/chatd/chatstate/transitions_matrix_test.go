@@ -1678,7 +1678,7 @@ func completeRequiresActionCase(from, want chatstate.ExecutionState) transitionC
 }
 
 func cancelRequiresActionCase(from, want chatstate.ExecutionState) transitionCaseSpec {
-	return transitionCaseSpec{
+	spec := transitionCaseSpec{
 		transition: chatstate.TransitionCancelRequiresAction,
 		from:       from,
 		want:       want,
@@ -1693,14 +1693,20 @@ func cancelRequiresActionCase(from, want chatstate.ExecutionState) transitionCas
 			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID),
 				"CancelRequiresAction preserves queued messages")
 
-			// One synthetic tool-result cancellation per pending call.
+			// One synthetic tool-result cancellation per pending dynamic call.
 			require.Len(t, result.cancelRequiresAction.CancellationMessages, 1,
-				"CancelRequiresAction synthesizes one tool-result per pending call")
+				"CancelRequiresAction synthesizes one tool-result per pending dynamic call")
 			cancel := requireChatMessageByID(ctx, t, f,
 				result.cancelRequiresAction.CancellationMessages[0].ID)
 			assertToolResultForCall(t, cancel, seeded.pendingToolCallID)
 		},
 	}
+	if from == chatstate.StateA1 {
+		spec.seed = func(t *testing.T, f *testFixture, _ chatstate.ExecutionState) seededChat {
+			return seedA1WithMixedOutstandingToolCalls(t, f, 1, "seed_tool_a1_cancel")
+		}
+	}
+	return spec
 }
 
 func recordGenerationAttemptCase(from chatstate.ExecutionState) transitionCaseSpec {
