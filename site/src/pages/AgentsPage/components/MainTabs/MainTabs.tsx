@@ -131,6 +131,15 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 			focusChatInput();
 			return;
 		}
+		if (!closesActive) {
+			flushSync(update);
+			// Focus on a closed tab, such as on the close button a click
+			// focused, falls to the body.
+			if (document.activeElement === document.body) {
+				focusTab(activePath);
+			}
+			return;
+		}
 		update();
 	};
 
@@ -341,7 +350,9 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 					setCloseRequest(undefined);
 				}}
 			/>
-			{drafts.size > 0 && <UnsavedFilesPrompt />}
+			{drafts.size > 0 && (
+				<UnsavedFilesPrompt onStay={() => focusTab(activePath)} />
+			)}
 		</div>
 	);
 };
@@ -382,19 +393,37 @@ const MainTabPanel: React.FC<MainTabPanelProps> = ({
 	/>
 );
 
+type UnsavedFilesPromptProps = {
+	/** Moves focus back to the page after the user chooses to stay. */
+	onStay: () => void;
+};
+
 /**
  * Mounted only while a file is dirty: React Router consults only the newest
  * blocker, so an always-mounted one would override the embed page's.
  */
-const UnsavedFilesPrompt: React.FC = () => {
+const UnsavedFilesPrompt: React.FC<UnsavedFilesPromptProps> = ({ onStay }) => {
 	const unsavedChanges = useUnsavedChangesPrompt(true);
+	const isLeavingRef = useRef(false);
 	return (
 		<ConfirmDialog
 			type="info"
 			hideCancel={false}
 			open={unsavedChanges.isOpen}
 			onClose={unsavedChanges.onCancel}
-			onConfirm={unsavedChanges.onConfirm}
+			onConfirm={() => {
+				isLeavingRef.current = true;
+				unsavedChanges.onConfirm();
+			}}
+			onCloseAutoFocus={(event) => {
+				// A navigation opens the dialog, so Radix has no trigger to
+				// return focus to.
+				event.preventDefault();
+				if (!isLeavingRef.current) {
+					onStay();
+				}
+				isLeavingRef.current = false;
+			}}
 			title="Unsaved changes"
 			confirmText="Leave"
 			description="Open files have unsaved changes. Leave anyway?"
