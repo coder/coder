@@ -57,8 +57,6 @@ func TestWindowsKeyring_WriteReadDelete(t *testing.T) {
 	cred, ok := storedCreds[srvURL.Host]
 	require.True(t, ok, "credential for URL should exist")
 	require.Equal(t, inputToken, cred.APIToken)
-	// The entry is keyed by host, but records the full origin so that a read or
-	// delete can tell which deployment the token belongs to.
 	require.Equal(t, testURL, cred.CoderURL)
 
 	// Read the token back
