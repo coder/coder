@@ -2,6 +2,7 @@ package aibridged
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"slices"
 	"strconv"
@@ -146,7 +147,13 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 			go func() {
 				shutdownCtx, cancel := context.WithTimeout(drainCtx, bridgeDrainTimeout)
 				defer cancel()
-				_ = bridge.Shutdown(shutdownCtx)
+				// Pool shutdown cancels drainCtx instead, so a deadline error
+				// means retirement alone cut in-flight requests short.
+				if err := bridge.Shutdown(shutdownCtx); errors.Is(err, context.DeadlineExceeded) {
+					logger.Warn(context.Background(), "retired request bridge did not drain in time, canceled in-flight requests",
+						slog.F("drain_timeout", bridgeDrainTimeout),
+					)
+				}
 			}()
 		},
 	})

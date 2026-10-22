@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/mcpmock"
@@ -40,6 +40,7 @@ func TestPoolDrain(t *testing.T) {
 		aliveFor     time.Duration
 		cancelWithin time.Duration // Zero completes the stream instead of waiting for cancellation.
 		wantBody     string
+		wantWarning  bool
 	}{
 		{
 			name:         "Complete",
@@ -54,6 +55,7 @@ func TestPoolDrain(t *testing.T) {
 			aliveFor:     aibridged.BridgeDrainTimeout - cacheCleanupAllowance - time.Millisecond,
 			cancelWithin: cacheCleanupAllowance + 2*time.Millisecond,
 			wantBody:     firstEvent,
+			wantWarning:  true,
 		},
 		{
 			name:         "ShutdownRetired",
@@ -123,7 +125,8 @@ func TestPoolDrain(t *testing.T) {
 				if tt.expireBridge {
 					opts.TTL = time.Second
 				}
-				pool, err := aibridged.NewCachedBridgePool(opts, []aibridge.Provider{prov}, slogtest.Make(t, nil), nil, testTracer)
+				sink := testutil.NewFakeSink(t)
+				pool, err := aibridged.NewCachedBridgePool(opts, []aibridge.Provider{prov}, sink.Logger(), nil, testTracer)
 				require.NoError(t, err)
 				defer func() {
 					_ = pool.Shutdown(context.Background())
@@ -223,6 +226,10 @@ func TestPoolDrain(t *testing.T) {
 				}
 				require.Equal(t, http.StatusOK, response.Code)
 				require.Equal(t, tt.wantBody, response.Body.String())
+				warnings := sink.Entries(func(e slog.SinkEntry) bool {
+					return e.Level == slog.LevelWarn && strings.Contains(e.Message, "did not drain in time")
+				})
+				require.Equal(t, tt.wantWarning, len(warnings) > 0, "drain timeout warning")
 			})
 		})
 	}
