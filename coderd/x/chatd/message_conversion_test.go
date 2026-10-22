@@ -1121,6 +1121,43 @@ func TestBufferedPartsToPartialMessages_SplitsAdjacentReasoningBlocks(t *testing
 	}, summary, "each reasoning block must keep its own part and start time")
 }
 
+func TestBufferedPartsToPartialMessages_SplitsNarrationFromAnswer(t *testing.T) {
+	t.Parallel()
+
+	narration := func(text string) codersdk.ChatMessagePart {
+		part := codersdk.ChatMessageText(text)
+		part.Narration = true
+		return part
+	}
+	parts := []messagepartbuffer.Part{
+		{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: narration("Checking the ")},
+		{Seq: 2, Role: codersdk.ChatMessageRoleAssistant, MessagePart: narration("repo.")},
+		{Seq: 3, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("The answer ")},
+		{Seq: 4, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("is 42.")},
+		{Seq: 5, Role: codersdk.ChatMessageRoleAssistant, MessagePart: narration("Next, the tests.")},
+	}
+	got, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
+		parts:          parts,
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		interruptedAt:  time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC),
+	})
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assistantParts := parseMessageParts(t, got[0].Role, got[0].Content)
+
+	var summary []string
+	for _, part := range assistantParts {
+		summary = append(summary, fmt.Sprintf("narration=%t:%s", part.Narration, part.Text))
+	}
+	require.Equal(t, []string{
+		"narration=true:Checking the repo.",
+		"narration=false:The answer is 42.",
+		"narration=true:Next, the tests.",
+	}, summary, "the web client folds narration into the working block, so an answer must not share a part with it")
+}
+
 // BenchmarkBufferedPartsToPartialMessages_StreamedTextDeltas persists N
 // seven-byte text deltas; B/op should be linear in N. A 1 MiB episode holds
 // about 2,585 such deltas, so N stays below that.

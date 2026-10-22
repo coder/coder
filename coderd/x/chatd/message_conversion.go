@@ -946,14 +946,15 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 }
 
 // appendAssistantPart appends part, merging a delta into the open run of its
-// type. Text deltas carry no block identity, so adjacent text blocks merge; a
-// reasoning run ends when CreatedAt, the block's start time, changes, so
-// reasoning blocks that start in the same microsecond merge.
+// type. Text deltas carry no block identity, so adjacent text blocks merge
+// unless their Narration differs; a reasoning run ends when CreatedAt, the
+// block's start time, changes, so reasoning blocks that start in the same
+// microsecond merge.
 func (s *partialMessageConversionState) appendAssistantPart(part codersdk.ChatMessagePart) {
 	mergeable := part.Type == codersdk.ChatMessagePartTypeText || part.Type == codersdk.ChatMessagePartTypeReasoning
 	if mergeable && s.streamedRunOpen {
 		prev := s.assistantParts[s.streamedRunIndex]
-		if prev.Type == part.Type &&
+		if prev.Type == part.Type && prev.Narration == part.Narration &&
 			(part.Type == codersdk.ChatMessagePartTypeText || sameTime(prev.CreatedAt, part.CreatedAt)) {
 			_, _ = s.streamedRun.WriteString(part.Text)
 			return
