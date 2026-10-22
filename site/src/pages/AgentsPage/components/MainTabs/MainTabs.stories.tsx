@@ -276,3 +276,16 @@ export const UnsavedFileWithoutHover: Story = {
 	},
 	play: () => editFile("/repo/src/index.ts"),
 };
+
+/** The menu of more tabs than fit the screen scrolls inside it. */
+export const AllTabsMenu: Story = {
+	beforeEach: persistTabs({
+		paths: Array.from({ length: 40 }, (_, i) => `/repo/src/module-${i + 1}.ts`),
+		activePath: null,
+	}),
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", { name: "All tabs" }),
+		);
+	},
+};

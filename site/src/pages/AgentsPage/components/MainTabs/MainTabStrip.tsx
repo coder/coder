@@ -355,7 +355,11 @@ export const MainTabStrip: React.FC<MainTabStripProps> = ({
 							<ChevronDownIcon />
 						</Button>
 					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end" className="max-w-96">
+					<DropdownMenuContent
+						align="end"
+						collisionPadding={8}
+						className="max-h-(--radix-dropdown-menu-content-available-height) max-w-96 overflow-y-auto"
+					>
 						<DropdownMenuRadioGroup
 							value={activePath ?? chatMenuValue}
 							onValueChange={(value) =>
