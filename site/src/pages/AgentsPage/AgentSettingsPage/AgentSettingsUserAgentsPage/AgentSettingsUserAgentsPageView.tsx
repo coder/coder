@@ -7,8 +7,8 @@ import {
 	OrganizationAutocomplete,
 } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
-import { PersonalModelOverrideRow } from "./components/PersonalModelOverrideRow";
-import { SectionHeader } from "./components/SectionHeader";
+import { PersonalModelOverrideRow } from "../../components/PersonalModelOverrideRow";
+import { SectionHeader } from "../../components/SectionHeader";
 
 export type AgentSettingsUserAgentsPageViewProps = {
 	overridesData?: TypesGen.UserChatPersonalModelOverridesResponse;

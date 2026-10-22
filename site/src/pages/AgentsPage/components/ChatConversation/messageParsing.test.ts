@@ -220,6 +220,24 @@ describe("parseMessageContent", () => {
 		expect(result.blocks).toEqual([{ type: "response", text: "Hello" }]);
 	});
 
+	it("keeps skill invocations between the text around them", () => {
+		const skillPart = {
+			type: "skill-invocation",
+			skill_source: "project",
+			skill_name: "triage",
+		} as const;
+		const result = parseMessageContent([
+			{ type: "text", text: "Use " },
+			skillPart,
+			{ type: "text", text: " now" },
+		]);
+		expect(result.blocks).toEqual([
+			{ type: "response", text: "Use " },
+			skillPart,
+			{ type: "response", text: " now" },
+		]);
+	});
+
 	it("merges multiple text blocks into a single response block", () => {
 		const result = parseMessageContent([
 			{ type: "text", text: "Line one" },

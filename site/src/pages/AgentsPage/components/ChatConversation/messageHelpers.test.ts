@@ -373,6 +373,20 @@ describe("deriveMessageDisplayState", () => {
 		expect(state.hasCopyableContent).toBe(false);
 	});
 
+	it("renders a user message that only invokes a skill", () => {
+		const message = buildMessage([
+			{
+				type: "skill-invocation",
+				skill_source: "project",
+				skill_name: "triage",
+			},
+		]);
+
+		const state = getDisplayState(message);
+		expect(state.shouldHide).toBe(false);
+		expect(state.hasUserMessageBody).toBe(true);
+	});
+
 	it("hides assistant messages with no renderable content", () => {
 		const message = buildMessage([], "assistant");
 

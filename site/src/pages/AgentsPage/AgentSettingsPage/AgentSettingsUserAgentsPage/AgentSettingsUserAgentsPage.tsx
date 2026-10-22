@@ -17,8 +17,8 @@ import {
 	modelOrganizationSearchParam,
 	selectModelOrganization,
 } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
+import { resolveModelSelector } from "../../utils/modelOptions";
 import { AgentSettingsUserAgentsPageView } from "./AgentSettingsUserAgentsPageView";
-import { resolveModelSelector } from "./utils/modelOptions";
 
 const overrideSaveLabel = {
 	root: "Root agent model",

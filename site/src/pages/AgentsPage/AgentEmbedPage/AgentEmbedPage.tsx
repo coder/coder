@@ -14,15 +14,15 @@ import {
 	type ConcreteThemeName,
 	isConcreteThemeName,
 } from "#/theme";
-import type { AgentsPageOutletContext } from "./AgentsPageLayout";
+import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
-} from "./components/ChatConversation/chatError";
+} from "../components/ChatConversation/chatError";
 import {
 	bootstrapChatEmbedSession,
 	EmbedContext,
-} from "./components/EmbedContext";
+} from "../components/EmbedContext";
 
 type BootstrapMessage = {
 	type: "coder:vscode-auth-bootstrap";

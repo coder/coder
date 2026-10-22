@@ -195,16 +195,9 @@ func loadPinnedWorkspaceSkillContent(
 	options ReadSkillOptions,
 	skill SkillMeta,
 ) (SkillContent, error) {
-	raw := skill.Meta
-	if int64(len(raw)) > maxSkillMetaBytes {
-		raw = raw[:maxSkillMetaBytes]
-	}
-
-	_, _, body, err := workspacesdk.ParseSkillFrontmatter(string(raw))
+	body, err := PinnedWorkspaceSkillBody(skill)
 	if err != nil {
-		return SkillContent{}, xerrors.Errorf(
-			"parse skill frontmatter: %w", err,
-		)
+		return SkillContent{}, err
 	}
 
 	return SkillContent{
@@ -212,6 +205,20 @@ func loadPinnedWorkspaceSkillContent(
 		Body:      body,
 		Files:     bestEffortSkillFiles(ctx, options, skill),
 	}, nil
+}
+
+// PinnedWorkspaceSkillBody parses the body of a workspace skill from the
+// SKILL.md pinned in the workspace context snapshot.
+func PinnedWorkspaceSkillBody(skill SkillMeta) (string, error) {
+	raw := skill.Meta
+	if int64(len(raw)) > maxSkillMetaBytes {
+		raw = raw[:maxSkillMetaBytes]
+	}
+	_, _, body, err := workspacesdk.ParseSkillFrontmatter(string(raw))
+	if err != nil {
+		return "", xerrors.Errorf("parse skill frontmatter: %w", err)
+	}
+	return body, nil
 }
 
 // bestEffortSkillFiles lists a pinned skill's supporting files over the
