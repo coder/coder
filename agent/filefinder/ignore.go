@@ -1,202 +1,131 @@
 package filefinder
 
 import (
-	"bytes"
 	"context"
-	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
+	"time"
 
-	"github.com/go-git/go-git/v5/plumbing/format/config"
-	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/spf13/afero"
+
+	"github.com/coder/coder/v2/agent/agentexec"
 )
 
-const gitignoreFile = ".gitignore"
+const (
+	gitignoreFile = ".gitignore"
+	// repoCacheTTL bounds how long repository discovery and exclude
+	// file locations are cached, so a new or removed repository is
+	// noticed without a stat walk per event.
+	repoCacheTTL = 5 * time.Second
+	// maxRepoCacheEntries bounds the discovery cache; it is cleared
+	// when full.
+	maxRepoCacheEntries = 10_000
+)
 
-// Ignorer answers whether paths are ignored by git. A path is matched
-// against the rules of its enclosing repository, the nearest ancestor
-// directory containing .git: the global excludes file, the
-// repository's .git/info/exclude, and every .gitignore from the
-// repository root down to the path's directory. Paths outside any
-// repository are never ignored. Ignore files are cached and re-read
-// when their modification time or size changes. Safe for concurrent
-// use.
+// Ignorer answers whether paths are ignored by git. A path follows the
+// rules of its enclosing repository, the nearest ancestor directory
+// containing a .git directory or file. Paths outside any repository
+// are never ignored.
+//
+// git is the source of truth: Ignorer runs git ls-files and git
+// check-ignore so wildmatch, core.ignoreCase, separate git dirs,
+// config includes, and the global excludes file behave exactly as in
+// git. When git is not installed, or a git call fails, it falls back
+// to go-git's matcher, which only approximates git (see
+// ignore_fallback.go). Safe for concurrent use.
 type Ignorer struct {
-	fs afero.Fs
-	// global holds the lines of the user's global excludes file. It is
-	// read once; anchored patterns are relative to each repository
-	// root, so it is parsed per repository.
+	fs  afero.Fs
+	git *gitRunner
+	// global holds the global excludes lines for the fallback.
 	global []string
 
-	mu    sync.Mutex
-	files map[string]cachedIgnoreFile
+	mu       sync.Mutex
+	files    map[string]cachedIgnoreFile
+	tops     map[string]cachedValue
+	excludes map[string]cachedValue
 }
 
-type fileStamp struct {
-	modTime int64
-	size    int64
+type cachedValue struct {
+	value   string
+	expires time.Time
 }
 
-type cachedIgnoreFile struct {
-	stamp    fileStamp
-	patterns []gitignore.Pattern
+type ignorerConfig struct {
+	execer agentexec.Execer
+	gitBin string
 }
 
-// NewIgnorer creates an Ignorer reading files through fs. homeDir
-// locates the global excludes file: core.excludesFile in
-// ~/.gitconfig, else $XDG_CONFIG_HOME/git/ignore or
-// ~/.config/git/ignore. An empty homeDir disables global excludes.
-func NewIgnorer(fs afero.Fs, homeDir string) *Ignorer {
-	return &Ignorer{
-		fs:     fs,
-		global: loadGlobalExcludes(fs, homeDir),
-		files:  make(map[string]cachedIgnoreFile),
+// IgnorerOption configures an Ignorer.
+type IgnorerOption func(*ignorerConfig)
+
+// WithGit sets how git is run. An empty bin disables git and uses the
+// go-git fallback. The default runs "git" from PATH through
+// agentexec.DefaultExecer.
+func WithGit(execer agentexec.Execer, bin string) IgnorerOption {
+	return func(c *ignorerConfig) {
+		c.execer = execer
+		c.gitBin = bin
 	}
 }
 
-func loadGlobalExcludes(fs afero.Fs, home string) []string {
-	if home == "" {
-		return nil
+// NewIgnorer creates an Ignorer. filesystem and homeDir are used only
+// by the fallback: filesystem reads ignore files and homeDir locates
+// the global excludes file. An empty homeDir disables fallback global
+// excludes.
+func NewIgnorer(filesystem afero.Fs, homeDir string, opts ...IgnorerOption) *Ignorer {
+	cfg := ignorerConfig{execer: agentexec.DefaultExecer, gitBin: "git"}
+	for _, opt := range opts {
+		opt(&cfg)
 	}
-	var path string
-	if data, err := afero.ReadFile(fs, filepath.Join(home, ".gitconfig")); err == nil {
-		conf := config.New()
-		if err := config.NewDecoder(bytes.NewReader(data)).Decode(conf); err == nil {
-			path = conf.Section("core").Options.Get("excludesfile")
-		}
+	ig := &Ignorer{
+		fs:       filesystem,
+		git:      newGitRunner(cfg.execer, cfg.gitBin),
+		files:    make(map[string]cachedIgnoreFile),
+		tops:     make(map[string]cachedValue),
+		excludes: make(map[string]cachedValue),
 	}
-	if path == "" {
-		xdg := os.Getenv("XDG_CONFIG_HOME")
-		if xdg == "" {
-			xdg = filepath.Join(home, ".config")
-		}
-		path = filepath.Join(xdg, "git", "ignore")
-	} else if path == "~" || strings.HasPrefix(path, "~/") {
-		path = filepath.Join(home, strings.TrimPrefix(path, "~"))
+	if ig.git == nil {
+		ig.global = loadGlobalExcludes(filesystem, homeDir)
 	}
-	data, err := afero.ReadFile(fs, path)
-	if err != nil {
-		return nil
-	}
-	return ignoreLines(data)
+	return ig
 }
 
-func ignoreLines(data []byte) []string {
-	var lines []string
-	for line := range strings.SplitSeq(string(data), "\n") {
-		line = strings.TrimSuffix(line, "\r")
-		if strings.HasPrefix(line, "#") || strings.TrimSpace(line) == "" {
-			continue
-		}
-		lines = append(lines, line)
+func (ig *Ignorer) cached(m map[string]cachedValue, key string) (string, bool) {
+	ig.mu.Lock()
+	defer ig.mu.Unlock()
+	c, ok := m[key]
+	if !ok || time.Now().After(c.expires) {
+		return "", false
 	}
-	return lines
+	return c.value, true
 }
 
-func pathParts(path string) []string {
-	return strings.FieldsFunc(filepath.Clean(path), func(r rune) bool {
-		return r == filepath.Separator
-	})
+func (ig *Ignorer) cache(m map[string]cachedValue, key, value string) {
+	ig.mu.Lock()
+	defer ig.mu.Unlock()
+	if len(m) >= maxRepoCacheEntries {
+		clear(m)
+	}
+	m[key] = cachedValue{value: value, expires: time.Now().Add(repoCacheTTL)}
 }
 
-// IgnoreRules are the ignore rules for the entries of one directory.
-// The zero value ignores nothing.
-type IgnoreRules struct {
-	inRepo   bool
-	patterns []gitignore.Pattern
-	// dirIgnored is set when the directory itself, or an ancestor
-	// below the repository root, is ignored.
-	dirIgnored bool
-}
-
-// Ignored reports whether path, an entry of the rules' directory, is
-// ignored. isDir must be false for symlinks, as git does not follow
-// them.
-func (r IgnoreRules) Ignored(path string, isDir bool) bool {
-	if !r.inRepo {
-		return false
+// repoTop returns the top of the repository enclosing dir, or "" when
+// dir is not in one. Results are cached per directory.
+func (ig *Ignorer) repoTop(dir string) string {
+	if top, ok := ig.cached(ig.tops, dir); ok {
+		return top
 	}
-	if r.dirIgnored {
-		return true
+	var top string
+	if _, err := ig.lstat(filepath.Join(dir, ".git")); err == nil {
+		top = dir
+	} else if parent := filepath.Dir(dir); parent != dir {
+		top = ig.repoTop(parent)
 	}
-	return gitignore.NewMatcher(r.patterns).Match(pathParts(path), isDir)
-}
-
-// Rules returns the ignore rules for the entries of dir.
-func (ig *Ignorer) Rules(dir string) IgnoreRules {
-	return ig.rulesBelow(dir, "")
-}
-
-// rulesBelow returns the ignore rules for the entries of dir. When trusted
-// is set, only ancestors strictly below trusted are checked for being
-// ignored; otherwise every ancestor below the repository root is.
-func (ig *Ignorer) rulesBelow(dir, trusted string) IgnoreRules {
-	dir = filepath.Clean(dir)
-	// chain holds dir and its ancestors up to the repository root,
-	// nearest first.
-	var chain []string
-	for d := dir; ; {
-		chain = append(chain, d)
-		if ig.isRepo(d) {
-			break
-		}
-		parent := filepath.Dir(d)
-		if parent == d {
-			return IgnoreRules{}
-		}
-		d = parent
-	}
-	r := ig.repoRules(chain[len(chain)-1])
-	for i := len(chain) - 2; i >= 0; i-- {
-		d := chain[i]
-		if !r.dirIgnored && (trusted == "" || isBelow(trusted, d)) && r.Ignored(d, true) {
-			r.dirIgnored = true
-		}
-		r.patterns = append(slices.Clip(r.patterns), ig.filePatterns(filepath.Join(d, gitignoreFile), pathParts(d))...)
-	}
-	return r
-}
-
-// isBelow reports whether path is strictly inside base.
-func isBelow(base, path string) bool {
-	rel, err := filepath.Rel(base, path)
-	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
-}
-
-// child returns the rules for the entries of dir, a subdirectory of
-// the directory parent applies to that is not ignored itself.
-func (ig *Ignorer) child(parent IgnoreRules, dir string) IgnoreRules {
-	if ig.isRepo(dir) {
-		return ig.repoRules(dir)
-	}
-	if !parent.inRepo {
-		return IgnoreRules{}
-	}
-	return IgnoreRules{
-		inRepo:   true,
-		patterns: append(slices.Clip(parent.patterns), ig.filePatterns(filepath.Join(dir, gitignoreFile), pathParts(dir))...),
-	}
-}
-
-// repoRules returns the rules for the entries of a repository root.
-func (ig *Ignorer) repoRules(root string) IgnoreRules {
-	domain := pathParts(root)
-	patterns := make([]gitignore.Pattern, 0, len(ig.global))
-	for _, line := range ig.global {
-		patterns = append(patterns, gitignore.ParsePattern(line, domain))
-	}
-	patterns = append(patterns, ig.filePatterns(filepath.Join(root, ".git", "info", "exclude"), domain)...)
-	patterns = append(patterns, ig.filePatterns(filepath.Join(root, gitignoreFile), domain)...)
-	return IgnoreRules{inRepo: true, patterns: patterns}
-}
-
-func (ig *Ignorer) isRepo(dir string) bool {
-	_, err := ig.lstat(filepath.Join(dir, ".git"))
-	return err == nil
+	ig.cache(ig.tops, dir, top)
+	return top
 }
 
 func (ig *Ignorer) lstat(path string) (os.FileInfo, error) {
@@ -207,85 +136,165 @@ func (ig *Ignorer) lstat(path string) (os.FileInfo, error) {
 	return ig.fs.Stat(path)
 }
 
-// filePatterns returns the patterns in the ignore file at path, parsed
-// relative to domain. Only existing files are cached, so the cache
-// grows with the number of ignore files rather than directories.
-func (ig *Ignorer) filePatterns(path string, domain []string) []gitignore.Pattern {
-	info, err := ig.fs.Stat(path)
-	if err != nil || info.IsDir() {
-		if errors.Is(err, os.ErrNotExist) {
-			ig.mu.Lock()
-			delete(ig.files, path)
-			ig.mu.Unlock()
+// excludeFile returns the path of the repository's info/exclude file.
+func (ig *Ignorer) excludeFile(ctx context.Context, top string) string {
+	if path, ok := ig.cached(ig.excludes, top); ok {
+		return path
+	}
+	var path string
+	if ig.git != nil {
+		path, _ = ig.git.excludeFile(ctx, top)
+	}
+	if path == "" {
+		path = fallbackExcludeFile(ig.fs, top)
+	}
+	ig.cache(ig.excludes, top, path)
+	return path
+}
+
+// IgnoreQuery is a path to classify. IsDir must be false for symlinks,
+// as git does not follow them.
+type IgnoreQuery struct {
+	Path  string
+	IsDir bool
+}
+
+// Ignored reports, for each query, whether git ignores the path. It
+// runs one git check-ignore per repository involved. If git fails for
+// a repository, its paths are classified by the fallback.
+func (ig *Ignorer) Ignored(ctx context.Context, queries []IgnoreQuery) []bool {
+	result := make([]bool, len(queries))
+	byTop := make(map[string][]int)
+	for i, q := range queries {
+		if top := ig.repoTop(filepath.Dir(q.Path)); top != "" {
+			byTop[top] = append(byTop[top], i)
 		}
-		return nil
 	}
-	stamp := fileStamp{modTime: info.ModTime().UnixNano(), size: info.Size()}
-	ig.mu.Lock()
-	cached, ok := ig.files[path]
-	ig.mu.Unlock()
-	if ok && cached.stamp == stamp {
-		return cached.patterns
+	for top, indexes := range byTop {
+		if ig.git != nil {
+			rels := make([]string, len(indexes))
+			for j, i := range indexes {
+				rel, _ := filepath.Rel(top, queries[i].Path)
+				rels[j] = filepath.ToSlash(rel)
+				if queries[i].IsDir {
+					rels[j] += "/"
+				}
+			}
+			if ignored, err := ig.git.checkIgnored(ctx, top, rels); err == nil {
+				for j, i := range indexes {
+					result[i] = ignored[j]
+				}
+				continue
+			}
+		}
+		rules := make(map[string]ignoreRules)
+		for _, i := range indexes {
+			dir := filepath.Dir(queries[i].Path)
+			r, ok := rules[dir]
+			if !ok {
+				r = ig.fallbackRules(dir)
+				rules[dir] = r
+			}
+			result[i] = r.ignored(queries[i].Path, queries[i].IsDir)
+		}
 	}
-	data, err := afero.ReadFile(ig.fs, path)
-	if err != nil {
-		return nil
-	}
-	lines := ignoreLines(data)
-	patterns := make([]gitignore.Pattern, 0, len(lines))
-	for _, line := range lines {
-		patterns = append(patterns, gitignore.ParsePattern(line, domain))
-	}
-	ig.mu.Lock()
-	ig.files[path] = cachedIgnoreFile{stamp: stamp, patterns: patterns}
-	ig.mu.Unlock()
-	return patterns
+	return result
 }
 
-// isIgnoreFile reports whether a change to path can change ignore
-// rules.
-func isIgnoreFile(path string) bool {
-	return filepath.Base(path) == gitignoreFile || isGitInfoPath(path) && filepath.Base(path) == "exclude"
+// walkScope decides which entries of a walked directory are ignored.
+type walkScope struct {
+	// all is set when the whole directory is ignored.
+	all bool
+	// set holds the ignored paths git reported for the subtree.
+	set map[string]struct{}
+	// rules are used instead of set by the fallback.
+	rules *ignoreRules
 }
 
-// isGitInfoPath reports whether path is an entry of a .git/info
-// directory, which the watcher watches only to see exclude changes.
-func isGitInfoPath(path string) bool {
-	info := filepath.Dir(path)
-	return filepath.Base(info) == "info" && filepath.Base(filepath.Dir(info)) == ".git"
+func (s walkScope) ignored(path string, isDir bool) bool {
+	switch {
+	case s.all:
+		return true
+	case s.rules != nil:
+		return s.rules.ignored(path, isDir)
+	default:
+		_, ok := s.set[path]
+		return ok
+	}
 }
 
-// walkIndexable walks root like filepath.Walk, calling fn for every
-// entry except root itself. It skips skipDirs and gitignored entries
-// without descending into ignored directories. root itself is treated
-// as not ignored, as the caller asked for it. It stops when ctx is
+// scopeFor lists the ignored paths under dir with one git call. git
+// reports an ignored directory without reading it.
+func (ig *Ignorer) scopeFor(ctx context.Context, dir string) walkScope {
+	if ig.repoTop(dir) == "" {
+		return walkScope{}
+	}
+	if ig.git != nil {
+		set, all, err := ig.git.listIgnored(ctx, dir)
+		if err == nil {
+			return walkScope{all: all, set: set}
+		}
+	}
+	r := ig.fallbackRules(dir)
+	return walkScope{all: r.dirIgnored, rules: &r}
+}
+
+// walk walks root with filepath.WalkDir, calling fn for every entry
+// below root that is not in skipDirs and not gitignored. Ignored
+// directories are pruned before they are read. onRepo, if set, is
+// called with the top of each repository whose rules apply: root's
+// enclosing one and any nested below root. It stops when ctx is
 // canceled, returning ctx.Err().
-func walkIndexable(ctx context.Context, ig *Ignorer, root string, fn func(path string, info os.FileInfo) error) error {
-	rules := map[string]IgnoreRules{root: ig.rulesBelow(root, root)}
-	return filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
+func (ig *Ignorer) walk(ctx context.Context, root string, fn func(path string, d fs.DirEntry) error, onRepo func(top string)) error {
+	if _, skip := skipDirs[filepath.Base(root)]; skip {
+		return nil
+	}
+	rootScope := ig.scopeFor(ctx, root)
+	if top := ig.repoTop(root); top != "" && onRepo != nil {
+		onRepo(top)
+	}
+	if rootScope.all {
+		return nil
+	}
+	scopes := map[string]walkScope{root: rootScope}
+	return filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if walkErr != nil {
+		if walkErr != nil || path == root {
 			return nil //nolint:nilerr // best-effort
 		}
-		isDir := info.IsDir()
-		if _, skip := skipDirs[filepath.Base(path)]; skip && isDir {
+		isDir := d.IsDir()
+		if _, skip := skipDirs[d.Name()]; skip && isDir {
 			return filepath.SkipDir
 		}
-		if path == root {
-			return nil
-		}
-		parent := rules[filepath.Dir(path)]
-		if parent.Ignored(path, isDir) {
+		parent := scopes[filepath.Dir(path)]
+		if parent.ignored(path, isDir) {
 			if isDir {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 		if isDir {
-			rules[path] = ig.child(parent, path)
+			switch {
+			case ig.repoTop(path) == path:
+				scopes[path] = ig.scopeFor(ctx, path)
+				if onRepo != nil {
+					onRepo(path)
+				}
+			case parent.rules != nil:
+				r := ig.fallbackChild(*parent.rules, path)
+				scopes[path] = walkScope{rules: &r}
+			default:
+				scopes[path] = parent
+			}
 		}
-		return fn(path, info)
+		return fn(path, d)
 	})
+}
+
+// isBelow reports whether path is strictly inside base.
+func isBelow(base, path string) bool {
+	rel, err := filepath.Rel(base, path)
+	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }

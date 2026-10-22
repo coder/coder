@@ -2,6 +2,7 @@ package filefinder
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sync"
@@ -49,6 +50,14 @@ type fsWatcher struct {
 	// started is set once Start runs; done is only closed after that.
 	started bool
 	done    chan struct{}
+
+	// ruleFiles are ignore rule sources outside the watched tree: the
+	// .gitignore files inherited from ancestors of root and each
+	// repository's exclude file. ruleDirs are the directories watched
+	// only to see them; their other events are dropped. Both are only
+	// used by Start and the loop goroutine, one after the other.
+	ruleFiles map[string]struct{}
+	ruleDirs  map[string]struct{}
 }
 
 func newFSWatcher(root string, logger slog.Logger, ig *Ignorer) (*fsWatcher, error) {
@@ -57,37 +66,61 @@ func newFSWatcher(root string, logger slog.Logger, ig *Ignorer) (*fsWatcher, err
 		return nil, err
 	}
 	return &fsWatcher{
-		w:      w,
-		root:   root,
-		ig:     ig,
-		events: make(chan []FSEvent, 64),
-		logger: logger,
-		done:   make(chan struct{}),
+		w:         w,
+		root:      root,
+		ig:        ig,
+		events:    make(chan []FSEvent, 64),
+		logger:    logger,
+		done:      make(chan struct{}),
+		ruleFiles: make(map[string]struct{}),
+		ruleDirs:  make(map[string]struct{}),
 	}, nil
 }
 
-// Start adds watches under the root and starts the event loop. It
-// stops early when ctx is canceled. It does nothing after Close.
-func (fw *fsWatcher) Start(ctx context.Context) {
+// Start watches the root and its ignore rule sources, starts the
+// event loop, and returns create events for the entries found. Each
+// directory is watched before it is read, so later changes arrive as
+// events. It returns nil when ctx is canceled or after Close.
+func (fw *fsWatcher) Start(ctx context.Context) []FSEvent {
 	fw.mu.Lock()
 	if fw.closed {
 		fw.mu.Unlock()
-		return
+		return nil
 	}
 	fw.started = true
 	fw.mu.Unlock()
 
-	initEvents := fw.addRecursive(ctx, fw.root)
-	if len(initEvents) > 0 {
-		select {
-		case fw.events <- initEvents:
-		case <-ctx.Done():
-			close(fw.done)
-			return
+	if top := fw.ig.repoTop(fw.root); top != "" && top != fw.root {
+		for d := filepath.Dir(fw.root); ; d = filepath.Dir(d) {
+			fw.watchRuleFile(filepath.Join(d, gitignoreFile))
+			if d == top || filepath.Dir(d) == d {
+				break
+			}
 		}
+	}
+	initEvents := fw.addRecursive(ctx, fw.root)
+	if ctx.Err() != nil {
+		close(fw.done)
+		return nil
 	}
 	fw.logger.Debug(ctx, "fs watcher started", slog.F("root", fw.root))
 	go fw.loop(ctx)
+	return initEvents
+}
+
+// watchRuleFile watches the directory of an ignore rule source
+// outside the tree so changes to it trigger a reload.
+func (fw *fsWatcher) watchRuleFile(path string) {
+	fw.ruleFiles[path] = struct{}{}
+	dir := filepath.Dir(path)
+	if _, ok := fw.ruleDirs[dir]; ok {
+		return
+	}
+	fw.ruleDirs[dir] = struct{}{}
+	if err := fw.w.Add(dir); err != nil {
+		fw.logger.Debug(context.Background(), "failed to watch ignore rule directory",
+			slog.F("path", dir), slog.Error(err))
+	}
 }
 func (fw *fsWatcher) Events() <-chan []FSEvent { return fw.events }
 func (fw *fsWatcher) Close() error {
@@ -115,7 +148,7 @@ func (fw *fsWatcher) loop(ctx context.Context) {
 		timerC <-chan time.Time
 	)
 	flush := func() {
-		events := batch.take()
+		events := fw.filterIgnored(ctx, batch.take())
 		if len(events) == 0 {
 			return
 		}
@@ -151,21 +184,12 @@ func (fw *fsWatcher) loop(ctx context.Context) {
 			if fsev == nil {
 				continue
 			}
-			if isIgnoreFile(fsev.Path) {
+			if _, ok := fw.ruleFiles[fsev.Path]; ok ||
+				filepath.Base(fsev.Path) == gitignoreFile && isBelow(fw.root, fsev.Path) {
 				addToBatch(FSEvent{Op: OpIgnoreChanged})
 			}
-			// .git/info is watched only to see exclude changes.
-			if isGitInfoPath(fsev.Path) {
+			if _, ok := fw.ruleDirs[filepath.Dir(fsev.Path)]; ok {
 				continue
-			}
-			if (fsev.Op == OpCreate || fsev.Op == OpModify) &&
-				fw.ig.rulesBelow(filepath.Dir(fsev.Path), fw.root).Ignored(fsev.Path, fsev.IsDir) {
-				continue
-			}
-			if fsev.IsDir && fsev.Op == OpCreate {
-				for _, s := range fw.addRecursive(ctx, fsev.Path) {
-					addToBatch(s)
-				}
 			}
 			addToBatch(*fsev)
 		case err, ok := <-fw.w.Errors:
@@ -223,25 +247,59 @@ func (b *eventBatch) take() []FSEvent {
 	return events
 }
 
+// filterIgnored drops created and modified paths that git ignores,
+// with one classification per batch, and expands each remaining
+// created directory into its contents.
+func (fw *fsWatcher) filterIgnored(ctx context.Context, events []FSEvent) []FSEvent {
+	var queries []IgnoreQuery
+	for _, ev := range events {
+		if ev.Op == OpCreate || ev.Op == OpModify {
+			queries = append(queries, IgnoreQuery{Path: ev.Path, IsDir: ev.IsDir})
+		}
+	}
+	if len(queries) == 0 {
+		return events
+	}
+	ignored := fw.ig.Ignored(ctx, queries)
+	out := make([]FSEvent, 0, len(events))
+	q := 0
+	for _, ev := range events {
+		if ev.Op == OpCreate || ev.Op == OpModify {
+			skip := ignored[q]
+			q++
+			if skip {
+				continue
+			}
+		}
+		out = append(out, ev)
+		if ev.IsDir && ev.Op == OpCreate {
+			out = append(out, fw.addRecursive(ctx, ev.Path)...)
+		}
+	}
+	return out
+}
+
 // addRecursive watches dir and its subdirectories, skipping skipDirs
 // and gitignored directories, and returns create events for the
-// entries below dir. It also watches each repository's .git/info so
-// exclude changes are seen.
+// entries below dir. It also watches the exclude file of each
+// repository whose rules apply.
 func (fw *fsWatcher) addRecursive(ctx context.Context, dir string) []FSEvent {
 	if _, skip := skipDirs[filepath.Base(dir)]; skip {
 		return nil
 	}
 	var events []FSEvent
 	fw.watchDir(dir)
-	walkErr := walkIndexable(ctx, fw.ig, dir, func(path string, info os.FileInfo) error {
+	walkErr := fw.ig.walk(ctx, dir, func(path string, d fs.DirEntry) error {
 		if len(events) >= maxIndexEntries {
 			return filepath.SkipAll
 		}
-		if info.IsDir() {
+		if d.IsDir() {
 			fw.watchDir(path)
 		}
-		events = append(events, FSEvent{Op: OpCreate, Path: path, IsDir: info.IsDir()})
+		events = append(events, FSEvent{Op: OpCreate, Path: path, IsDir: d.IsDir()})
 		return nil
+	}, func(top string) {
+		fw.watchRuleFile(fw.ig.excludeFile(ctx, top))
 	})
 	if walkErr != nil && ctx.Err() == nil {
 		fw.logger.Warn(context.Background(), "failed to walk directory",
@@ -251,13 +309,9 @@ func (fw *fsWatcher) addRecursive(ctx context.Context, dir string) []FSEvent {
 }
 
 func (fw *fsWatcher) watchDir(dir string) {
-	if addErr := fw.w.Add(dir); addErr != nil {
+	if err := fw.w.Add(dir); err != nil {
 		fw.logger.Debug(context.Background(), "failed to add watch",
-			slog.F("path", dir), slog.Error(addErr))
-	}
-	info := filepath.Join(dir, ".git", "info")
-	if fi, err := os.Stat(info); err == nil && fi.IsDir() {
-		_ = fw.w.Add(info)
+			slog.F("path", dir), slog.Error(err))
 	}
 }
 
