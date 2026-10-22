@@ -5,10 +5,17 @@ import {
 	WorkspaceFilesContext,
 	type WorkspaceFilesContextValue,
 } from "../../context/WorkspaceFilesContext";
-import type { MessageDisplayState } from "./messageHelpers";
+import type {
+	MessageDisplayState,
+	UserInlineRenderBlock,
+} from "./messageHelpers";
 import { UserMessageContent } from "./UserMessageContent";
 
-const renderMessage = (text: string, openFile = vi.fn()) => {
+const renderMessage = (
+	text: string,
+	openFile = vi.fn(),
+	blocks: UserInlineRenderBlock[] = [{ type: "response", text }],
+) => {
 	const workspaceFiles: WorkspaceFilesContextValue = {
 		agentId: "agent-1",
 		defaultDirectory: "/home/coder",
@@ -18,7 +25,7 @@ const renderMessage = (text: string, openFile = vi.fn()) => {
 	};
 	const displayState: MessageDisplayState = {
 		shouldHide: false,
-		userInlineContent: [{ type: "response", text }],
+		userInlineContent: blocks,
 		userFileBlocks: [],
 		workspaceFileBlocks: [],
 		workspaceFileReferenceCount: 0,
@@ -68,5 +75,24 @@ describe("UserMessageContent", () => {
 		const setData = vi.fn();
 		fireEvent.copy(message, { clipboardData: { setData } });
 		expect(setData).toHaveBeenCalledWith("text/plain", text);
+	});
+
+	it("copies skill chips as their aliases", () => {
+		renderMessage(" check this", vi.fn(), [
+			{
+				type: "skill-invocation",
+				skill_source: "personal",
+				skill_name: "reviewer",
+			},
+			{ type: "response", text: " check this" },
+		]);
+		const message = screen.getByText(/check this/);
+		window.getSelection()?.selectAllChildren(message);
+		const setData = vi.fn();
+		fireEvent.copy(message, { clipboardData: { setData } });
+		expect(setData).toHaveBeenCalledWith(
+			"text/plain",
+			"/personal/reviewer check this",
+		);
 	});
 });

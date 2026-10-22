@@ -80,8 +80,8 @@ const splitWorkspacePathChips = (
 		};
 	});
 
-// Chips are not selectable and show only a basename, so a copy of a selection
-// within the message writes each chip's sent text in place of the chip.
+// Chips are not selectable, so a copy of a selection within the message
+// writes each chip's text form, its data-copy-text, in place of the chip.
 const handleMessageCopy = (event: React.ClipboardEvent<HTMLElement>) => {
 	const selection = window.getSelection();
 	const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
@@ -111,15 +111,18 @@ const renderUserChip = (
 		hasInlineContentAfter(inlineParts, index) && "mr-1",
 	);
 	if (block.type === "skill-invocation") {
+		const alias = getSkillAlias(block.skill_source, block.skill_name);
 		return {
 			element: (
-				<SkillChip
-					source={block.skill_source}
-					name={block.skill_name}
-					className={chipClassName}
-				/>
+				<span data-copy-text={alias}>
+					<SkillChip
+						source={block.skill_source}
+						name={block.skill_name}
+						className={chipClassName}
+					/>
+				</span>
 			),
-			text: getSkillAlias(block.skill_source, block.skill_name),
+			text: alias,
 		};
 	}
 
