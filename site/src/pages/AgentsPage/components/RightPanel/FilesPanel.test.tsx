@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { focusManager, QueryClientProvider } from "react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -477,19 +477,39 @@ describe("FilesPanel", () => {
 		expect(listedPaths()).not.toContain("/home/coder/repo/src/lib");
 	});
 
-	it("merges Home into the default directory once both resolve alike", async () => {
+	it("lists places, then repositories, with paths only in the menu", async () => {
 		const user = userEvent.setup();
 		renderPanel(contextValue());
 
 		await screen.findByRole("treeitem", { name: "src" });
-		await user.click(screen.getByRole("combobox", { name: "Root directory" }));
-		await user.click(screen.getByRole("option", { name: "Home" }));
-		await screen.findByRole("treeitem", { name: ".bashrc" });
+		const trigger = screen.getByRole("combobox", { name: "Root directory" });
+		await waitFor(() => expect(listedPaths()).toContain("~"));
+		await user.click(trigger);
+
+		expect(
+			screen.getAllByRole("option").map((option) => option.textContent),
+		).toEqual(["File system/", "Home~", "repo~/repo", "Open path..."]);
+		const repositories = screen.getByRole("group", { name: "Repositories" });
+		expect(
+			within(repositories)
+				.getAllByRole("option")
+				.map((option) => option.textContent),
+		).toEqual(["repo~/repo"]);
+		expect(trigger).toHaveTextContent(/^repo$/);
+	});
+
+	it("lists a default directory apart from home under its own name", async () => {
+		const user = userEvent.setup();
+		renderPanel(
+			contextValue({ defaultDirectory: "/home/coder/work", repoRoots: [] }),
+		);
+
+		await waitFor(() => expect(listedPaths()).toContain("~"));
 		await user.click(screen.getByRole("combobox", { name: "Root directory" }));
 
 		expect(
 			screen.getAllByRole("option").map((option) => option.textContent),
-		).toEqual(["repo", "Default directory (~)", "/", "Open path..."]);
+		).toEqual(["File system/", "Home~", "work~/work", "Open path..."]);
 	});
 
 	it("cancels a hidden directory's fetch and lets Refresh restart a stalled one", async () => {
