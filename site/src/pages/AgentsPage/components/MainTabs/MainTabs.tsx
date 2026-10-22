@@ -78,6 +78,7 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 		store,
 		workspaceFiles,
 		paths: files.map((file) => file.path),
+		activePath,
 	});
 
 	const updateDraft = (path: string, update: FileDraftUpdate) => {

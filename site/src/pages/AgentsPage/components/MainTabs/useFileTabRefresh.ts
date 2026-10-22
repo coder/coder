@@ -1,5 +1,7 @@
+import { isAxiosError } from "axios";
 import { useEffect, useEffectEvent, useRef } from "react";
 import { focusManager, useQueryClient } from "react-query";
+import { API, type WorkspaceAgentFileContents } from "#/api/api";
 import { workspaceAgentFileKey } from "#/api/queries/workspaceFiles";
 import type {
 	ChatMessage,
@@ -20,7 +22,17 @@ type UseFileTabRefreshOptions = {
 	workspaceFiles: WorkspaceFilesContextValue | undefined;
 	/** Absolute paths of the open file tabs. */
 	paths: readonly string[];
+	/** The active file tab, or null while the Chat tab is active. */
+	activePath: string | null;
 };
+
+/**
+ * How often the active tab checks its file for changes while the page is
+ * visible, when no git watcher reports the file's repository. Each check
+ * reads one byte, whose response carries the whole file's ETag. The git
+ * watcher polls repositories every 5 s.
+ */
+export const fileCheckIntervalMs = 5_000;
 
 /** Repo roots are sorted, so the last match is the innermost repository. */
 export const findRepoRoot = (repoRoots: readonly string[], path: string) =>
@@ -134,15 +146,17 @@ const findToolCallArgs = (state: ChatStoreState, id: string): unknown => {
 
 /**
  * Rereads open files when something may have changed them: the window
- * regains focus, the git watcher reports a new diff for the file, or a
- * write_file or edit_files call in this chat completes. Only the active
- * tab's query is enabled, so it rereads at once and the others on their
- * next activation.
+ * regains focus, the git watcher reports a new diff for the file, a
+ * write_file or edit_files call in this chat completes, or a periodic check
+ * finds that the active file outside every watched repository changed.
+ * Only the active tab's query is enabled, so it rereads at once and the
+ * others on their next activation.
  */
 export const useFileTabRefresh = ({
 	store,
 	workspaceFiles,
 	paths,
+	activePath,
 }: UseFileTabRefreshOptions) => {
 	const queryClient = useQueryClient();
 	const repositories = workspaceFiles?.repositories;
@@ -206,6 +220,61 @@ export const useFileTabRefresh = ({
 			refreshChangedRepositories(repositories);
 		}
 	}, [repositories]);
+
+	const checkFile = useEffectEvent(async (path: string) => {
+		if (!workspaceFiles || document.visibilityState !== "visible") {
+			return;
+		}
+		const queryKey = workspaceAgentFileKey(workspaceFiles.agentId, path);
+		if (queryClient.getQueryState(queryKey)?.fetchStatus !== "idle") {
+			return;
+		}
+		let etag: string | undefined;
+		try {
+			({ etag } = await API.readWorkspaceAgentFile(
+				workspaceFiles.agentId,
+				path,
+				{ limit: 1 },
+			));
+		} catch (error) {
+			// A missing file has no ETag; other failures say nothing.
+			if (!isAxiosError(error) || error.response?.status !== 404) {
+				return;
+			}
+		}
+		const state =
+			queryClient.getQueryState<WorkspaceAgentFileContents>(queryKey);
+		if (state?.fetchStatus !== "idle") {
+			return;
+		}
+		// A read that failed, such as for a deleted file, keeps its data.
+		const readEtag = state.status === "success" ? state.data?.etag : undefined;
+		if (etag !== readEtag) {
+			refresh([path]);
+		}
+	});
+	const checkedPath =
+		workspaceFiles &&
+		activePath !== null &&
+		!findRepoRoot(workspaceFiles.repoRoots, activePath)
+			? activePath
+			: undefined;
+	useEffect(() => {
+		if (!checkedPath) {
+			return;
+		}
+		let isChecking = false;
+		const timer = window.setInterval(() => {
+			if (isChecking) {
+				return;
+			}
+			isChecking = true;
+			void checkFile(checkedPath).finally(() => {
+				isChecking = false;
+			});
+		}, fileCheckIntervalMs);
+		return () => window.clearInterval(timer);
+	}, [checkedPath]);
 
 	// A result can show in the stream and again in its durable message, so
 	// each tool call refreshes once.

@@ -20,6 +20,7 @@ import { type ChatStore, createChatStore } from "../ChatConversation/chatStore";
 import type { StreamState } from "../ChatConversation/types";
 import type FileEditor from "../FileTab/FileEditor";
 import { MainTabs } from "./MainTabs";
+import { fileCheckIntervalMs } from "./useFileTabRefresh";
 import { useMainTabs } from "./useMainTabs";
 
 vi.mock("../FileTab/FileEditor", () => ({
@@ -614,6 +615,7 @@ describe("MainTabs", () => {
 
 		afterEach(() => {
 			focusManager.setFocused(undefined);
+			vi.useRealTimers();
 		});
 
 		it("rereads the active file when its diff changes, and others once activated", async () => {
@@ -781,6 +783,57 @@ describe("MainTabs", () => {
 			await waitFor(() => {
 				expect(reads("/repo/a.go")).toBe(2);
 			});
+		});
+
+		it("checks the active file outside watched repositories while the page is visible", async () => {
+			vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+			let content = "one";
+			vi.mocked(API.readWorkspaceAgentFile).mockImplementation(
+				async (_agentId, _path, range) => {
+					const file = textFile(content);
+					return range?.limit === 1
+						? { ...file, data: file.data.slice(0, 1) }
+						: file;
+				},
+			);
+			const checks = () =>
+				vi
+					.mocked(API.readWorkspaceAgentFile)
+					.mock.calls.filter(([, , range]) => range?.limit === 1)
+					.map(([, path]) => path);
+			const waitForChecks = async () => {
+				act(() => vi.advanceTimersByTime(fileCheckIntervalMs));
+				await settle();
+			};
+			const user = userEvent.setup();
+			renderHarness(["/repo/a.go", "/home/coder/notes.txt"]);
+			await user.click(screen.getByRole("button", { name: "Open /repo/a.go" }));
+			await screen.findByLabelText("File contents");
+			await waitForChecks();
+			expect(checks()).toEqual([]);
+
+			await user.click(
+				screen.getByRole("button", { name: "Open /home/coder/notes.txt" }),
+			);
+			const editor = within(
+				screen.getByRole("tabpanel", { name: "notes.txt" }),
+			).getByLabelText("File contents");
+			await waitFor(() => {
+				expect(editor).toHaveValue("one");
+			});
+			await waitForChecks();
+			expect(checks()).toEqual(["/home/coder/notes.txt"]);
+			expect(reads("/home/coder/notes.txt")).toBe(2);
+
+			content = "two";
+			await waitForChecks();
+			await waitFor(() => {
+				expect(editor).toHaveValue("two");
+			});
+
+			vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+			await waitForChecks();
+			expect(checks()).toHaveLength(2);
 		});
 	});
 
