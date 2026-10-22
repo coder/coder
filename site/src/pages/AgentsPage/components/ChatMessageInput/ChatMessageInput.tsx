@@ -776,6 +776,9 @@ const ChatMessageInput = ({
 		useState<ActiveTypeaheadTrigger | null>(null);
 	const [containerElement, setContainerElement] =
 		useState<HTMLDivElement | null>(null);
+	const [skillsListbox, setSkillsListbox] = useState<HTMLDivElement | null>(
+		null,
+	);
 	const suppressedSkillsTriggerRef = useRef<SkillsTriggerLocation | null>(null);
 	const [skillsMenuSelectedIndex, setSkillsMenuSelectedIndex] = useState(0);
 	const hasSkillsTrigger = Boolean(skillsTrigger);
@@ -1207,6 +1210,8 @@ const ChatMessageInput = ({
 							aria-label={ariaLabel}
 							aria-describedby={ariaDescribedBy}
 							aria-disabled={disabled}
+							ariaAutoComplete="list"
+							aria-haspopup="listbox"
 						/>
 					}
 					placeholder={
@@ -1245,6 +1250,9 @@ const ChatMessageInput = ({
 					}
 					selectedIndex={selectedSkillIndex}
 					parseTrigger={parseSkillTrigger}
+					submitOnEmptyEnter
+					reopenOnQueryChange={false}
+					listbox={skillsListbox}
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					onTriggerChange={handleSkillsTriggerChange}
 					onSelect={replaceActiveSkillsTrigger}
@@ -1281,6 +1289,7 @@ const ChatMessageInput = ({
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					onSelect={replaceActiveSkillsTrigger}
 					onClose={() => handleSkillsTriggerChange(null)}
+					listboxRef={setSkillsListbox}
 					onEscapeKeyDown={(event) => {
 						// On a real keypress React commits Radix's dismiss before
 						// Lexical sees the same keydown, so the trigger plugin

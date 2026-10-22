@@ -82,6 +82,7 @@ const PathPicker: React.FC<
 	const [editor] = useLexicalComposerContext();
 	const [trigger, setTrigger] = useState<ActiveTypeaheadTrigger | null>(null);
 	const [selectedIndex, setSelectedIndex] = useState(0);
+	const [listbox, setListbox] = useState<HTMLDivElement | null>(null);
 	const pointerHighlightRef = useRef(false);
 	const query = trigger?.query ?? "";
 	const debouncedQuery = useDebouncedValue(query, 150);
@@ -190,6 +191,9 @@ const PathPicker: React.FC<
 				loading={isSearching}
 				selectedIndex={selectedResultIndex}
 				parseTrigger={parseWorkspacePathTrigger}
+				submitOnEmptyEnter={false}
+				reopenOnQueryChange
+				listbox={listbox}
 				onSelectedIndexChange={setSelectedIndex}
 				onTriggerChange={handleTriggerChange}
 				onSelect={insertPath}
@@ -227,11 +231,14 @@ const PathPicker: React.FC<
 					<Command
 						shouldFilter={false}
 						loop={false}
-						label="Workspace files"
 						onValueChange={handleHighlightedValueChange}
 						value={selectedResultIndex >= 0 ? String(selectedResultIndex) : ""}
 					>
-						<CommandList className="max-h-72 border-t-0 mobile-full-width-dropdown-scroll-area">
+						<CommandList
+							ref={setListbox}
+							label="Workspace files"
+							className="max-h-72 border-t-0 mobile-full-width-dropdown-scroll-area"
+						>
 							{status !== undefined && (
 								<div className="px-2 py-1.5 text-sm text-content-secondary">
 									{status}

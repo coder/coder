@@ -27,7 +27,10 @@ export type ActiveTypeaheadTrigger = {
 	query: string;
 };
 
-type TriggerLocation = Pick<ActiveTypeaheadTrigger, "nodeKey" | "offset">;
+type TriggerIdentity = Pick<
+	ActiveTypeaheadTrigger,
+	"nodeKey" | "offset" | "query"
+>;
 
 type TypeaheadTriggerPluginProps<T> = {
 	open: boolean;
@@ -35,18 +38,32 @@ type TypeaheadTriggerPluginProps<T> = {
 	loading: boolean;
 	selectedIndex: number;
 	parseTrigger: (linePrefix: string) => TypeaheadTriggerMatch | null;
+	/**
+	 * Enter with nothing highlighted closes the menu and submits the message.
+	 * Otherwise Enter does nothing while the menu is open.
+	 */
+	submitOnEmptyEnter: boolean;
+	/**
+	 * A dismissed trigger reopens once its query changes. Otherwise it stays
+	 * closed until the caret leaves the trigger.
+	 */
+	reopenOnQueryChange: boolean;
+	/** The menu's listbox, which the editor exposes as its popup. */
+	listbox: HTMLElement | null;
 	onSelectedIndexChange: (index: number) => void;
 	onTriggerChange: (trigger: ActiveTypeaheadTrigger | null) => void;
 	onSelect: (item: T) => void;
 };
 
 const isSameTrigger = (
-	trigger: TriggerLocation,
-	dismissedTrigger: TriggerLocation | null,
+	trigger: TriggerIdentity,
+	dismissedTrigger: TriggerIdentity | null,
+	compareQuery: boolean,
 ): boolean => {
 	return (
 		dismissedTrigger?.nodeKey === trigger.nodeKey &&
-		dismissedTrigger.offset === trigger.offset
+		dismissedTrigger.offset === trigger.offset &&
+		(!compareQuery || dismissedTrigger.query === trigger.query)
 	);
 };
 
@@ -85,7 +102,6 @@ const activeTriggerFromSelection = (
 /**
  * Tracks a typeahead trigger (such as "/" or "@") before the caret and routes
  * the editor's arrow, Enter, Tab, and Escape keys to its menu while it is open.
- * A dismissed trigger stays closed until its location changes.
  */
 export const TypeaheadTriggerPlugin = <T,>({
 	open,
@@ -93,12 +109,15 @@ export const TypeaheadTriggerPlugin = <T,>({
 	loading,
 	selectedIndex,
 	parseTrigger,
+	submitOnEmptyEnter,
+	reopenOnQueryChange,
+	listbox,
 	onSelectedIndexChange,
 	onTriggerChange,
 	onSelect,
 }: TypeaheadTriggerPluginProps<T>) => {
 	const [editor] = useLexicalComposerContext();
-	const dismissedTriggerRef = useRef<TriggerLocation | null>(null);
+	const dismissedTriggerRef = useRef<TriggerIdentity | null>(null);
 
 	const readActiveTrigger = useEffectEvent(() =>
 		editor
@@ -123,9 +142,14 @@ export const TypeaheadTriggerPlugin = <T,>({
 			return;
 		}
 
-		if (isSameTrigger(trigger, dismissedTriggerRef.current)) {
+		if (
+			isSameTrigger(trigger, dismissedTriggerRef.current, reopenOnQueryChange)
+		) {
 			onTriggerChange(null);
 			return;
+		}
+		if (reopenOnQueryChange) {
+			dismissedTriggerRef.current = null;
 		}
 
 		onTriggerChange(trigger);
@@ -134,6 +158,41 @@ export const TypeaheadTriggerPlugin = <T,>({
 	useEffect(() => {
 		return editor.registerUpdateListener(() => refreshTrigger());
 	}, [editor]);
+
+	// The editor stays a textbox, so it exposes the open menu the way Lexical's
+	// typeahead does: aria-controls names cmdk's listbox and
+	// aria-activedescendant names its highlighted option. Only cmdk knows the
+	// ids because it generates them.
+	useEffect(() => {
+		const rootElement = editor.getRootElement();
+		if (!open || !listbox || !rootElement) {
+			return;
+		}
+		const sync = () => {
+			rootElement.setAttribute("aria-controls", listbox.id);
+			const activeOption = listbox.querySelector(
+				'[role="option"][aria-selected="true"]',
+			);
+			if (activeOption?.id) {
+				rootElement.setAttribute("aria-activedescendant", activeOption.id);
+			} else {
+				rootElement.removeAttribute("aria-activedescendant");
+			}
+		};
+		sync();
+		const observer = new MutationObserver(sync);
+		observer.observe(listbox, {
+			attributes: true,
+			attributeFilter: ["id", "aria-selected"],
+			childList: true,
+			subtree: true,
+		});
+		return () => {
+			observer.disconnect();
+			rootElement.removeAttribute("aria-controls");
+			rootElement.removeAttribute("aria-activedescendant");
+		};
+	}, [editor, open, listbox]);
 
 	const moveMenuHighlight = useEffectEvent(
 		(event: KeyboardEvent, delta: number) => {
@@ -162,7 +221,7 @@ export const TypeaheadTriggerPlugin = <T,>({
 		if (!item) {
 			// A still-loading source may yet produce matches, so keep
 			// consuming Enter until every source resolves.
-			if (loading) {
+			if (loading || !submitOnEmptyEnter) {
 				event?.preventDefault();
 				return true;
 			}

@@ -999,6 +999,77 @@ describe("ChatMessageInput", () => {
 			expect(inputRef.current?.getValue()).toBe("@main");
 		});
 
+		it("does not send on Enter while the picker has no results", async () => {
+			vi.spyOn(API, "findWorkspaceAgentFiles").mockResolvedValue({
+				results: [],
+			});
+			const { inputRef, onEnter } = renderWithWorkspaceFiles(workspaceFiles);
+			const user = await pasteText("@none");
+			await screen.findByText("No matching files.");
+			await user.keyboard("{Enter}");
+			expect(onEnter).not.toHaveBeenCalled();
+			expect(inputRef.current?.getValue()).toBe("@none");
+		});
+
+		it("reopens a dismissed picker when the query changes", async () => {
+			mockFindFiles();
+			renderWithWorkspaceFiles(workspaceFiles);
+			const user = await pasteText("@main");
+			await screen.findByRole("option", { name: /main\.go/ });
+			await user.keyboard("{Escape}");
+			await user.paste("x");
+			await waitFor(() =>
+				expect(API.findWorkspaceAgentFiles).toHaveBeenLastCalledWith(
+					"agent-1",
+					["/home/coder/a", "/home/coder/b"],
+					"mainx",
+				),
+			);
+		});
+
+		it("points the editor at the picker's listbox and highlighted option", async () => {
+			mockFindFiles();
+			renderWithWorkspaceFiles(workspaceFiles);
+			const user = await pasteText("@main");
+			const file = await screen.findByRole("option", { name: /main\.go/ });
+			const textbox = screen.getByRole("textbox", {
+				name: "Chat message input",
+			});
+			const listbox = screen.getByRole("listbox", { name: "Workspace files" });
+			await waitFor(() =>
+				expect(textbox.getAttribute("aria-activedescendant")).toBe(file.id),
+			);
+			expect(textbox.getAttribute("aria-controls")).toBe(listbox.id);
+
+			await user.keyboard("{ArrowDown}");
+			const folder = screen.getByRole("option", { name: /^src\// });
+			await waitFor(() =>
+				expect(textbox.getAttribute("aria-activedescendant")).toBe(folder.id),
+			);
+
+			await user.keyboard("{Escape}");
+			await waitFor(() =>
+				expect(textbox.getAttribute("aria-controls")).toBeNull(),
+			);
+		});
+
+		it("points the editor at the skills listbox and highlighted option", async () => {
+			mockFindFiles();
+			renderWithWorkspaceFiles(workspaceFiles);
+			await pasteText("/rev");
+			const option = await screen.findByRole("option", { name: /reviewer/ });
+			const textbox = screen.getByRole("textbox", {
+				name: "Chat message input",
+			});
+			const listbox = screen.getByRole("listbox", {
+				name: "Commands and skills",
+			});
+			await waitFor(() =>
+				expect(textbox.getAttribute("aria-activedescendant")).toBe(option.id),
+			);
+			expect(textbox.getAttribute("aria-controls")).toBe(listbox.id);
+		});
+
 		it("does not open inside a word", async () => {
 			mockFindFiles();
 			const { onEnter } = renderWithWorkspaceFiles(workspaceFiles);
