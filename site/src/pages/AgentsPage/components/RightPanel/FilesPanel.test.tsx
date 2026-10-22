@@ -115,9 +115,12 @@ describe("FilesPanel", () => {
 			"agent-1",
 			"/home/coder/repo/src",
 		);
-		expect(value.openFile).toHaveBeenCalledWith("/home/coder/repo/src/main.go", {
-			focus: false,
-		});
+		expect(value.openFile).toHaveBeenCalledWith(
+			"/home/coder/repo/src/main.go",
+			{
+				focus: false,
+			},
+		);
 	});
 
 	it("opens a gitignored file", async () => {
@@ -147,9 +150,12 @@ describe("FilesPanel", () => {
 		await screen.findByRole("treeitem", { name: "main.go" });
 		await user.keyboard("{ArrowRight}{Enter}");
 
-		expect(value.openFile).toHaveBeenCalledWith("/home/coder/repo/src/main.go", {
-			focus: false,
-		});
+		expect(value.openFile).toHaveBeenCalledWith(
+			"/home/coder/repo/src/main.go",
+			{
+				focus: false,
+			},
+		);
 	});
 
 	it("switches the root and remembers it for the chat", async () => {
@@ -293,9 +299,7 @@ describe("FilesPanel", () => {
 
 	it("explains a denied path inline", async () => {
 		const user = userEvent.setup();
-		vi.mocked(API.listWorkspaceAgentDirectory).mockRejectedValue(
-			apiError(403),
-		);
+		vi.mocked(API.listWorkspaceAgentDirectory).mockRejectedValue(apiError(403));
 		localStorage.setItem(`${filesPanelRootStorageKeyPrefix}chat-1`, "/root");
 		renderPanel(contextValue());
 
