@@ -87,7 +87,30 @@ describe("QuickOpenDialog", () => {
 
 	it("also searches the Files panel root of the chat", async () => {
 		const user = userEvent.setup();
-		localStorage.setItem(`${filesPanelRootStorageKeyPrefix}chat-1`, "~/demo");
+		localStorage.setItem(`${filesPanelRootStorageKeyPrefix}chat-1`, "~");
+		vi.spyOn(API, "listWorkspaceAgentDirectory").mockResolvedValue({
+			absolute_path: ["home", "coder"],
+			absolute_path_string: "/home/coder",
+			contents: [],
+		});
+		vi.mocked(API.findWorkspaceAgentFiles).mockResolvedValue({
+			results: [
+				{
+					absolute_path: "/home/coder/demo/hello.go",
+					path: "demo/hello.go",
+					root: "/home/coder",
+					is_dir: false,
+					score: 10,
+				},
+				{
+					absolute_path: "/home/coder/a/hello.go",
+					path: "hello.go",
+					root: "/home/coder/a",
+					is_dir: false,
+					score: 5,
+				},
+			],
+		});
 		render(
 			<QueryClientProvider client={createTestQueryClient()}>
 				<WorkspaceFilesContext value={contextValue()}>
@@ -109,10 +132,16 @@ describe("QuickOpenDialog", () => {
 		await waitFor(() =>
 			expect(API.findWorkspaceAgentFiles).toHaveBeenCalledWith(
 				"agent-1",
-				["/home/coder/a", "/home/coder/b", "~/demo"],
+				["/home/coder/a", "/home/coder/b", "~"],
 				"hello",
 				undefined,
 			),
+		);
+		// Home and a repo can share a name, so labels start from home.
+		await waitFor(() =>
+			expect(
+				screen.getAllByRole("option").map((option) => option.textContent),
+			).toEqual(["hello.go~/demo/hello.go", "hello.go~/a/hello.go"]),
 		);
 	});
 
