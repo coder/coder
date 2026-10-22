@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { IdleRunRequest } from "./chatStore";
 import {
 	createChatStore,
 	selectIsAwaitingFirstStreamChunk,
@@ -1103,7 +1104,7 @@ describe("selectIsCompactionStarting", () => {
 describe("selectIsNextTurnStarting", () => {
 	const startRun = (
 		messages: readonly TypesGen.ChatMessage[],
-		kind: "compaction" | "promotion",
+		kind: IdleRunRequest["kind"],
 	) => {
 		const store = createChatStore();
 		store.upsertDurableMessages(messages);

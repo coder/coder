@@ -109,7 +109,7 @@ export const isActiveChatStatus = (
 	status === "requires_action" ||
 	status === "interrupting";
 
-type IdleRunRequest = {
+export type IdleRunRequest = {
 	kind: "compaction" | "promotion";
 	latestMessageID: number;
 };
@@ -183,9 +183,9 @@ export type ChatStore = {
 	unsuppressQueuedMessageID: (id: number) => void;
 	clearSuppressedQueuedMessageIDs: () => void;
 	setChatStatus: (status: TypesGen.ChatStatus | null) => void;
-	// Sets running for a request this client sent. Only an idle chat records
-	// the run: the server rejects compaction during an active turn, and a
-	// message promoted then interrupts that turn, which can still save rows.
+	// Only an idle chat records the run: the server rejects compaction during
+	// an active turn, and a message promoted then interrupts that turn, which
+	// can still save rows.
 	startRequestedRun: (kind: IdleRunRequest["kind"]) => void;
 	setStreamState: (streamState: StreamState | null) => void;
 	setStreamError: (reason: ChatDetailError | null) => void;
@@ -813,7 +813,6 @@ export const selectIsAwaitingFirstStreamChunk = (
  * running chat looks like one that continues after its answer.
  */
 export const selectIsCompactionStarting = (state: ChatStoreState): boolean =>
-	state.chatStatus === "running" &&
 	state.streamState === null &&
 	state.idleRunRequest?.kind === "compaction" &&
 	selectLatestDurableMessage(state)?.id ===
@@ -825,7 +824,7 @@ export const selectIsCompactionStarting = (state: ChatStoreState): boolean =>
  */
 export const selectIsNextTurnStarting = (state: ChatStoreState): boolean => {
 	const request = state.idleRunRequest;
-	if (state.chatStatus !== "running" || request?.kind !== "promotion") {
+	if (request?.kind !== "promotion") {
 		return false;
 	}
 	const newerMessageIDs = state.orderedMessageIDs.slice(
