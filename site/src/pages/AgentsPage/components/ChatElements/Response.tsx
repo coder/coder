@@ -13,7 +13,11 @@ import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
 import { rehypeFileMentions } from "../../utils/filePathMentions";
-import { FileMention } from "./FileMention";
+import {
+	FileMention,
+	FileMentionCandidate,
+	FileMentionStreamingContext,
+} from "./FileMention";
 import { MarkdownImage } from "./MarkdownImage";
 import { MermaidDiagram } from "./MermaidDiagram";
 
@@ -50,6 +54,7 @@ type HastNode = {
 		className?: string[] | string;
 		dataFileMention?: unknown;
 		dataFileMentionLine?: unknown;
+		dataFileMentionCandidate?: unknown;
 	};
 };
 
@@ -235,6 +240,14 @@ const createComponents = (
 				</code>
 			);
 			const mention = getFileMention(node);
+			const candidate = node?.properties?.dataFileMentionCandidate;
+			if (typeof candidate === "string") {
+				return (
+					<FileMentionCandidate text={candidate} whole>
+						{code}
+					</FileMentionCandidate>
+				);
+			}
 			if (!mention) {
 				return code;
 			}
@@ -250,6 +263,14 @@ const createComponents = (
 			...props
 		}: React.ComponentProps<"span"> & { node?: HastNode }) => {
 			const mention = getFileMention(node);
+			const candidate = node?.properties?.dataFileMentionCandidate;
+			if (typeof candidate === "string") {
+				return (
+					<FileMentionCandidate text={candidate} whole={false}>
+						{props.children}
+					</FileMentionCandidate>
+				);
+			}
 			if (!mention) {
 				return <span {...props} />;
 			}
@@ -353,25 +374,27 @@ export const Response = ({
 			)}
 			{...props}
 		>
-			<Streamdown
-				controls={false}
-				components={components}
-				urlTransform={urlTransform}
-				rehypePlugins={chatRehypePlugins}
-				mode={streaming ? "streaming" : "static"}
-				parseIncompleteMarkdown={streaming}
-				// Streamdown only flags the trailing block as an
-				// incomplete code fence while isAnimating is set, which
-				// MermaidDiagram relies on to defer rendering.
-				isAnimating={streaming}
-				// Streamdown 2.6 caps table height at 300px by
-				// default, even with controls disabled. Chat tables
-				// should grow with their content instead of
-				// scrolling internally.
-				tableMaxHeight={0}
-			>
-				{children}
-			</Streamdown>
+			<FileMentionStreamingContext value={streaming ?? false}>
+				<Streamdown
+					controls={false}
+					components={components}
+					urlTransform={urlTransform}
+					rehypePlugins={chatRehypePlugins}
+					mode={streaming ? "streaming" : "static"}
+					parseIncompleteMarkdown={streaming}
+					// Streamdown only flags the trailing block as an
+					// incomplete code fence while isAnimating is set, which
+					// MermaidDiagram relies on to defer rendering.
+					isAnimating={streaming}
+					// Streamdown 2.6 caps table height at 300px by
+					// default, even with controls disabled. Chat tables
+					// should grow with their content instead of
+					// scrolling internally.
+					tableMaxHeight={0}
+				>
+					{children}
+				</Streamdown>
+			</FileMentionStreamingContext>
 		</div>
 	);
 };

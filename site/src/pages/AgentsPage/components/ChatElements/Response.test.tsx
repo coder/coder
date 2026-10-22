@@ -2,8 +2,12 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AxiosError, AxiosHeaders } from "axios";
 import { useState } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { API, type WorkspaceAgentFindFilesResult } from "#/api/api";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	API,
+	type WorkspaceAgentFile,
+	type WorkspaceAgentFindFilesResult,
+} from "#/api/api";
 import { toast } from "#/components/Toaster/toast";
 import { render } from "#/testHelpers/renderHelpers";
 import {
@@ -45,8 +49,33 @@ describe("Response", () => {
 	});
 
 	describe("file mentions", () => {
+		let onScreen = true;
+		beforeEach(() => {
+			onScreen = true;
+			vi.stubGlobal(
+				"IntersectionObserver",
+				class {
+					callback: (entries: Array<{ isIntersecting: boolean }>) => void;
+					constructor(
+						callback: (entries: Array<{ isIntersecting: boolean }>) => void,
+					) {
+						this.callback = callback;
+					}
+					observe() {
+						if (onScreen) {
+							this.callback([{ isIntersecting: true }]);
+						}
+					}
+					disconnect() {}
+				},
+			);
+			vi.spyOn(API, "listWorkspaceAgentDirectory").mockRejectedValue(
+				new Error("no listing"),
+			);
+		});
 		afterEach(() => {
 			vi.restoreAllMocks();
+			vi.unstubAllGlobals();
 		});
 		const makeFiles = (): WorkspaceFilesContextValue => ({
 			agentId: "agent-1",
@@ -273,6 +302,174 @@ describe("Response", () => {
 					"Update the workspace agent to open files",
 				),
 			);
+		});
+
+		describe("paths with spaces", () => {
+			const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+			// Directories by the path form the walk lists, with "~" standing for
+			// /home/coder. Names ending in "/" are directories.
+			const mockTree = (tree: Record<string, string[]>) =>
+				vi
+					.spyOn(API, "listWorkspaceAgentDirectory")
+					.mockImplementation(async (_agentId, path) => {
+						const names = tree[path];
+						if (!names) {
+							throw new Error(`no directory ${path}`);
+						}
+						const absolute = path.replace(/^~/, "/home/coder");
+						const contents = names.map((name): WorkspaceAgentFile => {
+							const isDir = name.endsWith("/");
+							const entryName = isDir ? name.slice(0, -1) : name;
+							return {
+								name: entryName,
+								absolute_path_string: `${absolute}/${entryName}`,
+								is_dir: isDir,
+								is_symlink: false,
+								size: 0,
+								mod_time: "2026-01-01T00:00:00Z",
+							};
+						});
+						return {
+							absolute_path: absolute.split("/").filter(Boolean),
+							absolute_path_string: absolute,
+							contents,
+						};
+					});
+
+			type LinkCase = {
+				markdown: string;
+				tree: Record<string, string[]>;
+				link: string;
+				opens: string;
+				line?: number;
+				buttons: string[];
+			};
+
+			it.each<LinkCase>([
+				{
+					markdown: "Open /path/to/file (2).txt and site/src/a.ts.",
+					tree: { "/path/to": ["file", "file (2).txt"] },
+					link: "/path/to/file (2).txt",
+					opens: "/path/to/file (2).txt",
+					buttons: ["/path/to/file (2).txt", "site/src/a.ts"],
+				},
+				{
+					markdown: "Edit src/my dir/a.ts:12 please",
+					tree: {
+						"/home/coder/coder/src": ["my dir/"],
+						"/home/coder/coder/src/my dir": ["a.ts"],
+					},
+					link: "src/my dir/a.ts:12",
+					opens: "/home/coder/coder/src/my dir/a.ts",
+					line: 12,
+					buttons: ["src/my dir/a.ts:12"],
+				},
+				{
+					markdown: "See ~/My Documents/x.md for notes",
+					tree: {
+						"~": ["My Documents/"],
+						"/home/coder/My Documents": ["x.md"],
+					},
+					link: "~/My Documents/x.md",
+					opens: "/home/coder/My Documents/x.md",
+					buttons: ["~/My Documents/x.md"],
+				},
+				{
+					markdown: "Open `my dir/a.ts` next",
+					tree: {
+						"/home/coder/other": ["my dir/"],
+						"/home/coder/other/my dir": ["a.ts"],
+					},
+					link: "my dir/a.ts",
+					opens: "/home/coder/other/my dir/a.ts",
+					buttons: ["my dir/a.ts"],
+				},
+			])(
+				"links $link once the listings confirm it",
+				async ({ markdown, tree, link, opens, line, buttons }) => {
+					const user = userEvent.setup();
+					mockTree(tree);
+					const { files } = renderWithFiles(markdown);
+
+					await user.click(await screen.findByRole("button", { name: link }));
+
+					expect(files.openFile).toHaveBeenCalledWith(opens, { line });
+					expect(buttonTexts()).toEqual(buttons);
+					expect(document.body).toHaveTextContent(markdown.replaceAll("`", ""));
+				},
+			);
+
+			it.each([
+				{
+					markdown: "Open /path/to/missing file.txt and site/src/a.ts.",
+					buttons: ["file.txt", "site/src/a.ts"],
+				},
+				{
+					markdown: "Open `/path/to/file (2).txt extra` now",
+					buttons: [],
+				},
+			])(
+				"keeps today's mentions in $markdown when no file matches",
+				async ({ markdown, buttons }) => {
+					const list = mockTree({ "/path/to": ["file (2).txt", "other"] });
+					renderWithFiles(markdown);
+
+					await waitFor(() => expect(list).toHaveBeenCalled());
+					await flush();
+					await screen.findByText(/Open/);
+					expect(buttonTexts()).toEqual(buttons);
+				},
+			);
+
+			const spacedMarkdown = "Open /path/to/file (2).txt now";
+
+			it("lists nothing without workspace files", async () => {
+				const list = mockTree({ "/path/to": ["file (2).txt"] });
+				render(<Response>{spacedMarkdown}</Response>);
+				await screen.findByText(/Open/);
+				await flush();
+
+				expect(list).not.toHaveBeenCalled();
+				expect(buttonTexts()).toEqual([]);
+			});
+
+			it("lists nothing while the mention is off screen", async () => {
+				onScreen = false;
+				const list = mockTree({ "/path/to": ["file (2).txt"] });
+				renderWithFiles(spacedMarkdown);
+				await screen.findByText(/Open/);
+				await flush();
+
+				expect(list).not.toHaveBeenCalled();
+			});
+
+			it("waits for the message to finish streaming", async () => {
+				const user = userEvent.setup();
+				const list = mockTree({ "/path/to": ["file (2).txt"] });
+				const files = makeFiles();
+				const Harness = () => {
+					const [streaming, setStreaming] = useState(true);
+					return (
+						<>
+							<button type="button" onClick={() => setStreaming(false)}>
+								Finish
+							</button>
+							<WorkspaceFilesContext.Provider value={files}>
+								<Response streaming={streaming}>{spacedMarkdown}</Response>
+							</WorkspaceFilesContext.Provider>
+						</>
+					);
+				};
+				render(<Harness />);
+				await screen.findByText(/Open/);
+				await flush();
+				expect(list).not.toHaveBeenCalled();
+
+				await user.click(screen.getByRole("button", { name: "Finish" }));
+
+				await screen.findByRole("button", { name: "/path/to/file (2).txt" });
+				expect(list).toHaveBeenCalledWith("agent-1", "/path/to");
+			});
 		});
 	});
 });
