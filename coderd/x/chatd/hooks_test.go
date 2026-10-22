@@ -46,18 +46,24 @@ func TestSendMessageUserPromptSubmitHook(t *testing.T) {
 			LastModelConfigID: model.ID,
 		})
 
+		_, err := db.InsertUserSkill(ctx, database.InsertUserSkillParams{
+			ID: uuid.New(), UserID: user.ID, Name: "notes", Content: "---\nname: notes\ndescription: Notes\n---\n\nTake notes.\n",
+		})
+		require.NoError(t, err)
+		skill := codersdk.ChatMessageSkillInvocation(codersdk.ChatSkillSourcePersonal, "notes")
 		submitted := []codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("before"),
 			codersdk.ChatMessageFileReference("main.go", 1, 3, "package main"),
+			skill,
 		}
 		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var request agenthooks.Request
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 			data := decodeHookData[agenthooks.UserPromptSubmitData](t, request)
-			require.Equal(t, "before", data.Prompt)
+			require.Equal(t, "before /personal/notes", data.Prompt)
 			var hookParts []codersdk.ChatMessagePart
 			require.NoError(t, json.Unmarshal(data.Parts, &hookParts))
-			require.Equal(t, submitted, hookParts, "hook payload must carry non-text parts")
+			require.Equal(t, submitted, hookParts, "hook payload must carry non-text parts without skill bodies")
 			require.NotNil(t, request.Meta.TurnID)
 			_, err := w.Write([]byte(`{"permission":{"decision":"allow","input_override":{"prompt":"after"}},"model_context":"model only","user_message":"user only"}`))
 			require.NoError(t, err)
@@ -73,9 +79,12 @@ func TestSendMessageUserPromptSubmitHook(t *testing.T) {
 		require.NoError(t, err)
 		parts, err := chatprompt.ParseContent(result.Message)
 		require.NoError(t, err)
+		storedSkill := skill
+		storedSkill.SkillBody = "Take notes."
 		require.Equal(t, []codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("after"),
 			codersdk.ChatMessageFileReference("main.go", 1, 3, "package main"),
+			storedSkill,
 			{Type: codersdk.ChatMessagePartTypeHookContext, Text: "model only"},
 			{Type: codersdk.ChatMessagePartTypeHookNotice, Text: "user only"},
 		}, parts)

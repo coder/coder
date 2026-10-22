@@ -44,13 +44,17 @@ type SkillsTriggerMenuProps = {
 	commands: readonly SkillMenuItem[];
 	personalSkills: readonly SkillMenuItem[];
 	organizationSkills: readonly SkillMenuItem[];
+	projectSkills: readonly SkillMenuItem[];
 	workspaceSkills: readonly SkillMenuItem[];
 	organizationSkillsEnabled: boolean;
+	projectSkillsEnabled: boolean;
 	workspaceSkillsEnabled: boolean;
 	isPersonalLoading: boolean;
 	isPersonalError: boolean;
 	isOrganizationLoading: boolean;
 	isOrganizationError: boolean;
+	isProjectLoading: boolean;
+	isProjectError: boolean;
 	isWorkspaceLoading: boolean;
 	selectedIndex: number;
 	onSelectedIndexChange: (index: number) => void;
@@ -65,16 +69,22 @@ type SkillsTriggerMenuProps = {
 const getEmptyMessage = (
 	query: string,
 	organizationSkillsEnabled: boolean,
+	projectSkillsEnabled: boolean,
 	workspaceSkillsEnabled: boolean,
 ) => {
 	if (query) {
-		return organizationSkillsEnabled || workspaceSkillsEnabled
+		return organizationSkillsEnabled ||
+			projectSkillsEnabled ||
+			workspaceSkillsEnabled
 			? "No skills match that query."
 			: "No personal skills match that query.";
 	}
 	const sources = ["personal"];
 	if (organizationSkillsEnabled) {
 		sources.push("organization");
+	}
+	if (projectSkillsEnabled) {
+		sources.push("project");
 	}
 	if (workspaceSkillsEnabled) {
 		sources.push("workspace");
@@ -154,13 +164,17 @@ export const SkillsTriggerMenu = ({
 	commands,
 	personalSkills,
 	organizationSkills,
+	projectSkills,
 	workspaceSkills,
 	organizationSkillsEnabled,
+	projectSkillsEnabled,
 	workspaceSkillsEnabled,
 	isPersonalLoading,
 	isPersonalError,
 	isOrganizationLoading,
 	isOrganizationError,
+	isProjectLoading,
+	isProjectError,
 	isWorkspaceLoading,
 	selectedIndex,
 	onSelectedIndexChange,
@@ -168,12 +182,25 @@ export const SkillsTriggerMenu = ({
 	onClose,
 	onEscapeKeyDown,
 }: SkillsTriggerMenuProps) => {
-	const allSkills = [
-		...commands,
-		...personalSkills,
-		...organizationSkills,
-		...workspaceSkills,
-	];
+	const pointerHighlightRef = useRef(false);
+
+	// Groups follow selection order, so each starts where the previous ends.
+	const skillGroups: {
+		heading: string;
+		skills: readonly SkillMenuItem[];
+		startIndex: number;
+	}[] = [];
+	let nextStartIndex = commands.length;
+	for (const [heading, skills] of [
+		["Personal skills", personalSkills],
+		["Organization skills", organizationSkills],
+		["Project skills", projectSkills],
+		["Workspace skills", workspaceSkills],
+	] as const) {
+		skillGroups.push({ heading, skills, startIndex: nextStartIndex });
+		nextStartIndex += skills.length;
+	}
+	const itemCount = nextStartIndex;
 	const statusItems = [
 		isPersonalLoading && personalSkills.length === 0
 			? "Loading personal skills..."
@@ -187,15 +214,19 @@ export const SkillsTriggerMenu = ({
 		isOrganizationError && organizationSkills.length === 0
 			? "Could not load organization skills. Close and type / again to retry."
 			: undefined,
+		isProjectLoading && projectSkills.length === 0
+			? "Loading project skills..."
+			: undefined,
+		isProjectError && projectSkills.length === 0
+			? "Could not load project skills. Close and type / again to retry."
+			: undefined,
 		isWorkspaceLoading && workspaceSkills.length === 0
 			? "Loading workspace skills..."
 			: undefined,
 	].filter((item) => item !== undefined);
 	const shouldRender = open && anchor !== null;
-	const shouldShowEmpty = allSkills.length === 0 && statusItems.length === 0;
+	const shouldShowEmpty = itemCount === 0 && statusItems.length === 0;
 	const selectedValue = selectedIndex >= 0 ? String(selectedIndex) : "";
-
-	const pointerHighlightRef = useRef(false);
 
 	const consumePointerHighlight = () => {
 		const fromPointer = pointerHighlightRef.current;
@@ -208,7 +239,7 @@ export const SkillsTriggerMenu = ({
 		if (
 			Number.isInteger(nextIndex) &&
 			nextIndex >= 0 &&
-			nextIndex < allSkills.length &&
+			nextIndex < itemCount &&
 			nextIndex !== selectedIndex
 		) {
 			pointerHighlightRef.current = true;
@@ -259,35 +290,14 @@ export const SkillsTriggerMenu = ({
 								{commands.map((skill, index) => renderSkill(skill, index))}
 							</CommandGroup>
 						)}
-						{personalSkills.length > 0 && (
-							<CommandGroup heading="Personal skills">
-								{personalSkills.map((skill, index) =>
-									renderSkill(skill, commands.length + index),
-								)}
-							</CommandGroup>
-						)}
-						{organizationSkills.length > 0 && (
-							<CommandGroup heading="Organization skills">
-								{organizationSkills.map((skill, index) =>
-									renderSkill(
-										skill,
-										commands.length + personalSkills.length + index,
-									),
-								)}
-							</CommandGroup>
-						)}
-						{workspaceSkills.length > 0 && (
-							<CommandGroup heading="Workspace skills">
-								{workspaceSkills.map((skill, index) =>
-									renderSkill(
-										skill,
-										commands.length +
-											personalSkills.length +
-											organizationSkills.length +
-											index,
-									),
-								)}
-							</CommandGroup>
+						{skillGroups.map(({ heading, skills, startIndex }) =>
+							skills.length > 0 ? (
+								<CommandGroup key={heading} heading={heading}>
+									{skills.map((skill, index) =>
+										renderSkill(skill, startIndex + index),
+									)}
+								</CommandGroup>
+							) : null,
 						)}
 						{statusItems.map((message) => (
 							<CommandItem key={message} value={message} disabled>
@@ -299,6 +309,7 @@ export const SkillsTriggerMenu = ({
 								{getEmptyMessage(
 									query,
 									organizationSkillsEnabled,
+									projectSkillsEnabled,
 									workspaceSkillsEnabled,
 								)}
 							</CommandEmpty>

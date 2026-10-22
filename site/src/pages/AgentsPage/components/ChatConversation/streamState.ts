@@ -241,6 +241,9 @@ export const applyMessagePartToStreamState = (
 		// workspace-file-reference parts only appear in persisted
 		// user messages, never via SSE streaming.
 		case "workspace-file-reference":
+		// skill-invocation parts only appear in persisted user
+		// messages, never via SSE streaming.
+		case "skill-invocation":
 			return prev;
 		default: {
 			const _exhaustive: never = part;
