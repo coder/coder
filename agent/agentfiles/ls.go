@@ -26,6 +26,8 @@ var WindowsDriveRegex = regexp.MustCompile(`^[a-zA-Z]:\\$`)
 // maxLSEntries caps the number of entries in a list-directory response.
 const maxLSEntries = 10000
 
+var errNotDirectory = xerrors.New("is not a directory")
+
 func (api *API) HandleLS(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -92,6 +94,8 @@ func (api *API) HandleLS(rw http.ResponseWriter, r *http.Request) {
 			status = http.StatusNotFound
 		case errors.Is(err, os.ErrPermission):
 			status = http.StatusForbidden
+		case errors.Is(err, errNotDirectory):
+			status = http.StatusBadRequest
 		default:
 		}
 		httpapi.Write(ctx, rw, status, codersdk.Response{
@@ -164,7 +168,7 @@ func listFiles(fs afero.Fs, path string, query workspacesdk.LSRequest) (workspac
 	}
 
 	if !stat.IsDir() {
-		return workspacesdk.LSResponse{}, xerrors.Errorf("path %q is not a directory", absolutePathString)
+		return workspacesdk.LSResponse{}, xerrors.Errorf("path %q %w", absolutePathString, errNotDirectory)
 	}
 
 	// `contents` may be partially populated even if the operation fails midway.

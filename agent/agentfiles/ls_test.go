@@ -237,3 +237,15 @@ func TestHandleLS_Ignored(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(plain, ".gitignore"), []byte("*\n"), 0o600))
 	require.Equal(t, map[string]bool{".gitignore": false}, ignored(plain))
 }
+
+func TestHandleLS_NotADirectory(t *testing.T) {
+	t.Parallel()
+
+	file := filepath.Join(t.TempDir(), "README.md")
+	require.NoError(t, os.WriteFile(file, nil, 0o600))
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	handler := agentfiles.NewAPI(logger, afero.NewOsFs(), nil).Routes()
+
+	code, _ := requestLS(t, handler, file, "")
+	require.Equal(t, http.StatusBadRequest, code)
+}
