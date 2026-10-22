@@ -10,9 +10,8 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/coder/quartz"
-
 	"cdr.dev/slog/v3"
+	"github.com/coder/quartz"
 )
 
 // FSEvent represents a filesystem change event.
