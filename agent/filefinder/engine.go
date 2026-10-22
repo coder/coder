@@ -55,6 +55,10 @@ type Engine struct {
 	// walks admits at most maxConcurrentWalks root walks at a time,
 	// covering both new roots and reloads.
 	walks chan struct{}
+	// lastGen issues watcher generations unique across the engine, so
+	// a root removed and added again cannot accept events queued by
+	// its earlier instance.
+	lastGen atomic.Uint64
 }
 type rootState struct {
 	root    string
@@ -66,8 +70,8 @@ type rootState struct {
 	stop context.CancelFunc
 	// cancelWatcher stops the current watcher.
 	cancelWatcher context.CancelFunc
-	// gen identifies the current watcher. Events from an earlier
-	// watcher are dropped so they cannot modify a newer index.
+	// gen identifies the current watcher. Events from any other
+	// watcher are dropped so they cannot modify this index.
 	gen uint64
 	// reloading is set while reloadRoot runs; reloadAgain asks it to
 	// run once more because ignore rules changed again meanwhile.
@@ -263,7 +267,7 @@ func (e *Engine) AddRoot(ctx context.Context, root string) error {
 	}
 	rs := &rootState{
 		root: absRoot, index: idx, watcher: w,
-		ctx: rootCtx, stop: rootStop, cancelWatcher: wCancel, gen: 1,
+		ctx: rootCtx, stop: rootStop, cancelWatcher: wCancel, gen: e.lastGen.Add(1),
 	}
 	e.roots[absRoot] = rs
 	e.wg.Add(1)
@@ -536,7 +540,7 @@ func (e *Engine) reloadRoot(rs *rootState) {
 			return
 		}
 		oldCancel, oldWatcher := rs.cancelWatcher, rs.watcher
-		rs.gen++
+		rs.gen = e.lastGen.Add(1)
 		rs.index, rs.watcher, rs.cancelWatcher = idx, w, wCancel
 		e.wg.Add(1)
 		go e.forwardEvents(wCtx, rs.root, rs.gen, w)

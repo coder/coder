@@ -442,3 +442,52 @@ func BenchmarkIgnored_EventBatch(b *testing.B) {
 		_ = ig.Ignored(ctx, queries)
 	}
 }
+
+// TestEngine_DirectoryOfIgnoredFilesStaysWatched covers a directory
+// that git lists only because all of its contents are ignored.
+func TestEngine_DirectoryOfIgnoredFilesStaysWatched(t *testing.T) {
+	t.Parallel()
+	ig := ignoreModes[0].ignorer(t)
+
+	for name, rootRel := range map[string]string{"RepoRoot": "", "IgnoredContentsRoot": "logs"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			repo := t.TempDir()
+			runGit(t, repo, "init", "-q")
+			createFile(t, repo, ".gitignore", "*.log\n")
+			createFile(t, repo, "logs/a.log", "")
+			root := filepath.Join(repo, rootRel)
+
+			eng, ctx := newIgnoreTestEngine(t, ig)
+			require.NoError(t, eng.AddRoot(ctx, root))
+			createFile(t, repo, "logs/dirwatch_new.go", "")
+			rel, err := filepath.Rel(root, filepath.Join(repo, "logs", "dirwatch_new.go"))
+			require.NoError(t, err)
+			requireEventuallyPaths(ctx, t, eng, "dirwatch_", filepath.ToSlash(rel))
+		})
+	}
+}
+
+// TestIgnorer_IgnoresRepoSelectingEnv checks that GIT_DIR and
+// GIT_WORK_TREE inherited by the agent do not redirect classification.
+// It cannot run in parallel because it sets the process environment.
+//
+//nolint:paralleltest // t.Setenv.
+func TestIgnorer_IgnoresRepoSelectingEnv(t *testing.T) {
+	requireGit(t)
+	other := t.TempDir()
+	runGit(t, other, "init", "-q")
+	createFile(t, other, ".gitignore", "*.go\n")
+	repo := t.TempDir()
+	runGit(t, repo, "init", "-q")
+	createFile(t, repo, ".gitignore", "*.log\n")
+
+	t.Setenv("GIT_DIR", filepath.Join(other, ".git"))
+	t.Setenv("GIT_WORK_TREE", other)
+	t.Setenv("GIT_INDEX_FILE", filepath.Join(other, ".git", "index"))
+	ig := filefinder.NewIgnorer(afero.NewOsFs(), "")
+	require.Equal(t, []bool{false, true}, ig.Ignored(context.Background(), []filefinder.IgnoreQuery{
+		{Path: filepath.Join(repo, "a.go")},
+		{Path: filepath.Join(repo, "a.log")},
+	}))
+}
