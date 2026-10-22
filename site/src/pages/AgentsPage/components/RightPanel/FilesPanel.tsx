@@ -6,8 +6,14 @@ import {
 	LinkIcon,
 	RefreshCwIcon,
 } from "lucide-react";
-import { useRef, useState } from "react";
-import { useQueries, useQuery, useQueryClient } from "react-query";
+import {
+	useEffect,
+	useEffectEvent,
+	useRef,
+	useState,
+	useSyncExternalStore,
+} from "react";
+import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
 import type {
 	WorkspaceAgentFile,
 	WorkspaceAgentListDirectoryResponse,
@@ -17,7 +23,6 @@ import {
 	workspaceAgentDirectory,
 	workspaceAgentDirectoryKey,
 } from "#/api/queries/workspaceFiles";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { Loader } from "#/components/Loader/Loader";
@@ -32,14 +37,87 @@ import {
 	useWorkspaceFiles,
 	type WorkspaceFilesContextValue,
 } from "../../context/WorkspaceFilesContext";
-import { getPathBasename } from "../../utils/path";
+import { getPathBasename, getPathDirname } from "../../utils/path";
 
 export const filesPanelRootStorageKeyPrefix = "agents.files-panel-root.";
+
+const rootListeners = new Set<() => void>();
+
+const subscribeToRoot = (listener: () => void) => {
+	rootListeners.add(listener);
+	window.addEventListener("storage", listener);
+	return () => {
+		rootListeners.delete(listener);
+		window.removeEventListener("storage", listener);
+	};
+};
+
+/**
+ * The Files panel root for a chat, in any list-directory path form. Quick
+ * open reads it too, so a root picked in the panel is also searched.
+ */
+export const useFilesPanelRoot = (
+	chatId: string | undefined,
+	repoRoots: readonly string[],
+) => {
+	const storageKey = `${filesPanelRootStorageKeyPrefix}${chatId}`;
+	const storedRoot = useSyncExternalStore(subscribeToRoot, () =>
+		chatId === undefined ? null : localStorage.getItem(storageKey),
+	);
+	const setRoot = (root: string) => {
+		localStorage.setItem(storageKey, root);
+		for (const listener of rootListeners) {
+			listener();
+		}
+	};
+	return { root: storedRoot ?? repoRoots[0] ?? "", setRoot };
+};
 
 // Radix Select reserves the empty string, and "" is the default directory
 // path form, so every root value carries a prefix.
 const rootValuePrefix = "path:";
 const openPathValue = "open-path";
+
+// The tree is a live view of files the agent edits, so it refetches when the
+// window regains focus even though the app disables that by default.
+const directoryQuery = (agentId: string, path: string) => ({
+	...workspaceAgentDirectory(agentId, path),
+	refetchOnWindowFocus: true,
+});
+
+const displayPath = (path: string) => path || "the default directory";
+
+const directoryErrorMessage = (error: unknown, path: string) => {
+	switch (getErrorStatus(error)) {
+		case 400:
+			return `${displayPath(path)} is a file`;
+		case 403:
+			return `Permission denied: ${displayPath(path)}`;
+		case 404:
+			return `No directory at ${displayPath(path)}`;
+		default:
+			return getErrorMessage(error, "Failed to list the directory.");
+	}
+};
+
+const isWithin = (path: string, directory: string) =>
+	path === directory || path.startsWith(`${directory}/`);
+
+/** Expanded directories whose ancestors up to the root are all expanded. */
+const getVisibleExpandedPaths = (
+	rootPath: string,
+	expandedPaths: readonly string[],
+): string[] => {
+	const expanded = new Set(expandedPaths);
+	const isVisible = (path: string): boolean => {
+		const parent = getPathDirname(path);
+		if (parent === rootPath) {
+			return true;
+		}
+		return parent !== path && expanded.has(parent) && isVisible(parent);
+	};
+	return expandedPaths.filter(isVisible);
+};
 
 type FilesPanelProps = {
 	chatId: string;
@@ -66,16 +144,117 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 	chatId,
 	workspaceFiles,
 }) => {
-	const { agentId, defaultDirectory, repoRoots, openFile } = workspaceFiles;
+	const { agentId, defaultDirectory, repoRoots, repositories, openFile } =
+		workspaceFiles;
 	const queryClient = useQueryClient();
-	const storageKey = `${filesPanelRootStorageKeyPrefix}${chatId}`;
-	const [storedRoot, setStoredRoot] = useState(() =>
-		localStorage.getItem(storageKey),
-	);
+	const { root, setRoot } = useFilesPanelRoot(chatId, repoRoots);
+	// Kept on collapse so reopening a folder restores its open subfolders.
 	const [expandedPaths, setExpandedPaths] = useState<readonly string[]>([]);
 	const [isEnteringPath, setIsEnteringPath] = useState(false);
-	const root = storedRoot ?? repoRoots[0] ?? "";
+	const pathInputRef = useRef<HTMLInputElement>(null);
+	const focusPathInputOnClose = useRef(false);
 
+	const rootQuery = useQuery(directoryQuery(agentId, root));
+	const rootPath = rootQuery.data?.absolute_path_string;
+	const visibleExpandedPaths =
+		rootPath === undefined
+			? []
+			: getVisibleExpandedPaths(rootPath, expandedPaths);
+	const childQueries = useQueries({
+		queries: visibleExpandedPaths.map((path) => directoryQuery(agentId, path)),
+	});
+	const isFetching =
+		rootQuery.isFetching || childQueries.some((query) => query.isFetching);
+
+	const refetchDirectories = (absolutePaths: readonly string[]) => {
+		if (rootPath === undefined || absolutePaths.includes(rootPath)) {
+			void queryClient.invalidateQueries({
+				queryKey: workspaceAgentDirectoryKey(agentId, root),
+			});
+		}
+		for (const path of visibleExpandedPaths) {
+			if (absolutePaths.includes(path)) {
+				void queryClient.invalidateQueries({
+					queryKey: workspaceAgentDirectoryKey(agentId, path),
+				});
+			}
+		}
+	};
+
+	const refetchChangedRepositories = useEffectEvent(
+		(changedRepoRoots: readonly string[]) => {
+			const shownPaths = [
+				...(rootPath === undefined ? [] : [rootPath]),
+				...visibleExpandedPaths,
+			];
+			refetchDirectories(
+				shownPaths.filter((path) =>
+					changedRepoRoots.some((repoRoot) => isWithin(path, repoRoot)),
+				),
+			);
+		},
+	);
+	// The git watcher replaces a repository's entry when its working tree
+	// changes, which is the only signal that files were written.
+	const previousRepositories = useRef(repositories);
+	useEffect(() => {
+		const previous = previousRepositories.current;
+		previousRepositories.current = repositories;
+		if (previous === repositories) {
+			return;
+		}
+		const changed = [...repositories]
+			.filter(([repoRoot, state]) => previous.get(repoRoot) !== state)
+			.map(([repoRoot]) => repoRoot);
+		if (changed.length > 0) {
+			refetchChangedRepositories(changed);
+		}
+	}, [repositories]);
+
+	const selectRoot = (nextRoot: string) => {
+		setRoot(nextRoot);
+		setExpandedPaths([]);
+		setIsEnteringPath(false);
+	};
+
+	const openPathMutation = useMutation({
+		mutationFn: async (
+			path: string,
+		): Promise<{ root: string; file?: string }> => {
+			try {
+				await queryClient.fetchQuery(workspaceAgentDirectory(agentId, path));
+				return { root: path };
+			} catch (error) {
+				// Agents answer a file path with 400, older ones with 500.
+				const status = getErrorStatus(error);
+				if (status !== 400 && status !== 500) {
+					throw error;
+				}
+				const parent = getPathDirname(path);
+				const name = getPathBasename(path);
+				const parentListing = await queryClient
+					.fetchQuery(workspaceAgentDirectory(agentId, parent))
+					.catch(() => undefined);
+				const file = parentListing?.contents.find(
+					(entry) => entry.name === name && !entry.is_dir,
+				);
+				if (!file) {
+					throw error;
+				}
+				return { root: parent, file: file.absolute_path_string };
+			}
+		},
+		onSuccess: (result) => {
+			selectRoot(result.root);
+			if (result.file) {
+				openFile(result.file);
+			}
+		},
+	});
+
+	const homeIsDefault = defaultDirectory === undefined;
+	const resolvedTitle = (path: string, fallback: string) =>
+		root === path && rootPath !== undefined ? rootPath : fallback;
 	const rootOptions = [
 		...repoRoots.map((path) => ({
 			root: path,
@@ -84,56 +263,94 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 		})),
 		{
 			root: "",
-			label: "Default directory",
-			title: defaultDirectory ?? "Default directory",
+			label: homeIsDefault ? "Default directory (~)" : "Default directory",
+			title: defaultDirectory ?? resolvedTitle("", "~"),
 		},
-		{ root: "~", label: "Home", title: "~" },
+		...(homeIsDefault && root !== "~"
+			? []
+			: [{ root: "~", label: "Home", title: resolvedTitle("~", "~") }]),
 		{ root: "/", label: "/", title: "/" },
 	];
 	if (!rootOptions.some((option) => option.root === root)) {
-		rootOptions.push({ root, label: root, title: root });
+		rootOptions.push({ root, label: root, title: resolvedTitle(root, root) });
 	}
-
-	const selectRoot = (nextRoot: string) => {
-		setStoredRoot(nextRoot);
-		setExpandedPaths([]);
-		setIsEnteringPath(false);
-		localStorage.setItem(storageKey, nextRoot);
-	};
 
 	const handleRootValueChange = (value: string) => {
 		if (value === openPathValue) {
+			openPathMutation.reset();
+			focusPathInputOnClose.current = true;
 			setIsEnteringPath(true);
 			return;
 		}
 		selectRoot(value.slice(rootValuePrefix.length));
 	};
 
+	const handleSelectCloseAutoFocus = (event: Event) => {
+		if (!focusPathInputOnClose.current) {
+			return;
+		}
+		focusPathInputOnClose.current = false;
+		event.preventDefault();
+		pathInputRef.current?.focus();
+	};
+
 	const handleOpenPath = (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		const path = new FormData(event.currentTarget).get("path");
-		if (typeof path === "string" && path.trim() !== "") {
-			selectRoot(path.trim());
+		if (typeof path !== "string") {
+			return;
+		}
+		const trimmed = path.trim().replace(/(.)\/+$/, "$1");
+		if (trimmed !== "") {
+			openPathMutation.mutate(trimmed);
 		}
 	};
 
 	const toggleDirectory = (path: string) => {
-		// Collapsing drops expanded descendants so their listings stop being
-		// observed and refreshed while hidden.
 		setExpandedPaths((paths) =>
-			paths.includes(path)
-				? paths.filter((p) => p !== path && !p.startsWith(`${path}/`))
-				: [...paths, path],
+			paths.includes(path) ? paths.filter((p) => p !== path) : [...paths, path],
 		);
 	};
 
 	const handleRefresh = () => {
-		for (const path of [root, ...expandedPaths]) {
-			void queryClient.invalidateQueries({
-				queryKey: workspaceAgentDirectoryKey(agentId, path),
-			});
-		}
+		refetchDirectories([
+			...(rootPath === undefined ? [] : [rootPath]),
+			...visibleExpandedPaths,
+		]);
 	};
+
+	let content: React.ReactNode;
+	if (rootQuery.data === undefined) {
+		content = rootQuery.isError ? (
+			<p role="alert" className="m-0 p-3 text-sm text-content-secondary">
+				{directoryErrorMessage(rootQuery.error, root)}
+			</p>
+		) : (
+			<Loader className="flex-1" />
+		);
+	} else {
+		content = (
+			<DirectoryTree
+				listing={rootQuery.data}
+				refreshError={
+					rootQuery.isError
+						? directoryErrorMessage(rootQuery.error, root)
+						: undefined
+				}
+				childListings={
+					new Map(
+						visibleExpandedPaths.map((path, index) => [
+							path,
+							childQueries[index],
+						]),
+					)
+				}
+				expandedPaths={expandedPaths}
+				onToggleDirectory={toggleDirectory}
+				onOpenFile={(path) => openFile(path, { focus: false })}
+			/>
+		);
+	}
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
@@ -148,7 +365,7 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 					>
 						<SelectValue />
 					</SelectTrigger>
-					<SelectContent>
+					<SelectContent onCloseAutoFocus={handleSelectCloseAutoFocus}>
 						{rootOptions.map((option) => (
 							<SelectItem
 								key={option.root}
@@ -166,49 +383,57 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 					size="icon"
 					aria-label="Refresh files"
 					title="Refresh files"
+					aria-busy={isFetching}
 					className="size-7"
 					onClick={handleRefresh}
 				>
-					<RefreshCwIcon className="size-3.5" />
+					<RefreshCwIcon
+						className={cn("size-3.5", isFetching && "animate-spin")}
+					/>
 				</Button>
 			</div>
 			{isEnteringPath && (
 				<form
-					className="flex shrink-0 gap-2 border-0 border-b border-solid border-border p-2"
+					className="flex shrink-0 flex-col gap-1 border-0 border-b border-solid border-border p-2"
 					onSubmit={handleOpenPath}
 				>
-					<Input
-						name="path"
-						aria-label="Path"
-						placeholder="/abs/path, ~/path or relative/path"
-						className="h-7 text-xs"
-						autoFocus
-						onKeyDown={(event) => {
-							if (event.key === "Escape") {
-								setIsEnteringPath(false);
-							}
-						}}
-					/>
-					<Button type="submit" size="sm" variant="outline" className="h-7">
-						Open
-					</Button>
+					<div className="flex gap-2">
+						<Input
+							ref={pathInputRef}
+							name="path"
+							aria-label="Path"
+							placeholder="/abs/path, ~/path or relative/path"
+							className="h-7 text-xs"
+							onKeyDown={(event) => {
+								if (event.key === "Escape") {
+									setIsEnteringPath(false);
+								}
+							}}
+						/>
+						<Button
+							type="submit"
+							size="sm"
+							variant="outline"
+							className="h-7"
+							disabled={openPathMutation.isPending}
+						>
+							Open
+						</Button>
+					</div>
+					{openPathMutation.isError && (
+						<p role="alert" className="m-0 text-xs text-content-destructive">
+							{directoryErrorMessage(
+								openPathMutation.error,
+								openPathMutation.variables,
+							)}
+						</p>
+					)}
 				</form>
 			)}
-			<DirectoryTree
-				agentId={agentId}
-				root={root}
-				expandedPaths={expandedPaths}
-				onToggleDirectory={toggleDirectory}
-				onOpenFile={openFile}
-			/>
+			{content}
 		</div>
 	);
 };
-
-const directoryErrorMessage = (error: unknown) =>
-	getErrorStatus(error) === 404
-		? "Directory not found."
-		: getErrorMessage(error, "Failed to list the directory.");
 
 type TreeRow =
 	| {
@@ -257,7 +482,7 @@ const buildTreeRows = (
 					key: `${path}:load`,
 					level: childLevel,
 					label: child.isError
-						? directoryErrorMessage(child.error)
+						? directoryErrorMessage(child.error, path)
 						: "Loading...",
 				});
 				continue;
@@ -267,7 +492,7 @@ const buildTreeRows = (
 					type: "status",
 					key: `${path}:refetch`,
 					level: childLevel,
-					label: `Refresh failed: ${directoryErrorMessage(child.error)}`,
+					label: `Refresh failed: ${directoryErrorMessage(child.error, path)}`,
 				});
 			}
 			if (child.data.contents.length === 0) {
@@ -294,53 +519,31 @@ const buildTreeRows = (
 	return rows;
 };
 
+const typeaheadTimeoutMs = 500;
+
 type DirectoryTreeProps = {
-	agentId: string;
-	root: string;
+	listing: WorkspaceAgentListDirectoryResponse;
+	refreshError: string | undefined;
+	childListings: ReadonlyMap<string, ChildListing>;
 	expandedPaths: readonly string[];
 	onToggleDirectory: (path: string) => void;
 	onOpenFile: (path: string) => void;
 };
 
 const DirectoryTree: React.FC<DirectoryTreeProps> = ({
-	agentId,
-	root,
+	listing,
+	refreshError,
+	childListings,
 	expandedPaths,
 	onToggleDirectory,
 	onOpenFile,
 }) => {
-	const rootQuery = useQuery(workspaceAgentDirectory(agentId, root));
-	const childListings = useQueries({
-		queries: expandedPaths.map((path) =>
-			workspaceAgentDirectory(agentId, path),
-		),
-	});
 	const [focusedPath, setFocusedPath] = useState<string>();
+	const treeRef = useRef<HTMLDivElement>(null);
 	const rowElements = useRef(new Map<string, HTMLDivElement>());
+	const typeahead = useRef({ prefix: "", timeStamp: 0 });
 
-	if (rootQuery.data === undefined) {
-		if (!rootQuery.isError) {
-			return <Loader className="flex-1" />;
-		}
-		return (
-			<div className="p-2">
-				{getErrorStatus(rootQuery.error) === 404 ? (
-					<p className="m-0 text-sm text-content-secondary">
-						No directory at {root || "the default directory"}.
-					</p>
-				) : (
-					<ErrorAlert error={rootQuery.error} showDebugDetail={false} />
-				)}
-			</div>
-		);
-	}
-
-	const listing = rootQuery.data;
-	const rows = buildTreeRows(
-		listing.contents,
-		new Map(expandedPaths.map((path, index) => [path, childListings[index]])),
-	);
-
+	const rows = buildTreeRows(listing.contents, childListings);
 	const entryRows = rows.filter((row) => row.type === "entry");
 	const tabStopPath = entryRows.some(
 		(row) => row.entry.absolute_path_string === focusedPath,
@@ -362,6 +565,23 @@ const DirectoryTree: React.FC<DirectoryTreeProps> = ({
 		} else {
 			onOpenFile(entry.absolute_path_string);
 		}
+	};
+
+	const jumpToPrefix = (key: string, timeStamp: number, index: number) => {
+		const previous = typeahead.current;
+		const prefix =
+			timeStamp - previous.timeStamp < typeaheadTimeoutMs
+				? previous.prefix + key.toLowerCase()
+				: key.toLowerCase();
+		typeahead.current = { prefix, timeStamp };
+		// A repeated first letter cycles; a longer prefix may still match the
+		// focused row.
+		const start = prefix.length > 1 ? index : index + 1;
+		const ordered = [...entryRows.slice(start), ...entryRows.slice(0, start)];
+		const match = ordered.find((row) =>
+			row.entry.name.toLowerCase().startsWith(prefix),
+		);
+		focusPath(match?.entry.absolute_path_string);
 	};
 
 	const handleKeyDown = (
@@ -402,10 +622,22 @@ const DirectoryTree: React.FC<DirectoryTreeProps> = ({
 				}
 				break;
 			case "Enter":
+			case " ":
 				activate(row.entry);
 				break;
+			case "Escape":
+				treeRef.current?.focus();
+				break;
 			default:
-				return;
+				if (
+					event.key.length !== 1 ||
+					event.ctrlKey ||
+					event.metaKey ||
+					event.altKey
+				) {
+					return;
+				}
+				jumpToPrefix(event.key, event.timeStamp, index);
 		}
 		event.preventDefault();
 	};
@@ -423,12 +655,12 @@ const DirectoryTree: React.FC<DirectoryTreeProps> = ({
 					This directory has more entries than the agent lists.
 				</p>
 			)}
-			{rootQuery.isError && (
+			{refreshError !== undefined && (
 				<p
 					role="alert"
 					className="m-0 shrink-0 px-3 pt-1 text-xs text-content-destructive"
 				>
-					Refresh failed: {directoryErrorMessage(rootQuery.error)}
+					Refresh failed: {refreshError}
 				</p>
 			)}
 			{listing.contents.length === 0 ? (
@@ -437,9 +669,11 @@ const DirectoryTree: React.FC<DirectoryTreeProps> = ({
 				</p>
 			) : (
 				<div
+					ref={treeRef}
 					role="tree"
 					aria-label="Files"
-					className="min-h-0 flex-1 overflow-auto p-1 text-xs"
+					tabIndex={-1}
+					className="min-h-0 flex-1 overflow-auto p-1 text-xs outline-none"
 				>
 					{rows.map((row) => {
 						if (row.type === "status") {
@@ -457,10 +691,9 @@ const DirectoryTree: React.FC<DirectoryTreeProps> = ({
 								</div>
 							);
 						}
-						const { entry } = row;
+						const { entry, index } = row;
 						const path = entry.absolute_path_string;
 						const isExpanded = entry.is_dir && expandedPaths.includes(path);
-						const { index } = row;
 						return (
 							<div
 								key={path}
