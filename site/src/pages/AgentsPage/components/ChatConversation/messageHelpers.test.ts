@@ -747,16 +747,28 @@ describe("getMessageAttachments", () => {
 		expect(getMessageAttachments(messages)).toEqual([
 			{
 				key: "3:3",
+				role: "assistant",
 				file: mockReportFile,
 				href: "/api/v2/chats/files/report",
 			},
 			{
 				key: "3:1",
+				role: "assistant",
 				file: mockScreenshotFile,
 				href: "data:image/png;base64,aGk=",
 			},
-			{ key: "2:0", file: mockUploadFile, href: "/api/v2/chats/files/upload" },
-			{ key: "1:0", file: mockPlanFile, href: "/api/v2/chats/files/plan" },
+			{
+				key: "2:0",
+				role: "user",
+				file: mockUploadFile,
+				href: "/api/v2/chats/files/upload",
+			},
+			{
+				key: "1:0",
+				role: "assistant",
+				file: mockPlanFile,
+				href: "/api/v2/chats/files/plan",
+			},
 		]);
 	});
 });
@@ -767,6 +779,7 @@ describe("getEarlierMessageAttachments", () => {
 			...MockChatAttachment,
 			message_id: 9,
 			part_index: 2,
+			role: "assistant",
 		};
 		const mockEmptyAttachment: TypesGen.ChatAttachment = {
 			...MockChatAttachment,
@@ -783,11 +796,13 @@ describe("getEarlierMessageAttachments", () => {
 		).toEqual([
 			{
 				key: "9:2",
+				role: "assistant",
 				file: MockChatAttachment.file,
 				href: `/api/v2/chats/files/${MockChatFileMetadata.id}`,
 			},
 			{
 				key: `${MockChatAttachment.message_id}:0`,
+				role: "user",
 				file: MockChatAttachment.file,
 				href: `/api/v2/chats/files/${MockChatFileMetadata.id}`,
 			},
