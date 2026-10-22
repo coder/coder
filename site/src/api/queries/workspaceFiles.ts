@@ -78,7 +78,18 @@ export const workspaceAgentFile = (agentId: string, path: string) => {
 			if (pastCap.data.byteLength > 0) {
 				return { ...head, partial: "too-large" };
 			}
-			return API.readWorkspaceAgentFile(agentId, path);
+			// The file can grow past the cap after the check above.
+			const file = await API.readWorkspaceAgentFile(agentId, path, {
+				limit: workspaceAgentFileMaxTextBytes + 1,
+			});
+			if (file.data.byteLength > workspaceAgentFileMaxTextBytes) {
+				return {
+					...file,
+					data: file.data.slice(0, sniffBytes),
+					partial: "too-large",
+				};
+			}
+			return file;
 		},
 	} satisfies UseQueryOptions<WorkspaceAgentFileQueryData>;
 };
