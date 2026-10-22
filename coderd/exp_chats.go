@@ -32,6 +32,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
+	aibridgeconfig "github.com/coder/coder/v2/aibridge/config"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
@@ -8420,19 +8422,18 @@ func (api *API) chatModelProviderDescriptors(
 			HasUserAPIKey:      hasUserKey,
 			HasEffectiveAPIKey: hasKey || hasUserKey || supportsAmbientCredentials,
 			AllowUserAPIKey:    api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
-			BedrockInvokeModel: chatModelProviderUsesBedrockInvokeModel(settings),
+			BedrockInvokeModel: bedrockUsesInvokeModel(settings.Bedrock),
 		})
 	}
 	return out, nil
 }
 
-// chatModelProviderUsesBedrockInvokeModel reports whether the provider sends
-// its configured Bedrock models upstream in place of the requested model. It
-// mirrors the gateway's detection in aibridge.BedrockConfig.
-func chatModelProviderUsesBedrockInvokeModel(settings codersdk.AIProviderSettings) bool {
-	bedrock := settings.Bedrock
-	return bedrock != nil && bedrock.IsConfigured() &&
-		bedrock.ResolvedProtocol() == codersdk.AIProviderBedrockProtocolInvokeModel
+// bedrockUsesInvokeModel reports whether the gateway serves the provider over
+// the Bedrock InvokeModel protocol, which sends the provider's configured
+// models upstream in place of the requested model.
+func bedrockUsesInvokeModel(settings *codersdk.AIProviderBedrockSettings) bool {
+	cfg := agplaibridge.BedrockConfig("", settings)
+	return cfg != nil && cfg.ResolvedProtocol() == aibridgeconfig.BedrockProtocolInvokeModel
 }
 
 // aiProviderSupportsAmbientCredentials reports whether the provider's settings
