@@ -18,6 +18,10 @@
 //     registered); and unclosed container tags (a <div class="tabs"> that is
 //     never closed and leaks its wrapper over the rest of the page).
 //
+// It also fails on table header cells with no text, in Markdown pipe tables and
+// raw HTML tables alike, because screen readers announce them as unnamed
+// columns (see tables.go).
+//
 // Detection is Markdown-aware: the file is parsed with goldmark and only raw
 // HTML nodes are inspected, so angle brackets inside fenced code blocks, inline
 // code spans, HTML comments, and <https://...> or <user@host> autolinks are
@@ -196,46 +200,78 @@ func run(roots []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	var htmlIssues, staleIssues int
+	var total issueCounts
 	for _, path := range files {
 		src, err := os.ReadFile(path)
 		if err != nil {
 			_, _ = fmt.Fprintf(stderr, "docshtmlcheck: %v\n", err)
 			return 2
 		}
-		h, s := reportFindings(path, filterAllowed(path, checkSource(src), allowedUnknownTags), allowedUnknownTags, stdout)
-		htmlIssues += h
-		staleIssues += s
+		findings := append(filterAllowed(path, checkSource(src), allowedUnknownTags), checkTables(src)...)
+		sortFindings(findings)
+		total = total.add(reportFindings(path, findings, allowedUnknownTags, stdout))
 	}
 
-	if htmlIssues > 0 {
+	if total.html > 0 {
 		_, _ = fmt.Fprintf(stderr, "\ndocshtmlcheck: found %d invalid inline HTML issue(s).\n"+
 			"Wrap angle-bracket placeholders in backticks so they render as inline code\n"+
 			"(see contributing/documentation.md), fix void-element end tags\n"+
-			"like </br>, use registered components for custom tags, and close container tags.\n", htmlIssues)
+			"like </br>, use registered components for custom tags, and close container tags.\n", total.html)
 	}
-	if staleIssues > 0 {
+	if total.table > 0 {
+		_, _ = fmt.Fprintf(stderr, "\ndocshtmlcheck: found %d empty table header cell(s).\n"+
+			"Give every header cell text that names its column or row, including the\n"+
+			"top-left corner cell of a matrix; screen readers announce an empty one\n"+
+			"with no name.\n", total.table)
+	}
+	if total.stale > 0 {
 		_, _ = fmt.Fprintf(stderr, "\ndocshtmlcheck: found %d stale allowlist entry(ies); "+
-			"remove them from allowedUnknownTags in %s.\n", staleIssues, docshtmlcheckSource)
+			"remove them from allowedUnknownTags in %s.\n", total.stale, docshtmlcheckSource)
 	}
-	if htmlIssues+staleIssues > 0 {
+	if total.html+total.table+total.stale > 0 {
 		return 1
 	}
 	return 0
 }
 
-// reportFindings writes one file's findings to out and returns the count of
-// invalid-HTML findings and stale-allowlist findings. A stale-allowlist finding
-// is reported against the linter source (its fix lives in allowedUnknownTags,
-// not the scanned doc) and with no line. When the file has a real content
-// finding, is generated, and is not allowlisted, a trailing note points the
-// author at the generator source instead of the throwaway output.
+// issueCounts holds the number of findings of each class, which run reports
+// under separate summary footers.
+type issueCounts struct {
+	html, table, stale int
+}
+
+func (c issueCounts) add(o issueCounts) issueCounts {
+	return issueCounts{html: c.html + o.html, table: c.table + o.table, stale: c.stale + o.stale}
+}
+
+// sortFindings orders findings by line. A finding with no line belongs to the
+// linter's allowlist rather than to the scanned doc, so it sorts after every
+// content finding.
+func sortFindings(findings []finding) {
+	slices.SortStableFunc(findings, func(a, b finding) int {
+		if (a.line == 0) != (b.line == 0) {
+			if a.line == 0 {
+				return 1
+			}
+			return -1
+		}
+		return cmp.Compare(a.line, b.line)
+	})
+}
+
+// reportFindings writes one file's findings to out and returns how many it
+// wrote of each class: invalid HTML, empty table headers, and stale allowlist
+// entries. A stale-allowlist finding is reported against the linter source
+// (its fix lives in allowedUnknownTags, not the scanned doc) and with no line.
+// When the file has a content finding, is generated, and is not allowlisted, a
+// trailing note points the author at the generator source instead of the
+// throwaway output.
 //
 // The allowlist skip is file-scoped: a genuinely new invalid tag on an
 // allowlisted generated page is still reported, but without the
 // generator-source hint, because that page's source is external.
-func reportFindings(path string, findings []finding, allowlist map[string]map[string]bool, out io.Writer) (htmlIssues, staleIssues int) {
-	realFinding := false
+func reportFindings(path string, findings []finding, allowlist map[string]map[string]bool, out io.Writer) issueCounts {
+	var counts issueCounts
 	for _, f := range findings {
 		loc := path
 		if f.kind == kindStaleAllowlist {
@@ -248,19 +284,31 @@ func reportFindings(path string, findings []finding, allowlist map[string]map[st
 		} else {
 			_, _ = fmt.Fprintf(out, "%s: %s: %s\n", loc, f.kind, f.msg)
 		}
-		if f.kind == kindStaleAllowlist {
-			staleIssues++
-		} else {
-			htmlIssues++
-			realFinding = true
+		switch f.kind {
+		case kindStaleAllowlist:
+			counts.stale++
+		case kindEmptyTableHeader:
+			counts.table++
+		default:
+			counts.html++
 		}
 	}
-	if realFinding && isGeneratedDoc(path) && allowlist[canonicalPath(path)] == nil {
+	if counts.html+counts.table > 0 && isGeneratedDoc(path) && allowlist[canonicalPath(path)] == nil {
 		_, _ = fmt.Fprintf(out, "%s: note: this page is generated by `make gen`; fix the source "+
-			"(codersdk/*.go doc comments, CLI --help text, or swagger annotations) and "+
-			"regenerate; edits to this file will not persist\n", path)
+			"(%s) and regenerate; edits to this file will not persist\n", path, generatorSource(path))
 	}
-	return htmlIssues, staleIssues
+	return counts
+}
+
+// generatorSource names where a generated page's content comes from. A CLI
+// page is rendered from the command's --help text through a page template, so
+// a structural problem such as an empty option-table header lives in the
+// template.
+func generatorSource(path string) string {
+	if strings.HasPrefix(canonicalPath(path), "docs/reference/cli/") {
+		return "CLI --help text, or the page template scripts/clidocgen/command.tpl"
+	}
+	return "codersdk/*.go doc comments, CLI --help text, or swagger annotations"
 }
 
 // collectMarkdown expands the given roots (files or directories) into a sorted
@@ -445,12 +493,98 @@ type checker struct {
 	findings   []finding
 }
 
-// scanNode tokenizes an entire raw-HTML node at once. It concatenates the
-// node's source segments into a single buffer, so a tag whose text wraps
-// across lines is tokenized whole instead of being torn in half. It maps each
-// token back to its source line. The balance stack persists across nodes, so a
-// container opened in one block and closed in another still balances.
+// scanNode checks the tags in one raw-HTML node. The balance stack persists
+// across nodes, so a container opened in one block and closed in another still
+// balances.
 func (c *checker) scanNode(segs []text.Segment) {
+	tokenizeSegments(c.src, segs, c.lineAt, func(_ *html.Tokenizer, tt html.TokenType, raw []byte, line int) {
+		switch tt {
+		case html.StartTagToken, html.SelfClosingTagToken:
+			rawName := rawTagName(raw)
+			name := strings.ToLower(rawName)
+			if autolinkShaped(name) {
+				// e.g. <https://coder.com> or <user@coder.com>: valid Markdown
+				// autolink syntax, never a real HTML element. goldmark only
+				// classifies these as autolinks in inline context, not inside a
+				// raw HTML block, so skip them explicitly to avoid false
+				// positives.
+				return
+			}
+			if rawName != name {
+				// A capitalized tag is an MDX/JSX component reference, not an
+				// HTML element (element names are case-insensitive but
+				// conventionally lowercase; the docs renderer treats a
+				// capitalized tag as a component). Report it regardless of
+				// whether the lowercased name collides with a real element, so
+				// <Table>, <Section>, and <Image> are all caught.
+				c.findings = append(c.findings, finding{
+					line: line,
+					kind: kindUnknownElement,
+					tag:  name,
+					msg: fmt.Sprintf("<%s> is a capitalized tag; the docs renderer reads it as a "+
+						"component reference and drops it unless registered. Use a lowercase HTML "+
+						"element or a registered component", rawName),
+				})
+				return
+			}
+			if !allowedElements[name] {
+				c.findings = append(c.findings, finding{
+					line: line,
+					kind: kindUnknownElement,
+					tag:  name,
+					msg: fmt.Sprintf("<%s> is not a recognized HTML element or component; wrap a "+
+						"placeholder in backticks, add a standard HTML element to allowedElements, "+
+						"or use a registered component", name),
+				})
+				return
+			}
+			// Track balance for container elements that need an explicit end
+			// tag. A self-closing flag on a non-void HTML element (<div/>) is
+			// ignored by the HTML5 parser and the docs renderer, so it opens a
+			// container that leaks exactly like <div>; keep tracking it. A
+			// self-closing renderer component (<children/>) is the exception:
+			// MDX honors the self-closing form, so it is complete and must not
+			// be tracked. Void and optional-end-tag elements are never pushed.
+			if !voidElements[name] && !optionalEndTags[name] {
+				if tt != html.SelfClosingTagToken || !rendererComponents[name] {
+					c.stack = append(c.stack, openTag{tag: name, line: line})
+				}
+			}
+		case html.EndTagToken:
+			rawName := rawTagName(raw)
+			name := strings.ToLower(rawName)
+			if autolinkShaped(name) {
+				return
+			}
+			if rawName != name {
+				// Closing tag of a capitalized component; its opening tag was
+				// already reported, and component tags are not balance-tracked.
+				return
+			}
+			if voidElements[name] {
+				c.findings = append(c.findings, finding{
+					line: line,
+					kind: kindVoidEndTag,
+					tag:  name,
+					msg:  fmt.Sprintf("</%s> is invalid: <%s> is a void element with no end tag", name, name),
+				})
+				return
+			}
+			if !allowedElements[name] || optionalEndTags[name] {
+				// Unknown end tags are reported via their start tag; optional
+				// end tags are not balance-tracked.
+				return
+			}
+			c.matchEndTag(name, line)
+		}
+	})
+}
+
+// tokenizeSegments tokenizes an entire raw-HTML node at once and calls visit
+// for each token with its source line. It concatenates the node's source
+// segments into a single buffer, so a tag whose text wraps across lines is
+// tokenized whole instead of being torn in half.
+func tokenizeSegments(src []byte, segs []text.Segment, lineAt func(int) int, visit func(z *html.Tokenizer, tt html.TokenType, raw []byte, line int)) {
 	if len(segs) == 0 {
 		return
 	}
@@ -465,7 +599,7 @@ func (c *checker) scanNode(segs []text.Segment) {
 	var buf []byte
 	spans := make([]span, 0, len(segs))
 	for _, seg := range segs {
-		v := seg.Value(c.src)
+		v := seg.Value(src)
 		spans = append(spans, span{bufStart: len(buf), srcStart: seg.Start, length: len(v)})
 		buf = append(buf, v...)
 	}
@@ -486,88 +620,9 @@ func (c *checker) scanNode(segs []text.Segment) {
 			return
 		}
 		raw := z.Raw()
-		line := c.lineAt(srcOffset(pos))
+		line := lineAt(srcOffset(pos))
 		pos += len(raw)
-
-		switch tt {
-		case html.StartTagToken, html.SelfClosingTagToken:
-			rawName := rawTagName(raw)
-			name := strings.ToLower(rawName)
-			if autolinkShaped(name) {
-				// e.g. <https://coder.com> or <user@coder.com>: valid Markdown
-				// autolink syntax, never a real HTML element. goldmark only
-				// classifies these as autolinks in inline context, not inside a
-				// raw HTML block, so skip them explicitly to avoid false
-				// positives.
-				continue
-			}
-			if rawName != name {
-				// A capitalized tag is an MDX/JSX component reference, not an
-				// HTML element (element names are case-insensitive but
-				// conventionally lowercase; the docs renderer treats a
-				// capitalized tag as a component). Report it regardless of
-				// whether the lowercased name collides with a real element, so
-				// <Table>, <Section>, and <Image> are all caught.
-				c.findings = append(c.findings, finding{
-					line: line,
-					kind: kindUnknownElement,
-					tag:  name,
-					msg: fmt.Sprintf("<%s> is a capitalized tag; the docs renderer reads it as a "+
-						"component reference and drops it unless registered. Use a lowercase HTML "+
-						"element or a registered component", rawName),
-				})
-				continue
-			}
-			if !allowedElements[name] {
-				c.findings = append(c.findings, finding{
-					line: line,
-					kind: kindUnknownElement,
-					tag:  name,
-					msg: fmt.Sprintf("<%s> is not a recognized HTML element or component; wrap a "+
-						"placeholder in backticks, add a standard HTML element to allowedElements, "+
-						"or use a registered component", name),
-				})
-				continue
-			}
-			// Track balance for container elements that need an explicit end
-			// tag. A self-closing flag on a non-void HTML element (<div/>) is
-			// ignored by the HTML5 parser and the docs renderer, so it opens a
-			// container that leaks exactly like <div>; keep tracking it. A
-			// self-closing renderer component (<children/>) is the exception:
-			// MDX honors the self-closing form, so it is complete and must not
-			// be tracked. Void and optional-end-tag elements are never pushed.
-			if !voidElements[name] && !optionalEndTags[name] {
-				if tt != html.SelfClosingTagToken || !rendererComponents[name] {
-					c.stack = append(c.stack, openTag{tag: name, line: line})
-				}
-			}
-		case html.EndTagToken:
-			rawName := rawTagName(raw)
-			name := strings.ToLower(rawName)
-			if autolinkShaped(name) {
-				continue
-			}
-			if rawName != name {
-				// Closing tag of a capitalized component; its opening tag was
-				// already reported, and component tags are not balance-tracked.
-				continue
-			}
-			if voidElements[name] {
-				c.findings = append(c.findings, finding{
-					line: line,
-					kind: kindVoidEndTag,
-					tag:  name,
-					msg:  fmt.Sprintf("</%s> is invalid: <%s> is a void element with no end tag", name, name),
-				})
-				continue
-			}
-			if !allowedElements[name] || optionalEndTags[name] {
-				// Unknown end tags are reported via their start tag; optional
-				// end tags are not balance-tracked.
-				continue
-			}
-			c.matchEndTag(name, line)
-		}
+		visit(z, tt, raw, line)
 	}
 }
 

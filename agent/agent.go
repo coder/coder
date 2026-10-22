@@ -54,6 +54,7 @@ import (
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
 	"github.com/coder/coder/v2/agent/usershell"
+	"github.com/coder/coder/v2/agent/x/agentacp"
 	"github.com/coder/coder/v2/agent/x/agentdesktop"
 	"github.com/coder/coder/v2/agent/x/agentmcp"
 	"github.com/coder/coder/v2/buildinfo"
@@ -346,6 +347,8 @@ type agent struct {
 	toolCalls        *agenttoolcall.Table
 	desktopAPI       *agentdesktop.API
 	mcpManager       *agentmcp.Manager
+	acpManager       *agentacp.Manager
+	acpAPI           *agentacp.API
 	mcpAPI           *agentmcp.API
 	contextConfigAPI *agentcontextconfig.API
 	contextManager   *agentcontext.Manager
@@ -462,6 +465,8 @@ func (a *agent) init() {
 	)
 	a.desktopAPI = agentdesktop.NewAPI(a.logger.Named("desktop"), desktop, a.clock)
 	a.mcpManager = agentmcp.NewManager(a.gracefulCtx, a.logger.Named("mcp"), a.execer, a.filesystem, a.envInfo, a.updateCommandEnv, workingDirFn)
+	a.acpManager = agentacp.NewManager(a.gracefulCtx, agentacp.Options{Logger: a.logger.Named("acp"), Clock: a.clock, Execer: a.execer, Filesystem: a.filesystem, EnvInfo: a.envInfo, UpdateEnv: a.updateCommandEnv, WorkingDir: workingDirFn})
+	a.acpAPI = agentacp.NewAPI(a.acpManager)
 	a.contextConfigAPI = agentcontextconfig.NewAPI(workingDirFn, a.contextConfig)
 	a.mcpAPI = agentmcp.NewAPI(a.mcpManager)
 
@@ -483,11 +488,14 @@ func (a *agent) init() {
 		MCPCatalog: func() []agentcontext.MCPServerStatus {
 			return mcpCatalogToContext(a.mcpManager.Catalog())
 		},
+		MCPReconnect: a.mcpManager.Reconnect,
+		ACPResources: a.acpManager.ContextResources,
 	})
 	a.contextAPI = agentcontext.NewAPI(a.contextManager)
 	// Re-resolve and re-push KindMCPServer resources whenever the MCP
 	// engine's catalog changes (startup connect, .mcp.json edits).
 	a.mcpManager.SetOnReload(a.contextManager.Trigger)
+	a.acpManager.SetOnChange(a.contextManager.Trigger)
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
@@ -1391,6 +1399,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				// re-trigger a push once up, so we don't block readiness
 				// on them.
 				a.contextManager.SetReady()
+				a.acpManager.RunDiscovery()
 
 				// Connect to workspace MCP servers after the
 				// lifecycle transition to avoid delaying Ready.
@@ -2297,6 +2306,9 @@ func (a *agent) Close() error {
 		a.logger.Error(a.hardCtx, "desktop API close", slog.Error(err))
 	}
 
+	if err := a.acpManager.Close(); err != nil {
+		a.logger.Error(a.hardCtx, "close ACP manager", slog.Error(err))
+	}
 	if err := a.mcpManager.Close(); err != nil {
 		a.logger.Error(a.hardCtx, "mcp manager close", slog.Error(err))
 	}
@@ -2360,6 +2372,14 @@ lifecycleWaitLoop:
 	err = a.logSender.WaitUntilEmpty(a.hardCtx)
 	if err != nil {
 		a.logger.Warn(context.Background(), "timed out waiting for all logs to be sent", slog.Error(err))
+	}
+
+	// Wait for the connections closed by this shutdown to report their
+	// disconnects, and for those reports to be sent, so coderd can record why
+	// each connection closed.
+	err = a.connectionReporter.waitUntilReported(a.hardCtx)
+	if err != nil {
+		a.logger.Warn(context.Background(), "timed out waiting for all connection reports to be sent", slog.Error(err))
 	}
 
 	a.hardCancel()

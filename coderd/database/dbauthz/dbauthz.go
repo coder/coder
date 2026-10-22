@@ -2975,14 +2975,6 @@ func (q *querier) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context, 
 	return q.db.FetchVolumesResourceMonitorsUpdatedAfter(ctx, updatedAt)
 }
 
-func (q *querier) FinalizeStaleChatDebugRows(ctx context.Context, updatedBefore database.FinalizeStaleChatDebugRowsParams) (database.FinalizeStaleChatDebugRowsRow, error) {
-	// Background sweep operates across all chats.
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
-		return database.FinalizeStaleChatDebugRowsRow{}, err
-	}
-	return q.db.FinalizeStaleChatDebugRows(ctx, updatedBefore)
-}
-
 func (q *querier) FindMatchingPresetID(ctx context.Context, arg database.FindMatchingPresetIDParams) (uuid.UUID, error) {
 	_, err := q.GetTemplateVersionByID(ctx, arg.TemplateVersionID)
 	if err != nil {
@@ -3635,6 +3627,19 @@ func (q *querier) GetChatMessageByID(ctx context.Context, id int64) (database.Ch
 	return msg, nil
 }
 
+func (q *querier) GetChatMessageByIDForStream(ctx context.Context, id int64) (database.ChatMessage, error) {
+	msg, err := q.db.GetChatMessageByIDForStream(ctx, id)
+	if err != nil {
+		return database.ChatMessage{}, err
+	}
+	// Authorize read on the parent chat.
+	_, err = q.GetChatByID(ctx, msg.ChatID)
+	if err != nil {
+		return database.ChatMessage{}, err
+	}
+	return msg, nil
+}
+
 func (q *querier) GetChatMessageSummariesPerChat(ctx context.Context, createdAfter time.Time) ([]database.GetChatMessageSummariesPerChatRow, error) {
 	// Telemetry queries are called from system contexts only.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
@@ -3828,10 +3833,6 @@ func (q *querier) GetChatProjectMemoryByName(ctx context.Context, arg database.G
 		return database.GetChatProjectMemoryByNameRow{}, err
 	}
 	return row, nil
-}
-
-func (q *querier) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatProject, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectsByOwnerID)(ctx, ownerID)
 }
 
 func (q *querier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]database.ChatProject, error) {
@@ -7202,9 +7203,9 @@ func (q *querier) IsChatHeartbeatStale(ctx context.Context, arg database.IsChatH
 	return q.db.IsChatHeartbeatStale(ctx, arg)
 }
 
-// IsChatProjectAccessibleByUserID answers for another user, so it requires
+// IsChatProjectUsableByUserID answers for another user, so it requires
 // reading every project.
-func (q *querier) IsChatProjectAccessibleByUserID(ctx context.Context, arg database.IsChatProjectAccessibleByUserIDParams) (bool, error) {
+func (q *querier) IsChatProjectUsableByUserID(ctx context.Context, arg database.IsChatProjectUsableByUserIDParams) (bool, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatProject); err != nil {
 		return false, err
 	}
@@ -7218,7 +7219,7 @@ func (q *querier) IsChatProjectAccessibleByUserID(ctx context.Context, arg datab
 		}
 		return project.OwnerID == arg.UserID, nil
 	}
-	return q.db.IsChatProjectAccessibleByUserID(ctx, arg)
+	return q.db.IsChatProjectUsableByUserID(ctx, arg)
 }
 
 func (q *querier) LinkChatFilesAfterLock(ctx context.Context, arg database.LinkChatFilesAfterLockParams) (int32, error) {
@@ -7729,28 +7730,6 @@ func (q *querier) SyncAgentChatsContextMCPResources(ctx context.Context, agentID
 	return q.db.SyncAgentChatsContextMCPResources(ctx, agentID)
 }
 
-func (q *querier) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {
-	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
-	}
-	return q.db.TouchChatDebugRunUpdatedAt(ctx, arg)
-}
-
-func (q *querier) TouchChatDebugStepAndRun(ctx context.Context, arg database.TouchChatDebugStepAndRunParams) error {
-	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
-	}
-	return q.db.TouchChatDebugStepAndRun(ctx, arg)
-}
-
 func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {
 	return q.db.TryAcquireLock(ctx, id)
 }
@@ -8054,6 +8033,17 @@ func (q *querier) UpdateChatProjectByID(ctx context.Context, arg database.Update
 	return updateWithReturn(q.log, q.auth, func(ctx context.Context, arg database.UpdateChatProjectByIDParams) (database.ChatProject, error) {
 		return q.db.GetChatProjectByID(ctx, arg.ID)
 	}, q.db.UpdateChatProjectByID)(ctx, arg)
+}
+
+func (q *querier) UpdateChatProjectIDByID(ctx context.Context, arg database.UpdateChatProjectIDByIDParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.UpdateChatProjectIDByID(ctx, arg)
 }
 
 func (q *querier) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
