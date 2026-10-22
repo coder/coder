@@ -1,11 +1,15 @@
 import { isAxiosError } from "axios";
 import { cn } from "cn";
 import { LoaderIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { useQueryClient } from "react-query";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { useQueries, useQueryClient } from "react-query";
 import type { WorkspaceAgentFindFilesResult } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
-import { workspaceAgentFindFiles } from "#/api/queries/workspaceFiles";
+import {
+	workspaceAgentDirectory,
+	workspaceAgentDirectoryKey,
+	workspaceAgentFindFiles,
+} from "#/api/queries/workspaceFiles";
 import {
 	Popover,
 	PopoverContent,
@@ -13,6 +17,12 @@ import {
 } from "#/components/Popover/Popover";
 import { toast } from "#/components/Toaster/toast";
 import { useWorkspaceFiles } from "../../context/WorkspaceFilesContext";
+import {
+	findFilePathMentions,
+	getFilePathCandidateStarts,
+	type VerifiedFilePath,
+	verifyFilePath,
+} from "../../utils/filePathMentions";
 import { getPathBasename } from "../../utils/path";
 
 type FileMentionProps = {
@@ -169,5 +179,131 @@ export const FileMention: React.FC<FileMentionProps> = ({
 				</ul>
 			</PopoverContent>
 		</Popover>
+	);
+};
+
+/**
+ * True while the enclosing message is still streaming. Candidates wait for
+ * the final text before they list directories.
+ */
+export const FileMentionStreamingContext = createContext(false);
+
+// Directory listings change rarely while a chat is read; reuse them across
+// candidates instead of refetching per mention.
+const directoryStaleTime = 60_000;
+
+type FileMentionCandidateProps = {
+	/** Text starting with a path-like token, possibly with spaces in it. */
+	text: string;
+	/** The verified path must cover the whole text, as in inline code. */
+	whole: boolean;
+	/** Today's rendering of the text, shown until a path is verified. */
+	children: React.ReactNode;
+};
+
+/**
+ * Text that may be a file path containing spaces. Once it is on screen and
+ * the message has finished streaming, directory listings decide how far
+ * the path extends; only the verified part becomes a link.
+ */
+export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
+	text,
+	whole,
+	children,
+}) => {
+	const files = useWorkspaceFiles();
+	const streaming = useContext(FileMentionStreamingContext);
+	const queryClient = useQueryClient();
+	const ref = useRef<HTMLSpanElement>(null);
+	const [visible, setVisible] = useState(false);
+	const available = files !== undefined;
+
+	useEffect(() => {
+		const element = ref.current;
+		if (!available || visible || !element) {
+			return;
+		}
+		const observer = new IntersectionObserver((entries) => {
+			if (entries.some((entry) => entry.isIntersecting)) {
+				setVisible(true);
+			}
+		});
+		observer.observe(element);
+		return () => observer.disconnect();
+	}, [available, visible]);
+
+	const agentId = files?.agentId ?? "";
+	const starts = files ? getFilePathCandidateStarts(text, files.repoRoots) : [];
+	const walks = useQueries({
+		queries: starts.map((start) => {
+			const rest = text.slice(start.offset);
+			return {
+				queryKey: [
+					...workspaceAgentDirectoryKey(agentId, start.directory),
+					"verifyPath",
+					rest,
+				],
+				queryFn: () =>
+					verifyFilePath(start.directory, rest, async (directory) => {
+						const listing = await queryClient.fetchQuery({
+							...workspaceAgentDirectory(agentId, directory),
+							staleTime: directoryStaleTime,
+						});
+						return listing.contents;
+					}),
+				enabled: available && visible && !streaming,
+				staleTime: directoryStaleTime,
+				retry: false,
+			};
+		}),
+	});
+
+	if (!files) {
+		return children;
+	}
+
+	let best: VerifiedFilePath | undefined;
+	let end = 0;
+	for (const [index, walk] of walks.entries()) {
+		const walkEnd = walk.data ? starts[index].offset + walk.data.length : 0;
+		if (walk.data && walkEnd > end) {
+			best = walk.data;
+			end = walkEnd;
+		}
+	}
+	if (!best || (whole && end !== text.length)) {
+		return <span ref={ref}>{children}</span>;
+	}
+	if (whole) {
+		return (
+			<FileMention path={best.absolutePath} line={best.line}>
+				{children}
+			</FileMention>
+		);
+	}
+
+	const tail: React.ReactNode[] = [];
+	let offset = end;
+	for (const mention of findFilePathMentions(text)) {
+		if (mention.start < end) {
+			continue;
+		}
+		tail.push(text.slice(offset, mention.start));
+		tail.push(
+			<FileMention key={mention.start} path={mention.path} line={mention.line}>
+				{text.slice(mention.start, mention.end)}
+			</FileMention>,
+		);
+		offset = mention.end;
+	}
+	tail.push(text.slice(offset));
+
+	return (
+		<>
+			<FileMention path={best.absolutePath} line={best.line}>
+				{text.slice(0, end)}
+			</FileMention>
+			{tail}
+		</>
 	);
 };
