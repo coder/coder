@@ -19308,6 +19308,74 @@ func TestGetAIModelPriceForProviderProviderModel(t *testing.T) {
 	require.Equal(t, int64(1), got.InputPrice.Int64)
 }
 
+// An organization price is used as a whole, and an organization config that
+// sets no price falls back to the site-wide price.
+func TestGetAIModelPriceForProviderOrganizationConfig(t *testing.T) {
+	t.Parallel()
+
+	const model = "model-a"
+
+	setup := func(t *testing.T) (context.Context, database.Store, database.GetAIModelPriceForProviderParams) {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+
+		// The site-wide price sets all four prices.
+		seed, err := json.Marshal([]map[string]any{{
+			"provider":          string(provider.Type),
+			"model":             model,
+			"input_price":       1,
+			"output_price":      2,
+			"cache_read_price":  3,
+			"cache_write_price": 4,
+		}})
+		require.NoError(t, err)
+		require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+			Seed:   seed,
+			Source: database.AIModelPriceSourceCustom,
+		}))
+
+		return ctx, db, database.GetAIModelPriceForProviderParams{
+			ProviderType:   string(provider.Type),
+			Model:          model,
+			OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+			ProviderID:     provider.ID,
+		}
+	}
+
+	t.Run("PriceIsUsedWhole", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, lookup := setup(t)
+		upsertOrgProviderPrice(ctx, t, db, lookup.OrganizationID.UUID, lookup.ProviderID, model, 10)
+
+		got, err := db.GetAIModelPriceForProvider(ctx, lookup)
+		require.NoError(t, err)
+		require.Equal(t, sql.NullInt64{Int64: 10, Valid: true}, got.InputPrice)
+		require.False(t, got.OutputPrice.Valid)
+		require.False(t, got.CacheReadPrice.Valid)
+		require.False(t, got.CacheWritePrice.Valid)
+	})
+
+	t.Run("NoPricesFallsBackToSite", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, lookup := setup(t)
+		require.NoError(t, db.UpsertOrganizationAIProviderModelConfig(ctx, database.UpsertOrganizationAIProviderModelConfigParams{
+			OrganizationID: lookup.OrganizationID.UUID,
+			ProviderID:     lookup.ProviderID,
+			Model:          model,
+		}))
+
+		got, err := db.GetAIModelPriceForProvider(ctx, lookup)
+		require.NoError(t, err)
+		require.Equal(t, sql.NullInt64{Int64: 1, Valid: true}, got.InputPrice)
+		require.Equal(t, sql.NullInt64{Int64: 2, Valid: true}, got.OutputPrice)
+		require.Equal(t, sql.NullInt64{Int64: 3, Valid: true}, got.CacheReadPrice)
+		require.Equal(t, sql.NullInt64{Int64: 4, Valid: true}, got.CacheWritePrice)
+	})
+}
+
 func TestOrganizationAIModelPricesOpenAICompat(t *testing.T) {
 	t.Parallel()
 

@@ -3012,6 +3012,12 @@ WITH prices AS (
 		AND ai_model_configs.provider_id = $5::uuid
 		AND ai_model_configs.model IN ($1::text, $3::text)
 		AND ai_model_configs.deleted = FALSE
+		AND COALESCE(
+			ai_model_configs.input_price,
+			ai_model_configs.output_price,
+			ai_model_configs.cache_read_price,
+			ai_model_configs.cache_write_price
+		) IS NOT NULL
 )
 SELECT
 	prices.model,
@@ -3042,13 +3048,18 @@ type GetAIModelPriceForProviderRow struct {
 	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
 }
 
-// Returns the price in effect for the model served by the configured provider,
-// most specific first: the organization's price for the provider, a site-wide
-// custom price, then the price book. The requested model is preferred over the
-// model reported by the provider, whatever the kind of price. A NULL
-// organization_id matches no organization price, so only site-wide prices
-// apply. Soft-deleted organization prices are ignored. Each branch is a unique
-// index lookup.
+// Returns the price in effect for the model served by the configured provider.
+// The requested model is preferred over the model reported by the provider,
+// whatever the kind of price. For each model, the lookup order is:
+//  1. The organization's price for the provider.
+//  2. A site-wide custom price.
+//  3. The price book price.
+//
+// A NULL organization_id matches no organization price, so only site-wide
+// prices apply. Soft-deleted organization configs, and those that set no
+// price, are ignored. A matched price is used as a whole: its NULL prices are
+// not filled in from a less specific price. Each branch is a unique index
+// lookup.
 func (q *sqlQuerier) GetAIModelPriceForProvider(ctx context.Context, arg GetAIModelPriceForProviderParams) (GetAIModelPriceForProviderRow, error) {
 	row := q.db.QueryRowContext(ctx, getAIModelPriceForProvider,
 		arg.Model,

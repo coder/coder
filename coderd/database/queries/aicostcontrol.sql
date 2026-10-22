@@ -37,13 +37,17 @@ WHERE (
 );
 
 -- name: GetAIModelPriceForProvider :one
--- Returns the price in effect for the model served by the configured provider,
--- most specific first: the organization's price for the provider, a site-wide
--- custom price, then the price book. The requested model is preferred over the
--- model reported by the provider, whatever the kind of price. A NULL
--- organization_id matches no organization price, so only site-wide prices
--- apply. Soft-deleted organization prices are ignored. Each branch is a unique
--- index lookup.
+-- Returns the price in effect for the model served by the configured provider.
+-- The requested model is preferred over the model reported by the provider,
+-- whatever the kind of price. For each model, the lookup order is:
+--   1. The organization's price for the provider.
+--   2. A site-wide custom price.
+--   3. The price book price.
+-- A NULL organization_id matches no organization price, so only site-wide
+-- prices apply. Soft-deleted organization configs, and those that set no
+-- price, are ignored. A matched price is used as a whole: its NULL prices are
+-- not filled in from a less specific price. Each branch is a unique index
+-- lookup.
 WITH prices AS (
 	SELECT
 		CASE source WHEN 'custom' THEN 2 ELSE 3 END AS specificity,
@@ -68,6 +72,12 @@ WITH prices AS (
 		AND ai_model_configs.provider_id = @provider_id::uuid
 		AND ai_model_configs.model IN (@model::text, @provider_model::text)
 		AND ai_model_configs.deleted = FALSE
+		AND COALESCE(
+			ai_model_configs.input_price,
+			ai_model_configs.output_price,
+			ai_model_configs.cache_read_price,
+			ai_model_configs.cache_write_price
+		) IS NOT NULL
 )
 SELECT
 	prices.model,
