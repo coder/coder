@@ -19,12 +19,17 @@ import {
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import type { SkillSource } from "../../utils/skillAliases";
+import { splitWorkspacePathReferences } from "../../utils/workspacePathReference";
 import {
 	$createFileReferenceNode,
 	FileReferenceNode,
 	useFileReferenceSpacing,
 } from "./FileReferenceNode";
 import { EditableSkillChip } from "./SkillChip";
+import {
+	$createWorkspacePathNode,
+	WorkspacePathNode,
+} from "./WorkspacePathNode";
 
 type SerializedSkillInvocationNode = Spread<
 	{ source: SkillSource; name: string },
@@ -185,13 +190,14 @@ export function $insertSkillInvocation(
 
 /**
  * Returns the message as serialized Lexical editor state, the form the
- * composer restores a draft from, so its chips survive the round trip.
+ * composer restores a draft from, so its chips survive the round trip. The
+ * paths that "@" chips sent are restored as chips.
  */
 export const serializeMessageDraft = (
 	content: readonly ChatMessagePart[],
 ): string => {
 	const editor = createEditor({
-		nodes: [SkillInvocationNode, FileReferenceNode],
+		nodes: [SkillInvocationNode, FileReferenceNode, WorkspacePathNode],
 		onError: (error) => {
 			throw error;
 		},
@@ -214,12 +220,20 @@ export const serializeMessageDraft = (
 						),
 					);
 				} else if (part.type === "text") {
-					for (const [index, line] of part.text.split("\n").entries()) {
-						if (index > 0) {
-							paragraph.append($createLineBreakNode());
+					for (const segment of splitWorkspacePathReferences(part.text)) {
+						if (segment.type === "path") {
+							paragraph.append(
+								$createWorkspacePathNode(segment.path, segment.isDirectory),
+							);
+							continue;
 						}
-						if (line) {
-							paragraph.append($createTextNode(line));
+						for (const [index, line] of segment.text.split("\n").entries()) {
+							if (index > 0) {
+								paragraph.append($createLineBreakNode());
+							}
+							if (line) {
+								paragraph.append($createTextNode(line));
+							}
 						}
 					}
 				}
