@@ -6,16 +6,20 @@ import { Loader } from "#/components/Loader/Loader";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { useWorkspaceFiles } from "../../context/WorkspaceFilesContext";
 import { getPathBasename } from "../../utils/path";
+import type { ChatStore } from "../ChatConversation/chatStore";
 import {
 	type FileDraft,
 	type FileDraftUpdate,
 	FileTab,
 } from "../FileTab/FileTab";
 import { getTabElementIds, MainTabStrip, type TabKey } from "./MainTabStrip";
+import { findRepoRoot, useFileTabRefresh } from "./useFileTabRefresh";
 import type { MainTabsController } from "./useMainTabs";
 
 type MainTabsProps = {
 	mainTabs: MainTabsController;
+	/** The chat's store, whose file tool calls refresh the files they write. */
+	store: ChatStore;
 	/** Opens files without editing, for archived and other users' chats. */
 	readOnly: boolean;
 	/**
@@ -36,6 +40,7 @@ type MainTabsProps = {
  */
 export const MainTabs: React.FC<MainTabsProps> = ({
 	mainTabs,
+	store,
 	readOnly,
 	filesEnabled,
 	children,
@@ -69,10 +74,11 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 	const isChatActive = activePath === null;
 	const tabOrder: TabKey[] = [null, ...files.map((file) => file.path)];
 
-	const findRepoRoot = (path: string) =>
-		workspaceFiles?.repoRoots.findLast(
-			(root) => path === root || path.startsWith(`${root}/`),
-		);
+	useFileTabRefresh({
+		store,
+		workspaceFiles,
+		paths: files.map((file) => file.path),
+	});
 
 	const updateDraft = (path: string, update: FileDraftUpdate) => {
 		setDrafts((current) => {
@@ -244,8 +250,9 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 					dirtyPaths={new Set(drafts.keys())}
 					tabButtonsRef={tabButtonsRef}
 					getRelativePath={(path) => {
-						const root = findRepoRoot(path);
-						return root === undefined || root === path
+						const root =
+							workspaceFiles && findRepoRoot(workspaceFiles.repoRoots, path);
+						return !root || root === path
 							? undefined
 							: path.slice(root.length + 1);
 					}}
@@ -268,7 +275,6 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 				</MainTabPanel>
 				{files.map((file, index) => {
 					const isActive = file.path === activePath;
-					const repoRoot = findRepoRoot(file.path);
 					const ids = getTabElementIds(idPrefix, index);
 					return (
 						<MainTabPanel
@@ -285,11 +291,7 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 									agentId={workspaceFiles.agentId}
 									path={file.path}
 									reveal={file.reveal}
-									repository={
-										repoRoot === undefined
-											? undefined
-											: workspaceFiles.repositories.get(repoRoot)
-									}
+									isActive={isActive}
 									draft={drafts.get(file.path)}
 									onDraftChange={updateDraft}
 									onClose={closeFileTab}

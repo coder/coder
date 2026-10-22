@@ -13,7 +13,7 @@ import {
 	vi,
 } from "vitest";
 import { API, type WorkspaceAgentFileContents } from "#/api/api";
-import type { WorkspaceAgentRepoChanges } from "#/api/typesGenerated";
+import { workspaceAgentFileKey } from "#/api/queries/workspaceFiles";
 import { createDeferred } from "#/testHelpers/deferred";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import type FileEditor from "./FileEditor";
@@ -77,19 +77,12 @@ const responseError = (status: number, statusText: string) =>
 
 const preconditionFailed = () => responseError(412, "Precondition Failed");
 
-const repository: WorkspaceAgentRepoChanges = {
-	repo_root: "/repo",
-	branch: "main",
-};
-
 type HarnessProps = {
-	repository?: WorkspaceAgentRepoChanges;
 	readOnly?: boolean;
 	onClose?: (path: string, hasUnsavedEdits: boolean) => void;
 };
 
 const Harness: React.FC<HarnessProps> = ({
-	repository,
 	readOnly = false,
 	onClose = () => {},
 }) => {
@@ -100,7 +93,7 @@ const Harness: React.FC<HarnessProps> = ({
 			agentId={agentId}
 			path={path}
 			reveal={undefined}
-			repository={repository}
+			isActive
 			draft={draft}
 			onDraftChange={(_, update) => setDraft(update)}
 			onClose={onClose}
@@ -111,11 +104,19 @@ const Harness: React.FC<HarnessProps> = ({
 
 const renderFileTab = (props: HarnessProps) => {
 	const queryClient = createTestQueryClient();
-	return render(<Harness {...props} />, {
+	const result = render(<Harness {...props} />, {
 		wrapper: ({ children }) => (
 			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 		),
 	});
+	// What the main tabs do when the file may have changed.
+	const refreshFile = () =>
+		act(() =>
+			queryClient.invalidateQueries({
+				queryKey: workspaceAgentFileKey(agentId, path),
+			}),
+		);
+	return { ...result, refreshFile };
 };
 
 const editFile = async (
@@ -203,13 +204,13 @@ describe("FileTab", () => {
 		expect(screen.getByLabelText("File contents")).toHaveValue("hello world");
 	});
 
-	it("refetches when the repository changes and keeps local edits on request", async () => {
+	it("keeps local edits over a change on disk on request", async () => {
 		const user = userEvent.setup();
-		const { rerender } = renderFileTab({ repository });
+		const { refreshFile } = renderFileTab({});
 
 		await editFile(user, " world");
 		readFile.mockResolvedValue(fileContents("hello from disk", '"v2"'));
-		rerender(<Harness repository={{ ...repository }} />);
+		await refreshFile();
 
 		await user.click(await screen.findByRole("button", { name: "Keep mine" }));
 		expect(screen.getByLabelText("File contents")).toHaveValue("hello world");
@@ -341,31 +342,6 @@ describe("FileTab", () => {
 		await screen.findByText("Binary file");
 		expect(screen.queryByLabelText("File contents")).toBeNull();
 		expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
-	});
-
-	it("restarts a read in flight when the repository changes again", async () => {
-		const { rerender } = renderFileTab({ repository });
-		const editor = await screen.findByLabelText("File contents");
-
-		const staleRead = createDeferred<WorkspaceAgentFileContents>();
-		readFile.mockReturnValueOnce(staleRead.promise);
-		rerender(<Harness repository={{ ...repository }} />);
-		await waitFor(() => {
-			expect(readFile).toHaveBeenCalledTimes(2);
-		});
-
-		readFile.mockResolvedValueOnce(fileContents("latest", '"v3"'));
-		rerender(<Harness repository={{ ...repository }} />);
-		await waitFor(() => {
-			expect(editor).toHaveValue("latest");
-		});
-
-		await act(async () => {
-			staleRead.resolve(fileContents("stale", '"v2"'));
-			await staleRead.promise;
-		});
-		expect(readFile).toHaveBeenCalledTimes(3);
-		expect(editor).toHaveValue("latest");
 	});
 
 	describe("reading large files", () => {
