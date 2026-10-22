@@ -633,6 +633,36 @@ describe("Response", () => {
 				);
 			});
 
+			it("does not read the words of a rejected path as a path of their own", async () => {
+				const list = mockTree({
+					"/home/coder/coder/documents": ["notes (2).md"],
+				});
+				renderWithFiles("See /missing/my documents/notes (2).md now.");
+				await waitFor(() =>
+					expect(listCalls(list, "/missing")).toHaveLength(1),
+				);
+				await flush();
+
+				expect(buttonTexts()).toEqual([]);
+				expect(listCalls(list, "/home/coder/coder/documents")).toEqual([]);
+			});
+
+			it("links a later independent spaced path after a rejected one", async () => {
+				mockTree({
+					"/home/coder/coder/ux-notes": ["my notes/"],
+					"/home/coder/coder/ux-notes/my notes": ["notes (2).md"],
+				});
+				renderWithFiles(
+					"See /missing/my notes.md and ux-notes/my notes/notes (2).md now.",
+				);
+
+				expect(
+					await screen.findByRole("button", {
+						name: "ux-notes/my notes/notes (2).md",
+					}),
+				).toBeDefined();
+			});
+
 			it("offers equally long matches from several repositories", async () => {
 				const user = userEvent.setup();
 				mockTree({

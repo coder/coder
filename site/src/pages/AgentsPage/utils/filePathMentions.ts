@@ -171,6 +171,22 @@ const findCandidateTokens = (text: string): CandidateToken[] => {
 export const findCandidateTokenStarts = (text: string): number[] =>
 	findCandidateTokens(text).map(({ start }) => start);
 
+/**
+ * Where a candidate path the filesystem rejected could have ended: after
+ * the first word that ends in a file extension, or at the end of the text.
+ * Another candidate may start only after it, so words of a rejected path,
+ * as in "/missing/my documents/notes (2).md", never become a path of their
+ * own.
+ */
+export const findRejectedCandidateEnd = (text: string): number => {
+	for (const match of text.matchAll(/\S+/g)) {
+		if (/\.[A-Za-z][A-Za-z0-9]*[)\]}"'.,;:!?]*$/.test(match[0])) {
+			return match.index + match[0].length;
+		}
+	}
+	return text.length;
+};
+
 const findCandidates = (
 	text: string,
 	mentions: readonly TextRange[],
