@@ -6,6 +6,7 @@ import {
 	SelectGroup,
 	SelectItem,
 	SelectLabel,
+	SelectSeparator,
 	SelectTrigger,
 	SelectValue,
 } from "./Select";
@@ -65,5 +66,29 @@ export const KeyboardFocus: Story = {
 		await userEvent.keyboard("{Enter}");
 		await screen.findByRole("listbox");
 		await userEvent.keyboard("{ArrowDown}");
+	},
+};
+
+export const WithDescriptions: Story = {
+	args: {
+		value: "home",
+		open: true,
+		children: (
+			<>
+				<SelectTrigger className="w-[180px]">
+					<SelectValue />
+				</SelectTrigger>
+				<SelectContent>
+					<SelectItem value="root" description="/">
+						File system
+					</SelectItem>
+					<SelectItem value="home" description="~">
+						Home
+					</SelectItem>
+					<SelectSeparator />
+					<SelectItem value="other">Open path...</SelectItem>
+				</SelectContent>
+			</>
+		),
 	},
 };
