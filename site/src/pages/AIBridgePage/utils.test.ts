@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	formatSessionCost,
 	getProviderDisplayName,
 	roundTokenDisplay,
 	truncatePromptPreview,
@@ -58,5 +59,17 @@ describe("getProviderDisplayName", () => {
 
 	it("returns Unknown for empty string", () => {
 		expect(getProviderDisplayName("")).toBe("Unknown");
+	});
+});
+
+describe("formatSessionCost", () => {
+	it.each([
+		[0, "$0.00"],
+		[3_900, "<$0.01"],
+		[9_999, "<$0.01"],
+		[10_000, "$0.01"],
+		[1_234_567, "$1.23"],
+	])("formats %i micros as %s", (micros, expected) => {
+		expect(formatSessionCost(micros)).toBe(expected);
 	});
 });

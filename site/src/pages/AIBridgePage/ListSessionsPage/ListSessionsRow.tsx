@@ -9,14 +9,13 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { formatCostMicros } from "#/utils/currency";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { ClientsBadge } from "../ClientsBadge";
 import { ModelsBadge } from "../ModelsBadge";
 import { NetworkCallBadges } from "../NetworkCallBadges";
 import { ProvidersBadge } from "../ProvidersBadge";
 import { TokenBadges } from "../TokenBadges";
-import { truncatePromptPreview } from "../utils";
+import { formatSessionCost, truncatePromptPreview } from "../utils";
 import type { SessionColumnId } from "./sessionColumns";
 
 type ListSessionsRowProps = {
@@ -104,7 +103,7 @@ const SessionCell: React.FC<SessionCellProps> = ({ column, session }) => {
 		case "cost":
 			return (
 				<TableCell className="whitespace-nowrap font-normal">
-					{formatCostMicros(placeholderCostMicros(session))}
+					{formatSessionCost(placeholderCostMicros(session))}
 				</TableCell>
 			);
 		case "network":

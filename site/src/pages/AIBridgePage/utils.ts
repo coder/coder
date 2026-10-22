@@ -1,3 +1,5 @@
+import { formatCostMicros, MICROS_PER_DOLLAR } from "#/utils/currency";
+
 const compactTokenFormatter = new Intl.NumberFormat("en-US", {
 	notation: "compact",
 	maximumFractionDigits: 1,
@@ -6,6 +8,12 @@ const compactTokenFormatter = new Intl.NumberFormat("en-US", {
 /** Formats a token count compactly, such as `22.5M`. */
 export const roundTokenDisplay = (tokens: number) =>
 	compactTokenFormatter.format(tokens);
+
+const CENT_MICROS = MICROS_PER_DOLLAR / 100;
+
+/** Formats a session cost, collapsing amounts under a cent to `<$0.01`. */
+export const formatSessionCost = (micros: number) =>
+	micros > 0 && micros < CENT_MICROS ? "<$0.01" : formatCostMicros(micros);
 
 const PROMPT_PREVIEW_MAX_CHARS = 500;
 

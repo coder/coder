@@ -101,6 +101,19 @@ export const ManyThreads: Story = {
 	},
 };
 
+export const SubCentCost: Story = {
+	args: {
+		session: {
+			...MockSession,
+			token_usage_summary: {
+				...MockSession.token_usage_summary,
+				input_tokens: 300,
+				output_tokens: 200,
+			},
+		},
+	},
+};
+
 export const LargeTokenCounts: Story = {
 	args: {
 		session: {
