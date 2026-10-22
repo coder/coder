@@ -29,7 +29,7 @@ export const workspaceAgentFileMaxTextBytes = 10 << 20;
 // Git treats a file as binary when its first 8000 bytes contain a NUL.
 const sniffBytes = 8 << 10;
 
-export type WorkspaceAgentFileQueryData = WorkspaceAgentFileContents & {
+type WorkspaceAgentFileQueryData = WorkspaceAgentFileContents & {
 	/**
 	 * Set when `data` holds only the first bytes, because the file is binary
 	 * or a text file over workspaceAgentFileMaxTextBytes.
