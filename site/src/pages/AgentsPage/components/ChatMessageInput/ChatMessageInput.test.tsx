@@ -417,6 +417,36 @@ describe("ChatMessageInput", () => {
 			);
 		});
 
+		it("keeps a typed alias as text when its chip is already present", async () => {
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [],
+			});
+			await waitFor(() => expect(inputRef.current).not.toBeNull());
+			act(() => inputRef.current?.insertSkill("personal", "reviewer"));
+			const user = await pasteTrigger("/reviewer");
+			await screen.findByRole("option", { name: /^\/reviewer/ });
+			await user.keyboard(" now");
+			expect(getRequestContent(inputRef)).toEqual([
+				mockSkillPart("personal", "reviewer"),
+				{ type: "text", text: " /reviewer now" },
+			]);
+		});
+
+		it("keeps an alias as text when the caret only moves past its space", async () => {
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [],
+			});
+			const user = await pasteTrigger("/reviewer rest");
+			await user.keyboard("{ArrowLeft>5/}");
+			await screen.findByRole("option", { name: /^\/reviewer/ });
+			await user.keyboard("{ArrowRight}");
+			expect(getRequestContent(inputRef)).toEqual([
+				{ type: "text", text: "/reviewer rest" },
+			]);
+		});
+
 		it("sends a typed partial skill name as text", async () => {
 			const inputRef = renderWithSkills({
 				personal: [mockReviewerSkill],

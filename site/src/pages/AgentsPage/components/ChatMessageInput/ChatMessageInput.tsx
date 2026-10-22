@@ -702,13 +702,15 @@ const isSameSkillsTrigger = (
 	return (
 		a.nodeKey === b.nodeKey &&
 		a.slashOffset === b.slashOffset &&
-		a.query === b.query
+		a.query === b.query &&
+		a.nodeText === b.nodeText
 	);
 };
 
 /**
- * Replaces a closed trigger's alias with the skill's chip when the caret
- * sits just past the whitespace that ends the alias.
+ * Replaces a closed trigger's alias with the skill's chip when the edit that
+ * closed the trigger inserted whitespace right after the alias and left the
+ * caret just past it.
  */
 const $replaceTypedSkillAlias = (
 	trigger: ActiveSkillsTrigger,
@@ -731,11 +733,15 @@ const $replaceTypedSkillAlias = (
 		return;
 	}
 
+	// Moving the caret past whitespace that was already there also closes
+	// the trigger, so require the text to differ by exactly that insertion.
 	const text = node.getTextContent();
-	if (text.slice(trigger.slashOffset, aliasEnd) !== alias) {
-		return;
-	}
-	if (!/\s/.test(text.charAt(aliasEnd))) {
+	const inserted = text.charAt(aliasEnd);
+	const { nodeText } = trigger;
+	if (
+		!/\s/.test(inserted) ||
+		text !== nodeText.slice(0, aliasEnd) + inserted + nodeText.slice(aliasEnd)
+	) {
 		return;
 	}
 
