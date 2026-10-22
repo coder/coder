@@ -617,6 +617,30 @@ describe("MainTabs", () => {
 			expect(editor).toHaveValue("latest");
 		});
 
+		it("shows the newest content when the file changes during its first read", async () => {
+			const user = userEvent.setup();
+			const { setRepositories } = renderHarness(["/repo/a.go"]);
+			setRepositories(repoWithDiff(""));
+			const staleRead = createDeferred<WorkspaceAgentFileContents>();
+			vi.mocked(API.readWorkspaceAgentFile).mockReturnValueOnce(
+				staleRead.promise,
+			);
+			await user.click(screen.getByRole("button", { name: "Open /repo/a.go" }));
+
+			vi.mocked(API.readWorkspaceAgentFile).mockResolvedValueOnce(
+				textFile("latest"),
+			);
+			setRepositories(repoWithDiff(fileDiff("a.go", "// one")));
+			await act(async () => {
+				staleRead.resolve(textFile("stale"));
+				await staleRead.promise;
+			});
+
+			await waitFor(() => {
+				expect(screen.getByLabelText("File contents")).toHaveValue("latest");
+			});
+		});
+
 		it("rereads a file that a tool call in the chat writes", async () => {
 			savePersistedMainTabs(chatId, {
 				paths: ["/repo/a.go"],
