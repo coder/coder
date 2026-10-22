@@ -4,7 +4,7 @@ type EnabledStateIconProps = {
 	enabled: boolean;
 };
 
-/** Shows an on or off state to users who cannot change it. */
+/** A non-interactive check or x, announced as "Enabled" or "Disabled". */
 export const EnabledStateIcon: React.FC<EnabledStateIconProps> = ({
 	enabled,
 }) =>

@@ -1,8 +1,9 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { organizationSkillSettingsKey } from "#/api/queries/organizationSkills";
 import {
 	MockNoPermissions,
 	MockOrganization,
@@ -118,5 +119,56 @@ it("lets an organization admin allow members to turn off skills", async () => {
 		expect(updateSettings).toHaveBeenCalledWith(MockOrganization.id, {
 			members_can_disable_skills: true,
 		}),
+	);
+});
+
+it("keeps the organization setting on screen when reloading it fails", async () => {
+	const user = userEvent.setup();
+	vi.spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+		Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
+	);
+	vi.spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+	const getSettings = vi
+		.spyOn(API.experimental, "getOrganizationSkillSettings")
+		.mockResolvedValue({
+			...MockOrganizationSkillSettings,
+			members_can_disable_skills: true,
+		});
+	const router = createMemoryRouter(
+		[{ path: "/ai/settings/skills", element: <SkillsPage /> }],
+		{ initialEntries: ["/ai/settings/skills"] },
+	);
+	const { queryClient } = renderWithRouter(router);
+	await screen.findByRole("switch", {
+		name: "Members can turn off organization skills",
+	});
+
+	getSettings.mockRejectedValue(new Error("Settings are unavailable."));
+	await act(() =>
+		queryClient.invalidateQueries({
+			queryKey: organizationSkillSettingsKey(MockOrganization.id),
+		}),
+	);
+
+	await screen.findByText("Settings are unavailable.");
+	expect(
+		screen.getByRole("switch", {
+			name: "Members can turn off organization skills",
+		}),
+	).toBeChecked();
+
+	getSettings.mockResolvedValue({
+		...MockOrganizationSkillSettings,
+		members_can_disable_skills: true,
+	});
+	await user.click(
+		screen.getByRole("button", {
+			name: "Retry loading the organization setting",
+		}),
+	);
+	await waitFor(() =>
+		expect(
+			screen.queryByText("Settings are unavailable."),
+		).not.toBeInTheDocument(),
 	);
 });
