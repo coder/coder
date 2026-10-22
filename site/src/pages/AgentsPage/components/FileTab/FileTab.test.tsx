@@ -91,6 +91,7 @@ const Harness: React.FC<HarnessProps> = ({ repository, readOnly = false }) => {
 	const [draft, setDraft] = useState<FileDraft>();
 	return (
 		<FileTab
+			chatId="chat-1"
 			agentId={agentId}
 			path={path}
 			reveal={undefined}

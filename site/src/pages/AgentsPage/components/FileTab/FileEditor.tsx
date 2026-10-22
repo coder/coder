@@ -5,11 +5,20 @@ import { useCoderTheme } from "#/components/SyntaxHighlighter/coderTheme";
 import { MONOSPACE_FONT_FAMILY } from "#/theme/constants";
 import { useTheme } from "#/theme/context";
 import "#/utils/monacoEnvironment";
+import {
+	getFileViewState,
+	saveFileViewState,
+} from "../../utils/mainTabStorage";
 import type { FileReveal } from "../MainTabs/useMainTabs";
 
 loader.config({ monaco });
 
+// Cursor moves and scrolling arrive many times a second.
+const viewStateSaveDelayMs = 250;
+
 type FileEditorProps = {
+	/** The chat whose tab shows the file; view state is saved per chat. */
+	chatId: string;
 	/** Absolute path. Monaco infers the language from the model URI. */
 	path: string;
 	value: string;
@@ -23,6 +32,7 @@ type FileEditorProps = {
 
 /** Loaded with React.lazy so the Monaco chunk loads only when a file opens. */
 const FileEditor: React.FC<FileEditorProps> = ({
+	chatId,
 	path,
 	value,
 	reveal,
@@ -54,6 +64,31 @@ const FileEditor: React.FC<FileEditorProps> = ({
 		});
 		return () => action.dispose();
 	}, [editor]);
+
+	useEffect(() => {
+		if (!editor) {
+			return;
+		}
+		const save = () => {
+			const viewState = editor.saveViewState();
+			if (viewState) {
+				saveFileViewState(chatId, path, viewState);
+			}
+		};
+		let timer: number | undefined;
+		const scheduleSave = () => {
+			window.clearTimeout(timer);
+			timer = window.setTimeout(save, viewStateSaveDelayMs);
+		};
+		const cursorListener = editor.onDidChangeCursorPosition(scheduleSave);
+		const scrollListener = editor.onDidScrollChange(scheduleSave);
+		return () => {
+			window.clearTimeout(timer);
+			cursorListener.dispose();
+			scrollListener.dispose();
+			save();
+		};
+	}, [editor, chatId, path]);
 
 	useEffect(() => {
 		if (!editor || !reveal) {
@@ -99,7 +134,13 @@ const FileEditor: React.FC<FileEditorProps> = ({
 							onChange(nextValue);
 						}
 					}}
-					onMount={(mountedEditor) => setEditor(mountedEditor)}
+					onMount={(mountedEditor) => {
+						const viewState = getFileViewState(chatId, path);
+						if (viewState) {
+							mountedEditor.restoreViewState(viewState);
+						}
+						setEditor(mountedEditor);
+					}}
 				/>
 			</div>
 		</div>
