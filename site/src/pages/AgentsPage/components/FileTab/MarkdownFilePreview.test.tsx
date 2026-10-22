@@ -16,11 +16,12 @@ import { type FileDraft, FileTab } from "./FileTab";
 import { MarkdownFilePreview } from "./MarkdownFilePreview";
 
 // jsdom's stylesheet parser throws on the real FileViewer's shadow-DOM styles.
-vi.mock("@pierre/diffs/react", () => ({
-	File: ({ file }: { file: { contents: string } }) => (
+const { fileViewer } = vi.hoisted(() => ({
+	fileViewer: vi.fn(({ file }: { file: { contents: string } }) => (
 		<pre>{file.contents}</pre>
-	),
+	)),
 }));
+vi.mock("@pierre/diffs/react", () => ({ File: fileViewer }));
 
 vi.mock("./FileEditor", () => ({
 	default: ({ value }: { value: string }) => (
@@ -57,6 +58,9 @@ const renderPreview = (content: string) =>
 		<MarkdownFilePreview agentId={agentId} path={path} content={content} />,
 	);
 
+// About one preview chunk of prose, so content around it lands in other chunks.
+const filler = () => "Some filler text. ".repeat(1000);
+
 const pngContents = () => ({
 	data: new Uint8Array([137, 80, 78, 71]).buffer,
 	contentType: "image/png",
@@ -65,6 +69,7 @@ const pngContents = () => ({
 
 describe("MarkdownFilePreview", () => {
 	beforeEach(() => {
+		fileViewer.mockClear();
 		vi.spyOn(URL, "createObjectURL").mockImplementation(
 			() => `blob:preview-${Math.random()}`,
 		);
@@ -182,7 +187,10 @@ describe("MarkdownFilePreview", () => {
 		expect(URL.revokeObjectURL).toHaveBeenCalledWith(logo.getAttribute("src"));
 	});
 
-	it("loads at most 20 workspace images", async () => {
+	it.each([
+		{ layout: "in one chunk", separator: " " },
+		{ layout: "spread across chunks", separator: `\n\n${filler()}` },
+	])("loads at most 20 workspace images $layout", async ({ separator }) => {
 		const readFile = vi
 			.spyOn(API, "readWorkspaceAgentFile")
 			.mockResolvedValue(pngContents());
@@ -190,11 +198,48 @@ describe("MarkdownFilePreview", () => {
 			Array.from(
 				{ length: 25 },
 				(_, index) => `![${index}](docs/${index}.png)`,
-			).join(" "),
+			).join(separator),
 		);
 
-		await screen.findByText("24 (image not loaded)");
+		await screen.findByText("24 (image not loaded)", {}, { timeout: 5000 });
 		await waitFor(() => expect(readFile).toHaveBeenCalledTimes(20));
+	});
+
+	it("fills in a large file a chunk at a time with references resolved across chunks", async () => {
+		const user = userEvent.setup();
+		const { files } = renderPreview(
+			[
+				"[guide]: ./guide.md",
+				"# Part 1",
+				filler(),
+				"# Part 2",
+				filler(),
+				"# Part 3",
+				"Read the [Guide][guide].",
+			].join("\n\n"),
+		);
+
+		expect(
+			(await screen.findByRole("status")).textContent?.includes(
+				"Rendering preview",
+			),
+		).toBe(true);
+		await user.click(await screen.findByRole("button", { name: "Guide" }));
+
+		expect(files.openFile).toHaveBeenCalledWith("/repo/guide.md", {
+			line: undefined,
+		});
+		expect(screen.queryByRole("status")).toBeNull();
+	});
+
+	it("shows code in large files as plain text", async () => {
+		const code = "func main() {}";
+		renderPreview(
+			`${"Padding text. ".repeat(20_000)}\n\n\`\`\`go\n${code}\n\`\`\`\n`,
+		);
+
+		await screen.findByText(code, {}, { timeout: 5000 });
+		expect(fileViewer).not.toHaveBeenCalled();
 	});
 });
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	groupMarkdownBlocks,
 	isWorkspaceImageSource,
 	resolvePreviewLink,
 	resolveWorkspaceUrl,
@@ -39,5 +40,41 @@ describe("isWorkspaceImageSource", () => {
 		["", false],
 	])("classifies %j", (src, expected) => {
 		expect(isWorkspaceImageSource(src)).toBe(expected);
+	});
+});
+
+describe("groupMarkdownBlocks", () => {
+	it.each([
+		{
+			name: "keeps a small file in one chunk",
+			blocks: ["# A\n\n", "text\n"],
+			size: 100,
+			expected: ["# A\n\ntext\n"],
+		},
+		{
+			name: "starts a chunk before a block that would overflow",
+			blocks: ["aaaa\n\n", "bbbb\n\n", "cccc\n"],
+			size: 12,
+			expected: ["aaaa\n\nbbbb\n\n", "cccc\n"],
+		},
+		{
+			name: "keeps a block larger than the chunk size whole",
+			blocks: ["a".repeat(30), "b\n"],
+			size: 10,
+			expected: ["a".repeat(30), "b\n"],
+		},
+		{
+			name: "repeats link definitions in every chunk",
+			blocks: ["[ref]: ./x.md\n\n", "See [x][ref].\n"],
+			size: 10,
+			expected: [
+				"[ref]: ./x.md\n\n\n\n[ref]: ./x.md\n",
+				"See [x][ref].\n\n\n[ref]: ./x.md\n",
+			],
+		},
+	])("$name", ({ blocks, size, expected }) => {
+		expect(groupMarkdownBlocks(blocks.join(""), blocks, size)).toEqual(
+			expected,
+		);
 	});
 });
