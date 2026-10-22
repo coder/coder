@@ -2,6 +2,7 @@ package filefinder
 
 import (
 	"context"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/spf13/afero"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentexec"
 )
 
@@ -42,6 +44,10 @@ type Ignorer struct {
 	// global holds the global excludes lines for the fallback.
 	global []string
 
+	logger slog.Logger
+	// degradeOnce logs the first git failure that forces the fallback.
+	degradeOnce sync.Once
+
 	mu       sync.Mutex
 	files    map[string]cachedIgnoreFile
 	tops     map[string]cachedValue
@@ -56,6 +62,7 @@ type cachedValue struct {
 type ignorerConfig struct {
 	execer agentexec.Execer
 	gitBin string
+	logger slog.Logger
 }
 
 // IgnorerOption configures an Ignorer.
@@ -71,12 +78,21 @@ func WithGit(execer agentexec.Execer, bin string) IgnorerOption {
 	}
 }
 
+// WithIgnorerLogger sets where fallbacks from git to go-git are
+// logged. The default discards them.
+func WithIgnorerLogger(logger slog.Logger) IgnorerOption {
+	return func(c *ignorerConfig) {
+		c.logger = logger
+	}
+}
+
 // NewIgnorer creates an Ignorer. filesystem and homeDir are used only
 // by the fallback: filesystem reads ignore files and homeDir locates
-// the global excludes file. An empty homeDir disables fallback global
+// the global excludes file, which is read even when git is installed
+// in case git fails later. An empty homeDir disables fallback global
 // excludes.
 func NewIgnorer(filesystem afero.Fs, homeDir string, opts ...IgnorerOption) *Ignorer {
-	cfg := ignorerConfig{execer: agentexec.DefaultExecer, gitBin: "git"}
+	cfg := ignorerConfig{execer: agentexec.DefaultExecer, gitBin: "git", logger: slog.Make()}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
@@ -86,11 +102,28 @@ func NewIgnorer(filesystem afero.Fs, homeDir string, opts ...IgnorerOption) *Ign
 		files:    make(map[string]cachedIgnoreFile),
 		tops:     make(map[string]cachedValue),
 		excludes: make(map[string]cachedValue),
-	}
-	if ig.git == nil {
-		ig.global = loadGlobalExcludes(filesystem, homeDir)
+		logger:   cfg.logger,
+		global:   loadGlobalExcludes(filesystem, homeDir),
 	}
 	return ig
+}
+
+// degraded logs that git failed for dir and the fallback is used.
+// Budget overflows are logged each time as they are specific to a
+// root; other failures are logged once.
+func (ig *Ignorer) degraded(ctx context.Context, dir string, err error) {
+	if ctx.Err() != nil {
+		return
+	}
+	if errors.Is(err, errGitOutputTooLarge) {
+		ig.logger.Warn(ctx, "git ignore listing exceeds the budget, approximating gitignore rules with go-git",
+			slog.F("dir", dir), slog.Error(err))
+		return
+	}
+	ig.degradeOnce.Do(func() {
+		ig.logger.Warn(ctx, "git failed, approximating gitignore rules with go-git",
+			slog.F("dir", dir), slog.Error(err))
+	})
 }
 
 func (ig *Ignorer) cached(m map[string]cachedValue, key string) (string, bool) {
@@ -152,8 +185,9 @@ func (ig *Ignorer) excludeFile(ctx context.Context, top string) string {
 	return path
 }
 
-// IgnoreQuery is a path to classify. IsDir must be false for symlinks,
-// as git does not follow them.
+// IgnoreQuery is a path to classify. git checks whether the path is a
+// directory on disk; IsDir is used by the fallback and must be false
+// for symlinks, as git does not follow them.
 type IgnoreQuery struct {
 	Path  string
 	IsDir bool
@@ -174,18 +208,20 @@ func (ig *Ignorer) Ignored(ctx context.Context, queries []IgnoreQuery) []bool {
 		if ig.git != nil {
 			rels := make([]string, len(indexes))
 			for j, i := range indexes {
+				// No trailing "/" for directories: git then checks the
+				// path on disk like its own traversal does. With a
+				// trailing "/", "foo/**" would match the directory foo.
 				rel, _ := filepath.Rel(top, queries[i].Path)
 				rels[j] = filepath.ToSlash(rel)
-				if queries[i].IsDir {
-					rels[j] += "/"
-				}
 			}
-			if ignored, err := ig.git.checkIgnored(ctx, top, rels); err == nil {
+			ignored, err := ig.git.checkIgnored(ctx, top, rels)
+			if err == nil {
 				for j, i := range indexes {
 					result[i] = ignored[j]
 				}
 				continue
 			}
+			ig.degraded(ctx, top, err)
 		}
 		rules := make(map[string]ignoreRules)
 		for _, i := range indexes {
@@ -207,9 +243,16 @@ type walkScope struct {
 	all bool
 	// set holds the ignored paths git reported for the subtree.
 	set map[string]struct{}
+	// listedAt is when set was listed. Entries of directories
+	// modified since may be missing from it and are checked again.
+	listedAt time.Time
 	// rules are used instead of set by the fallback.
 	rules *ignoreRules
 }
+
+// dirtySlack widens the window of directories checked again, covering
+// coarse filesystem timestamps.
+const dirtySlack = time.Second
 
 func (s walkScope) ignored(path string, isDir bool) bool {
 	switch {
@@ -223,20 +266,96 @@ func (s walkScope) ignored(path string, isDir bool) bool {
 	}
 }
 
-// scopeFor lists the ignored paths under dir with one git call. git
-// reports an ignored directory without reading it.
+// scopeFor lists the ignored paths under dir. If git fails, it uses
+// the fallback for dir's subtree.
 func (ig *Ignorer) scopeFor(ctx context.Context, dir string) walkScope {
 	if ig.repoTop(dir) == "" {
 		return walkScope{}
 	}
 	if ig.git != nil {
-		set, all, err := ig.git.listIgnored(ctx, dir)
+		s, err := ig.gitScope(ctx, dir)
 		if err == nil {
-			return walkScope{all: all, set: set}
+			return s
 		}
+		ig.degraded(ctx, dir, err)
 	}
 	r := ig.fallbackRules(dir)
 	return walkScope{all: r.dirIgnored, rules: &r}
+}
+
+// gitScope lists the ignored entries under dir with git ls-files,
+// which reports an ignored directory without reading it. ls-files also
+// reports directories, including "./" for dir, that only contain
+// ignored entries, so each directory record is kept only if
+// check-ignore says the directory itself is ignored.
+func (ig *Ignorer) gitScope(ctx context.Context, dir string) (walkScope, error) {
+	listedAt := time.Now()
+	listing, err := ig.git.listIgnored(ctx, dir)
+	if err != nil {
+		return walkScope{}, err
+	}
+	s := walkScope{set: listing.files, listedAt: listedAt}
+	var rels []string
+	listedSelf := false
+	for _, rel := range listing.dirs {
+		if rel == "./" {
+			listedSelf = true
+			continue
+		}
+		rels = append(rels, strings.TrimSuffix(rel, "/"))
+	}
+	if len(rels) > 0 {
+		ignored, err := ig.git.checkIgnored(ctx, dir, rels)
+		if err != nil {
+			return walkScope{}, err
+		}
+		for i, rel := range rels {
+			if ignored[i] {
+				s.set[filepath.Join(dir, filepath.FromSlash(rel))] = struct{}{}
+			}
+		}
+	}
+	if listedSelf && ig.repoTop(dir) != dir {
+		s.all = ig.Ignored(ctx, []IgnoreQuery{{Path: dir, IsDir: true}})[0]
+	}
+	return s, nil
+}
+
+// recheckDir classifies the entries of dir again when dir changed
+// after s was listed, adding ignored ones to s. Entries created after
+// the listing would otherwise be indexed; their create events are
+// filtered, but nothing would remove them.
+func (ig *Ignorer) recheckDir(ctx context.Context, dir string, d fs.DirEntry, s walkScope) {
+	if s.set == nil || s.listedAt.IsZero() {
+		return
+	}
+	info, err := d.Info()
+	if err != nil || info.ModTime().Before(s.listedAt.Add(-dirtySlack)) {
+		return
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	queries := make([]IgnoreQuery, 0, len(entries))
+	for _, e := range entries {
+		path := filepath.Join(dir, e.Name())
+		if _, ok := s.set[path]; ok {
+			continue
+		}
+		if _, skip := skipDirs[e.Name()]; skip && e.IsDir() {
+			continue
+		}
+		queries = append(queries, IgnoreQuery{Path: path, IsDir: e.IsDir()})
+	}
+	if len(queries) == 0 {
+		return
+	}
+	for i, ignored := range ig.Ignored(ctx, queries) {
+		if ignored {
+			s.set[queries[i].Path] = struct{}{}
+		}
+	}
 }
 
 // walk walks root with filepath.WalkDir, calling fn for every entry
@@ -253,6 +372,11 @@ func (ig *Ignorer) walk(ctx context.Context, root string, fn func(path string, d
 	if top := ig.repoTop(root); top != "" && onRepo != nil {
 		onRepo(top)
 	}
+	return ig.walkScoped(ctx, root, rootScope, fn, onRepo)
+}
+
+// walkScoped is walk with root's scope already computed.
+func (ig *Ignorer) walkScoped(ctx context.Context, root string, rootScope walkScope, fn func(path string, d fs.DirEntry) error, onRepo func(top string)) error {
 	if rootScope.all {
 		return nil
 	}
@@ -261,8 +385,12 @@ func (ig *Ignorer) walk(ctx context.Context, root string, fn func(path string, d
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if walkErr != nil || path == root {
+		if walkErr != nil {
 			return nil //nolint:nilerr // best-effort
+		}
+		if path == root {
+			ig.recheckDir(ctx, root, d, rootScope)
+			return nil
 		}
 		isDir := d.IsDir()
 		if _, skip := skipDirs[d.Name()]; skip && isDir {
@@ -276,18 +404,21 @@ func (ig *Ignorer) walk(ctx context.Context, root string, fn func(path string, d
 			return nil
 		}
 		if isDir {
+			var s walkScope
 			switch {
 			case ig.repoTop(path) == path:
-				scopes[path] = ig.scopeFor(ctx, path)
+				s = ig.scopeFor(ctx, path)
 				if onRepo != nil {
 					onRepo(path)
 				}
 			case parent.rules != nil:
 				r := ig.fallbackChild(*parent.rules, path)
-				scopes[path] = walkScope{rules: &r}
+				s = walkScope{rules: &r}
 			default:
-				scopes[path] = parent
+				s = parent
 			}
+			scopes[path] = s
+			ig.recheckDir(ctx, path, d, s)
 		}
 		return fn(path, d)
 	})
