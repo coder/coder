@@ -309,18 +309,36 @@ describe("MainTabs", () => {
 
 	it("closes tabs with the close button and with a middle click", async () => {
 		const user = userEvent.setup();
-		renderHarness(["/repo/a.go", "/repo/b.go"]);
+		renderHarness(["/repo/a.go", "/repo/b.go", "/repo/c.go"]);
 
 		await user.click(screen.getByRole("button", { name: "Open /repo/a.go" }));
 		await user.click(screen.getByRole("button", { name: "Open /repo/b.go" }));
+		await user.click(screen.getByRole("button", { name: "Open /repo/c.go" }));
+		const activeContent = within(
+			screen.getByRole("tabpanel", { name: "c.go" }),
+		).getByLabelText("File contents");
 
-		await user.click(screen.getByRole("button", { name: "Close b.go" }));
+		// The click focuses the close button, which closes with its tab.
+		await user.click(screen.getByRole("button", { name: "Close a.go" }));
 		expect(getPersistedMainTabs(chatId)).toEqual({
-			paths: ["/repo/a.go"],
-			activePath: "/repo/a.go",
+			paths: ["/repo/b.go", "/repo/c.go"],
+			activePath: "/repo/c.go",
+		});
+		await waitFor(() => {
+			expect(activeContent).toHaveFocus();
 		});
 
-		await user.pointer({ keys: "[MouseMiddle]", target: getTab("a.go") });
+		act(() => activeContent.blur());
+		await user.pointer({ keys: "[MouseMiddle]", target: getTab("b.go") });
+		expect(getPersistedMainTabs(chatId)).toEqual({
+			paths: ["/repo/c.go"],
+			activePath: "/repo/c.go",
+		});
+		await waitFor(() => {
+			expect(activeContent).toHaveFocus();
+		});
+
+		await user.click(screen.getByRole("button", { name: "Close c.go" }));
 		expect(getPersistedMainTabs(chatId)).toEqual({
 			paths: [],
 			activePath: null,
@@ -780,7 +798,18 @@ describe("MainTabs", () => {
 			name: "Unsaved changes",
 		});
 		expect(router.state.location.pathname).toBe("/");
-		await user.click(within(dialog).getByRole("button", { name: "Leave" }));
+		await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+		await waitFor(() => {
+			expect(screen.getByLabelText("File contents")).toHaveFocus();
+		});
+		expect(router.state.location.pathname).toBe("/");
+
+		await act(() => router.navigate("/other"));
+		await user.click(
+			within(
+				await screen.findByRole("dialog", { name: "Unsaved changes" }),
+			).getByRole("button", { name: "Leave" }),
+		);
 		await waitFor(() => {
 			expect(router.state.location.pathname).toBe("/other");
 		});
