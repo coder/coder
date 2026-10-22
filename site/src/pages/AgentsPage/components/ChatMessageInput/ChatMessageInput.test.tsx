@@ -1091,6 +1091,7 @@ describe("ChatMessageInput", () => {
 				"agent-1",
 				["/home/coder/a", "/home/coder/b"],
 				"main",
+				undefined,
 			);
 
 			await user.keyboard("{Enter}");
@@ -1112,6 +1113,7 @@ describe("ChatMessageInput", () => {
 					"agent-1",
 					[""],
 					"x",
+					undefined,
 				),
 			);
 		});
@@ -1198,6 +1200,7 @@ describe("ChatMessageInput", () => {
 					"agent-1",
 					["/home/coder/a", "/home/coder/b"],
 					"mainx",
+					undefined,
 				),
 			);
 		});

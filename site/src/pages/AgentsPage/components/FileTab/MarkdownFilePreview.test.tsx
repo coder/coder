@@ -207,12 +207,14 @@ describe("FileTab markdown preview", () => {
 		const [draft, setDraft] = useState<FileDraft>();
 		return (
 			<FileTab
+				chatId="chat-1"
 				agentId={agentId}
 				path={path}
 				reveal={undefined}
-				repository={undefined}
+				isActive
 				draft={draft}
 				onDraftChange={(_, update) => setDraft(update)}
+				onClose={() => {}}
 				readOnly={false}
 			/>
 		);
@@ -221,11 +223,19 @@ describe("FileTab markdown preview", () => {
 	it("opens large files in Edit and previews them on request", async () => {
 		const user = userEvent.setup();
 		const content = `# Big\n\n${"word ".repeat(60_000)}`;
-		vi.spyOn(API, "readWorkspaceAgentFile").mockResolvedValue({
-			data: new TextEncoder().encode(content).buffer,
-			contentType: "text/markdown",
-			etag: '"v1"',
-		});
+		const bytes = new TextEncoder().encode(content);
+		vi.spyOn(API, "readWorkspaceAgentFile").mockImplementation(
+			async (_agentId, _path, range) => {
+				const start = range?.offset ?? 0;
+				const end =
+					range?.limit === undefined ? bytes.length : start + range.limit;
+				return {
+					data: bytes.slice(start, end).buffer,
+					contentType: "text/markdown",
+					etag: '"v1"',
+				};
+			},
+		);
 		renderWithProviders(<Harness />);
 
 		await screen.findByLabelText("File contents");

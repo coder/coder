@@ -72,6 +72,7 @@ describe("QuickOpenDialog", () => {
 			"agent-1",
 			["/home/coder/a", "/home/coder/b"],
 			"main",
+			undefined,
 		);
 
 		await user.keyboard("{ArrowDown}{Enter}");
@@ -110,6 +111,7 @@ describe("QuickOpenDialog", () => {
 				"agent-1",
 				["/home/coder/a", "/home/coder/b", "~/demo"],
 				"hello",
+				undefined,
 			),
 		);
 	});
@@ -129,6 +131,7 @@ describe("QuickOpenDialog", () => {
 				"agent-1",
 				[""],
 				"x",
+				undefined,
 			),
 		);
 	});
@@ -153,6 +156,7 @@ describe("QuickOpenDialog", () => {
 				"agent-1",
 				["/home/coder/a", "/home/coder/b"],
 				"beta",
+				undefined,
 			),
 		);
 		await user.keyboard("{Enter}");
