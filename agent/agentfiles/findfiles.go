@@ -208,7 +208,7 @@ func (api *API) ensureFinderRoots(ctx context.Context, roots []string) (*filefin
 		return nil, nil, filefinder.ErrClosed
 	}
 	if api.finder == nil {
-		api.finder = filefinder.NewEngine(api.logger.Named("filefinder"))
+		api.finder = filefinder.NewEngine(api.logger.Named("filefinder"), filefinder.WithIgnorer(api.getIgnorer()))
 		api.finderCtx, api.finderCancel = context.WithCancel(context.Background())
 		api.finderPending = make(map[string]*pendingRoot)
 		api.finderPins = make(map[string]int)
