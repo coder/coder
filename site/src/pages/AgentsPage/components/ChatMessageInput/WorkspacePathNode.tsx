@@ -8,7 +8,11 @@ import {
 	type SerializedLexicalNode,
 	type Spread,
 } from "lexical";
-import { WorkspacePathChip } from "./FileReferenceChip";
+import {
+	formatWorkspacePathReference,
+	workspacePathNodeType,
+} from "../../utils/workspacePathReference";
+import { EditableWorkspacePathChip } from "./FileReferenceChip";
 import { useFileReferenceSpacing } from "./FileReferenceNode";
 
 type SerializedWorkspacePathNode = Spread<
@@ -30,7 +34,7 @@ export class WorkspacePathNode extends DecoratorNode<React.ReactNode> {
 	__isDirectory: boolean;
 
 	static getType(): string {
-		return "workspace-path";
+		return workspacePathNodeType;
 	}
 
 	static clone(node: WorkspacePathNode): WorkspacePathNode {
@@ -56,7 +60,7 @@ export class WorkspacePathNode extends DecoratorNode<React.ReactNode> {
 
 	exportJSON(): SerializedWorkspacePathNode {
 		return {
-			type: "workspace-path",
+			type: workspacePathNodeType,
 			version: 1,
 			path: this.__path,
 			isDirectory: this.__isDirectory,
@@ -68,7 +72,7 @@ export class WorkspacePathNode extends DecoratorNode<React.ReactNode> {
 	}
 
 	getTextContent(): string {
-		return `\`${this.__path}${this.__isDirectory ? "/" : ""}\``;
+		return formatWorkspacePathReference(this.__path, this.__isDirectory);
 	}
 
 	isInline(): boolean {
@@ -103,7 +107,7 @@ const WorkspacePathChipWrapper: React.FC<{
 	};
 
 	return (
-		<WorkspacePathChip
+		<EditableWorkspacePathChip
 			path={path}
 			isDirectory={isDirectory}
 			selected={isSelected}
