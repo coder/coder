@@ -95,10 +95,6 @@ export const Empty: Story = {
 	args: { attachments: [] },
 };
 
-export const LoadingAttachments: Story = {
-	args: { attachments: undefined },
-};
-
 export const EmptyWithEarlierMessages: Story = {
 	args: { attachments: [], hasMoreMessages: true },
 };

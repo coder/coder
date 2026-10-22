@@ -12,8 +12,7 @@ import type { EarlierMessagesProps } from "./ChatMessageScroller";
 import { SectionHeader } from "./SectionHeader";
 
 type ChatAttachmentsProps = {
-	/** Undefined until the chat's first message page reaches the store. */
-	attachments: readonly AgentAttachment[] | undefined;
+	attachments: readonly AgentAttachment[];
 	evictedFileIds: ReadonlySet<string>;
 } & Pick<
 	EarlierMessagesProps,
@@ -38,9 +37,7 @@ export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 				level="section"
 				label={
 					<CollapsibleTrigger className="group inline-flex appearance-none items-center gap-1 rounded-md focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link">
-						{attachments
-							? `Attachments (${attachments.length.toLocaleString("en-US")})`
-							: "Attachments"}
+						{`Attachments (${attachments.length.toLocaleString("en-US")})`}
 						<ChevronDownIcon
 							aria-hidden
 							className="size-3.5 text-content-secondary"
@@ -48,9 +45,8 @@ export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 					</CollapsibleTrigger>
 				}
 			/>
-			{/* Stays mounted while loading so the open trigger's aria-controls resolves. */}
 			<CollapsibleContent className="flex flex-col gap-3">
-				{attachments && attachments.length > 0 && (
+				{attachments.length > 0 && (
 					<ul className="flex flex-col gap-2">
 						{attachments.map(({ key, file, href }) => (
 							<li key={key}>
@@ -67,14 +63,14 @@ export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 						))}
 					</ul>
 				)}
-				{attachments?.length === 0 && (
+				{attachments.length === 0 && (
 					<p className="m-0 text-sm text-content-secondary">
 						{hasMoreMessages
 							? "No attachments in the loaded messages."
 							: "No attachments yet."}
 					</p>
 				)}
-				{attachments && hasMoreMessages && (
+				{hasMoreMessages && (
 					<Button
 						variant="outline"
 						size="sm"
