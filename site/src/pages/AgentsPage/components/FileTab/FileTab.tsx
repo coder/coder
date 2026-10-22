@@ -1,4 +1,6 @@
 import { isAxiosError } from "axios";
+import { cn } from "cn";
+import { TriangleAlertIcon } from "lucide-react";
 import {
 	lazy,
 	memo,
@@ -17,7 +19,6 @@ import {
 	writeWorkspaceAgentFile,
 } from "#/api/queries/workspaceFiles";
 import type { WorkspaceAgentRepoChanges } from "#/api/typesGenerated";
-import { Alert, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Loader } from "#/components/Loader/Loader";
@@ -328,13 +329,35 @@ export const FileTab = memo<FileTabProps>(
 				tabIndex={-1}
 				className="flex min-h-0 flex-1 flex-col outline-none"
 			>
-				<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-3 py-1">
+				{/* A fixed height, with notices inline, so the file content does not
+				    move when a notice or a spinner appears. */}
+				<div className="flex h-8 shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-3">
 					<span
 						className="min-w-0 flex-1 truncate font-mono text-xs text-content-secondary"
 						title={path}
 					>
 						{path}
 					</span>
+					{hasSaveConflict && draft && (
+						<ChangedOnDiskNotice
+							description="The file changed on disk after you started editing."
+							keepLabel="Overwrite"
+							isReloading={fileQuery.isFetching}
+							isKeeping={writeMutation.isPending}
+							onReload={handleReload}
+							onKeep={() => save(undefined)}
+						/>
+					)}
+					{!hasSaveConflict && hasExternalChange && (
+						<ChangedOnDiskNotice
+							description="The file changed on disk while you have unsaved edits."
+							keepLabel="Keep mine"
+							isReloading={fileQuery.isFetching}
+							isKeeping={false}
+							onReload={handleReload}
+							onKeep={handleKeepMine}
+						/>
+					)}
 					{isMarkdown && isText && (
 						<div role="group" aria-label="View mode" className="flex gap-1">
 							<Button
@@ -356,45 +379,41 @@ export const FileTab = memo<FileTabProps>(
 						</div>
 					)}
 					{isText && !readOnly && (
-						<Button
-							size="xs"
-							variant="outline"
+						<PendingButton
+							isPending={writeMutation.isPending}
 							title={`Save (${getOSKey()}+S)`}
 							disabled={!draft || writeMutation.isPending}
 							onClick={handleSave}
 						>
-							<Spinner size="sm" loading={writeMutation.isPending} />
 							Save
-						</Button>
+						</PendingButton>
 					)}
 				</div>
-				{hasSaveConflict && draft && (
-					<ChangedOnDiskAlert
-						description="The file changed on disk after you started editing."
-						keepLabel="Overwrite"
-						isReloading={fileQuery.isFetching}
-						isKeeping={writeMutation.isPending}
-						onReload={handleReload}
-						onKeep={() => save(undefined)}
-					/>
-				)}
-				{!hasSaveConflict && hasExternalChange && (
-					<ChangedOnDiskAlert
-						description="The file changed on disk while you have unsaved edits."
-						keepLabel="Keep mine"
-						isReloading={fileQuery.isFetching}
-						isKeeping={false}
-						onReload={handleReload}
-						onKeep={handleKeepMine}
-					/>
-				)}
 				<div className="relative flex min-h-0 flex-1 flex-col">{body}</div>
 			</div>
 		);
 	},
 );
 
-type ChangedOnDiskAlertProps = {
+type PendingButtonProps = React.ComponentProps<typeof Button> & {
+	isPending: boolean;
+};
+
+/** Keeps its size while pending: the spinner covers the label. */
+const PendingButton: React.FC<PendingButtonProps> = ({
+	isPending,
+	children,
+	...props
+}) => (
+	<Button size="xs" variant="outline" className="relative" {...props}>
+		<span className={cn(isPending && "opacity-0")}>{children}</span>
+		{isPending && (
+			<Spinner aria-hidden size="sm" loading className="absolute" />
+		)}
+	</Button>
+);
+
+type ChangedOnDiskNoticeProps = {
 	description: string;
 	keepLabel: string;
 	isReloading: boolean;
@@ -403,7 +422,7 @@ type ChangedOnDiskAlertProps = {
 	onKeep: () => void;
 };
 
-const ChangedOnDiskAlert: React.FC<ChangedOnDiskAlertProps> = ({
+const ChangedOnDiskNotice: React.FC<ChangedOnDiskNoticeProps> = ({
 	description,
 	keepLabel,
 	isReloading,
@@ -411,36 +430,34 @@ const ChangedOnDiskAlert: React.FC<ChangedOnDiskAlertProps> = ({
 	onReload,
 	onKeep,
 }) => (
-	<Alert
-		severity="warning"
-		prominent
-		className="rounded-none border-x-0 border-t-0 px-3 py-2"
-		actions={
-			<>
-				<Button
-					size="xs"
-					variant="outline"
-					disabled={isReloading || isKeeping}
-					onClick={onReload}
-				>
-					<Spinner size="sm" loading={isReloading} />
-					Reload
-				</Button>
-				<Button
-					size="xs"
-					variant="outline"
-					disabled={isReloading || isKeeping}
-					onClick={onKeep}
-				>
-					<Spinner size="sm" loading={isKeeping} />
-					{keepLabel}
-				</Button>
-			</>
-		}
+	<div
+		role="alert"
+		title={description}
+		className="flex min-w-0 items-center gap-1.5"
 	>
-		<AlertTitle>Changed on disk</AlertTitle>
-		<p className="m-0 text-xs text-content-secondary">{description}</p>
-	</Alert>
+		<TriangleAlertIcon
+			aria-hidden
+			className="size-icon-sm shrink-0 text-content-warning"
+		/>
+		<span className="truncate text-xs font-medium text-content-warning">
+			Changed on disk
+			<span className="sr-only">. {description}</span>
+		</span>
+		<PendingButton
+			isPending={isReloading}
+			disabled={isReloading || isKeeping}
+			onClick={onReload}
+		>
+			Reload
+		</PendingButton>
+		<PendingButton
+			isPending={isKeeping}
+			disabled={isReloading || isKeeping}
+			onClick={onKeep}
+		>
+			{keepLabel}
+		</PendingButton>
+	</div>
 );
 
 type FileLoadErrorProps = {

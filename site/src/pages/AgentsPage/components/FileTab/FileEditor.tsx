@@ -1,6 +1,7 @@
 import Editor, { loader } from "@monaco-editor/react";
+import { cn } from "cn";
 import * as monaco from "monaco-editor";
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useCoderTheme } from "#/components/SyntaxHighlighter/coderTheme";
 import { MONOSPACE_FONT_FAMILY } from "#/theme/constants";
 import { useTheme } from "#/theme/context";
@@ -15,6 +16,19 @@ loader.config({ monaco });
 
 // Cursor moves and scrolling arrive many times a second.
 const viewStateSaveDelayMs = 250;
+
+const applyReveal = (
+	editor: monaco.editor.IStandaloneCodeEditor,
+	reveal: FileReveal,
+) => {
+	if (reveal.line !== undefined) {
+		editor.setPosition({ lineNumber: reveal.line, column: 1 });
+		editor.revealLineInCenter(reveal.line);
+	}
+	if (reveal.focus) {
+		editor.focus();
+	}
+};
 
 type FileEditorProps = {
 	/** The chat whose tab shows the file; view state is saved per chat. */
@@ -46,6 +60,9 @@ const FileEditor: React.FC<FileEditorProps> = ({
 	const [editor, setEditor] = useState<monaco.editor.IStandaloneCodeEditor>();
 	const save = useEffectEvent(onSave);
 	const revealed = useEffectEvent(onRevealed);
+	// The mount applies the first reveal before Monaco paints, so the effect
+	// below must not apply it again.
+	const appliedRevealRef = useRef<FileReveal>(undefined);
 
 	useEffect(() => {
 		// Text measured before the monospace font loads misplaces selections.
@@ -69,7 +86,7 @@ const FileEditor: React.FC<FileEditorProps> = ({
 		if (!editor) {
 			return;
 		}
-		const save = () => {
+		const saveViewState = () => {
 			const viewState = editor.saveViewState();
 			if (viewState) {
 				saveFileViewState(chatId, path, viewState);
@@ -78,7 +95,7 @@ const FileEditor: React.FC<FileEditorProps> = ({
 		let timer: number | undefined;
 		const scheduleSave = () => {
 			window.clearTimeout(timer);
-			timer = window.setTimeout(save, viewStateSaveDelayMs);
+			timer = window.setTimeout(saveViewState, viewStateSaveDelayMs);
 		};
 		const cursorListener = editor.onDidChangeCursorPosition(scheduleSave);
 		const scrollListener = editor.onDidScrollChange(scheduleSave);
@@ -86,21 +103,16 @@ const FileEditor: React.FC<FileEditorProps> = ({
 			window.clearTimeout(timer);
 			cursorListener.dispose();
 			scrollListener.dispose();
-			save();
+			saveViewState();
 		};
 	}, [editor, chatId, path]);
 
 	useEffect(() => {
-		if (!editor || !reveal) {
+		if (!editor || !reveal || appliedRevealRef.current === reveal) {
 			return;
 		}
-		if (reveal.line !== undefined) {
-			editor.setPosition({ lineNumber: reveal.line, column: 1 });
-			editor.revealLineInCenter(reveal.line);
-		}
-		if (reveal.focus) {
-			editor.focus();
-		}
+		appliedRevealRef.current = reveal;
+		applyReveal(editor, reveal);
 		revealed();
 	}, [editor, reveal]);
 
@@ -114,7 +126,12 @@ const FileEditor: React.FC<FileEditorProps> = ({
 			className="relative min-h-0 flex-1"
 			style={{ backgroundColor: theme.monaco.colors["editor.background"] }}
 		>
-			<div className="absolute inset-0">
+			<div
+				// Monaco paints the top of the file before onMount can restore the
+				// view state or reveal a line, so it stays transparent until then.
+				// Not `invisible`: Monaco's `visible` class would override it.
+				className={cn("absolute inset-0", !editor && "opacity-0")}
+			>
 				<Editor
 					path={monaco.Uri.file(path).toString()}
 					value={value}
@@ -138,6 +155,11 @@ const FileEditor: React.FC<FileEditorProps> = ({
 						const viewState = getFileViewState(chatId, path);
 						if (viewState) {
 							mountedEditor.restoreViewState(viewState);
+						}
+						if (reveal) {
+							appliedRevealRef.current = reveal;
+							applyReveal(mountedEditor, reveal);
+							onRevealed();
 						}
 						setEditor(mountedEditor);
 					}}

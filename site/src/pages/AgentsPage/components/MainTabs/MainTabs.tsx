@@ -2,6 +2,7 @@ import { cn } from "cn";
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { Loader } from "#/components/Loader/Loader";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { useWorkspaceFiles } from "../../context/WorkspaceFilesContext";
 import { getPathBasename } from "../../utils/path";
@@ -17,6 +18,11 @@ type MainTabsProps = {
 	mainTabs: MainTabsController;
 	/** Opens files without editing, for archived and other users' chats. */
 	readOnly: boolean;
+	/**
+	 * Whether the chat can open files. File tabs then show from the start,
+	 * and their content once the workspace agent connects.
+	 */
+	filesEnabled: boolean;
 	/** The chat transcript and composer, rendered in the pinned Chat tab. */
 	children: React.ReactNode;
 	/** Moves focus to the composer in `children`. */
@@ -31,6 +37,7 @@ type MainTabsProps = {
 export const MainTabs: React.FC<MainTabsProps> = ({
 	mainTabs,
 	readOnly,
+	filesEnabled,
 	children,
 	focusChatInput,
 }) => {
@@ -54,7 +61,7 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 		isConfirmed?: boolean;
 	}>();
 
-	const files = workspaceFiles ? mainTabs.files : [];
+	const files = filesEnabled ? mainTabs.files : [];
 	const activePath = files.some((file) => file.path === mainTabs.activePath)
 		? mainTabs.activePath
 		: null;
@@ -242,20 +249,20 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 				>
 					{children}
 				</MainTabPanel>
-				{workspaceFiles &&
-					files.map((file, index) => {
-						const isActive = file.path === activePath;
-						const repoRoot = findRepoRoot(file.path);
-						const ids = getTabElementIds(idPrefix, index);
-						return (
-							<MainTabPanel
-								key={file.path}
-								id={ids.panelId}
-								role="tabpanel"
-								aria-labelledby={ids.tabId}
-								isActive={isActive}
-								className="absolute inset-0 flex flex-col bg-surface-primary"
-							>
+				{files.map((file, index) => {
+					const isActive = file.path === activePath;
+					const repoRoot = findRepoRoot(file.path);
+					const ids = getTabElementIds(idPrefix, index);
+					return (
+						<MainTabPanel
+							key={file.path}
+							id={ids.panelId}
+							role="tabpanel"
+							aria-labelledby={ids.tabId}
+							isActive={isActive}
+							className="absolute inset-0 flex flex-col bg-surface-primary"
+						>
+							{workspaceFiles ? (
 								<FileTab
 									chatId={mainTabs.chatId}
 									agentId={workspaceFiles.agentId}
@@ -270,9 +277,12 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 									onDraftChange={updateDraft}
 									readOnly={readOnly}
 								/>
-							</MainTabPanel>
-						);
-					})}
+							) : (
+								<Loader label="Waiting for the workspace agent" />
+							)}
+						</MainTabPanel>
+					);
+				})}
 			</div>
 			<ConfirmDialog
 				open={closeRequest?.isOpen ?? false}
