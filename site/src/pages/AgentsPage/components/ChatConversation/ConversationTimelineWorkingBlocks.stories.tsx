@@ -4,16 +4,21 @@ import {
 	fireEvent,
 	fn,
 	screen,
+	spyOn,
 	userEvent,
 	waitFor,
 	within,
 } from "storybook/test";
 import { defaultUrlTransform } from "streamdown";
+import { API } from "#/api/api";
 import { chatFileTextKey } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { Button } from "#/components/Button/Button";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
-import { MockUserPreferenceSettings } from "#/testHelpers/entities";
+import {
+	MockUserPreferenceSettings,
+	mockApiError,
+} from "#/testHelpers/entities";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
@@ -302,6 +307,13 @@ export const TurnAttachmentsPillExpired: Story = {
 	play: openAttachmentsPill,
 };
 
+const viewFindingsFile: Story["play"] = async (context) => {
+	await openAttachmentsPill(context);
+	await userEvent.click(
+		await screen.findByRole("button", { name: "findings.md View file" }),
+	);
+};
+
 // The preview opens over the popover, which stays open beneath it.
 export const TurnAttachmentsPillViewText: Story = {
 	parameters: {
@@ -316,12 +328,59 @@ export const TurnAttachmentsPillViewText: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
 	},
-	play: async (context) => {
-		await openAttachmentsPill(context);
-		await userEvent.click(
-			await screen.findByRole("button", { name: "View findings.md" }),
+	play: viewFindingsFile,
+};
+
+export const TurnAttachmentsPillViewTextLoading: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatFileText").mockImplementation(
+			() => new Promise(() => {}),
 		);
 	},
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+	},
+	play: viewFindingsFile,
+};
+
+export const TurnAttachmentsPillViewTextFailed: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatFileText").mockRejectedValue(
+			new Error("Failed to load findings.md"),
+		);
+	},
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+	},
+	play: viewFindingsFile,
+};
+
+const findingsFileNotFound = mockApiError({ message: "File not found." });
+
+export const TurnAttachmentsPillViewTextDeleted: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatFileText").mockRejectedValue({
+			...findingsFileNotFound,
+			response: { ...findingsFileNotFound.response, status: 404 },
+		});
+	},
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+	},
+	play: viewFindingsFile,
+};
+
+export const TurnAttachmentsPillViewEmptyText: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+			{ key: chatFileTextKey("findings-file"), data: "" },
+		],
+	},
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+	},
+	play: viewFindingsFile,
 };
 
 export const TurnAttachmentsPillBrokenImage: Story = {

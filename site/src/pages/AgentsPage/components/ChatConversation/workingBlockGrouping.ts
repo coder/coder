@@ -202,9 +202,9 @@ const startTurn = (hasPrompt: boolean): TurnDraft => ({
 });
 
 /**
- * Agent attachments keyed by the row hosting their turn's pill: the turn's last
- * shown assistant row other than a clear or summary. Every earlier turn keeps
- * its pill, and the newest gets one once settled. Reads only rows and flags.
+ * Agent attachments keyed by the row hosting their turn's pill: the last shown
+ * assistant row other than a clear or summary. Earlier turns keep their pills,
+ * and the newest gets one once it can add nothing. Reads only rows and flags.
  */
 export const getTurnAttachmentsByRow = (
 	rows: readonly TimelineRow[],
@@ -253,10 +253,9 @@ export const getTurnAttachmentsByRow = (
 		}
 
 		const { blocks, tools } = lastShownRow.entry.parsed;
-		// Every earlier turn is done. A compaction adds nothing to an answered
-		// newest turn, while an unanswered one goes on after it, mid-turn or
-		// resumed after a manual /compact. Summary rows persist before the stop,
-		// so they count too.
+		// Earlier turns are done. A compaction adds nothing to an answered newest
+		// turn, but an unanswered one goes on after it, mid-turn or resumed after a
+		// manual /compact. Summary rows persist before the stop, so they count too.
 		const showsPill =
 			index < turns.length - 1 ||
 			!isChatActive ||

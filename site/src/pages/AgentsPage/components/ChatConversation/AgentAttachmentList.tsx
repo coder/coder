@@ -15,6 +15,7 @@ import {
 	FileCard,
 	getAttachmentDisplayName,
 	isTextPreviewAttachmentMediaType,
+	ViewableFileCard,
 } from "./AttachmentBlocks";
 import type { AgentAttachment } from "./messageHelpers";
 import { useAttachmentFailure } from "./useAttachmentFailure";
@@ -24,16 +25,33 @@ type AttachmentCardProps = {
 	expired: boolean;
 };
 
-/** A thumbnail that failed to load leaves the image to download only. */
+/** A card's viewer: whether it is open, and focus back on the card on close. */
+const useAttachmentViewer = () => {
+	const [isViewing, setIsViewing] = useState(false);
+	const viewButtonRef = useRef<HTMLButtonElement>(null);
+	return {
+		isViewing,
+		open: () => setIsViewing(true),
+		viewButtonRef,
+		dialogProps: {
+			onClose: () => setIsViewing(false),
+			onCloseAutoFocus: () => viewButtonRef.current?.focus(),
+		},
+	};
+};
+
+/**
+ * A thumbnail that fails to load shows the download card, or the expired tile
+ * once the probe finds the file deleted, since the viewer would fail too.
+ */
 const ImageAttachmentCard: React.FC<AttachmentCardProps> = ({
 	attachment: { file, href },
 	expired,
 }) => {
 	const [failure, onError] = useAttachmentFailure(file.file_id, href);
-	const [isViewing, setIsViewing] = useState(false);
-	const viewButtonRef = useRef<HTMLButtonElement>(null);
+	const viewer = useAttachmentViewer();
 
-	if (failure.kind !== "idle") {
+	if (expired || failure.kind !== "idle") {
 		return (
 			<FileCard
 				block={file}
@@ -46,11 +64,9 @@ const ImageAttachmentCard: React.FC<AttachmentCardProps> = ({
 
 	return (
 		<>
-			<FileCard
+			<ViewableFileCard
 				block={file}
 				href={href}
-				expired={expired}
-				fullWidth
 				tile={
 					<ImageThumbnail
 						previewUrl={href}
@@ -60,16 +76,10 @@ const ImageAttachmentCard: React.FC<AttachmentCardProps> = ({
 						onError={onError}
 					/>
 				}
-				onView={() => setIsViewing(true)}
-				viewButtonRef={viewButtonRef}
+				onView={viewer.open}
+				viewButtonRef={viewer.viewButtonRef}
 			/>
-			{isViewing && (
-				<ImageLightbox
-					src={href}
-					onClose={() => setIsViewing(false)}
-					onCloseAutoFocus={() => viewButtonRef.current?.focus()}
-				/>
-			)}
+			{viewer.isViewing && <ImageLightbox src={href} {...viewer.dialogProps} />}
 		</>
 	);
 };
@@ -82,89 +92,87 @@ const StoredTextAttachmentCard: React.FC<StoredTextAttachmentCardProps> = ({
 	expired,
 	fileId,
 }) => {
-	const [isViewing, setIsViewing] = useState(false);
-	const viewButtonRef = useRef<HTMLButtonElement>(null);
-	const textQuery = useQuery({ ...chatFileText(fileId), enabled: isViewing });
+	const viewer = useAttachmentViewer();
+	const textQuery = useQuery({
+		...chatFileText(fileId),
+		enabled: viewer.isViewing,
+	});
+	const isLoadingText = textQuery.isFetching && textQuery.data === undefined;
+	const loadError = textQuery.isError
+		? (getTextAttachmentErrorMessage(textQuery.error) ?? undefined)
+		: undefined;
 
 	if (
-		isAxiosError(textQuery.error) &&
-		textQuery.error.response?.status === 404
+		expired ||
+		(isAxiosError(textQuery.error) && textQuery.error.response?.status === 404)
 	) {
 		return <FileCard block={file} href={href} expired fullWidth />;
 	}
 
 	return (
 		<>
-			<FileCard
+			<ViewableFileCard
 				block={file}
 				href={href}
-				expired={expired}
-				fullWidth
 				tile={
-					textQuery.isLoading ? (
+					isLoadingText ? (
 						<Spinner size="sm" loading className="text-content-secondary" />
 					) : undefined
 				}
-				viewStatus={
-					textQuery.isError
-						? (getTextAttachmentErrorMessage(textQuery.error) ?? undefined)
-						: undefined
-				}
+				status={isLoadingText ? "Loading file" : loadError}
 				onView={() => {
-					setIsViewing(true);
+					viewer.open();
+					// A failed load leaves the query enabled, so only a refetch
+					// retries it.
 					if (textQuery.isError) {
 						void textQuery.refetch();
 					}
 				}}
-				viewButtonRef={viewButtonRef}
+				viewButtonRef={viewer.viewButtonRef}
 			/>
-			{isViewing && textQuery.data !== undefined && (
+			{viewer.isViewing && textQuery.data !== undefined && (
 				<TextPreviewDialog
 					content={textQuery.data}
 					fileName={getAttachmentDisplayName(file)}
 					mediaType={file.media_type}
-					onClose={() => setIsViewing(false)}
-					onCloseAutoFocus={() => viewButtonRef.current?.focus()}
+					{...viewer.dialogProps}
 				/>
 			)}
 		</>
 	);
 };
 
-type InlineTextAttachmentCardProps = AttachmentCardProps & { data: string };
+type InlineTextAttachmentCardProps = {
+	attachment: AgentAttachment;
+	data: string;
+};
 
 const InlineTextAttachmentCard: React.FC<InlineTextAttachmentCardProps> = ({
 	attachment: { file, href },
-	expired,
 	data,
 }) => {
-	const [isViewing, setIsViewing] = useState(false);
-	const viewButtonRef = useRef<HTMLButtonElement>(null);
+	const viewer = useAttachmentViewer();
 
 	return (
 		<>
-			<FileCard
+			<ViewableFileCard
 				block={file}
 				href={href}
-				expired={expired}
-				fullWidth
-				onView={() => setIsViewing(true)}
-				viewButtonRef={viewButtonRef}
+				onView={viewer.open}
+				viewButtonRef={viewer.viewButtonRef}
 			/>
-			{isViewing && (
+			{viewer.isViewing && (
 				<TextPreviewDialog
 					content={decodeInlineTextAttachment(data)}
 					fileName={getAttachmentDisplayName(file)}
 					mediaType={file.media_type}
-					onClose={() => setIsViewing(false)}
-					onCloseAutoFocus={() => viewButtonRef.current?.focus()}
+					{...viewer.dialogProps}
 				/>
 			)}
 		</>
 	);
 };
 
-/** Images and text open in a viewer; other files only download. */
 const AgentAttachmentCard: React.FC<AttachmentCardProps> = (props) => {
 	const { file, href } = props.attachment;
 	if (isRasterImageMediaType(file.media_type)) {
@@ -175,7 +183,12 @@ const AgentAttachmentCard: React.FC<AttachmentCardProps> = (props) => {
 			return <StoredTextAttachmentCard {...props} fileId={file.file_id} />;
 		}
 		if (file.data) {
-			return <InlineTextAttachmentCard {...props} data={file.data} />;
+			return (
+				<InlineTextAttachmentCard
+					attachment={props.attachment}
+					data={file.data}
+				/>
+			);
 		}
 	}
 	return (

@@ -3206,12 +3206,16 @@ export const deleteChatModel = (queryClient: QueryClient) => ({
 export const chatFileTextKey = (fileId: string) =>
 	[...chatFilesKey, fileId, "text"] as const;
 
-/** A stored chat file's text, which never changes once uploaded. */
+/**
+ * A stored chat file's text, which never changes once uploaded, so the cache
+ * keeps it, or the 404 of a deleted file, for the whole session.
+ */
 export const chatFileText = (fileId: string) =>
 	queryOptions({
 		queryKey: chatFileTextKey(fileId),
 		queryFn: () => API.experimental.getChatFileText(fileId),
 		staleTime: Number.POSITIVE_INFINITY,
+		gcTime: Number.POSITIVE_INFINITY,
 	});
 
 const GATEWAY_REQUEST_STALE_MS = 30_000;

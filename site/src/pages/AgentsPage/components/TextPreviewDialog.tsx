@@ -1,5 +1,6 @@
 import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 import { Response } from "./ChatElements/Response";
+import { replaceCloseAutoFocus } from "./Lightbox";
 
 type TextPreviewDialogProps = {
 	content: string;
@@ -7,7 +8,10 @@ type TextPreviewDialogProps = {
 	/** Explicit media type for the attachment, if known. */
 	mediaType?: string;
 	onClose: () => void;
-	/** Overrides where focus lands after closing, as in Lightbox. */
+	/**
+	 * Moves focus once the dialog closes. Radix would focus the dialog's
+	 * Trigger, and this dialog has none, so focus would fall to the page body.
+	 */
 	onCloseAutoFocus?: () => void;
 };
 
@@ -45,19 +49,17 @@ export const TextPreviewDialog: React.FC<TextPreviewDialogProps> = ({
 			<DialogContent
 				className="max-h-[85vh] max-w-[90vw] w-full sm:w-fit sm:min-w-[400px] flex flex-col gap-0 p-0"
 				aria-describedby={undefined}
-				onCloseAutoFocus={
-					onCloseAutoFocus &&
-					((event) => {
-						event.preventDefault();
-						onCloseAutoFocus();
-					})
-				}
+				onCloseAutoFocus={replaceCloseAutoFocus(onCloseAutoFocus)}
 			>
 				<DialogTitle className="px-4 py-3 border-b border-border text-sm font-medium">
 					{fileName ?? "Pasted text"}
 				</DialogTitle>
 				<div className="overflow-auto p-4 max-h-[calc(85vh-3rem)]">
-					{renderAsMarkdown ? (
+					{content === "" ? (
+						<p className="m-0 text-sm text-content-secondary">
+							This file is empty.
+						</p>
+					) : renderAsMarkdown ? (
 						// Reuse the same Markdown renderer used for chat messages
 						// so attached markdown previews look consistent with the
 						// rest of the conversation.

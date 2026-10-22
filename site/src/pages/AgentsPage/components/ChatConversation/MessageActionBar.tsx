@@ -42,10 +42,7 @@ export const MessageActionBar: React.FC<MessageActionBarProps> = ({
 			{!isUser && copyButton}
 			{turnAttachments && <TurnAttachments attachments={turnAttachments} />}
 			{showsHoverActions && (
-				<div
-					className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100"
-					data-testid="message-actions"
-				>
+				<div className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100">
 					{children}
 				</div>
 			)}

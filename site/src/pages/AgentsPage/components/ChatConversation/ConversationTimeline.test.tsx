@@ -399,35 +399,56 @@ describe("ConversationTimeline turn attachments", () => {
 		renderTimeline({ messages: MockMixedAttachmentMessages });
 		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
 		const viewButton = await screen.findByRole("button", {
-			name: "View findings.md",
+			name: "findings.md View file",
 		});
 
 		await user.click(viewButton);
-		within(
-			await screen.findByRole("dialog", { name: "findings.md" }),
-		).getByRole("heading", { name: "Findings" });
+		await screen.findByRole("dialog", { name: "findings.md" });
 		await user.keyboard("{Escape}");
 
 		await waitFor(() => expect(viewButton).toHaveFocus());
 		expect(requestedFileIDs).toEqual(["findings-file"]);
 	});
 
-	it("shows a text file expired once its preview finds it deleted", async () => {
+	it("returns focus to an image card once its viewer closes", async () => {
 		const user = userEvent.setup();
+		renderTimeline({ messages: MockMixedAttachmentMessages });
+		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
+		const viewButton = await screen.findByRole("button", {
+			name: "dashboard-before.png View file",
+		});
+
+		await user.click(viewButton);
+		await screen.findByRole("dialog", { name: "Image preview" });
+		await user.keyboard("{Escape}");
+
+		await waitFor(() => expect(viewButton).toHaveFocus());
+	});
+
+	it("requests a text file again when viewed after a failed load", async () => {
+		const user = userEvent.setup();
+		const requestedFileIDs: string[] = [];
 		server.use(
-			http.get(
-				"/api/v2/chats/files/:fileId",
-				() => new HttpResponse(null, { status: 404 }),
-			),
+			http.get("/api/v2/chats/files/:fileId", ({ params }) => {
+				requestedFileIDs.push(String(params.fileId));
+				return new HttpResponse(null, { status: 500 });
+			}),
 		);
 		renderTimeline({ messages: MockMixedAttachmentMessages });
 		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
-
 		await user.click(
-			await screen.findByRole("button", { name: "View findings.md" }),
+			await screen.findByRole("button", { name: "findings.md View file" }),
 		);
 
-		await screen.findByRole("img", { name: "Attachment expired: findings.md" });
+		await user.click(
+			await screen.findByRole("button", {
+				name: "findings.md Couldn't load preview. Select again to retry.",
+			}),
+		);
+
+		await waitFor(() =>
+			expect(requestedFileIDs).toEqual(["findings-file", "findings-file"]),
+		);
 	});
 });
 

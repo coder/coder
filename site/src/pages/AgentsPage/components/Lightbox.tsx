@@ -12,6 +12,17 @@ type LightboxProps = {
 };
 
 /**
+ * A DialogContent onCloseAutoFocus that runs focus in place of Radix's own
+ * close focus, or undefined to keep Radix's.
+ */
+export const replaceCloseAutoFocus = (focus: (() => void) | undefined) =>
+	focus &&
+	((event: Event) => {
+		event.preventDefault();
+		focus();
+	});
+
+/**
  * Chat preview dialog for media that should be shown as large as the
  * viewport allows: a dimmed overlay with an unpadded, borderless frame
  * capped at 90vw by 85vh. Children are responsible for their own
@@ -28,13 +39,7 @@ export const Lightbox: React.FC<LightboxProps> = ({
 			<DialogContent
 				className="max-h-[85vh] max-w-[90vw] w-fit border-0 bg-transparent p-0 shadow-none"
 				aria-describedby={undefined}
-				onCloseAutoFocus={
-					onCloseAutoFocus &&
-					((event) => {
-						event.preventDefault();
-						onCloseAutoFocus();
-					})
-				}
+				onCloseAutoFocus={replaceCloseAutoFocus(onCloseAutoFocus)}
 			>
 				<DialogTitle className="sr-only">{title}</DialogTitle>
 				{children}

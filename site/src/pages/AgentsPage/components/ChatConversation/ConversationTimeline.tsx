@@ -417,10 +417,9 @@ const ChatMessageItem = memo<{
 							)}
 					</MessageActionBar>
 				)}
-				{/* The bottom spacer fakes the action bar's height so chain-end
-				    messages without one keep even spacing. A row with a pill shows its
-				    bar, and the last message has nothing after it, so neither gets the
-				    spacer. */}
+				{/* The bottom spacer fakes the action bar's height so chain-end messages
+				    without one keep even spacing. A row with a pill shows its bar, and the
+				    last message has nothing after it, so neither gets the spacer. */}
 				{displayState?.needsAssistantBottomSpacer &&
 					!isLastMessage &&
 					!turnAttachments && (
