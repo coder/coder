@@ -14,12 +14,15 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"math"
 	"os"
+	"slices"
 	"sort"
+	"strings"
 
 	"golang.org/x/xerrors"
 
@@ -50,7 +53,31 @@ type upstreamCost struct {
 	Output     *float64 `json:"output"`
 	CacheRead  *float64 `json:"cache_read"`
 	CacheWrite *float64 `json:"cache_write"`
+	// Tiers carry explicit sizes. context_over_200k repeats the first tier
+	// under a 200K name that is wrong for some models, so it is not read.
+	Tiers []upstreamTier `json:"tiers"`
 }
+
+// upstreamTier holds the prices for a request whose prompt is over Tier.Size
+// tokens.
+type upstreamTier struct {
+	Input      *float64 `json:"input"`
+	Output     *float64 `json:"output"`
+	CacheRead  *float64 `json:"cache_read"`
+	CacheWrite *float64 `json:"cache_write"`
+	Tier       struct {
+		Type string `json:"type"`
+		Size int64  `json:"size"`
+	} `json:"tier"`
+}
+
+// models.dev has no 1h cache write price. Claude bills a 1h write at 2x
+// input.
+const claude1hMultiplier = 2
+
+// messagesProviders use the Messages path, the only path that reports the
+// 1h part of cache writes.
+var messagesProviders = []string{"anthropic", "bedrock", "copilot"}
 
 // hasPricing reports whether the cost block has at least one populated price.
 // Returns false for a nil receiver, so callers can pass m.Cost without a
@@ -158,13 +185,20 @@ func convert(upstream map[string]upstreamProvider, providerIDs []string) ([]pric
 			if !m.Cost.hasPricing() {
 				continue
 			}
+			tiers, err := convertTiers(providerID, modelID, m.Cost.Tiers)
+			if err != nil {
+				return nil, xerrors.Errorf("convert tiers of %s/%s: %w", providerID, modelID, err)
+			}
+			input := toMicros(m.Cost.Input)
 			rows = append(rows, pricebook.Row{
-				Provider:        providerID,
-				Model:           modelID,
-				InputPrice:      toMicros(m.Cost.Input),
-				OutputPrice:     toMicros(m.Cost.Output),
-				CacheReadPrice:  toMicros(m.Cost.CacheRead),
-				CacheWritePrice: toMicros(m.Cost.CacheWrite),
+				Provider:          providerID,
+				Model:             modelID,
+				InputPrice:        input,
+				OutputPrice:       toMicros(m.Cost.Output),
+				CacheReadPrice:    toMicros(m.Cost.CacheRead),
+				CacheWritePrice:   toMicros(m.Cost.CacheWrite),
+				CacheWrite1hPrice: claude1hPrice(providerID, modelID, input),
+				Tiers:             tiers,
 			})
 		}
 	}
@@ -179,6 +213,47 @@ func convert(upstream map[string]upstreamProvider, providerIDs []string) ([]pric
 		return rows[i].Model < rows[j].Model
 	})
 	return rows, nil
+}
+
+func claude1hPrice(providerID, modelID string, input *int64) *int64 {
+	if input == nil || !strings.Contains(modelID, "claude") {
+		return nil
+	}
+	if !slices.Contains(messagesProviders, providerID) {
+		return nil
+	}
+	price := *input * claude1hMultiplier
+	return &price
+}
+
+func convertTiers(providerID, modelID string, upstream []upstreamTier) ([]pricebook.Tier, error) {
+	tiers := make([]pricebook.Tier, 0, len(upstream))
+	for _, t := range upstream {
+		if t.Tier.Type != "context" {
+			return nil, xerrors.Errorf("unknown tier type %q", t.Tier.Type)
+		}
+		if t.Tier.Size <= 0 {
+			return nil, xerrors.Errorf("tier size %d is not positive", t.Tier.Size)
+		}
+		input := toMicros(t.Input)
+		tiers = append(tiers, pricebook.Tier{
+			ThresholdTokens:   t.Tier.Size,
+			InputPrice:        input,
+			OutputPrice:       toMicros(t.Output),
+			CacheReadPrice:    toMicros(t.CacheRead),
+			CacheWritePrice:   toMicros(t.CacheWrite),
+			CacheWrite1hPrice: claude1hPrice(providerID, modelID, input),
+		})
+	}
+	slices.SortFunc(tiers, func(a, b pricebook.Tier) int {
+		return cmp.Compare(a.ThresholdTokens, b.ThresholdTokens)
+	})
+	for i := 1; i < len(tiers); i++ {
+		if tiers[i].ThresholdTokens == tiers[i-1].ThresholdTokens {
+			return nil, xerrors.Errorf("duplicate tier size %d", tiers[i].ThresholdTokens)
+		}
+	}
+	return tiers, nil
 }
 
 // validate checks invariants on the converted rows. Catches upstream
