@@ -286,22 +286,17 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 				</div>
 			)}
 			<div className="relative flex min-h-0 flex-1 flex-col">
-				<div
+				<MainTabPanel
 					id={chatPanelId}
 					{...(hasFileTabs && {
 						role: "tabpanel",
 						"aria-labelledby": chatTabId,
 					})}
-					// Hidden with visibility, not display, so the transcript keeps its
-					// layout and the scroller keeps following output in the background.
-					className={cn(
-						"flex min-h-0 flex-1 flex-col",
-						!isChatActive && "invisible",
-					)}
-					inert={!isChatActive}
+					isActive={isChatActive}
+					className="flex min-h-0 flex-1 flex-col"
 				>
 					{children}
-				</div>
+				</MainTabPanel>
 				{workspaceFiles &&
 					files.map((file, index) => {
 						const isActive = file.path === activePath;
@@ -309,16 +304,13 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 							(root) => file.path === root || file.path.startsWith(`${root}/`),
 						);
 						return (
-							<div
+							<MainTabPanel
 								key={file.path}
 								id={`${idPrefix}-panel-${index}`}
 								role="tabpanel"
 								aria-labelledby={`${idPrefix}-tab-${index}`}
-								className={cn(
-									"absolute inset-0 flex flex-col bg-surface-primary",
-									!isActive && "invisible",
-								)}
-								inert={!isActive}
+								isActive={isActive}
+								className="absolute inset-0 flex flex-col bg-surface-primary"
 							>
 								<FileTab
 									agentId={workspaceFiles.agentId}
@@ -333,7 +325,7 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 									onDraftChange={updateDraft}
 									readOnly={readOnly}
 								/>
-							</div>
+							</MainTabPanel>
 						);
 					})}
 			</div>
@@ -369,6 +361,33 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 		</div>
 	);
 };
+
+type MainTabPanelProps = React.ComponentProps<"div"> & {
+	isActive: boolean;
+};
+
+/**
+ * Inactive panels stay mounted and laid out so editors and the transcript
+ * keep their state. `invisible` alone does not hide a descendant that sets
+ * `visibility: visible`, such as Monaco's find widget, whose `visible` state
+ * class matches Tailwind's utility of the same name, so content-visibility
+ * also skips rendering the contents. Unlike display:none, it keeps sizes and
+ * scroll offsets, so Monaco and the transcript scroller do not relayout.
+ */
+const MainTabPanel: React.FC<MainTabPanelProps> = ({
+	isActive,
+	className,
+	...props
+}) => (
+	<div
+		{...props}
+		className={cn(
+			className,
+			!isActive && "invisible [content-visibility:hidden]",
+		)}
+		inert={!isActive}
+	/>
+);
 
 /**
  * Mounted only while a file is dirty: React Router consults only the newest
