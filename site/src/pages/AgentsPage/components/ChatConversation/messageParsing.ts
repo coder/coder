@@ -353,6 +353,10 @@ export const parseMessageContent = (
 				parsed.blocks.push(part);
 				break;
 			}
+			case "skill-invocation": {
+				// The conversation timeline does not render invocation metadata.
+				break;
+			}
 			default: {
 				const _exhaustive: never = part;
 				break;

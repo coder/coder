@@ -75,7 +75,7 @@ In most cases, `coder_parameter`s backing `coder_workspace_tags` should be marke
 
 You may only specify the following as inputs for `coder_workspace_tags`:
 
-|                    | Example                                       |
+| Input              | Example                                       |
 |:-------------------|:----------------------------------------------|
 | Static values      | `"developers"`                                |
 | Template variables | `var.az`                                      |

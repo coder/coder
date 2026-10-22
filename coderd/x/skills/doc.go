@@ -1,5 +1,5 @@
-// Package skills defines the shared model for personal, organization, and
-// workspace skills used by chatd.
+// Package skills defines the shared model for personal, organization,
+// project, and workspace skills used by chatd.
 //
 // Glossary:
 //
@@ -12,30 +12,35 @@
 //     storage or workspace filesystem discovery.
 //   - Organization skill: An organization-owned skill stored by Coder and
 //     shared with organization members through a per-skill ACL.
+//   - Project skill: A skill stored by Coder on a chat project. Chats in the
+//     project can use it when the chat owner owns the project or the project
+//     is shared with them.
 //   - Skill alias: A chat or tool lookup name for a skill. Bare aliases use the
-//     skill name. Qualified aliases use personal/<name>, org/<name>, or
-//     workspace/<name>.
+//     skill name. Qualified aliases use personal/<name>, org/<name>,
+//     project/<name>, or workspace/<name>.
 //
 // Decision:
 //
-// Personal and organization skills are stored by Coder. For each chat turn,
-// chatd fetches their metadata fresh, combines it with workspace skill
-// metadata, and injects the available skills into the existing skill prompt.
+// Personal, organization, and project skills are stored by Coder. For each
+// chat turn, chatd fetches their metadata fresh, combines it with workspace
+// skill metadata, and injects the available skills into the existing skill
+// prompt.
 // When chatd needs skill content, it resolves stored skills through the
 // read_skill flow instead of syncing files into workspace filesystems.
 //
 // If skills from more than one source share the same kebab-case name, each is
-// exposed with a qualified alias: personal/<name>, org/<name>, or
-// workspace/<name>. One source must not silently override another.
+// exposed with a qualified alias: personal/<name>, org/<name>,
+// project/<name>, or workspace/<name>. One source must not silently override
+// another.
 //
 // Site admins can read and delete personal skill content. Personal skills are
 // user-authored instructions, not secret material. Audit records can include
 // raw Markdown content diffs alongside the actor, target user, and relevant
 // metadata.
 //
-// Personal and organization skill edits affect the next chat turn. Old chat
-// turns are not exact snapshots of the stored skill state that existed when
-// they ran.
+// Personal, organization, and project skill edits affect the next chat turn.
+// Old chat turns are not exact snapshots of the stored skill state that
+// existed when they ran.
 //
 // The v1 design does not include CLI support, web UI support, supporting files,
 // organization-scoped personal skills, syncing personal skills into workspace
@@ -43,9 +48,9 @@
 //
 // Consequences:
 //
-// Chatd can use personal, organization, and workspace skills through one
-// prompt and one read path, while storage remains owned by Coder instead of
-// individual workspace filesystems. Fresh metadata keeps skill changes
+// Chatd can use personal, organization, project, and workspace skills through
+// one prompt and one read path, while storage remains owned by Coder instead
+// of individual workspace filesystems. Fresh metadata keeps skill changes
 // responsive, but chat history is less reproducible because old turns do not
 // capture an exact copy of stored skill content.
 //
