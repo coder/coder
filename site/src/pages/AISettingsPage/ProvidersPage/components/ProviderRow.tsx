@@ -88,7 +88,12 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 					{AgentsUnsupportedProviderTypes.some((t) => t === provider.type) && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Badge asChild variant="info" onClick={stopPropagation}>
+								<Badge
+									asChild
+									size="sm"
+									variant="info"
+									onClick={stopPropagation}
+								>
 									<button type="button">Not supported in Agents</button>
 								</Badge>
 							</TooltipTrigger>
