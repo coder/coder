@@ -22,6 +22,8 @@ const meta: Meta<typeof ProjectDetailsPanelView> = {
 	args: {
 		ownerLabel: "You",
 		createdAt: MockChatProject.created_at,
+		templateCount: 2,
+		onEditTemplates: fn(),
 		skillCount: 3,
 		disabledSkillCount: 0,
 		skillsError: undefined,
@@ -40,7 +42,7 @@ export const Default: Story = {};
 
 /** Users without update permission, such as `use` sharees, cannot edit. */
 export const WithoutUpdatePermission: Story = {
-	args: { onEditInstructions: undefined },
+	args: { onEditTemplates: undefined, onEditInstructions: undefined },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByText(/Run the linters before committing/);
@@ -53,6 +55,7 @@ export const WithoutUpdatePermission: Story = {
 export const UnsetWithoutUpdatePermission: Story = {
 	args: {
 		instructions: MockUnsetChatProjectInstructions,
+		onEditTemplates: undefined,
 		onEditInstructions: undefined,
 	},
 	play: async ({ canvasElement }) => {
@@ -66,6 +69,14 @@ export const UnsetWithoutUpdatePermission: Story = {
 
 export const WithOrganization: Story = {
 	args: { organizationLabel: "Coder" },
+};
+
+export const NoTemplates: Story = {
+	args: { templateCount: 0 },
+};
+
+export const OneTemplate: Story = {
+	args: { templateCount: 1 },
 };
 
 export const OwnerLoading: Story = {

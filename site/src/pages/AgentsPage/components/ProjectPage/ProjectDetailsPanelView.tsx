@@ -4,6 +4,7 @@ import { useId } from "react";
 import type { ChatProjectInstructions } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Tooltip,
@@ -18,6 +19,11 @@ type ProjectDetailsPanelViewProps = {
 	readonly createdAt: string;
 	/** Omit to hide the organization row. */
 	readonly organizationLabel?: string;
+	readonly templateCount: number;
+	/** Opens the templates editor. Omit when the caller cannot edit. */
+	readonly onEditTemplates?: () => void;
+	/** The button that opens the templates editor, for restoring focus. */
+	readonly editTemplatesButtonRef?: React.Ref<HTMLButtonElement>;
 	/** `undefined` while the skills load or after loading fails. */
 	readonly skillCount: number | undefined;
 	/** `undefined` while the skills load or after loading fails. */
@@ -39,6 +45,9 @@ export const ProjectDetailsPanelView: React.FC<
 	ownerLabel,
 	createdAt,
 	organizationLabel,
+	templateCount,
+	onEditTemplates,
+	editTemplatesButtonRef,
 	skillCount,
 	disabledSkillCount,
 	skillsError,
@@ -50,6 +59,8 @@ export const ProjectDetailsPanelView: React.FC<
 }) => {
 	const headingId = useId();
 	const instructionsHeadingId = useId();
+	const templateCountLabel =
+		templateCount === 1 ? "1 template" : `${templateCount} templates`;
 	const errorAlert = Boolean(error) && (
 		<ErrorAlert
 			error={error}
@@ -109,6 +120,24 @@ export const ProjectDetailsPanelView: React.FC<
 					{organizationLabel !== undefined && (
 						<DetailRow label="Organization">{organizationLabel}</DetailRow>
 					)}
+					<DetailRow label="Templates">
+						{onEditTemplates ? (
+							<Link asChild showExternalIcon={false}>
+								<button
+									ref={editTemplatesButtonRef}
+									type="button"
+									className="cursor-pointer border-0 bg-transparent p-0 font-sans"
+									onClick={onEditTemplates}
+								>
+									<span className="sr-only">Edit templates:</span>{" "}
+									{templateCountLabel}
+									<PenIcon />
+								</button>
+							</Link>
+						) : (
+							templateCountLabel
+						)}
+					</DetailRow>
 					<DetailRow label="Skills">
 						{skillCount === undefined && !skillsError ? (
 							<>

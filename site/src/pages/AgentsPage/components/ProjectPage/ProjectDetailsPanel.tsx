@@ -4,6 +4,7 @@ import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
 import {
 	chatProjectInstructions,
 	deleteChatProjectInstructions,
+	updateChatProject,
 	updateChatProjectInstructions,
 } from "#/api/queries/chatProjects";
 import { user } from "#/api/queries/users";
@@ -14,12 +15,13 @@ import { useDialogFocusReturn } from "../useDialogFocusReturn";
 import { ProjectDetailsPanelView } from "./ProjectDetailsPanelView";
 import { ProjectInstructionsDialog } from "./ProjectInstructionsDialog";
 import { ProjectSkillsDialog } from "./ProjectSkillsDialog";
+import { ProjectTemplatesDialog } from "./ProjectTemplatesDialog";
 
 type ProjectDetailsPanelProps = {
 	readonly project: ChatProject;
 };
 
-/** Loads a project's details and edits its instructions and skills. */
+/** Loads a project's details and edits its templates, instructions, and skills. */
 export const ProjectDetailsPanel: React.FC<ProjectDetailsPanelProps> = ({
 	project,
 }) => (
@@ -64,14 +66,18 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	const deleteMutation = useMutation(
 		deleteChatProjectInstructions(queryClient, project),
 	);
+	const updateTemplatesMutation = useMutation(updateChatProject(queryClient));
 	const [isEditorOpen, setIsEditorOpen] = useState(false);
+	const [isTemplatesEditorOpen, setIsTemplatesEditorOpen] = useState(false);
 	// isPending reaches the dialog only after a render, so a fast double
 	// click could otherwise submit the same change twice.
 	const isMutationInFlight = useRef(false);
+	const editTemplatesButtonRef = useRef<HTMLButtonElement>(null);
 
 	const resetErrors = () => {
 		updateMutation.reset();
 		deleteMutation.reset();
+		updateTemplatesMutation.reset();
 	};
 
 	const openEditor = () => {
@@ -97,6 +103,16 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				ownerLabel={ownerLabel}
 				createdAt={project.created_at}
 				organizationLabel={organizationLabel}
+				templateCount={project.templates.template_ids.length}
+				onEditTemplates={
+					project.permissions.update
+						? () => {
+								updateTemplatesMutation.reset();
+								setIsTemplatesEditorOpen(true);
+							}
+						: undefined
+				}
+				editTemplatesButtonRef={editTemplatesButtonRef}
 				skillCount={skillsQuery.data?.length}
 				disabledSkillCount={
 					skillsQuery.data?.filter((skill) => !skill.enabled).length
@@ -110,6 +126,25 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				error={instructionsQuery.error}
 				onRetry={() => void instructionsQuery.refetch()}
 				onEditInstructions={project.permissions.update ? openEditor : undefined}
+			/>
+			<ProjectTemplatesDialog
+				project={project}
+				open={isTemplatesEditorOpen}
+				onOpenChange={setIsTemplatesEditorOpen}
+				onCloseAutoFocus={(event) => {
+					event.preventDefault();
+					editTemplatesButtonRef.current?.focus();
+				}}
+				isSaving={updateTemplatesMutation.isPending}
+				error={updateTemplatesMutation.error}
+				onSave={(templates) =>
+					runMutation((onSettled) =>
+						updateTemplatesMutation.mutate(
+							{ project, request: { templates } },
+							{ onSuccess: () => setIsTemplatesEditorOpen(false), onSettled },
+						),
+					)
+				}
 			/>
 			<ProjectInstructionsDialog
 				open={isEditorOpen}
