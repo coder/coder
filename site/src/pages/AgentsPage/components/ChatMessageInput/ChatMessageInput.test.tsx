@@ -447,6 +447,19 @@ describe("ChatMessageInput", () => {
 			]);
 		});
 
+		it("sends a typed bare alias that two sources share as text", async () => {
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [mockReviewerSkill],
+			});
+			const user = await pasteTrigger("Run /reviewer");
+			await screen.findAllByRole("option", { name: /reviewer/ });
+			await user.keyboard(" now");
+			expect(getRequestContent(inputRef)).toEqual([
+				{ type: "text", text: "Run /reviewer now" },
+			]);
+		});
+
 		it("sends a typed partial skill name as text", async () => {
 			const inputRef = renderWithSkills({
 				personal: [mockReviewerSkill],

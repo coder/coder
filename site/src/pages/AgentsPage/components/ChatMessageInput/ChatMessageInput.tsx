@@ -714,7 +714,7 @@ const isSameSkillsTrigger = (
  */
 const $replaceTypedSkillAlias = (
 	trigger: ActiveSkillsTrigger,
-	skill: { source: SkillSource; name: string },
+	skill: SkillInvocationData,
 ) => {
 	const alias = `/${trigger.query}`;
 	const aliasEnd = trigger.slashOffset + alias.length;
@@ -962,8 +962,7 @@ const ChatMessageInput = ({
 			? -1
 			: Math.min(skillsMenuSelectedIndex, allFilteredSkills.length - 1);
 
-	// A typed alias that whitespace ends becomes a chip, as a menu pick does.
-	// As text it would never load a skill the agent cannot use on its own.
+	// Left as text, a typed alias never loads a manual-only skill.
 	const convertTypedSkillAlias = (closedTrigger: ActiveSkillsTrigger) => {
 		const alias = `/${closedTrigger.query}`;
 		const skill = skillTriggers.find(
