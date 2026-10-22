@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { AxiosError, AxiosHeaders } from "axios";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -176,6 +177,37 @@ describe("QuickOpenDialog", () => {
 		await user.keyboard("{Escape}");
 
 		await waitFor(() => expect(opener).toHaveFocus());
+	});
+
+	it.each([
+		["a JSON", { message: "Route not found." }],
+		["a plain-text", "404 page not found\n"],
+	])("asks to update the agent on %s 404", async (_kind, data) => {
+		const user = userEvent.setup();
+		vi.mocked(API.findWorkspaceAgentFiles).mockRejectedValue(
+			new AxiosError(
+				"Request failed with status code 404",
+				AxiosError.ERR_BAD_REQUEST,
+				undefined,
+				undefined,
+				{
+					data,
+					status: 404,
+					statusText: "Not Found",
+					headers: {},
+					config: { headers: new AxiosHeaders() },
+				},
+			),
+		);
+		renderDialog(contextValue());
+
+		await user.keyboard("{Control>}p{/Control}");
+		await user.type(
+			screen.getByRole("combobox", { name: "Search files" }),
+			"main",
+		);
+
+		await screen.findByText("Update the workspace agent to search files.");
 	});
 
 	it("ignores the shortcut without a workspace agent", async () => {

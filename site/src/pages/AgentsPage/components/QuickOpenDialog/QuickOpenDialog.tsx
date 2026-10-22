@@ -1,7 +1,8 @@
+import { isAxiosError } from "axios";
 import { useEffect, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { useParams } from "react-router";
-import { getErrorMessage, getErrorStatus } from "#/api/errors";
+import { getErrorMessage } from "#/api/errors";
 import { workspaceAgentFindFiles } from "#/api/queries/workspaceFiles";
 import {
 	Command,
@@ -110,7 +111,9 @@ const QuickOpen: React.FC<{ workspaceFiles: WorkspaceFilesContextValue }> = ({
 		status = "Type to search files.";
 	} else if (findQuery.isError && !isStale) {
 		status =
-			getErrorStatus(findQuery.error) === 404
+			// Agents without find-files answer with a plain-text 404, which
+			// getErrorStatus does not treat as an API error.
+			isAxiosError(findQuery.error) && findQuery.error.response?.status === 404
 				? "Update the workspace agent to search files."
 				: getErrorMessage(findQuery.error, "Failed to search files.");
 	} else if (files.length === 0) {
