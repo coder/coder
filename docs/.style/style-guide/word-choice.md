@@ -470,7 +470,7 @@ Now that you added a language, [install your own command-line tools](./install-c
 
 ## Learn more
 
-- [Parameters](../../admin/templates/extending-templates/parameters.md) in the Coder documentation
+- [Parameters](../../admin/templates/extending-templates/parameters/index.md) in the Coder documentation
 ```
 
 *Documentation-only.

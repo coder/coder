@@ -71,8 +71,11 @@ func init() {
 			"generatedContentBanner": func() string {
 				return docgenenv.GeneratedContentBanner
 			},
+			// tableHeader opens each option's metadata table (Type,
+			// Environment, YAML, Default). The header cells need text: an
+			// empty one is announced by screen readers as an unnamed column.
 			"tableHeader": func() string {
-				return `| | |
+				return `| Property | Value |
 | --- | --- |`
 			},
 			"typeHelper": func(opt *serpent.Option) string {
@@ -109,6 +112,17 @@ func inlineCode(s string) string {
 	return "`" + s + "`"
 }
 
+// docsDescription returns cmd's Short as a page description. CLI help
+// leaves Short unpunctuated, but docs descriptions are sentences and the
+// manifest check requires them to end with a period.
+func docsDescription(cmd *serpent.Command) string {
+	d := strings.TrimSpace(cmd.Short)
+	if d == "" || strings.HasSuffix(d, ".") {
+		return d
+	}
+	return d + "."
+}
+
 // cliCommandRoute maps a serpent command to the docgenenv.Route whose per-page
 // metadata the CLI generator mirrors into that command's page front matter.
 // The page title is the full invocation (for example "`coder users list`"), so
@@ -117,7 +131,7 @@ func inlineCode(s string) string {
 func cliCommandRoute(cmd *serpent.Command) docgenenv.Route {
 	return docgenenv.Route{
 		Title:       inlineCode(cmd.FullName()),
-		Description: cmd.Short,
+		Description: docsDescription(cmd),
 	}
 }
 
@@ -128,7 +142,7 @@ func cliCommandRoute(cmd *serpent.Command) docgenenv.Route {
 func cliManifestRoute(cmd *serpent.Command) docgenenv.Route {
 	return docgenenv.Route{
 		Title:       inlineCode(cmd.Name()),
-		Description: cmd.Short,
+		Description: docsDescription(cmd),
 		Path:        path.Join("reference/cli", fmtDocFilename(cmd)),
 		Children:    cliManifestChildren(cmd),
 	}

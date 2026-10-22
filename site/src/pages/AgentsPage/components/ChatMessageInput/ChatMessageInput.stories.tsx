@@ -1,7 +1,9 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { useEffect } from "react";
 import { flushSync } from "react-dom";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import { organizationSkills } from "#/api/queries/organizationSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockSkill, MockSkills } from "#/testHelpers/skills";
@@ -252,6 +254,34 @@ export const OpensWithAllSkillSources: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		await typeInEditor(canvasElement, "/");
+	},
+};
+
+// A 404 from the project skills request means the caller lost access to the
+// project, so the menu offers built-in commands without a retry prompt.
+export const LostProjectAccessOffersCommands: Story = {
+	args: {
+		personalSkillsOverride: [],
+		organizationId: mockOrganizationId,
+		projectId: "project-access-lost-story",
+		slashCommands: [COMPACT_SLASH_COMMAND],
+	},
+	parameters: {
+		queries: [
+			{ key: organizationSkills(mockOrganizationId).queryKey, data: [] },
+			{ key: chatProjectsKey, data: [] },
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjectSkills").mockRejectedValue({
+			isAxiosError: true,
+			response: { status: 404, data: { message: "Project not found." } },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+		// Built-in commands appear once the project source has resolved.
+		await findVisibleText(COMPACT_SLASH_COMMAND.description);
 	},
 };
 
