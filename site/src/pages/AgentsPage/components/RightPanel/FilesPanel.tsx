@@ -195,38 +195,80 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 
 	// One request per directory at a time: a refresh asked for while one is
 	// running, or while a background fetch that predates the change is
-	// running, waits and then runs once.
-	const refreshes = useRef(new Map<string, "running" | "trailing">());
-	const refreshDirectory = (path: string) => {
-		if (refreshes.current.has(path)) {
-			refreshes.current.set(path, "trailing");
+	// running, waits and then runs once. Each entry carries a token so a
+	// superseded chain cannot clear a newer one.
+	const refreshes = useRef(
+		new Map<string, { trailing: boolean; token: number }>(),
+	);
+	const refreshToken = useRef(0);
+	const refreshDirectory = (path: string, restart = false) => {
+		const current = refreshes.current.get(path);
+		if (current && !restart) {
+			current.trailing = true;
 			return;
 		}
 		const queryKey = workspaceAgentDirectoryKey(agentId, path);
-		refreshes.current.set(
-			path,
-			queryClient.isFetching({ queryKey, exact: true }) > 0
-				? "trailing"
-				: "running",
-		);
-		void queryClient
-			.invalidateQueries({ queryKey, exact: true }, { cancelRefetch: false })
+		refreshToken.current += 1;
+		const token = refreshToken.current;
+		refreshes.current.set(path, {
+			trailing:
+				!restart && queryClient.isFetching({ queryKey, exact: true }) > 0,
+			token,
+		});
+		// An explicit refresh aborts a fetch in flight instead of waiting for
+		// it, so a stalled request cannot keep stale entries on screen.
+		// cancelRefetch alone would join a first load that has no data yet.
+		void (
+			restart
+				? queryClient.cancelQueries({ queryKey, exact: true })
+				: Promise.resolve()
+		)
+			.then(() =>
+				queryClient.invalidateQueries(
+					{ queryKey, exact: true },
+					{ cancelRefetch: false },
+				),
+			)
 			.finally(() => {
-				const again = refreshes.current.get(path) === "trailing";
+				const entry = refreshes.current.get(path);
+				if (entry?.token !== token) {
+					return;
+				}
 				refreshes.current.delete(path);
-				if (again) {
+				if (entry.trailing) {
 					refreshDirectory(path);
 				}
 			});
 	};
 
-	const refetchDirectories = (absolutePaths: readonly string[]) => {
+	// The cache observers above keep hidden directories' queries alive, so a
+	// fetch started while a directory was shown would otherwise run on after
+	// it is collapsed, deleted, or the root changes.
+	const shownDirectoriesKey = [root, ...visibleExpandedPaths].join("\n");
+	const previousShownDirectories = useRef<readonly string[]>([]);
+	useEffect(() => {
+		const shown = shownDirectoriesKey.split("\n");
+		for (const path of previousShownDirectories.current) {
+			if (!shown.includes(path)) {
+				void queryClient.cancelQueries({
+					queryKey: workspaceAgentDirectoryKey(agentId, path),
+					exact: true,
+				});
+			}
+		}
+		previousShownDirectories.current = shown;
+	}, [agentId, queryClient, shownDirectoriesKey]);
+
+	const refetchDirectories = (
+		absolutePaths: readonly string[],
+		restart = false,
+	) => {
 		if (rootPath === undefined || absolutePaths.includes(rootPath)) {
-			refreshDirectory(root);
+			refreshDirectory(root, restart);
 		}
 		for (const path of visibleExpandedPaths) {
 			if (absolutePaths.includes(path)) {
-				refreshDirectory(path);
+				refreshDirectory(path, restart);
 			}
 		}
 	};
@@ -392,10 +434,10 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 	};
 
 	const handleRefresh = () => {
-		refetchDirectories([
-			...(rootPath === undefined ? [] : [rootPath]),
-			...visibleExpandedPaths,
-		]);
+		refetchDirectories(
+			[...(rootPath === undefined ? [] : [rootPath]), ...visibleExpandedPaths],
+			true,
+		);
 	};
 
 	let content: React.ReactNode;
