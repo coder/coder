@@ -326,10 +326,11 @@ func createSkill(
 		writeInvalidSkillContent(ctx, rw, err)
 		return database.Skill{}, false
 	}
+	content, modelInvocable := storedSkillContent(req.Content, req.ModelInvocable)
 	skill, err := insert(parsed, skillCreate{
-		Content:        req.Content,
+		Content:        content,
 		Action:         nullBool(req.Action),
-		ModelInvocable: nullBool(req.ModelInvocable),
+		ModelInvocable: modelInvocable,
 	})
 	if err != nil {
 		errs.write(ctx, rw, err)
@@ -418,9 +419,27 @@ func readSkillUpdate(ctx context.Context, rw http.ResponseWriter, r *http.Reques
 		})
 		return skillUpdate{}, false
 	}
+	content, modelInvocable := storedSkillContent(*req.Content, req.ModelInvocable)
 	update.Description = sql.NullString{String: parsed.Description, Valid: true}
-	update.Content = sql.NullString{String: *req.Content, Valid: true}
+	update.Content = sql.NullString{String: content, Valid: true}
+	update.ModelInvocable = modelInvocable
 	return update, true
+}
+
+// storedSkillContent removes disable-model-invocation from uploaded skill
+// content so the stored file cannot disagree with the model_invocable
+// column. When the request leaves model_invocable unset, a
+// disable-model-invocation: true line in the content turns it off, matching
+// how Claude Code, Cursor, and VS Code read the same file. An explicit
+// model_invocable always wins, and content without the line leaves the
+// setting unchanged.
+func storedSkillContent(content string, requested *bool) (string, sql.NullBool) {
+	stored, disabled := skills.RemoveDisableModelInvocation(content)
+	modelInvocable := nullBool(requested)
+	if !modelInvocable.Valid && disabled {
+		modelInvocable = sql.NullBool{Bool: false, Valid: true}
+	}
+	return stored, modelInvocable
 }
 
 func nullBool(value *bool) sql.NullBool {
