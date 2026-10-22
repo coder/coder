@@ -176,14 +176,8 @@ export const TotalAgentHoursCard: React.FC<TotalAgentHoursCardProps> = ({
 							{/* The concurrency cap re-engages at usage equal to the
 							    hard cap, so the badge shows at the inclusive boundary
 							    and reads "reached" (still true above it) rather than
-							    "exceeded" (false at equality). The sentence outgrows
-							    narrow cards, so this instance wraps instead of
-							    keeping the shared Badge's single-line layout. */}
-							<Badge
-								variant="destructive"
-								size="sm"
-								className="h-auto rounded-full text-wrap"
-							>
+							    "exceeded" (false at equality). */}
+							<Badge variant="destructive" size="sm">
 								<BanIcon />
 								Agent hours limit reached. Concurrent chats are now limited to
 								5.
