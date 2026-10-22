@@ -5,10 +5,7 @@ import { defaultUrlTransform } from "streamdown";
 import { chatFileTextKey } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { Button } from "#/components/Button/Button";
-import {
-	MockChatFileMetadata,
-	MockChatMessage,
-} from "#/testHelpers/chatEntities";
+import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ConversationTimeline } from "./ConversationTimeline";
@@ -20,6 +17,7 @@ import {
 	MockBrokenImageAttachmentMessages,
 	MockClearedAttachmentMessages,
 	MockCollapsedStepsPreferences,
+	MockFindingsEvictedChatFiles,
 	MockLeadInSearchMessages,
 	MockLongTurnPageLoads,
 	MockMixedAttachmentMessages,
@@ -287,12 +285,10 @@ export const TurnAttachmentsPillOpenMobile: Story = {
 	play: openAttachmentsPill,
 };
 
-const mockSpecFileOnly = [{ ...MockChatFileMetadata, id: "spec-file" }];
-
 export const TurnAttachmentsPillExpired: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
-		chatFiles: mockSpecFileOnly,
+		chatFiles: MockFindingsEvictedChatFiles,
 	},
 	play: openAttachmentsPill,
 };

@@ -1,5 +1,8 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChatFileMetadata,
+	MockChatMessage,
+} from "#/testHelpers/chatEntities";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
 import {
 	type DeriveLiveStatusParams,
@@ -451,6 +454,11 @@ export const MockMixedAttachmentMessages: TypesGen.ChatMessage[] = [
 		created_at: workingFixtureTime(30),
 		content: [{ type: "text", text: "The dashboard matches the spec." }],
 	},
+];
+
+/** MockMixedAttachmentMessages' chat files once findings.md is evicted. */
+export const MockFindingsEvictedChatFiles: TypesGen.ChatFileMetadata[] = [
+	{ ...MockChatFileMetadata, id: "spec-file" },
 ];
 
 /** MockMixedAttachmentMessages before the newest turn answers. */

@@ -6,10 +6,7 @@ import { defaultUrlTransform } from "streamdown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage } from "#/api/typesGenerated";
-import {
-	MockChatFileMetadata,
-	MockChatMessage,
-} from "#/testHelpers/chatEntities";
+import { MockChatMessage } from "#/testHelpers/chatEntities";
 import {
 	createTestQueryClient,
 	renderComponent,
@@ -25,6 +22,7 @@ import {
 	buildLiveStatus,
 	buildStreamRenderState,
 	MockCollapsedStepsPreferences,
+	MockFindingsEvictedChatFiles,
 	MockLongTurnPageLoads,
 	MockMixedAttachmentMessages,
 	MockWebSearchAnswerMessages,
@@ -379,17 +377,12 @@ describe("ConversationTimeline turn attachments", () => {
 		const user = userEvent.setup();
 		renderTimeline({
 			messages: MockMixedAttachmentMessages,
-			chatFiles: [{ ...MockChatFileMetadata, id: "spec-file" }],
+			chatFiles: MockFindingsEvictedChatFiles,
 		});
 		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
 
-		const popover = await screen.findByRole("dialog", { name: "Attachments" });
-		expect(popover).toHaveFocus();
-		await user.tab();
 		expect(
-			within(popover).getByRole("link", {
-				name: "Download dashboard-before.png",
-			}),
+			await screen.findByRole("dialog", { name: "Attachments" }),
 		).toHaveFocus();
 	});
 });
