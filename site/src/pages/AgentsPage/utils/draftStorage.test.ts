@@ -101,6 +101,31 @@ describe("parseStoredDraft", () => {
 		expect(result.text).toBe("review  please");
 	});
 
+	it("extracts workspace path chips as their sent text", () => {
+		const state = JSON.stringify({
+			root: {
+				children: [
+					{
+						children: [
+							{ text: "compare ", type: "text" },
+							{
+								type: "workspace-path",
+								path: "/repo/main.go",
+								isDirectory: false,
+							},
+							{ text: " with ", type: "text" },
+							{ type: "workspace-path", path: "/repo/src", isDirectory: true },
+						],
+						type: "paragraph",
+					},
+				],
+				type: "root",
+			},
+		});
+		const result = parseStoredDraft(state);
+		expect(result.text).toBe("compare `/repo/main.go` with `/repo/src/`");
+	});
+
 	it("handles empty root children", () => {
 		const state = JSON.stringify({
 			root: { children: [], type: "root" },

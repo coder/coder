@@ -7,6 +7,11 @@
  * and handled transparently on read.
  */
 
+import {
+	formatWorkspacePathReference,
+	workspacePathNodeType,
+} from "./workspacePathReference";
+
 /** @internal Exported for testing. */
 export const draftInputStorageKeyPrefix = "agents.draft-input.";
 
@@ -66,6 +71,8 @@ function extractTextFromNode(node: {
 	text?: string;
 	children?: Array<Record<string, unknown>>;
 	type?: string;
+	path?: unknown;
+	isDirectory?: unknown;
 }): string {
 	// Leaf text node.
 	if (typeof node.text === "string") {
@@ -75,6 +82,9 @@ function extractTextFromNode(node: {
 	// text or children. Lexical's getTextContent() returns "\n".
 	if (node.type === "linebreak") {
 		return "\n";
+	}
+	if (node.type === workspacePathNodeType && typeof node.path === "string") {
+		return formatWorkspacePathReference(node.path, node.isDirectory === true);
 	}
 	// FileReferenceNode and other non-text leaves contribute
 	// nothing to plain text, matching getTextContent() behavior.
