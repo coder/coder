@@ -71,6 +71,10 @@ const recordFileRequests = (respond: () => Response) => {
 };
 
 describe("ChatAttachments", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
 	it("previews a text file and views it again without requesting it", async () => {
 		const user = userEvent.setup();
 		const requestedFileIds = recordFileRequests(() =>
@@ -118,16 +122,25 @@ describe("ChatAttachments", () => {
 		await waitFor(() => expect(viewButton).toHaveFocus());
 	});
 
-	it("downloads a viewable file from its download link", () => {
+	it("shares a viewable file from its download link in the installed iOS app", async () => {
+		const user = userEvent.setup();
+		const share = vi.fn<Navigator["share"]>().mockResolvedValue(undefined);
+		vi.stubGlobal("navigator", {
+			userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+			standalone: true,
+			share,
+			canShare: () => true,
+		});
+		const requestedFileIds = recordFileRequests(() =>
+			HttpResponse.text("# Plan"),
+		);
 		renderAttachments();
 
-		const downloadLink = screen.getByRole("link", { name: "Download PLAN.md" });
+		await user.click(screen.getByRole("link", { name: "Download PLAN.md" }));
 
-		expect(downloadLink).toHaveAttribute(
-			"href",
-			"/api/v2/chats/files/plan-file",
-		);
-		expect(downloadLink).toHaveAttribute("download", "PLAN.md");
+		await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+		expect(requestedFileIds).toEqual(["plan-file"]);
+		expect(share.mock.calls[0][0]?.files?.[0].name).toBe("PLAN.md");
 	});
 
 	it("focuses the download card that replaces an image whose thumbnail fails", () => {
