@@ -1,8 +1,19 @@
 import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type * as motionReact from "motion/react";
+import { useReducedMotion } from "motion/react";
 import { QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	afterAll,
+	afterEach,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	vi,
+} from "vitest";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage } from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
@@ -86,6 +97,19 @@ function renderTimeline(initial: TimelineStage = {}) {
 		rerenderStage: (stage: TimelineStage) => rerender(renderStage(stage)),
 	};
 }
+
+// Motion keeps the requestAnimationFrame it finds when it loads, so route it
+// through setTimeout first; then fake timers step Motion's frames.
+vi.hoisted(() => {
+	vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) =>
+		setTimeout(() => callback(performance.now()), 16),
+	);
+});
+
+vi.mock("motion/react", async (importOriginal) => ({
+	...(await importOriginal<typeof motionReact>()),
+	useReducedMotion: vi.fn(() => false),
+}));
 
 beforeEach(() => pinFixtureClock());
 
@@ -455,37 +479,6 @@ describe("ConversationTimeline live working blocks", () => {
 	});
 });
 
-type FakeAnimation = {
-	element: Element;
-	keyframes: Keyframe[];
-	options: KeyframeAnimationOptions;
-	finish: () => void;
-};
-
-// jsdom has no Web Animations API; stub it the way test/setup/domStubs.ts
-// stubs other missing element methods.
-const trackAnimations = () => {
-	const animations: FakeAnimation[] = [];
-	HTMLElement.prototype.animate = vi.fn().mockImplementation(function (
-		this: Element,
-		keyframes: Keyframe[],
-		options: KeyframeAnimationOptions,
-	) {
-		const animation: { onfinish: (() => void) | null; cancel: () => void } = {
-			onfinish: null,
-			cancel: vi.fn(),
-		};
-		animations.push({
-			element: this,
-			keyframes,
-			options,
-			finish: () => act(() => animation.onfinish?.()),
-		});
-		return animation;
-	});
-	return animations;
-};
-
 const mockReplyText =
 	"I'll start by listing the workspace files so I can see how the project is laid out, then read the main entry point.";
 
@@ -515,49 +508,36 @@ const liveStage = (
 	...buildStreamRenderState(parts),
 });
 
-const entersLabel = ({ keyframes }: FakeAnimation) =>
-	keyframes[0].opacity === 0 && keyframes[0].height === "0px";
+// Motion reports completion through a promise, so timers advance async.
+const advance = (ms: number) =>
+	act(async () => {
+		await vi.advanceTimersByTimeAsync(ms);
+	});
 
+const isFolding = (text: string) => screen.queryByText(text) !== null;
+
+const announcement = () => screen.getByRole("status").textContent;
+
+// Timing and queueing are covered in WorkingBlockTransition.test.tsx; these
+// cover which reply the timeline hands to the transition.
 describe("ConversationTimeline reply folding", () => {
-	afterEach(() => {
-		Reflect.deleteProperty(HTMLElement.prototype, "animate");
+	// One fake clock for the whole block: Motion's frame loop keeps waiting on
+	// a frame scheduled on a clock that a later test replaced.
+	beforeAll(() => {
+		vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+	});
+	afterAll(() => {
 		vi.useRealTimers();
 	});
-
-	it("slides the label in, pauses, then folds the reply under it", () => {
-		vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-		const animations = trackAnimations();
-		const prompt = MockWorkingMessages.slice(0, 1);
-		const { rerenderStage } = renderTimeline(
-			liveStage(prompt, [mockReplyPart]),
-		);
-		expect(animations).toHaveLength(0);
-
-		rerenderStage(liveStage(prompt, [mockReplyPart, mockFirstToolCallPart]));
-		expect(animations).toHaveLength(1);
-		const [label] = animations;
-		expect(entersLabel(label)).toBe(true);
-		expect(label.options.duration).toBe(300);
-		expect(label.element.textContent).not.toContain(mockReplyText);
-		expect(screen.getByRole("status")).toHaveTextContent("");
-
-		label.finish();
-		expect(screen.getByRole("status")).toHaveTextContent("Working");
-		act(() => vi.advanceTimersByTime(59));
-		expect(animations).toHaveLength(1);
-
-		act(() => vi.advanceTimersByTime(1));
-		const [, collapse, fade] = animations;
-		expect(collapse.element.textContent).toContain(mockReplyText);
-		expect(collapse.keyframes.at(-1)?.height).toBe("0px");
-		expect(fade.keyframes.at(-1)?.opacity).toBe(0);
-		expect(fade.options.duration).toBeLessThan(
-			Number(collapse.options.duration),
-		);
+	beforeEach(() => {
+		vi.mocked(useReducedMotion).mockReturnValue(false);
+	});
+	afterEach(async () => {
+		// Let the previous test's animations finish before the next renders.
+		await advance(1000);
 	});
 
-	it("folds into a label that is already showing", () => {
-		const animations = trackAnimations();
+	it("folds into a label that is already showing", async () => {
 		const firstStep = MockWorkingMessages.slice(0, 3);
 		const { rerenderStage } = renderTimeline(
 			liveStage(firstStep, [mockReplyPart]),
@@ -566,12 +546,14 @@ describe("ConversationTimeline reply folding", () => {
 		rerenderStage(
 			liveStage(firstStep, [mockReplyPart, mockSecondToolCallPart]),
 		);
-		expect(animations.some(entersLabel)).toBe(false);
-		expect(animations[0].element.textContent).toContain(mockReplyText);
+		expect(isFolding(mockReplyText)).toBe(true);
+		await advance(350);
+		expect(isFolding(mockReplyText)).toBe(false);
+		// No label entered, so there is nothing new to announce.
+		expect(announcement()).toBe("");
 	});
 
-	it("folds reply text when a web search follows it", () => {
-		const animations = trackAnimations();
+	it("folds reply text when a web search follows it", async () => {
 		const firstStep = MockWorkingMessages.slice(0, 3);
 		const { rerenderStage } = renderTimeline(
 			liveStage(firstStep, [mockReplyPart]),
@@ -589,12 +571,12 @@ describe("ConversationTimeline reply folding", () => {
 				},
 			]),
 		);
-		expect(animations.some(entersLabel)).toBe(false);
-		expect(animations[0]?.element.textContent).toContain(mockReplyText);
+		expect(isFolding(mockReplyText)).toBe(true);
+		await advance(350);
+		expect(isFolding(mockReplyText)).toBe(false);
 	});
 
-	it("enters the label without a fold when a tool call starts first", () => {
-		const animations = trackAnimations();
+	it("enters the label without a fold when a tool call starts first", async () => {
 		const prompt = MockWorkingMessages.slice(0, 1);
 		const { rerenderStage } = renderTimeline({
 			messages: prompt,
@@ -603,67 +585,8 @@ describe("ConversationTimeline reply folding", () => {
 		});
 
 		rerenderStage(liveStage(prompt, [mockFirstToolCallPart]));
-		expect(animations).toHaveLength(1);
-		expect(entersLabel(animations[0])).toBe(true);
-
-		animations[0].finish();
-		expect(animations).toHaveLength(1);
-	});
-
-	it("queues a second fold until the first finishes", () => {
-		vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-		const animations = trackAnimations();
-		const prompt = MockWorkingMessages.slice(0, 1);
-		const { rerenderStage } = renderTimeline(
-			liveStage(prompt, [mockReplyPart]),
-		);
-		rerenderStage(liveStage(prompt, [mockReplyPart, mockFirstToolCallPart]));
-		animations[0].finish();
-		act(() => vi.advanceTimersByTime(60));
-		expect(animations).toHaveLength(3);
-
-		const nextReply = "Now I'll read the configuration file.";
-		const firstStep = MockWorkingMessages.slice(0, 3);
-		rerenderStage(liveStage(firstStep, [{ type: "text", text: nextReply }]));
-		rerenderStage(
-			liveStage(firstStep, [
-				{ type: "text", text: nextReply },
-				mockSecondToolCallPart,
-			]),
-		);
-		expect(animations).toHaveLength(3);
-
-		animations[1].finish();
-		animations[2].finish();
-		expect(animations).toHaveLength(5);
-		expect(animations[3].element.textContent).toContain(nextReply);
-	});
-
-	it("crossfades without moving anything under reduced motion", () => {
-		vi.spyOn(window, "matchMedia").mockImplementation((query) => ({
-			matches: query === "(prefers-reduced-motion: reduce)",
-			media: query,
-			onchange: null,
-			addListener: vi.fn(),
-			removeListener: vi.fn(),
-			addEventListener: vi.fn(),
-			removeEventListener: vi.fn(),
-			dispatchEvent: vi.fn(),
-		}));
-		const animations = trackAnimations();
-		const prompt = MockWorkingMessages.slice(0, 1);
-		const { rerenderStage } = renderTimeline(
-			liveStage(prompt, [mockReplyPart]),
-		);
-
-		rerenderStage(liveStage(prompt, [mockReplyPart, mockFirstToolCallPart]));
-		expect(animations).toHaveLength(2);
-		for (const animation of animations) {
-			expect(animation.options.duration).toBe(150);
-			for (const keyframe of animation.keyframes) {
-				expect(keyframe.height).toBeUndefined();
-			}
-		}
-		expect(animations[1].element.textContent).toContain(mockReplyText);
+		expect(isFolding(mockReplyText)).toBe(false);
+		await advance(350);
+		expect(announcement()).toBe("Working");
 	});
 });

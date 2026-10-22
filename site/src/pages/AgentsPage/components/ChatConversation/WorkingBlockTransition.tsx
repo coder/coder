@@ -1,44 +1,34 @@
-import { useEffectEvent, useLayoutEffect, useRef, useState } from "react";
+import { cn } from "cn";
+import {
+	motion,
+	type TargetAndTransition,
+	type Transition,
+	useReducedMotion,
+} from "motion/react";
+import { useState } from "react";
 
-const LABEL_ENTRY_MS = 300;
-const FOLD_PAUSE_MS = 60;
-const FOLD_MS = 300;
-/** The text is gone before the clip reaches the label. */
-const FOLD_FADE_MS = FOLD_MS * 0.6;
-const REDUCED_MOTION_MS = 150;
+const LABEL_ENTRY: Transition = { duration: 0.3, ease: "easeOut" };
+const FOLD_PAUSE_S = 0.06;
+const FOLD_S = 0.3;
+const CROSSFADE: Transition = { duration: 0.15, ease: "linear" };
 
-const prefersReducedMotion = () =>
-	window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const foldTransition = (delay: number): Transition => ({
+	height: { duration: FOLD_S, ease: "easeInOut", delay },
+	marginTop: { duration: FOLD_S, ease: "easeInOut", delay },
+	// The text is gone before the clip reaches the label.
+	opacity: { duration: FOLD_S * 0.6, ease: "linear", delay },
+});
 
-// Not CSS transitions: the global reduced-motion rule cuts them to 0.01ms.
-const runAnimations = (
-	element: HTMLElement,
-	animations: readonly [Keyframe[], KeyframeAnimationOptions][],
-	onDone: () => void,
-): (() => void) => {
-	if (typeof element.animate !== "function") {
-		onDone();
-		return () => {};
+const LABEL_SHOWN = { height: "auto", opacity: 1, marginBottom: "0rem" };
+const FOLDED = { height: 0, marginTop: "0rem", opacity: 0 };
+
+const getLabelStart = (reducedMotion: boolean, hasFolds: boolean) => {
+	if (reducedMotion) {
+		return { opacity: 0 };
 	}
-
-	const running = animations.map(([keyframes, options]) =>
-		element.animate(keyframes, { fill: "forwards", ...options }),
-	);
-	let pending = running.length;
-	for (const animation of running) {
-		animation.onfinish = () => {
-			pending -= 1;
-			if (pending === 0) {
-				onDone();
-			}
-		};
-	}
-	return () => {
-		for (const animation of running) {
-			animation.onfinish = null;
-			animation.cancel();
-		}
-	};
+	// The text sat one item gap under the previous row, so the label starts
+	// inside that gap and the text does not jump when it mounts.
+	return { height: 0, opacity: 0, marginBottom: hasFolds ? "-0.5rem" : "0rem" };
 };
 
 type FoldingReply = { id: number; content: React.ReactNode };
@@ -63,129 +53,67 @@ export const WorkingBlockTransition: React.FC<WorkingBlockTransitionProps> = ({
 	onFolded,
 	children,
 }) => {
-	const labelRef = useRef<HTMLDivElement>(null);
-	const foldRef = useRef<HTMLDivElement>(null);
+	// MotionConfig's reducedMotion only skips transform and layout animations,
+	// so the reduced variant here is chosen explicitly: one crossfade.
+	const reducedMotion = useReducedMotion() ?? false;
 	const [announced, setAnnounced] = useState(false);
-	const [reducedMotion] = useState(prefersReducedMotion);
-	const handleLabelEntered = useEffectEvent(onLabelEntered);
-	const handleFolded = useEffectEvent(onFolded);
-
-	useLayoutEffect(() => {
-		const label = labelRef.current;
-		if (!labelEntering || !label) {
-			return;
-		}
-
-		let pause: number | undefined;
-		const done = () => {
-			setAnnounced(true);
-			if (reducedMotion) {
-				handleLabelEntered();
-			} else {
-				pause = window.setTimeout(handleLabelEntered, FOLD_PAUSE_MS);
-			}
-		};
-
-		if (reducedMotion) {
-			const cancel = runAnimations(
-				label,
-				[
-					[
-						[{ opacity: 0 }, { opacity: 1 }],
-						{ duration: REDUCED_MOTION_MS, fill: "none" },
-					],
-				],
-				done,
-			);
-			return () => {
-				cancel();
-				window.clearTimeout(pause);
-			};
-		}
-
-		const height = label.offsetHeight;
-		// The text below sat one item gap under the previous row; start the
-		// label inside that gap so the text does not jump when the label mounts.
-		const gap = foldRef.current
-			? getComputedStyle(foldRef.current).marginTop
-			: "0px";
-		label.classList.add("overflow-hidden");
-		const cancel = runAnimations(
-			label,
-			[
-				[
-					[
-						{ height: "0px", marginBottom: `-${gap}`, opacity: 0 },
-						{ height: `${height}px`, marginBottom: "0px", opacity: 1 },
-					],
-					// Ends at the natural height, so the label can follow its
-					// content again once the animation lets go.
-					{ duration: LABEL_ENTRY_MS, easing: "ease-out", fill: "none" },
-				],
-			],
-			() => {
-				label.classList.remove("overflow-hidden");
-				done();
-			},
-		);
-		return () => {
-			cancel();
-			label.classList.remove("overflow-hidden");
-			window.clearTimeout(pause);
-		};
-	}, [labelEntering, reducedMotion]);
-
-	// Under reduced motion both beats run together as one crossfade.
-	const foldId = labelEntering && !reducedMotion ? undefined : folds[0]?.id;
-
-	useLayoutEffect(() => {
-		const element = foldRef.current;
-		if (foldId === undefined || !element) {
-			return;
-		}
-
-		const finish = () => handleFolded(foldId);
-		if (reducedMotion) {
-			return runAnimations(
-				element,
-				[[[{ opacity: 1 }, { opacity: 0 }], { duration: REDUCED_MOTION_MS }]],
-				finish,
-			);
-		}
-
-		const height = element.offsetHeight;
-		const { marginTop } = getComputedStyle(element);
-		return runAnimations(
-			element,
-			[
-				[
-					[
-						{ height: `${height}px`, marginTop },
-						{ height: "0px", marginTop: "0px" },
-					],
-					{ duration: FOLD_MS, easing: "ease-in-out" },
-				],
-				[[{ opacity: 1 }, { opacity: 0 }], { duration: FOLD_FADE_MS }],
-			],
-			finish,
-		);
-	}, [foldId, reducedMotion]);
+	// The fold that follows a label entry waits a beat after it.
+	const [pauseNextFold, setPauseNextFold] = useState(false);
+	const headFold = labelEntering && !reducedMotion ? undefined : folds[0]?.id;
 
 	return (
 		<>
-			<div ref={labelRef}>{children}</div>
-			{folds.map((fold, index) => (
-				<div
-					key={fold.id}
-					ref={index === 0 ? foldRef : undefined}
-					// The text already reached screen readers as it streamed.
-					aria-hidden
-					inert
-					className="mt-2 overflow-hidden"
-				>
-					{fold.content}
-				</div>
-			))}
+			<motion.div
+				// Only read on mount, which is when a new live block's label enters.
+				initial={
+					labelEntering && getLabelStart(reducedMotion, folds.length > 0)
+				}
+				animate={reducedMotion ? { opacity: 1 } : LABEL_SHOWN}
+				transition={reducedMotion ? CROSSFADE : LABEL_ENTRY}
+				className={cn(labelEntering && !reducedMotion && "overflow-hidden")}
+				onAnimationComplete={() => {
+					if (!labelEntering) {
+						return;
+					}
+					setAnnounced(true);
+					setPauseNextFold(!reducedMotion);
+					onLabelEntered();
+				}}
+			>
+				{children}
+			</motion.div>
+			{folds.map((fold) => {
+				const folding = fold.id === headFold;
+				let folded: TargetAndTransition | undefined;
+				if (folding) {
+					folded = reducedMotion ? { opacity: 0 } : FOLDED;
+				}
+				return (
+					<motion.div
+						key={fold.id}
+						// Starts as streamed; height and margin are read from the DOM.
+						initial={{ opacity: 1 }}
+						animate={folded}
+						transition={
+							reducedMotion
+								? CROSSFADE
+								: foldTransition(pauseNextFold ? FOLD_PAUSE_S : 0)
+						}
+						onAnimationComplete={() => {
+							if (folding) {
+								setPauseNextFold(false);
+								onFolded(fold.id);
+							}
+						}}
+						// The text already reached screen readers as it streamed.
+						aria-hidden
+						inert
+						className="mt-2 overflow-hidden"
+					>
+						{fold.content}
+					</motion.div>
+				);
+			})}
 			{isLive && (
 				<span role="status" className="sr-only">
 					{announced ? "Working" : ""}
