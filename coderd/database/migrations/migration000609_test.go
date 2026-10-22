@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -22,9 +21,10 @@ import (
 // runs every pending migration in one transaction, so the lock that 000607
 // and 000608 take on chats is held until the upgrade commits. Each insert
 // takes its lock on chat_messages and then waits for chats, so it holds a
-// lock that 000609 needs. Postgres resolves this as a deadlock by aborting
-// the inserts, and the upgrade must then complete. A migration that retries
-// short lock waits instead does not get chat_messages, and the upgrade fails.
+// lock that 000609 needs. Postgres can resolve this by canceling the inserts
+// as deadlock victims, and the upgrade must then complete. A migration that
+// retries short lock waits instead does not get chat_messages, and the
+// upgrade fails.
 func TestMigration000609UpgradeFromReleaseDuringChatTraffic(t *testing.T) {
 	t.Parallel()
 
@@ -59,9 +59,18 @@ func TestMigration000609UpgradeFromReleaseDuringChatTraffic(t *testing.T) {
 		require.NoError(t, err, "migration %d", version)
 	}
 
+	// Postgres checks a waiting insert for a deadlock once, deadlock_timeout
+	// after it starts waiting, and finds none if the migration is not waiting
+	// at that moment. Staggered timeouts spread those checks over 150ms, so a
+	// migration that pauses between short lock waits is paused for at least
+	// one of them. Every check fires after 000609 starts waiting and before
+	// its own check at the default 1s, so Postgres cancels inserts rather
+	// than the migration.
 	var inserted []<-chan error
-	for range 4 {
+	for i := range 4 {
 		appConn, appPID := dedicatedConn(ctx, t, sqlDB)
+		_, err := appConn.ExecContext(ctx, fmt.Sprintf("SET deadlock_timeout = '%dms'", 500+50*i))
+		require.NoError(t, err)
 		inserted = append(inserted, async(func() error {
 			_, err := appConn.ExecContext(ctx, `INSERT INTO chat_messages (chat_id, role, content_version) VALUES ($1, 'user', 1)`, chatID)
 			return err
@@ -71,11 +80,6 @@ func TestMigration000609UpgradeFromReleaseDuringChatTraffic(t *testing.T) {
 			err := sqlDB.QueryRowContext(ctx, `SELECT $2::int = ANY(pg_blocking_pids($1))`, appPID, migrationPID).Scan(&blocked)
 			return err == nil && blocked
 		}, testutil.WaitMedium, testutil.IntervalFast, "the insert never waited for the upgrade")
-		// Postgres checks each waiting insert for a deadlock once, 1s after
-		// it starts waiting, and finds none if the migration is not waiting
-		// at that moment. Spacing the inserts makes some of those checks land
-		// while a migration that pauses between short lock waits is paused.
-		time.Sleep(50 * time.Millisecond)
 	}
 
 	migration609 := readUpMigration(t, 609)
