@@ -100,6 +100,8 @@ import {
 	getClipboardNodes,
 	registerSkillAliasCopy,
 } from "./skillClipboard";
+import { WorkspacePathNode } from "./WorkspacePathNode";
+import { WorkspacePathPicker } from "./WorkspacePathPicker";
 
 // Blocks Cmd+B/I/U and element formatting shortcuts so the editor
 // stays plain-text only.
@@ -692,7 +694,7 @@ type ChatMessageInputProps = Omit<
 	 */
 	slashCommands?: readonly ChatSlashCommand[];
 	/**
-	 * Composer box element the skills menu is pinned above and sized
+	 * Composer box element the "/" and "@" menus are pinned above and sized
 	 * to match. Falls back to this component's own container.
 	 */
 	skillsMenuAnchor?: HTMLElement | null;
@@ -854,7 +856,7 @@ const ChatMessageInput = ({
 			paragraph: "m-0",
 		},
 		onError: (error: Error) => console.error("Lexical error:", error),
-		nodes: [FileReferenceNode, SkillInvocationNode],
+		nodes: [FileReferenceNode, SkillInvocationNode, WorkspacePathNode],
 		editable: !disabled,
 	};
 	const style = {
@@ -1446,6 +1448,7 @@ const ChatMessageInput = ({
 						}
 					}}
 				/>
+				<WorkspacePathPicker anchor={skillsMenuAnchor ?? containerElement} />
 			</div>
 		</LexicalComposer>
 	);

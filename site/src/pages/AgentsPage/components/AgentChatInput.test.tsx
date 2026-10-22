@@ -42,6 +42,7 @@ import {
 	belowMdViewportMediaQuery,
 	mobileViewportMediaQuery,
 } from "#/utils/mobile";
+import { WorkspaceFilesContext } from "../context/WorkspaceFilesContext";
 import type * as speechRecognition from "../hooks/useSpeechRecognition";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
@@ -354,6 +355,46 @@ describe("AgentChatInput", () => {
 		});
 		await user.keyboard("{Enter}");
 		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it("sends an @ file reference as its backticked absolute path", async () => {
+		const user = userEvent.setup();
+		const onSend = vi.fn();
+		vi.spyOn(API, "findWorkspaceAgentFiles").mockResolvedValue({
+			results: [
+				{
+					absolute_path: "/home/coder/repo/src/main.go",
+					path: "src/main.go",
+					root: "/home/coder/repo",
+					is_dir: false,
+					score: 10,
+				},
+			],
+		});
+
+		renderInput(
+			<WorkspaceFilesContext
+				value={{
+					agentId: "agent-1",
+					defaultDirectory: "/home/coder",
+					repoRoots: ["/home/coder/repo"],
+					repositories: new Map(),
+					openFile: vi.fn(),
+				}}
+			>
+				<AgentChatInput {...inputProps} onSend={onSend} />
+			</WorkspaceFilesContext>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("explain @main");
+		await screen.findByRole("option", { name: /main\.go/ });
+		await user.keyboard("{Enter}");
+		expect(onSend).not.toHaveBeenCalled();
+		await user.keyboard("{Enter}");
+		expect(onSend).toHaveBeenCalledWith(
+			"explain `/home/coder/repo/src/main.go`",
+		);
 	});
 
 	it.each([

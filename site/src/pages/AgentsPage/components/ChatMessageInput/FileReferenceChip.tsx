@@ -1,7 +1,8 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "cn";
-import { XIcon } from "lucide-react";
+import { FolderIcon, XIcon } from "lucide-react";
 import { FileIcon } from "#/components/FileIcon/FileIcon";
+import { getPathBasename } from "../../utils/path";
 import { getFileReferenceDisplay } from "./fileReferenceDisplay";
 
 export const fileReferenceChipVariants = cva(
@@ -202,6 +203,61 @@ export function EditableFileReferenceChip({
 				<FileReferenceChipContent fileName={shortFile} lineRange={lineRange} />
 			</button>
 			<ChipRemoveButton label={`Remove ${title}`} onRemove={onRemove} />
+		</span>
+	);
+}
+
+/** The icon for a workspace file, or a folder icon for a directory. */
+export const WorkspacePathIcon: React.FC<{
+	name: string;
+	isDirectory: boolean;
+}> = ({ name, isDirectory }) => {
+	if (isDirectory) {
+		return (
+			<FolderIcon
+				aria-hidden
+				className="size-4 shrink-0 text-content-secondary"
+			/>
+		);
+	}
+	return (
+		<FileIcon
+			fileName={name}
+			className="shrink-0"
+			style={fileReferenceIconStyle}
+		/>
+	);
+};
+
+/** A whole workspace file or folder referenced from the composer. */
+export function WorkspacePathChip({
+	path,
+	isDirectory,
+	selected,
+	onRemove,
+	className,
+}: FileReferenceChipSelectedProps & {
+	path: string;
+	isDirectory: boolean;
+	onRemove: () => void;
+	className?: string;
+}) {
+	const name = getPathBasename(path);
+
+	return (
+		<span
+			data-slot="file-reference-chip"
+			className={cn(
+				fileReferenceChipVariants({ selected }),
+				"border-border-secondary bg-surface-tertiary text-content-primary",
+				className,
+			)}
+			contentEditable={false}
+			title={isDirectory ? `${path}/` : path}
+		>
+			<WorkspacePathIcon name={name} isDirectory={isDirectory} />
+			<span className="min-w-0 truncate">{name}</span>
+			<ChipRemoveButton label={`Remove ${name}`} onRemove={onRemove} />
 		</span>
 	);
 }
