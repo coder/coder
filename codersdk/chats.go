@@ -1118,9 +1118,25 @@ type ChatAttachment struct {
 	MessageID int64 `json:"message_id"`
 	// PartIndex is the file part's position in the message content the
 	// messages endpoint returns.
-	PartIndex int             `json:"part_index"`
-	Role      ChatMessageRole `json:"role"`
-	File      ChatMessagePart `json:"file"`
+	PartIndex int                `json:"part_index"`
+	Role      ChatMessageRole    `json:"role"`
+	File      ChatAttachmentFile `json:"file"`
+}
+
+// ChatAttachmentFileType is the part type of a ChatAttachmentFile, which
+// is always a file part.
+type ChatAttachmentFileType string
+
+const ChatAttachmentFileTypeFile ChatAttachmentFileType = "file"
+
+// ChatAttachmentFile holds the fields of a file part, the only part type
+// the attachments endpoint returns.
+type ChatAttachmentFile struct {
+	Type      ChatAttachmentFileType `json:"type"`
+	MediaType string                 `json:"media_type"`
+	Name      string                 `json:"name,omitempty"`
+	Data      []byte                 `json:"data,omitempty"`
+	FileID    uuid.NullUUID          `json:"file_id,omitempty" format:"uuid"`
 }
 
 // ChatAttachmentsResponse is the payload of

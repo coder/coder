@@ -6525,6 +6525,12 @@ func TestGetChatAttachments(t *testing.T) {
 				fileD,
 			},
 			database.ChatMessageVisibilityUser, false)
+		// An inline part keeps its bytes because it has no stored file.
+		inlinePaste := insertMessage(t, ctx, db, chat, database.ChatMessageRoleUser,
+			[]codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeFile, MediaType: "text/plain", Data: []byte("pasted")},
+			},
+			database.ChatMessageVisibilityBoth, false)
 
 		resp, err := client.GetChatAttachments(ctx, chat.ID, nil)
 		require.NoError(t, err)
@@ -6537,10 +6543,10 @@ func TestGetChatAttachments(t *testing.T) {
 		}
 		got := make([]attachment, 0, len(resp.Attachments))
 		for _, a := range resp.Attachments {
-			require.Equal(t, codersdk.ChatMessagePartTypeFile, a.File.Type)
 			got = append(got, attachment{a.MessageID, a.PartIndex, a.Role, a.File.FileID.UUID})
 		}
 		require.Equal(t, []attachment{
+			{inlinePaste.ID, 0, codersdk.ChatMessageRoleUser, uuid.Nil},
 			{hookPrompt.ID, 0, codersdk.ChatMessageRoleUser, fileD.FileID.UUID},
 			{agentFiles.ID, 2, codersdk.ChatMessageRoleAssistant, fileC.FileID.UUID},
 			{agentFiles.ID, 0, codersdk.ChatMessageRoleAssistant, fileB.FileID.UUID},
@@ -6556,7 +6562,15 @@ func TestGetChatAttachments(t *testing.T) {
 		for _, a := range resp.Attachments {
 			content := contentByID[a.MessageID]
 			require.Less(t, a.PartIndex, len(content))
-			require.Equal(t, content[a.PartIndex], a.File, "attachment must equal the messages endpoint part")
+			part := content[a.PartIndex]
+			require.Equal(t, codersdk.ChatMessagePartTypeFile, part.Type)
+			require.Equal(t, codersdk.ChatAttachmentFile{
+				Type:      codersdk.ChatAttachmentFileTypeFile,
+				MediaType: part.MediaType,
+				Name:      part.Name,
+				Data:      part.Data,
+				FileID:    part.FileID,
+			}, a.File, "attachment must carry the messages endpoint part's file fields")
 		}
 
 		before, err := client.GetChatAttachments(ctx, chat.ID, &codersdk.ChatAttachmentsOptions{BeforeID: agentFiles.ID})

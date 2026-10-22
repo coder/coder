@@ -2105,10 +2105,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/attachments \
 
 `GET /api/v2/chats/{chat}/attachments`
 
-Returns every file part in the user-visible user and
-assistant messages of a chat, newest first, so a client can
-list a chat's attachments without paging through every
-message in the chat.
+Returns every file part in the user-visible user and assistant messages of a chat, newest first, so a client can list a chat's attachments without paging through every message in the chat.
 
 ### Parameters
 
@@ -2126,64 +2123,13 @@ message in the chat.
   "attachments": [
     {
       "file": {
-        "args": [
-          0
-        ],
-        "args_delta": "string",
-        "completed_at": "2019-08-24T14:15:22Z",
-        "content": "string",
-        "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
-        "context_file_content": "string",
-        "context_file_directory": "string",
-        "context_file_os": "string",
-        "context_file_path": "string",
-        "context_file_skill_meta_file": "string",
-        "context_file_truncated": true,
-        "created_at": "2019-08-24T14:15:22Z",
         "data": [
           0
         ],
-        "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-        "file_name": "string",
-        "hook_rewritten": true,
-        "is_error": true,
-        "is_media": true,
-        "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
-        "narration": true,
-        "parsed_commands": [
-          [
-            "string"
-          ]
-        ],
-        "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
-        "reasoning_delta": "string",
-        "result": [
-          0
-        ],
-        "result_delta": "string",
-        "result_reset": true,
-        "skill_description": "string",
-        "skill_dir": "string",
-        "skill_name": "string",
-        "source_id": "string",
-        "start_line": 0,
-        "text": "string",
-        "title": "string",
-        "tool_call_id": "string",
-        "tool_name": "string",
-        "type": "text",
-        "url": "string",
-        "workspace_file_media_type": "string",
-        "workspace_file_name": "string",
-        "workspace_file_path": "string",
-        "workspace_file_size": 0,
-        "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
+        "type": "file"
       },
       "message_id": 0,
       "part_index": 0,
