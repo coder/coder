@@ -2485,17 +2485,20 @@ func (p *Server) appendRootChatTools(
 
 	tools = append(tools,
 		chattool.ListTemplates(p.db, opts.chat.OrganizationID, chattool.ListTemplatesOptions{
-			OwnerID: opts.chat.OwnerID,
-			Logger:  p.logger,
-			Clock:   p.clock,
+			OwnerID:   opts.chat.OwnerID,
+			ProjectID: opts.chat.ProjectID,
+			Logger:    p.logger,
+			Clock:     p.clock,
 		}),
 		chattool.ReadTemplate(p.db, opts.chat.OrganizationID, chattool.ReadTemplateOptions{
 			OwnerID:          opts.chat.OwnerID,
+			ProjectID:        opts.chat.ProjectID,
 			RenderParameters: p.renderTemplateParametersFn,
 			Logger:           p.logger,
 		}),
 		chattool.CreateWorkspace(p.db, opts.chat.OrganizationID, opts.chat.ID, chattool.CreateWorkspaceOptions{
 			OwnerID:                        opts.chat.OwnerID,
+			ProjectID:                      opts.chat.ProjectID,
 			CreateFn:                       p.createWorkspaceFn,
 			AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
 			AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
