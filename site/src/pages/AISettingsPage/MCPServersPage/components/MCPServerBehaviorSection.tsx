@@ -1,10 +1,10 @@
 import type { FormikContextType } from "formik";
-import { CheckIcon, InfoIcon } from "lucide-react";
-import { Select as SelectPrimitive } from "radix-ui";
+import { InfoIcon } from "lucide-react";
 import { Input } from "#/components/Input/Input";
 import {
 	Select,
 	SelectContent,
+	SelectItem,
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
@@ -17,7 +17,7 @@ import {
 import { SecretInput } from "./MCPServerAuthSection";
 import { Field } from "./MCPServerFormFieldPrimitives";
 import {
-	AVAILABILITY_FIELD_DESCRIPTION,
+	AVAILABILITY_FOOTNOTE,
 	AVAILABILITY_OPTIONS,
 	type MCPServerFormValues,
 } from "./mcpServerFormLogic";
@@ -37,7 +37,6 @@ export const MCPServerBehaviorSection: React.FC<
 				label="Availability in chats"
 				htmlFor={`${formId}-availability`}
 				className="max-w-md"
-				description={AVAILABILITY_FIELD_DESCRIPTION}
 			>
 				<Select
 					value={form.values.availability}
@@ -55,38 +54,18 @@ export const MCPServerBehaviorSection: React.FC<
 					</SelectTrigger>
 					<SelectContent>
 						{AVAILABILITY_OPTIONS.map((option) => (
-							<SelectPrimitive.Item
-								key={option.value}
-								value={option.value}
-								className="relative flex w-full cursor-default select-none items-start rounded-sm py-1.5 pl-2 pr-8 text-sm text-content-secondary outline-hidden focus:bg-surface-secondary focus:text-content-primary data-disabled:pointer-events-none data-disabled:opacity-50"
-							>
-								<span className="absolute right-2 top-2 flex items-center justify-center">
-									<SelectPrimitive.ItemIndicator>
-										<CheckIcon className="size-icon-sm" />
-									</SelectPrimitive.ItemIndicator>
-								</span>
-								<div className="flex flex-col py-0.5">
-									<SelectPrimitive.ItemText>
-										{option.label}
-									</SelectPrimitive.ItemText>
-									<span className="text-xs text-content-secondary whitespace-normal wrap-break-word">
-										{option.description}
-									</span>
-								</div>
-							</SelectPrimitive.Item>
+							<SelectItem key={option.value} value={option.value}>
+								{option.label}
+							</SelectItem>
 						))}
 					</SelectContent>
 				</Select>
-				<p
+				<span
 					id={`${formId}-availability-help`}
-					className="m-0 text-xs text-content-secondary"
+					className="text-xs text-content-secondary"
 				>
-					{
-						AVAILABILITY_OPTIONS.find(
-							(option) => option.value === form.values.availability,
-						)?.helpText
-					}
-				</p>
+					{AVAILABILITY_FOOTNOTE}
+				</span>
 			</Field>
 			<div className="flex flex-col gap-4">
 				<SwitchField
