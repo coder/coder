@@ -309,7 +309,7 @@ export const buildDisplayMessages = (
 	return grouped;
 };
 
-const NO_FILE_IDS: ReadonlySet<string> = new Set();
+export const NO_FILE_IDS: ReadonlySet<string> = new Set();
 
 /**
  * Chat files a message part references, in the order the server linked

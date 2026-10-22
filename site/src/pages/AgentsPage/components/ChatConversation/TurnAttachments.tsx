@@ -9,7 +9,6 @@ import { isRasterImageMediaType } from "../../utils/chatAttachments";
 import { ImageThumbnail } from "../AttachmentPreview";
 import { AgentAttachmentList } from "./AgentAttachmentList";
 import { isTextPreviewAttachmentMediaType } from "./AttachmentBlocks";
-import { useFileProbes } from "./FileProbeContext";
 import type { AgentAttachment, TurnAttachmentList } from "./messageHelpers";
 import { useAttachmentFailure } from "./useAttachmentFailure";
 
@@ -71,7 +70,6 @@ type TurnAttachmentsProps = {
 export const TurnAttachments: React.FC<TurnAttachmentsProps> = ({
 	attachments,
 }) => {
-	const { hasExpired } = useFileProbes();
 	const overflow = attachments.length - THUMBNAIL_STACK_MAX;
 
 	return (
@@ -109,7 +107,7 @@ export const TurnAttachments: React.FC<TurnAttachmentsProps> = ({
 					}
 				}}
 			>
-				<AgentAttachmentList attachments={attachments} isExpired={hasExpired} />
+				<AgentAttachmentList attachments={attachments} />
 			</PopoverContent>
 		</Popover>
 	);

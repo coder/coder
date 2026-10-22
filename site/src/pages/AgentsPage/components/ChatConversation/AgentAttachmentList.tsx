@@ -229,25 +229,26 @@ const AgentAttachmentCard: React.FC<AttachmentCardProps> = (props) => {
 
 type AgentAttachmentListProps = {
 	attachments: readonly AgentAttachment[];
-	isExpired: (fileId: string) => boolean;
 };
 
 /** Only stored files can be expired: inline attachments carry no file ID. */
 export const AgentAttachmentList: React.FC<AgentAttachmentListProps> = ({
 	attachments,
-	isExpired,
-}) => (
-	<ul className="flex flex-col gap-2">
-		{attachments.map((attachment) => (
-			<li key={attachment.key}>
-				<AgentAttachmentCard
-					attachment={attachment}
-					expired={
-						attachment.file.file_id !== undefined &&
-						isExpired(attachment.file.file_id)
-					}
-				/>
-			</li>
-		))}
-	</ul>
-);
+}) => {
+	const { hasExpired } = useFileProbes();
+	return (
+		<ul className="flex flex-col gap-2">
+			{attachments.map((attachment) => (
+				<li key={attachment.key}>
+					<AgentAttachmentCard
+						attachment={attachment}
+						expired={
+							attachment.file.file_id !== undefined &&
+							hasExpired(attachment.file.file_id)
+						}
+					/>
+				</li>
+			))}
+		</ul>
+	);
+};

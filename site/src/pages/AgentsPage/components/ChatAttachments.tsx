@@ -7,6 +7,7 @@ import {
 } from "#/components/Collapsible/Collapsible";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { AgentAttachmentList } from "./ChatConversation/AgentAttachmentList";
+import { FileProbeProvider } from "./ChatConversation/FileProbeContext";
 import type { AgentAttachment } from "./ChatConversation/messageHelpers";
 import type { EarlierMessagesProps } from "./ChatMessageScroller";
 import { SectionHeader } from "./SectionHeader";
@@ -51,10 +52,9 @@ export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 			{/* Stays mounted while loading so the open trigger's aria-controls resolves. */}
 			<CollapsibleContent className="flex flex-col gap-3">
 				{attachments && attachments.length > 0 && (
-					<AgentAttachmentList
-						attachments={attachments}
-						isExpired={(fileId) => evictedFileIds.has(fileId)}
-					/>
+					<FileProbeProvider evictedFileIds={evictedFileIds}>
+						<AgentAttachmentList attachments={attachments} />
+					</FileProbeProvider>
 				)}
 				{attachments?.length === 0 && (
 					<p className="m-0 text-sm text-content-secondary">

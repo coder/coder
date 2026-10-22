@@ -33,10 +33,7 @@ describe("AgentAttachmentList", () => {
 				<QueryClientProvider client={queryClient}>
 					<TooltipProvider>
 						<FileProbeProvider evictedFileIds={new Set()}>
-							<AgentAttachmentList
-								attachments={findingsAttachments}
-								isExpired={() => false}
-							/>
+							<AgentAttachmentList attachments={findingsAttachments} />
 							{children}
 						</FileProbeProvider>
 					</TooltipProvider>
@@ -67,14 +64,8 @@ describe("AgentAttachmentList", () => {
 		// Two lists of one file share its text.
 		renderComponent(
 			<QueryClientProvider client={createTestQueryClient()}>
-				<AgentAttachmentList
-					attachments={findingsAttachments}
-					isExpired={() => false}
-				/>
-				<AgentAttachmentList
-					attachments={findingsAttachments}
-					isExpired={() => false}
-				/>
+				<AgentAttachmentList attachments={findingsAttachments} />
+				<AgentAttachmentList attachments={findingsAttachments} />
 			</QueryClientProvider>,
 		);
 		const [failedCard, loadedCard] = screen.getAllByRole("button", {

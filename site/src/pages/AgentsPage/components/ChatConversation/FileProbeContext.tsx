@@ -1,5 +1,6 @@
 import { createContext, useContext, useRef, useState } from "react";
 import type { AttachmentFailure } from "../../utils/chatAttachments";
+import { NO_FILE_IDS } from "./messageHelpers";
 
 type FileProbeContextValue = {
 	hasExpired: (fileId: string) => boolean;
@@ -11,7 +12,7 @@ type FileProbeContextValue = {
 	setProbeResult: (fileId: string, result: AttachmentFailure) => void;
 };
 
-const FileProbeContext = createContext<FileProbeContextValue>({
+const noFileProbes: FileProbeContextValue = {
 	hasExpired: () => false,
 	markExpired: () => {},
 	isPending: () => false,
@@ -19,11 +20,20 @@ const FileProbeContext = createContext<FileProbeContextValue>({
 	clearPending: () => {},
 	getProbeResult: () => undefined,
 	setProbeResult: () => {},
-});
+};
 
+const FileProbeContext = createContext<FileProbeContextValue | undefined>(
+	undefined,
+);
+
+/**
+ * A provider inside another shares the outer one's probe results and adds its
+ * own evicted files, so every view of a chat learns that a file is deleted.
+ */
 export const FileProbeProvider: React.FC<
-	React.PropsWithChildren<{ evictedFileIds: ReadonlySet<string> }>
-> = ({ evictedFileIds, children }) => {
+	React.PropsWithChildren<{ evictedFileIds?: ReadonlySet<string> }>
+> = ({ evictedFileIds = NO_FILE_IDS, children }) => {
+	const outerProbes = useContext(FileProbeContext);
 	const [expiredFileIds, setExpiredFileIds] = useState<Set<string>>(
 		() => new Set(),
 	);
@@ -34,36 +44,41 @@ export const FileProbeProvider: React.FC<
 		Map<string, AttachmentFailure>
 	>(() => new Map());
 
+	const probes: FileProbeContextValue = outerProbes ?? {
+		hasExpired: (fileId) => expiredFileIds.has(fileId),
+		markExpired: (fileId) => {
+			setExpiredFileIds((previous) => {
+				if (previous.has(fileId)) {
+					return previous;
+				}
+				const next = new Set(previous);
+				next.add(fileId);
+				return next;
+			});
+		},
+		isPending: (fileId) => pendingProbeFileIds.current.has(fileId),
+		markPending: (fileId) => {
+			pendingProbeFileIds.current.add(fileId);
+		},
+		clearPending: (fileId) => {
+			pendingProbeFileIds.current.delete(fileId);
+		},
+		getProbeResult: (fileId) => probeResults.get(fileId),
+		setProbeResult: (fileId, result) => {
+			setProbeResults((prev) => {
+				const next = new Map(prev);
+				next.set(fileId, result);
+				return next;
+			});
+		},
+	};
+
 	return (
 		<FileProbeContext.Provider
 			value={{
+				...probes,
 				hasExpired: (fileId) =>
-					evictedFileIds.has(fileId) || expiredFileIds.has(fileId),
-				markExpired: (fileId) => {
-					setExpiredFileIds((previous) => {
-						if (previous.has(fileId)) {
-							return previous;
-						}
-						const next = new Set(previous);
-						next.add(fileId);
-						return next;
-					});
-				},
-				isPending: (fileId) => pendingProbeFileIds.current.has(fileId),
-				markPending: (fileId) => {
-					pendingProbeFileIds.current.add(fileId);
-				},
-				clearPending: (fileId) => {
-					pendingProbeFileIds.current.delete(fileId);
-				},
-				getProbeResult: (fileId) => probeResults.get(fileId),
-				setProbeResult: (fileId, result) => {
-					setProbeResults((prev) => {
-						const next = new Map(prev);
-						next.set(fileId, result);
-						return next;
-					});
-				},
+					evictedFileIds.has(fileId) || probes.hasExpired(fileId),
 			}}
 		>
 			{children}
@@ -71,4 +86,4 @@ export const FileProbeProvider: React.FC<
 	);
 };
 
-export const useFileProbes = () => useContext(FileProbeContext);
+export const useFileProbes = () => useContext(FileProbeContext) ?? noFileProbes;
