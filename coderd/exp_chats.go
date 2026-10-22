@@ -2921,6 +2921,9 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		chat = updatedChat
+		if workspaceID.Valid {
+			api.chatDaemon.RequestWorkspaceFileDelivery()
+		}
 	}
 
 	if planModeUpdate != nil {

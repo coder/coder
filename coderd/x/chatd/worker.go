@@ -28,6 +28,10 @@ type chatWorker struct {
 	unsubscribe func()
 	wakeCh      chan struct{}
 	wg          sync.WaitGroup
+
+	// fileDeliveryWakeCh requests a workspace file delivery sweep. It
+	// holds one pending request so wake-ups during a sweep coalesce.
+	fileDeliveryWakeCh chan struct{}
 }
 
 // newChatWorker constructs a chat worker. The worker is idle until Start is
@@ -40,7 +44,11 @@ func newChatWorker(server *Server, opts chatWorkerOptions) (*chatWorker, error) 
 	if err != nil {
 		return nil, err
 	}
-	return &chatWorker{server: server, opts: withDefaults}, nil
+	return &chatWorker{
+		server:             server,
+		opts:               withDefaults,
+		fileDeliveryWakeCh: make(chan struct{}, 1),
+	}, nil
 }
 
 // Start starts the acquisition and runner manager loops.
@@ -95,6 +103,11 @@ func (w *chatWorker) Start(ctx context.Context) error {
 	if w.opts.CapacityMetrics != nil {
 		w.wg.Go(func() {
 			w.capacityMetricsLoop(workerCtx)
+		})
+	}
+	if w.server.agentConnFn != nil {
+		w.wg.Go(func() {
+			w.workspaceFileDeliveryLoop(workerCtx)
 		})
 	}
 	wake(wakeCh)

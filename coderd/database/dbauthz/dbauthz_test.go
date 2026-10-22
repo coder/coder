@@ -1200,6 +1200,13 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().RetryChatWorkspaceFileDeliveries(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
 	}))
+	s.Run("RetryChatWorkspaceFileDeliveriesByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		arg := database.RetryChatWorkspaceFileDeliveriesByIDsParams{ChatID: chat.ID, FileIds: []uuid.UUID{uuid.New()}, Now: dbtime.Now()}
+		dbm.EXPECT().RetryChatWorkspaceFileDeliveriesByIDs(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
+	}))
 	s.Run("GetChatFileMetadataByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		file := testutil.Fake(s.T(), faker, database.ChatFile{})
@@ -1527,6 +1534,13 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetAuthorizedChatsByChatFileID(gomock.Any(), fileID, gomock.Any()).Return([]database.Chat{}, nil).AnyTimes()
 		// No asserts here because callers provide the SQL filter.
 		check.Args(fileID, emptyPreparedAuthorized{}).Asserts()
+	}))
+	s.Run("IsChatWorkspaceFileAttached", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.IsChatWorkspaceFileAttachedParams{ChatID: chat.ID, FileID: uuid.New()}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().IsChatWorkspaceFileAttached(gomock.Any(), arg).Return(true, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(true)
 	}))
 	s.Run("GetChatQueuedMessages", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})

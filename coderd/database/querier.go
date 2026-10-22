@@ -1377,6 +1377,12 @@ type sqlcQuerier interface {
 	// is atomic and does not depend on the caller's local clock.
 	IsChatHeartbeatStale(ctx context.Context, arg IsChatHeartbeatStaleParams) (bool, error)
 	IsChatProjectUsableByUserID(ctx context.Context, arg IsChatProjectUsableByUserIDParams) (bool, error)
+	// IsChatWorkspaceFileAttached reports whether a user message or a queued
+	// message of the chat still attaches the file as a workspace attachment.
+	// Deleting a queued message or editing the attachment out of a message
+	// keeps the file's link, so the link alone does not show that the user
+	// still wants the file copied.
+	IsChatWorkspaceFileAttached(ctx context.Context, arg IsChatWorkspaceFileAttachedParams) (bool, error)
 	// LinkChatFilesAfterLock requires the chat row lock. When the batch would
 	// exceed the cap, the oldest files on the chat are deleted to make room; the
 	// cascade removes their links. A file links to at most one chat, so no other
@@ -1540,6 +1546,10 @@ type sqlcQuerier interface {
 	// for example because its replica stopped, and may have used the last
 	// attempt.
 	RetryChatWorkspaceFileDeliveries(ctx context.Context, arg RetryChatWorkspaceFileDeliveriesParams) (int64, error)
+	// RetryChatWorkspaceFileDeliveriesByIDs is RetryChatWorkspaceFileDeliveries
+	// limited to the given files, for a message that attaches them again after
+	// delivery parked or failed them.
+	RetryChatWorkspaceFileDeliveriesByIDs(ctx context.Context, arg RetryChatWorkspaceFileDeliveriesByIDsParams) (int64, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct

@@ -7273,6 +7273,14 @@ func (q *querier) IsChatProjectUsableByUserID(ctx context.Context, arg database.
 	return q.db.IsChatProjectUsableByUserID(ctx, arg)
 }
 
+func (q *querier) IsChatWorkspaceFileAttached(ctx context.Context, arg database.IsChatWorkspaceFileAttachedParams) (bool, error) {
+	_, err := q.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return false, err
+	}
+	return q.db.IsChatWorkspaceFileAttached(ctx, arg)
+}
+
 func (q *querier) LinkChatFilesAfterLock(ctx context.Context, arg database.LinkChatFilesAfterLockParams) (int32, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return 0, err
@@ -7691,6 +7699,17 @@ func (q *querier) RetryChatWorkspaceFileDeliveries(ctx context.Context, arg data
 		return 0, err
 	}
 	return q.db.RetryChatWorkspaceFileDeliveries(ctx, arg)
+}
+
+func (q *querier) RetryChatWorkspaceFileDeliveriesByIDs(ctx context.Context, arg database.RetryChatWorkspaceFileDeliveriesByIDsParams) (int64, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return 0, err
+	}
+	return q.db.RetryChatWorkspaceFileDeliveriesByIDs(ctx, arg)
 }
 
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
