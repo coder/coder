@@ -533,6 +533,23 @@ export const MockQuestionCallMessage: TypesGen.ChatMessage = {
 	],
 };
 
+/** A client tool call after the first step of MockWorkingMessages. */
+export const MockPendingToolMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 4,
+	role: "assistant",
+	created_at: workingFixtureTime(5),
+	content: [
+		{
+			type: "tool-call",
+			tool_call_id: "editor",
+			tool_name: "open_editor",
+			args: { path: "README.md" },
+			created_at: workingFixtureTime(5),
+		},
+	],
+};
+
 export const buildReconnectState = (
 	overrides: Partial<ReconnectState> = {},
 ): ReconnectState => ({

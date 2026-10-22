@@ -23,6 +23,7 @@ import {
 	MockLeadInSearchMessages,
 	MockLongTurnPageLoads,
 	MockMixedAttachmentMessages,
+	MockPendingToolMessage,
 	MockPlanAttachmentMessages,
 	MockQuestionCallMessage,
 	MockSearchAnswerAttachmentMessages,
@@ -56,6 +57,7 @@ const meta: Meta<typeof ConversationTimeline> = {
 		showDesktopPreviews: false,
 		hasActiveStream: false,
 		isAwaitingFirstStreamChunk: false,
+		isCompactionStarting: false,
 		chatStatus: null,
 		hasMoreMessages: false,
 		parsedMessages: parseMessagesWithMergedTools(MockWorkingMessages),
@@ -328,6 +330,15 @@ export const TurnAttachmentsPillCompacting: Story = {
 	},
 };
 
+// A requested compaction keeps the pill before its summary starts streaming.
+export const TurnAttachmentsPillCompactionStarting: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+		chatStatus: "running",
+		isCompactionStarting: true,
+	},
+};
+
 // A stop hook can nudge the agent past its answer, so the turn shows no pill
 // until the chat stops.
 export const TurnAttachmentsPillContinuedTurn: Story = {
@@ -338,30 +349,15 @@ export const TurnAttachmentsPillContinuedTurn: Story = {
 	},
 };
 
+const mockPendingToolMessage = { ...MockPendingToolMessage, id: 23 };
+
 // The pending client tool's result resumes the turn, so it has no pill yet.
 export const TurnAttachmentsPillRequiresAction: Story = {
 	args: {
 		chatStatus: "requires_action",
 		parsedMessages: parseMessagesWithMergedTools(
-			[
-				...MockUnansweredAttachmentMessages,
-				{
-					...MockChatMessage,
-					id: 23,
-					role: "assistant",
-					created_at: workingFixtureTime(30),
-					content: [
-						{
-							type: "tool-call",
-							tool_call_id: "confirm",
-							tool_name: "confirm_with_user",
-							args: { message: "Ship the report?" },
-							created_at: workingFixtureTime(30),
-						},
-					],
-				},
-			],
-			{ pendingToolCallIDs: new Set(["confirm"]) },
+			[...MockUnansweredAttachmentMessages, mockPendingToolMessage],
+			{ pendingToolCallIDs: new Set(["editor"]) },
 		),
 	},
 };

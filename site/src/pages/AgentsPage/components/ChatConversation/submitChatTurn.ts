@@ -158,6 +158,7 @@ const runBuiltInChatCommand = async ({
 			clearChatErrorReason(agentId);
 			store.clearStreamError();
 			store.clearStreamState();
+			store.markCompactionRequested();
 			store.setChatStatus("running");
 			try {
 				await compact();

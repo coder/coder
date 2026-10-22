@@ -16,7 +16,7 @@ import {
 } from "#/testHelpers/chatEntities";
 import { BuiltInCommandPendingError } from "../../hooks/useConversationEditingState";
 import { NIL_UUID } from "../../utils/modelOptions";
-import { createChatStore } from "./chatStore";
+import { createChatStore, selectIsCompactionStarting } from "./chatStore";
 import {
 	resolveEditModelConfigID,
 	type SubmitChatTurnParams,
@@ -207,6 +207,17 @@ describe("submitChatTurn", () => {
 				content: [{ type: "text", text: "/compact" }],
 			}),
 		);
+	});
+
+	it("reports a starting compaction after /compact", async () => {
+		const store = createChatStore();
+		store.setActiveChatID("chat-1");
+		store.upsertDurableMessage({ ...MockChatMessage, role: "assistant" });
+		store.setChatStatus("waiting");
+
+		await submitChatTurn(buildParams({ message: "/compact", store }));
+
+		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(true);
 	});
 
 	it("compacts instead of sending and restores state if compact fails", async () => {

@@ -177,7 +177,10 @@ export type TurnAttachmentsOptions = {
 	hidesAttachmentRows: boolean;
 	/** The chat may still add to the newest turn, which then gets no entry. */
 	isChatActive: boolean;
-	/** The live stream is a compaction, which adds no answer or file to a turn. */
+	/**
+	 * A compaction is starting or streaming, which adds no answer or file to
+	 * a turn.
+	 */
 	isCompacting: boolean;
 	/** More history exists, so a first turn without its prompt gets no entry. */
 	hasMoreMessages: boolean;

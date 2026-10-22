@@ -127,6 +127,8 @@ export type ChatStoreState = {
 	// contained their promoted user rows.
 	promotedQueuedMessageIDs: ReadonlySet<number>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
+	// The newest durable message ID when a manual compaction was requested.
+	compactionRequestMessageID: number | null;
 };
 
 export type ChatStore = {
@@ -176,6 +178,7 @@ export type ChatStore = {
 	unsuppressQueuedMessageID: (id: number) => void;
 	clearSuppressedQueuedMessageIDs: () => void;
 	setChatStatus: (status: TypesGen.ChatStatus | null) => void;
+	markCompactionRequested: () => void;
 	setStreamState: (streamState: StreamState | null) => void;
 	setStreamError: (reason: ChatDetailError | null) => void;
 	clearStreamError: () => void;
@@ -204,6 +207,7 @@ const createInitialState = (): ChatStoreState => ({
 	suppressedQueuedMessageIDs: new Set(),
 	promotedQueuedMessageIDs: new Set(),
 	subagentStatusOverrides: new Map(),
+	compactionRequestMessageID: null,
 });
 
 export const createChatStore = (): ChatStore => {
@@ -581,6 +585,13 @@ export const createChatStore = (): ChatStore => {
 				chatStatus: status,
 			}));
 		},
+		markCompactionRequested: () => {
+			setState((current) => ({
+				...current,
+				compactionRequestMessageID:
+					selectLatestDurableMessage(current)?.id ?? null,
+			}));
+		},
 		setActiveChatID: (chatID) => {
 			if (activeChatID === chatID) {
 				return;
@@ -776,6 +787,16 @@ export const selectIsAwaitingFirstStreamChunk = (
 	}
 	return state.chatStatus === "running";
 };
+
+/**
+ * Whether a requested manual compaction has neither streamed nor saved a
+ * message yet. It starts without a user message, so until then nothing else
+ * tells the running chat apart from a turn that continues after its answer.
+ */
+export const selectIsCompactionStarting = (state: ChatStoreState): boolean =>
+	state.chatStatus === "running" &&
+	state.streamState === null &&
+	selectLatestDurableMessage(state)?.id === state.compactionRequestMessageID;
 
 export const useChatSelector = <T>(
 	store: ChatStore,

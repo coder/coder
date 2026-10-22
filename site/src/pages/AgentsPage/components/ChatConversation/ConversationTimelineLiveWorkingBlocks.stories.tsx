@@ -1,8 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
 import { preferenceSettingsKey } from "#/api/queries/users";
-import type { ChatMessage } from "#/api/typesGenerated";
-import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import {
@@ -12,6 +10,7 @@ import {
 import {
 	buildStreamRenderState,
 	MockCollapsedStepsPreferences,
+	MockPendingToolMessage,
 	MockQuestionCallMessage,
 	MockWorkingMessages,
 	pinFixtureClock,
@@ -193,22 +192,6 @@ export const RequiresActionCompletesBlock: Story = {
 			{ pendingToolCallIDs: new Set(["question"]) },
 		),
 	},
-};
-
-const MockPendingToolMessage: ChatMessage = {
-	...MockChatMessage,
-	id: 4,
-	role: "assistant",
-	created_at: workingFixtureTime(5),
-	content: [
-		{
-			type: "tool-call",
-			tool_call_id: "editor",
-			tool_name: "open_editor",
-			args: { path: "README.md" },
-			created_at: workingFixtureTime(5),
-		},
-	],
 };
 
 export const RequiresActionKeepsPendingToolVisible: Story = {
