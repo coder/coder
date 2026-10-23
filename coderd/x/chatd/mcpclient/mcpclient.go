@@ -1172,6 +1172,7 @@ func (r secretRedactor) redactResponse(response fantasy.ToolResponse) fantasy.To
 	response.Content = r.redactString(response.Content)
 	response.Data = r.redactBytes(response.Data)
 	response.MediaType = r.redactString(response.MediaType)
+	response.Filename = r.redactString(response.Filename)
 	response.Metadata = r.redactString(response.Metadata)
 	return response
 }
