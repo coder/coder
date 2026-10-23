@@ -20,7 +20,14 @@ export const gitProviderNames: Record<GitProvider, string> = {
 export const changeRequestLabel = (provider: GitProvider, number: string) =>
 	provider === "github" ? `PR #${number}` : `MR !${number}`;
 
-type Remote = { host: string; path: string };
+type Remote = {
+	/** "https:", "http:", "ssh:" or "git:". */
+	protocol: string;
+	host: string;
+	/** Empty for the protocol's default port. */
+	port: string;
+	path: string;
+};
 
 const urlSchemePattern = /^[a-z][a-z0-9+.-]*:\/\//i;
 const remoteProtocols = new Set([
@@ -30,15 +37,25 @@ const remoteProtocols = new Set([
 	"git:",
 	"git+ssh:",
 ]);
+// URL empties the default ports of http: and https: itself.
+const defaultPorts: Readonly<Record<string, string>> = {
+	"ssh:": "22",
+	"git:": "9418",
+};
+
+const isWebProtocol = (protocol: string) =>
+	protocol === "https:" || protocol === "http:";
 
 /**
- * The host and repository path of a remote origin, such as "github.com" and
- * "coder/coder" from "git@github.com:coder/coder.git". The port is dropped:
- * an SSH port says nothing about the web host's.
+ * The protocol, host, port and repository path of a remote origin, such as
+ * "ssh:", "github.com", "" and "coder/coder" from
+ * "git@github.com:coder/coder.git".
  */
 const parseRemote = (origin: string): Remote | undefined => {
 	const trimmed = origin.trim();
+	let protocol = "ssh:";
 	let host: string;
+	let port = "";
 	let path: string;
 	if (urlSchemePattern.test(trimmed)) {
 		let url: URL;
@@ -50,10 +67,14 @@ const parseRemote = (origin: string): Remote | undefined => {
 		if (!remoteProtocols.has(url.protocol)) {
 			return undefined;
 		}
+		if (url.protocol !== "git+ssh:") {
+			protocol = url.protocol;
+		}
 		host = url.hostname;
+		port = url.port === defaultPorts[protocol] ? "" : url.port;
 		path = url.pathname;
 	} else {
-		// Git's scp-like syntax, [user@]host:path.
+		// Git's scp-like syntax, [user@]host:path, which has no port.
 		const match = /^(?:[^@/]+@)?([^/:]+):(.+)$/.exec(trimmed);
 		if (!match) {
 			return undefined;
@@ -68,15 +89,23 @@ const parseRemote = (origin: string): Remote | undefined => {
 	if (!host || !path.includes("/")) {
 		return undefined;
 	}
-	return { host: host.toLowerCase(), path };
+	return { protocol, host: host.toLowerCase(), port, path };
 };
 
+/**
+ * Whether two origins name one repository. A port can put another server on
+ * the same host, so origins over different protocols match only on their
+ * default ports, and origins over one protocol only on the same port.
+ */
 const isSameRepository = (origin: string, remote: Remote) => {
 	const other = parseRemote(origin);
 	return (
 		other !== undefined &&
 		other.host === remote.host &&
-		other.path.toLowerCase() === remote.path.toLowerCase()
+		other.path.toLowerCase() === remote.path.toLowerCase() &&
+		(other.protocol === remote.protocol
+			? other.port === remote.port
+			: !other.port && !remote.port)
 	);
 };
 
@@ -133,7 +162,12 @@ export const getGitWebRepository = (
 		}
 	}
 	const provider = providersByHost[remote.host];
-	return provider && { provider, url: `https://${remote.host}/${remote.path}` };
+	// An SSH or git port says nothing about the web server's.
+	const host =
+		remote.port && isWebProtocol(remote.protocol)
+			? `${remote.host}:${remote.port}`
+			: remote.host;
+	return provider && { provider, url: `https://${host}/${remote.path}` };
 };
 
 /**
