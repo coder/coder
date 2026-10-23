@@ -902,7 +902,9 @@ describe("FilesPanel", () => {
 		rerenderPanel(contextValue());
 
 		await screen.findByRole("treeitem", { name: "src" });
-		rerenderPanel(contextValue({ repoRoots: ["/home/coder", "/home/coder/repo"] }));
+		rerenderPanel(
+			contextValue({ repoRoots: ["/home/coder", "/home/coder/repo"] }),
+		);
 		expect(screen.getByRole("treeitem", { name: "src" })).toBeInTheDocument();
 		expect(listedPaths()).not.toContain("/home/coder");
 	});
