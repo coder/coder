@@ -93,6 +93,7 @@ type HastNode = {
 		dataFileMention?: unknown;
 		dataFileMentionLine?: unknown;
 		dataFileMentionCandidate?: unknown;
+		dataFileMentionCandidateOpener?: unknown;
 	};
 };
 
@@ -334,9 +335,14 @@ const createComponents = (
 		}: React.ComponentProps<"span"> & { node?: HastNode }) => {
 			const mention = getFileMention(node);
 			const candidate = node?.properties?.dataFileMentionCandidate;
+			const opener = node?.properties?.dataFileMentionCandidateOpener;
 			if (typeof candidate === "string") {
 				return (
-					<FileMentionCandidate text={candidate} whole={false}>
+					<FileMentionCandidate
+						text={candidate}
+						whole={false}
+						opener={typeof opener === "string" ? opener : undefined}
+					>
 						{props.children}
 					</FileMentionCandidate>
 				);

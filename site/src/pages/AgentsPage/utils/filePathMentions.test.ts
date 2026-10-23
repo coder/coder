@@ -3,6 +3,7 @@ import {
 	findCandidateTokenStarts,
 	findFilePathCandidates,
 	findFilePathMentions,
+	findQuotedPathEnd,
 	getFilePathCandidateStarts,
 	isWholeFilePathCandidate,
 	parseFilePathMention,
@@ -182,6 +183,7 @@ describe("walkFilePath", () => {
 		"/path/to": ["file", "file (2).txt", "file (2)"],
 		"/home/coder": ["my", "my dir/"],
 		"/home/coder/my dir": ["a.ts"],
+		"/repo": ["my/"],
 		"/missing": null,
 	};
 	const getEntries = (directory: string) => {
@@ -235,6 +237,13 @@ describe("walkFilePath", () => {
 			{ absolutePath: "/home/coder/my dir", length: 7, isDirectory: true },
 		],
 		["/missing", "a b.ts", null],
+		["/repo", 'my docs/missing/" now', null],
+		["/home/coder", "my notes/a.md", null],
+		[
+			"/repo",
+			"my /etc/hosts",
+			{ absolutePath: "/repo/my", length: 2, isDirectory: true },
+		],
 		["/not/listed/yet", "a b.ts", undefined],
 	])("walks from %j through %j", (directory, text, expected) => {
 		expect(walkFilePath(directory, text, getEntries).verified).toEqual(
@@ -261,6 +270,18 @@ describe("walkFilePath", () => {
 		]);
 		expect(walk.verified).toBeNull();
 		expect(walk.directories).toHaveLength(5);
+	});
+});
+
+describe("findQuotedPathEnd", () => {
+	it.each([
+		['/repo/my docs" now', '"', 13],
+		["/repo/my docs” now", "“", 13],
+		["/repo/my docs now", '"', -1],
+		['/repo/my docs" now', " ", -1],
+		['/repo/my docs" now', undefined, -1],
+	])("ends %j opened by %j at %d", (text, opener, expected) => {
+		expect(findQuotedPathEnd(text, opener)).toBe(expected);
 	});
 });
 
