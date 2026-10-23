@@ -98,10 +98,13 @@ export const useFilesPanelRoot = (
 		}
 	};
 	const pinRoot = () => {
-		queryClient.setQueryData<DefaultRoot>(
-			defaultRootKey(chatId),
-			(previous) => previous && { ...previous, pinned: true },
-		);
+		if (storedRoot !== null || root === undefined) {
+			return;
+		}
+		queryClient.setQueryData<DefaultRoot>(defaultRootKey(chatId), {
+			root,
+			pinned: true,
+		});
 	};
 	return { root, setRoot, pinRoot };
 };
@@ -535,7 +538,6 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 			if (request !== latestReveal.current) {
 				return;
 			}
-			pinRoot();
 			if (nextRoot !== root) {
 				selectRoot(nextRoot);
 				setExpandedPaths(ancestors);
@@ -561,6 +563,9 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 
 	const startReveal = useEffectEvent((request: RevealRequest) => {
 		onRevealHandled?.();
+		// Pinned now, so a repo that appears while the reveal loads does not
+		// move the root it is revealing in.
+		pinRoot();
 		revealFocusOrigin.current = document.activeElement;
 		cancelOpenPath();
 		runReveal(request);
