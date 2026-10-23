@@ -1229,6 +1229,8 @@ The following chat stream events, delivered to the client over WebSocket, are su
 - `history_reset`: a reset of the stream's history state (committed messages), emitted when the message history is edited and some messages are removed from the history.
   - TODO (#29808): on the first sync with an `after_id`, this is emitted only when message `after_id` is deleted or missing. Describe this here.
 
+TODO (chat stream keepalive): the endpoint writes an empty batch (`[]`) after `httpapi.HeartbeatInterval` (15 seconds) without any other write. Browsers do not expose WebSocket pings to page code, so the web client treats 40 seconds without a message as a frozen connection and reconnects. Describe this here.
+
 ## Endpoint lifecycle
 
 When a client connects, the endpoint:

@@ -47,6 +47,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -60,6 +61,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -10553,6 +10555,101 @@ func TestStreamChat(t *testing.T) {
 					foundInitialUserMessage = true
 				}
 			}
+		}
+	})
+
+	t.Run("Keepalive", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mClock := quartz.NewMock(t)
+		keepaliveTrap := mClock.Trap().NewTicker("chatStream", "keepalive")
+		defer keepaliveTrap.Close()
+
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled, func(o *coderdtest.Options) {
+			o.Clock = mClock
+		})
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "stream chat keepalive",
+			Status:            database.ChatStatusWaiting,
+		})
+
+		conn, err := client.Dial(ctx, fmt.Sprintf("/api/v2/chats/%s/stream", chat.ID), nil)
+		require.NoError(t, err)
+		defer conn.Close(websocket.StatusNormalClosure, "")
+
+		// Reading continuously also answers the server's liveness pings.
+		frames := make(chan []byte, 64)
+		go func() {
+			defer close(frames)
+			for {
+				_, data, err := conn.Read(ctx)
+				if err != nil {
+					return
+				}
+				select {
+				case frames <- data:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+		nextFrame := func() []codersdk.ChatStreamEvent {
+			t.Helper()
+			data := testutil.TryReceive(ctx, t, frames)
+			require.NotNil(t, data, "chat stream closed")
+			var batch []codersdk.ChatStreamEvent
+			require.NoError(t, json.Unmarshal(data, &batch))
+			return batch
+		}
+		sendMessage := func(text string) {
+			t.Helper()
+			_, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+				Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: text}},
+				BusyBehavior: codersdk.ChatBusyBehaviorQueue,
+			})
+			require.NoError(t, err)
+		}
+		// framesBefore reads frames until one mentions text, which a message
+		// or queue_update event does, and returns the frames read before it.
+		framesBefore := func(text string) [][]codersdk.ChatStreamEvent {
+			t.Helper()
+			var before [][]codersdk.ChatStreamEvent
+			for {
+				batch := nextFrame()
+				encoded, err := json.Marshal(batch)
+				require.NoError(t, err)
+				if bytes.Contains(encoded, []byte(text)) {
+					return before
+				}
+				before = append(before, batch)
+			}
+		}
+
+		// The keepalive ticker starts once the snapshot has been written.
+		keepaliveTrap.MustWait(ctx).MustRelease(ctx)
+
+		mClock.Advance(httpapi.HeartbeatInterval).MustWait(ctx)
+		for batch := nextFrame(); len(batch) > 0; batch = nextFrame() {
+			require.NotEqual(t, codersdk.ChatStreamEventTypeError, batch[0].Type)
+		}
+
+		// An event written 10s into the interval moves the next keepalive
+		// to 15s after that event, so none is due at the original deadline.
+		mClock.Advance(10 * time.Second).MustWait(ctx)
+		const first = "stream chat keepalive first"
+		sendMessage(first)
+		_ = framesBefore(first)
+		mClock.Advance(5 * time.Second).MustWait(ctx)
+		const second = "stream chat keepalive second"
+		sendMessage(second)
+		for _, batch := range framesBefore(second) {
+			require.NotEmpty(t, batch, "keepalive written 5s after an event")
 		}
 	})
 
