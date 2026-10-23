@@ -2288,6 +2288,18 @@ CREATE TABLE chat_model_configs (
     CONSTRAINT chat_model_configs_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );
 
+CREATE TABLE chat_notes (
+    chat_id uuid NOT NULL,
+    path text NOT NULL,
+    content text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_notes_content_check CHECK ((octet_length(content) <= 16384)),
+    CONSTRAINT chat_notes_path_check CHECK ((path ~ '^[a-z0-9][a-z0-9._/-]{0,127}$'::text))
+);
+
+COMMENT ON TABLE chat_notes IS 'Chat-scoped notes that an agent keeps across context windows.';
+
 CREATE TABLE chat_organization_model_overrides (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     organization_id uuid NOT NULL,
@@ -4645,6 +4657,9 @@ ALTER TABLE ONLY chat_model_configs
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY chat_notes
+    ADD CONSTRAINT chat_notes_pkey PRIMARY KEY (chat_id, path);
+
 ALTER TABLE ONLY chat_organization_model_overrides
     ADD CONSTRAINT chat_organization_model_overrides_organization_id_context_key UNIQUE (organization_id, context);
 
@@ -5568,6 +5583,9 @@ ALTER TABLE ONLY chat_model_configs
 
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);
+
+ALTER TABLE ONLY chat_notes
+    ADD CONSTRAINT chat_notes_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_organization_model_overrides
     ADD CONSTRAINT chat_organization_model_overrides_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

@@ -5488,6 +5488,15 @@ type ChatModelConfig struct {
 	UserACL              ChatACL         `db:"user_acl" json:"user_acl"`
 }
 
+// Chat-scoped notes that an agent keeps across context windows.
+type ChatNote struct {
+	ChatID    uuid.UUID `db:"chat_id" json:"chat_id"`
+	Path      string    `db:"path" json:"path"`
+	Content   string    `db:"content" json:"content"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
 type ChatOrganizationModelOverride struct {
 	ID              uuid.UUID      `db:"id" json:"id"`
 	OrganizationID  uuid.UUID      `db:"organization_id" json:"organization_id"`

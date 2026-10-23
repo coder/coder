@@ -54,6 +54,10 @@ type sqlcQuerier interface {
 	ActivityBumpWorkspace(ctx context.Context, arg ActivityBumpWorkspaceParams) error
 	// AllUserIDs returns all UserIDs regardless of user status or deletion.
 	AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error)
+	// AppendChatNote adds content as a new line at the end of a note, and
+	// creates the note when it does not exist. The table check keeps the
+	// 16 KiB cap.
+	AppendChatNote(ctx context.Context, arg AppendChatNoteParams) (ChatNote, error)
 	ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error)
 	// Archiving templates is a soft delete action, so is reversible.
 	// Archiving prevents the version from being used and discovered
@@ -111,6 +115,7 @@ type sqlcQuerier interface {
 	// the chat, so interrupting and requires_action chats without a fresh lease
 	// also wait for a slot.
 	CountChatCapacityQueuedByPool(ctx context.Context, staleSeconds int32) (CountChatCapacityQueuedByPoolRow, error)
+	CountChatNotes(ctx context.Context, chatID uuid.UUID) (int64, error)
 	CountChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) (int64, error)
 	CountChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error)
 	// Cheap queue-length check used by ChatMachine.Update when deciding
@@ -469,6 +474,10 @@ type sqlcQuerier interface {
 	GetChatByIDForShare(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatComputerUseProvider(ctx context.Context) (string, error)
+	// GetChatContextWindowConfig returns the deployment-wide context window
+	// configuration as a JSON blob. Callers unmarshal the result into
+	// codersdk.ChatContextWindowConfig. Returns '{}' when unset.
+	GetChatContextWindowConfig(ctx context.Context) (string, error)
 	// GetChatDebugLoggingAllowUsers returns the runtime admin setting that
 	// allows users to opt into chat debug logging when the deployment does
 	// not already force debug logging on globally.
@@ -541,6 +550,8 @@ type sqlcQuerier interface {
 	GetChatModelConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ChatModelConfig, error)
 	// deleted = false guarantees ai_provider_id is non-null, so INNER JOIN is safe.
 	GetChatModelConfigsForTelemetry(ctx context.Context) ([]GetChatModelConfigsForTelemetryRow, error)
+	GetChatNote(ctx context.Context, arg GetChatNoteParams) (ChatNote, error)
+	GetChatNotesChangedSince(ctx context.Context, arg GetChatNotesChangedSinceParams) (bool, error)
 	GetChatOrganizationModelOverride(ctx context.Context, arg GetChatOrganizationModelOverrideParams) (ChatOrganizationModelOverride, error)
 	GetChatOrganizationModelOverrides(ctx context.Context, organizationID uuid.UUID) ([]ChatOrganizationModelOverride, error)
 	// Returns every non-deleted organization's override for one context together
@@ -1408,6 +1419,7 @@ type sqlcQuerier interface {
 	// Lists a chat's pinned context resources, ordered deterministically by
 	// source.
 	ListChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatContextResource, error)
+	ListChatNotes(ctx context.Context, chatID uuid.UUID) ([]ListChatNotesRow, error)
 	// Returns one page of per-user AI spend for @organization_id over the
 	// [period_start, period_end) window, most expensive first, together with the
 	// providers, clients, and models each user spent through and the count and
@@ -1799,6 +1811,9 @@ type sqlcQuerier interface {
 	UpsertChatAdvisorConfig(ctx context.Context, value string) error
 	UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error
 	UpsertChatComputerUseProvider(ctx context.Context, provider string) error
+	// UpsertChatContextWindowConfig stores the deployment-wide context window
+	// configuration. Callers marshal codersdk.ChatContextWindowConfig to JSON.
+	UpsertChatContextWindowConfig(ctx context.Context, value string) error
 	// UpsertChatDebugLoggingAllowUsers updates the runtime admin setting that
 	// allows users to opt into chat debug logging.
 	UpsertChatDebugLoggingAllowUsers(ctx context.Context, allowUsers bool) error
@@ -1811,6 +1826,7 @@ type sqlcQuerier interface {
 	UpsertChatHeartbeat(ctx context.Context, arg UpsertChatHeartbeatParams) error
 	UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, includeDefaultSystemPrompt bool) error
 	UpsertChatMCPServer(ctx context.Context, arg UpsertChatMCPServerParams) (ChatMCPServer, error)
+	UpsertChatNote(ctx context.Context, arg UpsertChatNoteParams) (ChatNote, error)
 	UpsertChatOrganizationModelOverride(ctx context.Context, arg UpsertChatOrganizationModelOverrideParams) error
 	UpsertChatOrganizationSystemPrompt(ctx context.Context, arg UpsertChatOrganizationSystemPromptParams) (ChatOrganizationSystemPrompt, error)
 	// UpsertChatPersonalModelOverridesEnabled updates whether users may configure

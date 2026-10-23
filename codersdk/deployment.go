@@ -5516,6 +5516,7 @@ const (
 	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
 	ExperimentChatStageMetrics          Experiment = "chat-stage-metrics"          // Exposes chat lifecycle stage durations as Prometheus metrics.
 	ExperimentChatACPSubagents          Experiment = "chat-acp-subagents"          // Enables workspace-local ACP subagent tools in root chats.
+	ExperimentChatTokenBudget           Experiment = "chat-token-budget"           // Enables token-budget context windows with notes, new_context and chat_history tools.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5554,6 +5555,8 @@ func (e Experiment) DisplayName() string {
 		return "AI Workspace Debugging"
 	case ExperimentChatACPSubagents:
 		return "Chat ACP Subagents"
+	case ExperimentChatTokenBudget:
+		return "Chat Token Budget"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5582,6 +5585,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentEnableAIWorkspaceDebug,
 	ExperimentChatStageMetrics,
 	ExperimentChatACPSubagents,
+	ExperimentChatTokenBudget,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

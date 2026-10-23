@@ -1883,6 +1883,17 @@ func (q *querier) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UU
 	return q.db.AllUserIDs(ctx, includeSystem)
 }
 
+func (q *querier) AppendChatNote(ctx context.Context, arg database.AppendChatNoteParams) (database.ChatNote, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatNote{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatNote{}, err
+	}
+	return q.db.AppendChatNote(ctx, arg)
+}
+
 func (q *querier) ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]database.Chat, error) {
 	chat, err := q.db.GetChatByID(ctx, id)
 	if err != nil {
@@ -2105,6 +2116,14 @@ func (q *querier) CountChatCapacityQueuedByPool(ctx context.Context, staleSecond
 		return database.CountChatCapacityQueuedByPoolRow{}, err
 	}
 	return q.db.CountChatCapacityQueuedByPool(ctx, staleSeconds)
+}
+
+func (q *querier) CountChatNotes(ctx context.Context, chatID uuid.UUID) (int64, error) {
+	// Authorize read on the parent chat.
+	if _, err := q.GetChatByID(ctx, chatID); err != nil {
+		return 0, err
+	}
+	return q.db.CountChatNotes(ctx, chatID)
 }
 
 func (q *querier) CountChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) (int64, error) {
@@ -3376,6 +3395,15 @@ func (q *querier) GetChatComputerUseProvider(ctx context.Context) (string, error
 	return q.db.GetChatComputerUseProvider(ctx)
 }
 
+func (q *querier) GetChatContextWindowConfig(ctx context.Context) (string, error) {
+	// A deployment-wide setting read by chatd and admins. Require an
+	// explicit actor so unauthenticated calls fail closed.
+	if _, ok := ActorFromContext(ctx); !ok {
+		return "", ErrNoActor
+	}
+	return q.db.GetChatContextWindowConfig(ctx)
+}
+
 func (q *querier) GetChatDebugLoggingAllowUsers(ctx context.Context) (bool, error) {
 	// The allow-users flag is a deployment-wide setting read by any
 	// authenticated chat user. We only require that an explicit actor
@@ -3751,6 +3779,28 @@ func (q *querier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]databa
 		return nil, err
 	}
 	return q.db.GetChatModelConfigsForTelemetry(ctx)
+}
+
+func (q *querier) GetChatNote(ctx context.Context, arg database.GetChatNoteParams) (database.ChatNote, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatNote{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
+		return database.ChatNote{}, err
+	}
+	return q.db.GetChatNote(ctx, arg)
+}
+
+func (q *querier) GetChatNotesChangedSince(ctx context.Context, arg database.GetChatNotesChangedSinceParams) (bool, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return false, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
+		return false, err
+	}
+	return q.db.GetChatNotesChangedSince(ctx, arg)
 }
 
 func (q *querier) GetChatOrganizationModelOverride(ctx context.Context, arg database.GetChatOrganizationModelOverrideParams) (database.ChatOrganizationModelOverride, error) {
@@ -7364,6 +7414,14 @@ func (q *querier) ListChatContextResourcesByChatID(ctx context.Context, chatID u
 	return q.db.ListChatContextResourcesByChatID(ctx, chatID)
 }
 
+func (q *querier) ListChatNotes(ctx context.Context, chatID uuid.UUID) ([]database.ListChatNotesRow, error) {
+	// Authorize read on the parent chat.
+	if _, err := q.GetChatByID(ctx, chatID); err != nil {
+		return nil, err
+	}
+	return q.db.ListChatNotes(ctx, chatID)
+}
+
 func (q *querier) ListOrganizationAISpendUsers(ctx context.Context, arg database.ListOrganizationAISpendUsersParams) ([]database.ListOrganizationAISpendUsersRow, error) {
 	// Every row carries organization-wide totals, so the caller must be able
 	// to read every group member in the organization, not only its own row.
@@ -9502,6 +9560,13 @@ func (q *querier) UpsertChatComputerUseProvider(ctx context.Context, provider st
 	return q.db.UpsertChatComputerUseProvider(ctx, provider)
 }
 
+func (q *querier) UpsertChatContextWindowConfig(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertChatContextWindowConfig(ctx, value)
+}
+
 func (q *querier) UpsertChatDebugLoggingAllowUsers(ctx context.Context, allowUsers bool) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
@@ -9573,6 +9638,17 @@ func (q *querier) UpsertChatMCPServer(ctx context.Context, arg database.UpsertCh
 		return database.ChatMCPServer{}, err
 	}
 	return q.db.UpsertChatMCPServer(ctx, arg)
+}
+
+func (q *querier) UpsertChatNote(ctx context.Context, arg database.UpsertChatNoteParams) (database.ChatNote, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatNote{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatNote{}, err
+	}
+	return q.db.UpsertChatNote(ctx, arg)
 }
 
 func (q *querier) UpsertChatOrganizationModelOverride(ctx context.Context, arg database.UpsertChatOrganizationModelOverrideParams) error {

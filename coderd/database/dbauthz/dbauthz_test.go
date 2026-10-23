@@ -1049,6 +1049,58 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpsertChatAdvisorConfig(gomock.Any(), "{}").Return(nil).AnyTimes()
 		check.Args("{}").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
+	s.Run("GetChatContextWindowConfig", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetChatContextWindowConfig(gomock.Any()).Return("{}", nil).AnyTimes()
+		check.Args().Asserts().Returns("{}")
+	}))
+	s.Run("UpsertChatContextWindowConfig", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().UpsertChatContextWindowConfig(gomock.Any(), "{}").Return(nil).AnyTimes()
+		check.Args("{}").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	}))
+	s.Run("ListChatNotes", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		rows := []database.ListChatNotesRow{{Path: "checkpoint.md", Bytes: 3}}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().ListChatNotes(gomock.Any(), chat.ID).Return(rows, nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(rows)
+	}))
+	s.Run("CountChatNotes", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().CountChatNotes(gomock.Any(), chat.ID).Return(int64(2), nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(int64(2))
+	}))
+	s.Run("GetChatNote", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.GetChatNoteParams{ChatID: chat.ID, Path: "checkpoint.md"}
+		note := database.ChatNote{ChatID: chat.ID, Path: "checkpoint.md", Content: "x"}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().GetChatNote(gomock.Any(), arg).Return(note, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(note)
+	}))
+	s.Run("GetChatNotesChangedSince", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.GetChatNotesChangedSinceParams{ChatID: chat.ID, Since: dbtime.Now()}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().GetChatNotesChangedSince(gomock.Any(), arg).Return(true, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(true)
+	}))
+	s.Run("UpsertChatNote", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.UpsertChatNoteParams{ChatID: chat.ID, Path: "checkpoint.md", Content: "x"}
+		note := database.ChatNote{ChatID: chat.ID, Path: "checkpoint.md", Content: "x"}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpsertChatNote(gomock.Any(), arg).Return(note, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(note)
+	}))
+	s.Run("AppendChatNote", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.AppendChatNoteParams{ChatID: chat.ID, Path: "checkpoint.md", Content: "x"}
+		note := database.ChatNote{ChatID: chat.ID, Path: "checkpoint.md", Content: "x"}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().AppendChatNote(gomock.Any(), arg).Return(note, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(note)
+	}))
 	s.Run("UpsertChatPersonalModelOverridesEnabled", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().UpsertChatPersonalModelOverridesEnabled(gomock.Any(), true).Return(nil).AnyTimes()
 		check.Args(true).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
