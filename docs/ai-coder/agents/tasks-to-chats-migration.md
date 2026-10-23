@@ -191,23 +191,28 @@ The server increases a chat's `snapshot_version` each time it commits a change t
 To keep your client in sync with the chat:
 
 1. Request the newest messages page with `GET /api/v2/chats/{chat}/messages`, without `before_id` or `after_id`.
-1. Store the `snapshot_version` from the response.
+1. Store the `snapshot_version`, `messages`, and `queued_messages` from the response.
 1. Open the stream with `snapshot_version` set to the stored value.
 1. Apply each event as the event table describes.
 1. When an event includes a `snapshot_version` that is higher than the stored value, store the new value.
-1. If the connection closes, fails to open, or sends a message that isn't valid JSON, remove the `message_part` content and the retry notice that your client shows.
-   The server sends both again on the next connection.
-1. Wait, then open the stream again with the stored `snapshot_version`.
-   Use exponential backoff: double the wait after each failed attempt.
+1. If the connection closes, fails to open, or sends a WebSocket message that isn't valid JSON, remove the `message_part` content.
+1. Remove the retry notice that your client shows.
+1. Wait before you reconnect.
+   Double the wait after each failed attempt.
+1. Open the stream again with the stored `snapshot_version`.
    If the server returns `400 Bad Request`, discard your client's state and start again from step 1.
 
+The server sends the `message_part` content and the retry notice again on the next connection.
+
 Don't reconnect with `after_id`.
-If your client misses an edit, then sends a message and reconnects with the ID of that message as `after_id`, the stream doesn't remove the messages that the edit removed and doesn't send the messages written between the edit and your message.
+Suppose your client misses an edit, then sends a message and reconnects with that message's ID as `after_id`.
+The stream doesn't remove the messages that the edit removed.
+It also doesn't send the messages written between the edit and your message.
 
 The stream can send a change that your client already has.
 Apply the change again: a `message` event replaces the message with the same ID, and a `queue_update` event replaces the whole queue.
 
-If you sent a `before_id` request for older messages before the last `history_reset` event that you applied, discard its response.
+If you applied a `history_reset` event after you sent a `before_id` request, discard that request's response.
 
 Send actions, such as new messages, edits, and tool results, as REST requests.
 Don't apply their response bodies to your client's state, because the stream sends the result of each action.
