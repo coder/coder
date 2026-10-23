@@ -1328,12 +1328,12 @@ func (t *mcpToolWrapper) Run(
 	if err != nil {
 		resp = fantasy.NewTextErrorResponse(t.redactor.redactString(err.Error()))
 	} else {
-		// Structured content is redacted before convertCallResult encodes it
+		// Structured content is redacted before ConvertCallResult encodes it
 		// as JSON, where escaping would hide a secret from the string match.
 		if result != nil {
 			result.StructuredContent = t.redactor.redactValue(result.StructuredContent)
 		}
-		resp = t.redactor.redactResponse(convertCallResult(result))
+		resp = t.redactor.redactResponse(ConvertCallResult(result))
 	}
 	// Measure the result as the model receives it: Data is sent base64-encoded.
 	if t.maxResultBytes > 0 && len(resp.Content)+len(resp.MediaType)+base64.StdEncoding.EncodedLen(len(resp.Data)) > t.maxResultBytes {
@@ -1384,9 +1384,11 @@ func unwrapModelIntent(input string) string {
 	return input
 }
 
+// ConvertCallResult converts an MCP tool result into a fantasy tool response.
 // fantasy permits one media payload per response, so only the first eligible
-// binary block is kept alongside the text.
-func convertCallResult(
+// binary block is kept alongside the text. Callers apply redaction and size
+// limits.
+func ConvertCallResult(
 	result *mcp.CallToolResult,
 ) fantasy.ToolResponse {
 	if result == nil {

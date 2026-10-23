@@ -1721,7 +1721,7 @@ func TestConvertCallResult_MixedContent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			require.Equal(t, tc.want, mcpclient.ConvertCallResultForTest(tc.result))
+			require.Equal(t, tc.want, mcpclient.ConvertCallResult(tc.result))
 		})
 	}
 }
@@ -1789,7 +1789,7 @@ func TestConvertCallResult_UTF8Sanitization(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			resp := mcpclient.ConvertCallResultForTest(tt.result)
+			resp := mcpclient.ConvertCallResult(tt.result)
 
 			require.True(t, utf8.ValidString(resp.Content),
 				"response content must be valid UTF-8")
