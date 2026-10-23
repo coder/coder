@@ -5630,6 +5630,7 @@ var ExperimentsSafe = Experiments{
 var ExperimentsUserScoped = Experiments{
 	ExperimentExample,
 	ExperimentChatAutomations,
+	ExperimentWorkspaceFiles,
 }
 
 // Experiments is a list of experiments.

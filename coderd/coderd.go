@@ -1400,7 +1400,7 @@ func New(options *Options) *API {
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.NoStore,
-				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentWorkspaceFiles),
+				httpmw.RequireUserExperimentWithDevBypass(api.ExperimentEvaluator, codersdk.ExperimentWorkspaceFiles),
 				httpmw.ExtractWorkspaceAgentAndWorkspaceParam(options.Database),
 			)
 			r.Post("/list-directory", api.workspaceAgentFilesListDirectory)
