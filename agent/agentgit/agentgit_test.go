@@ -433,6 +433,48 @@ func TestScanUnbornHeadDiffsAgainstEmptyTree(t *testing.T) {
 	require.Contains(t, repo.UnifiedDiff, "+++ b/untracked.md")
 }
 
+// TestScanUnresolvableHeadIsNotUnborn pins that only a branch HEAD
+// without a ref is diffed against the empty tree. A HEAD that names a
+// missing object must fail the scan instead of reporting every
+// tracked file as added.
+func TestScanUnresolvableHeadIsNotUnborn(t *testing.T) {
+	t.Parallel()
+
+	bogus := strings.Repeat("1", 40)
+	tests := []struct {
+		name    string
+		corrupt func(t *testing.T, repoDir string)
+	}{
+		{
+			name: "DetachedMissingObject",
+			corrupt: func(t *testing.T, repoDir string) {
+				require.NoError(t, os.WriteFile(filepath.Join(repoDir, ".git", "HEAD"), []byte(bogus+"\n"), 0o600))
+			},
+		},
+		{
+			name: "BranchRefMissingObject",
+			corrupt: func(t *testing.T, repoDir string) {
+				ref := gitOutput(t, repoDir, "symbolic-ref", "HEAD")
+				require.NoError(t, os.WriteFile(filepath.Join(repoDir, ".git", filepath.FromSlash(ref)), []byte(bogus+"\n"), 0o600))
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			repoDir := initTestRepo(t)
+			tt.corrupt(t, repoDir)
+
+			h := agentgit.NewHandler(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}))
+			require.True(t, h.Subscribe([]string{repoDir}))
+			msg := h.Scan(context.Background())
+			require.NotNil(t, msg)
+			require.Empty(t, msg.Repositories, "a HEAD naming a missing object must not be reported as unborn")
+		})
+	}
+}
+
 func gitOutput(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", args...)
