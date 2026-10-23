@@ -21,7 +21,6 @@ import {
 	reconcileEditedMessageInCache,
 } from "./chatMessageEdits";
 import { organizationsPermissions } from "./organizations";
-import { disabledRefetchOptions } from "./util";
 import { workspaceQuotaKey } from "./workspaceQuota";
 import { invalidateWorkspaceListQueries } from "./workspaces";
 
@@ -3267,16 +3266,14 @@ export const chatFileTextKey = (fileId: string) =>
 	[...chatFilesKey, fileId, "text"] as const;
 
 /**
- * A stored file's text never changes, so the cache keeps it, or a deleted
- * file's 404, for the session. Observers never fetch: a view calls `refetch`,
- * so a long chat requests only the files someone opens.
+ * Disabled, so nothing built from these options fetches on mount. The text
+ * can be megabytes, so the default `gcTime` frees it after it goes unobserved.
  */
 export const chatFileText = (fileId: string) =>
 	queryOptions({
 		queryKey: chatFileTextKey(fileId),
 		queryFn: () => API.experimental.getChatFileText(fileId),
 		enabled: false,
-		...disabledRefetchOptions,
 	});
 
 const GATEWAY_REQUEST_STALE_MS = 30_000;

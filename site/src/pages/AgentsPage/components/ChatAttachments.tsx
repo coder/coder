@@ -33,8 +33,8 @@ type ChatAttachmentsProps = {
 };
 
 /**
- * Once the list is complete, the header count leaves out files the chat
- * record no longer lists and text files a view found deleted.
+ * Once the list is complete, the header count leaves out evicted files and
+ * text files a fetch found deleted, while that 404 stays cached.
  */
 export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 	attachments,
