@@ -22,6 +22,9 @@ describe("parseFilePathMention", () => {
 		["./scripts/develop.sh", { path: "./scripts/develop.sh" }],
 		["../other/x.vue", { path: "../other/x.vue" }],
 		[".github/workflows/ci.yaml", { path: ".github/workflows/ci.yaml" }],
+		[".gitignore", { path: ".gitignore" }],
+		[".env", { path: ".env" }],
+		["/home/coder/demo/.gitignore", { path: "/home/coder/demo/.gitignore" }],
 		["coderd/chat.go:120", { path: "coderd/chat.go", line: 120 }],
 		["coderd/chat.go:120:5", { path: "coderd/chat.go", line: 120 }],
 		["coderd/chat.go#L42", { path: "coderd/chat.go", line: 42 }],
@@ -86,6 +89,11 @@ describe("findFilePathMentions", () => {
 		["Edit C:\\Users\\me\\app.ts", []],
 		["Edit C:/Users/me/app.ts", []],
 		["Edit /home/me/a.ts", ["/home/me/a.ts"]],
+		[
+			"Ignore it in .gitignore and /home/coder/demo/.env.",
+			[".gitignore", "/home/coder/demo/.env"],
+		],
+		["Files ending in .go or .md", []],
 	])("finds mentions in %j", (text, expected) => {
 		expect(mentionedText(text)).toEqual(expected);
 	});
