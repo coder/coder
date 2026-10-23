@@ -4621,6 +4621,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/interrupt": {
             "post": {
+                "description": "Interrupts the active turn of a chat. If the chat has\nnothing to interrupt, for example because its turn\nalready ended, the endpoint returns the chat unchanged.",
                 "produces": [
                     "application/json"
                 ],
