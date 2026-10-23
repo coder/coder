@@ -98,11 +98,11 @@ function setupMockClipboard(isSecure: boolean): SetupMockClipboardResult {
 			}
 
 			const dummyInput = document.querySelector(
-				`input[data-testid=${HTTP_FALLBACK_DATA_ID}]`,
+				`textarea[data-testid=${HTTP_FALLBACK_DATA_ID}]`,
 			);
 
 			const inputIsFocused =
-				dummyInput instanceof HTMLInputElement &&
+				dummyInput instanceof HTMLTextAreaElement &&
 				document.activeElement === dummyInput;
 
 			let copySuccessful = false;
@@ -205,6 +205,12 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 
 	it("Copies the current text to the user's clipboard", async () => {
 		const textToCopy = "dogs";
+		const { result } = renderUseClipboard();
+		await assertClipboardUpdateLifecycle(result, textToCopy);
+	});
+
+	it("Preserves newlines when copying multiline text", async () => {
+		const textToCopy = "# Heading\n\n- one\n- two\n\n```sh\necho hi\n```";
 		const { result } = renderUseClipboard();
 		await assertClipboardUpdateLifecycle(result, textToCopy);
 	});
