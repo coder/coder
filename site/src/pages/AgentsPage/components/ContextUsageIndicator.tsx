@@ -33,7 +33,7 @@ import { isMobileViewport } from "#/utils/mobile";
 import {
 	compactionThresholdLabel,
 	type ResolvedCompactionThreshold,
-} from "../compactionTriggers";
+} from "../utils/compactionTriggers";
 import { getPathBasename, getPathDirname } from "../utils/path";
 import { SvgRingProgress } from "./SvgRingProgress";
 
@@ -86,6 +86,7 @@ const RESOURCE_KIND_LABELS: Record<ChatContextResourceKind, string> = {
 	skill: "skill",
 	mcp_config: "MCP config",
 	mcp_server: "MCP server",
+	acp_harness: "ACP harness",
 };
 
 const hasFiniteTokenValue = (value: number | undefined): value is number =>

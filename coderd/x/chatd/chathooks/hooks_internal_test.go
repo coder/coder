@@ -277,6 +277,18 @@ func TestEventMessagesSkipsBlankModelContext(t *testing.T) {
 	require.Equal(t, database.ChatMessageVisibilityModel, messages[0].Visibility)
 }
 
+func TestUserPromptMessageShowsSkillInvocations(t *testing.T) {
+	t.Parallel()
+
+	message, err := UserPromptMessage([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("please run"),
+		codersdk.ChatMessageSkillInvocation(codersdk.ChatSkillSourceProject, "triage"),
+		codersdk.ChatMessageText("on the issue"),
+	})
+	require.NoError(t, err)
+	require.Equal(t, "please run /project/triage on the issue", message.Prompt)
+}
+
 func TestComposeUserPromptContentOverride(t *testing.T) {
 	t.Parallel()
 

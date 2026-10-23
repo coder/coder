@@ -100,13 +100,7 @@ Use the industry-standard inclusive substitutions for terms that have transition
 | smoke testing, confidence testing, acceptance testing | sanity check, sanity test                     |
 | legacy, pre-existing, exempt                          | grandfathered, grandfather clause             |
 
-**Why "grandfathered" is on the list.**
-The term comes from the "grandfather clauses" that several US states, most of them in the South, added to their laws and constitutions starting with Louisiana in 1898.
-After the Fifteenth Amendment (1870) barred states from denying the vote on the basis of race, those states imposed literacy tests and poll taxes on voters.
-The grandfather clauses exempted any man whose father or grandfather had been able to vote before 1867, before Black men could vote in those states.
-The exemption applied almost only to white voters, so the clauses kept Black citizens from voting.
-The US Supreme Court struck down Oklahoma's grandfather clause in *Guinn v. United States* (1915).
-Writers who know only the current meaning ("existing users keep their old terms") often don't know this history, which is why the guide lists the term.
+For information on why "grandfathered" is on the list, visit [the Wikipedia page on the history of the grandfather clause](https://en.wikipedia.org/wiki/Grandfather_clause).
 
 *Enforced by `Coder.InclusiveLanguage` (planned), with additional coverage from the curated `alex.*` lexicon (also planned; `.vale.ini` loads no third-party style).
 The rule leaves bare `master` to reviewers, because the word has many legitimate technical uses, such as `master key` and Git branch names.*
@@ -450,6 +444,7 @@ A good description:
 - Stays under roughly 160 characters so search engines don't truncate it.
 - Avoids marketing language and superlatives.
 - Reads as a complete sentence.
+- Ends with a period.
 
 **Do**:
 
@@ -472,7 +467,7 @@ The marketing description doesn't survive truncation and adds no information.
 
 If a page doesn't yet have a description in the sidebar sources, add one in the same PR that touches the page.
 
-*Documentation-only.
+*Enforced by `scripts/docsmanifestgen` (`make lint/docs-manifest`) for the trailing period only.
 No Vale rule.*
 
 ## Reading level

@@ -3,10 +3,10 @@ title: Monitoring
 ---
 
 > [!NOTE]
-> AI Gateway is part of [AI Governance](../ai-governance.md), which is
-> included with a Premium license.
+> AI Gateway is part of [AI Governance](../ai-governance.md), which is included with a Premium license.
 
-AI Gateway records the last `user` prompt, token usage, model reasoning, and every tool invocation for each intercepted request. Each capture is tied to a single "interception" that maps back to the authenticated Coder identity, making it easy to attribute spend and behaviour.
+AI Gateway records the last `user` prompt, token usage, model reasoning, and every tool invocation for each intercepted request.
+Each capture is tied to a single "interception" that maps back to the authenticated Coder identity, making it easy to attribute spend and behaviour.
 
 ![User Prompt logging](../../images/aibridge/grafana_user_prompts_logging.png)
 
@@ -70,12 +70,11 @@ Standalone replicas do not export them.
 
 AI Gateway Proxy exports metrics from the `coderd` Prometheus listener.
 
-A `proxy_excluded` status means another enabled provider with the same base URL hostname claimed the proxy route first. The proxy classifier uses first-wins by database name sort order (`ORDER BY name ASC`), so the first provider in that order wins and subsequent providers with the same hostname are excluded from proxy routing. They remain reachable via direct routing at `/api/v2/ai-gateway/{name}/...`.
+A `proxy_excluded` status means another enabled provider with the same base URL hostname claimed the proxy route first.
+The proxy classifier uses first-wins by database name sort order (`ORDER BY name ASC`), so the first provider in that order wins and subsequent providers with the same hostname are excluded from proxy routing.
+They remain reachable via direct routing at `/api/v2/ai-gateway/{name}/...`.
 
-When alerting on `coder_ai_gateway_proxy_provider_info`, exclude
-`proxy_excluded` from the alert expression unless you want to be
-notified of intended duplicate-hostname configurations:
-`status!~"enabled|proxy_excluded"`.
+When alerting on `coder_ai_gateway_proxy_provider_info`, exclude `proxy_excluded` from the alert expression unless you want to be notified of intended duplicate-hostname configurations: `status!~"enabled|proxy_excluded"`.
 
 | Metric                                                                   | Type    | Labels                                     | Purpose                                                                                                                           |
 |--------------------------------------------------------------------------|---------|--------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
@@ -171,7 +170,8 @@ A standalone AI gateway exposes health endpoints on its data-plane listener:
 
 `/readyz` returns HTTP 503 until the initial provider configuration fetch completes and whenever the control connection to `coderd` is unavailable.
 The initial fetch can return an empty provider set.
-A `200 OK` response from `/healthz` only means the HTTP listener is accepting connections. It returns `200 OK` even when the control connection is down.
+A `200 OK` response from `/healthz` only means the HTTP listener is accepting connections.
+It returns `200 OK` even when the control connection is down.
 Both endpoints are unauthenticated, bypass the concurrency, rate limiting, and BYOK middleware, and do not create trace spans.
 
 The standalone Helm chart enables a `/healthz` liveness probe and a `/readyz` readiness probe by default.
@@ -208,7 +208,8 @@ curl -X GET "https://coder.example.com/api/v2/ai-gateway/sessions" \
 
 Available query filters:
 
-- `client` - Filter by client name. Possible values are listed below.
+- `client` - Filter by client name.
+  Possible values are listed below.
 - `initiator` - Filter by user ID or username
 - `provider` - Filter by AI provider (e.g., `openai`, `anthropic`)
 - `model` - Filter by model name
@@ -219,8 +220,7 @@ Available query filters:
 <summary>Possible <code>client</code> values</summary>
 
 > [!NOTE]
-> Client classification is done on best effort basis using the `User-Agent` header;
-> not all clients send these headers in an easily-identifiable manner.
+> Client classification is done on best effort basis using the `User-Agent` header; not all clients send these headers in an easily-identifiable manner.
 
 - `Claude Code`
 - `Codex`
@@ -246,8 +246,7 @@ Refer to the [API documentation](../../reference/api/aigateway.md) for full deta
 AI Gateway data is retained for **60&nbsp;days by default**.
 Configure the retention period to balance storage costs with your organization's compliance and analysis needs.
 
-For configuration options and details, refer to [Data Retention](./setup.md#data-retention)
-in the AI Gateway setup guide.
+For configuration options and details, refer to [Data Retention](./setup.md#data-retention) in the AI Gateway setup guide.
 
 ## Tracing
 
