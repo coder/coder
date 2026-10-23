@@ -409,10 +409,14 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 	}
 	const mentions = whole ? [] : findFilePathMentions(text);
 	const leadEnd = mentions[0]?.start === 0 ? mentions[0].end : 0;
+	// A verified folder replaces an ordinary mention of the same extent,
+	// such as /etc/nginx/conf.d, which reads as a file until listed.
 	const extended =
 		settled &&
 		choices.length > 0 &&
-		(whole ? end === text.length : end > leadEnd);
+		(whole
+			? end === text.length
+			: end > leadEnd || (end === leadEnd && choices[0].is_dir));
 	const lead = extended && (
 		<FileMention
 			key="lead"
