@@ -830,13 +830,10 @@ export const selectIsNextTurnStarting = (state: ChatStoreState): boolean => {
 	if (request?.kind !== "promotion") {
 		return false;
 	}
-	const newerMessageIDs = state.orderedMessageIDs.slice(
-		state.orderedMessageIDs.findLastIndex(
-			(id) => id <= request.latestMessageID,
-		) + 1,
-	);
-	return newerMessageIDs.every(
-		(id) => state.messagesByID.get(id)?.role !== "user",
+	return state.orderedMessageIDs.every(
+		(id) =>
+			id <= request.latestMessageID ||
+			state.messagesByID.get(id)?.role !== "user",
 	);
 };
 

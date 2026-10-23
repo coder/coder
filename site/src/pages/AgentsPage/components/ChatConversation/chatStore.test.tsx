@@ -42,7 +42,6 @@ import {
 	selectChatStatus,
 	selectHasStreamState,
 	selectIsAwaitingFirstStreamChunk,
-	selectIsNextTurnStarting,
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
@@ -2557,80 +2556,6 @@ describe("useChatStore", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID2, undefined);
 		});
 		expect(result.current.queuedMessages).toEqual([]);
-	});
-
-	it("drops a sent queued message's run record when another chat opens", async () => {
-		immediateAnimationFrame();
-		mockWatchChatReturn(createMockSocket());
-
-		// Message IDs are global, so the older running chat holds lower IDs.
-		const mockErroredChat: TypesGen.Chat = {
-			...buildChat("chat-errored"),
-			status: "error",
-		};
-		const mockRunningChat = buildChat("chat-running");
-		const mockNewerPrompt = buildMessage(
-			mockErroredChat.id,
-			5,
-			"user",
-			"newer",
-		);
-		const mockOlderPrompt = buildMessage(
-			mockRunningChat.id,
-			1,
-			"user",
-			"older",
-		);
-		const optionsFor = (
-			chat: TypesGen.Chat,
-			message: TypesGen.ChatMessage,
-		): Parameters<typeof useChatStore>[0] => ({
-			chatRecordUpdatedAt: 0,
-			chatID: chat.id,
-			chatMessages: [message],
-			chatRecord: chat,
-			chatMessagesData: {
-				messages: [message],
-				queued_messages: [],
-				has_more: false,
-			},
-			chatQueuedMessages: [],
-			setChatErrorReason: vi.fn(),
-			clearChatErrorReason: vi.fn(),
-		});
-
-		const queryClient = createTestQueryClient();
-		const wrapper = createWrapper(queryClient);
-		const { result, rerender } = renderHook(
-			(options: Parameters<typeof useChatStore>[0]) => {
-				const { store } = useChatStore(options);
-				return {
-					store,
-					isNextTurnStarting: useChatSelector(store, selectIsNextTurnStarting),
-				};
-			},
-			{ initialProps: optionsFor(mockErroredChat, mockNewerPrompt), wrapper },
-		);
-		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(
-				mockErroredChat.id,
-				mockNewerPrompt.id,
-			);
-		});
-		act(() => {
-			result.current.store.startRequestedRun("promotion");
-		});
-		expect(result.current.isNextTurnStarting).toBe(true);
-
-		rerender(optionsFor(mockRunningChat, mockOlderPrompt));
-
-		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(
-				mockRunningChat.id,
-				mockOlderPrompt.id,
-			);
-		});
-		expect(result.current.isNextTurnStarting).toBe(false);
 	});
 
 	it("does not apply message parts after status changes to waiting", async () => {

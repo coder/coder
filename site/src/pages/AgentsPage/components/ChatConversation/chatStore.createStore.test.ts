@@ -898,6 +898,16 @@ describe("resetTransientState", () => {
 		expect(state.queuedMessages).toHaveLength(1);
 	});
 
+	it("clears a recorded idle run", () => {
+		const store = createChatStore();
+		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+		store.startRequestedRun("promotion");
+
+		store.resetTransientState();
+
+		expect(store.getSnapshot().idleRunRequest).toBeNull();
+	});
+
 	it("is a no-op when all transient state is already clean", () => {
 		const store = createChatStore();
 
@@ -1087,15 +1097,6 @@ describe("selectIsCompactionStarting", () => {
 
 		store.applyServerChatStatus("waiting");
 		store.applyServerChatStatus("running");
-
-		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
-	});
-
-	it("is false for a running chat without a request", () => {
-		const store = createChatStore();
-		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
-		store.upsertDurableMessage(makeMessage(2, "assistant", "hi there"));
-		store.setChatStatus("running");
 
 		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
 	});

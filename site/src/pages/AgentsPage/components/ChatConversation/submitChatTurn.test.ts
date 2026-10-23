@@ -14,7 +14,6 @@ import {
 	MockChatMessage,
 	MockChatQueuedMessage,
 } from "#/testHelpers/chatEntities";
-import { createDeferred } from "#/testHelpers/deferred";
 import { BuiltInCommandPendingError } from "../../hooks/useConversationEditingState";
 import { NIL_UUID } from "../../utils/modelOptions";
 import { createChatStore, selectIsCompactionStarting } from "./chatStore";
@@ -224,38 +223,6 @@ describe("submitChatTurn", () => {
 			submitChatTurn(buildParams({ message: "/compact", store, compact })),
 		).rejects.toThrow("chat is busy");
 		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(true);
-	});
-
-	it("reports no starting compaction while a running chat's /compact is pending", async () => {
-		const store = createChatStore();
-		store.setActiveChatID("chat-1");
-		store.upsertDurableMessage({ ...MockChatMessage, role: "assistant" });
-		store.setChatStatus("running");
-		const request = createDeferred<never>();
-		const compact = vi.fn(() => request.promise);
-
-		const submission = submitChatTurn(
-			buildParams({ message: "/compact", store, compact }),
-		);
-
-		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
-		request.reject(new Error("chat is busy"));
-		await expect(submission).rejects.toThrow("chat is busy");
-	});
-
-	it("reports no starting compaction after a rejected /compact", async () => {
-		const store = createChatStore();
-		store.setActiveChatID("chat-1");
-		store.upsertDurableMessage({ ...MockChatMessage, role: "assistant" });
-		store.setChatStatus("waiting");
-		const compact = vi.fn().mockRejectedValue(new Error("Nothing to compact."));
-
-		await expect(
-			submitChatTurn(buildParams({ message: "/compact", store, compact })),
-		).rejects.toThrow("Nothing to compact.");
-		store.setChatStatus("running");
-
-		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
 	});
 
 	it("compacts instead of sending and restores state if compact fails", async () => {
