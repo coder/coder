@@ -562,25 +562,28 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			}
 
 			if len(res.Workspaces) > 0 {
-				ws := res.Workspaces[0]
 				_, _ = fmt.Fprintln(out, "You should now be able to ssh into your workspace.")
-				var agents []codersdk.WorkspaceAgent
-				for _, resource := range ws.LatestBuild.Resources {
-					agents = append(agents, resource.Agents...)
-				}
-				switch {
-				case len(agents) > 1 && (configOptions.hostnameSuffix != "" || configOptions.userHostPrefix != ""):
-					// A bare workspace hostname is ambiguous with multiple agents,
-					// so name the agent explicitly.
-					sshConfig := codersdk.SSHConfigResponse{
-						HostnamePrefix: configOptions.userHostPrefix,
-						HostnameSuffix: configOptions.hostnameSuffix,
+				if configOptions.hostnameSuffix != "" || configOptions.userHostPrefix != "" {
+					ws := res.Workspaces[0]
+					host := ws.Name
+					agents := startAgentNames(ws.LatestBuild.Resources)
+					if len(agents) == 0 {
+						// A stopped workspace has no agents on its latest build.
+						if resources, err := client.TemplateVersionResources(ctx, ws.LatestBuild.TemplateVersionID); err == nil {
+							agents = startAgentNames(resources)
+						}
 					}
-					_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t%s\n", agentSSHSuggestion(sshConfig, ws, agents[0], false))
-				case configOptions.hostnameSuffix != "":
-					_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh %s.%s\n", ws.Name, configOptions.hostnameSuffix)
-				case configOptions.userHostPrefix != "":
-					_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh %s%s\n", configOptions.userHostPrefix, ws.Name)
+					if len(agents) > 1 {
+						// A bare workspace hostname is ambiguous with multiple
+						// agents, so name the agent explicitly.
+						host = agents[0] + "." + ws.Name + "." + ws.OwnerName
+					}
+					if configOptions.hostnameSuffix != "" {
+						host += "." + configOptions.hostnameSuffix
+					} else {
+						host = configOptions.userHostPrefix + host
+					}
+					_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh %s\n", host)
 				}
 			} else {
 				_, _ = fmt.Fprint(out, "You don't have any workspaces yet, try creating one with:\n\n\t$ coder create <workspace>\n")
