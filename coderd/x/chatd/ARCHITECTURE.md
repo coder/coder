@@ -823,7 +823,7 @@ The buffer exposes the following API:
 
 Closed episodes are garbage collected after at least 15 seconds since they were closed and when they have no active subscribers. The message part buffer maintains a garbage collection goroutine.
 
-Subscribers of an open episode may take as long as they need to accept each part. Subscribers do not affect how long the buffer keeps an open episode, and a subscriber that falls behind continues from the first part it has not received. After the episode is closed, a subscriber must accept each part within 10 seconds. For a part that the goroutine was already sending when the episode closed, the 10 seconds start at the close. If a subscriber does not accept a part in time, the subscription channel is closed. A subscriber keeps a closed episode from being garbage collected, so this limit bounds how long an unresponsive subscriber retains it.
+The buffer keeps an open episode whether or not it has subscribers, so it does not limit how long a subscriber of an open episode takes to accept a part. A slow subscriber continues from the first part it has not received. After the episode is closed, a subscriber must accept each part within 10 seconds. For a part that the goroutine was already sending when the episode closed, the 10 seconds start at the close. If a subscriber does not accept a part in time, the subscription channel is closed. A subscriber keeps a closed episode from being garbage collected, so this limit bounds how long an unresponsive subscriber retains it.
 
 ## Chat runner
 
