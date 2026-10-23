@@ -92,7 +92,7 @@ const meta: Meta<typeof ChatAttachments> = {
 		]),
 		evictedFileIds: new Set(),
 		isLoadingEarlierAttachments: false,
-		hasEarlierAttachmentsError: false,
+		earlierAttachmentsError: null,
 		isRetrying: false,
 		onRetry: fn(),
 	},
@@ -222,16 +222,26 @@ export const LoadingEarlierAttachments: Story = {
 	args: { isLoadingEarlierAttachments: true },
 };
 
+const mockEarlierAttachmentsError = mockApiError({
+	message: "Failed to get chat attachments.",
+});
+
 export const EarlierAttachmentsFailed: Story = {
-	args: { hasEarlierAttachmentsError: true },
+	args: { earlierAttachmentsError: mockEarlierAttachmentsError },
 };
 
 export const EarlierAttachmentsRetrying: Story = {
-	args: { hasEarlierAttachmentsError: true, isRetrying: true },
+	args: {
+		earlierAttachmentsError: mockEarlierAttachmentsError,
+		isRetrying: true,
+	},
 };
 
 export const EmptyWithEarlierAttachmentsFailed: Story = {
-	args: { attachments: [], hasEarlierAttachmentsError: true },
+	args: {
+		attachments: [],
+		earlierAttachmentsError: mockEarlierAttachmentsError,
+	},
 };
 
 export const ExpiredAttachment: Story = {

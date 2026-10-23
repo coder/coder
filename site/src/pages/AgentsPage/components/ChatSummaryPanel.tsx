@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { chat, chatAttachments, chatCost } from "#/api/queries/chats";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -51,16 +52,25 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 		(hasMoreMessages || isHydratingMessages) && earlierAttachmentsQuery.data
 			? getEarlierMessageAttachments(earlierAttachmentsQuery.data.attachments)
 			: [];
-	// A retry puts a failed query back to pending, so `errorUpdateCount`
-	// tells a retry from the first load.
-	const hasEarlierAttachmentsError =
-		hasMoreMessages &&
-		!earlierAttachmentsQuery.data &&
-		earlierAttachmentsQuery.errorUpdateCount > 0;
+	// A retry clears the error of a query with no data, so keep the retried
+	// error until the retry settles, unless older messages have loaded since
+	// and moved the query to a new `beforeId`.
+	const [retriedFailure, setRetriedFailure] = useState<{
+		beforeId: number | undefined;
+		error: unknown;
+	}>();
+	const retriedError =
+		retriedFailure && retriedFailure.beforeId === oldestLoadedMessageId
+			? retriedFailure.error
+			: null;
+	const earlierAttachmentsError =
+		hasMoreMessages && !earlierAttachmentsQuery.data
+			? (earlierAttachmentsQuery.error ?? retriedError)
+			: null;
 	const isLoadingEarlierAttachments =
 		hasMoreMessages &&
 		!earlierAttachmentsQuery.data &&
-		!hasEarlierAttachmentsError;
+		!earlierAttachmentsError;
 
 	// Gating on isHydratingMessages alone would blank the list on every live
 	// message.
@@ -101,9 +111,17 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 				attachments={attachments}
 				evictedFileIds={evictedFileIds}
 				isLoadingEarlierAttachments={isLoadingEarlierAttachments}
-				hasEarlierAttachmentsError={hasEarlierAttachmentsError}
+				earlierAttachmentsError={earlierAttachmentsError}
 				isRetrying={earlierAttachmentsQuery.isFetching}
-				onRetry={() => void earlierAttachmentsQuery.refetch()}
+				onRetry={() => {
+					setRetriedFailure({
+						beforeId: oldestLoadedMessageId,
+						error: earlierAttachmentsError,
+					});
+					void earlierAttachmentsQuery
+						.refetch()
+						.finally(() => setRetriedFailure(undefined));
+				}}
 			/>
 		</div>
 	);
