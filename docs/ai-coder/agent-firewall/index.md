@@ -112,7 +112,7 @@ module "agent-firewall" {
   Only applies to the `nsjail` jail type.
 - `proxy_port` defines the port used by the HTTP proxy.
   Default: `8080`.
-- `use_real_dns` uses the host's real DNS resolver inside the jail instead of the built-in dummy DNS server.
+- `use_real_dns` uses the host's real DNS resolver inside the jail instead of the built-in mock DNS server.
   This allows DNS resolution for non-proxied traffic but permits DNS-based data exfiltration.
   Default: `false`.
 
