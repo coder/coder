@@ -783,7 +783,9 @@ describe("FilesPanel", () => {
 		const release = holdListings("/home/coder/repo/src/lib");
 
 		reveal({ path: "/home/coder/repo/src/lib/util.go", isDirectory: false });
-		await waitFor(() => expect(listedPaths()).toContain("/home/coder/repo/src/lib"));
+		await waitFor(() =>
+			expect(listedPaths()).toContain("/home/coder/repo/src/lib"),
+		);
 		await user.click(screen.getByRole("button", { name: /^Root directory/ }));
 		await user.click(screen.getByRole("menuitem", { name: "Open path..." }));
 		await user.type(
@@ -815,9 +817,10 @@ describe("FilesPanel", () => {
 		await user.keyboard("hi");
 		await waitFor(() => {
 			release();
-			expect(
-				screen.getByRole("treeitem", { name: "util.go" }),
-			).toHaveAttribute("aria-selected", "true");
+			expect(screen.getByRole("treeitem", { name: "util.go" })).toHaveAttribute(
+				"aria-selected",
+				"true",
+			);
 		});
 		expect(composer).toHaveFocus();
 	});
@@ -826,7 +829,10 @@ describe("FilesPanel", () => {
 		const { reveal } = renderRevealed(undefined);
 		await screen.findByRole("treeitem", { name: "src" });
 		const signals = stallFirstListing("/home/coder/repo/src/lib");
-		const request = { path: "/home/coder/repo/src/lib/util.go", isDirectory: false };
+		const request = {
+			path: "/home/coder/repo/src/lib/util.go",
+			isDirectory: false,
+		};
 
 		reveal({ ...request });
 		await waitFor(() => expect(signals).toHaveLength(1));
