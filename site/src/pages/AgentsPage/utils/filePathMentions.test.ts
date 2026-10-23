@@ -195,18 +195,24 @@ describe("walkFilePath", () => {
 		"/home/coder/my dir": ["a.ts"],
 		"/repo": ["my/"],
 		"/missing": null,
+		"/var": ["run@/", "log/"],
+		"/var/run": [],
+		"/var/log": ["dpkg.log"],
 	};
 	const getEntries = (directory: string) => {
 		const names = tree[directory];
 		if (names === undefined || names === null) {
 			return names;
 		}
+		// "name/" is a directory and "name@/" a symlink to one.
 		return names.map((name) => {
 			const isDir = name.endsWith("/");
-			const entryName = isDir ? name.slice(0, -1) : name;
+			const isSymlink = name.endsWith("@/");
+			const entryName = name.replace(/@?\/$/, "");
 			return {
 				name: entryName,
 				is_dir: isDir,
+				is_symlink: isSymlink,
 				absolute_path_string: `${directory}/${entryName}`,
 			};
 		});
@@ -262,6 +268,12 @@ describe("walkFilePath", () => {
 		],
 		["/home/coder", "../coder/my", null],
 		["/home/coder", "my dir/../../x.ts", null],
+		["/var", "run/../log/dpkg.log", null],
+		[
+			"/var",
+			"log/../log/dpkg.log",
+			{ absolutePath: "/var/log/dpkg.log", length: 19 },
+		],
 	])("walks from %j through %j", (directory, text, expected) => {
 		expect(walkFilePath(directory, text, getEntries).verified).toEqual(
 			expected,
