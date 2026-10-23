@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import { userEvent, waitFor, within } from "storybook/test";
 import type { WorkspaceAgentFileContents } from "#/api/api";
 import { workspaceAgentFileKey } from "#/api/queries/workspaceFiles";
+import type {
+	ChatDiffStatus,
+	WorkspaceAgentRepoChanges,
+} from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { setupMatchMedia } from "#/testHelpers/matchMedia";
 import { noHoverMediaQuery } from "#/utils/mobile";
@@ -44,6 +48,37 @@ const fileQueries = [
 	},
 ];
 
+const origin = "https://github.com/coder/example.git";
+const branch = "feat/files";
+
+const repositories = new Map<string, WorkspaceAgentRepoChanges>([
+	[
+		"/repo",
+		{
+			repo_root: "/repo",
+			branch,
+			remote_origin: origin,
+			head_commit: "6f1c2d3e4b5a69788796a5b4c3d2e1f0a9b8c7d6",
+		},
+	],
+]);
+
+const diffStatuses: ChatDiffStatus[] = [
+	{
+		chat_id: chatId,
+		remote_origin: origin,
+		git_branch: branch,
+		url: "https://github.com/coder/example/pull/42",
+		pr_number: 42,
+		pull_request_title: "Add a file browser",
+		pull_request_draft: false,
+		changes_requested: false,
+		additions: 120,
+		deletions: 8,
+		changed_files: 6,
+	},
+];
+
 const StoryMainTabs: React.FC<{ children?: React.ReactNode }> = ({
 	children = <ChatPlaceholder />,
 }) => {
@@ -54,11 +89,11 @@ const StoryMainTabs: React.FC<{ children?: React.ReactNode }> = ({
 			value={{
 				agentId,
 				defaultDirectory: "/repo",
-				repoRoots: [],
-				repositories: new Map(),
+				repoRoots: ["/repo"],
+				repositories,
 				openFile: mainTabs.openFile,
 				revealInFiles: () => {},
-				diffStatuses: [],
+				diffStatuses,
 			}}
 		>
 			<div className="flex h-[480px] flex-col">
@@ -277,6 +312,20 @@ export const UnsavedFileWithoutHover: Story = {
 		};
 	},
 	play: () => editFile("/repo/src/index.ts"),
+};
+
+export const FileActionsMenu: Story = {
+	beforeEach: persistTabs({
+		paths: ["/repo/src/index.ts", "/repo/README.md"],
+		activePath: "/repo/src/index.ts",
+	}),
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: "File actions",
+			}),
+		);
+	},
 };
 
 /** The menu of more tabs than fit the screen scrolls inside it. */
