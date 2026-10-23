@@ -936,7 +936,7 @@ describe("ConversationTimeline attachment previews", () => {
 });
 
 describe("ConversationTimeline user message actions", () => {
-	it("offers no edit for a row a pending action draws", () => {
+	it("offers no edit for a row a pending action shows", () => {
 		const userMessage = (id: number, text: string): ChatMessage => ({
 			...MockChatMessage,
 			id,
