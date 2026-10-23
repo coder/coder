@@ -427,6 +427,7 @@ describe("isBareOrigin", () => {
 		"https://coder.example.com/?x=1",
 		"https://coder.example.com/#x",
 		"https://coder.example.com/.",
+		"https://coder.example.com ",
 		"not-a-url",
 	])("rejects %s", (url) => {
 		expect(isBareOrigin(url)).toBe(false);
