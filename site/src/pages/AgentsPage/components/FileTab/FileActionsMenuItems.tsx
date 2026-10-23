@@ -95,7 +95,7 @@ export const FileActionsMenuItems: React.FC<FileActionsMenuItemsProps> = ({
 						rel="noreferrer"
 						title={
 							links.blob.commit &&
-							`Opens commit ${links.blob.commit.slice(0, 7)}, the checked-out HEAD. The page is missing until that commit is pushed.`
+							`Opens commit ${links.blob.commit.slice(0, 7)}, the checked-out HEAD. ${gitProviderNames[provider]} shows a 404 if the commit is not pushed.`
 						}
 					>
 						Open on {gitProviderNames[provider]}

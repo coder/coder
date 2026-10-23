@@ -267,7 +267,7 @@ type FileWebLinks = {
 	repository: GitWebRepository;
 	/**
 	 * The file on the pushed branch, or else at HEAD. `commit` is set for
-	 * HEAD, whose page is missing until the commit is pushed.
+	 * HEAD, which may not be pushed.
 	 */
 	blob?: { url: string; commit?: string };
 	/** The pull or merge request of the branch, and its number. */
