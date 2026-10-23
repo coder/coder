@@ -303,6 +303,8 @@ describe("AgentChatInput", () => {
 					repoRoots: ["/home/coder/repo"],
 					repositories: new Map(),
 					openFile: vi.fn(),
+					revealInFiles: vi.fn(),
+					diffStatuses: [],
 				}}
 			>
 				<AgentChatInput {...inputProps} onSend={onSend} />

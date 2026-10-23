@@ -4501,6 +4501,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream/git \
   "repositories": [
     {
       "branch": "string",
+      "head_commit": "string",
       "remote_origin": "string",
       "removed": true,
       "repo_root": "string",

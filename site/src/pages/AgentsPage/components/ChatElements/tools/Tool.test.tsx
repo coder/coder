@@ -152,6 +152,8 @@ describe("Tool file rows", () => {
 							repoRoots: [],
 							repositories: new Map(),
 							openFile,
+							revealInFiles: vi.fn(),
+							diffStatuses: [],
 						}}
 					>
 						<Tool

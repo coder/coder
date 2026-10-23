@@ -100,6 +100,8 @@ describe("Response", () => {
 			repoRoots: ["/home/coder/coder", "/home/coder/other"],
 			repositories: new Map(),
 			openFile: vi.fn(),
+			revealInFiles: vi.fn(),
+			diffStatuses: [],
 		});
 
 		const renderWithFiles = (markdown: string) => {

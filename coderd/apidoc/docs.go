@@ -34794,6 +34794,10 @@ const docTemplate = `{
                 "branch": {
                     "type": "string"
                 },
+                "head_commit": {
+                    "description": "HeadCommit is the full SHA of HEAD. It is empty when HEAD is unborn\nor the agent predates the field.",
+                    "type": "string"
+                },
                 "remote_origin": {
                     "type": "string"
                 },

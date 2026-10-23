@@ -57,6 +57,8 @@ const StoryMainTabs: React.FC<{ children?: React.ReactNode }> = ({
 				repoRoots: [],
 				repositories: new Map(),
 				openFile: mainTabs.openFile,
+				revealInFiles: () => {},
+				diffStatuses: [],
 			}}
 		>
 			<div className="flex h-[480px] flex-col">

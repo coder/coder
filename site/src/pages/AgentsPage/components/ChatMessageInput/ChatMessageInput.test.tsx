@@ -853,6 +853,8 @@ describe("ChatMessageInput", () => {
 			repoRoots: ["/home/coder/a", "/home/coder/b"],
 			repositories: new Map(),
 			openFile: vi.fn(),
+			revealInFiles: vi.fn(),
+			diffStatuses: [],
 		};
 
 		const mockFindFiles = () =>
