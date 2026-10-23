@@ -36,7 +36,7 @@ export const QuickOpenDialog: React.FC = () => {
 const QuickOpen: React.FC<{ workspaceFiles: WorkspaceFilesContextValue }> = ({
 	workspaceFiles,
 }) => {
-	const { agentId, repoRoots, openFile } = workspaceFiles;
+	const { agentId, repoRoots, repoRootsSettled, openFile } = workspaceFiles;
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState("");
 	const trimmedQuery = query.trim();
@@ -44,15 +44,22 @@ const QuickOpen: React.FC<{ workspaceFiles: WorkspaceFilesContextValue }> = ({
 	// The chat route's id keys the Files panel root, so a root picked there
 	// is searched too. "/" would scan the whole filesystem.
 	const { agentId: chatId } = useParams();
-	const { root: panelRoot } = useFilesPanelRoot(chatId, repoRoots);
+	const { root: panelRoot } = useFilesPanelRoot(
+		chatId,
+		repoRoots,
+		repoRootsSettled,
+	);
+	// Until the panel root resolves, a search would guess the roots.
 	const searchRoots =
-		panelRoot === "/" || repoRoots.includes(panelRoot)
+		panelRoot === undefined ||
+		panelRoot === "/" ||
+		repoRoots.includes(panelRoot)
 			? repoRoots
 			: [...repoRoots, panelRoot];
 	const roots = searchRoots.length > 0 ? searchRoots : [""];
 	const findQuery = useQuery({
 		...workspaceAgentFindFiles(agentId, roots, debouncedQuery),
-		enabled: open && debouncedQuery !== "",
+		enabled: open && debouncedQuery !== "" && panelRoot !== undefined,
 		placeholderData: keepPreviousData,
 	});
 	// Roots often share a name (home and a repo both called coder), so with
