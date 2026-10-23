@@ -24,31 +24,31 @@ Use --always-prompt to change the parameter values of the workspace.
 
 ### -y, --yes
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Bypass confirmation prompts.
 
 ### --template-version
 
-|      |                     |
-|------|---------------------|
-| Type | <code>string</code> |
+| Property | Value               |
+|----------|---------------------|
+| Type     | <code>string</code> |
 
 Start with a version of the workspace template, by name or ID. Defaults to the active version.
 
 ### --stop-template-version
 
-|      |                     |
-|------|---------------------|
-| Type | <code>string</code> |
+| Property | Value               |
+|----------|---------------------|
+| Type     | <code>string</code> |
 
 Stop with a version of the workspace template, by name or ID. Only applies when the workspace is started. Defaults to the workspace's current version.
 
 ### --build-option
 
-|             |                                  |
+| Property    | Value                            |
 |-------------|----------------------------------|
 | Type        | <code>string-array</code>        |
 | Environment | <code>$CODER_BUILD_OPTION</code> |
@@ -57,15 +57,15 @@ Build option value in the format "name=value".
 
 ### --build-options
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Prompt for one-time build options defined with ephemeral parameters.
 
 ### --ephemeral-parameter
 
-|             |                                         |
+| Property    | Value                                   |
 |-------------|-----------------------------------------|
 | Type        | <code>string-array</code>               |
 | Environment | <code>$CODER_EPHEMERAL_PARAMETER</code> |
@@ -74,7 +74,7 @@ Set the value of ephemeral parameters defined in the template. The format is "na
 
 ### --prompt-ephemeral-parameters
 
-|             |                                                 |
+| Property    | Value                                           |
 |-------------|-------------------------------------------------|
 | Type        | <code>bool</code>                               |
 | Environment | <code>$CODER_PROMPT_EPHEMERAL_PARAMETERS</code> |
@@ -83,7 +83,7 @@ Prompt to set values of ephemeral parameters defined in the template. If a value
 
 ### --parameter
 
-|             |                                    |
+| Property    | Value                              |
 |-------------|------------------------------------|
 | Type        | <code>string-array</code>          |
 | Environment | <code>$CODER_RICH_PARAMETER</code> |
@@ -92,7 +92,7 @@ Rich parameter value in the format "name=value".
 
 ### --rich-parameter-file
 
-|             |                                         |
+| Property    | Value                                   |
 |-------------|-----------------------------------------|
 | Type        | <code>string</code>                     |
 | Environment | <code>$CODER_RICH_PARAMETER_FILE</code> |
@@ -101,7 +101,7 @@ Specify a file path with values for rich parameters defined in the template. The
 
 ### --parameter-default
 
-|             |                                            |
+| Property    | Value                                      |
 |-------------|--------------------------------------------|
 | Type        | <code>string-array</code>                  |
 | Environment | <code>$CODER_RICH_PARAMETER_DEFAULT</code> |
@@ -110,7 +110,7 @@ Rich parameter default values in the format "name=value".
 
 ### --use-parameter-defaults
 
-|             |                                                      |
+| Property    | Value                                                |
 |-------------|------------------------------------------------------|
 | Type        | <code>bool</code>                                    |
 | Environment | <code>$CODER_WORKSPACE_USE_PARAMETER_DEFAULTS</code> |
@@ -119,8 +119,8 @@ Automatically accept parameter defaults when no value is provided.
 
 ### --always-prompt
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Always prompt all parameters. Does not pull parameter values from existing workspace.

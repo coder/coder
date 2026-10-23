@@ -30,12 +30,22 @@ const mockOrganizationSkills: SkillMetadata[] = [
 	},
 ];
 
+const mockProjectSkills: SkillMetadata[] = [
+	{
+		name: "project-conventions",
+		description: "Follow the conventions of this project.",
+	},
+];
+
 const mockPersonalSkillItems = resolveSkillTriggers([
 	{ source: "personal", skills: MockSkills },
 ]);
 const compactCommandItem = createCommandMenuItem(COMPACT_SLASH_COMMAND);
 const mockOrganizationSkillItems = resolveSkillTriggers([
 	{ source: "org", skills: mockOrganizationSkills },
+]);
+const mockProjectSkillItems = resolveSkillTriggers([
+	{ source: "project", skills: mockProjectSkills },
 ]);
 const mockWorkspaceSkillItems = resolveSkillTriggers([
 	{ source: "workspace", skills: mockWorkspaceSkills },
@@ -70,13 +80,17 @@ const meta: Meta<typeof SkillsTriggerMenu> = {
 		commands: [],
 		personalSkills: mockPersonalSkillItems,
 		organizationSkills: [],
+		projectSkills: [],
 		workspaceSkills: [],
 		organizationSkillsEnabled: false,
+		projectSkillsEnabled: false,
 		workspaceSkillsEnabled: false,
 		isPersonalLoading: false,
 		isPersonalError: false,
 		isOrganizationLoading: false,
 		isOrganizationError: false,
+		isProjectLoading: false,
+		isProjectError: false,
 		isWorkspaceLoading: false,
 		onSelectedIndexChange: fn(),
 		selectedIndex: 0,
@@ -100,8 +114,10 @@ type Story = StoryObj<typeof SkillsTriggerMenu>;
 export const AllSkillGroups: Story = {
 	args: {
 		organizationSkills: mockOrganizationSkillItems,
+		projectSkills: mockProjectSkillItems,
 		workspaceSkills: mockWorkspaceSkillItems,
 		organizationSkillsEnabled: true,
+		projectSkillsEnabled: true,
 		workspaceSkillsEnabled: true,
 	},
 };
@@ -110,6 +126,13 @@ export const OrganizationError: Story = {
 	args: {
 		organizationSkillsEnabled: true,
 		isOrganizationError: true,
+	},
+};
+
+export const ProjectError: Story = {
+	args: {
+		projectSkillsEnabled: true,
+		isProjectError: true,
 	},
 };
 
@@ -128,6 +151,14 @@ export const OrganizationLoading: Story = {
 	},
 };
 
+export const ProjectLoading: Story = {
+	args: {
+		personalSkills: [],
+		projectSkillsEnabled: true,
+		isProjectLoading: true,
+	},
+};
+
 export const WorkspaceLoading: Story = {
 	args: {
 		personalSkills: [],
@@ -140,6 +171,7 @@ export const EmptyWithAllSources: Story = {
 	args: {
 		personalSkills: [],
 		organizationSkillsEnabled: true,
+		projectSkillsEnabled: true,
 		workspaceSkillsEnabled: true,
 	},
 };

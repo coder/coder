@@ -126,9 +126,9 @@ func TestFormatResolvedSkillIndex(t *testing.T) {
 		t.Parallel()
 
 		resolved := skillspkg.MergeSkills(
-			[]skillspkg.Skill{{Name: "review", Description: "Personal"}},
-			[]skillspkg.Skill{{Name: "review", Description: "Organization"}},
-			[]skillspkg.Skill{{Name: "review", Description: "Workspace"}},
+			skillspkg.SourceSkills{Source: skillspkg.SourcePersonal, Skills: []skillspkg.Skill{{Name: "review", Description: "Personal"}}},
+			skillspkg.SourceSkills{Source: skillspkg.SourceOrganization, Skills: []skillspkg.Skill{{Name: "review", Description: "Organization"}}},
+			skillspkg.SourceSkills{Source: skillspkg.SourceWorkspace, Skills: []skillspkg.Skill{{Name: "review", Description: "Workspace"}}},
 		)
 		idx := chattool.FormatResolvedSkillIndex(resolved)
 		assert.Contains(t, idx, "- personal/review: Personal\n- org/review: Organization\n- workspace/review: Workspace\n")
@@ -141,13 +141,11 @@ func TestFormatResolvedSkillIndex(t *testing.T) {
 		// A 3-byte rune makes a byte-based cut at 1,024 split a rune.
 		atLimit := strings.Repeat("界", 1024)
 		idx := chattool.FormatResolvedSkillIndex(skillspkg.MergeSkills(
-			[]skillspkg.Skill{
+			skillspkg.SourceSkills{Source: skillspkg.SourcePersonal, Skills: []skillspkg.Skill{
 				{Name: "at-limit", Description: atLimit},
 				{Name: "over-limit", Description: atLimit + "界tail"},
 				{Name: "short", Description: "Short description"},
-			},
-			nil,
-			nil,
+			}},
 		))
 		assert.True(t, utf8.ValidString(idx))
 		assert.Contains(t, idx, "- at-limit: "+atLimit+"\n")

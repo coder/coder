@@ -2,14 +2,13 @@
 title: External authentication
 ---
 
-Coder supports external authentication via OAuth2.0. This allows enabling any OAuth provider as well as integrations with Git providers,
-such as GitHub, GitLab, and Bitbucket.
+Coder supports external authentication via OAuth2.0.
+This allows enabling any OAuth provider as well as integrations with Git providers, such as GitHub, GitLab, and Bitbucket.
 
-External authentication can also be used to integrate with external services
-like JFrog Artifactory and others.
+External authentication can also be used to integrate with external services like JFrog Artifactory and others.
 
-To add an external authentication provider, you'll need to create an OAuth
-application. The following providers have been tested and work with Coder:
+To add an external authentication provider, you'll need to create an OAuth application.
+The following providers have been tested and work with Coder:
 
 - [Azure DevOps](https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/oauth?view=azure-devops)
 - [Azure DevOps (via Entra ID)](https://learn.microsoft.com/en-us/entra/architecture/auth-oauth2)
@@ -17,8 +16,7 @@ application. The following providers have been tested and work with Coder:
 - [GitHub](#configure-a-github-oauth-app)
 - [GitLab](https://docs.gitlab.com/ee/integration/oauth_provider.html)
 
-If you have experience with a provider that is not listed here, please
-[file an issue](https://github.com/coder/internal/issues/new?title=request%28docs%29%3A+external-auth+-+request+title+here%0D%0A&labels=["customer-feedback","docs"]&body=doc%3A+%5Bexternal-auth%5D%28https%3A%2F%2Fcoder.com%2Fdocs%2Fadmin%2Fexternal-auth%29%0D%0A%0D%0Aplease+enter+your+request+here%0D%0A)
+If you have experience with a provider that is not listed here, please [file an issue](https://github.com/coder/internal/issues/new?title=request%28docs%29%3A+external-auth+-+request+title+here%0D%0A&labels=["customer-feedback","docs"]&body=doc%3A+%5Bexternal-auth%5D%28https%3A%2F%2Fcoder.com%2Fdocs%2Fadmin%2Fexternal-auth%29%0D%0A%0D%0Aplease+enter+your+request+here%0D%0A)
 
 ## Configuration
 
@@ -42,29 +40,24 @@ The `CODER_EXTERNAL_AUTH_0_ID` environment variable is used as an identifier for
 This variable is used as part of the callback URL path that you must configure in your OAuth provider settings.
 If the value in your callback URL doesn't match the `CODER_EXTERNAL_AUTH_0_ID` value, authentication will fail with `redirect URI is not valid`.
 Set it with a value that helps you identify the provider.
-For example, if you use `CODER_EXTERNAL_AUTH_0_ID="primary-github"` for your GitHub provider,
-configure your callback URL as `https://example.com/external-auth/primary-github/callback`.
+For example, if you use `CODER_EXTERNAL_AUTH_0_ID="primary-github"` for your GitHub provider, configure your callback URL as `https://example.com/external-auth/primary-github/callback`.
 
-By default, the redirect URL is built from the access URL Coder is configured
-with. You can override the base URL with:
+By default, the redirect URL is built from the access URL Coder is configured with.
+You can override the base URL with:
 
 ```dotenv
 CODER_EXTERNAL_AUTH_0_REDIRECT_URL=https://my.tld
 ```
 
-This would change the callback in the above example to
-`https://my.tld/external-auth/primary-github/callback` (any path component on
-the redirect URL is ignored).
+This would change the callback in the above example to `https://my.tld/external-auth/primary-github/callback` (any path component on the redirect URL is ignored).
 
-Using this setting can break OAuth, so use with caution. The override is
-intended to be used when the access URL is internal and either:
+Using this setting can break OAuth, so use with caution.
+The override is intended to be used when the access URL is internal and either:
 
 - Users access Coder via some other URL that proxies to the internal one.
-- The redirect URL redirects to the internal access URL (this can be used to
-  work around providers that require public domains for the callback).
+- The redirect URL redirects to the internal access URL (this can be used to work around providers that require public domains for the callback).
 
-Ultimately, the user must end up on the same domain they were on when the
-authentication flow was initiated.
+Ultimately, the user must end up on the same domain they were on when the authentication flow was initiated.
 
 ### Add an authentication button to the workspace template
 
@@ -129,7 +122,8 @@ To use OAuth tokens for Git authentication over HTTPS:
 
 1. Complete the OAuth authentication flow (**Login with GitHub**, **Login with GitLab**).
 1. Use HTTPS URLs when interacting with repositories (`https://github.com/organization/repo.git`).
-1. Coder automatically handles authentication. You can perform your Git operations as you normally would.
+1. Coder automatically handles authentication.
+   You can perform your Git operations as you normally would.
 
 Behind the scenes, Coder:
 
@@ -173,12 +167,11 @@ You must add the SSH key to your Git provider.
 
 ## PKCE Support
 
-[PKCE (Proof Key for Code Exchange)](https://datatracker.ietf.org/doc/html/rfc7636) is an OAuth 2.0
-security extension that prevents authorization code interception attacks. Coder supports PKCE when
-acting as an OAuth client to external identity providers.
+[PKCE (Proof Key for Code Exchange)](https://datatracker.ietf.org/doc/html/rfc7636) is an OAuth 2.0 security extension that prevents authorization code interception attacks.
+Coder supports PKCE when acting as an OAuth client to external identity providers.
 
-Coder will usually assume PKCE support is available with "S256" as the code challenge method. Manual
-configuration is available to override any default behavior.
+Coder will usually assume PKCE support is available with "S256" as the code challenge method.
+Manual configuration is available to override any default behavior.
 
 ```dotenv
 # Enable PKCE with S256 (recommended when supported)
@@ -231,8 +224,7 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxx
 CODER_EXTERNAL_AUTH_0_AUTH_URL=https://bitbucket.example.com/rest/oauth2/latest/authorize
 ```
 
-When configuring your Bitbucket OAuth application, set the redirect URI to
-`https://example.com/external-auth/primary-bitbucket-server/callback`.
+When configuring your Bitbucket OAuth application, set the redirect URI to `https://example.com/external-auth/primary-bitbucket-server/callback`.
 This callback path includes the value of `CODER_EXTERNAL_AUTH_0_ID`.
 
 ### Gitea
@@ -246,16 +238,13 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitea.com/login/oauth/authorize"
 ```
 
-The redirect URI for Gitea should be
-`https://coder.example.com/external-auth/gitea/callback`.
+The redirect URI for Gitea should be `https://coder.example.com/external-auth/gitea/callback`.
 
 ### GitHub
 
-Use this section as a reference for environment variables to customize your setup
-or to integrate with an existing GitHub authentication.
+Use this section as a reference for environment variables to customize your setup or to integrate with an existing GitHub authentication.
 
-For a more complete, step-by-step guide, follow the
-[configure a GitHub OAuth app](#configure-a-github-oauth-app) section instead.
+For a more complete, step-by-step guide, follow the [configure a GitHub OAuth app](#configure-a-github-oauth-app) section instead.
 
 ```dotenv
 CODER_EXTERNAL_AUTH_0_ID="primary-github"
@@ -265,10 +254,7 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 CODER_EXTERNAL_AUTH_0_REVOKE_URL=https://api.github.com/applications/<CLIENT ID>/grant
 ```
 
-When configuring your GitHub OAuth application, set the
-[authorization callback URL](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-user-authorization-callback-url)
-as `https://example.com/external-auth/primary-github/callback`, where
-`primary-github` matches your `CODER_EXTERNAL_AUTH_0_ID` value.
+When configuring your GitHub OAuth application, set the [authorization callback URL](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-user-authorization-callback-url) as `https://example.com/external-auth/primary-github/callback`, where `primary-github` matches your `CODER_EXTERNAL_AUTH_0_ID` value.
 
 ### GitHub Enterprise
 
@@ -284,10 +270,7 @@ CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/login/oauth/authorize
 CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/login/oauth/access_token"
 ```
 
-When configuring your GitHub Enterprise OAuth application, set the
-[authorization callback URL](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-user-authorization-callback-url)
-as `https://example.com/external-auth/primary-github/callback`, where
-`primary-github` matches your `CODER_EXTERNAL_AUTH_0_ID` value.
+When configuring your GitHub Enterprise OAuth application, set the [authorization callback URL](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-user-authorization-callback-url) as `https://example.com/external-auth/primary-github/callback`, where `primary-github` matches your `CODER_EXTERNAL_AUTH_0_ID` value.
 
 ### GitLab self-managed
 
@@ -306,8 +289,7 @@ CODER_EXTERNAL_AUTH_0_REVOKE_URL="https://gitlab.example.com/oauth/revoke"
 CODER_EXTERNAL_AUTH_0_REGEX=gitlab\.example\.com
 ```
 
-When [configuring your GitLab OAuth application](https://docs.gitlab.com/17.5/integration/oauth_provider/),
-set the redirect URI to `https://example.com/external-auth/primary-gitlab/callback`.
+When [configuring your GitLab OAuth application](https://docs.gitlab.com/17.5/integration/oauth_provider/), set the redirect URI to `https://example.com/external-auth/primary-gitlab/callback`.
 Note that the redirect URI must include the value of `CODER_EXTERNAL_AUTH_0_ID` (in this example, `primary-gitlab`).
 
 ### JFrog Artifactory
@@ -316,8 +298,7 @@ Visit the [JFrog Artifactory](./integrations/jfrog-artifactory.md) guide for ins
 
 ## Self-managed Git providers
 
-Custom authentication and token URLs should be used for self-managed Git
-provider deployments.
+Custom authentication and token URLs should be used for self-managed Git provider deployments.
 
 ```dotenv
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/oauth/authorize"
@@ -344,12 +325,9 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 
 1. [Create a GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app)
 
-   - Set the authorization callback URL to
-     `https://coder.example.com/external-auth/primary-github/callback`, where `primary-github`
-     is the value you set for `CODER_EXTERNAL_AUTH_0_ID`.
+   - Set the authorization callback URL to `https://coder.example.com/external-auth/primary-github/callback`, where `primary-github` is the value you set for `CODER_EXTERNAL_AUTH_0_ID`.
    - Deactivate Webhooks.
-   - Enable fine-grained access to specific repositories or a subset of
-     permissions for security.
+   - Enable fine-grained access to specific repositories or a subset of permissions for security.
 
    ![Register GitHub App](../images/admin/github-app-register.png)
 
@@ -367,13 +345,13 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
    | Metadata      | Read-only    | Grants access to metadata written by GitHub Apps.      |
    | Members       | Read-only    | Grants access to organization members and teams.       |
 
-1. Install the App for your organization. You may select a subset of
-   repositories to grant access to.
+1. Install the App for your organization.
+   You may select a subset of repositories to grant access to.
 
    ![Install GitHub App](../images/admin/github-app-install.png)
 
-1. Make the app installable by other users. In the app's **Advanced**
-   tab, select **Make this GitHub App public**.
+1. Make the app installable by other users.
+   In the app's **Advanced** tab, select **Make this GitHub App public**.
 
    Without this, anyone outside the app's owning account or organization gets a GitHub 404.
 
@@ -390,8 +368,7 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 ## Multiple External Providers (Premium)
 
 > [!NOTE]
-> Configuring more than one external authentication provider requires a
-> [Premium license](https://coder.com/pricing#compare-plans).
+> Configuring more than one external authentication provider requires a [Premium license](https://coder.com/pricing#compare-plans).
 > For more details, [contact your account team](https://coder.com/contact).
 
 Below is an example configuration with multiple providers:

@@ -11,14 +11,12 @@ February 24, 2024
 
 ---
 
-Your organization may require connecting to the database instance over SSL. To
-supply Coder with the appropriate certificates, and have it connect over SSL,
-follow the steps below:
+Your organization may require connecting to the database instance over SSL.
+To supply Coder with the appropriate certificates, and have it connect over SSL, follow the steps below:
 
 ## Client verification (server verifies the client)
 
-1. Create the certificate as a secret in your Kubernetes cluster, if not already
-   present:
+1. Create the certificate as a secret in your Kubernetes cluster, if not already present:
 
 ```sh
 kubectl create secret tls postgres-certs -n coder --key="postgres.key" --cert="postgres.crt"
@@ -74,5 +72,4 @@ coder:
 postgres://<user>:<password>@databasehost:<port>/<db-name>?sslmode=verify-full&sslrootcert="/home/coder/.postgresql/postgres-root.crt"
 ```
 
-More information on connecting to PostgreSQL databases using certificates can
-be found in the [PostgreSQL documentation](https://www.postgresql.org/docs/current/libpq-ssl.html#LIBPQ-SSL-CLIENTCERT).
+More information on connecting to PostgreSQL databases using certificates can be found in the [PostgreSQL documentation](https://www.postgresql.org/docs/current/libpq-ssl.html#LIBPQ-SSL-CLIENTCERT).

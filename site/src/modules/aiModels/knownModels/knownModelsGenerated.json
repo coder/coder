@@ -373,8 +373,8 @@
 			"maxOutputTokens": 128000,
 			"inputCost": 4,
 			"outputCost": 20,
-			"cacheReadCost": 0.5,
-			"cacheWriteCost": 6.25
+			"cacheReadCost": 0.4,
+			"cacheWriteCost": 5
 		},
 		{
 			"provider": "azure",
@@ -621,6 +621,17 @@
 			"inputCost": 0.75,
 			"outputCost": 3.75,
 			"cacheReadCost": 0.075
+		},
+		{
+			"provider": "google",
+			"modelIdentifier": "gemini-4-argon",
+			"displayName": "Gemini 4 Argon",
+			"aliases": [],
+			"contextLimit": 1048576,
+			"maxOutputTokens": 65536,
+			"inputCost": 2,
+			"outputCost": 10,
+			"cacheReadCost": 0.1
 		},
 		{
 			"provider": "google",
@@ -874,10 +885,10 @@
 			"aliases": [],
 			"contextLimit": 1050000,
 			"maxOutputTokens": 128000,
-			"inputCost": 2,
-			"outputCost": 10,
-			"cacheReadCost": 0.2,
-			"cacheWriteCost": 2.5
+			"inputCost": 4,
+			"outputCost": 20,
+			"cacheReadCost": 0.4,
+			"cacheWriteCost": 5
 		},
 		{
 			"provider": "openrouter",
@@ -931,9 +942,10 @@
 			"displayName": "GPT OSS 120B",
 			"aliases": [],
 			"contextLimit": 131072,
-			"maxOutputTokens": 117964,
-			"inputCost": 0.037,
-			"outputCost": 0.17
+			"maxOutputTokens": 65536,
+			"inputCost": 0.15,
+			"outputCost": 0.6,
+			"cacheReadCost": 0.075
 		},
 		{
 			"provider": "openrouter",
@@ -942,9 +954,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 0.58,
-			"outputCost": 12.3,
-			"cacheReadCost": 0.4
+			"inputCost": 0.239,
+			"outputCost": 11.936,
+			"cacheReadCost": 0.21
 		},
 		{
 			"provider": "openrouter",
@@ -964,9 +976,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 0.049,
-			"outputCost": 3.39,
-			"cacheReadCost": 0.048
+			"inputCost": 0.079,
+			"outputCost": 1.4,
+			"cacheReadCost": 0.078
 		},
 		{
 			"provider": "openrouter",
@@ -974,10 +986,10 @@
 			"displayName": "GLM-5.3-Flash",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 943717,
-			"inputCost": 0.15,
-			"outputCost": 0.5,
-			"cacheReadCost": 0.03
+			"maxOutputTokens": 131072,
+			"inputCost": 0.0067,
+			"outputCost": 0.188,
+			"cacheReadCost": 0.0067
 		},
 		{
 			"provider": "openrouter",
@@ -985,10 +997,10 @@
 			"displayName": "GLM-5.2",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 131072,
-			"inputCost": 0.03,
-			"outputCost": 10,
-			"cacheReadCost": 0.03
+			"maxOutputTokens": 943718,
+			"inputCost": 0.0341,
+			"outputCost": 7,
+			"cacheReadCost": 0.033
 		},
 		{
 			"provider": "openrouter",
@@ -1112,14 +1124,26 @@
 		},
 		{
 			"provider": "openrouter",
+			"modelIdentifier": "google/gemini-4-argon",
+			"displayName": "Gemini 4 Argon",
+			"aliases": [],
+			"contextLimit": 1048576,
+			"maxOutputTokens": 943718,
+			"inputCost": 2,
+			"outputCost": 10,
+			"cacheReadCost": 0.1,
+			"cacheWriteCost": 0.1875
+		},
+		{
+			"provider": "openrouter",
 			"modelIdentifier": "google/gemini-3.8-flash",
 			"displayName": "Gemini 3.8 Flash",
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 65536,
-			"inputCost": 0.75,
-			"outputCost": 3.75,
-			"cacheReadCost": 0.075,
+			"inputCost": 0.825,
+			"outputCost": 4.125,
+			"cacheReadCost": 0.0825,
 			"cacheWriteCost": 0.041667
 		},
 		{
@@ -1163,10 +1187,10 @@
 			"displayName": "DeepSeek V4 Flash",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 943718,
-			"inputCost": 0.0073,
-			"outputCost": 1.28,
-			"cacheReadCost": 0.0073
+			"maxOutputTokens": 943717,
+			"inputCost": 0.091,
+			"outputCost": 0.182,
+			"cacheReadCost": 0.0182
 		},
 		{
 			"provider": "openrouter",
@@ -1188,8 +1212,7 @@
 			"maxOutputTokens": 131072,
 			"inputCost": 2,
 			"outputCost": 6,
-			"cacheReadCost": 0.25,
-			"cacheWriteCost": 2.5
+			"cacheReadCost": 0.25
 		},
 		{
 			"provider": "openrouter",
@@ -1200,8 +1223,7 @@
 			"maxOutputTokens": 131072,
 			"inputCost": 0.15,
 			"outputCost": 0.47,
-			"cacheReadCost": 0.016,
-			"cacheWriteCost": 0.2
+			"cacheReadCost": 0.016
 		},
 		{
 			"provider": "openrouter",
@@ -1543,6 +1565,17 @@
 		},
 		{
 			"provider": "vercel",
+			"modelIdentifier": "google/gemini-4-argon",
+			"displayName": "Gemini 4 Argon",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 1000000,
+			"inputCost": 2,
+			"outputCost": 10,
+			"cacheReadCost": 0.1
+		},
+		{
+			"provider": "vercel",
 			"modelIdentifier": "google/gemini-3.8-flash",
 			"displayName": "Gemini 3.8 Flash",
 			"aliases": [],
@@ -1581,9 +1614,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 32768,
-			"inputCost": 0.3,
-			"outputCost": 1.2,
-			"cacheReadCost": 0.007
+			"inputCost": 0.075,
+			"outputCost": 0.3,
+			"cacheReadCost": 0.0015
 		},
 		{
 			"provider": "vercel",

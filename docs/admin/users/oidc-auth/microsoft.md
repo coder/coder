@@ -27,8 +27,7 @@ This guide shows how to configure Coder to authenticate users with Microsoft Ent
 12. Now, select the tab labeled "Authentication" and select "Add a platform".
 13. Select "Web" and for the redirect URI enter your Coder callback URL.
 14. Then hit "Configure" at the bottom:
-
-- `https://coder.example.com/api/v2/users/oidc/callback`
+    - `https://coder.example.com/api/v2/users/oidc/callback`
 
 ## Step 2: Configure Coder OIDC for Microsoft Entra ID
 
