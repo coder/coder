@@ -262,7 +262,6 @@ func (p *Server) buildTurnEnvironment(
 		Model:            model.ModelID(),
 		Credential:       reasoningCredential(resolved.route.ProviderAuth),
 	}
-	modelRoute := resolved.route
 
 	currentPlanMode := chat.PlanMode
 	isPlanModeTurn := currentPlanMode.Valid && currentPlanMode.ChatPlanMode == database.ChatPlanModePlan
@@ -512,23 +511,19 @@ func (p *Server) buildTurnEnvironment(
 	var g2 errgroup.Group
 	g2.Go(func() error {
 		var err error
-		// Key the file-part acceptance on model.Provider() (the fantasy
-		// transport identity), not the configured provider, because
-		// aibridge routing rewrites the provider (e.g. Bedrock to the
-		// Anthropic transport). The conversion that actually drops or
-		// accepts a file part is the one for model.Provider().
 		acceptsFilePart := model.AcceptsFilePartMediaType
-		providerType := string(modelRoute.Provider.Type)
-		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[:pendingRowsStart], p.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
+		fileResolver := p.chatFileResolver(model)
+		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[:pendingRowsStart], fileResolver, logger, acceptsFilePart, chat.WorkspaceID)
 		if err != nil {
 			return xerrors.Errorf("build chat prompt: %w", err)
 		}
-		prompt = replaceUnsupportedToolMedia(ctx, logger, prompt, model, providerType)
+		prompt = replaceUnsupportedMedia(ctx, logger, prompt, model)
 		if pendingRowsStart < len(promptRows) {
-			pendingPrompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[pendingRowsStart:], p.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
+			pendingPrompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[pendingRowsStart:], fileResolver, logger, acceptsFilePart, chat.WorkspaceID)
 			if err != nil {
 				return xerrors.Errorf("build pending chat prompt tail: %w", err)
 			}
+			pendingPrompt = replaceUnsupportedMedia(ctx, logger, pendingPrompt, model)
 		}
 		return nil
 	})

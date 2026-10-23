@@ -186,7 +186,7 @@ func TestBuildTurnEnvironmentSplitsPendingUserRowsFromCompactionPrompt(t *testin
 	require.Equal(t, wantSummaryCall, env.Compaction.Options.SummaryCall)
 }
 
-func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
+func TestBuildTurnEnvironmentReplacesUnsupportedMedia(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -195,10 +195,11 @@ func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
 		model     string
 		mediaType string
 	}{
-		// Anthropic is a native transport; Google is bridged through an
-		// OpenAI-compatible transport that hides the vendor restriction.
+		// Anthropic is a native transport. Google shares the OpenAI-compatible
+		// transport, which accepts GIF, so only the configured provider
+		// rejects it.
 		{name: "AnthropicAudio", provider: database.AIProviderTypeAnthropic, model: "claude-sonnet-4-5", mediaType: "audio/mpeg"},
-		{name: "GoogleSVG", provider: database.AIProviderTypeGoogle, model: "gemini-2.5-flash", mediaType: "image/svg+xml"},
+		{name: "GoogleGIF", provider: database.AIProviderTypeGoogle, model: "gemini-2.5-flash", mediaType: "image/gif"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -237,6 +238,20 @@ func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
 				codersdk.ChatMessageToolResult(toolCallID, "media__render", mediaResult, false, true),
 			})
 			require.NoError(t, err)
+			file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+				OwnerID:        user.ID,
+				OrganizationID: org.ID,
+				Name:           "attachment",
+				Mimetype:       tc.mediaType,
+				Data:           []byte("data"),
+			})
+			require.NoError(t, err)
+			// The last user message is the pending tail of the prompt.
+			pendingContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("what did it show?"),
+				codersdk.ChatMessageFile(file.ID, tc.mediaType, file.Name),
+			})
+			require.NoError(t, err)
 			message := func(role database.ChatMessageRole, content pqtype.NullRawMessage) chatstate.Message {
 				return chatstate.Message{
 					Role:           role,
@@ -257,7 +272,7 @@ func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
 					message(database.ChatMessageRoleUser, mustMarshalText(t, "render media")),
 					message(database.ChatMessageRoleAssistant, assistantContent),
 					message(database.ChatMessageRoleTool, toolContent),
-					message(database.ChatMessageRoleUser, mustMarshalText(t, "what did it show?")),
+					message(database.ChatMessageRoleUser, pendingContent),
 				},
 			})
 			require.NoError(t, err)
@@ -277,21 +292,29 @@ func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(prepared.Close)
 
-			var sawToolResult bool
+			var sawToolResult, sawAttachmentNote bool
 			for _, msg := range prepared.Prompt {
 				for _, part := range msg.Content {
-					result, ok := part.(fantasy.ToolResultPart)
-					if !ok || result.ToolCallID != toolCallID {
-						continue
+					switch typed := part.(type) {
+					case fantasy.ToolResultPart:
+						if typed.ToolCallID != toolCallID {
+							continue
+						}
+						sawToolResult = true
+						text, ok := typed.Output.(fantasy.ToolResultOutputContentText)
+						require.True(t, ok, "expected text output, got %T", typed.Output)
+						require.Equal(t, "The tool returned "+tc.mediaType+" content, which cannot be displayed.\n\nTool output", text.Text)
+					case fantasy.FilePart:
+						t.Fatalf("unsupported %s attachment reached the prompt", typed.MediaType)
+					case fantasy.TextPart:
+						if typed.Text == `[Attachment "attachment" (`+tc.mediaType+`) omitted: not supported by this model]` {
+							sawAttachmentNote = true
+						}
 					}
-					sawToolResult = true
-					text, ok := result.Output.(fantasy.ToolResultOutputContentText)
-					require.True(t, ok, "expected text output, got %T", result.Output)
-					require.Contains(t, text.Text, "Tool output")
-					require.Contains(t, text.Text, "["+tc.mediaType+" content omitted: unsupported tool result media type]")
 				}
 			}
 			require.True(t, sawToolResult, "tool result missing from prompt")
+			require.True(t, sawAttachmentNote, "attachment note missing from prompt")
 		})
 	}
 }
