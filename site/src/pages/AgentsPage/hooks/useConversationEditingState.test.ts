@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createDeferred } from "#/testHelpers/deferred";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
 import type { PendingAttachment } from "../components/ChatPageContent";
 import { draftInputStorageKeyPrefix } from "../utils/draftStorage";
@@ -402,7 +403,7 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
-	it("keeps the saved draft when the chat unmounts during a failed send", async () => {
+	it("keeps the saved draft while a send is pending after the chat unmounts", async () => {
 		const { result, onSend, unmount } = renderEditing();
 		const mockInput = createMockChatInputHandle("hello");
 		// The editor reports its clear as a content change.
@@ -410,12 +411,8 @@ describe("useConversationEditingState", () => {
 			result.current.handleContentChange("", "", false),
 		);
 		result.current.chatInputRef.current = mockInput.handle;
-		let rejectSend: (error: Error) => void = () => {};
-		onSend.mockReturnValueOnce(
-			new Promise((_resolve, reject) => {
-				rejectSend = reject;
-			}),
-		);
+		const send = createDeferred<undefined>();
+		onSend.mockReturnValueOnce(send.promise);
 
 		act(() => {
 			result.current.handleContentChange("hello", "hello", false);
@@ -426,9 +423,10 @@ describe("useConversationEditingState", () => {
 		});
 		unmount();
 
-		rejectSend(new Error("boom"));
-		await expect(sent).rejects.toThrow("boom");
+		// A reload now finds the submitted message.
 		expect(localStorage.getItem(expectedKey)).toBe("hello");
+		send.reject(new Error("boom"));
+		await expect(sent).rejects.toThrow("boom");
 	});
 
 	it("keeps what was typed during a send after it succeeds", async () => {

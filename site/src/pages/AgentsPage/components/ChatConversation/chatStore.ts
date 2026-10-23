@@ -162,11 +162,13 @@ export type ChatStoreState = {
 	load: ChatStoreLoad;
 	// Display only; view applies them in request order.
 	pendingActions: readonly PendingEntry[];
-	// The stored state with pendingActions drawn over it. setState builds it
-	// once per state, so selectors reading one state get the same values,
-	// which useSyncExternalStore requires.
+	// Built once per state, so selectors reading one state get the same
+	// values, which useSyncExternalStore requires.
 	view: ChatView;
 };
+
+// The store's state without the view built from it.
+type StoredChatState = Omit<ChatStoreState, "view">;
 
 export type ChatStore = {
 	getSnapshot: () => ChatStoreState;
@@ -221,7 +223,7 @@ export type ChatStore = {
 };
 
 const createInitialState = (): ChatStoreState => {
-	const state: Omit<ChatStoreState, "view"> = {
+	const state: StoredChatState = {
 		messagesByID: new Map(),
 		orderedMessageIDs: [],
 		streamState: null,
@@ -275,7 +277,7 @@ export const createChatStore = (): ChatStore => {
 	};
 
 	const setState = (
-		updater: (current: ChatStoreState) => ChatStoreState,
+		updater: (current: ChatStoreState) => StoredChatState,
 	): void => {
 		const next = updater(state);
 		if (next === state) {
@@ -858,7 +860,7 @@ const endPendingParts = (
 	});
 
 // The stored state with each pending entry drawn over it in request order.
-const buildView = (state: Omit<ChatStoreState, "view">): ChatView => {
+const buildView = (state: StoredChatState): ChatView => {
 	const view: ChatView = {
 		messagesByID: state.messagesByID,
 		orderedMessageIDs: state.orderedMessageIDs,
@@ -933,15 +935,14 @@ const selectLatestMessage = (
 export const selectIsAwaitingFirstStreamChunk = (
 	state: ChatStoreState,
 ): boolean => {
-	const view = state.view;
-	const latestMessage = selectLatestMessage(view);
+	const latestMessage = selectLatestMessage(state.view);
 	const latestMessageNeedsAssistantResponse =
 		latestMessage?.role !== "assistant";
 	// Show the Thinking indicator when the store has no stream
 	// data yet, the chat is running, and the conversation is
 	// waiting for an assistant response (any non-assistant latest
 	// message).
-	if (view.streamState !== null || !latestMessageNeedsAssistantResponse) {
+	if (state.view.streamState !== null || !latestMessageNeedsAssistantResponse) {
 		return false;
 	}
 	return state.chatStatus === "running";
