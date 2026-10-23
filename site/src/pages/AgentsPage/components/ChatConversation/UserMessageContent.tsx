@@ -80,23 +80,29 @@ const UserMessageText: React.FC<{ text: string }> = ({ text }) => {
 	);
 };
 
-type CopySegment = { text: string; isChip: boolean };
+type CopySegment = { text: string; isMessagePart: boolean };
 
 // The text runs and chip copy texts of a copied fragment, in document order.
+// A skill chip is its own message part; a path chip is part of the text.
 const getCopySegments = (node: Node): CopySegment[] => {
 	if (node instanceof Element && node.hasAttribute("data-copy-text")) {
-		return [{ text: node.getAttribute("data-copy-text") ?? "", isChip: true }];
+		return [
+			{
+				text: node.getAttribute("data-copy-text") ?? "",
+				isMessagePart: node.hasAttribute("data-message-part"),
+			},
+		];
 	}
 	if (node.nodeType === Node.TEXT_NODE) {
-		return [{ text: node.textContent ?? "", isChip: false }];
+		return [{ text: node.textContent ?? "", isMessagePart: false }];
 	}
 	return Array.from(node.childNodes).flatMap(getCopySegments);
 };
 
 // Chips are not selectable, so a copy of a selection within the message
 // writes each chip's text form, its data-copy-text, in place of the chip.
-// The server trims each sent text part, so one space separates a chip from
-// text it would otherwise touch.
+// The server trims each sent text part, so one space separates a chip that
+// is its own message part from text it would otherwise touch.
 const handleMessageCopy = (event: React.ClipboardEvent<HTMLElement>) => {
 	const selection = window.getSelection();
 	const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
@@ -108,20 +114,20 @@ const handleMessageCopy = (event: React.ClipboardEvent<HTMLElement>) => {
 		return;
 	}
 	let text = "";
-	let previousIsChip = false;
+	let previousIsMessagePart = false;
 	for (const segment of getCopySegments(fragment)) {
 		if (!segment.text) {
 			continue;
 		}
 		if (
-			(segment.isChip || previousIsChip) &&
+			(segment.isMessagePart || previousIsMessagePart) &&
 			/\S$/.test(text) &&
 			/^\S/.test(segment.text)
 		) {
 			text += " ";
 		}
 		text += segment.text;
-		previousIsChip = segment.isChip;
+		previousIsMessagePart = segment.isMessagePart;
 	}
 	event.clipboardData.setData("text/plain", text);
 	event.preventDefault();
@@ -144,6 +150,7 @@ const renderUserInlineBlock = (
 			<span
 				key={index}
 				data-copy-text={getSkillAlias(block.skill_source, block.skill_name)}
+				data-message-part
 			>
 				<SkillChip
 					source={block.skill_source}
