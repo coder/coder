@@ -7,6 +7,7 @@ import {
 	getFilePathCandidateStarts,
 	isWholeFilePathCandidate,
 	parseFilePathMention,
+	rehypeFileMentions,
 	walkFilePath,
 } from "./filePathMentions";
 
@@ -329,5 +330,22 @@ describe("findCandidateTokenStarts", () => {
 		["Visit https://example.com/my page or example.com/a b", []],
 	])("lists the starts in %j", (text, expected) => {
 		expect(tokens(text)).toEqual(expected);
+	});
+});
+
+describe("rehypeFileMentions", () => {
+	it("marks a long text with many candidates and mentions in linear time", () => {
+		const value = "/a/b .gitignore\n".repeat(20_000);
+		const tree = {
+			type: "root",
+			children: [
+				{ type: "element", tagName: "p", children: [{ type: "text", value }] },
+			],
+		};
+		const start = performance.now();
+		rehypeFileMentions()(tree);
+		const elapsed = performance.now() - start;
+		expect(elapsed).toBeLessThan(500);
+		expect(tree.children[0].children).toHaveLength(40_000);
 	});
 });

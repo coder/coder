@@ -201,6 +201,9 @@ const findCandidates = (
 	mentions: readonly TextRange[],
 ): TextRange[] => {
 	const found: TextRange[] = [];
+	// Mentions are sorted and do not overlap, and candidates end in
+	// increasing order, so one index walks the mentions once.
+	let next = 0;
 	for (const { start, token } of findCandidateTokens(text)) {
 		const previous = found[found.length - 1];
 		if (previous && start < previous.end) {
@@ -211,10 +214,12 @@ const findCandidates = (
 			lineEnd === -1 ? text.length : lineEnd,
 			start + token.length + candidateTailLimit,
 		);
-		for (const mention of mentions) {
-			if (mention.start < end && mention.end > end) {
-				end = mention.end;
-			}
+		while (next < mentions.length && mentions[next].end <= end) {
+			next++;
+		}
+		const straddling = mentions[next];
+		if (straddling && straddling.start < end) {
+			end = straddling.end;
 		}
 		found.push({ start, end });
 	}
@@ -293,14 +298,25 @@ const markInlineCode = (node: HastNode) => {
 	}
 };
 
+/**
+ * Splits `range` into text and mention spans. Callers pass increasing,
+ * adjacent ranges and share `cursor`, the index of the first mention not
+ * yet passed, so all ranges together visit each mention once.
+ */
 const splitRange = (
 	value: string,
 	range: TextRange,
 	mentions: readonly FoundFilePathMention[],
+	cursor: { index: number },
 ): HastNode[] => {
 	const nodes: HastNode[] = [];
 	let offset = range.start;
-	for (const mention of mentions) {
+	for (
+		;
+		cursor.index < mentions.length && mentions[cursor.index].start < range.end;
+		cursor.index++
+	) {
+		const mention = mentions[cursor.index];
 		if (mention.start < range.start || mention.end > range.end) {
 			continue;
 		}
@@ -333,10 +349,16 @@ const splitMentions = (node: HastNode): HastNode[] | undefined => {
 		return undefined;
 	}
 	const nodes: HastNode[] = [];
+	const cursor = { index: 0 };
 	let offset = 0;
 	for (const candidate of candidates) {
 		nodes.push(
-			...splitRange(value, { start: offset, end: candidate.start }, mentions),
+			...splitRange(
+				value,
+				{ start: offset, end: candidate.start },
+				mentions,
+				cursor,
+			),
 		);
 		nodes.push({
 			type: "element",
@@ -345,12 +367,17 @@ const splitMentions = (node: HastNode): HastNode[] | undefined => {
 				dataFileMentionCandidate: value.slice(candidate.start, candidate.end),
 				dataFileMentionCandidateOpener: value[candidate.start - 1],
 			},
-			children: splitRange(value, candidate, mentions),
+			children: splitRange(value, candidate, mentions, cursor),
 		});
 		offset = candidate.end;
 	}
 	nodes.push(
-		...splitRange(value, { start: offset, end: value.length }, mentions),
+		...splitRange(
+			value,
+			{ start: offset, end: value.length },
+			mentions,
+			cursor,
+		),
 	);
 	return nodes;
 };
