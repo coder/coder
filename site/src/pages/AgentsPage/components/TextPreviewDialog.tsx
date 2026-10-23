@@ -1,8 +1,10 @@
 import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
+import { Loader } from "#/components/Loader/Loader";
 import { Response } from "./ChatElements/Response";
 
 type TextPreviewDialogProps = {
-	content: string;
+	/** Undefined while the text loads. */
+	content: string | undefined;
 	fileName?: string;
 	/** Explicit media type for the attachment, if known. */
 	mediaType?: string;
@@ -55,7 +57,9 @@ export const TextPreviewDialog: React.FC<TextPreviewDialogProps> = ({
 					{fileName ?? "Pasted text"}
 				</DialogTitle>
 				<div className="overflow-auto p-4 max-h-[calc(85vh-3rem)]">
-					{renderAsMarkdown ? (
+					{content === undefined ? (
+						<Loader size="sm" label="Loading file" className="p-0" />
+					) : renderAsMarkdown ? (
 						// Reuse the same Markdown renderer used for chat messages
 						// so attached markdown previews look consistent with the
 						// rest of the conversation.

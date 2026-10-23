@@ -144,7 +144,7 @@ export const DownloadCardFocused: Story = {
 	},
 };
 
-const viewPlan: Story["play"] = async ({ canvasElement }) => {
+const viewPlan = async ({ canvasElement }: { canvasElement: HTMLElement }) => {
 	await userEvent.click(
 		within(canvasElement).getByRole("button", { name: "PLAN.md View file" }),
 	);
@@ -157,6 +157,18 @@ export const TextFileLoading: Story = {
 		);
 	},
 	play: viewPlan,
+};
+
+export const TextFileLoadingPreviewClosed: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatFileText").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	play: async (context) => {
+		await viewPlan(context);
+		await userEvent.keyboard("{Escape}");
+	},
 };
 
 export const TextFileFailed: Story = {
