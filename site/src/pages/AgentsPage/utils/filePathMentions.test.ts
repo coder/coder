@@ -50,6 +50,7 @@ describe("parseFilePathMention", () => {
 		"main.exe",
 		"foo.",
 		".go",
+		".5",
 		"and/or",
 		"2024/01.02",
 		"fmt.Println",
@@ -94,6 +95,7 @@ describe("findFilePathMentions", () => {
 			[".gitignore", "/home/coder/demo/.env"],
 		],
 		["Files ending in .go or .md", []],
+		["Scale by .5 or .75x", []],
 	])("finds mentions in %j", (text, expected) => {
 		expect(mentionedText(text)).toEqual(expected);
 	});
