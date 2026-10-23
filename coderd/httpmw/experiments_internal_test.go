@@ -26,19 +26,17 @@ func TestRequireUserExperiment(t *testing.T) {
 	experiments := fakeUserExperiments{enabledUser: true}
 
 	for _, tc := range []struct {
-		name      string
-		userID    uuid.UUID
-		devBypass bool
-		want      int
+		name   string
+		userID uuid.UUID
+		want   int
 	}{
 		{name: "EnabledForUser", userID: enabledUser, want: http.StatusOK},
 		{name: "DisabledForUser", userID: disabledUser, want: http.StatusForbidden},
-		{name: "DevBypass", userID: disabledUser, devBypass: true, want: http.StatusOK},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			handler := requireUserExperiment(experiments, codersdk.ExperimentWorkspaceFiles, tc.devBypass)(
+			handler := RequireUserExperiment(experiments, codersdk.ExperimentWorkspaceFiles)(
 				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
 				}),

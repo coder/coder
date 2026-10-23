@@ -69,18 +69,22 @@ type UserExperiments interface {
 	Enabled(ctx context.Context, userID uuid.UUID, ex codersdk.Experiment) bool
 }
 
-// RequireUserExperimentWithDevBypass is RequireExperimentWithDevBypass for
-// a user-scoped experiment. It decides the experiment for the user of the
-// request's API key, so runtime experiment rules apply, and must run after
-// API key extraction.
+// RequireUserExperimentWithDevBypass is RequireUserExperiment, but
+// bypasses the check in development mode (buildinfo.IsDev()).
 func RequireUserExperimentWithDevBypass(experiments UserExperiments, experiment codersdk.Experiment) func(next http.Handler) http.Handler {
-	return requireUserExperiment(experiments, experiment, buildinfo.IsDev())
+	if buildinfo.IsDev() {
+		return func(next http.Handler) http.Handler { return next }
+	}
+	return RequireUserExperiment(experiments, experiment)
 }
 
-func requireUserExperiment(experiments UserExperiments, experiment codersdk.Experiment, devBypass bool) func(next http.Handler) http.Handler {
+// RequireUserExperiment checks a user-scoped experiment for the user of the
+// request's API key, so runtime experiment rules apply. It must run after API
+// key extraction, and it returns 403 Forbidden when the experiment is off.
+func RequireUserExperiment(experiments UserExperiments, experiment codersdk.Experiment) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if devBypass || experiments.Enabled(r.Context(), APIKey(r).UserID, experiment) {
+			if experiments.Enabled(r.Context(), APIKey(r).UserID, experiment) {
 				next.ServeHTTP(w, r)
 				return
 			}
