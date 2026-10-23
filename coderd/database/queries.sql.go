@@ -12076,11 +12076,11 @@ WITH hydrated AS (
 ),
 copied AS (
     INSERT INTO chat_context_resources (
-        chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+        chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, plugin_name
     )
     SELECT
         hydrated.id, r.source, r.body_kind, r.body, r.content_hash,
-        r.size_bytes, r.status, r.error, r.source_path
+        r.size_bytes, r.status, r.error, r.source_path, r.plugin_name
     FROM hydrated
     CROSS JOIN workspace_agent_context_resources r
     WHERE r.workspace_agent_id = $3::uuid
@@ -12092,6 +12092,7 @@ copied AS (
         status = EXCLUDED.status,
         error = EXCLUDED.error,
         source_path = EXCLUDED.source_path,
+        plugin_name = EXCLUDED.plugin_name,
         updated_at = now()
 )
 SELECT id FROM hydrated
@@ -12155,11 +12156,11 @@ func (q *sqlQuerier) IncrementChatGenerationAttempt(ctx context.Context, id uuid
 
 const insertAgentContextResourcesIntoChat = `-- name: InsertAgentContextResourcesIntoChat :exec
 INSERT INTO chat_context_resources (
-    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, plugin_name
 )
 SELECT
     $1::uuid, r.source, r.body_kind, r.body, r.content_hash,
-    r.size_bytes, r.status, r.error, r.source_path
+    r.size_bytes, r.status, r.error, r.source_path, r.plugin_name
 FROM workspace_agent_context_resources r
 WHERE r.workspace_agent_id = $2::uuid
 `
@@ -12787,7 +12788,7 @@ func (q *sqlQuerier) LinkChatFilesAfterLock(ctx context.Context, arg LinkChatFil
 }
 
 const listChatContextResourcesByChatID = `-- name: ListChatContextResourcesByChatID :many
-SELECT chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, created_at, updated_at FROM chat_context_resources
+SELECT chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, created_at, updated_at, plugin_name FROM chat_context_resources
 WHERE chat_id = $1::uuid
 ORDER BY source ASC
 `
@@ -12815,6 +12816,7 @@ func (q *sqlQuerier) ListChatContextResourcesByChatID(ctx context.Context, chatI
 			&i.SourcePath,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PluginName,
 		); err != nil {
 			return nil, err
 		}
@@ -13324,7 +13326,7 @@ func (q *sqlQuerier) SoftDeleteContextFileMessages(ctx context.Context, chatID u
 
 const syncAgentChatsContextMCPResources = `-- name: SyncAgentChatsContextMCPResources :many
 WITH agent_mcp AS (
-    SELECT source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    SELECT source, body_kind, body, content_hash, size_bytes, status, error, source_path, plugin_name
     FROM workspace_agent_context_resources
     WHERE workspace_agent_id = $1::uuid
         AND body_kind IN ('mcp_config', 'mcp_server')
@@ -13346,6 +13348,7 @@ changed AS (
                         AND ccr.content_hash = m.content_hash
                         AND ccr.status = m.status
                         AND ccr.error = m.error
+                        AND ccr.plugin_name = m.plugin_name
                 )
             )
             OR EXISTS (
@@ -13359,6 +13362,7 @@ changed AS (
                             AND m.content_hash = ccr.content_hash
                             AND m.status = ccr.status
                             AND m.error = ccr.error
+                            AND m.plugin_name = ccr.plugin_name
                     )
             )
         )
@@ -13378,11 +13382,11 @@ deleted AS (
 ),
 upserted AS (
     INSERT INTO chat_context_resources (
-        chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+        chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, plugin_name
     )
     SELECT
         locked.id, m.source, m.body_kind, m.body, m.content_hash,
-        m.size_bytes, m.status, m.error, m.source_path
+        m.size_bytes, m.status, m.error, m.source_path, m.plugin_name
     FROM locked
     CROSS JOIN agent_mcp m
     ON CONFLICT (chat_id, source) DO UPDATE SET
@@ -13393,6 +13397,7 @@ upserted AS (
         status = EXCLUDED.status,
         error = EXCLUDED.error,
         source_path = EXCLUDED.source_path,
+        plugin_name = EXCLUDED.plugin_name,
         updated_at = now()
 )
 SELECT id FROM locked
@@ -35595,7 +35600,7 @@ func (q *sqlQuerier) GetLatestWorkspaceAgentContextSnapshot(ctx context.Context,
 }
 
 const listWorkspaceAgentContextResources = `-- name: ListWorkspaceAgentContextResources :many
-SELECT workspace_agent_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, created_at, updated_at FROM workspace_agent_context_resources
+SELECT workspace_agent_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, created_at, updated_at, plugin_name FROM workspace_agent_context_resources
 WHERE workspace_agent_id = $1
 ORDER BY source ASC
 `
@@ -35621,6 +35626,7 @@ func (q *sqlQuerier) ListWorkspaceAgentContextResources(ctx context.Context, wor
 			&i.SourcePath,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PluginName,
 		); err != nil {
 			return nil, err
 		}
@@ -35646,6 +35652,7 @@ INSERT INTO workspace_agent_context_resources (
     status,
     error,
     source_path,
+    plugin_name,
     created_at,
     updated_at
 ) VALUES (
@@ -35659,7 +35666,8 @@ INSERT INTO workspace_agent_context_resources (
     $8,
     $9,
     $10,
-    $10
+    $11,
+    $11
 )
 ON CONFLICT (workspace_agent_id, source) DO UPDATE SET
     body_kind = EXCLUDED.body_kind,
@@ -35669,8 +35677,9 @@ ON CONFLICT (workspace_agent_id, source) DO UPDATE SET
     status = EXCLUDED.status,
     error = EXCLUDED.error,
     source_path = EXCLUDED.source_path,
+    plugin_name = EXCLUDED.plugin_name,
     updated_at = EXCLUDED.updated_at
-RETURNING workspace_agent_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, created_at, updated_at
+RETURNING workspace_agent_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, created_at, updated_at, plugin_name
 `
 
 type UpsertWorkspaceAgentContextResourceParams struct {
@@ -35683,6 +35692,7 @@ type UpsertWorkspaceAgentContextResourceParams struct {
 	Status           WorkspaceAgentContextResourceStatus `db:"status" json:"status"`
 	Error            string                              `db:"error" json:"error"`
 	SourcePath       string                              `db:"source_path" json:"source_path"`
+	PluginName       string                              `db:"plugin_name" json:"plugin_name"`
 	Now              time.Time                           `db:"now" json:"now"`
 }
 
@@ -35697,6 +35707,7 @@ func (q *sqlQuerier) UpsertWorkspaceAgentContextResource(ctx context.Context, ar
 		arg.Status,
 		arg.Error,
 		arg.SourcePath,
+		arg.PluginName,
 		arg.Now,
 	)
 	var i WorkspaceAgentContextResource
@@ -35712,6 +35723,7 @@ func (q *sqlQuerier) UpsertWorkspaceAgentContextResource(ctx context.Context, ar
 		&i.SourcePath,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PluginName,
 	)
 	return i, err
 }

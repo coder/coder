@@ -138,6 +138,7 @@ type Manifest struct {
 	Metadata                 []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
 	Scripts                  []codersdk.WorkspaceAgentScript              `json:"scripts"`
 	Devcontainers            []codersdk.WorkspaceAgentDevcontainer        `json:"devcontainers"`
+	AgentPluginsEnabled      bool                                         `json:"agent_plugins_enabled"`
 }
 
 // WorkspaceSecret is a user secret for injection into a workspace.
@@ -411,6 +412,19 @@ func (c *Client) ConnectRPC215WithRole(ctx context.Context, role string) (
 	proto.DRPCAgentClient215, tailnetproto.DRPCTailnetClient28, error,
 ) {
 	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 15), role)
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC216WithRole returns a dRPC client to the Agent API v2.16, which
+// adds Agent Plugins context resources. Pass role "agent" for workspace
+// agents to enable connection monitoring.
+func (c *Client) ConnectRPC216WithRole(ctx context.Context, role string) (
+	proto.DRPCAgentClient216, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 16), role)
 	if err != nil {
 		return nil, nil, err
 	}
