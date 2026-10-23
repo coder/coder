@@ -60,9 +60,11 @@ export function useConversationEditingState(deps: {
 	const serializedEditorStateRef = useRef<string | undefined>(
 		initialEditorState,
 	);
-	// Set from a submit's clear until the send settles. Content changes then
-	// leave the saved draft alone, which matters only if the chat unmounts or
-	// the page reloads mid-send.
+	// Set from a submit's clear until the send settles. While set, content
+	// changes do not write the saved draft, so a reload or unmount mid-send
+	// restores the draft saved before the submit. For a new message, that is
+	// the submitted message. For a history edit, it is the draft from before
+	// the edit started.
 	const isSendPendingRef = useRef(false);
 
 	// Monotonic counter to force LexicalComposer remount.
@@ -132,11 +134,8 @@ export function useConversationEditingState(deps: {
 		setEditingFileBlocks([]);
 	};
 
-	// Clears the composer at submit. The returned rollback, called when the
-	// send fails, restores the message and, for a history edit, the edited
-	// message ID and its file blocks. The composer stays editable during the
-	// request, so the rollback puts the message in front of anything typed
-	// since.
+	// Returns a rollback for a failed send. The composer stays editable during
+	// the request, so the rollback puts the message before anything typed since.
 	const clearInputForSend = (message: string) => {
 		const snapshot = {
 			editorState: serializedEditorStateRef.current,

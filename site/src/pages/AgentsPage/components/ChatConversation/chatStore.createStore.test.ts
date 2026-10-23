@@ -760,7 +760,8 @@ const textOf = (content: readonly TypesGen.ChatMessagePart[] | undefined) => {
 	return part?.type === "text" ? part.text : "";
 };
 
-// What a viewer sees: the transcript, the queue texts and the status.
+// What a viewer sees: the transcript, the queue texts, the status and the
+// error.
 const visible = (store: ChatStore) => {
 	const state = store.getSnapshot();
 	const byID = selectMessagesByID(state);

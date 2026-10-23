@@ -1424,9 +1424,11 @@ const fetchMessagesPage = async (
 	return { ...page, messages };
 };
 
+/** The newest page, the only page with `snapshot_version` and the queue. */
 export const fetchNewestChatMessages = (chatId: string) =>
 	fetchMessagesPage(chatId, undefined);
 
+/** An older page. It has no `snapshot_version` and no queue. */
 export const fetchOlderChatMessages = (chatId: string, beforeId: number) =>
 	fetchMessagesPage(chatId, beforeId);
 
@@ -2282,7 +2284,6 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: ({ messageId, req }: EditChatMessageMutationArgs) =>
 		API.experimental.editChatMessage(chatId, messageId, req),
 	onSettled: () => {
-		// The chat stream delivers the edit's messages.
 		void invalidateChatEntity(queryClient, chatId);
 		void invalidateChatPrompts(queryClient, chatId);
 		void invalidateChatDebugRuns(queryClient, chatId);
