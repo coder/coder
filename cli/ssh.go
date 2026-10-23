@@ -948,14 +948,14 @@ func findWorkspaceAndAgentByHostname(
 		hostname = strings.TrimSuffix(hostname, qualifiedSuffix)
 	}
 	hostname = normalizeWorkspaceInput(hostname)
-	ownerSpecified := strings.Contains(hostname, "/")
 
 	ws, agent, otherAgents, err := GetWorkspaceAndAgent(ctx, inv, client, !disableAutostart, hostname)
 	if err != nil && strings.Contains(err.Error(), "multiple agents found") {
+		includeOwner := suggestWithOwner(hostname, ws)
 		var errorMsg strings.Builder
 		_, _ = errorMsg.WriteString(fmt.Sprintf("%s\nTry running:\n", err.Error()))
 		for _, agent := range otherAgents {
-			_, _ = errorMsg.WriteString(fmt.Sprintf("	%s\n", cliui.Code(agentSSHSuggestion(config, ws, agent, ownerSpecified))))
+			_, _ = errorMsg.WriteString(fmt.Sprintf("	%s\n", cliui.Code(agentSSHSuggestion(config, ws, agent, includeOwner))))
 		}
 		return ws, agent, xerrors.New(errorMsg.String())
 	}
@@ -966,18 +966,26 @@ func findWorkspaceAndAgentByHostname(
 // specific agent. A hostname prefix or suffix is only set when coder ssh runs
 // as an OpenSSH ProxyCommand (see coder config-ssh), so only then is a plain
 // ssh hostname resolvable. Otherwise the user invoked coder ssh directly and
-// must be pointed back to it, including the owner only if they typed one.
-func agentSSHSuggestion(config codersdk.SSHConfigResponse, ws codersdk.Workspace, agent codersdk.WorkspaceAgent, ownerSpecified bool) string {
+// must be pointed back to it, including the owner if includeOwner is set.
+func agentSSHSuggestion(config codersdk.SSHConfigResponse, ws codersdk.Workspace, agent codersdk.WorkspaceAgent, includeOwner bool) string {
 	switch {
 	case config.HostnameSuffix != "":
 		return fmt.Sprintf("$ ssh %s.%s.%s.%s", agent.Name, ws.Name, ws.OwnerName, config.HostnameSuffix)
 	case config.HostnamePrefix != "":
 		return fmt.Sprintf("$ ssh %s%s.%s.%s", config.HostnamePrefix, agent.Name, ws.Name, ws.OwnerName)
-	case ownerSpecified:
+	case includeOwner:
 		return fmt.Sprintf("$ coder ssh %s/%s.%s", ws.OwnerName, ws.Name, agent.Name)
 	default:
 		return fmt.Sprintf("$ coder ssh %s.%s", ws.Name, agent.Name)
 	}
+}
+
+// suggestWithOwner reports whether commands suggested for ws, which the user
+// identified by identifier, must include its owner to resolve. A bare workspace
+// name only resolves to the user's own workspaces, but an owner/workspace name
+// or a workspace ID can refer to someone else's.
+func suggestWithOwner(identifier string, ws codersdk.Workspace) bool {
+	return identifier != ws.Name
 }
 
 // watchAndClose ensures closer is called if the context is canceled or

@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -46,11 +45,11 @@ func (r *RootCmd) show() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)
 			}
-			// Keep the owner in suggested commands when the user typed one, so
-			// they still resolve for workspaces owned by someone else.
+			// Keep the owner in suggested commands when needed, so they still
+			// resolve for workspaces owned by someone else.
 			workspaceName := workspace.Name
-			if strings.Contains(inv.Args[0], "/") {
-				workspaceName = workspace.OwnerName + "/" + workspace.Name
+			if suggestWithOwner(inv.Args[0], workspace) {
+				workspaceName = workspace.FullName()
 			}
 			options := cliui.WorkspaceResourcesOptions{
 				WorkspaceName: workspaceName,

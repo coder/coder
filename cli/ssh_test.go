@@ -1718,6 +1718,8 @@ func TestSSH(t *testing.T) {
 	t.Run("SSHHost", func(t *testing.T) {
 		t.Parallel()
 
+		// The format arguments are the owner and the workspace name. The
+		// agent is named "dev".
 		testCases := []struct {
 			name, hostnameFormat string
 			flags                []string
@@ -1725,12 +1727,21 @@ func TestSSH(t *testing.T) {
 			{"Prefix", "coder.dummy.com--%s--%s", []string{"--ssh-host-prefix", "coder.dummy.com--"}},
 			{"Suffix", "%s--%s.coder", []string{"--hostname-suffix", "coder"}},
 			{"Both", "%s--%s.coder", []string{"--hostname-suffix", "coder", "--ssh-host-prefix", "coder.dummy.com--"}},
+			// The VS Code, JetBrains Gateway and Toolbox plugins write their
+			// own Host entries in this form.
+			{"PrefixWithAgent", "coder.dummy.com--%s--%s.dev", []string{"--ssh-host-prefix", "coder.dummy.com--"}},
+			// coder config-ssh entries and the dashboard use this form.
+			{"SuffixWithAgent", "dev.%[2]s.%[1]s.coder", []string{"--hostname-suffix", "coder"}},
+			{"PrefixAgentWorkspaceOwner", "coder.dev.%[2]s.%[1]s", []string{"--ssh-host-prefix", "coder."}},
 		}
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				client, workspace, agentToken := setupWorkspaceForAgent(t)
+				client, workspace, agentToken := setupWorkspaceForAgent(t, func(a []*proto.Agent) []*proto.Agent {
+					a[0].Name = "dev"
+					return a
+				})
 				_, _ = tGoContext(t, func(ctx context.Context) {
 					// Run this async so the SSH command has to wait for
 					// the build and agent to connect!
