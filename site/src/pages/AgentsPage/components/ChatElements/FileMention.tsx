@@ -27,6 +27,7 @@ import { useWorkspaceFiles } from "../../context/WorkspaceFilesContext";
 import {
 	findCandidateTokenStarts,
 	findFilePathMentions,
+	findQuotedPathEnd,
 	findRejectedCandidateEnd,
 	getFilePathCandidateStarts,
 	walkFilePath,
@@ -271,6 +272,8 @@ type FileMentionCandidateProps = {
 	text: string;
 	/** The verified path must cover the whole text, as in inline code. */
 	whole: boolean;
+	/** The character before the text; a quote bounds the path. */
+	opener?: string;
 	/** Today's rendering of the text, shown until a path is verified. */
 	children: React.ReactNode;
 };
@@ -286,6 +289,7 @@ type FileMentionCandidateProps = {
 export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 	text,
 	whole,
+	opener,
 	children,
 }) => {
 	const files = useWorkspaceFiles();
@@ -372,6 +376,7 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 	// mention offers all of them. Until every root has answered, a slower
 	// root could still hold another match, so nothing links yet.
 	const settled = walks.every((walk) => walk.verified !== undefined);
+	const quotedEnd = findQuotedPathEnd(text, opener);
 	let end = 0;
 	let line: number | undefined;
 	let choices: WorkspaceAgentFindFilesResult[] = [];
@@ -381,7 +386,7 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 			continue;
 		}
 		const walkEnd = starts[index].offset + verified.length;
-		if (walkEnd < end) {
+		if (walkEnd < end || (quotedEnd !== -1 && walkEnd !== quotedEnd)) {
 			continue;
 		}
 		if (walkEnd > end) {
@@ -469,7 +474,12 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 	if (next !== undefined) {
 		const rest = text.slice(next);
 		segments.push(
-			<FileMentionCandidate key={`candidate-${next}`} text={rest} whole={false}>
+			<FileMentionCandidate
+				key={`candidate-${next}`}
+				text={rest}
+				whole={false}
+				opener={text[next - 1]}
+			>
 				{rest}
 			</FileMentionCandidate>,
 		);
