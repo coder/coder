@@ -68,6 +68,7 @@ type Handler struct {
 
 	mu            sync.Mutex
 	repoRoots     map[string]struct{}     // watched repo roots
+	resolved      map[string]string       // subscribed path to its repo root, for paths in a repo
 	lastSnapshots map[string]repoSnapshot // last emitted snapshot per repo
 	lastScanAt    time.Time               // when the last scan completed
 	scanned       bool                    // whether Scan has emitted a message
@@ -90,6 +91,7 @@ func NewHandler(logger slog.Logger, opts ...Option) *Handler {
 		execer:        agentexec.DefaultExecer,
 		gitBin:        "git",
 		repoRoots:     make(map[string]struct{}),
+		resolved:      make(map[string]string),
 		lastSnapshots: make(map[string]repoSnapshot),
 		scanTrigger:   make(chan struct{}, 1),
 	}
@@ -114,27 +116,47 @@ func (h *Handler) gitAvailable() bool {
 
 // Subscribe processes a subscribe message, resolving paths to git repo
 // roots and adding new repos to the watch set. Returns true if any new
-// repo roots were added.
+// repo roots were added. A path that resolved before is not resolved
+// again until its repo is removed or ForgetResolved is called, because
+// callers pass every path a chat has touched on each notification.
+// Paths outside a repo are retried each time, so a repo created later
+// is found.
 func (h *Handler) Subscribe(paths []string) bool {
 	if !h.gitAvailable() {
 		return false
 	}
 
 	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	added := false
+	pending := make(map[string]struct{})
 	for _, p := range paths {
 		if !filepath.IsAbs(p) {
 			continue
 		}
 		p = filepath.Clean(p)
-
-		root, err := findRepoRoot(h.execer, h.gitBin, p)
-		if err != nil {
-			// Not a git path — silently ignore.
+		if _, ok := h.resolved[p]; ok {
 			continue
 		}
+		pending[p] = struct{}{}
+	}
+	h.mu.Unlock()
+
+	// Resolve outside the lock: each path runs git, and Scan and
+	// concurrent Subscribe calls must not wait on it.
+	found := make(map[string]string, len(pending))
+	for p := range pending {
+		root, err := findRepoRoot(h.execer, h.gitBin, p)
+		if err != nil {
+			// Not a git path, silently ignore.
+			continue
+		}
+		found[p] = root
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	added := false
+	for p, root := range found {
+		h.resolved[p] = root
 		if _, ok := h.repoRoots[root]; ok {
 			continue
 		}
@@ -142,6 +164,16 @@ func (h *Handler) Subscribe(paths []string) bool {
 		added = true
 	}
 	return added
+}
+
+// ForgetResolved drops cached path resolutions so the next Subscribe
+// resolves every path again. This finds a repo created inside an
+// already watched repo, which a cached path would keep mapping to the
+// outer root.
+func (h *Handler) ForgetResolved() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	clear(h.resolved)
 }
 
 // RequestScan pokes the scan trigger so the run loop performs a scan.
@@ -206,6 +238,13 @@ func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMes
 				}
 				delete(h.repoRoots, res.root)
 				delete(h.lastSnapshots, res.root)
+				// Re-resolve this repo's paths on the next Subscribe
+				// so a recreated repo is found.
+				for p, root := range h.resolved {
+					if root == res.root {
+						delete(h.resolved, p)
+					}
+				}
 				repos = append(repos, removal)
 			} else {
 				// Transient error — log and skip without
