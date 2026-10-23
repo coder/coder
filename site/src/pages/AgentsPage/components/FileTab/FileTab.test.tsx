@@ -29,6 +29,9 @@ import {
 import type FileEditor from "./FileEditor";
 import { type FileDraft, FileTab } from "./FileTab";
 
+// What the mock editor reports, as Monaco would once its chunk loads.
+const mockEditor = vi.hoisted(() => ({ reportsStatus: true, language: "Go" }));
+
 vi.mock("./FileEditor", () => ({
 	default: function MockFileEditor({
 		value,
@@ -49,17 +52,23 @@ vi.mock("./FileEditor", () => ({
 		}, [reveal, onRevealed]);
 		// Stands in for Monaco's cursor: the textarea's selection.
 		const reportStatus = (textarea: HTMLTextAreaElement) => {
+			if (!mockEditor.reportsStatus) {
+				return;
+			}
 			const before = textarea.value.slice(0, textarea.selectionStart);
 			onStatusChange?.({
-				language: "Go",
+				language: mockEditor.language,
 				line: before.split("\n").length,
 				column: before.length - before.lastIndexOf("\n"),
 				selectedCharacters: textarea.selectionEnd - textarea.selectionStart,
 			});
 		};
 		useEffect(() => {
+			if (!mockEditor.reportsStatus) {
+				return;
+			}
 			onStatusChange?.({
-				language: "Go",
+				language: mockEditor.language,
 				line: 1,
 				column: 1,
 				selectedCharacters: 0,
@@ -108,12 +117,14 @@ const responseError = (status: number, statusText: string) =>
 const preconditionFailed = () => responseError(412, "Precondition Failed");
 
 type HarnessProps = {
+	path?: string;
 	readOnly?: boolean;
 	onClose?: (path: string, hasUnsavedEdits: boolean) => void;
 	workspaceFiles?: WorkspaceFilesContextValue;
 };
 
 const Harness: React.FC<HarnessProps> = ({
+	path: filePath = path,
 	readOnly = false,
 	onClose = () => {},
 	workspaceFiles,
@@ -124,7 +135,7 @@ const Harness: React.FC<HarnessProps> = ({
 			<FileTab
 				chatId="chat-1"
 				agentId={agentId}
-				path={path}
+				path={filePath}
 				reveal={undefined}
 				isActive
 				draft={draft}
@@ -165,6 +176,8 @@ describe("FileTab", () => {
 	let writeFile: MockInstance<typeof API.writeWorkspaceAgentFile>;
 
 	beforeEach(() => {
+		mockEditor.reportsStatus = true;
+		mockEditor.language = "Go";
 		readFile = vi
 			.spyOn(API, "readWorkspaceAgentFile")
 			.mockResolvedValue(fileContents("hello", '"v1"'));
@@ -449,6 +462,23 @@ describe("FileTab", () => {
 			act(() => editor.setSelectionRange(2, 3));
 			fireEvent.select(editor);
 			await screen.findByText("Ln 2, Col 1 (1 selected)");
+		});
+
+		it("names the language from the file name before the editor loads", async () => {
+			mockEditor.reportsStatus = false;
+			readFile.mockResolvedValue(fileContents("a\nb\n", '"v1"'));
+			renderFileTab({});
+
+			await screen.findByText("Go · 4 B · 2 lines · LF");
+			expect(screen.queryByText(/^Ln /)).toBeNull();
+		});
+
+		it("names the language from the editor for a file name it does not know", async () => {
+			mockEditor.language = "Plain Text";
+			readFile.mockResolvedValue(fileContents("module x\n", '"v1"'));
+			renderFileTab({ path: "/repo/go.mod" });
+
+			await screen.findByText("Plain Text · 9 B · 1 line · LF");
 		});
 
 		// The mock editor's textarea turns CRLF into LF on edit.

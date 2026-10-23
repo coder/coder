@@ -29,6 +29,7 @@ import { getPathBasename } from "../../utils/path";
 import type { FileReveal } from "../MainTabs/useMainTabs";
 import { FileActionsMenuItems } from "./FileActionsMenuItems";
 import type { FileEditorStatus } from "./FileEditor";
+import { getFileLanguage } from "./fileLanguage";
 import {
 	MarkdownFilePreview,
 	maxMarkdownPreviewBytes,
@@ -122,7 +123,7 @@ const joinInfo = (items: readonly (string | false | undefined)[]) =>
 	items.filter(Boolean).join(" · ");
 
 type TextFileInfoProps = {
-	language: string | false | undefined;
+	language: string | undefined;
 	text: string;
 	/** The size on disk, or undefined to count the text's UTF-8 bytes. */
 	byteLength: number | undefined;
@@ -407,7 +408,8 @@ export const FileTab = memo<FileTabProps>(
 			info = (
 				<TextFileInfo
 					language={
-						showsEditor ? editorStatus?.language : isMarkdown && "Markdown"
+						getFileLanguage(path) ??
+						(showsEditor ? editorStatus?.language : undefined)
 					}
 					text={value}
 					byteLength={draft ? undefined : data.data.byteLength}
