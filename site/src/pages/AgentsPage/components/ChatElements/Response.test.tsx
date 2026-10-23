@@ -300,17 +300,17 @@ describe("Response", () => {
 		it("prefers the chat's repositories over the default directory", async () => {
 			const user = userEvent.setup();
 			mockTree({
-				"/home/coder": ["README.md"],
-				"/home/coder/coder": ["README.md"],
+				"/home/coder/docs": ["README.md"],
+				"/home/coder/coder/docs": ["README.md"],
 			});
-			const { files } = renderWithFiles("See README.md for setup.");
+			const { files } = renderWithFiles("See docs/README.md for setup.");
 
 			await user.click(
-				await screen.findByRole("button", { name: "README.md" }),
+				await screen.findByRole("button", { name: "docs/README.md" }),
 			);
 
 			expect(files.openFile).toHaveBeenCalledWith(
-				"/home/coder/coder/README.md",
+				"/home/coder/coder/docs/README.md",
 				{ line: undefined },
 			);
 		});

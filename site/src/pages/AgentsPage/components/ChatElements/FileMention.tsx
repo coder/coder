@@ -301,12 +301,15 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 	}
 	const mentions = whole ? [] : findFilePathMentions(text);
 	const leadEnd = mentions[0]?.start === 0 ? mentions[0].end : 0;
-	// The verified path links when it covers at least the ordinary mention
-	// it starts with; a shorter one leaves that mention to verify itself.
+	// The verified path replaces the ordinary mention it starts with when it
+	// is longer, or a folder of the same extent such as /etc/nginx/conf.d.
+	// Otherwise that mention verifies itself and keeps its link's node.
 	const extended =
 		settled &&
 		choices.length > 0 &&
-		(whole ? end === text.length : end >= leadEnd);
+		(whole
+			? end === text.length
+			: end > leadEnd || (end === leadEnd && choices[0].is_dir));
 	const lead = extended && (
 		<FileMention
 			key="lead"
