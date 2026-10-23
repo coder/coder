@@ -1397,7 +1397,9 @@ The following chat stream events, delivered to the client over WebSocket, are su
 
 On streams opened with `snapshot_version`, `message`, `queue_update`, and `history_reset` (the versioned events) include the chat's `snapshot_version` when the change was made: the message's `revision`, the chat's `queue_version`, and the `revision` of the messages the edit deleted. A client reconnects with the highest one it received. Other streams do not set it.
 
-TODO (chat stream keepalive): the endpoint writes an empty batch (`[]`) after `httpapi.HeartbeatInterval` (15 seconds) without any other write. Browsers do not expose WebSocket pings to page code, so the web client treats 40 seconds without a message as a frozen connection and reconnects. Describe this here.
+The endpoint writes events to the WebSocket in batches: JSON arrays of up to 256 events. When the endpoint has written nothing for `httpapi.HeartbeatInterval` (15 seconds), it writes an empty batch. Each batch of events restarts that interval, so the endpoint writes empty batches only while it has no events to send. The web client and `codersdk.Client.StreamChat` skip empty batches.
+
+The empty batches let the web client detect a frozen connection, which stops delivering data without closing. The server also pings the client every `httpapi.HeartbeatInterval` and closes the socket when a ping fails. Neither helps the web client: browsers answer pings without exposing them to page code, and the server's close cannot reach the client over a frozen connection. The web client therefore closes the stream and reconnects with backoff, passing the newest message ID it has as `after_id`, when it receives no message for 40 seconds after the socket is created or after its last message. 40 seconds allows two missed empty batches plus a margin.
 
 ## Endpoint lifecycle
 
