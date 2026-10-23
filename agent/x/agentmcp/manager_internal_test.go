@@ -118,10 +118,8 @@ func TestConvertResult(t *testing.T) {
 	tests := []struct {
 		name string
 		// input is a pointer so we can test nil.
-		input         *mcp.CallToolResult
-		includeResult bool
-		want          workspacesdk.CallMCPToolResponse
-		wantResult    string
+		input *mcp.CallToolResult
+		want  workspacesdk.CallMCPToolResponse
 	}{
 		{
 			name:  "NilInput",
@@ -221,46 +219,46 @@ func TestConvertResult(t *testing.T) {
 				},
 			},
 		},
-		{
-			name: "IncludeResultKeepsEmbeddedBlobAndStructuredContent",
-			input: &mcp.CallToolResult{
-				Content: []mcp.Content{
-					&mcp.TextContent{Text: "report"},
-					&mcp.EmbeddedResource{Resource: &mcp.ResourceContents{
-						URI:      "file:///report.pdf",
-						MIMEType: "application/pdf",
-						Blob:     []byte("pdf-data"),
-					}},
-				},
-				StructuredContent: map[string]any{"pages": 2},
-				IsError:           true,
-			},
-			includeResult: true,
-			want:          workspacesdk.CallMCPToolResponse{IsError: true},
-			wantResult: `{
-				"content": [
-					{"type": "text", "text": "report"},
-					{"type": "resource", "resource": {"uri": "file:///report.pdf", "mimeType": "application/pdf", "blob": "cGRmLWRhdGE="}}
-				],
-				"structuredContent": {"pages": 2},
-				"isError": true
-			}`,
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := convertResult(tt.input, tt.includeResult)
-			require.NoError(t, err)
-			if tt.wantResult != "" {
-				require.JSONEq(t, tt.wantResult, string(got.Result))
-				got.Result = nil
-			}
+			got := convertResult(tt.input)
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// TestRawResult verifies that the raw path keeps the content types that the
+// legacy Content path drops, and does not send media twice.
+func TestRawResult(t *testing.T) {
+	t.Parallel()
+
+	got, err := rawResult(&mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: "report"},
+			&mcp.EmbeddedResource{Resource: &mcp.ResourceContents{
+				URI:      "file:///report.pdf",
+				MIMEType: "application/pdf",
+				Blob:     []byte("pdf-data"),
+			}},
+		},
+		StructuredContent: map[string]any{"pages": 2},
+		IsError:           true,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, got.Content)
+	assert.True(t, got.IsError)
+	require.JSONEq(t, `{
+		"content": [
+			{"type": "text", "text": "report"},
+			{"type": "resource", "resource": {"uri": "file:///report.pdf", "mimeType": "application/pdf", "blob": "cGRmLWRhdGE="}}
+		],
+		"structuredContent": {"pages": 2},
+		"isError": true
+	}`, string(got.Result))
 }
 
 // TestConnectServer_StdioProcessSurvivesConnect verifies that a stdio MCP
