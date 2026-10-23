@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -40,11 +41,12 @@ func (e chatHomeEnvInfo) HomeDir() (string, error) { return e.home, nil }
 
 // TestChatToolsUnbornRepoFlow drives the sequence a chat produces when
 // it creates a repository: execute without a workdir runs git init,
-// write_file creates files before the first commit, and a later
-// execute commits. It uses the agent's chat middleware, process API,
-// files API, and git watch websocket, as chatd does. The repo must be
-// reported while HEAD is unborn and again with its new HEAD after the
-// commit.
+// write_file creates files, execute stages them before the first
+// commit, write_file edits a staged file, and a later execute commits.
+// It uses the agent's chat middleware, process API, files API, and git
+// watch websocket, as chatd does. Staged files and their working tree
+// edits must be reported while HEAD is unborn, and the repo must be
+// reported again with its new HEAD after the commit.
 func TestChatToolsUnbornRepoFlow(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
@@ -126,13 +128,16 @@ func TestChatToolsUnbornRepoFlow(t *testing.T) {
 	} {
 		do(http.MethodPost, "/api/v0/write-file?path="+url.QueryEscape(filepath.Join(demo, rel)), []byte(content))
 	}
+	execute(fmt.Sprintf("cd %q && git add .", demo))
+	do(http.MethodPost, "/api/v0/write-file?path="+url.QueryEscape(filepath.Join(demo, "main.py")), []byte("print('edited')\n"))
 
+	// Staged files are not untracked, so they appear only when the
+	// index is diffed against the empty tree.
 	unborn := waitForRepo(func(repo codersdk.WorkspaceAgentRepoChanges) bool {
-		return repo.UnifiedDiff != ""
+		return strings.Contains(repo.UnifiedDiff, "+print('edited')")
 	})
 	require.False(t, unborn.Removed)
 	require.Empty(t, unborn.HeadCommit)
-	require.Contains(t, unborn.UnifiedDiff, "+++ b/main.py")
 	require.Contains(t, unborn.UnifiedDiff, "+++ b/docs/logo.svg")
 
 	// The commit runs in the default directory, as the chat did, so
