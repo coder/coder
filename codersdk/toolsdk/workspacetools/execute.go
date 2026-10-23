@@ -59,12 +59,12 @@ const (
 
 	// shNotFoundGuidance is model-facing remediation text, relayed to
 	// the user. Keep the docs anchor in sync with
-	// docs/ai-coder/agents/architecture.md.
+	// docs/coder-agents/architecture.md.
 	shNotFoundGuidance = "The workspace has no POSIX shell (sh) on its PATH. " +
 		"Workspace commands run with \"sh -c\". On Windows, install sh " +
 		"via Git Bash, MSYS2, or WSL, then restart the workspace to pick " +
 		"up the updated PATH. See " +
-		"https://coder.com/docs/ai-coder/agents/architecture#windows-workspace-shell-requirement"
+		"https://coder.com/docs/coder-agents/architecture#windows-workspace-shell-requirement"
 )
 
 // ToolNames are the names under which a tool surface registers the

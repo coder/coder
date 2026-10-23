@@ -36,7 +36,7 @@ export const Default: Story = {
 			canvas.getByRole("link", { name: "View docs" }),
 		).toHaveAttribute(
 			"href",
-			expect.stringContaining("/ai-coder/agents/licensing-usage"),
+			expect.stringContaining("/coder-agents/licensing-usage"),
 		);
 	},
 };

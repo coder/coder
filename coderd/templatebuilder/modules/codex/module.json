@@ -47,7 +47,7 @@
     {
       "name": "enable_ai_gateway",
       "type": "bool",
-      "description": "Use AI Gateway for Codex. https://coder.com/docs/ai-coder/ai-gateway",
+      "description": "Use AI Gateway for Codex. https://coder.com/docs/ai-governance/ai-gateway",
       "default": false,
       "required": false,
       "sensitive": false,

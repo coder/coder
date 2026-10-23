@@ -132,14 +132,14 @@ strictly required" is not an item.
 
 An item names a page, so it can always link that page. Give the published
 URL, which is `https://coder.com/docs/` plus the path with the `docs/`
-prefix and the `.md` suffix removed. `docs/ai-coder/ai-gateway/reference.md`
-becomes `https://coder.com/docs/ai-coder/ai-gateway/reference`.
+prefix and the `.md` suffix removed. `docs/ai-governance/ai-gateway/reference.md`
+becomes `https://coder.com/docs/ai-governance/ai-gateway/reference`.
 
 Write the path in backticks so it is greppable, then link it, so a reader
 can open the page in one click:
 
 ```markdown
-- [ ] `docs/ai-coder/ai-gateway/reference.md` ([open](https://coder.com/docs/ai-coder/ai-gateway/reference)) - What needs to change
+- [ ] `docs/ai-governance/ai-gateway/reference.md` ([open](https://coder.com/docs/ai-governance/ai-gateway/reference)) - What needs to change
 ```
 
 A page this pull request creates has no published URL yet. Name the path in
@@ -195,7 +195,7 @@ Include only the sections that apply.
   > ⚠️ *Checked but no corresponding documentation changes found in this PR*
 
 ---
-*Automated review via [Coder Agents](https://coder.com/docs/ai-coder/agents)*
+*Automated review via [Coder Agents](https://coder.com/docs/coder-agents)*
 <!-- doc-check-sticky -->
 ```
 

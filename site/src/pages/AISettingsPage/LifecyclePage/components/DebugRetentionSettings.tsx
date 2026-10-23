@@ -90,7 +90,7 @@ export const DebugRetentionSettings: React.FC<DebugRetentionSettingsProps> = ({
 		<LifecycleSettingLayout
 			title="Chat debug data retention"
 			description="Chat debug runs and debug steps older than this are automatically deleted. This does not control chat message retention."
-			docsHref={docs("/ai-coder/agents/platform-controls/chat-debug-retention")}
+			docsHref={docs("/coder-agents/platform-controls/chat-debug-retention")}
 			checked={form.values.enabled}
 			onCheckedChange={(checked) => void form.setFieldValue("enabled", checked)}
 			switchLabel="Enable chat debug data retention"

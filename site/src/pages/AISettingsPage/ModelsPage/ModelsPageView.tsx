@@ -268,9 +268,7 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 				<SettingsHeaderDescription>
 					Choose which models from your configured providers are available for
 					users to select. You can set a default and adjust context limits.{" "}
-					<SettingsHeaderDocsLink
-						href={docs("/ai-coder/agents/models#models")}
-					/>
+					<SettingsHeaderDocsLink href={docs("/coder-agents/models#models")} />
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 			{(loadError ?? refetchError) != null && (

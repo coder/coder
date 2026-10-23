@@ -3,7 +3,9 @@ import { docs } from "#/utils/docs";
 
 export const SpendEstimateDocsLink: React.FC = () => (
 	<Link
-		href={docs("/ai-coder/ai-gateway/cost-controls#how-spend-is-estimated")}
+		href={docs(
+			"/ai-governance/ai-gateway/cost-controls#how-spend-is-estimated",
+		)}
 		target="_blank"
 		rel="noreferrer"
 	>

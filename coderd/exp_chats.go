@@ -6655,7 +6655,7 @@ func (api *API) getChatAutoArchiveDays(rw http.ResponseWriter, r *http.Request) 
 const autoArchiveDaysMaximum = 3650 // ~10 years
 
 // putChatAutoArchiveDays updates the deployment-wide auto-archive
-// window. Admin-only; documented in docs/ai-coder/agents/chats-api.md.
+// window. Admin-only; documented in docs/coder-agents/chats-api.md.
 //
 // @Summary Update chat auto archive days
 // @ID update-chat-auto-archive-days

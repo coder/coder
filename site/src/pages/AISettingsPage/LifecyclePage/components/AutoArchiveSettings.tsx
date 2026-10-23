@@ -84,7 +84,7 @@ export const AutoArchiveSettings: React.FC<AutoArchiveSettingsProps> = ({
 		<LifecycleSettingLayout
 			title="Auto-archive inactive conversations"
 			description="Inactive conversations are automatically archived after this period. Pinned conversations are exempt."
-			docsHref={docs("/ai-coder/agents/platform-controls/chat-auto-archive")}
+			docsHref={docs("/coder-agents/platform-controls/chat-auto-archive")}
 			checked={form.values.enabled}
 			onCheckedChange={(checked) => void form.setFieldValue("enabled", checked)}
 			switchLabel="Enable auto-archive"
