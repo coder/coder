@@ -120,11 +120,21 @@ const getVisibleExpandedPaths = (
 	return visible;
 };
 
+/** A pending revealInFiles call; a new object for every call. */
+export type RevealRequest = { path: string; isDirectory: boolean };
+
 type FilesPanelProps = {
 	chatId: string;
+	revealRequest?: RevealRequest;
+	/** Called once the panel takes the request, so a remount does not repeat it. */
+	onRevealHandled?: () => void;
 };
 
-export const FilesPanel: React.FC<FilesPanelProps> = ({ chatId }) => {
+export const FilesPanel: React.FC<FilesPanelProps> = ({
+	chatId,
+	revealRequest,
+	onRevealHandled,
+}) => {
 	const workspaceFiles = useWorkspaceFiles();
 	if (!workspaceFiles) {
 		return (
@@ -133,17 +143,28 @@ export const FilesPanel: React.FC<FilesPanelProps> = ({ chatId }) => {
 			</div>
 		);
 	}
-	return <FilesBrowser chatId={chatId} workspaceFiles={workspaceFiles} />;
+	return (
+		<FilesBrowser
+			chatId={chatId}
+			workspaceFiles={workspaceFiles}
+			revealRequest={revealRequest}
+			onRevealHandled={onRevealHandled}
+		/>
+	);
 };
 
 type FilesBrowserProps = {
 	chatId: string;
 	workspaceFiles: WorkspaceFilesContextValue;
+	revealRequest: RevealRequest | undefined;
+	onRevealHandled: (() => void) | undefined;
 };
 
 const FilesBrowser: React.FC<FilesBrowserProps> = ({
 	chatId,
 	workspaceFiles,
+	revealRequest,
+	onRevealHandled,
 }) => {
 	const { agentId, defaultDirectory, repoRoots, repositories, openFile } =
 		workspaceFiles;
@@ -364,6 +385,90 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 		openPathMutation.reset();
 	};
 
+	// The row reveal last selected, highlighted until another row is opened.
+	const [selectedPath, setSelectedPath] = useState<string>();
+	// A new object per reveal, so the tree scrolls to the row even when the
+	// same path is revealed twice.
+	const [revealTarget, setRevealTarget] = useState<{ path: string }>();
+	const latestReveal = useRef<RevealRequest>(undefined);
+	const revealMutation = useMutation({
+		mutationFn: async ({ path, isDirectory }: RevealRequest) => {
+			const listingPath = async (directory: string) => {
+				try {
+					const listing = await queryClient.ensureQueryData(
+						workspaceAgentDirectory(agentId, directory),
+					);
+					return listing.absolute_path_string;
+				} catch {
+					return undefined;
+				}
+			};
+			const folder = isDirectory ? path : getPathDirname(path);
+			const currentRootPath = await listingPath(root);
+			let nextRoot = root;
+			let nextRootPath = currentRootPath;
+			if (currentRootPath === undefined || !isWithin(path, currentRootPath)) {
+				const repoRoot = repoRoots
+					.filter((repo) => isWithin(path, repo))
+					.reduce<string | undefined>(
+						(longest, repo) =>
+							longest === undefined || repo.length > longest.length
+								? repo
+								: longest,
+						undefined,
+					);
+				nextRoot = repoRoot ?? folder;
+				nextRootPath = nextRoot;
+			}
+			// Every folder from below the root down to the target's folder
+			// expands; a revealed folder expands itself too.
+			const ancestors: string[] = [];
+			for (
+				let directory = folder;
+				directory !== nextRootPath && isWithin(directory, nextRootPath ?? "");
+				directory = getPathDirname(directory)
+			) {
+				ancestors.unshift(directory);
+			}
+			await Promise.all(
+				[nextRoot, ...ancestors].map((directory) => listingPath(directory)),
+			);
+			return {
+				root: nextRoot,
+				ancestors,
+				target: path === nextRootPath ? undefined : path,
+			};
+		},
+		onSuccess: ({ root: nextRoot, ancestors, target }, request) => {
+			if (request !== latestReveal.current) {
+				return;
+			}
+			if (nextRoot !== root) {
+				selectRoot(nextRoot);
+				setExpandedPaths(ancestors);
+			} else {
+				setExpandedPaths((paths) => [
+					...paths,
+					...ancestors.filter((path) => !paths.includes(path)),
+				]);
+			}
+			setSelectedPath(target);
+			setRevealTarget(target === undefined ? undefined : { path: target });
+		},
+	});
+
+	const startReveal = useEffectEvent((request: RevealRequest) => {
+		onRevealHandled?.();
+		latestReveal.current = request;
+		cancelOpenPath();
+		revealMutation.mutate(request);
+	});
+	useEffect(() => {
+		if (revealRequest) {
+			startReveal(revealRequest);
+		}
+	}, [revealRequest]);
+
 	// The root picker abbreviates paths under home and folds the default
 	// directory into Home when they are the same place, so it needs home's
 	// absolute path.
@@ -377,6 +482,7 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 
 	const handleSelectRoot = (nextRoot: string) => {
 		cancelOpenPath();
+		latestReveal.current = undefined;
 		selectRoot(nextRoot);
 	};
 
@@ -457,8 +563,16 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 					)
 				}
 				expandedPaths={expandedPaths}
-				onToggleDirectory={toggleDirectory}
-				onOpenFile={(path) => openFile(path, { focus: false })}
+				selectedPath={selectedPath}
+				revealTarget={revealTarget}
+				onToggleDirectory={(path) => {
+					setSelectedPath(path);
+					toggleDirectory(path);
+				}}
+				onOpenFile={(path) => {
+					setSelectedPath(path);
+					openFile(path, { focus: false });
+				}}
 			/>
 		);
 	}
@@ -639,6 +753,8 @@ type DirectoryTreeProps = {
 	refreshError: string | undefined;
 	childListings: ReadonlyMap<string, ChildListing>;
 	expandedPaths: readonly string[];
+	selectedPath: string | undefined;
+	revealTarget: { path: string } | undefined;
 	onToggleDirectory: (path: string) => void;
 	onOpenFile: (path: string) => void;
 };
@@ -648,6 +764,8 @@ const DirectoryTree: React.FC<DirectoryTreeProps> = ({
 	refreshError,
 	childListings,
 	expandedPaths,
+	selectedPath,
+	revealTarget,
 	onToggleDirectory,
 	onOpenFile,
 }) => {
@@ -685,6 +803,27 @@ const DirectoryTree: React.FC<DirectoryTreeProps> = ({
 			rowElements.current.get(next)?.focus();
 		}
 	}, [entryPathsKey, focusedPath]);
+
+	// A reveal can land before its row exists while ancestor listings load, so
+	// this waits for the row and handles each reveal once. Focus moves to the
+	// row like openFile moves it to the file.
+	const handledReveal = useRef<{ path: string }>(undefined);
+	useEffect(() => {
+		if (
+			revealTarget === undefined ||
+			handledReveal.current === revealTarget ||
+			!entryPathsKey.split("\n").includes(revealTarget.path)
+		) {
+			return;
+		}
+		const row = rowElements.current.get(revealTarget.path);
+		if (!row) {
+			return;
+		}
+		handledReveal.current = revealTarget;
+		row.scrollIntoView({ block: "nearest" });
+		row.focus();
+	}, [entryPathsKey, revealTarget]);
 
 	const focusPath = (path: string | undefined) => {
 		if (path === undefined) {
@@ -848,10 +987,12 @@ const DirectoryTree: React.FC<DirectoryTreeProps> = ({
 								role="treeitem"
 								aria-level={row.level}
 								aria-expanded={entry.is_dir ? isExpanded : undefined}
+								aria-selected={path === selectedPath}
 								tabIndex={path === tabStopPath ? 0 : -1}
 								className={cn(
 									"flex cursor-pointer items-center gap-1 rounded-sm py-1 pr-2 outline-none",
 									"hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
+									path === selectedPath && "bg-surface-secondary",
 									entry.ignored
 										? "text-content-secondary"
 										: "text-content-primary",
