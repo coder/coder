@@ -60,8 +60,8 @@ const findDiffSection = (sections: readonly string[], relativePath: string) =>
 /**
  * The paths under `root` whose content may differ between two watcher
  * states. A file's content can change only if its diff against HEAD does
- * or HEAD moves. The watcher reports no commit, so a branch switch is the
- * only move it shows; other moves wait for the window to regain focus.
+ * or HEAD moves. An agent that predates head_commit reports it empty, so
+ * only a branch switch shows that HEAD moved.
  */
 const getChangedPaths = (
 	root: string,
@@ -69,7 +69,10 @@ const getChangedPaths = (
 	previous: WorkspaceAgentRepoChanges,
 	next: WorkspaceAgentRepoChanges,
 ) => {
-	if (previous.branch !== next.branch) {
+	const headMoved =
+		Boolean(previous.head_commit && next.head_commit) &&
+		previous.head_commit !== next.head_commit;
+	if (previous.branch !== next.branch || headMoved) {
 		return paths;
 	}
 	const previousSections = splitDiff(previous.unified_diff ?? "");

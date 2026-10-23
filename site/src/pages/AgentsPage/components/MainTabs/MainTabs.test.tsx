@@ -199,9 +199,23 @@ const renderHarness = (
 	};
 };
 
-const repoWithDiff = (unifiedDiff: string, branch = "main"): Repositories =>
+const repoWithDiff = (
+	unifiedDiff: string,
+	{
+		branch = "main",
+		headCommit,
+	}: { branch?: string; headCommit?: string } = {},
+): Repositories =>
 	new Map([
-		["/repo", { repo_root: "/repo", branch, unified_diff: unifiedDiff }],
+		[
+			"/repo",
+			{
+				repo_root: "/repo",
+				branch,
+				head_commit: headCommit,
+				unified_diff: unifiedDiff,
+			},
+		],
 	]);
 
 const fileDiff = (path: string, line: string) =>
@@ -644,15 +658,26 @@ describe("MainTabs", () => {
 			expect(reads("/repo/b.go")).toBe(2);
 		});
 
-		it("rereads clean files when the branch changes", async () => {
+		it("rereads clean files when the branch or HEAD changes", async () => {
 			const user = userEvent.setup();
 			const { setRepositories } = renderHarness(["/repo/a.go"]);
 			await user.click(screen.getByRole("button", { name: "Open /repo/a.go" }));
 			setRepositories(repoWithDiff(""));
+			// An agent that predates head_commit leaves it empty.
+			setRepositories(repoWithDiff("", { headCommit: "a".repeat(40) }));
+			await settle();
+			expect(reads("/repo/a.go")).toBe(1);
 
-			setRepositories(repoWithDiff("", "feature"));
+			setRepositories(repoWithDiff("", { headCommit: "b".repeat(40) }));
 			await waitFor(() => {
 				expect(reads("/repo/a.go")).toBe(2);
+			});
+
+			setRepositories(
+				repoWithDiff("", { branch: "feature", headCommit: "b".repeat(40) }),
+			);
+			await waitFor(() => {
+				expect(reads("/repo/a.go")).toBe(3);
 			});
 		});
 
