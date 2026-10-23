@@ -251,6 +251,36 @@ func repinChatContext(ctx context.Context, db database.Store, chatID uuid.UUID, 
 	return nil
 }
 
+// ResyncAgentContextAsync asks the chat's agent, in the background, to retry
+// failed MCP servers. The agent's next context push syncs them into the chat.
+func (p *Server) ResyncAgentContextAsync(ctx context.Context, chat database.Chat) {
+	if !chat.AgentID.Valid || p.agentConnFn == nil {
+		return
+	}
+	resyncCtx, stop := p.inflightChatContext(ctx, chat)
+	if p.goInflight(func() {
+		defer stop()
+		ctx, cancel := context.WithTimeout(resyncCtx, time.Minute)
+		defer cancel()
+		//nolint:gocritic // Chatd reads the agent row as the daemon subject.
+		agent, err := p.db.GetWorkspaceAgentByID(dbauthz.AsChatd(ctx), chat.AgentID.UUID)
+		// Dialing an unreachable agent waits out the timeout.
+		if err != nil || isAgentUnreachable(p.clock.Now(), agent, p.agentInactiveDisconnectTimeout) {
+			return
+		}
+		conn, release, err := p.agentConnFn(ctx, agent.ID)
+		if err == nil {
+			defer release()
+			err = conn.ResyncContext(ctx)
+		}
+		if err != nil {
+			p.logger.Warn(ctx, "resync agent context", slog.F("chat_id", chat.ID), slog.Error(err))
+		}
+	}) != nil {
+		stop()
+	}
+}
+
 // RefreshChatContext re-pins a chat to its agent's latest context snapshot
 // (hash, error, and resource bodies) and clears the dirty marker. It backs
 // PUT /chats/{chat}/context (no body). A chat with no bound agent, or whose

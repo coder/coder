@@ -367,6 +367,13 @@ export const ContextUsageIndicator: React.FC<{
 		issueItems.length > 0;
 
 	const hasResourceIssues = issueItems.length > 0;
+	// Refreshing retries MCP servers that failed to connect.
+	const canRetryMcpServers =
+		onRefreshContext !== undefined &&
+		issueItems.some(
+			(issue) => issue.kind === "mcp_server" && issue.status === "unreadable",
+		);
+	const showRefreshSection = isDirty || hasContextError || canRetryMcpServers;
 	const needsAttention = isDirty || hasContextError || hasResourceIssues;
 	const toneClassName = hasContextError
 		? "text-content-destructive"
@@ -590,25 +597,27 @@ export const ContextUsageIndicator: React.FC<{
 					)}
 				</div>
 			)}
-			{(isDirty || hasContextError) && (
+			{showRefreshSection && (
 				<div className="mt-2 flex flex-col gap-1.5 border-0 border-t border-solid border-border pt-2">
-					{hasContextError ? (
-						<span className="flex items-center gap-1.5 font-medium text-content-destructive">
-							<TriangleAlertIcon className="size-3 shrink-0" />
-							Context error
-						</span>
-					) : (
-						<span className="flex items-center gap-1.5 font-medium text-content-warning">
-							<TriangleAlertIcon className="size-3 shrink-0" />
-							Context changed
-						</span>
+					{hasContextError && (
+						<>
+							<span className="flex items-center gap-1.5 font-medium text-content-destructive">
+								<TriangleAlertIcon className="size-3 shrink-0" />
+								Context error
+							</span>
+							<span className="text-content-secondary">{contextError}</span>
+						</>
 					)}
-					{hasContextError ? (
-						<span className="text-content-secondary">{contextError}</span>
-					) : (
-						<span className="text-content-secondary">
-							The workspace context changed since this chat was pinned.
-						</span>
+					{!hasContextError && isDirty && (
+						<>
+							<span className="flex items-center gap-1.5 font-medium text-content-warning">
+								<TriangleAlertIcon className="size-3 shrink-0" />
+								Context changed
+							</span>
+							<span className="text-content-secondary">
+								The workspace context changed since this chat was pinned.
+							</span>
+						</>
 					)}
 					{onRefreshContext && (
 						<div className="flex flex-wrap gap-2">

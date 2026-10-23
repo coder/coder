@@ -16227,3 +16227,30 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		require.Zero(t, chatd.StageAnomalyCount(t, h.registry, chatloop.StageAnomalyStaleAnchor))
 	})
 }
+
+func TestResyncAgentContextAsync(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	user, _, model := seedChatDependencies(t, db)
+	ws, agent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	resynced := make(chan struct{})
+	conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+	conn.EXPECT().ResyncContext(gomock.Any()).Do(func(context.Context) { close(resynced) })
+	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+		cfg.AgentConn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return conn, func() {}, nil
+		}
+	})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    ws.OrganizationID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
+	})
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	server.ResyncAgentContextAsync(ctx, chat)
+	testutil.TryReceive(ctx, t, resynced)
+}
