@@ -5596,6 +5596,7 @@ var ExperimentsSafe = Experiments{
 // startup list and need a restart to change.
 var ExperimentsUserScoped = Experiments{
 	ExperimentExample,
+	ExperimentWorkspaceFiles,
 }
 
 // Experiments is a list of experiments.
