@@ -96,8 +96,6 @@ func TestStreamRelayForwarderDeliversPartsAfterStall(t *testing.T) {
 
 		synctest.Wait()
 		require.Equal(t, cap(relay.parts), len(relay.parts), "the relay path did not fill")
-		// drain waits first, so the buffer handles a fired timer before reads
-		// resume.
 		clock.Advance(sendTimeout).MustWait(ctx)
 		drain()
 		require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("live")))

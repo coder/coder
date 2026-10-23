@@ -420,8 +420,7 @@ func TestBuffer_SendAfterCloseTimesOut(t *testing.T) {
 		defer buffer.Close()
 		key := testEpisodeKey()
 		require.NoError(t, buffer.CreateEpisode(key))
-		// Both parts exist first, so each subscriber reads them in one batch
-		// while the episode is open.
+		// The second send comes from a batch read while the episode was open.
 		require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("first")))
 		require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("second")))
 		ctx := testutil.Context(t, testutil.WaitLong)
