@@ -366,8 +366,7 @@ const AgentChatPage = lazy(
 	() => import("./pages/AgentsPage/AgentChatPage/AgentChatPage"),
 );
 const AgentChatComparePage = lazy(
-	() =>
-		import("./pages/AgentsPage/AgentChatComparePage/AgentChatComparePage"),
+	() => import("./pages/AgentsPage/AgentChatComparePage/AgentChatComparePage"),
 );
 const AgentEmbedPage = lazy(
 	() => import("./pages/AgentsPage/AgentEmbedPage/AgentEmbedPage"),
