@@ -10,7 +10,7 @@ import { JsonPrettyPrinter } from "./JsonPrettyPrinter";
 import { roundTokenDisplay } from "./utils";
 
 type TokenCount = {
-	icon: LucideIcon;
+	Icon: LucideIcon;
 	title: string;
 	label: string;
 	value: number;
@@ -27,11 +27,11 @@ const TokenPairBadge: React.FC<TokenPairBadgeProps> = ({
 }) => (
 	<span className="flex items-center whitespace-nowrap">
 		<Badge className="gap-0.5 rounded-e-none">
-			<first.icon className="size-icon-xs shrink-0" />
+			<first.Icon className="size-icon-xs shrink-0" />
 			<span className="truncate min-w-0">{roundTokenDisplay(first.value)}</span>
 		</Badge>
 		<Badge className="gap-0.5 bg-surface-tertiary rounded-s-none">
-			<second.icon className="size-icon-xs shrink-0" />
+			<second.Icon className="size-icon-xs shrink-0" />
 			<span className="truncate min-w-0">
 				{roundTokenDisplay(second.value)}
 			</span>
@@ -48,7 +48,7 @@ const TokenPairDetails: React.FC<TokenPairDetailsProps> = ({ pair }) => (
 		{pair.map((count) => (
 			<div key={count.title}>
 				<div className="flex items-center gap-1">
-					<count.icon className="size-icon-sm shrink-0" />
+					<count.Icon className="size-icon-sm shrink-0" />
 					<span className="text-content-primary text-sm">{count.title}</span>
 				</div>
 				<div className="flex items-center justify-between gap-4">
@@ -80,13 +80,13 @@ export const TokenBadges: React.FC<TokenBadgesProps> = ({
 	const pairs: TokenCountPair[] = [
 		[
 			{
-				icon: ArrowDownIcon,
+				Icon: ArrowDownIcon,
 				title: "Input tokens",
 				label: "Input",
 				value: inputTokens,
 			},
 			{
-				icon: ArrowUpIcon,
+				Icon: ArrowUpIcon,
 				title: "Output tokens",
 				label: "Output",
 				value: outputTokens,
@@ -96,13 +96,13 @@ export const TokenBadges: React.FC<TokenBadgesProps> = ({
 	if (cacheReadTokens !== undefined && cacheWriteTokens !== undefined) {
 		pairs.push([
 			{
-				icon: ArrowDownIcon,
+				Icon: ArrowDownIcon,
 				title: "Cache read tokens",
 				label: "Read",
 				value: cacheReadTokens,
 			},
 			{
-				icon: ArrowUpIcon,
+				Icon: ArrowUpIcon,
 				title: "Cache write tokens",
 				label: "Write",
 				value: cacheWriteTokens,
