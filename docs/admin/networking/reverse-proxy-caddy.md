@@ -101,7 +101,7 @@ To use Caddy to generate TLS certificates, you'll need a domain name that resolv
 
    - `coder:7080` is the address of the Coder container on the Docker network.
    - `coder.example.com` is the domain name you're using for Coder.
-   - `*.coder.example.com` is the domain name for wildcard apps, commonly used for [dashboard port forwarding](../admin/networking/port-forwarding.md).
+   - `*.coder.example.com` is the domain name for wildcard apps, commonly used for [dashboard port forwarding](port-forwarding.md).
      This is optional and can be removed.
    - `email@example.com`: Email to request certificates from LetsEncrypt/ZeroSSL (does not have to be Coder admin email)
    - `ask http://example.com`: Change this to a URL you control that validates the requested hostname before Caddy requests a certificate for it.
@@ -118,7 +118,7 @@ To use Caddy to generate TLS certificates, you'll need a domain name that resolv
 
 ### Standalone
 
-1. If you haven't already, [install Coder](../install/index.md)
+1. If you haven't already, [install Coder](../../install/index.md)
 
 2. Install [Caddy Server](https://caddyserver.com/docs/install)
 
@@ -140,14 +140,14 @@ To use Caddy to generate TLS certificates, you'll need a domain name that resolv
 
    - `email@example.com`: Email to request certificates from LetsEncrypt/ZeroSSL (does not have to be Coder admin email)
    - `coder.example.com`: Domain name you're using for Coder.
-   - `*.coder.example.com`: Domain name for wildcard apps, commonly used for [dashboard port forwarding](../admin/networking/port-forwarding.md).
+   - `*.coder.example.com`: Domain name for wildcard apps, commonly used for [dashboard port forwarding](port-forwarding.md).
      This is optional and can be removed.
    - `localhost:3000`: Address Coder is running on.
      Modify this if you changed `CODER_HTTP_ADDRESS` in the Coder configuration.
    - `ask http://example.com`: Change this to a URL you control that validates the requested hostname before Caddy requests a certificate for it.
      See [this discussion](https://github.com/coder/coder/discussions/29079#discussioncomment-18462842) for a reference implementation.
 
-4. [Configure Coder](../admin/setup/index.md) and change the following values:
+4. [Configure Coder](../setup/index.md) and change the following values:
 
    - `CODER_ACCESS_URL`: root domain (e.g. `https://coder.example.com`)
    - `CODER_WILDCARD_ACCESS_URL`: wildcard domain (e.g. `*.example.com`).
@@ -194,7 +194,7 @@ To use Caddy to generate TLS certificates, you'll need a domain name that resolv
 ## Generate wildcard certificates
 
 By default, this configuration uses Caddy's [on-demand TLS](https://caddyserver.com/docs/caddyfile/options#on-demand-tls) to generate a certificate for each subdomain (e.g. `app1.coder.example.com`, `app2.coder.example.com`).
-When users visit new subdomains, such as accessing [ports on a workspace](../admin/networking/port-forwarding.md), the request will take an additional 5-30&nbsp;seconds since a new certificate is being generated.
+When users visit new subdomains, such as accessing [ports on a workspace](port-forwarding.md), the request will take an additional 5-30&nbsp;seconds since a new certificate is being generated.
 
 For production deployments, we recommend configuring Caddy to generate a wildcard certificate, which requires an explicit DNS challenge and additional Caddy modules.
 

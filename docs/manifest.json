@@ -2,32 +2,13 @@
 	"versions": ["main"],
 	"routes": [
 		{
-			"title": "About",
+			"title": "Home",
 			"description": "Coder is a self-hosted platform for running AI coding agents and cloud development environments on the infrastructure you control.",
 			"path": "./README.md",
-			"icon_path": "./images/icons/home.svg",
-			"children": [
-				{
-					"title": "Screenshots",
-					"description": "See screenshots of the Coder platform, including browser-based workspace access and the admin dashboard.",
-					"path": "./about/screenshots.md"
-				},
-				{
-					"title": "Support",
-					"description": "Get help with your Coder deployment through GitHub issues, our Discord community, and premium support.",
-					"path": "./support/index.md",
-					"children": [
-						{
-							"title": "Support bundle",
-							"description": "Generate a support bundle and share workspace and deployment diagnostics with Coder support to troubleshoot issues.",
-							"path": "./support/support-bundle.md"
-						}
-					]
-				}
-			]
+			"icon_path": "./images/icons/home.svg"
 		},
 		{
-			"title": "Quickstart",
+			"title": "Get started",
 			"description": "Install Coder, build your first template, and launch your first workspace in this quickstart guide.",
 			"path": "./get-started/index.md",
 			"icon_path": "./images/icons/rocket.svg",
@@ -204,6 +185,16 @@
 							"description": "Community-contributed methods for installing Coder on platforms Coder doesn't package itself.",
 							"path": "./install/server/community.md",
 							"icon_path": "./images/icons/generic.svg"
+						},
+						{
+							"title": "Use an external database",
+							"description": "Configure Coder to use an external PostgreSQL database for production deployments.",
+							"path": "./install/server/external-database.md"
+						},
+						{
+							"title": "PostgreSQL SSL",
+							"description": "Configure Coder to connect to a PostgreSQL database over an encrypted SSL connection.",
+							"path": "./install/server/postgres-ssl.md"
 						}
 					]
 				},
@@ -226,7 +217,7 @@
 								{
 									"title": "Scale Coder",
 									"description": "Best practices for preparing and tuning a Coder deployment so it scales to many users.",
-									"path": "./tutorials/best-practices/scale-coder.md"
+									"path": "./install/validate/scale-coder.md"
 								}
 							]
 						}
@@ -275,6 +266,21 @@
 									"path": "./install/operate/upgrade/esr-2.29-2.34-upgrade.md"
 								}
 							]
+						},
+						{
+							"title": "Google Cloud to AWS federation",
+							"description": "Federate a Google Cloud service account to AWS so Coder can authenticate across clouds.",
+							"path": "./install/operate/gcp-to-aws.md"
+						},
+						{
+							"title": "Azure federation",
+							"description": "Federate Coder's control plane to Azure so it can authenticate to Azure services.",
+							"path": "./install/operate/azure-federation.md"
+						},
+						{
+							"title": "Image pull secrets",
+							"description": "Create Kubernetes ImagePullSecrets so Coder workspaces can pull images from private registries.",
+							"path": "./install/operate/image-pull-secret.md"
 						},
 						{
 							"title": "Uninstall",
@@ -534,7 +540,7 @@
 			]
 		},
 		{
-			"title": "User guides",
+			"title": "Workspaces",
 			"description": "Guides for Coder end users on accessing, managing, and personalizing their workspaces.",
 			"path": "./user-guides/index.md",
 			"icon_path": "./images/icons/users.svg",
@@ -655,6 +661,12 @@
 					"icon_path": "./images/icons/generic.svg"
 				},
 				{
+					"title": "Persistent shared workspaces",
+					"description": "Set up long-lived shared workspaces with service accounts and workspace sharing.",
+					"path": "./user-guides/persistent-shared-workspaces.md",
+					"state": ["premium"]
+				},
+				{
 					"title": "Manage workspace schedules",
 					"description": "Control cloud costs by scheduling when your Coder workspaces automatically start and stop.",
 					"path": "./user-guides/workspace-scheduling.md",
@@ -700,360 +712,16 @@
 					"description": "Store secret values in Coder and automatically inject them into workspaces.",
 					"path": "./user-guides/user-secrets.md",
 					"icon_path": "./images/icons/secrets.svg"
-				}
-			]
-		},
-		{
-			"title": "Administration",
-			"description": "Guides for the template and deployment administrators who configure, secure, and operate Coder.",
-			"path": "./admin/index.md",
-			"icon_path": "./images/icons/wrench.svg",
-			"children": [
-				{
-					"title": "Configure control plane access",
-					"description": "Configure your Coder control plane with server settings and environment variables.",
-					"path": "./admin/setup/index.md",
-					"icon_path": "./images/icons/toggle_on.svg",
-					"children": [
-						{
-							"title": "Appearance",
-							"description": "Customize your Coder deployment's appearance, including the logo, service banner, and application name.",
-							"path": "./admin/setup/appearance.md",
-							"state": ["premium"]
-						},
-						{
-							"title": "Configuration reference",
-							"description": "Searchable list of every Coder server setting with its environment variable, CLI flag, and YAML key.",
-							"path": "./admin/setup/configuration-reference.md"
-						},
-						{
-							"title": "Telemetry",
-							"description": "Learn what usage telemetry Coder collects, why it is collected, and how to opt out.",
-							"path": "./admin/setup/telemetry.md"
-						},
-						{
-							"title": "Chat lifecycle hooks",
-							"description": "Configure an external policy service for chat agent lifecycle events.",
-							"path": "./admin/setup/chat-lifecycle-hooks.md",
-							"state": ["early access"]
-						},
-						{
-							"title": "Data retention",
-							"description": "Configure retention policies that automatically purge old records from Coder database tables.",
-							"path": "./admin/setup/data-retention.md"
-						}
-					]
 				},
 				{
-					"title": "Users",
-					"description": "Learn how to create, manage, and audit users and their access in your Coder deployment.",
-					"path": "./admin/users/index.md",
-					"icon_path": "./images/icons/users.svg",
-					"children": [
-						{
-							"title": "OpenID Connect",
-							"description": "Configure OpenID Connect authentication with identity providers like Okta or Active Directory.",
-							"path": "./admin/users/oidc-auth/index.md",
-							"children": [
-								{
-									"title": "Google",
-									"description": "Configure Coder to authenticate users with Google using OpenID Connect (OIDC).",
-									"path": "./admin/users/oidc-auth/google.md"
-								},
-								{
-									"title": "Microsoft",
-									"description": "Configure Coder to authenticate users with Microsoft Entra ID using OpenID Connect (OIDC).",
-									"path": "./admin/users/oidc-auth/microsoft.md"
-								},
-								{
-									"title": "Configure OIDC refresh tokens",
-									"description": "Configure OIDC refresh tokens so Coder can keep user sessions active beyond token expiration.",
-									"path": "./admin/users/oidc-auth/refresh-tokens.md"
-								}
-							]
-						},
-						{
-							"title": "GitHub",
-							"description": "Set up authentication through GitHub OAuth to enable secure user login and sign-up.",
-							"path": "./admin/users/github-auth.md"
-						},
-						{
-							"title": "Password authentication",
-							"description": "Manage username/password authentication settings and user password reset workflows.",
-							"path": "./admin/users/password-auth.md"
-						},
-						{
-							"title": "Headless authentication",
-							"description": "Create and manage headless service accounts for automated systems and API integrations.",
-							"path": "./admin/users/headless-auth.md",
-							"state": ["premium"]
-						},
-						{
-							"title": "Groups and roles",
-							"description": "Manage access control with user groups and role-based permissions for Coder resources.",
-							"path": "./admin/users/groups-roles.md",
-							"state": ["premium"]
-						},
-						{
-							"title": "IdP sync",
-							"description": "Synchronize user groups, roles, and organizations from your identity provider to Coder.",
-							"path": "./admin/users/idp-sync.md",
-							"state": ["premium"]
-						},
-						{
-							"title": "Organizations",
-							"description": "Segment and isolate resources by creating separate organizations for different teams or projects.",
-							"path": "./admin/users/organizations.md",
-							"state": ["premium"]
-						},
-						{
-							"title": "Quotas",
-							"description": "Control resource usage by implementing workspace budgets and credit-based cost management.",
-							"path": "./admin/users/quotas.md",
-							"state": ["premium"]
-						},
-						{
-							"title": "API & session tokens",
-							"description": "Manage authentication tokens for API access and configure session duration policies.",
-							"path": "./admin/users/sessions-tokens.md"
-						}
-					]
+					"title": "Cloning Git repositories",
+					"description": "Learn how to automatically clone Git repositories into your Coder workspaces on startup.",
+					"path": "./user-guides/cloning-git-repositories.md"
 				},
 				{
-					"title": "External authentication",
-					"description": "Configure external authentication so workspaces can access Git providers and other OAuth services.",
-					"path": "./admin/external-auth.md",
-					"icon_path": "./images/icons/plug.svg"
-				},
-				{
-					"title": "Integrations",
-					"description": "Extend Coder with integrations for observability, secrets, source control, and other platforms.",
-					"path": "./admin/integrations/index.md",
-					"icon_path": "./images/icons/puzzle.svg",
-					"children": [
-						{
-							"title": "Prometheus",
-							"description": "Collect and export Coder deployment metrics to a Prometheus server for monitoring.",
-							"path": "./admin/integrations/prometheus.md"
-						},
-						{
-							"title": "Kubernetes event logs",
-							"description": "Stream Kubernetes event logs into workspace startup logs to debug pod scheduling issues.",
-							"path": "./admin/integrations/kubernetes-logs.md"
-						},
-						{
-							"title": "Additional clusters",
-							"description": "Deploy Coder workspaces across additional Kubernetes clusters beyond the control plane cluster.",
-							"path": "./admin/integrations/multiple-kube-clusters.md"
-						},
-						{
-							"title": "JFrog Artifactory",
-							"description": "Integrate Coder with JFrog Artifactory to secure workspaces and manage packages and tokens.",
-							"path": "./admin/integrations/jfrog-artifactory.md"
-						},
-						{
-							"title": "Island browser integration",
-							"description": "Integrate Coder with the Island Enterprise Browser for secure, policy-controlled workspace access.",
-							"path": "./admin/integrations/island.md"
-						},
-						{
-							"title": "DX PlatformX",
-							"description": "Forward Coder notifications to DX PlatformX to measure and improve developer experience.",
-							"path": "./admin/integrations/platformx.md"
-						},
-						{
-							"title": "DX Data Cloud",
-							"description": "Tag and sync Coder users with DX Data Cloud to measure developer productivity.",
-							"path": "./admin/integrations/dx-data-cloud.md"
-						},
-						{
-							"title": "HashiCorp Vault",
-							"description": "Integrate Coder with HashiCorp Vault to inject secrets securely into your workspaces.",
-							"path": "./admin/integrations/vault.md"
-						},
-						{
-							"title": "OAuth2 provider",
-							"description": "Use Coder as an OAuth2 authorization server so third-party apps can authenticate users.",
-							"path": "./admin/integrations/oauth2-provider/index.md",
-							"children": [
-								{
-									"title": "Integration patterns",
-									"description": "Client authentication methods, the standard flow, the required PKCE flow, and discovery endpoints.",
-									"path": "./admin/integrations/oauth2-provider/integration-patterns.md"
-								},
-								{
-									"title": "Scopes",
-									"description": "How access tokens are bounded by scope, and how to set an application's scope allowlist.",
-									"path": "./admin/integrations/oauth2-provider/scopes.md"
-								},
-								{
-									"title": "Token management",
-									"description": "Refresh an access token, revoke a token, and delete an OAuth2 application.",
-									"path": "./admin/integrations/oauth2-provider/token-management.md"
-								},
-								{
-									"title": "Callback URL schemes",
-									"description": "Which redirect URI schemes and hosts Coder accepts.",
-									"path": "./admin/integrations/oauth2-provider/callback-url-schemes.md"
-								},
-								{
-									"title": "Troubleshooting",
-									"description": "Diagnose and fix OAuth2 provider errors by their exact error code or message.",
-									"path": "./admin/integrations/oauth2-provider/troubleshooting.md"
-								},
-								{
-									"title": "Security and limitations",
-									"description": "Security considerations and current limitations of the OAuth2 provider.",
-									"path": "./admin/integrations/oauth2-provider/security.md"
-								}
-							]
-						},
-						{
-							"title": "Dev Containers",
-							"description": "Configure dev container support in your templates using either Docker or Envbuilder.",
-							"path": "./admin/integrations/devcontainers/index.md",
-							"children": [
-								{
-									"title": "Configure a template for Dev Containers",
-									"description": "Configure a Coder template for native dev containers backed by Docker.",
-									"path": "./admin/integrations/devcontainers/integration.md"
-								},
-								{
-									"title": "Envbuilder",
-									"description": "Use Envbuilder to build dev containers from a repository without requiring Docker.",
-									"path": "./admin/integrations/devcontainers/envbuilder/index.md",
-									"children": [
-										{
-											"title": "Add an Envbuilder template",
-											"description": "Add an Envbuilder-compatible template so users can build dev containers from a repository.",
-											"path": "./admin/integrations/devcontainers/envbuilder/add-envbuilder.md"
-										},
-										{
-											"title": "Security and caching",
-											"description": "Configure Envbuilder registry authentication and layer caching for faster, secure builds.",
-											"path": "./admin/integrations/devcontainers/envbuilder/envbuilder-security-caching.md"
-										},
-										{
-											"title": "Releases and known issues",
-											"description": "Learn about Envbuilder's release channels and current known issues before you deploy it.",
-											"path": "./admin/integrations/devcontainers/envbuilder/envbuilder-releases-known-issues.md"
-										}
-									]
-								}
-							]
-						}
-					]
-				},
-				{
-					"title": "Networking",
-					"description": "Understand Coder's networking model, including how workspaces, servers, and clients connect.",
-					"path": "./admin/networking/index.md",
-					"icon_path": "./images/icons/networking.svg",
-					"children": [
-						{
-							"title": "Port forwarding",
-							"description": "Learn how port forwarding works in Coder and how to expose workspace ports to users.",
-							"path": "./admin/networking/port-forwarding.md"
-						},
-						{
-							"title": "STUN and NAT",
-							"description": "Learn how Coder uses STUN and NAT traversal to establish direct peer-to-peer workspace connections.",
-							"path": "./admin/networking/stun.md"
-						},
-						{
-							"title": "Workspace proxies",
-							"description": "Run geo-distributed workspace proxies to give distributed teams low-latency workspace access.",
-							"path": "./admin/networking/workspace-proxies.md",
-							"state": ["premium"]
-						},
-						{
-							"title": "High availability",
-							"description": "Configure Coder in high availability (HA) mode for horizontal scalability and failover.",
-							"path": "./admin/networking/high-availability.md",
-							"state": ["premium"]
-						},
-						{
-							"title": "Wildcard access URLs",
-							"description": "Configure a wildcard access URL to enable port forwarding, web IDEs, and app previews.",
-							"path": "./admin/networking/wildcard-access-url.md"
-						},
-						{
-							"title": "Troubleshooting",
-							"description": "Diagnose and resolve Coder networking issues using coder ping and other built-in tools.",
-							"path": "./admin/networking/troubleshooting.md"
-						}
-					]
-				},
-				{
-					"title": "Monitoring",
-					"description": "Monitor your Coder deployment with logs, metrics, health checks, and alerting best practices.",
-					"path": "./admin/monitoring/index.md",
-					"icon_path": "./images/icons/speed.svg",
-					"children": [
-						{
-							"title": "Logs",
-							"description": "Learn how Coder services write logs to standard output and how to collect them.",
-							"path": "./admin/monitoring/logs.md"
-						},
-						{
-							"title": "Metrics",
-							"description": "Learn about the deployment metrics Coder exposes and how to use them to monitor health.",
-							"path": "./admin/monitoring/metrics.md"
-						},
-						{
-							"title": "Deployment health",
-							"description": "Use Coder's deployment health page to monitor your control plane and its dependencies.",
-							"path": "./admin/monitoring/health-check.md"
-						},
-						{
-							"title": "Connection logs",
-							"description": "Monitor SSH, app, and agent connections to your workspaces with the connection log.",
-							"path": "./admin/monitoring/connection-logs.md",
-							"state": ["premium"]
-						},
-						{
-							"title": "Notifications",
-							"description": "Configure how Coder sends notifications for deployment events over email and webhooks.",
-							"path": "./admin/monitoring/notifications/index.md",
-							"children": [
-								{
-									"title": "Slack notifications",
-									"description": "Set up a Slack integration to deliver Coder notifications to your channels.",
-									"path": "./admin/monitoring/notifications/slack.md"
-								},
-								{
-									"title": "Microsoft Teams notifications",
-									"description": "Set up a Microsoft Teams integration to deliver Coder notifications to your channels.",
-									"path": "./admin/monitoring/notifications/teams.md"
-								}
-							]
-						}
-					]
-				},
-				{
-					"title": "Security",
-					"description": "Secure your Coder deployment with audit logs, secrets management, and database encryption.",
-					"path": "./admin/security/index.md",
-					"icon_path": "./images/icons/lock.svg",
-					"children": [
-						{
-							"title": "Audit logs",
-							"description": "Track user and administrator actions across your Coder deployment with audit logs.",
-							"path": "./admin/security/audit-logs.md",
-							"state": ["premium"]
-						},
-						{
-							"title": "Secrets",
-							"description": "Learn the recommended ways to get secrets into your Coder workspaces securely.",
-							"path": "./admin/security/secrets.md"
-						},
-						{
-							"title": "Database encryption",
-							"description": "Encrypt sensitive values in the Coder database to protect tokens and secrets at rest.",
-							"path": "./admin/security/database-encryption.md",
-							"state": ["premium"]
-						}
-					]
+					"title": "Speed up your workspaces",
+					"description": "Speed up Coder template builds and workspace startup with practical optimizations.",
+					"path": "./user-guides/speed-up-templates.md"
 				}
 			]
 		},
@@ -1431,136 +1099,389 @@
 			"state": ["beta"]
 		},
 		{
-			"title": "Tutorials",
-			"description": "Step-by-step, employee-written guides and tutorials for deploying and administering Coder.",
-			"path": "./tutorials/index.md",
-			"icon_path": "./images/icons/generic.svg",
+			"title": "Administration",
+			"description": "Guides for the template and deployment administrators who configure, secure, and operate Coder.",
+			"path": "./admin/index.md",
+			"icon_path": "./images/icons/wrench.svg",
 			"children": [
 				{
-					"title": "Quickstart",
-					"description": "Install Coder, build your first template, and launch your first workspace in this quickstart guide.",
-					"path": "./get-started/index.md"
-				},
-				{
-					"title": "Use an external database",
-					"description": "Configure Coder to use an external PostgreSQL database for production deployments.",
-					"path": "./tutorials/external-database.md"
-				},
-				{
-					"title": "Image management",
-					"description": "Learn how to build and manage the container images that back your Coder templates.",
-					"path": "./templates/managing-templates/image-management.md"
-				},
-				{
-					"title": "Configure custom claims/scopes with Okta for group/role",
-					"description": "Configure custom Okta claims and scopes to drive Coder group and role sync.",
-					"path": "./tutorials/configuring-okta.md"
-				},
-				{
-					"title": "Persistent shared workspaces",
-					"description": "Set up long-lived shared workspaces with service accounts and workspace sharing.",
-					"path": "./tutorials/persistent-shared-workspaces.md",
-					"state": ["premium"]
-				},
-				{
-					"title": "Google Cloud to AWS federation",
-					"description": "Federate a Google Cloud service account to AWS so Coder can authenticate across clouds.",
-					"path": "./tutorials/gcp-to-aws.md"
-				},
-				{
-					"title": "JFrog Artifactory Integration",
-					"description": "Integrate Coder with JFrog Artifactory to secure workspaces and manage packages and tokens.",
-					"path": "./admin/integrations/jfrog-artifactory.md"
-				},
-				{
-					"title": "Istio integration",
-					"description": "Use the Istio service mesh to secure and control your Coder workspace traffic.",
-					"path": "./admin/integrations/istio.md"
-				},
-				{
-					"title": "Island browser integration",
-					"description": "Integrate Coder with the Island Enterprise Browser for secure, policy-controlled workspace access.",
-					"path": "./admin/integrations/island.md"
-				},
-				{
-					"title": "Image pull secrets",
-					"description": "Create Kubernetes ImagePullSecrets so Coder workspaces can pull images from private registries.",
-					"path": "./tutorials/image-pull-secret.md"
-				},
-				{
-					"title": "PostgreSQL SSL",
-					"description": "Configure Coder to connect to a PostgreSQL database over an encrypted SSL connection.",
-					"path": "./tutorials/postgres-ssl.md"
-				},
-				{
-					"title": "Azure federation",
-					"description": "Federate Coder's control plane to Azure so it can authenticate to Azure services.",
-					"path": "./tutorials/azure-federation.md"
-				},
-				{
-					"title": "Deploy Coder on Azure with an Application Gateway",
-					"description": "Deploy Coder on Azure Kubernetes Service behind an Azure Application Gateway ingress controller.",
-					"path": "./install/server/kubernetes/kubernetes-azure-app-gateway.md"
-				},
-				{
-					"title": "Cloning Git repositories",
-					"description": "Learn how to automatically clone Git repositories into your Coder workspaces on startup.",
-					"path": "./tutorials/cloning-git-repositories.md"
-				},
-				{
-					"title": "Apache reverse proxy",
-					"description": "Configure Apache as a reverse proxy for Coder, with TLS certificates from Let's Encrypt.",
-					"path": "./tutorials/reverse-proxy-apache.md"
-				},
-				{
-					"title": "Caddy",
-					"description": "Configure Caddy as a reverse proxy for Coder, with automatic HTTPS certificates.",
-					"path": "./tutorials/reverse-proxy-caddy.md"
-				},
-				{
-					"title": "NGINX reverse proxy",
-					"description": "Configure NGINX as a reverse proxy for Coder, with TLS certificates from Let's Encrypt.",
-					"path": "./tutorials/reverse-proxy-nginx.md"
-				},
-				{
-					"title": "Pre-install JetBrains IDEs",
-					"description": "Pre-install JetBrains IDE backends in your template for faster first-time connections.",
-					"path": "./templates/extending-templates/jetbrains-preinstall.md"
-				},
-				{
-					"title": "JetBrains IDEs in an air-gapped environment",
-					"description": "Configure JetBrains IDEs to work in air-gapped Coder deployments without internet access.",
-					"path": "./templates/extending-templates/jetbrains-airgapped.md"
-				},
-				{
-					"title": "FAQs",
-					"description": "Answers to frequently asked questions about Coder OSS and licensed deployments.",
-					"path": "./tutorials/faqs.md"
-				},
-				{
-					"title": "Best practices",
-					"description": "Best-practice guides to help you get the most out of your Coder deployment.",
-					"path": "./tutorials/best-practices/index.md",
+					"title": "Configure control plane access",
+					"description": "Configure your Coder control plane with server settings and environment variables.",
+					"path": "./admin/setup/index.md",
+					"icon_path": "./images/icons/toggle_on.svg",
 					"children": [
+						{
+							"title": "Appearance",
+							"description": "Customize your Coder deployment's appearance, including the logo, service banner, and application name.",
+							"path": "./admin/setup/appearance.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Configuration reference",
+							"description": "Searchable list of every Coder server setting with its environment variable, CLI flag, and YAML key.",
+							"path": "./admin/setup/configuration-reference.md"
+						},
+						{
+							"title": "Telemetry",
+							"description": "Learn what usage telemetry Coder collects, why it is collected, and how to opt out.",
+							"path": "./admin/setup/telemetry.md"
+						},
+						{
+							"title": "Chat lifecycle hooks",
+							"description": "Configure an external policy service for chat agent lifecycle events.",
+							"path": "./admin/setup/chat-lifecycle-hooks.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Data retention",
+							"description": "Configure retention policies that automatically purge old records from Coder database tables.",
+							"path": "./admin/setup/data-retention.md"
+						}
+					]
+				},
+				{
+					"title": "Users",
+					"description": "Learn how to create, manage, and audit users and their access in your Coder deployment.",
+					"path": "./admin/users/index.md",
+					"icon_path": "./images/icons/users.svg",
+					"children": [
+						{
+							"title": "OpenID Connect",
+							"description": "Configure OpenID Connect authentication with identity providers like Okta or Active Directory.",
+							"path": "./admin/users/oidc-auth/index.md",
+							"children": [
+								{
+									"title": "Google",
+									"description": "Configure Coder to authenticate users with Google using OpenID Connect (OIDC).",
+									"path": "./admin/users/oidc-auth/google.md"
+								},
+								{
+									"title": "Microsoft",
+									"description": "Configure Coder to authenticate users with Microsoft Entra ID using OpenID Connect (OIDC).",
+									"path": "./admin/users/oidc-auth/microsoft.md"
+								},
+								{
+									"title": "Configure OIDC refresh tokens",
+									"description": "Configure OIDC refresh tokens so Coder can keep user sessions active beyond token expiration.",
+									"path": "./admin/users/oidc-auth/refresh-tokens.md"
+								},
+								{
+									"title": "Configure custom claims/scopes with Okta for group/role",
+									"description": "Configure custom Okta claims and scopes to drive Coder group and role sync.",
+									"path": "./admin/users/oidc-auth/configuring-okta.md"
+								}
+							]
+						},
+						{
+							"title": "GitHub",
+							"description": "Set up authentication through GitHub OAuth to enable secure user login and sign-up.",
+							"path": "./admin/users/github-auth.md"
+						},
+						{
+							"title": "Password authentication",
+							"description": "Manage username/password authentication settings and user password reset workflows.",
+							"path": "./admin/users/password-auth.md"
+						},
+						{
+							"title": "Headless authentication",
+							"description": "Create and manage headless service accounts for automated systems and API integrations.",
+							"path": "./admin/users/headless-auth.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Groups and roles",
+							"description": "Manage access control with user groups and role-based permissions for Coder resources.",
+							"path": "./admin/users/groups-roles.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "IdP sync",
+							"description": "Synchronize user groups, roles, and organizations from your identity provider to Coder.",
+							"path": "./admin/users/idp-sync.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Organizations",
+							"description": "Segment and isolate resources by creating separate organizations for different teams or projects.",
+							"path": "./admin/users/organizations.md",
+							"state": ["premium"]
+						},
 						{
 							"title": "Organizations - best practices",
 							"description": "Best practices for structuring and using Coder organizations effectively.",
-							"path": "./tutorials/best-practices/organizations.md"
+							"path": "./admin/users/organizations-best-practices.md"
 						},
 						{
-							"title": "Scale Coder",
-							"description": "Best practices for preparing and tuning a Coder deployment so it scales to many users.",
-							"path": "./tutorials/best-practices/scale-coder.md"
+							"title": "Quotas",
+							"description": "Control resource usage by implementing workspace budgets and credit-based cost management.",
+							"path": "./admin/users/quotas.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "API & session tokens",
+							"description": "Manage authentication tokens for API access and configure session duration policies.",
+							"path": "./admin/users/sessions-tokens.md"
+						}
+					]
+				},
+				{
+					"title": "External authentication",
+					"description": "Configure external authentication so workspaces can access Git providers and other OAuth services.",
+					"path": "./admin/external-auth.md",
+					"icon_path": "./images/icons/plug.svg"
+				},
+				{
+					"title": "Integrations",
+					"description": "Extend Coder with integrations for observability, secrets, source control, and other platforms.",
+					"path": "./admin/integrations/index.md",
+					"icon_path": "./images/icons/puzzle.svg",
+					"children": [
+						{
+							"title": "Prometheus",
+							"description": "Collect and export Coder deployment metrics to a Prometheus server for monitoring.",
+							"path": "./admin/integrations/prometheus.md"
+						},
+						{
+							"title": "Kubernetes event logs",
+							"description": "Stream Kubernetes event logs into workspace startup logs to debug pod scheduling issues.",
+							"path": "./admin/integrations/kubernetes-logs.md"
+						},
+						{
+							"title": "Additional clusters",
+							"description": "Deploy Coder workspaces across additional Kubernetes clusters beyond the control plane cluster.",
+							"path": "./admin/integrations/multiple-kube-clusters.md"
+						},
+						{
+							"title": "JFrog Artifactory",
+							"description": "Integrate Coder with JFrog Artifactory to secure workspaces and manage packages and tokens.",
+							"path": "./admin/integrations/jfrog-artifactory.md"
+						},
+						{
+							"title": "Island browser integration",
+							"description": "Integrate Coder with the Island Enterprise Browser for secure, policy-controlled workspace access.",
+							"path": "./admin/integrations/island.md"
+						},
+						{
+							"title": "Istio integration",
+							"description": "Use the Istio service mesh to secure and control your Coder workspace traffic.",
+							"path": "./admin/integrations/istio.md"
+						},
+						{
+							"title": "DX PlatformX",
+							"description": "Forward Coder notifications to DX PlatformX to measure and improve developer experience.",
+							"path": "./admin/integrations/platformx.md"
+						},
+						{
+							"title": "DX Data Cloud",
+							"description": "Tag and sync Coder users with DX Data Cloud to measure developer productivity.",
+							"path": "./admin/integrations/dx-data-cloud.md"
+						},
+						{
+							"title": "HashiCorp Vault",
+							"description": "Integrate Coder with HashiCorp Vault to inject secrets securely into your workspaces.",
+							"path": "./admin/integrations/vault.md"
+						},
+						{
+							"title": "OAuth2 provider",
+							"description": "Use Coder as an OAuth2 authorization server so third-party apps can authenticate users.",
+							"path": "./admin/integrations/oauth2-provider/index.md",
+							"children": [
+								{
+									"title": "Integration patterns",
+									"description": "Client authentication methods, the standard flow, the required PKCE flow, and discovery endpoints.",
+									"path": "./admin/integrations/oauth2-provider/integration-patterns.md"
+								},
+								{
+									"title": "Scopes",
+									"description": "How access tokens are bounded by scope, and how to set an application's scope allowlist.",
+									"path": "./admin/integrations/oauth2-provider/scopes.md"
+								},
+								{
+									"title": "Token management",
+									"description": "Refresh an access token, revoke a token, and delete an OAuth2 application.",
+									"path": "./admin/integrations/oauth2-provider/token-management.md"
+								},
+								{
+									"title": "Callback URL schemes",
+									"description": "Which redirect URI schemes and hosts Coder accepts.",
+									"path": "./admin/integrations/oauth2-provider/callback-url-schemes.md"
+								},
+								{
+									"title": "Troubleshooting",
+									"description": "Diagnose and fix OAuth2 provider errors by their exact error code or message.",
+									"path": "./admin/integrations/oauth2-provider/troubleshooting.md"
+								},
+								{
+									"title": "Security and limitations",
+									"description": "Security considerations and current limitations of the OAuth2 provider.",
+									"path": "./admin/integrations/oauth2-provider/security.md"
+								}
+							]
+						},
+						{
+							"title": "Dev Containers",
+							"description": "Configure dev container support in your templates using either Docker or Envbuilder.",
+							"path": "./admin/integrations/devcontainers/index.md",
+							"children": [
+								{
+									"title": "Configure a template for Dev Containers",
+									"description": "Configure a Coder template for native dev containers backed by Docker.",
+									"path": "./admin/integrations/devcontainers/integration.md"
+								},
+								{
+									"title": "Envbuilder",
+									"description": "Use Envbuilder to build dev containers from a repository without requiring Docker.",
+									"path": "./admin/integrations/devcontainers/envbuilder/index.md",
+									"children": [
+										{
+											"title": "Add an Envbuilder template",
+											"description": "Add an Envbuilder-compatible template so users can build dev containers from a repository.",
+											"path": "./admin/integrations/devcontainers/envbuilder/add-envbuilder.md"
+										},
+										{
+											"title": "Security and caching",
+											"description": "Configure Envbuilder registry authentication and layer caching for faster, secure builds.",
+											"path": "./admin/integrations/devcontainers/envbuilder/envbuilder-security-caching.md"
+										},
+										{
+											"title": "Releases and known issues",
+											"description": "Learn about Envbuilder's release channels and current known issues before you deploy it.",
+											"path": "./admin/integrations/devcontainers/envbuilder/envbuilder-releases-known-issues.md"
+										}
+									]
+								}
+							]
+						}
+					]
+				},
+				{
+					"title": "Networking",
+					"description": "Understand Coder's networking model, including how workspaces, servers, and clients connect.",
+					"path": "./admin/networking/index.md",
+					"icon_path": "./images/icons/networking.svg",
+					"children": [
+						{
+							"title": "Port forwarding",
+							"description": "Learn how port forwarding works in Coder and how to expose workspace ports to users.",
+							"path": "./admin/networking/port-forwarding.md"
+						},
+						{
+							"title": "STUN and NAT",
+							"description": "Learn how Coder uses STUN and NAT traversal to establish direct peer-to-peer workspace connections.",
+							"path": "./admin/networking/stun.md"
+						},
+						{
+							"title": "Workspace proxies",
+							"description": "Run geo-distributed workspace proxies to give distributed teams low-latency workspace access.",
+							"path": "./admin/networking/workspace-proxies.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "High availability",
+							"description": "Configure Coder in high availability (HA) mode for horizontal scalability and failover.",
+							"path": "./admin/networking/high-availability.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Wildcard access URLs",
+							"description": "Configure a wildcard access URL to enable port forwarding, web IDEs, and app previews.",
+							"path": "./admin/networking/wildcard-access-url.md"
+						},
+						{
+							"title": "Apache reverse proxy",
+							"description": "Configure Apache as a reverse proxy for Coder, with TLS certificates from Let's Encrypt.",
+							"path": "./admin/networking/reverse-proxy-apache.md"
+						},
+						{
+							"title": "Caddy",
+							"description": "Configure Caddy as a reverse proxy for Coder, with automatic HTTPS certificates.",
+							"path": "./admin/networking/reverse-proxy-caddy.md"
+						},
+						{
+							"title": "NGINX reverse proxy",
+							"description": "Configure NGINX as a reverse proxy for Coder, with TLS certificates from Let's Encrypt.",
+							"path": "./admin/networking/reverse-proxy-nginx.md"
+						},
+						{
+							"title": "Troubleshooting",
+							"description": "Diagnose and resolve Coder networking issues using coder ping and other built-in tools.",
+							"path": "./admin/networking/troubleshooting.md"
+						}
+					]
+				},
+				{
+					"title": "Monitoring",
+					"description": "Monitor your Coder deployment with logs, metrics, health checks, and alerting best practices.",
+					"path": "./admin/monitoring/index.md",
+					"icon_path": "./images/icons/speed.svg",
+					"children": [
+						{
+							"title": "Logs",
+							"description": "Learn how Coder services write logs to standard output and how to collect them.",
+							"path": "./admin/monitoring/logs.md"
+						},
+						{
+							"title": "Metrics",
+							"description": "Learn about the deployment metrics Coder exposes and how to use them to monitor health.",
+							"path": "./admin/monitoring/metrics.md"
+						},
+						{
+							"title": "Deployment health",
+							"description": "Use Coder's deployment health page to monitor your control plane and its dependencies.",
+							"path": "./admin/monitoring/health-check.md"
+						},
+						{
+							"title": "Connection logs",
+							"description": "Monitor SSH, app, and agent connections to your workspaces with the connection log.",
+							"path": "./admin/monitoring/connection-logs.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Notifications",
+							"description": "Configure how Coder sends notifications for deployment events over email and webhooks.",
+							"path": "./admin/monitoring/notifications/index.md",
+							"children": [
+								{
+									"title": "Slack notifications",
+									"description": "Set up a Slack integration to deliver Coder notifications to your channels.",
+									"path": "./admin/monitoring/notifications/slack.md"
+								},
+								{
+									"title": "Microsoft Teams notifications",
+									"description": "Set up a Microsoft Teams integration to deliver Coder notifications to your channels.",
+									"path": "./admin/monitoring/notifications/teams.md"
+								}
+							]
+						}
+					]
+				},
+				{
+					"title": "Security",
+					"description": "Secure your Coder deployment with audit logs, secrets management, and database encryption.",
+					"path": "./admin/security/index.md",
+					"icon_path": "./images/icons/lock.svg",
+					"children": [
+						{
+							"title": "Audit logs",
+							"description": "Track user and administrator actions across your Coder deployment with audit logs.",
+							"path": "./admin/security/audit-logs.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Secrets",
+							"description": "Learn the recommended ways to get secrets into your Coder workspaces securely.",
+							"path": "./admin/security/secrets.md"
+						},
+						{
+							"title": "Database encryption",
+							"description": "Encrypt sensitive values in the Coder database to protect tokens and secrets at rest.",
+							"path": "./admin/security/database-encryption.md",
+							"state": ["premium"]
 						},
 						{
 							"title": "Security - best practices",
 							"description": "Follow security best practices to harden your Coder deployment against common risks.",
-							"path": "./tutorials/best-practices/security-best-practices.md"
-						},
-						{
-							"title": "Speed up your workspaces",
-							"description": "Speed up Coder template builds and workspace startup with practical optimizations.",
-							"path": "./tutorials/best-practices/speed-up-templates.md"
+							"path": "./admin/security/security-best-practices.md"
 						}
 					]
 				}
@@ -2693,6 +2614,24 @@
 							"path": "./reference/agent-api/schemas.md"
 						}
 					]
+				},
+				{
+					"title": "FAQs",
+					"description": "Answers to frequently asked questions about Coder OSS and licensed deployments.",
+					"path": "./reference/faqs.md"
+				}
+			]
+		},
+		{
+			"title": "Support",
+			"description": "Get help with your Coder deployment through GitHub issues, our Discord community, and premium support.",
+			"path": "./support/index.md",
+			"icon_path": "./images/icons/info.svg",
+			"children": [
+				{
+					"title": "Support bundle",
+					"description": "Generate a support bundle and share workspace and deployment diagnostics with Coder support to troubleshoot issues.",
+					"path": "./support/support-bundle.md"
 				}
 			]
 		}

@@ -14,7 +14,7 @@ Here is an example of how one could use organizations to run a Coder deployment 
 
 ![Organizations Example](../../images/admin/users/organizations/diagram.png)
 
-For more information about how to use organizations, visit the [organizations best practices](../../tutorials/best-practices/organizations.md) guide.
+For more information about how to use organizations, visit the [organizations best practices](organizations-best-practices.md) guide.
 
 ## The default organization
 
@@ -148,4 +148,4 @@ You can also set `default_org_member_roles` via `PATCH /organizations/{organizat
 
 ## Next steps
 
-- [Organizations - best practices](../../tutorials/best-practices/organizations.md)
+- [Organizations - best practices](organizations-best-practices.md)

@@ -28,7 +28,7 @@ Substitute the usernames, group names, and template to match your use case.
 ## Prerequisites
 
 - A running Coder deployment (v2.32+) with workspace sharing enabled.
-  Sharing is on by default for OSS; Premium deployments may require [admin configuration](../user-guides/shared-workspaces.md#policies).
+  Sharing is on by default for OSS; Premium deployments may require [admin configuration](shared-workspaces.md#policies).
 - The [Coder CLI](../install/index.md) installed and authenticated.
 - An account with the `Owner` or `User Admin` role.
 - [OIDC authentication](../admin/users/oidc-auth/index.md) configured so shared users log in with their corporate SSO identity.
@@ -83,7 +83,7 @@ coder create oncall-sre/oncall-workspace \
 > [!TIP]
 > Design a dedicated template for the workspace with the tools your team needs pre-installed (e.g. monitoring dashboards for on-call, test runners for QA).
 > Set `subdomain = true` on workspace apps so that shared users can access web-based tools without a 404.
-> See [Access workspace apps in shared workspaces](../user-guides/shared-workspaces.md#access-workspace-apps-in-shared-workspaces).
+> See [Access workspace apps in shared workspaces](shared-workspaces.md#access-workspace-apps-in-shared-workspaces).
 
 ## 4. Share the workspace
 
@@ -226,8 +226,8 @@ See [Troubleshooting group sync](../admin/users/idp-sync.md#troubleshooting-grou
 
 ## Next steps
 
-- [Shared Workspaces](../user-guides/shared-workspaces.md): full reference for workspace sharing features and UI
+- [Shared Workspaces](shared-workspaces.md): full reference for workspace sharing features and UI
 - [IdP Sync](../admin/users/idp-sync.md): group, role, and organization sync configuration
-- [Configuring Okta](./configuring-okta.md): Okta-specific OIDC setup with custom claims and scopes
-- [Security Best Practices](./best-practices/security-best-practices.md): deployment-wide security hardening
+- [Configuring Okta](../admin/users/oidc-auth/configuring-okta.md): Okta-specific OIDC setup with custom claims and scopes
+- [Security Best Practices](../admin/security/security-best-practices.md): deployment-wide security hardening
 - [Sessions and Tokens](../admin/users/sessions-tokens.md): API token management and scoping

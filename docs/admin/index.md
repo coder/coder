@@ -12,7 +12,7 @@ If you are a developer using Coder, we recommend the [user guides](../user-guide
 
 For automation and scripting workflows, see our [CLI](../reference/cli/index.md) and [API](../reference/api/index.md) docs.
 
-For any information not strictly contained in these sections, check out our [Tutorials](../tutorials/index.md) and [FAQs](../tutorials/faqs.md).
+For any information not strictly contained in these sections, check out our [FAQs](../reference/faqs.md).
 
 ## What is an image, template, dev container, or workspace
 

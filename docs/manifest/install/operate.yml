@@ -5,6 +5,15 @@ icon_path: ./images/icons/wrench.svg
 children:
   - include: install/operate/provisioners.yml
   - include: install/operate/upgrade.yml
+  - title: Google Cloud to AWS federation
+    description: Federate a Google Cloud service account to AWS so Coder can authenticate across clouds.
+    path: ./install/operate/gcp-to-aws.md
+  - title: Azure federation
+    description: Federate Coder's control plane to Azure so it can authenticate to Azure services.
+    path: ./install/operate/azure-federation.md
+  - title: Image pull secrets
+    description: Create Kubernetes ImagePullSecrets so Coder workspaces can pull images from private registries.
+    path: ./install/operate/image-pull-secret.md
   - title: Uninstall
     description: Learn how to uninstall your Coder deployment and remove its associated resources.
     path: ./install/operate/uninstall.md

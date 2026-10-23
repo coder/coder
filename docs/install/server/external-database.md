@@ -23,7 +23,7 @@ With `psql -U coder`:
 CREATE DATABASE coder;
 ```
 
-Coder configuration is defined via [environment variables](../admin/setup/index.md).
+Coder configuration is defined via [environment variables](../../admin/setup/index.md).
 The database client requires the connection string provided via the `CODER_PG_CONNECTION_URL` variable.
 
 ```sh

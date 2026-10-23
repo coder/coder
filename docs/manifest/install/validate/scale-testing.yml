@@ -7,4 +7,4 @@ children:
     path: ./install/validate/scale-testing/utility.md
   - title: Scale Coder
     description: Best practices for preparing and tuning a Coder deployment so it scales to many users.
-    path: ./tutorials/best-practices/scale-coder.md
+    path: ./install/validate/scale-coder.md

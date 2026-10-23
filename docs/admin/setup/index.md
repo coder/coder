@@ -59,16 +59,16 @@ If you are providing TLS certificates directly to the control plane, either
 1. Use a single certificate and key for both the root and wildcard domains.
 1. Configure multiple certificates and keys via [`coder.tls.secretNames`](../../../helm/coder/values.yaml) in the Helm Chart, or [`--tls-cert-file`](../../reference/cli/server/index.md#--tls-cert-file) and [`--tls-key-file`](../../reference/cli/server/index.md#--tls-key-file) command line options (these both take a comma separated list of files; list certificates and their respective keys in the same order).
 
-After you enable the wildcard access URL, you should [disable path-based apps](../../tutorials/best-practices/security-best-practices.md#disable-path-based-apps) for security.
+After you enable the wildcard access URL, you should [disable path-based apps](../security/security-best-practices.md#disable-path-based-apps) for security.
 
 ## TLS & Reverse Proxy
 
 The control plane can directly use TLS certificates with `CODER_TLS_ENABLE` and accompanying configuration flags.
 However, Coder can also run behind a reverse-proxy to terminate TLS certificates from LetsEncrypt.
 
-- [Apache](../../tutorials/reverse-proxy-apache.md)
-- [Caddy](../../tutorials/reverse-proxy-caddy.md)
-- [NGINX](../../tutorials/reverse-proxy-nginx.md)
+- [Apache](../networking/reverse-proxy-apache.md)
+- [Caddy](../networking/reverse-proxy-caddy.md)
+- [NGINX](../networking/reverse-proxy-nginx.md)
 
 ### Kubernetes TLS configuration
 

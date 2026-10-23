@@ -81,9 +81,9 @@ See [TLS & Reverse Proxy](../setup/index.md#tls--reverse-proxy) for detailed con
 
 Use a reverse proxy to handle TLS termination with automatic certificate management:
 
-- [NGINX with Let's Encrypt](../../tutorials/reverse-proxy-nginx.md)
-- [Apache with Let's Encrypt](../../tutorials/reverse-proxy-apache.md)
-- [Caddy reverse proxy](../../tutorials/reverse-proxy-caddy.md)
+- [NGINX with Let's Encrypt](reverse-proxy-nginx.md)
+- [Apache with Let's Encrypt](reverse-proxy-apache.md)
+- [Caddy reverse proxy](reverse-proxy-caddy.md)
 
 If your reverse proxy rewrites the request `Host` and forwards the original host in `X-Forwarded-Host`, configure [`CODER_PROXY_TRUSTED_ORIGINS`](../../reference/cli/server/index.md#--proxy-trusted-origins) to trust that proxy's address.
 Otherwise Coder will ignore `X-Forwarded-Host` for subdomain app routing.

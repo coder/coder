@@ -4,7 +4,7 @@ title: Organizations - best practices
 
 ---
 
-Coder [Organizations](../../admin/users/organizations.md) allow administrators finer control over groups, templates, workspaces, and provisioners within their Coder deployment.
+Coder [Organizations](organizations.md) allow administrators finer control over groups, templates, workspaces, and provisioners within their Coder deployment.
 
 Organizations allow multiple platform teams to offer templates and infrastructure to their users instead of having them entirely managed in a centralized fashion.
 
@@ -69,7 +69,7 @@ Instead, we recommend syncing the state from your identity provider such as Okta
 A single claim from the identity provider (like `memberOf`) can be used to sync site-wide roles, organizations, groups, and organization roles.
 
 Regex filters and mapping can be configured to ensure the proper resources are allocated in Coder.
-Learn more about [IDP sync](../../admin/users/idp-sync.md).
+Learn more about [IDP sync](idp-sync.md).
 
 ## Custom Roles
 

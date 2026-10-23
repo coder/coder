@@ -103,7 +103,7 @@ Sharing a workspace grants SSH and terminal access to other users.
 However, workspace apps like code-server may return a **404 page** for non-owners depending on how the app is routed.
 
 By default, workspace apps that don't set `subdomain = true` use **path-based routing** (e.g., `coder.example.com/@user/workspace/apps/code-server/`).
-Path-based apps share the same origin as the Coder dashboard, so Coder blocks non-owners from accessing them to prevent [cross-site scripting risks](../tutorials/best-practices/security-best-practices.md#disable-path-based-apps).
+Path-based apps share the same origin as the Coder dashboard, so Coder blocks non-owners from accessing them to prevent [cross-site scripting risks](../admin/security/security-best-practices.md#disable-path-based-apps).
 This restriction applies even when the user has been granted access through workspace sharing.
 
 To allow other users to access workspace apps, configure subdomain-based access:

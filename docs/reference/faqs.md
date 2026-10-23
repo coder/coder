@@ -3,7 +3,7 @@ title: FAQs
 ---
 
 Frequently asked questions on Coder OSS and licensed deployments.
-These FAQs come from our community and customers, feel free to [contribute to this page](https://github.com/coder/coder/edit/main/docs/tutorials/faqs.md).
+These FAQs come from our community and customers, feel free to [contribute to this page](https://github.com/coder/coder/edit/main/docs/reference/faqs.md).
 
 For other community resources, see our [GitHub discussions](https://github.com/coder/coder/discussions), or join our [Discord server](https://discord.gg/coder).
 
@@ -74,15 +74,15 @@ Operators experimenting with Coder may run into networking issues if UDP (which 
 
 Setting the following flags as shown disables this logic to simplify troubleshooting.
 
-| Flag                                                                                                | Value       | Meaning                               |
-|-----------------------------------------------------------------------------------------------------|-------------|---------------------------------------|
-| [`CODER_BLOCK_DIRECT`](../reference/cli/server/index.md#--block-direct-connections)                 | `true`      | Blocks direct connections             |
-| [`CODER_DERP_SERVER_STUN_ADDRESSES`](../reference/cli/server/index.md#--derp-server-stun-addresses) | `"disable"` | Disables STUN                         |
-| [`CODER_DERP_FORCE_WEBSOCKETS`](../reference/cli/server/index.md#--derp-force-websockets)           | `true`      | Forces websockets over Tailscale DERP |
+| Flag                                                                                   | Value       | Meaning                               |
+|----------------------------------------------------------------------------------------|-------------|---------------------------------------|
+| [`CODER_BLOCK_DIRECT`](cli/server/index.md#--block-direct-connections)                 | `true`      | Blocks direct connections             |
+| [`CODER_DERP_SERVER_STUN_ADDRESSES`](cli/server/index.md#--derp-server-stun-addresses) | `"disable"` | Disables STUN                         |
+| [`CODER_DERP_FORCE_WEBSOCKETS`](cli/server/index.md#--derp-force-websockets)           | `true`      | Forces websockets over Tailscale DERP |
 
 ## How do I configure NGINX as the reverse proxy in front of Coder?
 
-[This tutorial](./reverse-proxy-nginx.md) in our docs explains in detail how to configure NGINX with Coder so that our Tailscale Wireguard networking functions properly.
+[This tutorial](../admin/networking/reverse-proxy-nginx.md) in our docs explains in detail how to configure NGINX with Coder so that our Tailscale Wireguard networking functions properly.
 
 ## How do I hide some of the default icons in a workspace like VS Code Desktop, Terminal, SSH, Ports?
 
@@ -148,7 +148,7 @@ When updating a template, be aware of potential issues with input variables.
 For example, if a template prompts users to choose options like a [code-server](https://github.com/coder/code-server) [VS Code](https://code.visualstudio.com/) IDE release, a [container image](https://hub.docker.com/u/codercom), or a [VS Code extension](https://marketplace.visualstudio.com/vscode), removing any of these values can lead to existing workspaces failing to start.
 This issue occurs because the Terraform state will not be in sync with the new template.
 
-However, a lesser-known CLI sub-command, [`coder update`](../reference/cli/update.md), can resolve this issue.
+However, a lesser-known CLI sub-command, [`coder update`](cli/update.md), can resolve this issue.
 This command re-prompts users to re-enter the input variables, potentially saving the workspace from a failed status.
 
 ```sh

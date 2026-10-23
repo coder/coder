@@ -96,7 +96,7 @@ The control plane can be scaled both vertically for bigger instances and horizon
 
 Aim to keep the number of control plane instances relatively small, preferably under ten instances, and opt for vertical scale over horizontal scale after meeting availability requirements.
 
-Coder's [validated architectures](../../install/plan/sizing/index.md) give specific sizing recommendations for various user scales.
+Coder's [validated architectures](../plan/sizing/index.md) give specific sizing recommendations for various user scales.
 These are a useful starting point, but very few deployments will remain stable at a predetermined user level over the long term.
 We recommend monitoring and adjusting resources as needed.
 
@@ -116,7 +116,7 @@ Adding a new instance is not disruptive, but you should remove instances and per
 
 ### Locality
 
-We recommend that you run one or more [provisioner daemon deployments external to the control plane](../../install/operate/provisioners/index.md) and disable provisioner daemons within your control plane.
+We recommend that you run one or more [provisioner daemon deployments external to the control plane](../operate/provisioners/index.md) and disable provisioner daemons within your control plane.
 This allows you to scale them independently of the control plane:
 
 ```yaml
@@ -151,7 +151,7 @@ Ensure your autoscaler waits long enough for your build jobs to complete before 
 If you deploy in Kubernetes, we recommend a single provisioner daemon per pod.
 On a virtual machine (VM), you can deploy multiple provisioner daemons, ensuring each has a unique `CODER_CACHE_DIRECTORY` value.
 
-Coder's [validated architectures](../../install/plan/sizing/index.md) give specific sizing recommendations for various user scales.
+Coder's [validated architectures](../plan/sizing/index.md) give specific sizing recommendations for various user scales.
 Since the complexity of builds varies significantly depending on the workspace template, consider this a starting point.
 Monitor queue times and build times and adjust the number and size of your provisioner daemon instances.
 
@@ -168,7 +168,7 @@ If you use multiple PostgreSQL replicas in a clustered config, these must also b
 ### Scaling
 
 Prefer scaling PostgreSQL vertically rather than horizontally for best performance.
-Coder's [validated architectures](../../install/plan/sizing/index.md) give specific sizing recommendations for various user scales.
+Coder's [validated architectures](../plan/sizing/index.md) give specific sizing recommendations for various user scales.
 
 ### Connection pool tuning
 
@@ -279,5 +279,5 @@ This drastically reduces the load on the control plane and workspace proxy insta
 
 ## Next steps
 
-- [Scale Tests and Utilities](../../install/validate/scale-testing/utility.md)
-- [Scale Testing](../../install/validate/scale-testing.md)
+- [Scale Tests and Utilities](scale-testing/utility.md)
+- [Scale Testing](scale-testing.md)

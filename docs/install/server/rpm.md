@@ -33,7 +33,7 @@ Each release publishes RPMs for `amd64`, `arm64`, and `armv7`.
   For production sizing, refer to the [Coder Validated Architecture](../plan/sizing/index.md).
 - `root` or `sudo` access.
 - An external PostgreSQL database for anything beyond a proof of concept.
-  Refer to [Using an external database](../../tutorials/external-database.md).
+  Refer to [Using an external database](external-database.md).
 
 ## Install the package
 

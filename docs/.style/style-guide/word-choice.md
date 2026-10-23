@@ -403,7 +403,7 @@ In a list of outcomes, "learn why the build fails" or "find out why the build fa
 
 > For the full command list, refer to the [Coder CLI reference](../../reference/cli/index.md).
 >
-> Visit the [Quickstart](../../tutorials/index.md) before you configure the production deployment.
+> Visit the [Quickstart](../../get-started/index.md) before you configure the production deployment.
 >
 > Visit the [Terraform Registry](https://registry.terraform.io/) for the latest provider versions.
 >
@@ -413,7 +413,7 @@ In a list of outcomes, "learn why the build fails" or "find out why the build fa
 
 > For the full command list, see the [Coder CLI reference](../../reference/cli/index.md).
 >
-> Check out the [Quickstart](../../tutorials/index.md) before you configure the production deployment.
+> Check out the [Quickstart](../../get-started/index.md) before you configure the production deployment.
 >
 > See the [Terraform Registry](https://registry.terraform.io/) for the latest provider versions.
 >

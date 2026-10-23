@@ -50,5 +50,85 @@
   {
     "source": "/docs/admin/templates/:path*",
     "destination": "/docs/templates/:path*"
+  },
+  {
+    "source": "/docs/tutorials/azure-federation",
+    "destination": "/docs/install/operate/azure-federation"
+  },
+  {
+    "source": "/docs/tutorials/best-practices/organizations",
+    "destination": "/docs/admin/users/organizations-best-practices"
+  },
+  {
+    "source": "/docs/tutorials/best-practices/scale-coder",
+    "destination": "/docs/install/validate/scale-coder"
+  },
+  {
+    "source": "/docs/tutorials/best-practices/security-best-practices",
+    "destination": "/docs/admin/security/security-best-practices"
+  },
+  {
+    "source": "/docs/tutorials/best-practices/speed-up-templates",
+    "destination": "/docs/user-guides/speed-up-templates"
+  },
+  {
+    "source": "/docs/tutorials/cloning-git-repositories",
+    "destination": "/docs/user-guides/cloning-git-repositories"
+  },
+  {
+    "source": "/docs/tutorials/configuring-okta",
+    "destination": "/docs/admin/users/oidc-auth/configuring-okta"
+  },
+  {
+    "source": "/docs/tutorials/external-database",
+    "destination": "/docs/install/server/external-database"
+  },
+  {
+    "source": "/docs/tutorials/faqs",
+    "destination": "/docs/reference/faqs"
+  },
+  {
+    "source": "/docs/tutorials/gcp-to-aws",
+    "destination": "/docs/install/operate/gcp-to-aws"
+  },
+  {
+    "source": "/docs/tutorials/image-pull-secret",
+    "destination": "/docs/install/operate/image-pull-secret"
+  },
+  {
+    "source": "/docs/tutorials/persistent-shared-workspaces",
+    "destination": "/docs/user-guides/persistent-shared-workspaces"
+  },
+  {
+    "source": "/docs/tutorials/postgres-ssl",
+    "destination": "/docs/install/server/postgres-ssl"
+  },
+  {
+    "source": "/docs/tutorials/reverse-proxy-apache",
+    "destination": "/docs/admin/networking/reverse-proxy-apache"
+  },
+  {
+    "source": "/docs/tutorials/reverse-proxy-caddy",
+    "destination": "/docs/admin/networking/reverse-proxy-caddy"
+  },
+  {
+    "source": "/docs/tutorials/reverse-proxy-nginx",
+    "destination": "/docs/admin/networking/reverse-proxy-nginx"
+  },
+  {
+    "source": "/docs/tutorials/best-practices",
+    "destination": "/docs"
+  },
+  {
+    "source": "/docs/tutorials",
+    "destination": "/docs"
+  },
+  {
+    "source": "/docs/about/screenshots",
+    "destination": "/docs"
+  },
+  {
+    "source": "/docs/about",
+    "destination": "/docs"
   }
 ]
