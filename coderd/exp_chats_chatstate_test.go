@@ -192,7 +192,7 @@ func TestPostChatMessagesBusyBehavior(t *testing.T) {
 		{
 			name:         "InterruptRejected",
 			busyBehavior: "interrupt",
-			wantDetail:   `Must be "steer" or "queue". To interrupt the chat, call POST /api/v2/chats/{chat}/interrupt and then send the message.`,
+			wantDetail:   `Must be "steer" or "queue".`,
 		},
 		{name: "UnknownRejected", busyBehavior: "bogus", wantDetail: `Must be "steer" or "queue".`},
 	} {
@@ -369,11 +369,12 @@ func TestPromoteChatQueuedMessageEmptyQueueReturnsConflict(t *testing.T) {
 	require.Equal(t, http.StatusConflict, res.StatusCode)
 }
 
-// TestInterruptChatIdleReturnsConflict verifies that interrupting an
-// idle chat is now rejected. The fixture composes chatstate
-// transitions to reach the W state without depending on the
-// background worker.
-func TestInterruptChatIdleReturnsConflict(t *testing.T) {
+// TestInterruptChatIdleReturnsChat verifies that interrupting an idle
+// chat succeeds without changing it, so a client whose interrupt races
+// with the end of a turn can still send its next message. The fixture
+// composes chatstate transitions to reach the W state without
+// depending on the background worker.
+func TestInterruptChatIdleReturnsChat(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -389,8 +390,10 @@ func TestInterruptChatIdleReturnsConflict(t *testing.T) {
 
 	driveChatToWaiting(ctx, t, api, chat.ID)
 
-	_, err = client.InterruptChat(ctx, chat.ID)
-	requireSDKError(t, err, http.StatusConflict)
+	interrupted, err := client.InterruptChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, chat.ID, interrupted.ID)
+	require.Equal(t, codersdk.ChatStatusWaiting, interrupted.Status)
 }
 
 // TestSubmitToolResultsWrongStateReturnsConflict covers the wrong
