@@ -49,22 +49,34 @@ const subscribeToRoot = (listener: () => void) => {
 /**
  * The Files panel root for a chat, in any list-directory path form. Quick
  * open reads it too, so a root picked in the panel is also searched.
+ * Without a stored root it is undefined until the git watcher settles, then
+ * the chat's first repo or the default directory. That choice is kept for
+ * the chat, so a repo the watcher reports later does not move a root the
+ * user is browsing.
  */
 export const useFilesPanelRoot = (
 	chatId: string | undefined,
 	repoRoots: readonly string[],
+	repoRootsSettled: boolean,
 ) => {
 	const storageKey = `${filesPanelRootStorageKeyPrefix}${chatId}`;
 	const storedRoot = useSyncExternalStore(subscribeToRoot, () =>
 		chatId === undefined ? null : localStorage.getItem(storageKey),
 	);
+	// Cached so the panel and Quick open share one choice per chat.
+	const defaultRootQuery = useQuery({
+		queryKey: ["filesPanelDefaultRoot", chatId],
+		queryFn: () => repoRoots[0] ?? "",
+		enabled: storedRoot === null && repoRootsSettled,
+		staleTime: Number.POSITIVE_INFINITY,
+	});
 	const setRoot = (root: string) => {
 		localStorage.setItem(storageKey, root);
 		for (const listener of rootListeners) {
 			listener();
 		}
 	};
-	return { root: storedRoot ?? repoRoots[0] ?? "", setRoot };
+	return { root: storedRoot ?? defaultRootQuery.data, setRoot };
 };
 
 // The tree is a live view of files the agent edits, so it refetches when the
@@ -136,6 +148,11 @@ export const FilesPanel: React.FC<FilesPanelProps> = ({
 	onRevealHandled,
 }) => {
 	const workspaceFiles = useWorkspaceFiles();
+	const { root, setRoot } = useFilesPanelRoot(
+		chatId,
+		workspaceFiles?.repoRoots ?? [],
+		workspaceFiles?.repoRootsSettled ?? false,
+	);
 	if (!workspaceFiles) {
 		return (
 			<div className="flex h-full items-center justify-center p-4 text-sm text-content-secondary">
@@ -143,9 +160,13 @@ export const FilesPanel: React.FC<FilesPanelProps> = ({
 			</div>
 		);
 	}
+	if (root === undefined) {
+		return <Loader className="h-full" />;
+	}
 	return (
 		<FilesBrowser
-			chatId={chatId}
+			root={root}
+			setRoot={setRoot}
 			workspaceFiles={workspaceFiles}
 			revealRequest={revealRequest}
 			onRevealHandled={onRevealHandled}
@@ -154,14 +175,16 @@ export const FilesPanel: React.FC<FilesPanelProps> = ({
 };
 
 type FilesBrowserProps = {
-	chatId: string;
+	root: string;
+	setRoot: (root: string) => void;
 	workspaceFiles: WorkspaceFilesContextValue;
 	revealRequest: RevealRequest | undefined;
 	onRevealHandled: (() => void) | undefined;
 };
 
 const FilesBrowser: React.FC<FilesBrowserProps> = ({
-	chatId,
+	root,
+	setRoot,
 	workspaceFiles,
 	revealRequest,
 	onRevealHandled,
@@ -169,7 +192,6 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 	const { agentId, defaultDirectory, repoRoots, repositories, openFile } =
 		workspaceFiles;
 	const queryClient = useQueryClient();
-	const { root, setRoot } = useFilesPanelRoot(chatId, repoRoots);
 	// Kept on collapse so reopening a folder restores its open subfolders.
 	const [expandedPaths, setExpandedPaths] = useState<readonly string[]>([]);
 	const [isEnteringPath, setIsEnteringPath] = useState(false);

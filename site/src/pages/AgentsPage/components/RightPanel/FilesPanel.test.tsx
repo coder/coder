@@ -859,6 +859,42 @@ describe("FilesPanel", () => {
 		expect(signals[0]?.aborted).toBe(true);
 	});
 
+	it("waits for the git watcher before rooting at the chat's repo", async () => {
+		const { rerenderPanel } = renderPanel(
+			contextValue({ repoRoots: [], repoRootsSettled: false }),
+		);
+		expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
+
+		rerenderPanel(contextValue());
+
+		await screen.findByRole("treeitem", { name: "src" });
+		expect(listedPaths()).not.toContain("");
+	});
+
+	it("roots at the default directory once a watcher without repos settles", async () => {
+		const { rerenderPanel } = renderPanel(
+			contextValue({ repoRoots: [], repoRootsSettled: false }),
+		);
+		expect(listedPaths()).not.toContain("");
+
+		rerenderPanel(contextValue({ repoRoots: [], repoRootsSettled: true }));
+
+		await waitFor(() => expect(listedPaths()).toContain(""));
+	});
+
+	it("keeps the resolved root when the watcher reconnects or reports a repo later", async () => {
+		const { rerenderPanel } = renderPanel(contextValue());
+		await screen.findByRole("treeitem", { name: "src" });
+
+		rerenderPanel(contextValue({ repoRoots: [] }));
+		rerenderPanel(contextValue({ repoRoots: ["/home/coder/other"] }));
+
+		expect(screen.queryByRole("status", { name: "Loading" })).toBeNull();
+		expect(screen.getByRole("treeitem", { name: "src" })).toBeInTheDocument();
+		expect(listedPaths()).not.toContain("");
+		expect(listedPaths()).not.toContain("/home/coder/other");
+	});
+
 	it("does not list files without a workspace agent", () => {
 		renderPanel(undefined);
 		expect(API.listWorkspaceAgentDirectory).not.toHaveBeenCalled();
