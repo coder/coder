@@ -139,6 +139,13 @@ func (t streamPartsChannelClientTransport) WriteControl(ctx context.Context, con
 		return errStreamPartsTransportClosed
 	default:
 	}
+	// Only the latest selection matters. Replace one the endpoint has not read
+	// yet, so the caller never waits on an endpoint that is blocked writing
+	// parts the caller has to drain.
+	select {
+	case <-t.pipe.controlCh:
+	default:
+	}
 	select {
 	case t.pipe.controlCh <- control:
 		return nil
