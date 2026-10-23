@@ -278,24 +278,15 @@ type HastNode = {
 
 const skippedTagNames = new Set(["a", "pre", "button"]);
 
-const markMention = (
-	properties: Record<string, unknown>,
-	mention: FilePathMention,
-) => {
-	properties.dataFileMention = mention.path;
-	properties.dataFileMentionLine = mention.line;
-};
-
 const markInlineCode = (node: HastNode) => {
 	const text = node.children?.length === 1 ? node.children[0] : undefined;
 	if (text?.type !== "text") {
 		return;
 	}
 	const value = text.value ?? "";
-	const mention = parseFilePathMention(value);
-	if (mention) {
+	if (parseFilePathMention(value)) {
 		node.properties ??= {};
-		markMention(node.properties, mention);
+		node.properties.dataFileMentionCandidate = value.trim();
 	} else if (isWholeFilePathCandidate(value)) {
 		node.properties ??= {};
 		node.properties.dataFileMentionCandidate = value;
@@ -316,15 +307,15 @@ const splitRange = (
 		if (mention.start > offset) {
 			nodes.push({ type: "text", value: value.slice(offset, mention.start) });
 		}
-		const properties: Record<string, unknown> = {};
-		markMention(properties, mention);
+		const text = value.slice(mention.start, mention.end);
 		nodes.push({
 			type: "element",
 			tagName: "span",
-			properties,
-			children: [
-				{ type: "text", value: value.slice(mention.start, mention.end) },
-			],
+			properties: {
+				dataFileMentionCandidate: text,
+				dataFileMentionWhole: true,
+			},
+			children: [{ type: "text", value: text }],
 		});
 		offset = mention.end;
 	}
@@ -389,12 +380,12 @@ const visit = (node: HastNode) => {
 };
 
 /**
- * Rehype plugin that marks file path mentions with `data-file-mention` and
- * `data-file-mention-line` properties: on inline code that is entirely a
- * path, and on spans it wraps around paths in prose. Text that may be a path
- * with spaces gets `data-file-mention-candidate` with the text to verify
- * instead, and `data-file-mention-candidate-opener` with the character
- * before it. Links and code blocks are left alone.
+ * Rehype plugin that marks text to verify as a path with
+ * `data-file-mention-candidate`: inline code that is entirely a path or may
+ * be one with spaces, spans it wraps around paths in prose, which also get
+ * `data-file-mention-whole`, and spans around prose that may start a path
+ * with spaces, which also get `data-file-mention-candidate-opener` with the
+ * character before them. Links and code blocks are left alone.
  */
 export const rehypeFileMentions = () => (tree: HastNode) => visit(tree);
 
@@ -408,18 +399,21 @@ type FilePathCandidateStart = {
 	root: string;
 	/** Index in the candidate text where the first entry name begins. */
 	offset: number;
+	/** A match here counts only when no repository root matches. */
+	fallback?: boolean;
 };
 
 /**
  * Lists the roots a candidate's walk can start from. The walk starts at a
  * root and lists only directories that an earlier listing showed, so it
  * never requests a directory that does not exist. Relative text starts in
- * each repository root, or the agent's default directory (`""`) when the
- * chat has none.
+ * each repository root, then the agent's default directory as a fallback,
+ * or the default directory (`""`) alone when the chat has no repository.
  */
 export const getFilePathCandidateStarts = (
 	text: string,
 	repoRoots: readonly string[],
+	defaultDirectory?: string,
 ): FilePathCandidateStart[] => {
 	if (text.startsWith("/")) {
 		return [{ root: "/", offset: 1 }];
@@ -427,8 +421,17 @@ export const getFilePathCandidateStarts = (
 	if (text.startsWith("~/")) {
 		return [{ root: "~", offset: 2 }];
 	}
-	const roots = repoRoots.length > 0 ? repoRoots : [""];
-	return roots.map((root) => ({ root, offset: 0 }));
+	if (repoRoots.length === 0) {
+		return [{ root: "", offset: 0 }];
+	}
+	const starts: FilePathCandidateStart[] = repoRoots.map((root) => ({
+		root,
+		offset: 0,
+	}));
+	if (defaultDirectory && !repoRoots.includes(defaultDirectory)) {
+		starts.push({ root: defaultDirectory, offset: 0, fallback: true });
+	}
+	return starts;
 };
 
 type DirectoryEntry = {

@@ -171,6 +171,19 @@ describe("getFilePathCandidateStarts", () => {
 	])("starts %j in %j", (text, roots, expected) => {
 		expect(getFilePathCandidateStarts(text, roots)).toEqual(expected);
 	});
+
+	it("falls back to the default directory after the repositories", () => {
+		expect(
+			getFilePathCandidateStarts("a.ts", ["/r1", "/home/coder"], "/home"),
+		).toEqual([
+			{ root: "/r1", offset: 0 },
+			{ root: "/home/coder", offset: 0 },
+			{ root: "/home", offset: 0, fallback: true },
+		]);
+		expect(
+			getFilePathCandidateStarts("a.ts", ["/home/coder"], "/home/coder"),
+		).toEqual([{ root: "/home/coder", offset: 0 }]);
+	});
 });
 
 describe("walkFilePath", () => {

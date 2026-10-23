@@ -15,7 +15,6 @@ import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
 import { rehypeFileMentions } from "../../utils/filePathMentions";
 import {
-	FileMention,
 	FileMentionCandidate,
 	FileMentionStreamingContext,
 } from "./FileMention";
@@ -42,8 +41,8 @@ type ResponseProps = Omit<React.ComponentProps<"div">, "children"> & {
 // silently destroying content mid-stream.
 //
 // rehypeFileMentions always runs because Streamdown's block memo ignores
-// plugin changes; it only marks nodes, and FileMention renders them as
-// plain content until workspace files are available.
+// plugin changes; it only marks nodes, and FileMentionCandidate renders
+// them as plain content until listings confirm the path.
 const chatRehypePlugins = [
 	defaultRehypePlugins.sanitize,
 	defaultRehypePlugins.harden,
@@ -57,9 +56,8 @@ type HastNode = {
 	tagName?: string;
 	properties?: {
 		className?: string[] | string;
-		dataFileMention?: unknown;
-		dataFileMentionLine?: unknown;
 		dataFileMentionCandidate?: unknown;
+		dataFileMentionWhole?: unknown;
 		dataFileMentionCandidateOpener?: unknown;
 	};
 };
@@ -100,15 +98,6 @@ const getClassNames = (className: string[] | string | undefined): string[] => {
 	return className.filter(
 		(classToken): classToken is string => typeof classToken === "string",
 	);
-};
-
-const getFileMention = (node: HastNode | undefined) => {
-	const path = node?.properties?.dataFileMention;
-	if (typeof path !== "string") {
-		return undefined;
-	}
-	const line = node?.properties?.dataFileMentionLine;
-	return { path, line: typeof line === "number" ? line : undefined };
 };
 
 const fileViewerTheme = {
@@ -264,22 +253,14 @@ const createComponents = (
 					{children}
 				</code>
 			);
-			const mention = getFileMention(node);
 			const candidate = node?.properties?.dataFileMentionCandidate;
-			if (typeof candidate === "string") {
-				return (
-					<FileMentionCandidate text={candidate} whole>
-						{code}
-					</FileMentionCandidate>
-				);
-			}
-			if (!mention) {
+			if (typeof candidate !== "string") {
 				return code;
 			}
 			return (
-				<FileMention path={mention.path} line={mention.line}>
+				<FileMentionCandidate text={candidate} whole>
 					{code}
-				</FileMention>
+				</FileMentionCandidate>
 			);
 		},
 		// Mentions in prose arrive as spans from rehypeFileMentions.
@@ -287,27 +268,19 @@ const createComponents = (
 			node,
 			...props
 		}: React.ComponentProps<"span"> & { node?: HastNode }) => {
-			const mention = getFileMention(node);
 			const candidate = node?.properties?.dataFileMentionCandidate;
 			const opener = node?.properties?.dataFileMentionCandidateOpener;
-			if (typeof candidate === "string") {
-				return (
-					<FileMentionCandidate
-						text={candidate}
-						whole={false}
-						opener={typeof opener === "string" ? opener : undefined}
-					>
-						{props.children}
-					</FileMentionCandidate>
-				);
-			}
-			if (!mention) {
+			if (typeof candidate !== "string") {
 				return <span {...props} />;
 			}
 			return (
-				<FileMention path={mention.path} line={mention.line}>
+				<FileMentionCandidate
+					text={candidate}
+					whole={node?.properties?.dataFileMentionWhole === true}
+					opener={typeof opener === "string" ? opener : undefined}
+				>
 					{props.children}
-				</FileMention>
+				</FileMentionCandidate>
 			);
 		},
 		pre: ({ node }: MarkdownComponentProps) => {
