@@ -23,26 +23,27 @@ The doctrine for adding Vale rules lives in the [Vale doctrine README](../README
 
 A clean `make lint/prose` run is not evidence that a page follows this guide.
 The guide documents 88 rules.
-Automated tooling checks 12 of them, and 1 of those 12 doesn't run on published pages.
-The other 76 are yours to apply by reading, 77 on published pages, where the one-sentence-per-line rule is off.
+Automated tooling checks 13 of them, and 1 of those 13 doesn't run on published pages.
+The other 75 are yours to apply by reading, 76 on published pages, where the one-sentence-per-line rule is off.
 
 Open the section that matches what you're writing and work through it.
 The linters catch a narrow band of mechanical errors; they can't tell you that a page serves 2 audiences, buries a required step in a `NOTE`, or wraps every paragraph at 80 columns.
 
 ### Checks that run today
 
-| Check                              | Tool                      | Severity  | Scope                                                                                                                                                                           | What it catches                                                       |
-|------------------------------------|---------------------------|-----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------|
-| `Coder.AcronymPeriods`             | Vale                      | `warning` | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | Capitalized acronyms written with periods, such as `A.P.I.`           |
-| `Coder.BrandNames`                 | Vale                      | `error`   | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | `Hashicorp` casing only, not the other brands in the word-choice list |
-| `Coder.GerundHeading`              | Vale                      | `warning` | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | Headings that lead with a gerund                                      |
-| `Coder.SelectClick`                | Vale                      | `warning` | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | `click` and its inflections                                           |
-| `Coder.OneSentencePerLine`         | Vale                      | `warning` | `docs/.style/*.md` and `docs/.style/styles/Coder/*.md` only                                                                                                                     | Sentence boundaries mid-line, on contributor docs only                |
-| `Coder.UnitSpacing`                | Vale                      | `warning` | `docs/**` except `docs/.style/style-guide/**` and `docs/admin/integrations/prometheus.md` and `docs/admin/setup/configuration-reference.md` and `docs/reference/{api,cli}/*.md` | A regular space, or no space, between a number and its unit           |
-| `MD001`, `MD025`, `MD040`, `MD045` | markdownlint              | `error`   | All Markdown                                                                                                                                                                    | Heading increments, single H1, fence language, missing alt text       |
-| `scripts/check_emdash.sh`          | `make lint/emdash`        | `error`   | Repository                                                                                                                                                                      | Em-dash, en-dash, and ` -- ` as punctuation                           |
-| `empty-table-header`               | `make lint/docs-html`     | `error`   | `docs/**`, including generated pages                                                                                                                                            | Table header cells with no text, in Markdown and HTML tables          |
-| `scripts/docsmanifestgen`          | `make lint/docs-manifest` | `error`   | Descriptions in `docs/manifest/**` and in the front matter of every page they list                                                                                              | A page description that doesn't end with a period                     |
+| Check                              | Tool                      | Severity  | Scope                                                                                                                                                                           | What it catches                                                        |
+|------------------------------------|---------------------------|-----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------|
+| `Coder.AcronymPeriods`             | Vale                      | `warning` | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | Capitalized acronyms written with periods, such as `A.P.I.`            |
+| `Coder.BrandNames`                 | Vale                      | `error`   | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | `Hashicorp` casing only, not the other brands in the word-choice list  |
+| `Coder.GerundHeading`              | Vale                      | `warning` | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | Headings that lead with a gerund                                       |
+| `Coder.LGBTQ`                      | Vale                      | `warning` | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | Outdated LGBTQ terms, such as `preferred pronouns` and `transgendered` |
+| `Coder.SelectClick`                | Vale                      | `warning` | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | `click` and its inflections                                            |
+| `Coder.OneSentencePerLine`         | Vale                      | `warning` | `docs/.style/*.md` and `docs/.style/styles/Coder/*.md` only                                                                                                                     | Sentence boundaries mid-line, on contributor docs only                 |
+| `Coder.UnitSpacing`                | Vale                      | `warning` | `docs/**` except `docs/.style/style-guide/**` and `docs/admin/integrations/prometheus.md` and `docs/admin/setup/configuration-reference.md` and `docs/reference/{api,cli}/*.md` | A regular space, or no space, between a number and its unit            |
+| `MD001`, `MD025`, `MD040`, `MD045` | markdownlint              | `error`   | All Markdown                                                                                                                                                                    | Heading increments, single H1, fence language, missing alt text        |
+| `scripts/check_emdash.sh`          | `make lint/emdash`        | `error`   | Repository                                                                                                                                                                      | Em-dash, en-dash, and ` -- ` as punctuation                            |
+| `empty-table-header`               | `make lint/docs-html`     | `error`   | `docs/**`, including generated pages                                                                                                                                            | Table header cells with no text, in Markdown and HTML tables           |
+| `scripts/docsmanifestgen`          | `make lint/docs-manifest` | `error`   | Descriptions in `docs/manifest/**` and in the front matter of every page they list                                                                                              | A page description that doesn't end with a period                      |
 
 The markdownlint row lists only the rules that map to a rule in this guide.
 markdownlint runs its full default set minus the rules `.markdownlint.jsonc` disables, so it catches more than these 4.
@@ -60,11 +61,11 @@ The markdownlint, emdash, docs HTML, and docs-manifest checks do fail the build.
 | [Voice and tone](./voice-and-tone.md)                                 | 12    | 0            | 4       | 8                  |
 | [Procedural writing](./procedural-writing.md)                         | 6     | 0            | 1       | 5                  |
 | [Word choice](./word-choice.md)                                       | 20    | 2            | 12      | 6                  |
-| [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 14    | 3            | 5       | 6                  |
+| [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 14    | 4            | 4       | 6                  |
 | [Capitalization and punctuation](./capitalization-and-punctuation.md) | 12    | 3            | 7       | 2                  |
 | [Formatting](./formatting.md)                                         | 13    | 3            | 0       | 10                 |
 | [Numbers, units, and dates](./numbers-units-and-dates.md)             | 5     | 1            | 4       | 0                  |
-| **Total**                                                             | 88    | 12           | 33      | 43                 |
+| **Total**                                                             | 88    | 13           | 32      | 43                 |
 
 Every column counts rule sections, not linter rule names.
 A rule section is a heading that carries an enforcement footer, the italic line that names the section's enforcement status.
@@ -91,7 +92,7 @@ Classify a counted section from its footer, in this order:
    A section that names several checks still counts once.
 3. Anything else: the section is planned.
 
-So the 10 rows in the table above name 13 checks, because the markdownlint row bundles 4, and those 13 checks cover 12 sections: each check counts under the section that owns it rather than under every section that mentions it.
+So the 11 rows in the table above name 14 checks, because the markdownlint row bundles 4, and those 14 checks cover 13 sections: each check counts under the section that owns it rather than under every section that mentions it.
 
 A rule marked `(planned)` in a section footer names the rule that would enforce it if it existed.
 It isn't running today.
