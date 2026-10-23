@@ -22,6 +22,8 @@ const renderMessage = (
 		repoRoots: ["/home/coder/repo"],
 		repositories: new Map(),
 		openFile,
+		revealInFiles: vi.fn(),
+		diffStatuses: [],
 	};
 	const displayState: MessageDisplayState = {
 		shouldHide: false,

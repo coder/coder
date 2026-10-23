@@ -18,6 +18,7 @@ type _ComparedRepoFields = Omit<
 const _repoFieldGuard: Record<keyof _ComparedRepoFields, true> = {
 	branch: true,
 	remote_origin: true,
+	head_commit: true,
 	unified_diff: true,
 };
 
@@ -130,6 +131,7 @@ export function useGitWatcher({
 											!existing ||
 											existing.branch !== repo.branch ||
 											existing.remote_origin !== repo.remote_origin ||
+											existing.head_commit !== repo.head_commit ||
 											existing.unified_diff !== repo.unified_diff
 										) {
 											next.set(repo.repo_root, repo);

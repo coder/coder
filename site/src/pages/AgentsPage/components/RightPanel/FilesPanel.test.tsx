@@ -116,6 +116,8 @@ const contextValue = (
 	repoRoots: ["/home/coder/repo"],
 	repositories: new Map(),
 	openFile: vi.fn(),
+	revealInFiles: vi.fn(),
+	diffStatuses: [],
 	...overrides,
 });
 

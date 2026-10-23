@@ -792,11 +792,14 @@ type WorkspaceAgentGitServerMessage struct {
 // WorkspaceAgentRepoChanges describes the current state of a single
 // git repository's working tree. When Removed is true the repo root
 // directory or its .git subdirectory no longer exists; all other
-// fields (Branch, RemoteOrigin, UnifiedDiff) are empty/zero.
+// fields (Branch, RemoteOrigin, HeadCommit, UnifiedDiff) are empty/zero.
 type WorkspaceAgentRepoChanges struct {
 	RepoRoot     string `json:"repo_root"`
 	Branch       string `json:"branch"`
 	RemoteOrigin string `json:"remote_origin,omitempty"`
-	UnifiedDiff  string `json:"unified_diff,omitempty"`
-	Removed      bool   `json:"removed,omitempty"`
+	// HeadCommit is the full SHA of HEAD. It is empty when HEAD is unborn
+	// or the agent predates the field.
+	HeadCommit  string `json:"head_commit,omitempty"`
+	UnifiedDiff string `json:"unified_diff,omitempty"`
+	Removed     bool   `json:"removed,omitempty"`
 }

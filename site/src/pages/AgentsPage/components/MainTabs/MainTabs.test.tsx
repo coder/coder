@@ -116,6 +116,8 @@ const Harness: React.FC<HarnessProps> = ({
 							repoRoots: ["/repo"],
 							repositories,
 							openFile: mainTabs.openFile,
+							revealInFiles: () => {},
+							diffStatuses: [],
 						}
 					: undefined
 			}

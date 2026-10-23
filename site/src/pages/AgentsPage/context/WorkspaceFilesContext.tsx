@@ -1,5 +1,8 @@
 import { createContext, useContext } from "react";
-import type { WorkspaceAgentRepoChanges } from "#/api/typesGenerated";
+import type {
+	ChatDiffStatus,
+	WorkspaceAgentRepoChanges,
+} from "#/api/typesGenerated";
 
 export type OpenFileOptions = {
 	/** 1-based line to reveal. */
@@ -23,6 +26,21 @@ export type WorkspaceFilesContextValue = {
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
 	/** Opens an absolute path as a file tab in the chat view and focuses it. */
 	openFile: (absolutePath: string, options?: OpenFileOptions) => void;
+	/**
+	 * Shows an absolute path in the Files panel and switches the right panel
+	 * to it. The tree keeps its root when the root contains the path, and is
+	 * otherwise rooted at the containing repository, or at the folder itself
+	 * (a file's parent) outside every repository. Ancestors expand and the
+	 * row is selected and scrolled into view; a folder also expands.
+	 */
+	revealInFiles: (absolutePath: string, options?: RevealOptions) => void;
+	/** The chat's pull requests and pushed branches, one per repository. */
+	diffStatuses: readonly ChatDiffStatus[];
+};
+
+export type RevealOptions = {
+	/** Whether the path is a folder. Defaults to false. */
+	isDirectory?: boolean;
 };
 
 /**

@@ -250,6 +250,8 @@ const withWorkspaceFiles: Decorator = (Story) => (
 			repoRoots: workspaceFilesRoots,
 			repositories: new Map(),
 			openFile: fn(),
+			revealInFiles: fn(),
+			diffStatuses: [],
 		}}
 	>
 		<Story />
