@@ -1,3 +1,7 @@
+---
+review-personas: [accuracy, coverage, audience, structure]
+---
+
 # Coder docs content guidelines
 
 > [!NOTE]
@@ -64,6 +68,9 @@ Tutorials and how-to guides that include CLI commands (or chained commands) must
 
 *Why:* If we can run it, we can detect drift.
 Untestable claims rot silently.
+
+The same holds for claims about product behavior, such as a default, a limit, a file format, or an ordering.
+When no test pins the behavior a page describes, add one in the product, so the build fails before the page becomes false.
 
 ### Verify against the code; document exact values
 

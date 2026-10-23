@@ -22,9 +22,9 @@ The doctrine for adding Vale rules lives in the [Vale doctrine README](../README
 ## What the tooling checks, and what it doesn't
 
 A clean `make lint/prose` run is not evidence that a page follows this guide.
-The guide documents 88 rules.
+The guide documents 90 rules.
 Automated tooling checks 17 of them, and 1 of those 17 doesn't run on published pages.
-The other 71 are yours to apply by reading, 72 on published pages, where the one-sentence-per-line rule is off.
+The other 73 are yours to apply by reading, 74 on published pages, where the one-sentence-per-line rule is off.
 
 Open the section that matches what you're writing and work through it.
 The linters catch a narrow band of mechanical errors; they can't tell you that a page serves 2 audiences, buries a required step in a `NOTE`, or wraps every paragraph at 80 columns.
@@ -61,15 +61,15 @@ The markdownlint, emdash, docs HTML, and docs-manifest checks do fail the build.
 
 | Section                                                               | Rules | Tool-checked | Planned | Documentation-only |
 |-----------------------------------------------------------------------|-------|--------------|---------|--------------------|
-| [Audience and scope](./audience-and-scope.md)                         | 6     | 0            | 0       | 6                  |
-| [Voice and tone](./voice-and-tone.md)                                 | 12    | 1            | 3       | 8                  |
+| [Audience and scope](./audience-and-scope.md)                         | 7     | 0            | 0       | 7                  |
+| [Voice and tone](./voice-and-tone.md)                                 | 13    | 1            | 3       | 9                  |
 | [Procedural writing](./procedural-writing.md)                         | 6     | 0            | 1       | 5                  |
 | [Word choice](./word-choice.md)                                       | 20    | 4            | 10      | 6                  |
 | [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 14    | 5            | 3       | 6                  |
 | [Capitalization and punctuation](./capitalization-and-punctuation.md) | 12    | 3            | 7       | 2                  |
 | [Formatting](./formatting.md)                                         | 13    | 3            | 0       | 10                 |
 | [Numbers, units, and dates](./numbers-units-and-dates.md)             | 5     | 1            | 4       | 0                  |
-| **Total**                                                             | 88    | 17           | 28      | 43                 |
+| **Total**                                                             | 90    | 17           | 28      | 45                 |
 
 Every column counts rule sections, not linter rule names.
 A rule section is a heading that carries an enforcement footer, the italic line that names the section's enforcement status.
