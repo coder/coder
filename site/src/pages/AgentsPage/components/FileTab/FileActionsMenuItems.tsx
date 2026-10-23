@@ -1,5 +1,6 @@
 import { ExternalLinkIcon } from "lucide-react";
 import { useQuery } from "react-query";
+import { workspaceAgentFile } from "#/api/queries/workspaceFiles";
 import type {
 	ContextMenuItem,
 	ContextMenuSeparator,
@@ -52,6 +53,23 @@ export const FileActionsMenuItems: React.FC<FileActionsMenuItemsProps> = ({
 		root && root !== path ? path.slice(root.length + 1) : undefined;
 	const repository = root ? workspaceFiles?.repositories.get(root) : undefined;
 	const diff = repository?.unified_diff ?? "";
+	// Follows the tab's read of the file without reading it. With an
+	// infinite staleTime, only an invalidation, which a reread follows,
+	// makes the read stale. gcTime matches the tab's.
+	const fileQuery = useQuery({
+		...workspaceAgentFile(workspaceFiles?.agentId ?? "", path),
+		enabled: false,
+		staleTime: Number.POSITIVE_INFINITY,
+		gcTime: 0,
+	});
+	const watcherMessageAt = workspaceFiles?.lastWatcherMessageAt;
+	// The diff describes the file as the tab read or saved it only once a
+	// scan reported after that, and while no reread is pending.
+	const diffDescribesRead =
+		watcherMessageAt !== undefined &&
+		watcherMessageAt > fileQuery.dataUpdatedAt &&
+		!fileQuery.isStale &&
+		fileQuery.fetchStatus === "idle";
 	// A file HEAD lacks has no page on the host, at HEAD or in the pull
 	// request.
 	const links =
@@ -65,9 +83,9 @@ export const FileActionsMenuItems: React.FC<FileActionsMenuItemsProps> = ({
 					headCommit: repository.head_commit ?? "",
 					relativePath,
 					headLine:
-						line === undefined
-							? undefined
-							: getHeadLine(diff, relativePath, line),
+						line !== undefined && diffDescribesRead
+							? getHeadLine(diff, relativePath, line)
+							: undefined,
 					diffStatuses: workspaceFiles.diffStatuses,
 				})
 			: undefined;

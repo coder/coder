@@ -71,14 +71,23 @@ type Repositories = ReadonlyMap<string, WorkspaceAgentRepoChanges>;
 /** Stands in for the git watcher, whose state the tests set. */
 const createRepositoriesStore = () => {
 	let repositories: Repositories = new Map();
+	let lastMessageAt: number | undefined;
 	const listeners = new Set<() => void>();
+	const notify = () => {
+		for (const listener of listeners) {
+			listener();
+		}
+	};
 	return {
 		get: () => repositories,
+		getLastMessageAt: () => lastMessageAt,
 		set: (next: Repositories) => {
 			repositories = next;
-			for (const listener of listeners) {
-				listener();
-			}
+			notify();
+		},
+		receiveMessage: (at: number) => {
+			lastMessageAt = at;
+			notify();
 		},
 		subscribe: (listener: () => void) => {
 			listeners.add(listener);
@@ -108,6 +117,10 @@ const Harness: React.FC<HarnessProps> = ({
 		repositoriesStore.subscribe,
 		repositoriesStore.get,
 	);
+	const lastWatcherMessageAt = useSyncExternalStore(
+		repositoriesStore.subscribe,
+		repositoriesStore.getLastMessageAt,
+	);
 	return (
 		<WorkspaceFilesContext
 			value={
@@ -117,6 +130,7 @@ const Harness: React.FC<HarnessProps> = ({
 							defaultDirectory: "/home/coder",
 							repoRoots: ["/repo"],
 							repositories,
+							lastWatcherMessageAt,
 							openFile: mainTabs.openFile,
 							revealInFiles,
 							diffStatuses: [],
@@ -198,6 +212,14 @@ const renderHarness = (
 			act(() => store.upsertDurableMessages(messages)),
 		setRepositories: (repositories: Repositories) =>
 			act(() => repositoriesStore.set(repositories)),
+		// A watcher message after a scan that followed every read so far.
+		receiveWatcherMessage: () => {
+			const reads = queryClient
+				.getQueryCache()
+				.getAll()
+				.map((query) => query.state.dataUpdatedAt);
+			act(() => repositoriesStore.receiveMessage(Math.max(0, ...reads) + 1));
+		},
 	};
 };
 
@@ -518,7 +540,9 @@ describe("MainTabs", () => {
 		const writeText = vi
 			.spyOn(navigator.clipboard, "writeText")
 			.mockResolvedValue(undefined);
-		const { setRepositories } = renderHarness(["/repo/src/a.go"]);
+		const { setRepositories, receiveWatcherMessage } = renderHarness([
+			"/repo/src/a.go",
+		]);
 		setRepositories(
 			new Map([
 				[
@@ -571,27 +595,23 @@ describe("MainTabs", () => {
 			},
 			contributionsState: {},
 		});
-		await user.pointer({ keys: "[MouseRight]", target: getTab("a.go") });
-		expect(
-			await screen.findByRole("menuitem", { name: "Open on GitHub" }),
-		).toHaveAttribute(
-			"href",
-			`https://github.com/coder/coder/blob/${"a".repeat(40)}/src/a.go#L6`,
-		);
-		await user.keyboard("{Escape}");
+		const headLink = async (tab: string) => {
+			await user.pointer({ keys: "[MouseRight]", target: getTab(tab) });
+			const href = (
+				await screen.findByRole("menuitem", { name: "Open on GitHub" })
+			).getAttribute("href");
+			await user.keyboard("{Escape}");
+			return href;
+		};
+		const blob = `https://github.com/coder/coder/blob/${"a".repeat(40)}/src/a.go`;
+		// The diff describes the file as read only after a scan that followed.
+		expect(await headLink("a.go")).toBe(blob);
+		receiveWatcherMessage();
+		expect(await headLink("a.go")).toBe(`${blob}#L6`);
 
 		// Unsaved edits move the editor's lines away from the disk's.
 		await user.type(screen.getByLabelText("File contents"), "x");
-		await user.pointer({
-			keys: "[MouseRight]",
-			target: getTab("a.go, unsaved"),
-		});
-		expect(
-			await screen.findByRole("menuitem", { name: "Open on GitHub" }),
-		).toHaveAttribute(
-			"href",
-			`https://github.com/coder/coder/blob/${"a".repeat(40)}/src/a.go`,
-		);
+		expect(await headLink("a.go, unsaved")).toBe(blob);
 	});
 
 	it("moves between tabs with the arrow keys", async () => {
