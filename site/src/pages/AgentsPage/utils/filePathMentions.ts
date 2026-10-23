@@ -437,6 +437,7 @@ export const getFilePathCandidateStarts = (
 type DirectoryEntry = {
 	name: string;
 	is_dir: boolean;
+	is_symlink?: boolean;
 	absolute_path_string: string;
 };
 
@@ -519,7 +520,8 @@ type FilePathWalk = {
  * trailing `/`, ends the walk as a verified folder. A file or directory
  * whose name is followed by more path, as in "my docs/missing/" after
  * "my", does not fit. `.` and `..` segments move between directories the
- * walk has listed; `..` above `directory` matches nothing. The walk stops
+ * walk has listed; `..` above `directory`, or back over a symlink, whose
+ * real parent the listings do not show, matches nothing. The walk stops
  * with no match when a listing failed or the walk exceeds its depth, and
  * stays pending at the first directory whose listing is not available.
  */
@@ -529,7 +531,9 @@ export const walkFilePath = (
 	getEntries: (directory: string) => DirectoryEntries,
 ): FilePathWalk => {
 	const directories: string[] = [];
-	const parents: string[] = [];
+	// The directories the walk entered, and whether it entered each one
+	// through a symlink.
+	const parents: Array<{ directory: string; viaSymlink: boolean }> = [];
 	let current = directory;
 	let offset = 0;
 	for (let depth = 0; depth < maxWalkDepth; depth++) {
@@ -538,10 +542,10 @@ export const walkFilePath = (
 				offset += 2;
 			} else if (text.startsWith("../", offset)) {
 				const parent = parents.pop();
-				if (parent === undefined) {
+				if (parent === undefined || parent.viaSymlink) {
 					return { directories, verified: null };
 				}
-				current = parent;
+				current = parent.directory;
 				offset += 3;
 			} else {
 				break;
@@ -590,7 +594,10 @@ export const walkFilePath = (
 					},
 				};
 			}
-			parents.push(current);
+			parents.push({
+				directory: current,
+				viaSymlink: best.is_symlink === true,
+			});
 			current = best.absolute_path_string;
 			offset = end;
 			continue;
