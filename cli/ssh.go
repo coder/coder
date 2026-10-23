@@ -948,24 +948,36 @@ func findWorkspaceAndAgentByHostname(
 		hostname = strings.TrimSuffix(hostname, qualifiedSuffix)
 	}
 	hostname = normalizeWorkspaceInput(hostname)
+	ownerSpecified := strings.Contains(hostname, "/")
 
 	ws, agent, otherAgents, err := GetWorkspaceAndAgent(ctx, inv, client, !disableAutostart, hostname)
 	if err != nil && strings.Contains(err.Error(), "multiple agents found") {
 		var errorMsg strings.Builder
 		_, _ = errorMsg.WriteString(fmt.Sprintf("%s\nTry running:\n", err.Error()))
 		for _, agent := range otherAgents {
-			switch {
-			case config.HostnameSuffix != "":
-				_, _ = errorMsg.WriteString(fmt.Sprintf("	%s\n", cliui.Code(fmt.Sprintf("$ ssh %s.%s.%s.%s", agent.Name, ws.Name, ws.OwnerName, config.HostnameSuffix))))
-			case config.HostnamePrefix != "":
-				_, _ = errorMsg.WriteString(fmt.Sprintf("	%s\n", cliui.Code(fmt.Sprintf("$ ssh %s%s.%s.%s", config.HostnamePrefix, agent.Name, ws.Name, ws.OwnerName))))
-			default:
-				_, _ = errorMsg.WriteString(fmt.Sprintf("	%s\n", cliui.Code(fmt.Sprintf("$ ssh %s.%s.%s", agent.Name, ws.Name, ws.OwnerName))))
-			}
+			_, _ = errorMsg.WriteString(fmt.Sprintf("	%s\n", cliui.Code(agentSSHSuggestion(config, ws, agent, ownerSpecified))))
 		}
 		return ws, agent, xerrors.New(errorMsg.String())
 	}
 	return ws, agent, err
+}
+
+// agentSSHSuggestion returns a command the user can run to connect to a
+// specific agent. A hostname prefix or suffix is only set when coder ssh runs
+// as an OpenSSH ProxyCommand (see coder config-ssh), so only then is a plain
+// ssh hostname resolvable. Otherwise the user invoked coder ssh directly and
+// must be pointed back to it, including the owner only if they typed one.
+func agentSSHSuggestion(config codersdk.SSHConfigResponse, ws codersdk.Workspace, agent codersdk.WorkspaceAgent, ownerSpecified bool) string {
+	switch {
+	case config.HostnameSuffix != "":
+		return fmt.Sprintf("$ ssh %s.%s.%s.%s", agent.Name, ws.Name, ws.OwnerName, config.HostnameSuffix)
+	case config.HostnamePrefix != "":
+		return fmt.Sprintf("$ ssh %s%s.%s.%s", config.HostnamePrefix, agent.Name, ws.Name, ws.OwnerName)
+	case ownerSpecified:
+		return fmt.Sprintf("$ coder ssh %s/%s.%s", ws.OwnerName, ws.Name, agent.Name)
+	default:
+		return fmt.Sprintf("$ coder ssh %s.%s", ws.Name, agent.Name)
+	}
 }
 
 // watchAndClose ensures closer is called if the context is canceled or

@@ -743,3 +743,44 @@ func TestWatchAndCloseShutdownReason(t *testing.T) {
 		})
 	}
 }
+
+func Test_agentSSHSuggestion(t *testing.T) {
+	t.Parallel()
+
+	ws := codersdk.Workspace{Name: "dogfood", OwnerName: "alice"}
+	agent := codersdk.WorkspaceAgent{Name: "dev"}
+
+	for _, tc := range []struct {
+		name           string
+		config         codersdk.SSHConfigResponse
+		ownerSpecified bool
+		want           string
+	}{
+		{
+			// Invoked directly, so no OpenSSH host entry exists for the
+			// agent and the suggestion must use coder ssh.
+			name: "NoPrefixOrSuffix",
+			want: "$ coder ssh dogfood.dev",
+		},
+		{
+			name:           "NoPrefixOrSuffix_OwnerSpecified",
+			ownerSpecified: true,
+			want:           "$ coder ssh alice/dogfood.dev",
+		},
+		{
+			name:   "HostnameSuffix",
+			config: codersdk.SSHConfigResponse{HostnameSuffix: "coder"},
+			want:   "$ ssh dev.dogfood.alice.coder",
+		},
+		{
+			name:   "HostnamePrefix",
+			config: codersdk.SSHConfigResponse{HostnamePrefix: "coder."},
+			want:   "$ ssh coder.dev.dogfood.alice",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, agentSSHSuggestion(tc.config, ws, agent, tc.ownerSpecified))
+		})
+	}
+}
