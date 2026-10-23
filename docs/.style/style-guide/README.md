@@ -32,7 +32,7 @@ The linters catch a narrow band of mechanical errors; they can't tell you that a
 ### Checks that run today
 
 | Check                              | Tool                      | Severity  | Scope                                                                                                                                                                           | What it catches                                                       |
-| ---------------------------------- | ------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+|------------------------------------|---------------------------|-----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------|
 | `Coder.BrandNames`                 | Vale                      | `error`   | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | `Hashicorp` casing only, not the other brands in the word-choice list |
 | `Coder.GerundHeading`              | Vale                      | `warning` | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | Headings that lead with a gerund                                      |
 | `Coder.SelectClick`                | Vale                      | `warning` | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | `click` and its inflections                                           |
@@ -55,7 +55,7 @@ The markdownlint, emdash, docs HTML, and docs-manifest checks do fail the build.
 ### Coverage by section
 
 | Section                                                               | Rules | Tool-checked | Planned | Documentation-only |
-| --------------------------------------------------------------------- | ----- | ------------ | ------- | ------------------ |
+|-----------------------------------------------------------------------|-------|--------------|---------|--------------------|
 | [Audience and scope](./audience-and-scope.md)                         | 6     | 0            | 0       | 6                  |
 | [Voice and tone](./voice-and-tone.md)                                 | 12    | 0            | 4       | 8                  |
 | [Procedural writing](./procedural-writing.md)                         | 6     | 0            | 1       | 5                  |
@@ -105,7 +105,7 @@ This section is the only place that states the counts; the agent-facing guides l
 ## Sections
 
 | Page                                                                  | Covers                                                                                                                                                                                                                                                                                                                                   |
-| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|-----------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | [Audience and scope](./audience-and-scope.md)                         | One audience per page; one outcome per page; declare both up front; Coder personas                                                                                                                                                                                                                                                       |
 | [Voice and tone](./voice-and-tone.md)                                 | Second person; no first-person singular; "we" as the company, not the software; active voice; present tense; sentence and paragraph budgets; how to count words; verbs over noun forms; pronoun referents; spelled-out negative instructions; no "please"                                                                                |
 | [Procedural writing](./procedural-writing.md)                         | One instruction per step; condition before instruction; 20-word step limit; full clauses instead of `-ing` clauses; callouts inform, steps instruct; warnings state the consequence                                                                                                                                                      |
@@ -192,7 +192,7 @@ New prose rules land here.
 When this guide doesn't cover something, consult:
 
 | Type of guidance          | Reference                                                                               |
-| ------------------------- | --------------------------------------------------------------------------------------- |
+|---------------------------|-----------------------------------------------------------------------------------------|
 | Spelling                  | [Merriam-Webster](https://www.merriam-webster.com/)                                     |
 | Style, nontechnical       | [The Chicago Manual of Style](https://www.chicagomanualofstyle.org/home.html)           |
 | Style, technical          | [Microsoft Writing Style Guide](https://learn.microsoft.com/en-us/style-guide/welcome/) |
