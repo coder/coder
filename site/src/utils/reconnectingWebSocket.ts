@@ -79,8 +79,7 @@ type ReconnectingWebSocketOptions<TSocket extends Closable> = {
 	 * is responsible for attaching any `message` listeners to the
 	 * returned socket. This utility manages the lifecycle (`open`,
 	 * `close`, `error`) events. With `silenceTimeoutMs` set, it also
-	 * listens to `message` events to restart the timeout, without
-	 * reading their data.
+	 * listens to `message` events to restart the timeout.
 	 */
 	connect: () => TSocket;
 
