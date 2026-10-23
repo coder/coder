@@ -46,7 +46,7 @@ type FileMentionProps = {
  * A path in chat text that listings confirmed. Clicking opens the file, or
  * shows a folder in the Files panel.
  */
-export const FileMention: React.FC<FileMentionProps> = ({
+const FileMention: React.FC<FileMentionProps> = ({
 	path,
 	line,
 	choices,
