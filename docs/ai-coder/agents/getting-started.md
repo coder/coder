@@ -267,7 +267,7 @@ The warning disappears once the user edits the message.
 
 If the user isn't signed in, Coder keeps the message through sign-in.
 
-Don't put secrets in these links.
+Do not put secrets in these links.
 URLs end up in browser history and server logs.
 
 ### Add workspace context with AGENTS.md
