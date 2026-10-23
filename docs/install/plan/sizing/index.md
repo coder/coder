@@ -67,7 +67,7 @@ Workspaces are instantiated using Coder templates and deployed on resources crea
 
 ### Template
 
-A [template](../../../admin/templates/index.md) in Coder is a predefined configuration for creating workspaces.
+A [template](../../../templates/index.md) in Coder is a predefined configuration for creating workspaces.
 Templates streamline the process of workspace creation by providing pre-configured settings, tooling, and dependencies.
 They are built by template administrators on top of Terraform, allowing for efficient management of infrastructure resources.
 Additionally, templates can utilize Coder modules to leverage existing features shared with other templates, enhancing flexibility and consistency across deployments.
@@ -339,10 +339,10 @@ Operational readiness is crucial because it helps prevent issues that could affe
 ### Template configuration
 
 1. Establish dedicated accounts for users with the _Template Administrator_ role.
-1. Maintain Coder templates using [version control](../../../admin/templates/managing-templates/change-management.md).
+1. Maintain Coder templates using [version control](../../../templates/managing-templates/change-management.md).
 1. Consider implementing a GitOps workflow to automatically push new template versions into Coder from git.
    For example, on GitHub, you can use the [Setup Coder](https://github.com/marketplace/actions/setup-coder) action.
-1. Evaluate enabling [automatic template updates](../../../admin/templates/managing-templates/index.md#template-update-policies) upon workspace startup.
+1. Evaluate enabling [automatic template updates](../../../templates/managing-templates/index.md#template-update-policies) upon workspace startup.
 
 ### Observability
 

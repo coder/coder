@@ -287,6 +287,253 @@
 			]
 		},
 		{
+			"title": "Templates",
+			"description": "Learn how to author, publish, and maintain the Coder templates that define your workspaces.",
+			"path": "./templates/index.md",
+			"icon_path": "./images/icons/picture.svg",
+			"children": [
+				{
+					"title": "Creating templates",
+					"description": "Create a Coder template with Terraform to define the infrastructure for your workspaces.",
+					"path": "./templates/creating-templates.md"
+				},
+				{
+					"title": "Write a template from scratch",
+					"description": "Learn how to write a Coder template from scratch with Terraform, step by step.",
+					"path": "./templates/template-from-scratch.md"
+				},
+				{
+					"title": "Work with templates",
+					"description": "Learn how to edit, version, and manage Coder templates, along with recommended best practices.",
+					"path": "./templates/managing-templates/index.md",
+					"children": [
+						{
+							"title": "Image management",
+							"description": "Learn how to build and manage the container images that back your Coder templates.",
+							"path": "./templates/managing-templates/image-management.md"
+						},
+						{
+							"title": "Change management",
+							"description": "Manage Coder template changes with source control, versioning, and CI/CD publishing.",
+							"path": "./templates/managing-templates/change-management.md"
+						},
+						{
+							"title": "Envbuilder",
+							"description": "Use Envbuilder to shift workspace environment definitions from templates into your Git repositories.",
+							"path": "./templates/managing-templates/envbuilder.md"
+						},
+						{
+							"title": "Template dependencies",
+							"description": "Manage provider and module dependencies in your Coder templates to keep builds reproducible.",
+							"path": "./templates/managing-templates/dependencies.md"
+						},
+						{
+							"title": "Workspace scheduling",
+							"description": "Configure template settings that control how workspaces autostart, autostop, and stay available.",
+							"path": "./templates/managing-templates/schedule.md"
+						},
+						{
+							"title": "External workspaces",
+							"description": "Connect externally managed servers and machines to Coder as external workspaces.",
+							"path": "./templates/managing-templates/external-workspaces.md",
+							"state": ["premium", "early access"]
+						}
+					]
+				},
+				{
+					"title": "Extend templates",
+					"description": "Extend your Coder templates with parameters, metadata, web IDEs, Docker, and more.",
+					"path": "./templates/extending-templates/index.md",
+					"children": [
+						{
+							"title": "Agent metadata",
+							"description": "Display real-time metrics from the workspace agent, such as CPU, memory, and disk usage.",
+							"path": "./templates/extending-templates/agent-metadata.md"
+						},
+						{
+							"title": "Parameters",
+							"description": "Prompt users for values, such as a region or instance size, to customize each workspace.",
+							"path": "./templates/extending-templates/parameters/index.md",
+							"children": [
+								{
+									"title": "Form types and styling",
+									"description": "Choose the input control for each parameter, such as a dropdown, slider, multi-select, or text area.",
+									"path": "./templates/extending-templates/parameters/form-types.md"
+								},
+								{
+									"title": "Validation",
+									"description": "Constrain parameter values with ranges, regular expressions, and rules that depend on other parameters.",
+									"path": "./templates/extending-templates/parameters/validation.md"
+								},
+								{
+									"title": "Conditional parameters",
+									"description": "Show, hide, or change parameters based on the user's other selections in the workspace creation form.",
+									"path": "./templates/extending-templates/parameters/conditional-parameters.md"
+								},
+								{
+									"title": "Identity-aware parameters",
+									"description": "Change parameters based on the roles and groups of the user creating the workspace.",
+									"path": "./templates/extending-templates/parameters/identity-aware-parameters.md",
+									"state": ["premium"]
+								},
+								{
+									"title": "Workspace presets",
+									"description": "Bundle commonly used parameter values into a single option in the workspace creation form.",
+									"path": "./templates/extending-templates/parameters/workspace-presets.md"
+								},
+								{
+									"title": "Compatibility mode",
+									"description": "Find templates that use the deprecated classic parameter flow and upgrade them.",
+									"path": "./templates/extending-templates/parameters/compatibility-mode.md"
+								},
+								{
+									"title": "Troubleshooting",
+									"description": "Diagnose and resolve common problems with parameter forms.",
+									"path": "./templates/extending-templates/parameters/troubleshooting.md"
+								}
+							]
+						},
+						{
+							"title": "Prebuilt workspaces",
+							"description": "Pre-provision a ready-to-deploy workspace with a defined set of parameters.",
+							"path": "./templates/extending-templates/prebuilt-workspaces.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Icons",
+							"description": "Customize your Coder templates and resources with built-in or custom icons.",
+							"path": "./templates/extending-templates/icons.md"
+						},
+						{
+							"title": "Resource metadata",
+							"description": "Expose key workspace resource information to your users in the Coder dashboard with metadata.",
+							"path": "./templates/extending-templates/resource-metadata.md"
+						},
+						{
+							"title": "Resource monitoring",
+							"description": "Monitor workspace resource usage and alert on thresholds from the Coder dashboard.",
+							"path": "./templates/extending-templates/resource-monitoring.md"
+						},
+						{
+							"title": "UI resource ordering",
+							"description": "Control the order that resources and parameters appear in the workspace creation UI.",
+							"path": "./templates/extending-templates/resource-ordering.md"
+						},
+						{
+							"title": "Resource persistence",
+							"description": "Control which workspace resources persist across restarts and which are recreated on each build.",
+							"path": "./templates/extending-templates/resource-persistence.md"
+						},
+						{
+							"title": "Environment variables",
+							"description": "Inject environment variables into Coder workspaces using the coder_env Terraform resource.",
+							"path": "./templates/extending-templates/environment-variables.md"
+						},
+						{
+							"title": "Terraform template-wide variables",
+							"description": "Use Terraform template-wide variables to parameterize and manage your Coder templates.",
+							"path": "./templates/extending-templates/variables.md"
+						},
+						{
+							"title": "Reuse template code",
+							"description": "Reuse Terraform code across your Coder templates with shared, versioned modules.",
+							"path": "./templates/extending-templates/modules.md"
+						},
+						{
+							"title": "Web IDEs in templates",
+							"description": "Add and configure web IDEs in your Coder templates as coder_app resources.",
+							"path": "./templates/extending-templates/web-ides.md"
+						},
+						{
+							"title": "Pre-install JetBrains IDEs",
+							"description": "Pre-install JetBrains IDE backends in your template for faster first-time connections.",
+							"path": "./templates/extending-templates/jetbrains-preinstall.md"
+						},
+						{
+							"title": "JetBrains IDEs in an air-gapped environment",
+							"description": "Configure JetBrains IDEs to work in air-gapped Coder deployments without internet access.",
+							"path": "./templates/extending-templates/jetbrains-airgapped.md"
+						},
+						{
+							"title": "Docker in workspaces",
+							"description": "Run Docker inside container-based Coder workspaces using several supported approaches.",
+							"path": "./templates/extending-templates/docker-in-workspaces.md"
+						},
+						{
+							"title": "Workspace tags",
+							"description": "Route workspace builds to specific provisioners using workspace tags and parameters.",
+							"path": "./templates/extending-templates/workspace-tags.md"
+						},
+						{
+							"title": "Provider authentication",
+							"description": "Authenticate the Coder control plane to cloud provider APIs so it can provision workspaces.",
+							"path": "./templates/extending-templates/provider-authentication.md"
+						},
+						{
+							"title": "Dev Containers",
+							"description": "Extend your Coder templates with containerized dev container development environments.",
+							"path": "./templates/extending-templates/devcontainers.md"
+						},
+						{
+							"title": "Improve agent resiliency",
+							"description": "Improve workspace agent resiliency by tuning child process CPU and out-of-memory priority.",
+							"path": "./templates/extending-templates/process-priority.md"
+						},
+						{
+							"title": "Workspace process logging",
+							"description": "Log all system-level process activity inside workspaces for security and auditing.",
+							"path": "./templates/extending-templates/process-logging.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Workspace startup coordination",
+							"description": "Coordinate workspace startup scripts with dependency management so they run in the right order.",
+							"path": "./templates/startup-coordination/index.md",
+							"state": ["early access"],
+							"children": [
+								{
+									"title": "Usage",
+									"description": "Declare units and dependencies with coder exp sync to coordinate your workspace startup scripts.",
+									"path": "./templates/startup-coordination/usage.md"
+								},
+								{
+									"title": "Troubleshooting",
+									"description": "Diagnose and resolve common problems with workspace startup coordination and coder exp sync.",
+									"path": "./templates/startup-coordination/troubleshooting.md"
+								},
+								{
+									"title": "Examples",
+									"description": "A complete, production-ready example of coordinating workspace startup scripts with sync units.",
+									"path": "./templates/startup-coordination/example.md"
+								}
+							]
+						}
+					]
+				},
+				{
+					"title": "Open in Coder",
+					"description": "Add an Open in Coder button to your repositories and wikis so users can create workspaces fast.",
+					"path": "./templates/open-in-coder.md"
+				},
+				{
+					"title": "Permissions",
+					"description": "Control which users and groups can use, edit, and administer each Coder template.",
+					"path": "./templates/template-permissions.md",
+					"state": ["premium"]
+				},
+				{
+					"title": "Test templates through CI/CD",
+					"description": "Test and publish your Coder templates automatically through a CI/CD pipeline.",
+					"path": "./templates/testing-templates.md"
+				},
+				{
+					"title": "Troubleshoot templates",
+					"description": "Troubleshoot common Coder template problems, from failed builds to misconfigured workspaces.",
+					"path": "./templates/troubleshooting.md"
+				}
+			]
+		},
+		{
 			"title": "User guides",
 			"description": "Guides for Coder end users on accessing, managing, and personalizing their workspaces.",
 			"path": "./user-guides/index.md",
@@ -569,243 +816,6 @@
 							"title": "API & session tokens",
 							"description": "Manage authentication tokens for API access and configure session duration policies.",
 							"path": "./admin/users/sessions-tokens.md"
-						}
-					]
-				},
-				{
-					"title": "Templates",
-					"description": "Learn how to author, publish, and maintain the Coder templates that define your workspaces.",
-					"path": "./admin/templates/index.md",
-					"icon_path": "./images/icons/picture.svg",
-					"children": [
-						{
-							"title": "Creating templates",
-							"description": "Create a Coder template with Terraform to define the infrastructure for your workspaces.",
-							"path": "./admin/templates/creating-templates.md"
-						},
-						{
-							"title": "Work with templates",
-							"description": "Learn how to edit, version, and manage Coder templates, along with recommended best practices.",
-							"path": "./admin/templates/managing-templates/index.md",
-							"children": [
-								{
-									"title": "Image management",
-									"description": "Learn how to build and manage the container images that back your Coder templates.",
-									"path": "./admin/templates/managing-templates/image-management.md"
-								},
-								{
-									"title": "Change management",
-									"description": "Manage Coder template changes with source control, versioning, and CI/CD publishing.",
-									"path": "./admin/templates/managing-templates/change-management.md"
-								},
-								{
-									"title": "Envbuilder",
-									"description": "Use Envbuilder to shift workspace environment definitions from templates into your Git repositories.",
-									"path": "./admin/templates/managing-templates/envbuilder.md"
-								},
-								{
-									"title": "Template dependencies",
-									"description": "Manage provider and module dependencies in your Coder templates to keep builds reproducible.",
-									"path": "./admin/templates/managing-templates/dependencies.md"
-								},
-								{
-									"title": "Workspace scheduling",
-									"description": "Configure template settings that control how workspaces autostart, autostop, and stay available.",
-									"path": "./admin/templates/managing-templates/schedule.md"
-								},
-								{
-									"title": "External workspaces",
-									"description": "Connect externally managed servers and machines to Coder as external workspaces.",
-									"path": "./admin/templates/managing-templates/external-workspaces.md",
-									"state": ["premium", "early access"]
-								}
-							]
-						},
-						{
-							"title": "Extend templates",
-							"description": "Extend your Coder templates with parameters, metadata, web IDEs, Docker, and more.",
-							"path": "./admin/templates/extending-templates/index.md",
-							"children": [
-								{
-									"title": "Agent metadata",
-									"description": "Display real-time metrics from the workspace agent, such as CPU, memory, and disk usage.",
-									"path": "./admin/templates/extending-templates/agent-metadata.md"
-								},
-								{
-									"title": "Parameters",
-									"description": "Prompt users for values, such as a region or instance size, to customize each workspace.",
-									"path": "./admin/templates/extending-templates/parameters/index.md",
-									"children": [
-										{
-											"title": "Form types and styling",
-											"description": "Choose the input control for each parameter, such as a dropdown, slider, multi-select, or text area.",
-											"path": "./admin/templates/extending-templates/parameters/form-types.md"
-										},
-										{
-											"title": "Validation",
-											"description": "Constrain parameter values with ranges, regular expressions, and rules that depend on other parameters.",
-											"path": "./admin/templates/extending-templates/parameters/validation.md"
-										},
-										{
-											"title": "Conditional parameters",
-											"description": "Show, hide, or change parameters based on the user's other selections in the workspace creation form.",
-											"path": "./admin/templates/extending-templates/parameters/conditional-parameters.md"
-										},
-										{
-											"title": "Identity-aware parameters",
-											"description": "Change parameters based on the roles and groups of the user creating the workspace.",
-											"path": "./admin/templates/extending-templates/parameters/identity-aware-parameters.md",
-											"state": ["premium"]
-										},
-										{
-											"title": "Workspace presets",
-											"description": "Bundle commonly used parameter values into a single option in the workspace creation form.",
-											"path": "./admin/templates/extending-templates/parameters/workspace-presets.md"
-										},
-										{
-											"title": "Compatibility mode",
-											"description": "Find templates that use the deprecated classic parameter flow and upgrade them.",
-											"path": "./admin/templates/extending-templates/parameters/compatibility-mode.md"
-										},
-										{
-											"title": "Troubleshooting",
-											"description": "Diagnose and resolve common problems with parameter forms.",
-											"path": "./admin/templates/extending-templates/parameters/troubleshooting.md"
-										}
-									]
-								},
-								{
-									"title": "Prebuilt workspaces",
-									"description": "Pre-provision a ready-to-deploy workspace with a defined set of parameters.",
-									"path": "./admin/templates/extending-templates/prebuilt-workspaces.md",
-									"state": ["premium"]
-								},
-								{
-									"title": "Icons",
-									"description": "Customize your Coder templates and resources with built-in or custom icons.",
-									"path": "./admin/templates/extending-templates/icons.md"
-								},
-								{
-									"title": "Resource metadata",
-									"description": "Expose key workspace resource information to your users in the Coder dashboard with metadata.",
-									"path": "./admin/templates/extending-templates/resource-metadata.md"
-								},
-								{
-									"title": "Resource monitoring",
-									"description": "Monitor workspace resource usage and alert on thresholds from the Coder dashboard.",
-									"path": "./admin/templates/extending-templates/resource-monitoring.md"
-								},
-								{
-									"title": "UI resource ordering",
-									"description": "Control the order that resources and parameters appear in the workspace creation UI.",
-									"path": "./admin/templates/extending-templates/resource-ordering.md"
-								},
-								{
-									"title": "Resource persistence",
-									"description": "Control which workspace resources persist across restarts and which are recreated on each build.",
-									"path": "./admin/templates/extending-templates/resource-persistence.md"
-								},
-								{
-									"title": "Environment variables",
-									"description": "Inject environment variables into Coder workspaces using the coder_env Terraform resource.",
-									"path": "./admin/templates/extending-templates/environment-variables.md"
-								},
-								{
-									"title": "Terraform template-wide variables",
-									"description": "Use Terraform template-wide variables to parameterize and manage your Coder templates.",
-									"path": "./admin/templates/extending-templates/variables.md"
-								},
-								{
-									"title": "Reuse template code",
-									"description": "Reuse Terraform code across your Coder templates with shared, versioned modules.",
-									"path": "./admin/templates/extending-templates/modules.md"
-								},
-								{
-									"title": "Web IDEs in templates",
-									"description": "Add and configure web IDEs in your Coder templates as coder_app resources.",
-									"path": "./admin/templates/extending-templates/web-ides.md"
-								},
-								{
-									"title": "Pre-install JetBrains IDEs",
-									"description": "Pre-install JetBrains IDE backends in your template for faster first-time connections.",
-									"path": "./admin/templates/extending-templates/jetbrains-preinstall.md"
-								},
-								{
-									"title": "JetBrains IDEs in an air-gapped environment",
-									"description": "Configure JetBrains IDEs to work in air-gapped Coder deployments without internet access.",
-									"path": "./admin/templates/extending-templates/jetbrains-airgapped.md"
-								},
-								{
-									"title": "Docker in workspaces",
-									"description": "Run Docker inside container-based Coder workspaces using several supported approaches.",
-									"path": "./admin/templates/extending-templates/docker-in-workspaces.md"
-								},
-								{
-									"title": "Workspace tags",
-									"description": "Route workspace builds to specific provisioners using workspace tags and parameters.",
-									"path": "./admin/templates/extending-templates/workspace-tags.md"
-								},
-								{
-									"title": "Provider authentication",
-									"description": "Authenticate the Coder control plane to cloud provider APIs so it can provision workspaces.",
-									"path": "./admin/templates/extending-templates/provider-authentication.md"
-								},
-								{
-									"title": "Dev Containers",
-									"description": "Extend your Coder templates with containerized dev container development environments.",
-									"path": "./admin/templates/extending-templates/devcontainers.md"
-								},
-								{
-									"title": "Improve agent resiliency",
-									"description": "Improve workspace agent resiliency by tuning child process CPU and out-of-memory priority.",
-									"path": "./admin/templates/extending-templates/process-priority.md"
-								},
-								{
-									"title": "Workspace process logging",
-									"description": "Log all system-level process activity inside workspaces for security and auditing.",
-									"path": "./admin/templates/extending-templates/process-logging.md",
-									"state": ["premium"]
-								},
-								{
-									"title": "Workspace startup coordination",
-									"description": "Coordinate workspace startup scripts with dependency management so they run in the right order.",
-									"path": "./admin/templates/startup-coordination/index.md",
-									"state": ["early access"],
-									"children": [
-										{
-											"title": "Usage",
-											"description": "Declare units and dependencies with coder exp sync to coordinate your workspace startup scripts.",
-											"path": "./admin/templates/startup-coordination/usage.md"
-										},
-										{
-											"title": "Troubleshooting",
-											"description": "Diagnose and resolve common problems with workspace startup coordination and coder exp sync.",
-											"path": "./admin/templates/startup-coordination/troubleshooting.md"
-										},
-										{
-											"title": "Examples",
-											"description": "A complete, production-ready example of coordinating workspace startup scripts with sync units.",
-											"path": "./admin/templates/startup-coordination/example.md"
-										}
-									]
-								}
-							]
-						},
-						{
-							"title": "Open in Coder",
-							"description": "Add an Open in Coder button to your repositories and wikis so users can create workspaces fast.",
-							"path": "./admin/templates/open-in-coder.md"
-						},
-						{
-							"title": "Permissions",
-							"description": "Control which users and groups can use, edit, and administer each Coder template.",
-							"path": "./admin/templates/template-permissions.md",
-							"state": ["premium"]
-						},
-						{
-							"title": "Troubleshoot templates",
-							"description": "Troubleshoot common Coder template problems, from failed builds to misconfigured workspaces.",
-							"path": "./admin/templates/troubleshooting.md"
 						}
 					]
 				},
@@ -1432,11 +1442,6 @@
 					"path": "./get-started/index.md"
 				},
 				{
-					"title": "Write a template from scratch",
-					"description": "Learn how to write a Coder template from scratch with Terraform, step by step.",
-					"path": "./tutorials/template-from-scratch.md"
-				},
-				{
 					"title": "Use an external database",
 					"description": "Configure Coder to use an external PostgreSQL database for production deployments.",
 					"path": "./tutorials/external-database.md"
@@ -1444,7 +1449,7 @@
 				{
 					"title": "Image management",
 					"description": "Learn how to build and manage the container images that back your Coder templates.",
-					"path": "./admin/templates/managing-templates/image-management.md"
+					"path": "./templates/managing-templates/image-management.md"
 				},
 				{
 					"title": "Configure custom claims/scopes with Okta for group/role",
@@ -1503,11 +1508,6 @@
 					"path": "./tutorials/cloning-git-repositories.md"
 				},
 				{
-					"title": "Test templates through CI/CD",
-					"description": "Test and publish your Coder templates automatically through a CI/CD pipeline.",
-					"path": "./tutorials/testing-templates.md"
-				},
-				{
 					"title": "Apache reverse proxy",
 					"description": "Configure Apache as a reverse proxy for Coder, with TLS certificates from Let's Encrypt.",
 					"path": "./tutorials/reverse-proxy-apache.md"
@@ -1525,12 +1525,12 @@
 				{
 					"title": "Pre-install JetBrains IDEs",
 					"description": "Pre-install JetBrains IDE backends in your template for faster first-time connections.",
-					"path": "./admin/templates/extending-templates/jetbrains-preinstall.md"
+					"path": "./templates/extending-templates/jetbrains-preinstall.md"
 				},
 				{
 					"title": "JetBrains IDEs in an air-gapped environment",
 					"description": "Configure JetBrains IDEs to work in air-gapped Coder deployments without internet access.",
-					"path": "./admin/templates/extending-templates/jetbrains-airgapped.md"
+					"path": "./templates/extending-templates/jetbrains-airgapped.md"
 				},
 				{
 					"title": "FAQs",

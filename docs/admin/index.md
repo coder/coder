@@ -4,10 +4,10 @@ title: Administration
 
 ![Admin settings general page](../images/admin/admin-settings-general.png)
 
-These guides contain information on managing the Coder control plane and [authoring templates](./templates/index.md).
+These guides contain information on managing the Coder control plane and [authoring templates](../templates/index.md).
 
 First time viewers looking to set up control plane access can start with the [configuration guide](./setup/index.md).
-If you're a team lead looking to design environments for your developers, check out our [templates guides](./templates/index.md).
+If you're a team lead looking to design environments for your developers, check out our [templates guides](../templates/index.md).
 If you are a developer using Coder, we recommend the [user guides](../user-guides/index.md).
 
 For automation and scripting workflows, see our [CLI](../reference/cli/index.md) and [API](../reference/api/index.md) docs.
@@ -18,14 +18,14 @@ For any information not strictly contained in these sections, check out our [Tut
 
 ### Image
 
-- A [base image](./templates/managing-templates/image-management.md) contains OS-level packages and utilities that the Coder workspace is built on.
+- A [base image](../templates/managing-templates/image-management.md) contains OS-level packages and utilities that the Coder workspace is built on.
   It can be an [example image](https://github.com/coder/images), custom image in your registry, or one from [Docker Hub](https://hub.docker.com/search).
   It is defined in each template.
 - Managed by: Externally to Coder.
 
 ### Template
 
-- [Templates](./templates/index.md) include infrastructure-level dependencies for the workspace.
+- [Templates](../templates/index.md) include infrastructure-level dependencies for the workspace.
   For example, a template can include Kubernetes PersistentVolumeClaims, Docker containers, or EC2 VMs.
 - Managed by: Template administrators from within the Coder deployment.
 

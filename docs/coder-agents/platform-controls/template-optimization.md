@@ -114,7 +114,7 @@ Agent templates differ from developer templates in several ways:
 - **Reduced permissions.**
   Agent workspaces can use scoped credentials with fewer permissions than a developer's interactive session.
 
-See [Creating templates](../../admin/templates/creating-templates.md) for step-by-step instructions on creating templates via the UI, CLI, or CI/CD.
+See [Creating templates](../../templates/creating-templates.md) for step-by-step instructions on creating templates via the UI, CLI, or CI/CD.
 
 ## Configure network boundaries
 
@@ -209,8 +209,8 @@ A description like "AWS region" is less useful to the agent than one that explai
 Parameters with values like `ami-0abcdef1234567890` or `subnet-12345` are difficult for the agent to reason about.
 Where possible, use human-readable option labels or map opaque IDs to descriptive names using Terraform locals.
 
-For full parameter reference (including types, validation, mutability, and workspace presets), see [Parameters](../../admin/templates/extending-templates/parameters/index.md).
-[Conditional parameters](../../admin/templates/extending-templates/parameters/conditional-parameters.md) and [identity-aware parameters](../../admin/templates/extending-templates/parameters/identity-aware-parameters.md) add conditional form controls and identity-aware defaults for more advanced use cases.
+For full parameter reference (including types, validation, mutability, and workspace presets), see [Parameters](../../templates/extending-templates/parameters/index.md).
+[Conditional parameters](../../templates/extending-templates/parameters/conditional-parameters.md) and [identity-aware parameters](../../templates/extending-templates/parameters/identity-aware-parameters.md) add conditional form controls and identity-aware defaults for more advanced use cases.
 
 ## Pre-install tools and dependencies
 
@@ -226,7 +226,7 @@ The agent does not know how to install your organization's specific toolchain, a
 - **Git configuration.**
   Ensure `git` is configured with credentials and author information so the agent can commit and push without additional setup.
 
-For guidance on building and maintaining workspace images, see [Image management](../../admin/templates/managing-templates/image-management.md).
+For guidance on building and maintaining workspace images, see [Image management](../../templates/managing-templates/image-management.md).
 
 ### Set a meaningful working directory
 
@@ -247,7 +247,7 @@ This avoids a round trip where the agent needs to figure out where the code live
 Workspace provisioning is the primary source of latency when the agent begins a task.
 Templates with complex infrastructure, large images, or lengthy startup scripts can take minutes to provision (time where the developer is waiting and the agent is idle).
 
-[Prebuilt workspaces](../../admin/templates/extending-templates/prebuilt-workspaces.md) eliminate this delay by maintaining a pool of ready-to-use workspaces for specific parameter presets.
+[Prebuilt workspaces](../../templates/extending-templates/prebuilt-workspaces.md) eliminate this delay by maintaining a pool of ready-to-use workspaces for specific parameter presets.
 When the agent creates a workspace that matches a preset, Coder assigns an already-running prebuilt workspace instead of provisioning from scratch.
 The agent can begin working immediately.
 

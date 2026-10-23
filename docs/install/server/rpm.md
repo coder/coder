@@ -123,7 +123,7 @@ To test a configuration change without the service manager, run `coder server` i
 ## SELinux and container runtimes in workspaces
 
 SELinux affects workspaces that run their own container runtime.
-If your templates run Docker or Podman inside a workspace on a RHEL-family node, refer to [Docker in workspaces](../../admin/templates/extending-templates/docker-in-workspaces.md) for the runtime requirements.
+If your templates run Docker or Podman inside a workspace on a RHEL-family node, refer to [Docker in workspaces](../../templates/extending-templates/docker-in-workspaces.md) for the runtime requirements.
 
 ## Hardened base images
 
@@ -135,6 +135,6 @@ The Iron Bank image is a container image, so deploy it with [Kubernetes](./kuber
 
 - [Validate your deployment](../validate/index.md)
 - [Set up your control plane](../../admin/setup/index.md)
-- [Create your first template](../../tutorials/template-from-scratch.md)
+- [Create your first template](../../templates/template-from-scratch.md)
 - [Upgrade Coder](../operate/upgrade.md)
 - [Uninstall Coder](../operate/uninstall.md)

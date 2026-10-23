@@ -67,7 +67,7 @@ Refer to [Audit logs](../admin/security/audit-logs.md).
 ### Autostop requirement
 
 A template or deployment setting that forcibly stops workspaces on a recurring cadence, for example to apply updates.
-Refer to [Workspace scheduling](../admin/templates/managing-templates/schedule.md).
+Refer to [Workspace scheduling](../templates/managing-templates/schedule.md).
 
 ## B
 
@@ -87,7 +87,7 @@ A Coder workspace is a CDE.
 ### Change management
 
 The GitOps flow that stores templates in Git and pushes them through CI/CD with `coder templates push`.
-Refer to [Change management](../admin/templates/managing-templates/change-management.md).
+Refer to [Change management](../templates/managing-templates/change-management.md).
 
 ### code-server
 
@@ -240,19 +240,19 @@ Refer to [Networking](../admin/networking/index.md).
 
 An environment that conforms to the [Development Container Specification](https://containers.dev/) and is defined by a `devcontainer.json` file.
 `Dev Containers` is the Coder feature that runs dev containers inside a workspace.
-Refer to [Dev containers](../admin/templates/extending-templates/devcontainers.md).
+Refer to [Dev containers](../templates/extending-templates/devcontainers.md).
 
 ### `display_apps`
 
 A field on `coder_agent` that toggles the built-in agent apps, such as `vscode`, `vscode_insiders`, `web_terminal`, `ssh_helper`, and `port_forwarding_helper`.
 The enabled apps appear as buttons in the row on the workspace page.
-Refer to [Web IDEs](../admin/templates/extending-templates/web-ides.md).
+Refer to [Web IDEs](../templates/extending-templates/web-ides.md).
 
 ### Dormancy
 
 Automatic cleanup of workspaces that stay inactive past a threshold, up to and including deletion.
 This is a Premium feature.
-Refer to [Workspace scheduling](../admin/templates/managing-templates/schedule.md).
+Refer to [Workspace scheduling](../templates/managing-templates/schedule.md).
 
 ### Dotfiles
 
@@ -273,7 +273,7 @@ Refer to [Envbuilder](../admin/integrations/devcontainers/envbuilder/index.md) a
 ### Ephemeral resource
 
 A resource that is destroyed when the workspace stops and recreated on the next start.
-Refer to [Resource persistence](../admin/templates/extending-templates/resource-persistence.md).
+Refer to [Resource persistence](../templates/extending-templates/resource-persistence.md).
 
 ### External authentication
 
@@ -289,7 +289,7 @@ Refer to [External provisioners](../install/operate/provisioners/index.md).
 
 A workspace that runs on infrastructure Coder did not provision, connected to Coder through an agent.
 This is a Premium feature in early access.
-Refer to [External workspaces](../admin/templates/managing-templates/external-workspaces.md).
+Refer to [External workspaces](../templates/managing-templates/external-workspaces.md).
 
 ## F
 
@@ -356,7 +356,7 @@ Refer to [MCP server](../mcp-server.md).
 
 A reusable Terraform building block that a template composes in.
 Coder publishes modules in the [Coder Registry](https://registry.coder.com/).
-Refer to [Modules](../admin/templates/extending-templates/modules.md).
+Refer to [Modules](../templates/extending-templates/modules.md).
 
 ## O
 
@@ -395,7 +395,7 @@ Refer to [Groups and roles](../admin/users/groups-roles.md).
 
 Template inputs that a user sets when they create or update a workspace, with conditional visibility, identity-aware values, and validation.
 Previously, the conditional and identity-aware capabilities were called dynamic parameters.
-Refer to [Parameters](../admin/templates/extending-templates/parameters/index.md).
+Refer to [Parameters](../templates/extending-templates/parameters/index.md).
 
 ### Peripheral resource
 
@@ -404,7 +404,7 @@ A supporting resource, such as a disk or network object, that a computational re
 ### Persistent resource
 
 A resource that stays provisioned when the workspace stops, so its state survives a restart.
-Refer to [Resource persistence](../admin/templates/extending-templates/resource-persistence.md).
+Refer to [Resource persistence](../templates/extending-templates/resource-persistence.md).
 
 ### Personal access token
 
@@ -420,7 +420,7 @@ Refer to [Port forwarding](../user-guides/workspace-access/port-forwarding.md).
 
 A pool of workspaces provisioned ahead of time and ready to claim, which cuts the time to first launch.
 This is a Premium feature.
-Refer to [Prebuilt workspaces](../admin/templates/extending-templates/prebuilt-workspaces.md).
+Refer to [Prebuilt workspaces](../templates/extending-templates/prebuilt-workspaces.md).
 
 ### Premium
 
@@ -474,7 +474,7 @@ Refer to [Releases](./releases.md).
 ### Resource
 
 Any Terraform resource created by a template build, whether or not it runs a workspace agent.
-Refer to [Resource persistence](../admin/templates/extending-templates/resource-persistence.md).
+Refer to [Resource persistence](../templates/extending-templates/resource-persistence.md).
 
 ### Resource quota
 
@@ -519,7 +519,7 @@ Refer to [OIDC authentication](../admin/users/oidc-auth/index.md).
 ### Starter template
 
 A curated example template that ships with Coder for a common platform, such as Docker, Kubernetes, AWS, GCP, or Azure.
-Refer to [Create templates](../admin/templates/creating-templates.md).
+Refer to [Create templates](../templates/creating-templates.md).
 
 ### Sub-agent (Coder Agents)
 
@@ -563,12 +563,12 @@ Refer to [Networking](../admin/networking/index.md).
 ### Template
 
 The Terraform configuration that defines the infrastructure and Coder resources, such as the agent, apps, and parameters, that produce a workspace.
-Refer to [Templates](../admin/templates/index.md).
+Refer to [Templates](../templates/index.md).
 
 ### Template hardening
 
 Terraform patterns, such as `prevent_destroy` and `ignore_changes`, that protect persistent resources from accidental destruction.
-Refer to [Resource persistence](../admin/templates/extending-templates/resource-persistence.md).
+Refer to [Resource persistence](../templates/extending-templates/resource-persistence.md).
 
 ### Template usage insights
 
@@ -579,7 +579,7 @@ Refer to the [Insights API](./api/insights.md).
 
 An immutable snapshot of a template.
 Workspaces are pinned to a version, and admins can push new versions.
-Refer to [Manage templates](../admin/templates/managing-templates/index.md).
+Refer to [Manage templates](../templates/managing-templates/index.md).
 
 ### Terraform
 
@@ -619,7 +619,7 @@ Refer to [Workspace scheduling](../user-guides/workspace-scheduling.md).
 
 A record of the processes executed inside workspaces.
 This is a Premium feature.
-Refer to [Process logging](../admin/templates/extending-templates/process-logging.md).
+Refer to [Process logging](../templates/extending-templates/process-logging.md).
 
 ### Workspace proxy
 
@@ -631,5 +631,5 @@ Refer to [Workspace proxies](../admin/networking/workspace-proxies.md).
 
 - [Architecture](../install/plan/architecture.md)
 - [Coder Agents](../coder-agents/index.md)
-- [Templates](../admin/templates/index.md)
+- [Templates](../templates/index.md)
 - [API reference](./api/index.md)

@@ -62,7 +62,7 @@ It offers the following services along with much more:
 - Liveness checks
 - `startup_script` automation
 
-Templates are responsible for [creating and running agents](../../admin/templates/extending-templates/index.md#workspace-agents) within workspaces.
+Templates are responsible for [creating and running agents](../../templates/extending-templates/index.md#workspace-agents) within workspaces.
 
 ## Service Bundling
 

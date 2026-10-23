@@ -285,7 +285,7 @@ Use it for:
 ### Consider prebuilt workspaces for faster startup
 
 Workspace provisioning is the main source of latency when the agent starts a task.
-If your templates take more than a minute to provision, consider configuring [prebuilt workspaces](../admin/templates/extending-templates/prebuilt-workspaces.md) to maintain a pool of ready-to-use workspaces.
+If your templates take more than a minute to provision, consider configuring [prebuilt workspaces](../templates/extending-templates/prebuilt-workspaces.md) to maintain a pool of ready-to-use workspaces.
 The agent gets assigned an already-running workspace instead of provisioning from scratch.
 
 <a id="providing-feedback"></a>

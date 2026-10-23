@@ -10,7 +10,7 @@ However, there are often benefits to running external provisioner daemons:
 
 - **Isolate APIs:**
   Deploy provisioners in isolated environments (on-prem, AWS, Azure) instead of exposing APIs (Docker, Kubernetes, VMware) to the control plane.
-  See [Provider Authentication](../../../admin/templates/extending-templates/provider-authentication.md) for more details.
+  See [Provider Authentication](../../../templates/extending-templates/provider-authentication.md) for more details.
 
 - **Isolate secrets**:
   Keep Coder unaware of cloud secrets, manage/rotate secrets on provisioner servers.
@@ -146,7 +146,7 @@ This can also be done in the UI when building a template:
 ![template tags](../../../images/admin/provisioner-tags.png)
 
 Alternatively, a template can target a provisioner via [workspace tags](../../../../examples/workspace-tags) inside the Terraform.
-See the [workspace tags documentation](../../../admin/templates/extending-templates/workspace-tags.md) for more information.
+See the [workspace tags documentation](../../../templates/extending-templates/workspace-tags.md) for more information.
 
 > [!NOTE]
 > Workspace tags defined with the `coder_workspace_tags` data source template **do not** automatically apply to the template import job!

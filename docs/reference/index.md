@@ -52,7 +52,7 @@ For the most recent queries and payloads, we recommend checking the relevant doc
 
 ### Templates
 
-- [Manage templates via Terraform or CLI](../admin/templates/managing-templates/change-management.md): Store all templates in git and update them in CI/CD pipelines.
+- [Manage templates via Terraform or CLI](../templates/managing-templates/change-management.md): Store all templates in git and update them in CI/CD pipelines.
 
 ### Workspace agents
 

@@ -129,7 +129,7 @@ The [Coder Registry](https://registry.coder.com/templates) provides production-r
 Workspaces can include more than just compute.
 Terraform can add storage buckets, secrets, sidecars, and [other resources](https://developer.hashicorp.com/terraform/tutorials).
 
-See the [templates documentation](./admin/templates/index.md) for details.
+See the [templates documentation](./templates/index.md) for details.
 
 ## What Coder is not
 
@@ -156,6 +156,6 @@ See the [templates documentation](./admin/templates/index.md) for details.
 ## Learn more
 
 - [Coder Agents](./coder-agents/index.md)
-- [Templates](./admin/templates/index.md)
+- [Templates](./templates/index.md)
 - [Installing Coder](./install/index.md)
 - [Quickstart tutorial](./get-started/index.md)

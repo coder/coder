@@ -247,7 +247,7 @@ For a complete walkthrough of setting up the mirror, see [Mirror the Coder Regis
 To use Coder modules in offline installations, you can either:
 
 - [Mirror the Coder Registry with JFrog Artifactory](./registry-mirror.md) (recommended)
-- [Manually publish modules to Artifactory or use a private git repository](../../admin/templates/extending-templates/modules.md#offline-installations)
+- [Manually publish modules to Artifactory or use a private git repository](../../templates/extending-templates/modules.md#offline-installations)
 
 ## Firewall exceptions
 
@@ -261,7 +261,7 @@ Ensure that the following web addresses are accessible from the machine where Co
 
 ## JetBrains IDEs
 
-Gateway, JetBrains' remote development product that works with Coder, [has documented offline deployment steps.](../../admin/templates/extending-templates/jetbrains-airgapped.md)
+Gateway, JetBrains' remote development product that works with Coder, [has documented offline deployment steps.](../../templates/extending-templates/jetbrains-airgapped.md)
 
 ## Microsoft VS Code Remote - SSH
 
@@ -273,5 +273,5 @@ Installation of the [Visual Studio Code Remote - SSH extension](https://code.vis
 
 ## Next steps
 
-- [Create your first template](../../tutorials/template-from-scratch.md)
+- [Create your first template](../../templates/template-from-scratch.md)
 - [Control plane configuration](../../admin/setup/index.md)

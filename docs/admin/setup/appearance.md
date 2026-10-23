@@ -50,7 +50,7 @@ The menu section replaces the original menu positions: documentation, report a b
 
 ### Icons
 
-The link icons are optional, and can be set to any url or [builtin icon](../templates/extending-templates/icons.md#bundled-icons), additionally `bug`, `chat`, `docs`, and `star` are available as special icons.
+The link icons are optional, and can be set to any url or [builtin icon](../../templates/extending-templates/icons.md#bundled-icons), additionally `bug`, `chat`, `docs`, and `star` are available as special icons.
 
 ### Location
 

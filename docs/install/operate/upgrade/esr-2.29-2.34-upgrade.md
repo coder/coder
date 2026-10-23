@@ -86,9 +86,9 @@ For more information, visit the [Agent Firewall documentation](../../../ai-gover
 Template and workspace operations received several improvements:
 
 - Terraform modules are [cached per template version](../../../tutorials/best-practices/speed-up-templates.md) to reduce repeated downloads and make workspace starts more deterministic.
-- [Prebuild](../../../admin/templates/extending-templates/prebuilt-workspaces.md) claiming is more durable and idempotent.
+- [Prebuild](../../../templates/extending-templates/prebuilt-workspaces.md) claiming is more durable and idempotent.
 - Prebuild presets are validated with dynamic parameter validation.
-- [`coder_env`](../../../admin/templates/extending-templates/environment-variables.md) supports `merge_strategy`.
+- [`coder_env`](../../../templates/extending-templates/environment-variables.md) supports `merge_strategy`.
 - [User secrets](../../../user-guides/user-secrets.md) can be created, encrypted, audited, and injected into workspaces.
 - The dashboard warns about active prebuilds when duplicating templates.
 

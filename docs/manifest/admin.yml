@@ -5,7 +5,6 @@ icon_path: ./images/icons/wrench.svg
 children:
   - include: admin/setup.yml
   - include: admin/users.yml
-  - include: admin/templates.yml
   - title: External authentication
     description: Configure external authentication so workspaces can access Git providers and other OAuth services.
     path: ./admin/external-auth.md

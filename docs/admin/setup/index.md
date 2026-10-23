@@ -45,7 +45,7 @@ coder server
 > [!TIP]
 > Learn more about the [importance and benefits of wildcard access URLs](../networking/wildcard-access-url.md)
 
-`CODER_WILDCARD_ACCESS_URL` is necessary for [port forwarding](../networking/port-forwarding.md#dashboard) via the dashboard or running [coder_apps](../templates/index.md) on an absolute path.
+`CODER_WILDCARD_ACCESS_URL` is necessary for [port forwarding](../networking/port-forwarding.md#dashboard) via the dashboard or running [coder_apps](../../templates/index.md) on an absolute path.
 Set it to a wildcard hostname that resolves to Coder, such as `*.coder.example.com` or `*-coder.example.com`.
 The suffix form creates application hostnames such as `8080--main--myworkspace--john-coder.example.com`.
 It requires a DNS record and TLS certificate for `*.example.com`.
@@ -150,5 +150,5 @@ Please refer to the [external authentication](../external-auth.md) section for m
 
 ## Up Next
 
-- [Setup and manage templates](../templates/index.md)
+- [Setup and manage templates](../../templates/index.md)
 - [Setup external provisioners](../../install/operate/provisioners/index.md)

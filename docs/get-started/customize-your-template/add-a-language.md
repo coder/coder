@@ -808,6 +808,6 @@ Now that you added a language, you can [install your own command-line tools](./i
 
 ## Learn more
 
-- [Parameters](../../admin/templates/extending-templates/parameters/index.md) in the Coder documentation
+- [Parameters](../../templates/extending-templates/parameters/index.md) in the Coder documentation
 - [Terraform data sources](https://developer.hashicorp.com/terraform/language/data-sources)
 - [Terraform types](https://developer.hashicorp.com/terraform/language/expressions/types) for parameter values

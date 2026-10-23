@@ -68,5 +68,5 @@ This script can be useful when authoring a template for installing the CLI.
 
 ### Next up
 
-- [Create your first template](../tutorials/template-from-scratch.md)
+- [Create your first template](../templates/template-from-scratch.md)
 - [Control plane configuration](../admin/setup/index.md)

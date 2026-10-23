@@ -1,7 +1,7 @@
 [
   {
     "source": "/docs/admin/templates/extending-templates/dynamic-parameters",
-    "destination": "/docs/admin/templates/extending-templates/parameters"
+    "destination": "/docs/templates/extending-templates/parameters"
   },
   {
     "source": "/docs/ai-coder",
@@ -38,5 +38,17 @@
   {
     "source": "/docs/ai-coder/agent-relay/:path*",
     "destination": "/docs/agent-relay/:path*"
+  },
+  {
+    "source": "/docs/tutorials/template-from-scratch",
+    "destination": "/docs/templates/template-from-scratch"
+  },
+  {
+    "source": "/docs/tutorials/testing-templates",
+    "destination": "/docs/templates/testing-templates"
+  },
+  {
+    "source": "/docs/admin/templates/:path*",
+    "destination": "/docs/templates/:path*"
   }
 ]

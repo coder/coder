@@ -136,7 +136,7 @@ The same concepts apply to all compute types.
 
 ## Air-Gapped Deployments
 
-See the [air-gapped deployments](../templates/extending-templates/modules.md#offline-installations) section for instructions on how to use Coder modules in an offline environment with Artifactory.
+See the [air-gapped deployments](../../templates/extending-templates/modules.md#offline-installations) section for instructions on how to use Coder modules in an offline environment with Artifactory.
 
 ## Next Steps
 

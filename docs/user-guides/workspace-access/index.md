@@ -172,7 +172,7 @@ Learn more about [what makes code-server different from VS Code web](./code-serv
 ## Other Web IDEs
 
 We support a variety of other browser IDEs and tools to interact with your workspace.
-Each of these can be configured by your template admin using our [Web IDE guides](../../admin/templates/extending-templates/web-ides.md).
+Each of these can be configured by your template admin using our [Web IDE guides](../../templates/extending-templates/web-ides.md).
 
 Supported IDEs:
 

@@ -190,4 +190,4 @@ This is in lieu of using Coder's Gateway plugin which automatically performs the
 
 ## Use an existing JetBrains installation in the workspace
 
-You can ask your template administrator to [pre-install the JetBrains IDEs backend](../../../admin/templates/extending-templates/jetbrains-preinstall.md) in a template to make JetBrains IDE start faster on first connection.
+You can ask your template administrator to [pre-install the JetBrains IDEs backend](../../../templates/extending-templates/jetbrains-preinstall.md) in a template to make JetBrains IDE start faster on first connection.
