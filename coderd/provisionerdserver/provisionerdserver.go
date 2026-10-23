@@ -585,6 +585,13 @@ func (s *server) failAcquiredJob(logger slog.Logger, jobID uuid.UUID, message st
 		logger.Error(ctx, "get failed acquired job", slog.Error(err))
 		return
 	}
+	if job.Type == database.ProvisionerJobTypeTemplateResources {
+		err := s.finalizeTemplateResourcesJob(ctx, jobID, templateResourcesJobResult{disposition: disposition, error: message})
+		if err != nil {
+			logger.Error(ctx, "finalize failed acquired template resources job", slog.Error(err))
+		}
+		return
+	}
 	if job.Type == database.ProvisionerJobTypeNetworkPolicy {
 		err := s.finalizeNetworkPolicyJob(ctx, jobID, networkPolicyJobResult{
 			disposition: disposition,
@@ -623,6 +630,17 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 	// context is canceled; otherwise the claimed job would stay assigned to
 	// this worker until the job reaper.
 	failJob := func(errorMessage string) error {
+		if job.Type == database.ProvisionerJobTypeTemplateResources {
+			//nolint:gocritic // Provisionerd has specific authz rules.
+			ctx, cancel := context.WithTimeout(dbauthz.AsProvisionerd(context.Background()), time.Minute)
+			defer cancel()
+			if err := s.finalizeTemplateResourcesJob(ctx, job.ID, templateResourcesJobResult{
+				disposition: proto.StateDisposition_UNCHANGED, error: errorMessage,
+			}); err != nil {
+				return xerrors.Errorf("finalize invalid template resources job: %w", err)
+			}
+			return xerrors.Errorf("request job was invalidated: %s", errorMessage)
+		}
 		if job.Type == database.ProvisionerJobTypeNetworkPolicy {
 			//nolint:gocritic // Provisionerd has specific authz rules.
 			ctx, cancel := context.WithTimeout(dbauthz.AsProvisionerd(context.Background()), time.Minute)
@@ -692,6 +710,13 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		workspaceBuild, err := s.Database.GetWorkspaceBuildByID(ctx, input.WorkspaceBuildID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get workspace build: %s", err))
+		}
+		templateOutputs, err := templateResourceOutputsMetadata(workspaceBuild.TemplateResourceOutputs)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("read pinned template resource outputs: %s", err))
+		}
+		if err := s.validateTemplateOutputsWorker(templateOutputs, templateResourceRevisionString(workspaceBuild.TemplateResourceRevisionID)); err != nil {
+			return nil, failJob(err.Error())
 		}
 		workspace, err := s.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
 		if err != nil {
@@ -967,10 +992,18 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					RunningAgentAuthTokens:        runningAgentAuthTokens,
 					PrebuiltWorkspaceBuildStage:   input.PrebuiltWorkspaceBuildStage,
 					TemplateVersionModulesFile:    versionModulesFile,
+					TemplateOutputs:               templateOutputs,
+					TemplateResourceRevisionId:    templateResourceRevisionString(workspaceBuild.TemplateResourceRevisionID),
 				},
 				LogLevel: input.LogLevel,
 			},
 		}
+	case database.ProvisionerJobTypeTemplateResources:
+		resources, err := s.acquireTemplateResourcesJob(ctx, job)
+		if err != nil {
+			return nil, failJob(err.Error())
+		}
+		protoJob.Type = &proto.AcquiredJob_TemplateResources_{TemplateResources: resources}
 	case database.ProvisionerJobTypeNetworkPolicy:
 		networkPolicy, err := s.acquireNetworkPolicyJob(ctx, job)
 		if err != nil {
@@ -1006,6 +1039,9 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				},
 			},
 		}
+		if err := s.templateValidationMetadata(ctx, templateVersion.TemplateID, protoJob.GetTemplateDryRun().Metadata); err != nil {
+			return nil, failJob(err.Error())
+		}
 	case database.ProvisionerJobTypeTemplateVersionImport:
 		var input TemplateVersionImportJob
 		err = json.Unmarshal(job.Input, &input)
@@ -1035,6 +1071,9 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					TemplateVersionId:    input.TemplateVersionID.String(),
 				},
 			},
+		}
+		if err := s.templateValidationMetadata(ctx, input.TemplateID, protoJob.GetTemplateImport().Metadata); err != nil {
+			return nil, failJob(err.Error())
 		}
 	}
 	switch job.StorageMethod {
@@ -1139,8 +1178,8 @@ func (s *server) CommitQuota(ctx context.Context, request *proto.CommitQuotaRequ
 		return nil, xerrors.New("you don't own this job")
 	}
 
-	if job.Type == database.ProvisionerJobTypeNetworkPolicy {
-		return nil, xerrors.New("network policy jobs do not use workspace quota")
+	if job.Type == database.ProvisionerJobTypeNetworkPolicy || job.Type == database.ProvisionerJobTypeTemplateResources {
+		return nil, xerrors.New("native template jobs do not use workspace quota")
 	}
 
 	q := s.QuotaCommitter.Load()
@@ -1175,7 +1214,7 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 	if job.WorkerID.UUID.String() != s.ID.String() {
 		return nil, xerrors.New("you don't own this job")
 	}
-	if job.Type == database.ProvisionerJobTypeNetworkPolicy && job.CompletedAt.Valid {
+	if (job.Type == database.ProvisionerJobTypeNetworkPolicy || job.Type == database.ProvisionerJobTypeTemplateResources) && job.CompletedAt.Valid {
 		return &proto.UpdateJobResponse{Canceled: true}, nil
 	}
 	err = s.Database.UpdateProvisionerJobByID(ctx, database.UpdateProvisionerJobByIDParams{
@@ -1299,9 +1338,9 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 		s.Logger.Debug(ctx, "published job logs", slog.F("job_id", parsedID))
 	}
 
-	// Native network policy updates contain only logs and heartbeats. They
-	// must never mutate template or workspace resources.
-	if job.Type == database.ProvisionerJobTypeNetworkPolicy {
+	// Native template job updates contain only logs and heartbeats. They
+	// must never mutate workspace configuration or resources.
+	if job.Type == database.ProvisionerJobTypeNetworkPolicy || job.Type == database.ProvisionerJobTypeTemplateResources {
 		return &proto.UpdateJobResponse{Canceled: job.CanceledAt.Valid || job.CompletedAt.Valid}, nil
 	}
 
@@ -1409,6 +1448,12 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 	job, err := s.Database.GetProvisionerJobByID(ctx, jobID)
 	if err != nil {
 		return nil, xerrors.Errorf("get provisioner job: %w", err)
+	}
+	if job.Type == database.ProvisionerJobTypeTemplateResources {
+		return s.failTemplateResourcesJob(ctx, jobID, failJob)
+	}
+	if failJob.GetTemplateResources() != nil {
+		return nil, xerrors.New("template resources payload does not match stored job type")
 	}
 	if job.Type == database.ProvisionerJobTypeNetworkPolicy {
 		return s.failNetworkPolicyJob(ctx, jobID, failJob)
@@ -1884,6 +1929,12 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 		return nil, xerrors.Errorf("you don't own this job")
 	}
 
+	if job.Type == database.ProvisionerJobTypeTemplateResources {
+		return s.completeTemplateResourcesJob(ctx, jobID, completed)
+	}
+	if completed.GetTemplateResources() != nil {
+		return nil, xerrors.New("template resources payload does not match stored job type")
+	}
 	if job.Type == database.ProvisionerJobTypeNetworkPolicy {
 		return s.completeNetworkPolicyJob(ctx, jobID, completed)
 	}

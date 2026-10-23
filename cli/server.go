@@ -1308,6 +1308,18 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 				provisionerDaemons = append(provisionerDaemons, daemon)
 			}
+			if vals.Provisioner.Daemons.Value() > 0 && coderAPI.Experiments.Enabled(codersdk.ExperimentTemplateResources) {
+				name := stringutil.Truncate(cliutil.Hostname(), 45) + "-template-resources"
+				daemon, err := newProvisionerDaemon(
+					ctx, coderAPI, provisionerdMetrics, logger, vals,
+					filepath.Join(cacheDir, "provisioner-template-resources"), errCh, &provisionerdWaitGroup,
+					name, provisionerTypes, map[string]string{provisionersdk.TagTemplateResources: provisionersdk.TemplateResourcesCapabilityVersion},
+				)
+				if err != nil {
+					return xerrors.Errorf("create template resource provisioner daemon: %w", err)
+				}
+				provisionerDaemons = append(provisionerDaemons, daemon)
+			}
 			provisionerdMetrics.Runner.NumDaemons.Set(float64(len(provisionerDaemons)))
 
 			shutdownConnsCtx, shutdownConns := context.WithCancel(ctx)

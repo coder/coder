@@ -7178,6 +7178,44 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 This is required on creation to enable a user-flow of validating a template works. There is no reason the data-model cannot support empty templates, but it doesn't make sense for users.|
 |`time_til_autostop_notify_ms`|integer|false||Time til autostop notify ms allows optionally specifying the duration before the autostop deadline at which a reminder notification is sent for workspaces created from this template. Defaults to 0 (disabled).|
 
+## codersdk.CreateTemplateResourceRevisionRequest
+
+```json
+{
+  "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+  "source": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description |
+|-----------|--------|----------|--------------|-------------|
+| `file_id` | string | false    |              |             |
+| `source`  | string | false    |              |             |
+
+## codersdk.CreateTemplateResourceRunRequest
+
+```json
+{
+  "action": "plan",
+  "revision_id": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `action`      | string | false    |              |             |
+| `revision_id` | string | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s)                   |
+|----------|----------------------------|
+| `action` | `apply`, `destroy`, `plan` |
+
 ## codersdk.CreateTemplateVersionDryRunRequest
 
 ```json
@@ -9687,16 +9725,16 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 ## codersdk.Experiment
 
 ```json
-"network-policies"
+"template-resources"
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                     |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-projects`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `network-policies`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                           |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-projects`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `network-policies`, `no_nats_pubsub`, `notifications`, `template-resources`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 
@@ -13984,6 +14022,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "input": {
     "error": "string",
     "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
+    "template_resource_run_id": "f5a28fe8-9947-4447-814f-59e092913ab5",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
   },
@@ -14053,6 +14092,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "error": "string",
   "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
+  "template_resource_run_id": "f5a28fe8-9947-4447-814f-59e092913ab5",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
 }
@@ -14060,12 +14100,13 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                    | Type   | Required | Restrictions | Description |
-|-------------------------|--------|----------|--------------|-------------|
-| `error`                 | string | false    |              |             |
-| `network_policy_run_id` | string | false    |              |             |
-| `template_version_id`   | string | false    |              |             |
-| `workspace_build_id`    | string | false    |              |             |
+| Name                       | Type   | Required | Restrictions | Description |
+|----------------------------|--------|----------|--------------|-------------|
+| `error`                    | string | false    |              |             |
+| `network_policy_run_id`    | string | false    |              |             |
+| `template_resource_run_id` | string | false    |              |             |
+| `template_version_id`      | string | false    |              |             |
+| `workspace_build_id`       | string | false    |              |             |
 
 ## codersdk.ProvisionerJobLog
 
@@ -14149,9 +14190,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                                   |
-|--------------------------------------------------------------------------------------------|
-| `network_policy`, `template_version_dry_run`, `template_version_import`, `workspace_build` |
+| Value(s)                                                                                                         |
+|------------------------------------------------------------------------------------------------------------------|
+| `network_policy`, `template_resources`, `template_version_dry_run`, `template_version_import`, `workspace_build` |
 
 ## codersdk.ProvisionerKey
 
@@ -16303,6 +16344,188 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `count` | integer | false    |              |             |
 | `value` | string  | false    |              |             |
 
+## codersdk.TemplateResourceRevision
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+  "id": "string",
+  "source": "string",
+  "template_id": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description                                                       |
+|---------------|--------|----------|--------------|-------------------------------------------------------------------|
+| `created_at`  | string | false    |              |                                                                   |
+| `file_id`     | string | false    |              | File ID identifies the complete, normalized TAR archive.          |
+| `id`          | string | false    |              |                                                                   |
+| `source`      | string | false    |              | Source is the main.tf preview, or empty when that file is absent. |
+| `template_id` | string | false    |              |                                                                   |
+
+## codersdk.TemplateResourceRun
+
+```json
+{
+  "action": "plan",
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "string",
+  "job": {
+    "available_workers": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
+    "canceled_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "created_at": "2019-08-24T14:15:22Z",
+    "error": "string",
+    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+    "input": {
+      "error": "string",
+      "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
+      "template_resource_run_id": "f5a28fe8-9947-4447-814f-59e092913ab5",
+      "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+      "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+    },
+    "logs_overflowed": true,
+    "metadata": {
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+      "template_name": "string",
+      "template_version_name": "string",
+      "workspace_build_transition": "start",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string"
+    },
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "queue_position": 0,
+    "queue_size": 0,
+    "started_at": "2019-08-24T14:15:22Z",
+    "status": "pending",
+    "tags": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "type": "template_version_import",
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+    "worker_name": "string"
+  },
+  "revision_id": "string"
+}
+```
+
+### Properties
+
+| Name          | Type                                               | Required | Restrictions | Description |
+|---------------|----------------------------------------------------|----------|--------------|-------------|
+| `action`      | string                                             | false    |              |             |
+| `created_at`  | string                                             | false    |              |             |
+| `id`          | string                                             | false    |              |             |
+| `job`         | [codersdk.ProvisionerJob](#codersdkprovisionerjob) | false    |              |             |
+| `revision_id` | string                                             | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s)                   |
+|----------|----------------------------|
+| `action` | `apply`, `destroy`, `plan` |
+
+## codersdk.TemplateResources
+
+```json
+{
+  "applied_revision_id": "string",
+  "current_revision_id": "string",
+  "outputs": {},
+  "revisions": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "id": "string",
+      "source": "string",
+      "template_id": "string"
+    }
+  ],
+  "runs": [
+    {
+      "action": "plan",
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "string",
+      "job": {
+        "available_workers": [
+          "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+        ],
+        "canceled_at": "2019-08-24T14:15:22Z",
+        "completed_at": "2019-08-24T14:15:22Z",
+        "created_at": "2019-08-24T14:15:22Z",
+        "error": "string",
+        "error_code": "REQUIRED_TEMPLATE_VARIABLES",
+        "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+        "input": {
+          "error": "string",
+          "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
+          "template_resource_run_id": "f5a28fe8-9947-4447-814f-59e092913ab5",
+          "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+          "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+        },
+        "logs_overflowed": true,
+        "metadata": {
+          "template_display_name": "string",
+          "template_icon": "string",
+          "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+          "template_name": "string",
+          "template_version_name": "string",
+          "workspace_build_transition": "start",
+          "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+          "workspace_name": "string"
+        },
+        "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+        "queue_position": 0,
+        "queue_size": 0,
+        "started_at": "2019-08-24T14:15:22Z",
+        "status": "pending",
+        "tags": {
+          "property1": "string",
+          "property2": "string"
+        },
+        "type": "template_version_import",
+        "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+        "worker_name": "string"
+      },
+      "revision_id": "string"
+    }
+  ],
+  "status": "unconfigured",
+  "template_id": "string"
+}
+```
+
+### Properties
+
+| Name                  | Type                                                                            | Required | Restrictions | Description |
+|-----------------------|---------------------------------------------------------------------------------|----------|--------------|-------------|
+| `applied_revision_id` | string                                                                          | false    |              |             |
+| `current_revision_id` | string                                                                          | false    |              |             |
+| `outputs`             | object                                                                          | false    |              |             |
+| `revisions`           | array of [codersdk.TemplateResourceRevision](#codersdktemplateresourcerevision) | false    |              |             |
+| `runs`                | array of [codersdk.TemplateResourceRun](#codersdktemplateresourcerun)           | false    |              |             |
+| `status`              | string                                                                          | false    |              |             |
+| `template_id`         | string                                                                          | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s)                                                               |
+|----------|------------------------------------------------------------------------|
+| `status` | `applied`, `destroyed`, `failed`, `pending`, `unconfigured`, `unknown` |
+
 ## codersdk.TemplateRole
 
 ```json
@@ -16405,6 +16628,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "input": {
       "error": "string",
       "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
+      "template_resource_run_id": "f5a28fe8-9947-4447-814f-59e092913ab5",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
@@ -18826,6 +19050,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "input": {
         "error": "string",
         "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
+        "template_resource_run_id": "f5a28fe8-9947-4447-814f-59e092913ab5",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
       },
@@ -20211,6 +20436,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "input": {
       "error": "string",
       "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
+      "template_resource_run_id": "f5a28fe8-9947-4447-814f-59e092913ab5",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
@@ -21103,6 +21329,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "input": {
             "error": "string",
             "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
+            "template_resource_run_id": "f5a28fe8-9947-4447-814f-59e092913ab5",
             "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
             "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
           },

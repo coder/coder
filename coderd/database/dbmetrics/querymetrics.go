@@ -328,6 +328,14 @@ func (m queryMetricsStore) CompleteNetworkPolicyTargetJob(ctx context.Context, a
 	return r0, r1
 }
 
+func (m queryMetricsStore) CompleteTemplateResourceRun(ctx context.Context, arg database.CompleteTemplateResourceRunParams) (database.TemplateResourceState, error) {
+	start := time.Now()
+	r0, r1 := m.s.CompleteTemplateResourceRun(ctx, arg)
+	m.queryLatencies.WithLabelValues("CompleteTemplateResourceRun").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CompleteTemplateResourceRun").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountAIBridgeSessions(ctx, arg)
@@ -3400,6 +3408,62 @@ func (m queryMetricsStore) GetTemplateRankingSignalsByOwnerID(ctx context.Contex
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetTemplateResourceRevisionByID(ctx context.Context, id uuid.UUID) (database.TemplateResourceRevision, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateResourceRevisionByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetTemplateResourceRevisionByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateResourceRevisionByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetTemplateResourceRevisionsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]database.TemplateResourceRevision, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateResourceRevisionsByTemplateID(ctx, templateID)
+	m.queryLatencies.WithLabelValues("GetTemplateResourceRevisionsByTemplateID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateResourceRevisionsByTemplateID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetTemplateResourceRunByID(ctx context.Context, id uuid.UUID) (database.TemplateResourceRun, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateResourceRunByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetTemplateResourceRunByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateResourceRunByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetTemplateResourceRunByJobID(ctx context.Context, jobID uuid.UUID) (database.TemplateResourceRun, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateResourceRunByJobID(ctx, jobID)
+	m.queryLatencies.WithLabelValues("GetTemplateResourceRunByJobID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateResourceRunByJobID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetTemplateResourceRunsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]database.TemplateResourceRun, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateResourceRunsByTemplateID(ctx, templateID)
+	m.queryLatencies.WithLabelValues("GetTemplateResourceRunsByTemplateID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateResourceRunsByTemplateID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetTemplateResourceState(ctx context.Context, templateID uuid.UUID) (database.TemplateResourceState, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateResourceState(ctx, templateID)
+	m.queryLatencies.WithLabelValues("GetTemplateResourceState").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateResourceState").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetTemplateResourceStateForUpdate(ctx context.Context, templateID uuid.UUID) (database.TemplateResourceState, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateResourceStateForUpdate(ctx, templateID)
+	m.queryLatencies.WithLabelValues("GetTemplateResourceStateForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateResourceStateForUpdate").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTemplateUsageStats(ctx context.Context, arg database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTemplateUsageStats(ctx, arg)
@@ -4856,6 +4920,30 @@ func (m queryMetricsStore) InsertTemplate(ctx context.Context, arg database.Inse
 	return r0
 }
 
+func (m queryMetricsStore) InsertTemplateResourceRevision(ctx context.Context, arg database.InsertTemplateResourceRevisionParams) (database.TemplateResourceRevision, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertTemplateResourceRevision(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertTemplateResourceRevision").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertTemplateResourceRevision").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertTemplateResourceRun(ctx context.Context, arg database.InsertTemplateResourceRunParams) (database.TemplateResourceRun, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertTemplateResourceRun(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertTemplateResourceRun").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertTemplateResourceRun").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertTemplateResourceState(ctx context.Context, arg database.InsertTemplateResourceStateParams) (database.TemplateResourceState, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertTemplateResourceState(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertTemplateResourceState").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertTemplateResourceState").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertTemplateVersion(ctx context.Context, arg database.InsertTemplateVersionParams) error {
 	start := time.Now()
 	r0 := m.s.InsertTemplateVersion(ctx, arg)
@@ -5336,6 +5424,14 @@ func (m queryMetricsStore) LockProvisionerKeyByIDForShare(ctx context.Context, i
 	return r0, r1
 }
 
+func (m queryMetricsStore) LockTemplateResourceTemplate(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.LockTemplateResourceTemplate(ctx, id)
+	m.queryLatencies.WithLabelValues("LockTemplateResourceTemplate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockTemplateResourceTemplate").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) MarkAllInboxNotificationsAsRead(ctx context.Context, arg database.MarkAllInboxNotificationsAsReadParams) error {
 	start := time.Now()
 	r0 := m.s.MarkAllInboxNotificationsAsRead(ctx, arg)
@@ -5397,6 +5493,14 @@ func (m queryMetricsStore) PinChatByID(ctx context.Context, id uuid.UUID) error 
 	r0 := m.s.PinChatByID(ctx, id)
 	m.queryLatencies.WithLabelValues("PinChatByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PinChatByID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) PinWorkspaceBuildTemplateResources(ctx context.Context, arg database.PinWorkspaceBuildTemplateResourcesParams) error {
+	start := time.Now()
+	r0 := m.s.PinWorkspaceBuildTemplateResources(ctx, arg)
+	m.queryLatencies.WithLabelValues("PinWorkspaceBuildTemplateResources").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PinWorkspaceBuildTemplateResources").Inc()
 	return r0
 }
 
@@ -5512,6 +5616,14 @@ func (m queryMetricsStore) SetChatContextSnapshot(ctx context.Context, arg datab
 	return r0
 }
 
+func (m queryMetricsStore) SetTemplateResourceCurrentRevision(ctx context.Context, arg database.SetTemplateResourceCurrentRevisionParams) (database.TemplateResourceState, error) {
+	start := time.Now()
+	r0, r1 := m.s.SetTemplateResourceCurrentRevision(ctx, arg)
+	m.queryLatencies.WithLabelValues("SetTemplateResourceCurrentRevision").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SetTemplateResourceCurrentRevision").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) SetTransactionLockTimeout(ctx context.Context, lockTimeoutMspgCatalogint8 int64) error {
 	start := time.Now()
 	r0 := m.s.SetTransactionLockTimeout(ctx, lockTimeoutMspgCatalogint8)
@@ -5565,6 +5677,14 @@ func (m queryMetricsStore) StartNetworkPolicyTargetJob(ctx context.Context, arg 
 	r0, r1 := m.s.StartNetworkPolicyTargetJob(ctx, arg)
 	m.queryLatencies.WithLabelValues("StartNetworkPolicyTargetJob").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "StartNetworkPolicyTargetJob").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) StartTemplateResourceRun(ctx context.Context, arg database.StartTemplateResourceRunParams) (database.TemplateResourceState, error) {
+	start := time.Now()
+	r0, r1 := m.s.StartTemplateResourceRun(ctx, arg)
+	m.queryLatencies.WithLabelValues("StartTemplateResourceRun").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "StartTemplateResourceRun").Inc()
 	return r0, r1
 }
 
@@ -6199,6 +6319,14 @@ func (m queryMetricsStore) UpdateTemplateMetaByID(ctx context.Context, arg datab
 	m.queryLatencies.WithLabelValues("UpdateTemplateMetaByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateTemplateMetaByID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpdateTemplateResourceState(ctx context.Context, arg database.UpdateTemplateResourceStateParams) (database.TemplateResourceState, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateTemplateResourceState(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTemplateResourceState").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateTemplateResourceState").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateTemplateScheduleByID(ctx context.Context, arg database.UpdateTemplateScheduleByIDParams) error {

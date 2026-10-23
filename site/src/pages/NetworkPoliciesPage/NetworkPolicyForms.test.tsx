@@ -1,6 +1,7 @@
 import "#/testHelpers/monaco";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HCLEditor } from "#/components/HCLEditor/HCLEditor";
 import { MockTemplate } from "#/testHelpers/entities";
 import {
 	MockNetworkPolicy,
@@ -11,7 +12,6 @@ import {
 import { CreateNetworkPolicyForm } from "./CreateNetworkPolicyForm";
 import { NetworkPolicyAttachments } from "./NetworkPolicyAttachments";
 import { NetworkPolicyEditor } from "./NetworkPolicyEditor";
-import { NetworkPolicyHCLEditor } from "./NetworkPolicyHCLEditor";
 import { NetworkPolicyPublications } from "./NetworkPolicyPublications";
 import { NetworkPolicyTargetForm } from "./NetworkPolicyTargetForm";
 
@@ -20,7 +20,8 @@ it("reports cleared HCL and blur when tabbing out of the editor", async () => {
 	const onBlur = vi.fn();
 	const user = userEvent.setup();
 	render(
-		<NetworkPolicyHCLEditor
+		<HCLEditor
+			label="Policy HCL"
 			readOnly={false}
 			name="hcl"
 			value={MockNetworkPolicyRevision.hcl}

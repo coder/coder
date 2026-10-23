@@ -107,6 +107,12 @@ const TemplatePermissionsPage = lazy(
 			"./pages/TemplateSettingsPage/TemplatePermissionsPage/TemplatePermissionsPage"
 		),
 );
+const TemplateTerraformResourcesPage = lazy(
+	() =>
+		import(
+			"./pages/TemplatePage/TemplateTerraformResourcesPage/TemplateTerraformResourcesPage"
+		),
+);
 const TemplateResourcesPage = lazy(
 	() =>
 		import("./pages/TemplatePage/TemplateResourcesPage/TemplateResourcesPage"),
@@ -193,8 +199,8 @@ const UserOAuth2ProviderSettingsPage = lazy(
 const TemplateVersionPage = lazy(
 	() => import("./pages/TemplateVersionPage/TemplateVersionPage"),
 );
-const TemplateVersionEditorPage = lazy(
-	() => import("./pages/TemplateVersionEditorPage/TemplateVersionEditorPage"),
+const TemplateFilesEditorPage = lazy(
+	() => import("./pages/TemplateVersionEditorPage/TemplateFilesEditorPage"),
 );
 const CreateTemplateGalleryPage = lazy(
 	() => import("./pages/CreateTemplateGalleryPage/CreateTemplateGalleryPage"),
@@ -499,7 +505,14 @@ const templateRouter = () => {
 					<Route index element={<Navigate to="docs" replace />} />
 					<Route path="docs" element={<TemplateDocsPage />} />
 					<Route path="files" element={<TemplateFilesPage />} />
-					<Route path="resources" element={<TemplateResourcesPage />} />
+					<Route
+						path="resources"
+						element={<TemplateTerraformResourcesPage />}
+					/>
+					<Route
+						path="workspace-resources"
+						element={<TemplateResourcesPage />}
+					/>
 					<Route path="versions" element={<TemplateVersionsPage />} />
 					<Route path="embed" element={<TemplateEmbedPage />} />
 					<Route path="insights" element={<TemplateInsightsPage />} />
@@ -825,11 +838,11 @@ export const router = createBrowserRouter(
 				{/* Pages that don't have the dashboard layout */}
 				<Route
 					path="/templates/:template/versions/:version/edit"
-					element={<TemplateVersionEditorPage />}
+					element={<TemplateFilesEditorPage />}
 				/>
 				<Route
 					path="/templates/:organization/:template/versions/:version/edit"
-					element={<TemplateVersionEditorPage />}
+					element={<TemplateFilesEditorPage />}
 				/>
 				<Route
 					path="/:username/:workspace/terminal"

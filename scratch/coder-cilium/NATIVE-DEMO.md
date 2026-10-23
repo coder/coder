@@ -1,5 +1,13 @@
 # Native workspace network-policy demo
 
+For the current Serpent demo, see
+[Kubernetes template resources](template-resources-demo/kubernetes/README.md).
+That configuration owns the namespace and policy in template Terraform, while
+workspace Terraform consumes the namespace output. This guide preserves the
+earlier policy-specific setup; use `--network-policies` to enable its legacy API
+explicitly. Do not apply this guide's shared-namespace setup or upload its legacy
+workspace configuration over the current template-resource demo.
+
 This directory contains the trusted Cilium Terraform module and the persistent
 `serpent dev` workspace template for the native implementation in this branch.
 The older Helm deployment and cluster-bootstrap experiments are not required.
@@ -44,7 +52,8 @@ Do not recreate the retired `coder-policy-poc-a` or `coder-policy-poc-b` namespa
 ```bash
 python3 scratch/coder-cilium/start-native-dev.py \
   --kubeconfig "$DEMO_KUBECONFIG" \
-  --access-url http://172.20.0.3:3100
+  --access-url http://172.20.0.3:3100 \
+  --network-policies
 ```
 
 Replace the access address if needed. The launcher starts `scripts/develop.sh`

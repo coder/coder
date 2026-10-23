@@ -3,12 +3,14 @@ import { useQuery } from "react-query";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { API } from "#/api/api";
 import { checkAuthorization } from "#/api/queries/authCheck";
+import { templateKey } from "#/api/queries/templates";
 import type { AuthorizationRequest } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { Margins } from "#/components/Margins/Margins";
 import { LinkTabs, LinkTabsList, TabLink } from "#/components/Tabs/Tabs";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import {
 	type WorkspacePermissions,
@@ -73,10 +75,11 @@ export const TemplateLayout: React.FC<React.PropsWithChildren> = ({
 }) => {
 	const navigate = useNavigate();
 	const { user: me } = useAuthenticated();
+	const { experiments } = useDashboard();
 	const { organization: organizationName = "default", template: templateName } =
 		useParams() as { organization?: string; template: string };
 	const { data, error, isLoading } = useQuery({
-		queryKey: ["template", templateName],
+		queryKey: templateKey(templateName),
 		queryFn: () => fetchTemplate(organizationName, templateName),
 	});
 	const workspacePermissionsQuery = useQuery({
@@ -140,8 +143,14 @@ export const TemplateLayout: React.FC<React.PropsWithChildren> = ({
 								Source Code
 							</TabLink>
 						)}
-						<TabLink to="resources" value="resources">
-							Resources
+						{experiments.includes("template-resources") &&
+							data.permissions.canUpdateTemplate && (
+								<TabLink to="resources" value="resources">
+									Template resources
+								</TabLink>
+							)}
+						<TabLink to="workspace-resources" value="workspace-resources">
+							Workspace resources
 						</TabLink>
 						<TabLink to="versions" value="versions">
 							Versions

@@ -1,8 +1,8 @@
 import type { Template } from "#/api/typesGenerated";
 import { FormField } from "#/components/FormField/FormField";
+import { HCLEditor } from "#/components/HCLEditor/HCLEditor";
 import { MultiSelectCombobox } from "#/components/MultiSelectCombobox/MultiSelectCombobox";
 import type { FormHelpers } from "#/utils/formUtils";
-import { NetworkPolicyHCLEditor } from "./NetworkPolicyHCLEditor";
 
 type NetworkPolicyHCLProps = {
 	field: FormHelpers;
@@ -26,8 +26,9 @@ export const NetworkPolicyHCL: React.FC<NetworkPolicyHCLProps> = ({
 			label="Policy HCL"
 			description="Configure the trusted coder_network_policy module. Saving creates an immutable version; publishing applies it independently of workspace builds."
 			control={(props) => (
-				<NetworkPolicyHCLEditor
+				<HCLEditor
 					{...props}
+					label="Policy HCL"
 					name={field.name}
 					value={String(field.value ?? "")}
 					onBlur={onBlur}

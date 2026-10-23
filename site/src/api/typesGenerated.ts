@@ -4618,6 +4618,25 @@ export interface CreateTemplateRequest {
 	readonly allow_workspace_renames?: boolean;
 }
 
+// From codersdk/templateresources.go
+/**
+ * CreateTemplateResourceRevisionRequest provides either a complete uploaded
+ * archive or inline main.tf source. FileID and nonempty Source are mutually exclusive.
+ */
+export interface CreateTemplateResourceRevisionRequest {
+	readonly file_id?: string;
+	readonly source?: string;
+}
+
+// From codersdk/templateresources.go
+/**
+ * CreateTemplateResourceRunRequest selects an immutable revision and operation.
+ */
+export interface CreateTemplateResourceRunRequest {
+	readonly revision_id: string;
+	readonly action: string;
+}
+
 // From codersdk/templateversions.go
 /**
  * CreateTemplateVersionDryRunRequest defines the request parameters for
@@ -5569,6 +5588,7 @@ export type Experiment =
 	| "network-policies"
 	| "no_nats_pubsub"
 	| "notifications"
+	| "template-resources"
 	| "workspace-build-updates"
 	| "workspace-capable-licensing"
 	| "workspace-usage";
@@ -5650,6 +5670,7 @@ export const Experiments: Experiment[] = [
 	"network-policies",
 	"no_nats_pubsub",
 	"notifications",
+	"template-resources",
 	"workspace-build-updates",
 	"workspace-capable-licensing",
 	"workspace-usage",
@@ -8707,6 +8728,7 @@ export interface ProvisionerJob {
 export interface ProvisionerJobInput {
 	readonly template_version_id?: string;
 	readonly workspace_build_id?: string;
+	readonly template_resource_run_id?: string;
 	readonly network_policy_run_id?: string;
 	readonly error?: string;
 }
@@ -8762,12 +8784,14 @@ export const ProvisionerJobStatuses: ProvisionerJobStatus[] = [
 // From codersdk/provisionerdaemons.go
 export type ProvisionerJobType =
 	| "network_policy"
+	| "template_resources"
 	| "template_version_dry_run"
 	| "template_version_import"
 	| "workspace_build";
 
 export const ProvisionerJobTypes: ProvisionerJobType[] = [
 	"network_policy",
+	"template_resources",
 	"template_version_dry_run",
 	"template_version_import",
 	"workspace_build",
@@ -10496,6 +10520,52 @@ export interface TemplateParameterUsage {
 export interface TemplateParameterValue {
 	readonly value: string;
 	readonly count: number;
+}
+
+// From codersdk/templateresources.go
+/**
+ * TemplateResourceRevision is an immutable source archive independent of workspace versions.
+ */
+export interface TemplateResourceRevision {
+	readonly id: string;
+	readonly template_id: string;
+	readonly created_at: string;
+	/**
+	 * FileID identifies the complete, normalized TAR archive.
+	 */
+	readonly file_id: string;
+	/**
+	 * Source is the main.tf preview, or empty when that file is absent.
+	 */
+	readonly source: string;
+}
+
+// From codersdk/templateresources.go
+/**
+ * TemplateResourceRun records one plan, apply, or destroy using a native provisioner job.
+ */
+export interface TemplateResourceRun {
+	readonly id: string;
+	readonly revision_id: string;
+	readonly action: string;
+	readonly created_at: string;
+	readonly job: ProvisionerJob;
+}
+
+// From codersdk/templateresources.go
+/**
+ * TemplateResources is the independently provisioned Terraform root of a template.
+ * Outputs contain only non-sensitive values. Raw Terraform state is never exposed.
+ */
+export interface TemplateResources {
+	readonly template_id: string;
+	readonly status: string;
+	readonly current_revision_id: string | null;
+	readonly applied_revision_id: string | null;
+	readonly revisions: readonly TemplateResourceRevision[];
+	readonly runs: readonly TemplateResourceRun[];
+	// empty interface{} type, falling back to unknown
+	readonly outputs: Record<string, unknown>;
 }
 
 // From codersdk/templates.go

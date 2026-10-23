@@ -182,6 +182,9 @@ func (r *RootCmd) provisionerJobsCancel() *serpent.Command {
 			}
 
 			switch job.Type {
+			case codersdk.ProvisionerJobTypeTemplateResources:
+				_, _ = fmt.Fprintf(inv.Stdout, "Canceling template resource job %s...\n", job.ID)
+				err = client.CancelTemplateResourceRun(ctx, job.Metadata.TemplateID, ptr.NilToEmpty(job.Input.TemplateResourceRunID))
 			case codersdk.ProvisionerJobTypeTemplateVersionDryRun:
 				_, _ = fmt.Fprintf(inv.Stdout, "Canceling template version dry run job %s...\n", job.ID)
 				err = client.CancelTemplateVersionDryRun(ctx, ptr.NilToEmpty(job.Input.TemplateVersionID), job.ID)

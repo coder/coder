@@ -225,14 +225,19 @@ LEFT JOIN
 		AND w.organization_id = pj.organization_id
 	)
 LEFT JOIN
-	-- We should always have a template version, either explicitly or implicitly via workspace build.
+	-- Workspace and version jobs resolve their template through a version.
 	template_versions tv ON (
 		tv.id = CASE WHEN pj.input ? 'template_version_id' THEN (pj.input->>'template_version_id')::uuid ELSE wb.template_version_id END
 		AND tv.organization_id = pj.organization_id
 	)
 LEFT JOIN
+	template_resource_runs tr ON (
+		tr.job_id = pj.id AND pj.type = 'template_resources'
+		AND tr.organization_id = pj.organization_id
+	)
+LEFT JOIN
 	templates t ON (
-		t.id = tv.template_id
+		t.id = COALESCE(tr.template_id, tv.template_id)
 		AND t.organization_id = pj.organization_id
 	)
 LEFT JOIN

@@ -23,7 +23,8 @@ import type {
 import { delay } from "#/utils/delay";
 import { getTemplateVersionFiles } from "#/utils/templateVersion";
 
-const templateKey = (templateId: string) => ["template", templateId];
+/** Cache namespace shared by template detail consumers. */
+export const templateKey = (templateId: string) => ["template", templateId];
 const templateListsKey = ["templates", "list"] as const;
 
 export const template = (templateId: string) => {

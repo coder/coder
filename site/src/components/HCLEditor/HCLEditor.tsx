@@ -8,21 +8,23 @@ import { MONOSPACE_FONT_FAMILY } from "#/theme/constants";
 
 loader.config({ monaco });
 
-type NetworkPolicyHCLEditorProps = Pick<
+type HCLEditorProps = Pick<
 	React.ComponentProps<"textarea">,
 	"id" | "aria-invalid" | "aria-describedby" | "disabled"
 > & {
 	name: string;
+	label: string;
 	value: string;
 	readOnly: boolean;
 	onChange: (value: string) => void;
 	onBlur: () => void;
 };
 
-/** Adapts Monaco to a labeled form field without capturing Tab navigation. */
-export const NetworkPolicyHCLEditor: React.FC<NetworkPolicyHCLEditorProps> = ({
+/** Adapts Monaco to a labeled HCL field without capturing Tab navigation. */
+export const HCLEditor: React.FC<HCLEditorProps> = ({
 	id,
 	name,
+	label,
 	value,
 	onChange,
 	onBlur,
@@ -59,7 +61,7 @@ export const NetworkPolicyHCLEditor: React.FC<NetworkPolicyHCLEditorProps> = ({
 			onBlur={theme.isLoading ? onBlur : undefined}
 			disabled={disabled}
 			readOnly={readOnly}
-			aria-label="Policy HCL (loading editor)"
+			aria-label={`${label} (loading editor)`}
 			aria-invalid={invalid}
 			aria-describedby={describedBy}
 			required
@@ -91,7 +93,7 @@ export const NetworkPolicyHCLEditor: React.FC<NetworkPolicyHCLEditorProps> = ({
 				onChange={(value) => onChange(value ?? "")}
 				onMount={setEditor}
 				options={{
-					ariaLabel: "Policy HCL",
+					ariaLabel: label,
 					ariaRequired: true,
 					automaticLayout: true,
 					editContext: false,

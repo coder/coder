@@ -1239,6 +1239,11 @@ func expectDB(t *testing.T, opts ...txExpect) *dbmock.MockStore {
 	for _, o := range opts {
 		o(mTx)
 	}
+	// Unrelated tests have no template resource root. Specific snapshot tests
+	// register their expectations above these fallbacks.
+	mTx.EXPECT().LockTemplateResourceTemplate(gomock.Any(), templateID).Return(nil).AnyTimes()
+	mTx.EXPECT().GetTemplateResourceStateForUpdate(gomock.Any(), templateID).Return(database.TemplateResourceState{}, sql.ErrNoRows).AnyTimes()
+	mTx.EXPECT().PinWorkspaceBuildTemplateResources(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	return mDB
 }
 
@@ -1370,17 +1375,27 @@ func withTemplateVersionPresetParameters(presetID uuid.UUID, params []database.T
 }
 
 func withLastBuildFound(mTx *dbmock.MockStore) {
+	withLastBuildSnapshot(mTx, uuid.NullUUID{})
+}
+
+func withLastBuildSnapshot(mTx *dbmock.MockStore, revisionID uuid.NullUUID) {
+	var outputs json.RawMessage
+	if revisionID.Valid {
+		outputs = json.RawMessage(`{"value":"previous"}`)
+	}
 	mTx.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Times(1).
 		Return(database.WorkspaceBuild{
-			ID:                lastBuildID,
-			WorkspaceID:       workspaceID,
-			TemplateVersionID: inactiveVersionID,
-			BuildNumber:       1,
-			Transition:        database.WorkspaceTransitionStart,
-			InitiatorID:       userID,
-			JobID:             lastBuildJobID,
-			Reason:            database.BuildReasonInitiator,
+			ID:                         lastBuildID,
+			WorkspaceID:                workspaceID,
+			TemplateVersionID:          inactiveVersionID,
+			BuildNumber:                1,
+			Transition:                 database.WorkspaceTransitionStart,
+			InitiatorID:                userID,
+			JobID:                      lastBuildJobID,
+			Reason:                     database.BuildReasonInitiator,
+			TemplateResourceRevisionID: revisionID,
+			TemplateResourceOutputs:    outputs,
 		}, nil)
 
 	mTx.EXPECT().GetProvisionerJobByID(gomock.Any(), lastBuildJobID).

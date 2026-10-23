@@ -1,4 +1,4 @@
-"""Start the native network-policy demo against an existing local cluster."""
+"""Start the template-resources demo against an existing local cluster."""
 import argparse
 import ipaddress
 import json
@@ -15,7 +15,9 @@ def main():
     parser.add_argument('--access-url', required=True,
                         help='Coder API URL reachable from workspace pods, including port 3100')
     parser.add_argument('--terraform-cli-config', type=Path,
-                        help='Optional explicit provider mirror configuration')
+                        help='Optional explicit provider mirror or development override')
+    parser.add_argument('--network-policies', action='store_true',
+                        help='Also enable the earlier policy-specific POC')
     args = parser.parse_args()
     kubeconfig = args.kubeconfig.expanduser().resolve(strict=True)
     config = json.loads(subprocess.check_output([
@@ -55,11 +57,15 @@ def main():
     command = [
         './scripts/develop.sh', '--port', '3100', '--web-port', '8180',
         '--prometheus-port', '0', '--access-url', args.access_url, '--skip-setup', '--',
-        '--experiments', 'network-policies', '--network-policy-module-path',
-        str(root / 'scratch/coder-cilium/network-policy-module'),
+        '--experiments', 'template-resources',
         '--telemetry=false', '--derp-config-url', '', '--derp-server-stun-addresses', '',
         '--block-direct-connections=true',
     ]
+    if args.network_policies:
+        command.extend([
+            '--experiments', 'network-policies', '--network-policy-module-path',
+            str(root / 'scratch/coder-cilium/network-policy-module'),
+        ])
     os.chdir(root)
     os.execve(command[0], command, env)
 

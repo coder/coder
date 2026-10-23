@@ -27,11 +27,18 @@ import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { useWatchVersionLogs } from "#/modules/templates/useWatchVersionLogs";
 import { existsFile, type FileTree, traverse } from "#/utils/filetree";
 import { pageTitle } from "#/utils/page";
-import { TarReader, TarWriter } from "#/utils/tar";
+import { TarReader } from "#/utils/tar";
+import { writeTemplateArchive } from "#/utils/templateArchive";
 import { createTemplateVersionFileTree } from "#/utils/templateVersion";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 
-const TemplateVersionEditorPage: React.FC = () => {
+type TemplateVersionEditorPageProps = {
+	scopeNavigation?: React.ReactNode;
+};
+
+const TemplateVersionEditorPage: React.FC<TemplateVersionEditorPageProps> = ({
+	scopeNavigation,
+}) => {
 	const getLink = useLinks();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
@@ -131,9 +138,13 @@ const TemplateVersionEditorPage: React.FC = () => {
 			<title>{pageTitle(templateName, "Template Editor")}</title>
 
 			{!(templateQuery.data && activeTemplateVersion && fileTree) ? (
-				<Loader fullscreen />
+				<div className="h-full flex flex-col">
+					{scopeNavigation}
+					<Loader className="flex-1" />
+				</div>
 			) : (
 				<TemplateVersionEditor
+					scopeNavigation={scopeNavigation}
 					activePath={activePath}
 					onActivePathChange={onActivePathChange}
 					template={templateQuery.data}
@@ -146,7 +157,7 @@ const TemplateVersionEditorPage: React.FC = () => {
 						if (!tarFile) {
 							return;
 						}
-						const newVersionFile = await generateVersionFiles(
+						const newVersionFile = await writeTemplateArchive(
 							tarFile,
 							newFileTree,
 						);
@@ -303,31 +314,6 @@ const useMissingVariables = (templateVersion: TemplateVersion | undefined) => {
 		isMissingVariablesDialogOpen,
 		setIsMissingVariablesDialogOpen,
 	};
-};
-
-const generateVersionFiles = async (
-	tarReader: TarReader,
-	fileTree: FileTree,
-) => {
-	const tar = new TarWriter();
-
-	traverse(fileTree, (content, _filename, fullPath) => {
-		// When a file is deleted. Don't add it to the tar.
-		if (content === undefined) {
-			return;
-		}
-
-		const baseFileInfo = tarReader.fileInfo.find((i) => i.name === fullPath);
-
-		if (typeof content === "string") {
-			tar.addFile(fullPath, content, baseFileInfo);
-			return;
-		}
-
-		tar.addFolder(fullPath, baseFileInfo);
-	});
-	const blob = (await tar.write()) as Blob;
-	return new File([blob], "template.tar", { type: "application/x-tar" });
 };
 
 const publishVersion = async (options: {

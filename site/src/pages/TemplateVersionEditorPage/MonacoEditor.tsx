@@ -1,6 +1,6 @@
 import Editor, { loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
-import { useEffect } from "react";
+import { useEffect, useId, useRef } from "react";
 import { MONOSPACE_FONT_FAMILY } from "#/theme/constants";
 import { useTheme } from "#/theme/context";
 
@@ -32,6 +32,29 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({
 	path,
 }) => {
 	const theme = useTheme();
+	const id = useId();
+	const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+	const modelDirectory = `/template-editor/${id}/`;
+	const modelPath = monaco.Uri.from({
+		scheme: "inmemory",
+		path: `${modelDirectory}${path ?? "untitled"}`,
+	}).toString();
+
+	// monaco-react caches models globally and only disposes the active model.
+	// Keep inactive files for undo/view state, but release this session on exit.
+	useEffect(
+		() => () => {
+			editorRef.current = null;
+			for (const model of monaco.editor.getModels()) {
+				if (
+					model.uri.scheme === "inmemory" &&
+					model.uri.path.startsWith(modelDirectory)
+				)
+					model.dispose();
+			}
+		},
+		[modelDirectory],
+	);
 
 	useEffect(() => {
 		document.fonts.ready
@@ -53,6 +76,7 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({
 			theme="vs-dark"
 			options={{
 				automaticLayout: true,
+				tabFocusMode: true,
 				fontFamily: MONOSPACE_FONT_FAMILY,
 				fontSize: 14,
 				wordWrap: "on",
@@ -61,13 +85,19 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({
 					bottom: 16,
 				},
 			}}
-			path={path}
+			path={modelPath}
 			onChange={(newValue) => {
-				if (onChange && newValue !== undefined) {
+				// A previous path's subscription can outlive the model switch.
+				if (
+					onChange &&
+					newValue !== undefined &&
+					editorRef.current?.getModel()?.uri.toString() === modelPath
+				) {
 					onChange(newValue);
 				}
 			}}
 			onMount={(editor) => {
+				editorRef.current = editor;
 				// This jank allows for Ctrl + Enter to work outside the editor.
 				// We use this keybind to trigger a build.
 				(

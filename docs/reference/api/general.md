@@ -877,7 +877,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments \
 
 ```json
 [
-  "network-policies"
+  "template-resources"
 ]
 ```
 
@@ -916,7 +916,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments/available \
 
 ```json
 [
-  "network-policies"
+  "template-resources"
 ]
 ```
 

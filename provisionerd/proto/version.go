@@ -117,9 +117,13 @@ import "github.com/coder/coder/v2/apiversion"
 // API v1.22:
 //   - Added native network policy destroy jobs, routed using the
 //     coder.network_policy_destroy capability for opted-in workers.
+//
+// API v1.23:
+//   - Added native template resource jobs and pinned template output metadata,
+//     routed using the coder.template_resources capability.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 22
+	CurrentMinor = 23
 )
 
 // CurrentVersion is the current provisionerd API version.

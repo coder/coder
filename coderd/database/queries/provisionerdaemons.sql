@@ -82,28 +82,38 @@ LEFT JOIN
 LEFT JOIN
 	workspace_builds current_build ON current_build.id = CASE WHEN current_job.input ? 'workspace_build_id' THEN (current_job.input->>'workspace_build_id')::uuid END
 LEFT JOIN
-	-- We should always have a template version, either explicitly or implicitly via workspace build.
+	-- Workspace and version jobs resolve their template through a version.
 	template_versions current_version ON (
 		current_version.id = CASE WHEN current_job.input ? 'template_version_id' THEN (current_job.input->>'template_version_id')::uuid ELSE current_build.template_version_id END
 		AND current_version.organization_id = pd.organization_id
 	)
 LEFT JOIN
+	template_resource_runs current_resource_run ON (
+		current_resource_run.job_id = current_job.id AND current_job.type = 'template_resources'
+		AND current_resource_run.organization_id = pd.organization_id
+	)
+LEFT JOIN
 	templates current_template ON (
-		current_template.id = current_version.template_id
+		current_template.id = COALESCE(current_resource_run.template_id, current_version.template_id)
 		AND current_template.organization_id = pd.organization_id
 	)
 -- Previous job information.
 LEFT JOIN
 	workspace_builds previous_build ON previous_build.id = CASE WHEN previous_job.input ? 'workspace_build_id' THEN (previous_job.input->>'workspace_build_id')::uuid END
 LEFT JOIN
-	-- We should always have a template version, either explicitly or implicitly via workspace build.
+	-- Workspace and version jobs resolve their template through a version.
 	template_versions previous_version ON (
 		previous_version.id = CASE WHEN previous_job.input ? 'template_version_id' THEN (previous_job.input->>'template_version_id')::uuid ELSE previous_build.template_version_id END
 		AND previous_version.organization_id = pd.organization_id
 	)
 LEFT JOIN
+	template_resource_runs previous_resource_run ON (
+		previous_resource_run.job_id = previous_job.id AND previous_job.type = 'template_resources'
+		AND previous_resource_run.organization_id = pd.organization_id
+	)
+LEFT JOIN
 	templates previous_template ON (
-		previous_template.id = previous_version.template_id
+		previous_template.id = COALESCE(previous_resource_run.template_id, previous_version.template_id)
 		AND previous_template.organization_id = pd.organization_id
 	)
 WHERE

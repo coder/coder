@@ -41,9 +41,9 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestProvisionerDaemonServeNetworkPolicyCapabilities(t *testing.T) {
+func TestProvisionerDaemonServeNativeCapabilities(t *testing.T) {
 	t.Parallel()
-	for _, version := range []string{"1.21", "1.22"} {
+	for _, version := range []string{"1.21", "1.22", "1.23"} {
 		for _, auth := range []string{"PSK", "Key"} {
 			t.Run(version+"/"+auth, func(t *testing.T) {
 				t.Parallel()
@@ -57,7 +57,7 @@ func TestProvisionerDaemonServeNetworkPolicyCapabilities(t *testing.T) {
 					Options:              &coderdtest.Options{Logger: &logger},
 				})
 				ctx := testutil.Context(t, testutil.WaitLong)
-				tags := map[string]string{provisionersdk.TagNetworkPolicy: "1", provisionersdk.TagNetworkPolicyDestroy: "1"}
+				tags := map[string]string{provisionersdk.TagNetworkPolicy: "1", provisionersdk.TagNetworkPolicyDestroy: "1", provisionersdk.TagTemplateResources: "1"}
 				header, credential := codersdk.ProvisionerDaemonPSK, "policy-worker-test"
 				if auth == "Key" {
 					res, err := client.CreateProvisionerKey(ctx, user.OrganizationID, codersdk.CreateProvisionerKeyRequest{Name: "policy-worker", Tags: tags})
@@ -89,6 +89,11 @@ func TestProvisionerDaemonServeNetworkPolicyCapabilities(t *testing.T) {
 				require.Len(t, daemons, 1)
 				require.Equal(t, version, daemons[0].APIVersion)
 				require.Equal(t, "1", daemons[0].Tags[provisionersdk.TagNetworkPolicy])
+				if version == "1.23" {
+					require.Equal(t, "1", daemons[0].Tags[provisionersdk.TagTemplateResources])
+				} else {
+					require.NotContains(t, daemons[0].Tags, provisionersdk.TagTemplateResources)
+				}
 				if version == "1.21" {
 					require.NotContains(t, daemons[0].Tags, provisionersdk.TagNetworkPolicyDestroy)
 				} else {

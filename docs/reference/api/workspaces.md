@@ -110,6 +110,7 @@ of the template will be used.
       "input": {
         "error": "string",
         "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
+        "template_resource_run_id": "f5a28fe8-9947-4447-814f-59e092913ab5",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
       },
@@ -494,6 +495,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
       "input": {
         "error": "string",
         "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
+        "template_resource_run_id": "f5a28fe8-9947-4447-814f-59e092913ab5",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
       },
@@ -844,6 +846,7 @@ of the template will be used.
       "input": {
         "error": "string",
         "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
+        "template_resource_run_id": "f5a28fe8-9947-4447-814f-59e092913ab5",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
       },
@@ -1172,6 +1175,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
           "input": {
             "error": "string",
             "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
+            "template_resource_run_id": "f5a28fe8-9947-4447-814f-59e092913ab5",
             "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
             "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
           },
@@ -1466,6 +1470,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
       "input": {
         "error": "string",
         "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
+        "template_resource_run_id": "f5a28fe8-9947-4447-814f-59e092913ab5",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
       },
@@ -2102,6 +2107,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
       "input": {
         "error": "string",
         "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
+        "template_resource_run_id": "f5a28fe8-9947-4447-814f-59e092913ab5",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
       },

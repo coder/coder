@@ -1,6 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import * as monaco from "monaco-editor";
-import { expect, fn, waitFor } from "storybook/test";
+import { useState } from "react";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { Button } from "#/components/Button/Button";
+import { MockTemplateVersionFileTree } from "#/testHelpers/entities";
+import { MockTemplateResourceFiles } from "#/testHelpers/templateResources";
+import { getFileText, updateFile } from "#/utils/filetree";
 import { MonacoEditor } from "./MonacoEditor";
 
 const meta: Meta<typeof MonacoEditor> = {
@@ -21,6 +26,54 @@ const meta: Meta<typeof MonacoEditor> = {
 
 export default meta;
 type Story = StoryObj<typeof MonacoEditor>;
+
+export const SwitchingRoots: Story = {
+	render: function Render() {
+		const [root, setRoot] = useState<"workspace" | "template">("workspace");
+		const [path, setPath] = useState("main.tf");
+		const [files, setFiles] = useState({
+			workspace: MockTemplateVersionFileTree,
+			template: MockTemplateResourceFiles,
+		});
+		return (
+			<div className="flex h-full flex-col">
+				<div className="flex gap-2 p-2">
+					<Button
+						onClick={() => {
+							setRoot(root === "workspace" ? "template" : "workspace");
+							setPath("main.tf");
+						}}
+					>
+						Switch root
+					</Button>
+					<Button onClick={() => setPath("main.tf")}>Open main.tf</Button>
+					<Button onClick={() => setPath("README.md")}>Open README.md</Button>
+					<span>{root} resources</span>
+				</div>
+				<MonacoEditor
+					key={root}
+					path={path}
+					value={getFileText(path, files[root])}
+					onChange={(value) =>
+						setFiles((files) => ({
+							...files,
+							[root]: updateFile(path, value, files[root]),
+						}))
+					}
+				/>
+			</div>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("textbox");
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Open README.md" }),
+		);
+		await userEvent.click(canvas.getByRole("button", { name: "Switch root" }));
+		await canvas.findByRole("textbox");
+	},
+};
 
 export const Empty: Story = {};
 

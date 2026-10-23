@@ -1015,6 +1015,42 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getTemplateResources = async (templateId: string) => {
+		const response = await this.axios.get<TypesGen.TemplateResources>(
+			`/api/v2/templates/${templateId}/resources`,
+		);
+		return response.data;
+	};
+
+	createTemplateResourceRevision = async (
+		templateId: string,
+		request: TypesGen.CreateTemplateResourceRevisionRequest,
+	) => {
+		const response = await this.axios.post<TypesGen.TemplateResourceRevision>(
+			`/api/v2/templates/${templateId}/resources/versions`,
+			request,
+		);
+		return response.data;
+	};
+
+	createTemplateResourceRun = async (
+		templateId: string,
+		request: TypesGen.CreateTemplateResourceRunRequest,
+	) => {
+		const response = await this.axios.post<TypesGen.TemplateResourceRun>(
+			`/api/v2/templates/${templateId}/resources/runs`,
+			request,
+		);
+		return response.data;
+	};
+
+	getTemplateResourceRunLogs = async (templateId: string, runId: string) => {
+		const response = await this.axios.get<TypesGen.ProvisionerJobLog[]>(
+			`/api/v2/templates/${templateId}/resources/runs/${runId}/logs`,
+		);
+		return response.data;
+	};
+
 	getTemplateVersionResources = async (
 		versionId: string,
 	): Promise<TypesGen.WorkspaceResource[]> => {

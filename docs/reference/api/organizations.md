@@ -329,6 +329,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
     "input": {
       "error": "string",
       "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
+      "template_resource_run_id": "f5a28fe8-9947-4447-814f-59e092913ab5",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
@@ -384,6 +385,7 @@ Status Code **200**
 | `» input`                       | [codersdk.ProvisionerJobInput](schemas.md#codersdkprovisionerjobinput)       | false    |              |             |
 | `»» error`                      | string                                                                       | false    |              |             |
 | `»» network_policy_run_id`      | string(uuid)                                                                 | false    |              |             |
+| `»» template_resource_run_id`   | string(uuid)                                                                 | false    |              |             |
 | `»» template_version_id`        | string(uuid)                                                                 | false    |              |             |
 | `»» workspace_build_id`         | string(uuid)                                                                 | false    |              |             |
 | `» logs_overflowed`             | boolean                                                                      | false    |              |             |
@@ -409,12 +411,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                     | Value(s)                                                                                   |
-|------------------------------|--------------------------------------------------------------------------------------------|
-| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                                        |
-| `workspace_build_transition` | `delete`, `start`, `stop`                                                                  |
-| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`                       |
-| `type`                       | `network_policy`, `template_version_dry_run`, `template_version_import`, `workspace_build` |
+| Property                     | Value(s)                                                                                                         |
+|------------------------------|------------------------------------------------------------------------------------------------------------------|
+| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                                                              |
+| `workspace_build_transition` | `delete`, `start`, `stop`                                                                                        |
+| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`                                             |
+| `type`                       | `network_policy`, `template_resources`, `template_version_dry_run`, `template_version_import`, `workspace_build` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -458,6 +460,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
   "input": {
     "error": "string",
     "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
+    "template_resource_run_id": "f5a28fe8-9947-4447-814f-59e092913ab5",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
   },

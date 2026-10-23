@@ -1648,6 +1648,14 @@ func New(options *Options) *API {
 				r.Use(
 					httpmw.ExtractTemplateParam(options.Database),
 				)
+				r.Route("/resources", func(r chi.Router) {
+					r.Use(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentTemplateResources))
+					r.Get("/", api.templateResources)
+					r.Post("/versions", api.postTemplateResourceRevision)
+					r.Post("/runs", api.postTemplateResourceRun)
+					r.Get("/runs/{runID}/logs", api.templateResourceRunLogs)
+					r.Patch("/runs/{runID}/cancel", api.patchCancelTemplateResourceRun)
+				})
 				r.Get("/daus", api.templateDAUs)
 				r.Get("/", api.template)
 				r.Delete("/", api.deleteTemplate)
@@ -2579,7 +2587,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		OrganizationID: defaultOrg.ID,
 		CreatedAt:      dbtime.Now(),
 		Provisioners:   dbTypes,
-		Tags:           provisionersdk.NetworkPolicyProvisionerTags(provisionersdk.MutateTags(uuid.Nil, provisionerTags), apiVersion),
+		Tags:           provisionersdk.TemplateResourcesProvisionerTags(provisionersdk.NetworkPolicyProvisionerTags(provisionersdk.MutateTags(uuid.Nil, provisionerTags), apiVersion), apiVersion),
 		LastSeenAt:     sql.NullTime{Time: dbtime.Now(), Valid: true},
 		Version:        buildinfo.Version(),
 		APIVersion:     apiVersion,

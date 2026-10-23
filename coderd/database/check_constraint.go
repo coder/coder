@@ -82,6 +82,9 @@ const (
 	CheckSkillsSingleOwner                                   CheckConstraint = "skills_single_owner"                                       // skills
 	CheckSkillsUserAclIsObject                               CheckConstraint = "skills_user_acl_is_object"                                 // skills
 	CheckTelemetryLockEventTypeConstraint                    CheckConstraint = "telemetry_lock_event_type_constraint"                      // telemetry_locks
+	CheckTemplateResourceRunsActionCheck                     CheckConstraint = "template_resource_runs_action_check"                       // template_resource_runs
+	CheckTemplateResourceStatesOutputsCheck                  CheckConstraint = "template_resource_states_outputs_check"                    // template_resource_states
+	CheckTemplateResourceStatesStatusCheck                   CheckConstraint = "template_resource_states_status_check"                     // template_resource_states
 	CheckValidationMonotonicOrder                            CheckConstraint = "validation_monotonic_order"                                // template_version_parameters
 	CheckUsageEventTypeCheck                                 CheckConstraint = "usage_event_type_check"                                    // usage_events
 	CheckUsageEventsAgentRuntimeHourAligned                  CheckConstraint = "usage_events_agent_runtime_hour_aligned"                   // usage_events
@@ -99,6 +102,7 @@ const (
 	CheckWorkspaceBuildOrchestrationsNextRetryAfterCheck     CheckConstraint = "workspace_build_orchestrations_next_retry_after_check"     // workspace_build_orchestrations
 	CheckWorkspaceBuildOrchestrationsStatusCheck             CheckConstraint = "workspace_build_orchestrations_status_check"               // workspace_build_orchestrations
 	CheckWorkspaceBuildsDeadlineBelowMaxDeadline             CheckConstraint = "workspace_builds_deadline_below_max_deadline"              // workspace_builds
+	CheckWorkspaceBuildsTemplateResourceOutputsCheck         CheckConstraint = "workspace_builds_template_resource_outputs_check"          // workspace_builds
 	CheckGroupAclIsObject                                    CheckConstraint = "group_acl_is_object"                                       // workspaces
 	CheckUserAclIsObject                                     CheckConstraint = "user_acl_is_object"                                        // workspaces
 )

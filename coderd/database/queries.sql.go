@@ -16570,7 +16570,25 @@ WHERE
     -- Only fetch template version associated files.
 	storage_method = 'file'
 	AND provisioner_jobs.type = 'template_version_import'
-	AND file_id = $1
+	AND files.id = $1
+UNION
+SELECT
+	files.id AS file_id,
+	files.created_by AS file_created_by,
+	templates.id AS template_id,
+	templates.organization_id AS template_organization_id,
+	templates.created_by AS template_created_by,
+	templates.user_acl,
+	templates.group_acl
+FROM
+	template_resource_revisions
+INNER JOIN
+	templates ON templates.id = template_resource_revisions.template_id
+	AND templates.organization_id = template_resource_revisions.organization_id
+INNER JOIN
+	files ON files.id = template_resource_revisions.file_id
+WHERE
+	files.id = $1
 `
 
 type GetFileTemplatesRow struct {
@@ -26018,27 +26036,37 @@ LEFT JOIN
 LEFT JOIN
 	workspace_builds current_build ON current_build.id = CASE WHEN current_job.input ? 'workspace_build_id' THEN (current_job.input->>'workspace_build_id')::uuid END
 LEFT JOIN
-	-- We should always have a template version, either explicitly or implicitly via workspace build.
+	-- Workspace and version jobs resolve their template through a version.
 	template_versions current_version ON (
 		current_version.id = CASE WHEN current_job.input ? 'template_version_id' THEN (current_job.input->>'template_version_id')::uuid ELSE current_build.template_version_id END
 		AND current_version.organization_id = pd.organization_id
 	)
 LEFT JOIN
+	template_resource_runs current_resource_run ON (
+		current_resource_run.job_id = current_job.id AND current_job.type = 'template_resources'
+		AND current_resource_run.organization_id = pd.organization_id
+	)
+LEFT JOIN
 	templates current_template ON (
-		current_template.id = current_version.template_id
+		current_template.id = COALESCE(current_resource_run.template_id, current_version.template_id)
 		AND current_template.organization_id = pd.organization_id
 	)
 LEFT JOIN
 	workspace_builds previous_build ON previous_build.id = CASE WHEN previous_job.input ? 'workspace_build_id' THEN (previous_job.input->>'workspace_build_id')::uuid END
 LEFT JOIN
-	-- We should always have a template version, either explicitly or implicitly via workspace build.
+	-- Workspace and version jobs resolve their template through a version.
 	template_versions previous_version ON (
 		previous_version.id = CASE WHEN previous_job.input ? 'template_version_id' THEN (previous_job.input->>'template_version_id')::uuid ELSE previous_build.template_version_id END
 		AND previous_version.organization_id = pd.organization_id
 	)
 LEFT JOIN
+	template_resource_runs previous_resource_run ON (
+		previous_resource_run.job_id = previous_job.id AND previous_job.type = 'template_resources'
+		AND previous_resource_run.organization_id = pd.organization_id
+	)
+LEFT JOIN
 	templates previous_template ON (
-		previous_template.id = previous_version.template_id
+		previous_template.id = COALESCE(previous_resource_run.template_id, previous_version.template_id)
 		AND previous_template.organization_id = pd.organization_id
 	)
 WHERE
@@ -26917,14 +26945,19 @@ LEFT JOIN
 		AND w.organization_id = pj.organization_id
 	)
 LEFT JOIN
-	-- We should always have a template version, either explicitly or implicitly via workspace build.
+	-- Workspace and version jobs resolve their template through a version.
 	template_versions tv ON (
 		tv.id = CASE WHEN pj.input ? 'template_version_id' THEN (pj.input->>'template_version_id')::uuid ELSE wb.template_version_id END
 		AND tv.organization_id = pj.organization_id
 	)
 LEFT JOIN
+	template_resource_runs tr ON (
+		tr.job_id = pj.id AND pj.type = 'template_resources'
+		AND tr.organization_id = pj.organization_id
+	)
+LEFT JOIN
 	templates t ON (
-		t.id = tv.template_id
+		t.id = COALESCE(tr.template_id, tv.template_id)
 		AND t.organization_id = pj.organization_id
 	)
 LEFT JOIN
@@ -30520,6 +30553,448 @@ type InsertTelemetryLockParams struct {
 func (q *sqlQuerier) InsertTelemetryLock(ctx context.Context, arg InsertTelemetryLockParams) error {
 	_, err := q.db.ExecContext(ctx, insertTelemetryLock, arg.EventType, arg.PeriodEndingAt)
 	return err
+}
+
+const completeTemplateResourceRun = `-- name: CompleteTemplateResourceRun :one
+UPDATE template_resource_states SET active_run_id = NULL, status = $1, state = $2,
+    outputs = $3, applied_revision_id = $4, updated_at = $5
+WHERE template_id = $6 AND active_run_id = $7
+RETURNING template_id, organization_id, current_revision_id, applied_revision_id, active_run_id, status, state, outputs, updated_at
+`
+
+type CompleteTemplateResourceRunParams struct {
+	Status            string          `db:"status" json:"status"`
+	State             []byte          `db:"state" json:"state"`
+	Outputs           json.RawMessage `db:"outputs" json:"outputs"`
+	AppliedRevisionID uuid.NullUUID   `db:"applied_revision_id" json:"applied_revision_id"`
+	UpdatedAt         time.Time       `db:"updated_at" json:"updated_at"`
+	TemplateID        uuid.UUID       `db:"template_id" json:"template_id"`
+	RunID             uuid.NullUUID   `db:"run_id" json:"run_id"`
+}
+
+func (q *sqlQuerier) CompleteTemplateResourceRun(ctx context.Context, arg CompleteTemplateResourceRunParams) (TemplateResourceState, error) {
+	row := q.db.QueryRowContext(ctx, completeTemplateResourceRun,
+		arg.Status,
+		arg.State,
+		arg.Outputs,
+		arg.AppliedRevisionID,
+		arg.UpdatedAt,
+		arg.TemplateID,
+		arg.RunID,
+	)
+	var i TemplateResourceState
+	err := row.Scan(
+		&i.TemplateID,
+		&i.OrganizationID,
+		&i.CurrentRevisionID,
+		&i.AppliedRevisionID,
+		&i.ActiveRunID,
+		&i.Status,
+		&i.State,
+		&i.Outputs,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getTemplateResourceRevisionByID = `-- name: GetTemplateResourceRevisionByID :one
+SELECT id, template_id, organization_id, file_id, source, created_by, created_at FROM template_resource_revisions WHERE id = $1
+`
+
+func (q *sqlQuerier) GetTemplateResourceRevisionByID(ctx context.Context, id uuid.UUID) (TemplateResourceRevision, error) {
+	row := q.db.QueryRowContext(ctx, getTemplateResourceRevisionByID, id)
+	var i TemplateResourceRevision
+	err := row.Scan(
+		&i.ID,
+		&i.TemplateID,
+		&i.OrganizationID,
+		&i.FileID,
+		&i.Source,
+		&i.CreatedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getTemplateResourceRevisionsByTemplateID = `-- name: GetTemplateResourceRevisionsByTemplateID :many
+SELECT id, template_id, organization_id, file_id, source, created_by, created_at FROM template_resource_revisions WHERE template_id = $1 ORDER BY created_at DESC, id
+`
+
+func (q *sqlQuerier) GetTemplateResourceRevisionsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]TemplateResourceRevision, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateResourceRevisionsByTemplateID, templateID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TemplateResourceRevision
+	for rows.Next() {
+		var i TemplateResourceRevision
+		if err := rows.Scan(
+			&i.ID,
+			&i.TemplateID,
+			&i.OrganizationID,
+			&i.FileID,
+			&i.Source,
+			&i.CreatedBy,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTemplateResourceRunByID = `-- name: GetTemplateResourceRunByID :one
+SELECT id, template_id, organization_id, revision_id, job_id, action, created_at FROM template_resource_runs WHERE id = $1
+`
+
+func (q *sqlQuerier) GetTemplateResourceRunByID(ctx context.Context, id uuid.UUID) (TemplateResourceRun, error) {
+	row := q.db.QueryRowContext(ctx, getTemplateResourceRunByID, id)
+	var i TemplateResourceRun
+	err := row.Scan(
+		&i.ID,
+		&i.TemplateID,
+		&i.OrganizationID,
+		&i.RevisionID,
+		&i.JobID,
+		&i.Action,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getTemplateResourceRunByJobID = `-- name: GetTemplateResourceRunByJobID :one
+SELECT id, template_id, organization_id, revision_id, job_id, action, created_at FROM template_resource_runs WHERE job_id = $1
+`
+
+func (q *sqlQuerier) GetTemplateResourceRunByJobID(ctx context.Context, jobID uuid.UUID) (TemplateResourceRun, error) {
+	row := q.db.QueryRowContext(ctx, getTemplateResourceRunByJobID, jobID)
+	var i TemplateResourceRun
+	err := row.Scan(
+		&i.ID,
+		&i.TemplateID,
+		&i.OrganizationID,
+		&i.RevisionID,
+		&i.JobID,
+		&i.Action,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getTemplateResourceRunsByTemplateID = `-- name: GetTemplateResourceRunsByTemplateID :many
+SELECT id, template_id, organization_id, revision_id, job_id, action, created_at FROM template_resource_runs WHERE template_id = $1 ORDER BY created_at DESC, id
+`
+
+func (q *sqlQuerier) GetTemplateResourceRunsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]TemplateResourceRun, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateResourceRunsByTemplateID, templateID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TemplateResourceRun
+	for rows.Next() {
+		var i TemplateResourceRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.TemplateID,
+			&i.OrganizationID,
+			&i.RevisionID,
+			&i.JobID,
+			&i.Action,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTemplateResourceState = `-- name: GetTemplateResourceState :one
+SELECT template_id, organization_id, current_revision_id, applied_revision_id, active_run_id, status, state, outputs, updated_at FROM template_resource_states WHERE template_id = $1
+`
+
+func (q *sqlQuerier) GetTemplateResourceState(ctx context.Context, templateID uuid.UUID) (TemplateResourceState, error) {
+	row := q.db.QueryRowContext(ctx, getTemplateResourceState, templateID)
+	var i TemplateResourceState
+	err := row.Scan(
+		&i.TemplateID,
+		&i.OrganizationID,
+		&i.CurrentRevisionID,
+		&i.AppliedRevisionID,
+		&i.ActiveRunID,
+		&i.Status,
+		&i.State,
+		&i.Outputs,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getTemplateResourceStateForUpdate = `-- name: GetTemplateResourceStateForUpdate :one
+SELECT template_id, organization_id, current_revision_id, applied_revision_id, active_run_id, status, state, outputs, updated_at FROM template_resource_states WHERE template_id = $1 FOR UPDATE
+`
+
+func (q *sqlQuerier) GetTemplateResourceStateForUpdate(ctx context.Context, templateID uuid.UUID) (TemplateResourceState, error) {
+	row := q.db.QueryRowContext(ctx, getTemplateResourceStateForUpdate, templateID)
+	var i TemplateResourceState
+	err := row.Scan(
+		&i.TemplateID,
+		&i.OrganizationID,
+		&i.CurrentRevisionID,
+		&i.AppliedRevisionID,
+		&i.ActiveRunID,
+		&i.Status,
+		&i.State,
+		&i.Outputs,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertTemplateResourceRevision = `-- name: InsertTemplateResourceRevision :one
+INSERT INTO template_resource_revisions (id, template_id, organization_id, file_id, source, created_by, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, template_id, organization_id, file_id, source, created_by, created_at
+`
+
+type InsertTemplateResourceRevisionParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	TemplateID     uuid.UUID `db:"template_id" json:"template_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	FileID         uuid.UUID `db:"file_id" json:"file_id"`
+	Source         string    `db:"source" json:"source"`
+	CreatedBy      uuid.UUID `db:"created_by" json:"created_by"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertTemplateResourceRevision(ctx context.Context, arg InsertTemplateResourceRevisionParams) (TemplateResourceRevision, error) {
+	row := q.db.QueryRowContext(ctx, insertTemplateResourceRevision,
+		arg.ID,
+		arg.TemplateID,
+		arg.OrganizationID,
+		arg.FileID,
+		arg.Source,
+		arg.CreatedBy,
+		arg.CreatedAt,
+	)
+	var i TemplateResourceRevision
+	err := row.Scan(
+		&i.ID,
+		&i.TemplateID,
+		&i.OrganizationID,
+		&i.FileID,
+		&i.Source,
+		&i.CreatedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertTemplateResourceRun = `-- name: InsertTemplateResourceRun :one
+INSERT INTO template_resource_runs (id, template_id, organization_id, revision_id, job_id, action, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, template_id, organization_id, revision_id, job_id, action, created_at
+`
+
+type InsertTemplateResourceRunParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	TemplateID     uuid.UUID `db:"template_id" json:"template_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	RevisionID     uuid.UUID `db:"revision_id" json:"revision_id"`
+	JobID          uuid.UUID `db:"job_id" json:"job_id"`
+	Action         string    `db:"action" json:"action"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertTemplateResourceRun(ctx context.Context, arg InsertTemplateResourceRunParams) (TemplateResourceRun, error) {
+	row := q.db.QueryRowContext(ctx, insertTemplateResourceRun,
+		arg.ID,
+		arg.TemplateID,
+		arg.OrganizationID,
+		arg.RevisionID,
+		arg.JobID,
+		arg.Action,
+		arg.CreatedAt,
+	)
+	var i TemplateResourceRun
+	err := row.Scan(
+		&i.ID,
+		&i.TemplateID,
+		&i.OrganizationID,
+		&i.RevisionID,
+		&i.JobID,
+		&i.Action,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertTemplateResourceState = `-- name: InsertTemplateResourceState :one
+INSERT INTO template_resource_states (template_id, organization_id, updated_at)
+VALUES ($1, $2, $3)
+ON CONFLICT (template_id) DO UPDATE SET template_id = EXCLUDED.template_id
+RETURNING template_id, organization_id, current_revision_id, applied_revision_id, active_run_id, status, state, outputs, updated_at
+`
+
+type InsertTemplateResourceStateParams struct {
+	TemplateID     uuid.UUID `db:"template_id" json:"template_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) InsertTemplateResourceState(ctx context.Context, arg InsertTemplateResourceStateParams) (TemplateResourceState, error) {
+	row := q.db.QueryRowContext(ctx, insertTemplateResourceState, arg.TemplateID, arg.OrganizationID, arg.UpdatedAt)
+	var i TemplateResourceState
+	err := row.Scan(
+		&i.TemplateID,
+		&i.OrganizationID,
+		&i.CurrentRevisionID,
+		&i.AppliedRevisionID,
+		&i.ActiveRunID,
+		&i.Status,
+		&i.State,
+		&i.Outputs,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const lockTemplateResourceTemplate = `-- name: LockTemplateResourceTemplate :exec
+UPDATE templates SET updated_at = updated_at WHERE id = $1
+`
+
+// A no-op update also invalidates stale repeatable-read snapshots. Merely
+// locking the row could miss a concurrently inserted first resource revision.
+func (q *sqlQuerier) LockTemplateResourceTemplate(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, lockTemplateResourceTemplate, id)
+	return err
+}
+
+const pinWorkspaceBuildTemplateResources = `-- name: PinWorkspaceBuildTemplateResources :exec
+UPDATE workspace_builds SET template_resource_revision_id = $1,
+    template_resource_outputs = $2
+WHERE id = $3
+`
+
+type PinWorkspaceBuildTemplateResourcesParams struct {
+	TemplateResourceRevisionID uuid.NullUUID   `db:"template_resource_revision_id" json:"template_resource_revision_id"`
+	TemplateResourceOutputs    json.RawMessage `db:"template_resource_outputs" json:"template_resource_outputs"`
+	ID                         uuid.UUID       `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) PinWorkspaceBuildTemplateResources(ctx context.Context, arg PinWorkspaceBuildTemplateResourcesParams) error {
+	_, err := q.db.ExecContext(ctx, pinWorkspaceBuildTemplateResources, arg.TemplateResourceRevisionID, arg.TemplateResourceOutputs, arg.ID)
+	return err
+}
+
+const setTemplateResourceCurrentRevision = `-- name: SetTemplateResourceCurrentRevision :one
+UPDATE template_resource_states SET current_revision_id = $1, updated_at = $2
+WHERE template_id = $3 RETURNING template_id, organization_id, current_revision_id, applied_revision_id, active_run_id, status, state, outputs, updated_at
+`
+
+type SetTemplateResourceCurrentRevisionParams struct {
+	CurrentRevisionID uuid.NullUUID `db:"current_revision_id" json:"current_revision_id"`
+	UpdatedAt         time.Time     `db:"updated_at" json:"updated_at"`
+	TemplateID        uuid.UUID     `db:"template_id" json:"template_id"`
+}
+
+func (q *sqlQuerier) SetTemplateResourceCurrentRevision(ctx context.Context, arg SetTemplateResourceCurrentRevisionParams) (TemplateResourceState, error) {
+	row := q.db.QueryRowContext(ctx, setTemplateResourceCurrentRevision, arg.CurrentRevisionID, arg.UpdatedAt, arg.TemplateID)
+	var i TemplateResourceState
+	err := row.Scan(
+		&i.TemplateID,
+		&i.OrganizationID,
+		&i.CurrentRevisionID,
+		&i.AppliedRevisionID,
+		&i.ActiveRunID,
+		&i.Status,
+		&i.State,
+		&i.Outputs,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const startTemplateResourceRun = `-- name: StartTemplateResourceRun :one
+UPDATE template_resource_states SET active_run_id = $1, updated_at = $2
+WHERE template_id = $3 AND active_run_id IS NULL AND status != 'unknown'
+    AND $1::uuid IS NOT NULL
+RETURNING template_id, organization_id, current_revision_id, applied_revision_id, active_run_id, status, state, outputs, updated_at
+`
+
+type StartTemplateResourceRunParams struct {
+	RunID      uuid.NullUUID `db:"run_id" json:"run_id"`
+	UpdatedAt  time.Time     `db:"updated_at" json:"updated_at"`
+	TemplateID uuid.UUID     `db:"template_id" json:"template_id"`
+}
+
+func (q *sqlQuerier) StartTemplateResourceRun(ctx context.Context, arg StartTemplateResourceRunParams) (TemplateResourceState, error) {
+	row := q.db.QueryRowContext(ctx, startTemplateResourceRun, arg.RunID, arg.UpdatedAt, arg.TemplateID)
+	var i TemplateResourceState
+	err := row.Scan(
+		&i.TemplateID,
+		&i.OrganizationID,
+		&i.CurrentRevisionID,
+		&i.AppliedRevisionID,
+		&i.ActiveRunID,
+		&i.Status,
+		&i.State,
+		&i.Outputs,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateTemplateResourceState = `-- name: UpdateTemplateResourceState :one
+UPDATE template_resource_states SET state = $1, status = $2, updated_at = $3
+WHERE template_id = $4 AND active_run_id = $5
+RETURNING template_id, organization_id, current_revision_id, applied_revision_id, active_run_id, status, state, outputs, updated_at
+`
+
+type UpdateTemplateResourceStateParams struct {
+	State      []byte        `db:"state" json:"state"`
+	Status     string        `db:"status" json:"status"`
+	UpdatedAt  time.Time     `db:"updated_at" json:"updated_at"`
+	TemplateID uuid.UUID     `db:"template_id" json:"template_id"`
+	RunID      uuid.NullUUID `db:"run_id" json:"run_id"`
+}
+
+func (q *sqlQuerier) UpdateTemplateResourceState(ctx context.Context, arg UpdateTemplateResourceStateParams) (TemplateResourceState, error) {
+	row := q.db.QueryRowContext(ctx, updateTemplateResourceState,
+		arg.State,
+		arg.Status,
+		arg.UpdatedAt,
+		arg.TemplateID,
+		arg.RunID,
+	)
+	var i TemplateResourceState
+	err := row.Scan(
+		&i.TemplateID,
+		&i.OrganizationID,
+		&i.CurrentRevisionID,
+		&i.AppliedRevisionID,
+		&i.ActiveRunID,
+		&i.Status,
+		&i.State,
+		&i.Outputs,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const getTemplateAverageBuildTime = `-- name: GetTemplateAverageBuildTime :one
@@ -36463,7 +36938,7 @@ const getAuthenticatedWorkspaceAgentAndBuildByAuthToken = `-- name: GetAuthentic
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl,
 	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted,
-	workspace_build_with_user.id, workspace_build_with_user.created_at, workspace_build_with_user.updated_at, workspace_build_with_user.workspace_id, workspace_build_with_user.template_version_id, workspace_build_with_user.build_number, workspace_build_with_user.transition, workspace_build_with_user.initiator_id, workspace_build_with_user.job_id, workspace_build_with_user.deadline, workspace_build_with_user.reason, workspace_build_with_user.daily_cost, workspace_build_with_user.max_deadline, workspace_build_with_user.template_version_preset_id, workspace_build_with_user.has_external_agent, workspace_build_with_user.notified_autostop_deadline, workspace_build_with_user.initiator_by_avatar_url, workspace_build_with_user.initiator_by_username, workspace_build_with_user.initiator_by_name
+	workspace_build_with_user.id, workspace_build_with_user.created_at, workspace_build_with_user.updated_at, workspace_build_with_user.workspace_id, workspace_build_with_user.template_version_id, workspace_build_with_user.build_number, workspace_build_with_user.transition, workspace_build_with_user.initiator_id, workspace_build_with_user.job_id, workspace_build_with_user.deadline, workspace_build_with_user.reason, workspace_build_with_user.daily_cost, workspace_build_with_user.max_deadline, workspace_build_with_user.template_version_preset_id, workspace_build_with_user.has_external_agent, workspace_build_with_user.notified_autostop_deadline, workspace_build_with_user.initiator_by_avatar_url, workspace_build_with_user.initiator_by_username, workspace_build_with_user.initiator_by_name, workspace_build_with_user.template_resource_revision_id, workspace_build_with_user.template_resource_outputs
 FROM
 	workspace_agents
 JOIN
@@ -36606,6 +37081,8 @@ func (q *sqlQuerier) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx conte
 		&i.WorkspaceBuild.InitiatorByAvatarUrl,
 		&i.WorkspaceBuild.InitiatorByUsername,
 		&i.WorkspaceBuild.InitiatorByName,
+		&i.WorkspaceBuild.TemplateResourceRevisionID,
+		&i.WorkspaceBuild.TemplateResourceOutputs,
 	)
 	return i, err
 }
@@ -40077,7 +40554,7 @@ func (q *sqlQuerier) InsertWorkspaceBuildParameters(ctx context.Context, arg Ins
 }
 
 const getActiveWorkspaceBuildsByTemplateID = `-- name: GetActiveWorkspaceBuildsByTemplateID :many
-SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.job_id, wb.deadline, wb.reason, wb.daily_cost, wb.max_deadline, wb.template_version_preset_id, wb.has_external_agent, wb.notified_autostop_deadline, wb.initiator_by_avatar_url, wb.initiator_by_username, wb.initiator_by_name
+SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.job_id, wb.deadline, wb.reason, wb.daily_cost, wb.max_deadline, wb.template_version_preset_id, wb.has_external_agent, wb.notified_autostop_deadline, wb.initiator_by_avatar_url, wb.initiator_by_username, wb.initiator_by_name, wb.template_resource_revision_id, wb.template_resource_outputs
 FROM (
     SELECT
         workspace_id, MAX(build_number) as max_build_number
@@ -40136,6 +40613,8 @@ func (q *sqlQuerier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, t
 			&i.InitiatorByAvatarUrl,
 			&i.InitiatorByUsername,
 			&i.InitiatorByName,
+			&i.TemplateResourceRevisionID,
+			&i.TemplateResourceOutputs,
 		); err != nil {
 			return nil, err
 		}
@@ -40232,7 +40711,7 @@ func (q *sqlQuerier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, a
 
 const getLatestWorkspaceBuildByWorkspaceID = `-- name: GetLatestWorkspaceBuildByWorkspaceID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, initiator_by_avatar_url, initiator_by_username, initiator_by_name
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, initiator_by_avatar_url, initiator_by_username, initiator_by_name, template_resource_revision_id, template_resource_outputs
 FROM
 	workspace_build_with_user AS workspace_builds
 WHERE
@@ -40266,6 +40745,8 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, w
 		&i.InitiatorByAvatarUrl,
 		&i.InitiatorByUsername,
 		&i.InitiatorByName,
+		&i.TemplateResourceRevisionID,
+		&i.TemplateResourceOutputs,
 	)
 	return i, err
 }
@@ -40328,7 +40809,7 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildWithStatusByWorkspaceID(ctx context.
 const getLatestWorkspaceBuildsByWorkspaceIDs = `-- name: GetLatestWorkspaceBuildsByWorkspaceIDs :many
 SELECT
 	DISTINCT ON (workspace_id)
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, initiator_by_avatar_url, initiator_by_username, initiator_by_name
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, initiator_by_avatar_url, initiator_by_username, initiator_by_name, template_resource_revision_id, template_resource_outputs
 FROM
 	workspace_build_with_user AS workspace_builds
 WHERE
@@ -40366,6 +40847,8 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context,
 			&i.InitiatorByAvatarUrl,
 			&i.InitiatorByUsername,
 			&i.InitiatorByName,
+			&i.TemplateResourceRevisionID,
+			&i.TemplateResourceOutputs,
 		); err != nil {
 			return nil, err
 		}
@@ -40382,7 +40865,7 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context,
 
 const getWorkspaceBuildByID = `-- name: GetWorkspaceBuildByID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, initiator_by_avatar_url, initiator_by_username, initiator_by_name
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, initiator_by_avatar_url, initiator_by_username, initiator_by_name, template_resource_revision_id, template_resource_outputs
 FROM
 	workspace_build_with_user AS workspace_builds
 WHERE
@@ -40414,13 +40897,15 @@ func (q *sqlQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (W
 		&i.InitiatorByAvatarUrl,
 		&i.InitiatorByUsername,
 		&i.InitiatorByName,
+		&i.TemplateResourceRevisionID,
+		&i.TemplateResourceOutputs,
 	)
 	return i, err
 }
 
 const getWorkspaceBuildByJobID = `-- name: GetWorkspaceBuildByJobID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, initiator_by_avatar_url, initiator_by_username, initiator_by_name
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, initiator_by_avatar_url, initiator_by_username, initiator_by_name, template_resource_revision_id, template_resource_outputs
 FROM
 	workspace_build_with_user AS workspace_builds
 WHERE
@@ -40452,13 +40937,15 @@ func (q *sqlQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UU
 		&i.InitiatorByAvatarUrl,
 		&i.InitiatorByUsername,
 		&i.InitiatorByName,
+		&i.TemplateResourceRevisionID,
+		&i.TemplateResourceOutputs,
 	)
 	return i, err
 }
 
 const getWorkspaceBuildByWorkspaceIDAndBuildNumber = `-- name: GetWorkspaceBuildByWorkspaceIDAndBuildNumber :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, initiator_by_avatar_url, initiator_by_username, initiator_by_name
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, initiator_by_avatar_url, initiator_by_username, initiator_by_name, template_resource_revision_id, template_resource_outputs
 FROM
 	workspace_build_with_user AS workspace_builds
 WHERE
@@ -40494,6 +40981,8 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Co
 		&i.InitiatorByAvatarUrl,
 		&i.InitiatorByUsername,
 		&i.InitiatorByName,
+		&i.TemplateResourceRevisionID,
+		&i.TemplateResourceOutputs,
 	)
 	return i, err
 }
@@ -40665,7 +41154,7 @@ func (q *sqlQuerier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, sinc
 
 const getWorkspaceBuildsByWorkspaceID = `-- name: GetWorkspaceBuildsByWorkspaceID :many
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, initiator_by_avatar_url, initiator_by_username, initiator_by_name
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, initiator_by_avatar_url, initiator_by_username, initiator_by_name, template_resource_revision_id, template_resource_outputs
 FROM
 	workspace_build_with_user AS workspace_builds
 WHERE
@@ -40740,6 +41229,8 @@ func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg Ge
 			&i.InitiatorByAvatarUrl,
 			&i.InitiatorByUsername,
 			&i.InitiatorByName,
+			&i.TemplateResourceRevisionID,
+			&i.TemplateResourceOutputs,
 		); err != nil {
 			return nil, err
 		}
@@ -40755,7 +41246,7 @@ func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg Ge
 }
 
 const getWorkspaceBuildsCreatedAfter = `-- name: GetWorkspaceBuildsCreatedAfter :many
-SELECT id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, initiator_by_avatar_url, initiator_by_username, initiator_by_name FROM workspace_build_with_user WHERE created_at > $1
+SELECT id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, initiator_by_avatar_url, initiator_by_username, initiator_by_name, template_resource_revision_id, template_resource_outputs FROM workspace_build_with_user WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceBuild, error) {
@@ -40787,6 +41278,8 @@ func (q *sqlQuerier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, created
 			&i.InitiatorByAvatarUrl,
 			&i.InitiatorByUsername,
 			&i.InitiatorByName,
+			&i.TemplateResourceRevisionID,
+			&i.TemplateResourceOutputs,
 		); err != nil {
 			return nil, err
 		}

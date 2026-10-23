@@ -30,11 +30,13 @@ func TestNetworkPolicyDestroyState(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			err := tfstate.ValidateNetworkPolicyDestroyState([]byte(tc.state))
-			if tc.valid {
-				require.NoError(t, err)
-			} else {
-				require.Error(t, err)
+			for _, validate := range []func([]byte) error{tfstate.ValidateNetworkPolicyDestroyState, tfstate.ValidateDestroyState} {
+				err := validate([]byte(tc.state))
+				if tc.valid {
+					require.NoError(t, err)
+				} else {
+					require.Error(t, err)
+				}
 			}
 		})
 	}

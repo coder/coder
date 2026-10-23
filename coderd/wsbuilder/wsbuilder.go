@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"slices"
 	"time"
@@ -422,6 +423,11 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 		}
 	}
 
+	resourceRevisionID, resourceOutputs, err := b.templateResourceSnapshot()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
 	templateVersionJob, err := b.getTemplateVersionJob()
 	if err != nil {
 		return nil, nil, nil, BuildError{
@@ -459,6 +465,16 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	tags, err := b.getProvisionerTags()
 	if err != nil {
 		return nil, nil, nil, err // already wrapped BuildError
+	}
+	if resourceRevisionID.Valid {
+		// Old workers cannot pass pinned outputs to Terraform. Apply this
+		// requirement to cleanup jobs as well as starts, without changing
+		// the cached routing tags used by unrelated builds.
+		tags = maps.Clone(tags)
+		if tags == nil {
+			tags = make(map[string]string)
+		}
+		tags[provisionersdk.TagTemplateResources] = provisionersdk.TemplateResourcesCapabilityVersion
 	}
 
 	now := dbtime.Now()
@@ -554,6 +570,14 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 				code = http.StatusConflict
 			}
 			return BuildError{code, "insert workspace build", err}
+		}
+
+		//nolint:gocritic // Persist only the snapshot selected after build authorization.
+		err = store.PinWorkspaceBuildTemplateResources(dbauthz.AsSystemRestricted(b.ctx), database.PinWorkspaceBuildTemplateResourcesParams{
+			ID: workspaceBuildID, TemplateResourceRevisionID: resourceRevisionID, TemplateResourceOutputs: resourceOutputs,
+		})
+		if err != nil {
+			return BuildError{http.StatusInternalServerError, "pin template resource outputs", err}
 		}
 
 		err = store.InsertWorkspaceBuildParameters(b.ctx, database.InsertWorkspaceBuildParametersParams{

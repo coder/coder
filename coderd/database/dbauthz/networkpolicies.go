@@ -17,7 +17,7 @@ import (
 // existing authorization rules for other provisioner job types. Orphaned jobs
 // are hidden from users, but internal workers can still recover or reap them.
 func (q *querier) networkPolicyJobVisible(ctx context.Context, job database.ProvisionerJob) (bool, error) {
-	if job.Type != database.ProvisionerJobTypeNetworkPolicy {
+	if job.Type != database.ProvisionerJobTypeNetworkPolicy && job.Type != database.ProvisionerJobTypeTemplateResources {
 		return true, nil
 	}
 	actor, ok := ActorFromContext(ctx)

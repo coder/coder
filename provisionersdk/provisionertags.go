@@ -18,6 +18,12 @@ const (
 	// TagNetworkPolicyDestroy requires native policy destroy support (API v1.22).
 	TagNetworkPolicyDestroy = "coder.network_policy_destroy"
 
+	// TagTemplateResources opts native workers into template resource jobs.
+	TagTemplateResources = "coder.template_resources"
+
+	// TemplateResourcesCapabilityVersion identifies native template job support.
+	TemplateResourcesCapabilityVersion = "1"
+
 	ScopeUser         = "user"
 	ScopeOrganization = "organization"
 )
@@ -31,6 +37,18 @@ func NetworkPolicyProvisionerTags(tags map[string]string, apiVersion string) map
 	major, minor, err := apiversion.Parse(apiVersion)
 	if err == nil && major == 1 && minor >= 22 && tags[TagNetworkPolicy] == "1" {
 		tags[TagNetworkPolicyDestroy] = "1"
+	}
+	return tags
+}
+
+// TemplateResourcesProvisionerTags strips template resource capability from
+// workers using a protocol that cannot execute template resource jobs. An API
+// version alone never opts a worker in.
+func TemplateResourcesProvisionerTags(tags map[string]string, apiVersion string) map[string]string {
+	tags = maps.Clone(tags)
+	major, minor, err := apiversion.Parse(apiVersion)
+	if err != nil || major != 1 || minor < 23 || tags[TagTemplateResources] != TemplateResourcesCapabilityVersion {
+		delete(tags, TagTemplateResources)
 	}
 	return tags
 }

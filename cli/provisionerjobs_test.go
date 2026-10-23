@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func TestProvisionerJobs(t *testing.T) {
@@ -31,7 +32,10 @@ func TestProvisionerJobs(t *testing.T) {
 		t.Parallel()
 
 		db, ps := dbtestutil.NewDB(t)
+		values := coderdtest.DeploymentValues(t)
+		values.Experiments = serpent.StringArray{string(codersdk.ExperimentTemplateResources)}
 		client, _, coderdAPI := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			DeploymentValues:         values,
 			IncludeProvisionerDaemon: false,
 			Database:                 db,
 			Pubsub:                   ps,
@@ -127,6 +131,18 @@ func TestProvisionerJobs(t *testing.T) {
 			return job
 		}
 
+		prepareTemplateResourceJob := func(t *testing.T) database.ProvisionerJob {
+			t.Helper()
+			template := dbgen.Template(t, db, database.Template{OrganizationID: owner.OrganizationID, CreatedBy: owner.UserID})
+			revision, err := client.CreateTemplateResourceRevision(t.Context(), template.ID, codersdk.CreateTemplateResourceRevisionRequest{Source: "# root " + template.ID.String()})
+			require.NoError(t, err)
+			run, err := client.CreateTemplateResourceRun(t.Context(), template.ID, codersdk.CreateTemplateResourceRunRequest{RevisionID: revision.ID, Action: "apply"})
+			require.NoError(t, err)
+			job, err := db.GetProvisionerJobByID(t.Context(), run.Job.ID)
+			require.NoError(t, err)
+			return job
+		}
+
 		// Run the cancellation test suite.
 		for _, tt := range []struct {
 			role          string
@@ -135,6 +151,9 @@ func TestProvisionerJobs(t *testing.T) {
 			prepare       func(*testing.T) database.ProvisionerJob
 			wantCancelled bool
 		}{
+			{"Owner", client, "TemplateResources", prepareTemplateResourceJob, true},
+			{"TemplateAdmin", templateAdminClient, "TemplateResources", prepareTemplateResourceJob, true},
+			{"Member", memberClient, "TemplateResources", prepareTemplateResourceJob, false},
 			{"Owner", client, "WorkspaceBuild", prepareWorkspaceBuildJob, true},
 			{"Owner", client, "TemplateVersionImport", prepareTemplateVersionImportJob, true},
 			{"Owner", client, "TemplateVersionImportDryRun", prepareTemplateVersionImportJobDryRun, true},

@@ -452,6 +452,21 @@ func (mr *MockStoreMockRecorder) CompleteNetworkPolicyTargetJob(ctx, arg any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteNetworkPolicyTargetJob", reflect.TypeOf((*MockStore)(nil).CompleteNetworkPolicyTargetJob), ctx, arg)
 }
 
+// CompleteTemplateResourceRun mocks base method.
+func (m *MockStore) CompleteTemplateResourceRun(ctx context.Context, arg database.CompleteTemplateResourceRunParams) (database.TemplateResourceState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CompleteTemplateResourceRun", ctx, arg)
+	ret0, _ := ret[0].(database.TemplateResourceState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CompleteTemplateResourceRun indicates an expected call of CompleteTemplateResourceRun.
+func (mr *MockStoreMockRecorder) CompleteTemplateResourceRun(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteTemplateResourceRun", reflect.TypeOf((*MockStore)(nil).CompleteTemplateResourceRun), ctx, arg)
+}
+
 // CountAIBridgeSessions mocks base method.
 func (m *MockStore) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -6401,6 +6416,111 @@ func (mr *MockStoreMockRecorder) GetTemplateRankingSignalsByOwnerID(ctx, arg any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateRankingSignalsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetTemplateRankingSignalsByOwnerID), ctx, arg)
 }
 
+// GetTemplateResourceRevisionByID mocks base method.
+func (m *MockStore) GetTemplateResourceRevisionByID(ctx context.Context, id uuid.UUID) (database.TemplateResourceRevision, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplateResourceRevisionByID", ctx, id)
+	ret0, _ := ret[0].(database.TemplateResourceRevision)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplateResourceRevisionByID indicates an expected call of GetTemplateResourceRevisionByID.
+func (mr *MockStoreMockRecorder) GetTemplateResourceRevisionByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateResourceRevisionByID", reflect.TypeOf((*MockStore)(nil).GetTemplateResourceRevisionByID), ctx, id)
+}
+
+// GetTemplateResourceRevisionsByTemplateID mocks base method.
+func (m *MockStore) GetTemplateResourceRevisionsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]database.TemplateResourceRevision, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplateResourceRevisionsByTemplateID", ctx, templateID)
+	ret0, _ := ret[0].([]database.TemplateResourceRevision)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplateResourceRevisionsByTemplateID indicates an expected call of GetTemplateResourceRevisionsByTemplateID.
+func (mr *MockStoreMockRecorder) GetTemplateResourceRevisionsByTemplateID(ctx, templateID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateResourceRevisionsByTemplateID", reflect.TypeOf((*MockStore)(nil).GetTemplateResourceRevisionsByTemplateID), ctx, templateID)
+}
+
+// GetTemplateResourceRunByID mocks base method.
+func (m *MockStore) GetTemplateResourceRunByID(ctx context.Context, id uuid.UUID) (database.TemplateResourceRun, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplateResourceRunByID", ctx, id)
+	ret0, _ := ret[0].(database.TemplateResourceRun)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplateResourceRunByID indicates an expected call of GetTemplateResourceRunByID.
+func (mr *MockStoreMockRecorder) GetTemplateResourceRunByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateResourceRunByID", reflect.TypeOf((*MockStore)(nil).GetTemplateResourceRunByID), ctx, id)
+}
+
+// GetTemplateResourceRunByJobID mocks base method.
+func (m *MockStore) GetTemplateResourceRunByJobID(ctx context.Context, jobID uuid.UUID) (database.TemplateResourceRun, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplateResourceRunByJobID", ctx, jobID)
+	ret0, _ := ret[0].(database.TemplateResourceRun)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplateResourceRunByJobID indicates an expected call of GetTemplateResourceRunByJobID.
+func (mr *MockStoreMockRecorder) GetTemplateResourceRunByJobID(ctx, jobID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateResourceRunByJobID", reflect.TypeOf((*MockStore)(nil).GetTemplateResourceRunByJobID), ctx, jobID)
+}
+
+// GetTemplateResourceRunsByTemplateID mocks base method.
+func (m *MockStore) GetTemplateResourceRunsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]database.TemplateResourceRun, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplateResourceRunsByTemplateID", ctx, templateID)
+	ret0, _ := ret[0].([]database.TemplateResourceRun)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplateResourceRunsByTemplateID indicates an expected call of GetTemplateResourceRunsByTemplateID.
+func (mr *MockStoreMockRecorder) GetTemplateResourceRunsByTemplateID(ctx, templateID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateResourceRunsByTemplateID", reflect.TypeOf((*MockStore)(nil).GetTemplateResourceRunsByTemplateID), ctx, templateID)
+}
+
+// GetTemplateResourceState mocks base method.
+func (m *MockStore) GetTemplateResourceState(ctx context.Context, templateID uuid.UUID) (database.TemplateResourceState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplateResourceState", ctx, templateID)
+	ret0, _ := ret[0].(database.TemplateResourceState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplateResourceState indicates an expected call of GetTemplateResourceState.
+func (mr *MockStoreMockRecorder) GetTemplateResourceState(ctx, templateID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateResourceState", reflect.TypeOf((*MockStore)(nil).GetTemplateResourceState), ctx, templateID)
+}
+
+// GetTemplateResourceStateForUpdate mocks base method.
+func (m *MockStore) GetTemplateResourceStateForUpdate(ctx context.Context, templateID uuid.UUID) (database.TemplateResourceState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplateResourceStateForUpdate", ctx, templateID)
+	ret0, _ := ret[0].(database.TemplateResourceState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplateResourceStateForUpdate indicates an expected call of GetTemplateResourceStateForUpdate.
+func (mr *MockStoreMockRecorder) GetTemplateResourceStateForUpdate(ctx, templateID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateResourceStateForUpdate", reflect.TypeOf((*MockStore)(nil).GetTemplateResourceStateForUpdate), ctx, templateID)
+}
+
 // GetTemplateUsageStats mocks base method.
 func (m *MockStore) GetTemplateUsageStats(ctx context.Context, arg database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
 	m.ctrl.T.Helper()
@@ -9152,6 +9272,51 @@ func (mr *MockStoreMockRecorder) InsertTemplate(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTemplate", reflect.TypeOf((*MockStore)(nil).InsertTemplate), ctx, arg)
 }
 
+// InsertTemplateResourceRevision mocks base method.
+func (m *MockStore) InsertTemplateResourceRevision(ctx context.Context, arg database.InsertTemplateResourceRevisionParams) (database.TemplateResourceRevision, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertTemplateResourceRevision", ctx, arg)
+	ret0, _ := ret[0].(database.TemplateResourceRevision)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertTemplateResourceRevision indicates an expected call of InsertTemplateResourceRevision.
+func (mr *MockStoreMockRecorder) InsertTemplateResourceRevision(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTemplateResourceRevision", reflect.TypeOf((*MockStore)(nil).InsertTemplateResourceRevision), ctx, arg)
+}
+
+// InsertTemplateResourceRun mocks base method.
+func (m *MockStore) InsertTemplateResourceRun(ctx context.Context, arg database.InsertTemplateResourceRunParams) (database.TemplateResourceRun, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertTemplateResourceRun", ctx, arg)
+	ret0, _ := ret[0].(database.TemplateResourceRun)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertTemplateResourceRun indicates an expected call of InsertTemplateResourceRun.
+func (mr *MockStoreMockRecorder) InsertTemplateResourceRun(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTemplateResourceRun", reflect.TypeOf((*MockStore)(nil).InsertTemplateResourceRun), ctx, arg)
+}
+
+// InsertTemplateResourceState mocks base method.
+func (m *MockStore) InsertTemplateResourceState(ctx context.Context, arg database.InsertTemplateResourceStateParams) (database.TemplateResourceState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertTemplateResourceState", ctx, arg)
+	ret0, _ := ret[0].(database.TemplateResourceState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertTemplateResourceState indicates an expected call of InsertTemplateResourceState.
+func (mr *MockStoreMockRecorder) InsertTemplateResourceState(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTemplateResourceState", reflect.TypeOf((*MockStore)(nil).InsertTemplateResourceState), ctx, arg)
+}
+
 // InsertTemplateVersion mocks base method.
 func (m *MockStore) InsertTemplateVersion(ctx context.Context, arg database.InsertTemplateVersionParams) error {
 	m.ctrl.T.Helper()
@@ -10119,6 +10284,20 @@ func (mr *MockStoreMockRecorder) LockProvisionerKeyByIDForShare(ctx, id any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockProvisionerKeyByIDForShare", reflect.TypeOf((*MockStore)(nil).LockProvisionerKeyByIDForShare), ctx, id)
 }
 
+// LockTemplateResourceTemplate mocks base method.
+func (m *MockStore) LockTemplateResourceTemplate(ctx context.Context, id uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LockTemplateResourceTemplate", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// LockTemplateResourceTemplate indicates an expected call of LockTemplateResourceTemplate.
+func (mr *MockStoreMockRecorder) LockTemplateResourceTemplate(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockTemplateResourceTemplate", reflect.TypeOf((*MockStore)(nil).LockTemplateResourceTemplate), ctx, id)
+}
+
 // MarkAllInboxNotificationsAsRead mocks base method.
 func (m *MockStore) MarkAllInboxNotificationsAsRead(ctx context.Context, arg database.MarkAllInboxNotificationsAsReadParams) error {
 	m.ctrl.T.Helper()
@@ -10250,6 +10429,20 @@ func (m *MockStore) PinChatByID(ctx context.Context, id uuid.UUID) error {
 func (mr *MockStoreMockRecorder) PinChatByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PinChatByID", reflect.TypeOf((*MockStore)(nil).PinChatByID), ctx, id)
+}
+
+// PinWorkspaceBuildTemplateResources mocks base method.
+func (m *MockStore) PinWorkspaceBuildTemplateResources(ctx context.Context, arg database.PinWorkspaceBuildTemplateResourcesParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PinWorkspaceBuildTemplateResources", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// PinWorkspaceBuildTemplateResources indicates an expected call of PinWorkspaceBuildTemplateResources.
+func (mr *MockStoreMockRecorder) PinWorkspaceBuildTemplateResources(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PinWorkspaceBuildTemplateResources", reflect.TypeOf((*MockStore)(nil).PinWorkspaceBuildTemplateResources), ctx, arg)
 }
 
 // Ping mocks base method.
@@ -10473,6 +10666,21 @@ func (mr *MockStoreMockRecorder) SetChatContextSnapshot(ctx, arg any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetChatContextSnapshot", reflect.TypeOf((*MockStore)(nil).SetChatContextSnapshot), ctx, arg)
 }
 
+// SetTemplateResourceCurrentRevision mocks base method.
+func (m *MockStore) SetTemplateResourceCurrentRevision(ctx context.Context, arg database.SetTemplateResourceCurrentRevisionParams) (database.TemplateResourceState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetTemplateResourceCurrentRevision", ctx, arg)
+	ret0, _ := ret[0].(database.TemplateResourceState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SetTemplateResourceCurrentRevision indicates an expected call of SetTemplateResourceCurrentRevision.
+func (mr *MockStoreMockRecorder) SetTemplateResourceCurrentRevision(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTemplateResourceCurrentRevision", reflect.TypeOf((*MockStore)(nil).SetTemplateResourceCurrentRevision), ctx, arg)
+}
+
 // SetTransactionLockTimeout mocks base method.
 func (m *MockStore) SetTransactionLockTimeout(ctx context.Context, lockTimeoutMs int64) error {
 	m.ctrl.T.Helper()
@@ -10570,6 +10778,21 @@ func (m *MockStore) StartNetworkPolicyTargetJob(ctx context.Context, arg databas
 func (mr *MockStoreMockRecorder) StartNetworkPolicyTargetJob(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartNetworkPolicyTargetJob", reflect.TypeOf((*MockStore)(nil).StartNetworkPolicyTargetJob), ctx, arg)
+}
+
+// StartTemplateResourceRun mocks base method.
+func (m *MockStore) StartTemplateResourceRun(ctx context.Context, arg database.StartTemplateResourceRunParams) (database.TemplateResourceState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StartTemplateResourceRun", ctx, arg)
+	ret0, _ := ret[0].(database.TemplateResourceState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StartTemplateResourceRun indicates an expected call of StartTemplateResourceRun.
+func (mr *MockStoreMockRecorder) StartTemplateResourceRun(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartTemplateResourceRun", reflect.TypeOf((*MockStore)(nil).StartTemplateResourceRun), ctx, arg)
 }
 
 // SyncAgentChatsContextMCPResources mocks base method.
@@ -11726,6 +11949,21 @@ func (m *MockStore) UpdateTemplateMetaByID(ctx context.Context, arg database.Upd
 func (mr *MockStoreMockRecorder) UpdateTemplateMetaByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateMetaByID", reflect.TypeOf((*MockStore)(nil).UpdateTemplateMetaByID), ctx, arg)
+}
+
+// UpdateTemplateResourceState mocks base method.
+func (m *MockStore) UpdateTemplateResourceState(ctx context.Context, arg database.UpdateTemplateResourceStateParams) (database.TemplateResourceState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateTemplateResourceState", ctx, arg)
+	ret0, _ := ret[0].(database.TemplateResourceState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateTemplateResourceState indicates an expected call of UpdateTemplateResourceState.
+func (mr *MockStoreMockRecorder) UpdateTemplateResourceState(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateResourceState", reflect.TypeOf((*MockStore)(nil).UpdateTemplateResourceState), ctx, arg)
 }
 
 // UpdateTemplateScheduleByID mocks base method.

@@ -15,6 +15,12 @@ enum NetworkPolicyOperation {
   DESTROY = 2;
 }
 
+enum TemplateResourceOperation {
+  TEMPLATE_RESOURCE_PLAN = 0;
+  TEMPLATE_RESOURCE_APPLY = 1;
+  TEMPLATE_RESOURCE_DESTROY = 2;
+}
+
 // StateDisposition determines whether returned state can replace stored state.
 enum StateDisposition {
   // State may have changed. Returned bytes are only a checkpoint and do not
@@ -71,6 +77,16 @@ message AcquiredJob {
     optional string revision_id = 7;
   }
 
+  message TemplateResources {
+    TemplateResourceOperation operation = 1;
+    bytes state = 2;
+    repeated provisioner.VariableValue variable_values = 3;
+    provisioner.Metadata metadata = 4;
+    optional string run_id = 5;
+    optional string template_id = 6;
+    optional string revision_id = 7;
+  }
+
   string job_id = 1;
   int64 created_at = 2;
   string provisioner = 3;
@@ -81,6 +97,7 @@ message AcquiredJob {
     TemplateImport template_import = 7;
     TemplateDryRun template_dry_run = 8;
     NetworkPolicy network_policy = 10;
+    TemplateResources template_resources = 11;
   }
   // trace_metadata is currently used for tracing information only. It allows
   // jobs to be tied to the request that created them.
@@ -100,6 +117,12 @@ message FailedJob {
     repeated provisioner.Timing timings = 3;
   }
 
+  message TemplateResources {
+    bytes state = 1;
+    StateDisposition state_disposition = 2;
+    repeated provisioner.Timing timings = 3;
+  }
+
   string job_id = 1;
   string error = 2;
   oneof type {
@@ -107,6 +130,7 @@ message FailedJob {
     TemplateImport template_import = 4;
     TemplateDryRun template_dry_run = 5;
     NetworkPolicy network_policy = 7;
+    TemplateResources template_resources = 8;
   }
   string error_code = 6;
 }
@@ -150,12 +174,20 @@ message CompletedJob {
     repeated provisioner.Timing timings = 4;
   }
 
+  message TemplateResources {
+    bytes plan = 1;
+    bytes state = 2;
+    StateDisposition state_disposition = 3;
+    repeated provisioner.Timing timings = 4;
+  }
+
   string job_id = 1;
   oneof type {
     WorkspaceBuild workspace_build = 2;
     TemplateImport template_import = 3;
     TemplateDryRun template_dry_run = 4;
     NetworkPolicy network_policy = 5;
+    TemplateResources template_resources = 6;
   }
 }
 

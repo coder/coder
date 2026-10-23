@@ -18,7 +18,7 @@ export const networkPolicyKey = (organization: string, policyId: string) =>
 	[...networkPoliciesKey(organization), policyId] as const;
 
 /** Template eligibility is independent of policy attachment changes. */
-export const networkPolicyTemplatesKey = (organization: string) =>
+const networkPolicyTemplatesKey = (organization: string) =>
 	["organizations", organization, "network-policy-templates"] as const;
 
 /** Persisted output is scoped to the policy as well as the individual run. */

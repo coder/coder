@@ -452,6 +452,9 @@ export interface Metadata {
   runningAgentAuthTokens: RunningAgentAuthToken[];
   templateVersionId: string;
   templateVersionModulesFile: string;
+  /** JSON object containing the pinned, non-sensitive template outputs. */
+  templateOutputs: string;
+  templateResourceRevisionId: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -1392,6 +1395,12 @@ export const Metadata = {
     }
     if (message.templateVersionModulesFile !== "") {
       writer.uint32(202).string(message.templateVersionModulesFile);
+    }
+    if (message.templateOutputs !== "") {
+      writer.uint32(210).string(message.templateOutputs);
+    }
+    if (message.templateResourceRevisionId !== "") {
+      writer.uint32(218).string(message.templateResourceRevisionId);
     }
     return writer;
   },

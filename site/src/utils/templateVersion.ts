@@ -1,3 +1,4 @@
+import has from "lodash/has";
 import set from "lodash/set";
 import { isBinaryData } from "#/modules/templates/TemplateFiles/isBinaryData";
 import type { FileTree } from "./filetree";
@@ -28,9 +29,18 @@ export const createTemplateVersionFileTree = (
 ): FileTree => {
 	let fileTree: FileTree = {};
 	for (const file of tarReader.fileInfo) {
+		const path = file.name
+			.split("/")
+			.filter((part) => part !== "" && part !== ".");
+		// A directory header may follow its children in an uploaded archive.
+		if (
+			path.length === 0 ||
+			(file.type === TarFileTypeCodes.Dir && has(fileTree, path))
+		)
+			continue;
 		fileTree = set(
 			fileTree,
-			file.name.split("/").filter((part) => part !== ""),
+			path,
 			file.type === TarFileTypeCodes.Dir
 				? {}
 				: (tarReader.getTextFile(file.name) as string),

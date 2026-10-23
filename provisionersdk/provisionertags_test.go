@@ -41,6 +41,41 @@ func TestNetworkPolicyProvisionerTags(t *testing.T) {
 	}
 }
 
+func TestTemplateResourcesProvisionerTags(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, version, capability string
+		want                      bool
+	}{
+		{name: "OlderWorker", version: "1.22", capability: "1"},
+		{name: "OptedIn", version: "1.23", capability: "1", want: true},
+		{name: "NewerWorker", version: "1.24", capability: "1", want: true},
+		{name: "NotOptedIn", version: "1.23"},
+		{name: "InvalidCapability", version: "1.23", capability: "2"},
+		{name: "InvalidVersion", version: "invalid", capability: "1"},
+		{name: "UnknownMajor", version: "2.23", capability: "1"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tags := map[string]string{"other": "value", provisionersdk.TagNetworkPolicyDestroy: "1"}
+			if tc.capability != "" {
+				tags[provisionersdk.TagTemplateResources] = tc.capability
+			}
+			original := maps.Clone(tags)
+			got := provisionersdk.TemplateResourcesProvisionerTags(tags, tc.version)
+			require.Equal(t, original, tags)
+			require.Equal(t, "value", got["other"])
+			require.Equal(t, "1", got[provisionersdk.TagNetworkPolicyDestroy], "old policy capability is independent")
+			if tc.want {
+				require.Equal(t, "1", got[provisionersdk.TagTemplateResources])
+			} else {
+				require.NotContains(t, got, provisionersdk.TagTemplateResources)
+			}
+		})
+	}
+	require.Nil(t, provisionersdk.TemplateResourcesProvisionerTags(nil, "1.23"))
+}
+
 func TestMutateTags(t *testing.T) {
 	t.Parallel()
 

@@ -843,6 +843,8 @@ Actions: `start`, `stop`
 <tr><td><code>max_deadline</code></td><td>No</td></tr>
 <tr><td><code>notified_autostop_deadline</code></td><td>No</td></tr>
 <tr><td><code>reason</code></td><td>No</td></tr>
+<tr><td><code>template_resource_outputs</code></td><td>No</td></tr>
+<tr><td><code>template_resource_revision_id</code></td><td>Yes</td></tr>
 <tr><td><code>template_version_id</code></td><td>Yes</td></tr>
 <tr><td><code>template_version_preset_id</code></td><td>No</td></tr>
 <tr><td><code>transition</code></td><td>No</td></tr>

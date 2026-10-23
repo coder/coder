@@ -46,7 +46,8 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(status, 0)
         executable, args, env = call.args
         self.assertEqual(executable, './scripts/develop.sh')
-        self.assertIn(str(LAUNCHER.parent / 'network-policy-module'), args)
+        self.assertEqual(args[args.index('--experiments') + 1], 'template-resources')
+        self.assertNotIn('--network-policy-module-path', args)
         self.assertEqual(args[args.index('--port') + 1], '3100')
         self.assertEqual(args[args.index('--web-port') + 1], '8180')
         self.assertEqual(env['KUBE_CONFIG_PATH'], env['KUBECONFIG'])

@@ -863,7 +863,7 @@ func (p ProvisionerJob) RBACObject() rbac.Object {
 	switch p.Type {
 	// Only acceptable for known job types at this time because template
 	// admins may not be allowed to view new types.
-	case ProvisionerJobTypeTemplateVersionImport, ProvisionerJobTypeTemplateVersionDryRun, ProvisionerJobTypeWorkspaceBuild, ProvisionerJobTypeNetworkPolicy:
+	case ProvisionerJobTypeTemplateVersionImport, ProvisionerJobTypeTemplateVersionDryRun, ProvisionerJobTypeWorkspaceBuild, ProvisionerJobTypeNetworkPolicy, ProvisionerJobTypeTemplateResources:
 		return rbac.ResourceProvisionerJobs.InOrg(p.OrganizationID)
 
 	default:

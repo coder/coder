@@ -458,7 +458,14 @@ func provisionEnv(
 		return nil, xerrors.Errorf("marshal owner rbac roles: %w", err)
 	}
 
+	templateOutputs := metadata.GetTemplateOutputs()
+	if templateOutputs == "" {
+		templateOutputs = "{}"
+	}
+
 	env = append(env,
+		"CODER_TEMPLATE_OUTPUTS="+templateOutputs,
+		"CODER_TEMPLATE_RESOURCE_REVISION_ID="+metadata.GetTemplateResourceRevisionId(),
 		"CODER_AGENT_URL="+metadata.GetCoderUrl(),
 		"CODER_WORKSPACE_TRANSITION="+strings.ToLower(metadata.GetWorkspaceTransition().String()),
 		"CODER_WORKSPACE_NAME="+metadata.GetWorkspaceName(),

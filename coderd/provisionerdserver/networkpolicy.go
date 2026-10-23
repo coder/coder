@@ -313,7 +313,7 @@ func (s *server) finalizeNetworkPolicyJob(ctx context.Context, jobID uuid.UUID, 
 				}
 			}
 		}
-		if err := insertNetworkPolicyTimings(ctx, db, job.ID, result.timings); err != nil {
+		if err := insertNativeJobTimings(ctx, db, job.ID, result.timings); err != nil {
 			return err
 		}
 		job.CompletedAt = sql.NullTime{Time: now, Valid: true}
@@ -383,7 +383,7 @@ func validateNetworkPolicyResult(operation string, result networkPolicyJobResult
 	return nil
 }
 
-func insertNetworkPolicyTimings(ctx context.Context, db database.Store, jobID uuid.UUID, timings []*sdkproto.Timing) error {
+func insertNativeJobTimings(ctx context.Context, db database.Store, jobID uuid.UUID, timings []*sdkproto.Timing) error {
 	//nolint:exhaustruct // Validated timing entries are appended below.
 	params := database.InsertProvisionerJobTimingsParams{JobID: jobID}
 	for _, timing := range timings {
@@ -406,7 +406,7 @@ func insertNetworkPolicyTimings(ctx context.Context, db database.Store, jobID uu
 		return nil
 	}
 	if _, err := db.InsertProvisionerJobTimings(ctx, params); err != nil {
-		return xerrors.Errorf("insert network policy job timings: %w", err)
+		return xerrors.Errorf("insert native job timings: %w", err)
 	}
 	return nil
 }

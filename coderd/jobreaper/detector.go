@@ -310,6 +310,15 @@ func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub
 		now = dbtime.Now()
 		errorMessage := fmt.Sprintf("Coder: Build has been detected as %s for %.0f minutes and has been terminated by the reaper.", jobToReap.Type, jobToReap.Threshold.Minutes())
 		errorCode := sql.NullString{}
+		if job.Type == database.ProvisionerJobTypeTemplateResources {
+			errorCode, err = reapTemplateResourceRun(ctx, db, job)
+			if err != nil {
+				return err
+			}
+			if errorCode.String == "TEMPLATE_RESOURCE_STATE_UNKNOWN" {
+				errorMessage += " Template resource outcome is unknown; manual reconciliation is required."
+			}
+		}
 		if job.Type == database.ProvisionerJobTypeNetworkPolicy {
 			// Match native finalization's lock order: job, policy, target.
 			// Acquired applies and destroys may have uncertain outcomes.

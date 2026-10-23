@@ -59,7 +59,8 @@ type Runner struct {
 	logBufferInterval   time.Duration
 
 	// Once apply starts, a missing result must not imply unchanged state.
-	networkPolicyApplyStarted atomic.Bool
+	networkPolicyApplyStarted     atomic.Bool
+	templateResourcesApplyStarted atomic.Bool
 
 	// session is the provisioning session with the (possibly remote) provisioner
 	session sdkproto.DRPCProvisioner_SessionClient
@@ -281,6 +282,11 @@ func (r *Runner) Fail(ctx context.Context, f *proto.FailedJob) error {
 			NetworkPolicy: &proto.FailedJob_NetworkPolicy{StateDisposition: r.networkPolicyStateDisposition()},
 		}
 	}
+	if r.job.GetTemplateResources() != nil {
+		f.Type = &proto.FailedJob_TemplateResources_{
+			TemplateResources: &proto.FailedJob_TemplateResources{StateDisposition: r.templateResourcesStateDisposition()},
+		}
+	}
 	if r.failedJob == nil {
 		r.failedJob = f
 		r.cond.Signal()
@@ -454,6 +460,8 @@ func (r *Runner) do(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob)
 		return r.runTemplateDryRun(ctx)
 	case *proto.AcquiredJob_NetworkPolicy_:
 		return r.runNetworkPolicy(ctx)
+	case *proto.AcquiredJob_TemplateResources_:
+		return r.runTemplateResources(ctx)
 	case *proto.AcquiredJob_WorkspaceBuild_:
 		r.logger.Debug(context.Background(), "acquired job is workspace provision",
 			slog.F("workspace_name", jobType.WorkspaceBuild.WorkspaceName),
@@ -585,9 +593,13 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		CreatedAt: time.Now().UnixMilli(),
 	})
 	startProvision, err := r.runTemplateImportProvision(ctx, updateResponse.VariableValues, &sdkproto.Metadata{
-		CoderUrl:             r.job.GetTemplateImport().Metadata.CoderUrl,
-		WorkspaceOwnerGroups: r.job.GetTemplateImport().Metadata.WorkspaceOwnerGroups,
-		WorkspaceTransition:  sdkproto.WorkspaceTransition_START,
+		CoderUrl:                   r.job.GetTemplateImport().Metadata.CoderUrl,
+		WorkspaceOwnerGroups:       r.job.GetTemplateImport().Metadata.WorkspaceOwnerGroups,
+		TemplateId:                 r.job.GetTemplateImport().Metadata.TemplateId,
+		TemplateName:               r.job.GetTemplateImport().Metadata.TemplateName,
+		TemplateOutputs:            r.job.GetTemplateImport().Metadata.TemplateOutputs,
+		TemplateResourceRevisionId: r.job.GetTemplateImport().Metadata.TemplateResourceRevisionId,
+		WorkspaceTransition:        sdkproto.WorkspaceTransition_START,
 	})
 	if err != nil {
 		return nil, r.failedJobf("template import provision for start: %s", err)
@@ -601,9 +613,13 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		CreatedAt: time.Now().UnixMilli(),
 	})
 	stopProvision, err := r.runTemplateImportProvision(ctx, updateResponse.VariableValues, &sdkproto.Metadata{
-		CoderUrl:             r.job.GetTemplateImport().Metadata.CoderUrl,
-		WorkspaceOwnerGroups: r.job.GetTemplateImport().Metadata.WorkspaceOwnerGroups,
-		WorkspaceTransition:  sdkproto.WorkspaceTransition_STOP,
+		CoderUrl:                   r.job.GetTemplateImport().Metadata.CoderUrl,
+		WorkspaceOwnerGroups:       r.job.GetTemplateImport().Metadata.WorkspaceOwnerGroups,
+		TemplateId:                 r.job.GetTemplateImport().Metadata.TemplateId,
+		TemplateName:               r.job.GetTemplateImport().Metadata.TemplateName,
+		TemplateOutputs:            r.job.GetTemplateImport().Metadata.TemplateOutputs,
+		TemplateResourceRevisionId: r.job.GetTemplateImport().Metadata.TemplateResourceRevisionId,
+		WorkspaceTransition:        sdkproto.WorkspaceTransition_STOP,
 	})
 	if err != nil {
 		return nil, r.failedJobf("template import provision for stop: %s", err)
@@ -1148,6 +1164,11 @@ func (r *Runner) failedJobf(format string, args ...interface{}) *proto.FailedJob
 	if r.job.GetNetworkPolicy() != nil {
 		failed.Type = &proto.FailedJob_NetworkPolicy_{
 			NetworkPolicy: &proto.FailedJob_NetworkPolicy{StateDisposition: r.networkPolicyStateDisposition()},
+		}
+	}
+	if r.job.GetTemplateResources() != nil {
+		failed.Type = &proto.FailedJob_TemplateResources_{
+			TemplateResources: &proto.FailedJob_TemplateResources{StateDisposition: r.templateResourcesStateDisposition()},
 		}
 	}
 	return failed

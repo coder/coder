@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io/fs"
 	stdslog "log/slog" //nolint:depguard // preview.Input.Logger requires a *log/slog.Logger.
+	"maps"
 	"net/http"
 	"os"
 
@@ -492,6 +493,30 @@ func (api *API) templateVersionVariables(rw http.ResponseWriter, r *http.Request
 	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersionVariables(dbTemplateVersionVariables))
 }
 
+// templateValidationJobTags requires a capable worker when a linked template
+// owns resources. Acquisition rechecks metadata to cover configuration changes
+// after enqueue. The helper never exposes resource state to the caller.
+func templateValidationJobTags(ctx context.Context, db database.Store, templateID uuid.UUID, tags map[string]string) (map[string]string, error) {
+	if templateID == uuid.Nil {
+		return tags, nil
+	}
+	// Dry-run callers need not have permission to read raw resource state.
+	//nolint:gocritic // Only state existence is needed for routing.
+	_, err := db.GetTemplateResourceState(dbauthz.AsSystemRestricted(ctx), templateID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return tags, nil
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("get template resource routing requirement: %w", err)
+	}
+	tags = maps.Clone(tags)
+	if tags == nil {
+		tags = map[string]string{}
+	}
+	tags[provisionersdk.TagTemplateResources] = provisionersdk.TemplateResourcesCapabilityVersion
+	return tags, nil
+}
+
 // @Summary Create template version dry-run
 // @ID create-template-version-dry-run
 // @Security CoderSessionToken
@@ -570,6 +595,16 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Resources may have been configured after the original import job.
+	tags, err := templateValidationJobTags(ctx, api.Database, templateVersion.TemplateID.UUID, job.Tags)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking template resource requirements.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	// Create a dry-run job
 	jobID := uuid.New()
 	provisionerJob, err := api.Database.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
@@ -583,8 +618,7 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 		FileID:         job.FileID,
 		Type:           database.ProvisionerJobTypeTemplateVersionDryRun,
 		Input:          input,
-		// Copy tags from the previous run.
-		Tags: job.Tags,
+		Tags:           tags,
 		TraceMetadata: pqtype.NullRawMessage{
 			Valid:      true,
 			RawMessage: metadataRaw,
@@ -1639,6 +1673,15 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	// User-specified tags in the request will take precedence over tags parsed from `coder_workspace_tags`
 	// data sources defined in the template file.
 	tags := provisionersdk.MutateTags(apiKey.UserID, parsedTags, req.ProvisionerTags)
+	// Required worker capabilities cannot be overridden by source or request tags.
+	tags, err = templateValidationJobTags(ctx, api.Database, req.TemplateID, tags)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking template resource requirements.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	var templateVersion database.TemplateVersion
 	var provisionerJob database.ProvisionerJob

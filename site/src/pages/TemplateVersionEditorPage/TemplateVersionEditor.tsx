@@ -3,8 +3,6 @@ import {
 	ChevronLeftIcon,
 	ExternalLinkIcon,
 	PlayIcon,
-	PlusIcon,
-	TriangleAlertIcon,
 	XIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -24,7 +22,6 @@ import type {
 } from "#/api/typesGenerated";
 import { Alert, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
-import { Sidebar } from "#/components/FullPageLayout/Sidebar";
 import {
 	Topbar,
 	TopbarAvatar,
@@ -47,35 +44,20 @@ import {
 } from "#/modules/provisioners/ProvisionerAlert";
 import { ProvisionerStatusAlert } from "#/modules/provisioners/ProvisionerStatusAlert";
 import { WildcardHostnameWarning } from "#/modules/resources/WildcardHostnameWarning";
-import { isBinaryData } from "#/modules/templates/TemplateFiles/isBinaryData";
-import { TemplateFileTree } from "#/modules/templates/TemplateFiles/TemplateFileTree";
 import { TemplateResourcesTable } from "#/modules/templates/TemplateResourcesTable/TemplateResourcesTable";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import type { PublishVersionData } from "#/pages/TemplateVersionEditorPage/types";
-import {
-	createFile,
-	existsFile,
-	type FileTree,
-	getFileText,
-	isFolder,
-	moveFile,
-	removeFile,
-	updateFile,
-} from "#/utils/filetree";
-import {
-	CreateFileDialog,
-	DeleteFileDialog,
-	RenameFileDialog,
-} from "./FileDialog";
+import type { FileTree } from "#/utils/filetree";
 import { MissingTemplateVariablesDialog } from "./MissingTemplateVariablesDialog";
-import { MonacoEditor } from "./MonacoEditor";
 import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
 import { PublishTemplateVersionDialog } from "./PublishTemplateVersionDialog";
+import { TemplateFileEditor } from "./TemplateFileEditor";
 import { TemplateVersionStatusBadge } from "./TemplateVersionStatusBadge";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
 type TemplateVersionEditorProps = {
+	scopeNavigation?: React.ReactNode;
 	template: Template;
 	templateVersion: TemplateVersion;
 	fileTree: FileTree;
@@ -105,6 +87,7 @@ type TemplateVersionEditorProps = {
 };
 
 export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
+	scopeNavigation,
 	isBuilding,
 	canPublish,
 	template,
@@ -135,9 +118,6 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 	const navigate = useNavigate();
 	const getLink = useLinks();
 	const [selectedTab, setSelectedTab] = useState<Tab>(defaultTab);
-	const [createFileOpen, setCreateFileOpen] = useState(false);
-	const [deleteFileOpen, setDeleteFileOpen] = useState<string>();
-	const [renameFileOpen, setRenameFileOpen] = useState<string>();
 	const [dirty, setDirty] = useState(false);
 	const matchingProvisioners = templateVersion.matched_provisioners?.count;
 	const availableProvisioners = templateVersion.matched_provisioners?.available;
@@ -206,10 +186,6 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 		}
 		previousVersion.current = templateVersion;
 	}, [templateVersion, navigate, templateLink]);
-
-	const editorValue = activePath ? getFileText(activePath, fileTree) : "";
-	const isEditorValueBinary =
-		typeof editorValue === "string" ? isBinaryData(editorValue) : false;
 
 	useLeaveSiteWarning(dirty);
 
@@ -297,6 +273,7 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 						</TopbarButton>
 					</div>
 				</Topbar>
+				{scopeNavigation}
 
 				<div className="flex flex-1 basis-0 overflow-hidden relative">
 					{publishedVersion && (
@@ -325,132 +302,15 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 						</div>
 					)}
 
-					<Sidebar>
-						<div className="h-[42px] py-0 pr-2 pl-4 flex items-center">
-							<span className="text-content-primary text-sm">Files</span>
-
-							<div className="ml-auto [&_svg]:fill-content-primary">
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											size="icon"
-											variant="subtle"
-											aria-label="Create File"
-											onClick={(event) => {
-												setCreateFileOpen(true);
-												event.currentTarget.blur();
-											}}
-										>
-											<PlusIcon />
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent>Create File</TooltipContent>
-								</Tooltip>
-							</div>
-							<CreateFileDialog
-								fileTree={fileTree}
-								open={createFileOpen}
-								onClose={() => {
-									setCreateFileOpen(false);
-								}}
-								checkExists={(path) => existsFile(path, fileTree)}
-								onConfirm={(path) => {
-									onFileTreeChange((fileTree) =>
-										createFile(path, fileTree, ""),
-									);
-									onActivePathChange(path);
-									setCreateFileOpen(false);
-									setDirty(true);
-								}}
-							/>
-							<DeleteFileDialog
-								onConfirm={() => {
-									if (!deleteFileOpen) {
-										throw new Error("delete file must be set");
-									}
-									onFileTreeChange((fileTree) =>
-										removeFile(deleteFileOpen, fileTree),
-									);
-									setDeleteFileOpen(undefined);
-									if (activePath === deleteFileOpen) {
-										onActivePathChange(undefined);
-									}
-									setDirty(true);
-								}}
-								open={Boolean(deleteFileOpen)}
-								onClose={() => setDeleteFileOpen(undefined)}
-								filename={deleteFileOpen || ""}
-							/>
-							<RenameFileDialog
-								fileTree={fileTree}
-								open={Boolean(renameFileOpen)}
-								onClose={() => {
-									setRenameFileOpen(undefined);
-								}}
-								filename={renameFileOpen || ""}
-								checkExists={(path) => existsFile(path, fileTree)}
-								onConfirm={(newPath) => {
-									if (!renameFileOpen) {
-										return;
-									}
-									onFileTreeChange((fileTree) =>
-										moveFile(renameFileOpen, newPath, fileTree),
-									);
-									onActivePathChange(newPath);
-									setRenameFileOpen(undefined);
-									setDirty(true);
-								}}
-							/>
-						</div>
-						<TemplateFileTree
-							fileTree={fileTree}
-							onDelete={(file) => setDeleteFileOpen(file)}
-							onSelect={(filePath) => {
-								if (!isFolder(filePath, fileTree)) {
-									onActivePathChange(filePath);
-								}
-							}}
-							onRename={(file) => setRenameFileOpen(file)}
-							activePath={activePath}
-						/>
-					</Sidebar>
-
-					<div className="flex flex-col w-full min-h-full overflow-hidden">
-						<div className="flex-1 overflow-y-auto" data-pixel="ignore">
-							{activePath ? (
-								isEditorValueBinary ? (
-									<div
-										role="alert"
-										className="w-full h-full flex items-center justify-center p-10"
-									>
-										<div className="flex flex-col items-center max-w-[420px] text-center">
-											<TriangleAlertIcon className="text-content-warning size-icon-lg" />
-											<p className="m-0 p-0 mt-6">
-												The file is not displayed in the text editor because it
-												is either binary or uses an unsupported text encoding.
-											</p>
-										</div>
-									</div>
-								) : (
-									<MonacoEditor
-										value={editorValue}
-										path={activePath}
-										onChange={(value) => {
-											if (!activePath) {
-												return;
-											}
-											onFileTreeChange((fileTree) =>
-												updateFile(activePath, value, fileTree),
-											);
-											setDirty(true);
-										}}
-									/>
-								)
-							) : (
-								<div>No file opened</div>
-							)}
-						</div>
-
+					<TemplateFileEditor
+						fileTree={fileTree}
+						activePath={activePath}
+						onActivePathChange={onActivePathChange}
+						onFileTreeChange={(updater) => {
+							onFileTreeChange(updater);
+							setDirty(true);
+						}}
+					>
 						<div className="border-0 border-t border-solid border-border overflow-hidden flex flex-col">
 							<div
 								className={cn(
@@ -574,7 +434,7 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 								</div>
 							)}
 						</div>
-					</div>
+					</TemplateFileEditor>
 				</div>
 			</div>
 
@@ -625,7 +485,11 @@ const useLeaveSiteWarning = (enabled: boolean) => {
 		when: ({ nextLocation }) => {
 			// We need to check the path because we change the URL when new template
 			// version is created during builds
-			return enabled && !nextLocation.pathname.endsWith("/edit");
+			return (
+				enabled &&
+				(!nextLocation.pathname.endsWith("/edit") ||
+					new URLSearchParams(nextLocation.search).get("scope") === "template")
+			);
 		},
 	});
 };

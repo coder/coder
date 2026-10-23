@@ -3558,6 +3558,7 @@ const (
 	ProvisionerJobTypeWorkspaceBuild        ProvisionerJobType = "workspace_build"
 	ProvisionerJobTypeTemplateVersionDryRun ProvisionerJobType = "template_version_dry_run"
 	ProvisionerJobTypeNetworkPolicy         ProvisionerJobType = "network_policy"
+	ProvisionerJobTypeTemplateResources     ProvisionerJobType = "template_resources"
 )
 
 func (e *ProvisionerJobType) Scan(src interface{}) error {
@@ -3600,7 +3601,8 @@ func (e ProvisionerJobType) Valid() bool {
 	case ProvisionerJobTypeTemplateVersionImport,
 		ProvisionerJobTypeWorkspaceBuild,
 		ProvisionerJobTypeTemplateVersionDryRun,
-		ProvisionerJobTypeNetworkPolicy:
+		ProvisionerJobTypeNetworkPolicy,
+		ProvisionerJobTypeTemplateResources:
 		return true
 	}
 	return false
@@ -3612,6 +3614,7 @@ func AllProvisionerJobTypeValues() []ProvisionerJobType {
 		ProvisionerJobTypeWorkspaceBuild,
 		ProvisionerJobTypeTemplateVersionDryRun,
 		ProvisionerJobTypeNetworkPolicy,
+		ProvisionerJobTypeTemplateResources,
 	}
 }
 
@@ -6262,6 +6265,38 @@ type Template struct {
 	OrganizationIcon              string          `db:"organization_icon" json:"organization_icon"`
 }
 
+type TemplateResourceRevision struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	TemplateID     uuid.UUID `db:"template_id" json:"template_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	FileID         uuid.UUID `db:"file_id" json:"file_id"`
+	Source         string    `db:"source" json:"source"`
+	CreatedBy      uuid.UUID `db:"created_by" json:"created_by"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+}
+
+type TemplateResourceRun struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	TemplateID     uuid.UUID `db:"template_id" json:"template_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	RevisionID     uuid.UUID `db:"revision_id" json:"revision_id"`
+	JobID          uuid.UUID `db:"job_id" json:"job_id"`
+	Action         string    `db:"action" json:"action"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+}
+
+type TemplateResourceState struct {
+	TemplateID        uuid.UUID       `db:"template_id" json:"template_id"`
+	OrganizationID    uuid.UUID       `db:"organization_id" json:"organization_id"`
+	CurrentRevisionID uuid.NullUUID   `db:"current_revision_id" json:"current_revision_id"`
+	AppliedRevisionID uuid.NullUUID   `db:"applied_revision_id" json:"applied_revision_id"`
+	ActiveRunID       uuid.NullUUID   `db:"active_run_id" json:"active_run_id"`
+	Status            string          `db:"status" json:"status"`
+	State             []byte          `db:"state" json:"state"`
+	Outputs           json.RawMessage `db:"outputs" json:"outputs"`
+	UpdatedAt         time.Time       `db:"updated_at" json:"updated_at"`
+}
+
 type TemplateTable struct {
 	ID              uuid.UUID       `db:"id" json:"id"`
 	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
@@ -6957,25 +6992,27 @@ type WorkspaceAppStatus struct {
 
 // Joins in the username + avatar url of the initiated by user.
 type WorkspaceBuild struct {
-	ID                       uuid.UUID           `db:"id" json:"id"`
-	CreatedAt                time.Time           `db:"created_at" json:"created_at"`
-	UpdatedAt                time.Time           `db:"updated_at" json:"updated_at"`
-	WorkspaceID              uuid.UUID           `db:"workspace_id" json:"workspace_id"`
-	TemplateVersionID        uuid.UUID           `db:"template_version_id" json:"template_version_id"`
-	BuildNumber              int32               `db:"build_number" json:"build_number"`
-	Transition               WorkspaceTransition `db:"transition" json:"transition"`
-	InitiatorID              uuid.UUID           `db:"initiator_id" json:"initiator_id"`
-	JobID                    uuid.UUID           `db:"job_id" json:"job_id"`
-	Deadline                 time.Time           `db:"deadline" json:"deadline"`
-	Reason                   BuildReason         `db:"reason" json:"reason"`
-	DailyCost                int32               `db:"daily_cost" json:"daily_cost"`
-	MaxDeadline              time.Time           `db:"max_deadline" json:"max_deadline"`
-	TemplateVersionPresetID  uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
-	HasExternalAgent         sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
-	NotifiedAutostopDeadline time.Time           `db:"notified_autostop_deadline" json:"notified_autostop_deadline"`
-	InitiatorByAvatarUrl     string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
-	InitiatorByUsername      string              `db:"initiator_by_username" json:"initiator_by_username"`
-	InitiatorByName          string              `db:"initiator_by_name" json:"initiator_by_name"`
+	ID                         uuid.UUID           `db:"id" json:"id"`
+	CreatedAt                  time.Time           `db:"created_at" json:"created_at"`
+	UpdatedAt                  time.Time           `db:"updated_at" json:"updated_at"`
+	WorkspaceID                uuid.UUID           `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID          uuid.UUID           `db:"template_version_id" json:"template_version_id"`
+	BuildNumber                int32               `db:"build_number" json:"build_number"`
+	Transition                 WorkspaceTransition `db:"transition" json:"transition"`
+	InitiatorID                uuid.UUID           `db:"initiator_id" json:"initiator_id"`
+	JobID                      uuid.UUID           `db:"job_id" json:"job_id"`
+	Deadline                   time.Time           `db:"deadline" json:"deadline"`
+	Reason                     BuildReason         `db:"reason" json:"reason"`
+	DailyCost                  int32               `db:"daily_cost" json:"daily_cost"`
+	MaxDeadline                time.Time           `db:"max_deadline" json:"max_deadline"`
+	TemplateVersionPresetID    uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
+	HasExternalAgent           sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
+	NotifiedAutostopDeadline   time.Time           `db:"notified_autostop_deadline" json:"notified_autostop_deadline"`
+	InitiatorByAvatarUrl       string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
+	InitiatorByUsername        string              `db:"initiator_by_username" json:"initiator_by_username"`
+	InitiatorByName            string              `db:"initiator_by_name" json:"initiator_by_name"`
+	TemplateResourceRevisionID uuid.NullUUID       `db:"template_resource_revision_id" json:"template_resource_revision_id"`
+	TemplateResourceOutputs    json.RawMessage     `db:"template_resource_outputs" json:"template_resource_outputs"`
 }
 
 // Tracks durable follow-up workspace build operations, such as server-side restart, where one child build is created after a parent build completes successfully.
@@ -7029,7 +7066,9 @@ type WorkspaceBuildTable struct {
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
 	HasExternalAgent        sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
 	// The autostop deadline value that an autostop reminder notification was last sent for. Used for idempotence: when it equals the build deadline the reminder has already been sent, and it re-arms automatically when the deadline changes.
-	NotifiedAutostopDeadline time.Time `db:"notified_autostop_deadline" json:"notified_autostop_deadline"`
+	NotifiedAutostopDeadline   time.Time       `db:"notified_autostop_deadline" json:"notified_autostop_deadline"`
+	TemplateResourceRevisionID uuid.NullUUID   `db:"template_resource_revision_id" json:"template_resource_revision_id"`
+	TemplateResourceOutputs    json.RawMessage `db:"template_resource_outputs" json:"template_resource_outputs"`
 }
 
 type WorkspaceLatestBuild struct {

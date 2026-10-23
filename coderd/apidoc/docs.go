@@ -12264,6 +12264,245 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/templates/{template}/resources": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template resources",
+                "operationId": "get-template-resources",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateResources"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/templates/{template}/resources/runs": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Run template resources",
+                "operationId": "create-template-resource-run",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Run",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateTemplateResourceRunRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateResourceRun"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/templates/{template}/resources/runs/{runID}/cancel": {
+            "patch": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Cancel template resource run",
+                "operationId": "cancel-template-resource-run",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Run ID",
+                        "name": "runID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/templates/{template}/resources/runs/{runID}/logs": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template resource run logs",
+                "operationId": "get-template-resource-run-logs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Run ID",
+                        "name": "runID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Return logs after this ID",
+                        "name": "after",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ProvisionerJobLog"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/templates/{template}/resources/versions": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Create template resource revision",
+                "operationId": "create-template-resource-revision",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Source archive or inline main.tf",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateTemplateResourceRevisionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateResourceRevision"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/v2/templates/{template}/versions": {
             "get": {
                 "produces": [
@@ -24651,6 +24890,34 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateTemplateResourceRevisionRequest": {
+            "type": "object",
+            "properties": {
+                "file_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "source": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.CreateTemplateResourceRunRequest": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "plan",
+                        "apply",
+                        "destroy"
+                    ]
+                },
+                "revision_id": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.CreateTemplateVersionDryRunRequest": {
             "type": "object",
             "properties": {
@@ -25955,6 +26222,7 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
+                "template-resources",
                 "network-policies",
                 "example",
                 "notifications",
@@ -25990,11 +26258,13 @@ const docTemplate = `{
                 "ExperimentNetworkPolicies": "Enables independently provisioned organization network policies.",
                 "ExperimentNoNATSPubsub": "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
+                "ExperimentTemplateResources": "Enables independently provisioned template resources.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "ExperimentWorkspaceCapableLicensing": "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-descriptions": [
+                "Enables independently provisioned template resources.",
                 "Enables independently provisioned organization network policies.",
                 "This isn't used for anything.",
                 "Sends notifications via SMTP and webhooks following certain events.",
@@ -26015,6 +26285,7 @@ const docTemplate = `{
                 "Exposes chat lifecycle stage durations as Prometheus metrics."
             ],
             "x-enum-varnames": [
+                "ExperimentTemplateResources",
                 "ExperimentNetworkPolicies",
                 "ExperimentExample",
                 "ExperimentNotifications",
@@ -30058,6 +30329,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "template_resource_run_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "template_version_id": {
                     "type": "string",
                     "format": "uuid"
@@ -30161,13 +30436,15 @@ const docTemplate = `{
                 "template_version_import",
                 "workspace_build",
                 "template_version_dry_run",
-                "network_policy"
+                "network_policy",
+                "template_resources"
             ],
             "x-enum-varnames": [
                 "ProvisionerJobTypeTemplateVersionImport",
                 "ProvisionerJobTypeWorkspaceBuild",
                 "ProvisionerJobTypeTemplateVersionDryRun",
-                "ProvisionerJobTypeNetworkPolicy"
+                "ProvisionerJobTypeNetworkPolicy",
+                "ProvisionerJobTypeTemplateResources"
             ]
         },
         "codersdk.ProvisionerKey": {
@@ -32109,6 +32386,97 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.TemplateResourceRevision": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "file_id": {
+                    "description": "FileID identifies the complete, normalized TAR archive.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "source": {
+                    "description": "Source is the main.tf preview, or empty when that file is absent.",
+                    "type": "string"
+                },
+                "template_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.TemplateResourceRun": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "plan",
+                        "apply",
+                        "destroy"
+                    ]
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "job": {
+                    "$ref": "#/definitions/codersdk.ProvisionerJob"
+                },
+                "revision_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.TemplateResources": {
+            "type": "object",
+            "properties": {
+                "applied_revision_id": {
+                    "type": "string"
+                },
+                "current_revision_id": {
+                    "type": "string"
+                },
+                "outputs": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "revisions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateResourceRevision"
+                    }
+                },
+                "runs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateResourceRun"
+                    }
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "unconfigured",
+                        "pending",
+                        "applied",
+                        "failed",
+                        "unknown",
+                        "destroyed"
+                    ]
+                },
+                "template_id": {
                     "type": "string"
                 }
             }

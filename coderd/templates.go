@@ -78,6 +78,10 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 	aReq.Old = template
+	if !api.Authorize(r, policy.ActionDelete, template.RBACObject()) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	// This is just to get the workspace count, so we use a system context to
 	// return ALL workspaces. Not just workspaces the user can view.
@@ -104,11 +108,22 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	err = api.Database.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{
-		ID:        template.ID,
-		Deleted:   true,
-		UpdatedAt: dbtime.Now(),
-	})
+	err = api.Database.InTx(func(tx database.Store) error {
+		// Deletion permission is checked by the update below. Internal state
+		// access keeps template deletion ACLs independent of the update ACL.
+		//nolint:gocritic
+		if err := guardTemplateResourceDeletionInTx(dbauthz.AsSystemRestricted(ctx), tx, template.ID); err != nil {
+			return err
+		}
+		return tx.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{
+			ID: template.ID, Deleted: true, UpdatedAt: dbtime.Now(),
+		})
+	}, nil)
+	var resourceErr *templateResourceHTTPError
+	if errors.As(err, &resourceErr) {
+		api.templateResourceError(rw, r, err)
+		return
+	}
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
 		return

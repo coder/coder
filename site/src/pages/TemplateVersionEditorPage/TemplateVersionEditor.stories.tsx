@@ -17,6 +17,7 @@ import {
 	MockWorkspaceVolumeResource,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
+import { TemplateEditorScopeNavigation } from "./TemplateEditorScopeNavigation";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 
 const meta: Meta<typeof TemplateVersionEditor> = {
@@ -56,6 +57,12 @@ export const Example: Story = {
 			"aria-label",
 			"Back to the template",
 		);
+	},
+};
+
+export const WorkspaceResourceScope: Story = {
+	args: {
+		scopeNavigation: <TemplateEditorScopeNavigation scope="workspace" />,
 	},
 };
 

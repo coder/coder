@@ -479,6 +479,7 @@ func TestAcquireJob(t *testing.T) {
 				}
 
 				srv, db, ps, pd := setup(t, false, &overrides{
+					provisionerTags:  database.StringMap{provisionersdk.TagTemplateResources: provisionersdk.TemplateResourcesCapabilityVersion},
 					deploymentValues: dv,
 					externalAuthConfigs: []*externalauth.Config{{
 						ID:                       gitAuthProvider.Id,
@@ -653,6 +654,18 @@ func TestAcquireJob(t *testing.T) {
 					build = dbgen.WorkspaceBuild(t, db, build)
 				}
 
+				// Acquisition must use this build's frozen outputs even when no
+				// latest template resource snapshot is available.
+				resourceRevision, err := db.InsertTemplateResourceRevision(ctx, database.InsertTemplateResourceRevisionParams{
+					ID: uuid.New(), TemplateID: template.ID, OrganizationID: pd.OrganizationID, FileID: file.ID,
+					Source: "output pinned {}", CreatedBy: user.ID, CreatedAt: dbtime.Now(),
+				})
+				require.NoError(t, err)
+				pinnedOutputs := json.RawMessage(`{"network":{"id":"frozen-network"}}`)
+				require.NoError(t, db.PinWorkspaceBuildTemplateResources(ctx, database.PinWorkspaceBuildTemplateResourcesParams{
+					ID: build.ID, TemplateResourceRevisionID: uuid.NullUUID{UUID: resourceRevision.ID, Valid: true}, TemplateResourceOutputs: pinnedOutputs,
+				}))
+
 				startPublished := make(chan struct{})
 				var closed bool
 				closeStartSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
@@ -709,6 +722,7 @@ func TestAcquireJob(t *testing.T) {
 				require.Equal(t, int64(dv.Sessions.MaximumTokenDuration.Value().Seconds()), key.LifetimeSeconds)
 				require.WithinDuration(t, dbtime.Now().Add(dv.Sessions.MaximumTokenDuration.Value()), key.ExpiresAt, time.Minute)
 
+				require.JSONEq(t, string(pinnedOutputs), job.GetWorkspaceBuild().Metadata.TemplateOutputs)
 				wantedMetadata := &sdkproto.Metadata{
 					CoderUrl:                      (&url.URL{}).String(),
 					WorkspaceTransition:           sdkproto.WorkspaceTransition_START,
@@ -724,6 +738,8 @@ func TestAcquireJob(t *testing.T) {
 					TemplateName:                  template.Name,
 					TemplateVersion:               version.Name,
 					TemplateVersionId:             version.ID.String(),
+					TemplateOutputs:               job.GetWorkspaceBuild().Metadata.TemplateOutputs,
+					TemplateResourceRevisionId:    resourceRevision.ID.String(),
 					WorkspaceOwnerSessionToken:    sessionToken,
 					WorkspaceOwnerSshPublicKey:    sshKey.PublicKey,
 					WorkspaceOwnerSshPrivateKey:   sshKey.PrivateKey,
@@ -868,6 +884,7 @@ func TestAcquireJob(t *testing.T) {
 						CoderUrl:             (&url.URL{}).String(),
 						WorkspaceName:        "testing",
 						WorkspaceOwnerGroups: []string{database.EveryoneGroup},
+						TemplateOutputs:      "{}",
 					},
 				},
 			})
@@ -901,6 +918,7 @@ func TestAcquireJob(t *testing.T) {
 					Metadata: &sdkproto.Metadata{
 						CoderUrl:             (&url.URL{}).String(),
 						WorkspaceOwnerGroups: []string{database.EveryoneGroup},
+						TemplateOutputs:      "{}",
 						TemplateVersionId:    uuid.Nil.String(),
 					},
 				},
@@ -950,6 +968,7 @@ func TestAcquireJob(t *testing.T) {
 					Metadata: &sdkproto.Metadata{
 						CoderUrl:             (&url.URL{}).String(),
 						WorkspaceOwnerGroups: []string{database.EveryoneGroup},
+						TemplateOutputs:      "{}",
 						TemplateVersionId:    version.ID.String(),
 					},
 				},
@@ -5153,6 +5172,7 @@ func slogFieldsByName(fields []slog.Field) map[string]any {
 }
 
 type overrides struct {
+	provisionerTags             database.StringMap
 	ctx                         context.Context
 	deploymentValues            *codersdk.DeploymentValues
 	externalAuthConfigs         []*externalauth.Config
@@ -5263,11 +5283,15 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		}
 	}
 
+	tags := database.StringMap{}
+	if ov.provisionerTags != nil {
+		tags = ov.provisionerTags
+	}
 	daemon, err := db.UpsertProvisionerDaemon(ov.ctx, database.UpsertProvisionerDaemonParams{
 		Name:           "test",
 		CreatedAt:      dbtime.Now(),
 		Provisioners:   []database.ProvisionerType{database.ProvisionerTypeEcho},
-		Tags:           database.StringMap{},
+		Tags:           tags,
 		LastSeenAt:     sql.NullTime{},
 		Version:        buildinfo.Version(),
 		APIVersion:     proto.CurrentVersion.String(),

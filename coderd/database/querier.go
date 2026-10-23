@@ -95,6 +95,7 @@ type sqlcQuerier interface {
 	ClearChatDiffStatusPR(ctx context.Context, arg ClearChatDiffStatusPRParams) error
 	CompleteNetworkPolicyDeletion(ctx context.Context, arg CompleteNetworkPolicyDeletionParams) (int64, error)
 	CompleteNetworkPolicyTargetJob(ctx context.Context, arg CompleteNetworkPolicyTargetJobParams) (NetworkPolicyTarget, error)
+	CompleteTemplateResourceRun(ctx context.Context, arg CompleteTemplateResourceRunParams) (TemplateResourceState, error)
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	// Excluding the candidate keeps ownership takeover capacity-neutral.
@@ -950,6 +951,13 @@ type sqlcQuerier interface {
 	// score is computed in Go (see listtemplates.go) so the ranking policy and
 	// its confidence thresholds live in one place.
 	GetTemplateRankingSignalsByOwnerID(ctx context.Context, arg GetTemplateRankingSignalsByOwnerIDParams) ([]GetTemplateRankingSignalsByOwnerIDRow, error)
+	GetTemplateResourceRevisionByID(ctx context.Context, id uuid.UUID) (TemplateResourceRevision, error)
+	GetTemplateResourceRevisionsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]TemplateResourceRevision, error)
+	GetTemplateResourceRunByID(ctx context.Context, id uuid.UUID) (TemplateResourceRun, error)
+	GetTemplateResourceRunByJobID(ctx context.Context, jobID uuid.UUID) (TemplateResourceRun, error)
+	GetTemplateResourceRunsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]TemplateResourceRun, error)
+	GetTemplateResourceState(ctx context.Context, templateID uuid.UUID) (TemplateResourceState, error)
+	GetTemplateResourceStateForUpdate(ctx context.Context, templateID uuid.UUID) (TemplateResourceState, error)
 	GetTemplateUsageStats(ctx context.Context, arg GetTemplateUsageStatsParams) ([]TemplateUsageStat, error)
 	GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (TemplateVersion, error)
 	GetTemplateVersionByJobID(ctx context.Context, jobID uuid.UUID) (TemplateVersion, error)
@@ -1288,6 +1296,9 @@ type sqlcQuerier interface {
 	// attempt to generate or publish the event to the telemetry service.
 	InsertTelemetryLock(ctx context.Context, arg InsertTelemetryLockParams) error
 	InsertTemplate(ctx context.Context, arg InsertTemplateParams) error
+	InsertTemplateResourceRevision(ctx context.Context, arg InsertTemplateResourceRevisionParams) (TemplateResourceRevision, error)
+	InsertTemplateResourceRun(ctx context.Context, arg InsertTemplateResourceRunParams) (TemplateResourceRun, error)
+	InsertTemplateResourceState(ctx context.Context, arg InsertTemplateResourceStateParams) (TemplateResourceState, error)
 	InsertTemplateVersion(ctx context.Context, arg InsertTemplateVersionParams) error
 	InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error)
 	InsertTemplateVersionTerraformValuesByJobID(ctx context.Context, arg InsertTemplateVersionTerraformValuesByJobIDParams) error
@@ -1430,6 +1441,9 @@ type sqlcQuerier interface {
 	// is held the key cannot be deleted, and a committed deletion is observed as
 	// no rows by later calls.
 	LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// A no-op update also invalidates stale repeatable-read snapshots. Merely
+	// locking the row could miss a concurrently inserted first resource revision.
+	LockTemplateResourceTemplate(ctx context.Context, id uuid.UUID) error
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
 	// Flips active, already-hydrated chats for an agent to dirty when the
 	// agent's latest snapshot hash differs from the chat's pinned hash. The
@@ -1459,6 +1473,7 @@ type sqlcQuerier interface {
 	// pin/unpin/reorder operation's ROW_NUMBER() self-heals the
 	// sequence, so this is acceptable.
 	PinChatByID(ctx context.Context, id uuid.UUID) error
+	PinWorkspaceBuildTemplateResources(ctx context.Context, arg PinWorkspaceBuildTemplateResourcesParams) error
 	PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
 	PublishNetworkPolicyRevision(ctx context.Context, arg PublishNetworkPolicyRevisionParams) (NetworkPolicy, error)
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
@@ -1493,6 +1508,7 @@ type sqlcQuerier interface {
 	// refresh endpoint. Does not bump updated_at: context pinning is
 	// background state and must not reorder chat lists.
 	SetChatContextSnapshot(ctx context.Context, arg SetChatContextSnapshotParams) error
+	SetTemplateResourceCurrentRevision(ctx context.Context, arg SetTemplateResourceCurrentRevisionParams) (TemplateResourceState, error)
 	// Bounds how long later lock waits in the current transaction may block.
 	// A wait longer than lock_timeout_ms fails with lock_not_available
 	// instead of blocking. The setting reverts when the transaction ends.
@@ -1521,6 +1537,7 @@ type sqlcQuerier interface {
 	// SoftDeletePriorWorkspaceAgents.
 	SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
 	StartNetworkPolicyTargetJob(ctx context.Context, arg StartNetworkPolicyTargetJobParams) (NetworkPolicyTarget, error)
+	StartTemplateResourceRun(ctx context.Context, arg StartTemplateResourceRunParams) (TemplateResourceState, error)
 	// MCP resources bypass context drift and are live-synced on each push.
 	// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 	// cannot interleave with the replacement.
@@ -1703,6 +1720,7 @@ type sqlcQuerier interface {
 	UpdateTemplateActiveVersionByID(ctx context.Context, arg UpdateTemplateActiveVersionByIDParams) error
 	UpdateTemplateDeletedByID(ctx context.Context, arg UpdateTemplateDeletedByIDParams) error
 	UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) error
+	UpdateTemplateResourceState(ctx context.Context, arg UpdateTemplateResourceStateParams) (TemplateResourceState, error)
 	UpdateTemplateScheduleByID(ctx context.Context, arg UpdateTemplateScheduleByIDParams) error
 	UpdateTemplateVersionByID(ctx context.Context, arg UpdateTemplateVersionByIDParams) error
 	UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg UpdateTemplateVersionDescriptionByJobIDParams) error
