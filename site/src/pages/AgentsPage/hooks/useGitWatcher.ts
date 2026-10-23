@@ -74,6 +74,12 @@ type UseGitWatcherResult = {
 	hasReceivedChanges: boolean;
 	/** Arrivals of watcher messages. Its identity never changes. */
 	watcherMessages: WatcherMessages;
+	/**
+	 * Whether `repositories` can be trusted to name the chat's repos: the
+	 * first changes message arrived, or a connection attempt ended without
+	 * one. Stays true across reconnects; resets on chatId change.
+	 */
+	repoRootsSettled: boolean;
 	/** Send a refresh request. Returns true if sent, false if disconnected. */
 	refresh: () => boolean;
 };
@@ -91,6 +97,7 @@ export function useGitWatcher({
 	const [isConnected, setIsConnected] = useState(false);
 	const [hasReceivedChanges, setHasReceivedChanges] = useState(false);
 	const [watcherMessages] = useState(createWatcherMessages);
+	const [repoRootsSettled, setRepoRootsSettled] = useState(false);
 
 	const socketRef = useRef<WebSocket | null>(null);
 	// Chat-scoped state (everDirty) resets on chatId change but
@@ -100,6 +107,7 @@ export function useGitWatcher({
 	if (lastChatId !== chatId) {
 		setLastChatId(chatId);
 		setEverDirty((prev) => (prev.size === 0 ? prev : new Set()));
+		setRepoRootsSettled(false);
 	}
 
 	const sendMessage = (msg: WorkspaceAgentGitClientMessage): boolean => {
@@ -147,6 +155,7 @@ export function useGitWatcher({
 					if (data.type === "changes") {
 						setHasReceivedChanges(true);
 						watcherMessages.receive();
+						setRepoRootsSettled(true);
 						if (isFirstChanges) {
 							isFirstChanges = false;
 							setRepositories((prev) => (prev.size === 0 ? prev : new Map()));
@@ -208,6 +217,7 @@ export function useGitWatcher({
 			onDisconnect() {
 				setIsConnected(false);
 				setHasReceivedChanges(false);
+				setRepoRootsSettled(true);
 				socketRef.current = null;
 			},
 
@@ -233,6 +243,7 @@ export function useGitWatcher({
 		isConnected,
 		hasReceivedChanges,
 		watcherMessages,
+		repoRootsSettled,
 		refresh,
 	};
 }

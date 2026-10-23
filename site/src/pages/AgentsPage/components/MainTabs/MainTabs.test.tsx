@@ -122,6 +122,7 @@ const Harness: React.FC<HarnessProps> = ({
 							agentId: "agent-1",
 							defaultDirectory: "/home/coder",
 							repoRoots: ["/repo"],
+							repoRootsSettled: true,
 							repositories,
 							watcherMessages,
 							openFile: mainTabs.openFile,

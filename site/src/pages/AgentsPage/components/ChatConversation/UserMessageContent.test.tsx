@@ -20,6 +20,7 @@ const renderMessage = (
 		agentId: "agent-1",
 		defaultDirectory: "/home/coder",
 		repoRoots: ["/home/coder/repo"],
+		repoRootsSettled: true,
 		repositories: new Map(),
 		openFile,
 		revealInFiles: vi.fn(),

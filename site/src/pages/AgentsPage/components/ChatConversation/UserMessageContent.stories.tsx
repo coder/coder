@@ -43,6 +43,7 @@ export const WorkspacePathReferences: Story = {
 					agentId: "agent-1",
 					defaultDirectory: "/home/coder",
 					repoRoots: ["/home/coder/coder"],
+					repoRootsSettled: true,
 					repositories: new Map(),
 					openFile: fn(),
 					revealInFiles: fn(),

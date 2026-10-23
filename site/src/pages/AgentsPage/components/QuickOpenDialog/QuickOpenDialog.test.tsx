@@ -19,6 +19,7 @@ const contextValue = (
 	agentId: "agent-1",
 	defaultDirectory: "/home/coder",
 	repoRoots: ["/home/coder/a", "/home/coder/b"],
+	repoRootsSettled: true,
 	repositories: new Map(),
 	openFile: vi.fn(),
 	revealInFiles: vi.fn(),

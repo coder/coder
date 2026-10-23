@@ -151,6 +151,7 @@ type AgentChatPageViewProps = {
 		everDirty: ReadonlySet<string>;
 		hasReceivedChanges: boolean;
 		watcherMessages?: WatcherMessages;
+		repoRootsSettled: boolean;
 
 		refresh: () => boolean;
 	};
@@ -330,6 +331,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 					agentId: workspaceAgent.id,
 					defaultDirectory: workspaceAgent.expanded_directory || undefined,
 					repoRoots,
+					repoRootsSettled: gitWatcher.repoRootsSettled,
 					repositories: gitWatcher.repositories,
 					watcherMessages: gitWatcher.watcherMessages,
 					openFile: (path, options) => {

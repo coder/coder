@@ -48,6 +48,7 @@ const makeFiles = (): WorkspaceFilesContextValue => ({
 	agentId,
 	defaultDirectory: "/home/coder",
 	repoRoots: ["/repo"],
+	repoRootsSettled: true,
 	repositories: new Map(),
 	openFile: vi.fn(),
 	revealInFiles: vi.fn(),
