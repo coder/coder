@@ -304,8 +304,10 @@ export function createReconnectingWebSocket<TSocket extends Closable>(
 				}
 				clearSilenceTimer();
 				silenceTimer = setTimeout(() => {
-					// The close event may arrive late or never, so disconnect
-					// first; the guard in handleDisconnect ignores that event.
+					// On a frozen connection, the close event from socket.close()
+					// can arrive late or never, so disconnect first. handleDisconnect
+					// ignores the later close event because activeSocket no longer
+					// refers to this socket.
 					handleDisconnect();
 					socket.close();
 				}, silenceTimeoutMs);
