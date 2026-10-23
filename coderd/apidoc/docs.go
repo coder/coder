@@ -25901,7 +25901,8 @@ const docTemplate = `{
                 "chat-inline-mcp-servers",
                 "enable-ai-workspace-debug",
                 "chat-stage-metrics",
-                "chat-acp-subagents"
+                "chat-acp-subagents",
+                "chat-workflows"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -25913,6 +25914,7 @@ const docTemplate = `{
                 "ExperimentChatProjects": "Enables organization-scoped projects that group agent chats.",
                 "ExperimentChatStageMetrics": "Exposes chat lifecycle stage durations as Prometheus metrics.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
+                "ExperimentChatWorkflows": "Enables the run_workflow and await_workflow tools for root agent chats.",
                 "ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -25941,7 +25943,8 @@ const docTemplate = `{
                 "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents.",
                 "Exposes chat lifecycle stage durations as Prometheus metrics.",
-                "Enables workspace-local ACP subagent tools in root chats."
+                "Enables workspace-local ACP subagent tools in root chats.",
+                "Enables the run_workflow and await_workflow tools for root agent chats."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -25961,7 +25964,8 @@ const docTemplate = `{
                 "ExperimentChatInlineMCPServers",
                 "ExperimentEnableAIWorkspaceDebug",
                 "ExperimentChatStageMetrics",
-                "ExperimentChatACPSubagents"
+                "ExperimentChatACPSubagents",
+                "ExperimentChatWorkflows"
             ]
         },
         "codersdk.ExperimentRule": {

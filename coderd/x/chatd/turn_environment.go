@@ -883,6 +883,12 @@ func (p *Server) buildTurnEnvironment(
 			return !exploreToolAllowed(tool)
 		})
 	}
+	// A workflow step gets workflow_report before the dynamic tools, so
+	// the server tool wins the name.
+	tools, err = appendWorkflowReportTool(tools, chat)
+	if err != nil {
+		return turnEnvironment{}, err
+	}
 
 	var dynamicToolNames map[string]bool
 	if p.disableCallerSuppliedTools {
@@ -1092,7 +1098,7 @@ func (p *Server) buildTurnEnvironment(
 		CallTemplate:         resolved.newCall(),
 		ContextLimitFallback: modelConfig.ContextLimit,
 		DynamicToolNames:     dynamicToolNames,
-		StopAfterTools:       stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
+		StopAfterTools:       withWorkflowReportStop(stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID), tools),
 		ExclusiveToolNames:   exclusiveToolNames,
 		BuiltinToolNames:     builtinToolNames,
 		ToolNameToConfigID:   toolNameToConfigID,
@@ -2120,7 +2126,7 @@ func activeToolNamesForTurn(
 
 func exploreToolAllowed(tool fantasy.AgentTool) bool {
 	switch tool.Info().Name {
-	case "read_file", "execute", "process_output", "read_skill", "read_skill_file":
+	case "read_file", "execute", "process_output", "read_skill", "read_skill_file", workflowReportToolName:
 		return true
 	}
 	// Org tools use the spawn-time snapshot; inline tools require
@@ -2576,7 +2582,8 @@ func (p *Server) appendRootChatTools(
 	if err != nil {
 		return nil, err
 	}
-	return append(tools, subagentTools...), nil
+	tools = append(tools, subagentTools...)
+	return append(tools, p.workflowTools(ctx, opts)...), nil
 }
 
 func appendDynamicTools(
