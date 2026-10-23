@@ -632,18 +632,22 @@ func TestTraceOpenAIErr(t *testing.T) {
 			},
 		},
 		{
-			name:       "trace_openai_responses_streaming_error",
+			name:       "trace_openai_responses_streaming_wrong_format",
 			streaming:  true,
 			fixture:    fixtures.OaiResponsesStreamingWrongResponseFormat,
 			path:       pathOpenAIResponses,
 			expectCode: http.StatusOK,
+			// The malformed event lacks a valid data field, so the SSE parser
+			// skips it and continues to the valid response.completed event.
+			// The stream is processed successfully and token usage is recorded.
 			expect: []expectTrace{
-				{"Intercept", 1, codes.Error},
+				{"Intercept", 1, codes.Unset},
 				{"Intercept.CreateInterceptor", 1, codes.Unset},
 				{"Intercept.RecordInterception", 1, codes.Unset},
-				{"Intercept.ProcessRequest", 1, codes.Error},
+				{"Intercept.ProcessRequest", 1, codes.Unset},
 				{"Intercept.RecordInterceptionEnded", 1, codes.Unset},
 				{"Intercept.RecordPromptUsage", 1, codes.Unset},
+				{"Intercept.RecordTokenUsage", 1, codes.Unset},
 				{"Intercept.ProcessRequest.Upstream", 1, codes.Unset},
 			},
 		},
