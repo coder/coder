@@ -1994,7 +1994,7 @@ func TestSubscribeSnapshotIncludesStatusEvent(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
+	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0, 0)
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
@@ -3752,7 +3752,7 @@ func TestSubscribeNoDuplicateMessageParts(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	snapshot, events, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
+	snapshot, events, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0, 0)
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
@@ -3835,7 +3835,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	})
 
 	// Control: Subscribe with afterMessageID=0 returns ALL messages.
-	allSnapshot, _, cancelAll, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
+	allSnapshot, _, cancelAll, ok := replica.Subscribe(ctx, chat.ID, nil, 0, 0)
 	require.True(t, ok)
 	cancelAll()
 
@@ -3844,7 +3844,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 
 	// Subscribe with afterMessageID set to the second message's ID.
 	// Only the third message (inserted after msg2) should appear.
-	partialSnapshot, _, cancelPartial, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID)
+	partialSnapshot, _, cancelPartial, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID, 0)
 	require.True(t, ok)
 	cancelPartial()
 
@@ -3858,7 +3858,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	resetSnapshot, _, cancelReset, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID)
+	resetSnapshot, _, cancelReset, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID, 0)
 	require.True(t, ok)
 	cancelReset()
 
@@ -3928,7 +3928,7 @@ func TestSubscribeAfterMessageIDWithEdit(t *testing.T) {
 
 	// A client that loaded after the edit gets neither a reset nor the
 	// messages it holds.
-	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, newest.ID)
+	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, newest.ID, 0)
 	require.True(t, ok)
 	cancel()
 	require.False(t, slices.ContainsFunc(snapshot, isHistoryReset))
@@ -3936,7 +3936,7 @@ func TestSubscribeAfterMessageIDWithEdit(t *testing.T) {
 
 	// A client that loaded before the edit holds deleted messages, so it
 	// gets a reset with the live history.
-	snapshot, _, cancel, ok = replica.Subscribe(ctx, chat.ID, nil, secondReply.ID)
+	snapshot, _, cancel, ok = replica.Subscribe(ctx, chat.ID, nil, secondReply.ID, 0)
 	require.True(t, ok)
 	cancel()
 	require.True(t, slices.ContainsFunc(snapshot, isHistoryReset))
@@ -10957,7 +10957,7 @@ func TestProcessChat_RoutingUsesDelegatedAPIKey(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, events, cancel, ok := creator.Subscribe(ctx, chat.ID, nil, 0)
+	_, events, cancel, ok := creator.Subscribe(ctx, chat.ID, nil, 0, 0)
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
@@ -14876,7 +14876,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	require.NoError(t, err)
 
 	// Advisor deltas are transient; a late subscriber misses them.
-	_, liveEvents, cancelLive, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	_, liveEvents, cancelLive, ok := server.Subscribe(ctx, chat.ID, nil, 0, 0)
 	require.True(t, ok)
 	liveCollectorDone := make(chan struct{})
 	go func() {

@@ -1224,8 +1224,10 @@ The following chat stream events, delivered to the client over WebSocket, are su
 - `action_required`: a dynamic tool call was issued by the chat worker, the client must execute it and submit the result.
 - `retry`: emitted when the chat worker is waiting before retrying a failed generation attempt.
 - `preview_reset`: a reset of the stream's preview state (message parts), emitted when the history version changes or a new generation attempt starts.
-- `history_reset`: a reset of the stream's history state (committed messages), emitted when the message history is edited and some messages are removed from the history.
+- `history_reset`: a reset of the stream's history state (committed messages), emitted when the message history is edited and some messages are removed from the history. On streams opened with `snapshot_version` it includes `from_message_id`, the lowest message ID the edit removed, and the client drops its messages from that ID on. On other streams, the `message` events that follow replace the whole history.
   - TODO (#29808): on the first sync with an `after_id`, this is emitted only when message `after_id` is deleted or missing. Describe this here.
+
+On streams opened with `snapshot_version`, `message`, `queue_update`, and `history_reset` (the versioned events) include the `snapshot_version` of the commit that made the change: the message's `revision`, the chat's `queue_version`, and the `revision` of the messages the edit removed. A client reconnects with the highest one it applied. Other streams do not set it.
 
 ## Endpoint lifecycle
 
@@ -1241,6 +1243,8 @@ When a client connects, the endpoint:
     - updating local state;
 
 When the endpoint exits, it deregisters from the sync poller, unsubscribes from pubsub, stops the stream loop, stops the relay forwarder, and closes request resources.
+
+If the pubsub subscription or the initial database fetch fails, the endpoint responds with 500 instead of upgrading the connection.
 
 ## Local stream state
 
@@ -1272,6 +1276,8 @@ Initial null state:
 - action-required cursor is `0`;
 - preview part sequence is `0`;
 - `attempt_retired` is false;
+
+When the client opens the stream with a `snapshot_version` parameter, the synchronized `history_version` and `queue_version` start one below it instead of at `0`, so the first sync resends the messages and queue written by that commit. The stream then ignores `after_id`.
 
 ## Stream loop operations
 
@@ -1311,7 +1317,7 @@ The loop processes one operation at a time. It must not process another input ha
 
 After fetching, if `db.snapshot_version <= local.snapshot_version`, return no-op. Otherwise apply the database result.
 
-The endpoint's initial bootstrap fetch skips the hint check in steps 1 to 3, fetches unconditionally, and applies the database result the same way. Because it runs against the null local state, every database field is newer and the full state is emitted.
+The endpoint's initial bootstrap fetch skips the hint check in steps 1 to 3, fetches unconditionally, and applies the database result the same way. Because it runs against the null local state, every database field is newer and the full state is emitted, except the history and queue written before the client's `snapshot_version` parameter.
 
 Applying the database result means, in deterministic order:
 
@@ -1325,6 +1331,8 @@ Applying the database result means, in deterministic order:
 8. If `db.history_version != local.history_version` or (`db.generation_attempt != local.generation_attempt` and `db.generation_attempt != 0`), set last accepted preview part `seq = 0` and emit `preview_reset`. (`generation_attempt = 0` is the initial value for the `generation_attempt` field after the message history changes, and there are never any preview parts associated with it. Episodes created by the [Generation goroutine](#generation-goroutine) always have a generation attempt number greater than 0.)
 9. If `db.generation_attempt > 0`, configure the relay forwarder with `db.worker_id`, `db.history_version`, and `db.generation_attempt`.
 10. Save `snapshot_version`, `history_version`, `queue_version`, `retry_state_version`, `status`, `worker_id`, and `generation_attempt` from the db to local state.
+
+On a stream opened with `snapshot_version`, the events of steps 1 and 2 are sorted by `snapshot_version` before step 3. Within one version, `history_reset` comes first, then `message` events by ID, then `queue_update`.
 
 If `Sync` fetches from the database, all database reads for that `Sync` must happen in the same read transaction. This includes reading the chat row, changed messages, full-history refresh messages, queued messages, retry state, error data, and pending dynamic tool-call data.
 
@@ -1390,11 +1398,17 @@ If any fetched row is soft-deleted, mirror the current stream endpoint's full-re
 3. Resend all messages as `message` events.
 4. Replace the known-message revision map with the revisions from the resent messages.
 
+On a stream opened with `snapshot_version`, the stream does not fetch or resend the full history. Instead:
+
+1. Emit one `history_reset` per revision among the soft-deleted rows, with the lowest of their IDs as `from_message_id`.
+2. Emit `message` events for the rows that are not soft-deleted and whose revision is newer than the local known-message revision, and update the known-message revision map.
+
 TODO (#29808): the first sync with an `after_id` fetches every row, including soft-deleted ones. It resets only when message `after_id` is deleted or missing; otherwise it skips soft-deleted rows and sends only live rows above `after_id`. This relies on messages being deleted only as a suffix of the chat (an edit deletes the edited message and every later one). Describe this here and add that invariant to the list below.
 
-Required invariant:
+Required invariants:
 
 - every client-visible message-history change advances the changed row revision and chat `history_version`.
+- only an edit soft-deletes messages, it soft-deletes the edited message and every later one, and a soft-deleted row keeps the revision of that edit.
 
 ### Queue synchronization
 
