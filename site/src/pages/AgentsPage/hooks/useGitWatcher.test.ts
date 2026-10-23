@@ -983,6 +983,7 @@ describe("useGitWatcher", () => {
 		});
 		const repoStateBeforeHeartbeat = result.current.repositories;
 		const everDirtyBeforeHeartbeat = result.current.everDirty;
+		vi.spyOn(Date, "now").mockReturnValue(5_000);
 
 		// Heartbeat: scanned_at advances, but repositories is absent.
 		// The server sends this shape when Scan() observed no deltas
@@ -997,6 +998,8 @@ describe("useGitWatcher", () => {
 		// Heartbeat must not mutate repo state.
 		expect(result.current.repositories).toBe(repoStateBeforeHeartbeat);
 		expect(result.current.everDirty).toBe(everDirtyBeforeHeartbeat);
+		// It still tells file tabs that the agent scanned again.
+		expect(result.current.lastWatcherMessageAt).toBe(5_000);
 	});
 
 	it("heartbeat with explicit empty repositories array is also a no-op for repos", async () => {
