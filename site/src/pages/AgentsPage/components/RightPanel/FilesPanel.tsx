@@ -393,15 +393,22 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 	const latestReveal = useRef<RevealRequest>(undefined);
 	const revealFocusOrigin = useRef<Element | null>(null);
 	const revealMutation = useMutation({
-		mutationFn: async ({ path, isDirectory }: RevealRequest) => {
+		mutationFn: async (request: RevealRequest) => {
+			const { path, isDirectory } = request;
 			const listingPath = async (directory: string) => {
+				const options = {
+					...workspaceAgentDirectory(agentId, directory),
+					staleTime: 0,
+				};
 				try {
 					// A reveal often follows a write, so cached listings are refetched
-					// to include the target.
-					const listing = await queryClient.fetchQuery({
-						...workspaceAgentDirectory(agentId, directory),
-						staleTime: 0,
+					// to include the target. A fetch in flight is restarted rather
+					// than joined, so a stalled request cannot hold the reveal.
+					await queryClient.cancelQueries({
+						queryKey: options.queryKey,
+						exact: true,
 					});
+					const listing = await queryClient.fetchQuery(options);
 					return listing.absolute_path_string;
 				} catch {
 					return undefined;
@@ -409,6 +416,11 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 			};
 			const folder = isDirectory ? path : getPathDirname(path);
 			const currentRootPath = await listingPath(root);
+			// A newer reveal restarts the same lookups; this one must not cancel
+			// them in turn.
+			if (request !== latestReveal.current) {
+				throw new Error("A newer reveal replaced this one.");
+			}
 			let nextRoot = root;
 			let nextRootPath = currentRootPath;
 			if (currentRootPath === undefined || !isWithin(path, currentRootPath)) {
@@ -467,12 +479,16 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 		},
 	});
 
+	const runReveal = (request: RevealRequest) => {
+		latestReveal.current = request;
+		revealMutation.mutate(request);
+	};
+
 	const startReveal = useEffectEvent((request: RevealRequest) => {
 		onRevealHandled?.();
-		latestReveal.current = request;
 		revealFocusOrigin.current = document.activeElement;
 		cancelOpenPath();
-		revealMutation.mutate(request);
+		runReveal(request);
 	});
 	useEffect(() => {
 		if (revealRequest) {
@@ -546,6 +562,9 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 			[...(rootPath === undefined ? [] : [rootPath]), ...visibleExpandedPaths],
 			true,
 		);
+		if (revealMutation.isPending && latestReveal.current) {
+			runReveal({ ...latestReveal.current });
+		}
 	};
 
 	let content: React.ReactNode;
