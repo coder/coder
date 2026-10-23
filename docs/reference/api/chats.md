@@ -4083,10 +4083,8 @@ Each WebSocket message is a JSON array of events.
 
 The server increases a chat's `snapshot_version` by 1 each time it commits a change to the chat.
 Each change has the `snapshot_version` of the commit that made it.
-The newest messages page, which `GET /api/v2/chats/{chat}/messages` returns when you set neither `before_id` nor `after_id`, includes the chat's `snapshot_version`.
-Pages that you request with `before_id` or `after_id` don't include `snapshot_version`.
-The server reads `snapshot_version` before it reads the messages and the queue.
-A change that the server commits between those reads is in the page, and the stream sends that change again.
+Only the newest messages page, which `GET /api/v2/chats/{chat}/messages` returns when you set neither `before_id` nor `after_id`, includes the chat's `snapshot_version`.
+The server reads `snapshot_version` before the messages and the queue, so a change that it commits between those reads is in the page, and the stream sends that change again.
 
 The server reads the chat when the stream opens and each time the chat changes.
 Each read sends the changes since the previous read.
@@ -4106,8 +4104,8 @@ The `status`, `error`, `action_required`, `retry`, and `preview_reset` events of
 The server sends `message_part` events between reads.
 
 A `history_reset` event on such a stream includes `history_reset.from_message_id`, the lowest message ID that the edit removed.
-The edit removed every message with that ID or higher.
-The edit or a later commit wrote each message with that ID or higher that isn't deleted, so the stream sends each of those messages in a `message` event after the `history_reset` event.
+Remove every message with that ID or higher.
+After the `history_reset` event, the stream sends each message with that ID or higher that isn't deleted.
 
 On each new connection, the server sends the chat's current status again.
 When the chat has an error, a pending retry, or pending tool calls, the server also sends the `error`, `retry`, or `action_required` event again.
