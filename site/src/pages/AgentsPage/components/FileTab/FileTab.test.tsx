@@ -161,7 +161,25 @@ const renderFileTab = (props: HarnessProps) => {
 				queryKey: workspaceAgentFileKey(agentId, path),
 			}),
 		);
-	return { ...result, refreshFile };
+	// What the git watcher reports after a scan that followed the tab's
+	// last read or save of the file.
+	const receiveWatcherMessage = (
+		workspaceFiles: WorkspaceFilesContextValue,
+	) => {
+		const read = queryClient.getQueryState(
+			workspaceAgentFileKey(agentId, props.path ?? path),
+		);
+		result.rerender(
+			<Harness
+				{...props}
+				workspaceFiles={{
+					...workspaceFiles,
+					lastWatcherMessageAt: (read?.dataUpdatedAt ?? 0) + 1,
+				}}
+			/>,
+		);
+	};
+	return { ...result, queryClient, refreshFile, receiveWatcherMessage };
 };
 
 const editFile = async (
@@ -623,41 +641,107 @@ describe("FileTab", () => {
 			});
 		});
 
+		const insertDiff =
+			"diff --git a/main.go b/main.go\nindex 1..2 100644\n--- a/main.go\n+++ b/main.go\n@@ -1,3 +1,4 @@\n a\n+new\n b\n c\n";
+		const blob = `https://github.com/coder/coder/blob/${headCommit}/main.go`;
+		/** The header menu's link at HEAD, with the cursor at `offset`. */
+		const headLink = async (
+			user: ReturnType<typeof userEvent.setup>,
+			offset: number,
+		) => {
+			const editor =
+				await screen.findByLabelText<HTMLTextAreaElement>("File contents");
+			act(() => editor.setSelectionRange(offset, offset));
+			fireEvent.select(editor);
+			await openMenu(user);
+			const href = screen
+				.getByRole("menuitem", { name: "Open on GitHub" })
+				.getAttribute("href");
+			await user.keyboard("{Escape}");
+			return href;
+		};
+
 		it("links the checked-out commit at the cursor's line in it", async () => {
 			const user = userEvent.setup();
 			readFile.mockResolvedValue(fileContents("a\nnew\nb\nc\n", '"v1"'));
-			renderFileTab({
-				workspaceFiles: workspaceFiles(
-					[],
-					undefined,
-					"diff --git a/main.go b/main.go\nindex 1..2 100644\n--- a/main.go\n+++ b/main.go\n@@ -1,3 +1,4 @@\n a\n+new\n b\n c\n",
-				),
+			const files = workspaceFiles([], undefined, insertDiff);
+			const { receiveWatcherMessage } = renderFileTab({
+				workspaceFiles: files,
 			});
 			const editor =
 				await screen.findByLabelText<HTMLTextAreaElement>("File contents");
-			const headLink = async (cursor: number) => {
-				act(() => editor.setSelectionRange(cursor, cursor));
-				fireEvent.select(editor);
-				await openMenu(user);
-				const href = screen
-					.getByRole("menuitem", { name: "Open on GitHub" })
-					.getAttribute("href");
-				await user.keyboard("{Escape}");
-				return href;
-			};
-			const blob = `https://github.com/coder/coder/blob/${headCommit}/main.go`;
+			receiveWatcherMessage(files);
 
 			// Line 3 on disk, "b", is line 2 at HEAD.
-			expect(await headLink(6)).toBe(`${blob}#L2`);
+			expect(await headLink(user, 6)).toBe(`${blob}#L2`);
 			// HEAD lacks line 2, "new".
-			expect(await headLink(2)).toBe(blob);
+			expect(await headLink(user, 2)).toBe(blob);
 			// Unsaved edits move the editor's lines away from the disk's: line 4
 			// in the editor, "b", is line 3 on disk.
 			await user.type(editor, "x{Enter}", {
 				initialSelectionStart: 0,
 				initialSelectionEnd: 0,
 			});
-			expect(await headLink(8)).toBe(blob);
+			expect(await headLink(user, 8)).toBe(blob);
+		});
+
+		it("links a line only once a scan follows the read or save", async () => {
+			const user = userEvent.setup();
+			readFile.mockResolvedValue(fileContents("a\nb\nc\n", '"v1"'));
+			const files = workspaceFiles();
+			const { receiveWatcherMessage } = renderFileTab({
+				workspaceFiles: files,
+			});
+			const editor =
+				await screen.findByLabelText<HTMLTextAreaElement>("File contents");
+
+			expect(await headLink(user, 2)).toBe(blob);
+			receiveWatcherMessage(files);
+			expect(await headLink(user, 2)).toBe(`${blob}#L2`);
+
+			await user.type(editor, "new{Enter}", {
+				initialSelectionStart: 2,
+				initialSelectionEnd: 2,
+			});
+			await user.click(screen.getByRole("button", { name: "Save" }));
+			await waitFor(() => {
+				expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+			});
+			// The clean diff from before the save would put "b", now line 3 on
+			// disk, on line 3 at HEAD.
+			expect(await headLink(user, 6)).toBe(blob);
+			receiveWatcherMessage(workspaceFiles([], undefined, insertDiff));
+			expect(await headLink(user, 6)).toBe(`${blob}#L2`);
+		});
+
+		it("links no line while a reread of the file is pending", async () => {
+			const user = userEvent.setup();
+			readFile.mockResolvedValue(fileContents("a\nb\nc\n", '"v1"'));
+			const files = workspaceFiles();
+			const { queryClient, receiveWatcherMessage } = renderFileTab({
+				workspaceFiles: files,
+			});
+			await screen.findByLabelText("File contents");
+			receiveWatcherMessage(files);
+			expect(await headLink(user, 2)).toBe(`${blob}#L2`);
+
+			// A scan finds a line inserted at the top, and the main tabs reread
+			// the file, which still shows its old content meanwhile: "b" is
+			// still line 2 in the editor, not the diff's line 3.
+			readFile.mockReturnValue(new Promise(() => {}));
+			act(() => {
+				void queryClient.invalidateQueries({
+					queryKey: workspaceAgentFileKey(agentId, path),
+				});
+			});
+			receiveWatcherMessage(
+				workspaceFiles(
+					[],
+					undefined,
+					"diff --git a/main.go b/main.go\nindex 1..2 100644\n--- a/main.go\n+++ b/main.go\n@@ -1,3 +1,4 @@\n+top\n a\n b\n c\n",
+				),
+			);
+			expect(await headLink(user, 2)).toBe(blob);
 		});
 
 		it("links the checked-out commit of a branch not known to be pushed", async () => {
@@ -668,7 +752,7 @@ describe("FileTab", () => {
 			const link = screen.getByRole("menuitem", { name: "Open on GitHub" });
 			expect(link).toHaveAttribute(
 				"href",
-				`https://github.com/coder/coder/blob/${headCommit}/main.go#L1`,
+				`https://github.com/coder/coder/blob/${headCommit}/main.go`,
 			);
 			expect(link).toHaveAttribute(
 				"title",

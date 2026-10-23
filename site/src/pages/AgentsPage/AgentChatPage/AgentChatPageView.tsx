@@ -160,6 +160,7 @@ type AgentChatPageViewProps = {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
 		everDirty: ReadonlySet<string>;
 		hasReceivedChanges: boolean;
+		lastWatcherMessageAt?: number;
 
 		refresh: () => boolean;
 	};
@@ -431,6 +432,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 					defaultDirectory: workspaceAgent.expanded_directory || undefined,
 					repoRoots,
 					repositories: gitWatcher.repositories,
+					lastWatcherMessageAt: gitWatcher.lastWatcherMessageAt,
 					openFile: (path, options) => {
 						const closesPanel =
 							showSidebarPanel &&
