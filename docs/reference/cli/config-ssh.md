@@ -121,7 +121,7 @@ Disable starting the workspace automatically when connecting via SSH.
 | Environment | <code>$CODER_CONFIGSSH_NO_WILDCARD</code> |
 | Default     | <code>false</code>                        |
 
-Generate an individual host entry for each workspace instead of a wildcard host block. This allows third-party tools and SSH clients to discover workspaces by reading the config file.
+Generate an individual host entry for each workspace and each of its agents instead of a wildcard host block. This allows third-party tools and SSH clients to discover workspaces by reading the config file.
 
 ### --force-unix-filepaths
 
