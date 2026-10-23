@@ -16251,6 +16251,6 @@ func TestResyncAgentContextAsync(t *testing.T) {
 	})
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	server.ResyncAgentContextAsync(ctx, chat)
+	server.ResyncAgentContextAsync(chat)
 	testutil.TryReceive(ctx, t, resynced)
 }

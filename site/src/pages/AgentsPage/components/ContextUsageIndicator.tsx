@@ -89,6 +89,12 @@ const RESOURCE_KIND_LABELS: Record<ChatContextResourceKind, string> = {
 	acp_harness: "ACP harness",
 };
 
+/** Reports whether refreshing the context would retry a failed MCP server. */
+export const hasFailedMcpServer = (context: ChatContext | undefined) =>
+	context?.resources?.some(
+		(r) => r.kind === "mcp_server" && r.status === "unreadable",
+	) ?? false;
+
 const hasFiniteTokenValue = (value: number | undefined): value is number =>
 	typeof value === "number" && Number.isFinite(value) && value >= 0;
 
@@ -367,12 +373,8 @@ export const ContextUsageIndicator: React.FC<{
 		issueItems.length > 0;
 
 	const hasResourceIssues = issueItems.length > 0;
-	// Refreshing retries MCP servers that failed to connect.
 	const canRetryMcpServers =
-		onRefreshContext !== undefined &&
-		issueItems.some(
-			(issue) => issue.kind === "mcp_server" && issue.status === "unreadable",
-		);
+		onRefreshContext !== undefined && hasFailedMcpServer(context);
 	const showRefreshSection = isDirty || hasContextError || canRetryMcpServers;
 	const needsAttention = isDirty || hasContextError || hasResourceIssues;
 	const toneClassName = hasContextError

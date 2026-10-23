@@ -2546,8 +2546,8 @@ func (api *API) applyChatTitleUpdate(
 }
 
 // refreshChatContext re-pins a chat to its agent's latest context snapshot
-// and clears the dirty marker. It also asks the agent to retry failed MCP
-// servers; their new state reaches the chat on the agent's next push.
+// and clears the dirty marker. When an MCP server failed, it also asks the
+// agent to retry it; the new state reaches the chat on the agent's next push.
 //
 // @Summary Refresh chat context
 // @ID refresh-chat-context
@@ -2578,7 +2578,6 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	api.chatDaemon.ResyncAgentContextAsync(ctx, updated)
 
 	sdkChat := db2sdk.Chat(updated, nil, nil)
 
@@ -2596,6 +2595,11 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 			)
 		} else {
 			sdkChat.Context.Resources = resources
+		}
+		if slices.ContainsFunc(sdkChat.Context.Resources, func(r codersdk.ChatContextResource) bool {
+			return r.Kind == codersdk.ChatContextResourceKindMCPServer && r.Status == codersdk.ChatContextResourceStatusUnreadable
+		}) {
+			api.chatDaemon.ResyncAgentContextAsync(updated)
 		}
 	}
 

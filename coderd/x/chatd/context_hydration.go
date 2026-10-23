@@ -251,16 +251,18 @@ func repinChatContext(ctx context.Context, db database.Store, chatID uuid.UUID, 
 	return nil
 }
 
-// ResyncAgentContextAsync asks the chat's agent, in the background, to retry
-// failed MCP servers. The agent's next context push syncs them into the chat.
-func (p *Server) ResyncAgentContextAsync(ctx context.Context, chat database.Chat) {
+// ResyncAgentContextAsync asks the chat's agent, in the background, to resync
+// its context, which retries failed MCP servers. The agent's next context push
+// syncs them into the chat.
+func (p *Server) ResyncAgentContextAsync(chat database.Chat) {
 	if !chat.AgentID.Valid || p.agentConnFn == nil {
 		return
 	}
-	resyncCtx, stop := p.inflightChatContext(ctx, chat)
+	// Start from Background so the request logger is not used after the response.
+	ctx, stop := p.inflightChatContext(context.Background(), chat)
 	if p.goInflight(func() {
 		defer stop()
-		ctx, cancel := context.WithTimeout(resyncCtx, time.Minute)
+		ctx, cancel := context.WithTimeout(ctx, time.Minute)
 		defer cancel()
 		//nolint:gocritic // Chatd reads the agent row as the daemon subject.
 		agent, err := p.db.GetWorkspaceAgentByID(dbauthz.AsChatd(ctx), chat.AgentID.UUID)
