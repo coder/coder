@@ -52,20 +52,24 @@ var (
 	// ErrUnknownServer is returned when no MCP server matches
 	// the prefix in the tool name.
 	ErrUnknownServer = xerrors.New("unknown MCP server")
-	// ErrManagerClosed is returned by Reload and ReloadSources after
-	// Close. Close cancels the Manager's derived context, so this
-	// sentinel keeps explicit Close distinguishable from parent
-	// context cancellation.
+	// ErrManagerClosed is returned by ReloadCurrent after Close. Close
+	// cancels the Manager's derived context, so this sentinel keeps
+	// explicit Close distinguishable from parent context cancellation.
 	ErrManagerClosed = xerrors.New("manager closed")
 )
 
 // fileSnapshot records the identity of a config file at the time
 // it was last read, and the plugin scope it was parsed under.
 type fileSnapshot struct {
+	// index is the source's position, which decides plugin server
+	// name collisions.
+	index   int
 	exists  bool
 	modTime time.Time
 	size    int64
 	plugin  *PluginScope
+	// loadError is the source's LoadError, so a change to it reloads.
+	loadError string
 }
 
 type reloadResult = tailscalesingleflight.Result[struct{}]
@@ -112,14 +116,12 @@ type Manager struct {
 	closedCh  chan struct{}
 	closeOnce sync.Once
 
-	// lastSources is the most recent sources passed to ReloadSources.
-	lastSources []ConfigSource
+	currentSources func() []ConfigSource
 
-	// watcher fires a debounced Reload when any watched config
+	// watcher fires a debounced reload when any watched config
 	// file is created, written, removed, or renamed. It is armed
-	// lazily on the first Reload call so tests that never call
-	// Reload do not pay for an extra goroutine and file
-	// descriptor.
+	// lazily on the first reload so tests that never reload do
+	// not pay for an extra goroutine and file descriptor.
 	watcher       *configWatcher
 	watcherOnce   sync.Once
 	watchDebounce time.Duration
@@ -178,15 +180,22 @@ func NewManager(
 	}
 }
 
-// Reload is ReloadSources for plain legacy .mcp.json paths.
-func (m *Manager) Reload(ctx context.Context, paths []string) error {
-	return m.ReloadSources(ctx, LegacySources(paths))
+// SetSources registers the function that computes the current config
+// sources, called on every ReloadCurrent and config-change reload
+// attempt. The function is called without the Manager's lock, possibly
+// from several goroutines at once, so it must be safe for concurrent
+// use. ReloadCurrent fails until it is set.
+func (m *Manager) SetSources(currentSources func() []ConfigSource) {
+	m.mu.Lock()
+	m.currentSources = currentSources
+	m.mu.Unlock()
 }
 
-// ReloadSources ensures the tool cache reflects the current config.
+// ReloadCurrent ensures the tool cache reflects the sources returned by
+// the function registered with SetSources.
 //
 // If config files or their plugin scopes differ from the last snapshot,
-// a singleflight differential reconnect is driven and ReloadSources
+// a singleflight differential reconnect is driven and ReloadCurrent
 // waits for it. If the snapshot is current, it returns immediately.
 //
 // Starting and running the reload is manager-scoped. Caller contexts
@@ -194,36 +203,63 @@ func (m *Manager) Reload(ctx context.Context, paths []string) error {
 // never passed to, and must not suppress, the reload body.
 //
 // Sources are deduplicated by path; the first source for a path wins.
-func (m *Manager) ReloadSources(ctx context.Context, sources []ConfigSource) error {
-	ch, started, err := m.startReloadIfNeeded(uniqueSources(sources))
-	if err != nil {
-		return err
+func (m *Manager) ReloadCurrent(ctx context.Context) error {
+	m.mu.RLock()
+	currentSources := m.currentSources
+	m.mu.RUnlock()
+	if currentSources == nil {
+		return xerrors.New("no MCP config sources registered")
 	}
-	if !started {
-		return nil
-	}
-	return m.waitReload(ctx, ch, 0)
+	return m.reloadFrom(ctx, currentSources)
 }
 
-// Reconnect re-runs the last reload even when the config is unchanged,
-// so servers that failed to connect are retried.
+// maxReloadAttempts bounds reloadFrom when the sources keep changing. A
+// joined in-flight reload may have been started for other sources, so a
+// second attempt is common.
+const maxReloadAttempts = 3
+
+// reloadFrom reloads until the snapshot matches currentSources, which is
+// called on every attempt, and fails after maxReloadAttempts.
+func (m *Manager) reloadFrom(ctx context.Context, currentSources func() []ConfigSource) error {
+	for range maxReloadAttempts {
+		ch, started, err := m.startReloadIfNeeded(uniqueSources(currentSources()))
+		if err != nil {
+			return err
+		}
+		if !started {
+			return nil
+		}
+		if err := m.waitReload(ctx, ch, 0); err != nil {
+			return err
+		}
+		if !m.SnapshotChanged(currentSources()) {
+			return nil
+		}
+	}
+	return xerrors.Errorf("MCP config sources still changing after %d reloads", maxReloadAttempts)
+}
+
+// Reconnect reloads the current sources even when the config is
+// unchanged, so servers that failed to connect are retried. It does
+// nothing until the first reload settles.
 func (m *Manager) Reconnect(ctx context.Context) error {
 	m.mu.Lock()
-	sources := slices.Clone(m.lastSources)
-	// An empty snapshot makes ReloadSources treat the config as changed.
-	m.snapshot = make(map[string]fileSnapshot)
-	m.mu.Unlock()
-	if len(sources) == 0 {
+	currentSources := m.currentSources
+	if !m.firstSyncSettled || currentSources == nil {
+		m.mu.Unlock()
 		return nil
 	}
-	return m.ReloadSources(ctx, sources)
+	// An empty snapshot makes reloadFrom treat the config as changed.
+	m.snapshot = make(map[string]fileSnapshot)
+	m.mu.Unlock()
+	return m.reloadFrom(ctx, currentSources)
 }
 
 // SetOnReload registers a callback fired (outside the cache lock) after
 // a reload changes the per-server catalog. The agent wires this to the
 // agentcontext manager's Trigger so discovery re-resolves and re-pushes
 // the updated KindMCPServer resources. It must be called before the
-// first Reload or ReloadSources.
+// first ReloadCurrent.
 func (m *Manager) SetOnReload(fn func()) {
 	m.mu.Lock()
 	m.onChange = fn
@@ -236,8 +272,7 @@ func (m *Manager) SetOnReload(fn func()) {
 // exactly once.
 //
 // If a concurrent caller resolves different sources, its sources are
-// not consulted. The next SnapshotChanged check after this reload
-// completes will detect the mismatch and trigger a fresh reload.
+// not consulted by the in-flight body.
 func (m *Manager) startReloadIfNeeded(sources []ConfigSource) (<-chan reloadResult, bool, error) {
 	m.mu.RLock()
 	closed := m.closed
@@ -274,7 +309,7 @@ func (m *Manager) startReloadIfNeeded(sources []ConfigSource) (<-chan reloadResu
 
 // armWatcher lazily initializes the fsnotify-backed configWatcher
 // and syncs it to the latest config paths. Lazy initialization
-// keeps unit tests that never call Reload free of extra goroutines
+// keeps unit tests that never reload free of extra goroutines
 // and file descriptors.
 //
 // If the underlying watcher cannot be created (e.g. inotify limit
@@ -310,7 +345,6 @@ func (m *Manager) armWatcher(sources []ConfigSource) {
 	})
 
 	m.mu.Lock()
-	m.lastSources = slices.Clone(sources)
 	w := m.watcher
 	closed := m.closed
 	m.mu.Unlock()
@@ -329,22 +363,21 @@ func sourcePaths(sources []ConfigSource) []string {
 }
 
 // handleWatchedConfigChange is invoked by the watcher on a
-// debounced fire. It triggers a singleflight Reload using the
-// most recently observed path set so the cached server map and
-// snapshot are refreshed without waiting for the next HTTP
-// request.
+// debounced fire. It reloads the sources registered with SetSources
+// so the cached server map and snapshot are refreshed without waiting
+// for the next request.
 func (m *Manager) handleWatchedConfigChange() {
 	m.mu.RLock()
-	sources := slices.Clone(m.lastSources)
+	currentSources := m.currentSources
 	closed := m.closed
 	m.mu.RUnlock()
-	if closed || len(sources) == 0 {
+	if closed || currentSources == nil {
 		return
 	}
 
 	logger := m.logger.With(slog.F("trigger", "fsnotify"))
 	logger.Debug(m.ctx, "reloading due to config change")
-	if err := m.ReloadSources(m.ctx, sources); err != nil {
+	if err := m.reloadFrom(m.ctx, currentSources); err != nil {
 		if errors.Is(err, ErrManagerClosed) ||
 			errors.Is(err, context.Canceled) {
 			logger.Debug(m.ctx,
@@ -403,8 +436,8 @@ func (m *Manager) markFirstSyncSettled() {
 	m.mu.Unlock()
 }
 
-// SnapshotChanged reports whether any config file or the plugin scope
-// it is read under differs from the last reload.
+// SnapshotChanged reports whether any config file, its position, or the
+// plugin scope it is read under differs from the last reload.
 func (m *Manager) SnapshotChanged(sources []ConfigSource) bool {
 	sources = uniqueSources(sources)
 
@@ -417,13 +450,13 @@ func (m *Manager) SnapshotChanged(sources []ConfigSource) bool {
 		return true
 	}
 
-	for _, src := range sources {
+	for i, src := range sources {
 		prev, ok := snap[src.Path]
-		if !ok {
+		if !ok || prev.index != i {
 			return true
 		}
 
-		if !pluginScopeEqual(prev.plugin, src.Plugin) {
+		if !pluginScopeEqual(prev.plugin, src.Plugin) || prev.loadError != src.LoadError {
 			return true
 		}
 
@@ -533,10 +566,12 @@ func (m *Manager) doReload(ctx context.Context, sources []ConfigSource) error {
 }
 
 // parseAndDedup returns the servers to run plus a status row for each
-// failed plugin file, invalid plugin entry, and plugin entry whose name
-// was already claimed. Legacy sources claim names before plugin sources,
-// each in source order; the first declaration wins. Missing files and
-// losing legacy entries produce no row.
+// plugin file that failed to load, each invalid plugin entry, and each
+// plugin entry whose name was already claimed or whose
+// "<plugin>/<server>" source is a legacy server's name. Legacy sources claim
+// names before plugin sources, each kind in source order, and the first
+// declaration of a name wins. A missing file and a losing legacy entry
+// produce no row.
 func (m *Manager) parseAndDedup(ctx context.Context, sources []ConfigSource) ([]ServerConfig, []ServerStatus, map[string]fileSnapshot) {
 	logger := m.logger.With(agentchat.Fields(ctx)...)
 
@@ -598,27 +633,42 @@ func (m *Manager) parseAndDedup(ctx context.Context, sources []ConfigSource) ([]
 	}
 
 	claimedBy := make(map[string]string)
+	legacyPaths := make(map[string]string)
 	var deduped []ServerConfig
 	for _, ps := range slices.Concat(legacy, plugins) {
 		for _, cfg := range ps.configs {
-			if winner, taken := claimedBy[cfg.Name]; taken {
-				if cfg.Plugin == nil {
-					continue
+			winner, taken := claimedBy[cfg.Name]
+			var reason string
+			switch {
+			case taken && cfg.Plugin == nil:
+				continue
+			case taken:
+				reason = "server name already in use by " + winner
+			case cfg.Plugin != nil:
+				// A legacy server named "<plugin>/<server>" has this
+				// server's context resource source; the legacy server wins.
+				if legacyPath, ok := legacyPaths[cfg.Plugin.Name+"/"+cfg.Name]; ok {
+					reason = fmt.Sprintf("server ID %q is already used by a legacy server in %s", cfg.Plugin.Name+"/"+cfg.Name, legacyPath)
 				}
-				logger.Warn(ctx, "skipping plugin MCP server with a name already in use",
+			}
+			if reason != "" {
+				logger.Warn(ctx, "skipping plugin MCP server",
 					slog.F("path", ps.src.Path),
 					slog.F("plugin", cfg.Plugin.Name),
 					slog.F("server", cfg.Name),
-					slog.F("claimed_by", winner),
+					slog.F("reason", reason),
 				)
 				rejected = append(rejected, ServerStatus{
 					Name:       cfg.Name,
 					PluginName: cfg.Plugin.Name,
-					Err:        "server name already in use by " + winner,
+					Err:        reason,
 				})
 				continue
 			}
 			claimedBy[cfg.Name] = describeSource(ps.src)
+			if cfg.Plugin == nil {
+				legacyPaths[cfg.Name] = ps.src.Path
+			}
 			deduped = append(deduped, cfg)
 		}
 	}
@@ -774,11 +824,12 @@ func (m *Manager) installServers(
 	return replaced, nil
 }
 
-// captureSnapshot stats each source path and records a copy of the
-// plugin scope it is read under. Sources must be unique by path.
+// captureSnapshot stats each source path and records its position and a
+// copy of the plugin scope it is read under. Sources must be unique by
+// path.
 func captureSnapshot(sources []ConfigSource) map[string]fileSnapshot {
 	snap := make(map[string]fileSnapshot, len(sources))
-	for _, src := range sources {
+	for i, src := range sources {
 		var plugin *PluginScope
 		if src.Plugin != nil {
 			scope := *src.Plugin
@@ -786,14 +837,16 @@ func captureSnapshot(sources []ConfigSource) map[string]fileSnapshot {
 		}
 		info, err := os.Stat(src.Path)
 		if err != nil {
-			snap[src.Path] = fileSnapshot{exists: false, plugin: plugin}
+			snap[src.Path] = fileSnapshot{index: i, exists: false, plugin: plugin, loadError: src.LoadError}
 			continue
 		}
 		snap[src.Path] = fileSnapshot{
-			exists:  true,
-			modTime: info.ModTime(),
-			size:    info.Size(),
-			plugin:  plugin,
+			index:     i,
+			exists:    true,
+			modTime:   info.ModTime(),
+			size:      info.Size(),
+			plugin:    plugin,
+			loadError: src.LoadError,
 		}
 	}
 	return snap
@@ -954,7 +1007,7 @@ func (m *Manager) Close() error {
 	// Mark the manager closed and signal closedCh first, then
 	// hand the watcher off and release the lock. Marking closed
 	// before w.Close() ensures that any in-flight
-	// handleWatchedConfigChange short-circuits and any Reload
+	// handleWatchedConfigChange short-circuits and any ReloadCurrent
 	// blocked in waitReload observes m.closedCh, instead of
 	// blocking firesWG.Wait() inside w.Close() until a 30 s
 	// connectAll times out.

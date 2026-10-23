@@ -451,3 +451,64 @@ The list of available skills in the agent's system prompt names each plugin skil
 When a plugin skill shares its name with another skill, the agent needs its qualified alias, `plugin/<plugin>/<name>`.
 The `/` menu in the chat composer lists plugin skills in the **Workspace skills** group, always by their qualified alias.
 For the other qualified aliases, refer to [Skills with the same name](#skills-with-the-same-name).
+
+### Plugin MCP servers
+
+A plugin declares MCP servers in an `mcp.json` file at its root.
+The file holds only `$schema`, set to `https://agent-plugins.org/schemas/1.0.0/mcp.schema.json`, and `mcpServers`.
+Each server requires `type`, set to `stdio`, `streamable-http`, or `sse`:
+
+- A `stdio` server requires `command` and accepts `args`, `env`, and `cwd`.
+  `command` is a program name that the agent looks up on `PATH` or a `./` path inside the plugin, and it can't include arguments.
+- A `streamable-http` or `sse` server requires `url` and accepts `headers`.
+  The URL must use HTTPS unless its host is `localhost` or a loopback IP address.
+
+A server that has a field its type doesn't accept doesn't start, and its context entry shows the error.
+The plugin's other servers still start.
+
+```json
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "format": {
+      "type": "stdio",
+      "command": "./bin/format-server",
+      "args": ["--cache", "${PLUGIN_DATA}/cache"]
+    },
+    "lint": {
+      "type": "streamable-http",
+      "url": "https://lint.example.com/mcp"
+    }
+  }
+}
+```
+
+A stdio server runs with `PLUGIN_ROOT` set to the plugin directory and `PLUGIN_DATA` set to a data directory for the plugin under `~/.coder/plugin-data`.
+The data directory follows the plugin's path after symlinks are resolved.
+Updating the plugin in place keeps its data.
+Moving the plugin, or pointing a symlink at a different directory, starts it with an empty data directory.
+The agent never deletes data directories, including those of removed plugins.
+The agent expands `${PLUGIN_ROOT}` and `${PLUGIN_DATA}` in `args`, `env` values, and `cwd`, but not in `command`.
+
+The agent starts a plugin's MCP servers only when both of these are true:
+
+- The plugin is the workspace working directory, or is in its `plugins/` or `.agents/plugins/` directory.
+- `CODER_AGENT_EXP_MCP_CONFIG_FILES` is not set on the agent.
+
+The first condition depends only on the plugin's path, whichever scan root found it.
+A plugin at any other path, such as in `~/.coder` or in a declared source elsewhere, contributes skills only.
+If the agent first finds another plugin with the same name, such as one in `~/.coder`, the working directory's plugin is invalid, so neither starts MCP servers.
+If the template doesn't set `dir` on the `coder_agent` resource, the workspace has no working directory, so no plugin starts MCP servers.
+
+Setting `CODER_AGENT_EXP_MCP_CONFIG_FILES` to any value other than whitespace, including `.mcp.json`, turns off plugin MCP servers.
+The agent reads the variable from its own process environment when it starts.
+The `env` argument of the `coder_agent` resource applies only to processes that the agent starts, so it doesn't set this variable.
+A template that sets `CODER_AGENT_EXP_MCP_CONFIG_FILES` in the agent's process environment to a file outside the project, as in [network isolation](./platform-controls/agent-isolation.md), also keeps plugins in the project from starting servers.
+
+Plugin servers and `.mcp.json` servers share one set of server names, which prefix their [tool names](#tool-naming).
+A plugin server doesn't start when a `.mcp.json` server or another plugin's server already uses its name, and its context entry shows the conflict.
+A plugin server that fails to load shows its error in the chat's context list.
+When the error is only `failed to connect`, the agent log (`/tmp/coder-agent.log` by default) has the cause.
+
+Plugin stdio servers run commands in the workspace with the agent's environment, including `CODER_AGENT_TOKEN`, as `.mcp.json` stdio servers do.
+Trust the plugins in a repository as you would its `.mcp.json` file.
