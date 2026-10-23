@@ -1172,6 +1172,60 @@ func TestHandleWriteFile_ChatHeaders_UpdatesPathStore(t *testing.T) {
 	require.Equal(t, []string{testPath}, ancestorPaths)
 }
 
+// TestHandleReadFileLines_PathStore pins that read_file, which chatd
+// serves through read-file-lines, records the path for git watch only
+// for chat tool calls: browser reads through the coderd files proxy
+// carry no chat headers and must not register repositories.
+func TestHandleReadFileLines_PathStore(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	fs := afero.NewMemMapFs()
+	dir := filepath.Join(os.TempDir(), "read-tracked")
+	readable := filepath.Join(dir, "main.go")
+	require.NoError(t, afero.WriteFile(fs, readable, []byte("package main\n"), 0o600))
+
+	read := func(t *testing.T, pathStore *agentgit.PathStore, path string, chatID uuid.UUID) {
+		t.Helper()
+		api := agentfiles.NewAPI(logger, fs, pathStore)
+		req := httptest.NewRequest(http.MethodGet, "/read-file-lines?path="+url.QueryEscape(path), nil)
+		if chatID != uuid.Nil {
+			ancestorJSON, err := json.Marshal([]string{uuid.NewString()})
+			require.NoError(t, err)
+			req.Header.Set(workspacesdk.CoderChatIDHeader, chatID.String())
+			req.Header.Set(workspacesdk.CoderAncestorChatIDsHeader, string(ancestorJSON))
+		}
+		rr := httptest.NewRecorder()
+		r := chi.NewRouter()
+		r.Get("/read-file-lines", api.HandleReadFileLines)
+		agentchat.Middleware(r).ServeHTTP(rr, req)
+		require.Equal(t, http.StatusOK, rr.Code)
+	}
+
+	t.Run("ChatToolCall", func(t *testing.T) {
+		t.Parallel()
+		pathStore := agentgit.NewPathStore()
+		chatID := uuid.New()
+		read(t, pathStore, readable, chatID)
+		require.Equal(t, []string{readable}, pathStore.GetPaths(chatID))
+	})
+
+	t.Run("NoChatContext", func(t *testing.T) {
+		t.Parallel()
+		pathStore := agentgit.NewPathStore()
+		read(t, pathStore, readable, uuid.Nil)
+		require.Zero(t, pathStore.Len())
+	})
+
+	t.Run("FailedRead", func(t *testing.T) {
+		t.Parallel()
+		pathStore := agentgit.NewPathStore()
+		chatID := uuid.New()
+		read(t, pathStore, filepath.Join(dir, "missing.go"), chatID)
+		require.Empty(t, pathStore.GetPaths(chatID))
+	})
+}
+
 func TestHandleWriteFile_NoChatHeaders_NoPathStoreUpdate(t *testing.T) {
 	t.Parallel()
 

@@ -168,7 +168,27 @@ func (api *API) HandleReadFileLines(rw http.ResponseWriter, r *http.Request) {
 		MaxResponseLines: int(maxResponseLines),
 		MaxResponseBytes: int(maxResponseBytes),
 	})
+	// chatd serves read_file through this endpoint, so a repository a
+	// chat only reads is watched too.
+	if resp.Success {
+		api.trackChatPaths(ctx, path)
+	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// trackChatPaths records paths for git watch when the request is a chat
+// tool call, for the chat and its ancestors. Requests without chat
+// context, such as browser requests through the coderd files proxy,
+// which forwards no chat headers, are not recorded.
+func (api *API) trackChatPaths(ctx context.Context, paths ...string) {
+	if api.pathStore == nil {
+		return
+	}
+	chatContext, ok := agentchat.FromContext(ctx)
+	if !ok {
+		return
+	}
+	api.pathStore.AddPaths(append([]uuid.UUID{chatContext.ID}, chatContext.AncestorIDs...), paths)
 }
 
 func (api *API) readFileLines(_ context.Context, path string, offset, limit int64, limits workspacesdk.ReadFileLinesLimits) ReadFileLinesResponse {
@@ -347,11 +367,7 @@ func (api *API) HandleWriteFile(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Track edited path for git watch.
-	if api.pathStore != nil {
-		if chatContext, ok := agentchat.FromContext(ctx); ok {
-			api.pathStore.AddPaths(append([]uuid.UUID{chatContext.ID}, chatContext.AncestorIDs...), []string{path})
-		}
-	}
+	api.trackChatPaths(ctx, path)
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: fmt.Sprintf("Successfully wrote to %q", path),
@@ -569,15 +585,11 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Track edited paths for git watch.
-	if api.pathStore != nil {
-		if chatContext, ok := agentchat.FromContext(ctx); ok {
-			filePaths := make([]string, 0, len(req.Files))
-			for _, f := range req.Files {
-				filePaths = append(filePaths, f.Path)
-			}
-			api.pathStore.AddPaths(append([]uuid.UUID{chatContext.ID}, chatContext.AncestorIDs...), filePaths)
-		}
+	filePaths := make([]string, 0, len(req.Files))
+	for _, f := range req.Files {
+		filePaths = append(filePaths, f.Path)
 	}
+	api.trackChatPaths(ctx, filePaths...)
 
 	resp := workspacesdk.FileEditResponse{}
 	if req.IncludeDiff {
