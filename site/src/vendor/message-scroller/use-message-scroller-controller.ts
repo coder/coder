@@ -774,9 +774,8 @@ function useMessageScrollerController({
   )
 
   const setRootElement = useElementRef(rootRef, mirrorStateAttributes)
-  // LOCAL CHANGE: place content that mounted before this viewport attached,
-  // and commit the scroll state now instead of on the next frame, so a
-  // subscriber that rendered at scrollTop 0 re-renders before its own
+  // LOCAL CHANGE: commit the scroll state now instead of on the next frame,
+  // so a subscriber that rendered at scrollTop 0 re-renders before its
   // next-frame callbacks run.
   const attachViewport = React.useCallback(() => {
     mirrorStateAttributes()
