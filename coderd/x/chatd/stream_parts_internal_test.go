@@ -161,28 +161,36 @@ func TestStreamPartsEndpointLatestSelectionWinsWhileBlocked(t *testing.T) {
 	}()
 
 	blockingKey := messagepartbuffer.Key{ChatID: chatID, HistoryVersion: 1, GenerationAttempt: 1}
-	staleKey := messagepartbuffer.Key{ChatID: chatID, HistoryVersion: 2, GenerationAttempt: 1}
-	latestKey := messagepartbuffer.Key{ChatID: chatID, HistoryVersion: 3, GenerationAttempt: 1}
+	staleKeys := []messagepartbuffer.Key{
+		{ChatID: chatID, HistoryVersion: 2, GenerationAttempt: 1},
+		{ChatID: chatID, HistoryVersion: 3, GenerationAttempt: 1},
+	}
+	latestKey := messagepartbuffer.Key{ChatID: chatID, HistoryVersion: 4, GenerationAttempt: 1}
 	require.NoError(t, buffer.CreateEpisode(blockingKey))
 	for range cap(pipe.eventsCh) + 2 {
 		require.NoError(t, buffer.AddPart(blockingKey, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("blocking")))
 	}
-	require.NoError(t, buffer.CreateEpisode(staleKey))
-	require.NoError(t, buffer.AddPart(staleKey, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("stale")))
+	for _, key := range staleKeys {
+		require.NoError(t, buffer.CreateEpisode(key))
+		require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("stale")))
+	}
 	require.NoError(t, buffer.CreateEpisode(latestKey))
 	require.NoError(t, buffer.AddPart(latestKey, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("latest")))
 
-	// Block the endpoint writing parts, then select twice while it cannot
-	// read selections.
-	controlRead := func(context.Context) bool { return len(pipe.controlCh) == 0 }
+	// Block the endpoint writing parts, then select three times while it
+	// cannot act on selections. Each selection must still leave the pipe:
+	// a reader that waits for the endpoint would hold the second one and
+	// leave the third in the pipe.
 	require.NoError(t, clientTransport.WriteControl(ctx, streamPartsControl{HistoryVersion: blockingKey.HistoryVersion, GenerationAttempt: blockingKey.GenerationAttempt}))
 	require.True(t, testutil.Eventually(ctx, t, func(context.Context) bool {
 		return len(pipe.eventsCh) == cap(pipe.eventsCh)
 	}, testutil.IntervalFast))
-	require.NoError(t, clientTransport.WriteControl(ctx, streamPartsControl{HistoryVersion: staleKey.HistoryVersion, GenerationAttempt: staleKey.GenerationAttempt}))
-	require.True(t, testutil.Eventually(ctx, t, controlRead, testutil.IntervalFast))
-	require.NoError(t, clientTransport.WriteControl(ctx, streamPartsControl{HistoryVersion: latestKey.HistoryVersion, GenerationAttempt: latestKey.GenerationAttempt}))
-	require.True(t, testutil.Eventually(ctx, t, controlRead, testutil.IntervalFast))
+	for _, key := range append(staleKeys, latestKey) {
+		require.NoError(t, clientTransport.WriteControl(ctx, streamPartsControl{HistoryVersion: key.HistoryVersion, GenerationAttempt: key.GenerationAttempt}))
+		require.True(t, testutil.Eventually(ctx, t, func(context.Context) bool {
+			return len(pipe.controlCh) == 0
+		}, testutil.IntervalFast), "selection for history version %d was not read", key.HistoryVersion)
+	}
 
 	for {
 		got := readStreamPartsTransportBatch(ctx, t, clientTransport)
