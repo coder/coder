@@ -53,6 +53,7 @@ const buildParams = (
 		isEditReasoningEffortDirtyRef: { current: false },
 		personalSkills: [],
 		organizationSkills: [],
+		projectSkills: [],
 		workspaceSkills: [],
 		compact: vi.fn().mockResolvedValue(undefined),
 		clearChatContext: vi.fn().mockResolvedValue(undefined),
@@ -183,6 +184,7 @@ describe("submitChatTurn", () => {
 	it.each([
 		["compact", "personalSkills"],
 		["clear", "organizationSkills"],
+		["compact", "projectSkills"],
 	] as const)(
 		"throws BuiltInCommandPendingError for /%s while %s is unresolved",
 		async (command, unknownList) => {
