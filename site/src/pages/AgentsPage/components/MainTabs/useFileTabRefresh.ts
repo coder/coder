@@ -51,10 +51,49 @@ const splitDiff = (diff: string): string[] | undefined => {
 	return sections[0]?.startsWith("diff --git ") ? sections : undefined;
 };
 
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
+
+const gitEscapes: Readonly<Record<string, string>> = {
+	a: "\x07",
+	b: "\b",
+	t: "\t",
+	n: "\n",
+	v: "\v",
+	f: "\f",
+	r: "\r",
+};
+
+/**
+ * The path in a string git quoted in C style. Git writes bytes past ASCII
+ * as octal escapes, by default, so a path's UTF-8 bytes are decoded.
+ */
+const unquoteGitPath = (quoted: string) => {
+	const bytes: number[] = [];
+	for (const [, octal, escaped, text] of quoted.matchAll(
+		/\\([0-7]{3})|\\(.)|([^\\]+)/gs,
+	)) {
+		if (octal) {
+			bytes.push(Number.parseInt(octal, 8));
+		} else {
+			const chars = escaped ? (gitEscapes[escaped] ?? escaped) : text;
+			bytes.push(...textEncoder.encode(chars));
+		}
+	}
+	return textDecoder.decode(new Uint8Array(bytes));
+};
+
+// Git quotes a path with control characters, quotes, backslashes or, by
+// default, bytes past ASCII, such as "b/caf\303\251.txt".
+const quotedTargetPattern = /"b\/((?:[^"\\]|\\.)*)"$/;
+
 const findDiffSection = (sections: readonly string[], relativePath: string) =>
 	sections.find((section) => {
 		const header = section.slice(0, section.indexOf("\n"));
-		return header.endsWith(` b/${relativePath}`);
+		const quoted = quotedTargetPattern.exec(header);
+		return quoted
+			? unquoteGitPath(quoted[1]) === relativePath
+			: header.endsWith(` b/${relativePath}`);
 	});
 
 /**
@@ -78,8 +117,10 @@ const hunkHeaderPattern = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
  * The line in HEAD's version of the file at `relativePath` that is `line`
  * on disk, through `diff`, the repository's diff against HEAD. Lines
  * outside the diff's hunks move by the lines the hunks before them add or
- * remove. Undefined for a line the diff adds, which HEAD lacks, and when
- * `diff` is not a diff.
+ * remove, and a file outside the diff, or whose mode alone changed, keeps
+ * its lines. Undefined for a line the diff adds, which HEAD lacks, and when
+ * the diff says nothing about the file's lines, such as for a binary file
+ * or when `diff` is not a diff.
  */
 export const getHeadLine = (
 	diff: string,
@@ -130,6 +171,12 @@ export const getHeadLine = (
 			}
 			diskLine++;
 		}
+	}
+	if (!inHunks) {
+		const isModeChange =
+			/^old mode /m.test(section) &&
+			!/^(?:Binary files |GIT binary patch)/m.test(section);
+		return isModeChange ? line : undefined;
 	}
 	return line + headLine - diskLine;
 };
