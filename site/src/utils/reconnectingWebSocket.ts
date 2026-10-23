@@ -123,6 +123,16 @@ type ReconnectingWebSocketOptions<TSocket extends Closable> = {
 	 * to `[0, 1]`; non-finite values fall back to `0.5`.
 	 */
 	random?: () => number;
+
+	/**
+	 * Treat the socket as disconnected when it receives no message for this
+	 * many milliseconds after connecting or after its last message: close
+	 * it, call `onDisconnect`, and reconnect. Browsers do not expose
+	 * WebSocket pings, so a frozen connection otherwise fires no event.
+	 * Only set this when the server sends messages, such as keepalives,
+	 * more often than the timeout. Disabled when omitted.
+	 */
+	silenceTimeoutMs?: number;
 };
 
 const normalizeUnitInterval = (value: number, fallback: number): number =>
@@ -217,12 +227,21 @@ export function createReconnectingWebSocket<TSocket extends Closable>(
 		factor = RECONNECT_FACTOR,
 		jitter = RECONNECT_JITTER,
 		random = Math.random,
+		silenceTimeoutMs,
 	} = options;
 
 	let disposed = false;
 	let lastReconnectAttempt = 0;
 	let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+	let silenceTimer: ReturnType<typeof setTimeout> | null = null;
 	let activeSocket: TSocket | null = null;
+
+	const clearSilenceTimer = () => {
+		if (silenceTimer !== null) {
+			clearTimeout(silenceTimer);
+			silenceTimer = null;
+		}
+	};
 
 	const scheduleReconnect = (reconnect: ReconnectSchedule) => {
 		if (disposed) {
@@ -261,6 +280,7 @@ export function createReconnectingWebSocket<TSocket extends Closable>(
 				return;
 			}
 			activeSocket = null;
+			clearSilenceTimer();
 			const reconnect = getReconnectSchedule({
 				attempt: lastReconnectAttempt + 1,
 				baseMs,
@@ -276,6 +296,23 @@ export function createReconnectingWebSocket<TSocket extends Closable>(
 		socket.addEventListener("open", handleOpen);
 		socket.addEventListener("error", handleDisconnect);
 		socket.addEventListener("close", handleDisconnect);
+
+		if (silenceTimeoutMs !== undefined) {
+			const restartSilenceTimer = () => {
+				if (activeSocket !== socket || disposed) {
+					return;
+				}
+				clearSilenceTimer();
+				silenceTimer = setTimeout(() => {
+					// A frozen connection may never deliver the close event,
+					// so disconnect first and let the close event be ignored.
+					handleDisconnect();
+					socket.close();
+				}, silenceTimeoutMs);
+			};
+			socket.addEventListener("message", restartSilenceTimer);
+			restartSilenceTimer();
+		}
 	}
 
 	// Kick off the first connection.
@@ -287,6 +324,7 @@ export function createReconnectingWebSocket<TSocket extends Closable>(
 		if (reconnectTimer !== null) {
 			clearTimeout(reconnectTimer);
 		}
+		clearSilenceTimer();
 		if (activeSocket) {
 			activeSocket.close();
 		}
