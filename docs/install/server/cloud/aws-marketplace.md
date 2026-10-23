@@ -3,8 +3,7 @@ title: Amazon Web Services
 ---
 
 This guide is designed to get you up and running with a Coder proof-of-concept on AWS EKS using a [Coder-provided CloudFormation Template](https://codermktplc-assets.s3.us-east-1.amazonaws.com/community-edition/eks-cluster.yaml).
-The deployed AWS Coder Reference Architecture is below:
-![Coder on AWS EKS](../../../images/platforms/aws/aws-coder-refarch-v1.png)
+The deployed AWS Coder Reference Architecture is below: ![Coder on AWS EKS](../../../images/platforms/aws/aws-coder-refarch-v1.png)
 
 If you are familiar with EC2 however, you can use our [install script](../../cli.md) to run Coder on any popular Linux distribution.
 
