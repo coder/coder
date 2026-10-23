@@ -42,40 +42,47 @@ const nextFrames = () =>
 			}),
 	);
 
+// Without the viewportRef guard only autoScroll: false fails, because with
+// autoScroll the scroller follows the end once the viewport attaches.
 it.each([true, false])(
 	"opens at the end without loading older messages when a transcript mounts after its scroller provider (autoScroll: %s)",
 	async (autoScroll) => {
 		const onFetchMoreMessages = vi.fn();
-		const page = (transcript: boolean) => (
+		const page = (transcript?: React.ReactNode) => (
 			<MessageScroller.Provider
 				autoScroll={autoScroll}
 				defaultScrollPosition="end"
 			>
-				{transcript && (
-					<ChatMessageScroller
-						hasMoreMessages
-						isFetchingMoreMessages={false}
-						isHydratingMessages={false}
-						hasFetchMoreError={false}
-						hasTranscriptRows
-						onFetchMoreMessages={onFetchMoreMessages}
-					>
-						{["1", "2", "3"].map((id) => (
-							<MessageScroller.Item key={id} messageId={id}>
-								message {id}
-							</MessageScroller.Item>
-						))}
-					</ChatMessageScroller>
-				)}
+				{transcript}
 			</MessageScroller.Provider>
 		);
 
 		// The provider mounts while the page shows its loading view.
-		const { rerender, getByLabelText } = render(page(false));
-		rerender(page(true));
+		const { rerender, getByLabelText } = render(page());
+		rerender(
+			page(
+				<ChatMessageScroller
+					hasMoreMessages
+					isFetchingMoreMessages={false}
+					isHydratingMessages={false}
+					hasFetchMoreError={false}
+					hasTranscriptRows
+					onFetchMoreMessages={onFetchMoreMessages}
+				>
+					{["1", "2", "3"].map((id) => (
+						<MessageScroller.Item key={id} messageId={id}>
+							message {id}
+						</MessageScroller.Item>
+					))}
+				</ChatMessageScroller>,
+			),
+		);
 		await nextFrames();
 
-		expect(getByLabelText("Messages").scrollTop).toBe(900);
+		const viewport = getByLabelText("Messages");
+		expect(viewport.scrollTop).toBe(
+			viewport.scrollHeight - viewport.clientHeight,
+		);
 		expect(onFetchMoreMessages).not.toHaveBeenCalled();
 	},
 );
