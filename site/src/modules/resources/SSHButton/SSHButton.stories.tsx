@@ -39,3 +39,23 @@ export const Opened: Story = {
 	},
 	decorators: [withDesktopViewport],
 };
+
+export const OpenedWithoutHostnameSuffix: Story = {
+	beforeEach: () => {
+		spyOn(API, "getDeploymentSSHConfig").mockResolvedValue({
+			...MockDeploymentSSH,
+			hostname_suffix: "",
+		});
+	},
+	args: {
+		workspaceName: MockWorkspace.name,
+		agentName: MockWorkspaceAgent.name,
+		workspaceOwnerUsername: MockWorkspace.owner_name,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const button = canvas.getByRole("button");
+		await userEvent.click(button);
+	},
+	decorators: [withDesktopViewport],
+};
