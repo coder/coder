@@ -13,6 +13,10 @@ import { createDeferred } from "#/testHelpers/deferred";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { WorkspaceFilesContext } from "../../context/WorkspaceFilesContext";
 import {
+	createWatcherMessages,
+	type WatcherMessages,
+} from "../../hooks/useGitWatcher";
+import {
 	getPersistedMainTabs,
 	saveFileViewState,
 	savePersistedMainTabs,
@@ -71,23 +75,14 @@ type Repositories = ReadonlyMap<string, WorkspaceAgentRepoChanges>;
 /** Stands in for the git watcher, whose state the tests set. */
 const createRepositoriesStore = () => {
 	let repositories: Repositories = new Map();
-	let lastMessageAt: number | undefined;
 	const listeners = new Set<() => void>();
-	const notify = () => {
-		for (const listener of listeners) {
-			listener();
-		}
-	};
 	return {
 		get: () => repositories,
-		getLastMessageAt: () => lastMessageAt,
 		set: (next: Repositories) => {
 			repositories = next;
-			notify();
-		},
-		receiveMessage: (at: number) => {
-			lastMessageAt = at;
-			notify();
+			for (const listener of listeners) {
+				listener();
+			}
 		},
 		subscribe: (listener: () => void) => {
 			listeners.add(listener);
@@ -103,6 +98,7 @@ type HarnessProps = {
 	isAgentConnected?: boolean;
 	store: ChatStore;
 	repositoriesStore: ReturnType<typeof createRepositoriesStore>;
+	watcherMessages: WatcherMessages;
 };
 
 const Harness: React.FC<HarnessProps> = ({
@@ -110,16 +106,13 @@ const Harness: React.FC<HarnessProps> = ({
 	isAgentConnected = true,
 	store,
 	repositoriesStore,
+	watcherMessages,
 }) => {
 	const mainTabs = useMainTabs(chatId);
 	const chatInputRef = useRef<HTMLTextAreaElement>(null);
 	const repositories = useSyncExternalStore(
 		repositoriesStore.subscribe,
 		repositoriesStore.get,
-	);
-	const lastWatcherMessageAt = useSyncExternalStore(
-		repositoriesStore.subscribe,
-		repositoriesStore.getLastMessageAt,
 	);
 	return (
 		<WorkspaceFilesContext
@@ -130,7 +123,7 @@ const Harness: React.FC<HarnessProps> = ({
 							defaultDirectory: "/home/coder",
 							repoRoots: ["/repo"],
 							repositories,
-							lastWatcherMessageAt,
+							watcherMessages,
 							openFile: mainTabs.openFile,
 							revealInFiles,
 							diffStatuses: [],
@@ -184,6 +177,7 @@ const renderHarness = (
 	const store = createChatStore();
 	store.setStreamState(streamState);
 	const repositoriesStore = createRepositoriesStore();
+	const watcherMessages = createWatcherMessages();
 	const router = createMemoryRouter([
 		{
 			path: "/",
@@ -193,6 +187,7 @@ const renderHarness = (
 					isAgentConnected={isAgentConnected}
 					store={store}
 					repositoriesStore={repositoriesStore}
+					watcherMessages={watcherMessages}
 				/>
 			),
 		},
@@ -218,7 +213,7 @@ const renderHarness = (
 				.getQueryCache()
 				.getAll()
 				.map((query) => query.state.dataUpdatedAt);
-			act(() => repositoriesStore.receiveMessage(Math.max(0, ...reads) + 1));
+			act(() => watcherMessages.receive(Math.max(0, ...reads) + 1));
 		},
 	};
 };

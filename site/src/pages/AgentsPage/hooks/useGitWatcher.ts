@@ -27,6 +27,38 @@ type UseGitWatcherOptions = {
 	agentStatus: WorkspaceAgentStatus | undefined;
 };
 
+/**
+ * When git watcher messages arrive, for `useSyncExternalStore`. The agent
+ * sends one after every scan, about every 5 s, so only a component that
+ * needs the time subscribes, and the page does not render per message.
+ */
+export type WatcherMessages = {
+	subscribe: (onMessage: () => void) => () => void;
+	/** When the latest message arrived, in `Date.now()` milliseconds. */
+	getLastArrival: () => number | undefined;
+};
+
+/** A store of message arrivals; `receive` records one. */
+export const createWatcherMessages = () => {
+	let lastArrival: number | undefined;
+	const listeners = new Set<() => void>();
+	return {
+		subscribe: (onMessage: () => void) => {
+			listeners.add(onMessage);
+			return () => {
+				listeners.delete(onMessage);
+			};
+		},
+		getLastArrival: () => lastArrival,
+		receive: (at = Date.now()) => {
+			lastArrival = at;
+			for (const listener of listeners) {
+				listener();
+			}
+		},
+	} satisfies WatcherMessages & { receive: (at?: number) => void };
+};
+
 type UseGitWatcherResult = {
 	/** Current repo state, keyed by repo root path. */
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
@@ -40,11 +72,8 @@ type UseGitWatcherResult = {
 	isConnected: boolean;
 	/** Whether the watcher has received repository state for this chat. */
 	hasReceivedChanges: boolean;
-	/**
-	 * When the latest message arrived, in `Date.now()` milliseconds, or
-	 * undefined before the first. The agent sends one after every scan.
-	 */
-	lastWatcherMessageAt: number | undefined;
+	/** Arrivals of watcher messages. Its identity never changes. */
+	watcherMessages: WatcherMessages;
 	/** Send a refresh request. Returns true if sent, false if disconnected. */
 	refresh: () => boolean;
 };
@@ -61,7 +90,7 @@ export function useGitWatcher({
 	);
 	const [isConnected, setIsConnected] = useState(false);
 	const [hasReceivedChanges, setHasReceivedChanges] = useState(false);
-	const [lastWatcherMessageAt, setLastWatcherMessageAt] = useState<number>();
+	const [watcherMessages] = useState(createWatcherMessages);
 
 	const socketRef = useRef<WebSocket | null>(null);
 	// Chat-scoped state (everDirty) resets on chatId change but
@@ -117,7 +146,7 @@ export function useGitWatcher({
 
 					if (data.type === "changes") {
 						setHasReceivedChanges(true);
-						setLastWatcherMessageAt(Date.now());
+						watcherMessages.receive();
 						if (isFirstChanges) {
 							isFirstChanges = false;
 							setRepositories((prev) => (prev.size === 0 ? prev : new Map()));
@@ -196,14 +225,14 @@ export function useGitWatcher({
 			setRepositories(new Map());
 			socketRef.current = null;
 		};
-	}, [chatId, agentStatus]);
+	}, [chatId, agentStatus, watcherMessages]);
 
 	return {
 		repositories,
 		everDirty,
 		isConnected,
 		hasReceivedChanges,
-		lastWatcherMessageAt,
+		watcherMessages,
 		refresh,
 	};
 }

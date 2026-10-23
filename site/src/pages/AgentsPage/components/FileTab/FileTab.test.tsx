@@ -26,6 +26,7 @@ import {
 	WorkspaceFilesContext,
 	type WorkspaceFilesContextValue,
 } from "../../context/WorkspaceFilesContext";
+import { createWatcherMessages } from "../../hooks/useGitWatcher";
 import type FileEditor from "./FileEditor";
 import { type FileDraft, FileTab } from "./FileTab";
 
@@ -149,11 +150,23 @@ const Harness: React.FC<HarnessProps> = ({
 
 const renderFileTab = (props: HarnessProps) => {
 	const queryClient = createTestQueryClient();
-	const result = render(<Harness {...props} />, {
-		wrapper: ({ children }) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		),
-	});
+	const watcherMessages = createWatcherMessages();
+	const withWatcherMessages = (
+		workspaceFiles: WorkspaceFilesContextValue | undefined,
+	) => workspaceFiles && { ...workspaceFiles, watcherMessages };
+	const result = render(
+		<Harness
+			{...props}
+			workspaceFiles={withWatcherMessages(props.workspaceFiles)}
+		/>,
+		{
+			wrapper: ({ children }) => (
+				<QueryClientProvider client={queryClient}>
+					{children}
+				</QueryClientProvider>
+			),
+		},
+	);
 	// What the main tabs do when the file may have changed.
 	const refreshFile = () =>
 		act(() =>
@@ -172,12 +185,10 @@ const renderFileTab = (props: HarnessProps) => {
 		result.rerender(
 			<Harness
 				{...props}
-				workspaceFiles={{
-					...workspaceFiles,
-					lastWatcherMessageAt: (read?.dataUpdatedAt ?? 0) + 1,
-				}}
+				workspaceFiles={withWatcherMessages(workspaceFiles)}
 			/>,
 		);
+		act(() => watcherMessages.receive((read?.dataUpdatedAt ?? 0) + 1));
 	};
 	return { ...result, queryClient, refreshFile, receiveWatcherMessage };
 };
