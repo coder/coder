@@ -125,7 +125,7 @@ func TestProcessStepStreamLabelsNarration(t *testing.T) {
 	}, result.content)
 }
 
-func TestProcessStepStreamStampsReasoningDeltasWithBlockStart(t *testing.T) {
+func TestProcessStepStreamSetsReasoningDeltaCreatedAtToBlockStart(t *testing.T) {
 	t.Parallel()
 
 	clock := quartz.NewMock(t)
