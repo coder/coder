@@ -207,6 +207,10 @@ To keep your client in sync with the chat:
    1. Open the stream again with the stored `snapshot_version`.
    1. If the server returns `400 Bad Request`, discard your client's state and start again from step 1.
 
+When no events occur for 15&nbsp;seconds, the server sends an empty batch (`[]`).
+An empty batch contains no events; skip it.
+Treat a longer silence as a dead connection and reconnect.
+
 On the next connection, the server again sends the `message_part` events of the response that the agent is writing.
 If a retry is pending, the server also sends the `retry` event again.
 
