@@ -131,7 +131,7 @@ export const RootPicker: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("combobox", { name: "Root directory" }),
+			await canvas.findByRole("button", { name: /^Root directory/ }),
 		);
 	},
 };

@@ -21,10 +21,8 @@ import {
 	type WorkspaceFilesContextValue,
 } from "../../context/WorkspaceFilesContext";
 import { getPathBasename } from "../../utils/path";
-import {
-	abbreviateHomePath,
-	useFilesPanelRoot,
-} from "../RightPanel/FilesPanel";
+import { useFilesPanelRoot } from "../RightPanel/FilesPanel";
+import { abbreviateHomePath } from "../RightPanel/FilesRootPicker";
 
 /** Opens a workspace file by fuzzy name search on Cmd+P (macOS) or Ctrl+P. */
 export const QuickOpenDialog: React.FC = () => {
