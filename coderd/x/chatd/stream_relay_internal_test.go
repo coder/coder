@@ -105,10 +105,11 @@ func TestStreamRelayForwarderDeliversPartsAfterStall(t *testing.T) {
 	})
 }
 
-// TestStreamRelayLivePartsAfterSameEpisodeReselects reselects the current
-// episode on a same-replica relay while the stream loop reads at most one part
-// per reselect and the endpoint is blocked writing parts. Once the stream loop
-// resumes, a part added afterwards must still reach it.
+// TestStreamRelayLivePartsAfterSameEpisodeReselects selects the current
+// episode again many times on a same-replica relay while the endpoint is
+// blocked sending parts and the test, in place of the stream loop, reads at
+// most one part per selection. A part added afterwards must still reach the
+// stream loop.
 func TestStreamRelayLivePartsAfterSameEpisodeReselects(t *testing.T) {
 	t.Parallel()
 
