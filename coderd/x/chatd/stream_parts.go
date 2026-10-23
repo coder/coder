@@ -81,6 +81,13 @@ func (e streamPartsEndpoint) serve(ctx context.Context, transport streamPartsSer
 				}
 				return
 			}
+			// Replace a selection the serve loop has not read yet. It only acts
+			// on the latest one, and waiting here while it is blocked writing
+			// parts would stop reading new selections from the client.
+			select {
+			case <-controlCh:
+			default:
+			}
 			select {
 			case controlCh <- control:
 			case <-ctx.Done():
