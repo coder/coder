@@ -22,6 +22,10 @@ import { API, type WorkspaceAgentFileContents } from "#/api/api";
 import { workspaceAgentFileKey } from "#/api/queries/workspaceFiles";
 import { createDeferred } from "#/testHelpers/deferred";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import {
+	WorkspaceFilesContext,
+	type WorkspaceFilesContextValue,
+} from "../../context/WorkspaceFilesContext";
 import type FileEditor from "./FileEditor";
 import { type FileDraft, FileTab } from "./FileTab";
 
@@ -106,25 +110,29 @@ const preconditionFailed = () => responseError(412, "Precondition Failed");
 type HarnessProps = {
 	readOnly?: boolean;
 	onClose?: (path: string, hasUnsavedEdits: boolean) => void;
+	workspaceFiles?: WorkspaceFilesContextValue;
 };
 
 const Harness: React.FC<HarnessProps> = ({
 	readOnly = false,
 	onClose = () => {},
+	workspaceFiles,
 }) => {
 	const [draft, setDraft] = useState<FileDraft>();
 	return (
-		<FileTab
-			chatId="chat-1"
-			agentId={agentId}
-			path={path}
-			reveal={undefined}
-			isActive
-			draft={draft}
-			onDraftChange={(_, update) => setDraft(update)}
-			onClose={onClose}
-			readOnly={readOnly}
-		/>
+		<WorkspaceFilesContext value={workspaceFiles}>
+			<FileTab
+				chatId="chat-1"
+				agentId={agentId}
+				path={path}
+				reveal={undefined}
+				isActive
+				draft={draft}
+				onDraftChange={(_, update) => setDraft(update)}
+				onClose={onClose}
+				readOnly={readOnly}
+			/>
+		</WorkspaceFilesContext>
 	);
 };
 
@@ -486,6 +494,126 @@ describe("FileTab", () => {
 
 			await screen.findByText("Binary file");
 			await screen.findByText("3.3 MB");
+		});
+	});
+
+	describe("file actions", () => {
+		const headCommit = "0123456789abcdef0123456789abcdef01234567";
+		const workspaceFiles = (
+			diffStatuses: WorkspaceFilesContextValue["diffStatuses"] = [],
+			remoteOrigin = "git@github.com:coder/coder.git",
+		): WorkspaceFilesContextValue => ({
+			agentId,
+			defaultDirectory: "/home/coder",
+			repoRoots: ["/repo"],
+			repositories: new Map([
+				[
+					"/repo",
+					{
+						repo_root: "/repo",
+						branch: "feat",
+						remote_origin: remoteOrigin,
+						head_commit: headCommit,
+					},
+				],
+			]),
+			openFile: vi.fn(),
+			revealInFiles: vi.fn(),
+			diffStatuses,
+		});
+		const openMenu = async (user: ReturnType<typeof userEvent.setup>) =>
+			user.click(await screen.findByRole("button", { name: "File actions" }));
+
+		it("copies the file's paths and reveals it in the Files panel", async () => {
+			const user = userEvent.setup();
+			const writeText = vi
+				.spyOn(navigator.clipboard, "writeText")
+				.mockResolvedValue(undefined);
+			const files = workspaceFiles();
+			renderFileTab({ workspaceFiles: files });
+
+			await openMenu(user);
+			await user.click(screen.getByRole("menuitem", { name: "Copy path" }));
+			expect(writeText).toHaveBeenLastCalledWith(path);
+			await openMenu(user);
+			await user.click(
+				screen.getByRole("menuitem", { name: "Copy relative path" }),
+			);
+			expect(writeText).toHaveBeenLastCalledWith("main.go");
+			await openMenu(user);
+			await user.click(
+				screen.getByRole("menuitem", { name: "Reveal in Files" }),
+			);
+			expect(files.revealInFiles).toHaveBeenLastCalledWith(path);
+		});
+
+		it("links the cursor's line on the pushed branch and in its pull request", async () => {
+			const user = userEvent.setup();
+			readFile.mockResolvedValue(fileContents("a\nb\n", '"v1"'));
+			renderFileTab({
+				workspaceFiles: workspaceFiles([
+					{
+						chat_id: "chat-1",
+						remote_origin: "https://github.com/coder/coder.git",
+						git_branch: "feat",
+						url: "https://github.com/coder/coder/pull/12",
+						pr_number: 12,
+						pull_request_title: "Add a feature",
+						pull_request_draft: false,
+						changes_requested: false,
+						additions: 1,
+						deletions: 0,
+						changed_files: 1,
+					},
+				]),
+			});
+			const editor =
+				await screen.findByLabelText<HTMLTextAreaElement>("File contents");
+			act(() => editor.setSelectionRange(2, 2));
+			fireEvent.select(editor);
+
+			await openMenu(user);
+			expect(
+				screen.getByRole("menuitem", { name: "Open on GitHub" }),
+			).toHaveAttribute(
+				"href",
+				"https://github.com/coder/coder/blob/feat/main.go#L2",
+			);
+			const pullRequest = screen.getByRole("menuitem", {
+				name: "Open in PR #12",
+			});
+			await waitFor(() => {
+				expect(pullRequest).toHaveAttribute(
+					"href",
+					"https://github.com/coder/coder/pull/12/files#diff-2873f79a86c0d8b3335cd7731b0ecf7dd4301eb19a82ef7a1cba7589b5252261",
+				);
+			});
+		});
+
+		it("links the checked-out commit of a branch not known to be pushed", async () => {
+			const user = userEvent.setup();
+			renderFileTab({ workspaceFiles: workspaceFiles() });
+
+			await openMenu(user);
+			const link = screen.getByRole("menuitem", { name: "Open on GitHub" });
+			expect(link).toHaveAttribute(
+				"href",
+				`https://github.com/coder/coder/blob/${headCommit}/main.go#L1`,
+			);
+			expect(link.getAttribute("title")).toContain("0123456");
+			expect(screen.queryByRole("menuitem", { name: /^Open in/ })).toBeNull();
+		});
+
+		it("offers no link for a host it does not know", async () => {
+			const user = userEvent.setup();
+			renderFileTab({
+				workspaceFiles: workspaceFiles([], "https://bitbucket.org/coder/coder"),
+			});
+
+			await openMenu(user);
+			expect(
+				screen.getAllByRole("menuitem").map((item) => item.textContent),
+			).toEqual(["Copy path", "Copy relative path", "Reveal in Files"]);
 		});
 	});
 

@@ -1,4 +1,5 @@
 import type { ChatDiffStatus } from "#/api/typesGenerated";
+import { prNumber } from "./pullRequest";
 
 /** The git hosts coderd's git integration supports (coderd/externalauth/gitprovider). */
 export type GitProvider = "github" | "gitlab";
@@ -212,4 +213,64 @@ export const getChangeRequestFilesUrl = (
 		url.replace(/[?#].*$/, "").replace(/\/+$/, "");
 	const route = provider === "github" ? "files" : "diffs";
 	return `${base}/${route}${anchor ? `#${anchor}` : ""}`;
+};
+
+type FileWebLinksOptions = {
+	/** The repository's remote origin. */
+	origin: string;
+	/** The checked-out branch, empty on a detached HEAD. */
+	branch: string;
+	/** The full SHA of HEAD, empty when HEAD is unborn or unknown. */
+	headCommit: string;
+	/** The file's path in the repository. */
+	relativePath: string;
+	/** The 1-based line to scroll to. */
+	line?: number;
+	diffStatuses: readonly ChatDiffStatus[];
+};
+
+export type FileWebLinks = {
+	repository: GitWebRepository;
+	/**
+	 * The file on the pushed branch, or else at HEAD. `commit` is set for
+	 * HEAD, whose page is missing until the commit is pushed.
+	 */
+	blob?: { url: string; commit?: string };
+	/** The pull or merge request of the branch, and its number. */
+	changeRequest?: { url: string; number: string };
+};
+
+/**
+ * Links to a repository file on its git host. A diff status for the branch
+ * means coderd saw it on the remote, so the file links at the branch.
+ */
+export const getFileWebLinks = ({
+	origin,
+	branch,
+	headCommit,
+	relativePath,
+	line,
+	diffStatuses,
+}: FileWebLinksOptions): FileWebLinks | undefined => {
+	const repository = getGitWebRepository(origin, diffStatuses);
+	if (!repository) {
+		return undefined;
+	}
+	const status = branch
+		? findDiffStatus(diffStatuses, origin, branch)
+		: undefined;
+	let blob: FileWebLinks["blob"];
+	if (status) {
+		blob = { url: getBlobUrl(repository, branch, relativePath, line) };
+	} else if (headCommit) {
+		blob = {
+			url: getBlobUrl(repository, headCommit, relativePath, line),
+			commit: headCommit,
+		};
+	}
+	// A branch's status without a pull request carries the branch's URL.
+	const number = status && prNumber(status);
+	const changeRequest =
+		status?.url && number ? { url: status.url, number } : undefined;
+	return { repository, blob, changeRequest };
 };

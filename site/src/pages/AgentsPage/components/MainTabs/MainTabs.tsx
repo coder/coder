@@ -13,7 +13,7 @@ import {
 	FileTab,
 } from "../FileTab/FileTab";
 import { getTabElementIds, MainTabStrip, type TabKey } from "./MainTabStrip";
-import { findRepoRoot, useFileTabRefresh } from "./useFileTabRefresh";
+import { useFileTabRefresh } from "./useFileTabRefresh";
 import type { MainTabsController } from "./useMainTabs";
 
 type MainTabsProps = {
@@ -259,13 +259,6 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 					activation={mainTabs.activation}
 					dirtyPaths={new Set(drafts.keys())}
 					tabButtonsRef={tabButtonsRef}
-					getRelativePath={(path) => {
-						const root =
-							workspaceFiles && findRepoRoot(workspaceFiles.repoRoots, path);
-						return !root || root === path
-							? undefined
-							: path.slice(root.length + 1);
-					}}
 					onActivate={mainTabs.activate}
 					onTabKeyDown={handleTabKeyDown}
 					onClose={requestCloseFiles}
