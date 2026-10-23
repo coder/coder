@@ -183,6 +183,10 @@ Data envelopes contain batches of events:
 | `retry`        | The control plane is retrying a failed LLM call         |
 | `queue_update` | The queued message list changed                         |
 
+When no events occur for 15&nbsp;seconds, the server sends an empty batch (`[]`).
+An empty batch contains no events; skip it.
+Treat a longer silence as a dead connection and reconnect.
+
 Use `after_id` as a query parameter when reconnecting to skip messages the client already has.
 
 ### 5. Update status handling
