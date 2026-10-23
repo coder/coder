@@ -781,6 +781,29 @@ describe("FilesPanel", () => {
 		screen.getByRole("treeitem", { name: ".bashrc" });
 	});
 
+	it("leaves focus where the user moved it while a reveal loaded", async () => {
+		const user = userEvent.setup();
+		const { reveal } = renderRevealed(undefined);
+		render(<input aria-label="Composer" />);
+		await screen.findByRole("treeitem", { name: "src" });
+		const release = holdListings("/home/coder/repo/src/lib");
+
+		reveal({ path: "/home/coder/repo/src/lib/util.go", isDirectory: false });
+		await waitFor(() =>
+			expect(listedPaths()).toContain("/home/coder/repo/src/lib"),
+		);
+		const composer = screen.getByRole("textbox", { name: "Composer" });
+		await user.click(composer);
+		await user.keyboard("hi");
+		await waitFor(() => {
+			release();
+			expect(
+				screen.getByRole("treeitem", { name: "util.go" }),
+			).toHaveAttribute("aria-selected", "true");
+		});
+		expect(composer).toHaveFocus();
+	});
+
 	it("does not list files without a workspace agent", () => {
 		renderPanel(undefined);
 		expect(API.listWorkspaceAgentDirectory).not.toHaveBeenCalled();
