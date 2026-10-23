@@ -1,7 +1,6 @@
 import { cn } from "cn";
 import {
 	ChevronRightIcon,
-	FileIcon,
 	FolderIcon,
 	LinkIcon,
 	RefreshCwIcon,
@@ -24,6 +23,7 @@ import {
 	workspaceAgentDirectoryKey,
 } from "#/api/queries/workspaceFiles";
 import { Button } from "#/components/Button/Button";
+import { FileIcon } from "#/components/FileIcon/FileIcon";
 import { Input } from "#/components/Input/Input";
 import { Loader } from "#/components/Loader/Loader";
 import {
@@ -624,6 +624,13 @@ const buildTreeRows = (
 	return rows;
 };
 
+// Sized to the 14px folder icon so file and folder rows line up.
+const fileIconStyle: React.CSSProperties = {
+	fontSize: 16,
+	height: "0.875rem",
+	minWidth: "0.875rem",
+};
+
 const typeaheadTimeoutMs = 500;
 const refreshFeedbackMs = 1000;
 
@@ -871,7 +878,11 @@ const DirectoryTree: React.FC<DirectoryTreeProps> = ({
 								{entry.is_dir ? (
 									<FolderIcon aria-hidden className="size-3.5 shrink-0" />
 								) : (
-									<FileIcon aria-hidden className="size-3.5 shrink-0" />
+									<FileIcon
+										fileName={entry.name}
+										className={cn("shrink-0", entry.ignored && "opacity-60")}
+										style={fileIconStyle}
+									/>
 								)}
 								<span className="truncate">{entry.name}</span>
 								{entry.is_symlink && (
