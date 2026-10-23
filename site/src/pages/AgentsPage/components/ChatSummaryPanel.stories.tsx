@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, waitFor, within } from "storybook/test";
+import { onlineManager } from "react-query";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import {
 	chatAttachmentsKey,
@@ -13,6 +14,7 @@ import {
 	MockChatFileMetadata,
 	MockChatMessage,
 } from "#/testHelpers/chatEntities";
+import { mockApiError } from "#/testHelpers/entities";
 import { MockPngBase64 } from "#/testHelpers/files";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { createChatStore } from "./ChatConversation/chatStore";
@@ -309,11 +311,15 @@ export const EarlierAttachmentsLoading: Story = {
 	},
 };
 
+const mockAttachmentsError = mockApiError({
+	message: "Failed to get chat attachments.",
+});
+
 export const EarlierAttachmentsFailed: Story = {
 	args: { hasMoreMessages: true },
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatAttachments").mockRejectedValue(
-			new Error("Failed to load attachments"),
+			mockAttachmentsError,
 		);
 	},
 	render: renderWithLatestMessages,
@@ -322,6 +328,91 @@ export const EarlierAttachmentsFailed: Story = {
 			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
 			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
 		],
+	},
+	// The alert pushes Retry below the panel frame's fold.
+	play: async ({ canvasElement }) => {
+		const retry = await within(canvasElement).findByRole("button", {
+			name: "Retry",
+		});
+		retry.scrollIntoView();
+	},
+};
+
+export const EarlierAttachmentsRetrying: Story = {
+	args: { hasMoreMessages: true },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatAttachments")
+			.mockRejectedValueOnce(mockAttachmentsError)
+			.mockReturnValue(new Promise(() => {}));
+	},
+	render: renderWithLatestMessages,
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", { name: "Retry" }),
+		);
+	},
+};
+
+// A Retry clicked offline pauses until the network returns, so the screenshot
+// shows the alert with Retry enabled.
+export const EarlierAttachmentsRetryingOffline: Story = {
+	args: { hasMoreMessages: true },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatAttachments").mockRejectedValue(
+			mockAttachmentsError,
+		);
+		return () => onlineManager.setOnline(true);
+	},
+	render: renderWithLatestMessages,
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const retry = await within(canvasElement).findByRole("button", {
+			name: "Retry",
+		});
+		onlineManager.setOnline(false);
+		await userEvent.click(retry);
+	},
+};
+
+// After the Retry fails too, a reconnect refetches the attachments without a
+// Retry, so the screenshot shows the loading state.
+export const EarlierAttachmentsRefetchAfterFailedRetry: Story = {
+	args: { hasMoreMessages: true },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatAttachments")
+			.mockRejectedValueOnce(mockAttachmentsError)
+			.mockRejectedValueOnce(
+				mockApiError({
+					message: "Failed to get chat attachments.",
+					detail: "context deadline exceeded",
+				}),
+			)
+			.mockReturnValue(new Promise(() => {}));
+	},
+	render: renderWithLatestMessages,
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(await canvas.findByRole("button", { name: "Retry" }));
+		await canvas.findByText("context deadline exceeded");
+		onlineManager.setOnline(false);
+		onlineManager.setOnline(true);
 	},
 };
 

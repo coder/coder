@@ -2,6 +2,7 @@ import { FileIcon } from "lucide-react";
 import { useId } from "react";
 import { useQueries } from "react-query";
 import { chatFileText } from "#/api/queries/chats";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import {
 	Collapsible,
@@ -27,7 +28,7 @@ type ChatAttachmentsProps = {
 	attachments: readonly MessageAttachment[] | undefined;
 	evictedFileIds: ReadonlySet<string>;
 	isLoadingEarlierAttachments: boolean;
-	hasEarlierAttachmentsError: boolean;
+	earlierAttachmentsError: unknown;
 	isRetrying: boolean;
 	onRetry: () => void;
 };
@@ -40,12 +41,12 @@ export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 	attachments,
 	evictedFileIds,
 	isLoadingEarlierAttachments,
-	hasEarlierAttachmentsError,
+	earlierAttachmentsError,
 	isRetrying,
 	onRetry,
 }) => {
 	const isLoading = attachments === undefined || isLoadingEarlierAttachments;
-	const isComplete = !isLoading && !hasEarlierAttachmentsError;
+	const isComplete = !isLoading && !earlierAttachmentsError;
 	const listed = attachments ?? [];
 	const isEvicted = ({ file }: MessageAttachment) =>
 		file.file_id !== undefined && evictedFileIds.has(file.file_id);
@@ -93,19 +94,19 @@ export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 						No attachments yet.
 					</p>
 				)}
-				{hasEarlierAttachmentsError && (
-					<div className="flex flex-col items-start gap-2">
-						<p className="m-0 text-sm text-content-secondary">
-							Could not load attachments from earlier messages.
-						</p>
-						<RetryButton
-							variant="outline"
-							size="sm"
-							isRetrying={isRetrying}
-							onRetry={onRetry}
-						/>
-					</div>
-				)}
+				{earlierAttachmentsError ? (
+					<ErrorAlert
+						error={earlierAttachmentsError}
+						actions={
+							<RetryButton
+								variant="outline"
+								size="sm"
+								isRetrying={isRetrying}
+								onRetry={onRetry}
+							/>
+						}
+					/>
+				) : null}
 			</CollapsibleContent>
 		</Collapsible>
 	);

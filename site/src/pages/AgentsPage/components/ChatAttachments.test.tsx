@@ -51,7 +51,7 @@ const renderAttachments = (queryClient = createTestQueryClient()) =>
 				attachments={getMessageAttachments([mockAttachmentMessage])}
 				evictedFileIds={new Set()}
 				isLoadingEarlierAttachments={false}
-				hasEarlierAttachmentsError={false}
+				earlierAttachmentsError={null}
 				isRetrying={false}
 				onRetry={vi.fn()}
 			/>
