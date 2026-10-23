@@ -636,7 +636,7 @@ func connectOne(
 		}
 
 		tools = append(
-			tools, newMCPTool(srv.ID, srv.Slug, mcpTool, session, srv.ModelIntent, redactor, limits.resultBytes),
+			tools, newMCPTool(srv.ID, srv.Slug, mcpTool, session, srv.ModelIntent, redactor, limits.resultBytes, limits.resultTextOnly),
 		)
 	}
 
@@ -667,13 +667,14 @@ const (
 	maxInlineToolResultBytes      = 256 << 10
 )
 
-// Cap model-visible tool definitions and persisted tool results even
-// for in-process servers.
+// Cap model-visible tool definitions and persisted tool result text even
+// for in-process servers. Their media is trusted, so only the chatloop
+// tool media cap bounds it.
 const (
 	maxInProcessTools                = 64
 	maxInProcessToolDefinitionBytes  = 64 << 10
 	maxInProcessToolDefinitionsBytes = 256 << 10
-	maxInProcessToolResultBytes      = 256 << 10
+	maxInProcessToolResultTextBytes  = 256 << 10
 )
 
 type toolLimits struct {
@@ -681,6 +682,8 @@ type toolLimits struct {
 	definitionBytes  int
 	definitionsBytes int
 	resultBytes      int
+	// resultTextOnly excludes media from resultBytes.
+	resultTextOnly bool
 }
 
 func (kind connectionKind) toolLimits() (toolLimits, bool) {
@@ -697,7 +700,8 @@ func (kind connectionKind) toolLimits() (toolLimits, bool) {
 			tools:            maxInProcessTools,
 			definitionBytes:  maxInProcessToolDefinitionBytes,
 			definitionsBytes: maxInProcessToolDefinitionsBytes,
-			resultBytes:      maxInProcessToolResultBytes,
+			resultBytes:      maxInProcessToolResultTextBytes,
+			resultTextOnly:   true,
 		}, true
 	default:
 		return toolLimits{}, false
@@ -1191,7 +1195,9 @@ type mcpToolWrapper struct {
 	session      *mcp.ClientSession
 	redactor     secretRedactor
 	// maxResultBytes caps the serialized tool result; 0 means no cap.
-	maxResultBytes  int
+	maxResultBytes int
+	// resultTextOnly excludes media from maxResultBytes.
+	resultTextOnly  bool
 	providerOptions fantasy.ProviderOptions
 }
 
@@ -1211,6 +1217,7 @@ func newMCPTool(
 	modelIntent bool,
 	redactor secretRedactor,
 	maxResultBytes int,
+	resultTextOnly bool,
 ) *mcpToolWrapper {
 	properties, required := splitInputSchema(tool.InputSchema)
 	// Model-visible fields are redacted once here. originalName is
@@ -1227,6 +1234,7 @@ func newMCPTool(
 		session:        session,
 		redactor:       redactor,
 		maxResultBytes: maxResultBytes,
+		resultTextOnly: resultTextOnly,
 	}
 }
 
@@ -1335,8 +1343,12 @@ func (t *mcpToolWrapper) Run(
 		}
 		resp = t.redactor.redactResponse(ConvertCallResult(result))
 	}
-	// Measure the result as the model receives it: Data is sent base64-encoded.
-	if t.maxResultBytes > 0 && len(resp.Content)+len(resp.MediaType)+base64.StdEncoding.EncodedLen(len(resp.Data)) > t.maxResultBytes {
+	resultBytes := len(resp.Content)
+	if !t.resultTextOnly {
+		// Measure the result as the model receives it: Data is sent base64-encoded.
+		resultBytes += len(resp.MediaType) + base64.StdEncoding.EncodedLen(len(resp.Data))
+	}
+	if t.maxResultBytes > 0 && resultBytes > t.maxResultBytes {
 		return fantasy.NewTextErrorResponse(fmt.Sprintf(
 			"tool result exceeded maximum size of %d bytes", t.maxResultBytes,
 		)), nil
