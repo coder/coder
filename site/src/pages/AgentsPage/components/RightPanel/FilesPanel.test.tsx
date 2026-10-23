@@ -65,22 +65,27 @@ const listings: Record<string, WorkspaceAgentListDirectoryResponse> = {
 listings["/home/coder"] = listings["~"];
 
 const renderRevealed = (
-	request: RevealRequest,
+	request: RevealRequest | undefined,
 	value: WorkspaceFilesContextValue = contextValue(),
 ) => {
+	const queryClient = createTestQueryClient();
 	const onRevealHandled = vi.fn();
-	render(
-		<QueryClientProvider client={createTestQueryClient()}>
+	const panel = (revealRequest: RevealRequest | undefined) => (
+		<QueryClientProvider client={queryClient}>
 			<WorkspaceFilesContext value={value}>
 				<FilesPanel
 					chatId="chat-1"
-					revealRequest={request}
+					revealRequest={revealRequest}
 					onRevealHandled={onRevealHandled}
 				/>
 			</WorkspaceFilesContext>
-		</QueryClientProvider>,
+		</QueryClientProvider>
 	);
-	return { onRevealHandled };
+	const result = render(panel(request));
+	return {
+		onRevealHandled,
+		reveal: (next: RevealRequest) => result.rerender(panel(next)),
+	};
 };
 
 const apiError = (status: number) =>
@@ -722,6 +727,32 @@ describe("FilesPanel", () => {
 		expect(
 			localStorage.getItem(`${filesPanelRootStorageKeyPrefix}chat-1`),
 		).toBe("~");
+	});
+
+	it("refetches a cached listing to reveal a file created since", async () => {
+		const { reveal } = renderRevealed(undefined);
+		await screen.findByRole("treeitem", { name: "README.md" });
+		const listDirectory = vi.mocked(API.listWorkspaceAgentDirectory);
+		const fallback = listDirectory.getMockImplementation();
+		const repo = listings["/home/coder/repo"];
+		listDirectory.mockImplementation(async (agentId, path, signal) =>
+			path === repo.absolute_path_string
+				? {
+						...repo,
+						contents: [
+							...repo.contents,
+							entry("/home/coder/repo/new.txt", false),
+						],
+					}
+				: fallback
+					? fallback(agentId, path, signal)
+					: Promise.reject(),
+		);
+
+		reveal({ path: "/home/coder/repo/new.txt", isDirectory: false });
+
+		const created = await screen.findByRole("treeitem", { name: "new.txt" });
+		await waitFor(() => expect(created).toHaveFocus());
 	});
 
 	it("does not list files without a workspace agent", () => {
