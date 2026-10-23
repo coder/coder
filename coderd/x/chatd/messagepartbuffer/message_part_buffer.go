@@ -384,19 +384,44 @@ func (b *Buffer) ToolCompletions(key Key) map[int]ToolCompletion {
 	return maps.Clone(episode.toolCompletions)
 }
 
+// Subscription delivers the parts of one episode to one subscriber.
+type Subscription struct {
+	buffer     *Buffer
+	key        Key
+	subscriber *episodeSubscriber
+}
+
+// Parts returns the channel that receives the episode's parts in seq order.
+// The buffer closes it after it delivers every part of a closed episode, and
+// when the subscription ends for any other reason.
+func (s *Subscription) Parts() <-chan Part {
+	return s.subscriber.out
+}
+
+// Err reports why the buffer ended the subscription. After Parts is closed,
+// it returns ErrSubscriberSendTimeout if the subscriber did not accept a part
+// within the send timeout, and nil otherwise.
+func (s *Subscription) Err() error {
+	s.buffer.mu.Lock()
+	defer s.buffer.mu.Unlock()
+	return s.subscriber.err
+}
+
+// Close ends the subscription. It is idempotent.
+func (s *Subscription) Close() {
+	s.buffer.cancelSubscriber(s.key, s.subscriber)
+}
+
 // SubscribeToEpisode replays existing parts and streams new parts.
 //
 // Subscribers may attach before CreateEpisode is called. In that case the
 // subscription stays idle until the first part added, closure, cancellation,
-// or buffer shutdown. The returned cancel function is idempotent. After the
-// channel closes, cancel returns ErrSubscriberSendTimeout if the buffer ended
-// the subscription because the subscriber did not accept a part within the
-// send timeout, and nil otherwise.
-func (b *Buffer) SubscribeToEpisode(ctx context.Context, key Key) (<-chan Part, func() error, error) {
+// or buffer shutdown.
+func (b *Buffer) SubscribeToEpisode(ctx context.Context, key Key) (*Subscription, error) {
 	b.mu.Lock()
 	if b.closed {
 		b.mu.Unlock()
-		return nil, nil, ErrMessagePartBufferClosed
+		return nil, ErrMessagePartBufferClosed
 	}
 	episode := b.getOrCreateEpisodeLocked(key)
 	subscriber := &episodeSubscriber{
@@ -420,10 +445,7 @@ func (b *Buffer) SubscribeToEpisode(ctx context.Context, key Key) (<-chan Part, 
 	b.mu.Unlock()
 
 	go b.deliverSubscriber(ctx, key, subscriber)
-	cancel := func() error {
-		return b.cancelSubscriber(key, subscriber)
-	}
-	return subscriber.out, cancel, nil
+	return &Subscription{buffer: b, key: key, subscriber: subscriber}, nil
 }
 
 // Close closes the buffer and all pending subscriptions.
@@ -595,16 +617,15 @@ func (b *Buffer) sendSubscriberPart(ctx context.Context, subscriber *episodeSubs
 	}
 }
 
-func (b *Buffer) cancelSubscriber(key Key, subscriber *episodeSubscriber) error {
+func (b *Buffer) cancelSubscriber(key Key, subscriber *episodeSubscriber) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	episode := b.episodes[key]
 	if episode != nil {
 		b.stopSubscriberLocked(episode, subscriber)
-		return subscriber.err
+		return
 	}
 	subscriber.stop()
-	return subscriber.err
 }
 
 func (b *Buffer) removeSubscriber(key Key, subscriber *episodeSubscriber) {

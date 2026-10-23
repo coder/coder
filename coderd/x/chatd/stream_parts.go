@@ -91,14 +91,14 @@ func (e streamPartsEndpoint) serve(ctx context.Context, transport streamPartsSer
 
 	var (
 		parts        <-chan messagepartbuffer.Part
-		partCancel   func() error
+		subscription *messagepartbuffer.Subscription
 		partCancelFn context.CancelFunc
 		selected     streamPartsControl
 		lastSeq      int64
 	)
 	defer func() {
-		if partCancel != nil {
-			_ = partCancel()
+		if subscription != nil {
+			subscription.Close()
 		}
 		if partCancelFn != nil {
 			partCancelFn()
@@ -106,9 +106,9 @@ func (e streamPartsEndpoint) serve(ctx context.Context, transport streamPartsSer
 	}()
 
 	selectEpisode := func(control streamPartsControl) error {
-		if partCancel != nil {
-			_ = partCancel()
-			partCancel = nil
+		if subscription != nil {
+			subscription.Close()
+			subscription = nil
 		}
 		if partCancelFn != nil {
 			partCancelFn()
@@ -118,7 +118,7 @@ func (e streamPartsEndpoint) serve(ctx context.Context, transport streamPartsSer
 		selected = control
 		lastSeq = 0
 		partCtx, cancel := context.WithCancel(ctx)
-		ch, cancelSub, err := e.buffer.SubscribeToEpisode(partCtx, messagepartbuffer.Key{
+		sub, err := e.buffer.SubscribeToEpisode(partCtx, messagepartbuffer.Key{
 			ChatID:            e.chatID,
 			HistoryVersion:    control.HistoryVersion,
 			GenerationAttempt: control.GenerationAttempt,
@@ -128,8 +128,8 @@ func (e streamPartsEndpoint) serve(ctx context.Context, transport streamPartsSer
 			return err
 		}
 		partCancelFn = cancel
-		partCancel = cancelSub
-		parts = ch
+		subscription = sub
+		parts = sub.Parts()
 		return nil
 	}
 
@@ -154,7 +154,7 @@ func (e streamPartsEndpoint) serve(ctx context.Context, transport streamPartsSer
 				// and selects the episode again, which replays it from seq 1.
 				// An ended episode keeps the connection open for the next
 				// selection.
-				if err := partCancel(); err != nil {
+				if err := subscription.Err(); err != nil {
 					e.logger.Warn(ctx, "message part subscription dropped",
 						slog.F("history_version", selected.HistoryVersion),
 						slog.F("generation_attempt", selected.GenerationAttempt),

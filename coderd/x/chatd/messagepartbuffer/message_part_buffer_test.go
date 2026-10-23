@@ -218,9 +218,10 @@ func TestBuffer_SubscribeExistingReplaysThenStreamsLiveParts(t *testing.T) {
 	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("before")))
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	ch, cancel, err := buffer.SubscribeToEpisode(ctx, key)
+	sub, err := buffer.SubscribeToEpisode(ctx, key)
 	require.NoError(t, err)
-	defer cancel()
+	ch := sub.Parts()
+	defer sub.Close()
 	require.Equal(t, "before", receivePart(t, ch).MessagePart.Text)
 
 	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("after")))
@@ -238,12 +239,13 @@ func TestBuffer_SubscribeClosedEpisodeReplaysThenCloses(t *testing.T) {
 	require.NoError(t, buffer.CloseEpisode(key))
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	ch, cancel, err := buffer.SubscribeToEpisode(ctx, key)
+	sub, err := buffer.SubscribeToEpisode(ctx, key)
 	require.NoError(t, err)
-	defer cancel()
+	ch := sub.Parts()
+	defer sub.Close()
 	require.Equal(t, "before", receivePart(t, ch).MessagePart.Text)
 	assertChannelClosed(t, ch)
-	require.NoError(t, cancel(), "an ended episode is not a dropped subscription")
+	require.NoError(t, sub.Err(), "an ended episode is not a dropped subscription")
 }
 
 func TestBuffer_SubscribeBeforeCreateReturnsAndWaitsWithoutNotFound(t *testing.T) {
@@ -253,9 +255,10 @@ func TestBuffer_SubscribeBeforeCreateReturnsAndWaitsWithoutNotFound(t *testing.T
 	defer buffer.Close()
 	key := testEpisodeKey()
 	ctx := testutil.Context(t, testutil.WaitLong)
-	ch, cancel, err := buffer.SubscribeToEpisode(ctx, key)
+	sub, err := buffer.SubscribeToEpisode(ctx, key)
 	require.NoError(t, err)
-	defer cancel()
+	ch := sub.Parts()
+	defer sub.Close()
 
 	select {
 	case part := <-ch:
@@ -313,8 +316,9 @@ func TestBuffer_GCClosedEpisodeAfterGraceAndNoSubscribers(t *testing.T) {
 	require.NoError(t, buffer.CreateEpisode(key))
 	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("held")))
 	ctx := testutil.Context(t, testutil.WaitLong)
-	ch, cancel, err := buffer.SubscribeToEpisode(ctx, key)
+	sub, err := buffer.SubscribeToEpisode(ctx, key)
 	require.NoError(t, err)
+	ch := sub.Parts()
 	require.NoError(t, buffer.CloseEpisode(key))
 	call := trap.MustWait(ctx)
 	call.MustRelease(ctx)
@@ -323,7 +327,7 @@ func TestBuffer_GCClosedEpisodeAfterGraceAndNoSubscribers(t *testing.T) {
 	_, err = buffer.GetParts(key)
 	require.NoError(t, err)
 
-	cancel()
+	sub.Close()
 	drainUntilClosed(t, ch)
 	_, err = buffer.GetParts(key)
 	require.ErrorIs(t, err, messagepartbuffer.ErrEpisodeNotFound)
@@ -348,9 +352,10 @@ func TestBuffer_GCRetainedSubscribedEpisodeDoesNotBlockOtherExpiredEpisodes(t *t
 	require.NoError(t, buffer.CreateEpisode(collectedKey))
 	require.NoError(t, buffer.AddPart(collectedKey, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("collect me")))
 	ctx := testutil.Context(t, testutil.WaitLong)
-	ch, cancel, err := buffer.SubscribeToEpisode(ctx, retainedKey)
+	sub, err := buffer.SubscribeToEpisode(ctx, retainedKey)
 	require.NoError(t, err)
-	defer cancel()
+	ch := sub.Parts()
+	defer sub.Close()
 	require.NoError(t, buffer.CloseEpisode(retainedKey))
 	require.NoError(t, buffer.CloseEpisode(collectedKey))
 	call := trap.MustWait(ctx)
@@ -363,7 +368,7 @@ func TestBuffer_GCRetainedSubscribedEpisodeDoesNotBlockOtherExpiredEpisodes(t *t
 	_, err = buffer.GetParts(collectedKey)
 	require.ErrorIs(t, err, messagepartbuffer.ErrEpisodeNotFound)
 
-	cancel()
+	sub.Close()
 	drainUntilClosed(t, ch)
 	_, err = buffer.GetParts(retainedKey)
 	require.ErrorIs(t, err, messagepartbuffer.ErrEpisodeNotFound)
@@ -385,9 +390,10 @@ func TestBuffer_SlowSubscriberClosed(t *testing.T) {
 	key := testEpisodeKey()
 	require.NoError(t, buffer.CreateEpisode(key))
 	ctx := testutil.Context(t, testutil.WaitLong)
-	ch, cancel, err := buffer.SubscribeToEpisode(ctx, key)
+	sub, err := buffer.SubscribeToEpisode(ctx, key)
 	require.NoError(t, err)
-	defer cancel()
+	ch := sub.Parts()
+	defer sub.Close()
 
 	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("blocked")))
 	call := trap.MustWait(ctx)
@@ -396,7 +402,7 @@ func TestBuffer_SlowSubscriberClosed(t *testing.T) {
 	stopCall := stopTrap.MustWait(ctx)
 	stopCall.MustRelease(ctx)
 	assertChannelClosed(t, ch)
-	require.ErrorIs(t, cancel(), messagepartbuffer.ErrSubscriberSendTimeout)
+	require.ErrorIs(t, sub.Err(), messagepartbuffer.ErrSubscriberSendTimeout)
 }
 
 func TestBuffer_BurstyOutputDoesNotCloseSubscriberBeforeSendTimeout(t *testing.T) {
@@ -407,9 +413,10 @@ func TestBuffer_BurstyOutputDoesNotCloseSubscriberBeforeSendTimeout(t *testing.T
 	key := testEpisodeKey()
 	require.NoError(t, buffer.CreateEpisode(key))
 	ctx := testutil.Context(t, testutil.WaitLong)
-	ch, cancel, err := buffer.SubscribeToEpisode(ctx, key)
+	sub, err := buffer.SubscribeToEpisode(ctx, key)
 	require.NoError(t, err)
-	defer cancel()
+	ch := sub.Parts()
+	defer sub.Close()
 
 	for i := range 8 {
 		require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText(string(rune('a'+i)))))
@@ -427,11 +434,12 @@ func TestBuffer_SubscribeCanceledBeforeCreateCanCreateEpisode(t *testing.T) {
 	defer buffer.Close()
 	key := testEpisodeKey()
 	ctx, cancel := context.WithCancel(context.Background())
-	ch, cancelSub, err := buffer.SubscribeToEpisode(ctx, key)
+	sub, err := buffer.SubscribeToEpisode(ctx, key)
 	require.NoError(t, err)
+	ch := sub.Parts()
 	cancel()
 	drainUntilClosed(t, ch)
-	cancelSub()
+	sub.Close()
 	require.NoError(t, buffer.CreateEpisode(key))
 }
 
@@ -442,9 +450,10 @@ func TestBuffer_SubscribeCanceledWithoutCreateReclaimsEpisode(t *testing.T) {
 	defer buffer.Close()
 	key := testEpisodeKey()
 	ctx := testutil.Context(t, testutil.WaitLong)
-	ch, cancelSub, err := buffer.SubscribeToEpisode(ctx, key)
+	sub, err := buffer.SubscribeToEpisode(ctx, key)
 	require.NoError(t, err)
-	cancelSub()
+	ch := sub.Parts()
+	sub.Close()
 	// The subscriber goroutine removes itself from the episode before closing
 	// the output channel, so cleanup is complete once the channel is closed.
 	drainUntilClosed(t, ch)
@@ -461,9 +470,10 @@ func TestBuffer_CloseClosesPendingSubscriptionAndRejectsOperations(t *testing.T)
 	defer buffer.Close()
 	key := testEpisodeKey()
 	ctx := testutil.Context(t, testutil.WaitLong)
-	ch, cancel, err := buffer.SubscribeToEpisode(ctx, key)
+	sub, err := buffer.SubscribeToEpisode(ctx, key)
 	require.NoError(t, err)
-	defer cancel()
+	ch := sub.Parts()
+	defer sub.Close()
 	buffer.Close()
 	assertChannelClosed(t, ch)
 	require.ErrorIs(t, buffer.CreateEpisode(key), messagepartbuffer.ErrMessagePartBufferClosed)
