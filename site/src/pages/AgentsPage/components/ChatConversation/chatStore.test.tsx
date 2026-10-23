@@ -4872,7 +4872,6 @@ describe("chat stream contract", () => {
 			sockets[0].emitData(message(2, "assistant", 5));
 			sockets[0].emitParseError();
 		});
-		// A later event's version would skip what the lost frame held.
 		expect(sockets[0].close).toHaveBeenCalled();
 		expect(result.current.error).toMatchObject({
 			message: "Failed to parse chat stream update.",
@@ -4897,7 +4896,6 @@ describe("chat stream contract", () => {
 		);
 		await waitFor(() => expect(sockets).toHaveLength(1));
 
-		// A replica older than this client sends the event without one.
 		act(() => {
 			sockets[0].emitOpen();
 			sockets[0].emitDataBatch([

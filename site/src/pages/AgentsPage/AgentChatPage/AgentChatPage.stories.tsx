@@ -3521,10 +3521,6 @@ export const EditAppliesMCPServerSelection: Story = {
 	},
 };
 
-/**
- * The send flow shows the prompt at submit, while the request is still
- * pending.
- */
 export const SendShowsPromptAtSubmit: Story = {
 	parameters: {
 		queries: buildQueries(
