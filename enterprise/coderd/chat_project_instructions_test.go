@@ -61,6 +61,7 @@ func TestChatProjectInstructionsUpdateOnlyRole(t *testing.T) {
 	require.Equal(t, "Keep answers short.", saved.Instructions)
 	require.NotNil(t, saved.UpdatedBy)
 	require.Equal(t, editor.ID, saved.UpdatedBy.ID)
+	require.NoError(t, updateOnly.DeleteChatProjectInstructions(ctx, firstUser.OrganizationID, project.ID))
 }
 
 func TestChatProjectInstructionsAudit(t *testing.T) {

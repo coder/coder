@@ -21,7 +21,7 @@ When the style guide and the [content guidelines](.style/content-guidelines.md) 
   Reserve "we" for Coder Technologies as a company.
 - **DOC5:** Active voice, present tense, contractions by default.
   Spell out negative instructions: `do not`, not `don't`.
-  Keep sentences short, and keep each sentence in a step to 20 words or fewer.
+  Keep sentences short, and keep each step to 20 words or fewer.
 - **DOC6:** Use the canonical term: `select` not `click`, `stop` not `kill`, `turn off` not `disable`, `refer to` or `visit` not `see` or `check out`, `Learn more` not `Next steps`, `tutorial` not `walkthrough`.
 - **DOC7:** Use canonical product and brand casing, and one term per concept.
 - **DOC8:** One instruction per step.

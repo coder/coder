@@ -15,6 +15,7 @@ import {
 } from "#/components/Collapsible/Collapsible";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
+import { clampContent } from "#/utils/text";
 import { DebugStepCard } from "./DebugStepCard";
 import {
 	buildDebugExportBlob,
@@ -23,7 +24,6 @@ import {
 	debugExportFilename,
 } from "./debugExport";
 import {
-	clampContent,
 	coerceRunSummary,
 	compactDuration,
 	computeDurationMs,

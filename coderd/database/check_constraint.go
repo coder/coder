@@ -9,6 +9,11 @@ const (
 	CheckAIGatewayKeysHashedSecretCheck                      CheckConstraint = "ai_gateway_keys_hashed_secret_check"                       // ai_gateway_keys
 	CheckAIGatewayKeysNameCheck                              CheckConstraint = "ai_gateway_keys_name_check"                                // ai_gateway_keys
 	CheckAIGatewayKeysSecretPrefixCheck                      CheckConstraint = "ai_gateway_keys_secret_prefix_check"                       // ai_gateway_keys
+	CheckAIModelConfigsCacheReadPriceCheck                   CheckConstraint = "ai_model_configs_cache_read_price_check"                   // ai_model_configs
+	CheckAIModelConfigsCacheWritePriceCheck                  CheckConstraint = "ai_model_configs_cache_write_price_check"                  // ai_model_configs
+	CheckAIModelConfigsInputPriceCheck                       CheckConstraint = "ai_model_configs_input_price_check"                        // ai_model_configs
+	CheckAIModelConfigsModelCheck                            CheckConstraint = "ai_model_configs_model_check"                              // ai_model_configs
+	CheckAIModelConfigsOutputPriceCheck                      CheckConstraint = "ai_model_configs_output_price_check"                       // ai_model_configs
 	CheckAIModelPricesCacheReadPriceCheck                    CheckConstraint = "ai_model_prices_cache_read_price_check"                    // ai_model_prices
 	CheckAIModelPricesCacheWritePriceCheck                   CheckConstraint = "ai_model_prices_cache_write_price_check"                   // ai_model_prices
 	CheckAIModelPricesInputPriceCheck                        CheckConstraint = "ai_model_prices_input_price_check"                         // ai_model_prices
@@ -78,6 +83,8 @@ const (
 	CheckSkillsUserAclIsObject                               CheckConstraint = "skills_user_acl_is_object"                                 // skills
 	CheckTelemetryLockEventTypeConstraint                    CheckConstraint = "telemetry_lock_event_type_constraint"                      // telemetry_locks
 	CheckValidationMonotonicOrder                            CheckConstraint = "validation_monotonic_order"                                // template_version_parameters
+	CheckTemplateVersionsScriptOrderDataSourceCountCheck     CheckConstraint = "template_versions_script_order_data_source_count_check"    // template_versions
+	CheckTemplateVersionsScriptOrderRuleCountCheck           CheckConstraint = "template_versions_script_order_rule_count_check"           // template_versions
 	CheckUsageEventTypeCheck                                 CheckConstraint = "usage_event_type_check"                                    // usage_events
 	CheckUsageEventsAgentRuntimeHourAligned                  CheckConstraint = "usage_events_agent_runtime_hour_aligned"                   // usage_events
 	CheckUserAIBudgetOverridesSpendLimitMicrosCheck          CheckConstraint = "user_ai_budget_overrides_spend_limit_micros_check"         // user_ai_budget_overrides
@@ -96,4 +103,6 @@ const (
 	CheckWorkspaceBuildsDeadlineBelowMaxDeadline             CheckConstraint = "workspace_builds_deadline_below_max_deadline"              // workspace_builds
 	CheckGroupAclIsObject                                    CheckConstraint = "group_acl_is_object"                                       // workspaces
 	CheckUserAclIsObject                                     CheckConstraint = "user_acl_is_object"                                        // workspaces
+	CheckWorkspaceSecretsRequiresTarget                      CheckConstraint = "workspace_secrets_requires_target"                         // workspace_secrets
+	CheckWorkspaceSecretsValueCleared                        CheckConstraint = "workspace_secrets_value_cleared"                           // workspace_secrets
 )

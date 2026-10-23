@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn, within } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 import {
 	MockChatProject,
 	MockChatProjectInstructions,
@@ -22,6 +22,10 @@ const meta: Meta<typeof ProjectDetailsPanelView> = {
 	args: {
 		ownerLabel: "You",
 		createdAt: MockChatProject.created_at,
+		skillCount: 3,
+		disabledSkillCount: 0,
+		skillsError: undefined,
+		onOpenSkills: fn(),
 		instructions: MockChatProjectInstructions,
 		error: undefined,
 		onRetry: fn(),
@@ -33,6 +37,32 @@ export default meta;
 type Story = StoryObj<typeof ProjectDetailsPanelView>;
 
 export const Default: Story = {};
+
+/** Users without update permission, such as `use` sharees, cannot edit. */
+export const WithoutUpdatePermission: Story = {
+	args: { onEditInstructions: undefined },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText(/Run the linters before committing/);
+		expect(
+			canvas.queryByRole("button", { name: "Edit instructions" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const UnsetWithoutUpdatePermission: Story = {
+	args: {
+		instructions: MockUnsetChatProjectInstructions,
+		onEditInstructions: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("No instructions");
+		expect(
+			canvas.queryByRole("button", { name: "Create instructions" }),
+		).not.toBeInTheDocument();
+	},
+};
 
 export const WithOrganization: Story = {
 	args: { organizationLabel: "Coder" },
@@ -72,6 +102,27 @@ export const CreatedDateFocused: Story = {
 	},
 };
 
+/** Focus returns to the Skills row after the skills dialog closes. */
+export const SkillsFocused: Story = {
+	play: async ({ canvasElement }) => {
+		within(canvasElement)
+			.getByRole("button", { name: /^Skills:/ })
+			.focus();
+	},
+};
+
+export const OneSkill: Story = {
+	args: { skillCount: 1 },
+};
+
+export const SomeSkillsDisabled: Story = {
+	args: { disabledSkillCount: 1 },
+};
+
+export const NoSkills: Story = {
+	args: { skillCount: 0 },
+};
+
 export const Unset: Story = {
 	args: { instructions: MockUnsetChatProjectInstructions },
 };
@@ -91,12 +142,14 @@ export const LongInstructions: Story = {
 };
 
 export const Loading: Story = {
-	args: { instructions: undefined },
+	args: { instructions: undefined, skillCount: undefined },
 };
 
 export const LoadError: Story = {
 	args: {
 		instructions: undefined,
+		skillCount: undefined,
+		skillsError: mockApiError({ message: "Failed to list project skills." }),
 		error: mockApiError({
 			message: "Failed to get chat project instructions.",
 		}),
