@@ -146,8 +146,7 @@ Queued messages wait in two lanes. These rules apply to every transition that qu
 - `DeleteQueuedMessage(qid)` removes one queued message without changing the active history. From `P`, removing the head promotes the message behind it and reaches `running`, or reaches `waiting` when the head was the last queued message.
 - `SteerQueuedMessage(qid)` moves a queued message to the end of the `steer` lane. A `steer` message keeps its place. Steering a message under edit ends its edit. From `E1`, `E1P`, and `P`, it closes open tool calls with synthetic cancellation results, delivers the whole `steer` lane into history, and reaches `running`. From the other states it keeps the chat status, and the `steer` lane waits for the next delivery point.
 - `EditQueuedMessage(qid, content?, editing?)` rewrites a queued message's content, begins or ends its edit, or both. Beginning an edit ends any other edit on the chat. From `P`, ending the head's edit promotes it and reaches `running`; beginning an edit on a different message is refused.
-- `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog. When the chat is `running` and no worker owns it, nothing is generating, so the same transaction also applies `FinishInterruption` after inserting synthetic cancellation results for any outstanding tool calls.
-  - TODO (interrupt no-op): `Interrupt` from `W`, `E0`, `E1`, `E1P`, `P`, or an owned `I0`, `I1`, or `I1P` chat now succeeds and leaves the chat unchanged, because nothing is left to interrupt. Describe this here, and add the `Interrupt` self-loops on `W`, `E0`, `E1`, `E1P`, `P`, `I0`, `I1`, and `I1P` to the execution state transition diagram.
+- `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog. When no worker owns a `running` or `interrupting` chat, nothing is generating, so the same transaction also applies `FinishInterruption`, passing synthetic cancellation results for any outstanding tool calls as the interrupted suffix. In `W`, `E0`, `E1`, `E1P`, and `P` no turn is active, and an owned `I0`, `I1`, or `I1P` chat is left for the chat worker to finish. In these states there is nothing to interrupt, so it succeeds and writes nothing.
 - `CompleteRequiresAction(results)` inserts submitted tool-result messages followed by any caller-provided suffix messages, clears `requires_action_deadline_at`, and lands in `running`. It preserves queued messages.
 - `RequestCompaction` records a manual compaction request on an idle or errored chat by setting `compaction_requested_at` and landing in `running` without inserting any message. It clears `last_error` per the leave-error rule, advances `history_version` to the transaction's new `snapshot_version`, and resets `generation_attempt`, so the compaction turn gets a full retry budget and message part episode keys that cannot collide with episodes retained from the previous turn. The chat worker picks the chat up like any other running chat and consumes the request. See [Manual compaction](#manual-compaction).
 - `ClearContext(messages)` commits a manual context reset synchronously, without involving the chat worker. It inserts the caller-built compressed clear boundary triplet (a hidden model-only sentinel user row, plus visible synthetic `chat_cleared` tool-call and tool-result messages), clears `last_error` and any pending `compaction_requested_at`, leaves ownership untouched, and lands in `waiting`. No worker turn or model call follows; the message insert trigger advances `history_version` and resets `generation_attempt`. `E1` is rejected because no waiting-with-queue state exists and a synchronous clear has no turn after which the queue would drain.
@@ -188,6 +187,7 @@ stateDiagram-v2
     W --> R0: EditMessage
     W --> R0: RequestCompaction
     W --> W: ClearContext
+    W --> W: Interrupt
     W --> E0: FinishError
     W --> XW: SetArchived(true)
     W --> W: SetProject
@@ -196,6 +196,7 @@ stateDiagram-v2
     E0 --> R0: EditMessage
     E0 --> R0: RequestCompaction
     E0 --> W: ClearContext
+    E0 --> E0: Interrupt
     E0 --> XE0: SetArchived(true)
     E0 --> E0: SetProject
 
@@ -214,6 +215,7 @@ stateDiagram-v2
     E1 --> R1P: SteerQueuedMessage / new head under edit
     E1 --> E1: EditQueuedMessage / content edit or edit behind head
     E1 --> E1P: EditQueuedMessage / begin edit on head
+    E1 --> E1: Interrupt
     E1 --> XE1: SetArchived(true)
     E1 --> E1: SetProject
 
@@ -231,6 +233,7 @@ stateDiagram-v2
     E1P --> R1P: SteerQueuedMessage / steered row behind head
     E1P --> E1P: EditQueuedMessage / content edit
     E1P --> E1: EditQueuedMessage / end head edit or begin edit behind head
+    E1P --> E1P: Interrupt
     E1P --> XE1P: SetArchived(true)
 
     R0 --> R0: RecordGenerationAttempt
@@ -288,6 +291,7 @@ stateDiagram-v2
 
     I0 --> I1: SendMessage
     I0 --> R0: EditMessage
+    I0 --> I0: Interrupt
     I0 --> W: FinishInterruption
 
     I1 --> I1: SendMessage
@@ -298,6 +302,7 @@ stateDiagram-v2
     I1 --> I1: SteerQueuedMessage
     I1 --> I1: EditQueuedMessage / content edit or edit behind head
     I1 --> I1P: EditQueuedMessage / begin edit on head
+    I1 --> I1: Interrupt
     I1 --> R0: FinishInterruption / promoted last queued
     I1 --> R1: FinishInterruption / queue still non-empty after promoting
     I1 --> R1P: FinishInterruption / new head under edit
@@ -311,6 +316,7 @@ stateDiagram-v2
     I1P --> I1: SteerQueuedMessage
     I1P --> I1P: EditQueuedMessage / content edit
     I1P --> I1: EditQueuedMessage / end head edit or begin edit behind head
+    I1P --> I1P: Interrupt
     I1P --> P: FinishInterruption
 
     A0 --> R0: CompleteRequiresAction
@@ -364,6 +370,7 @@ stateDiagram-v2
     P --> P: EditQueuedMessage / content edit
     P --> R0: EditQueuedMessage / end head edit, promoted last queued
     P --> R1: EditQueuedMessage / end head edit, queue still non-empty
+    P --> P: Interrupt
 
     XW --> W: SetArchived(false)
     XE0 --> E0: SetArchived(false)
@@ -761,9 +768,18 @@ When `Interrupt(user_cancel)` reaches `I0`, `I1`, or `I1P`, the chat is later pi
 
 When no worker owns the chat (`worker_id` is null), for example because it is waiting for capacity, nothing is generating and no runner would finish the interruption without first taking a capacity slot. The endpoint therefore applies `FinishInterruption` in the same transaction: `R0` lands in `W`, `R1` promotes every `steer` message, or the queue head if there are none, and lands in `R0`, `R1`, or `R1P` without an owner, so the promoted turn still goes through capacity admission, and `R1P` lands in `P`.
 
-The endpoint also accepts an unowned chat that is already in `I0`, `I1`, or `I1P`, for example after a worker acquired the chat and then abandoned it. It applies `FinishInterruption` in the same transaction: `I0` lands in `W`, `I1` promotes every `steer` message, or the queue head if there are none, and lands in `R0`, `R1`, or `R1P` without an owner, and `I1P` lands in `P`. An owned chat in `I0`, `I1`, or `I1P` is rejected, because its runner already finishes the interruption.
+The endpoint also accepts an unowned chat that is already in `I0`, `I1`, or `I1P`, for example after a worker acquired the chat and then abandoned it. It applies `FinishInterruption` in the same transaction: `I0` lands in `W`, `I1` promotes every `steer` message, or the queue head if there are none, and lands in `R0`, `R1`, or `R1P` without an owner, and `I1P` lands in `P`.
 
-TODO (interrupt no-op): the endpoint now returns 200 and the unchanged chat for `W`, `E0`, `E1`, `E1P`, `P`, and an owned chat in `I0`, `I1`, or `I1P`. A client that interrupts a chat whose turn ends first therefore gets no 409 error. The last sentence of the previous paragraph and the sentence below are stale. Describe this here.
+When there is nothing to interrupt, for example because the turn already ended, the endpoint returns the chat unchanged:
+
+- `W -> Interrupt(user_cancel) -> W`
+- `E0 -> Interrupt(user_cancel) -> E0`
+- `E1 -> Interrupt(user_cancel) -> E1`
+- `E1P -> Interrupt(user_cancel) -> E1P`
+- `I0 -> Interrupt(user_cancel) -> I0` if a worker owns the chat
+- `I1 -> Interrupt(user_cancel) -> I1` if a worker owns the chat
+- `I1P -> Interrupt(user_cancel) -> I1P` if a worker owns the chat
+- `P -> Interrupt(user_cancel) -> P`
 
 No other input states are supported.
 
