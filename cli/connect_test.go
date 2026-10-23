@@ -5,6 +5,7 @@ import (
 	"context"
 	"net"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -58,24 +59,26 @@ func TestConnectExists_NotRunning(t *testing.T) {
 
 func TestConnectExists_Timeout(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
-	ctx = workspacesdk.WithTestOnlyCoderContextResolver(ctx, &fakeResolver{blockUntilCanceled: true})
+	synctest.Test(t, func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx = workspacesdk.WithTestOnlyCoderContextResolver(ctx, &fakeResolver{blockUntilCanceled: true})
 
-	var root cli.RootCmd
-	cmd, err := root.Command(root.AGPL())
-	require.NoError(t, err)
+		var root cli.RootCmd
+		cmd, err := root.Command(root.AGPL())
+		require.NoError(t, err)
 
-	inv := (&serpent.Invocation{
-		Command: cmd,
-		Args:    []string{"connect", "exists", "test.example"},
-	}).WithContext(ctx)
-	inv.Stdout = new(bytes.Buffer)
-	inv.Stderr = new(bytes.Buffer)
+		inv := (&serpent.Invocation{
+			Command: cmd,
+			Args:    []string{"connect", "exists", "test.example"},
+		}).WithContext(ctx)
+		inv.Stdout = new(bytes.Buffer)
+		inv.Stderr = new(bytes.Buffer)
 
-	start := time.Now()
-	err = inv.Run()
-	require.ErrorIs(t, err, context.DeadlineExceeded)
-	require.Less(t, time.Since(start), testutil.WaitShort)
+		start := time.Now()
+		err = inv.Run()
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.Less(t, time.Since(start), testutil.WaitShort)
+	})
 }
 
 type fakeResolver struct {
