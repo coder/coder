@@ -27,20 +27,11 @@ import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { Loader } from "#/components/Loader/Loader";
 import {
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectLabel,
-	SelectSeparator,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/Select/Select";
-import {
 	useWorkspaceFiles,
 	type WorkspaceFilesContextValue,
 } from "../../context/WorkspaceFilesContext";
 import { getPathBasename, getPathDirname } from "../../utils/path";
+import { FilesRootPicker } from "./FilesRootPicker";
 
 export const filesPanelRootStorageKeyPrefix = "agents.files-panel-root.";
 
@@ -76,11 +67,6 @@ export const useFilesPanelRoot = (
 	return { root: storedRoot ?? repoRoots[0] ?? "", setRoot };
 };
 
-// Radix Select reserves the empty string, and "" is the default directory
-// path form, so every root value carries a prefix.
-const rootValuePrefix = "path:";
-const openPathValue = "open-path";
-
 // The tree is a live view of files the agent edits, so it refetches when the
 // window regains focus even though the app disables that by default.
 const directoryQuery = (agentId: string, path: string) => ({
@@ -105,100 +91,6 @@ const directoryErrorMessage = (error: unknown, path: string) => {
 
 const isWithin = (path: string, directory: string) =>
 	path === directory || path.startsWith(`${directory}/`);
-
-/** Shows an absolute path under home as `~` or `~/rest`. */
-export const abbreviateHomePath = (
-	path: string,
-	homePath: string | undefined,
-): string => {
-	if (homePath === undefined || homePath === "/" || !isWithin(path, homePath)) {
-		return path;
-	}
-	return `~${path.slice(homePath.length)}`;
-};
-
-type RootOption = {
-	/** The root in list-directory path form, as stored per chat. */
-	root: string;
-	label: string;
-	description: string;
-	title: string;
-};
-
-/**
- * Picker entries in display order: the fixed places, the chat's repositories,
- * then the current root when it is none of those (one opened by path).
- */
-const getRootOptions = ({
-	root,
-	rootPath,
-	homePath,
-	defaultDirectory,
-	repoRoots,
-}: {
-	root: string;
-	rootPath: string | undefined;
-	homePath: string | undefined;
-	/** Undefined when the default directory is home. */
-	defaultDirectory: string | undefined;
-	repoRoots: readonly string[];
-}) => {
-	const places: RootOption[] = [
-		{ root: "/", label: "File system", description: "/", title: "/" },
-		{
-			// One entry serves both forms when home is the default directory, so
-			// a stored "" still shows as selected.
-			root: defaultDirectory === undefined && root === "" ? "" : "~",
-			label: "Home",
-			description: "~",
-			title: homePath ?? "~",
-		},
-	];
-	// A default directory that is also a repository is listed once, under
-	// Repositories, unless it is the current root in its "" form.
-	if (
-		defaultDirectory !== undefined &&
-		(!repoRoots.includes(defaultDirectory) || root === "")
-	) {
-		places.push({
-			root: "",
-			label: getPathBasename(defaultDirectory),
-			description: abbreviateHomePath(defaultDirectory, homePath),
-			title: defaultDirectory,
-		});
-	}
-	const repositories = repoRoots.map(
-		(path): RootOption => ({
-			root: path,
-			label: getPathBasename(path),
-			description: abbreviateHomePath(path, homePath),
-			title: path,
-		}),
-	);
-	const isListed = [...places, ...repositories].some(
-		(option) => option.root === root,
-	);
-	const resolved = rootPath ?? root;
-	const opened: RootOption | undefined = isListed
-		? undefined
-		: {
-				root,
-				label: getPathBasename(resolved) || resolved,
-				description: abbreviateHomePath(resolved, homePath),
-				title: resolved,
-			};
-	return { places, repositories, opened };
-};
-
-const RootSelectItem: React.FC<{ option: RootOption }> = ({ option }) => (
-	<SelectItem
-		value={`${rootValuePrefix}${option.root}`}
-		title={option.title}
-		description={option.description}
-	>
-		{option.label}
-	</SelectItem>
-);
 
 /**
  * Expanded directories the current listings show: each one's parent listing
@@ -482,25 +374,19 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 	const homeIsDefault =
 		defaultDirectory === undefined ||
 		(homePath !== undefined && homePath === defaultPath);
-	const rootOptions = getRootOptions({
-		root,
-		rootPath,
-		homePath,
-		defaultDirectory: homeIsDefault ? undefined : defaultDirectory,
-		repoRoots,
-	});
 
-	const handleRootValueChange = (value: string) => {
+	const handleSelectRoot = (nextRoot: string) => {
 		cancelOpenPath();
-		if (value === openPathValue) {
-			focusPathInputOnClose.current = true;
-			setIsEnteringPath(true);
-			return;
-		}
-		selectRoot(value.slice(rootValuePrefix.length));
+		selectRoot(nextRoot);
 	};
 
-	const handleSelectCloseAutoFocus = (event: Event) => {
+	const handleChooseOpenPath = () => {
+		cancelOpenPath();
+		focusPathInputOnClose.current = true;
+		setIsEnteringPath(true);
+	};
+
+	const handleMenuCloseAutoFocus = (event: Event) => {
 		if (!focusPathInputOnClose.current) {
 			return;
 		}
@@ -579,46 +465,25 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
-			<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border p-2">
-				<Select
-					value={`${rootValuePrefix}${root}`}
-					onValueChange={handleRootValueChange}
-				>
-					<SelectTrigger
-						ref={rootTriggerRef}
-						aria-label="Root directory"
-						className="h-7 min-w-0 flex-1 text-xs"
-					>
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent onCloseAutoFocus={handleSelectCloseAutoFocus}>
-						{rootOptions.places.map((option) => (
-							<RootSelectItem key={option.root} option={option} />
-						))}
-						{rootOptions.repositories.length > 0 && (
-							<SelectGroup>
-								<SelectLabel className="text-xs font-medium text-content-secondary">
-									Repositories
-								</SelectLabel>
-								{rootOptions.repositories.map((option) => (
-									<RootSelectItem key={option.root} option={option} />
-								))}
-							</SelectGroup>
-						)}
-						{rootOptions.opened && (
-							<RootSelectItem option={rootOptions.opened} />
-						)}
-						<SelectSeparator />
-						<SelectItem value={openPathValue}>Open path...</SelectItem>
-					</SelectContent>
-				</Select>
+			<div className="flex shrink-0 items-center justify-between gap-2 border-0 border-b border-solid border-border p-2">
+				<FilesRootPicker
+					root={root}
+					rootPath={rootPath}
+					homePath={homePath}
+					defaultDirectory={homeIsDefault ? undefined : defaultDirectory}
+					repoRoots={repoRoots}
+					triggerRef={rootTriggerRef}
+					onSelectRoot={handleSelectRoot}
+					onOpenPath={handleChooseOpenPath}
+					onCloseAutoFocus={handleMenuCloseAutoFocus}
+				/>
 				<Button
 					variant="subtle"
 					size="icon"
 					aria-label="Refresh files"
 					title="Refresh files"
 					aria-busy={isFetching || isRefreshShown}
-					className="size-7"
+					className="size-6"
 					onClick={handleRefresh}
 				>
 					<RefreshCwIcon

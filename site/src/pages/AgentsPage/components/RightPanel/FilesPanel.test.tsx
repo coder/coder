@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { focusManager, QueryClientProvider } from "react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -192,8 +192,8 @@ describe("FilesPanel", () => {
 		const { unmount } = renderPanel(contextValue());
 
 		await screen.findByRole("treeitem", { name: "README.md" });
-		await user.click(screen.getByRole("combobox", { name: "Root directory" }));
-		await user.click(screen.getByRole("option", { name: "Home" }));
+		await user.click(screen.getByRole("button", { name: /^Root directory/ }));
+		await user.click(screen.getByRole("menuitemradio", { name: /^Home/ }));
 		await screen.findByRole("treeitem", { name: ".bashrc" });
 
 		expect(listedPaths().at(-1)).toBe("~");
@@ -214,8 +214,8 @@ describe("FilesPanel", () => {
 		renderPanel(contextValue({ repoRoots: [] }));
 
 		await waitFor(() => expect(listedPaths()).toContain(""));
-		await user.click(screen.getByRole("combobox", { name: "Root directory" }));
-		await user.click(screen.getByRole("option", { name: "Open path..." }));
+		await user.click(screen.getByRole("button", { name: /^Root directory/ }));
+		await user.click(screen.getByRole("menuitem", { name: "Open path..." }));
 		await user.type(screen.getByRole("textbox", { name: "Path" }), "~{Enter}");
 
 		await screen.findByRole("treeitem", { name: ".bashrc" });
@@ -265,9 +265,9 @@ describe("FilesPanel", () => {
 		renderPanel(contextValue());
 
 		await screen.findByRole("treeitem", { name: "src" });
-		const trigger = screen.getByRole("combobox", { name: "Root directory" });
+		const trigger = screen.getByRole("button", { name: /^Root directory/ });
 		await user.click(trigger);
-		await user.click(screen.getByRole("option", { name: "Open path..." }));
+		await user.click(screen.getByRole("menuitem", { name: "Open path..." }));
 
 		await waitFor(() =>
 			expect(screen.getByRole("textbox", { name: "Path" })).toHaveFocus(),
@@ -338,10 +338,8 @@ describe("FilesPanel", () => {
 			renderPanel(value);
 
 			await screen.findByRole("treeitem", { name: "src" });
-			await user.click(
-				screen.getByRole("combobox", { name: "Root directory" }),
-			);
-			await user.click(screen.getByRole("option", { name: "Open path..." }));
+			await user.click(screen.getByRole("button", { name: /^Root directory/ }));
+			await user.click(screen.getByRole("menuitem", { name: "Open path..." }));
 			await user.type(
 				screen.getByRole("textbox", { name: "Path" }),
 				"~/notes.md{Enter}",
@@ -364,8 +362,8 @@ describe("FilesPanel", () => {
 
 		const alert = await screen.findByRole("alert");
 		expect(alert).toHaveTextContent("Permission denied: /root");
-		await user.click(screen.getByRole("combobox", { name: "Root directory" }));
-		await user.click(screen.getByRole("option", { name: "Open path..." }));
+		await user.click(screen.getByRole("button", { name: /^Root directory/ }));
+		await user.click(screen.getByRole("menuitem", { name: "Open path..." }));
 		await user.type(
 			screen.getByRole("textbox", { name: "Path" }),
 			"/secret{Enter}",
@@ -438,14 +436,14 @@ describe("FilesPanel", () => {
 		renderPanel(contextValue());
 
 		await screen.findByRole("treeitem", { name: "src" });
-		await user.click(screen.getByRole("combobox", { name: "Root directory" }));
-		await user.click(screen.getByRole("option", { name: "Open path..." }));
+		await user.click(screen.getByRole("button", { name: /^Root directory/ }));
+		await user.click(screen.getByRole("menuitem", { name: "Open path..." }));
 		await user.type(
 			screen.getByRole("textbox", { name: "Path" }),
 			"/home/coder/repo/src{Enter}",
 		);
-		await user.click(screen.getByRole("combobox", { name: "Root directory" }));
-		await user.click(screen.getByRole("option", { name: "Home" }));
+		await user.click(screen.getByRole("button", { name: /^Root directory/ }));
+		await user.click(screen.getByRole("menuitemradio", { name: /^Home/ }));
 		await screen.findByRole("treeitem", { name: ".bashrc" });
 		release();
 		await settled();
@@ -461,12 +459,12 @@ describe("FilesPanel", () => {
 		const release = holdListings("/home/coder/repo/src");
 		renderPanel(contextValue());
 		render(<input aria-label="Composer" />);
-		const trigger = await screen.findByRole("combobox", {
-			name: "Root directory",
+		const trigger = await screen.findByRole("button", {
+			name: /^Root directory/,
 		});
 		const openPath = async () => {
 			await user.click(trigger);
-			await user.click(screen.getByRole("option", { name: "Open path..." }));
+			await user.click(screen.getByRole("menuitem", { name: "Open path..." }));
 			await user.type(
 				screen.getByRole("textbox", { name: "Path" }),
 				"/home/coder/repo/src{Enter}",
@@ -565,39 +563,36 @@ describe("FilesPanel", () => {
 		expect(listedPaths()).not.toContain("/home/coder/repo/src/lib");
 	});
 
-	it("lists places, then repositories, with paths only in the menu", async () => {
+	it("groups roots under Filesystem and Repositories headings", async () => {
 		const user = userEvent.setup();
 		renderPanel(contextValue());
 
 		await screen.findByRole("treeitem", { name: "src" });
-		const trigger = screen.getByRole("combobox", { name: "Root directory" });
+		const trigger = screen.getByRole("button", { name: /^Root directory/ });
 		await waitFor(() => expect(listedPaths()).toContain("~"));
 		await user.click(trigger);
 
+		expect(screen.getByRole("menu")).toHaveTextContent(
+			/^FilesystemRoot\/Home~Repositoriesrepo~\/repoOpen path\.\.\.$/,
+		);
 		expect(
-			screen.getAllByRole("option").map((option) => option.textContent),
-		).toEqual(["File system/", "Home~", "repo~/repo", "Open path..."]);
-		const repositories = screen.getByRole("group", { name: "Repositories" });
-		expect(
-			within(repositories)
-				.getAllByRole("option")
-				.map((option) => option.textContent),
-		).toEqual(["repo~/repo"]);
+			screen.getByRole("menuitemradio", { name: /^repo/ }),
+		).toHaveAttribute("aria-checked", "true");
 		expect(trigger).toHaveTextContent(/^repo$/);
 	});
 
-	it("lists a default directory apart from home under its own name", async () => {
+	it("lists a default directory apart from home under Filesystem", async () => {
 		const user = userEvent.setup();
 		renderPanel(
 			contextValue({ defaultDirectory: "/home/coder/work", repoRoots: [] }),
 		);
 
 		await waitFor(() => expect(listedPaths()).toContain("~"));
-		await user.click(screen.getByRole("combobox", { name: "Root directory" }));
+		await user.click(screen.getByRole("button", { name: /^Root directory/ }));
 
-		expect(
-			screen.getAllByRole("option").map((option) => option.textContent),
-		).toEqual(["File system/", "Home~", "work~/work", "Open path..."]);
+		expect(screen.getByRole("menu")).toHaveTextContent(
+			/^FilesystemRoot\/Home~work~\/workOpen path\.\.\.$/,
+		);
 	});
 
 	it("cancels a hidden directory's fetch and lets Refresh restart a stalled one", async () => {
