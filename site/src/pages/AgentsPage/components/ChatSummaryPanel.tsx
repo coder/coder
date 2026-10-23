@@ -45,8 +45,10 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 		...chatAttachments(queryClient, chatId, oldestLoadedMessageId),
 		enabled: isVisible && hasMoreMessages,
 	});
+	// The final transcript page clears hasMoreMessages before the store holds
+	// its messages, so the cached list covers them until hydration catches up.
 	const earlierAttachments =
-		hasMoreMessages && earlierAttachmentsQuery.data
+		(hasMoreMessages || isHydratingMessages) && earlierAttachmentsQuery.data
 			? getEarlierMessageAttachments(earlierAttachmentsQuery.data.attachments)
 			: [];
 	// A retry puts a failed query back to pending, so `errorUpdateCount`

@@ -59,7 +59,7 @@ const renderAttachments = (queryClient = createTestQueryClient()) => {
 	);
 };
 
-const recordFileRequests = (respond: () => Response) => {
+const recordFileRequests = (respond: () => Response | Promise<Response>) => {
 	const requestedFileIds: string[] = [];
 	server.use(
 		http.get("/api/v2/chats/files/:fileId", ({ params }) => {
@@ -154,6 +154,37 @@ describe("ChatAttachments", () => {
 
 		expect(
 			screen.getByRole("link", { name: "Download dashboard.png" }),
+		).toHaveFocus();
+	});
+
+	it("focuses the download card when an open image's thumbnail fails", async () => {
+		const user = userEvent.setup();
+		renderAttachments();
+		const viewButton = screen.getByRole("button", {
+			name: "dashboard.png View file",
+		});
+		const thumbnail = within(viewButton).getByRole("img");
+		await user.click(viewButton);
+		await screen.findByRole("dialog", { name: "Image preview" });
+
+		fireEvent.error(thumbnail);
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("link", { name: "Download dashboard.png" }),
+			).toHaveFocus(),
+		);
+	});
+
+	it("opens a text file's preview before its text loads", async () => {
+		const user = userEvent.setup();
+		recordFileRequests(() => new Promise<never>(() => {}));
+		renderAttachments();
+
+		await user.click(screen.getByRole("button", { name: "PLAN.md View file" }));
+
+		expect(
+			await screen.findByRole("dialog", { name: "PLAN.md" }),
 		).toHaveFocus();
 	});
 

@@ -36,9 +36,11 @@ const mockNewestLoadedMessage: TypesGen.ChatMessage = {
 const renderPanel = ({
 	isVisible = true,
 	hasMoreMessages = true,
+	isHydratingMessages = false,
 }: {
 	isVisible?: boolean;
 	hasMoreMessages?: boolean;
+	isHydratingMessages?: boolean;
 } = {}) => {
 	const store = createChatStore();
 	store.replaceMessages([mockOldestLoadedMessage, mockNewestLoadedMessage]);
@@ -60,7 +62,7 @@ const renderPanel = ({
 					isVisible={isVisible}
 					store={store}
 					hasMoreMessages={hasMoreMessages}
-					isHydratingMessages={false}
+					isHydratingMessages={isHydratingMessages}
 				/>
 			</DashboardContext.Provider>
 		</QueryClientProvider>,
@@ -96,17 +98,24 @@ describe("ChatSummaryPanel attachments", () => {
 			calls: [],
 		},
 		{
+			name: "skips the request during hydration",
+			isVisible: true,
+			hasMoreMessages: false,
+			isHydratingMessages: true,
+			calls: [],
+		},
+		{
 			name: "skips the request while hidden",
 			isVisible: false,
 			hasMoreMessages: true,
 			calls: [],
 		},
-	])("$name", ({ isVisible, hasMoreMessages, calls }) => {
+	])("$name", ({ isVisible, hasMoreMessages, isHydratingMessages, calls }) => {
 		const getChatAttachments = vi
 			.spyOn(API.experimental, "getChatAttachments")
 			.mockResolvedValue({ attachments: [MockChatAttachment] });
 
-		renderPanel({ isVisible, hasMoreMessages });
+		renderPanel({ isVisible, hasMoreMessages, isHydratingMessages });
 
 		expect(getChatAttachments.mock.calls).toEqual(calls);
 	});

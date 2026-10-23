@@ -129,7 +129,7 @@ const ViewableFileCard: React.FC<ViewableFileCardProps> = ({
 
 type TextAttachmentDialogProps = AttachmentDialogProps & {
 	file: AttachmentFile;
-	content: string;
+	content: string | undefined;
 };
 
 const TextAttachmentDialog: React.FC<TextAttachmentDialogProps> = ({
@@ -168,7 +168,9 @@ const ImageAttachmentCard: React.FC<AttachmentCardProps> = ({
 		// React runs ref cleanups before it removes the node, so focus inside
 		// it has not fallen to the page body yet.
 		return () => {
-			hadFocusRef.current = node.contains(document.activeElement);
+			// An open viewer holds focus in its portal instead.
+			hadFocusRef.current =
+				viewer.isViewing || node.contains(document.activeElement);
 		};
 	};
 
@@ -242,12 +244,12 @@ const StoredTextAttachmentCard: React.FC<StoredTextAttachmentCardProps> = ({
 				}
 				status={textQuery.isLoading ? "Loading file" : loadError}
 				onView={(event) => {
+					// The preview opens before the text loads, so no other file
+					// can open a second one meanwhile.
 					viewer.open(event);
 					if (textQuery.data !== undefined) {
 						return;
 					}
-					// A failed load must not open the preview when the text
-					// arrives later from another view of the file.
 					void textQuery.refetch().then(({ isError }) => {
 						if (isError) {
 							viewer.close();
@@ -255,7 +257,7 @@ const StoredTextAttachmentCard: React.FC<StoredTextAttachmentCardProps> = ({
 					});
 				}}
 			/>
-			{viewer.isViewing && textQuery.data !== undefined && (
+			{viewer.isViewing && (
 				<TextAttachmentDialog
 					file={file}
 					content={textQuery.data}
