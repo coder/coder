@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"context"
+	"time"
+
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/serpent"
 )
@@ -31,7 +34,10 @@ func (*RootCmd) existsCmd() *serpent.Command {
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			hostname := inv.Args[0]
-			exists, err := workspacesdk.ExistsViaCoderConnect(inv.Context(), hostname)
+			// SSH runs this check before its proxy fallback, so bound DNS stalls.
+			ctx, cancel := context.WithTimeout(inv.Context(), 3*time.Second)
+			defer cancel()
+			exists, err := workspacesdk.ExistsViaCoderConnect(ctx, hostname)
 			if err != nil {
 				return err
 			}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"tailscale.com/net/tsaddr"
@@ -55,11 +56,38 @@ func TestConnectExists_NotRunning(t *testing.T) {
 	require.ErrorIs(t, err, cli.ErrSilent)
 }
 
-type fakeResolver struct {
-	shouldReturnSuccess bool
+func TestConnectExists_Timeout(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx = workspacesdk.WithTestOnlyCoderContextResolver(ctx, &fakeResolver{blockUntilCanceled: true})
+
+	var root cli.RootCmd
+	cmd, err := root.Command(root.AGPL())
+	require.NoError(t, err)
+
+	inv := (&serpent.Invocation{
+		Command: cmd,
+		Args:    []string{"connect", "exists", "test.example"},
+	}).WithContext(ctx)
+	inv.Stdout = new(bytes.Buffer)
+	inv.Stderr = new(bytes.Buffer)
+
+	start := time.Now()
+	err = inv.Run()
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Less(t, time.Since(start), testutil.WaitShort)
 }
 
-func (f *fakeResolver) LookupIP(_ context.Context, _, _ string) ([]net.IP, error) {
+type fakeResolver struct {
+	shouldReturnSuccess bool
+	blockUntilCanceled  bool
+}
+
+func (f *fakeResolver) LookupIP(ctx context.Context, _, _ string) ([]net.IP, error) {
+	if f.blockUntilCanceled {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
 	if f.shouldReturnSuccess {
 		return []net.IP{net.ParseIP(tsaddr.CoderServiceIPv6().String())}, nil
 	}
