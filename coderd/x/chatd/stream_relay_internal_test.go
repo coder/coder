@@ -36,9 +36,9 @@ func TestStreamPartsDialUnrecoverable(t *testing.T) {
 	require.True(t, streamPartsDialUnrecoverable(xerrors.Errorf("wrapped: %w", fakeDialError{unrecoverable: true})))
 }
 
-// TestStreamRelayForwarderDeliversPartsAfterStall stalls the stream loop past
-// the send timeout on an open episode, then expects every part in order over
-// the first connection.
+// TestStreamRelayForwarderDeliversPartsAfterStall stops reading relay.Parts()
+// for longer than the send timeout on an open episode, then expects every part
+// in order over the first connection.
 func TestStreamRelayForwarderDeliversPartsAfterStall(t *testing.T) {
 	t.Parallel()
 
@@ -100,7 +100,7 @@ func TestStreamRelayForwarderDeliversPartsAfterStall(t *testing.T) {
 		drain()
 		require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("live")))
 		drain()
-		require.Equal(t, int64(episodeParts+1), lastSeq, "the live part did not reach the stream loop")
+		require.Equal(t, int64(episodeParts+1), lastSeq, "the live part did not reach relay.Parts()")
 		require.Equal(t, int32(1), dials.Load(), "the relay forwarder reconnected")
 	})
 }
