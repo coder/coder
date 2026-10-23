@@ -502,6 +502,7 @@ describe("FileTab", () => {
 		const workspaceFiles = (
 			diffStatuses: WorkspaceFilesContextValue["diffStatuses"] = [],
 			remoteOrigin = "git@github.com:coder/coder.git",
+			unifiedDiff = "",
 		): WorkspaceFilesContextValue => ({
 			agentId,
 			defaultDirectory: "/home/coder",
@@ -514,6 +515,7 @@ describe("FileTab", () => {
 						branch: "feat",
 						remote_origin: remoteOrigin,
 						head_commit: headCommit,
+						unified_diff: unifiedDiff,
 					},
 				],
 			]),
@@ -521,8 +523,23 @@ describe("FileTab", () => {
 			revealInFiles: vi.fn(),
 			diffStatuses,
 		});
+		const pullRequestStatus = {
+			chat_id: "chat-1",
+			remote_origin: "https://github.com/coder/coder.git",
+			git_branch: "feat",
+			url: "https://github.com/coder/coder/pull/12",
+			pr_number: 12,
+			pull_request_title: "Add a feature",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions: 1,
+			deletions: 0,
+			changed_files: 1,
+		};
 		const openMenu = async (user: ReturnType<typeof userEvent.setup>) =>
 			user.click(await screen.findByRole("button", { name: "File actions" }));
+		const menuItemNames = () =>
+			screen.getAllByRole("menuitem").map((item) => item.textContent);
 
 		it("copies the file's paths and reveals it in the Files panel", async () => {
 			const user = userEvent.setup();
@@ -551,21 +568,7 @@ describe("FileTab", () => {
 			const user = userEvent.setup();
 			readFile.mockResolvedValue(fileContents("a\nb\n", '"v1"'));
 			renderFileTab({
-				workspaceFiles: workspaceFiles([
-					{
-						chat_id: "chat-1",
-						remote_origin: "https://github.com/coder/coder.git",
-						git_branch: "feat",
-						url: "https://github.com/coder/coder/pull/12",
-						pr_number: 12,
-						pull_request_title: "Add a feature",
-						pull_request_draft: false,
-						changes_requested: false,
-						additions: 1,
-						deletions: 0,
-						changed_files: 1,
-					},
-				]),
+				workspaceFiles: workspaceFiles([pullRequestStatus]),
 			});
 			const editor =
 				await screen.findByLabelText<HTMLTextAreaElement>("File contents");
@@ -611,9 +614,65 @@ describe("FileTab", () => {
 			});
 
 			await openMenu(user);
-			expect(
-				screen.getAllByRole("menuitem").map((item) => item.textContent),
-			).toEqual(["Copy path", "Copy relative path", "Reveal in Files"]);
+			expect(menuItemNames()).toEqual([
+				"Copy path",
+				"Copy relative path",
+				"Reveal in Files",
+			]);
+		});
+
+		const otherFileDiff =
+			"diff --git a/other.go b/other.go\nnew file mode 100644\nindex 0000000..e69de29\n";
+
+		it.each([
+			[
+				"untracked or staged",
+				"diff --git a/main.go b/main.go\nnew file mode 100644\nindex 0000000..587be6b\n--- /dev/null\n+++ b/main.go\n@@ -0,0 +1 @@\n+x\n",
+			],
+			[
+				"empty and untracked",
+				"diff --git a/main.go b/main.go\nnew file mode 100644\nindex 0000000..e69de29\n",
+			],
+			[
+				"renamed",
+				"diff --git a/old.go b/main.go\nsimilarity index 100%\nrename from old.go\nrename to main.go\n",
+			],
+		])("offers no host links for a file HEAD lacks: %s", async (_, diff) => {
+			const user = userEvent.setup();
+			renderFileTab({
+				workspaceFiles: workspaceFiles(
+					[pullRequestStatus],
+					undefined,
+					otherFileDiff + diff,
+				),
+			});
+
+			await openMenu(user);
+			expect(menuItemNames()).toEqual([
+				"Copy path",
+				"Copy relative path",
+				"Reveal in Files",
+			]);
+		});
+
+		it("links a modified file", async () => {
+			const user = userEvent.setup();
+			renderFileTab({
+				workspaceFiles: workspaceFiles(
+					[pullRequestStatus],
+					undefined,
+					`${otherFileDiff}diff --git a/main.go b/main.go\nindex 7898192..6178079 100644\n--- a/main.go\n+++ b/main.go\n@@ -1 +1 @@\n-new file mode 100644\n+b\n`,
+				),
+			});
+
+			await openMenu(user);
+			expect(menuItemNames()).toEqual([
+				"Copy path",
+				"Copy relative path",
+				"Reveal in Files",
+				"Open on GitHub",
+				"Open in PR #12",
+			]);
 		});
 	});
 

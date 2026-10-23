@@ -58,6 +58,21 @@ const findDiffSection = (sections: readonly string[], relativePath: string) =>
 	});
 
 /**
+ * Whether `diff`, a repository's diff against HEAD, creates the file at
+ * `relativePath`, which HEAD then lacks: an untracked file, a new file not
+ * yet committed, or the target of an uncommitted rename or copy.
+ */
+export const isAddedInDiff = (diff: string, relativePath: string) => {
+	const section = findDiffSection(splitDiff(diff) ?? [], relativePath);
+	// Content lines start with a space, "+", "-" or "\", so only header
+	// lines match.
+	return (
+		section !== undefined &&
+		/^(?:new file mode|rename from|copy from) /m.test(section)
+	);
+};
+
+/**
  * The paths under `root` whose content may differ between two watcher
  * states. A file's content can change only if its diff against HEAD does
  * or HEAD moves. An agent that predates head_commit reports it empty, so

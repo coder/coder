@@ -17,7 +17,7 @@ import {
 	getFileWebLinks,
 	gitProviderNames,
 } from "../../utils/gitWebUrl";
-import { findRepoRoot } from "../MainTabs/useFileTabRefresh";
+import { findRepoRoot, isAddedInDiff } from "../MainTabs/useFileTabRefresh";
 
 type FileActionsMenuItemsProps = {
 	readonly Item: typeof DropdownMenuItem | typeof ContextMenuItem;
@@ -43,8 +43,13 @@ export const FileActionsMenuItems: React.FC<FileActionsMenuItemsProps> = ({
 	const relativePath =
 		root && root !== path ? path.slice(root.length + 1) : undefined;
 	const repository = root ? workspaceFiles?.repositories.get(root) : undefined;
+	// A file HEAD lacks has no page on the host, at HEAD or in the pull
+	// request.
 	const links =
-		workspaceFiles && relativePath && repository?.remote_origin
+		workspaceFiles &&
+		relativePath &&
+		repository?.remote_origin &&
+		!isAddedInDiff(repository.unified_diff ?? "", relativePath)
 			? getFileWebLinks({
 					origin: repository.remote_origin,
 					branch: repository.branch,
