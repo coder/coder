@@ -28,8 +28,32 @@ const bareFileExtensions = new Set([
 	"sh",
 	"proto",
 	"css",
+	"scss",
 	"html",
 	"txt",
+	"svg",
+	"png",
+	"xml",
+	"csv",
+	"cfg",
+	"ini",
+	"lock",
+	"mod",
+	"sum",
+	"c",
+	"h",
+	"cpp",
+	"hpp",
+	"cs",
+	"kt",
+	"swift",
+	"php",
+	"vue",
+	"svelte",
+	"mjs",
+	"cjs",
+	"lua",
+	"tf",
 ]);
 
 const extensionlessFileNames = new Set(["Makefile", "Dockerfile"]);
@@ -48,8 +72,10 @@ const wholeMentionRegExp = new RegExp(
 
 // The lookbehind keeps matches from starting inside a word, a URL, or a
 // longer path-like token, and the lookahead keeps them from ending mid-token.
+// A colon may follow only as punctuation before a space or the end, as in
+// the compiler location "dial.go:126:" or "see test_main.py:".
 const mentionRegExp = new RegExp(
-	`(?<![\\w./~@:#\\\\\\])}-])${buildPathPattern("\\w.+-")}(?![\\w/~@:#\\\\(\\[-])`,
+	`(?<![\\w./~@:#\\\\\\])}-])${buildPathPattern("\\w.+-")}(?![\\w/~@#\\\\(\\[-]|:(?!\\s|$))`,
 	"g",
 );
 
