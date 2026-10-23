@@ -275,6 +275,22 @@ describe("Response", () => {
 			},
 		);
 
+		it("opens a link from the keyboard", async () => {
+			const user = userEvent.setup();
+			mockTree(markdownTree);
+			const { files } = renderWithFiles("Open /home/coder/coder/go.mod now.");
+
+			await screen.findByRole("button", { name: "/home/coder/coder/go.mod" });
+			await user.tab();
+			await user.keyboard("{Enter}");
+			await user.keyboard(" ");
+
+			expect(files.openFile).toHaveBeenCalledTimes(2);
+			expect(files.openFile).toHaveBeenCalledWith("/home/coder/coder/go.mod", {
+				line: undefined,
+			});
+		});
+
 		it("leaves mentions that no lookup confirms as plain text", async () => {
 			const list = mockTree({
 				"/home/coder": ["conn.go"],
@@ -772,6 +788,105 @@ describe("Response", () => {
 				expect(text.isConnected).toBe(true);
 				expect(window.getSelection()?.toString()).toBe(" and more");
 			});
+
+			it("keeps a selection inside a mention when it links", async () => {
+				const pending = createDeferred<ReturnType<typeof listing>>();
+				const ancestors = withAncestors({ "/path/to": [] });
+				vi.spyOn(API, "listWorkspaceAgentDirectory").mockImplementation(
+					async (_agentId, path) =>
+						path === "/path/to"
+							? pending.promise
+							: listing(path, ancestors[path] ?? []),
+				);
+				renderWithFiles("Open `/path/to/a.ts` now");
+
+				const text = (await screen.findByText("/path/to/a.ts")).firstChild;
+				if (!text) {
+					throw new Error("missing text node");
+				}
+				const range = document.createRange();
+				range.selectNodeContents(text);
+				window.getSelection()?.removeAllRanges();
+				window.getSelection()?.addRange(range);
+
+				await act(async () => {
+					pending.resolve(listing("/path/to", ["a.ts"]));
+					await flush();
+				});
+
+				const link = await screen.findByRole("button", {
+					name: "/path/to/a.ts",
+				});
+				expect(link.contains(text)).toBe(true);
+				expect(window.getSelection()?.toString()).toBe("/path/to/a.ts");
+			});
+
+			it.each([
+				{ markdown: "Edit src/a.ts now", name: "src/a.ts" },
+				{ markdown: "Edit conn.go now", name: "conn.go" },
+			])(
+				"keeps $name linked and focused while new roots verify",
+				async ({ markdown, name }) => {
+					const slow = createDeferred<ReturnType<typeof listing>>();
+					const tree = withAncestors({ "/home/coder/coder/src": ["a.ts"] });
+					vi.spyOn(API, "listWorkspaceAgentDirectory").mockImplementation(
+						async (_agentId, path) =>
+							path === "/home/coder/other"
+								? slow.promise
+								: listing(path, tree[path] ?? []),
+					);
+					const slowSearch = createDeferred<{
+						results: WorkspaceAgentFindFilesResult[];
+					}>();
+					vi.spyOn(API, "findWorkspaceAgentFiles").mockImplementation(
+						async (_agentId, roots) =>
+							roots.length > 1
+								? slowSearch.promise
+								: { results: [findResult("/home/coder/coder", "pkg/conn.go")] },
+					);
+					const Harness = () => {
+						const [repoRoots, setRepoRoots] = useState(["/home/coder/coder"]);
+						return (
+							<>
+								<button
+									type="button"
+									onClick={() =>
+										setRepoRoots(["/home/coder/coder", "/home/coder/other"])
+									}
+								>
+									Add root
+								</button>
+								<WorkspaceFilesContext.Provider
+									value={{ ...makeFiles(), repoRoots }}
+								>
+									<Response>{markdown}</Response>
+								</WorkspaceFilesContext.Provider>
+							</>
+						);
+					};
+					render(<Harness />);
+					const link = await screen.findByRole("button", { name });
+					const addRoot = screen.getByRole("button", { name: "Add root" });
+
+					link.focus();
+					await act(async () => {
+						addRoot.click();
+						await flush();
+					});
+					expect(screen.getByRole("button", { name })).toBe(link);
+					expect(document.activeElement).toBe(link);
+
+					await act(async () => {
+						slow.resolve(listing("/home/coder/other", []));
+						slowSearch.resolve({
+							results: [findResult("/home/coder/coder", "pkg/conn.go")],
+						});
+						await flush();
+					});
+					expect(screen.getByRole("button", { name })).toBe(link);
+					expect(document.activeElement).toBe(link);
+				},
+			);
 
 			it("links every spaced path on a line, absolute and repository-relative", async () => {
 				const user = userEvent.setup();

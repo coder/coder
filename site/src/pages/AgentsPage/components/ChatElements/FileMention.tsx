@@ -15,8 +15,8 @@ import {
 } from "#/components/Command/Command";
 import {
 	Popover,
+	PopoverAnchor,
 	PopoverContent,
-	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { useWorkspaceFiles } from "../../context/WorkspaceFilesContext";
 import {
@@ -92,7 +92,8 @@ const pickMentionedFiles = (
 	);
 };
 
-type FileMentionProps = {
+/** Where a verified mention leads. */
+type MentionLink = {
 	/**
 	 * The verified absolute path, or the mentioned text when `choices`
 	 * holds several matches.
@@ -105,105 +106,137 @@ type FileMentionProps = {
 	isDirectory?: boolean;
 	/** `choices` came from a search that hit its result limit. */
 	truncated?: boolean;
-	children: React.ReactNode;
 };
 
+const linkKey = (link: MentionLink | undefined) =>
+	link === undefined
+		? ""
+		: JSON.stringify([
+				link.path,
+				link.line,
+				link.isDirectory,
+				link.truncated,
+				link.choices?.map((choice) => choice.absolute_path),
+			]);
+
 /**
- * A path in chat text that listings confirmed. Clicking opens the file, or
- * shows a folder in the Files panel.
+ * Mentioned text, and once `link` is set, a control that opens the file or
+ * shows a folder in the Files panel. The text stays in the same element
+ * whether or not it links, so verification does not replace the nodes a
+ * reader has selected or focused.
  */
-const FileMention: React.FC<FileMentionProps> = ({
-	path,
-	line,
-	choices,
-	isDirectory = false,
-	truncated = false,
-	children,
-}) => {
+const FileMention: React.FC<{
+	link: MentionLink | undefined;
+	children: React.ReactNode;
+}> = ({ link, children }) => {
 	const files = useWorkspaceFiles();
 	const [picking, setPicking] = useState(false);
+	const controlRef = useRef<HTMLSpanElement>(null);
+	const matches = link?.choices ?? [];
+	const picker = matches.length > 1;
 
-	if (!files) {
-		return children;
-	}
-
+	const activate = () => {
+		if (!files || !link) {
+			return;
+		}
+		if (picker) {
+			setPicking(true);
+		} else if (link.isDirectory) {
+			files.revealInFiles(link.path, { isDirectory: true });
+		} else {
+			files.openFile(link.path, { line: link.line });
+		}
+	};
 	const openMatch = (match: WorkspaceAgentFindFilesResult) => {
+		if (!files) {
+			return;
+		}
 		if (match.is_dir) {
 			files.revealInFiles(match.absolute_path, { isDirectory: true });
 		} else {
-			files.openFile(match.absolute_path, { line });
+			files.openFile(match.absolute_path, { line: link?.line });
 		}
 	};
 
-	const matches = choices ?? [];
 	return (
 		<Popover
-			open={picking && matches.length > 1}
+			open={picking && picker}
 			onOpenChange={(open) => {
 				if (!open) {
 					setPicking(false);
 				}
 			}}
 		>
-			<PopoverTrigger asChild>
-				<button
-					type="button"
-					aria-label={isDirectory ? `Show ${path} in Files` : undefined}
-					className="inline cursor-pointer border-0 bg-transparent p-0 text-left font-[inherit] text-inherit underline decoration-dotted decoration-content-secondary underline-offset-2 hover:decoration-content-link"
-					onClick={(event) => {
-						// The trigger's own toggle would also close the picker.
-						event.preventDefault();
-						if (matches.length > 1) {
-							setPicking(true);
-						} else if (isDirectory) {
-							files.revealInFiles(path, { isDirectory: true });
-						} else {
-							files.openFile(path, { line });
-						}
-					}}
+			<PopoverAnchor asChild>
+				<span
+					ref={controlRef}
+					{...(link && {
+						role: "button",
+						tabIndex: 0,
+						"aria-label": link.isDirectory
+							? `Show ${link.path} in Files`
+							: undefined,
+						"aria-haspopup": picker ? ("dialog" as const) : undefined,
+						"aria-expanded": picker ? picking : undefined,
+						className:
+							"cursor-pointer underline decoration-dotted decoration-content-secondary underline-offset-2 hover:decoration-content-link focus-visible:outline focus-visible:outline-2 focus-visible:outline-content-link",
+						onClick: activate,
+						onKeyDown: (event: React.KeyboardEvent) => {
+							if (event.key === "Enter" || event.key === " ") {
+								event.preventDefault();
+								activate();
+							}
+						},
+					})}
 				>
 					{children}
-				</button>
-			</PopoverTrigger>
-			<PopoverContent
-				align="start"
-				aria-label={`Files matching ${path}`}
-				className="w-96 max-w-[90vw] p-0"
-			>
-				<Command label={`Files matching ${path}`}>
-					<CommandInput placeholder="Filter matching files" />
-					<CommandList>
-						<CommandEmpty>No matching files</CommandEmpty>
-						{matches.map((match) => {
-							const rootName = getPathBasename(match.root);
-							return (
-								<CommandItem
-									key={match.absolute_path}
-									value={match.absolute_path}
-									aria-label={`${match.path} in ${rootName}`}
-									className="items-baseline py-1.5"
-									onSelect={() => {
-										setPicking(false);
-										openMatch(match);
-									}}
-								>
-									<span className="min-w-0 truncate font-mono text-xs text-content-primary">
-										{match.path}
-									</span>
-									<span className="ml-auto shrink-0 text-xs font-normal">
-										{rootName}
-									</span>
-								</CommandItem>
-							);
-						})}
-					</CommandList>
-					<p className="m-0 border-0 border-t border-solid border-border px-3 py-1.5 text-xs text-content-secondary">
-						{truncated
-							? `Showing ${matches.length} matches from the first ${findFilesLimit} search results. Mention a longer path to narrow them down.`
-							: `${matches.length} files match ${path}.`}
-					</p>
-				</Command>
-			</PopoverContent>
+				</span>
+			</PopoverAnchor>
+			{picker && link && (
+				<PopoverContent
+					align="start"
+					aria-label={`Files matching ${link.path}`}
+					className="w-96 max-w-[90vw] p-0"
+					onCloseAutoFocus={(event) => {
+						event.preventDefault();
+						controlRef.current?.focus();
+					}}
+				>
+					<Command label={`Files matching ${link.path}`}>
+						<CommandInput placeholder="Filter matching files" />
+						<CommandList>
+							<CommandEmpty>No matching files</CommandEmpty>
+							{matches.map((match) => {
+								const rootName = getPathBasename(match.root);
+								return (
+									<CommandItem
+										key={match.absolute_path}
+										value={match.absolute_path}
+										aria-label={`${match.path} in ${rootName}`}
+										className="items-baseline py-1.5"
+										onSelect={() => {
+											setPicking(false);
+											openMatch(match);
+										}}
+									>
+										<span className="min-w-0 truncate font-mono text-xs text-content-primary">
+											{match.path}
+										</span>
+										<span className="ml-auto shrink-0 text-xs font-normal">
+											{rootName}
+										</span>
+									</CommandItem>
+								);
+							})}
+						</CommandList>
+						<p className="m-0 border-0 border-t border-solid border-border px-3 py-1.5 text-xs text-content-secondary">
+							{link.truncated
+								? `Showing ${matches.length} matches from the first ${findFilesLimit} search results. Mention a longer path to narrow them down.`
+								: `${matches.length} files match ${link.path}.`}
+						</p>
+					</Command>
+				</PopoverContent>
+			)}
 		</Popover>
 	);
 };
@@ -257,6 +290,12 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 	const ref = useRef<HTMLSpanElement>(null);
 	const [visible, setVisible] = useState(false);
 	const [directories, setDirectories] = useState<readonly string[]>([]);
+	const [lastLink, setLastLink] = useState<{
+		text: string;
+		key: string;
+		link: MentionLink | undefined;
+		end: number;
+	}>({ text: "", key: "", link: undefined, end: 0 });
 	const available = files !== undefined;
 
 	useEffect(() => {
@@ -359,88 +398,113 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 		return children;
 	}
 
+	// What the lookups confirmed: the extent of the verified path and its
+	// matches, or undefined while a lookup is still pending.
+	let verification:
+		| {
+				end: number;
+				line?: number;
+				choices: WorkspaceAgentFindFilesResult[];
+				truncated?: boolean;
+		  }
+		| undefined;
 	if (bareName !== undefined) {
-		const results = search.data?.results ?? [];
-		const matches = pickMentionedFiles(results, bareName);
-		return (
-			<span ref={ref}>
-				{matches.length > 0 ? (
-					<FileMention
-						path={matches.length > 1 ? bareName : matches[0].absolute_path}
-						line={mention?.line}
-						choices={matches.length > 1 ? matches : undefined}
-						truncated={search.data?.truncated}
-					>
-						{children}
-					</FileMention>
-				) : (
-					children
-				)}
-			</span>
-		);
+		if (search.data) {
+			const matches = pickMentionedFiles(search.data.results, bareName);
+			verification = {
+				end: matches.length > 0 ? text.length : 0,
+				line: mention?.line,
+				choices: matches,
+				truncated: search.data.truncated,
+			};
+		}
+	} else if (walks.every((walk) => walk.verified !== undefined)) {
+		// Equally long matches in different repositories are ambiguous, so
+		// the mention offers all of them. Until every root has answered, a
+		// slower root could still hold another match, so nothing links yet.
+		// The default directory counts only when no repository matches.
+		const quotedEnd = findQuotedPathEnd(text, opener);
+		let end = 0;
+		let line: number | undefined;
+		let choices: WorkspaceAgentFindFilesResult[] = [];
+		for (const [index, walk] of walks.entries()) {
+			const verified = walk.verified;
+			if (!verified || (starts[index].fallback && choices.length > 0)) {
+				continue;
+			}
+			const walkEnd = starts[index].offset + verified.length;
+			if (walkEnd < end || (quotedEnd !== -1 && walkEnd !== quotedEnd)) {
+				continue;
+			}
+			if (walkEnd > end) {
+				end = walkEnd;
+				line = verified.line;
+				choices = [];
+			}
+			if (
+				!choices.some(
+					(choice) => choice.absolute_path === verified.absolutePath,
+				)
+			) {
+				const root = starts[index].root;
+				choices.push({
+					absolute_path: verified.absolutePath,
+					path: verified.absolutePath.slice(root.replace(/\/$/, "").length + 1),
+					root,
+					is_dir: verified.isDirectory ?? false,
+					score: 0,
+				});
+			}
+		}
+		verification = { end, line, choices };
 	}
 
-	// Equally long matches in different repositories are ambiguous, so the
-	// mention offers all of them. Until every root has answered, a slower
-	// root could still hold another match, so nothing links yet. The default
-	// directory counts only when no repository matches.
-	const settled = walks.every((walk) => walk.verified !== undefined);
-	const quotedEnd = findQuotedPathEnd(text, opener);
-	let end = 0;
-	let line: number | undefined;
-	let choices: WorkspaceAgentFindFilesResult[] = [];
-	for (const [index, walk] of walks.entries()) {
-		const verified = walk.verified;
-		if (!verified || (starts[index].fallback && choices.length > 0)) {
-			continue;
-		}
-		const walkEnd = starts[index].offset + verified.length;
-		if (walkEnd < end || (quotedEnd !== -1 && walkEnd !== quotedEnd)) {
-			continue;
-		}
-		if (walkEnd > end) {
-			end = walkEnd;
-			line = verified.line;
-			choices = [];
-		}
-		if (
-			!choices.some((choice) => choice.absolute_path === verified.absolutePath)
-		) {
-			const root = starts[index].root;
-			choices.push({
-				absolute_path: verified.absolutePath,
-				path: verified.absolutePath.slice(root.replace(/\/$/, "").length + 1),
-				root,
-				is_dir: verified.isDirectory ?? false,
-				score: 0,
-			});
-		}
-	}
 	const mentions = whole ? [] : findFilePathMentions(text);
 	const leadEnd = mentions[0]?.start === 0 ? mentions[0].end : 0;
 	// The verified path replaces the ordinary mention it starts with when it
 	// is longer, or a folder of the same extent such as /etc/nginx/conf.d.
 	// Otherwise that mention verifies itself and keeps its link's node.
-	const extended =
-		settled &&
-		choices.length > 0 &&
+	let link: MentionLink | undefined;
+	let end = 0;
+	if (
+		verification &&
+		verification.choices.length > 0 &&
 		(whole
-			? end === text.length
-			: end > leadEnd || (end === leadEnd && choices[0].is_dir));
-	const lead = extended && (
-		<FileMention
-			key="lead"
-			path={choices.length > 1 ? text.slice(0, end) : choices[0].absolute_path}
-			line={line}
-			choices={choices.length > 1 ? choices : undefined}
-			isDirectory={choices.length === 1 && choices[0].is_dir}
-		>
-			{whole ? children : text.slice(0, end)}
-		</FileMention>
-	);
+			? verification.end === text.length
+			: verification.end > leadEnd ||
+				(verification.end === leadEnd && verification.choices[0].is_dir))
+	) {
+		const { choices } = verification;
+		end = verification.end;
+		link = {
+			path: choices.length > 1 ? text.slice(0, end) : choices[0].absolute_path,
+			line: verification.line,
+			choices: choices.length > 1 ? choices : undefined,
+			isDirectory: choices.length === 1 && choices[0].is_dir,
+			truncated: verification.truncated,
+		};
+	}
+
+	// A new root set or a refetch makes the lookups pending again; the last
+	// confirmed link stays until they answer, so the control a reader is
+	// using does not disappear.
+	const settled = verification !== undefined;
+	const key = linkKey(link);
+	if (settled && (lastLink.text !== text || lastLink.key !== key)) {
+		setLastLink({ text, key, link, end });
+	}
+	if (!settled && lastLink.text === text) {
+		link = lastLink.link;
+		end = lastLink.end;
+	}
+	const known = settled || lastLink.text === text;
 
 	if (whole) {
-		return <span ref={ref}>{lead || children}</span>;
+		return (
+			<span ref={ref}>
+				<FileMention link={link}>{children}</FileMention>
+			</span>
+		);
 	}
 
 	// The text renders from the same keyed segments before and after
@@ -452,13 +516,20 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 	// past where a rejected one could have ended.
 	const segments: React.ReactNode[] = [];
 	let offset = 0;
-	if (lead) {
-		segments.push(lead);
+	if (link) {
+		segments.push(
+			<FileMention key="lead" link={link}>
+				{text.slice(0, end)}
+			</FileMention>,
+		);
 		offset = end;
 	}
+	const confirmed = (verification?.choices.length ?? 0) > 0;
 	const nextFrom =
-		choices.length > 0 ? Math.max(offset, end) : findRejectedCandidateEnd(text);
-	const next = settled
+		confirmed || link
+			? Math.max(offset, verification?.end ?? end)
+			: findRejectedCandidateEnd(text);
+	const next = known
 		? findCandidateTokenStarts(text).find(
 				(start) => start > 0 && start >= nextFrom,
 			)
