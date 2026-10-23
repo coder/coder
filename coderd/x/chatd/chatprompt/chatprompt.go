@@ -2058,6 +2058,7 @@ func encodeNulInParts(parts []codersdk.ChatMessagePart) ([]codersdk.ChatMessageP
 				}
 			}
 		}
+		p.MCPApp = mapNulInMCPApp(p.MCPApp, encodeNulInString, encodeNulInValue)
 	}
 	return encoded, nil
 }
@@ -2070,5 +2071,38 @@ func decodeNulInParts(parts []codersdk.ChatMessagePart) {
 				f.decode(&parts[i])
 			}
 		}
+		parts[i].MCPApp = mapNulInMCPApp(parts[i].MCPApp, decodeNulInString, decodeNulInValue)
 	}
+}
+
+// mapNulInMCPApp returns a copy of app with str applied to every string
+// field and to the keys of its JSON objects, and value applied to their
+// values. partNulFields covers only top-level fields, and the view data
+// is opaque tool output that must survive persistence, so MCPApp uses
+// the nulEncode policy here. The caller's value is not modified.
+func mapNulInMCPApp(
+	app *codersdk.ChatMCPApp,
+	str func(string) string,
+	value func(any) any,
+) *codersdk.ChatMCPApp {
+	if app == nil {
+		return nil
+	}
+	object := func(m map[string]any) map[string]any {
+		if m == nil {
+			return nil
+		}
+		out := make(map[string]any, len(m))
+		for k, v := range m {
+			out[str(k)] = value(v)
+		}
+		return out
+	}
+	out := *app
+	out.ToolName = str(app.ToolName)
+	out.Title = str(app.Title)
+	out.ResourceURI = str(app.ResourceURI)
+	out.ToolInput = object(app.ToolInput)
+	out.ToolResult = object(app.ToolResult)
+	return &out
 }
