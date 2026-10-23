@@ -1,9 +1,10 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { useQueries, useQueryClient } from "react-query";
+import { useQueries, useQuery, useQueryClient } from "react-query";
 import type { WorkspaceAgentFindFilesResult } from "#/api/api";
 import {
 	workspaceAgentDirectory,
 	workspaceAgentDirectoryKey,
+	workspaceAgentFindFiles,
 } from "#/api/queries/workspaceFiles";
 import {
 	Command,
@@ -24,9 +25,32 @@ import {
 	findQuotedPathEnd,
 	findRejectedCandidateEnd,
 	getFilePathCandidateStarts,
+	parseFilePathMention,
 	walkFilePath,
 } from "../../utils/filePathMentions";
 import { getPathBasename } from "../../utils/path";
+
+// The agent's maximum; common names such as README.md can match many files.
+const findFilesLimit = 200;
+
+/**
+ * Keeps the search results that a bare file name names. A file at a root
+ * wins over files deeper in the tree, so README.md does not also offer
+ * every docs/README.md.
+ */
+const pickMentionedFiles = (
+	results: readonly WorkspaceAgentFindFilesResult[],
+	name: string,
+) => {
+	const candidates = results.filter((result) => !result.is_dir);
+	const atRoot = candidates.filter((result) => result.path === name);
+	if (atRoot.length > 0) {
+		return atRoot;
+	}
+	return candidates.filter((result) =>
+		result.absolute_path.endsWith(`/${name}`),
+	);
+};
 
 type FileMentionProps = {
 	/**
@@ -39,6 +63,8 @@ type FileMentionProps = {
 	choices?: readonly WorkspaceAgentFindFilesResult[];
 	/** The absolute `path` is a verified folder, shown in the Files panel. */
 	isDirectory?: boolean;
+	/** `choices` came from a search that hit its result limit. */
+	truncated?: boolean;
 	children: React.ReactNode;
 };
 
@@ -51,6 +77,7 @@ const FileMention: React.FC<FileMentionProps> = ({
 	line,
 	choices,
 	isDirectory = false,
+	truncated = false,
 	children,
 }) => {
 	const files = useWorkspaceFiles();
@@ -131,7 +158,9 @@ const FileMention: React.FC<FileMentionProps> = ({
 						})}
 					</CommandList>
 					<p className="m-0 border-0 border-t border-solid border-border px-3 py-1.5 text-xs text-content-secondary">
-						{`${matches.length} files match ${path}.`}
+						{truncated
+							? `Showing ${matches.length} matches from the first ${findFilesLimit} search results. Mention a longer path to narrow them down.`
+							: `${matches.length} files match ${path}.`}
 					</p>
 				</Command>
 			</PopoverContent>
@@ -170,7 +199,8 @@ type FileMentionCandidateProps = {
 /**
  * Text that may be a file path. While it is on screen and the message has
  * finished streaming, directory listings decide whether the path exists and
- * how far it extends; only the verified part becomes a link.
+ * how far it extends, or a file search finds a bare file name; only the
+ * verified part becomes a link.
  *
  * The walk is derived in render from the listings it needs, so it follows
  * listing refreshes and stops requesting as soon as it is not rendered.
@@ -248,9 +278,32 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 		}
 		return listings[index].data?.contents ?? checks[index].data;
 	};
-	const starts = files
-		? getFilePathCandidateStarts(text, files.repoRoots, files.defaultDirectory)
-		: [];
+	// A bare file name such as FileMention.tsx can live anywhere in a
+	// repository, so a search finds it instead of a walk from the roots.
+	const mention = whole ? parseFilePathMention(text) : undefined;
+	const bareName =
+		mention && !mention.path.includes("/") ? mention.path : undefined;
+	const searchRoots =
+		files && files.repoRoots.length > 0 ? files.repoRoots : [""];
+	const search = useQuery({
+		...workspaceAgentFindFiles(
+			agentId,
+			searchRoots,
+			bareName ?? "",
+			findFilesLimit,
+		),
+		enabled: available && visible && !streaming && bareName !== undefined,
+		staleTime: directoryStaleTime,
+		retry: false,
+	});
+	const starts =
+		files && bareName === undefined
+			? getFilePathCandidateStarts(
+					text,
+					files.repoRoots,
+					files.defaultDirectory,
+				)
+			: [];
 	const walks = starts.map((start) =>
 		walkFilePath(start.root, text.slice(start.offset), getEntries),
 	);
@@ -261,6 +314,27 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 
 	if (!files) {
 		return children;
+	}
+
+	if (bareName !== undefined) {
+		const results = search.data?.results ?? [];
+		const matches = pickMentionedFiles(results, bareName);
+		return (
+			<span ref={ref}>
+				{matches.length > 0 ? (
+					<FileMention
+						path={matches.length > 1 ? bareName : matches[0].absolute_path}
+						line={mention?.line}
+						choices={matches.length > 1 ? matches : undefined}
+						truncated={results.length >= findFilesLimit}
+					>
+						{children}
+					</FileMention>
+				) : (
+					children
+				)}
+			</span>
+		);
 	}
 
 	// Equally long matches in different repositories are ambiguous, so the
