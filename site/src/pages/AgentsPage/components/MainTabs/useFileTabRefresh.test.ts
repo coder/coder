@@ -84,7 +84,7 @@ describe("getHeadLine", () => {
 		expect(getHeadLine(diff, "café.txt", 3)).toBe(2);
 		expect(
 			isAddedInDiff(
-				'diff --git "a/na\\303\\257ve \\"q\\".txt" "b/na\\303\\257ve \\"q\\".txt"\nnew file mode 100644\nindex 0000000..8ba3a16\n--- /dev/null\n+++ "b/na\\303\\257ve \\"q\\".txt"\t\n@@ -0,0 +1 @@\n+n\n',
+				'diff --git "a/na\\303\\257ve \\"q\\".txt" "b/na\\303\\257ve \\"q\\".txt"\nnew file mode 100644\nindex 0000000..1e2f3c4\n--- /dev/null\n+++ "b/na\\303\\257ve \\"q\\".txt"\t\n@@ -0,0 +1 @@\n+n\n',
 				'naïve "q".txt',
 			),
 		).toBe(true);
