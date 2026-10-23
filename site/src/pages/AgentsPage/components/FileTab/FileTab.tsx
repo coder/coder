@@ -590,7 +590,7 @@ export const FileTab = memo<FileTabProps>(
 								Item={DropdownMenuItem}
 								Separator={DropdownMenuSeparator}
 								path={path}
-								line={cursor?.line}
+								line={draft ? undefined : cursor?.line}
 							/>
 						</DropdownMenuContent>
 					</DropdownMenu>

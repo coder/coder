@@ -230,11 +230,11 @@ describe("getFileWebLinks", () => {
 			branch,
 			headCommit,
 			relativePath: "site/main.go",
-			line: 6,
+			headLine: 6,
 			diffStatuses,
 		});
 
-	it("links the pushed branch and its pull request", () => {
+	it("links the pushed branch, without HEAD's line, and its pull request", () => {
 		expect(
 			links([
 				diffStatus({
@@ -247,7 +247,7 @@ describe("getFileWebLinks", () => {
 		).toEqual({
 			repository: { provider: "github", url: "https://github.com/coder/coder" },
 			blob: {
-				url: "https://github.com/coder/coder/blob/feat/site/main.go#L6",
+				url: "https://github.com/coder/coder/blob/feat/site/main.go",
 			},
 			changeRequest: {
 				url: "https://github.com/coder/coder/pull/12",
@@ -265,7 +265,7 @@ describe("getFileWebLinks", () => {
 			}),
 		]);
 		expect(result?.blob).toEqual({
-			url: "https://github.com/coder/coder/blob/feat/site/main.go#L6",
+			url: "https://github.com/coder/coder/blob/feat/site/main.go",
 		});
 		expect(result?.changeRequest).toBeUndefined();
 	});

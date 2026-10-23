@@ -258,8 +258,12 @@ type FileWebLinksOptions = {
 	headCommit: string;
 	/** The file's path in the repository. */
 	relativePath: string;
-	/** The 1-based line to scroll to. */
-	line?: number;
+	/**
+	 * The 1-based line, in HEAD's version of the file, that the link at HEAD
+	 * scrolls to. The branch link has no line: the pushed branch can hold
+	 * other commits than HEAD.
+	 */
+	headLine?: number;
 	diffStatuses: readonly ChatDiffStatus[];
 };
 
@@ -283,7 +287,7 @@ export const getFileWebLinks = ({
 	branch,
 	headCommit,
 	relativePath,
-	line,
+	headLine,
 	diffStatuses,
 }: FileWebLinksOptions): FileWebLinks | undefined => {
 	const repository = getGitWebRepository(origin, diffStatuses);
@@ -295,10 +299,10 @@ export const getFileWebLinks = ({
 		: undefined;
 	let blob: FileWebLinks["blob"];
 	if (status) {
-		blob = { url: getBlobUrl(repository, branch, relativePath, line) };
+		blob = { url: getBlobUrl(repository, branch, relativePath) };
 	} else if (headCommit) {
 		blob = {
-			url: getBlobUrl(repository, headCommit, relativePath, line),
+			url: getBlobUrl(repository, headCommit, relativePath, headLine),
 			commit: headCommit,
 		};
 	}

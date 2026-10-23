@@ -100,17 +100,24 @@ const scrollIntoStrip = (strip: HTMLElement, tab: HTMLElement) => {
 // The value of the Chat tab in the open tabs menu. No file path is empty.
 const chatMenuValue = "";
 
+type TabFileActionsMenuItemsProps = {
+	chatId: string;
+	path: string;
+	isDirty: boolean;
+};
+
 // The menu mounts when it opens, so it reads the cursor line the tab's
 // editor saved last, even if the strip has not rendered since.
-const TabFileActionsMenuItems: React.FC<{ chatId: string; path: string }> = ({
+const TabFileActionsMenuItems: React.FC<TabFileActionsMenuItemsProps> = ({
 	chatId,
 	path,
+	isDirty,
 }) => (
 	<FileActionsMenuItems
 		Item={ContextMenuItem}
 		Separator={ContextMenuSeparator}
 		path={path}
-		line={getFileCursorLine(chatId, path)}
+		line={isDirty ? undefined : getFileCursorLine(chatId, path)}
 	/>
 );
 
@@ -340,7 +347,11 @@ export const MainTabStrip: React.FC<MainTabStripProps> = ({
 									Close to the right
 								</ContextMenuItem>
 								<ContextMenuSeparator />
-								<TabFileActionsMenuItems chatId={chatId} path={path} />
+								<TabFileActionsMenuItems
+									chatId={chatId}
+									path={path}
+									isDirty={isDirty}
+								/>
 							</ContextMenuContent>
 						</ContextMenu>
 					);
