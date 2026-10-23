@@ -38,6 +38,12 @@ const (
 	// scenarioInterrupt marks SendMessage cases driven by
 	// BusyBehaviorInterrupt.
 	scenarioInterrupt scenario = "interrupt"
+
+	scenarioSteer scenario = "steer"
+
+	scenarioSteerJumps scenario = "steer_jumps"
+
+	scenarioQueueSteerJumps scenario = "queue_steer_jumps"
 	// scenarioMulti marks cases seeded with multiple queued
 	// messages so the post-mutation queue stays non-empty.
 	scenarioMulti scenario = "multi"
@@ -142,6 +148,17 @@ func applySendMessageInterrupt(t *testing.T, f *testFixture, tx *chatstate.Tx, s
 	result.sendMessage, err = tx.SendMessage(chatstate.SendMessageInput{
 		Message:      userTextMessage("sm-interrupt", f.User.ID, f.Model.ID),
 		BusyBehavior: chatstate.BusyBehaviorInterrupt,
+		MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
+	})
+	return err
+}
+
+func applySendMessageSteer(t *testing.T, f *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+	t.Helper()
+	var err error
+	result.sendMessage, err = tx.SendMessage(chatstate.SendMessageInput{
+		Message:      userTextMessage("sm-steer", f.User.ID, f.Model.ID),
+		BusyBehavior: chatstate.BusyBehaviorSteer,
 		MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 	})
 	return err
@@ -542,6 +559,46 @@ func remainingBodiesExcluding(bodies []string, exclude int) []string {
 	return out
 }
 
+type queueSeed struct {
+	scenario  scenario
+	behaviors []chatstate.BusyBehavior
+	promoted  []int
+}
+
+func (q queueSeed) apply(spec transitionCaseSpec) transitionCaseSpec {
+	if q.scenario != "" {
+		spec.scenario = q.scenario
+	}
+	if len(q.behaviors) > 0 {
+		behaviors := q.behaviors
+		spec.seed = func(t *testing.T, f *testFixture, from chatstate.ExecutionState) seededChat {
+			return seedQueue(t, f, from, behaviors...)
+		}
+	}
+	return spec
+}
+
+func assertPromotedRows(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, promoted []database.ChatMessage, idx []int) []int64 {
+	t.Helper()
+	require.Len(t, promoted, len(idx), "unexpected promoted message count")
+	newIDs := newActiveMessageIDs(base, activeHistoryIDs(ctx, t, f, seeded.chatID))
+	for i, j := range idx {
+		msg := assertFetchedUserMessage(ctx, t, f, promoted[i])
+		require.Equal(t, seeded.chatID, msg.ChatID)
+		require.Contains(t, newIDs, msg.ID, "promoted message must be in active history")
+		assertChatMessageText(t, msg, seeded.queuedMessageBodies[j])
+		requireQueuedMessageLink(t, msg, base.queueIDs[j])
+		requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, base.queueIDs[j])
+	}
+	remaining := []int64{}
+	for i, id := range base.queueIDs {
+		if !slices.Contains(idx, i) {
+			remaining = append(remaining, id)
+		}
+	}
+	return remaining
+}
+
 // Test runner
 
 // runPositiveCase seeds the chat, runs the transition, and asserts the
@@ -822,17 +879,37 @@ func matrixCases() []transitionCaseSpec {
 
 		// SendMessage(queue) cases: idle states insert directly,
 		// busy states append to the queue tail.
-		sendMessageQueueCase(chatstate.StateW, chatstate.StateR0, true, 0),
-		sendMessageQueueCase(chatstate.StateE0, chatstate.StateR0, true, 0),
-		// E1 promotes the queue head and queues the new tail, so
-		// the net queue delta is zero.
-		sendMessageQueueCase(chatstate.StateE1, chatstate.StateR1, false, 0),
-		sendMessageQueueCase(chatstate.StateR0, chatstate.StateR1, false, +1),
-		sendMessageQueueCase(chatstate.StateR1, chatstate.StateR1, false, +1),
-		sendMessageQueueCase(chatstate.StateI0, chatstate.StateI1, false, +1),
-		sendMessageQueueCase(chatstate.StateI1, chatstate.StateI1, false, +1),
-		sendMessageQueueCase(chatstate.StateA0, chatstate.StateA1, false, +1),
-		sendMessageQueueCase(chatstate.StateA1, chatstate.StateA1, false, +1),
+		sendMessageQueueCase(chatstate.StateW, chatstate.StateR0, true, 0, queueSeed{}),
+		sendMessageQueueCase(chatstate.StateE0, chatstate.StateR0, true, 0, queueSeed{}),
+		sendMessageQueueCase(chatstate.StateE1, chatstate.StateR1, false, 0, queueSeed{promoted: []int{0}}),
+		sendMessageQueueCase(chatstate.StateE1, chatstate.StateR1, false, 0, queueSeed{
+			scenario:  scenarioQueueSteerJumps,
+			behaviors: []chatstate.BusyBehavior{chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorSteer, chatstate.BusyBehaviorQueue},
+			promoted:  []int{1},
+		}),
+		sendMessageQueueCase(chatstate.StateR0, chatstate.StateR1, false, +1, queueSeed{}),
+		sendMessageQueueCase(chatstate.StateR1, chatstate.StateR1, false, +1, queueSeed{}),
+		sendMessageQueueCase(chatstate.StateI0, chatstate.StateI1, false, +1, queueSeed{}),
+		sendMessageQueueCase(chatstate.StateI1, chatstate.StateI1, false, +1, queueSeed{}),
+		sendMessageQueueCase(chatstate.StateA0, chatstate.StateA1, false, +1, queueSeed{}),
+		sendMessageQueueCase(chatstate.StateA1, chatstate.StateA1, false, +1, queueSeed{}),
+
+		sendMessageSteerCase(chatstate.StateW, chatstate.StateR0, queueSeed{}),
+		sendMessageSteerCase(chatstate.StateE0, chatstate.StateR0, queueSeed{}),
+		sendMessageSteerCase(chatstate.StateE1, chatstate.StateR0, queueSeed{
+			behaviors: []chatstate.BusyBehavior{chatstate.BusyBehaviorSteer, chatstate.BusyBehaviorSteer},
+			promoted:  []int{0, 1},
+		}),
+		sendMessageSteerCase(chatstate.StateE1, chatstate.StateR1, queueSeed{
+			behaviors: []chatstate.BusyBehavior{chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorSteer, chatstate.BusyBehaviorQueue},
+			promoted:  []int{1},
+		}),
+		sendMessageSteerCase(chatstate.StateR0, chatstate.StateR1, queueSeed{}),
+		sendMessageSteerCase(chatstate.StateR1, chatstate.StateR1, queueSeed{}),
+		sendMessageSteerCase(chatstate.StateI0, chatstate.StateI1, queueSeed{}),
+		sendMessageSteerCase(chatstate.StateI1, chatstate.StateI1, queueSeed{}),
+		sendMessageSteerCase(chatstate.StateA0, chatstate.StateA1, queueSeed{}),
+		sendMessageSteerCase(chatstate.StateA1, chatstate.StateA1, queueSeed{}),
 
 		// SendMessage(interrupt) cases. The interrupt applier runs
 		// with body "sm-interrupt" so the assertion can prove the
@@ -935,19 +1012,32 @@ func matrixCases() []transitionCaseSpec {
 		enterRequiresActionCase(chatstate.StateR0, chatstate.StateA0),
 		enterRequiresActionCase(chatstate.StateR1, chatstate.StateA1),
 
-		// FinishInterruption cases: I0->W, I1->R0 (head promoted into
-		// history when only one queued), I1->R1 (with more than one
-		// queued, the head is promoted but the queue stays
-		// non-empty).
-		finishInterruptionCase(chatstate.StateI0, chatstate.StateW, queueShapeDefault),
+		finishInterruptionCase(chatstate.StateI0, chatstate.StateW, queueSeed{}),
 		finishInterruptionRejectsOutstandingToolCallCase(),
-		finishInterruptionCase(chatstate.StateI1, chatstate.StateR0, queueShapeDefault),
-		finishInterruptionCase(chatstate.StateI1, chatstate.StateR1, queueShapeMulti),
+		finishInterruptionCase(chatstate.StateI1, chatstate.StateR0, queueSeed{promoted: []int{0}}),
+		finishInterruptionCase(chatstate.StateI1, chatstate.StateR1, queueSeed{
+			scenario:  scenarioMulti,
+			behaviors: []chatstate.BusyBehavior{chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorQueue},
+			promoted:  []int{0},
+		}),
+		finishInterruptionCase(chatstate.StateI1, chatstate.StateR1, queueSeed{
+			scenario:  scenarioSteerJumps,
+			behaviors: []chatstate.BusyBehavior{chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorSteer, chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorSteer},
+			promoted:  []int{1, 3},
+		}),
 
-		// FinishTurn cases.
-		finishTurnCase(chatstate.StateR0, chatstate.StateW, queueShapeDefault),
-		finishTurnCase(chatstate.StateR1, chatstate.StateR0, queueShapeDefault),
-		finishTurnCase(chatstate.StateR1, chatstate.StateR1, queueShapeMulti),
+		finishTurnCase(chatstate.StateR0, chatstate.StateW, queueSeed{}),
+		finishTurnCase(chatstate.StateR1, chatstate.StateR0, queueSeed{promoted: []int{0}}),
+		finishTurnCase(chatstate.StateR1, chatstate.StateR1, queueSeed{
+			scenario:  scenarioMulti,
+			behaviors: []chatstate.BusyBehavior{chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorQueue},
+			promoted:  []int{0},
+		}),
+		finishTurnCase(chatstate.StateR1, chatstate.StateR1, queueSeed{
+			scenario:  scenarioSteerJumps,
+			behaviors: []chatstate.BusyBehavior{chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorSteer, chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorSteer},
+			promoted:  []int{1, 3},
+		}),
 
 		// FinishError cases.
 		finishErrorCase(chatstate.StateR0, chatstate.StateE0),
@@ -1020,8 +1110,8 @@ func setProjectCase(from chatstate.ExecutionState, wantStatus database.ChatStatu
 	}
 }
 
-func sendMessageQueueCase(from, want chatstate.ExecutionState, directInsert bool, queueDelta int64) transitionCaseSpec {
-	return transitionCaseSpec{
+func sendMessageQueueCase(from, want chatstate.ExecutionState, directInsert bool, queueDelta int64, q queueSeed) transitionCaseSpec {
+	return q.apply(transitionCaseSpec{
 		transition: chatstate.TransitionSendMessage,
 		from:       from,
 		want:       want,
@@ -1066,41 +1156,26 @@ func sendMessageQueueCase(from, want chatstate.ExecutionState, directInsert bool
 					"SendMessage(queue) into W/E0 appends exactly the new user message")
 
 			case from == chatstate.StateE1:
-				// E1: the previous head is promoted into history
-				// and replaced by the new tail. Net queue size
-				// unchanged.
 				require.NotNil(t, result.sendMessage.QueuedMessage,
 					"SendMessage(queue) from E1 returns the new queued tail")
-				require.Len(t, result.sendMessage.InsertedMessages, 1,
-					"SendMessage(queue) from E1 promotes the previous head into history")
-				promoted := assertFetchedUserMessage(ctx, t, f, result.sendMessage.InsertedMessages[0])
-				require.Equal(t, seeded.chatID, promoted.ChatID)
-				require.NotEmpty(t, seeded.queuedMessageBodies,
-					chatstate.StateE1.String()+" seed must record the queue head body")
-				assertChatMessageText(t, promoted, seeded.queuedMessageBodies[0])
+				remaining := assertPromotedRows(ctx, t, f, seeded, base,
+					result.sendMessage.InsertedMessages, q.promoted)
 				newQueued := assertFetchedQueuedMessage(ctx, t, f, seeded.chatID, *result.sendMessage.QueuedMessage)
 				assertQueuedMessageText(t, newQueued, "sm-queue")
-				// Previous head queued message is gone from the
-				// queue and now lives in history.
-				require.NotEmpty(t, base.queueIDs,
-					chatstate.StateE1.String()+" seed must have a queue head")
-				requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, base.queueIDs[0])
-				requireQueuedMessageLink(t, promoted, base.queueIDs[0])
-				require.NotEqual(t, newQueued.ID, promoted.QueuedMessageID.Int64,
-					"the promoted old head must not link to the new tail")
-				require.Equal(t, []int64{newQueued.ID}, afterQueueIDs,
-					chatstate.StateE1.String()+" -> "+chatstate.StateR1.String()+
-						": queue must end with only the new tail")
+				require.Equal(t, database.ChatBusyBehaviorQueue, newQueued.BusyBehavior)
+				require.Equal(t, append(remaining, newQueued.ID), afterQueueIDs,
+					"SendMessage(queue) from E1 keeps the other rows ahead of the new tail")
+				promotedIDs := make([]int64, 0, len(result.sendMessage.InsertedMessages))
+				for _, m := range result.sendMessage.InsertedMessages {
+					promotedIDs = append(promotedIDs, m.ID)
+				}
+				require.Equal(t, promotedIDs, newActiveMessageIDs(base, afterHistory),
+					"SendMessage(queue) from E1 inserts only the promoted user messages")
 				require.False(t, after.LastError.Valid,
-					chatstate.StateE1.String()+" -> "+chatstate.StateR1.String()+
-						" clears last_error")
+					"SendMessage(queue) from E1 clears last_error")
 				require.Equal(t, database.ChatStatusRunning, after.Status)
-				require.Equal(t, []int64{promoted.ID}, newActiveMessageIDs(base, afterHistory),
-					chatstate.StateE1.String()+" -> "+chatstate.StateR1.String()+
-						" inserts only the promoted user message")
 				require.Greater(t, after.QueueVersion, base.queueVersion,
-					chatstate.StateE1.String()+" -> "+chatstate.StateR1.String()+
-						" advances queue_version")
+					"SendMessage(queue) from E1 advances queue_version")
 
 			default:
 				// Busy states: the new user message is appended at
@@ -1111,6 +1186,8 @@ func sendMessageQueueCase(from, want chatstate.ExecutionState, directInsert bool
 					"SendMessage(queue) from busy states does not insert history")
 				newQueued := assertFetchedQueuedMessage(ctx, t, f, seeded.chatID, *result.sendMessage.QueuedMessage)
 				assertQueuedMessageText(t, newQueued, "sm-queue")
+				require.Equal(t, database.ChatBusyBehaviorQueue, newQueued.BusyBehavior,
+					"SendMessage(queue) stores a queue row")
 				wantQueue := append(append([]int64{}, base.queueIDs...), newQueued.ID)
 				require.Equal(t, wantQueue, afterQueueIDs,
 					"SendMessage(queue) from busy states appends to the queue tail")
@@ -1132,7 +1209,69 @@ func sendMessageQueueCase(from, want chatstate.ExecutionState, directInsert bool
 				}
 			}
 		},
-	}
+	})
+}
+
+func sendMessageSteerCase(from, want chatstate.ExecutionState, q queueSeed) transitionCaseSpec {
+	return q.apply(transitionCaseSpec{
+		transition: chatstate.TransitionSendMessage,
+		from:       from,
+		want:       want,
+		scenario:   scenarioSteer,
+		apply:      applySendMessageSteer,
+		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
+			after, err := f.DB.GetChatByID(ctx, seeded.chatID)
+			require.NoError(t, err)
+			afterHistory := activeHistoryIDs(ctx, t, f, seeded.chatID)
+			afterQueueIDs := queuedIDsByPosition(ctx, t, f, seeded.chatID)
+
+			switch from {
+			case chatstate.StateW, chatstate.StateE0, chatstate.StateE1:
+				require.Nil(t, result.sendMessage.QueuedMessage,
+					"SendMessage(steer) from %s does not queue", from)
+				inserted := result.sendMessage.InsertedMessages
+				require.Len(t, inserted, len(q.promoted)+1,
+					"SendMessage(steer) inserts the steer rows and the new message")
+				remaining := assertPromotedRows(ctx, t, f, seeded, base,
+					inserted[:len(q.promoted)], q.promoted)
+				sent := assertFetchedUserMessage(ctx, t, f, inserted[len(inserted)-1])
+				assertChatMessageText(t, sent, "sm-steer")
+				require.Equal(t, from == chatstate.StateE1, sent.QueuedMessageID.Valid,
+					"only an errored chat delivers the new message from the steer lane")
+				insertedIDs := make([]int64, 0, len(inserted))
+				for _, m := range inserted {
+					insertedIDs = append(insertedIDs, m.ID)
+				}
+				require.Equal(t, insertedIDs, newActiveMessageIDs(base, afterHistory),
+					"SendMessage(steer) appends the steer rows, then the new message")
+				require.Equal(t, remaining, afterQueueIDs,
+					"SendMessage(steer) keeps queue rows queued in order")
+				require.False(t, after.LastError.Valid,
+					"SendMessage(steer) clears last_error")
+				require.Equal(t, database.ChatStatusRunning, after.Status)
+
+			default:
+				require.Empty(t, result.sendMessage.InsertedMessages,
+					"SendMessage(steer) from busy states does not insert history")
+				require.NotNil(t, result.sendMessage.QueuedMessage,
+					"SendMessage(steer) from busy states returns the queued row")
+				newQueued := assertFetchedQueuedMessage(ctx, t, f, seeded.chatID, *result.sendMessage.QueuedMessage)
+				assertQueuedMessageText(t, newQueued, "sm-steer")
+				require.Equal(t, database.ChatBusyBehaviorSteer, newQueued.BusyBehavior,
+					"SendMessage(steer) stores a steer row")
+				require.Equal(t, append(append([]int64{}, base.queueIDs...), newQueued.ID), afterQueueIDs,
+					"SendMessage(steer) appends to the queue tail")
+				require.Equal(t, base.historyIDs, afterHistory,
+					"SendMessage(steer) from busy states does not change history")
+				require.Greater(t, after.QueueVersion, base.queueVersion,
+					"SendMessage(steer) advances queue_version")
+				require.Equal(t, base.chat.Status, after.Status,
+					"SendMessage(steer) keeps the status")
+				require.Equal(t, base.chat.RequiresActionDeadlineAt, after.RequiresActionDeadlineAt,
+					"SendMessage(steer) keeps requires_action_deadline_at")
+			}
+		},
+	})
 }
 
 func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCaseSpec {
@@ -1875,8 +2014,8 @@ func finishInterruptionRejectsOutstandingToolCallCase() transitionCaseSpec {
 	}
 }
 
-func finishInterruptionCase(from, want chatstate.ExecutionState, shape queueShape) transitionCaseSpec {
-	spec := transitionCaseSpec{
+func finishInterruptionCase(from, want chatstate.ExecutionState, q queueSeed) transitionCaseSpec {
+	return q.apply(transitionCaseSpec{
 		transition: chatstate.TransitionFinishInterruption,
 		from:       from,
 		want:       want,
@@ -1899,38 +2038,17 @@ func finishInterruptionCase(from, want chatstate.ExecutionState, shape queueShap
 			case chatstate.StateI1:
 				require.Equal(t, database.ChatStatusRunning, after.Status,
 					"FinishInterruption from I1 lands in running")
-				require.Len(t, result.finishInterruption.PromotedMessages, 1,
-					"FinishInterruption from I1 promotes the head into history")
-				promoted := assertFetchedUserMessage(ctx, t, f,
-					result.finishInterruption.PromotedMessages[0])
-				require.Equal(t, seeded.chatID, promoted.ChatID)
-				require.Contains(t, newActiveMessageIDs(base, afterHistory), promoted.ID,
-					"FinishInterruption from I1 inserts the promoted user message")
-				require.NotEmpty(t, seeded.queuedMessageBodies,
-					"I1 seed must record queued message bodies")
-				assertChatMessageText(t, promoted, seeded.queuedMessageBodies[0])
-				require.NotEmpty(t, base.queueIDs)
-				requireQueuedMessageLink(t, promoted, base.queueIDs[0])
-				requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, base.queueIDs[0])
-				wantRemaining := append([]int64{}, base.queueIDs[1:]...)
-				require.Equal(t, wantRemaining, afterQueueIDs,
-					"FinishInterruption from I1 preserves the queue tail order")
-				assertQueueBodiesInOrder(ctx, t, f, seeded.chatID,
-					seeded.queuedMessageBodies[1:])
+				remaining := assertPromotedRows(ctx, t, f, seeded, base,
+					result.finishInterruption.PromotedMessages, q.promoted)
+				require.Equal(t, remaining, afterQueueIDs,
+					"FinishInterruption from I1 keeps the other rows queued in order")
 			}
 		},
-	}
-	if shape.isMulti() {
-		spec.scenario = scenarioMulti
-		spec.seed = func(t *testing.T, f *testFixture, _ chatstate.ExecutionState) seededChat {
-			return seedStateMultiQueued(t, f, from)
-		}
-	}
-	return spec
+	})
 }
 
-func finishTurnCase(from, want chatstate.ExecutionState, shape queueShape) transitionCaseSpec {
-	spec := transitionCaseSpec{
+func finishTurnCase(from, want chatstate.ExecutionState, q queueSeed) transitionCaseSpec {
+	return q.apply(transitionCaseSpec{
 		transition: chatstate.TransitionFinishTurn,
 		from:       from,
 		want:       want,
@@ -1953,34 +2071,13 @@ func finishTurnCase(from, want chatstate.ExecutionState, shape queueShape) trans
 			case chatstate.StateR1:
 				require.Equal(t, database.ChatStatusRunning, after.Status,
 					"FinishTurn from R1 lands in running")
-				require.Len(t, result.finishTurn.PromotedMessages, 1,
-					"FinishTurn from R1 promotes the head into history")
-				promoted := assertFetchedUserMessage(ctx, t, f,
-					result.finishTurn.PromotedMessages[0])
-				require.Equal(t, seeded.chatID, promoted.ChatID)
-				require.Contains(t, newActiveMessageIDs(base, afterHistory), promoted.ID,
-					"FinishTurn from R1 inserts the promoted user message")
-				require.NotEmpty(t, seeded.queuedMessageBodies,
-					"R1 seed must record queued message bodies")
-				assertChatMessageText(t, promoted, seeded.queuedMessageBodies[0])
-				require.NotEmpty(t, base.queueIDs)
-				requireQueuedMessageLink(t, promoted, base.queueIDs[0])
-				requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, base.queueIDs[0])
-				wantRemaining := append([]int64{}, base.queueIDs[1:]...)
-				require.Equal(t, wantRemaining, afterQueueIDs,
-					"FinishTurn from R1 preserves the queue tail order")
-				assertQueueBodiesInOrder(ctx, t, f, seeded.chatID,
-					seeded.queuedMessageBodies[1:])
+				remaining := assertPromotedRows(ctx, t, f, seeded, base,
+					result.finishTurn.PromotedMessages, q.promoted)
+				require.Equal(t, remaining, afterQueueIDs,
+					"FinishTurn from R1 keeps the other rows queued in order")
 			}
 		},
-	}
-	if shape.isMulti() {
-		spec.scenario = scenarioMulti
-		spec.seed = func(t *testing.T, f *testFixture, _ chatstate.ExecutionState) seededChat {
-			return seedStateMultiQueued(t, f, from)
-		}
-	}
-	return spec
+	})
 }
 
 func finishErrorCase(from, want chatstate.ExecutionState) transitionCaseSpec {
