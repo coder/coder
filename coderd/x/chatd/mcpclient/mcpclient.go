@@ -1500,7 +1500,9 @@ func resourceFilename(uri string) string {
 		return ""
 	}
 	name := path.Base(u.Path)
-	if name == "." || name == "/" {
+	// Postgres jsonb rejects NUL, so a name with a control character
+	// could stop the tool result from being saved.
+	if name == "." || name == "/" || strings.ContainsFunc(name, unicode.IsControl) {
 		return ""
 	}
 	return name

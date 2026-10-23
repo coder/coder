@@ -1657,6 +1657,13 @@ func TestConvertCallResult_MixedContent(t *testing.T) {
 			want: fantasy.ToolResponse{Type: "media", Data: []byte("pdf-data"), MediaType: "application/pdf"},
 		},
 		{
+			name: "EmbeddedBlobControlCharacterNameDropped",
+			result: &mcp.CallToolResult{Content: []mcp.Content{
+				&mcp.EmbeddedResource{Resource: &mcp.ResourceContents{URI: "file:///tmp/report%00.pdf", MIMEType: "application/pdf", Blob: []byte("pdf-data")}},
+			}},
+			want: fantasy.ToolResponse{Type: "media", Data: []byte("pdf-data"), MediaType: "application/pdf"},
+		},
+		{
 			name: "EmbeddedBlobOpaqueURIHasNoFilename",
 			result: &mcp.CallToolResult{Content: []mcp.Content{
 				&mcp.EmbeddedResource{Resource: &mcp.ResourceContents{URI: "urn:report:42", MIMEType: "application/pdf", Blob: []byte("pdf-data")}},
