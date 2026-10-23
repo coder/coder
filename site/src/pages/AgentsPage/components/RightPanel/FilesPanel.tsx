@@ -395,9 +395,12 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 		mutationFn: async ({ path, isDirectory }: RevealRequest) => {
 			const listingPath = async (directory: string) => {
 				try {
-					const listing = await queryClient.ensureQueryData(
-						workspaceAgentDirectory(agentId, directory),
-					);
+					// A reveal often follows a write, so cached listings are refetched
+					// to include the target.
+					const listing = await queryClient.fetchQuery({
+						...workspaceAgentDirectory(agentId, directory),
+						staleTime: 0,
+					});
 					return listing.absolute_path_string;
 				} catch {
 					return undefined;
@@ -431,7 +434,9 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 				ancestors.unshift(directory);
 			}
 			await Promise.all(
-				[nextRoot, ...ancestors].map((directory) => listingPath(directory)),
+				[...(nextRoot === root ? [] : [nextRoot]), ...ancestors].map(
+					(directory) => listingPath(directory),
+				),
 			);
 			return {
 				root: nextRoot,
