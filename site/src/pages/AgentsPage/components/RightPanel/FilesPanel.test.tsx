@@ -70,9 +70,12 @@ const renderRevealed = (
 ) => {
 	const queryClient = createTestQueryClient();
 	const onRevealHandled = vi.fn();
-	const panel = (revealRequest: RevealRequest | undefined) => (
+	const panel = (
+		revealRequest: RevealRequest | undefined,
+		panelValue: WorkspaceFilesContextValue,
+	) => (
 		<QueryClientProvider client={queryClient}>
-			<WorkspaceFilesContext value={value}>
+			<WorkspaceFilesContext value={panelValue}>
 				<FilesPanel
 					chatId="chat-1"
 					revealRequest={revealRequest}
@@ -81,10 +84,12 @@ const renderRevealed = (
 			</WorkspaceFilesContext>
 		</QueryClientProvider>
 	);
-	const result = render(panel(request));
+	const result = render(panel(request, value));
 	return {
 		onRevealHandled,
-		reveal: (next: RevealRequest) => result.rerender(panel(next)),
+		// Passing the same request again only updates the context value.
+		reveal: (next: RevealRequest, nextValue = value) =>
+			result.rerender(panel(next, nextValue)),
 	};
 };
 
@@ -952,6 +957,42 @@ describe("FilesPanel", () => {
 		expect(
 			localStorage.getItem(`${filesPanelRootStorageKeyPrefix}chat-1`),
 		).toBe("~");
+	});
+
+	it("keeps a default-directory root when a repo appears during a reveal", async () => {
+		const listDirectory = vi.mocked(API.listWorkspaceAgentDirectory);
+		const fallback = listDirectory.getMockImplementation();
+		listDirectory.mockImplementation((agentId, path, signal) =>
+			path === ""
+				? Promise.resolve(listings["/home/coder"])
+				: fallback
+					? fallback(agentId, path, signal)
+					: Promise.reject(),
+		);
+		const value = contextValue({ repoRoots: [] });
+		const { reveal } = renderRevealed(undefined, value);
+		await screen.findByRole("treeitem", { name: "notes.md" });
+		const release = holdListings("");
+		const request = { path: "/home/coder/notes.md", isDirectory: false };
+
+		reveal(request);
+		await waitFor(() =>
+			expect(listedPaths().filter((path) => path === "")).toHaveLength(2),
+		);
+		reveal(request, contextValue());
+
+		expect(
+			screen.getByRole("treeitem", { name: "notes.md" }),
+		).toBeInTheDocument();
+		await settled(release);
+		await waitFor(() =>
+			expect(
+				screen.getByRole("treeitem", { name: "notes.md" }),
+			).toHaveAttribute("aria-selected", "true"),
+		);
+		expect(
+			localStorage.getItem(`${filesPanelRootStorageKeyPrefix}chat-1`),
+		).toBeNull();
 	});
 
 	it("does not list files without a workspace agent", () => {
