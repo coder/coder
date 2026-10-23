@@ -995,7 +995,7 @@ func TestConfigSSH_NoWildcard(t *testing.T) {
 		Name:           "ws-beta",
 	}).WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
 		a[0].Name = "agent-beta"
-		// A second agent, so the workspace needs per-agent host entries.
+		// A second agent, so both agents of the workspace get their own entry.
 		return append(a, &sdkproto.Agent{
 			Id:   uuid.NewString(),
 			Name: "agent-gamma",
@@ -1009,6 +1009,18 @@ func TestConfigSSH_NoWildcard(t *testing.T) {
 		Name:           "ws-alpha",
 	}).WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
 		a[0].Name = "agent-alpha"
+		return a
+	}).Do()
+	// A stopped workspace has no start-transition agents on its latest build,
+	// so its agent entries come from the template version.
+	dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+		Name:           "ws-gamma",
+	}).Seed(database.WorkspaceBuild{
+		Transition: database.WorkspaceTransitionStop,
+	}).WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
+		a[0].Name = "agent-delta"
 		return a
 	}).Do()
 
@@ -1050,22 +1062,26 @@ func TestConfigSSH_NoWildcard(t *testing.T) {
 	// The server always injects a "coder." hostname prefix in addition to the
 	// user-supplied "--hostname-suffix coder" entries. With stable workspace
 	// names we can assert the complete, ordered host-entry list exactly.
-	// ws-alpha sorts before ws-beta even though ws-alpha was created second.
+	// ws-alpha sorts before ws-beta even though ws-alpha was created second,
+	// and the stopped ws-gamma comes after the running workspaces.
 	// Each workspace entry is followed by an <agent>.<workspace>.<owner> entry
 	// per agent, matching the hostnames the dashboard and Coder Connect use.
-	owner, err := client.User(testutil.Context(t, testutil.WaitShort), codersdk.Me)
-	require.NoError(t, err)
+	owner := coderdtest.FirstUserParams.Username
 	wantHosts := []string{
 		"Host coder.ws-alpha",
-		"Host coder.agent-alpha.ws-alpha." + owner.Username,
+		"Host coder.agent-alpha.ws-alpha." + owner,
 		"Host coder.ws-beta",
-		"Host coder.agent-beta.ws-beta." + owner.Username,
-		"Host coder.agent-gamma.ws-beta." + owner.Username,
+		"Host coder.agent-beta.ws-beta." + owner,
+		"Host coder.agent-gamma.ws-beta." + owner,
+		"Host coder.ws-gamma",
+		"Host coder.agent-delta.ws-gamma." + owner,
 		"Host ws-alpha.coder",
-		"Host agent-alpha.ws-alpha." + owner.Username + ".coder",
+		"Host agent-alpha.ws-alpha." + owner + ".coder",
 		"Host ws-beta.coder",
-		"Host agent-beta.ws-beta." + owner.Username + ".coder",
-		"Host agent-gamma.ws-beta." + owner.Username + ".coder",
+		"Host agent-beta.ws-beta." + owner + ".coder",
+		"Host agent-gamma.ws-beta." + owner + ".coder",
+		"Host ws-gamma.coder",
+		"Host agent-delta.ws-gamma." + owner + ".coder",
 	}
 	require.Empty(t, cmp.Diff(wantHosts, hostLines(config)))
 
