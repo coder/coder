@@ -105,10 +105,14 @@ Coder generates [SSH key pairs](../../admin/security/secrets.md#ssh-keys) for ea
    You should now be able to ssh into your workspace.
    For example, try running:
 
-   $ ssh coder.<workspaceName>
+   $ ssh <workspaceName>.coder
    ```
 
-Your workspace is now accessible via `ssh coder.<workspace_name>` (for example, `ssh coder.myEnv` if your workspace is named `myEnv`).
+Your workspace is now accessible via `ssh <workspace_name>.coder` (for example, `ssh myEnv.coder` if your workspace is named `myEnv`).
+If your workspace has more than one agent, include the agent and owner: `ssh <agent>.<workspace_name>.<owner>.coder`.
+The **Connect via SSH** button on the workspace page shows the exact command for each agent.
+
+`coder` is the default hostname suffix. Your administrator can change it with [`CODER_WORKSPACE_HOSTNAME_SUFFIX`](../../reference/cli/server/index.md#--workspace-hostname-suffix).
 
 > [!TIP]
 > If you use a third-party SSH client that discovers hosts by parsing `~/.ssh/config` (such as the VS Code Remote-SSH sidebar or scripts that enumerate known hosts), run `coder config-ssh --no-wildcard` instead.
@@ -195,7 +199,7 @@ With Coder Desktop, you get:
 - **Automatic port forwarding**:
   All workspace ports are available at `workspace-name.coder:PORT` with no manual setup
 - **SSH access**:
-  Connect with `ssh workspace-name.coder` using any SSH client
+  Connect with `ssh workspace-name.coder` using any SSH client, or `ssh agent-name.workspace-name.owner.coder` for workspaces with more than one agent
 - **File sync**:
   Bidirectional file synchronization between local and remote directories
 
