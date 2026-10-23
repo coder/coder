@@ -1,7 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createDeferred } from "#/testHelpers/deferred";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
 import type { PendingAttachment } from "../components/ChatPageContent";
 import { draftInputStorageKeyPrefix } from "../utils/draftStorage";
@@ -411,8 +410,12 @@ describe("useConversationEditingState", () => {
 			result.current.handleContentChange("", "", false),
 		);
 		result.current.chatInputRef.current = mockInput.handle;
-		const send = createDeferred<undefined>();
-		onSend.mockReturnValueOnce(send.promise);
+		let rejectSend: (error: Error) => void = () => {};
+		onSend.mockReturnValueOnce(
+			new Promise((_resolve, reject) => {
+				rejectSend = reject;
+			}),
+		);
 
 		act(() => {
 			result.current.handleContentChange("hello", "hello", false);
@@ -425,7 +428,7 @@ describe("useConversationEditingState", () => {
 
 		// A reload now finds the submitted message.
 		expect(localStorage.getItem(expectedKey)).toBe("hello");
-		send.reject(new Error("boom"));
+		rejectSend(new Error("boom"));
 		await expect(sent).rejects.toThrow("boom");
 	});
 

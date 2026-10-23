@@ -60,10 +60,9 @@ export function useConversationEditingState(deps: {
 	const serializedEditorStateRef = useRef<string | undefined>(
 		initialEditorState,
 	);
-	// Set from a submit's clear until the send settles. While set, content
-	// changes do not write the saved draft, so it keeps the submitted message
-	// if the chat unmounts or the page reloads mid-send. On the page, a failed
-	// send restores the composer, and the editor saves it again.
+	// Set from a submit's clear until the send settles. Content changes then
+	// leave the saved draft alone, which matters only if the chat unmounts or
+	// the page reloads mid-send.
 	const isSendPendingRef = useRef(false);
 
 	// Monotonic counter to force LexicalComposer remount.
