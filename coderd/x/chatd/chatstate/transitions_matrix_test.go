@@ -1374,6 +1374,8 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 					"SendMessage(interrupt) from I* does not insert history")
 				newQueued := assertFetchedQueuedMessage(ctx, t, f, seeded.chatID, *result.sendMessage.QueuedMessage)
 				assertQueuedMessageText(t, newQueued, "sm-interrupt")
+				require.Equal(t, database.ChatBusyBehaviorSteer, newQueued.BusyBehavior,
+					"SendMessage(interrupt) from I* stores a steer row")
 				wantQueue := append(append([]int64{}, base.queueIDs...), newQueued.ID)
 				require.Equal(t, wantQueue, afterQueueIDs,
 					"SendMessage(interrupt) from I* appends to the queue tail")
@@ -1391,9 +1393,11 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 					"SendMessage(interrupt) from R* returns the queued message")
 				newQueued := assertFetchedQueuedMessage(ctx, t, f, seeded.chatID, *result.sendMessage.QueuedMessage)
 				assertQueuedMessageText(t, newQueued, "sm-interrupt")
-				wantQueue := append([]int64{newQueued.ID}, base.queueIDs...)
+				require.Equal(t, database.ChatBusyBehaviorSteer, newQueued.BusyBehavior,
+					"SendMessage(interrupt) from R* stores a steer row")
+				wantQueue := append(append([]int64{}, base.queueIDs...), newQueued.ID)
 				require.Equal(t, wantQueue, afterQueueIDs,
-					"SendMessage(interrupt) from R* puts the message at the queue head")
+					"SendMessage(interrupt) from R* appends to the queue tail")
 				require.Greater(t, after.QueueVersion, base.queueVersion,
 					"SendMessage(interrupt) from R* advances queue_version")
 				require.Equal(t, database.ChatStatusInterrupting, after.Status,
