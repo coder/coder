@@ -16,7 +16,7 @@
 #
 # Level: suggestion. The rule lands with a standing backlog (the baseline is in
 # the PR that enabled it), and the right replacement depends on the sentence.
-# DOCS-1283 tracks the cleanup and the promotion to warning.
+# Promote it to warning once the backlog is clean.
 extends: substitution
 message: "Use '%s' instead of '%s'; the word has more than one meaning. Refer to word-choice.md#choose-words-that-have-one-meaning."
 link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/word-choice.md#choose-words-that-have-one-meaning
