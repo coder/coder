@@ -406,6 +406,33 @@ func TestScanUnbornHeadHasEmptyHeadCommit(t *testing.T) {
 	require.Empty(t, sink.Entries(func(e slog.SinkEntry) bool { return e.Level >= slog.LevelWarn }))
 }
 
+// TestScanUnbornHeadDiffsAgainstEmptyTree pins that a repo without
+// commits reports staged files, not only untracked ones: after `git
+// add` and before the first commit, files are in the index, so they
+// must be diffed against the empty tree.
+func TestScanUnbornHeadDiffsAgainstEmptyTree(t *testing.T) {
+	t.Parallel()
+
+	repoDir := testutil.TempDirResolved(t)
+	gitCmd(t, repoDir, "init")
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "staged.py"), []byte("print('staged')\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "untracked.md"), []byte("# untracked\n"), 0o600))
+	gitCmd(t, repoDir, "add", "staged.py")
+	// An unstaged edit to a staged file shows in its working tree diff.
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "staged.py"), []byte("print('edited')\n"), 0o600))
+
+	h := agentgit.NewHandler(slogtest.Make(t, nil))
+	require.True(t, h.Subscribe([]string{repoDir}))
+	msg := h.Scan(context.Background())
+	require.NotNil(t, msg)
+	require.Len(t, msg.Repositories, 1)
+	repo := msg.Repositories[0]
+	require.Empty(t, repo.HeadCommit)
+	require.Contains(t, repo.UnifiedDiff, "+++ b/staged.py")
+	require.Contains(t, repo.UnifiedDiff, "+print('edited')")
+	require.Contains(t, repo.UnifiedDiff, "+++ b/untracked.md")
+}
+
 func gitOutput(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", args...)

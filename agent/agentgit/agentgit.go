@@ -399,10 +399,8 @@ func getRepoChanges(ctx context.Context, logger slog.Logger, execer agentexec.Ex
 		result.RemoteOrigin = strings.TrimSpace(string(out))
 	}
 
-	// Compute unified diff.
-	// `git diff HEAD` shows both staged and unstaged changes vs HEAD.
-	// For repos with no commits yet, fall back to showing untracked
-	// files only.
+	// Compute unified diff: staged and unstaged changes against HEAD,
+	// or the empty tree when HEAD is unborn, plus untracked files.
 	diff, err := computeGitDiff(ctx, logger, execer, gitBin, repoRoot)
 	if err != nil {
 		return result, xerrors.Errorf("compute diff: %w", err)
@@ -417,29 +415,36 @@ func getRepoChanges(ctx context.Context, logger slog.Logger, execer agentexec.Ex
 }
 
 // computeGitDiff produces a unified diff string for the repository by
-// combining `git diff HEAD` (staged + unstaged changes) with diffs
-// for untracked files.
+// combining a diff of the index paths against HEAD (staged + unstaged
+// changes) with diffs for untracked files. With an unborn HEAD, index
+// paths are diffed against the empty tree, so files staged before the
+// first commit still appear.
 func computeGitDiff(ctx context.Context, logger slog.Logger, execer agentexec.Execer, gitBin string, repoRoot string) (string, error) {
 	var diffParts []string
 
-	// Check if the repo has any commits.
-	hasCommits := true
-	checkCmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "rev-parse", "HEAD")
+	base := "HEAD"
+	checkCmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "rev-parse", "--verify", "--quiet", "HEAD^{commit}")
 	if err := checkCmd.Run(); err != nil {
-		hasCommits = false
+		// Hash an empty tree rather than hardcoding its ID, which
+		// differs between SHA-1 and SHA-256 repositories.
+		emptyCmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "hash-object", "-t", "tree", "--stdin")
+		emptyCmd.Stdin = strings.NewReader("")
+		out, err := emptyCmd.Output()
+		if err != nil {
+			return "", xerrors.Errorf("hash empty tree: %w", err)
+		}
+		base = strings.TrimSpace(string(out))
 	}
 
-	if hasCommits {
-		// `git diff HEAD` captures both staged and unstaged changes
-		// relative to HEAD in a single unified diff.
-		cmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "diff", "HEAD")
-		out, err := cmd.Output()
-		if err != nil {
-			return "", xerrors.Errorf("git diff HEAD: %w", err)
-		}
-		if len(out) > 0 {
-			diffParts = append(diffParts, string(out))
-		}
+	// `git diff <base>` captures both staged and unstaged changes
+	// relative to base in a single unified diff.
+	cmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "diff", base)
+	out, err := cmd.Output()
+	if err != nil {
+		return "", xerrors.Errorf("git diff %s: %w", base, err)
+	}
+	if len(out) > 0 {
+		diffParts = append(diffParts, string(out))
 	}
 
 	// Show untracked files as diffs too.
