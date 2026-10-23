@@ -62,12 +62,17 @@ func CSRF(cookieCfg codersdk.HTTPCookieConfig) func(next http.Handler) http.Hand
 		mw.ExemptRegexp(regexp.MustCompile("/organizations/[^/]+/provisionerdaemons/*"))
 
 		mw.ExemptFunc(func(r *http.Request) bool {
+			// The router collapses repeated slashes before matching, so
+			// "/oauth2//authorize" reaches the authorize handler. Check the
+			// same path so a stray slash cannot skip CSRF.
+			path := repeatedSlashesRe.ReplaceAllString(r.URL.Path, "/")
+
 			// Enforce CSRF on API routes and the OAuth2 authorize
 			// endpoint. The authorize endpoint serves a browser consent
 			// form whose POST must be CSRF-protected to prevent
 			// cross-site authorization code theft (coder/security#121).
-			if !strings.HasPrefix(r.URL.Path, "/api") &&
-				!strings.HasPrefix(r.URL.Path, "/oauth2/authorize") {
+			if !strings.HasPrefix(path, "/api") &&
+				!strings.HasPrefix(path, "/oauth2/authorize") {
 				return true
 			}
 
