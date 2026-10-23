@@ -48,7 +48,8 @@ const getInlineParts = (
 // the line. Headings keep middle alignment to center the chip on their text.
 const chipAlignmentClassName = "align-top in-[h1,h2,h3,h4,h5,h6]:align-middle";
 
-// Paths that "@" chips sent render as chips again; files open on click.
+// Paths that "@" chips sent render as chips again. A file opens in a tab and
+// a folder shows in the Files panel.
 const splitWorkspacePathChips = (
 	text: string,
 	workspaceFiles: WorkspaceFilesContextValue | undefined,
@@ -61,10 +62,13 @@ const splitWorkspacePathChips = (
 			segment.path,
 			segment.isDirectory,
 		);
-		const openFile =
-			workspaceFiles && !segment.isDirectory
-				? () => workspaceFiles.openFile(segment.path)
-				: undefined;
+		let openPath: (() => void) | undefined;
+		if (workspaceFiles && segment.isDirectory) {
+			openPath = () =>
+				workspaceFiles.revealInFiles(segment.path, { isDirectory: true });
+		} else if (workspaceFiles) {
+			openPath = () => workspaceFiles.openFile(segment.path);
+		}
 		return {
 			element: (
 				<span data-copy-text={sentText}>
@@ -72,7 +76,10 @@ const splitWorkspacePathChips = (
 						className={chipAlignmentClassName}
 						path={segment.path}
 						isDirectory={segment.isDirectory}
-						onOpen={openFile}
+						onOpen={openPath}
+						label={
+							segment.isDirectory ? `Show ${segment.path} in Files` : undefined
+						}
 					/>
 				</span>
 			),

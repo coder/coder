@@ -48,23 +48,34 @@ const renderMessage = (
 			/>
 		</WorkspaceFilesContext>,
 	);
-	return openFile;
+	return workspaceFiles;
 };
 
 describe("UserMessageContent", () => {
 	it("opens a referenced file from its chip", async () => {
 		const user = userEvent.setup();
-		const openFile = renderMessage("explain `/home/coder/repo/main.go` please");
+		const { openFile } = renderMessage(
+			"explain `/home/coder/repo/main.go` please",
+		);
 		await user.click(
 			screen.getByRole("button", { name: "Open /home/coder/repo/main.go" }),
 		);
 		expect(openFile).toHaveBeenCalledWith("/home/coder/repo/main.go");
 	});
 
-	it("does not open a referenced folder", async () => {
+	it("shows a referenced folder in Files", async () => {
 		const user = userEvent.setup();
-		const openFile = renderMessage("look in `/home/coder/repo/src/`");
-		await user.click(screen.getByTitle("/home/coder/repo/src/"));
+		const { openFile, revealInFiles } = renderMessage(
+			"look in `/home/coder/repo/src/`",
+		);
+		await user.click(
+			screen.getByRole("button", {
+				name: "Show /home/coder/repo/src in Files",
+			}),
+		);
+		expect(revealInFiles).toHaveBeenCalledWith("/home/coder/repo/src", {
+			isDirectory: true,
+		});
 		expect(openFile).not.toHaveBeenCalled();
 	});
 
