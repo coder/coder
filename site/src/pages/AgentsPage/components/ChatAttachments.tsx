@@ -152,7 +152,8 @@ const ExpiredAttachments: React.FC<ExpiredAttachmentsProps> = ({
 }) => (
 	<Collapsible className="flex flex-col gap-2">
 		<CollapsibleTrigger className="group inline-flex appearance-none items-center gap-1 self-start rounded-md text-xs font-medium text-content-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link">
-			{attachments.length.toLocaleString("en-US")} expired
+			{attachments.length.toLocaleString("en-US")} expired{" "}
+			{attachments.length === 1 ? "attachment" : "attachments"}
 			<ChevronDownIcon aria-hidden className="size-3.5" />
 		</CollapsibleTrigger>
 		<CollapsibleContent className="flex flex-col gap-2">

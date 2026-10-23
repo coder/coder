@@ -244,7 +244,9 @@ export const ExpiredAttachmentsShown: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
-			within(canvasElement).getByRole("button", { name: "3 expired" }),
+			within(canvasElement).getByRole("button", {
+				name: "3 expired attachments",
+			}),
 		);
 	},
 };
