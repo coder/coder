@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
@@ -1440,7 +1441,7 @@ func convertCallResult(
 						Type:      blobType,
 						Data:      c.Resource.Blob,
 						MediaType: c.Resource.MIMEType,
-						Filename:  resourceFilename(c.Resource.URI),
+						Filename:  resourceFilename(c.Resource.URI, c.Resource.MIMEType),
 						IsError:   result.IsError,
 					}
 					binaryResult = &res
@@ -1493,8 +1494,11 @@ func convertCallResult(
 }
 
 // resourceFilename returns the last element of an MCP resource URI path,
-// or "" when the URI does not name a file.
-func resourceFilename(uri string) string {
+// with the canonical extension of mediaType appended when the name's own
+// extension does not map to mediaType, because providers such as OpenAI
+// detect the file type from the extension. It returns "" when the URI does
+// not name a file or mediaType has no known extension.
+func resourceFilename(uri, mediaType string) string {
 	u, err := url.Parse(uri)
 	if err != nil {
 		return ""
@@ -1505,7 +1509,23 @@ func resourceFilename(uri string) string {
 	if name == "." || name == "/" || strings.ContainsFunc(name, unicode.IsControl) {
 		return ""
 	}
-	return name
+	baseType, _, err := mime.ParseMediaType(mediaType)
+	if err != nil {
+		return ""
+	}
+	// TypeByExtension adds a charset parameter to text types.
+	if extType, _, _ := mime.ParseMediaType(mime.TypeByExtension(path.Ext(name))); extType == baseType {
+		return name
+	}
+	ext := ".pdf"
+	if baseType != "application/pdf" {
+		exts, _ := mime.ExtensionsByType(baseType)
+		if len(exts) == 0 {
+			return ""
+		}
+		ext = exts[0]
+	}
+	return name + ext
 }
 
 // RefreshResult contains the outcome of an OAuth2 token refresh
