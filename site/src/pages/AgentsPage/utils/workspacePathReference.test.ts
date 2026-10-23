@@ -90,10 +90,66 @@ describe("splitWorkspacePathReferences", () => {
 	);
 
 	it.each([
+		[
+			"(`/repo/a.ts`)",
+			[
+				{ type: "text", text: "(" },
+				{ type: "path", path: "/repo/a.ts", isDirectory: false },
+				{ type: "text", text: ")" },
+			],
+		],
+		[
+			'"`/repo/src/`"',
+			[
+				{ type: "text", text: '"' },
+				{ type: "path", path: "/repo/src", isDirectory: true },
+				{ type: "text", text: '"' },
+			],
+		],
+	])("finds a reference inside brackets or quotes: %s", (text, segments) => {
+		expect(splitWorkspacePathReferences(text)).toEqual(segments);
+	});
+
+	it.each(
+		[
+			["(", ")"],
+			["[", "]"],
+			["{", "}"],
+			['"', '"'],
+			["'", "'"],
+			["“", "”"],
+			["‘", "’"],
+			["(", " and"],
+			['("', '")'],
+		].flatMap(([opening, closing]): [string, string, string, boolean][] => [
+			[opening, closing, "/repo/main.go", false],
+			[opening, closing, "/repo/src", true],
+		]),
+	)(
+		"finds a reference after %j and before %j: %s",
+		(opening, closing, path, isDirectory) => {
+			const reference = formatWorkspacePathReference(path, isDirectory);
+			expect(
+				splitWorkspacePathReferences(
+					`see ${opening}${reference}${closing} next`,
+				),
+			).toEqual([
+				{ type: "text", text: `see ${opening}` },
+				{ type: "path", path, isDirectory },
+				{ type: "text", text: `${closing} next` },
+			]);
+		},
+	);
+
+	it.each([
 		"run `make gen` first",
 		"edit `src/main.go`",
-		"(`/repo/a.ts`)",
 		"x`/repo/a.ts` y",
+		"x(`/repo/a.ts`)",
+		'x"`/repo/a.ts`"',
+		"don't`/repo/a.ts` y",
+		"<`/repo/a.ts`>",
+		"-`/repo/a.ts`",
 		"`/repo/a`b` is not one span",
 		"`/repo/a`b",
 		"`/repo/a.ts`.md",

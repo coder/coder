@@ -44,12 +44,13 @@ type WorkspacePathTextSegment =
 	| { type: "text"; text: string }
 	| { type: "path"; path: string; isDirectory: boolean };
 
-// Candidate code spans that start with an absolute or "~/" path, follow
-// whitespace or the start of the text, and precede whitespace or the end of
-// the text, optionally after sentence punctuation. splitWorkspacePathReferences
-// keeps only those that formatWorkspacePathReference reproduces exactly.
+// Candidate code spans that start with an absolute or "~/" path. A span
+// follows whitespace or the start of the text, optionally after opening
+// brackets or quotes, and precedes whitespace or the end of the text,
+// optionally after sentence punctuation. splitWorkspacePathReferences keeps
+// only those that formatWorkspacePathReference reproduces exactly.
 const candidatePattern =
-	/(?<=^|\s)(`+)( ?)((?:\/|~\/)[\s\S]*?)\2\1(?=[.,;:!?)\]}"'”’]*(?:\s|$))/g;
+	/(?<=(?:^|\s)[([{"'“‘]*)(`+)( ?)((?:\/|~\/)[\s\S]*?)\2\1(?=[.,;:!?)\]}"'”’]*(?:\s|$))/g;
 
 /** Splits text into plain text and the workspace path references in it. */
 export const splitWorkspacePathReferences = (
