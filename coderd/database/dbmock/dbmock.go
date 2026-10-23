@@ -1542,6 +1542,20 @@ func (mr *MockStoreMockRecorder) DeleteOrganizationMember(ctx, arg any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOrganizationMember", reflect.TypeOf((*MockStore)(nil).DeleteOrganizationMember), ctx, arg)
 }
 
+// DeleteOrganizationMemberDisabledSkill mocks base method.
+func (m *MockStore) DeleteOrganizationMemberDisabledSkill(ctx context.Context, arg database.DeleteOrganizationMemberDisabledSkillParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOrganizationMemberDisabledSkill", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteOrganizationMemberDisabledSkill indicates an expected call of DeleteOrganizationMemberDisabledSkill.
+func (mr *MockStoreMockRecorder) DeleteOrganizationMemberDisabledSkill(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOrganizationMemberDisabledSkill", reflect.TypeOf((*MockStore)(nil).DeleteOrganizationMemberDisabledSkill), ctx, arg)
+}
+
 // DeleteOrganizationSkillByOrganizationIDAndName mocks base method.
 func (m *MockStore) DeleteOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg database.DeleteOrganizationSkillByOrganizationIDAndNameParams) (database.Skill, error) {
 	m.ctrl.T.Helper()
@@ -5409,6 +5423,21 @@ func (mr *MockStoreMockRecorder) GetOrganizationSkillByOrganizationIDAndName(ctx
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationSkillByOrganizationIDAndName", reflect.TypeOf((*MockStore)(nil).GetOrganizationSkillByOrganizationIDAndName), ctx, arg)
 }
 
+// GetOrganizationSkillMemberPreferences mocks base method.
+func (m *MockStore) GetOrganizationSkillMemberPreferences(ctx context.Context, arg database.GetOrganizationSkillMemberPreferencesParams) (database.GetOrganizationSkillMemberPreferencesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOrganizationSkillMemberPreferences", ctx, arg)
+	ret0, _ := ret[0].(database.GetOrganizationSkillMemberPreferencesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOrganizationSkillMemberPreferences indicates an expected call of GetOrganizationSkillMemberPreferences.
+func (mr *MockStoreMockRecorder) GetOrganizationSkillMemberPreferences(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationSkillMemberPreferences", reflect.TypeOf((*MockStore)(nil).GetOrganizationSkillMemberPreferences), ctx, arg)
+}
+
 // GetOrganizations mocks base method.
 func (m *MockStore) GetOrganizations(ctx context.Context, arg database.GetOrganizationsParams) ([]database.Organization, error) {
 	m.ctrl.T.Helper()
@@ -8823,6 +8852,20 @@ func (mr *MockStoreMockRecorder) InsertOrganizationMember(ctx, arg any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrganizationMember", reflect.TypeOf((*MockStore)(nil).InsertOrganizationMember), ctx, arg)
 }
 
+// InsertOrganizationMemberDisabledSkill mocks base method.
+func (m *MockStore) InsertOrganizationMemberDisabledSkill(ctx context.Context, arg database.InsertOrganizationMemberDisabledSkillParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertOrganizationMemberDisabledSkill", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertOrganizationMemberDisabledSkill indicates an expected call of InsertOrganizationMemberDisabledSkill.
+func (mr *MockStoreMockRecorder) InsertOrganizationMemberDisabledSkill(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrganizationMemberDisabledSkill", reflect.TypeOf((*MockStore)(nil).InsertOrganizationMemberDisabledSkill), ctx, arg)
+}
+
 // InsertOrganizationSkill mocks base method.
 func (m *MockStore) InsertOrganizationSkill(ctx context.Context, arg database.InsertOrganizationSkillParams) (database.Skill, error) {
 	m.ctrl.T.Helper()
@@ -11304,6 +11347,21 @@ func (mr *MockStoreMockRecorder) UpdateOrganizationDeletedByID(ctx, arg any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrganizationDeletedByID", reflect.TypeOf((*MockStore)(nil).UpdateOrganizationDeletedByID), ctx, arg)
 }
 
+// UpdateOrganizationMembersCanDisableSkills mocks base method.
+func (m *MockStore) UpdateOrganizationMembersCanDisableSkills(ctx context.Context, arg database.UpdateOrganizationMembersCanDisableSkillsParams) (database.Organization, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateOrganizationMembersCanDisableSkills", ctx, arg)
+	ret0, _ := ret[0].(database.Organization)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateOrganizationMembersCanDisableSkills indicates an expected call of UpdateOrganizationMembersCanDisableSkills.
+func (mr *MockStoreMockRecorder) UpdateOrganizationMembersCanDisableSkills(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrganizationMembersCanDisableSkills", reflect.TypeOf((*MockStore)(nil).UpdateOrganizationMembersCanDisableSkills), ctx, arg)
+}
+
 // UpdateOrganizationSkillACLByID mocks base method.
 func (m *MockStore) UpdateOrganizationSkillACLByID(ctx context.Context, arg database.UpdateOrganizationSkillACLByIDParams) (database.Skill, error) {
 	m.ctrl.T.Helper()
@@ -13130,6 +13188,20 @@ func (m *MockStore) UpsertOrganizationAIProviderModelConfig(ctx context.Context,
 func (mr *MockStoreMockRecorder) UpsertOrganizationAIProviderModelConfig(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertOrganizationAIProviderModelConfig", reflect.TypeOf((*MockStore)(nil).UpsertOrganizationAIProviderModelConfig), ctx, arg)
+}
+
+// UpsertOrganizationMemberSkillSettings mocks base method.
+func (m *MockStore) UpsertOrganizationMemberSkillSettings(ctx context.Context, arg database.UpsertOrganizationMemberSkillSettingsParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertOrganizationMemberSkillSettings", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertOrganizationMemberSkillSettings indicates an expected call of UpsertOrganizationMemberSkillSettings.
+func (mr *MockStoreMockRecorder) UpsertOrganizationMemberSkillSettings(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertOrganizationMemberSkillSettings", reflect.TypeOf((*MockStore)(nil).UpsertOrganizationMemberSkillSettings), ctx, arg)
 }
 
 // UpsertPrebuildsSettings mocks base method.

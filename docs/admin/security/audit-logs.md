@@ -659,6 +659,7 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>icon</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>No</td></tr>
 <tr><td><code>is_default</code></td><td>Yes</td></tr>
+<tr><td><code>members_can_disable_skills</code></td><td>Yes</td></tr>
 <tr><td><code>name</code></td><td>Yes</td></tr>
 <tr><td><code>shareable_workspace_owners</code></td><td>Yes</td></tr>
 <tr><td><code>updated_at</code></td><td>Yes</td></tr>

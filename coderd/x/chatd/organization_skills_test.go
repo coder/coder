@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -224,4 +225,111 @@ func TestOrganizationSkillsFollowChatOwnerAccess(t *testing.T) {
 	require.NotContains(t, calls[0].system, "team-review")
 	require.Contains(t, calls[0].system, "- org-wide: Org-wide process\n")
 	require.Equal(t, `skill "team-review" not found`, calls[1].toolResults[len(calls[1].toolResults)-1])
+}
+
+func TestOrganizationSkillsFollowMemberPreferences(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	recorder, openAIURL := newSkillRecordingOpenAI(t)
+	member, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	other := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: other.ID, OrganizationID: org.ID})
+
+	everyone := database.ChatACL{org.ID.String(): {Permissions: []policy.Action{policy.ActionRead}}}
+	orgSkill := func(name string) database.Skill {
+		return dbgen.OrganizationSkill(t, db, database.Skill{
+			OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+			Name:           name,
+			Description:    "Process " + name,
+			GroupACL:       everyone,
+			UserACL:        database.ChatACL{},
+		})
+	}
+	optedOut := orgSkill("opted-out")
+	orgSkill("kept")
+	require.NoError(t, db.InsertOrganizationMemberDisabledSkill(ctx, database.InsertOrganizationMemberDisabledSkillParams{
+		OrganizationID: org.ID,
+		UserID:         member.ID,
+		SkillID:        optedOut.ID,
+	}))
+	setMembersCanDisable := func(enabled bool) {
+		t.Helper()
+		_, err := db.UpdateOrganizationMembersCanDisableSkills(ctx, database.UpdateOrganizationMembersCanDisableSkillsParams{
+			ID:                      org.ID,
+			MembersCanDisableSkills: enabled,
+			UpdatedAt:               dbtime.Now(),
+		})
+		require.NoError(t, err)
+	}
+
+	authzDB := dbauthz.New(
+		db,
+		rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
+		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		coderdtest.AccessControlStorePointer(),
+	)
+	server := newActiveTestServer(t, authzDB, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+	})
+
+	runTurn := func(t *testing.T, userID uuid.UUID, text string) []skillRecordedCall {
+		t.Helper()
+		subject, _, err := httpmw.UserRBACSubject(dbauthz.AsSystemRestricted(ctx), db, userID, rbac.ScopeAll)
+		require.NoError(t, err)
+		before := len(recorder.recorded())
+		chat, err := server.CreateChat(dbauthz.As(ctx, subject), chatd.CreateOptions{
+			OrganizationID:     org.ID,
+			OwnerID:            userID,
+			Title:              "org-skill-preferences",
+			ModelConfigID:      model.ID,
+			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText(text)},
+		})
+		require.NoError(t, err)
+		waitForChatProcessed(ctx, t, db, chat.ID, server)
+		chat, err = db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.NotEqual(t, database.ChatStatusError, chat.Status, "last_error=%q", chatLastErrorMessage(chat.LastError))
+		return recorder.recorded()[before:]
+	}
+
+	// While the setting is off, stored choices have no effect.
+	calls := runTurn(t, member.ID, "hello")
+	require.Len(t, calls, 1)
+	require.Contains(t, calls[0].system, "- opted-out: Process opted-out\n")
+	require.Contains(t, calls[0].system, "- kept: Process kept\n")
+
+	// With the setting on, the opted-out skill leaves the member's index and
+	// read_skill, while another member still gets it.
+	setMembersCanDisable(true)
+	calls = runTurn(t, member.ID, readSkillsDirective+"opted-out,kept")
+	require.Len(t, calls, 2)
+	require.NotContains(t, calls[0].system, "opted-out")
+	require.Contains(t, calls[0].system, "- kept: Process kept\n")
+	require.Len(t, calls[1].toolResults, 2)
+	require.Equal(t, `skill "opted-out" not found`, calls[1].toolResults[0])
+	require.Contains(t, calls[1].toolResults[1], "Fixture instructions.")
+
+	calls = runTurn(t, other.ID, readSkillsDirective+"opted-out")
+	require.Len(t, calls, 2)
+	require.Contains(t, calls[0].system, "- opted-out: Process opted-out\n")
+	require.Contains(t, calls[1].toolResults[0], "Fixture instructions.")
+
+	// The master switch excludes every organization skill, including one
+	// created after it was set.
+	require.NoError(t, db.UpsertOrganizationMemberSkillSettings(ctx, database.UpsertOrganizationMemberSkillSettingsParams{
+		OrganizationID:    org.ID,
+		UserID:            member.ID,
+		AllSkillsDisabled: true,
+	}))
+	orgSkill("added-later")
+	calls = runTurn(t, member.ID, "hello")
+	require.Len(t, calls, 1)
+	for _, name := range []string{"opted-out", "kept", "added-later"} {
+		require.NotContains(t, calls[0].system, name)
+	}
+	calls = runTurn(t, other.ID, "hello")
+	require.Len(t, calls, 1)
+	require.Contains(t, calls[0].system, "- added-later: Process added-later\n")
 }
