@@ -141,6 +141,31 @@ describe("splitWorkspacePathReferences", () => {
 		},
 	);
 
+	it("finds a reference after a span its boundaries reject", () => {
+		expect(
+			splitWorkspacePathReferences(
+				"Use [`/repo/a.ts`](./a) and `/repo/b.ts` next.",
+			),
+		).toEqual([
+			{ type: "text", text: "Use [`/repo/a.ts`](./a) and " },
+			{ type: "path", path: "/repo/b.ts", isDirectory: false },
+			{ type: "text", text: " next." },
+		]);
+	});
+
+	it.each(["(`/repo/a`x ", "`/repo/a`x "])(
+		"scans many rejected spans in linear time: %j",
+		(unit) => {
+			// Each span's closing backtick is glued to a word. A search that runs
+			// past a rejected closing backtick takes seconds here.
+			const text = unit.repeat(20_000);
+			const start = performance.now();
+			const segments = splitWorkspacePathReferences(text);
+			expect(performance.now() - start).toBeLessThan(1000);
+			expect(segments).toEqual([{ type: "text", text }]);
+		},
+	);
+
 	it.each([
 		"run `make gen` first",
 		"edit `src/main.go`",
