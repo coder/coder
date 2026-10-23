@@ -767,6 +767,12 @@
 									"state": ["premium"]
 								},
 								{
+									"title": "Script ordering",
+									"description": "Declare startup and shutdown script dependencies in Terraform, including ordering across modules and required outcomes.",
+									"path": "./admin/templates/script-ordering.md",
+									"state": ["beta"]
+								},
+								{
 									"title": "Workspace startup coordination",
 									"description": "Coordinate workspace startup scripts with dependency management so they run in the right order.",
 									"path": "./admin/templates/startup-coordination/index.md",

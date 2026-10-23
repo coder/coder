@@ -2,8 +2,11 @@
 title: Workspace startup coordination
 ---
 
+For dependencies between whole startup or shutdown scripts, use [declarative script ordering](../script-ordering.md) in your template.
+This section covers the experimental `coder exp sync` commands for coordination inside script bodies.
+
 > [!NOTE]
-> This feature is experimental and may change without notice in future releases.
+> The `coder exp sync` commands are experimental and might change without notice.
 
 When workspaces start, scripts often need to run in a specific order.
 For example, an IDE or coding agent might need the repository cloned before it can start.
