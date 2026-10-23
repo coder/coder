@@ -113,7 +113,8 @@ export const useChatStore = (
 		[chatID, queryClient],
 	);
 
-	// A store loads its newest page once; afterwards only the stream writes it.
+	// A store loads its newest page once. After that, only stream events and
+	// older pages change it.
 	useEffect(() => {
 		store.load(() => fetchNewestChatMessages(chatID));
 	}, [chatID, store]);
@@ -495,7 +496,8 @@ export const useChatStore = (
 		clearStreamError: () => {
 			store.clearStreamError();
 		},
-		// hasLoadOlderMessagesError reports a failed page.
+		// The catch drops the error, because hasLoadOlderMessagesError reports
+		// it.
 		loadOlderMessages: () => loadOlderMessages().catch(() => undefined),
 		isLoadingOlderMessages,
 		hasLoadOlderMessagesError,
