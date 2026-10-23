@@ -44,7 +44,10 @@ import { ChimeButton } from "../components/ChimeButton";
 import { ProjectPage } from "../components/ProjectPage/ProjectPage";
 import { WebPushButton } from "../components/WebPushButton";
 import { isAbortError } from "../utils/chatAttachments";
-import { toWorkspaceFileReferencePart } from "../utils/chatInputContent";
+import {
+	buildChatInputContent,
+	toWorkspaceFileReferencePart,
+} from "../utils/chatInputContent";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
 import { type DeepLinkState, readDeepLinkState } from "../utils/deepLinkState";
 import { buildAgentChatPath } from "../utils/navigation";
@@ -260,6 +263,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 
 	const handleCreateChat = async ({
 		message,
+		composerParts,
 		fileIDs,
 		workspaceId,
 		model,
@@ -270,10 +274,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		planMode,
 		uploadWorkspaceFiles,
 	}: CreateChatOptions) => {
-		const content: TypesGen.ChatInputPart[] = [];
-		if (message.trim()) {
-			content.push({ type: "text", text: message });
-		}
+		const content = buildChatInputContent({ message, composerParts }).content;
 		if (fileIDs) {
 			for (const fileID of fileIDs) {
 				content.push({ type: "file", file_id: fileID });

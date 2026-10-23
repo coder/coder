@@ -518,6 +518,7 @@
 		--avatar-lg: 2.5rem;
 		--avatar-default: 2rem;
 		--avatar-sm: 1.5rem;
+		--avatar-xs: 1.125rem;
 	}
 	.dark {
 		--content-primary: 0 0% 100%;

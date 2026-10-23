@@ -503,6 +503,8 @@ Setting `title` writes a `user` title. The write happens even when the text is u
 
 ### `POST /api/v2/chats/{chat}/messages`
 
+TODO (project-skills): `skill-invocation` content parts are resolved when a message is created, sent, or edited: chatd loads each invoked skill body as the chat owner (personal, organization, project via the chat's project, workspace from the pinned context snapshot), stores it on the part, and rejects the request with a 400 when the skill is not available. The prompt renders the stored body inside `<invoked-skill>`. Describe this here.
+
 For `busy_behavior=queue`, `SendMessage(m, queue)` supports:
 
 - `W -> SendMessage(m, queue) -> R0`

@@ -82,7 +82,7 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 			r.Patch("/messages/{message}", api.patchChatMessage)
 			r.Get("/prompts", api.getChatUserPrompts)
 			r.Get("/attachments", api.getChatAttachments)
-			r.Post("/interrupt", api.interruptChat)
+			r.Post("/interrupt", api.postChatInterrupt)
 			r.Post("/compact", api.compactChat)
 			r.Post("/clear", api.clearChat)
 			r.Post("/reconcile-invalid", api.reconcileInvalidChatState)

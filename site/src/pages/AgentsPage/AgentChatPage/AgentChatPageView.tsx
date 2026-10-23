@@ -85,6 +85,7 @@ type EditingState = {
 		messageId: number,
 		text: string,
 		fileBlocks?: readonly ChatMessagePart[],
+		editorState?: string,
 	) => void;
 	handleCancelHistoryEdit: () => void;
 	handleSendFromInput: (options: SendChatMessageOptions) => void;
