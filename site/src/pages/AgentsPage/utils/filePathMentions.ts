@@ -475,7 +475,7 @@ const isPathEnd = (text: string, index: number) => {
 // in "/repo/my docs/missing/". An entry ending there is only a prefix.
 const continuesPath = (text: string, index: number) => {
 	const word = /^\s+(\S+)/.exec(text.slice(index))?.[1];
-	return word !== undefined && word.includes("/") && !/^[/~]/.test(word);
+	return Boolean(word?.includes("/") && !/^[/~]/.test(word));
 };
 
 const isEntryEnd = (text: string, index: number) =>
