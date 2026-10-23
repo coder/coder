@@ -76,7 +76,7 @@ const TemplateFilesPage: React.FC = () => {
 						</Button>
 						<Button asChild size="sm" variant="outline">
 							<a
-								href={docs("/admin/templates/creating-templates")}
+								href={docs("/templates/creating-templates")}
 								target="_blank"
 								rel="noopener noreferrer"
 								className="flex items-center"

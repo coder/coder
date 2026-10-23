@@ -74,7 +74,7 @@ const ErrorScriptAlert: React.FC = () => {
 			<Link
 				title="startup script has exited with an error"
 				href={docs(
-					"/admin/templates/troubleshooting#startup-script-exited-with-an-error",
+					"/templates/troubleshooting#startup-script-exited-with-an-error",
 				)}
 				target="_blank"
 				rel="noreferrer"
@@ -85,7 +85,7 @@ const ErrorScriptAlert: React.FC = () => {
 			, we recommend reloading this session and{" "}
 			<Link
 				title=" debugging the startup script"
-				href={docs("/admin/templates/troubleshooting#startup-script-issues")}
+				href={docs("/templates/troubleshooting#startup-script-issues")}
 				target="_blank"
 				rel="noreferrer"
 			>
@@ -95,7 +95,7 @@ const ErrorScriptAlert: React.FC = () => {
 			<Link
 				title="your workspace may be incomplete."
 				href={docs(
-					"/admin/templates/troubleshooting#your-workspace-may-be-incomplete",
+					"/templates/troubleshooting#your-workspace-may-be-incomplete",
 				)}
 				target="_blank"
 				rel="noreferrer"
@@ -118,7 +118,7 @@ const LoadingScriptsAlert: React.FC = () => {
 			<Link
 				title="your workspace may be incomplete."
 				href={docs(
-					"/admin/templates/troubleshooting#your-workspace-may-be-incomplete",
+					"/templates/troubleshooting#your-workspace-may-be-incomplete",
 				)}
 				target="_blank"
 				rel="noreferrer"
@@ -142,7 +142,7 @@ const LoadedScriptsAlert: React.FC = () => {
 			<Link
 				title="session was started before the startup scripts finished"
 				href={docs(
-					"/admin/templates/troubleshooting#your-workspace-may-be-incomplete",
+					"/templates/troubleshooting#your-workspace-may-be-incomplete",
 				)}
 				target="_blank"
 				rel="noreferrer"

@@ -11,7 +11,7 @@ type AlternativeLink = {
 const alternatives: readonly AlternativeLink[] = [
 	{
 		label: "Start from scratch",
-		href: "https://coder.com/docs/tutorials/template-from-scratch",
+		href: "https://coder.com/docs/templates/template-from-scratch",
 		external: true,
 	},
 	{

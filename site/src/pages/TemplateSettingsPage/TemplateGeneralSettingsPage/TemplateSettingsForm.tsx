@@ -366,7 +366,7 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 									<Link
 										className="text-xs"
 										href={docs(
-											"/admin/templates/extending-templates/resource-persistence",
+											"/templates/extending-templates/resource-persistence",
 										)}
 									>
 										Learn more

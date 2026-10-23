@@ -101,7 +101,7 @@ const WorkspaceSchedulePage: React.FC = () => {
 						<Link
 							title="Prebuilt Workspaces Scheduling"
 							href={docs(
-								"/admin/templates/extending-templates/prebuilt-workspaces#scheduling",
+								"/templates/extending-templates/prebuilt-workspaces#scheduling",
 							)}
 							target="_blank"
 							rel="noreferrer"
