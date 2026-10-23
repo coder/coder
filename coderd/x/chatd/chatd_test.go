@@ -57,6 +57,7 @@ import (
 	experimentrules "github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/experiments/experimentstest"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd"
@@ -1154,7 +1155,7 @@ func TestArchiveChatDeletesDebugRuns(t *testing.T) {
 	user, org, model := seedChatDependencies(t, db)
 	chat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: model.ID})
 	// Stamped outside the clock-skew buffer so the cleanup deletes it
-	// instead of leaving it for the stale sweeper.
+	// instead of leaving it for dbpurge.
 	staleStart := sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
 	staleRun, err := db.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
 		ChatID: chat.ID, Kind: "chat_turn", Status: "completed", StartedAt: staleStart, UpdatedAt: staleStart,
@@ -1549,7 +1550,7 @@ func TestEditMessageDebugCleanupDeletesPreEditRuns(t *testing.T) {
 
 	// Stale debug run tied to the pre-edit message branch. Stamped
 	// well outside the clock-skew buffer so the fast retry path
-	// deletes it instead of deferring to the stale sweeper.
+	// deletes it instead of deferring to dbpurge.
 	staleStart := time.Now().Add(-time.Hour).UTC().Truncate(time.Microsecond)
 	staleRun, err := db.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
 		ChatID:              chat.ID,
@@ -1591,10 +1592,8 @@ func TestEditMessageDebugCleanupDeletesPreEditRuns(t *testing.T) {
 	chatd.WaitUntilIdleForTest(replica)
 
 	// ErrNoRows on staleRun proves the fast-retry path DELETED the
-	// row: FinalizeStale (the only other debug-row writer on the
-	// server) only UPDATEs finished_at in place, it never deletes,
-	// so the row can only disappear via DeleteAfterMessageID which
-	// is reached solely from scheduleDebugCleanup.
+	// row: in this test it can disappear only via DeleteAfterMessageID,
+	// which is reached solely from scheduleDebugCleanup.
 	_, err = db.GetChatDebugRunByID(ctx, staleRun.ID)
 	require.ErrorIs(t, err, sql.ErrNoRows,
 		"pre-edit run matching the message-id filter should be deleted")
@@ -1627,7 +1626,7 @@ func TestEditMessageDebugCleanupDeletesPreEditRuns(t *testing.T) {
 // TestEditMessageDebugCleanupPreservesRecentRuns verifies that the
 // clock-skew buffer in the edit-cleanup cutoff prevents the fast
 // retry from deleting debug runs that started within the buffer
-// window. The stale sweep handles those leftovers later.
+// window. dbpurge deletes those leftovers once they age out.
 func TestEditMessageDebugCleanupPreservesRecentRuns(t *testing.T) {
 	t.Parallel()
 
@@ -3852,6 +3851,24 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	partialMessages := filterMessageEvents(partialSnapshot)
 	require.Len(t, partialMessages, 1, "afterMessageID=msg2.ID should return only messages after msg2")
 	require.Equal(t, codersdk.ChatMessageRoleUser, partialMessages[0].Message.Role)
+
+	err = db.SoftDeleteChatMessagesAfterID(ctx, database.SoftDeleteChatMessagesAfterIDParams{
+		ChatID:  chat.ID,
+		AfterID: msg2.ID - 1,
+	})
+	require.NoError(t, err)
+
+	resetSnapshot, _, cancelReset, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID)
+	require.True(t, ok)
+	cancelReset()
+
+	resets := slice.Filter(resetSnapshot, func(e codersdk.ChatStreamEvent) bool {
+		return e.Type == codersdk.ChatStreamEventTypeHistoryReset
+	})
+	require.Len(t, resets, 1, "deleted cursor should trigger a history reset")
+	resetMessages := filterMessageEvents(resetSnapshot)
+	require.Len(t, resetMessages, 1, "only the message before the truncation survives")
+	require.Equal(t, []codersdk.ChatMessagePart{codersdk.ChatMessageText("first")}, resetMessages[0].Message.Content)
 }
 
 func TestSubscribeAfterMessageIDWithEdit(t *testing.T) {
@@ -4676,8 +4693,8 @@ func highUsageTextResponse(text string) chattest.AnthropicResponse {
 func anthropicCompactionResponse(t testing.TB, req *chattest.AnthropicRequest, text string) chattest.AnthropicResponse {
 	t.Helper()
 	require.True(t, req.Stream)
-	// The summary cap is the configured cap with headroom bounded by
-	// the remaining context window, so it varies per test fixture; exact
+	// The summary cap is the configured cap bounded by the remaining
+	// context window, so it varies per test fixture; exact
 	// values are pinned in the chatloop unit tests and the hook test.
 	require.Positive(t, req.MaxTokens)
 	return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks(text)...)
@@ -5283,6 +5300,56 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 		require.False(t, chat.LastError.Valid)
 		require.Equal(t, int32(2), streamCount.Load())
+	})
+
+	t.Run("summary keeps the configured output cap", func(t *testing.T) {
+		t.Parallel()
+
+		// A cap configured at the provider maximum, as the known-model
+		// catalog seeds it, must not grow on the summary request: providers
+		// reject max_tokens above their output limit.
+		const maxOutputTokens = int64(128_000)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		requests := newAnthropicRequestRecorder()
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			body := anthropicRequestBody(t, *req)
+			if strings.Contains(body, "You are performing a context compaction") {
+				requests.record(req)
+				return anthropicCompactionResponse(t, req, compactionSummary)
+			}
+			if !req.Stream {
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			requests.record(req)
+			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunksWithCacheUsage(chattest.AnthropicUsage{
+				InputTokens:  10,
+				OutputTokens: 5,
+			}, "assistant answer")...)
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+		model = updateChatModelCompressionThreshold(t, db, model, 1_000_000, 80)
+		model = updateChatModelCallConfig(t, db, model, codersdk.ChatModelCallConfig{
+			MaxOutputTokens: ptr.Ref(maxOutputTokens),
+		})
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello from the user")
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		_, err := server.CompactChat(ctx, chat)
+		require.NoError(t, err)
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.False(t, chat.LastError.Valid)
+		require.False(t, chat.CompactionRequestedAt.Valid,
+			"compaction commit must consume the request marker")
+
+		recorded := requests.all()
+		require.Len(t, recorded, 2, "one chat turn and one summary request")
+		require.Equal(t, int(maxOutputTokens), recorded[0].MaxTokens, "chat turn max_tokens")
+		require.Equal(t, int(maxOutputTokens), recorded[1].MaxTokens, "summary max_tokens")
 	})
 
 	t.Run("compacts an errored chat and clears last_error", func(t *testing.T) {
@@ -9370,6 +9437,15 @@ func TestProposeChatTitle_DebugRun(t *testing.T) {
 				require.True(t, runs[0].FinishedAt.Valid)
 				require.True(t, runs[0].HistoryTipMessageID.Valid)
 				require.Equal(t, message.ID, runs[0].HistoryTipMessageID.Int64)
+				require.False(t, runs[0].TriggerMessageID.Valid)
+				require.Equal(t, uuid.NullUUID{UUID: model.ID, Valid: true}, runs[0].ModelConfigID)
+				require.Equal(t, sql.NullString{String: model.Model, Valid: true}, runs[0].Model)
+				var summary map[string]any
+				require.NoError(t, json.Unmarshal(runs[0].Summary, &summary))
+				require.Equal(t, "summarize debug title generation", summary["first_message"])
+				steps, err := db.GetChatDebugStepsByRunID(ctx, runs[0].ID)
+				require.NoError(t, err)
+				require.NotEmpty(t, steps)
 			}
 			if !tt.wantErr {
 				// Title generation must not write accounting rows to
@@ -11053,7 +11129,7 @@ func TestProcessChatPanicRecovery(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 
 	// Wrap the database so we can trigger a panic on the main
-	// goroutine of processChat. The chatloop's executeTools has
+	// goroutine of processChat. The chatloop's toolBatch has
 	// its own recover, so panicking inside a tool goroutine won't
 	// reach the processChat-level recovery. Instead, we panic
 	// during PersistStep's InTx call, which runs synchronously on
@@ -13120,11 +13196,11 @@ func TestChatTemplateAgentsAllowedEnforcement(t *testing.T) {
 		// template must be rejected before this function is called.
 		cfg.CreateWorkspace = func(
 			_ context.Context,
-			_ uuid.UUID,
+			_, _ uuid.UUID,
 			_ codersdk.CreateWorkspaceRequest,
-		) (codersdk.Workspace, error) {
+		) (codersdk.Workspace, database.Chat, error) {
 			t.Error("CreateWorkspace should not be called for a blocked template")
-			return codersdk.Workspace{}, xerrors.New("unexpected call")
+			return codersdk.Workspace{}, database.Chat{}, xerrors.New("unexpected call")
 		}
 	})
 
@@ -13273,10 +13349,11 @@ func TestChatAsksUserWhenListTemplatesRequiresSelection(t *testing.T) {
 		cfg.CreateWorkspace = func(
 			context.Context,
 			uuid.UUID,
+			uuid.UUID,
 			codersdk.CreateWorkspaceRequest,
-		) (codersdk.Workspace, error) {
+		) (codersdk.Workspace, database.Chat, error) {
 			t.Error("create_workspace should not be called when list_templates requires user selection")
-			return codersdk.Workspace{}, xerrors.New("unexpected create_workspace call")
+			return codersdk.Workspace{}, database.Chat{}, xerrors.New("unexpected create_workspace call")
 		}
 	})
 

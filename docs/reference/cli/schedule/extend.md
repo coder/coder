@@ -33,18 +33,18 @@ Extends the workspace deadline.
 
 ### -c, --column
 
-|         |                                                                           |
-|---------|---------------------------------------------------------------------------|
-| Type    | <code>[workspace\|starts at\|starts next\|stops after\|stops next]</code> |
-| Default | <code>workspace,starts at,starts next,stops after,stops next</code>       |
+| Property | Value                                                                     |
+|----------|---------------------------------------------------------------------------|
+| Type     | <code>[workspace\|starts at\|starts next\|stops after\|stops next]</code> |
+| Default  | <code>workspace,starts at,starts next,stops after,stops next</code>       |
 
 Columns to display in table output.
 
 ### -o, --output
 
-|         |                          |
-|---------|--------------------------|
-| Type    | <code>table\|json</code> |
-| Default | <code>table</code>       |
+| Property | Value                    |
+|----------|--------------------------|
+| Type     | <code>table\|json</code> |
+| Default  | <code>table</code>       |
 
 Output format.

@@ -19,7 +19,10 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { toast } from "#/components/Toaster/toast";
 import { draftStorageKeys } from "../AgentCreateForm";
-import { ProjectActionsMenuItems } from "../ChatsSidebar/chats/ProjectActionsMenuItems";
+import {
+	hasProjectUpdateOrDeleteAction,
+	ProjectActionsMenuItems,
+} from "../ChatsSidebar/chats/ProjectActionsMenuItems";
 import { ChatProjectDialog } from "../ChatsSidebar/dialogs/ChatProjectDialog";
 import { normalizeLocationSearch } from "../ChatsSidebar/locationSearch";
 import { ProjectPageHeader } from "./ProjectPageHeader";
@@ -83,29 +86,32 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 			<ProjectPageHeader
 				project={project}
 				actions={
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								ref={actionsButtonRef}
-								variant="subtle"
-								size="icon"
-								aria-label="Project actions"
-							>
-								<EllipsisVerticalIcon />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<ProjectActionsMenuItems
-								Item={DropdownMenuItem}
-								Separator={DropdownMenuSeparator}
-								onEdit={() => {
-									updateMutation.reset();
-									setIsEditOpen(true);
-								}}
-								onDelete={() => setIsDeleteOpen(true)}
-							/>
-						</DropdownMenuContent>
-					</DropdownMenu>
+					hasProjectUpdateOrDeleteAction(project.permissions) && (
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									ref={actionsButtonRef}
+									variant="subtle"
+									size="icon"
+									aria-label="Project actions"
+								>
+									<EllipsisVerticalIcon />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<ProjectActionsMenuItems
+									Item={DropdownMenuItem}
+									Separator={DropdownMenuSeparator}
+									permissions={project.permissions}
+									onEdit={() => {
+										updateMutation.reset();
+										setIsEditOpen(true);
+									}}
+									onDelete={() => setIsDeleteOpen(true)}
+								/>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					)
 				}
 			/>
 			<ChatProjectDialog
@@ -128,7 +134,7 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 				entity="project"
 				name={project.name}
 				confirmLoading={deleteMutation.isPending}
-				info="Chats in this project will be kept and move back to the Chats list."
+				info="Its memories and instructions will be deleted. Chats in it, including chats started by people it is shared with, will be kept and move back to each owner's Chats list."
 			/>
 		</>
 	);
