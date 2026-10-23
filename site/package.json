@@ -130,7 +130,7 @@
 		"@storybook/addon-links": "10.3.3",
 		"@storybook/addon-mcp": "^0.7.0",
 		"@storybook/addon-themes": "10.3.3",
-		"@storybook/addon-vitest": "10.3.3",
+		"@storybook/addon-vitest": "10.6.2",
 		"@storybook/react-vite": "10.3.3",
 		"@tailwindcss/typography": "0.5.20",
 		"@tailwindcss/vite": "4.3.3",
