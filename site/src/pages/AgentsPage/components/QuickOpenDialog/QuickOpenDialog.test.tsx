@@ -5,6 +5,7 @@ import { QueryClientProvider } from "react-query";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { API } from "#/api/api";
+import { workspaceAgentFindFiles } from "#/api/queries/workspaceFiles";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import {
 	WorkspaceFilesContext,
@@ -95,6 +96,23 @@ describe("QuickOpenDialog", () => {
 		});
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 		const queryClient = createTestQueryClient();
+		// Results of another chat on the same agent, which searched the default
+		// directory.
+		const cachedSearch = workspaceAgentFindFiles("agent-1", [""], "main");
+		queryClient.setQueryDefaults(cachedSearch.queryKey, {
+			gcTime: Number.POSITIVE_INFINITY,
+		});
+		queryClient.setQueryData(cachedSearch.queryKey, {
+			results: [
+				{
+					absolute_path: "/home/coder/cached.go",
+					path: "cached.go",
+					root: "/home/coder",
+					is_dir: false,
+					score: 10,
+				},
+			],
+		});
 		const dialog = (value: WorkspaceFilesContextValue) => (
 			<QueryClientProvider client={queryClient}>
 				<WorkspaceFilesContext value={value}>
@@ -102,9 +120,8 @@ describe("QuickOpenDialog", () => {
 				</WorkspaceFilesContext>
 			</QueryClientProvider>
 		);
-		const { rerender } = render(
-			dialog(contextValue({ repoRoots: [], repoRootsSettled: false })),
-		);
+		const value = contextValue({ repoRoots: [], repoRootsSettled: false });
+		const { rerender } = render(dialog(value));
 
 		await user.keyboard("{Control>}p{/Control}");
 		await waitFor(() =>
@@ -116,6 +133,9 @@ describe("QuickOpenDialog", () => {
 		await screen.findByText("Searching...");
 		await act(() => vi.advanceTimersByTimeAsync(500));
 		expect(API.findWorkspaceAgentFiles).not.toHaveBeenCalled();
+		expect(screen.queryByRole("option")).toBeNull();
+		await user.keyboard("{Enter}");
+		expect(value.openFile).not.toHaveBeenCalled();
 
 		rerender(dialog(contextValue()));
 
