@@ -35,11 +35,13 @@ The agent scans the following:
 
 - The workspace working directory
 - `~/.coder` and `~/.coder/skills`
-- `~/.claude/plugins/cache`
 - Any additional source you declare through the agent's context sources API
 
-Declared sources contribute instruction files and skills only.
-A `.mcp.json` file inside a declared source appears in the context inventory, but the agent does not connect to the servers it lists; MCP servers load only from the workspace working directory.
+Declared sources contribute instruction files, skills, and [Agent Plugins](#agent-plugins-experimental).
+A `.mcp.json` file or plugin inside a declared source appears in the context inventory, but the agent does not connect to the MCP servers it lists.
+By default, MCP servers load only from the workspace working directory.
+When `CODER_AGENT_EXP_MCP_CONFIG_FILES` is set in the agent's environment, they load only from the files it lists.
+The working directory's `.mcp.json` still appears in the context inventory.
 
 Discovery is shallow.
 Instruction files (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) and `.mcp.json` are read only at the top level of a scan root, and skills are read only from the fixed container directories described below.
@@ -364,3 +366,76 @@ Tool names are prefixed with the server name as `serverName__toolName` to avoid 
   30&nbsp;seconds per server.
 - **Tool calls**:
   60&nbsp;seconds per invocation.
+
+## Agent Plugins (experimental)
+
+> [!NOTE]
+> This feature is experimental.
+> Pin a release before broad rollout and review the release notes before upgrading.
+
+An [Agent Plugin](https://agent-plugins.org) is a directory with a `plugin.json` manifest that packages skills and MCP servers.
+The workspace agent discovers plugins only when the `agent-plugins` experiment is enabled on the Coder server.
+When the experiment is off, the agent ignores `plugin.json` files.
+An agent from a release without plugin support also ignores them, until the workspace restarts with a newer agent.
+Turning the experiment on or off doesn't change a chat's pinned snapshot.
+A chat that pinned plugin entries and skills keeps them after you turn the experiment off, until you [refresh its context](#how-the-workspace-shares-context-with-chats).
+
+### Enable the experiment
+
+```sh
+coder server --experiments=agent-plugins
+```
+
+Or set the environment variable:
+
+```sh
+CODER_EXPERIMENTS=agent-plugins
+```
+
+### Where the agent finds plugins
+
+In each [scan root](#where-the-agent-looks), the agent treats these directories as plugins:
+
+- Each immediate subdirectory of `.agents/plugins/`
+- Each immediate subdirectory of `plugins/`
+- The scan root itself, when it holds a `plugin.json`
+
+A plugin's `plugin.json` requires `$schema`, set to `https://agent-plugins.org/schemas/1.0.0/plugin.schema.json`, and `name`:
+
+```json
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "devtools",
+  "version": "1.0.0",
+  "description": "Formatting and lint tools for this repository"
+}
+```
+
+The optional fields are:
+
+- `version`
+- `description`
+- `author`
+- `homepage`
+- `repository`
+- `license`
+- `keywords`
+- `extensions`
+
+The agent ignores any other field and notes it on the plugin's entry in the context list.
+
+Other tools also use `plugin.json` and `plugins/`, so the agent handles a manifest without an Agent Plugins `$schema` by its location:
+
+| Location            | `plugin.json` without an Agent Plugins `$schema` |
+|---------------------|--------------------------------------------------|
+| `.agents/plugins/*` | Reported as an invalid plugin                    |
+| `plugins/*`         | Ignored                                          |
+| Scan root           | Ignored                                          |
+
+A plugin name uses lowercase letters, digits, `.`, and `-`, up to 64 characters.
+It starts and ends with a letter or digit and doesn't contain `..` or `--`.
+When two plugins use the same name, the agent keeps the first one it finds and reports the other as invalid.
+The agent checks declared sources first, in the order you declared them, then `~/.coder` and `~/.coder/skills`, then the working directory.
+Within a scan root, `plugins/` comes before `.agents/plugins/`.
+When a scan root is itself a plugin, the agent does not look for other plugins inside it.
+None of an invalid plugin's skills or MCP servers load.

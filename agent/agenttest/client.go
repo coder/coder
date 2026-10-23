@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
+	protobuf "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"storj.io/drpc/drpcmux"
@@ -311,6 +312,12 @@ func (c *Client) ContextStatePushes() []*agentproto.PushContextStateRequest {
 	return c.fakeAgentAPI.ContextStatePushes()
 }
 
+// SetAgentPluginsEnabled sets agent_plugins_enabled on the manifest
+// returned by later GetManifest calls.
+func (c *Client) SetAgentPluginsEnabled(enabled bool) {
+	c.fakeAgentAPI.SetAgentPluginsEnabled(enabled)
+}
+
 type FakeAgentAPI struct {
 	sync.Mutex
 	t      testing.TB
@@ -367,7 +374,20 @@ func (f *FakeAgentAPI) ContextStatePushes() []*agentproto.PushContextStateReques
 }
 
 func (f *FakeAgentAPI) GetManifest(context.Context, *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
+	f.Lock()
+	defer f.Unlock()
 	return f.manifest, nil
+}
+
+// SetAgentPluginsEnabled replaces the served manifest with a copy whose
+// agent_plugins_enabled is enabled. Manifests already returned are not
+// modified.
+func (f *FakeAgentAPI) SetAgentPluginsEnabled(enabled bool) {
+	f.Lock()
+	defer f.Unlock()
+	m := protobuf.CloneOf(f.manifest)
+	m.AgentPluginsEnabled = enabled
+	f.manifest = m
 }
 
 func (*FakeAgentAPI) GetServiceBanner(context.Context, *agentproto.GetServiceBannerRequest) (*agentproto.ServiceBanner, error) {
