@@ -76,7 +76,9 @@ function sessionStatus(session) {
   return {
     startedAt: session.startedAt,
     ended: session.ended,
-    ...(session.archived === true ? { archived: true } : {}),
+    archived: session.archived === true,
+    resumable: session.resumable === true,
+    resumePending: session.resumePending === true,
     fault: session.fault,
     stale: session.stale,
     registrationPending: session.registrationPending === true,
@@ -184,8 +186,49 @@ export function createAgent(connection, client) {
   async function consume(state, event, replay) {
     const { type, data } = event;
     if (!data || typeof data !== "object") throw bridgeError("Invalid broker event data");
-    // Saved terminal/control events describe history, not the current runtime.
-    if (replay && state.archived && ["session.end", "overflow", "mode", "needs.input"].includes(type)) return;
+    // Resuming retains earlier conversation text, not earlier runtime control.
+    const historical = (replay && state.archived) || event.seq <= (state.runtimeStartCursor ?? 0);
+    if (historical && !TURN_EVENTS.has(type)) return;
+    replay ||= historical;
+    if (type === "session.resuming") {
+      if (data.sessionId !== state.sessionId) throw bridgeError("Broker resume changed the session UUID");
+      if (event.seq <= (state.runtimeStartCursor ?? 0)) return;
+      Object.assign(state, { archived: false, ended: false, fault: false, mode: "human",
+        resumable: false, resumePending: true, registrationPending: true,
+        runtimeStartCursor: event.seq, blockedReason: undefined });
+      state.observedTurns.clear();
+      await update(state, { sessionUpdate: "session_info_update", _meta: { [META]: sessionStatus(state) } }, event);
+      await update(state, { sessionUpdate: "current_mode_update", currentModeId: "human" }, event);
+      return;
+    }
+    if (type === "session.resume_failed") {
+      if (data.sessionId !== state.sessionId || typeof data.reason !== "string" || typeof data.retryable !== "boolean") {
+        throw bridgeError("Broker returned an invalid resume failure");
+      }
+      if (data.retryable) Object.assign(state, { archived: true, ended: true, resumePending: false,
+        registrationPending: false, resumable: true, mode: "human" });
+      state.lastError = { message: data.reason };
+      await update(state, { sessionUpdate: "session_info_update", _meta: { [META]: sessionStatus(state) } }, event);
+      return;
+    }
+    if (type === "runtime.resumed") {
+      if (data.sessionId !== state.sessionId || typeof data.runtimeId !== "string" || !data.runtimeId ||
+          !MODES.some(({ id }) => id === data.mode) ||
+          (!state.resumePending && state.runtimeId !== data.runtimeId)) {
+        throw bridgeError("Broker returned an invalid resumed runtime");
+      }
+      if (state.resumePending) {
+        Object.assign(state, { runtimeId: data.runtimeId, mode: data.mode, lastSeen: data.lastSeen,
+          archived: false, ended: false, fault: false, registrationPending: false, resumePending: false,
+          blockedReason: undefined });
+        state.observedTurns.clear();
+        await update(state, { sessionUpdate: "session_info_update", _meta: {
+          [META]: { ...sessionStatus(state), runtimeId: state.runtimeId, lastSeen: state.lastSeen },
+        } }, event);
+        await update(state, { sessionUpdate: "current_mode_update", currentModeId: state.mode }, event);
+      }
+      return;
+    }
     if (type === "runtime.replaced" || type === "overflow") {
       throw bridgeError(`Broker event ${type}; reattach explicitly`, { sessionId: state.sessionId });
     }
@@ -345,7 +388,7 @@ export function createAgent(connection, client) {
     }
   }
 
-  async function readEvents(state, wait, replay = false) {
+  async function readEvents(state, wait, replay = false, through) {
     const batch = await request("GET", `${sessionPath(state.sessionId)}/events?after=${state.cursor}&wait=${wait ? 1 : 0}`,
       undefined, state.controller.signal);
     if (!batch || !Array.isArray(batch.events) || !Number.isSafeInteger(batch.cursor)) {
@@ -361,14 +404,19 @@ export function createAgent(connection, client) {
     }
     if (cursor !== batch.cursor) throw bridgeError("Broker event cursor gap");
     for (const event of batch.events) {
+      // An archive snapshot cannot classify controls appended by a later resume.
+      // Leave those events unread until a fresh snapshot authorizes following it.
+      if (through !== undefined && event.seq > through) break;
       await consume(state, event, replay);
       state.cursor = event.seq;
     }
   }
 
   async function poll(state) {
+    if (state.polling) return;
+    state.polling = true;
     try {
-      while (!state.controller.signal.aborted) {
+      while (!state.archived && !state.controller.signal.aborted) {
         state.reading = readEvents(state, true);
         await state.reading;
       }
@@ -381,7 +429,26 @@ export function createAgent(connection, client) {
         sessionUpdate: "session_info_update",
         _meta: { [META]: { error: state.error.message, cursor: state.cursor } },
       } }).catch(() => {});
+    } finally { state.polling = false; }
+  }
+
+  async function followResume(state, session) {
+    if (!state.archived || session.archived || session.ended || session.fault) return;
+    checkSession(session);
+    if (session.sessionId !== state.sessionId || session.cwd !== state.cwd ||
+        !Number.isSafeInteger(session.runtimeStartCursor) || session.runtimeStartCursor < state.cursor) {
+      throw bridgeError("Broker returned an invalid resume boundary");
     }
+    Object.assign(state, {
+      ...sessionStatus(session), mode: session.mode, runtimeId: session.runtimeId,
+      runtimeStartCursor: session.runtimeStartCursor, lastSeen: session.lastSeen,
+    });
+    state.observedTurns.clear();
+    await update(state, { sessionUpdate: "session_info_update", _meta: {
+      [META]: { ...sessionStatus(state), runtimeId: state.runtimeId, lastSeen: state.lastSeen },
+    } });
+    await update(state, { sessionUpdate: "current_mode_update", currentModeId: state.mode });
+    void poll(state);
   }
 
   async function attach(session, cwd, replay) {
@@ -405,7 +472,7 @@ export function createAgent(connection, client) {
     try {
       // Archives replay the retained broker log, not complete native history.
       // A non-waiting snapshot also makes loading an empty session finite.
-      await readEvents(state, false, replay);
+      await readEvents(state, false, replay, state.archived ? session.cursor : undefined);
       state.ready = true;
       if (!state.archived) void poll(state);
       return state;
@@ -452,8 +519,11 @@ export function createAgent(connection, client) {
         // poller. Wait for its stream to reach the snapshot before enabling work.
         const cursor = session.cursor ?? state.cursor;
         if (!Number.isSafeInteger(cursor) || cursor < 0) throw bridgeError("Invalid broker event cursor");
+        await followResume(state, session);
+        if (state.archived) Object.assign(state, sessionStatus(session));
         while (state.cursor < cursor) {
-          await state.reading;
+          if (state.archived) await readEvents(state, false, true, cursor);
+          else await state.reading;
           if (state.error) throw state.error;
         }
         if (session.runtimeId !== state.runtimeId && !session.registrationPending) throw bridgeError("Broker session identity changed during attachment");
@@ -467,6 +537,11 @@ export function createAgent(connection, client) {
       if (params.cursor != null) throw invalid("Session list pagination is not supported");
       const result = await request("GET", "/v1/sessions");
       if (!Array.isArray(result?.sessions)) throw bridgeError("Invalid broker session list");
+      for (const session of result.sessions) {
+        checkSession(session);
+        const state = sessions.get(session.sessionId);
+        if (state && !state.error) await followResume(state, session);
+      }
       return { sessions: result.sessions.filter((session) => {
         checkSession(session);
         return !params.cwd || resolve(session.cwd) === resolve(params.cwd);
@@ -480,8 +555,14 @@ export function createAgent(connection, client) {
 
     async setSessionMode({ sessionId, modeId }) {
       const state = getSession(sessionId);
-      if (state.archived) throw bridgeError("Saved session history is read-only; no native runtime was resumed");
       if (!MODES.some(({ id }) => id === modeId)) throw invalid("Unsupported native session mode");
+      if (state.archived) {
+        if (modeId !== "human" || !state.resumable) throw bridgeError("Saved session history is read-only; Join is required to resume a supported native session");
+        const resumed = await request("POST", `${sessionPath(sessionId)}/resume`, {}, state.controller.signal);
+        await followResume(state, resumed);
+        if (state.archived) throw bridgeError("Native resume was not confirmed; inspect the saved session before retrying");
+        return {};
+      }
       if (state.registrationPending && modeId !== "human") throw bridgeError(REGISTRATION_PENDING_REASON);
       await request("POST", `${sessionPath(sessionId)}/mode`, { mode: modeId }, state.controller.signal);
       if (state.error) throw state.error;

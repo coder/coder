@@ -46,6 +46,8 @@ import {
 	MockPendingNativeAgentModes,
 	MockRecoveredNativeAgentSessionInfo,
 	MockRegisteredNativeAgentSessionInfo,
+	MockResumableNativeAgentSessionInfo,
+	MockResumePendingNativeAgentSessionInfo,
 	MockStaleNativeAgentSessionInfo,
 } from "#/testHelpers/nativeAgent";
 import { mockNativeAgentServer } from "#/testHelpers/nativeAgentServer";
@@ -635,13 +637,21 @@ it("does not navigate when switching to human mode fails", async () => {
 	view.unmount();
 });
 
-it.each(["unselected", "selected", "collapsed"])(
-	"joins a %s setup session only after load and human-mode acknowledgement",
-	async (selection) => {
+it.each(
+	[
+		MockBlockedNativeAgentSessionInfo,
+		MockResumableNativeAgentSessionInfo,
+	].flatMap((info) =>
+		["unselected", "selected", "collapsed"].map((selection) => ({
+			info,
+			selection,
+		})),
+	),
+)(
+	"joins a $selection session ($info.title) only after load and human-mode acknowledgement",
+	async ({ info, selection }) => {
 		const mock = setup();
-		mock.list.mockResolvedValue({
-			sessions: [MockBlockedNativeAgentSessionInfo],
-		});
+		mock.list.mockResolvedValue({ sessions: [info] });
 		mock.load.mockResolvedValue({ modes: MockPendingNativeAgentModes });
 		const popup = {
 			location: { href: "about:blank" },
@@ -656,15 +666,13 @@ it.each(["unselected", "selected", "collapsed"])(
 		const user = userEvent.setup();
 		if (selection !== "unselected") {
 			await user.click(
-				await screen.findByRole("button", {
-					name: /Set up the project agent.*00c083d0/,
-				}),
+				await screen.findByRole("button", { name: new RegExp(info.sessionId) }),
 			);
 			await waitFor(() => expect(mock.load).toHaveBeenCalledTimes(1));
 			if (selection === "collapsed") {
 				await user.click(
 					screen.getByRole("button", {
-						name: /Set up the project agent.*00c083d0/,
+						name: new RegExp(info.sessionId),
 						expanded: true,
 					}),
 				);
@@ -676,7 +684,7 @@ it.each(["unselected", "selected", "collapsed"])(
 		const acknowledged = createDeferred<Record<string, never>>();
 		mock.mode.mockReturnValueOnce(acknowledged.promise);
 		const joinButton = await screen.findByRole("button", {
-			name: selection === "selected" ? "Join" : "Join Set up the project agent",
+			name: selection === "selected" ? "Join" : `Join ${info.title}`,
 		});
 		if (selection === "unselected") {
 			joinButton.focus();
@@ -688,8 +696,8 @@ it.each(["unselected", "selected", "collapsed"])(
 		expect(popup.opener).toBeNull();
 		await waitFor(() =>
 			expect(mock.load).toHaveBeenCalledWith({
-				sessionId: MockBlockedNativeAgentSessionInfo.sessionId,
-				cwd: MockBlockedNativeAgentSessionInfo.cwd,
+				sessionId: info.sessionId,
+				cwd: info.cwd,
 				mcpServers: [],
 			}),
 		);
@@ -702,7 +710,7 @@ it.each(["unselected", "selected", "collapsed"])(
 		}
 		await waitFor(() =>
 			expect(mock.mode).toHaveBeenCalledWith({
-				sessionId: MockBlockedNativeAgentSessionInfo.sessionId,
+				sessionId: info.sessionId,
 				modeId: "human",
 			}),
 		);
@@ -712,7 +720,7 @@ it.each(["unselected", "selected", "collapsed"])(
 		expect(
 			new URL(popup.location.href, location.origin).searchParams.get("command"),
 		).toBe(
-			`coder-acp attach '${MockBlockedNativeAgentSessionInfo.sessionId}'; exec "\${SHELL:-/bin/sh}" -l`,
+			`coder-acp attach '${info.sessionId}'; exec "\${SHELL:-/bin/sh}" -l`,
 		);
 		expect(mock.load).toHaveBeenCalledTimes(1);
 		expect(mock.prompt).not.toHaveBeenCalled();
@@ -846,6 +854,142 @@ it.each(["poll", "notification"])(
 	},
 );
 
+it.each(["discovery refresh", "notification"])(
+	"resumes saved history only on Join, preserves drafts and collapse through %s, and waits for Observe before sending",
+	async (source) => {
+		const mock = setup();
+		mock.list.mockResolvedValue({
+			sessions: [MockResumableNativeAgentSessionInfo],
+		});
+		mock.load.mockResolvedValue({ modes: MockPendingNativeAgentModes });
+		const popup = {
+			location: { href: "about:blank" },
+			opener: window,
+			close: vi.fn(),
+		};
+		vi.stubGlobal(
+			"open",
+			vi.fn(() => popup),
+		);
+		const view = renderControls();
+		const user = userEvent.setup();
+		await user.click(
+			await screen.findByRole("button", {
+				name: /Investigate the failing tests.*00c083d0/,
+			}),
+		);
+		await waitFor(() => expect(mock.load).toHaveBeenCalledTimes(1));
+		await user.type(
+			screen.getByRole("textbox", { name: "Prompt" }),
+			"Continue from the saved conversation",
+		);
+		await user.click(screen.getByRole("button", { name: "Add session" }));
+		await user.clear(
+			screen.getByRole("textbox", { name: "Working directory" }),
+		);
+		await user.type(
+			screen.getByRole("textbox", { name: "Working directory" }),
+			"/home/coder/edited",
+		);
+		await user.click(screen.getByRole("button", { name: "Send" }));
+		expect(mock.prompt).not.toHaveBeenCalled();
+		expect(mock.mode).not.toHaveBeenCalled();
+
+		mock.mode.mockImplementationOnce(async () => {
+			mock.list.mockResolvedValue({
+				sessions: [MockResumePendingNativeAgentSessionInfo],
+			});
+			await mock.server.socket.connection.client.notify(
+				methods.client.session.update,
+				{
+					sessionId: MockResumableNativeAgentSessionInfo.sessionId,
+					update: {
+						sessionUpdate: "session_info_update",
+						_meta: MockResumePendingNativeAgentSessionInfo._meta,
+					},
+				},
+			);
+			return {};
+		});
+		await user.click(screen.getByRole("button", { name: "Join" }));
+		await waitFor(() => expect(popup.location.href).not.toBe("about:blank"));
+		expect(mock.mode).toHaveBeenCalledWith({
+			sessionId: MockResumableNativeAgentSessionInfo.sessionId,
+			modeId: "human",
+		});
+		await user.click(screen.getByRole("button", { name: "Send" }));
+		expect(mock.prompt).not.toHaveBeenCalled();
+		await user.click(
+			screen.getByRole("button", {
+				name: /Investigate the failing tests.*00c083d0/,
+				expanded: true,
+			}),
+		);
+
+		const mockRegisteredInfo = {
+			...MockResumePendingNativeAgentSessionInfo,
+			_meta: MockRegisteredNativeAgentSessionInfo._meta,
+		};
+		mock.list.mockResolvedValue({ sessions: [mockRegisteredInfo] });
+		if (source === "discovery refresh") {
+			await user.click(
+				screen.getByRole("button", { name: "Refresh sessions" }),
+			);
+		} else {
+			await act(async () => {
+				await mock.server.socket.connection.client.notify(
+					methods.client.session.update,
+					{
+						sessionId: mockRegisteredInfo.sessionId,
+						update: {
+							sessionUpdate: "session_info_update",
+							_meta: {
+								"claude-acp-bridge": {
+									registrationPending: false,
+									resumePending: false,
+								},
+							},
+						},
+					},
+				);
+			});
+		}
+		await user.click(
+			screen.getByRole("button", {
+				name: /Investigate the failing tests.*00c083d0/,
+				expanded: false,
+			}),
+		);
+		await user.click(screen.getByRole("button", { name: "Send" }));
+		expect(mock.prompt).not.toHaveBeenCalled();
+		expect(mock.mode).toHaveBeenCalledTimes(1);
+		await user.click(await screen.findByRole("button", { name: "Observe" }));
+		await waitFor(() => expect(mock.mode).toHaveBeenCalledTimes(2));
+		await user.click(screen.getByRole("button", { name: "Send" }));
+		await waitFor(() =>
+			expect(mock.prompt).toHaveBeenCalledWith({
+				sessionId: mockRegisteredInfo.sessionId,
+				prompt: [
+					{ type: "text", text: "Continue from the saved conversation" },
+				],
+			}),
+		);
+		expect(mock.prompt).toHaveBeenCalledTimes(1);
+		expect(mock.load).toHaveBeenCalledTimes(1);
+		expect(mock.create).not.toHaveBeenCalled();
+		expect(mock.cancel).not.toHaveBeenCalled();
+		expect(mock.server.sockets).toHaveLength(1);
+		await user.click(screen.getByRole("button", { name: "Create session" }));
+		await waitFor(() =>
+			expect(mock.create).toHaveBeenCalledWith({
+				cwd: "/home/coder/edited",
+				mcpServers: [],
+			}),
+		);
+		view.unmount();
+	},
+);
+
 it("creates a pending native session without requesting automation or submitting a prompt", async () => {
 	const mock = setup();
 	mock.create.mockResolvedValue({
@@ -872,18 +1016,67 @@ it("creates a pending native session without requesting automation or submitting
 	view.unmount();
 });
 
-it("rejects automation and prompts while registration is pending even if the adapter reports automation", async () => {
-	const mock = setup();
-	const session = new NativeAgentSession(MockWorkspaceAgent.id);
-	await session.connect();
-	await session.load(MockBlockedNativeAgentSessionInfo);
-	await expect(session.setMode("automation")).rejects.toThrow("complete setup");
-	await expect(session.prompt("Do not send")).rejects.toThrow();
-	expect(mock.mode).not.toHaveBeenCalled();
-	expect(mock.prompt).not.toHaveBeenCalled();
-	expect(session.getSnapshot().session?.entries).toEqual([]);
-	session.close();
-});
+it.each([
+	MockBlockedNativeAgentSessionInfo,
+	MockResumePendingNativeAgentSessionInfo,
+	{
+		...MockResumePendingNativeAgentSessionInfo,
+		_meta: {
+			"claude-acp-bridge": { resumePending: true, registrationPending: false },
+		},
+	},
+])(
+	"rejects automation and prompts while setup or resume is pending despite reported automation: $_meta",
+	async (info) => {
+		const mock = setup();
+		const session = new NativeAgentSession(MockWorkspaceAgent.id);
+		await session.connect();
+		await session.load(info);
+		await expect(session.setMode("automation")).rejects.toThrow(
+			"complete setup",
+		);
+		await expect(session.prompt("Do not send")).rejects.toThrow();
+		expect(mock.mode).not.toHaveBeenCalled();
+		expect(mock.prompt).not.toHaveBeenCalled();
+		expect(session.getSnapshot().session?.entries).toEqual([]);
+		session.close();
+	},
+);
+
+it.each([undefined, false, "true", true])(
+	"only explicit resumable true permits human control of unavailable history: %s",
+	async (resumable) => {
+		const mock = setup();
+		const session = new NativeAgentSession(MockWorkspaceAgent.id);
+		await session.connect();
+		await session.load({
+			...MockResumableNativeAgentSessionInfo,
+			_meta: {
+				"claude-acp-bridge": {
+					archived: true,
+					ended: true,
+					fault: true,
+					resumable,
+				},
+			},
+		});
+		await expect(session.setMode("automation")).rejects.toThrow("unavailable");
+		await expect(session.prompt("Do not replay")).rejects.toThrow();
+		if (resumable === true) {
+			await session.setMode("human");
+			expect(mock.mode).toHaveBeenCalledExactlyOnceWith({
+				sessionId: MockResumableNativeAgentSessionInfo.sessionId,
+				modeId: "human",
+			});
+		} else {
+			await expect(session.setMode("human")).rejects.toThrow("unavailable");
+			expect(mock.mode).not.toHaveBeenCalled();
+		}
+		expect(mock.prompt).not.toHaveBeenCalled();
+		expect(session.getSnapshot().session?.entries).toEqual([]);
+		session.close();
+	},
+);
 
 it("promotes setup metadata without replacing identity, history, or human control", async () => {
 	const mock = setup();
@@ -1257,6 +1450,16 @@ it("retains metadata from create, load, and discovery without losing transcript 
 	);
 	expect(session.getSnapshot().session?.entries).toBe(entries);
 	await expect(session.prompt("Do not send into a fault")).rejects.toThrow();
+	for (const info of [
+		MockResumableNativeAgentSessionInfo,
+		MockResumePendingNativeAgentSessionInfo,
+		MockRegisteredNativeAgentSessionInfo,
+	]) {
+		mock.list.mockResolvedValue({ sessions: [info] });
+		await session.list();
+		expect(session.getSnapshot().session?.info._meta).toEqual(info._meta);
+		expect(session.getSnapshot().session?.entries).toBe(entries);
+	}
 	expect(mock.prompt).toHaveBeenCalledTimes(1);
 	session.close();
 });
@@ -1265,6 +1468,7 @@ it.each([
 	"load fails",
 	"load succeeds with a fault",
 	"load succeeds after ending",
+	"saved without resume capability",
 	"setup faults before registration",
 ])(
 	"keeps unavailable sessions selectable but blocks commands when %s",
@@ -1273,6 +1477,8 @@ it.each([
 		const mockUnavailableInfo = { ...MockFaultedNativeAgentSessionInfo };
 		if (state === "load succeeds after ending") {
 			mockUnavailableInfo._meta = { "claude-acp-bridge": { ended: true } };
+		} else if (state === "saved without resume capability") {
+			mockUnavailableInfo._meta = { "claude-acp-bridge": { archived: true } };
 		} else if (state === "setup faults before registration") {
 			mockUnavailableInfo._meta = {
 				"claude-acp-bridge": { registrationPending: true, fault: true },

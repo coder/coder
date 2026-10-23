@@ -97,12 +97,17 @@ export const NativeAgentSessionCard: React.FC<NativeAgentSessionCardProps> = ({
 					{agentLabel}: {info.sessionId}
 				</TooltipContent>
 			</Tooltip>
-			{metadata.registrationPending && !metadata.unavailable && (
+			{(metadata.resumable ||
+				((metadata.registrationPending || metadata.resumePending) &&
+					!metadata.unavailable)) && (
 				<div className="space-y-2 px-3 pb-3">
 					{!expanded && (
 						<p className="m-0 text-content-secondary wrap-anywhere">
-							{metadata.blockedReason || "Waiting for native setup."} Join to
-							continue setup.
+							{metadata.resumable
+								? "Session stopped. Join resumes the saved conversation."
+								: metadata.resumePending
+									? "Resume pending. Join to open or confirm the native terminal."
+									: `${metadata.blockedReason || "Waiting for native setup."} Join to continue setup.`}
 						</p>
 					)}
 					<Button

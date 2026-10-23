@@ -13,6 +13,8 @@ import {
 	MockOtherNativeAgentSessionInfo,
 	MockRecoveredNativeAgentSessionInfo,
 	MockRegisteredNativeAgentSessionInfo,
+	MockResumableNativeAgentSessionInfo,
+	MockResumePendingNativeAgentSessionInfo,
 	MockStaleNativeAgentSessionInfo,
 } from "#/testHelpers/nativeAgent";
 import { pixelWithPhone } from "#/testHelpers/pixel";
@@ -363,6 +365,50 @@ export const EndedSession: Story = {
 			agentInfo: MockNativeAgentInfo,
 			session: mockEndedSession,
 		},
+	},
+};
+export const StoppedSavedSession: Story = {
+	args: {
+		sessions: [MockResumableNativeAgentSessionInfo],
+		snapshot: {
+			status: "connected",
+			agentInfo: MockNativeAgentInfo,
+			session: {
+				...mockHumanSession,
+				info: MockResumableNativeAgentSessionInfo,
+			},
+		},
+		prompt: "Keep my draft while resuming the saved conversation.",
+	},
+	parameters: { pixel: { matrix: pixelWithPhone } },
+};
+export const StoppedSavedSessionCollapsed: Story = {
+	args: { ...StoppedSavedSession.args, sessionExpanded: false },
+	parameters: { pixel: { matrix: pixelWithPhone } },
+};
+export const SavedSessionResumePending: Story = {
+	args: {
+		sessions: [MockResumePendingNativeAgentSessionInfo],
+		snapshot: {
+			status: "connected",
+			agentInfo: MockNativeAgentInfo,
+			session: {
+				...mockHumanSession,
+				info: MockResumePendingNativeAgentSessionInfo,
+			},
+		},
+		prompt: "Keep my draft until registration and Observe.",
+	},
+	parameters: { pixel: { matrix: pixelWithPhone } },
+};
+export const SavedSessionResumePendingCollapsed: Story = {
+	args: { ...SavedSessionResumePending.args, sessionExpanded: false },
+	parameters: { pixel: { matrix: pixelWithPhone } },
+};
+export const SavedSessionJoinFailed: Story = {
+	args: {
+		...StoppedSavedSession.args,
+		error: "The saved native conversation could not be resumed.",
 	},
 };
 export const WaitingForStartup: Story = {

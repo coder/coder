@@ -27,9 +27,14 @@ async function readBody(req) {
   return body;
 }
 
-/** Create a loopback-only, single-user broker with a byte-bounded event journal. */
+/**
+ * Create a loopback-only, single-user broker with a byte-bounded event journal.
+ * resume(sessionId, cwd) must validate native ownership and safe saved work before
+ * waking that exact conversation. It must bound its launch timeout and mark only
+ * definite pre-launch refusals with error.resumeRefused = true.
+ */
 export async function createBroker({
-  token = randomBytes(32).toString('hex'), launch, discover, sessionFile, deferPersistence = false, now = Date.now,
+  token = randomBytes(32).toString('hex'), launch, resume, discover, sessionFile, deferPersistence = false, now = Date.now,
   setTimer = setTimeout, clearTimer = clearTimeout, discoveryTTL = 2000,
   staleMs = 10000, commandTimeoutMs = 10000, maxEvents = 10000, waitMs = 15000,
   maxEventBytes = 128 * 1024, maxJournalBytes = 8 * 1024 * 1024,
@@ -49,6 +54,7 @@ export async function createBroker({
   const changes = new EventEmitter();
   changes.setMaxListeners(128);
   const launches = new Map();
+  const resumes = new Map();
   const journal = new Map();
   let journalBytes = 0;
   let activeHTTP = 0;
@@ -96,7 +102,7 @@ export async function createBroker({
   }
 
   function newSession(sessionId, cwd, startedAt) {
-    const s = { sessionId, startedAt, registrationPending: false, retired: new Set(), cwd, events: [], eventBytes: 0, cursor: 0, historyStartCursor: 0, runtimeSeq: 0, ended: false, fault: false, commands: new Map(), commandResults: new Map(), requests: new Map(), activeRequestId: null };
+    const s = { sessionId, startedAt, archived: false, resumePending: false, registrationPending: false, retired: new Set(), cwd, events: [], eventBytes: 0, cursor: 0, historyStartCursor: 0, runtimeSeq: 0, ended: false, fault: false, commands: new Map(), commandResults: new Map(), requests: new Map(), activeRequestId: null };
     sessions.set(sessionId, s);
     dirty();
     return s;
@@ -122,14 +128,25 @@ export async function createBroker({
     if (!force && now() - discoveredAt < discoveryTTL) return;
     discovering = (async () => {
       let found;
+      // Resume eligibility is advisory and must be rechecked on an explicit wake.
+      for (const s of sessions.values()) if (s.archived) s.resumeLaunchId = undefined;
       try { found = await discover(); }
       catch { return; } // Discovery is advisory; failure cannot invalidate a runtime or leak CLI diagnostics.
       if (closing || !Array.isArray(found)) return;
+      const counts = new Map();
+      for (const native of found.slice(0, 256)) if (native) counts.set(native.sessionId, (counts.get(native.sessionId) ?? 0) + 1);
       for (const native of found.slice(0, 256)) {
-        if (!native || !uuid(native.sessionId) || !uuid(native.launchId) || typeof native.cwd !== 'string' || !isAbsolute(native.cwd) || native.cwd.length > 4096 ||
+        if (!native || !uuid(native.sessionId) || counts.get(native.sessionId) !== 1 || !uuid(native.launchId) || typeof native.cwd !== 'string' || !isAbsolute(native.cwd) || native.cwd.length > 4096 ||
             !Number.isSafeInteger(native.startedAt) || native.startedAt < 0 || typeof native.ended !== 'boolean') continue;
         let s = sessions.get(native.sessionId);
-        if (s && (s.archived || !s.registrationPending || s.launchId !== native.launchId || s.cwd !== native.cwd)) continue;
+        // A terminal native state file may outlive the explicit wake. It cannot
+        // end the new registration or alter its verified launch identity.
+        if (s?.resumePending) continue;
+        if (s?.archived) {
+          if (s.cwd === native.cwd && (!s.launchId || s.launchId === native.launchId)) s.resumeLaunchId = native.launchId;
+          continue;
+        }
+        if (s && (!s.registrationPending || s.launchId !== native.launchId || s.cwd !== native.cwd)) continue;
         if (!s) {
           if (sessions.size >= 100) continue;
           s = newSession(native.sessionId, native.cwd, native.startedAt);
@@ -143,7 +160,7 @@ export async function createBroker({
         if (native.ended && !s.ended) {
           // Historical native records have identity but no registered runtime.
           // Keep them readable without offering setup or reviving native work.
-          Object.assign(s, { ended: true, archived: true, registrationPending: false,
+          Object.assign(s, { ended: true, archived: true, registrationPending: false, resumeLaunchId: native.launchId,
             blockedReason: undefined, activeTurnId: null });
           append(s, 'session.end', { reason: 'Native state reported that the session ended' });
         }
@@ -215,14 +232,61 @@ export async function createBroker({
     s.commands.set(command.id, { command, timer });
   }
   function publicSession(s) {
-    return { sessionId: s.sessionId, runtimeId: s.runtimeId, ...(s.archived ? { archived: true } : {}), registrationPending: s.registrationPending, blockedReason: s.blockedReason, cwd: s.cwd, mode: s.mode, activeTurnId: s.activeTurnId, startedAt: s.startedAt, lastSeen: s.lastSeen, stale: isStale(s), version: s.version, cursor: s.cursor, historyStartCursor: s.historyStartCursor, ended: s.ended, fault: s.fault, lastError: s.lastError, attachCommand: 'claude attach ' + s.sessionId.slice(0, 8) };
+    return { sessionId: s.sessionId, runtimeId: s.runtimeId, archived: s.archived, resumable: !!(s.archived && typeof resume === 'function' && s.resumeLaunchId), resumePending: s.resumePending, registrationPending: s.registrationPending, blockedReason: s.blockedReason, cwd: s.cwd, mode: s.mode, activeTurnId: s.activeTurnId, startedAt: s.startedAt, lastSeen: s.lastSeen, stale: isStale(s), version: s.version, cursor: s.cursor, historyStartCursor: s.historyStartCursor, runtimeStartCursor: s.runtimeStartCursor, ended: s.ended, fault: s.fault, lastError: s.lastError, attachCommand: 'claude attach ' + s.sessionId.slice(0, 8) };
   }
   function getSession(id, live = false) {
     const s = sessions.get(id);
     if (!s) throw new HTTPError(404, 'Unknown native session');
-    if (live && s.archived) throw new HTTPError(409, 'Archived session is read-only; native resume is not supported');
+    if (live && s.archived) throw new HTTPError(409, 'Archived session is read-only; use explicit native resume if available');
     if (live && (s.ended || s.fault)) throw new HTTPError(409, 'Native session disconnected; attach to inspect before retrying');
     return s;
+  }
+  async function resumeSession(s) {
+    let attempt = resumes.get(s.sessionId);
+    if (!attempt) {
+      if (!s.archived) throw new HTTPError(409, 'Only archived sessions can be explicitly resumed');
+      let granted = false;
+      attempt = (async () => {
+        if (typeof resume !== 'function') throw new HTTPError(501, 'Native resume is not configured');
+        await refreshDiscovery(true);
+        if (!s.resumeLaunchId) throw new HTTPError(409, 'Archived session has no matching native discovery identity; inspect claude agents before resuming');
+        if (s.runtimeId && !s.retired.has(s.runtimeId) && s.retired.size >= maxRetiredRuntimes) throw new HTTPError(409, 'Runtime replacement budget exhausted; restart the broker');
+        invalidate(s);
+        if (s.runtimeId) s.retired.add(s.runtimeId);
+        Object.assign(s, { launchId: s.resumeLaunchId, resumePending: true, registrationPending: true,
+          archived: false, ended: false, fault: false, activeTurnId: null, mode: 'human', humanRequested: true,
+          runtimeSeq: 0, reportedMode: undefined, blockedReason: undefined });
+        granted = true;
+        append(s, 'session.resuming', { sessionId: s.sessionId, mode: 'human' });
+        s.runtimeStartCursor = s.cursor;
+        // Persist only the historical boundary, never a launch ticket. A restarted
+        // broker archives this state and cannot replay the native wake.
+        await flush();
+        if (closing) throw new HTTPError(503, 'Broker is closing; inspect the native terminal before resuming');
+        try {
+          await resume(s.sessionId, s.cwd);
+        } catch (error) {
+          // Only a definite pre-launch validation refusal is safe to retry. A
+          // timeout or exec failure may have already started the native process.
+          const refused = error?.resumeRefused === true && s.resumePending;
+          const failure = new HTTPError(refused ? 409 : 502, refused
+            ? 'Native resume refused before launch; inspect the native transcript and queued prompt before retrying'
+            : 'Native resume launch outcome is unknown; join the native terminal to inspect before retrying');
+          failure.resumeRefused = refused;
+          if (refused) Object.assign(s, { archived: true, ended: true, resumePending: false, registrationPending: false, humanRequested: false });
+          recordError(s, failure.message);
+          append(s, 'session.resume_failed', { sessionId: s.sessionId, reason: failure.message, retryable: refused });
+          await flush();
+          throw failure;
+        }
+      })();
+      resumes.set(s.sessionId, attempt);
+      void attempt.catch(error => {
+        if (!granted || error.resumeRefused === true) resumes.delete(s.sessionId);
+      });
+    }
+    await attempt;
+    return publicSession(s);
   }
   async function changed(id, timeout, signal) {
     if (closing || signal?.aborted) return;
@@ -313,8 +377,10 @@ export async function createBroker({
         if (event.type === 'turn.start') requireValue(typeof event.data.turnId === 'string' && event.data.turnId.length <= 200, 'Invalid turn identity');
       }
       let s = sessions.get(body.sessionId);
-      if (s?.archived) throw new HTTPError(409, 'Archived session is read-only; native resume is not supported');
+      if (s?.archived) throw new HTTPError(409, 'Archived session is read-only; use explicit native resume if available');
       const promoting = s?.registrationPending === true;
+      const resuming = s?.resumePending === true;
+      if (s?.retired.has(body.runtimeId)) throw new HTTPError(409, 'Retired runtime');
       if (!s) {
         requireValue(sessions.size < 100, store ? 'Session archive budget exhausted; inspect saved history' : 'Session budget exhausted; restart the broker');
         // Without native discovery, only this broker's first observation is known.
@@ -323,7 +389,6 @@ export async function createBroker({
       } else if (promoting) {
         requireValue(s.launchId === body.launchId && s.cwd === body.cwd, 'Native registration does not match the discovered launch');
       } else if (s.runtimeId !== body.runtimeId) {
-        if (s.retired.has(body.runtimeId)) throw new HTTPError(409, 'Retired runtime');
         if (s.retired.size >= maxRetiredRuntimes) {
           fault(s, 'Runtime replacement budget exhausted; restart the broker');
           throw new HTTPError(409, 'Runtime replacement budget exhausted; restart the broker');
@@ -353,10 +418,10 @@ export async function createBroker({
       if (s.humanRequested && !s.pendingHumanCommand && body.mode === 'human') s.humanRequested = false;
       s.mode = s.ended || s.fault || s.humanRequested ? 'human' : body.mode;
       if (promoting) {
-        Object.assign(s, { runtimeId: body.runtimeId, registrationPending: false, blockedReason: undefined });
-        // A first runtime is not a replacement. Publish its identity before native
-        // session.start, including for clients that loaded the provisional UUID.
-        append(s, 'runtime.registered', { sessionId: s.sessionId, runtimeId: s.runtimeId, mode: s.mode, lastSeen: s.lastSeen });
+        Object.assign(s, { runtimeId: body.runtimeId, resumePending: false, registrationPending: false, archived: false, blockedReason: undefined });
+        // Explicit resume and first registration preserve history. Publish the
+        // identity before native session.start without a replacement fault.
+        append(s, resuming ? 'runtime.resumed' : 'runtime.registered', { sessionId: s.sessionId, runtimeId: s.runtimeId, mode: s.mode, lastSeen: s.lastSeen });
       }
       for (const event of body.events) {
         if (event.seq <= s.runtimeSeq) continue;
@@ -413,7 +478,7 @@ export async function createBroker({
         return publicSession(item.session);
       } finally { launches.delete(launchId); }
     }
-    const match = url.pathname.match(/^\/v1\/sessions\/([^/]+)(?:\/(events|prompt|cancel|mode))?$/);
+    const match = url.pathname.match(/^\/v1\/sessions\/([^/]+)(?:\/(events|prompt|cancel|mode|resume))?$/);
     if (!match) throw new HTTPError(404, 'Unknown route');
     const [, id, action] = match;
     if (!action && req.method === 'GET') await refreshDiscovery();
@@ -432,6 +497,10 @@ export async function createBroker({
       return { events: s.events.filter(e => e.seq > after), cursor: s.cursor };
     }
     if (req.method !== 'POST') throw new HTTPError(405, 'Method not allowed');
+    if (action === 'resume') {
+      await readBody(req); // The body cannot supply launch identity, settings or work.
+      return resumeSession(s);
+    }
     if (s.archived) getSession(id, true);
     const requestedRuntime = s.runtimeId;
     const body = await readBody(req);

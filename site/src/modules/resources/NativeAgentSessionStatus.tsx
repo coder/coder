@@ -42,27 +42,45 @@ type NativeAgentSessionStatusProps = { info: SessionInfo };
 export const NativeAgentSessionStatus: React.FC<
 	NativeAgentSessionStatusProps
 > = ({ info }) => {
-	const { fault, ended, stale, lastError, registrationPending, blockedReason } =
-		nativeAgentMetadata(info);
+	const {
+		fault,
+		ended,
+		stale,
+		archived,
+		resumable,
+		resumePending,
+		lastError,
+		registrationPending,
+		blockedReason,
+	} = nativeAgentMetadata(info);
 	return (
 		<span className="flex flex-wrap gap-1">
-			{registrationPending && !fault && !ended && (
-				<Badge
-					asChild
-					size="xs"
-					variant={blockedReason ? "warning" : "default"}
-				>
-					<span>{blockedReason ? "Needs attention" : "Starting"}</span>
-				</Badge>
-			)}
+			{(registrationPending || resumePending) &&
+				!fault &&
+				!ended &&
+				!archived && (
+					<Badge
+						asChild
+						size="xs"
+						variant={blockedReason ? "warning" : "default"}
+					>
+						<span>
+							{resumePending
+								? "Resume pending"
+								: blockedReason
+									? "Needs attention"
+									: "Starting"}
+						</span>
+					</Badge>
+				)}
 			{fault && (
 				<Badge asChild size="xs" variant="destructive">
 					<span>Faulted</span>
 				</Badge>
 			)}
-			{ended && (
+			{(ended || archived) && (
 				<Badge asChild size="xs">
-					<span>Ended</span>
+					<span>{resumable ? "Stopped" : "Ended"}</span>
 				</Badge>
 			)}
 			{stale && (
@@ -85,23 +103,26 @@ type NativeAgentSessionErrorProps = { info: SessionInfo; now?: number };
 export const NativeAgentSessionError: React.FC<
 	NativeAgentSessionErrorProps
 > = ({ info, now }) => {
-	const { fault, ended, stale, lastError } = nativeAgentMetadata(info);
+	const { fault, ended, stale, archived, resumable, lastError } =
+		nativeAgentMetadata(info);
 	return (
 		<>
-			{stale && !fault && !ended && (
+			{stale && !fault && !ended && !archived && !resumable && (
 				<Alert severity="warning">
 					Heartbeat is stale. Availability is unknown, not a confirmed fault.
 					Refresh sessions to check again before joining or prompting.
 				</Alert>
 			)}
-			{(fault || ended || lastError) && (
+			{(fault || ended || archived || resumable || lastError) && (
 				<Alert severity={fault ? "error" : lastError ? "warning" : "info"}>
 					<AlertTitle>
-						{fault
-							? "Session fault"
-							: ended
-								? "Session ended"
-								: "Last reported error"}
+						{resumable
+							? "Session stopped"
+							: fault
+								? "Session fault"
+								: ended || archived
+									? "Session ended"
+									: "Last reported error"}
 					</AlertTitle>
 					{lastError && (
 						<>
@@ -118,11 +139,13 @@ export const NativeAgentSessionError: React.FC<
 						</>
 					)}
 					<p className="mb-0 mt-2 text-content-secondary">
-						{fault
-							? "Session integrity is not verified. Joining and prompting are unavailable. Retained details remain available for inspection."
-							: ended
-								? "This session has ended. Joining and prompting are unavailable."
-								: "This is the latest reported failure, not a session fault. It remains visible after recovery."}
+						{resumable
+							? "This session stopped. Join resumes the saved conversation in the native terminal. The original task is not resent."
+							: fault
+								? "Session integrity is not verified. Joining and prompting are unavailable. Retained details remain available for inspection."
+								: ended || archived
+									? "This session has ended. Joining and prompting are unavailable."
+									: "This is the latest reported failure, not a session fault. It remains visible after recovery."}
 					</p>
 				</Alert>
 			)}

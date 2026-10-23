@@ -99,12 +99,15 @@ export const NativeAgentControls: React.FC<NativeAgentPanelProps> = ({
 	const promptForm = useFormik({
 		initialValues: { prompt: "" },
 		onSubmit: ({ prompt }, helpers) => {
+			const metadata = nativeAgentMetadata(snapshot.session?.info);
 			if (
 				operationsBlocked ||
 				snapshot.session?.prompting ||
 				snapshot.session?.error ||
-				nativeAgentMetadata(snapshot.session?.info).unavailable ||
-				nativeAgentMetadata(snapshot.session?.info).registrationPending ||
+				metadata.unavailable ||
+				metadata.registrationPending ||
+				metadata.resumePending ||
+				metadata.resumable ||
 				snapshot.session?.modes?.currentModeId !== "automation" ||
 				!prompt.trim()
 			) {
@@ -147,8 +150,11 @@ export const NativeAgentControls: React.FC<NativeAgentPanelProps> = ({
 		if (request.type === "join") {
 			const selected =
 				request.session.sessionId === snapshot.session?.info.sessionId;
+			const metadata = nativeAgentMetadata(
+				selected ? snapshot.session?.info : request.session,
+			);
 			if (
-				nativeAgentMetadata(request.session).unavailable ||
+				(metadata.unavailable && !metadata.resumable) ||
 				(selected && snapshot.session?.error) ||
 				(!selected && snapshot.session?.prompting)
 			)

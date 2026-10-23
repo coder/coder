@@ -124,13 +124,15 @@ A retained unknown job outcome remains visible but does not prevent broker start
 
 Broker startup reloads saved session identities and retained transcripts from
 `/home/coder/.local/state/coder-acp/bridge.json.sessions.json`.
-They appear as **Ended**; select one to read its retained history.
+Select a stopped session to read its retained history without starting work.
+Choose **Join** to explicitly resume the same saved native conversation in human mode, then **Observe** to allow new automation prompts after registration.
+Resuming does not resend the original task or start other sessions. Missing native transcripts, queued prompts, and surviving workers require inspection instead of automatic replacement.
 The file is private because transcripts can contain prompts, tool output, and secrets.
 
-Restoring history does not recover runtime registrations or resume interrupted jobs.
-The retained job status may be stale. Completed and failed sessions from older versions also appear when their bridge-owned native records remain on disk.
-Those records recover session identities, not transcripts lost before persistence was enabled.
-Inspect native conversation history and any tool side effects before deliberately starting replacement work with **Add session**.
+Startup alone never resumes interrupted jobs, and the retained job status may be stale.
+Completed and failed sessions from older versions also appear when their bridge-owned native records remain on disk.
+Those records recover session identities, not broker transcripts lost before persistence was enabled; the native terminal can still show its own saved conversation.
+Inspect native conversation history and any tool side effects before continuing interrupted work.
 The working directory defaults to `/home/coder/project`.
 Choose an autostop policy that gives your job enough time to finish.
 The dispatch guard prevents automatic resubmission, but does not guarantee exactly-once side effects across crashes.

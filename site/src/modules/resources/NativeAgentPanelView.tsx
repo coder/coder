@@ -84,7 +84,11 @@ export const NativeAgentPanelView: React.FC<NativeAgentPanelViewProps> = ({
 	const sessionUnavailable = Boolean(session?.error) || metadata.unavailable;
 	const registrationPending = metadata.registrationPending;
 	const observe =
-		session?.modes?.currentModeId === "human" && !registrationPending;
+		session?.modes?.currentModeId === "human" &&
+		!registrationPending &&
+		!metadata.archived &&
+		!metadata.resumable &&
+		!metadata.resumePending;
 	const mode = session?.modes?.currentModeId;
 	const agentName = snapshot.agentInfo?.name.trim() ?? "";
 	const agentLabel =
@@ -94,6 +98,8 @@ export const NativeAgentPanelView: React.FC<NativeAgentPanelViewProps> = ({
 		!session?.prompting &&
 		!sessionUnavailable &&
 		!registrationPending &&
+		!metadata.resumePending &&
+		!metadata.resumable &&
 		mode === "automation";
 	let transcriptStatus =
 		"Observing live. Join takes human control and opens the native terminal.";
@@ -101,9 +107,15 @@ export const NativeAgentPanelView: React.FC<NativeAgentPanelViewProps> = ({
 		transcriptStatus = "Updating session…";
 	} else if (!connected) {
 		transcriptStatus = "Transcript paused. Reconnect to resume.";
+	} else if (metadata.resumable && !session?.error) {
+		transcriptStatus =
+			"Session stopped. Join resumes the saved conversation in the native terminal. The original task is not resent.";
 	} else if (sessionUnavailable) {
 		transcriptStatus =
 			"Session unavailable. Showing retained details, not a live transcript.";
+	} else if (metadata.resumePending) {
+		transcriptStatus =
+			"Resume pending. Open or confirm the native terminal with Join, then refresh sessions if needed. Once registered, select Observe to enable prompts. The original task is not resent.";
 	} else if (registrationPending) {
 		transcriptStatus = `${metadata.blockedReason || "Waiting for native setup."} Join to continue setup. Once setup is complete, select Observe to enable prompts.`;
 	} else if (mode === "human") {
@@ -115,8 +127,13 @@ export const NativeAgentPanelView: React.FC<NativeAgentPanelViewProps> = ({
 	}
 	let promptStatus =
 		"Text prompts only. Permissions stay in the native terminal.";
-	if (sessionUnavailable) {
+	if (metadata.resumable && !session?.error) {
+		promptStatus = "Session stopped: Join to resume before sending.";
+	} else if (sessionUnavailable) {
 		promptStatus = "Session unavailable. Refresh its status before sending.";
+	} else if (metadata.resumePending) {
+		promptStatus =
+			"Resume pending: confirm the native terminal, then select Observe once registered.";
 	} else if (registrationPending) {
 		promptStatus =
 			"Setup pending: Join the native terminal before sending. Resubmit blocked tasks manually after setup.";
@@ -215,7 +232,8 @@ export const NativeAgentPanelView: React.FC<NativeAgentPanelViewProps> = ({
 									joinDisabled={
 										blocked ||
 										(item.sessionId === session?.info.sessionId
-											? sessionUnavailable
+											? Boolean(session?.error) ||
+												(metadata.unavailable && !metadata.resumable)
 											: Boolean(session?.prompting))
 									}
 									onSelect={(info) => onAction({ type: "load", session: info })}
@@ -330,7 +348,8 @@ export const NativeAgentPanelView: React.FC<NativeAgentPanelViewProps> = ({
 						<Button
 							disabled={
 								blocked ||
-								sessionUnavailable ||
+								Boolean(session.error) ||
+								(metadata.unavailable && !metadata.resumable) ||
 								!session.modes?.availableModes.some(
 									(item) => item.id === (observe ? "automation" : "human"),
 								)

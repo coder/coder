@@ -317,6 +317,7 @@ describe('private session persistence', { concurrency: true, timeout: 20000 }, (
       ...[
         [{ ...base, commands: [] }], [base, base], [{ ...base, cwd: 'relative' }], [{ ...base, startedAt: -1 }],
         [{ ...base, runtimeId: {} }], [{ ...base, cursor: 0 }], [{ ...base, historyStartCursor: 1 }],
+        [{ ...base, runtimeStartCursor: -1 }], [{ ...base, runtimeStartCursor: 2 }], [{ ...base, runtimeStartCursor: '1' }],
         [{ ...base, lastError: { message: secret, at: 'wrong' } }], [{ ...base, events: [event(1), event(3)], cursor: 3 }],
         Array.from({ length: 101 }, () => record()), [{ ...base, events: [event(1, 'x'.repeat(SESSION_LIMITS.eventBytes + 64))] }],
         [{ ...base, cwd: '/' + 'x'.repeat(32 * 1024) }],

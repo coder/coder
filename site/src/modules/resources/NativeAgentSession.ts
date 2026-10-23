@@ -203,11 +203,15 @@ export class NativeAgentSession {
 	private applyInfo(info: SessionInfo) {
 		const session = this.sessions.get(info.sessionId);
 		if (!session) return;
-		const { registrationPending } = nativeAgentMetadata(info);
+		const metadata = nativeAgentMetadata(info);
+		const { registrationPending } = metadata;
 		let modes = session.modes;
 		if (
 			modes &&
 			registrationPending === false &&
+			!metadata.unavailable &&
+			!metadata.resumable &&
+			!metadata.resumePending &&
 			!modes.availableModes.some((item) => item.id === "automation")
 		) {
 			// Native registration enables this adapter's automation mode without
@@ -316,14 +320,19 @@ export class NativeAgentSession {
 
 	setMode = async (modeId: string) => {
 		const session = this.requireSession();
-		if (session.error || nativeAgentMetadata(session.info).unavailable) {
+		const metadata = nativeAgentMetadata(session.info);
+		if (
+			session.error ||
+			(metadata.unavailable && !metadata.resumable) ||
+			(metadata.resumable && modeId !== "human")
+		) {
 			throw new Error(
 				"This session is unavailable for control changes. Refresh its status before continuing.",
 			);
 		}
 		if (
 			modeId !== "human" &&
-			nativeAgentMetadata(session.info).registrationPending
+			(metadata.registrationPending || metadata.resumePending)
 		) {
 			throw new Error(
 				"Join the native terminal to complete setup before selecting automation.",
@@ -346,12 +355,15 @@ export class NativeAgentSession {
 
 	prompt = async (text: string) => {
 		const session = this.requireSession();
+		const metadata = nativeAgentMetadata(session.info);
 		if (
 			session.modes?.currentModeId !== "automation" ||
 			session.prompting ||
 			session.error ||
-			nativeAgentMetadata(session.info).unavailable ||
-			nativeAgentMetadata(session.info).registrationPending
+			metadata.unavailable ||
+			metadata.registrationPending ||
+			metadata.resumePending ||
+			metadata.resumable
 		) {
 			throw new Error(
 				"Select automation mode in a healthy session before sending a prompt.",

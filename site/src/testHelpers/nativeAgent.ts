@@ -52,6 +52,41 @@ export const MockRegisteredNativeAgentSessionInfo: SessionInfo = {
 	},
 };
 
+/** Saved native history after its runtime stopped, resumable only on explicit Join. */
+export const MockResumableNativeAgentSessionInfo: SessionInfo = {
+	...MockNativeAgentSessionInfo,
+	_meta: {
+		"claude-acp-bridge": {
+			startedAt: 1_792_756_800_000,
+			archived: true,
+			resumable: true,
+			resumePending: false,
+			registrationPending: false,
+			ended: true,
+			fault: false,
+			stale: false,
+		},
+	},
+};
+
+/** Join prepared the saved UUID; the native terminal has not registered yet. */
+export const MockResumePendingNativeAgentSessionInfo: SessionInfo = {
+	...MockNativeAgentSessionInfo,
+	_meta: {
+		"claude-acp-bridge": {
+			startedAt: 1_792_756_800_000,
+			archived: false,
+			resumable: false,
+			resumePending: true,
+			registrationPending: true,
+			mode: "human",
+			ended: false,
+			fault: false,
+			stale: false,
+		},
+	},
+};
+
 /** Fixed reference time for relative session timestamps in visual stories. */
 export const MockNativeAgentNow = 1_792_757_400_000;
 

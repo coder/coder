@@ -1,6 +1,8 @@
 import {
 	MockBlockedNativeAgentSessionInfo,
 	MockNativeAgentSessionInfo,
+	MockResumableNativeAgentSessionInfo,
+	MockResumePendingNativeAgentSessionInfo,
 } from "#/testHelpers/nativeAgent";
 import { nativeAgentMetadata } from "./nativeAgentMetadata";
 
@@ -37,6 +39,29 @@ it("keeps pending native setup joinable rather than inventing a fault or stale h
 	});
 });
 
+it.each([
+	{
+		info: MockResumableNativeAgentSessionInfo,
+		expected: {
+			archived: true,
+			resumable: true,
+			resumePending: false,
+			unavailable: true,
+		},
+	},
+	{
+		info: MockResumePendingNativeAgentSessionInfo,
+		expected: {
+			archived: false,
+			resumable: false,
+			resumePending: true,
+			unavailable: false,
+		},
+	},
+])("parses saved native resume metadata $expected", ({ info, expected }) => {
+	expect(nativeAgentMetadata(info)).toMatchObject(expected);
+});
+
 it.each([undefined, null, "true", 1, {}])(
 	"ignores malformed setup metadata %s",
 	(value) => {
@@ -46,6 +71,9 @@ it.each([undefined, null, "true", 1, {}])(
 				_meta: {
 					"claude-acp-bridge": {
 						registrationPending: value,
+						archived: value,
+						resumable: value,
+						resumePending: value,
 						blockedReason: value,
 						mode: value,
 					},
@@ -53,6 +81,9 @@ it.each([undefined, null, "true", 1, {}])(
 			}),
 		).toMatchObject({
 			registrationPending: undefined,
+			archived: false,
+			resumable: false,
+			resumePending: false,
 			blockedReason: typeof value === "string" ? value : undefined,
 		});
 	},
@@ -77,6 +108,9 @@ it("keeps a recoverable error separate from fault and heartbeat availability", (
 		fault: false,
 		ended: false,
 		stale: true,
+		archived: false,
+		resumable: false,
+		resumePending: false,
 		registrationPending: undefined,
 		blockedReason: undefined,
 		unavailable: true,
@@ -103,6 +137,9 @@ it("ignores unknown metadata and rejects malformed extension fields independentl
 		fault: false,
 		ended: false,
 		stale: false,
+		archived: false,
+		resumable: false,
+		resumePending: false,
 		registrationPending: undefined,
 		blockedReason: undefined,
 		unavailable: false,

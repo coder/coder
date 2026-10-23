@@ -8,7 +8,7 @@ export const SESSION_LIMITS = Object.freeze({
   journalBytes: 8 * 1024 * 1024, totalJournalBytes: 32 * 1024 * 1024,
   fileBytes: 40 * 1024 * 1024,
 });
-const fields = new Set(['sessionId', 'cwd', 'startedAt', 'runtimeId', 'cursor', 'historyStartCursor', 'events', 'fault', 'lastError']);
+const fields = new Set(['sessionId', 'cwd', 'startedAt', 'runtimeId', 'cursor', 'historyStartCursor', 'runtimeStartCursor', 'events', 'fault', 'lastError']);
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const integer = value => Number.isSafeInteger(value) && value >= 0;
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
@@ -83,6 +83,7 @@ function validate(value) {
       typeof s.cwd === 'string' && isAbsolute(s.cwd) && integer(s.startedAt) && typeof s.fault === 'boolean' &&
       (s.runtimeId === undefined || (typeof s.runtimeId === 'string' && s.runtimeId.length > 0 && s.runtimeId.length < 200)) &&
       integer(s.cursor) && integer(s.historyStartCursor) && s.historyStartCursor <= s.cursor &&
+      (s.runtimeStartCursor === undefined || (integer(s.runtimeStartCursor) && s.runtimeStartCursor <= s.cursor)) &&
       Array.isArray(s.events) && s.events.length <= SESSION_LIMITS.events);
     ids.add(s.sessionId);
     const { events, ...metadata } = s;
@@ -114,6 +115,7 @@ export function sessionRecord(s) {
   return {
     sessionId: s.sessionId, cwd: s.cwd, startedAt: s.startedAt, runtimeId: s.runtimeId,
     cursor: s.cursor, historyStartCursor: Math.max(s.historyStartCursor, (events[0]?.seq ?? s.cursor + 1) - 1), fault: s.fault,
+    runtimeStartCursor: s.runtimeStartCursor,
     lastError: s.lastError && { message: s.lastError.message, at: s.lastError.at },
     events,
   };

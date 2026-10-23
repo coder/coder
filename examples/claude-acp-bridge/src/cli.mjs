@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs, promisify } from 'node:util';
 import { createBroker } from './broker.mjs';
 import { createNativeDiscovery } from './native-discovery.mjs';
+import { createNativeResume } from './native-resume.mjs';
 import { connect } from './client.mjs';
 import { privateDirectory, startDetached } from './service.mjs';
 import { runJob, startDetachedJob } from './job.mjs';
@@ -61,6 +62,7 @@ async function main() {
       sessionFile: stateFile + '.sessions.json',
       deferPersistence: true,
       discover: createNativeDiscovery({ stateFile, pluginPath }),
+      resume: createNativeResume({ stateFile, pluginPath }),
       launch: async (cwd, launchId) => {
         // The native supervisor does not inherit arbitrary caller env vars.
         // Explicit settings are carried into the background session instead.
@@ -127,9 +129,11 @@ async function main() {
       catch { throw new Error('Native Claude stop failed; inspect the native terminal before retrying.'); }
     }
     if (command === 'attach') {
-      // Taking control does not interrupt work already running. /bridge-auto
-      // explicitly gives automation permission to submit again after detaching.
-      await client.request('POST', '/v1/sessions/' + id + '/mode', { mode: 'human' });
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id) || session.sessionId !== id) throw new Error('Attach requires the exact full session ID from list');
+      // Resume only archived conversations. A pending resume has already dispatched.
+      // Taking human control does not interrupt work already running.
+      if (session.archived && !session.resumePending) await client.request('POST', '/v1/sessions/' + id + '/resume', {});
+      else await client.request('POST', '/v1/sessions/' + id + '/mode', { mode: 'human' });
       const child = spawn('claude', ['attach', id.slice(0, 8)], { stdio: 'inherit' });
       await new Promise((resolve, reject) => { child.once('error', reject); child.once('exit', code => code === 0 ? resolve() : reject(new Error('claude attach exited with ' + code))); });
     }

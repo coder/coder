@@ -25,12 +25,16 @@ export function nativeAgentMetadata(info?: SessionInfo) {
 	const fault = meta.fault === true;
 	const ended = meta.ended === true;
 	const stale = meta.stale === true;
+	const archived = meta.archived === true;
 	return {
 		startedAt: timestamp(meta.startedAt),
 		lastError,
 		fault,
 		ended,
 		stale,
+		archived,
+		resumable: meta.resumable === true,
+		resumePending: meta.resumePending === true,
 		registrationPending:
 			typeof meta.registrationPending === "boolean"
 				? meta.registrationPending
@@ -39,6 +43,6 @@ export function nativeAgentMetadata(info?: SessionInfo) {
 			typeof meta.blockedReason === "string" && meta.blockedReason.trim()
 				? meta.blockedReason.trim().slice(0, 1_000)
 				: undefined,
-		unavailable: fault || ended || stale,
+		unavailable: fault || ended || stale || archived,
 	};
 }

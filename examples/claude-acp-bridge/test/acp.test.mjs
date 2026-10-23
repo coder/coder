@@ -80,6 +80,7 @@ class Broker {
     if (url.pathname.endsWith("/prompt")) return this.onPrompt(body, signal);
     if (url.pathname.endsWith("/cancel")) return this.onCancel(body, signal);
     if (url.pathname.endsWith("/mode")) return this.onMode(body, signal);
+    if (url.pathname.endsWith("/resume")) return this.onResume(body, signal);
     if (url.pathname.endsWith("/events")) {
       const after = Number(url.searchParams.get("after"));
       while (true) {
@@ -767,6 +768,127 @@ describe("ACP broker acceptance", { concurrency: true, timeout: 10000 }, () => {
     assert.equal(textOf(f.updates()), "retained suffix");
     assert.equal(loaded._meta[META].fullHistory, false);
     assert.equal(loaded._meta[META].cursor, 4);
+  });
+
+  test("Join explicitly resumes an archive and appends live output without losing or duplicating saved history", async (t) => {
+    const f = await connect(t);
+    const id = f.broker.session.sessionId;
+    Object.assign(f.broker.session, { archived: true, resumable: true, ended: true, mode: "human" });
+    f.broker.emit("session.start", { sessionId: id, runtimeId: f.broker.session.runtimeId });
+    f.broker.emit("text", { turnId: "old-turn", text: "saved answer" });
+    await f.loadSession();
+    assert.equal(f.broker.calls.filter(c => c.method === "POST").length, 0);
+    f.broker.onResume = async () => {
+      f.broker.emit("session.resuming", { sessionId: id, mode: "human" });
+      Object.assign(f.broker.session, { archived: false, resumable: false, ended: false,
+        registrationPending: true, resumePending: true, runtimeStartCursor: 3, cursor: 3 });
+      return { ...f.broker.session };
+    };
+    await f.rpc.request(methods.agent.session.setMode, { sessionId: id, modeId: "human" });
+    assert.equal(f.broker.calls.filter(c => c.path.endsWith("/resume")).length, 1);
+    assert.equal(textOf(f.updates()), "saved answer");
+    await assert.rejects(f.prompt().promise, /registration is pending/);
+    const runtimeId = randomUUID();
+    f.broker.emit("runtime.resumed", { sessionId: id, runtimeId, mode: "human", lastSeen: 456 });
+    f.broker.emit("session.start", { sessionId: id, runtimeId });
+    await f.broker.called("GET", "/events?after=5&wait=1");
+    const status = f.updates().filter(u => u.sessionUpdate === "session_info_update").at(-1)._meta[META];
+    assert.equal(status.archived, false);
+    assert.equal(status.ended, false);
+    assert.equal(status.resumePending, false);
+    assert.equal(status.registrationPending, false);
+    f.broker.onPrompt = async body => {
+      f.broker.emit("turn.start", { requestId: body.requestId, turnId: "new-turn", text: body.text });
+      f.broker.emit("text", { requestId: body.requestId, turnId: "new-turn", text: "new answer" });
+      f.broker.emit("turn.complete", { requestId: body.requestId, turnId: "new-turn", reason: "answer", answer: "new answer" });
+      return { requestId: body.requestId };
+    };
+    await f.rpc.request(methods.agent.session.setMode, { sessionId: id, modeId: "automation" });
+    assert.deepEqual(await f.prompt().promise, { stopReason: "end_turn" });
+    assert.equal(textOf(f.updates()), "saved answernew answer");
+  });
+
+  test("a refused native resume preserves readable history without starting a poller or retrying", async (t) => {
+    const f = await connect(t);
+    Object.assign(f.broker.session, { archived: true, resumable: true, ended: true, mode: "human" });
+    f.broker.emit("text", { turnId: "old-turn", text: "saved answer" });
+    f.broker.onResume = async () => { throw Object.assign(new Error("Saved native transcript is unavailable"), { status: 409 }); };
+    await f.loadSession();
+    await assert.rejects(f.rpc.request(methods.agent.session.setMode, {
+      sessionId: f.broker.session.sessionId, modeId: "human",
+    }), /transcript is unavailable/);
+    const loaded = await f.loadSession();
+    assert.equal(loaded._meta[META].archived, true);
+    assert.equal(textOf(f.updates()), "saved answer");
+    assert.equal(f.broker.calls.filter(c => c.path.endsWith("/resume")).length, 1);
+    assert.ok(!f.broker.calls.some(c => c.path.endsWith("wait=1")));
+  });
+
+  test("a fresh attachment replays earlier transcripts but not earlier runtime controls after resume", async (t) => {
+    const f = await connect(t);
+    const id = f.broker.session.sessionId;
+    const oldRuntime = randomUUID();
+    const currentRuntime = f.broker.session.runtimeId;
+    Object.assign(f.broker.session, { mode: "human", runtimeStartCursor: 5 });
+    f.broker.emit("session.start", { sessionId: id, runtimeId: oldRuntime });
+    f.broker.emit("mode", { mode: "automation" });
+    f.broker.emit("text", { turnId: "old-turn", text: "before restart" });
+    f.broker.emit("session.end", { reason: "stopped" });
+    f.broker.emit("session.resuming", { sessionId: id, mode: "human" });
+    f.broker.emit("runtime.resumed", { sessionId: id, runtimeId: currentRuntime, mode: "human", lastSeen: 456 });
+    f.broker.emit("session.start", { sessionId: id, runtimeId: currentRuntime });
+    f.broker.emit("text", { turnId: "new-turn", text: "after resume" });
+    const loaded = await f.loadSession();
+    assert.equal(loaded.modes.currentModeId, "human");
+    assert.equal(textOf(f.updates()), "before restartafter resume");
+    assert.ok(!f.updates().some(u => u.sessionUpdate === "current_mode_update" && u.currentModeId === "automation"));
+    await f.loadSession();
+    assert.equal(textOf(f.updates()), "before restartafter resume");
+  });
+
+  test("listing or reloading follows a resume initiated by another client without replaying history", async (t) => {
+    for (const method of ["list", "load"]) await t.test(method, async t => {
+      const f = await connect(t);
+      const id = f.broker.session.sessionId;
+      Object.assign(f.broker.session, { archived: true, resumable: true, ended: true, mode: "human" });
+      f.broker.emit("text", { turnId: "old-turn", text: "saved" });
+      await f.loadSession();
+      f.broker.emit("session.resuming", { sessionId: id, mode: "human" });
+      Object.assign(f.broker.session, { archived: false, ended: false, registrationPending: true,
+        resumePending: true, runtimeStartCursor: 2, cursor: 2 });
+      if (method === "load") await f.loadSession();
+      else await f.rpc.request(methods.agent.session.list, {});
+      await f.broker.called("GET", "/events?after=2&wait=1");
+      assert.equal(textOf(f.updates()), "saved");
+      assert.equal(f.broker.calls.filter(c => c.method === "POST").length, 0);
+    });
+  });
+
+  test("observers retain the archive after another client's resume is refused and can explicitly retry", async (t) => {
+    const f = await connect(t);
+    const id = f.broker.session.sessionId;
+    Object.assign(f.broker.session, { archived: true, resumable: true, ended: true, mode: "human" });
+    f.broker.emit("text", { turnId: "old-turn", text: "saved" });
+    await f.loadSession();
+    f.broker.emit("session.resuming", { sessionId: id, mode: "human" });
+    Object.assign(f.broker.session, { archived: false, ended: false, registrationPending: true,
+      resumePending: true, runtimeStartCursor: 2, cursor: 2 });
+    await f.rpc.request(methods.agent.session.list, {});
+    await f.broker.called("GET", "/events?after=2&wait=1");
+    f.broker.emit("session.resume_failed", { sessionId: id, reason: "Resume refused", retryable: true });
+    Object.assign(f.broker.session, { archived: true, ended: true, registrationPending: false, resumePending: false, cursor: 3 });
+    await f.loadSession();
+    assert.equal(textOf(f.updates()), "saved");
+    f.broker.onResume = async () => {
+      f.broker.emit("session.resuming", { sessionId: id, mode: "human" });
+      Object.assign(f.broker.session, { archived: false, ended: false, registrationPending: true,
+        resumePending: true, runtimeStartCursor: 4, cursor: 4 });
+      return { ...f.broker.session };
+    };
+    await f.rpc.request(methods.agent.session.setMode, { sessionId: id, modeId: "human" });
+    await f.broker.called("GET", "/events?after=4&wait=1");
+    assert.equal(textOf(f.updates()), "saved");
+    assert.equal(f.broker.calls.filter(c => c.path.endsWith("/resume")).length, 1);
   });
 
   test("an archived startup session without a runtime or transcript loads as empty read-only history", async (t) => {
