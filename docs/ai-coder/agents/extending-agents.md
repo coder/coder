@@ -225,20 +225,29 @@ It is experimental and might change.
 ### Let members turn off organization skills
 
 By default, every organization skill that is turned on and that a member can use loads into that member's chats.
-To let each member choose, turn on **Members can turn off organization skills** below the organization picker on the **Skills** admin page.
-The setting applies to one organization and is off by default.
-Users who can edit the organization's skills, such as site owners and organization admins, can change it, and Coder records each change in the audit log.
 
-While the setting is on, each member can turn off individual organization skills, or all of them, for their own chats.
-A member's choices change only that member's chats and are not audited.
-When an administrator turns the setting off, Coder keeps the members' choices but ignores them, so every skill loads again.
-If the setting is turned back on, the stored choices apply again.
+To let each member turn off individual organization skills, or all of them, for their own chats:
 
-Coder deletes a member's choices for an organization when the member leaves the organization, and deletes every choice about a skill when the skill is deleted.
-A member's choice belongs to one skill, not to its name.
-If an administrator deletes a skill and then adds a skill with the same name, the new skill loads for every member until they turn it off.
+1. Go to **Admin settings** > **AI** > **Coder Agents** > **Skills**.
+1. If you can view the skills of more than one organization, choose the organization in the organization picker.
+1. Turn on **Members can turn off organization skills** below the organization picker.
 
-The setting API lives under `/api/experimental/organizations/{organization}/skill-settings`, and the member choice API lives under `/api/experimental/organizations/{organization}/members/{user}/skill-preferences`.
+The setting is off by default and applies only to the selected organization.
+Users who can edit the organization's skills, such as site owners and organization admins, can change it.
+Coder records each change to the setting in the audit log.
+
+Members turn off skills for their chats in **Agents** > **Settings** > **Skills**, as described in [Turn off organization skills for your chats](#turn-off-organization-skills-for-your-chats).
+Coder handles these choices as follows:
+
+- A member's choices change only that member's chats and aren't audited.
+- When an administrator turns the setting off, Coder keeps the members' choices but ignores them, so every skill loads again.
+  If the setting is turned back on, the stored choices apply again.
+- When a member leaves the organization, Coder deletes that member's choices for the organization.
+- When a skill is deleted, Coder deletes every choice about that skill.
+  A choice belongs to one skill, not to its name, so the choice doesn't apply to a new skill with the same name.
+
+The setting API lives under `/api/experimental/organizations/{organization}/skill-settings`.
+The member choice API lives under `/api/experimental/organizations/{organization}/members/{user}/skill-preferences`.
 Both are experimental and might change.
 
 ### Find the organization skills you can use
@@ -257,15 +266,17 @@ To save all of the listed skills of the selected organization in one archive, se
 You can't change the content of an organization skill here.
 Ask an organization admin to change an organization skill.
 
-When the organization lets members turn off organization skills, the section shows two kinds of switches:
+### Turn off organization skills for your chats
+
+When an administrator [lets members turn off organization skills](#let-members-turn-off-organization-skills), the **From your organizations** section shows two kinds of switches:
 
 - **Use organization skills in my chats** turns every skill of the selected organization off or on for your chats.
-  While it is off, none of the organization's skills load, including skills added later, and Coder keeps your choices for individual skills.
+  While it's off, none of the organization's skills load, including skills added later, and Coder keeps your choices for individual skills.
 - The switch in each skill's **Enabled** column turns that skill off or on for your chats.
   These switches are unavailable while **Use organization skills in my chats** is off.
 
+When the organization doesn't let members turn off organization skills, the section is read-only.
 An organization stays in the picker after you turn off all of its skills, so you can turn them back on.
-Otherwise, the section is read-only.
 
 ## Project skills
 
@@ -295,7 +306,8 @@ A chat in a project also loads the project's skills that are turned on, as long 
 Workspace skills come from the chat's pinned context snapshot.
 
 Because stored skills are read again at each step, a change takes effect on the chat's next step.
-For example, when an administrator turns off an organization skill or removes someone's access, or when you turn off an organization skill for your chats, the chat stops listing that skill on its next step.
+For example, when an administrator turns off an organization skill or removes someone's access, the chat stops listing that skill on its next step.
+The same happens when you turn off an organization skill for your chats.
 
 The `/` menu in the chat composer lists skills in four groups: **Personal skills**, **Organization skills**, **Project skills**, and **Workspace skills**.
 The **Project skills** group appears only in chats that belong to a project.
