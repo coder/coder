@@ -25,6 +25,8 @@ describe("parseFilePathMention", () => {
 		[".github/workflows/ci.yaml", { path: ".github/workflows/ci.yaml" }],
 		[".gitignore", { path: ".gitignore" }],
 		[".env", { path: ".env" }],
+		["logo.svg", { path: "logo.svg" }],
+		["go.sum", { path: "go.sum" }],
 		["/home/coder/demo/.gitignore", { path: "/home/coder/demo/.gitignore" }],
 		["coderd/chat.go:120", { path: "coderd/chat.go", line: 120 }],
 		["coderd/chat.go:120:5", { path: "coderd/chat.go", line: 120 }],
@@ -74,6 +76,15 @@ describe("findFilePathMentions", () => {
 
 	it.each([
 		["Edit main.go and api.ts.", ["main.go", "api.ts"]],
+		["dial.go:126: undefined: conn", ["dial.go:126"]],
+		["Then run test_main.py: it fails.", ["test_main.py"]],
+		["Ends with test_main.py:", ["test_main.py"]],
+		["See conn.go:12 and conn.go:12:5.", ["conn.go:12", "conn.go:12:5"]],
+		["Call conn.go::Dial or conn.go:x", []],
+		[
+			"Use logo.svg, go.mod, go.sum, setup.cfg, tox.ini and yarn.lock.",
+			["logo.svg", "go.mod", "go.sum", "setup.cfg", "tox.ini", "yarn.lock"],
+		],
 		["See (site/src/App.tsx:12), then rerun.", ["site/src/App.tsx:12"]],
 		["Open /etc/hosts.txt now", ["/etc/hosts.txt"]],
 		["Check ~/x/y.md#L3!", ["~/x/y.md#L3"]],
@@ -104,6 +115,9 @@ describe("findFilePathMentions", () => {
 	it("reports the line suffix", () => {
 		expect(findFilePathMentions("at coderd/chat.go:120:5.")).toEqual([
 			{ path: "coderd/chat.go", line: 120, start: 3, end: 23 },
+		]);
+		expect(findFilePathMentions("dial.go:126: undefined")).toEqual([
+			{ path: "dial.go", line: 126, start: 0, end: 11 },
 		]);
 	});
 });

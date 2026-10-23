@@ -253,6 +253,12 @@ describe("Response", () => {
 					"/home/coder/coder/site/src/pages/AgentsPage/components/ChatElements/FileMention.tsx",
 				line: 120,
 			},
+			{
+				markdown: "dial.go:126: undefined: conn",
+				link: "dial.go:126",
+				opens: "/home/coder/coder/internal/dial.go",
+				line: 126,
+			},
 		])(
 			"opens $link once a lookup confirms it",
 			async ({ markdown, link, opens, line }) => {
@@ -260,6 +266,7 @@ describe("Response", () => {
 				mockTree(markdownTree);
 				mockFind({
 					".gitignore": [findResult("/home/coder/coder", ".gitignore")],
+					"dial.go": [findResult("/home/coder/coder", "internal/dial.go")],
 					"FileMention.tsx": [
 						findResult(
 							"/home/coder/coder",
