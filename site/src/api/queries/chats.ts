@@ -2765,6 +2765,25 @@ export const updateChatAdvisorConfig = (queryClient: QueryClient) => ({
 	},
 });
 
+const chatContextWindowConfigKey = [
+	...chatConfigKey,
+	"context-windows",
+] as const;
+
+export const chatContextWindowConfig = () => ({
+	queryKey: chatContextWindowConfigKey,
+	queryFn: () => API.experimental.getChatContextWindowConfig(),
+});
+
+export const updateChatContextWindowConfig = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateChatContextWindowConfig,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatContextWindowConfigKey,
+		});
+	},
+});
+
 const chatComputerUseProviderKey = [
 	...chatConfigKey,
 	"computer-use-provider",

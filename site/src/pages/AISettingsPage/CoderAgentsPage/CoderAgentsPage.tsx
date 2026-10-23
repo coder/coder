@@ -3,9 +3,11 @@ import { useSearchParams } from "react-router";
 import {
 	chatAdvisorConfig,
 	chatComputerUseProvider,
+	chatContextWindowConfig,
 	chatPersonalModelOverridesAdminSettings,
 	updateChatAdvisorConfig,
 	updateChatComputerUseProvider,
+	updateChatContextWindowConfig,
 	updateChatPersonalModelOverridesAdminSettings,
 } from "#/api/queries/chats";
 import { organizationsPermissions } from "#/api/queries/organizations";
@@ -48,6 +50,7 @@ const CoderAgentsPage: React.FC = () => {
 	const showVirtualDesktopSettings = experiments.includes(
 		"chat-virtual-desktop",
 	);
+	const showContextWindowSettings = experiments.includes("chat-token-budget");
 	const personalOverridesQuery = useQuery({
 		...chatPersonalModelOverridesAdminSettings(),
 		enabled: canEditDeploymentConfig,
@@ -60,6 +63,13 @@ const CoderAgentsPage: React.FC = () => {
 		...chatComputerUseProvider(),
 		enabled: canEditDeploymentConfig && showVirtualDesktopSettings,
 	});
+	const contextWindowConfigQuery = useQuery({
+		...chatContextWindowConfig(),
+		enabled: canEditDeploymentConfig && showContextWindowSettings,
+	});
+	const saveContextWindowConfigMutation = useMutation(
+		updateChatContextWindowConfig(queryClient),
+	);
 	const savePersonalOverridesMutation = useMutation(
 		updateChatPersonalModelOverridesAdminSettings(queryClient),
 	);
@@ -137,6 +147,21 @@ const CoderAgentsPage: React.FC = () => {
 				onSaveComputerUseProvider={saveComputerUseProviderMutation.mutate}
 				isSavingComputerUseProvider={saveComputerUseProviderMutation.isPending}
 				computerUseProviderSaveError={saveComputerUseProviderMutation.error}
+				contextWindowSettings={
+					showContextWindowSettings
+						? {
+								contextWindowConfigData: contextWindowConfigQuery.data,
+								isLoadingContextWindowConfig:
+									contextWindowConfigQuery.isLoading,
+								onSaveContextWindowConfig:
+									saveContextWindowConfigMutation.mutate,
+								isSavingContextWindowConfig:
+									saveContextWindowConfigMutation.isPending,
+								contextWindowConfigSaveError:
+									saveContextWindowConfigMutation.error,
+							}
+						: undefined
+				}
 			/>
 		</RequirePermission>
 	);

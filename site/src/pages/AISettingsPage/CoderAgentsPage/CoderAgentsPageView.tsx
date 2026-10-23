@@ -8,6 +8,10 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { AdvisorSettings } from "#/pages/AgentsPage/components/AdvisorSettings";
+import {
+	ContextWindowSettings,
+	type ContextWindowSettingsProps,
+} from "#/pages/AgentsPage/components/ContextWindowSettings";
 import { VirtualDesktopSettings } from "#/pages/AgentsPage/components/VirtualDesktopSettings";
 import { OrganizationSettingsSection } from "#/pages/AISettingsPage/components/OrganizationSettingsSection";
 import { SettingsSection } from "#/pages/AISettingsPage/components/SettingsSection";
@@ -57,6 +61,8 @@ export type CoderAgentsPageViewProps = {
 	>;
 	isSavingComputerUseProvider: boolean;
 	computerUseProviderSaveError: Error | null;
+	/** Shown only when the chat-token-budget experiment is on. */
+	contextWindowSettings?: ContextWindowSettingsProps;
 };
 
 export const CoderAgentsPageView: React.FC<CoderAgentsPageViewProps> = ({
@@ -91,6 +97,7 @@ export const CoderAgentsPageView: React.FC<CoderAgentsPageViewProps> = ({
 	onSaveComputerUseProvider,
 	isSavingComputerUseProvider,
 	computerUseProviderSaveError,
+	contextWindowSettings,
 }) => {
 	return (
 		<div className="flex max-w-4xl flex-col gap-10">
@@ -148,6 +155,9 @@ export const CoderAgentsPageView: React.FC<CoderAgentsPageViewProps> = ({
 								isSavingComputerUseProvider={isSavingComputerUseProvider}
 								computerUseProviderSaveError={computerUseProviderSaveError}
 							/>
+						)}
+						{contextWindowSettings && (
+							<ContextWindowSettings {...contextWindowSettings} />
 						)}
 						{showAdvisorSettings && (
 							<AdvisorSettings
