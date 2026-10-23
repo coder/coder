@@ -938,6 +938,22 @@ describe("FilesPanel", () => {
 		).toBeNull();
 	});
 
+	it("lets the user pick a root while the git watcher has not settled", async () => {
+		const user = userEvent.setup();
+		renderPanel(contextValue({ repoRoots: [], repoRootsSettled: false }));
+		expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
+
+		await user.click(
+			screen.getByRole("button", { name: "Root directory: Loading" }),
+		);
+		await user.click(screen.getByRole("menuitemradio", { name: /^Home/ }));
+
+		await screen.findByRole("treeitem", { name: ".bashrc" });
+		expect(
+			localStorage.getItem(`${filesPanelRootStorageKeyPrefix}chat-1`),
+		).toBe("~");
+	});
+
 	it("does not list files without a workspace agent", () => {
 		renderPanel(undefined);
 		expect(API.listWorkspaceAgentDirectory).not.toHaveBeenCalled();

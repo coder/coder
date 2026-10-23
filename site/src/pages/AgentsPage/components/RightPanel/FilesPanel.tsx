@@ -75,6 +75,12 @@ export const useFilesPanelRoot = (
 	const defaultRoot = defaultRootQuery.data;
 	const upgradedRoot =
 		defaultRoot?.root === "" && !defaultRoot.pinned ? repoRoots[0] : undefined;
+	const root =
+		storedRoot ??
+		upgradedRoot ??
+		defaultRoot?.root ??
+		// Until the query resolves, the value it is about to cache.
+		(repoRootsSettled ? (repoRoots[0] ?? "") : undefined);
 	useEffect(() => {
 		if (upgradedRoot !== undefined) {
 			queryClient.setQueryData<DefaultRoot>(defaultRootKey(chatId), {
@@ -95,11 +101,7 @@ export const useFilesPanelRoot = (
 			(previous) => previous && { ...previous, pinned: true },
 		);
 	};
-	return {
-		root: storedRoot ?? upgradedRoot ?? defaultRoot?.root,
-		setRoot,
-		pinRoot,
-	};
+	return { root, setRoot, pinRoot };
 };
 
 type DefaultRoot = { root: string; pinned: boolean };
@@ -190,9 +192,6 @@ export const FilesPanel: React.FC<FilesPanelProps> = ({
 			</div>
 		);
 	}
-	if (root === undefined) {
-		return <Loader className="h-full" />;
-	}
 	return (
 		<FilesBrowser
 			root={root}
@@ -206,7 +205,12 @@ export const FilesPanel: React.FC<FilesPanelProps> = ({
 };
 
 type FilesBrowserProps = {
-	root: string;
+	/**
+	 * Undefined while the default root waits for the git watcher. The tree
+	 * shows its loader, and the picker stays usable so the user can end the
+	 * wait by choosing a root.
+	 */
+	root: string | undefined;
 	setRoot: (root: string) => void;
 	/** Keeps a default root in place once the user navigates in it. */
 	pinRoot: () => void;
@@ -239,8 +243,13 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 	const refreshShownTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 	useEffect(() => () => clearTimeout(refreshShownTimer.current), []);
 
-	const rootQuery = useQuery(directoryQuery(agentId, root));
-	const rootPath = rootQuery.data?.absolute_path_string;
+	const rootQuery = useQuery({
+		...directoryQuery(agentId, root ?? ""),
+		enabled: root !== undefined,
+	});
+	// A disabled query still returns cached data, here of the default directory.
+	const rootListing = root === undefined ? undefined : rootQuery.data;
+	const rootPath = rootListing?.absolute_path_string;
 	// Read-only observers: they expose cached listings of every expanded
 	// directory, and of the default directory, without fetching.
 	const cachedPaths = [...expandedPaths, ""];
@@ -253,10 +262,10 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 	const cachedListing = (path: string) =>
 		cachedListings[cachedPaths.indexOf(path)]?.data;
 	const visibleExpandedPaths =
-		rootQuery.data === undefined
+		rootListing === undefined
 			? []
 			: getVisibleExpandedPaths(
-					rootQuery.data,
+					rootListing,
 					expandedPaths,
 					new Map(expandedPaths.map((path) => [path, cachedListing(path)])),
 				);
@@ -317,7 +326,10 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 	// The cache observers above keep hidden directories' queries alive, so a
 	// fetch started while a directory was shown would otherwise run on after
 	// it is collapsed, deleted, or the root changes.
-	const shownDirectoriesKey = [root, ...visibleExpandedPaths].join("\n");
+	const shownDirectoriesKey = [
+		...(root === undefined ? [] : [root]),
+		...visibleExpandedPaths,
+	].join("\n");
 	const previousShownDirectories = useRef<readonly string[]>([]);
 	useEffect(() => {
 		const shown = shownDirectoriesKey.split("\n");
@@ -336,7 +348,10 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 		absolutePaths: readonly string[],
 		restart = false,
 	) => {
-		if (rootPath === undefined || absolutePaths.includes(rootPath)) {
+		if (
+			root !== undefined &&
+			(rootPath === undefined || absolutePaths.includes(rootPath))
+		) {
 			refreshDirectory(root, restart);
 		}
 		for (const path of visibleExpandedPaths) {
@@ -471,13 +486,14 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 				}
 			};
 			const folder = isDirectory ? path : getPathDirname(path);
-			const currentRootPath = await listingPath(root);
+			const currentRootPath =
+				root === undefined ? undefined : await listingPath(root);
 			// A newer reveal restarts the same lookups; this one must not cancel
 			// them in turn.
 			if (request !== latestReveal.current) {
 				throw new Error("A newer reveal replaced this one.");
 			}
-			let nextRoot = root;
+			let nextRoot = root ?? "";
 			let nextRootPath = currentRootPath;
 			if (currentRootPath === undefined || !isWithin(path, currentRootPath)) {
 				const repoRoot = repoRoots
@@ -626,18 +642,19 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 	};
 
 	let content: React.ReactNode;
-	if (rootQuery.data === undefined) {
-		content = rootQuery.isError ? (
-			<p role="alert" className="m-0 p-3 text-sm text-content-secondary">
-				{directoryErrorMessage(rootQuery.error, root)}
-			</p>
-		) : (
-			<Loader className="flex-1" />
-		);
+	if (root === undefined || rootListing === undefined) {
+		content =
+			root !== undefined && rootQuery.isError ? (
+				<p role="alert" className="m-0 p-3 text-sm text-content-secondary">
+					{directoryErrorMessage(rootQuery.error, root)}
+				</p>
+			) : (
+				<Loader className="flex-1" />
+			);
 	} else {
 		content = (
 			<DirectoryTree
-				listing={rootQuery.data}
+				listing={rootListing}
 				refreshError={
 					rootQuery.isError
 						? directoryErrorMessage(rootQuery.error, root)
