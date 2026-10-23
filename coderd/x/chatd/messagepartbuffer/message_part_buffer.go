@@ -542,17 +542,13 @@ func (b *Buffer) subscriberParts(key Key, subscriber *episodeSubscriber) (parts 
 func (b *Buffer) deliverSubscriber(ctx context.Context, key Key, subscriber *episodeSubscriber) {
 	defer close(subscriber.out)
 	defer b.removeSubscriber(key, subscriber)
-	episodeClosed := false
 	for {
 		parts, closed, ok := b.subscriberParts(key, subscriber)
 		if !ok {
 			return
 		}
-		episodeClosed = episodeClosed || closed
 		for _, part := range parts {
-			var sent bool
-			sent, episodeClosed = b.sendSubscriberPart(ctx, key, subscriber, part, episodeClosed)
-			if !sent {
+			if !b.sendSubscriberPart(ctx, key, subscriber, part) {
 				return
 			}
 		}
@@ -576,8 +572,7 @@ func (b *Buffer) deliverSubscriber(ctx context.Context, key Key, subscriber *epi
 	}
 }
 
-// sendSubscriberPart sends part to the subscriber. It reports whether it sent
-// the part, and whether the episode is closed as far as it has observed.
+// sendSubscriberPart sends part to the subscriber and reports whether it did.
 //
 // While the episode is open, the send has no deadline. Subscribers do not
 // affect how long an open episode is kept, so waiting retains only the batch
@@ -586,7 +581,7 @@ func (b *Buffer) deliverSubscriber(ctx context.Context, key Key, subscriber *epi
 // subscriber keeps a closed episode from being garbage collected. A send that
 // is waiting when the episode closes wakes on the close notification and
 // starts the timeout then.
-func (b *Buffer) sendSubscriberPart(ctx context.Context, key Key, subscriber *episodeSubscriber, part Part, episodeClosed bool) (sent bool, closed bool) {
+func (b *Buffer) sendSubscriberPart(ctx context.Context, key Key, subscriber *episodeSubscriber, part Part) bool {
 	var timer *quartz.Timer
 	defer func() {
 		if timer != nil {
@@ -594,11 +589,10 @@ func (b *Buffer) sendSubscriberPart(ctx context.Context, key Key, subscriber *ep
 		}
 	}()
 	for {
-		if episodeClosed && timer == nil {
+		if timer == nil && b.isEpisodeClosed(key) {
 			timer = b.opts.Clock.NewTimer(b.opts.SubscriberSendTimeout, "message-part-buffer", "subscriber-send")
 		}
-		// Wait for a wakeup only until the episode is closed. After that the
-		// timer bounds the send.
+		// Wait for wakeups only until the timeout starts.
 		wake := subscriber.notifyCh
 		var timeout <-chan time.Time
 		if timer != nil {
@@ -607,19 +601,18 @@ func (b *Buffer) sendSubscriberPart(ctx context.Context, key Key, subscriber *ep
 		}
 		select {
 		case subscriber.out <- part:
-			return true, episodeClosed
+			return true
 		case <-wake:
-			// AddPart and CloseEpisode both notify. Only a close changes this
-			// send. deliverSubscriber reads the added parts after the send.
-			episodeClosed = b.isEpisodeClosed(key)
+			// AddPart and CloseEpisode both notify. The loop checks for a
+			// close, and deliverSubscriber reads added parts after the send.
 		case <-timeout:
-			return false, episodeClosed
+			return false
 		case <-subscriber.stopCh:
-			return false, episodeClosed
+			return false
 		case <-ctx.Done():
-			return false, episodeClosed
+			return false
 		case <-b.done:
-			return false, episodeClosed
+			return false
 		}
 	}
 }
