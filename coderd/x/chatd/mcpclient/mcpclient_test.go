@@ -1640,7 +1640,28 @@ func TestConvertCallResult_MixedContent(t *testing.T) {
 				text("Document retrieved"),
 				&mcp.EmbeddedResource{Resource: &mcp.ResourceContents{URI: "file:///document.pdf", MIMEType: "application/pdf", Blob: []byte("pdf-data")}},
 			}},
-			want: fantasy.ToolResponse{Type: "media", Data: []byte("pdf-data"), MediaType: "application/pdf", Content: "Document retrieved"},
+			want: fantasy.ToolResponse{Type: "media", Data: []byte("pdf-data"), MediaType: "application/pdf", Content: "Document retrieved", Filename: "document.pdf"},
+		},
+		{
+			name: "EmbeddedBlobFilenameOmitsQuery",
+			result: &mcp.CallToolResult{Content: []mcp.Content{
+				&mcp.EmbeddedResource{Resource: &mcp.ResourceContents{URI: "https://example.com/files/q3%20report.pdf?version=2#page=1", MIMEType: "application/pdf", Blob: []byte("pdf-data")}},
+			}},
+			want: fantasy.ToolResponse{Type: "media", Data: []byte("pdf-data"), MediaType: "application/pdf", Filename: "q3 report.pdf"},
+		},
+		{
+			name: "EmbeddedBlobRootURIHasNoFilename",
+			result: &mcp.CallToolResult{Content: []mcp.Content{
+				&mcp.EmbeddedResource{Resource: &mcp.ResourceContents{URI: "file:///", MIMEType: "application/pdf", Blob: []byte("pdf-data")}},
+			}},
+			want: fantasy.ToolResponse{Type: "media", Data: []byte("pdf-data"), MediaType: "application/pdf"},
+		},
+		{
+			name: "EmbeddedBlobOpaqueURIHasNoFilename",
+			result: &mcp.CallToolResult{Content: []mcp.Content{
+				&mcp.EmbeddedResource{Resource: &mcp.ResourceContents{URI: "urn:report:42", MIMEType: "application/pdf", Blob: []byte("pdf-data")}},
+			}},
+			want: fantasy.ToolResponse{Type: "media", Data: []byte("pdf-data"), MediaType: "application/pdf"},
 		},
 		{
 			name: "FirstUsableImageKept",

@@ -1306,6 +1306,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 					Type:      "image",
 					Data:      originalBytes,
 					MediaType: "image/jpeg",
+					Filename:  "photo.jpg",
 				}, nil
 			},
 		)
@@ -1324,6 +1325,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 		media, ok := result.Result.(fantasy.ToolResultOutputContentMedia)
 		require.True(t, ok, "expected ToolResultOutputContentMedia")
 		require.Equal(t, "image/jpeg", media.MediaType)
+		require.Equal(t, "photo.jpg", media.Filename)
 
 		decoded, err := base64.StdEncoding.DecodeString(media.Data)
 		require.NoError(t, err, "Data should be valid base64")

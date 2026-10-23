@@ -1529,6 +1529,7 @@ func (b *toolBatch) runOne(
 			Data:      base64.StdEncoding.EncodeToString(resp.Data),
 			MediaType: resp.MediaType,
 			Text:      text,
+			Filename:  resp.Filename,
 		}
 	default:
 		result.Result = fantasy.ToolResultOutputContentText{

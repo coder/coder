@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path"
 	"slices"
 	"strings"
 	"sync"
@@ -1439,6 +1440,7 @@ func convertCallResult(
 						Type:      blobType,
 						Data:      c.Resource.Blob,
 						MediaType: c.Resource.MIMEType,
+						Filename:  resourceFilename(c.Resource.URI),
 						IsError:   result.IsError,
 					}
 					binaryResult = &res
@@ -1488,6 +1490,20 @@ func convertCallResult(
 	resp := fantasy.NewTextResponse(strings.Join(textParts, "\n"))
 	resp.IsError = result.IsError
 	return resp
+}
+
+// resourceFilename returns the last element of an MCP resource URI path,
+// or "" when the URI does not name a file.
+func resourceFilename(uri string) string {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return ""
+	}
+	name := path.Base(u.Path)
+	if name == "." || name == "/" {
+		return ""
+	}
+	return name
 }
 
 // RefreshResult contains the outcome of an OAuth2 token refresh
