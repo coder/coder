@@ -20,6 +20,11 @@ export type WorkspaceFilesContextValue = {
 	/** Absolute roots of the repositories the chat touched, sorted. */
 	repoRoots: readonly string[];
 	/**
+	 * Whether repoRoots is known for the chat: the git watcher reported it,
+	 * or failed to connect. Until then a default root would be a guess.
+	 */
+	repoRootsSettled: boolean;
+	/**
 	 * Git watcher state keyed by repo root. An entry changes identity when the
 	 * watcher reports new state for that repo, which is the signal to refetch
 	 * open files under it.

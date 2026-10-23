@@ -1124,4 +1124,57 @@ describe("useGitWatcher", () => {
 		rerender({ agentStatus: "connected" as WorkspaceAgentStatus });
 		expect(result.current.everDirty.has("/repo")).toBe(true);
 	});
+
+	it("settles repo roots on the first changes message and stays settled across reconnects", () => {
+		vi.useFakeTimers();
+		try {
+			const socket1 = createMockSocket();
+			const { result, rerender } = renderHook(
+				({ agentStatus }: { agentStatus: WorkspaceAgentStatus }) =>
+					useGitWatcher({ chatId: "chat-settle", agentStatus }),
+				{ initialProps: { agentStatus: "connected" as WorkspaceAgentStatus } },
+			);
+
+			act(() => socket1.simulateOpen());
+			expect(result.current.repoRootsSettled).toBe(false);
+			act(() => socket1.simulateMessage({ type: "changes", repositories: [] }));
+			expect(result.current.repoRootsSettled).toBe(true);
+
+			const socket2 = createMockSocket();
+			act(() => socket1.simulateClose());
+			act(() => vi.advanceTimersByTime(2_000));
+			act(() => socket2.simulateOpen());
+			expect(result.current.hasReceivedChanges).toBe(false);
+			expect(result.current.repoRootsSettled).toBe(true);
+
+			createMockSocket();
+			rerender({ agentStatus: "connecting" });
+			rerender({ agentStatus: "connected" });
+			expect(result.current.repoRootsSettled).toBe(true);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("settles repo roots when a connection attempt fails, until the chat changes", () => {
+		vi.useFakeTimers();
+		try {
+			const socket = createMockSocket();
+			const { result, rerender } = renderHook(
+				({ chatId }: { chatId: string }) =>
+					useGitWatcher({ chatId, agentStatus: "connected" }),
+				{ initialProps: { chatId: "chat-fail" } },
+			);
+
+			expect(result.current.repoRootsSettled).toBe(false);
+			act(() => socket.simulateClose());
+			expect(result.current.repoRootsSettled).toBe(true);
+
+			createMockSocket();
+			rerender({ chatId: "chat-other" });
+			expect(result.current.repoRootsSettled).toBe(false);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 });

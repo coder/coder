@@ -1904,6 +1904,7 @@ const withWorkspaceFiles: NonNullable<Story["decorators"]> = [
 				agentId: "storybook-agent",
 				defaultDirectory: "/home/coder",
 				repoRoots: ["/home/coder/app"],
+				repoRootsSettled: true,
 				repositories: new Map(),
 				openFile: openWorkspaceFile,
 				revealInFiles: fn(),
