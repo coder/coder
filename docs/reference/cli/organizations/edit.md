@@ -34,23 +34,23 @@ coder organizations edit [flags]
 
 ### --default-org-member-roles
 
-|      |                           |
-|------|---------------------------|
-| Type | <code>string-array</code> |
+| Property | Value                     |
+|----------|---------------------------|
+| Type     | <code>string-array</code> |
 
 Replaces the roles every member of the organization holds. Accepts a comma-separated list and may be repeated. An empty value removes every role. New organizations start with organization-workspace-access, which grants members access to their own workspaces, and agents-access, which grants members access to Coder Agents.
 
 ### -y, --yes
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Bypass confirmation prompts.
 
 ### -O, --org
 
-|             |                                  |
+| Property    | Value                            |
 |-------------|----------------------------------|
 | Type        | <code>string</code>              |
 | Environment | <code>$CODER_ORGANIZATION</code> |

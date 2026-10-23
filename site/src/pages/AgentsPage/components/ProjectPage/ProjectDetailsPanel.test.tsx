@@ -18,9 +18,11 @@ import {
 	MockChatProject,
 	MockChatProjectInstructions,
 	MockUnsetChatProjectInstructions,
+	MockUserMember,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import { MockDisabledSkill, MockSkills } from "#/testHelpers/skills";
 import themes, { DEFAULT_THEME } from "#/theme";
 import { ProjectDetailsPanel } from "./ProjectDetailsPanel";
 
@@ -75,7 +77,7 @@ const confirmDelete = async (user: ReturnType<typeof userEvent.setup>) => {
 	);
 };
 
-const renderPanel = () => {
+const renderPanel = (initialProject: ChatProject = MockChatProject) => {
 	const queryClient = createTestQueryClient();
 	const panel = (project: ChatProject) => (
 		<ThemeOverride theme={themes[DEFAULT_THEME]}>
@@ -86,7 +88,7 @@ const renderPanel = () => {
 			</QueryClientProvider>
 		</ThemeOverride>
 	);
-	const { rerender } = render(panel(MockChatProject));
+	const { rerender } = render(panel(initialProject));
 	return {
 		user: userEvent.setup(),
 		queryClient,
@@ -469,5 +471,88 @@ describe("ProjectDetailsPanel", () => {
 
 		await waitFor(() => expect(getInstructions).toHaveBeenCalledTimes(2));
 		await screen.findByRole("button", { name: "Edit instructions" });
+	});
+
+	it("opens the project skills from the Skills row", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([
+			MockSkills[0],
+			MockDisabledSkill,
+		]);
+		const getSkill = vi
+			.spyOn(API.experimental, "getChatProjectSkill")
+			.mockResolvedValue({
+				...MockSkills[0],
+				content: "---\nname: reviewer\n---\nReview the diff.\n",
+			});
+		const { user } = renderPanel();
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: "Skills: 2 skills, 1 disabled",
+			}),
+		);
+		await user.click(
+			await screen.findByRole("button", { name: "Open menu for reviewer" }),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: "Edit" }));
+
+		await waitFor(() =>
+			expect(getSkill).toHaveBeenCalledWith(
+				MockChatProject.organization_id,
+				MockChatProject.id,
+				"reviewer",
+			),
+		);
+	});
+
+	it("lets a non-owner turn a skill off when the project permits update", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		vi.spyOn(API, "getUser").mockResolvedValue(MockUserMember);
+		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([
+			MockSkills[0],
+		]);
+		const updateSkill = vi
+			.spyOn(API.experimental, "updateChatProjectSkill")
+			.mockResolvedValue({ ...MockSkills[0], content: "", enabled: false });
+		// An admin-role sharee gets update only through the project's ACL,
+		// which /authcheck cannot see but project.permissions reflects.
+		const { user } = renderPanel({
+			...MockChatProject,
+			owner_id: MockUserMember.id,
+			permissions: { update: true, delete: false, share: true },
+		});
+
+		await user.click(
+			await screen.findByRole("button", { name: "Skills: 1 skill" }),
+		);
+		await user.click(
+			await screen.findByRole("switch", {
+				name: `Enable ${MockSkills[0].name}`,
+			}),
+		);
+
+		await waitFor(() =>
+			expect(updateSkill).toHaveBeenCalledWith(
+				MockChatProject.organization_id,
+				MockChatProject.id,
+				MockSkills[0].name,
+				{ enabled: false },
+			),
+		);
+	});
+
+	it("returns focus to the Skills row when the skills dialog closes", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([]);
+		const { user } = renderPanel();
+		const skillsButton = await screen.findByRole("button", {
+			name: "Skills: None",
+		});
+
+		await user.click(skillsButton);
+		await user.click(await screen.findByRole("button", { name: "Close" }));
+
+		await waitFor(() => expect(skillsButton).toHaveFocus());
 	});
 });

@@ -5,14 +5,18 @@ title: External provisioners
 By default, the control plane runs [built-in provisioner daemons](../../../reference/cli/server/index.md#--provisioner-daemons), which execute `terraform` during workspace and template builds.
 However, there are often benefits to running external provisioner daemons:
 
-- **Secure build environments:** Run build jobs in isolated containers, preventing malicious templates from gaining sh access to the Coder host.
+- **Secure build environments:**
+  Run build jobs in isolated containers, preventing malicious templates from gaining sh access to the Coder host.
 
-- **Isolate APIs:** Deploy provisioners in isolated environments (on-prem, AWS, Azure) instead of exposing APIs (Docker, Kubernetes, VMware) to the control plane.
+- **Isolate APIs:**
+  Deploy provisioners in isolated environments (on-prem, AWS, Azure) instead of exposing APIs (Docker, Kubernetes, VMware) to the control plane.
   See [Provider Authentication](../../../admin/templates/extending-templates/provider-authentication.md) for more details.
 
-- **Isolate secrets**: Keep Coder unaware of cloud secrets, manage/rotate secrets on provisioner servers.
+- **Isolate secrets**:
+  Keep Coder unaware of cloud secrets, manage/rotate secrets on provisioner servers.
 
-- **Reduce control plane load**: External provisioners reduce load and build queue times from the control plane.
+- **Reduce control plane load**:
+  External provisioners reduce load and build queue times from the control plane.
   See [Scaling Coder](../../validate/scale-testing.md) for more details.
 
 Each provisioner runs a single [concurrent workspace build](../../validate/scale-testing.md#control-plane-provisionerd).

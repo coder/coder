@@ -43,11 +43,11 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgentsPageView";
-import AgentChatPage from "./AgentChatPage";
-import AgentCreatePage from "./AgentCreatePage";
-import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
-import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
-import AgentSettingsLayout from "./AgentSettingsLayout";
+import AgentChatPage from "./AgentChatPage/AgentChatPage";
+import AgentCreatePage from "./AgentCreatePage/AgentCreatePage";
+import AgentSettingsCompactionPage from "./AgentSettingsPage/AgentSettingsCompactionPage/AgentSettingsCompactionPage";
+import AgentSettingsGeneralPage from "./AgentSettingsPage/AgentSettingsGeneralPage/AgentSettingsGeneralPage";
+import AgentSettingsLayout from "./AgentSettingsPage/AgentSettingsLayout";
 import AgentsPageLayout from "./AgentsPageLayout";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import {
