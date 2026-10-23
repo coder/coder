@@ -71,6 +71,14 @@ const isFilePath = (path: string): boolean => {
 	if (extensionlessFileNames.has(name)) {
 		return true;
 	}
+	// Dotfiles such as .gitignore and .env.local have no other name part;
+	// a bare extension such as .go is not one.
+	if (
+		/^\.[A-Za-z0-9_][\w.-]*$/.test(name) &&
+		!bareFileExtensions.has(name.slice(1))
+	) {
+		return true;
+	}
 	const extension = /\.([A-Za-z][A-Za-z0-9]*)$/.exec(name)?.[1];
 	if (!extension || name.length === extension.length + 1) {
 		return false;
