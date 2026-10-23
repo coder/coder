@@ -4011,7 +4011,10 @@ describe("useChatStore", () => {
 		await waitFor(() => {
 			expect(watchMock).toHaveBeenCalledWith(chatID, undefined);
 		});
-		const socket1 = sockets[0]!;
+		const socket1 = sockets[0];
+		if (socket1 === undefined) {
+			throw new Error("watchChat did not return a socket");
+		}
 		act(() => {
 			socket1.emitOpen();
 		});
