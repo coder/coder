@@ -75,7 +75,6 @@ export const MessageActionButton: React.FC<{
 				onClick={onClick}
 			>
 				{icon}
-				<span className="sr-only">{label}</span>
 			</Button>
 		</TooltipTrigger>
 		<TooltipContent side="bottom">{label}</TooltipContent>

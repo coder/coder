@@ -332,7 +332,7 @@ const RemoteTextAttachmentButton: React.FC<{
 	downloadName: string;
 	onPreview: (attachment: PreviewTextAttachment) => void | Promise<void>;
 }> = ({ fileId, fileName, mediaType, frameHref, downloadName, onPreview }) => {
-	const { hasExpired, markExpired } = useFileProbes();
+	const { hasExpired, setProbeResult } = useFileProbes();
 	const isKnownExpired = hasExpired(fileId);
 	const [content, setContent] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
@@ -408,7 +408,7 @@ const RemoteTextAttachmentButton: React.FC<{
 				setIsLoading(false);
 				if (result.kind !== "loaded") {
 					if (result.kind === "expired") {
-						markExpired(fileId);
+						setProbeResult(fileId, { kind: "expired" });
 					}
 					setFailureState(result);
 					return;
@@ -612,7 +612,6 @@ export const AttachmentBlock: React.FC<{
 	const [revealedInlineText, setRevealedInlineText] = useState(false);
 	const href = getAttachmentHref(block);
 	const displayName = getAttachmentDisplayName(block);
-	const downloadName = getAttachmentDownloadName(block);
 
 	if (isTextPreviewAttachmentMediaType(block.media_type)) {
 		if (block.file_id) {
@@ -622,7 +621,7 @@ export const AttachmentBlock: React.FC<{
 					fileName={displayName}
 					mediaType={block.media_type}
 					frameHref={framePreview ? href : undefined}
-					downloadName={downloadName}
+					downloadName={getAttachmentDownloadName(block)}
 					onPreview={onTextFileClick}
 				/>
 			);

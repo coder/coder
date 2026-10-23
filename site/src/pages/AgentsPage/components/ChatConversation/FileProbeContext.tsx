@@ -3,7 +3,6 @@ import type { AttachmentFailure } from "../../utils/chatAttachments";
 
 type FileProbeContextValue = {
 	hasExpired: (fileId: string) => boolean;
-	markExpired: (fileId: string) => void;
 	isPending: (fileId: string) => boolean;
 	markPending: (fileId: string) => void;
 	clearPending: (fileId: string) => void;
@@ -13,7 +12,6 @@ type FileProbeContextValue = {
 
 const noFileProbes: FileProbeContextValue = {
 	hasExpired: () => false,
-	markExpired: () => {},
 	isPending: () => false,
 	markPending: () => {},
 	clearPending: () => {},
@@ -46,7 +44,6 @@ export const FileProbeProvider: React.FC<
 
 	const probes: FileProbeContextValue = outerProbes ?? {
 		hasExpired: (fileId) => probeResults.get(fileId)?.kind === "expired",
-		markExpired: (fileId) => setProbeResult(fileId, { kind: "expired" }),
 		isPending: (fileId) => pendingProbeFileIds.current.has(fileId),
 		markPending: (fileId) => {
 			pendingProbeFileIds.current.add(fileId);

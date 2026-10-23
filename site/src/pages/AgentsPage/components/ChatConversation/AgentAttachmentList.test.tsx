@@ -1,4 +1,4 @@
-import { renderHook, screen, waitFor } from "@testing-library/react";
+import { renderHook, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { QueryClientProvider } from "react-query";
@@ -55,54 +55,66 @@ describe("AgentAttachmentList", () => {
 		).toHaveFocus();
 	});
 
-	it("keeps the latest view's preview when an earlier view loads later", async () => {
-		const user = userEvent.setup();
-		const firstText = Promise.withResolvers<string>();
-		server.use(
-			http.get("/api/v2/chats/files/:fileId", async ({ params }) =>
-				HttpResponse.text(
-					params.fileId === "first-file" ? await firstText.promise : "# Second",
+	it.each([200, 500])(
+		"keeps the latest view's preview when an earlier view settles with %s",
+		async (firstStatus) => {
+			const user = userEvent.setup();
+			const firstText = Promise.withResolvers<string>();
+			server.use(
+				http.get("/api/v2/chats/files/:fileId", async ({ params }) =>
+					HttpResponse.text(
+						params.fileId === "first-file"
+							? await firstText.promise
+							: "[Second](https://docs.example.com)",
+						{ status: params.fileId === "first-file" ? firstStatus : 200 },
+					),
 				),
-			),
-		);
-		const queryClient = createTestQueryClient();
-		const [findings] = mockFindingsAttachments;
-		const attachments = ["first", "second"].map((name) => ({
-			...findings,
-			key: name,
-			file: { ...findings.file, file_id: `${name}-file`, name: `${name}.md` },
-		}));
-		renderComponent(
-			<QueryClientProvider client={queryClient}>
-				<AgentAttachmentList attachments={attachments} />
-			</QueryClientProvider>,
-		);
-		await user.click(
-			screen.getByRole("button", { name: "first.md View file" }),
-		);
-		const secondCard = screen.getByRole("button", {
-			name: "second.md View file",
-		});
-		await user.click(secondCard);
-		await screen.findByRole("dialog", { name: "second.md" });
+			);
+			const queryClient = createTestQueryClient();
+			const [findings] = mockFindingsAttachments;
+			const attachments = ["first", "second"].map((name) => ({
+				...findings,
+				key: name,
+				file: { ...findings.file, file_id: `${name}-file`, name: `${name}.md` },
+			}));
+			renderComponent(
+				<QueryClientProvider client={queryClient}>
+					<AgentAttachmentList attachments={attachments} />
+				</QueryClientProvider>,
+			);
+			await user.click(
+				screen.getByRole("button", { name: "first.md View file" }),
+			);
+			const secondCard = screen.getByRole("button", {
+				name: "second.md View file",
+			});
+			await user.click(secondCard);
+			const secondLink = within(
+				await screen.findByRole("dialog", { name: "second.md" }),
+			).getByRole("link", { name: "Second" });
+			secondLink.focus();
 
-		firstText.resolve("# First");
-		await waitFor(() =>
-			expect(queryClient.getQueryData(chatFileTextKey("first-file"))).toBe(
-				"# First",
-			),
-		);
-		await screen.findByRole("button", {
-			name: "first.md View file",
-			hidden: true,
-		});
-
-		expect(
-			screen.queryByRole("dialog", { name: "first.md", hidden: true }),
-		).not.toBeInTheDocument();
-		await user.keyboard("{Escape}");
-		await waitFor(() => expect(secondCard).toHaveFocus());
-	});
+			firstText.resolve("# First");
+			await waitFor(() =>
+				expect(
+					queryClient.getQueryState(chatFileTextKey("first-file")),
+				).toMatchObject({
+					status: firstStatus === 200 ? "success" : "error",
+					data: firstStatus === 200 ? "# First" : undefined,
+				}),
+			);
+			await screen.findByRole("button", {
+				name:
+					firstStatus === 200
+						? "first.md View file"
+						: "first.md Request failed with status code 500",
+				hidden: true,
+			});
+			expect(secondLink).toHaveFocus();
+			await user.keyboard("{Escape}");
+			await waitFor(() => expect(secondCard).toHaveFocus());
+		},
+	);
 
 	it("opens a text file's preview only on the card that loads it", async () => {
 		const user = userEvent.setup();

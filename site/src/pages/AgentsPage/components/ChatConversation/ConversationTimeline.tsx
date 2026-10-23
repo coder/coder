@@ -202,10 +202,7 @@ const ChatMessageItem = memo<{
 			displayState?.hasCopyableContent && parsed && !hideActions
 				? parsed.markdown
 				: undefined;
-		const showsHoverActions =
-			displayState !== undefined &&
-			!hideActions &&
-			(canEditUserMessage || canJumpBetweenUserMessages);
+		const showsHoverActions = canEditUserMessage || canJumpBetweenUserMessages;
 		if (displayState?.shouldHide) {
 			return null;
 		}

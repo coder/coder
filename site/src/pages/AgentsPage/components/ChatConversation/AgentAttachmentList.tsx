@@ -111,7 +111,7 @@ const StoredTextAttachmentCard: React.FC<StoredTextAttachmentCardProps> = ({
 	viewer,
 }) => {
 	const swapFocusRef = useSwapFocusRef();
-	const { hasExpired, markExpired } = useFileProbes();
+	const { hasExpired, setProbeResult } = useFileProbes();
 	// Only the view handler fetches, so that it can share a 404 with the
 	// timeline's other views of the file.
 	const textQuery = useQuery({ ...chatFileText(fileId), enabled: false });
@@ -151,7 +151,7 @@ const StoredTextAttachmentCard: React.FC<StoredTextAttachmentCardProps> = ({
 						// card loads the file.
 						viewer.close();
 						if (isExpiredFileError(error)) {
-							markExpired(fileId);
+							setProbeResult(fileId, { kind: "expired" });
 						}
 					});
 				}}
@@ -169,34 +169,9 @@ const StoredTextAttachmentCard: React.FC<StoredTextAttachmentCardProps> = ({
 	);
 };
 
-type InlineTextAttachmentCardProps = {
-	attachment: AgentAttachment;
-	data: string;
-	viewer: AttachmentViewer;
-};
-
-const InlineTextAttachmentCard: React.FC<InlineTextAttachmentCardProps> = ({
-	attachment: { file, href },
-	data,
-	viewer,
-}) => {
-	return (
-		<>
-			<ViewableFileCard block={file} href={href} onView={viewer.open} />
-			{viewer.isViewing && (
-				<TextPreviewDialog
-					content={decodeInlineTextAttachment(data)}
-					fileName={getAttachmentDisplayName(file)}
-					mediaType={file.media_type}
-					{...viewer.dialogProps}
-				/>
-			)}
-		</>
-	);
-};
-
 const AgentAttachmentCard: React.FC<AttachmentCardProps> = (props) => {
 	const { file, href } = props.attachment;
+	const { viewer } = props;
 	if (isRasterImageMediaType(file.media_type)) {
 		return <ImageAttachmentCard {...props} />;
 	}
@@ -206,11 +181,17 @@ const AgentAttachmentCard: React.FC<AttachmentCardProps> = (props) => {
 		}
 		if (file.data) {
 			return (
-				<InlineTextAttachmentCard
-					attachment={props.attachment}
-					data={file.data}
-					viewer={props.viewer}
-				/>
+				<>
+					<ViewableFileCard block={file} href={href} onView={viewer.open} />
+					{viewer.isViewing && (
+						<TextPreviewDialog
+							content={decodeInlineTextAttachment(file.data)}
+							fileName={getAttachmentDisplayName(file)}
+							mediaType={file.media_type}
+							{...viewer.dialogProps}
+						/>
+					)}
+				</>
 			);
 		}
 	}

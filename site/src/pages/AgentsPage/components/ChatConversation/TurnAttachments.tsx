@@ -93,8 +93,8 @@ export const TurnAttachments: React.FC<TurnAttachmentsProps> = ({
 				align="start"
 				className="w-80 max-w-(--radix-popper-available-width) p-2"
 				onOpenAutoFocus={(event) => {
-					// Radix focuses the first tabbable that is not a link: an
-					// expired file's tile, whose tooltip would cover the list.
+					// Radix focuses the first tabbable that is not a link, which can
+					// be an expired file's tile whose tooltip would cover the list.
 					// Focus the popover itself so that Tab still reaches the files.
 					event.preventDefault();
 					if (event.currentTarget instanceof HTMLElement) {

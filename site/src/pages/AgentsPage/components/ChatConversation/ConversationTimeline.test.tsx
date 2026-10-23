@@ -138,7 +138,18 @@ describe("ConversationTimeline working blocks", () => {
 			"Looking up the release notes.The workspace runs the latest Coder release.",
 		);
 
-		rerenderStage({ messages: MockClearedAttachmentMessages });
+		rerenderStage({
+			messages: MockClearedAttachmentMessages.map((message) =>
+				message.id === 23
+					? {
+							...message,
+							content: [
+								{ type: "text", text: "The dashboard **matches** the spec." },
+							],
+						}
+					: message,
+			),
+		});
 		await user.click(
 			within(screen.getByTestId("chat-message-message:23")).getByRole(
 				"button",
@@ -149,7 +160,7 @@ describe("ConversationTimeline working blocks", () => {
 		);
 
 		expect(writeText).toHaveBeenLastCalledWith(
-			"The dashboard matches the spec.",
+			"The dashboard **matches** the spec.",
 		);
 	});
 
