@@ -38,13 +38,67 @@ describe("splitWorkspacePathReferences", () => {
 		]);
 	});
 
+	it("finds a folder reference that ends a sentence", () => {
+		expect(
+			splitWorkspacePathReferences(
+				"look in `/home/coder/websocket/internal/`.",
+			),
+		).toEqual([
+			{ type: "text", text: "look in " },
+			{
+				type: "path",
+				path: "/home/coder/websocket/internal",
+				isDirectory: true,
+			},
+			{ type: "text", text: "." },
+		]);
+	});
+
+	it.each(
+		[
+			".",
+			",",
+			";",
+			":",
+			"!",
+			"?",
+			")",
+			"]",
+			"}",
+			'"',
+			"'",
+			"”",
+			"’",
+			").",
+			"?!",
+		].flatMap((punctuation): [string, string, boolean][] => [
+			[punctuation, "/repo/main.go", false],
+			[punctuation, "/repo/src", true],
+		]),
+	)(
+		"finds a reference followed by %j: %s",
+		(punctuation, path, isDirectory) => {
+			const reference = formatWorkspacePathReference(path, isDirectory);
+			expect(
+				splitWorkspacePathReferences(`see ${reference}${punctuation} next`),
+			).toEqual([
+				{ type: "text", text: "see " },
+				{ type: "path", path, isDirectory },
+				{ type: "text", text: `${punctuation} next` },
+			]);
+		},
+	);
+
 	it.each([
 		"run `make gen` first",
 		"edit `src/main.go`",
-		"see `/repo/a.ts`.",
 		"(`/repo/a.ts`)",
 		"x`/repo/a.ts` y",
 		"`/repo/a`b` is not one span",
+		"`/repo/a`b",
+		"`/repo/a.ts`.md",
+		"`/repo/a.ts`x.",
+		"`/repo/a.ts`-",
 		"` /repo/a.ts `",
 		"`/` and `~/`",
 	])("leaves other inline code alone: %s", (text) => {
