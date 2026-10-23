@@ -23,8 +23,8 @@ The doctrine for adding Vale rules lives in the [Vale doctrine README](../README
 
 A clean `make lint/prose` run is not evidence that a page follows this guide.
 The guide documents 88 rules.
-Automated tooling checks 11 of them, and 1 of those 11 doesn't run on published pages.
-The other 77 are yours to apply by reading, 78 on published pages, where the one-sentence-per-line rule is off.
+Automated tooling checks 12 of them, and 1 of those 12 doesn't run on published pages.
+The other 76 are yours to apply by reading, 77 on published pages, where the one-sentence-per-line rule is off.
 
 Open the section that matches what you're writing and work through it.
 The linters catch a narrow band of mechanical errors; they can't tell you that a page serves 2 audiences, buries a required step in a `NOTE`, or wraps every paragraph at 80 columns.
@@ -33,6 +33,7 @@ The linters catch a narrow band of mechanical errors; they can't tell you that a
 
 | Check                              | Tool                      | Severity  | Scope                                                                                                                                                                           | What it catches                                                       |
 |------------------------------------|---------------------------|-----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------|
+| `Coder.AcronymPeriods`             | Vale                      | `warning` | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | Capitalized acronyms written with periods, such as `A.P.I.`           |
 | `Coder.BrandNames`                 | Vale                      | `error`   | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | `Hashicorp` casing only, not the other brands in the word-choice list |
 | `Coder.GerundHeading`              | Vale                      | `warning` | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | Headings that lead with a gerund                                      |
 | `Coder.SelectClick`                | Vale                      | `warning` | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | `click` and its inflections                                           |
@@ -60,10 +61,10 @@ The markdownlint, emdash, docs HTML, and docs-manifest checks do fail the build.
 | [Procedural writing](./procedural-writing.md)                         | 6     | 0            | 1       | 5                  |
 | [Word choice](./word-choice.md)                                       | 20    | 2            | 12      | 6                  |
 | [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 14    | 3            | 5       | 6                  |
-| [Capitalization and punctuation](./capitalization-and-punctuation.md) | 12    | 2            | 8       | 2                  |
+| [Capitalization and punctuation](./capitalization-and-punctuation.md) | 12    | 3            | 7       | 2                  |
 | [Formatting](./formatting.md)                                         | 13    | 3            | 0       | 10                 |
 | [Numbers, units, and dates](./numbers-units-and-dates.md)             | 5     | 1            | 4       | 0                  |
-| **Total**                                                             | 88    | 11           | 34      | 43                 |
+| **Total**                                                             | 88    | 12           | 33      | 43                 |
 
 Every column counts rule sections, not linter rule names.
 A rule section is a heading that carries an enforcement footer, the italic line that names the section's enforcement status.
@@ -90,7 +91,7 @@ Classify a counted section from its footer, in this order:
    A section that names several checks still counts once.
 3. Anything else: the section is planned.
 
-So the 9 rows in the table above name 12 checks, because the markdownlint row bundles 4, and those 12 checks cover 11 sections: each check counts under the section that owns it rather than under every section that mentions it.
+So the 10 rows in the table above name 13 checks, because the markdownlint row bundles 4, and those 13 checks cover 12 sections: each check counts under the section that owns it rather than under every section that mentions it.
 
 A rule marked `(planned)` in a section footer names the rule that would enforce it if it existed.
 It isn't running today.

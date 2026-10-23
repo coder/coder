@@ -251,7 +251,7 @@ Lowercase Latin abbreviations such as `e.g.` keep their periods (refer to [Latin
 
 > The A.P.I. returns the user's region, such as U.S. or E.U.
 
-*Enforced by `Coder.AcronymPeriods` (planned).*
+*Enforced by `Coder.AcronymPeriods` (`warning`).*
 
 ## Exclamation points rare in prose
 
