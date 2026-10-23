@@ -65,17 +65,21 @@ type FileMentionProps = {
 	line?: number;
 	/** Files already known to match; several open the picker directly. */
 	choices?: readonly WorkspaceAgentFindFilesResult[];
+	/** The absolute `path` is a verified folder, shown in the Files panel. */
+	isDirectory?: boolean;
 	children: React.ReactNode;
 };
 
 /**
- * A file path mentioned in chat text. Clicking opens the file; relative
- * paths are resolved against the chat's repositories first.
+ * A file path mentioned in chat text. Clicking opens the file, or shows a
+ * folder in the Files panel; relative paths are resolved against the
+ * chat's repositories first.
  */
 export const FileMention: React.FC<FileMentionProps> = ({
 	path,
 	line,
 	choices,
+	isDirectory = false,
 	children,
 }) => {
 	const files = useWorkspaceFiles();
@@ -102,10 +106,22 @@ export const FileMention: React.FC<FileMentionProps> = ({
 		return children;
 	}
 
+	const openMatch = (match: WorkspaceAgentFindFilesResult) => {
+		if (match.is_dir) {
+			files.revealInFiles(match.absolute_path, { isDirectory: true });
+		} else {
+			files.openFile(match.absolute_path, { line });
+		}
+	};
+
 	const resolve = async () => {
 		if (choices && choices.length > 1) {
 			setMatches(choices);
 			setTruncated(false);
+			return;
+		}
+		if (isDirectory) {
+			files.revealInFiles(path, { isDirectory: true });
 			return;
 		}
 		if (path.startsWith("/")) {
@@ -170,6 +186,7 @@ export const FileMention: React.FC<FileMentionProps> = ({
 				<button
 					type="button"
 					aria-busy={pending}
+					aria-label={isDirectory ? `Show ${path} in Files` : undefined}
 					className={cn(
 						"inline cursor-pointer border-0 bg-transparent p-0 text-left font-[inherit] text-inherit",
 						"underline decoration-dotted decoration-content-secondary underline-offset-2 hover:decoration-content-link",
@@ -211,7 +228,7 @@ export const FileMention: React.FC<FileMentionProps> = ({
 									className="items-baseline py-1.5"
 									onSelect={() => {
 										setMatches([]);
-										files.openFile(match.absolute_path, { line });
+										openMatch(match);
 									}}
 								>
 									<span className="min-w-0 truncate font-mono text-xs text-content-primary">
@@ -380,7 +397,7 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 				absolute_path: verified.absolutePath,
 				path: verified.absolutePath.slice(root.replace(/\/$/, "").length + 1),
 				root,
-				is_dir: false,
+				is_dir: verified.isDirectory ?? false,
 				score: 0,
 			});
 		}
@@ -397,6 +414,7 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 			path={choices.length > 1 ? text.slice(0, end) : choices[0].absolute_path}
 			line={line}
 			choices={choices.length > 1 ? choices : undefined}
+			isDirectory={choices.length === 1 && choices[0].is_dir}
 		>
 			{whole ? children : text.slice(0, end)}
 		</FileMention>

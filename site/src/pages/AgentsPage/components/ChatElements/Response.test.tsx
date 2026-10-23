@@ -480,11 +480,55 @@ describe("Response", () => {
 
 			it.each([
 				{
+					markdown: "Routes live in site/src/pages/ today",
+					tree: { "/home/coder/coder/site/src": ["pages/", "pages.ts"] },
+					link: "site/src/pages/",
+					reveals: "/home/coder/coder/site/src/pages",
+				},
+				{
+					markdown: "Look in /home/coder/my docs for notes",
+					tree: { "/home/coder": ["my docs/"] },
+					link: "/home/coder/my docs",
+					reveals: "/home/coder/my docs",
+				},
+				{
+					markdown: "Open `~/projects/` next",
+					tree: { "~": ["projects/"] },
+					link: "~/projects/",
+					reveals: "/home/coder/projects",
+				},
+			])(
+				"shows the folder $link in Files once the listings confirm it",
+				async ({ markdown, tree, link, reveals }) => {
+					const user = userEvent.setup();
+					mockTree(tree);
+					const { files } = renderWithFiles(markdown);
+
+					const button = await screen.findByRole("button", {
+						name: `Show ${reveals} in Files`,
+					});
+					expect(button).toHaveTextContent(link);
+					await user.click(button);
+
+					expect(files.revealInFiles).toHaveBeenCalledWith(reveals, {
+						isDirectory: true,
+					});
+					expect(files.openFile).not.toHaveBeenCalled();
+					expect(buttonTexts()).toEqual([link]);
+				},
+			);
+
+			it.each([
+				{
 					markdown: "Open /path/to/missing file.txt and site/src/a.ts.",
 					buttons: ["file.txt", "site/src/a.ts"],
 				},
 				{
 					markdown: "Open `/path/to/file (2).txt extra` now",
+					buttons: [],
+				},
+				{
+					markdown: "Open /path/to/other/ and /path/to/gone/ now",
 					buttons: [],
 				},
 			])(
