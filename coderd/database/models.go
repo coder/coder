@@ -89,6 +89,67 @@ func AllAIBridgeInterceptionErrorTypeValues() []AIBridgeInterceptionErrorType {
 	}
 }
 
+type AIBridgeInterceptionOrganizationSource string
+
+const (
+	AibridgeInterceptionOrganizationSourceWorkspace      AIBridgeInterceptionOrganizationSource = "workspace"
+	AibridgeInterceptionOrganizationSourceChatd          AIBridgeInterceptionOrganizationSource = "chatd"
+	AibridgeInterceptionOrganizationSourceEffectiveGroup AIBridgeInterceptionOrganizationSource = "effective_group"
+)
+
+func (e *AIBridgeInterceptionOrganizationSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AIBridgeInterceptionOrganizationSource(s)
+	case string:
+		*e = AIBridgeInterceptionOrganizationSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AIBridgeInterceptionOrganizationSource: %T", src)
+	}
+	return nil
+}
+
+type NullAIBridgeInterceptionOrganizationSource struct {
+	AIBridgeInterceptionOrganizationSource AIBridgeInterceptionOrganizationSource `json:"aibridge_interception_organization_source"`
+	Valid                                  bool                                   `json:"valid"` // Valid is true if AIBridgeInterceptionOrganizationSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAIBridgeInterceptionOrganizationSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.AIBridgeInterceptionOrganizationSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AIBridgeInterceptionOrganizationSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAIBridgeInterceptionOrganizationSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AIBridgeInterceptionOrganizationSource), nil
+}
+
+func (e AIBridgeInterceptionOrganizationSource) Valid() bool {
+	switch e {
+	case AibridgeInterceptionOrganizationSourceWorkspace,
+		AibridgeInterceptionOrganizationSourceChatd,
+		AibridgeInterceptionOrganizationSourceEffectiveGroup:
+		return true
+	}
+	return false
+}
+
+func AllAIBridgeInterceptionOrganizationSourceValues() []AIBridgeInterceptionOrganizationSource {
+	return []AIBridgeInterceptionOrganizationSource{
+		AibridgeInterceptionOrganizationSourceWorkspace,
+		AibridgeInterceptionOrganizationSourceChatd,
+		AibridgeInterceptionOrganizationSourceEffectiveGroup,
+	}
+}
+
 type AIModelPriceSource string
 
 const (
@@ -4999,6 +5060,10 @@ type AIBridgeInterception struct {
 	ErrorMessage sql.NullString `db:"error_message" json:"error_message"`
 	// The workspace in which the agent ran. NULL when no workspace context is available.
 	WorkspaceID uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+	// The organization the interception was attributed to. NULL when no organization was resolved.
+	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
+	// How organization_id was chosen. NULL exactly when organization_id is NULL.
+	OrganizationSource NullAIBridgeInterceptionOrganizationSource `db:"organization_source" json:"organization_source"`
 }
 
 // Audit log of model thinking in intercepted requests in AI Bridge

@@ -42,6 +42,12 @@ CREATE TYPE aibridge_interception_error_type AS ENUM (
     'unknown'
 );
 
+CREATE TYPE aibridge_interception_organization_source AS ENUM (
+    'workspace',
+    'chatd',
+    'effective_group'
+);
+
 CREATE TYPE api_key_scope AS ENUM (
     'coder:all',
     'coder:application_connect',
@@ -1804,7 +1810,10 @@ CREATE TABLE aibridge_interceptions (
     agent_firewall_sequence_number integer,
     error_type aibridge_interception_error_type,
     error_message character varying(1024),
-    workspace_id uuid
+    workspace_id uuid,
+    organization_id uuid,
+    organization_source aibridge_interception_organization_source,
+    CONSTRAINT aibridge_interceptions_organization_source_check CHECK (((organization_id IS NULL) = (organization_source IS NULL)))
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1834,6 +1843,10 @@ COMMENT ON COLUMN aibridge_interceptions.error_type IS 'Categorised terminal ups
 COMMENT ON COLUMN aibridge_interceptions.error_message IS 'Raw terminal upstream error message for a failed interception; NULL when the interception succeeded.';
 
 COMMENT ON COLUMN aibridge_interceptions.workspace_id IS 'The workspace in which the agent ran. NULL when no workspace context is available.';
+
+COMMENT ON COLUMN aibridge_interceptions.organization_id IS 'The organization the interception was attributed to. NULL when no organization was resolved.';
+
+COMMENT ON COLUMN aibridge_interceptions.organization_source IS 'How organization_id was chosen. NULL exactly when organization_id is NULL.';
 
 CREATE TABLE aibridge_model_thoughts (
     interception_id uuid NOT NULL,
@@ -5455,6 +5468,9 @@ ALTER TABLE ONLY ai_seat_state
 
 ALTER TABLE ONLY aibridge_interceptions
     ADD CONSTRAINT aibridge_interceptions_initiator_id_fkey FOREIGN KEY (initiator_id) REFERENCES users(id);
+
+ALTER TABLE ONLY aibridge_interceptions
+    ADD CONSTRAINT aibridge_interceptions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
