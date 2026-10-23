@@ -946,7 +946,7 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 }
 
 // appendAssistantPart appends part, or appends its text to the open run if part
-// continues it. Text deltas carry no block identity, so a text run continues
+// continues it. Text deltas have no block identity, so a text run continues
 // across provider blocks until Narration changes; narration must stay a
 // separate part because the web client shows it in the working block. A
 // reasoning run continues while CreatedAt, which chatloop sets to the block's

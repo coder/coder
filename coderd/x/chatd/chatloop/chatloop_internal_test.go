@@ -153,5 +153,5 @@ func TestProcessStepStreamStampsReasoningDeltasWithBlockStart(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, []time.Duration{0, 0, 3 * time.Second}, sinceStart,
-		"interrupted turns split reasoning blocks by CreatedAt, so each delta must carry its block's start time")
+		"interrupted turns split reasoning blocks by CreatedAt, so each delta's CreatedAt must be its block's start time")
 }
