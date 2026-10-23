@@ -1890,7 +1890,7 @@ func finishInterruptionCase(from, want chatstate.ExecutionState, shape queueShap
 			case chatstate.StateI0:
 				require.Equal(t, database.ChatStatusWaiting, after.Status,
 					"FinishInterruption from I0 lands in waiting")
-				require.Nil(t, result.finishInterruption.PromotedMessage,
+				require.Empty(t, result.finishInterruption.PromotedMessages,
 					"FinishInterruption from I0 promotes nothing")
 				require.Equal(t, base.queueIDs, afterQueueIDs,
 					"FinishInterruption from I0 leaves queued messages unchanged")
@@ -1899,10 +1899,10 @@ func finishInterruptionCase(from, want chatstate.ExecutionState, shape queueShap
 			case chatstate.StateI1:
 				require.Equal(t, database.ChatStatusRunning, after.Status,
 					"FinishInterruption from I1 lands in running")
-				require.NotNil(t, result.finishInterruption.PromotedMessage,
+				require.Len(t, result.finishInterruption.PromotedMessages, 1,
 					"FinishInterruption from I1 promotes the head into history")
 				promoted := assertFetchedUserMessage(ctx, t, f,
-					*result.finishInterruption.PromotedMessage)
+					result.finishInterruption.PromotedMessages[0])
 				require.Equal(t, seeded.chatID, promoted.ChatID)
 				require.Contains(t, newActiveMessageIDs(base, afterHistory), promoted.ID,
 					"FinishInterruption from I1 inserts the promoted user message")
@@ -1944,7 +1944,7 @@ func finishTurnCase(from, want chatstate.ExecutionState, shape queueShape) trans
 			case chatstate.StateR0:
 				require.Equal(t, database.ChatStatusWaiting, after.Status,
 					"FinishTurn from R0 lands in waiting")
-				require.Nil(t, result.finishTurn.PromotedMessage,
+				require.Empty(t, result.finishTurn.PromotedMessages,
 					"FinishTurn from R0 promotes nothing")
 				require.Equal(t, base.queueIDs, afterQueueIDs,
 					"FinishTurn from R0 leaves queued messages unchanged")
@@ -1953,10 +1953,10 @@ func finishTurnCase(from, want chatstate.ExecutionState, shape queueShape) trans
 			case chatstate.StateR1:
 				require.Equal(t, database.ChatStatusRunning, after.Status,
 					"FinishTurn from R1 lands in running")
-				require.NotNil(t, result.finishTurn.PromotedMessage,
+				require.Len(t, result.finishTurn.PromotedMessages, 1,
 					"FinishTurn from R1 promotes the head into history")
 				promoted := assertFetchedUserMessage(ctx, t, f,
-					*result.finishTurn.PromotedMessage)
+					result.finishTurn.PromotedMessages[0])
 				require.Equal(t, seeded.chatID, promoted.ChatID)
 				require.Contains(t, newActiveMessageIDs(base, afterHistory), promoted.ID,
 					"FinishTurn from R1 inserts the promoted user message")

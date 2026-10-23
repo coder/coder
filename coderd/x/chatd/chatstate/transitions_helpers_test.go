@@ -810,7 +810,7 @@ func assertQueuedMessageContent(t *testing.T, content json.RawMessage, want stri
 // finish-interruption.
 func assertQueueBodiesInOrder(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID, want []string) {
 	t.Helper()
-	rows, err := f.DB.GetChatQueuedMessagesByPosition(ctx, chatID)
+	rows, err := f.DB.GetChatQueuedMessages(ctx, chatID)
 	require.NoError(t, err)
 	require.Len(t, rows, len(want), "queue length must match expected bodies")
 	for i, r := range rows {

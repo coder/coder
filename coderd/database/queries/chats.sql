@@ -2128,11 +2128,9 @@ WHERE chats.id = @chat_id::uuid
 RETURNING *;
 
 -- name: GetChatQueuedMessages :many
--- Returns the queue in promotion order (position ASC, id ASC), the same
--- order chatstate uses to pick the head. Clients read the queue through
--- this query, so it must not order by created_at: promoting a message
--- changes only its position, and concurrent senders can commit with
--- created_at and position in opposite orders.
+-- Keep client queue order consistent with delivery order. Do not sort by
+-- created_at: concurrent senders can commit with created_at and position
+-- in opposite orders.
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id
 ORDER BY position ASC, id ASC;
@@ -2957,25 +2955,12 @@ VALUES (
 )
 RETURNING *;
 
--- name: GetChatQueuedMessagesByPosition :many
--- Returns queued messages in state-machine order (position ASC, id ASC).
-SELECT * FROM chat_queued_messages
-WHERE chat_id = @chat_id::uuid
-ORDER BY position ASC, id ASC;
-
 -- name: CountChatQueuedMessages :one
 -- Cheap queue-length check used by ChatMachine.Update when deciding
 -- whether the chat is in a "1" sub-state.
 SELECT COUNT(*)::bigint AS count
 FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
-
--- name: GetChatQueuedMessageHead :one
--- Returns the queue head (lowest position, then lowest id).
-SELECT * FROM chat_queued_messages
-WHERE chat_id = @chat_id::uuid
-ORDER BY position ASC, id ASC
-LIMIT 1;
 
 -- name: GetChatQueuedMessageByID :one
 SELECT * FROM chat_queued_messages
