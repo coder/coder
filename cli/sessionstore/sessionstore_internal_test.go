@@ -9,59 +9,41 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNormalizeHost(t *testing.T) {
+func TestCredentialKey(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		url     *url.URL
-		want    string
-		wantErr bool
+		name       string
+		url        *url.URL
+		wantKey    string
+		wantOrigin string
+		wantErr    bool
 	}{
-		{
-			name: "StandardHost",
-			url:  &url.URL{Host: "coder.example.com"},
-			want: "coder.example.com",
-		},
-		{
-			name: "HostWithPort",
-			url:  &url.URL{Host: "coder.example.com:8080"},
-			want: "coder.example.com:8080",
-		},
-		{
-			name: "UppercaseHost",
-			url:  &url.URL{Host: "CODER.EXAMPLE.COM"},
-			want: "coder.example.com",
-		},
-		{
-			name: "HostWithWhitespace",
-			url:  &url.URL{Host: "  coder.example.com  "},
-			want: "coder.example.com",
-		},
-		{
-			name:    "NilURL",
-			url:     nil,
-			want:    "",
-			wantErr: true,
-		},
-		{
-			name:    "EmptyHost",
-			url:     &url.URL{Host: ""},
-			want:    "",
-			wantErr: true,
-		},
+		{name: "HTTPS", url: &url.URL{Scheme: "https", Host: "coder.example.com"}, wantKey: "coder.example.com", wantOrigin: "https://coder.example.com"},
+		{name: "HTTPSDefaultPort", url: &url.URL{Scheme: "https", Host: "coder.example.com:443"}, wantKey: "coder.example.com", wantOrigin: "https://coder.example.com"},
+		{name: "HTTPSOtherPort", url: &url.URL{Scheme: "https", Host: "coder.example.com:8443"}, wantKey: "coder.example.com:8443", wantOrigin: "https://coder.example.com:8443"},
+		{name: "HTTPSIPv6DefaultPort", url: &url.URL{Scheme: "https", Host: "[::1]:443"}, wantKey: "[::1]", wantOrigin: "https://[::1]"},
+		{name: "UppercaseHost", url: &url.URL{Scheme: "https", Host: "CODER.EXAMPLE.COM"}, wantKey: "coder.example.com", wantOrigin: "https://coder.example.com"},
+		{name: "HostWithWhitespace", url: &url.URL{Scheme: "https", Host: "  coder.example.com  "}, wantKey: "coder.example.com", wantOrigin: "https://coder.example.com"},
+		{name: "HTTP", url: &url.URL{Scheme: "http", Host: "coder.example.com"}, wantKey: "http://coder.example.com", wantOrigin: "http://coder.example.com"},
+		{name: "HTTPDefaultPort", url: &url.URL{Scheme: "http", Host: "coder.example.com:80"}, wantKey: "http://coder.example.com", wantOrigin: "http://coder.example.com"},
+		{name: "HTTPOtherPort", url: &url.URL{Scheme: "http", Host: "coder.example.com:8080"}, wantKey: "http://coder.example.com:8080", wantOrigin: "http://coder.example.com:8080"},
+		{name: "UnsupportedScheme", url: &url.URL{Scheme: "ftp", Host: "coder.example.com"}, wantErr: true},
+		{name: "NilURL", url: nil, wantErr: true},
+		{name: "EmptyHost", url: &url.URL{Scheme: "https"}, wantErr: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := normalizeHost(tt.url)
+			key, origin, err := credentialKey(tt.url)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tt.want, got)
+			require.Equal(t, tt.wantKey, key)
+			require.Equal(t, tt.wantOrigin, origin)
 		})
 	}
 }
@@ -154,11 +136,11 @@ const (
 	testToken       = "test-token-12345"
 )
 
-// newSeededKeyring returns a Keyring holding one entry for testHost whose
+// newSeededKeyring returns a Keyring holding one entry under key whose
 // coder_url is storedURL.
-func newSeededKeyring(t *testing.T, storedURL string) (Keyring, *fakeKeyring) {
+func newSeededKeyring(t *testing.T, key, storedURL string) (Keyring, *fakeKeyring) {
 	t.Helper()
-	raw, err := json.Marshal(credentialsMap{testHost: {CoderURL: storedURL, APIToken: testToken}})
+	raw, err := json.Marshal(credentialsMap{key: {CoderURL: storedURL, APIToken: testToken}})
 	require.NoError(t, err)
 	provider := &fakeKeyring{data: map[string]string{testServiceName: string(raw)}}
 	return Keyring{provider: provider, serviceName: testServiceName}, provider
@@ -167,70 +149,81 @@ func newSeededKeyring(t *testing.T, storedURL string) (Keyring, *fakeKeyring) {
 func TestKeyringSchemeScoping(t *testing.T) {
 	t.Parallel()
 
+	const (
+		httpsURL = "https://" + testHost
+		httpURL  = "http://" + testHost
+	)
+
 	tests := []struct {
 		name      string
+		storedKey string
 		storedURL string
-		op        string
+		delete    bool
 		url       string
 		wantErr   error
 	}{
-		{name: "ReadSameScheme", storedURL: "https://coder.example.com", op: "read", url: "https://coder.example.com"},
-		{name: "ReadHTTPSEntryOverHTTP", storedURL: "https://coder.example.com", op: "read", url: "http://coder.example.com", wantErr: errSchemeMismatch},
-		{name: "ReadHTTPEntryOverHTTPS", storedURL: "http://coder.example.com", op: "read", url: "https://coder.example.com", wantErr: errSchemeMismatch},
-		{name: "ReadLegacyEntryOverHTTPS", storedURL: "coder.example.com", op: "read", url: "https://coder.example.com"},
-		{name: "ReadLegacyEntryOverHTTP", storedURL: "coder.example.com", op: "read", url: "http://coder.example.com", wantErr: errSchemeMismatch},
-		{name: "DeleteSameScheme", storedURL: "https://coder.example.com", op: "delete", url: "https://coder.example.com"},
-		{name: "DeleteOtherScheme", storedURL: "https://coder.example.com", op: "delete", url: "http://coder.example.com", wantErr: errSchemeMismatch},
+		{name: "ReadSameScheme", storedKey: testHost, storedURL: httpsURL, url: httpsURL},
+		{name: "ReadHTTPEntryOverHTTP", storedKey: httpURL, storedURL: httpURL, url: httpURL},
+		{name: "ReadHTTPSEntryOverHTTP", storedKey: testHost, storedURL: httpsURL, url: httpURL, wantErr: os.ErrNotExist},
+		{name: "ReadHTTPEntryOverHTTPS", storedKey: httpURL, storedURL: httpURL, url: httpsURL, wantErr: os.ErrNotExist},
+		{name: "ReadLegacyEntryOverHTTPS", storedKey: testHost, storedURL: testHost, url: httpsURL},
+		{name: "ReadLegacyEntryOverHTTP", storedKey: testHost, storedURL: testHost, url: httpURL, wantErr: os.ErrNotExist},
+		{name: "DeleteSameScheme", storedKey: testHost, storedURL: httpsURL, delete: true, url: httpsURL},
+		{name: "DeleteOtherScheme", storedKey: testHost, storedURL: httpsURL, delete: true, url: httpURL, wantErr: os.ErrNotExist},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			keyring, provider := newSeededKeyring(t, tt.storedURL)
+			keyring, provider := newSeededKeyring(t, tt.storedKey, tt.storedURL)
 			before := provider.data[testServiceName]
 			u, err := url.Parse(tt.url)
 			require.NoError(t, err)
 
-			var got string
-			switch tt.op {
-			case "read":
-				got, err = keyring.Read(u)
-			case "delete":
+			if tt.delete {
 				err = keyring.Delete(u)
-			default:
-				t.Fatalf("unknown op %q", tt.op)
+				if tt.wantErr != nil {
+					require.ErrorIs(t, err, tt.wantErr)
+					require.Equal(t, before, provider.data[testServiceName], "stored entry must be left intact")
+					return
+				}
+				require.NoError(t, err)
+				require.NotContains(t, provider.data, testServiceName)
+				return
 			}
 
+			got, err := keyring.Read(u)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
-				require.NotContains(t, err.Error(), testToken, "error must not leak the token")
-				require.Equal(t, before, provider.data[testServiceName], "stored entry must be left intact")
 				return
 			}
 			require.NoError(t, err)
-			if tt.op == "read" {
-				require.Equal(t, testToken, got)
-			} else {
-				require.NotContains(t, provider.data, testServiceName)
-			}
+			require.Equal(t, testToken, got)
 		})
 	}
 }
 
-func TestKeyringWriteUpgradesLegacyEntry(t *testing.T) {
+func TestKeyringHTTPAndHTTPSCoexist(t *testing.T) {
 	t.Parallel()
 
-	keyring, provider := newSeededKeyring(t, testHost)
-	u, err := url.Parse("http://coder.example.com")
+	keyring, provider := newSeededKeyring(t, testHost, testHost)
+	httpURL, err := url.Parse("http://" + testHost)
+	require.NoError(t, err)
+	httpsURL, err := url.Parse("https://" + testHost)
 	require.NoError(t, err)
 
-	require.NoError(t, keyring.Write(u, testToken))
+	const httpToken = "http-token"
+	require.NoError(t, keyring.Write(httpURL, httpToken))
 
 	creds, err := parseCredentialsJSON([]byte(provider.data[testServiceName]))
 	require.NoError(t, err)
-	require.Equal(t, "http://coder.example.com", creds[testHost].CoderURL)
+	require.Len(t, creds, 2)
+	require.Equal(t, "http://"+testHost, creds["http://"+testHost].CoderURL)
 
-	got, err := keyring.Read(u)
+	got, err := keyring.Read(httpURL)
+	require.NoError(t, err)
+	require.Equal(t, httpToken, got)
+	got, err = keyring.Read(httpsURL)
 	require.NoError(t, err)
 	require.Equal(t, testToken, got)
 }

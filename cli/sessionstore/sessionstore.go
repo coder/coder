@@ -25,14 +25,12 @@ import (
 // Backend is a storage backend for session tokens.
 type Backend interface {
 	// Read returns the session token for the given server URL or an error, if any. It
-	// will return os.ErrNotExist if no token exists for the given URL, and may return
-	// errSchemeMismatch if the stored token was issued for a different scheme.
+	// will return os.ErrNotExist if no token exists for the given URL.
 	Read(serverURL *url.URL) (string, error)
 	// Write stores the session token for the given server URL.
 	Write(serverURL *url.URL, token string) error
 	// Delete removes the session token for the given server URL or an error, if any.
-	// It will return os.ErrNotExist error if no token exists to delete, and may return
-	// errSchemeMismatch if the stored token was issued for a different scheme.
+	// It will return os.ErrNotExist error if no token exists to delete.
 	Delete(serverURL *url.URL) error
 }
 
@@ -46,9 +44,6 @@ var (
 	// ErrNotImplemented represents when keyring usage is not implemented on the current
 	// operating system.
 	ErrNotImplemented = xerrors.New("not implemented")
-
-	// errSchemeMismatch is returned when the stored credential was issued for a different scheme.
-	errSchemeMismatch = xerrors.New("session token scheme mismatch")
 )
 
 const (
@@ -81,33 +76,25 @@ type credential struct {
 // It supports storing multiple credentials for different server URLs.
 type credentialsMap map[string]credential
 
-// normalizeHost returns a normalized version of the URL host for use as a map key.
-func normalizeHost(u *url.URL) (string, error) {
+// credentialKey returns the keyring map key and the normalized origin for the
+// server URL. HTTPS keys are the bare host plus any non-default port, as older
+// CLI versions write them. HTTP keys are the full origin, so they never share
+// an entry with HTTPS. Default ports are dropped so each origin has one key.
+func credentialKey(u *url.URL) (key, origin string, err error) {
 	if u == nil || u.Host == "" {
-		return "", xerrors.New("nil server URL")
+		return "", "", xerrors.New("nil server URL")
 	}
-	return strings.TrimSpace(strings.ToLower(u.Host)), nil
-}
-
-// storedScheme returns the scheme recorded in coder_url. Entries written by
-// older CLIs or other Coder apps store only the host; treat those as https.
-func storedScheme(cred credential) string {
-	if u, err := url.Parse(cred.CoderURL); err == nil && u.Host != "" {
-		return u.Scheme
+	host := strings.TrimSpace(strings.ToLower(u.Host))
+	switch u.Scheme {
+	case "https":
+		host = strings.TrimSuffix(host, ":443")
+		return host, "https://" + host, nil
+	case "http":
+		origin = "http://" + strings.TrimSuffix(host, ":80")
+		return origin, origin, nil
+	default:
+		return "", "", xerrors.Errorf("unsupported server URL scheme %q", u.Scheme)
 	}
-	return "https"
-}
-
-// lookup returns the credential stored for host, provided it was issued for scheme.
-func lookup(creds credentialsMap, host, scheme string) (credential, error) {
-	cred, ok := creds[host]
-	if !ok {
-		return credential{}, os.ErrNotExist
-	}
-	if s := storedScheme(cred); s != scheme {
-		return credential{}, xerrors.Errorf("stored token is for %s://%s, not %s://%s: %w", s, host, scheme, host, errSchemeMismatch)
-	}
-	return cred, nil
 }
 
 // parseCredentialsJSON parses the JSON from the keyring into a credentialsMap.
@@ -145,7 +132,7 @@ func NewKeyringWithService(serviceName string) Keyring {
 }
 
 func (o Keyring) Read(serverURL *url.URL) (string, error) {
-	host, err := normalizeHost(serverURL)
+	host, _, err := credentialKey(serverURL)
 	if err != nil {
 		return "", err
 	}
@@ -163,15 +150,15 @@ func (o Keyring) Read(serverURL *url.URL) (string, error) {
 		return "", xerrors.Errorf("read: parse existing credentials: %w", err)
 	}
 
-	cred, err := lookup(creds, host, serverURL.Scheme)
-	if err != nil {
-		return "", err
+	cred, ok := creds[host]
+	if !ok {
+		return "", os.ErrNotExist
 	}
 	return cred.APIToken, nil
 }
 
 func (o Keyring) Write(serverURL *url.URL, token string) error {
-	host, err := normalizeHost(serverURL)
+	host, origin, err := credentialKey(serverURL)
 	if err != nil {
 		return err
 	}
@@ -187,7 +174,7 @@ func (o Keyring) Write(serverURL *url.URL, token string) error {
 	}
 
 	creds[host] = credential{
-		CoderURL: serverURL.Scheme + "://" + host,
+		CoderURL: origin,
 		APIToken: token,
 	}
 
@@ -204,7 +191,7 @@ func (o Keyring) Write(serverURL *url.URL, token string) error {
 }
 
 func (o Keyring) Delete(serverURL *url.URL) error {
-	host, err := normalizeHost(serverURL)
+	host, _, err := credentialKey(serverURL)
 	if err != nil {
 		return err
 	}
@@ -219,9 +206,8 @@ func (o Keyring) Delete(serverURL *url.URL) error {
 		return xerrors.Errorf("failed to parse existing credentials: %w", err)
 	}
 
-	_, err = lookup(creds, host, serverURL.Scheme)
-	if err != nil {
-		return err
+	if _, ok := creds[host]; !ok {
+		return os.ErrNotExist
 	}
 
 	delete(creds, host)

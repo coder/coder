@@ -54,7 +54,7 @@ func TestWindowsKeyring_WriteReadDelete(t *testing.T) {
 
 	// Verify the stored values
 	require.Len(t, storedCreds, 1)
-	cred, ok := storedCreds[srvURL.Host]
+	cred, ok := storedCreds[testURL]
 	require.True(t, ok, "credential for URL should exist")
 	require.Equal(t, inputToken, cred.APIToken)
 	require.Equal(t, testURL, cred.CoderURL)
