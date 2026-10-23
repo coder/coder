@@ -4,12 +4,11 @@
 #
 # The Git sense of "check out" is allowed ("check out the branch", "check out
 # a commit"), and so is the noun "checkout" ("a source checkout"), which this
-# rule never matches. Vale's regex engine has no lookahead, and a match that
-# spans link text can't be located in the source, so the rule is a script: it
-# finds each "check out" and reports only those two words, after skipping a
-# Git object in the next 3 words (a hyphenated name such as `code-marketplace`
-# isn't one) or an "and" right after the verb ("check out
-# and install a dotfiles repository").
+# rule never matches. A match that spans link text can't be located in the
+# source, so the rule is a script: it finds each "check out" and reports only
+# those two words, after skipping a Git object in the next 3 words (a
+# hyphenated name such as `code-marketplace` isn't one) or an "and" right after
+# the verb ("check out and install a dotfiles repository").
 #
 # Level: warning. A cross-reference that names a Git word right after the verb
 # is skipped, and a Git sense with an object the list below doesn't name is
