@@ -271,8 +271,6 @@ func seedState(t *testing.T, f *testFixture, state chatstate.ExecutionState) see
 	case chatstate.StateI1:
 		created := createTestChat(t, f)
 		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-		// R0 -> I1: SendMessage with interrupt behavior queues the
-		// message and sets status to interrupting.
 		queuedBody := "queued-for-I1"
 		sm := sendInterruptMessage(t, f, m, created.Chat.ID, queuedBody)
 		require.NotNil(t, sm.QueuedMessage)

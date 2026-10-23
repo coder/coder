@@ -2598,7 +2598,7 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 			behavior chatd.SendMessageBusyBehavior
 		}{
 			{text: "queued", behavior: chatd.SendMessageBusyBehaviorQueue},
-			{text: "interrupt", behavior: chatd.SendMessageBusyBehaviorInterrupt},
+			{text: "steer", behavior: chatd.SendMessageBusyBehaviorSteer},
 		} {
 			sent, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 				ChatID:        chat.ID,
@@ -2610,6 +2610,8 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 			require.NoError(t, err)
 			require.True(t, sent.Queued)
 		}
+		_, _, err = server.InterruptChat(ctx, chat)
+		require.NoError(t, err)
 
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 		require.GreaterOrEqual(t, requestCount.Load(), int32(3))
@@ -2637,7 +2639,7 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 				}
 			}
 		}
-		require.Equal(t, []string{"start and call a tool", "interrupt", "queued"}, userTexts)
+		require.Equal(t, []string{"start and call a tool", "steer", "queued"}, userTexts)
 		require.True(t, foundPartial)
 		// The interrupted attempt bills the model invocation window it
 		// opened, so the partial assistant row keeps a runtime.
@@ -2716,10 +2718,12 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 			CreatedBy:     user.ID,
 			ModelConfigID: model.ID,
 			Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue after interrupt")},
-			BusyBehavior:  chatd.SendMessageBusyBehaviorInterrupt,
+			BusyBehavior:  chatd.SendMessageBusyBehaviorSteer,
 		})
 		require.NoError(t, err)
 		require.True(t, queued.Queued)
+		_, _, err = server.InterruptChat(ctx, chat)
+		require.NoError(t, err)
 
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 		require.GreaterOrEqual(t, requestCount.Load(), int32(2))
@@ -2816,10 +2820,12 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 			CreatedBy:     user.ID,
 			ModelConfigID: model.ID,
 			Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue after provider interrupt")},
-			BusyBehavior:  chatd.SendMessageBusyBehaviorInterrupt,
+			BusyBehavior:  chatd.SendMessageBusyBehaviorSteer,
 		})
 		require.NoError(t, err)
 		require.True(t, queued.Queued)
+		_, _, err = server.InterruptChat(ctx, chat)
+		require.NoError(t, err)
 
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 		parts := chatToolParts(ctx, t, db, chat.ID)
@@ -2926,10 +2932,12 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 			CreatedBy:     user.ID,
 			ModelConfigID: model.ID,
 			Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue after mixed interrupt")},
-			BusyBehavior:  chatd.SendMessageBusyBehaviorInterrupt,
+			BusyBehavior:  chatd.SendMessageBusyBehaviorSteer,
 		})
 		require.NoError(t, err)
 		require.True(t, queued.Queued)
+		_, _, err = server.InterruptChat(ctx, chat)
+		require.NoError(t, err)
 
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 		parts := chatToolParts(ctx, t, db, chat.ID)
@@ -3012,10 +3020,12 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 			CreatedBy:     user.ID,
 			ModelConfigID: model.ID,
 			Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue after reasoning")},
-			BusyBehavior:  chatd.SendMessageBusyBehaviorInterrupt,
+			BusyBehavior:  chatd.SendMessageBusyBehaviorSteer,
 		})
 		require.NoError(t, err)
 		require.True(t, queued.Queued)
+		_, _, err = server.InterruptChat(ctx, chat)
+		require.NoError(t, err)
 
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 		messages := chatMessages(ctx, t, db, chat.ID)
@@ -9873,22 +9883,18 @@ func setOpenAIProviderBaseURL(
 	require.Fail(t, "openai provider not found")
 }
 
-// An unowned chat has no runner, so InterruptChat and an interrupting
-// SendMessage finish the interruption inline. They must still clear the
-// cached turn summary, as the worker does after it finishes an
-// interruption.
 func TestInterruptUnownedChatClearsLastTurnSummary(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
 		name         string
 		interrupting bool
-		send         bool
+		promote      bool
 	}{
 		{name: "InterruptRunning"},
 		{name: "InterruptInterrupting", interrupting: true},
-		{name: "SendRunning", send: true},
-		{name: "SendInterrupting", interrupting: true, send: true},
+		{name: "PromoteRunning", promote: true},
+		{name: "PromoteInterrupting", interrupting: true, promote: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -9932,16 +9938,20 @@ func TestInterruptUnownedChatClearsLastTurnSummary(t *testing.T) {
 			require.False(t, chat.WorkerID.Valid)
 			seedLastTurnSummary(ctx, t, db, chat, "previous summary")
 
-			if tc.send {
+			if tc.promote {
 				sent, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 					ChatID:       chat.ID,
 					CreatedBy:    user.ID,
 					Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("next")},
-					BusyBehavior: chatd.SendMessageBusyBehaviorInterrupt,
+					BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
 				})
 				require.NoError(t, err)
-				require.False(t, sent.Queued, "the message is promoted inline")
-				require.Equal(t, database.ChatStatusRunning, sent.Chat.Status)
+				require.True(t, sent.Queued)
+				require.NoError(t, server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+					ChatID:          chat.ID,
+					QueuedMessageID: sent.QueuedMessage.ID,
+				}))
+				requireDeliveredQueuedMessage(ctx, t, db, chat.ID, sent.QueuedMessage.ID)
 			} else {
 				updated, interrupted, err := server.InterruptChat(ctx, chat)
 				require.NoError(t, err)
@@ -16212,10 +16222,12 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 			ChatID:       chat.ID,
 			CreatedBy:    h.user.ID,
 			Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("stop and do this")},
-			BusyBehavior: chatd.SendMessageBusyBehaviorInterrupt,
+			BusyBehavior: chatd.SendMessageBusyBehaviorSteer,
 		})
 		require.NoError(t, err)
 		require.True(t, sent.Queued)
+		_, _, err = h.server.InterruptChat(ctx, chat)
+		require.NoError(t, err)
 		close(release)
 		waitForChatStatus(ctx, t, h.db, chat.ID, database.ChatStatusWaiting)
 		index := waitForTurns(ctx, t, h.recorder, 2)
