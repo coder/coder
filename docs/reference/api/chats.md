@@ -2131,7 +2131,7 @@ Returns every file part in the user-visible user and assistant messages of a cha
       },
       "message_id": 0,
       "part_index": 0,
-      "role": "system"
+      "role": "user"
     }
   ]
 }

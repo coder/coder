@@ -21653,7 +21653,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "role": {
-                    "$ref": "#/definitions/codersdk.ChatMessageRole"
+                    "$ref": "#/definitions/codersdk.ChatAttachmentRole"
                 }
             }
         },
@@ -21688,6 +21688,17 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "ChatAttachmentFileTypeFile"
+            ]
+        },
+        "codersdk.ChatAttachmentRole": {
+            "type": "string",
+            "enum": [
+                "user",
+                "assistant"
+            ],
+            "x-enum-varnames": [
+                "ChatAttachmentRoleUser",
+                "ChatAttachmentRoleAssistant"
             ]
         },
         "codersdk.ChatAttachmentsResponse": {

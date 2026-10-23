@@ -2760,7 +2760,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "message_id": 0,
   "part_index": 0,
-  "role": "system"
+  "role": "user"
 }
 ```
 
@@ -2771,7 +2771,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `file`       | [codersdk.ChatAttachmentFile](#codersdkchatattachmentfile) | false    |              |                                                                                              |
 | `message_id` | integer                                                    | false    |              |                                                                                              |
 | `part_index` | integer                                                    | false    |              | Part index is the file part's position in the message content the messages endpoint returns. |
-| `role`       | [codersdk.ChatMessageRole](#codersdkchatmessagerole)       | false    |              |                                                                                              |
+| `role`       | [codersdk.ChatAttachmentRole](#codersdkchatattachmentrole) | false    |              |                                                                                              |
 
 ## codersdk.ChatAttachmentFile
 
@@ -2809,6 +2809,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------|
 | `file`   |
 
+## codersdk.ChatAttachmentRole
+
+```json
+"user"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)            |
+|---------------------|
+| `assistant`, `user` |
+
 ## codersdk.ChatAttachmentsResponse
 
 ```json
@@ -2824,7 +2838,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       },
       "message_id": 0,
       "part_index": 0,
-      "role": "system"
+      "role": "user"
     }
   ]
 }

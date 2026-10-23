@@ -2230,7 +2230,7 @@ export interface ChatAttachment {
 	 * messages endpoint returns.
 	 */
 	readonly part_index: number;
-	readonly role: ChatMessageRole;
+	readonly role: ChatAttachmentRole;
 	readonly file: ChatAttachmentFile;
 }
 
@@ -2283,6 +2283,11 @@ export const ChatAttachmentMediaTypes: ChatAttachmentMediaType[] = [
 	"text/markdown",
 	"text/plain",
 ];
+
+// From codersdk/chats.go
+export type ChatAttachmentRole = "assistant" | "user";
+
+export const ChatAttachmentRoles: ChatAttachmentRole[] = ["assistant", "user"];
 
 // From codersdk/chats.go
 /**

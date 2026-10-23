@@ -2224,7 +2224,7 @@ func (api *API) getChatAttachments(rw http.ResponseWriter, r *http.Request) {
 			attachments = append(attachments, codersdk.ChatAttachment{
 				MessageID: msg.ID,
 				PartIndex: i,
-				Role:      msg.Role,
+				Role:      codersdk.ChatAttachmentRole(msg.Role),
 				File: codersdk.ChatAttachmentFile{
 					Type:      codersdk.ChatAttachmentFileTypeFile,
 					MediaType: part.MediaType,
