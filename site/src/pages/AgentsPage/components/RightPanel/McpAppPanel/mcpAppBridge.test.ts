@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatMCPApp } from "#/api/typesGenerated";
 import { attachMcpAppBridge, type McpAppBridgeHandle } from "./mcpAppBridge";
 
-const app: ChatMCPApp = {
+const mockMcpApp: ChatMCPApp = {
 	mcp_server_config_id: "server-1",
 	tool_name: "show_dice_board",
 	title: "Dice board",
@@ -44,16 +44,12 @@ function mountView() {
 			}),
 		);
 	};
-	const waitFor = async (match: (message: JsonRpcMessage) => boolean) => {
-		await vi.waitFor(() => {
-			expect(received.some(match)).toBe(true);
+	const waitFor = (match: (message: JsonRpcMessage) => boolean) =>
+		vi.waitFor(() => {
+			const message = received.find(match);
+			expect(message).toBeDefined();
+			return message as JsonRpcMessage;
 		});
-		const message = received.find(match);
-		if (!message) {
-			throw new Error("unreachable: waitFor found no message");
-		}
-		return message;
-	};
 	return { frame, received, send, waitFor };
 }
 
@@ -82,7 +78,7 @@ describe("attachMcpAppBridge", () => {
 	it("sends the tool data only after the view initialized", async () => {
 		const view = mountView();
 		handle = attachMcpAppBridge(view.frame, {
-			app,
+			app: mockMcpApp,
 			theme: "dark",
 			hostVersion: "v2.0.0",
 			callTool: vi.fn(),
@@ -116,7 +112,7 @@ describe("attachMcpAppBridge", () => {
 		const insertComposerText = vi.fn();
 		const openWindow = vi.spyOn(window, "open").mockReturnValue(null);
 		handle = attachMcpAppBridge(view.frame, {
-			app,
+			app: mockMcpApp,
 			theme: "light",
 			hostVersion: "v2.0.0",
 			callTool,
@@ -160,7 +156,7 @@ describe("attachMcpAppBridge", () => {
 	it("ignores messages from other windows", async () => {
 		const view = mountView();
 		handle = attachMcpAppBridge(view.frame, {
-			app,
+			app: mockMcpApp,
 			theme: "light",
 			hostVersion: "v2.0.0",
 			callTool: vi.fn(),

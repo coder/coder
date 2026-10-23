@@ -13,6 +13,7 @@ import {
 import { createMockWebSocket } from "#/testHelpers/websockets";
 import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
+import { McpAppTabContext } from "./McpAppTabContext";
 import { Tool } from "./Tool";
 
 afterEach(() => {
@@ -126,5 +127,39 @@ describe("Tool generic rows", () => {
 		);
 
 		expect(screen.getByRole("button")).toHaveAccessibleName("custom_tool");
+	});
+
+	it("opens the MCP Apps view of the tool result", async () => {
+		const onOpenMcpApp = vi.fn();
+		const mockMcpApp = {
+			mcp_server_config_id: "server-1",
+			tool_name: "show_dice_board",
+			title: "Dice board",
+			resource_uri: "ui://dice/board.html",
+			tool_input: {},
+		};
+		renderComponent(
+			<QueryClientProvider client={createTestQueryClient()}>
+				<McpAppTabContext value={{ onOpenMcpApp }}>
+					<Tool
+						name="dice__show_dice_board"
+						organizationId="organization-id"
+						mcpServers={[]}
+						status="completed"
+						isError={false}
+						toolCallId="call-1"
+						mcpApp={mockMcpApp}
+						subagentTitles={new Map()}
+						subagentVariants={new Map()}
+						shellToolDisplayMode="auto"
+						codeDiffDisplayMode="auto"
+					/>
+				</McpAppTabContext>
+			</QueryClientProvider>,
+		);
+
+		await userEvent.click(screen.getByRole("button", { name: "Open app" }));
+
+		expect(onOpenMcpApp).toHaveBeenCalledWith("call-1", mockMcpApp);
 	});
 });

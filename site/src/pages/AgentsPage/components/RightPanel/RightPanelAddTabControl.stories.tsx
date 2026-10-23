@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import type { WorkspaceApp } from "#/api/typesGenerated";
+import { chatMCPAppEntrypointsKey } from "#/api/queries/chats";
+import type { ChatMCPAppEntrypoint, WorkspaceApp } from "#/api/typesGenerated";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
 import {
 	MockListeningPortsResponse,
@@ -248,5 +249,37 @@ export const DisconnectedWorkspace: Story = {
 			const portsItem = body.getByText("Ports").closest("[role=menuitem]");
 			expect(portsItem).toHaveAttribute("aria-disabled", "true");
 		});
+	},
+};
+
+const mockMcpAppEntrypoints: ChatMCPAppEntrypoint[] = [
+	{
+		mcp_server_config_id: "mcp-server-1",
+		server_display_name: "Dice",
+		tool_name: "show_dice_board",
+		title: "Dice board",
+		resource_uri: "ui://mcpappdemo/dice.html",
+	},
+];
+
+export const WithMcpApps: Story = {
+	args: {
+		mcpApps: {
+			chatId: "chat-1",
+			mcpServerIds: ["mcp-server-1"],
+			onOpen: fn(),
+		},
+	},
+	parameters: {
+		queries: [
+			...meta.parameters.queries,
+			{
+				key: chatMCPAppEntrypointsKey("chat-1", ["mcp-server-1"]),
+				data: mockMcpAppEntrypoints,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(within(canvasElement).getByLabelText("Add panel"));
 	},
 };

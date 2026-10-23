@@ -3861,11 +3861,11 @@ class ExperimentalApiMethods {
 
 	openChatMCPApp = async (
 		chatId: string,
-		mcpServerId: string,
+		mcpServerConfigId: string,
 		req: TypesGen.ChatMCPAppOpenRequest,
 	): Promise<TypesGen.ChatMCPApp> => {
 		const response = await this.axios.post<TypesGen.ChatMCPApp>(
-			`/api/experimental/chats/${chatId}/mcp-apps/${mcpServerId}/open`,
+			`/api/experimental/chats/${chatId}/mcp-apps/${mcpServerConfigId}/open`,
 			req,
 		);
 		return response.data;
@@ -3874,11 +3874,11 @@ class ExperimentalApiMethods {
 	/** Runs a tools/call request of an MCP Apps view. Returns the raw MCP CallToolResult. */
 	callChatMCPAppTool = async (
 		chatId: string,
-		mcpServerId: string,
+		mcpServerConfigId: string,
 		req: TypesGen.ChatMCPAppToolCallRequest,
 	): Promise<Record<string, unknown>> => {
 		const response = await this.axios.post<Record<string, unknown>>(
-			`/api/experimental/chats/${chatId}/mcp-apps/${mcpServerId}/tools/call`,
+			`/api/experimental/chats/${chatId}/mcp-apps/${mcpServerConfigId}/tools/call`,
 			req,
 		);
 		return response.data;

@@ -1,11 +1,9 @@
-import { createContext, useContext } from "react";
+import { createContext } from "react";
 import type { ChatMCPApp } from "#/api/typesGenerated";
 
 type McpAppTabContextValue = {
-	/** Opens the MCP Apps view of a tool result in a right panel tab. */
+	/** Unset when this user cannot open MCP Apps views in this chat. */
 	onOpenMcpApp?: (toolCallId: string, app: ChatMCPApp) => void;
 };
 
 export const McpAppTabContext = createContext<McpAppTabContextValue>({});
-
-export const useMcpAppTab = () => useContext(McpAppTabContext);

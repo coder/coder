@@ -85,7 +85,6 @@ const AgentPortsSubMenu: React.FC<{
 
 export type McpAppsMenuSource = {
 	chatId: string;
-	/** The MCP servers selected in the composer. */
 	mcpServerIds: readonly string[];
 	onOpen: (entrypoint: ChatMCPAppEntrypoint) => void;
 };
@@ -101,11 +100,8 @@ const McpAppsMenuItems: React.FC<McpAppsMenuSource> = ({
 	const entrypointsQuery = useQuery(
 		chatMCPAppEntrypoints(chatId, mcpServerIds),
 	);
-	if (entrypointsQuery.isError) {
-		return null;
-	}
 	const entrypoints = entrypointsQuery.data;
-	if (entrypoints && entrypoints.length === 0) {
+	if (entrypoints?.length === 0 && !entrypointsQuery.isError) {
 		return null;
 	}
 	return (
@@ -114,22 +110,24 @@ const McpAppsMenuItems: React.FC<McpAppsMenuSource> = ({
 			<DropdownMenuLabel className="px-2 py-1 text-2xs text-content-secondary">
 				MCP apps
 			</DropdownMenuLabel>
-			{entrypoints === undefined ? (
-				<DropdownMenuItem disabled>Loading MCP apps...</DropdownMenuItem>
-			) : (
-				entrypoints.map((entrypoint) => (
-					<DropdownMenuItem
-						key={`${entrypoint.mcp_server_config_id}:${entrypoint.tool_name}`}
-						onSelect={() => onOpen(entrypoint)}
-					>
-						<AppWindowIcon />
-						<span className="truncate">{entrypoint.title}</span>
-						<span className="ml-auto truncate text-content-secondary">
-							{entrypoint.server_display_name}
-						</span>
-					</DropdownMenuItem>
-				))
+			{entrypointsQuery.isError && (
+				<DropdownMenuItem disabled>Could not load MCP apps.</DropdownMenuItem>
 			)}
+			{entrypoints === undefined && !entrypointsQuery.isError && (
+				<DropdownMenuItem disabled>Loading MCP apps...</DropdownMenuItem>
+			)}
+			{entrypoints?.map((entrypoint) => (
+				<DropdownMenuItem
+					key={`${entrypoint.mcp_server_config_id}:${entrypoint.tool_name}`}
+					onSelect={() => onOpen(entrypoint)}
+				>
+					<AppWindowIcon />
+					<span className="truncate">{entrypoint.title}</span>
+					<span className="ml-auto truncate text-content-secondary">
+						{entrypoint.server_display_name}
+					</span>
+				</DropdownMenuItem>
+			))}
 		</>
 	);
 };

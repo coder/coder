@@ -1,19 +1,15 @@
 import { useEffect, useEffectEvent } from "react";
 import type { ChatMCPApp } from "#/api/typesGenerated";
-import type { useChatStore } from "../../ChatConversation/chatStore";
-
-type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
+import type { ChatStore } from "../../ChatConversation/chatStore";
+import { mcpAppToolResults } from "./chatMcpApps";
 
 /**
- * Calls onOpen once for each new MCP tool result with a view, so its tab
- * opens at once. A result is new when it streams in after the hook
- * subscribes, or when it arrives in a message newer than
- * newestMessageIdAtMount. The tool result often skips the stream state
- * and only arrives with the persisted message, so both are watched.
- * Older pages that load later have lower IDs and open nothing.
+ * Calls onOpen once for each MCP tool result with a view that arrives after
+ * mount. A tool result often skips the live stream state and only comes with
+ * its persisted message, so messages above newestMessageIdAtMount count too.
  */
 export function useMcpAppAutoOpen(
-	store: ChatStoreHandle,
+	store: ChatStore,
 	enabled: boolean,
 	newestMessageIdAtMount: number,
 	onOpen: (toolCallId: string, app: ChatMCPApp) => void,
@@ -33,21 +29,15 @@ export function useMcpAppAutoOpen(
 			seen.add(toolCallId);
 			open(toolCallId, app);
 		};
-		const scanMessages = (messages: typeof lastMessages) => {
-			for (const message of messages.values()) {
-				if (message.id <= newestMessageIdAtMount) {
-					continue;
-				}
-				for (const part of message.content ?? []) {
-					if (part.type === "tool-result" && part.tool_call_id) {
-						consider(part.tool_call_id, part.mcp_app);
-					}
+		const scanMessages = () => {
+			for (const result of mcpAppToolResults(lastMessages.values())) {
+				if (result.messageId > newestMessageIdAtMount) {
+					consider(result.toolCallId, result.app);
 				}
 			}
 		};
-		// Messages newer than the mount baseline can already be in the
-		// store when the effect runs.
-		scanMessages(lastMessages);
+		// Newer messages can already be in the store when the effect runs.
+		scanMessages();
 		return store.subscribe(() => {
 			const state = store.getSnapshot();
 			for (const [toolCallId, result] of Object.entries(
@@ -57,7 +47,7 @@ export function useMcpAppAutoOpen(
 			}
 			if (state.messagesByID !== lastMessages) {
 				lastMessages = state.messagesByID;
-				scanMessages(lastMessages);
+				scanMessages();
 			}
 		});
 	}, [store, enabled, newestMessageIdAtMount]);

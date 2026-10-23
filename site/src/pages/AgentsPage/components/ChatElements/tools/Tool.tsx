@@ -1,7 +1,7 @@
 import { File as FileViewer } from "@pierre/diffs/react";
 import { cn } from "cn";
 import { AppWindowIcon } from "lucide-react";
-import { memo } from "react";
+import { memo, useContext } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { useTheme } from "#/theme/context";
@@ -23,7 +23,7 @@ import { type FindToolsMatch, FindToolsTool } from "./FindToolsTool";
 import { ListAgentsTool } from "./ListAgentsTool";
 import { ListSubagentModelsTool } from "./ListSubagentModelsTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
-import { useMcpAppTab } from "./McpAppTabContext";
+import { McpAppTabContext } from "./McpAppTabContext";
 import { ProcessOutputTool } from "./ProcessOutputTool";
 import { ProposePlanTool } from "./ProposePlanTool";
 import { getReadFileToolData, ReadFileTool } from "./ReadFileTool";
@@ -978,7 +978,7 @@ const GenericToolRenderer: React.FC<ToolRendererProps> = ({
 	modelIntent,
 }) => {
 	const theme = useTheme();
-	const { onOpenMcpApp } = useMcpAppTab();
+	const { onOpenMcpApp } = useContext(McpAppTabContext);
 	const isDark = theme.palette.mode === "dark";
 	const toolInput = formatToolInput(args);
 	const mediaResult = isMedia ? parseMediaToolResult(result) : null;

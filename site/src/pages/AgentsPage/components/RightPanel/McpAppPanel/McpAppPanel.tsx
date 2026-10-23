@@ -6,22 +6,17 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useTheme } from "#/theme/context";
-import type { UserRightPanelTab } from "../../../utils/rightPanelTabs";
+import type { McpAppRightPanelTab } from "../../../utils/mcpAppTabs";
 import {
+	type ChatStore,
 	type ChatStoreState,
 	useChatSelector,
-	type useChatStore,
 } from "../../ChatConversation/chatStore";
+import { UnavailableTabMessage } from "../UnavailableTabMessage";
+import { mcpAppToolResults } from "./chatMcpApps";
 import { attachMcpAppBridge, type McpAppBridgeHandle } from "./mcpAppBridge";
 
-type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
-
-type McpAppTab = Extract<UserRightPanelTab, { kind: "mcp_app" }>;
-
-/**
- * The view data of a tool call: from the live stream while the turn
- * runs, then from the persisted tool-result part.
- */
+// The live stream wins while a turn runs.
 function findMcpAppInChat(
 	state: ChatStoreState,
 	toolCallId: string,
@@ -30,33 +25,24 @@ function findMcpAppInChat(
 	if (live) {
 		return live;
 	}
-	for (const message of state.messagesByID.values()) {
-		for (const part of message.content ?? []) {
-			if (part.type === "tool-result" && part.tool_call_id === toolCallId) {
-				return part.mcp_app;
-			}
+	for (const result of mcpAppToolResults(state.messagesByID.values())) {
+		if (result.toolCallId === toolCallId) {
+			return result.app;
 		}
 	}
 	return undefined;
 }
 
-const PanelMessage: React.FC<{ message: string }> = ({ message }) => (
-	<div className="flex h-full min-h-0 items-center justify-center px-6 text-center text-xs text-content-secondary">
-		{message}
-	</div>
-);
-
 type McpAppPanelProps = {
 	chatId: string;
-	tab: McpAppTab;
-	store: ChatStoreHandle;
+	tab: McpAppRightPanelTab;
+	store: ChatStore;
 	onInsertComposerText: (text: string) => void;
 };
 
 /**
- * Shows an MCP Apps view of an org MCP server in a right panel tab. The
- * view data comes from a tool result in the chat, or from an entry point
- * that coderd opens with a tool call of {}.
+ * A tab with toolCallId shows that tool result. A tab with
+ * entrypointToolName asks coderd to call the tool with {} first.
  */
 export const McpAppPanel: React.FC<McpAppPanelProps> = ({
 	chatId,
@@ -64,44 +50,73 @@ export const McpAppPanel: React.FC<McpAppPanelProps> = ({
 	store,
 	onInsertComposerText,
 }) => {
-	const toolCallId = tab.toolCallId;
-	const fromChat = useChatSelector(store, (state) =>
-		toolCallId ? findMcpAppInChat(state, toolCallId) : undefined,
-	);
-	const opened = useQuery({
-		...openChatMCPApp(
-			chatId,
-			tab.mcpServerConfigId,
-			tab.entrypointToolName ?? "",
-		),
-		enabled: tab.entrypointToolName !== undefined,
-	});
-	const app = fromChat ?? opened.data;
-
-	if (!app) {
-		if (opened.isError) {
-			return (
-				<div className="p-4">
-					<ErrorAlert error={opened.error} />
-				</div>
-			);
-		}
-		if (tab.entrypointToolName !== undefined) {
-			return <Loader label="Opening the MCP app" />;
-		}
+	const frameProps = {
+		chatId,
+		mcpServerConfigId: tab.mcpServerConfigId,
+		title: tab.label,
+		onInsertComposerText,
+	};
+	if (tab.toolCallId !== undefined) {
 		return (
-			<PanelMessage message="The tool result for this view is not loaded. Scroll the chat to it, or run the tool again." />
+			<McpAppToolResultView
+				store={store}
+				toolCallId={tab.toolCallId}
+				frameProps={frameProps}
+			/>
 		);
+	}
+	if (tab.entrypointToolName !== undefined) {
+		return (
+			<McpAppEntrypointView
+				toolName={tab.entrypointToolName}
+				frameProps={frameProps}
+			/>
+		);
+	}
+	return <UnavailableTabMessage message="This MCP app tab has no source." />;
+};
+
+type FrameProps = Omit<McpAppFrameProps, "app">;
+
+const McpAppToolResultView: React.FC<{
+	store: ChatStore;
+	toolCallId: string;
+	frameProps: FrameProps;
+}> = ({ store, toolCallId, frameProps }) => {
+	const app = useChatSelector(store, (state) =>
+		findMcpAppInChat(state, toolCallId),
+	);
+	if (!app) {
+		return (
+			<UnavailableTabMessage message="The tool result for this view is not loaded. Scroll the chat to it, or run the tool again." />
+		);
+	}
+	// The bridge sends the view data once, so a new view URI needs a new frame.
+	return <McpAppFrame key={app.resource_uri} app={app} {...frameProps} />;
+};
+
+const McpAppEntrypointView: React.FC<{
+	toolName: string;
+	frameProps: FrameProps;
+}> = ({ toolName, frameProps }) => {
+	const opened = useQuery(
+		openChatMCPApp(frameProps.chatId, frameProps.mcpServerConfigId, toolName),
+	);
+	if (opened.isError) {
+		return (
+			<div className="p-4">
+				<ErrorAlert error={opened.error} />
+			</div>
+		);
+	}
+	if (!opened.data) {
+		return <Loader label="Opening the MCP app" />;
 	}
 	return (
 		<McpAppFrame
-			// A new source needs a new view: the bridge sends the data once.
-			key={`${tab.id}:${app.resource_uri}`}
-			chatId={chatId}
-			mcpServerConfigId={tab.mcpServerConfigId}
-			title={tab.label}
-			app={app}
-			onInsertComposerText={onInsertComposerText}
+			key={opened.data.resource_uri}
+			app={opened.data}
+			{...frameProps}
 		/>
 	);
 };
@@ -140,9 +155,8 @@ const McpAppFrame: React.FC<McpAppFrameProps> = ({
 		insertComposerText: onInsertComposerText,
 	}));
 
-	// The bridge belongs to the iframe's browsing context. It connects
-	// before the view loads, and the key of this component replaces the
-	// iframe when the view data changes.
+	// The bridge belongs to the iframe's browsing context, so it connects
+	// once, before the view loads.
 	useEffect(() => {
 		const frame = frameRef.current;
 		if (!frame) {
@@ -162,16 +176,15 @@ const McpAppFrame: React.FC<McpAppFrameProps> = ({
 
 	if (leftView) {
 		return (
-			<PanelMessage message="The MCP app left its page, so Coder removed it. Close the tab and open the app again." />
+			<UnavailableTabMessage message="The MCP app left its page, so Coder removed it. Close the tab and open the app again." />
 		);
 	}
 
-	const src = `/api/experimental/chats/${chatId}/mcp-apps/${mcpServerConfigId}/view?uri=${encodeURIComponent(app.resource_uri)}`;
 	return (
 		<iframe
 			ref={frameRef}
 			title={title}
-			src={src}
+			src={`/api/experimental/chats/${chatId}/mcp-apps/${mcpServerConfigId}/view?uri=${encodeURIComponent(app.resource_uri)}`}
 			// The view page also has a CSP sandbox header, so it keeps an
 			// opaque origin when someone opens the URL as a top-level page.
 			sandbox="allow-scripts allow-forms"

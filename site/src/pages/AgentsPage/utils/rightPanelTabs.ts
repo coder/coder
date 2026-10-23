@@ -70,11 +70,7 @@ export type UserRightPanelTab =
 			kind: "mcp_app";
 			label: string;
 			mcpServerConfigId: string;
-			resourceUri: string;
-			/**
-			 * Exactly one source is set: the tool call whose result the view
-			 * shows, or the thread entry point tool that the panel opens.
-			 */
+			/** Set exactly one of toolCallId or entrypointToolName. */
 			toolCallId?: string;
 			entrypointToolName?: string;
 	  };
@@ -133,7 +129,6 @@ export function isUserRightPanelTab(
 		return (
 			typeof record.label === "string" &&
 			typeof record.mcpServerConfigId === "string" &&
-			typeof record.resourceUri === "string" &&
 			hasToolCall !== hasEntrypoint
 		);
 	}

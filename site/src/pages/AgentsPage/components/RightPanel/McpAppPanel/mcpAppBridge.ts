@@ -11,7 +11,7 @@ import {
 } from "@modelcontextprotocol/ext-apps/app-bridge";
 import type { ChatMCPApp } from "#/api/typesGenerated";
 
-/** The longest text that a view can put in the composer. */
+// A view must not be able to flood the composer.
 const maxComposerTextLength = 16_000;
 
 type McpAppBridgeOptions = {
@@ -23,23 +23,19 @@ type McpAppBridgeOptions = {
 		name: string,
 		args: Record<string, unknown> | undefined,
 	) => Promise<unknown>;
-	/** Puts text in the chat composer. The user sends it. */
+	/** The user sends it. */
 	insertComposerText: (text: string) => void;
 };
 
 export type McpAppBridgeHandle = {
-	/** Sends a theme change to the view. */
+	/** Sends only a theme that differs from the last one. */
 	setTheme: (theme: McpUiTheme) => void;
 	close: () => void;
 };
 
 /**
- * Connects an MCP Apps host (AppBridge, SEP-1865) to the view in frame.
- * The browser has no MCP client: coderd talks to the MCP server. The
- * bridge sends the tool input and result only after the view reports
- * that it initialized. AppBridge does not check tool visibility, so
- * coderd refuses view calls to tools that exclude "app". Returns a
- * cleanup that closes the bridge.
+ * AppBridge does not check tool visibility: coderd refuses view calls to
+ * tools that exclude "app".
  */
 export function attachMcpAppBridge(
 	frame: HTMLIFrameElement,
@@ -104,7 +100,6 @@ function parseCallToolResult(value: unknown): CallToolResult | null {
 	return parsed.success ? parsed.data : null;
 }
 
-/** Opens only https links, in a new tab with no opener. */
 function openLink({
 	url,
 }: McpUiOpenLinkRequest["params"]): McpUiOpenLinkResult {
@@ -116,11 +111,7 @@ function openLink({
 	return {};
 }
 
-/**
- * Puts the text blocks of a ui/message request in the composer. The
- * spec sends the message to the chat. This prototype lets the user
- * read and send it.
- */
+// Unlike the spec, this prototype lets the user read and send the message.
 function insertMessage(
 	params: McpUiMessageRequest["params"],
 	insert: (text: string) => void,

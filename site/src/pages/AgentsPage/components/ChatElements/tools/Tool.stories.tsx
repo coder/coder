@@ -28,6 +28,7 @@ import { BlockList } from "../../ChatConversation/MessageBlocks";
 import { DESKTOP_SCREENSHOT_BASE64 } from "./__fixtures__/desktopScreenshot";
 import { ACPToolNames } from "./acpToolNames";
 import { DesktopPanelContext } from "./DesktopPanelContext";
+import { McpAppTabContext } from "./McpAppTabContext";
 import { Tool, toolRendererNames } from "./Tool";
 
 const executeCommand = "git fetch origin";
@@ -1366,6 +1367,32 @@ export const MCPToolRunning: Story = {
 		mcpServerConfigId: "mcp-server-1",
 		mcpServers: sampleMCPServers,
 	},
+};
+
+export const MCPToolWithAppView: Story = {
+	args: {
+		name: "dice__show_dice_board",
+		status: "completed",
+		args: { count: 3 },
+		result: { output: "Rolled 3d6: 4, 2, 6 (total 12)" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+		toolCallId: "call-dice-1",
+		mcpApp: {
+			mcp_server_config_id: "mcp-server-1",
+			tool_name: "show_dice_board",
+			title: "Dice board",
+			resource_uri: "ui://mcpappdemo/dice.html",
+			tool_input: { count: 3 },
+		},
+	},
+	decorators: [
+		(Story) => (
+			<McpAppTabContext value={{ onOpenMcpApp: fn() }}>
+				<Story />
+			</McpAppTabContext>
+		),
+	],
 };
 
 export const MCPToolCompleted: Story = {
