@@ -3301,8 +3301,9 @@ const openChatMCPAppKey = (
 	] as const;
 
 /**
- * It never goes stale: the tool runs again only after a page reload or
- * after the tab closes.
+ * The result never goes stale. The tool runs again after a page reload, or
+ * when the cache drops the result 5 minutes after the last tab that shows
+ * it closes.
  */
 export const openChatMCPApp = (
 	chatId: string,

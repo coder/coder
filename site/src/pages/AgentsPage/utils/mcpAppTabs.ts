@@ -6,14 +6,18 @@ export type McpAppRightPanelTab = Extract<
 	{ kind: "mcp_app" }
 >;
 
-type McpAppTabSource = Omit<McpAppRightPanelTab, "id">;
+// Omit each member on its own: Omit on the union would make both sources
+// optional.
+export type McpAppTabSource =
+	| Omit<Extract<McpAppRightPanelTab, { toolCallId: string }>, "id">
+	| Omit<Extract<McpAppRightPanelTab, { entrypointToolName: string }>, "id">;
 
 export const mcpAppTabForToolResult = (
 	toolCallId: string,
 	app: ChatMCPApp,
 ): McpAppTabSource => ({
 	kind: "mcp_app",
-	label: app.title || app.tool_name,
+	label: app.title,
 	mcpServerConfigId: app.mcp_server_config_id,
 	toolCallId,
 });

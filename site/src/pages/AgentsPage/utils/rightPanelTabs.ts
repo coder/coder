@@ -70,9 +70,18 @@ export type UserRightPanelTab =
 			kind: "mcp_app";
 			label: string;
 			mcpServerConfigId: string;
-			/** Set exactly one of toolCallId or entrypointToolName. */
-			toolCallId?: string;
-			entrypointToolName?: string;
+			/** The tool result that the view shows. */
+			toolCallId: string;
+			entrypointToolName?: never;
+	  }
+	| {
+			id: string;
+			kind: "mcp_app";
+			label: string;
+			mcpServerConfigId: string;
+			/** coderd calls this tool with {} and the view shows the result. */
+			entrypointToolName: string;
+			toolCallId?: never;
 	  };
 
 type ValidateUserRightPanelTabsOptions = {

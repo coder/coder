@@ -1,12 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatMCPApp } from "#/api/typesGenerated";
+import { MockChatMCPApp } from "#/testHelpers/chatEntities";
 import { attachMcpAppBridge, type McpAppBridgeHandle } from "./mcpAppBridge";
 
 const mockMcpApp: ChatMCPApp = {
-	mcp_server_config_id: "server-1",
-	tool_name: "show_dice_board",
-	title: "Dice board",
-	resource_uri: "ui://dice/board.html",
+	...MockChatMCPApp,
 	tool_input: { count: 2 },
 	tool_result: {
 		content: [{ type: "text", text: "Rolled 3, 5" }],

@@ -45,25 +45,16 @@ import { GitPanel } from "../components/GitPanel/GitPanel";
 import { DebugPanel } from "../components/RightPanel/DebugPanel/DebugPanel";
 import { DesktopPanel } from "../components/RightPanel/DesktopPanel";
 import { McpAppPanel } from "../components/RightPanel/McpAppPanel/McpAppPanel";
-import { useMcpAppAutoOpen } from "../components/RightPanel/McpAppPanel/useMcpAppAutoOpen";
+import { useMcpAppTabs } from "../components/RightPanel/McpAppPanel/useMcpAppTabs";
 import { PortPreviewPanel } from "../components/RightPanel/PortPreviewPanel";
 import { RightPanel } from "../components/RightPanel/RightPanel";
-import {
-	type McpAppsMenuSource,
-	RightPanelAddTabControl,
-} from "../components/RightPanel/RightPanelAddTabControl";
+import { RightPanelAddTabControl } from "../components/RightPanel/RightPanelAddTabControl";
 import { UnavailableTabMessage } from "../components/RightPanel/UnavailableTabMessage";
 import { getWorkspaceStatus, StatusIcon } from "../components/StatusIcon";
 import { TerminalPanel } from "../components/TerminalPanel";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "../context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
-import {
-	findMcpAppTab,
-	type McpAppRightPanelTab,
-	mcpAppTabForEntrypoint,
-	mcpAppTabForToolResult,
-} from "../utils/mcpAppTabs";
 import {
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
@@ -274,6 +265,7 @@ const UserTabContent: React.FC<UserTabContentProps> = ({
 				<McpAppPanel
 					chatId={chatId}
 					tab={tab}
+					isVisible={sidebarVisible && isActive}
 					store={store}
 					onInsertComposerText={onInsertComposerText}
 				/>
@@ -339,7 +331,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	desktopChatId,
 }) => {
 	const { proxy } = useProxy();
-	const { entitlements, experiments } = useDashboard();
+	const { entitlements } = useDashboard();
 	const { permissions, user: currentUser } = useAuthenticated();
 	const wildcardHostname = proxy.preferredWildcardHostname;
 	const agentId = chat.id;
@@ -360,11 +352,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		chat.status === "running" || chat.status === "interrupting"
 			? (initialMessages.at(-1)?.id ?? -1)
 			: undefined,
-	);
-	// Tool results in messages above this ID arrived after mount, so their
-	// MCP Apps views open at once.
-	const [newestMessageIdAtMount] = useState(() =>
-		initialMessages.reduce((max, message) => Math.max(max, message.id), 0),
 	);
 	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
 		null,
@@ -416,6 +403,23 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			savePersistedVisibleSingletonTabs(agentId, visibleSingletonTabs);
 		}
 	}, [agentId, isArchived, visibleSingletonTabs]);
+
+	const activateRightPanelTab = (tabId: string) => {
+		onSetShowSidebarPanel(true);
+		setPendingTabId(null);
+		setSidebarTabId(tabId);
+	};
+
+	const mcpAppTabs = useMcpAppTabs({
+		chat,
+		store,
+		initialMessages,
+		selectedMCPServerIds,
+		tabs: userRightPanelTabs,
+		addTab: (tab) =>
+			setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]),
+		activateTab: activateRightPanelTab,
+	});
 
 	const shouldShowSidebar = showSidebarPanel;
 
@@ -521,12 +525,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	];
 	const sidebarTabIds = sidebarTabConfigs.map((tab) => tab.id);
 	const effectiveSidebarTabId = getEffectiveTabId(sidebarTabIds, sidebarTabId);
-
-	const activateRightPanelTab = (tabId: string) => {
-		onSetShowSidebarPanel(true);
-		setPendingTabId(null);
-		setSidebarTabId(tabId);
-	};
 
 	const showSingletonTab = (tabId: SingletonRightPanelTabId) => {
 		setVisibleSingletonTabsState((currentTabIds) =>
@@ -666,53 +664,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		activateRightPanelTab(tab.id);
 	};
 
-	// MCP Apps views use the chat owner's MCP credentials, so only the
-	// owner can open them.
-	const canOpenMcpApps =
-		experiments.includes("mcp-apps") &&
-		!isArchived &&
-		currentUser.id === chat.owner_id;
-
-	const openMcpAppTab = (source: Omit<McpAppRightPanelTab, "id">) => {
-		const existingTab = findMcpAppTab(validatedUserRightPanelTabs, source);
-		if (existingTab) {
-			activateRightPanelTab(existingTab.id);
-			return;
-		}
-		const tab: UserRightPanelTab = {
-			id: createUserRightPanelTabId("mcp_app"),
-			...source,
-		};
-		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
-		activateRightPanelTab(tab.id);
-	};
-
-	const handleOpenMcpAppTab = (toolCallId: string, app: TypesGen.ChatMCPApp) =>
-		openMcpAppTab(mcpAppTabForToolResult(toolCallId, app));
-	const mcpAppTabCtx = {
-		onOpenMcpApp: canOpenMcpApps ? handleOpenMcpAppTab : undefined,
-	};
-
-	const mcpAppsMenu: McpAppsMenuSource | undefined = canOpenMcpApps
-		? {
-				chatId: agentId,
-				mcpServerIds: selectedMCPServerIds,
-				onOpen: (entrypoint) =>
-					openMcpAppTab(mcpAppTabForEntrypoint(entrypoint)),
-			}
-		: undefined;
-
-	useMcpAppAutoOpen(
-		store,
-		canOpenMcpApps,
-		newestMessageIdAtMount,
-		handleOpenMcpAppTab,
-	);
-
-	const insertComposerText = (text: string) => {
-		editing.chatInputRef.current?.insertText(text);
-	};
-
 	const renderTabContent = (tabId: string): React.ReactNode => {
 		switch (tabId) {
 			case "summary":
@@ -795,7 +746,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 						tab={userTab}
 						chatId={agentId}
 						store={store}
-						onInsertComposerText={insertComposerText}
+						onInsertComposerText={(text) =>
+							editing.chatInputRef.current?.insertText(text)
+						}
 						workspace={workspace}
 						workspaceAgent={workspaceAgent}
 						wildcardHostname={wildcardHostname}
@@ -950,7 +903,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									}}
 								/>
 							</div>
-							<McpAppTabContext value={mcpAppTabCtx}>
+							<McpAppTabContext
+								value={{ onOpenMcpApp: mcpAppTabs.onOpenMcpApp }}
+							>
 								<ChatPageTimeline
 									key={agentId}
 									organizationId={organizationId}
@@ -1069,7 +1024,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										onOpenWorkspaceApp={handleOpenWorkspaceAppTab}
 										onOpenCommandApp={handleOpenCommandAppTab}
 										onOpenPort={handleOpenPortTab}
-										mcpApps={mcpAppsMenu}
+										mcpApps={mcpAppTabs.menu}
 									/>
 								}
 								onClose={() => onSetShowSidebarPanel(false)}

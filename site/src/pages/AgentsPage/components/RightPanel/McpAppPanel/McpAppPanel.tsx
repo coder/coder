@@ -36,6 +36,8 @@ function findMcpAppInChat(
 type McpAppPanelProps = {
 	chatId: string;
 	tab: McpAppRightPanelTab;
+	/** True when the user can see this tab. */
+	isVisible: boolean;
 	store: ChatStore;
 	onInsertComposerText: (text: string) => void;
 };
@@ -47,6 +49,7 @@ type McpAppPanelProps = {
 export const McpAppPanel: React.FC<McpAppPanelProps> = ({
 	chatId,
 	tab,
+	isVisible,
 	store,
 	onInsertComposerText,
 }) => {
@@ -65,24 +68,28 @@ export const McpAppPanel: React.FC<McpAppPanelProps> = ({
 			/>
 		);
 	}
-	if (tab.entrypointToolName !== undefined) {
-		return (
-			<McpAppEntrypointView
-				toolName={tab.entrypointToolName}
-				frameProps={frameProps}
-			/>
-		);
-	}
-	return <UnavailableTabMessage message="This MCP app tab has no source." />;
+	return (
+		<McpAppEntrypointView
+			toolName={tab.entrypointToolName}
+			isVisible={isVisible}
+			frameProps={frameProps}
+		/>
+	);
 };
 
 type FrameProps = Omit<McpAppFrameProps, "app">;
 
-const McpAppToolResultView: React.FC<{
+type McpAppToolResultViewProps = {
 	store: ChatStore;
 	toolCallId: string;
 	frameProps: FrameProps;
-}> = ({ store, toolCallId, frameProps }) => {
+};
+
+const McpAppToolResultView: React.FC<McpAppToolResultViewProps> = ({
+	store,
+	toolCallId,
+	frameProps,
+}) => {
 	const app = useChatSelector(store, (state) =>
 		findMcpAppInChat(state, toolCallId),
 	);
@@ -95,13 +102,28 @@ const McpAppToolResultView: React.FC<{
 	return <McpAppFrame key={app.resource_uri} app={app} {...frameProps} />;
 };
 
-const McpAppEntrypointView: React.FC<{
+type McpAppEntrypointViewProps = {
 	toolName: string;
+	isVisible: boolean;
 	frameProps: FrameProps;
-}> = ({ toolName, frameProps }) => {
-	const opened = useQuery(
-		openChatMCPApp(frameProps.chatId, frameProps.mcpServerConfigId, toolName),
-	);
+};
+
+const McpAppEntrypointView: React.FC<McpAppEntrypointViewProps> = ({
+	toolName,
+	isVisible,
+	frameProps,
+}) => {
+	// The right panel mounts every tab, so a tab restored on page load must
+	// not run the tool until the user looks at it. Once loaded, the result
+	// stays when the tab hides.
+	const opened = useQuery({
+		...openChatMCPApp(
+			frameProps.chatId,
+			frameProps.mcpServerConfigId,
+			toolName,
+		),
+		enabled: isVisible,
+	});
 	if (opened.isError) {
 		return (
 			<div className="p-4">
@@ -185,8 +207,6 @@ const McpAppFrame: React.FC<McpAppFrameProps> = ({
 			ref={frameRef}
 			title={title}
 			src={`/api/experimental/chats/${chatId}/mcp-apps/${mcpServerConfigId}/view?uri=${encodeURIComponent(app.resource_uri)}`}
-			// The view page also has a CSP sandbox header, so it keeps an
-			// opaque origin when someone opens the URL as a top-level page.
 			sandbox="allow-scripts allow-forms"
 			className="size-full border-0 bg-surface-primary"
 			onLoad={() => {

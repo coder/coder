@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import * as apiModule from "#/api/api";
 import { API } from "#/api/api";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
+import { MockChatMCPApp } from "#/testHelpers/chatEntities";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import {
 	createTestQueryClient,
@@ -131,13 +132,6 @@ describe("Tool generic rows", () => {
 
 	it("opens the MCP Apps view of the tool result", async () => {
 		const onOpenMcpApp = vi.fn();
-		const mockMcpApp = {
-			mcp_server_config_id: "server-1",
-			tool_name: "show_dice_board",
-			title: "Dice board",
-			resource_uri: "ui://dice/board.html",
-			tool_input: {},
-		};
 		renderComponent(
 			<QueryClientProvider client={createTestQueryClient()}>
 				<McpAppTabContext value={{ onOpenMcpApp }}>
@@ -148,7 +142,7 @@ describe("Tool generic rows", () => {
 						status="completed"
 						isError={false}
 						toolCallId="call-1"
-						mcpApp={mockMcpApp}
+						mcpApp={MockChatMCPApp}
 						subagentTitles={new Map()}
 						subagentVariants={new Map()}
 						shellToolDisplayMode="auto"
@@ -160,6 +154,6 @@ describe("Tool generic rows", () => {
 
 		await userEvent.click(screen.getByRole("button", { name: "Open app" }));
 
-		expect(onOpenMcpApp).toHaveBeenCalledWith("call-1", mockMcpApp);
+		expect(onOpenMcpApp).toHaveBeenCalledWith("call-1", MockChatMCPApp);
 	});
 });

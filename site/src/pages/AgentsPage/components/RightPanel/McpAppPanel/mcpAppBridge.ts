@@ -23,7 +23,7 @@ type McpAppBridgeOptions = {
 		name: string,
 		args: Record<string, unknown> | undefined,
 	) => Promise<unknown>;
-	/** The user sends it. */
+	/** Inserts the text into the composer. The user still sends it. */
 	insertComposerText: (text: string) => void;
 };
 

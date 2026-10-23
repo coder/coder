@@ -4,9 +4,8 @@ import type { ChatStore } from "../../ChatConversation/chatStore";
 import { mcpAppToolResults } from "./chatMcpApps";
 
 /**
- * Calls onOpen once for each MCP tool result with a view that arrives after
- * mount. A tool result often skips the live stream state and only comes with
- * its persisted message, so messages above newestMessageIdAtMount count too.
+ * Calls onOpen once for each MCP tool result that arrives after mount,
+ * including persisted results above newestMessageIdAtMount.
  */
 export function useMcpAppAutoOpen(
 	store: ChatStore,

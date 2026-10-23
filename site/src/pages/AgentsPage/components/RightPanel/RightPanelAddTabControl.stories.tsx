@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
 import { chatMCPAppEntrypointsKey } from "#/api/queries/chats";
 import type { ChatMCPAppEntrypoint, WorkspaceApp } from "#/api/typesGenerated";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
@@ -262,14 +263,16 @@ const mockMcpAppEntrypoints: ChatMCPAppEntrypoint[] = [
 	},
 ];
 
-export const WithMcpApps: Story = {
-	args: {
-		mcpApps: {
-			chatId: "chat-1",
-			mcpServerIds: ["mcp-server-1"],
-			onOpen: fn(),
-		},
+const mcpAppsMenuArgs = {
+	mcpApps: {
+		chatId: "chat-1",
+		mcpServerIds: ["mcp-server-1"],
+		onOpen: fn(),
 	},
+};
+
+export const WithMcpApps: Story = {
+	args: mcpAppsMenuArgs,
 	parameters: {
 		queries: [
 			...meta.parameters.queries,
@@ -281,5 +284,39 @@ export const WithMcpApps: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(within(canvasElement).getByLabelText("Add panel"));
+	},
+};
+
+export const McpAppsLoadError: Story = {
+	args: mcpAppsMenuArgs,
+	beforeEach: () => {
+		const getEntrypointsMock = spyOn(
+			API.experimental,
+			"getChatMCPAppEntrypoints",
+		).mockRejectedValue(new Error("Network failure"));
+		return () => {
+			getEntrypointsMock.mockRestore();
+		};
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(within(canvasElement).getByLabelText("Add panel"));
+		await within(document.body).findByText("Could not load MCP apps.");
+	},
+};
+
+export const McpAppsLoading: Story = {
+	args: mcpAppsMenuArgs,
+	beforeEach: () => {
+		const getEntrypointsMock = spyOn(
+			API.experimental,
+			"getChatMCPAppEntrypoints",
+		).mockReturnValue(new Promise<never>(() => {}));
+		return () => {
+			getEntrypointsMock.mockRestore();
+		};
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(within(canvasElement).getByLabelText("Add panel"));
+		await within(document.body).findByText("Loading MCP apps...");
 	},
 };
