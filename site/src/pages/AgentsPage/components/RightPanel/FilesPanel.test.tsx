@@ -895,6 +895,47 @@ describe("FilesPanel", () => {
 		expect(listedPaths()).not.toContain("/home/coder/other");
 	});
 
+	it("moves a default-directory root to a repo that appears before the user navigates", async () => {
+		const { rerenderPanel } = renderPanel(contextValue({ repoRoots: [] }));
+		await waitFor(() => expect(listedPaths()).toContain(""));
+
+		rerenderPanel(contextValue());
+
+		await screen.findByRole("treeitem", { name: "src" });
+		rerenderPanel(contextValue({ repoRoots: ["/home/coder", "/home/coder/repo"] }));
+		expect(screen.getByRole("treeitem", { name: "src" })).toBeInTheDocument();
+		expect(listedPaths()).not.toContain("/home/coder");
+	});
+
+	it("keeps a default-directory root once the user expanded a folder in it", async () => {
+		const user = userEvent.setup();
+		const listDirectory = vi.mocked(API.listWorkspaceAgentDirectory);
+		const fallback = listDirectory.getMockImplementation();
+		listDirectory.mockImplementation((agentId, path, signal) =>
+			path === ""
+				? Promise.resolve({
+						...listings["/home/coder"],
+						contents: [entry("/home/coder/repo", true)],
+					})
+				: fallback
+					? fallback(agentId, path, signal)
+					: Promise.reject(),
+		);
+		const { rerenderPanel } = renderPanel(contextValue({ repoRoots: [] }));
+		await user.click(await screen.findByRole("treeitem", { name: "repo" }));
+		await screen.findByRole("treeitem", { name: "src" });
+
+		rerenderPanel(contextValue());
+
+		expect(screen.getByRole("treeitem", { name: "repo" })).toHaveAttribute(
+			"aria-expanded",
+			"true",
+		);
+		expect(
+			localStorage.getItem(`${filesPanelRootStorageKeyPrefix}chat-1`),
+		).toBeNull();
+	});
+
 	it("does not list files without a workspace agent", () => {
 		renderPanel(undefined);
 		expect(API.listWorkspaceAgentDirectory).not.toHaveBeenCalled();

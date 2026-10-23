@@ -50,34 +50,64 @@ const subscribeToRoot = (listener: () => void) => {
  * The Files panel root for a chat, in any list-directory path form. Quick
  * open reads it too, so a root picked in the panel is also searched.
  * Without a stored root it is undefined until the git watcher settles, then
- * the chat's first repo or the default directory. That choice is kept for
- * the chat, so a repo the watcher reports later does not move a root the
- * user is browsing.
+ * the chat's first repo or the default directory (""). A default directory
+ * root moves to the first repo that appears later until `pinRoot` is called,
+ * which the panel does once the user navigates in it. A repo root never
+ * moves to another repo.
  */
 export const useFilesPanelRoot = (
 	chatId: string | undefined,
 	repoRoots: readonly string[],
 	repoRootsSettled: boolean,
 ) => {
+	const queryClient = useQueryClient();
 	const storageKey = `${filesPanelRootStorageKeyPrefix}${chatId}`;
 	const storedRoot = useSyncExternalStore(subscribeToRoot, () =>
 		chatId === undefined ? null : localStorage.getItem(storageKey),
 	);
 	// Cached so the panel and Quick open share one choice per chat.
 	const defaultRootQuery = useQuery({
-		queryKey: ["filesPanelDefaultRoot", chatId],
-		queryFn: () => repoRoots[0] ?? "",
+		queryKey: defaultRootKey(chatId),
+		queryFn: (): DefaultRoot => ({ root: repoRoots[0] ?? "", pinned: false }),
 		enabled: storedRoot === null && repoRootsSettled,
 		staleTime: Number.POSITIVE_INFINITY,
 	});
+	const defaultRoot = defaultRootQuery.data;
+	const upgradedRoot =
+		defaultRoot?.root === "" && !defaultRoot.pinned ? repoRoots[0] : undefined;
+	useEffect(() => {
+		if (upgradedRoot !== undefined) {
+			queryClient.setQueryData<DefaultRoot>(defaultRootKey(chatId), {
+				root: upgradedRoot,
+				pinned: false,
+			});
+		}
+	}, [queryClient, chatId, upgradedRoot]);
 	const setRoot = (root: string) => {
 		localStorage.setItem(storageKey, root);
 		for (const listener of rootListeners) {
 			listener();
 		}
 	};
-	return { root: storedRoot ?? defaultRootQuery.data, setRoot };
+	const pinRoot = () => {
+		queryClient.setQueryData<DefaultRoot>(
+			defaultRootKey(chatId),
+			(previous) => previous && { ...previous, pinned: true },
+		);
+	};
+	return {
+		root: storedRoot ?? upgradedRoot ?? defaultRoot?.root,
+		setRoot,
+		pinRoot,
+	};
 };
+
+type DefaultRoot = { root: string; pinned: boolean };
+
+const defaultRootKey = (chatId: string | undefined) => [
+	"filesPanelDefaultRoot",
+	chatId,
+];
 
 // The tree is a live view of files the agent edits, so it refetches when the
 // window regains focus even though the app disables that by default.
@@ -148,7 +178,7 @@ export const FilesPanel: React.FC<FilesPanelProps> = ({
 	onRevealHandled,
 }) => {
 	const workspaceFiles = useWorkspaceFiles();
-	const { root, setRoot } = useFilesPanelRoot(
+	const { root, setRoot, pinRoot } = useFilesPanelRoot(
 		chatId,
 		workspaceFiles?.repoRoots ?? [],
 		workspaceFiles?.repoRootsSettled ?? false,
@@ -167,6 +197,7 @@ export const FilesPanel: React.FC<FilesPanelProps> = ({
 		<FilesBrowser
 			root={root}
 			setRoot={setRoot}
+			pinRoot={pinRoot}
 			workspaceFiles={workspaceFiles}
 			revealRequest={revealRequest}
 			onRevealHandled={onRevealHandled}
@@ -177,6 +208,8 @@ export const FilesPanel: React.FC<FilesPanelProps> = ({
 type FilesBrowserProps = {
 	root: string;
 	setRoot: (root: string) => void;
+	/** Keeps a default root in place once the user navigates in it. */
+	pinRoot: () => void;
 	workspaceFiles: WorkspaceFilesContextValue;
 	revealRequest: RevealRequest | undefined;
 	onRevealHandled: (() => void) | undefined;
@@ -185,6 +218,7 @@ type FilesBrowserProps = {
 const FilesBrowser: React.FC<FilesBrowserProps> = ({
 	root,
 	setRoot,
+	pinRoot,
 	workspaceFiles,
 	revealRequest,
 	onRevealHandled,
@@ -483,6 +517,7 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 			if (request !== latestReveal.current) {
 				return;
 			}
+			pinRoot();
 			if (nextRoot !== root) {
 				selectRoot(nextRoot);
 				setExpandedPaths(ancestors);
@@ -568,6 +603,7 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 	};
 
 	const toggleDirectory = (path: string) => {
+		pinRoot();
 		setExpandedPaths((paths) =>
 			paths.includes(path) ? paths.filter((p) => p !== path) : [...paths, path],
 		);
