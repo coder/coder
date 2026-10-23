@@ -478,7 +478,12 @@ describe("Response", () => {
 				},
 			);
 
-			it.each([
+			it.each<{
+				markdown: string;
+				tree: Record<string, string[]>;
+				link: string;
+				reveals: string;
+			}>([
 				{
 					markdown: "Routes live in site/src/pages/ today",
 					tree: { "/home/coder/coder/site/src": ["pages/", "pages.ts"] },
