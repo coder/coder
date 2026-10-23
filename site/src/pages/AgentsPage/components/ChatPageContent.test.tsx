@@ -351,7 +351,7 @@ describe("ChatPageInput", () => {
 		).toBeInTheDocument();
 	});
 
-	it("offers no queue actions on a row a pending send draws", async () => {
+	it("offers no queue actions on a row a pending send shows", async () => {
 		const user = userEvent.setup();
 		const onPromoteQueuedMessage = vi.fn();
 		const onDeleteQueuedMessage = vi.fn();
