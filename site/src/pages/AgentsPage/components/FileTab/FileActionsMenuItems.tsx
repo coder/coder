@@ -1,4 +1,5 @@
 import { ExternalLinkIcon } from "lucide-react";
+import { useSyncExternalStore } from "react";
 import { useQuery } from "react-query";
 import { workspaceAgentFile } from "#/api/queries/workspaceFiles";
 import type {
@@ -39,6 +40,9 @@ type FileActionsMenuItemsProps = {
 	readonly line?: number;
 };
 
+const subscribeToNoMessages = () => () => {};
+const getNoArrival = () => undefined;
+
 /** Actions on an open file, shared by its header menu and its tab's menu. */
 export const FileActionsMenuItems: React.FC<FileActionsMenuItemsProps> = ({
 	Item,
@@ -62,7 +66,11 @@ export const FileActionsMenuItems: React.FC<FileActionsMenuItemsProps> = ({
 		staleTime: Number.POSITIVE_INFINITY,
 		gcTime: 0,
 	});
-	const watcherMessageAt = workspaceFiles?.lastWatcherMessageAt;
+	const watcherMessages = workspaceFiles?.watcherMessages;
+	const watcherMessageAt = useSyncExternalStore(
+		watcherMessages?.subscribe ?? subscribeToNoMessages,
+		watcherMessages?.getLastArrival ?? getNoArrival,
+	);
 	// The diff describes the file as the tab read or saved it only once a
 	// scan reported after that, and while no reread is pending.
 	const diffDescribesRead =
