@@ -372,9 +372,12 @@ def main(args):
 		}, testutil.IntervalFast)
 		res := run.await(ctx, 0)
 		require.Equal(t, workflowStatusCompleted, res.Status, res.Error)
-		n, err := f.db.CountChatQueuedMessages(ctx, parent.ID)
-		require.NoError(t, err)
-		assert.Zero(t, n, "await_workflow read the result, so the message goes")
+		// await_workflow read the result, so the message goes. The sender can
+		// still hold the message ID, and then it deletes the message itself.
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			n, err := f.db.CountChatQueuedMessages(ctx, parent.ID)
+			return err == nil && n == 0
+		}, testutil.IntervalFast)
 	})
 }
 
