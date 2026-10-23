@@ -842,7 +842,7 @@ describe("pending actions", () => {
 		});
 	});
 
-	it("gives the rows it draws IDs the server never assigns", () => {
+	it("gives the rows it shows IDs the server never assigns", () => {
 		const store = seededStore(
 			[makeMessage(1, "user", "first"), makeMessage(2, "user", "old")],
 			[],
@@ -888,7 +888,7 @@ describe("pending actions", () => {
 		expect(store.getSnapshot()).toBe(before);
 	});
 
-	it("draws nothing for a promoted row the queue no longer holds", () => {
+	it("shows nothing for a promoted row the queue no longer holds", () => {
 		const store = seededStore(
 			[makeMessage(1, "user", "first")],
 			[makeQueuedMessage(10, "q10")],

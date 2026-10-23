@@ -1415,7 +1415,7 @@ describe("useChatStore", () => {
 
 		// The old WebSocket was closed during effect cleanup.
 		expect(mockSocket1.close).toHaveBeenCalled();
-		// No stream state from chat-1 carries over.
+		// No stream state from chat-1 remains.
 		expect(result.current.streamState).toBeNull();
 	});
 
@@ -1528,8 +1528,7 @@ describe("useChatStore", () => {
 			]);
 		});
 
-		// A message event with a mismatched chat_id should be ignored
-		// and should NOT trigger scheduleStreamReset.
+		// A message event for another chat must not clear the stream state.
 		const mismatchedMessage = buildMessage(
 			"chat-2",
 			99,
@@ -1545,16 +1544,13 @@ describe("useChatStore", () => {
 			});
 		});
 
-		// Stream state should still be present: the mismatched event
-		// was filtered and did not trigger a stream reset.
 		await waitFor(() => {
 			expect(result.current.streamState?.blocks).toEqual([
 				{ type: "response", text: "streaming" },
 			]);
 		});
 
-		// A message event with the correct chat_id should be processed
-		// and trigger scheduleStreamReset, clearing stream state.
+		// An assistant message for this chat clears the stream state.
 		const matchingMessage = buildMessage(
 			chatID,
 			2,
@@ -1575,7 +1571,7 @@ describe("useChatStore", () => {
 		});
 	});
 
-	it("cancels scheduled stream reset when message_part arrives after message", async () => {
+	it("keeps a message_part that follows an assistant message in the same frame", async () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-raf";
@@ -1629,11 +1625,8 @@ describe("useChatStore", () => {
 			]);
 		});
 
-		// Emit a durable message followed by a message_part in the
-		// same batch. The message handler calls scheduleStreamReset
-		// (via rAF), and the subsequent message_part handler calls
-		// cancelScheduledStreamReset to prevent a flash. The final
-		// flushMessageParts re-populates stream state.
+		// The handler clears the stream state at the end of the frame for
+		// the assistant message, then applies the part that followed it.
 		act(() => {
 			mockSocket.emitDataBatch([
 				{
@@ -1653,8 +1646,6 @@ describe("useChatStore", () => {
 			]);
 		});
 
-		// Stream state should be non-null because the message_part
-		// after the message kept it populated.
 		await waitFor(() => {
 			expect(result.current.streamState).not.toBeNull();
 		});
@@ -1745,10 +1736,8 @@ describe("useChatStore", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
-		// Emit a batch with message_parts followed by a status change
-		// to "waiting". The status handler clears stream state
-		// synchronously, and the startTransition guard should prevent
-		// the deferred applyMessageParts from re-populating it.
+		// The waiting status discards the part buffered before it in the
+		// same frame.
 		act(() => {
 			mockSocket.emitDataBatch([
 				{
@@ -1767,9 +1756,6 @@ describe("useChatStore", () => {
 			]);
 		});
 
-		// Stream state should be null: the status change cleared it,
-		// and the deferred applyMessageParts should not have
-		// re-populated it.
 		await waitFor(() => {
 			expect(result.current.streamState).toBeNull();
 		});
@@ -2886,7 +2872,7 @@ describe("useChatStore", () => {
 		expect(result.current.load).toEqual({ status: "loaded" });
 	});
 
-	it("does not carry one chat's snapshot version into another chat", async () => {
+	it("does not use one chat's snapshot version for another chat", async () => {
 		mockWatchChatWithFreshSockets();
 		const wrapper = createWrapper(createTestQueryClient());
 		mockNewestPage("chat-a", {
@@ -3221,7 +3207,7 @@ describe("useChatStore", () => {
 		// The reconnect timer in createReconnectingWebSocket
 		// fires inside a setTimeout. With real timers the
 		// callback runs outside any act() boundary, so
-		// startTransition updates from the reconnected socket
+		// updates from the reconnected socket
 		// never commit to React state. Fake timers with
 		// shouldAdvanceTime let us control when the reconnect
 		// timer fires (via advanceTimersByTime inside act)
@@ -3457,14 +3443,9 @@ describe("useChatStore", () => {
 			expect(result.current.chatStatus).toBe("running");
 		});
 
-		// Deliver a batch containing trailing message_parts for
-		// the current response followed by the promoted user
-		// message. The batch loop flushes pending parts when it
-		// hits the message event (building stream state). Before
-		// the fix, scheduleStreamReset would fire for the user
-		// message because it only checked `changed`, and with
-		// immediateAnimationFrame the RAF fires synchronously,
-		// wiping the stream state that was just built.
+		// Trailing parts of the current response, then the promoted user
+		// message, in one frame. Only an assistant message clears the
+		// stream state.
 		const promotedUser = buildMessage(chatID, 3, "user", "follow-up");
 
 		act(() => {
@@ -3485,8 +3466,6 @@ describe("useChatStore", () => {
 			]);
 		});
 
-		// The stream state must survive: the promoted user message
-		// should not wipe the in-progress assistant stream.
 		await waitFor(() => {
 			expect(result.current.orderedMessageIDs).toContain(3);
 			expect(result.current.streamState).not.toBeNull();
