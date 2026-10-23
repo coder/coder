@@ -7,7 +7,7 @@ import { API } from "#/api/api";
 import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
 import { organizationSkills } from "#/api/queries/organizationSkills";
-import { userSkills } from "#/api/queries/userSkills";
+import { userSkills, userSkillsKey } from "#/api/queries/userSkills";
 import type {
 	AgentChatSendShortcut,
 	ChatMessagePart,
@@ -25,6 +25,7 @@ import { buildChatInputContent } from "../../utils/chatInputContent";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import { getEditableUserMessagePayload } from "../ChatConversation/messageParsing";
 import { ChatMessageInput, type ChatMessageInputRef } from "./ChatMessageInput";
+import { serializeMessageDraft } from "./SkillInvocationNode";
 
 const requiredProps = () => ({
 	placeholder: "Type a message...",
@@ -40,6 +41,16 @@ const mockSkillPart = (
 	skill_source: ChatSkillSource,
 	skill_name: string,
 ): ChatMessagePart => ({ type: "skill-invocation", skill_source, skill_name });
+
+const mockPluginSkillPart = (
+	skill_plugin_name: string,
+	skill_name: string,
+): ChatMessagePart => ({
+	type: "skill-invocation",
+	skill_source: "plugin",
+	skill_plugin_name,
+	skill_name,
+});
 
 const getRequestContent = (
 	inputRef: React.RefObject<ChatMessageInputRef | null>,
@@ -361,6 +372,38 @@ describe("ChatMessageInput", () => {
 				{ type: "text", text: "Draft " },
 				mockSkillPart("org", "release-notes"),
 				{ type: "text", text: " now" },
+			]);
+		});
+
+		it("sends a plugin skill picked from the menu with its plugin name", async () => {
+			const queryClient = createTestQueryClient();
+			queryClient.setQueryData(userSkillsKey(), []);
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					aria-label="Chat message input"
+					hasWorkspace
+					workspaceSkills={[
+						{ name: "deploy", description: "" },
+						{ name: "deploy", description: "", pluginName: "acme" },
+						{ name: "deploy", description: "", pluginName: "beta" },
+					]}
+				/>,
+				queryClient,
+			);
+			const user = await pasteTrigger("/dep");
+			await user.click(
+				await screen.findByRole("option", { name: /^\/plugin\/acme\/deploy/ }),
+			);
+			await user.paste("/dep");
+			await user.click(
+				await screen.findByRole("option", { name: /^\/plugin\/beta\/deploy/ }),
+			);
+			expect(getRequestContent(inputRef)).toEqual([
+				mockPluginSkillPart("acme", "deploy"),
+				mockPluginSkillPart("beta", "deploy"),
 			]);
 		});
 
@@ -732,6 +775,51 @@ describe("ChatMessageInput", () => {
 			);
 		});
 
+		it("pastes plugin chips by plugin and skill name", async () => {
+			vi.stubGlobal("ClipboardEvent", class ClipboardEvent extends Event {});
+			vi.stubGlobal("DragEvent", class DragEvent extends MouseEvent {});
+			const user = userEvent.setup();
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					aria-label="Chat message input"
+					hasWorkspace
+					workspaceSkills={[
+						{ name: "deploy", description: "" },
+						{ name: "deploy", description: "", pluginName: "acme" },
+					]}
+					initialEditorState={serializeMessageDraft([
+						mockSkillPart("workspace", "deploy"),
+						mockPluginSkillPart("acme", "deploy"),
+						mockPluginSkillPart("beta", "deploy"),
+					])}
+				/>,
+			);
+			await user.click(
+				screen.getByRole("textbox", { name: "Chat message input" }),
+			);
+			await user.keyboard("{Control>}a{/Control}");
+			const copied = await user.copy();
+			act(() => inputRef.current?.clear());
+			await waitFor(() => {
+				expect(getRequestContent(inputRef)).toEqual([]);
+			});
+
+			await user.paste(copied);
+			await user.paste(copied);
+
+			// beta is not in this chat's context, so its chip pastes as text.
+			await waitFor(() => {
+				expect(getRequestContent(inputRef)).toEqual([
+					mockSkillPart("workspace", "deploy"),
+					mockPluginSkillPart("acme", "deploy"),
+					{ type: "text", text: "/plugin/beta/deploy/plugin/beta/deploy" },
+				]);
+			});
+		});
+
 		it("drops pasted skill chips beyond the limit and says why", async () => {
 			vi.stubGlobal("ClipboardEvent", class ClipboardEvent extends Event {});
 			vi.stubGlobal("DragEvent", class DragEvent extends MouseEvent {});
@@ -820,6 +908,7 @@ describe("ChatMessageInput", () => {
 			const content: ChatMessagePart[] = [
 				{ type: "text", text: "Use " },
 				mockSkillPart("project", "triage"),
+				mockPluginSkillPart("acme", "triage"),
 				{ type: "text", text: " on\nthe diff" },
 			];
 			const { text, editorState } = getEditableUserMessagePayload({

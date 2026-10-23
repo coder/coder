@@ -20,6 +20,7 @@ export type ChatComposerContentPart =
 			readonly type: "skill-invocation";
 			readonly source: SkillSource;
 			readonly name: string;
+			readonly pluginName?: string;
 	  };
 
 export const buildAttachmentMediaTypes = (
@@ -72,6 +73,7 @@ export const buildChatInputContent = ({
 				content.push({
 					type: "skill-invocation",
 					skill_source: part.source,
+					skill_plugin_name: part.pluginName,
 					skill_name: part.name,
 				});
 			} else {

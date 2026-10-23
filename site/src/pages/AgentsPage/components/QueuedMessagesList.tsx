@@ -100,7 +100,11 @@ const QueuedMessagePreview: React.FC<{
 				<Fragment key={index}>
 					{index > 0 && " "}
 					{part.type === "skill-invocation" ? (
-						<SkillChip source={part.skill_source} name={part.skill_name} />
+						<SkillChip
+							source={part.skill_source}
+							name={part.skill_name}
+							pluginName={part.skill_plugin_name}
+						/>
 					) : (
 						part.text
 					)}
