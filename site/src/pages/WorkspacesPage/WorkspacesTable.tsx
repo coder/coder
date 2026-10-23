@@ -812,13 +812,18 @@ const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
 		agent,
 	});
 
-	// A malformed external app URL can't be opened. Render a non-navigating
-	// icon with an explanatory tooltip instead of a broken link.
-	if (!isAppUrlValid(app)) {
+	// Render a non-navigating icon with an explanatory tooltip instead of a
+	// broken link.
+	const hasInvalidUrl = !isAppUrlValid(app);
+	if (hasInvalidUrl || link.isBlocked) {
 		return (
 			<BaseIconLink
 				key={app.id}
-				label={`${link.label} has an invalid URL`}
+				label={
+					hasInvalidUrl
+						? `${link.label} has an invalid URL`
+						: `${link.label} has an untrusted URL`
+				}
 				onClick={() => {}}
 			>
 				{app.icon ? (
