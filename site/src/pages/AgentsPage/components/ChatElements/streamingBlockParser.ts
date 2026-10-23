@@ -2,10 +2,9 @@ import { parseMarkdownIntoBlocks } from "streamdown";
 
 type ParseBlocks = (markdown: string) => string[];
 
-// Two constructs make block splitting depend on text before the tail:
-// Streamdown keeps a document with footnote syntax as one block, and marked
-// drops a link reference definition whose label was defined earlier. Either
-// one in the tail forces a full parse. The label pattern is marked's.
+// Footnotes make Streamdown keep the document as one block, and marked drops
+// a repeated link reference definition, so either in the tail forces a full
+// parse. Labels follow https://github.com/markedjs/marked/blob/v17.0.5/src/rules.ts#L120
 const NEEDS_FULL_PARSE = /\[\^[\w-]{1,200}\]|^ {0,3}\[(?:\\.|[^[\]\\])+\]:/m;
 
 function isBlank(block: string): boolean {
@@ -21,12 +20,9 @@ type Cut = {
 
 const NO_CUT: Cut = { count: 0, witness: "" };
 
-// A blank line ends every block except a list or indented code block, and
-// those continue only when the next line is indented. So the blocks up to a
-// blank block are complete while the first line after it stays the same,
-// and nothing merges into a blank token. A cut between two non-blank blocks
-// is unsafe: marked's paragraph rules look several lines ahead, so appended
-// text can move that boundary.
+// Blocks before a blank block are final while the line after that blank
+// block is unchanged. A cut between two non-blank blocks is unsafe because
+// marked's paragraph rules look ahead.
 function findCut(markdown: string, blocks: readonly string[]): Cut {
 	let open = blocks.length - 1;
 	while (open >= 0 && isBlank(blocks[open])) {
@@ -49,16 +45,9 @@ function findCut(markdown: string, blocks: readonly string[]): Cut {
 }
 
 /**
- * Creates a `parseMarkdownIntoBlocksFn` for one streaming message.
- *
- * Streamdown re-splits the entire text into blocks on every render, which
- * costs time proportional to the message length on every animation frame
- * while streaming. Streamed text only grows, so this parser caches the
- * blocks up to the last blank block before the open block and re-lexes only
- * the text after them. Any other change, such as a new stream replacing the
- * message, gets a full parse.
- *
- * The result is identical to `parse(markdown)`.
+ * Returns a `parseMarkdownIntoBlocksFn` for one growing message. The result
+ * equals `parse(markdown)`; input that does not start with the cached
+ * complete blocks gets a full parse.
  */
 export function createStreamingBlockParser(
 	parse: ParseBlocks = parseMarkdownIntoBlocks,

@@ -110,11 +110,11 @@ import {
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 
 type AgentChatPageProps = {
-	// Overrides the :agentId route param, so that AgentChatComparePage can
-	// mount several chats in one tree.
+	// Overrides the :agentId route param.
 	chatId?: string;
 };
 
+/** Renders the chat from the `chatId` prop or the :agentId route param. */
 export const AgentChatPage: React.FC<AgentChatPageProps> = ({ chatId }) => {
 	const params = useParams() as { agentId: string };
 	const agentId = chatId ?? params.agentId;

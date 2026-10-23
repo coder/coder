@@ -71,10 +71,8 @@ export default defineConfig({
 						: "assets/[name]-[hash].js";
 				},
 				codeSplitting: {
-					// Put only matched modules in a group. The default (true) also puts
-					// everything they import, recursively, in the group: the monaco
-					// group took React and Vite's preload helper, so every page loaded
-					// the monaco chunk and its stylesheet.
+					// The default (true) also groups everything a matched module imports:
+					// the monaco group took React and Vite's preload helper, so every page loaded monaco.
 					includeDependenciesRecursively: false,
 					groups: [
 						{ name: "monaco", test: /monaco-editor/ },

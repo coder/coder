@@ -162,7 +162,6 @@ beforeAll(() => {
 
 afterEach(() => {
 	vi.unstubAllGlobals();
-	vi.restoreAllMocks();
 	mockedUseSpeechRecognition.mockReset();
 	dashboard.experiments = ["chat-projects"];
 	vi.restoreAllMocks();

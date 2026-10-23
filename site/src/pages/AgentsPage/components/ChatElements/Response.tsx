@@ -236,14 +236,12 @@ const createComponents = (
 					// MermaidDiagram's error fallback strips the margin, border
 					// and rounding from its direct child, so the frame must stay
 					// on the outermost element rather than the scroll container.
-					// The scroll container is a plain element, not ScrollArea:
-					// Radix renders a <style> element per instance, and WebKit
-					// restyles the whole document whenever a stylesheet is added
-					// or removed. `table min-w-full` sizes the viewer to its
-					// longest line, so long lines scroll instead of clipping.
 					const codeBlock = (
 						<div className="group/code-block relative my-4 overflow-hidden rounded-md border border-solid border-border bg-surface-primary">
+							{/* Not ScrollArea: its per-instance <style> makes WebKit restyle the
+							    whole document each time a code block mounts or unmounts. */}
 							<div className="overflow-auto scrollbar-thin [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+								{/* Sizes the viewer to its longest line, so long lines scroll. */}
 								<div className="table min-w-full">
 									<FileViewer
 										file={{

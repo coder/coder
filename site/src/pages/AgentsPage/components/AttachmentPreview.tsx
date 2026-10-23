@@ -140,10 +140,6 @@ export const AttachmentPreview: React.FC<{
 							// Key combines file metadata with index as a fallback for
 							// duplicate names. Acceptable for a small, append-only list.
 							key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
-							// The overlay buttons show on `peer-focus` of a preceding
-							// sibling, not `group-focus-within`: WebKit restyles every
-							// ancestor's subtree on each focus change while any
-							// `A:focus-within B` rule exists.
 							className="group relative"
 						>
 							{isRasterImageMediaType(file.type) && previewUrl ? (
@@ -222,6 +218,8 @@ export const AttachmentPreview: React.FC<{
 							<button
 								type="button"
 								onClick={() => onRemove(file)}
+								// `peer-focus`, not `group-focus-within`: WebKit restyles every
+								// ancestor's subtree on focus while any `A:focus-within B` rule exists.
 								className="absolute -right-2 -top-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-xs opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 peer-focus:opacity-100 focus:opacity-100"
 								aria-label={`Remove ${file.name}`}
 							>

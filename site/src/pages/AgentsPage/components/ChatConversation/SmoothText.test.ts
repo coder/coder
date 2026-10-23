@@ -12,7 +12,6 @@ function makeText(length: number): string {
 describe("sliceAtGraphemeBoundary", () => {
 	const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
-	// Reference result: walk every cluster from index 0.
 	function referenceSlice(text: string, max: number): string {
 		let safeEnd = 0;
 		for (const { index, segment } of segmenter.segment(text)) {

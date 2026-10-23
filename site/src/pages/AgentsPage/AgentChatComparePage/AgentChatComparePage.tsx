@@ -2,9 +2,7 @@ import { useParams } from "react-router";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { AgentChatPage } from "../AgentChatPage/AgentChatPage";
 
-// Renders one pane per chat ID in the path after /agents/compare/. The
-// chatbench benchmark uses this route to run several long, streaming chats
-// on one main thread.
+// Renders one pane per chat ID in the path after /agents/compare/.
 const AgentChatComparePage: React.FC = () => {
 	const { "*": splat } = useParams<{ "*": string }>();
 	const chatIds = (splat ?? "").split("/").filter(Boolean);

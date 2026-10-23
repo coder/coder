@@ -186,11 +186,7 @@ const AttachmentPreviewFrame: React.FC<{
 }> = ({ href, displayName, downloadName, mediaType, children }) => {
 	return (
 		<div className="group/attachment relative inline-flex flex-col items-start">
-			{/*
-			 * The overlay shows on `peer-focus-within`, not
-			 * `group-focus-within`: WebKit restyles every ancestor's subtree on
-			 * each focus change while any `A:focus-within B` rule exists.
-			 */}
+			{/* `peer`, not `group-focus-within`, for the reason in AttachmentPreview. */}
 			<div className="peer/attachment contents">{children}</div>
 			<DownloadOverlay
 				href={href}
