@@ -42,6 +42,11 @@ beforeEach(() => {
 	});
 });
 
+test("sets a page title that identifies the page", async () => {
+	await renderPage();
+	expect(document.title).toBe("Security - Settings - Coder");
+});
+
 test("update password successfully", async () => {
 	vi.spyOn(API, "updateUserPassword").mockImplementationOnce((_userId, _data) =>
 		Promise.resolve(undefined),
