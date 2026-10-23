@@ -114,12 +114,15 @@ const holdListings = (heldPath: string) => {
 	};
 };
 
-const settled = () =>
-	waitFor(() =>
+// Waits until every list-directory call has settled, releasing held calls
+// as they arrive when given a release function.
+const settled = (release?: () => void) =>
+	waitFor(() => {
+		release?.();
 		expect(
 			vi.mocked(API.listWorkspaceAgentDirectory).mock.settledResults,
-		).not.toContainEqual({ type: "incomplete", value: undefined }),
-	);
+		).not.toContainEqual({ type: "incomplete", value: undefined });
+	});
 
 const renderPanel = (value: WorkspaceFilesContextValue | undefined) => {
 	const queryClient = createTestQueryClient();
@@ -753,6 +756,29 @@ describe("FilesPanel", () => {
 
 		const created = await screen.findByRole("treeitem", { name: "new.txt" });
 		await waitFor(() => expect(created).toHaveFocus());
+	});
+
+	it("drops a pending reveal after a path is opened", async () => {
+		const user = userEvent.setup();
+		const { reveal } = renderRevealed(undefined);
+		await screen.findByRole("treeitem", { name: "src" });
+		const release = holdListings("/home/coder/repo/src/lib");
+
+		reveal({ path: "/home/coder/repo/src/lib/util.go", isDirectory: false });
+		await waitFor(() => expect(listedPaths()).toContain("/home/coder/repo/src/lib"));
+		await user.click(screen.getByRole("button", { name: /^Root directory/ }));
+		await user.click(screen.getByRole("menuitem", { name: "Open path..." }));
+		await user.type(
+			screen.getByRole("textbox", { name: "Path" }),
+			"/home/coder{Enter}",
+		);
+		await screen.findByRole("treeitem", { name: ".bashrc" });
+		await settled(release);
+
+		expect(
+			localStorage.getItem(`${filesPanelRootStorageKeyPrefix}chat-1`),
+		).toBe("/home/coder");
+		screen.getByRole("treeitem", { name: ".bashrc" });
 	});
 
 	it("does not list files without a workspace agent", () => {
