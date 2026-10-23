@@ -96,6 +96,7 @@ describe("UserMessageContent", () => {
 	it.each([
 		"compare `/home/coder/repo/main.go` with `/home/coder/repo/src/`",
 		"look in `/home/coder/repo/src/`. Then open `/home/coder/repo/main.go`.",
+		'look in (`/home/coder/repo/main.go`) and "`/home/coder/repo/src/`".',
 	])("copies chips as their backticked paths: %s", (text) => {
 		renderMessage(text);
 		const message = screen.getByText(/compare|look in/);
