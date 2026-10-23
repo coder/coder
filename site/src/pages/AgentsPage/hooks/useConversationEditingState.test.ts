@@ -402,7 +402,7 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
-	it("keeps the saved draft while a send is pending after the chat unmounts", async () => {
+	it("saves the sent message and what was typed since while a send is pending", async () => {
 		const { result, onSend, unmount } = renderEditing();
 		const mockInput = createMockChatInputHandle("hello");
 		// The editor reports its clear as a content change.
@@ -424,12 +424,17 @@ describe("useConversationEditingState", () => {
 		act(() => {
 			sent = result.current.handleSendFromInput({ message: "hello" });
 		});
+		expect(localStorage.getItem(expectedKey)).toBe("hello");
+		act(() => {
+			result.current.handleContentChange("next", "next", false);
+		});
 		unmount();
 
-		// A reload now finds the submitted message.
-		expect(localStorage.getItem(expectedKey)).toBe("hello");
+		// A reload, or a failure after the unmount, finds both.
+		expect(localStorage.getItem(expectedKey)).toBe("hello\n\nnext");
 		rejectSend(new Error("boom"));
 		await expect(sent).rejects.toThrow("boom");
+		expect(localStorage.getItem(expectedKey)).toBe("hello\n\nnext");
 	});
 
 	it("keeps what was typed during a send after it succeeds", async () => {

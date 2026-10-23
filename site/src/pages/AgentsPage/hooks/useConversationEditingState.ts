@@ -39,6 +39,29 @@ const joinEditorStates = (
 	}
 };
 
+type PendingSend = {
+	message: string;
+	editorState: string | undefined;
+	fileBlocks: readonly ChatMessagePart[];
+	messageId: number | null;
+};
+
+// The composer content a failed send restores: the sent message, followed by
+// what was typed during the request.
+const restoredDraft = (
+	send: PendingSend,
+	typedText: string,
+	typedEditorState: string | undefined,
+) => {
+	if (!typedText.trim()) {
+		return { text: send.message, editorState: send.editorState };
+	}
+	return {
+		text: `${send.message}\n\n${typedText}`,
+		editorState: joinEditorStates(send.editorState, typedEditorState),
+	};
+};
+
 /** @internal Exported for testing. */
 export function useConversationEditingState(deps: {
 	chatID: string;
@@ -60,12 +83,11 @@ export function useConversationEditingState(deps: {
 	const serializedEditorStateRef = useRef<string | undefined>(
 		initialEditorState,
 	);
-	// Set from a submit's clear until the send settles. While set, content
-	// changes do not write the saved draft, so a reload or unmount mid-send
-	// restores the draft saved before the submit. For a new message, that is
-	// the submitted message. For a history edit, it is the draft from before
-	// the edit started.
-	const isSendPendingRef = useRef(false);
+	// The send in flight, from a submit's clear until it settles. While it is
+	// set, content changes save what a failure would restore as the draft, so
+	// a reload or unmount mid-send keeps the sent message and what was typed
+	// since. A history edit leaves the draft from before the edit started.
+	const pendingSendRef = useRef<PendingSend | null>(null);
 
 	// Monotonic counter to force LexicalComposer remount.
 	const [remountKey, setRemountKey] = useState(0);
@@ -137,26 +159,24 @@ export function useConversationEditingState(deps: {
 	// Returns a rollback for a failed send. The composer stays editable during
 	// the request, so the rollback puts the message before anything typed since.
 	const clearInputForSend = (message: string) => {
-		const snapshot = {
+		const snapshot: PendingSend = {
+			message,
 			editorState: serializedEditorStateRef.current,
 			fileBlocks: editingFileBlocks,
 			messageId: editingMessageId,
 		};
 
-		isSendPendingRef.current = true;
+		pendingSendRef.current = snapshot;
 		chatInputRef.current?.clear();
 		inputValueRef.current = "";
 		setEditingMessageId(null);
 
 		return () => {
-			const typedSince = inputValueRef.current;
-			const text = typedSince.trim() ? `${message}\n\n${typedSince}` : message;
-			const editorState = typedSince.trim()
-				? joinEditorStates(
-						snapshot.editorState,
-						serializedEditorStateRef.current,
-					)
-				: snapshot.editorState;
+			const { text, editorState } = restoredDraft(
+				snapshot,
+				inputValueRef.current,
+				serializedEditorStateRef.current,
+			);
 			setDraftState({
 				editorInitialValue: text,
 				initialEditorState: editorState,
@@ -210,13 +230,13 @@ export function useConversationEditingState(deps: {
 			await sendPromise;
 		} catch (error) {
 			rollback();
-			isSendPendingRef.current = false;
+			pendingSendRef.current = null;
 			if (error instanceof BuiltInCommandPendingError) {
 				return;
 			}
 			throw error;
 		}
-		isSendPendingRef.current = false;
+		pendingSendRef.current = null;
 
 		finalizeSuccessfulSend(editedMessageID);
 	};
@@ -234,7 +254,22 @@ export function useConversationEditingState(deps: {
 		if (editingMessageId !== null) {
 			return;
 		}
-		if (isSendPendingRef.current) {
+		const pendingSend = pendingSendRef.current;
+		if (pendingSend) {
+			if (pendingSend.messageId !== null) {
+				return;
+			}
+			const draft = restoredDraft(pendingSend, content, serializedEditorState);
+			const saved = draft.editorState ?? draft.text;
+			if (!saved) {
+				localStorage.removeItem(draftStorageKey);
+				return;
+			}
+			try {
+				localStorage.setItem(draftStorageKey, saved);
+			} catch {
+				// QuotaExceededError, silently discard the draft.
+			}
 			return;
 		}
 
