@@ -514,19 +514,19 @@ func TestUpdateNonBlockingLockSkipsHeldRow(t *testing.T) {
 	require.Equal(t, created.Chat.SnapshotVersion+1, after.SnapshotVersion, "the skipped attempt advanced nothing")
 }
 
-// chatReadCountingStore counts chat row reads that reach the database.
-type chatReadCountingStore struct {
+// rbacChatReadCountingStore counts chat row reads that reach the database.
+type rbacChatReadCountingStore struct {
 	database.Store
 	reads *atomic.Int32
 }
 
-func (s *chatReadCountingStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+func (s *rbacChatReadCountingStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
 	return s.Store.InTx(func(tx database.Store) error {
-		return fn(&chatReadCountingStore{Store: tx, reads: s.reads})
+		return fn(&rbacChatReadCountingStore{Store: tx, reads: s.reads})
 	}, opts)
 }
 
-func (s *chatReadCountingStore) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+func (s *rbacChatReadCountingStore) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	s.reads.Add(1)
 	return s.Store.GetChatByID(ctx, id)
 }
@@ -549,13 +549,13 @@ func TestChatMachine_Update_AuthorizesFromCachedChatRBAC(t *testing.T) {
 		setup      func(t *testing.T, f *testFixture, m *chatstate.ChatMachine)
 		transition func(tx *chatstate.Tx, f *testFixture) error
 		wantStatus database.ChatStatus
-		// The two state loads (the transition's and Update's publication
-		// read) always read the chat; only the lock's authorization read
-		// depends on the caller's cache.
+		// The transition loads state from the locked row, so only Update's
+		// publication read always reads the chat; the lock's authorization
+		// read depends on the caller's cache.
 		wantReads int32
 	}{
-		{name: "NoCallerCache", transition: finishTurn, wantStatus: database.ChatStatusWaiting, wantReads: 3},
-		{name: "CallerCache", callerCache: true, transition: finishTurn, wantStatus: database.ChatStatusWaiting, wantReads: 2},
+		{name: "NoCallerCache", transition: finishTurn, wantStatus: database.ChatStatusWaiting, wantReads: 2},
+		{name: "CallerCache", callerCache: true, transition: finishTurn, wantStatus: database.ChatStatusWaiting, wantReads: 1},
 		{
 			// Acquire upserts the heartbeat and the publication checks the
 			// fresh lease.
@@ -566,7 +566,7 @@ func TestChatMachine_Update_AuthorizesFromCachedChatRBAC(t *testing.T) {
 				return err
 			},
 			wantStatus: database.ChatStatusRunning,
-			wantReads:  2,
+			wantReads:  1,
 		},
 		{
 			// Sending from waiting cancels the pending tool call, which
@@ -589,7 +589,7 @@ func TestChatMachine_Update_AuthorizesFromCachedChatRBAC(t *testing.T) {
 				return err
 			},
 			wantStatus: database.ChatStatusRunning,
-			wantReads:  2,
+			wantReads:  1,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -601,7 +601,7 @@ func TestChatMachine_Update_AuthorizesFromCachedChatRBAC(t *testing.T) {
 			}
 			reads := &atomic.Int32{}
 			authzDB := dbauthz.New(
-				&chatReadCountingStore{Store: f.DB, reads: reads},
+				&rbacChatReadCountingStore{Store: f.DB, reads: reads},
 				rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
 				slogtest.Make(t, nil),
 				nil,
@@ -634,7 +634,7 @@ func TestCreateChat_AuthorizesFromInsertedChat(t *testing.T) {
 	f := newTestFixture(t)
 	reads := &atomic.Int32{}
 	authzDB := dbauthz.New(
-		&chatReadCountingStore{Store: f.DB, reads: reads},
+		&rbacChatReadCountingStore{Store: f.DB, reads: reads},
 		rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
 		slogtest.Make(t, nil),
 		nil,

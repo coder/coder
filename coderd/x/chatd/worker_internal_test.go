@@ -512,12 +512,12 @@ func TestWorker_AcquireCandidateAuthorizesWithoutChatReads(t *testing.T) {
 		name         string
 		ownedLive    bool
 		wantAcquired bool
-		// Only the callback's load, the transition's load, and the
-		// publication read the chat; authorization never does.
+		// Only the publication reads the chat; the callback and transition
+		// load the locked row and authorization uses the candidate.
 		wantReads int64
 	}{
-		{name: "LosesToLiveLease", ownedLive: true, wantAcquired: false, wantReads: 1},
-		{name: "Wins", wantAcquired: true, wantReads: 3},
+		{name: "LosesToLiveLease", ownedLive: true, wantAcquired: false, wantReads: 0},
+		{name: "Wins", wantAcquired: true, wantReads: 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
