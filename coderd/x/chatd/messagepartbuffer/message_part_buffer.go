@@ -576,38 +576,19 @@ func (b *Buffer) deliverSubscriber(ctx context.Context, key Key, subscriber *epi
 //
 // While the episode is open, the send has no deadline: the buffer keeps an
 // open episode whether or not it has subscribers, so dropping the subscriber
-// would not free the episode. Waiting holds only the batch being sent, and
-// the subscriber continues from its cursor. Once the episode is closed, the
-// send waits at most SubscriberSendTimeout, because a subscriber keeps a
-// closed episode from being garbage collected. A send that is waiting when
-// the episode closes wakes on the close notification and starts the timeout
-// then.
+// would not free the episode. The subscriber continues from its cursor. Once
+// the episode is closed, the send waits at most SubscriberSendTimeout, because
+// a subscriber keeps a closed episode from being garbage collected. A send that
+// is waiting when the episode closes leaves the open-episode loop on the close
+// notification and starts the timeout then.
 func (b *Buffer) sendSubscriberPart(ctx context.Context, key Key, subscriber *episodeSubscriber, part Part) bool {
-	var timer *quartz.Timer
-	defer func() {
-		if timer != nil {
-			timer.Stop()
-		}
-	}()
-	for {
-		if timer == nil && b.isEpisodeClosed(key) {
-			timer = b.opts.Clock.NewTimer(b.opts.SubscriberSendTimeout, "message-part-buffer", "subscriber-send")
-		}
-		// Wait for wakeups only until the timeout starts.
-		wake := subscriber.notifyCh
-		var timeout <-chan time.Time
-		if timer != nil {
-			wake = nil
-			timeout = timer.C
-		}
+	for !b.isEpisodeClosed(key) {
 		select {
 		case subscriber.out <- part:
 			return true
-		case <-wake:
-			// AddPart and CloseEpisode both notify. The loop checks for a
-			// close, and deliverSubscriber reads added parts after the send.
-		case <-timeout:
-			return false
+		case <-subscriber.notifyCh:
+			// AddPart and CloseEpisode both notify. deliverSubscriber reads
+			// added parts after the send.
 		case <-subscriber.stopCh:
 			return false
 		case <-ctx.Done():
@@ -615,6 +596,20 @@ func (b *Buffer) sendSubscriberPart(ctx context.Context, key Key, subscriber *ep
 		case <-b.done:
 			return false
 		}
+	}
+	timer := b.opts.Clock.NewTimer(b.opts.SubscriberSendTimeout, "message-part-buffer", "subscriber-send")
+	defer timer.Stop()
+	select {
+	case subscriber.out <- part:
+		return true
+	case <-timer.C:
+		return false
+	case <-subscriber.stopCh:
+		return false
+	case <-ctx.Done():
+		return false
+	case <-b.done:
+		return false
 	}
 }
 
