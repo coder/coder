@@ -149,11 +149,11 @@ func (e streamPartsEndpoint) serve(ctx context.Context, transport streamPartsSer
 		case part, ok := <-parts:
 			if !ok {
 				parts = nil
-				// A dropped subscription has missed parts of its episode, so
-				// end the connection. The relay forwarder then reconnects
-				// and selects the episode again, which replays it from seq 1.
-				// An ended episode keeps the connection open for the next
-				// selection.
+				// The endpoint has not sent every part of a dropped
+				// subscription's episode, so it ends the connection. The relay
+				// forwarder then reconnects and selects the episode again, and
+				// the buffer replays the episode from seq 1. After an episode
+				// ends, the connection stays open for the next selection.
 				if err := subscription.Err(); err != nil {
 					e.logger.Warn(ctx, "message part subscription dropped",
 						slog.F("history_version", selected.HistoryVersion),

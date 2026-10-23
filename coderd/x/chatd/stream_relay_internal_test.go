@@ -94,8 +94,9 @@ func TestStreamRelayForwarderRecoversDroppedSubscription(t *testing.T) {
 		}
 
 		synctest.Wait()
-		// drain starts with synctest.Wait, so the buffer acts on the fired
-		// timer before the stream loop reads again.
+		// The mock clock delivers the timer value from another goroutine.
+		// drain starts with synctest.Wait, so the buffer acts on it before
+		// the stream loop reads again.
 		clock.Advance(sendTimeout).MustWait(ctx)
 		drain()
 		require.Less(t, lastSeq, int64(episodeParts), "the stall did not drop the subscription")

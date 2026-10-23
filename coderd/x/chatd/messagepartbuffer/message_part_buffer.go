@@ -160,8 +160,8 @@ type episodeSubscriber struct {
 	stopCh   chan struct{}
 	next     int
 	stopOnce sync.Once
-	// err is why the buffer ended the subscription, or nil when the
-	// episode ended or the subscriber canceled. Guarded by Buffer.mu.
+	// err is ErrSubscriberSendTimeout after a send times out, and nil
+	// otherwise. Guarded by Buffer.mu.
 	err error
 }
 
@@ -393,14 +393,15 @@ type Subscription struct {
 
 // Parts returns the channel that receives the episode's parts in seq order.
 // The buffer closes it after it delivers every part of a closed episode, and
-// when the subscription ends for any other reason.
+// after Close, a send timeout, cancellation of the context passed to
+// SubscribeToEpisode, or buffer shutdown.
 func (s *Subscription) Parts() <-chan Part {
 	return s.subscriber.out
 }
 
-// Err reports why the buffer ended the subscription. After Parts is closed,
-// it returns ErrSubscriberSendTimeout if the subscriber did not accept a part
-// within the send timeout, and nil otherwise.
+// Err returns ErrSubscriberSendTimeout after the buffer closes Parts because
+// the subscriber did not accept a part within the send timeout, and nil
+// otherwise. Call it after Parts is closed.
 func (s *Subscription) Err() error {
 	s.buffer.mu.Lock()
 	defer s.buffer.mu.Unlock()
