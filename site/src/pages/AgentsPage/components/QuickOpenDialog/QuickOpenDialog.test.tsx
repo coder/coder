@@ -1,9 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AxiosError, AxiosHeaders } from "axios";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { API } from "#/api/api";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import {
@@ -85,6 +85,47 @@ describe("QuickOpenDialog", () => {
 			expect(
 				screen.queryByRole("combobox", { name: "Search files" }),
 			).toBeNull(),
+		);
+	});
+
+	it("waits for the git watcher before searching", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		onTestFinished(() => {
+			vi.useRealTimers();
+		});
+		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+		const queryClient = createTestQueryClient();
+		const dialog = (value: WorkspaceFilesContextValue) => (
+			<QueryClientProvider client={queryClient}>
+				<WorkspaceFilesContext value={value}>
+					<QuickOpenDialog />
+				</WorkspaceFilesContext>
+			</QueryClientProvider>
+		);
+		const { rerender } = render(
+			dialog(contextValue({ repoRoots: [], repoRootsSettled: false })),
+		);
+
+		await user.keyboard("{Control>}p{/Control}");
+		await waitFor(() =>
+			expect(
+				screen.getByRole("combobox", { name: "Search files" }),
+			).toHaveFocus(),
+		);
+		await user.keyboard("main");
+		await screen.findByText("Searching...");
+		await act(() => vi.advanceTimersByTimeAsync(500));
+		expect(API.findWorkspaceAgentFiles).not.toHaveBeenCalled();
+
+		rerender(dialog(contextValue()));
+
+		await screen.findByRole("option", { name: /main_test\.go/ });
+		expect(API.findWorkspaceAgentFiles).toHaveBeenCalledTimes(1);
+		expect(API.findWorkspaceAgentFiles).toHaveBeenCalledWith(
+			"agent-1",
+			["/home/coder/a", "/home/coder/b"],
+			"main",
+			undefined,
 		);
 	});
 
