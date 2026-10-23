@@ -570,16 +570,14 @@ func (b *Buffer) deliverSubscriber(ctx context.Context, key Key, subscriber *epi
 	}
 }
 
-// sendSubscriberPart reports whether it sent part. The send timeout starts
-// only once the episode is closed, because subscribers keep only closed
-// episodes retained.
+// sendSubscriberPart has no timeout while the episode is open: open episodes
+// are kept regardless of subscribers, so a drop would not free the episode.
 func (b *Buffer) sendSubscriberPart(ctx context.Context, key Key, subscriber *episodeSubscriber, part Part) bool {
 	for !b.isEpisodeClosed(key) {
 		select {
 		case subscriber.out <- part:
 			return true
 		case <-subscriber.notifyCh:
-			// deliverSubscriber reads new parts after this send.
 		case <-subscriber.stopCh:
 			return false
 		case <-ctx.Done():
