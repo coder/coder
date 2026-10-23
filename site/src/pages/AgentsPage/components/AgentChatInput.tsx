@@ -822,12 +822,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const [composerElement, setComposerElement] = useState<HTMLDivElement | null>(
 		null,
 	);
-	// The `--mobile-dropdown-*` variables are only read by the
-	// `mobile-full-width-dropdown*` utilities in index.css, which apply
-	// below the md breakpoint. Writing them on `<html>` invalidates the
-	// computed style of every element in the document, so the effect
-	// must not run on wider viewports and must not rewrite unchanged
-	// values.
+	// A custom property change on `<html>` restyles every element in the
+	// document. Only the below-md `mobile-full-width-dropdown*` utilities
+	// read these variables, so skip wider viewports and unchanged values.
 	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
 	useEffect(() => {
 		if (!composerElement || !isBelowMd) return;

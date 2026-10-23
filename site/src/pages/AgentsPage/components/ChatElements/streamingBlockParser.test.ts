@@ -101,9 +101,8 @@ const crlf =
 
 const corpora = { prose, footnotes, unclosedFence, crlf };
 
-// Suffixes that remend appends or that a stream may produce at the end of
-// a frame, applied and then removed between renders so the tail is not a
-// pure extension of the previous input.
+// Suffixes that remend appends or that a frame may end with. Each test adds
+// one and removes it on the next render, so the input does not only grow.
 const tailRewrites = [
 	"**",
 	"\n```",
@@ -231,9 +230,8 @@ describe("createStreamingBlockParser", () => {
 			parse(streamed.slice(0, end));
 		}
 
-		// After the first blocks complete, each render lexes the previous
-		// block plus the open tail. The corpus's longest block is far
-		// shorter than the whole text.
+		// Once leading blocks complete, each render lexes only the blocks after
+		// the last blank block, which are much shorter than the whole text.
 		const longestBlock = Math.max(
 			...parseMarkdownIntoBlocks(streamed).map((block) => block.length),
 		);

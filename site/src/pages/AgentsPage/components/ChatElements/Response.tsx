@@ -236,14 +236,11 @@ const createComponents = (
 					// MermaidDiagram's error fallback strips the margin, border
 					// and rounding from its direct child, so the frame must stay
 					// on the outermost element rather than the scroll container.
-					// The scroll container is a plain element rather than
-					// ScrollArea: Radix renders a <style> element per instance,
-					// and adding or removing a stylesheet makes WebKit restyle
-					// the whole document (seconds on long transcripts) every time
-					// a code block mounts or unmounts. The `table min-w-full`
-					// wrapper sizes the viewer to its longest line, as
-					// ScrollArea's viewport did, so long lines scroll instead of
-					// clipping.
+					// The scroll container is a plain element, not ScrollArea:
+					// Radix renders a <style> element per instance, and WebKit
+					// restyles the whole document whenever a stylesheet is added
+					// or removed. `table min-w-full` sizes the viewer to its
+					// longest line, so long lines scroll instead of clipping.
 					const codeBlock = (
 						<div className="group/code-block relative my-4 overflow-hidden rounded-md border border-solid border-border bg-surface-primary">
 							<div className="overflow-auto scrollbar-thin [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
@@ -306,9 +303,7 @@ export const Response = ({
 	const fileViewerThemeType: FileViewerThemeType =
 		theme.palette.mode === "dark" ? "dark" : "light";
 	const components = componentsByTheme[fileViewerThemeType];
-	// One parser per Response instance so its cache follows this message's
-	// text. It is only used while streaming; the switch back to Streamdown's
-	// own parser at the end of the stream re-splits the final text once.
+	// One parser per Response, so its cache holds only this message's blocks.
 	const [parseStreamingBlocks] = useState(() => createStreamingBlockParser());
 
 	return (

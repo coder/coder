@@ -140,10 +140,10 @@ export const AttachmentPreview: React.FC<{
 							// Key combines file metadata with index as a fallback for
 							// duplicate names. Acceptable for a small, append-only list.
 							key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
-							// The overlay buttons reveal on `peer-focus` of the preceding
-							// siblings, not `group-focus-within`: a `:focus-within`
-							// ancestor selector makes WebKit walk every ancestor's subtree
-							// on each focus change (~200 ms per focus in long chats).
+							// The overlay buttons show on `peer-focus` of a preceding
+							// sibling, not `group-focus-within`: WebKit restyles every
+							// ancestor's subtree on each focus change while any
+							// `A:focus-within B` rule exists.
 							className="group relative"
 						>
 							{isRasterImageMediaType(file.type) && previewUrl ? (

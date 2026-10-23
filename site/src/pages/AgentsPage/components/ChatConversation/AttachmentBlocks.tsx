@@ -187,11 +187,9 @@ const AttachmentPreviewFrame: React.FC<{
 	return (
 		<div className="group/attachment relative inline-flex flex-col items-start">
 			{/*
-			 * Sibling (peer) rather than ancestor (group-focus-within) focus
-			 * state: WebKit invalidates every ancestor's whole subtree on each
-			 * focus change when a stylesheet has `:focus-within` before a
-			 * descendant combinator, which cost ~200 ms per focus in long
-			 * chats. Sibling selectors only invalidate siblings.
+			 * The overlay shows on `peer-focus-within`, not
+			 * `group-focus-within`: WebKit restyles every ancestor's subtree on
+			 * each focus change while any `A:focus-within B` rule exists.
 			 */}
 			<div className="peer/attachment contents">{children}</div>
 			<DownloadOverlay

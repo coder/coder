@@ -41,9 +41,7 @@ export const SingleImage: Story = {
 	},
 };
 
-// Keyboard focus on the thumbnail reveals the overlay actions. The reveal
-// uses sibling focus state (peer-focus), not group-focus-within, which
-// WebKit invalidates across the whole document on every focus change.
+// Keyboard focus on the thumbnail shows the overlay actions.
 export const ThumbnailFocused: Story = {
 	args: (() => {
 		const file = createMockFile("photo.png", "image/png");

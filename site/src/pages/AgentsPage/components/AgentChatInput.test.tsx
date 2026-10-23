@@ -1025,10 +1025,6 @@ describe("AgentChatInput", () => {
 		);
 	});
 
-	// Writing custom properties on <html> restyles the whole document, which
-	// blocked focus and typing for seconds in long chats. The variables
-	// only feed the below-md dropdown utilities, so wider viewports must not
-	// touch the root element at all.
 	it("does not write mobile dropdown variables on the root element at desktop widths", async () => {
 		const user = userEvent.setup();
 		const setProperty = vi.spyOn(document.documentElement.style, "setProperty");
@@ -1060,8 +1056,8 @@ describe("AgentChatInput", () => {
 		}
 		const writesAfterMount = setProperty.mock.calls.length;
 
-		// Focus and typing re-read the geometry; jsdom reports the same
-		// rectangles, so the values are unchanged and must not be rewritten.
+		// Focus and typing re-read the geometry, and jsdom returns the same
+		// rectangles, so no value changes.
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
 		await user.keyboard("when");
 		expect(setProperty.mock.calls.length).toBe(writesAfterMount);

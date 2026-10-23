@@ -340,10 +340,9 @@ export function sliceAtGraphemeBoundary(
 	}
 
 	if (graphemeSegmenter) {
-		// Segments.containing() locates one cluster from a nearby safe
-		// point instead of walking every cluster from the start of the
-		// text. This runs on every animation frame while streaming, and
-		// a walk from index 0 grows with the message length.
+		// This runs on every animation frame while streaming. containing()
+		// finds the cluster at the cut without iterating every cluster
+		// before it.
 		const last = graphemeSegmenter
 			.segment(text)
 			.containing(maxCodeUnitLength - 1);

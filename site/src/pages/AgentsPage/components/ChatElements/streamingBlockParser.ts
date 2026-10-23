@@ -2,12 +2,10 @@ import { parseMarkdownIntoBlocks } from "streamdown";
 
 type ParseBlocks = (markdown: string) => string[];
 
-// Two constructs make block splitting depend on text outside the tail:
-// streamdown keeps a document with footnote syntax as a single block so
-// references resolve across paragraphs, and marked drops a link reference
-// definition whose label was already defined earlier. Either one in the
-// tail forces a full parse. The label grammar is marked's. The equivalence
-// test pins both against streamdown's own parser.
+// Two constructs make block splitting depend on text before the tail:
+// Streamdown keeps a document with footnote syntax as one block, and marked
+// drops a link reference definition whose label was defined earlier. Either
+// one in the tail forces a full parse. The label pattern is marked's.
 const NEEDS_FULL_PARSE = /\[\^[\w-]{1,200}\]|^ {0,3}\[(?:\\.|[^[\]\\])+\]:/m;
 
 function isBlank(block: string): boolean {
@@ -23,13 +21,12 @@ type Cut = {
 
 const NO_CUT: Cut = { count: 0, witness: "" };
 
-// A blank line ends every block construct except a list or indented code
-// block, and those continue only when the next line is indented. So the
-// blocks before a blank block are complete as long as the first line after
-// the blank stays the same, and the lexer starts fresh after the blank
-// (nothing merges into a blank token). Cutting anywhere else is unsafe:
-// marked's paragraph rules look several lines ahead, so text appended later
-// can move a boundary between two adjacent non-blank blocks.
+// A blank line ends every block except a list or indented code block, and
+// those continue only when the next line is indented. So the blocks up to a
+// blank block are complete while the first line after it stays the same,
+// and nothing merges into a blank token. A cut between two non-blank blocks
+// is unsafe: marked's paragraph rules look several lines ahead, so appended
+// text can move that boundary.
 function findCut(markdown: string, blocks: readonly string[]): Cut {
 	let open = blocks.length - 1;
 	while (open >= 0 && isBlank(blocks[open])) {
@@ -55,11 +52,11 @@ function findCut(markdown: string, blocks: readonly string[]): Cut {
  * Creates a `parseMarkdownIntoBlocksFn` for one streaming message.
  *
  * Streamdown re-splits the entire text into blocks on every render, which
- * is O(message length) per animation frame while streaming and dominates
- * WebKit's main thread on long replies. Streamed text only grows, so this
- * parser caches the blocks before the last blank line ahead of the open
- * block and re-lexes only the text after it. Any other change, such as a
- * new stream replacing the message, falls back to a full parse.
+ * costs time proportional to the message length on every animation frame
+ * while streaming. Streamed text only grows, so this parser caches the
+ * blocks up to the last blank block before the open block and re-lexes only
+ * the text after them. Any other change, such as a new stream replacing the
+ * message, gets a full parse.
  *
  * The result is identical to `parse(markdown)`.
  */
@@ -79,10 +76,9 @@ export function createStreamingBlockParser(
 		if (!sharesPrefix || cut.count !== completedBlocks.length) {
 			completedBlocks = blocks.slice(0, cut.count);
 			completedText = completedBlocks.join("");
-			// Block raws only concatenate back to the source when marked kept
-			// every token; CRLF normalization and dropped duplicate link
-			// definitions break that, and then offsets mean nothing. Such a
-			// message is parsed from scratch on every render.
+			// Block raws concatenate back to the source only when marked did
+			// not normalize or drop input; CRLF and duplicate link definitions
+			// break that. Such a message gets a full parse on every render.
 			if (!markdown.startsWith(completedText)) {
 				completedBlocks = [];
 				completedText = "";
