@@ -2,10 +2,10 @@ import type { ChatDiffStatus } from "#/api/typesGenerated";
 import { prNumber } from "./pullRequest";
 
 /** The git hosts coderd's git integration supports (coderd/externalauth/gitprovider). */
-export type GitProvider = "github" | "gitlab";
+type GitProvider = "github" | "gitlab";
 
 /** A repository's web page on a git host. */
-export type GitWebRepository = {
+type GitWebRepository = {
 	provider: GitProvider;
 	/** Such as "https://github.com/coder/coder". */
 	url: string;
@@ -229,7 +229,7 @@ type FileWebLinksOptions = {
 	diffStatuses: readonly ChatDiffStatus[];
 };
 
-export type FileWebLinks = {
+type FileWebLinks = {
 	repository: GitWebRepository;
 	/**
 	 * The file on the pushed branch, or else at HEAD. `commit` is set for
