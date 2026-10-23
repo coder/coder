@@ -594,7 +594,7 @@ describe("FileTab", () => {
 			expect(files.revealInFiles).toHaveBeenLastCalledWith(path);
 		});
 
-		it("links the cursor's line on the pushed branch and in its pull request", async () => {
+		it("links the pushed branch, without the cursor's line, and its pull request", async () => {
 			const user = userEvent.setup();
 			readFile.mockResolvedValue(fileContents("a\nb\n", '"v1"'));
 			renderFileTab({
@@ -610,7 +610,7 @@ describe("FileTab", () => {
 				screen.getByRole("menuitem", { name: "Open on GitHub" }),
 			).toHaveAttribute(
 				"href",
-				"https://github.com/coder/coder/blob/feat/main.go#L2",
+				"https://github.com/coder/coder/blob/feat/main.go",
 			);
 			const pullRequest = screen.getByRole("menuitem", {
 				name: "Open in PR #12",
@@ -621,6 +621,43 @@ describe("FileTab", () => {
 					"https://github.com/coder/coder/pull/12/files#diff-2873f79a86c0d8b3335cd7731b0ecf7dd4301eb19a82ef7a1cba7589b5252261",
 				);
 			});
+		});
+
+		it("links the checked-out commit at the cursor's line in it", async () => {
+			const user = userEvent.setup();
+			readFile.mockResolvedValue(fileContents("a\nnew\nb\nc\n", '"v1"'));
+			renderFileTab({
+				workspaceFiles: workspaceFiles(
+					[],
+					undefined,
+					"diff --git a/main.go b/main.go\nindex 1..2 100644\n--- a/main.go\n+++ b/main.go\n@@ -1,3 +1,4 @@\n a\n+new\n b\n c\n",
+				),
+			});
+			const editor =
+				await screen.findByLabelText<HTMLTextAreaElement>("File contents");
+			const headLink = async (cursor: number) => {
+				act(() => editor.setSelectionRange(cursor, cursor));
+				fireEvent.select(editor);
+				await openMenu(user);
+				const href = screen
+					.getByRole("menuitem", { name: "Open on GitHub" })
+					.getAttribute("href");
+				await user.keyboard("{Escape}");
+				return href;
+			};
+			const blob = `https://github.com/coder/coder/blob/${headCommit}/main.go`;
+
+			// Line 3 on disk, "b", is line 2 at HEAD.
+			expect(await headLink(6)).toBe(`${blob}#L2`);
+			// HEAD lacks line 2, "new".
+			expect(await headLink(2)).toBe(blob);
+			// Unsaved edits move the editor's lines away from the disk's: line 4
+			// in the editor, "b", is line 3 on disk.
+			await user.type(editor, "x{Enter}", {
+				initialSelectionStart: 0,
+				initialSelectionEnd: 0,
+			});
+			expect(await headLink(8)).toBe(blob);
 		});
 
 		it("links the checked-out commit of a branch not known to be pushed", async () => {

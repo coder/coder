@@ -17,7 +17,11 @@ import {
 	getFileWebLinks,
 	gitProviderNames,
 } from "../../utils/gitWebUrl";
-import { findRepoRoot, isAddedInDiff } from "../MainTabs/useFileTabRefresh";
+import {
+	findRepoRoot,
+	getHeadLine,
+	isAddedInDiff,
+} from "../MainTabs/useFileTabRefresh";
 
 type FileActionsMenuItemsProps = {
 	readonly Item: typeof DropdownMenuItem | typeof ContextMenuItem;
@@ -26,7 +30,11 @@ type FileActionsMenuItemsProps = {
 		| typeof ContextMenuSeparator;
 	/** The file's absolute path. */
 	readonly path: string;
-	/** The editor's cursor line, which links to the file scroll to. */
+	/**
+	 * The cursor's line in the file on disk, which the link at HEAD scrolls
+	 * to. Undefined while the editor has unsaved edits, since the lines of
+	 * the file on disk then differ from the editor's.
+	 */
 	readonly line?: number;
 };
 
@@ -43,19 +51,23 @@ export const FileActionsMenuItems: React.FC<FileActionsMenuItemsProps> = ({
 	const relativePath =
 		root && root !== path ? path.slice(root.length + 1) : undefined;
 	const repository = root ? workspaceFiles?.repositories.get(root) : undefined;
+	const diff = repository?.unified_diff ?? "";
 	// A file HEAD lacks has no page on the host, at HEAD or in the pull
 	// request.
 	const links =
 		workspaceFiles &&
 		relativePath &&
 		repository?.remote_origin &&
-		!isAddedInDiff(repository.unified_diff ?? "", relativePath)
+		!isAddedInDiff(diff, relativePath)
 			? getFileWebLinks({
 					origin: repository.remote_origin,
 					branch: repository.branch,
 					headCommit: repository.head_commit ?? "",
 					relativePath,
-					line,
+					headLine:
+						line === undefined
+							? undefined
+							: getHeadLine(diff, relativePath, line),
 					diffStatuses: workspaceFiles.diffStatuses,
 				})
 			: undefined;
