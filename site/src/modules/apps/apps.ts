@@ -293,4 +293,4 @@ const isThisDeployment = (
  * since parsing normalizes `/.` and drops an empty `?`.
  */
 export const isBareOrigin = (url: string): boolean =>
-	/^[a-z][a-z\d+.-]*:\/\/[^/\\?#@]+\/?$/i.test(url) && URL.canParse(url);
+	/^[a-z][a-z\d+.-]*:\/\/[^/\\?#@\s]+\/?$/i.test(url) && URL.canParse(url);
