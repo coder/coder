@@ -77,8 +77,10 @@ type ReconnectingWebSocketOptions<TSocket extends Closable> = {
 	 * Factory that creates and returns a new socket. Called on the
 	 * initial connection and on every reconnection attempt. The caller
 	 * is responsible for attaching any `message` listeners to the
-	 * returned socket. This utility only manages the lifecycle
-	 * (`open`, `close`, `error`) events.
+	 * returned socket. This utility manages the lifecycle (`open`,
+	 * `close`, `error`) events. With `silenceTimeoutMs` set, it also
+	 * listens to `message` events to restart the timeout, without
+	 * reading their data.
 	 */
 	connect: () => TSocket;
 
@@ -126,11 +128,12 @@ type ReconnectingWebSocketOptions<TSocket extends Closable> = {
 
 	/**
 	 * Treat the socket as disconnected when it receives no message for this
-	 * many milliseconds after connecting or after its last message: close
-	 * it, call `onDisconnect`, and reconnect. Browsers do not expose
-	 * WebSocket pings, so a frozen connection otherwise fires no event.
-	 * Only set this when the server sends messages, such as keepalives,
-	 * more often than the timeout. Disabled when omitted.
+	 * many milliseconds after the socket is created or after its last
+	 * message: call `onDisconnect`, close the socket, and reconnect.
+	 * Browsers do not expose WebSocket pings, so a frozen connection
+	 * otherwise fires no event, and its `close` event may arrive late or
+	 * never. Only set this when the server sends messages, such as
+	 * keepalives, more often than the timeout. Disabled when omitted.
 	 */
 	silenceTimeoutMs?: number;
 };
@@ -304,8 +307,8 @@ export function createReconnectingWebSocket<TSocket extends Closable>(
 				}
 				clearSilenceTimer();
 				silenceTimer = setTimeout(() => {
-					// A frozen connection may never deliver the close event,
-					// so disconnect first and let the close event be ignored.
+					// The close event may arrive late or never, so disconnect
+					// first; the guard in handleDisconnect ignores that event.
 					handleDisconnect();
 					socket.close();
 				}, silenceTimeoutMs);
