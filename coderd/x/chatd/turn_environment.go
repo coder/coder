@@ -167,6 +167,7 @@ func (p *Server) buildTurnEnvironment(
 		mcpLoadFailures []mcpclient.ConnectSummary
 	)
 
+	usesMCPServers := turnUsesMCPServers(chat)
 	var g errgroup.Group
 	g.Go(func() error {
 		var err error
@@ -185,6 +186,14 @@ func (p *Server) buildTurnEnvironment(
 		g.Go(func() error {
 			var err error
 			inlineMCPServers, mcpLoadFailures, err = p.loadInlineMCPServers(ctx, chat)
+			return err
+		})
+	}
+	var internalMCPServers []mcpclient.InProcessServer
+	if usesMCPServers && len(p.internalMCPServers) > 0 {
+		g.Go(func() error {
+			var err error
+			internalMCPServers, err = p.internalMCPServersForChat(ctx, chat)
 			return err
 		})
 	}
@@ -265,18 +274,25 @@ func (p *Server) buildTurnEnvironment(
 		currentPlanMode,
 		chat.ParentChatID,
 	)
-	// The caller picks the inline servers for each turn, so all of them
-	// are allowed in plan mode.
+	// Root plan-mode chats allow inline servers selected by the caller
+	// and internal servers selected by coderd.
 	inlineMCPConnectServers, approvedInlineMCPServerIDs := filterMCPServersForTurn(
 		inlineMCPServers,
 		currentPlanMode,
 		chat.ParentChatID,
 		func(srv mcpclient.Server) (uuid.UUID, bool) { return srv.ID, true },
 	)
-	// Both sets are nil outside plan mode, so this never writes to a nil
+	internalMCPConnectServers, approvedInternalMCPServerIDs := filterMCPServersForTurn(
+		internalMCPServers,
+		currentPlanMode,
+		chat.ParentChatID,
+		func(srv mcpclient.InProcessServer) (uuid.UUID, bool) { return srv.ID, true },
+	)
+	// All sets are nil outside plan mode, so this never writes to a nil
 	// map. Every tool source below is filtered against the union.
 	maps.Copy(approvedPlanMCPConfigIDs, approvedInlineMCPServerIDs)
-	if isExploreSubagent && isRootChat {
+	maps.Copy(approvedPlanMCPConfigIDs, approvedInternalMCPServerIDs)
+	if !usesMCPServers {
 		mcpConnectConfigs = nil
 		inlineMCPConnectServers = nil
 		approvedPlanMCPConfigIDs = map[uuid.UUID]struct{}{}
@@ -329,13 +345,15 @@ func (p *Server) buildTurnEnvironment(
 		currentChat:      &currentChat,
 		loadChatSnapshot: loadChatSnapshot,
 	}
-	// mcpCleanup and inlineMCPCleanup are assigned by g2 goroutines and
-	// read only after g2.Wait, so no error path can run this before
-	// they are set.
-	var mcpCleanup, inlineMCPCleanup func()
+	// Once g2 starts, cleanup must wait for g2.Wait because its callbacks
+	// are assigned by g2 goroutines.
+	var mcpCleanup, inlineMCPCleanup, internalMCPCleanup func()
 	cleanup := func() {
 		if inlineMCPCleanup != nil {
 			inlineMCPCleanup()
+		}
+		if internalMCPCleanup != nil {
+			internalMCPCleanup()
 		}
 		if mcpCleanup != nil {
 			mcpCleanup()
@@ -616,6 +634,20 @@ func (p *Server) buildTurnEnvironment(
 			return nil
 		})
 	}
+	var (
+		internalMCPTools     []fantasy.AgentTool
+		internalMCPSummaries []mcpclient.ConnectSummary
+	)
+	if len(internalMCPConnectServers) > 0 {
+		g2.Go(func() error {
+			internalMCPTools, internalMCPSummaries, internalMCPCleanup = mcpclient.ConnectInProcess(
+				ctx,
+				logger,
+				internalMCPConnectServers,
+			)
+			return nil
+		})
+	}
 	if chat.WorkspaceID.Valid && !isPlanModeTurn && !isExploreSubagent {
 		g2.Go(func() error {
 			var err error
@@ -636,6 +668,7 @@ func (p *Server) buildTurnEnvironment(
 	}
 	g2Err := g2.Wait()
 	mcpSummaries = append(mcpSummaries, inlineMCPSummaries...)
+	mcpSummaries = append(mcpSummaries, internalMCPSummaries...)
 	mcpSummaries = append(mcpSummaries, mcpLoadFailures...)
 	// Record connect outcomes before acting on any preparation error:
 	// ConnectAll has already run, so a failure below (or in g2 itself)
@@ -814,6 +847,20 @@ func (p *Server) buildTurnEnvironment(
 		builtinToolNames[t.Info().Name] = true
 	}
 
+	// Append sources in trust order so less trusted tools cannot replace
+	// trusted tools: built-in, internal, admin, workspace, then inline.
+	// Apply the plan-mode filter after all sources join.
+	tools = mcpclient.AppendTools(ctx, logger, tools, internalMCPTools)
+	// Exclude rejected tools from deferral so a name collision cannot
+	// hide the winning tool through the rejected tool's deferral policy.
+	numTools := len(tools)
+	tools = mcpclient.AppendTools(ctx, logger, tools, mcpTools)
+	mcpTools = tools[numTools:]
+	if !isExploreSubagent {
+		numTools = len(tools)
+		tools = mcpclient.AppendTools(ctx, logger, tools, workspaceMCPTools)
+		workspaceMCPTools = tools[numTools:]
+	}
 	mcpConfigByID := make(map[uuid.UUID]database.MCPServerConfig, len(mcpConnectConfigs))
 	for _, config := range mcpConnectConfigs {
 		mcpConfigByID[config.ID] = config
@@ -827,14 +874,7 @@ func (p *Server) buildTurnEnvironment(
 		approvedMCPConfigIDs:  approvedPlanMCPConfigIDs,
 		includeWorkspaceTools: !isExploreSubagent,
 	})
-	tools = append(tools, mcpTools...)
-	if !isExploreSubagent {
-		tools = append(tools, workspaceMCPTools...)
-	}
-	// Inline tools join after every trusted source so a name
-	// collision resolves in favor of the trusted tool, and before the
-	// plan-mode filter so they are subject to the same approved set.
-	tools = mcpclient.AppendInline(ctx, logger, tools, inlineMCPTools)
+	tools = mcpclient.AppendTools(ctx, logger, tools, inlineMCPTools)
 	tools = filterToolsForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 	// chatloop reads an empty active tool list as every tool, so Explore
 	// children also drop the tools their allowlist blocks.
@@ -1956,24 +1996,31 @@ func isExploreSubagentMode(mode database.NullChatMode) bool {
 	return mode.Valid && mode.ChatMode == database.ChatModeExplore
 }
 
-// filterMCPServersForTurn returns the external MCP servers visible on the
-// current turn and the set of their IDs. Outside plan mode every server is
-// visible and the set is nil. Plan-mode subagents see none: their trust
-// boundary is narrower than the root chat's. Root plan-mode chats see the
-// servers whose policy allows plan mode.
+func isPlanModeSubagentTurn(mode database.NullChatPlanMode, parentChatID uuid.NullUUID) bool {
+	return mode.Valid && mode.ChatPlanMode == database.ChatPlanModePlan && parentChatID.Valid
+}
+
+func turnUsesMCPServers(chat database.Chat) bool {
+	isExploreRootChat := isExploreSubagentMode(chat.Mode) && !chat.ParentChatID.Valid
+	return !isPlanModeSubagentTurn(chat.PlanMode, chat.ParentChatID) && !isExploreRootChat
+}
+
+// Plan-mode subagents have a narrower trust boundary and cannot use MCP
+// servers. Root plan-mode chats require policy approval. Outside plan mode,
+// all servers are visible and the approved-ID set is nil.
 func filterMCPServersForTurn[T any](
 	servers []T,
 	mode database.NullChatPlanMode,
 	parentChatID uuid.NullUUID,
 	policy func(T) (id uuid.UUID, allowInPlanMode bool),
 ) ([]T, map[uuid.UUID]struct{}) {
+	if isPlanModeSubagentTurn(mode, parentChatID) {
+		return nil, map[uuid.UUID]struct{}{}
+	}
 	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
 		return servers, nil
 	}
 	approved := map[uuid.UUID]struct{}{}
-	if parentChatID.Valid {
-		return nil, approved
-	}
 	filtered := make([]T, 0, len(servers))
 	for _, srv := range servers {
 		id, allowInPlanMode := policy(srv)
@@ -2056,8 +2103,6 @@ func filterToolsForTurn(
 	return filtered
 }
 
-// activeToolNamesForTurn extends the built-in plan allowlist with approved
-// external MCP tools for root plan-mode chats.
 func activeToolNamesForTurn(
 	allTools []fantasy.AgentTool,
 	mode database.NullChatPlanMode,
@@ -2078,12 +2123,9 @@ func exploreToolAllowed(tool fantasy.AgentTool) bool {
 	case "read_file", "execute", "process_output", "read_skill", "read_skill_file":
 		return true
 	}
-	// External MCP tools pass through here. Org tools were
-	// snapshot-filtered at spawn time on chat.MCPServerIDs, and inline
-	// tools come only from root chat servers with allow_in_subagents.
-	// WorkspaceMCPTool does not implement MCPToolIdentifier, so
-	// workspace tools are excluded here too, in addition to the
-	// structural exclusion in runChat tool assembly.
+	// Org tools use the spawn-time snapshot; inline tools require
+	// allow_in_subagents. Internal servers decide access in ServerForChat.
+	// WorkspaceMCPTool lacks MCPToolIdentifier and remains excluded.
 	_, ok := tool.(mcpclient.MCPToolIdentifier)
 	return ok
 }
