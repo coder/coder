@@ -77,6 +77,7 @@ type Handler struct {
 type repoSnapshot struct {
 	branch       string
 	remoteOrigin string
+	headCommit   string
 	unifiedDiff  string
 }
 
@@ -220,6 +221,7 @@ func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMes
 		if hasPrev &&
 			prev.branch == res.changes.Branch &&
 			prev.remoteOrigin == res.changes.RemoteOrigin &&
+			prev.headCommit == res.changes.HeadCommit &&
 			prev.unifiedDiff == res.changes.UnifiedDiff {
 			// No change in this repo since last emit.
 			continue
@@ -229,6 +231,7 @@ func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMes
 		h.lastSnapshots[res.root] = repoSnapshot{
 			branch:       res.changes.Branch,
 			remoteOrigin: res.changes.RemoteOrigin,
+			headCommit:   res.changes.HeadCommit,
 			unifiedDiff:  res.changes.UnifiedDiff,
 		}
 
@@ -359,7 +362,8 @@ func findRepoRoot(execer agentexec.Execer, gitBin string, p string) (string, err
 }
 
 // getRepoChanges reads the current state of a git repository using
-// the git CLI. It returns branch, remote origin, and a unified diff.
+// the git CLI. It returns branch, remote origin, HEAD commit, and a
+// unified diff.
 func getRepoChanges(ctx context.Context, logger slog.Logger, execer agentexec.Execer, gitBin string, repoRoot string) (codersdk.WorkspaceAgentRepoChanges, error) {
 	result := codersdk.WorkspaceAgentRepoChanges{
 		RepoRoot: repoRoot,
@@ -378,6 +382,15 @@ func getRepoChanges(ctx context.Context, logger slog.Logger, execer agentexec.Ex
 		result.Branch = strings.TrimSpace(string(out))
 	} else {
 		logger.Debug(ctx, "failed to read HEAD", slog.F("root", repoRoot), slog.Error(err))
+	}
+
+	// Read the commit HEAD points at. --verify --quiet exits non-zero
+	// without output when HEAD is unborn, leaving HeadCommit empty.
+	headCmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "rev-parse", "--verify", "--quiet", "HEAD^{commit}")
+	if out, err := headCmd.Output(); err == nil {
+		result.HeadCommit = strings.TrimSpace(string(out))
+	} else {
+		logger.Debug(ctx, "failed to read HEAD commit", slog.F("root", repoRoot), slog.Error(err))
 	}
 
 	// Read remote origin URL.

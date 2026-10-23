@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentgit"
@@ -355,6 +356,63 @@ func TestScanHeartbeatOnCleanRepo(t *testing.T) {
 	msg3 := h.Scan(ctx)
 	require.NotNil(t, msg3)
 	require.Empty(t, msg3.Repositories)
+}
+
+// TestScanHeadCommitChangeEmitsUpdate pins that a commit which changes
+// neither the branch nor the diff still emits the repo with the new
+// HeadCommit, so clients see HEAD move.
+func TestScanHeadCommitChangeEmitsUpdate(t *testing.T) {
+	t.Parallel()
+
+	repoDir := initTestRepo(t)
+	h := agentgit.NewHandler(slogtest.Make(t, nil))
+	require.True(t, h.Subscribe([]string{repoDir}))
+	ctx := context.Background()
+
+	msg1 := h.Scan(ctx)
+	require.NotNil(t, msg1)
+	require.Len(t, msg1.Repositories, 1)
+	first := msg1.Repositories[0]
+	require.Equal(t, gitOutput(t, repoDir, "rev-parse", "HEAD"), first.HeadCommit)
+
+	gitCmd(t, repoDir, "commit", "--allow-empty", "-m", "second commit")
+
+	msg2 := h.Scan(ctx)
+	require.NotNil(t, msg2)
+	require.Len(t, msg2.Repositories, 1, "a HEAD move must emit the repo")
+	second := msg2.Repositories[0]
+	require.Equal(t, gitOutput(t, repoDir, "rev-parse", "HEAD"), second.HeadCommit)
+	require.NotEqual(t, first.HeadCommit, second.HeadCommit)
+	require.Equal(t, first.Branch, second.Branch)
+	require.Equal(t, first.UnifiedDiff, second.UnifiedDiff)
+}
+
+// TestScanUnbornHeadHasEmptyHeadCommit pins that a repo without
+// commits reports an empty HeadCommit and does not log above debug.
+func TestScanUnbornHeadHasEmptyHeadCommit(t *testing.T) {
+	t.Parallel()
+
+	repoDir := testutil.TempDirResolved(t)
+	gitCmd(t, repoDir, "init")
+	sink := testutil.NewFakeSink(t)
+	h := agentgit.NewHandler(sink.Logger())
+	require.True(t, h.Subscribe([]string{repoDir}))
+
+	msg := h.Scan(context.Background())
+	require.NotNil(t, msg)
+	require.Len(t, msg.Repositories, 1)
+	require.Empty(t, msg.Repositories[0].HeadCommit)
+	require.NotEmpty(t, msg.Repositories[0].Branch, "an unborn HEAD still names its branch")
+	require.Empty(t, sink.Entries(func(e slog.SinkEntry) bool { return e.Level >= slog.LevelWarn }))
+}
+
+func gitOutput(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	require.NoError(t, err, "git %v", args)
+	return strings.TrimSpace(string(out))
 }
 
 // TestScanNoHeartbeatWithoutSubscribedRoots pins that the heartbeat
