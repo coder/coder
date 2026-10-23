@@ -362,6 +362,11 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			? (initialMessages.at(-1)?.id ?? -1)
 			: undefined,
 	);
+	// Tool results in messages above this ID arrived after mount, so their
+	// MCP Apps views open at once.
+	const [newestMessageIdAtMount] = useState(() =>
+		initialMessages.reduce((max, message) => Math.max(max, message.id), 0),
+	);
 	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
 		null,
 	);
@@ -717,7 +722,12 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			}
 		: undefined;
 
-	useMcpAppAutoOpen(store, canOpenMcpApps, handleOpenMcpAppTab);
+	useMcpAppAutoOpen(
+		store,
+		canOpenMcpApps,
+		newestMessageIdAtMount,
+		handleOpenMcpAppTab,
+	);
 
 	const insertComposerText = (text: string) => {
 		editing.chatInputRef.current?.insertText(text);
