@@ -10818,13 +10818,13 @@ func TestStreamChat(t *testing.T) {
 		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), stale.sortedIDs(), "the tab still shows deleted messages or is missing their replacements")
 
 		// A client without a snapshot version that holds message after_id
-		// gets no history reset, and no event carries snapshot_version.
+		// gets no history reset, and no event includes snapshot_version.
 		legacy := newChatTab(newestPage())
 		legacy.withoutSnapshotVersion = true
 		applied, _ = legacy.connect(ctx, t, client, chat.ID)
 		for _, event := range applied {
 			require.NotEqual(t, codersdk.ChatStreamEventTypeHistoryReset, event.Type, "a client that holds message after_id got a history reset")
-			require.Zero(t, event.SnapshotVersion, "a %s event carries snapshot_version on a stream opened without it", event.Type)
+			require.Zero(t, event.SnapshotVersion, "a %s event includes snapshot_version on a stream opened without it", event.Type)
 		}
 		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), legacy.sortedIDs())
 	})
@@ -19236,7 +19236,7 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 			resp, err := client.GetChatMessages(ctx, chat.ID, opts)
 			require.NoError(t, err)
 			require.NotEmpty(t, resp.Messages, name)
-			require.Zero(t, resp.SnapshotVersion, "%s page must not carry snapshot_version", name)
+			require.Zero(t, resp.SnapshotVersion, "%s page must not include snapshot_version", name)
 		}
 	})
 

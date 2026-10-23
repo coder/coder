@@ -9857,7 +9857,7 @@ export interface StreamChatOptions {
 	 * one from ChatMessagesResponse, or the highest one from the stream's
 	 * events. When it is set, the stream sends the changes made at or after
 	 * it, the server ignores AfterID, and message, queue_update and
-	 * history_reset events carry ChatStreamEvent.SnapshotVersion. When it is
+	 * history_reset events set ChatStreamEvent.SnapshotVersion. When it is
 	 * zero, a connection to a chat with a deleted message resends the whole
 	 * history, unless AfterID is the ID of a message of the chat that is not
 	 * deleted.
