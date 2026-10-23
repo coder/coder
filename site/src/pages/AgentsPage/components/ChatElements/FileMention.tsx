@@ -1,14 +1,9 @@
-import { isAxiosError } from "axios";
-import { cn } from "cn";
-import { LoaderIcon } from "lucide-react";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useQueries, useQueryClient } from "react-query";
 import type { WorkspaceAgentFindFilesResult } from "#/api/api";
-import { getErrorMessage } from "#/api/errors";
 import {
 	workspaceAgentDirectory,
 	workspaceAgentDirectoryKey,
-	workspaceAgentFindFiles,
 } from "#/api/queries/workspaceFiles";
 import {
 	Command,
@@ -22,7 +17,6 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
-import { toast } from "#/components/Toaster/toast";
 import { useWorkspaceFiles } from "../../context/WorkspaceFilesContext";
 import {
 	findCandidateTokenStarts,
@@ -34,37 +28,14 @@ import {
 } from "../../utils/filePathMentions";
 import { getPathBasename } from "../../utils/path";
 
-// The agent's maximum; common names such as README.md can match many files.
-const findFilesLimit = 200;
-
-/**
- * Keeps the search results the mention names. A result whose root-relative
- * path equals the mention wins over results that only end with it, so
- * coderd/x.go does not also offer enterprise/coderd/x.go.
- */
-const pickMentionedFiles = (
-	results: readonly WorkspaceAgentFindFilesResult[],
-	relativePath: string,
-	inHome: boolean,
-) => {
-	const candidates = results.filter((result) => !result.is_dir);
-	const exact = candidates.filter(
-		(result) =>
-			result.path === relativePath || result.absolute_path === relativePath,
-	);
-	if (exact.length > 0 || inHome) {
-		return exact;
-	}
-	return candidates.filter((result) =>
-		result.absolute_path.endsWith(`/${relativePath}`),
-	);
-};
-
 type FileMentionProps = {
-	/** Absolute, `~/`-prefixed, or relative path without a line suffix. */
+	/**
+	 * The verified absolute path, or the mentioned text when `choices`
+	 * holds several matches.
+	 */
 	path: string;
 	line?: number;
-	/** Files already known to match; several open the picker directly. */
+	/** Equally good matches in several roots; clicking offers a picker. */
 	choices?: readonly WorkspaceAgentFindFilesResult[];
 	/** The absolute `path` is a verified folder, shown in the Files panel. */
 	isDirectory?: boolean;
@@ -72,9 +43,8 @@ type FileMentionProps = {
 };
 
 /**
- * A file path mentioned in chat text. Clicking opens the file, or shows a
- * folder in the Files panel; relative paths are resolved against the
- * chat's repositories first.
+ * A path in chat text that listings confirmed. Clicking opens the file, or
+ * shows a folder in the Files panel.
  */
 export const FileMention: React.FC<FileMentionProps> = ({
 	path,
@@ -84,24 +54,7 @@ export const FileMention: React.FC<FileMentionProps> = ({
 	children,
 }) => {
 	const files = useWorkspaceFiles();
-	const queryClient = useQueryClient();
-	const [pending, setPending] = useState(false);
-	const [matches, setMatches] = useState<
-		readonly WorkspaceAgentFindFilesResult[]
-	>([]);
-	const [truncated, setTruncated] = useState(false);
-	// Identifies the latest lookup; unmounting or a new agent or path makes
-	// an in-flight lookup stale so it neither opens a file nor toasts.
-	const lookupRef = useRef(0);
-	const agentId = files?.agentId;
-	useEffect(() => {
-		const lookups = lookupRef;
-		return () => {
-			lookups.current++;
-			setPending(false);
-			setMatches([]);
-		};
-	}, [agentId, path]);
+	const [picking, setPicking] = useState(false);
 
 	if (!files) {
 		return children;
@@ -115,99 +68,34 @@ export const FileMention: React.FC<FileMentionProps> = ({
 		}
 	};
 
-	const resolve = async () => {
-		if (choices && choices.length > 1) {
-			setMatches(choices);
-			setTruncated(false);
-			return;
-		}
-		if (isDirectory) {
-			files.revealInFiles(path, { isDirectory: true });
-			return;
-		}
-		if (path.startsWith("/")) {
-			files.openFile(path, { line });
-			return;
-		}
-		const inHome = path.startsWith("~/");
-		const relativePath = inHome ? path.slice(2) : path.replace(/^\.\//, "");
-		let roots: readonly string[] = [""];
-		if (inHome) {
-			roots = ["~"];
-		} else if (files.repoRoots.length > 0) {
-			roots = files.repoRoots;
-		}
-		setPending(true);
-		const lookup = ++lookupRef.current;
-		try {
-			const { results } = await queryClient.fetchQuery(
-				workspaceAgentFindFiles(
-					files.agentId,
-					roots,
-					relativePath,
-					findFilesLimit,
-				),
-			);
-			if (lookup !== lookupRef.current) {
-				return;
-			}
-			const found = pickMentionedFiles(results, relativePath, inHome);
-			setPending(false);
-			if (found.length === 1) {
-				files.openFile(found[0].absolute_path, { line });
-			} else if (found.length > 1) {
-				setMatches(found);
-				setTruncated(results.length >= findFilesLimit);
-			} else {
-				toast.error(`No file matching ${path} in this chat's repositories`);
-			}
-		} catch (error) {
-			if (lookup !== lookupRef.current) {
-				return;
-			}
-			setPending(false);
-			if (isAxiosError(error) && error.response?.status === 404) {
-				toast.error("Update the workspace agent to open files");
-			} else {
-				toast.error(getErrorMessage(error, `Failed to find ${path}.`));
-			}
-		}
-	};
-
+	const matches = choices ?? [];
 	return (
 		<Popover
-			open={matches.length > 1}
+			open={picking && matches.length > 1}
 			onOpenChange={(open) => {
 				if (!open) {
-					setMatches([]);
+					setPicking(false);
 				}
 			}}
 		>
 			<PopoverTrigger asChild>
 				<button
 					type="button"
-					aria-busy={pending}
 					aria-label={isDirectory ? `Show ${path} in Files` : undefined}
-					className={cn(
-						"inline cursor-pointer border-0 bg-transparent p-0 text-left font-[inherit] text-inherit",
-						"underline decoration-dotted decoration-content-secondary underline-offset-2 hover:decoration-content-link",
-						pending && "cursor-wait",
-					)}
+					className="inline cursor-pointer border-0 bg-transparent p-0 text-left font-[inherit] text-inherit underline decoration-dotted decoration-content-secondary underline-offset-2 hover:decoration-content-link"
 					onClick={(event) => {
-						// The trigger's own toggle would open an empty picker.
+						// The trigger's own toggle would also close the picker.
 						event.preventDefault();
-						if (event.detail <= 1 && !pending && matches.length === 0) {
-							void resolve();
+						if (matches.length > 1) {
+							setPicking(true);
+						} else if (isDirectory) {
+							files.revealInFiles(path, { isDirectory: true });
+						} else {
+							files.openFile(path, { line });
 						}
 					}}
 				>
 					{children}
-					{pending && (
-						<LoaderIcon
-							aria-hidden
-							className="ml-0.5 inline size-3 animate-spin align-middle motion-reduce:animate-none"
-						/>
-					)}
 				</button>
 			</PopoverTrigger>
 			<PopoverContent
@@ -228,7 +116,7 @@ export const FileMention: React.FC<FileMentionProps> = ({
 									aria-label={`${match.path} in ${rootName}`}
 									className="items-baseline py-1.5"
 									onSelect={() => {
-										setMatches([]);
+										setPicking(false);
 										openMatch(match);
 									}}
 								>
@@ -243,9 +131,7 @@ export const FileMention: React.FC<FileMentionProps> = ({
 						})}
 					</CommandList>
 					<p className="m-0 border-0 border-t border-solid border-border px-3 py-1.5 text-xs text-content-secondary">
-						{truncated
-							? `Showing ${matches.length} matches from the first ${findFilesLimit} search results. Mention a longer path to narrow them down.`
-							: `${matches.length} files match ${path}.`}
+						{`${matches.length} files match ${path}.`}
 					</p>
 				</Command>
 			</PopoverContent>
@@ -270,7 +156,10 @@ const missingDirectoryStaleTime = 30_000;
 type FileMentionCandidateProps = {
 	/** Text starting with a path-like token, possibly with spaces in it. */
 	text: string;
-	/** The verified path must cover the whole text, as in inline code. */
+	/**
+	 * The verified path must cover the whole text, as in inline code or a
+	 * mention in prose.
+	 */
 	whole: boolean;
 	/** The character before the text; a quote bounds the path. */
 	opener?: string;
@@ -279,9 +168,9 @@ type FileMentionCandidateProps = {
 };
 
 /**
- * Text that may be a file path containing spaces. While it is on screen
- * and the message has finished streaming, directory listings decide how far
- * the path extends; only the verified part becomes a link.
+ * Text that may be a file path. While it is on screen and the message has
+ * finished streaming, directory listings decide whether the path exists and
+ * how far it extends; only the verified part becomes a link.
  *
  * The walk is derived in render from the listings it needs, so it follows
  * listing refreshes and stops requesting as soon as it is not rendered.
@@ -359,7 +248,9 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 		}
 		return listings[index].data?.contents ?? checks[index].data;
 	};
-	const starts = files ? getFilePathCandidateStarts(text, files.repoRoots) : [];
+	const starts = files
+		? getFilePathCandidateStarts(text, files.repoRoots, files.defaultDirectory)
+		: [];
 	const walks = starts.map((start) =>
 		walkFilePath(start.root, text.slice(start.offset), getEntries),
 	);
@@ -374,7 +265,8 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 
 	// Equally long matches in different repositories are ambiguous, so the
 	// mention offers all of them. Until every root has answered, a slower
-	// root could still hold another match, so nothing links yet.
+	// root could still hold another match, so nothing links yet. The default
+	// directory counts only when no repository matches.
 	const settled = walks.every((walk) => walk.verified !== undefined);
 	const quotedEnd = findQuotedPathEnd(text, opener);
 	let end = 0;
@@ -382,7 +274,7 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 	let choices: WorkspaceAgentFindFilesResult[] = [];
 	for (const [index, walk] of walks.entries()) {
 		const verified = walk.verified;
-		if (!verified) {
+		if (!verified || (starts[index].fallback && choices.length > 0)) {
 			continue;
 		}
 		const walkEnd = starts[index].offset + verified.length;
@@ -409,14 +301,12 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 	}
 	const mentions = whole ? [] : findFilePathMentions(text);
 	const leadEnd = mentions[0]?.start === 0 ? mentions[0].end : 0;
-	// A verified folder replaces an ordinary mention of the same extent,
-	// such as /etc/nginx/conf.d, which reads as a file until listed.
+	// The verified path links when it covers at least the ordinary mention
+	// it starts with; a shorter one leaves that mention to verify itself.
 	const extended =
 		settled &&
 		choices.length > 0 &&
-		(whole
-			? end === text.length
-			: end > leadEnd || (end === leadEnd && choices[0].is_dir));
+		(whole ? end === text.length : end >= leadEnd);
 	const lead = extended && (
 		<FileMention
 			key="lead"
@@ -461,14 +351,15 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 		if (mention.start > offset) {
 			segments.push(text.slice(offset, mention.start));
 		}
+		const mentionText = text.slice(mention.start, mention.end);
 		segments.push(
-			<FileMention
+			<FileMentionCandidate
 				key={mention.start === 0 ? "lead" : `mention-${mention.start}`}
-				path={mention.path}
-				line={mention.line}
+				text={mentionText}
+				whole
 			>
-				{text.slice(mention.start, mention.end)}
-			</FileMention>,
+				{mentionText}
+			</FileMentionCandidate>,
 		);
 		offset = mention.end;
 	}
