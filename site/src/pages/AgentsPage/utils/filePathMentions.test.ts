@@ -156,31 +156,18 @@ describe("isWholeFilePathCandidate", () => {
 
 describe("getFilePathCandidateStarts", () => {
 	it.each([
-		[
-			"/path/to/file (2).txt",
-			[],
-			[{ directory: "/path/to", offset: 9, root: "/" }],
-		],
-		["/file (2).txt", [], [{ directory: "/", offset: 1, root: "/" }]],
-		["~/My Documents/x.md", [], [{ directory: "~", offset: 2, root: "~" }]],
-		["~/a/my dir/x.md", [], [{ directory: "~/a", offset: 4, root: "~" }]],
+		["/path/to/file (2).txt", [], [{ root: "/", offset: 1 }]],
+		["/home/", [], [{ root: "/", offset: 1 }]],
+		["~/a/my dir/x.md", [], [{ root: "~", offset: 2 }]],
 		[
 			"src/my dir/a.ts",
 			["/r1", "/r2/"],
 			[
-				{ directory: "/r1/src", offset: 4, root: "/r1" },
-				{ directory: "/r2/src", offset: 4, root: "/r2/" },
+				{ root: "/r1", offset: 0 },
+				{ root: "/r2/", offset: 0 },
 			],
 		],
-		["my dir/a.ts", [], [{ directory: "", offset: 0, root: "" }]],
-		["src/my dir/a.ts", [], [{ directory: "src", offset: 4, root: "" }]],
-		[
-			"site/src/pages/ for routes",
-			["/r1"],
-			[{ directory: "/r1/site/src", offset: 9, root: "/r1" }],
-		],
-		["/home/", [], [{ directory: "/", offset: 1, root: "/" }]],
-		["~/projects/", [], [{ directory: "~", offset: 2, root: "~" }]],
+		["src/my dir/a.ts", [], [{ root: "", offset: 0 }]],
 	])("starts %j in %j", (text, roots, expected) => {
 		expect(getFilePathCandidateStarts(text, roots)).toEqual(expected);
 	});
@@ -253,6 +240,13 @@ describe("walkFilePath", () => {
 			{ absolutePath: "/repo/my", length: 2, isDirectory: true },
 		],
 		["/not/listed/yet", "a b.ts", undefined],
+		[
+			"/home/coder",
+			"./my dir/../my dir/a.ts",
+			{ absolutePath: "/home/coder/my dir/a.ts", length: 23 },
+		],
+		["/home/coder", "../coder/my", null],
+		["/home/coder", "my dir/../../x.ts", null],
 	])("walks from %j through %j", (directory, text, expected) => {
 		expect(walkFilePath(directory, text, getEntries).verified).toEqual(
 			expected,
@@ -273,11 +267,11 @@ describe("walkFilePath", () => {
 	});
 
 	it("stops at the depth cap", () => {
-		const walk = walkFilePath("/", "d/d/d/d/d/d/a.ts", (directory) => [
+		const walk = walkFilePath("/", `${"d/".repeat(30)}a.ts`, (directory) => [
 			{ name: "d", is_dir: true, absolute_path_string: `${directory}/d` },
 		]);
 		expect(walk.verified).toBeNull();
-		expect(walk.directories).toHaveLength(5);
+		expect(walk.directories).toHaveLength(24);
 	});
 });
 

@@ -361,7 +361,7 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 	};
 	const starts = files ? getFilePathCandidateStarts(text, files.repoRoots) : [];
 	const walks = starts.map((start) =>
-		walkFilePath(start.directory, text.slice(start.offset), getEntries),
+		walkFilePath(start.root, text.slice(start.offset), getEntries),
 	);
 	const needed = [...new Set(walks.flatMap((walk) => walk.directories))];
 	if (needed.join("\n") !== directories.join("\n")) {

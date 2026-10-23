@@ -387,7 +387,7 @@ describe("Response", () => {
 					const entryName = isDir ? name.slice(0, -1) : name;
 					return {
 						name: entryName,
-						absolute_path_string: `${absolute}/${entryName}`,
+						absolute_path_string: `${absolute === "/" ? "" : absolute}/${entryName}`,
 						is_dir: isDir,
 						is_symlink: false,
 						size: 0,
@@ -400,16 +400,39 @@ describe("Response", () => {
 					contents,
 				};
 			};
-			const mockTree = (tree: Record<string, string[]>) =>
-				vi
+			// Adds each absolute directory's ancestors, which a walk from "/"
+			// lists on its way down.
+			const withAncestors = (tree: Record<string, string[]>) => {
+				const full: Record<string, string[]> = {};
+				const add = (directory: string, names: readonly string[]) => {
+					full[directory] = [
+						...new Set([...(full[directory] ?? []), ...names]),
+					];
+				};
+				for (const [path, names] of Object.entries(tree)) {
+					add(path, names);
+					let child = path;
+					while (child.startsWith("/") && child !== "/") {
+						const slash = child.lastIndexOf("/");
+						const parent = slash === 0 ? "/" : child.slice(0, slash);
+						add(parent, [`${child.slice(slash + 1)}/`]);
+						child = parent;
+					}
+				}
+				return full;
+			};
+			const mockTree = (tree: Record<string, string[]>) => {
+				const full = withAncestors(tree);
+				return vi
 					.spyOn(API, "listWorkspaceAgentDirectory")
 					.mockImplementation(async (_agentId, path) => {
-						const names = tree[path];
+						const names = full[path];
 						if (!names) {
 							throw new Error(`no directory ${path}`);
 						}
 						return listing(path, names);
 					});
+			};
 			const listCalls = (
 				list: { mock: { calls: unknown[][] } },
 				path: string,
@@ -656,8 +679,12 @@ describe("Response", () => {
 
 			it("keeps the focused link when verification extends it", async () => {
 				const pending = createDeferred<ReturnType<typeof listing>>();
-				vi.spyOn(API, "listWorkspaceAgentDirectory").mockReturnValue(
-					pending.promise,
+				const ancestors = withAncestors({ "/path/to": [] });
+				vi.spyOn(API, "listWorkspaceAgentDirectory").mockImplementation(
+					async (_agentId, path) =>
+						path === "/path/to"
+							? pending.promise
+							: listing(path, ancestors[path] ?? []),
 				);
 				renderWithFiles("Open /path/to/file.md (2).md now");
 
@@ -709,12 +736,11 @@ describe("Response", () => {
 					"/home/coder/coder/documents": ["notes (2).md"],
 				});
 				renderWithFiles("See /missing/my documents/notes (2).md now.");
-				await waitFor(() =>
-					expect(listCalls(list, "/missing")).toHaveLength(1),
-				);
+				await waitFor(() => expect(listCalls(list, "/")).toHaveLength(1));
 				await flush();
 
 				expect(buttonTexts()).toEqual([]);
+				expect(listCalls(list, "/missing")).toEqual([]);
 				expect(listCalls(list, "/home/coder/coder/documents")).toEqual([]);
 			});
 
@@ -826,7 +852,9 @@ describe("Response", () => {
 				await user.click(screen.getByRole("button", { name: "Switch agent" }));
 				await flush();
 
-				expect(list.mock.calls.map((call) => call[0])).toEqual(["agent-1"]);
+				expect([...new Set(list.mock.calls.map((call) => call[0]))]).toEqual([
+					"agent-1",
+				]);
 				setOnScreen(true);
 				await waitFor(() =>
 					expect(list).toHaveBeenCalledWith(
@@ -840,12 +868,13 @@ describe("Response", () => {
 			it("stops walking when workspace files go away", async () => {
 				const user = userEvent.setup();
 				const pending = createDeferred<ReturnType<typeof listing>>();
+				const tree = withAncestors({ "/home/coder/my dir": ["a.ts"] });
 				const list = vi
 					.spyOn(API, "listWorkspaceAgentDirectory")
 					.mockImplementation((_agentId, path) =>
 						path === "/home/coder"
 							? pending.promise
-							: Promise.resolve(listing(path, ["a.ts"])),
+							: Promise.resolve(listing(path, tree[path] ?? [])),
 					);
 				const files = makeFiles();
 				const Harness = () => {
@@ -881,9 +910,35 @@ describe("Response", () => {
 				expect(listCalls(list, "/home/coder/my dir")).toEqual([]);
 			});
 
-			it("remembers a missing directory across candidates", async () => {
+			it("lists only directories that a parent listing shows", async () => {
+				const tree = {
+					"/home/coder/coder": [],
+					"/home/coder/other": [],
+					"/home/coder/demo": [],
+				};
+				const list = mockTree(tree);
+				renderWithFiles(
+					[
+						"Look in docs/my notes.md for it.",
+						"Run gobwas/ws x.go now.",
+						"See /home/coder/websocket/gobwas and more.",
+						"See /home/coder/demo/src for it.",
+					].join("\n\n"),
+				);
+				await waitFor(() =>
+					expect(listCalls(list, "/home/coder/demo")).toHaveLength(1),
+				);
+				await flush();
+				await flush();
+
+				const existing = Object.keys(withAncestors(tree));
+				const listed = list.mock.calls.map((call) => call[1]);
+				expect(listed.filter((path) => !existing.includes(path))).toEqual([]);
+			});
+
+			it("lists a shared directory once across candidates", async () => {
 				const user = userEvent.setup();
-				const list = mockTree({});
+				const list = mockTree({ "/r": [] });
 				const Harness = () => {
 					const [count, setCount] = useState(1);
 					const markdown = Array.from(
@@ -902,14 +957,15 @@ describe("Response", () => {
 					);
 				};
 				render(<Harness />);
-				await waitFor(() => expect(listCalls(list, "/r/and")).toHaveLength(1));
+				await waitFor(() => expect(listCalls(list, "/r")).toHaveLength(1));
 				await flush();
 
 				await user.click(screen.getByRole("button", { name: "More" }));
 				await screen.findByText(/option 4/);
 				await flush();
 
-				expect(listCalls(list, "/r/and")).toHaveLength(1);
+				expect(listCalls(list, "/r")).toHaveLength(1);
+				expect(listCalls(list, "/r/and")).toEqual([]);
 			});
 
 			it("follows a refreshed directory listing", async () => {
