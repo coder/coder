@@ -102,8 +102,9 @@ Use the industry-standard inclusive substitutions for terms that have transition
 
 For information on why "grandfathered" is on the list, visit [the Wikipedia page on the history of the grandfather clause](https://en.wikipedia.org/wiki/Grandfather_clause).
 
-*Enforced by `Coder.InclusiveLanguage` (planned), with additional coverage from the curated `alex.*` lexicon (also planned; `.vale.ini` loads no third-party style).
-The rule leaves bare `master` to reviewers, because the word has many legitimate technical uses, such as `master key` and Git branch names.*
+*Enforced by `Coder.InclusiveLanguage` (`warning`), with additional coverage from the curated `alex.*` lexicon (planned; `.vale.ini` loads no third-party style).
+The rule leaves bare `master` to reviewers, because the word has many legitimate technical uses, such as `master key` and Git branch names.
+It flags `master branch` and `master controller` only, and it skips the Agent Firewall CLI reference, whose flag text comes from an upstream dependency.*
 
 ## Inclusive LGBTQ terms
 
