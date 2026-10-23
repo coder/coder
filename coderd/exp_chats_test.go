@@ -6803,7 +6803,7 @@ func TestGetChatAttachments(t *testing.T) {
 		type attachment struct {
 			MessageID int64
 			PartIndex int
-			Role      codersdk.ChatMessageRole
+			Role      codersdk.ChatAttachmentRole
 			FileID    uuid.UUID
 		}
 		got := make([]attachment, 0, len(resp.Attachments))
@@ -6811,11 +6811,11 @@ func TestGetChatAttachments(t *testing.T) {
 			got = append(got, attachment{a.MessageID, a.PartIndex, a.Role, a.File.FileID.UUID})
 		}
 		require.Equal(t, []attachment{
-			{inlinePaste.ID, 0, codersdk.ChatMessageRoleUser, uuid.Nil},
-			{hookPrompt.ID, 0, codersdk.ChatMessageRoleUser, fileD.FileID.UUID},
-			{agentFiles.ID, 2, codersdk.ChatMessageRoleAssistant, fileC.FileID.UUID},
-			{agentFiles.ID, 0, codersdk.ChatMessageRoleAssistant, fileB.FileID.UUID},
-			{userUpload.ID, 1, codersdk.ChatMessageRoleUser, fileA.FileID.UUID},
+			{inlinePaste.ID, 0, codersdk.ChatAttachmentRoleUser, uuid.Nil},
+			{hookPrompt.ID, 0, codersdk.ChatAttachmentRoleUser, fileD.FileID.UUID},
+			{agentFiles.ID, 2, codersdk.ChatAttachmentRoleAssistant, fileC.FileID.UUID},
+			{agentFiles.ID, 0, codersdk.ChatAttachmentRoleAssistant, fileB.FileID.UUID},
+			{userUpload.ID, 1, codersdk.ChatAttachmentRoleUser, fileA.FileID.UUID},
 		}, got)
 
 		messages, err := client.GetChatMessages(ctx, chat.ID, nil)

@@ -1112,9 +1112,18 @@ type ChatAttachment struct {
 	// PartIndex is the file part's position in the message content the
 	// messages endpoint returns.
 	PartIndex int                `json:"part_index"`
-	Role      ChatMessageRole    `json:"role"`
+	Role      ChatAttachmentRole `json:"role"`
 	File      ChatAttachmentFile `json:"file"`
 }
+
+// ChatAttachmentRole is the role of the message that holds an attachment.
+// The attachments endpoint lists only user and assistant messages.
+type ChatAttachmentRole string
+
+const (
+	ChatAttachmentRoleUser      ChatAttachmentRole = "user"
+	ChatAttachmentRoleAssistant ChatAttachmentRole = "assistant"
+)
 
 // ChatAttachmentFileType is the part type of a ChatAttachmentFile, which
 // is always a file part.

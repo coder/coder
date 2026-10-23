@@ -19484,7 +19484,7 @@
 					"type": "integer"
 				},
 				"role": {
-					"$ref": "#/definitions/codersdk.ChatMessageRole"
+					"$ref": "#/definitions/codersdk.ChatAttachmentRole"
 				}
 			}
 		},
@@ -19516,6 +19516,14 @@
 			"type": "string",
 			"enum": ["file"],
 			"x-enum-varnames": ["ChatAttachmentFileTypeFile"]
+		},
+		"codersdk.ChatAttachmentRole": {
+			"type": "string",
+			"enum": ["user", "assistant"],
+			"x-enum-varnames": [
+				"ChatAttachmentRoleUser",
+				"ChatAttachmentRoleAssistant"
+			]
 		},
 		"codersdk.ChatAttachmentsResponse": {
 			"type": "object",
