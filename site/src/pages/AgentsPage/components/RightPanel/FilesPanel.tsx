@@ -514,6 +514,7 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 		}
 		const trimmed = path.trim().replace(/(.)\/+$/, "$1");
 		if (trimmed !== "") {
+			latestReveal.current = undefined;
 			openPathRequest.current += 1;
 			openPathMutation.mutate({
 				path: trimmed,
