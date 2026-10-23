@@ -251,7 +251,7 @@ The month `May` followed by a day or a year ("May 5, 2026", "May 2026") isn't th
 > Restart the agent, since the configuration changed.
 
 *Adapted from ASD-STE100 Issue 9, which approves one meaning per word.
-Enforced by `Coder.AmbiguousWords` (planned).*
+Enforced by `Coder.AmbiguousWords` at `suggestion` severity: a substitution rule that flags the `ensure` family, `should`, `since`, and `may`, and skips the month `May` before a date.*
 
 ## Use US spelling
 
