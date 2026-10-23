@@ -34,6 +34,7 @@ import {
 
 import { QueuedForCapacityCallout } from "../components/ChatConversation/QueuedForCapacityCallout";
 import { DesktopPanelContext } from "../components/ChatElements/tools/DesktopPanelContext";
+import { McpAppTabContext } from "../components/ChatElements/tools/McpAppTabContext";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "../components/ChatPageContent";
 import { ChatSummaryPanel } from "../components/ChatSummaryPanel";
@@ -43,9 +44,14 @@ import { ChatTopBar } from "../components/ChatTopBar";
 import { GitPanel } from "../components/GitPanel/GitPanel";
 import { DebugPanel } from "../components/RightPanel/DebugPanel/DebugPanel";
 import { DesktopPanel } from "../components/RightPanel/DesktopPanel";
+import { McpAppPanel } from "../components/RightPanel/McpAppPanel/McpAppPanel";
+import { useMcpAppAutoOpen } from "../components/RightPanel/McpAppPanel/useMcpAppAutoOpen";
 import { PortPreviewPanel } from "../components/RightPanel/PortPreviewPanel";
 import { RightPanel } from "../components/RightPanel/RightPanel";
-import { RightPanelAddTabControl } from "../components/RightPanel/RightPanelAddTabControl";
+import {
+	type McpAppsMenuSource,
+	RightPanelAddTabControl,
+} from "../components/RightPanel/RightPanelAddTabControl";
 import { getWorkspaceStatus, StatusIcon } from "../components/StatusIcon";
 import { TerminalPanel } from "../components/TerminalPanel";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
@@ -73,6 +79,8 @@ import {
 } from "../utils/sidebarTabStorage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
+
+type McpAppRightPanelTab = Extract<UserRightPanelTab, { kind: "mcp_app" }>;
 
 type EditingState = {
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
@@ -189,6 +197,8 @@ const UnavailableTabMessage: React.FC<{ message: string }> = ({ message }) => (
 type UserTabContentProps = {
 	tab: UserRightPanelTab;
 	chatId: string;
+	store: ChatStoreHandle;
+	onInsertComposerText: (text: string) => void;
 	workspace: TypesGen.Workspace | undefined;
 	workspaceAgent: TypesGen.WorkspaceAgent | undefined;
 	wildcardHostname: string;
@@ -201,6 +211,8 @@ type UserTabContentProps = {
 const UserTabContent: React.FC<UserTabContentProps> = ({
 	tab,
 	chatId,
+	store,
+	onInsertComposerText,
 	workspace,
 	workspaceAgent,
 	wildcardHostname,
@@ -258,6 +270,15 @@ const UserTabContent: React.FC<UserTabContentProps> = ({
 				/>
 			);
 		}
+		case "mcp_app":
+			return (
+				<McpAppPanel
+					chatId={chatId}
+					tab={tab}
+					store={store}
+					onInsertComposerText={onInsertComposerText}
+				/>
+			);
 		default: {
 			const _exhaustive: never = tab;
 			return _exhaustive;
@@ -319,7 +340,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	desktopChatId,
 }) => {
 	const { proxy } = useProxy();
-	const { entitlements } = useDashboard();
+	const { entitlements, experiments } = useDashboard();
 	const { permissions, user: currentUser } = useAuthenticated();
 	const wildcardHostname = proxy.preferredWildcardHostname;
 	const agentId = chat.id;
@@ -641,6 +662,67 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		activateRightPanelTab(tab.id);
 	};
 
+	// MCP Apps views use the chat owner's MCP credentials, so only the
+	// owner can open them.
+	const canOpenMcpApps =
+		experiments.includes("mcp-apps") &&
+		!isArchived &&
+		currentUser.id === chat.owner_id;
+
+	const openMcpAppTab = (
+		matches: (tab: McpAppRightPanelTab) => boolean,
+		newTab: Omit<McpAppRightPanelTab, "id">,
+	) => {
+		const existingTab = validatedUserRightPanelTabs.find(
+			(tab) => tab.kind === "mcp_app" && matches(tab),
+		);
+		if (existingTab) {
+			activateRightPanelTab(existingTab.id);
+			return;
+		}
+		const tab: UserRightPanelTab = {
+			id: createUserRightPanelTabId("mcp_app"),
+			...newTab,
+		};
+		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
+		activateRightPanelTab(tab.id);
+	};
+
+	const handleOpenMcpAppTab = (toolCallId: string, app: TypesGen.ChatMCPApp) =>
+		openMcpAppTab((tab) => tab.toolCallId === toolCallId, {
+			kind: "mcp_app",
+			label: app.title || app.tool_name,
+			mcpServerConfigId: app.mcp_server_config_id,
+			resourceUri: app.resource_uri,
+			toolCallId,
+		});
+
+	const mcpAppsMenu: McpAppsMenuSource | undefined = canOpenMcpApps
+		? {
+				chatId: agentId,
+				mcpServerIds: selectedMCPServerIds,
+				onOpen: (entrypoint) =>
+					openMcpAppTab(
+						(tab) =>
+							tab.mcpServerConfigId === entrypoint.mcp_server_config_id &&
+							tab.entrypointToolName === entrypoint.tool_name,
+						{
+							kind: "mcp_app",
+							label: entrypoint.title,
+							mcpServerConfigId: entrypoint.mcp_server_config_id,
+							resourceUri: entrypoint.resource_uri,
+							entrypointToolName: entrypoint.tool_name,
+						},
+					),
+			}
+		: undefined;
+
+	useMcpAppAutoOpen(store, canOpenMcpApps, handleOpenMcpAppTab);
+
+	const insertComposerText = (text: string) => {
+		editing.chatInputRef.current?.insertText(text);
+	};
+
 	const renderTabContent = (tabId: string): React.ReactNode => {
 		switch (tabId) {
 			case "summary":
@@ -722,6 +804,8 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 					<UserTabContent
 						tab={userTab}
 						chatId={agentId}
+						store={store}
+						onInsertComposerText={insertComposerText}
 						workspace={workspace}
 						workspaceAgent={workspaceAgent}
 						wildcardHostname={wildcardHostname}
@@ -820,190 +904,199 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 				}}
 			>
 				<DesktopPanelContext value={desktopPanelCtx}>
-					<div
-						className={cn(
-							"relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
-							shouldShowSidebar && !visualExpanded && "flex-row",
-						)}
+					<McpAppTabContext
+						value={{
+							onOpenMcpApp: canOpenMcpApps ? handleOpenMcpAppTab : undefined,
+						}}
 					>
 						<div
-							data-testid="agents-chat-panel"
 							className={cn(
-								"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden sm:min-w-(--agents-chat-panel-min-width,0px)",
-								visualExpanded && "hidden",
-								shouldShowSidebar && "max-lg:hidden",
+								"relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
+								shouldShowSidebar && !visualExpanded && "flex-row",
 							)}
 						>
-							<div className="relative z-10 shrink-0 overflow-visible">
-								{" "}
-								<ChatTopBar
-									chat={chat}
-									liveChatStatus={liveChatStatus}
-									panel={{
-										showSidebarPanel,
-										onToggleSidebar: () =>
-											onSetShowSidebarPanel(!showSidebarPanel),
-									}}
-								/>
-								{modelCatalogError != null && (
-									<ErrorAlert error={modelCatalogError} />
+							<div
+								data-testid="agents-chat-panel"
+								className={cn(
+									"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden sm:min-w-(--agents-chat-panel-min-width,0px)",
+									visualExpanded && "hidden",
+									shouldShowSidebar && "max-lg:hidden",
 								)}
-								{unavailableModelNotice && (
-									<div
-										role="status"
-										aria-label={unavailableModelNotice}
-										aria-live="polite"
-										className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
-									>
-										<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
-										{unavailableModelNotice}
-									</div>
-								)}
-								{isArchived && (
-									<div className="flex shrink-0 items-center gap-2 border-b border-border bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
-										<ArchiveIcon className="size-4 shrink-0" />
-										This agent has been archived and is read-only.
-									</div>
-								)}
-								<div
-									aria-hidden
-									className="pointer-events-none absolute inset-x-0 top-full z-10 h-3 sm:h-6 bg-surface-primary"
-									style={{
-										maskImage:
-											"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
-										WebkitMaskImage:
-											"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
-									}}
-								/>
-							</div>
-							<ChatPageTimeline
-								key={agentId}
-								organizationId={organizationId}
-								store={store}
-								chatFiles={chat.files}
-								initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
-								persistedError={persistedError}
-								hasMoreMessages={hasMoreMessages}
-								isFetchingMoreMessages={isFetchingMoreMessages}
-								isHydratingMessages={isHydratingMessages}
-								hasFetchMoreError={hasFetchMoreError}
-								onFetchMoreMessages={onFetchMoreMessages}
-								onEditUserMessage={
-									isOtherUserReadOnly
-										? undefined
-										: editing.handleEditUserMessage
-								}
-								editingMessageId={editing.editingMessageId}
-								urlTransform={urlTransform}
-								mcpServers={mcpServers}
-								onImplementPlan={
-									isOtherUserReadOnly || !canSubmitChatTurn
-										? undefined
-										: onImplementPlan
-								}
-								onSendAskUserQuestionResponse={
-									isOtherUserReadOnly || !canSubmitChatTurn
-										? undefined
-										: onSendAskUserQuestionResponse
-								}
-								footer={
-									chat.queued_for_capacity ? (
-										<QueuedForCapacityCallout
-											hasLicense={hasLicense}
-											canManageLicenses={canManageLicenses}
-											agentHoursHardLimit={agentHoursHardLimit}
-										/>
-									) : undefined
-								}
-							/>
-							{!isArchived && (
-								<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
-									<ChatPageInput
+							>
+								<div className="relative z-10 shrink-0 overflow-visible">
+									{" "}
+									<ChatTopBar
 										chat={chat}
-										store={store}
-										modelCatalog={modelCatalog}
-										onSend={editing.handleSendFromInput}
-										onDeleteQueuedMessage={handleDeleteQueuedMessage}
-										onPromoteQueuedMessage={handlePromoteQueuedMessage}
-										onInterrupt={handleInterrupt}
-										isInputDisabled={isInputDisabled}
-										isReadOnly={isOtherUserReadOnly}
-										readOnlyNotice={readOnlyNotice}
-										isSendPending={isSubmissionPending}
-										isInterruptPending={isInterruptPending}
-										hasModelOptions={hasModelOptions}
-										canConfigureAgentSetup={canConfigureAgentSetup}
-										providerCount={providerCount}
-										modelCount={modelCount}
-										unsupportedProviderNames={unsupportedProviderNames}
-										aiGatewayDisabled={aiGatewayDisabled}
-										selectedModel={effectiveSelectedModel}
-										onModelChange={setSelectedModel}
-										modelOptions={modelOptions}
-										modelSelectorPlaceholder={modelSelectorPlaceholder}
-										modelSelectorHelp={modelSelectorHelp}
-										reasoningEffort={reasoningEffort}
-										onReasoningEffortChange={onReasoningEffortChange}
-										onPlanModeToggle={onPlanModeToggle}
-										isModelCatalogLoading={isModelCatalogLoading}
-										onWorkspaceChange={onWorkspaceChange}
-										isWorkspaceLoading={isWorkspaceLoading}
-										inputRef={editing.chatInputRef}
-										initialValue={editing.editorInitialValue}
-										initialEditorState={editing.initialEditorState}
-										remountKey={editing.remountKey}
-										onContentChange={editing.handleContentChange}
-										isEditing={isEditing}
-										onCancelHistoryEdit={editing.handleCancelHistoryEdit}
-										editingFileBlocks={editing.editingFileBlocks}
-										mcpServers={mcpServers}
-										selectedMCPServerIds={selectedMCPServerIds}
-										onMCPSelectionChange={onMCPSelectionChange}
-										onMCPAuthComplete={onMCPAuthComplete}
-										workspace={workspace}
-										workspaceAgent={workspaceAgent}
-										sshCommand={sshCommand}
-										attachedWorkspace={attachedWorkspace}
-										folder={preferredFolder}
+										liveChatStatus={liveChatStatus}
+										panel={{
+											showSidebarPanel,
+											onToggleSidebar: () =>
+												onSetShowSidebarPanel(!showSidebarPanel),
+										}}
+									/>
+									{modelCatalogError != null && (
+										<ErrorAlert error={modelCatalogError} />
+									)}
+									{unavailableModelNotice && (
+										<div
+											role="status"
+											aria-label={unavailableModelNotice}
+											aria-live="polite"
+											className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
+										>
+											<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
+											{unavailableModelNotice}
+										</div>
+									)}
+									{isArchived && (
+										<div className="flex shrink-0 items-center gap-2 border-b border-border bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
+											<ArchiveIcon className="size-4 shrink-0" />
+											This agent has been archived and is read-only.
+										</div>
+									)}
+									<div
+										aria-hidden
+										className="pointer-events-none absolute inset-x-0 top-full z-10 h-3 sm:h-6 bg-surface-primary"
+										style={{
+											maskImage:
+												"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+											WebkitMaskImage:
+												"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+										}}
 									/>
 								</div>
-							)}
-						</div>
-						<RightPanel
-							isOpen={shouldShowSidebar}
-							isExpanded={showSidebarPanel && isRightPanelExpanded}
-							onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
-							onClose={() => onSetShowSidebarPanel(false)}
-							onVisualExpandedChange={setDragVisualExpanded}
-						>
-							<SidebarTabView
-								effectiveTabId={effectiveSidebarTabId}
-								onActiveTabChange={handleActiveTabChange}
-								tabs={sidebarTabs}
-								addTabControl={
-									<RightPanelAddTabControl
-										workspace={workspace}
-										agent={workspaceAgent}
-										host={wildcardHostname}
-										isRunning={workspace?.latest_build.status === "running"}
-										supportedSingletonTabs={supportedSingletonTabs}
-										visibleSingletonTabs={shownSingletonTabs}
-										onToggleSingletonTab={handleToggleSingletonTab}
-										onNewTerminal={handleAddTerminalTab}
-										onOpenWorkspaceApp={handleOpenWorkspaceAppTab}
-										onOpenCommandApp={handleOpenCommandAppTab}
-										onOpenPort={handleOpenPortTab}
-									/>
-								}
-								onClose={() => onSetShowSidebarPanel(false)}
-								isExpanded={visualExpanded}
+								<ChatPageTimeline
+									key={agentId}
+									organizationId={organizationId}
+									store={store}
+									chatFiles={chat.files}
+									initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
+									persistedError={persistedError}
+									hasMoreMessages={hasMoreMessages}
+									isFetchingMoreMessages={isFetchingMoreMessages}
+									isHydratingMessages={isHydratingMessages}
+									hasFetchMoreError={hasFetchMoreError}
+									onFetchMoreMessages={onFetchMoreMessages}
+									onEditUserMessage={
+										isOtherUserReadOnly
+											? undefined
+											: editing.handleEditUserMessage
+									}
+									editingMessageId={editing.editingMessageId}
+									urlTransform={urlTransform}
+									mcpServers={mcpServers}
+									onImplementPlan={
+										isOtherUserReadOnly || !canSubmitChatTurn
+											? undefined
+											: onImplementPlan
+									}
+									onSendAskUserQuestionResponse={
+										isOtherUserReadOnly || !canSubmitChatTurn
+											? undefined
+											: onSendAskUserQuestionResponse
+									}
+									footer={
+										chat.queued_for_capacity ? (
+											<QueuedForCapacityCallout
+												hasLicense={hasLicense}
+												canManageLicenses={canManageLicenses}
+												agentHoursHardLimit={agentHoursHardLimit}
+											/>
+										) : undefined
+									}
+								/>
+								{!isArchived && (
+									<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
+										<ChatPageInput
+											chat={chat}
+											store={store}
+											modelCatalog={modelCatalog}
+											onSend={editing.handleSendFromInput}
+											onDeleteQueuedMessage={handleDeleteQueuedMessage}
+											onPromoteQueuedMessage={handlePromoteQueuedMessage}
+											onInterrupt={handleInterrupt}
+											isInputDisabled={isInputDisabled}
+											isReadOnly={isOtherUserReadOnly}
+											readOnlyNotice={readOnlyNotice}
+											isSendPending={isSubmissionPending}
+											isInterruptPending={isInterruptPending}
+											hasModelOptions={hasModelOptions}
+											canConfigureAgentSetup={canConfigureAgentSetup}
+											providerCount={providerCount}
+											modelCount={modelCount}
+											unsupportedProviderNames={unsupportedProviderNames}
+											aiGatewayDisabled={aiGatewayDisabled}
+											selectedModel={effectiveSelectedModel}
+											onModelChange={setSelectedModel}
+											modelOptions={modelOptions}
+											modelSelectorPlaceholder={modelSelectorPlaceholder}
+											modelSelectorHelp={modelSelectorHelp}
+											reasoningEffort={reasoningEffort}
+											onReasoningEffortChange={onReasoningEffortChange}
+											onPlanModeToggle={onPlanModeToggle}
+											isModelCatalogLoading={isModelCatalogLoading}
+											onWorkspaceChange={onWorkspaceChange}
+											isWorkspaceLoading={isWorkspaceLoading}
+											inputRef={editing.chatInputRef}
+											initialValue={editing.editorInitialValue}
+											initialEditorState={editing.initialEditorState}
+											remountKey={editing.remountKey}
+											onContentChange={editing.handleContentChange}
+											isEditing={isEditing}
+											onCancelHistoryEdit={editing.handleCancelHistoryEdit}
+											editingFileBlocks={editing.editingFileBlocks}
+											mcpServers={mcpServers}
+											selectedMCPServerIds={selectedMCPServerIds}
+											onMCPSelectionChange={onMCPSelectionChange}
+											onMCPAuthComplete={onMCPAuthComplete}
+											workspace={workspace}
+											workspaceAgent={workspaceAgent}
+											sshCommand={sshCommand}
+											attachedWorkspace={attachedWorkspace}
+											folder={preferredFolder}
+										/>
+									</div>
+								)}
+							</div>
+							<RightPanel
+								isOpen={shouldShowSidebar}
+								isExpanded={showSidebarPanel && isRightPanelExpanded}
 								onToggleExpanded={() =>
 									setIsRightPanelExpanded((prev) => !prev)
 								}
-								chatTitle={chat.title}
-							/>
-						</RightPanel>
-					</div>
+								onClose={() => onSetShowSidebarPanel(false)}
+								onVisualExpandedChange={setDragVisualExpanded}
+							>
+								<SidebarTabView
+									effectiveTabId={effectiveSidebarTabId}
+									onActiveTabChange={handleActiveTabChange}
+									tabs={sidebarTabs}
+									addTabControl={
+										<RightPanelAddTabControl
+											workspace={workspace}
+											agent={workspaceAgent}
+											host={wildcardHostname}
+											isRunning={workspace?.latest_build.status === "running"}
+											supportedSingletonTabs={supportedSingletonTabs}
+											visibleSingletonTabs={shownSingletonTabs}
+											onToggleSingletonTab={handleToggleSingletonTab}
+											onNewTerminal={handleAddTerminalTab}
+											onOpenWorkspaceApp={handleOpenWorkspaceAppTab}
+											onOpenCommandApp={handleOpenCommandAppTab}
+											onOpenPort={handleOpenPortTab}
+											mcpApps={mcpAppsMenu}
+										/>
+									}
+									onClose={() => onSetShowSidebarPanel(false)}
+									isExpanded={visualExpanded}
+									onToggleExpanded={() =>
+										setIsRightPanelExpanded((prev) => !prev)
+									}
+									chatTitle={chat.title}
+								/>
+							</RightPanel>
+						</div>
+					</McpAppTabContext>
 				</DesktopPanelContext>
 			</ChatWorkspaceContext>
 		</TerminalClientSessionContext>

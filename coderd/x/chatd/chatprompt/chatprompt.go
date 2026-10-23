@@ -822,7 +822,25 @@ func toolResultContentToPart(
 	part := codersdk.ChatMessageToolResult(content.ToolCallID, content.ToolName, result, isError, isMedia)
 	part.ProviderExecuted = content.ProviderExecuted
 	part.ProviderMetadata = marshalProviderMetadata(content.ProviderMetadata)
+	// ClientMetadata is {"attachments": [...], "mcp_app": {...}}. The
+	// attachment decoder ignores the mcp_app key.
+	part.MCPApp = mcpAppFromMetadata(content.ClientMetadata)
 	return part
+}
+
+// mcpAppFromMetadata decodes the MCP Apps view data that mcpclient puts
+// in the tool response metadata. It returns nil when there is none.
+func mcpAppFromMetadata(metadata string) *codersdk.ChatMCPApp {
+	if !strings.Contains(metadata, `"mcp_app"`) {
+		return nil
+	}
+	var decoded struct {
+		MCPApp *codersdk.ChatMCPApp `json:"mcp_app"`
+	}
+	if err := json.Unmarshal([]byte(metadata), &decoded); err != nil {
+		return nil
+	}
+	return decoded.MCPApp
 }
 
 func matchingAttachmentForMedia(

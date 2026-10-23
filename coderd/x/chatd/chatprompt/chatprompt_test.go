@@ -3591,3 +3591,37 @@ func TestPartFromContent_ExecuteToolParsedCommands(t *testing.T) {
 		})
 	}
 }
+
+func TestPartFromContentMCPApp(t *testing.T) {
+	t.Parallel()
+
+	serverID := uuid.New()
+	metadata, err := json.Marshal(map[string]any{"mcp_app": codersdk.ChatMCPApp{
+		MCPServerConfigID: serverID,
+		ToolName:          "show_board",
+		ResourceURI:       "ui://dice/board.html",
+		ToolInput:         map[string]any{"count": float64(2)},
+		ToolResult:        map[string]any{"structuredContent": map[string]any{"total": float64(7)}},
+	}})
+	require.NoError(t, err)
+
+	part := chatprompt.PartFromContent(fantasy.ToolResultContent{
+		ToolCallID:     "call-1",
+		ToolName:       "dice__show_board",
+		ClientMetadata: string(metadata),
+		Result:         fantasy.ToolResultOutputContentText{Text: `{"total":7}`},
+	})
+	require.NotNil(t, part.MCPApp)
+	require.Equal(t, serverID, part.MCPApp.MCPServerConfigID)
+	require.Equal(t, "ui://dice/board.html", part.MCPApp.ResourceURI)
+	require.Equal(t, map[string]any{"count": float64(2)}, part.MCPApp.ToolInput)
+	// The model copy of the result does not change.
+	require.JSONEq(t, `{"total":7}`, string(part.Result))
+
+	plain := chatprompt.PartFromContent(fantasy.ToolResultContent{
+		ToolCallID: "call-2",
+		ToolName:   "dice__server_time",
+		Result:     fantasy.ToolResultOutputContentText{Text: `{}`},
+	})
+	require.Nil(t, plain.MCPApp)
+}

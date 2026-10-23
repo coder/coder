@@ -138,6 +138,11 @@ type Server struct {
 	ToolAllowList []string
 	ToolDenyList  []string
 	ModelIntent   bool
+	// MCPApps advertises the MCP Apps client extension (SEP-1865), hides
+	// tools whose _meta.ui.visibility excludes "model", and records view
+	// data on the results of tools that declare a ui:// view. The
+	// mcp-apps experiment sets it for org servers.
+	MCPApps bool
 }
 
 // InProcessServer supplies an MCP server for an in-memory connection.
@@ -511,52 +516,14 @@ func connectOne(
 	redactor secretRedactor,
 ) ([]fantasy.AgentTool, *mcp.ClientSession, error) {
 	limits, capped := opts.kind.toolLimits()
-	var (
-		tr  mcp.Transport
-		err error
-	)
-	if opts.kind == connectionKindInProcess {
-		tr, err = inMemoryTransport(opts.inProcessServers[srv.ID])
-	} else {
-		headers := buildAuthHeaders(ctx, logger, srv, tokensByConfigID, userID, oidcSrc)
-
-		// When opted-in, merge Coder identity headers BEFORE the
-		// transport is created so any auth header already set above
-		// wins on a conflict. Conflict detection uses
-		// http.CanonicalHeaderKey because the upstream transport applies
-		// http.Header.Set, which canonicalizes keys; without that, an
-		// admin-configured header that differs only in case from a Coder
-		// identity header would land in the request map twice and the
-		// surviving value would be non-deterministic.
-		if srv.ForwardCoderHeaders {
-			canonicalAuth := make(map[string]struct{}, len(headers))
-			for k := range headers {
-				canonicalAuth[http.CanonicalHeaderKey(k)] = struct{}{}
-			}
-			for k, v := range coderHeaders {
-				if _, exists := canonicalAuth[http.CanonicalHeaderKey(k)]; exists {
-					continue
-				}
-				headers[k] = v
-			}
-		}
-
-		maxEventSize := 0
-		if opts.kind == connectionKindInline {
-			maxEventSize = maxInlineHTTPResponseBytes
-		}
-		tr, err = createTransport(srv, headers, opts.httpClient, maxEventSize)
-	}
+	tr, err := serverTransport(ctx, logger, srv, tokensByConfigID, userID, oidcSrc, coderHeaders, opts)
 	if err != nil {
 		return nil, nil, xerrors.Errorf(
 			"create transport: %w", err,
 		)
 	}
 
-	mcpClient := mcp.NewClient(&mcp.Implementation{
-		Name:    "coder",
-		Version: buildinfo.Version(),
-	}, nil)
+	mcpClient := newMCPClient(srv)
 
 	// The timeout covers the entire connect+list sequence, not
 	// each phase individually. The SDK negotiates the protocol
@@ -632,10 +599,18 @@ func connectOne(
 			)
 			continue
 		}
+		var ui UIMeta
+		if srv.MCPApps {
+			ui = ParseUIMeta(mcpTool.Meta)
+			// The spec forbids sending an app-only tool to the model.
+			if !ui.Allows(VisibilityModel) {
+				continue
+			}
+		}
 
-		tools = append(
-			tools, newMCPTool(srv.ID, srv.Slug, mcpTool, session, srv.ModelIntent, redactor, limits.resultBytes),
-		)
+		tool := newMCPTool(srv.ID, srv.Slug, mcpTool, session, srv.ModelIntent, redactor, limits.resultBytes)
+		tool.ui = ui
+		tools = append(tools, tool)
 	}
 
 	if capped {
@@ -653,6 +628,69 @@ func connectOne(
 	}
 
 	return tools, session, nil
+}
+
+// serverTransport builds the transport for one server: in memory for an
+// in-process server, else HTTP with the auth and Coder identity headers.
+func serverTransport(
+	ctx context.Context,
+	logger slog.Logger,
+	srv Server,
+	tokensByConfigID map[uuid.UUID]database.MCPServerUserToken,
+	userID uuid.UUID,
+	oidcSrc UserOIDCTokenSource,
+	coderHeaders map[string]string,
+	opts connectOptions,
+) (mcp.Transport, error) {
+	if opts.kind == connectionKindInProcess {
+		return inMemoryTransport(opts.inProcessServers[srv.ID])
+	}
+	headers := buildAuthHeaders(ctx, logger, srv, tokensByConfigID, userID, oidcSrc)
+
+	// When opted-in, merge Coder identity headers BEFORE the
+	// transport is created so any auth header already set above
+	// wins on a conflict. Conflict detection uses
+	// http.CanonicalHeaderKey because the upstream transport applies
+	// http.Header.Set, which canonicalizes keys; without that, an
+	// admin-configured header that differs only in case from a Coder
+	// identity header would land in the request map twice and the
+	// surviving value would be non-deterministic.
+	if srv.ForwardCoderHeaders {
+		canonicalAuth := make(map[string]struct{}, len(headers))
+		for k := range headers {
+			canonicalAuth[http.CanonicalHeaderKey(k)] = struct{}{}
+		}
+		for k, v := range coderHeaders {
+			if _, exists := canonicalAuth[http.CanonicalHeaderKey(k)]; exists {
+				continue
+			}
+			headers[k] = v
+		}
+	}
+
+	maxEventSize := 0
+	if opts.kind == connectionKindInline {
+		maxEventSize = maxInlineHTTPResponseBytes
+	}
+	return createTransport(srv, headers, opts.httpClient, maxEventSize)
+}
+
+// newMCPClient returns the MCP client for one server connection. With
+// MCPApps it advertises the MCP Apps extension and keeps the SDK's
+// default roots capability.
+func newMCPClient(srv Server) *mcp.Client {
+	var clientOpts *mcp.ClientOptions
+	if srv.MCPApps {
+		caps := &mcp.ClientCapabilities{RootsV2: &mcp.RootCapabilities{ListChanged: true}}
+		caps.AddExtension(AppsExtension, map[string]any{
+			"mimeTypes": []string{AppMIMEType},
+		})
+		clientOpts = &mcp.ClientOptions{Capabilities: caps}
+	}
+	return mcp.NewClient(&mcp.Implementation{
+		Name:    "coder",
+		Version: buildinfo.Version(),
+	}, clientOpts)
 }
 
 // Caps for inline servers. Tool definitions are sent to the model
@@ -1190,6 +1228,10 @@ type mcpToolWrapper struct {
 	// maxResultBytes caps the serialized tool result; 0 means no cap.
 	maxResultBytes  int
 	providerOptions fantasy.ProviderOptions
+	// ui is the MCP Apps metadata of the tool. It is zero unless the
+	// server has MCPApps.
+	ui    UIMeta
+	title string
 }
 
 // MCPServerConfigID returns the database ID of the MCP server
@@ -1220,6 +1262,7 @@ func newMCPTool(
 		description:    redactor.redactString(tool.Description),
 		parameters:     redactor.redactMap(properties),
 		required:       redactor.redactStrings(required),
+		title:          ToolTitle(tool),
 		modelIntent:    modelIntent,
 		session:        session,
 		redactor:       redactor,
@@ -1331,6 +1374,9 @@ func (t *mcpToolWrapper) Run(
 			result.StructuredContent = t.redactor.redactValue(result.StructuredContent)
 		}
 		resp = t.redactor.redactResponse(convertCallResult(result))
+		if t.ui.ResourceURI != "" {
+			resp.Metadata = t.appMetadata(args, result)
+		}
 	}
 	// Measure the result as the model receives it: Data is sent base64-encoded.
 	if t.maxResultBytes > 0 && len(resp.Content)+len(resp.MediaType)+base64.StdEncoding.EncodedLen(len(resp.Data)) > t.maxResultBytes {

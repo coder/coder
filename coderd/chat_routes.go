@@ -130,6 +130,17 @@ func (api *API) registerExperimentalChatRoutes(r chi.Router, apiKeyMiddleware fu
 		r.Route("/{chat}", func(r chi.Router) {
 			r.Use(httpmw.ExtractChatParam(api.Database))
 			r.Get("/stream/desktop", api.watchChatDesktop)
+			// No dev bypass: MCP Apps views run server HTML in the
+			// browser, so only the deployment experiment turns them on.
+			r.Route("/mcp-apps", func(r chi.Router) {
+				r.Use(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentMCPApps))
+				r.Get("/entrypoints", api.getChatMCPAppEntrypoints)
+				r.Route("/{mcpServer}", func(r chi.Router) {
+					r.Get("/view", api.getChatMCPAppView)
+					r.Post("/tools/call", api.postChatMCPAppToolCall)
+					r.Post("/open", api.postChatMCPAppOpen)
+				})
+			})
 			r.Route("/debug", func(r chi.Router) {
 				r.Get("/runs", api.getChatDebugRuns)
 				r.Get("/runs/{debugRun}", api.getChatDebugRun)

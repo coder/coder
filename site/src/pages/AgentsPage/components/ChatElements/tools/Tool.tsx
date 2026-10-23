@@ -1,7 +1,9 @@
 import { File as FileViewer } from "@pierre/diffs/react";
 import { cn } from "cn";
+import { AppWindowIcon } from "lucide-react";
 import { memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import { useTheme } from "#/theme/context";
 import { ACPTool } from "./ACPTool";
 import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
@@ -21,6 +23,7 @@ import { type FindToolsMatch, FindToolsTool } from "./FindToolsTool";
 import { ListAgentsTool } from "./ListAgentsTool";
 import { ListSubagentModelsTool } from "./ListSubagentModelsTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
+import { useMcpAppTab } from "./McpAppTabContext";
 import { ProcessOutputTool } from "./ProcessOutputTool";
 import { ProposePlanTool } from "./ProposePlanTool";
 import { getReadFileToolData, ReadFileTool } from "./ReadFileTool";
@@ -90,6 +93,10 @@ type ToolProps = Omit<React.ComponentProps<"div">, "children"> & {
 	mcpServerConfigId?: string;
 	/** Available MCP server configs for icon/name lookup. */
 	mcpServers: readonly TypesGen.MCPServerConfig[];
+	/** The tool call ID, for actions that refer back to this call. */
+	toolCallId?: string;
+	/** MCP Apps view data when the MCP tool declares a ui:// view. */
+	mcpApp?: TypesGen.ChatMCPApp;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
@@ -129,6 +136,8 @@ type ToolRendererProps = {
 	previousResponseText?: string;
 	mcpServerConfigId?: string;
 	mcpServers: readonly TypesGen.MCPServerConfig[];
+	toolCallId?: string;
+	mcpApp?: TypesGen.ChatMCPApp;
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
 	startedAt?: string;
@@ -964,9 +973,12 @@ const GenericToolRenderer: React.FC<ToolRendererProps> = ({
 	isMedia,
 	mcpServerConfigId,
 	mcpServers,
+	toolCallId,
+	mcpApp,
 	modelIntent,
 }) => {
 	const theme = useTheme();
+	const { onOpenMcpApp } = useMcpAppTab();
 	const isDark = theme.palette.mode === "dark";
 	const toolInput = formatToolInput(args);
 	const mediaResult = isMedia ? parseMediaToolResult(result) : null;
@@ -997,6 +1009,23 @@ const GenericToolRenderer: React.FC<ToolRendererProps> = ({
 		name,
 		mcpSlug: mcpServer?.slug,
 	});
+	const header = (
+		<ToolCall.Header
+			iconName={name}
+			iconUrl={mcpServer?.icon_url}
+			serverName={mcpServer?.display_name}
+			label={
+				formatModelIntentLabel(modelIntent) || (
+					<ToolLabel
+						name={name}
+						args={args}
+						result={result}
+						mcpSlug={mcpServer?.slug}
+					/>
+				)
+			}
+		/>
+	);
 
 	return (
 		<ToolCall.Root
@@ -1005,21 +1034,23 @@ const GenericToolRenderer: React.FC<ToolRendererProps> = ({
 			errorMessage={errorMessage || fallbackErrorMessage}
 			hasContent={hasContent}
 		>
-			<ToolCall.Header
-				iconName={name}
-				iconUrl={mcpServer?.icon_url}
-				serverName={mcpServer?.display_name}
-				label={
-					formatModelIntentLabel(modelIntent) || (
-						<ToolLabel
-							name={name}
-							args={args}
-							result={result}
-							mcpSlug={mcpServer?.slug}
-						/>
-					)
-				}
-			/>
+			{mcpApp && toolCallId && onOpenMcpApp ? (
+				<ToolCall.HeaderLayout>
+					{header}
+					<ToolCall.HeaderActions>
+						<Button
+							variant="outline"
+							size="xs"
+							onClick={() => onOpenMcpApp(toolCallId, mcpApp)}
+						>
+							<AppWindowIcon className="size-3" />
+							Open app
+						</Button>
+					</ToolCall.HeaderActions>
+				</ToolCall.HeaderLayout>
+			) : (
+				header
+			)}
 			<ToolCall.Content>
 				<GenericToolContent
 					toolInput={toolInput}
@@ -1234,6 +1265,8 @@ export const Tool = memo(
 		subagentStatusOverrides,
 		mcpServerConfigId,
 		mcpServers,
+		toolCallId,
+		mcpApp,
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
 		isChatCompleted,
@@ -1285,6 +1318,8 @@ export const Tool = memo(
 						subagentStatusOverrides={subagentStatusOverrides}
 						mcpServerConfigId={mcpServerConfigId}
 						mcpServers={mcpServers}
+						toolCallId={toolCallId}
+						mcpApp={mcpApp}
 						onImplementPlan={onImplementPlan}
 						onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 						isChatCompleted={isChatCompleted}

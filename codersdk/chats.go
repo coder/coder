@@ -568,16 +568,20 @@ type ChatMessagePart struct {
 	ResultReset    bool            `json:"result_reset,omitempty" variants:"tool-result?"`
 	IsError        bool            `json:"is_error,omitempty" variants:"tool-result?"`
 	IsMedia        bool            `json:"is_media,omitempty" variants:"tool-result?"`
-	SourceID       string          `json:"source_id,omitempty" variants:"source?"`
-	URL            string          `json:"url" variants:"source"`
-	Title          string          `json:"title,omitempty" variants:"source?"`
-	MediaType      string          `json:"media_type" variants:"file"`
-	Name           string          `json:"name,omitempty" variants:"file?"`
-	Data           []byte          `json:"data,omitempty" variants:"file?"`
-	FileID         uuid.NullUUID   `json:"file_id,omitempty" format:"uuid" variants:"file?"`
-	FileName       string          `json:"file_name" variants:"file-reference"`
-	StartLine      int             `json:"start_line" variants:"file-reference"`
-	EndLine        int             `json:"end_line" variants:"file-reference"`
+	// MCPApp is set on the result of an MCP tool that declares a ui://
+	// view (MCP Apps, mcp-apps experiment). Only the browser reads it.
+	// The model never gets it.
+	MCPApp    *ChatMCPApp   `json:"mcp_app,omitempty" variants:"tool-result?"`
+	SourceID  string        `json:"source_id,omitempty" variants:"source?"`
+	URL       string        `json:"url" variants:"source"`
+	Title     string        `json:"title,omitempty" variants:"source?"`
+	MediaType string        `json:"media_type" variants:"file"`
+	Name      string        `json:"name,omitempty" variants:"file?"`
+	Data      []byte        `json:"data,omitempty" variants:"file?"`
+	FileID    uuid.NullUUID `json:"file_id,omitempty" format:"uuid" variants:"file?"`
+	FileName  string        `json:"file_name" variants:"file-reference"`
+	StartLine int           `json:"start_line" variants:"file-reference"`
+	EndLine   int           `json:"end_line" variants:"file-reference"`
 	// The code content from the diff that was commented on.
 	Content string `json:"content" variants:"file-reference"`
 	// ProviderMetadata holds provider-specific response metadata
@@ -688,6 +692,105 @@ type ChatMessagePart struct {
 	// filesystem holds the uploaded bytes. References are only
 	// readable while the chat stays bound to that workspace.
 	WorkspaceFileWorkspaceID uuid.UUID `json:"workspace_file_workspace_id" format:"uuid" variants:"workspace-file-reference"`
+}
+
+// ChatMCPApp is the data that an MCP Apps view (SEP-1865) needs to show
+// a tool result. EXPERIMENTAL: the mcp-apps experiment gates it.
+type ChatMCPApp struct {
+	// MCPServerConfigID is set here because live stream parts do not
+	// carry ChatMessagePart.MCPServerConfigID.
+	MCPServerConfigID uuid.UUID `json:"mcp_server_config_id" format:"uuid"`
+	// ToolName is the tool name on the MCP server, without the slug.
+	ToolName string `json:"tool_name"`
+	// Title is the tool title, then annotations.title, then the name.
+	Title string `json:"title"`
+	// ResourceURI is the tool's _meta.ui.resourceUri.
+	ResourceURI string `json:"resource_uri"`
+	// ToolInput is the tool arguments, without the model_intent
+	// wrapper. It is {} when the tool has no input.
+	ToolInput map[string]any `json:"tool_input"`
+	// ToolResult is the raw MCP CallToolResult. It is empty when the
+	// result is above 256 KiB. The type is map[string]any, not
+	// json.RawMessage, which apitypings types as map[string]string.
+	ToolResult map[string]any `json:"tool_result,omitempty"`
+}
+
+// ChatMCPAppEntrypoint is a view that the user can open from the right
+// panel without a tool call: a tool with an OpenAI thread entry point
+// (OpenAI MCP Extensions). EXPERIMENTAL.
+type ChatMCPAppEntrypoint struct {
+	MCPServerConfigID uuid.UUID `json:"mcp_server_config_id" format:"uuid"`
+	ServerDisplayName string    `json:"server_display_name"`
+	ToolName          string    `json:"tool_name"`
+	// Title is the tool title, then annotations.title, then the name.
+	Title       string `json:"title"`
+	ResourceURI string `json:"resource_uri"`
+}
+
+// ChatMCPAppToolCallRequest is a tools/call request from an MCP Apps
+// view. EXPERIMENTAL.
+type ChatMCPAppToolCallRequest struct {
+	Name      string         `json:"name"`
+	Arguments map[string]any `json:"arguments,omitempty"`
+}
+
+// ChatMCPAppOpenRequest opens a thread entry point: coderd calls the
+// tool with {}. EXPERIMENTAL.
+type ChatMCPAppOpenRequest struct {
+	ToolName string `json:"tool_name"`
+}
+
+// GetChatMCPAppEntrypoints lists the thread entry points of the given MCP
+// servers for a chat. EXPERIMENTAL.
+func (c *ExperimentalClient) GetChatMCPAppEntrypoints(ctx context.Context, chatID uuid.UUID, serverIDs []uuid.UUID) ([]ChatMCPAppEntrypoint, error) {
+	path := fmt.Sprintf("/api/experimental/chats/%s/mcp-apps/entrypoints", chatID)
+	opts := []RequestOption{}
+	for _, id := range serverIDs {
+		opts = append(opts, func(r *http.Request) {
+			q := r.URL.Query()
+			q.Add("mcp_server_id", id.String())
+			r.URL.RawQuery = q.Encode()
+		})
+	}
+	res, err := c.Request(ctx, http.MethodGet, path, nil, opts...)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var resp []ChatMCPAppEntrypoint
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// CallChatMCPAppTool runs a tools/call request of an MCP Apps view. It
+// returns the raw MCP CallToolResult. EXPERIMENTAL.
+func (c *ExperimentalClient) CallChatMCPAppTool(ctx context.Context, chatID, serverID uuid.UUID, req ChatMCPAppToolCallRequest) (map[string]any, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/mcp-apps/%s/tools/call", chatID, serverID), req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var resp map[string]any
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// OpenChatMCPApp opens a thread entry point. EXPERIMENTAL.
+func (c *ExperimentalClient) OpenChatMCPApp(ctx context.Context, chatID, serverID uuid.UUID, req ChatMCPAppOpenRequest) (ChatMCPApp, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/mcp-apps/%s/open", chatID, serverID), req)
+	if err != nil {
+		return ChatMCPApp{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatMCPApp{}, ReadBodyAsError(res)
+	}
+	var resp ChatMCPApp
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // StripInternal removes internal-only fields that must not be

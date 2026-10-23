@@ -3270,6 +3270,56 @@ export const updateOrganizationChatSystemPrompt = (
 	},
 });
 
+// ── MCP Apps (mcp-apps experiment) ───────────────────────────
+
+const chatMCPAppEntrypointsKey = (
+	chatId: string,
+	mcpServerIds: readonly string[],
+) =>
+	[...chatEntityKey(chatId), "mcp-app-entrypoints", ...mcpServerIds] as const;
+
+export const chatMCPAppEntrypoints = (
+	chatId: string,
+	mcpServerIds: readonly string[],
+) =>
+	queryOptions({
+		queryKey: chatMCPAppEntrypointsKey(chatId, mcpServerIds),
+		queryFn: () =>
+			API.experimental.getChatMCPAppEntrypoints(chatId, mcpServerIds),
+	});
+
+const openChatMCPAppKey = (
+	chatId: string,
+	mcpServerId: string,
+	toolName: string,
+) => [...chatEntityKey(chatId), "mcp-app-open", mcpServerId, toolName] as const;
+
+/**
+ * Opens a thread entry point: coderd calls the tool with {}. The result
+ * never goes stale, so a tab switch does not call the tool again. A page
+ * reload does.
+ */
+export const openChatMCPApp = (
+	chatId: string,
+	mcpServerId: string,
+	toolName: string,
+) =>
+	queryOptions({
+		queryKey: openChatMCPAppKey(chatId, mcpServerId, toolName),
+		queryFn: () =>
+			API.experimental.openChatMCPApp(chatId, mcpServerId, {
+				tool_name: toolName,
+			}),
+		staleTime: Number.POSITIVE_INFINITY,
+		retry: false,
+	});
+
+/** A tools/call request of an MCP Apps view. */
+export const callChatMCPAppTool = (chatId: string, mcpServerId: string) => ({
+	mutationFn: (req: TypesGen.ChatMCPAppToolCallRequest) =>
+		API.experimental.callChatMCPAppTool(chatId, mcpServerId, req),
+});
+
 // ── MCP Server Configs ───────────────────────────────────────
 
 const mcpServersKey = ["mcp", "servers"] as const;

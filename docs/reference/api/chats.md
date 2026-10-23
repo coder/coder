@@ -2909,6 +2909,20 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app": {
+            "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+            "resource_uri": "string",
+            "title": "string",
+            "tool_input": {
+              "property1": null,
+              "property2": null
+            },
+            "tool_name": "string",
+            "tool_result": {
+              "property1": null,
+              "property2": null
+            }
+          },
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -2992,6 +3006,20 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app": {
+            "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+            "resource_uri": "string",
+            "title": "string",
+            "tool_input": {
+              "property1": null,
+              "property2": null
+            },
+            "tool_name": "string",
+            "tool_result": {
+              "property1": null,
+              "property2": null
+            }
+          },
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -3151,6 +3179,20 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
+        "mcp_app": {
+          "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+          "resource_uri": "string",
+          "title": "string",
+          "tool_input": {
+            "property1": null,
+            "property2": null
+          },
+          "tool_name": "string",
+          "tool_result": {
+            "property1": null,
+            "property2": null
+          }
+        },
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
@@ -3233,6 +3275,20 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app": {
+            "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+            "resource_uri": "string",
+            "title": "string",
+            "tool_input": {
+              "property1": null,
+              "property2": null
+            },
+            "tool_name": "string",
+            "tool_result": {
+              "property1": null,
+              "property2": null
+            }
+          },
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -3316,6 +3372,20 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
+        "mcp_app": {
+          "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+          "resource_uri": "string",
+          "title": "string",
+          "tool_input": {
+            "property1": null,
+            "property2": null
+          },
+          "tool_name": "string",
+          "tool_result": {
+            "property1": null,
+            "property2": null
+          }
+        },
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
@@ -3460,6 +3530,20 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
+        "mcp_app": {
+          "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+          "resource_uri": "string",
+          "title": "string",
+          "tool_input": {
+            "property1": null,
+            "property2": null
+          },
+          "tool_name": "string",
+          "tool_result": {
+            "property1": null,
+            "property2": null
+          }
+        },
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
@@ -3542,6 +3626,20 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app": {
+            "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+            "resource_uri": "string",
+            "title": "string",
+            "tool_input": {
+              "property1": null,
+              "property2": null
+            },
+            "tool_name": "string",
+            "tool_result": {
+              "property1": null,
+              "property2": null
+            }
+          },
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -4137,6 +4235,20 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app": {
+            "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+            "resource_uri": "string",
+            "title": "string",
+            "tool_input": {
+              "property1": null,
+              "property2": null
+            },
+            "tool_name": "string",
+            "tool_result": {
+              "property1": null,
+              "property2": null
+            }
+          },
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -4218,6 +4330,20 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
+        "mcp_app": {
+          "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+          "resource_uri": "string",
+          "title": "string",
+          "tool_input": {
+            "property1": null,
+            "property2": null
+          },
+          "tool_name": "string",
+          "tool_result": {
+            "property1": null,
+            "property2": null
+          }
+        },
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
@@ -4286,6 +4412,20 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             "hook_rewritten": true,
             "is_error": true,
             "is_media": true,
+            "mcp_app": {
+              "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+              "resource_uri": "string",
+              "title": "string",
+              "tool_input": {
+                "property1": null,
+                "property2": null
+              },
+              "tool_name": "string",
+              "tool_result": {
+                "property1": null,
+                "property2": null
+              }
+            },
             "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
             "media_type": "string",
             "name": "string",
@@ -4394,6 +4534,15 @@ Status Code **200**
 | `»»» hook_rewritten`               | boolean                                                                          | false    |              | Hook rewritten indicates that a lifecycle hook replaced model-proposed tool input.                                                                                                                                                                                                                                                                                                                         |
 | `»»» is_error`                     | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» is_media`                     | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» mcp_app`                      | [codersdk.ChatMCPApp](schemas.md#codersdkchatmcpapp)                             | false    |              | Mcp app is set on the result of an MCP tool that declares a ui:// view (MCP Apps, mcp-apps experiment). Only the browser reads it. The model never gets it.                                                                                                                                                                                                                                                |
+| `»»»» mcp_server_config_id`        | string(uuid)                                                                     | false    |              | Mcp server config ID is set here because live stream parts do not carry ChatMessagePart.MCPServerConfigID.                                                                                                                                                                                                                                                                                                 |
+| `»»»» resource_uri`                | string                                                                           | false    |              | Resource uri is the tool's _meta.ui.resourceUri.                                                                                                                                                                                                                                                                                                                                                           |
+| `»»»» title`                       | string                                                                           | false    |              | Title is the tool title, then annotations.title, then the name.                                                                                                                                                                                                                                                                                                                                            |
+| `»»»» tool_input`                  | object                                                                           | false    |              | Tool input is the tool arguments, without the model_intent wrapper. It is {} when the tool has no input.                                                                                                                                                                                                                                                                                                   |
+| `»»»»» [any property]`             | any                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»»» tool_name`                   | string                                                                           | false    |              | Tool name is the tool name on the MCP server, without the slug.                                                                                                                                                                                                                                                                                                                                            |
+| `»»»» tool_result`                 | object                                                                           | false    |              | Tool result is the raw MCP CallToolResult. It is empty when the result is above 256 KiB. The type is map[string]any, not json.RawMessage, which apitypings types as map[string]string.                                                                                                                                                                                                                     |
+| `»»»»» [any property]`             | any                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» mcp_server_config_id`         | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» media_type`                   | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» name`                         | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |

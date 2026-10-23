@@ -64,6 +64,19 @@ export type UserRightPanelTab =
 			agentId: string;
 			port: number;
 			protocol: WorkspaceAgentPortShareProtocol;
+	  }
+	| {
+			id: string;
+			kind: "mcp_app";
+			label: string;
+			mcpServerConfigId: string;
+			resourceUri: string;
+			/**
+			 * Exactly one source is set: the tool call whose result the view
+			 * shows, or the thread entry point tool that the panel opens.
+			 */
+			toolCallId?: string;
+			entrypointToolName?: string;
 	  };
 
 type ValidateUserRightPanelTabsOptions = {
@@ -114,6 +127,17 @@ export function isUserRightPanelTab(
 		);
 	}
 
+	if (record.kind === "mcp_app") {
+		const hasToolCall = typeof record.toolCallId === "string";
+		const hasEntrypoint = typeof record.entrypointToolName === "string";
+		return (
+			typeof record.label === "string" &&
+			typeof record.mcpServerConfigId === "string" &&
+			typeof record.resourceUri === "string" &&
+			hasToolCall !== hasEntrypoint
+		);
+	}
+
 	return false;
 }
 
@@ -128,6 +152,10 @@ export function validateUserRightPanelTabs(
 	return tabs.filter((tab) => {
 		if (tab.kind === "terminal") {
 			return workspace !== undefined && workspaceAgent !== undefined;
+		}
+		// A view needs no workspace: it comes from an org MCP server.
+		if (tab.kind === "mcp_app") {
+			return true;
 		}
 
 		if (!workspace) {

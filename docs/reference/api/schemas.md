@@ -3284,6 +3284,38 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------------------------------------------------------------------------------|
 | `file`, `file-reference`, `skill-invocation`, `text`, `workspace-file-reference` |
 
+## codersdk.ChatMCPApp
+
+```json
+{
+  "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+  "resource_uri": "string",
+  "title": "string",
+  "tool_input": {
+    "property1": null,
+    "property2": null
+  },
+  "tool_name": "string",
+  "tool_result": {
+    "property1": null,
+    "property2": null
+  }
+}
+```
+
+### Properties
+
+| Name                   | Type   | Required | Restrictions | Description                                                                                                                                                                            |
+|------------------------|--------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `mcp_server_config_id` | string | false    |              | Mcp server config ID is set here because live stream parts do not carry ChatMessagePart.MCPServerConfigID.                                                                             |
+| `resource_uri`         | string | false    |              | Resource uri is the tool's _meta.ui.resourceUri.                                                                                                                                       |
+| `title`                | string | false    |              | Title is the tool title, then annotations.title, then the name.                                                                                                                        |
+| `tool_input`           | object | false    |              | Tool input is the tool arguments, without the model_intent wrapper. It is {} when the tool has no input.                                                                               |
+| » `[any property]`     | any    | false    |              |                                                                                                                                                                                        |
+| `tool_name`            | string | false    |              | Tool name is the tool name on the MCP server, without the slug.                                                                                                                        |
+| `tool_result`          | object | false    |              | Tool result is the raw MCP CallToolResult. It is empty when the result is above 256 KiB. The type is map[string]any, not json.RawMessage, which apitypings types as map[string]string. |
+| » `[any property]`     | any    | false    |              |                                                                                                                                                                                        |
+
 ## codersdk.ChatMessage
 
 ```json
@@ -3314,6 +3346,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
+      "mcp_app": {
+        "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+        "resource_uri": "string",
+        "title": "string",
+        "tool_input": {
+          "property1": null,
+          "property2": null
+        },
+        "tool_name": "string",
+        "tool_result": {
+          "property1": null,
+          "property2": null
+        }
+      },
       "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "media_type": "string",
       "name": "string",
@@ -3411,6 +3457,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "hook_rewritten": true,
   "is_error": true,
   "is_media": true,
+  "mcp_app": {
+    "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+    "resource_uri": "string",
+    "title": "string",
+    "tool_input": {
+      "property1": null,
+      "property2": null
+    },
+    "tool_name": "string",
+    "tool_result": {
+      "property1": null,
+      "property2": null
+    }
+  },
   "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
   "media_type": "string",
   "name": "string",
@@ -3473,6 +3533,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `hook_rewritten`               | boolean                                                      | false    |              | Hook rewritten indicates that a lifecycle hook replaced model-proposed tool input.                                                                                                                                                                                                                                                                                                                         |
 | `is_error`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `is_media`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `mcp_app`                      | [codersdk.ChatMCPApp](#codersdkchatmcpapp)                   | false    |              | Mcp app is set on the result of an MCP tool that declares a ui:// view (MCP Apps, mcp-apps experiment). Only the browser reads it. The model never gets it.                                                                                                                                                                                                                                                |
 | `mcp_server_config_id`         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `media_type`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `name`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3589,6 +3650,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app": {
+            "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+            "resource_uri": "string",
+            "title": "string",
+            "tool_input": {
+              "property1": null,
+              "property2": null
+            },
+            "tool_name": "string",
+            "tool_result": {
+              "property1": null,
+              "property2": null
+            }
+          },
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -3672,6 +3747,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app": {
+            "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+            "resource_uri": "string",
+            "title": "string",
+            "tool_input": {
+              "property1": null,
+              "property2": null
+            },
+            "tool_name": "string",
+            "tool_result": {
+              "property1": null,
+              "property2": null
+            }
+          },
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -5257,6 +5346,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
+      "mcp_app": {
+        "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+        "resource_uri": "string",
+        "title": "string",
+        "tool_input": {
+          "property1": null,
+          "property2": null
+        },
+        "tool_name": "string",
+        "tool_result": {
+          "property1": null,
+          "property2": null
+        }
+      },
       "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "media_type": "string",
       "name": "string",
@@ -5436,6 +5539,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
+        "mcp_app": {
+          "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+          "resource_uri": "string",
+          "title": "string",
+          "tool_input": {
+            "property1": null,
+            "property2": null
+          },
+          "tool_name": "string",
+          "tool_result": {
+            "property1": null,
+            "property2": null
+          }
+        },
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
@@ -5517,6 +5634,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
+      "mcp_app": {
+        "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+        "resource_uri": "string",
+        "title": "string",
+        "tool_input": {
+          "property1": null,
+          "property2": null
+        },
+        "tool_name": "string",
+        "tool_result": {
+          "property1": null,
+          "property2": null
+        }
+      },
       "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "media_type": "string",
       "name": "string",
@@ -5585,6 +5716,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app": {
+            "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+            "resource_uri": "string",
+            "title": "string",
+            "tool_input": {
+              "property1": null,
+              "property2": null
+            },
+            "tool_name": "string",
+            "tool_result": {
+              "property1": null,
+              "property2": null
+            }
+          },
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -5702,6 +5847,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "hook_rewritten": true,
     "is_error": true,
     "is_media": true,
+    "mcp_app": {
+      "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+      "resource_uri": "string",
+      "title": "string",
+      "tool_input": {
+        "property1": null,
+        "property2": null
+      },
+      "tool_name": "string",
+      "tool_result": {
+        "property1": null,
+        "property2": null
+      }
+    },
     "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
     "media_type": "string",
     "name": "string",
@@ -6565,6 +6724,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
+        "mcp_app": {
+          "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+          "resource_uri": "string",
+          "title": "string",
+          "tool_input": {
+            "property1": null,
+            "property2": null
+          },
+          "tool_name": "string",
+          "tool_result": {
+            "property1": null,
+            "property2": null
+          }
+        },
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
@@ -6647,6 +6820,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app": {
+            "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+            "resource_uri": "string",
+            "title": "string",
+            "tool_input": {
+              "property1": null,
+              "property2": null
+            },
+            "tool_name": "string",
+            "tool_result": {
+              "property1": null,
+              "property2": null
+            }
+          },
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -6730,6 +6917,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
+        "mcp_app": {
+          "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+          "resource_uri": "string",
+          "title": "string",
+          "tool_input": {
+            "property1": null,
+            "property2": null
+          },
+          "tool_name": "string",
+          "tool_result": {
+            "property1": null,
+            "property2": null
+          }
+        },
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
@@ -9687,6 +9888,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
+        "mcp_app": {
+          "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+          "resource_uri": "string",
+          "title": "string",
+          "tool_input": {
+            "property1": null,
+            "property2": null
+          },
+          "tool_name": "string",
+          "tool_result": {
+            "property1": null,
+            "property2": null
+          }
+        },
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
@@ -9769,6 +9984,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app": {
+            "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+            "resource_uri": "string",
+            "title": "string",
+            "tool_input": {
+              "property1": null,
+              "property2": null
+            },
+            "tool_name": "string",
+            "tool_result": {
+              "property1": null,
+              "property2": null
+            }
+          },
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -9923,9 +10152,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                       |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-projects`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                   |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-projects`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-apps`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 
