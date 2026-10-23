@@ -332,6 +332,37 @@ const PasteSanitizationPlugin: React.FC<{
 	return null;
 };
 
+// Lexical ignores paste events while the editor is not editable, so a
+// composer locked for a pending send would silently drop pasted files
+// that the picker and drop target still route through onFilePaste.
+const LockedFilePastePlugin: React.FC<{
+	onFilePaste: (file: File) => boolean;
+}> = function LockedFilePastePlugin({ onFilePaste }) {
+	const [editor] = useLexicalComposerContext();
+
+	useEffect(() => {
+		const handlePaste = (event: ClipboardEvent) => {
+			const files = event.clipboardData?.files;
+			if (editor.isEditable() || !files?.length) {
+				return;
+			}
+			event.preventDefault();
+			for (const file of Array.from(files)) {
+				onFilePaste(file);
+			}
+		};
+		return editor.registerRootListener((rootElement) => {
+			if (!rootElement) {
+				return;
+			}
+			rootElement.addEventListener("paste", handlePaste);
+			return () => rootElement.removeEventListener("paste", handlePaste);
+		});
+	}, [editor, onFilePaste]);
+
+	return null;
+};
+
 // Touch keyboards need plain Enter for newlines (CODAGT-210). Pointer
 // capability, not viewport width, keeps narrow desktop windows usable.
 // Cmd/Ctrl+Enter submits on either input type; Shift+Enter stays a newline.
@@ -589,6 +620,9 @@ type ChatMessageInputProps = Omit<
 	// the clipboard's text payload.
 	onFilePaste?: (file: File) => boolean;
 	allowTextAttachmentPaste?: boolean;
+	// Keeps routing pasted files through onFilePaste while disabled, so
+	// the parent can refuse them visibly instead of losing them.
+	acceptFilePasteWhileDisabled?: boolean;
 	disabled: boolean;
 	/**
 	 * True when the chat has a bound workspace, so workspace skills may
@@ -709,6 +743,7 @@ const ChatMessageInput = ({
 	sendShortcut,
 	onFilePaste,
 	allowTextAttachmentPaste,
+	acceptFilePasteWhileDisabled,
 	disabled,
 	hasWorkspace,
 	organizationId,
@@ -1218,6 +1253,9 @@ const ChatMessageInput = ({
 					onSkillSelect={replaceActiveSkillsTrigger}
 				/>
 				<EditableStatePlugin disabled={disabled} />
+				{onFilePaste && acceptFilePasteWhileDisabled && (
+					<LockedFilePastePlugin onFilePaste={onFilePaste} />
+				)}
 				<AutoFocusPlugin />
 				<SkillsTriggerMenu
 					open={skillsMenuOpen}

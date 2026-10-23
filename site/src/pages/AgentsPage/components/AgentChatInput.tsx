@@ -142,6 +142,10 @@ type AgentChatInputProps = {
 	isDisabled: boolean;
 	isReadOnly?: boolean;
 	isLoading: boolean;
+	// Locks the editor while isLoading. Set it when the caller does not
+	// clear the composer at submit, so text typed during the request would
+	// join the sent text.
+	lockWhileLoading?: boolean;
 	// Ref for the Lexical editor, exposed for imperative access.
 	inputRef?: React.Ref<ChatMessageInputRef>;
 	// Initial text to seed the editor on first mount only.
@@ -506,6 +510,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	placeholder = "Type a message...",
 	isDisabled,
 	isReadOnly = false,
+	lockWhileLoading = false,
 	isLoading,
 	inputRef,
 	initialValue,
@@ -1446,6 +1451,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					<ChatMessageInput
 						ref={internalRef}
 						onFilePaste={onAttach ? handleFilePaste : undefined}
+						acceptFilePasteWhileDisabled={
+							lockWhileLoading && isLoading && !isReadOnly
+						}
 						onPaste={resetPromptCycle}
 						aria-label="Chat message"
 						aria-describedby={warning ? warningId : undefined}
@@ -1458,10 +1466,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						onKeyDown={handleEditorKeyDown}
 						onEnter={handleSubmit}
 						sendShortcut={sendShortcut}
-						// The editor stays enabled during a send, so the user can
-						// write the next message. handleSubmit does not send while
-						// isLoading.
-						disabled={isReadOnly}
+						// Unless lockWhileLoading is set, the editor stays enabled
+						// during a send, so the user can write the next message.
+						// handleSubmit does not send while isLoading.
+						disabled={isReadOnly || (lockWhileLoading && isLoading)}
 						hasWorkspace={hasSkillsWorkspace}
 						organizationId={chatOrganizationId}
 						projectId={
