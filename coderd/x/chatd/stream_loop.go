@@ -54,9 +54,9 @@ type streamLocalState struct {
 
 	afterMessageID         int64
 	initialMessageSyncDone bool
-	// When openedWithSnapshotVersion is set, versioned events carry
-	// snapshot_version, and history_reset carries from_message_id instead of
-	// being followed by the full history. Clients that open the stream
+	// When openedWithSnapshotVersion is set, versioned events include
+	// snapshot_version, and history_reset includes from_message_id instead
+	// of being followed by the full history. Clients that open the stream
 	// without snapshot_version expect the full history.
 	openedWithSnapshotVersion bool
 }
