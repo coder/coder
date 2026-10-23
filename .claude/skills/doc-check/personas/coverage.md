@@ -35,7 +35,15 @@ Every behavior that changes how a customer uses the product has docs, and the do
 
 A behavior with no docs is a gap when it is user-facing per [Documentation lands with the change](../../../../docs/.style/content-guidelines.md#documentation-lands-with-the-change).
 Absence alone is not drift for anything else.
-A gap that existed before this change is `adjacent`, not `missing`, even when this change touches the area.
+
+The change caused a gap when it makes any path a user already takes behave differently, even when the code on that path did not change.
+For example, a change that starts removing a line from stored files causes the gap on download, because downloads that used to keep the line now lose it.
+That is `missing`, not `adjacent`.
+A gap is `adjacent` only when the behavior and its missing docs were both the same before this change.
+
+A behavior with no docs is also `missing` when the reader would get the task wrong without it, such as an input that is silently ignored, a value that only works in one form, or a step that only works for some roles.
+These findings never need a style-guide rule. Only consistency, audience, structure, and language findings need a rule to block.
+
 A behavior that needs a tutorial, lab, or training track beyond the reference and how-to docs is `adjacent`.
 
 ## Classes you return

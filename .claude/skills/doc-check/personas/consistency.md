@@ -10,13 +10,18 @@ Terms, facts, and instructions agree within each page and across the docs.
 
 ## Method
 
-1. For each fact the changed text states, search the same page and the rest of `docs/` for other statements of the same fact.
+1. Read every page the change adds or edits from top to bottom before you look at the changed lines.
+   For each feature the changed text describes, list every other sentence on the same page about that feature, including sections the change did not touch.
+   Compare each changed sentence with that list: a different set of options, steps, values, or conditions for the same thing is a finding.
+   Cite both lines.
+   This is the most common miss: a new section that contradicts an older section of the same page.
+2. For each fact the changed text states, search the rest of `docs/` for other statements of the same fact.
    A different value, a different list of options, or a different set of steps for the same thing is a finding.
    Cite both lines.
-2. For each term the changed text uses for a product concept, search for other names for the same concept on the page and in the same section of the docs.
+3. For each term the changed text uses for a product concept, search for other names for the same concept on the page and in the same section of the docs.
    Cite the rule and both usages.
-3. Check that a section repeating what another section already says links to it instead, so the two can't drift.
-4. Check UI labels against the product: the label in the docs must be the label the UI renders, character for character.
+4. Check that a section repeating what another section already says links to it instead, so the two can't drift.
+5. Check UI labels against the product: the label in the docs must be the label the UI renders, character for character.
    Cite the component that renders it.
 
 ## Classes you return

@@ -19,8 +19,9 @@ For each finding, check every item below, and reject the finding at the first fa
 3. **The rule says what the finding says.** Open the cited rule and confirm it applies to this sentence, in this kind of page.
    A finding that cites a rule the text doesn't break is rejected.
 4. **The change caused it.** For a `rule` or `suggestion` finding, the change added or edited the line.
-   For a `missing` finding, the change added or changed the behavior, or made an existing page false.
+   For a `missing` finding, the change added or changed the behavior, made an existing page false, or made an existing user path behave differently.
    Otherwise, downgrade it to `adjacent`.
+   Check the reverse too: an `adjacent` finding whose behavior this change caused is upgraded to `missing`.
 5. **The fix is correct.** The replacement text is true, follows the style guide, and doesn't break the sentences around it.
 6. **No duplicate.** Two findings about the same sentence and the same problem merge into one, keeping the strongest evidence.
 7. **Not already reported.** An open doc-check review thread on the PR already raises it. Drop it.

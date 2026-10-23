@@ -146,6 +146,7 @@ Everything else is a suggestion.
 
 A judgment call with no rule to cite never blocks.
 If it should block, the fix is a new rule in `docs/.style/`, not a stronger opinion in the review.
+This applies to class 4 only. A wrong claim, a missing fact the reader needs, and a broken page block without a style-guide rule.
 
 ### What never blocks
 
@@ -155,6 +156,7 @@ If it should block, the fix is a new rule in `docs/.style/`, not a stronger opin
 - A claim about another product that the code cannot confirm. Suggest narrowing it to what was checked, linking the vendor's docs, or adding a product test.
 - An open PR that would change a claim in this one. Name it in the summary.
 - A gap that existed before this change, in an area the change touches. Record it in the trace as an adjacent gap.
+  A gap the change causes on a path it didn't edit, such as a download that loses data an upload now strips, is not a gap that existed before. It is `missing`.
 - A need for a tutorial, lab, or training track. Record it in the trace as an adjacent gap.
 - A design-friction note. Write one when the design makes a docs sentence hard to make accurate, such as one setting with several names, or a value inverted from the convention other tools use. Tie each note to the sentence. Write as many as the change earns, and re-evaluate them every round.
 
