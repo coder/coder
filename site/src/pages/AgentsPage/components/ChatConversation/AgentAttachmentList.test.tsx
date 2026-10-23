@@ -124,6 +124,7 @@ describe("AgentAttachmentList", () => {
 				<AgentAttachmentList attachments={mockFindingsAttachments} />
 			</QueryClientProvider>,
 		);
+		// failedCard renders last, so a preview it left open would sit on top.
 		const [loadedCard, failedCard] = screen.getAllByRole("button", {
 			name: "findings.md View file",
 		});

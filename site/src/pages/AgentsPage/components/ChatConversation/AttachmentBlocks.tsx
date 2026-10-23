@@ -418,15 +418,13 @@ const RemoteTextAttachmentButton: React.FC<{
 		/>
 	);
 
-	const framedButton = frame ? (
-		<AttachmentPreviewFrame {...frame}>{button}</AttachmentPreviewFrame>
-	) : (
-		button
-	);
-
 	return (
 		<div className="flex flex-col items-start gap-1">
-			{framedButton}
+			{frame ? (
+				<AttachmentPreviewFrame {...frame}>{button}</AttachmentPreviewFrame>
+			) : (
+				button
+			)}
 			{isLoading ? (
 				<span
 					role="status"
@@ -604,6 +602,8 @@ export const AttachmentBlock: React.FC<{
 	const [revealedInlineText, setRevealedInlineText] = useState(false);
 	const href = getAttachmentHref(block);
 	const displayName = getAttachmentDisplayName(block);
+	const frame =
+		framePreview && href ? getAttachmentDownload(block, href) : undefined;
 
 	if (isTextPreviewAttachmentMediaType(block.media_type)) {
 		if (block.file_id) {
@@ -612,11 +612,7 @@ export const AttachmentBlock: React.FC<{
 					fileId={block.file_id}
 					fileName={displayName}
 					mediaType={block.media_type}
-					frame={
-						framePreview && href
-							? getAttachmentDownload(block, href)
-							: undefined
-					}
+					frame={frame}
 					onPreview={onTextFileClick}
 				/>
 			);
@@ -640,10 +636,8 @@ export const AttachmentBlock: React.FC<{
 				}}
 			/>
 		);
-		return framePreview && href ? (
-			<AttachmentPreviewFrame {...getAttachmentDownload(block, href)}>
-				{button}
-			</AttachmentPreviewFrame>
+		return frame ? (
+			<AttachmentPreviewFrame {...frame}>{button}</AttachmentPreviewFrame>
 		) : (
 			button
 		);
@@ -661,10 +655,8 @@ export const AttachmentBlock: React.FC<{
 				onImageClick={onImageClick}
 			/>
 		);
-		return framePreview ? (
-			<AttachmentPreviewFrame {...getAttachmentDownload(block, href)}>
-				{image}
-			</AttachmentPreviewFrame>
+		return frame ? (
+			<AttachmentPreviewFrame {...frame}>{image}</AttachmentPreviewFrame>
 		) : (
 			image
 		);
