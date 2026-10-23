@@ -57,7 +57,7 @@ const getRootOptions = ({
 	defaultDirectory,
 	repoRoots,
 }: {
-	root: string;
+	root: string | undefined;
 	rootPath: string | undefined;
 	homePath: string | undefined;
 	/** Undefined when the default directory is home. */
@@ -108,16 +108,17 @@ const getRootOptions = ({
 	const isListed = [...filesystem, ...repositories].some(
 		(option) => option.root === root,
 	);
-	const resolved = rootPath ?? root;
-	const opened: RootOption | undefined = isListed
-		? undefined
-		: {
-				root,
-				label: getPathBasename(resolved) || resolved,
-				description: abbreviateHomePath(resolved, homePath),
-				title: resolved,
-				icon: <FolderIcon className={iconClassName} />,
-			};
+	const resolved = rootPath ?? root ?? "";
+	const opened: RootOption | undefined =
+		isListed || root === undefined
+			? undefined
+			: {
+					root,
+					label: getPathBasename(resolved) || resolved,
+					description: abbreviateHomePath(resolved, homePath),
+					title: resolved,
+					icon: <FolderIcon className={iconClassName} />,
+				};
 	return { filesystem, repositories, opened };
 };
 
@@ -145,7 +146,8 @@ const RootMenuItem: React.FC<{ option: RootOption }> = ({ option }) => (
 );
 
 type FilesRootPickerProps = {
-	root: string;
+	/** Undefined while the panel waits for the chat's repositories. */
+	root: string | undefined;
 	/** The root's resolved absolute path, once its listing loaded. */
 	rootPath: string | undefined;
 	homePath: string | undefined;
@@ -177,12 +179,18 @@ export const FilesRootPicker: React.FC<FilesRootPickerProps> = ({
 		defaultDirectory,
 		repoRoots,
 	});
-	const current =
-		[
-			...options.filesystem,
-			...options.repositories,
-			...(options.opened ? [options.opened] : []),
-		].find((option) => option.root === root) ?? options.filesystem[0];
+	const current: Pick<RootOption, "label" | "title" | "icon"> =
+		root === undefined
+			? {
+					label: "Loading",
+					title: "Waiting for the chat's repositories",
+					icon: <FolderIcon className={iconClassName} />,
+				}
+			: ([
+					...options.filesystem,
+					...options.repositories,
+					...(options.opened ? [options.opened] : []),
+				].find((option) => option.root === root) ?? options.filesystem[0]);
 
 	return (
 		<DropdownMenu>
@@ -210,7 +218,7 @@ export const FilesRootPicker: React.FC<FilesRootPickerProps> = ({
 				onCloseAutoFocus={onCloseAutoFocus}
 			>
 				<DropdownMenuRadioGroup
-					value={`${rootValuePrefix}${root}`}
+					value={root === undefined ? "" : `${rootValuePrefix}${root}`}
 					onValueChange={(value) =>
 						onSelectRoot(value.slice(rootValuePrefix.length))
 					}
