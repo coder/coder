@@ -1015,8 +1015,8 @@ func TestBufferedPartsToPartialMessages_NormalizesToolCallDeltasBeforeFinal(t *t
 func TestBufferedPartsToPartialMessages_CoalescesStreamedDeltas(t *testing.T) {
 	t.Parallel()
 
-	// Whitespace-only deltas must stay inside the run: the frontend and prompt
-	// replay drop whitespace-only text parts.
+	// Whitespace-only deltas must stay inside the run because prompt replay
+	// drops whitespace-only text parts.
 	parts := []messagepartbuffer.Part{
 		{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageReasoning("think")},
 		{Seq: 2, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageReasoning("ing")},
@@ -1155,12 +1155,13 @@ func TestBufferedPartsToPartialMessages_SplitsNarrationFromAnswer(t *testing.T) 
 		"narration=true:Checking the repo.",
 		"narration=false:The answer is 42.",
 		"narration=true:Next, the tests.",
-	}, summary, "the web client folds narration into the working block, so an answer must not share a part with it")
+	}, summary, "narration and the answer must be separate parts")
 }
 
 // BenchmarkBufferedPartsToPartialMessages_StreamedTextDeltas persists N
-// seven-byte text deltas; B/op should be linear in N. A 1 MiB episode holds
-// about 2,585 such deltas, so N stays below that.
+// seven-byte text deltas as one run; B/op should grow linearly with N. A 1 MiB
+// episode holds about 2,475 such deltas, so N=2500 is close to the largest
+// real input.
 func BenchmarkBufferedPartsToPartialMessages_StreamedTextDeltas(b *testing.B) {
 	for _, n := range []int{1000, 2500} {
 		b.Run(strconv.Itoa(n), func(b *testing.B) {

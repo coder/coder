@@ -857,10 +857,10 @@ type partialMessageConversionState struct {
 	// modelStreamedAssistant distinguishes streamed content from tool
 	// attachment parts, which must not carry model runtime.
 	modelStreamedAssistant bool
-	// streamedRun accumulates the open text or reasoning run, because
-	// appending to the part's Text would copy the run on every delta. While
-	// the run is open, assistantParts[streamedRunIndex].Text is stale; append
-	// only through appendAssistantPart, which closes the run first.
+	// streamedRun accumulates the open text or reasoning run so that a delta
+	// does not copy the run. assistantParts[streamedRunIndex].Text is stale
+	// until closeStreamedRun, so append parts only through appendAssistantPart,
+	// which closes the run first.
 	streamedRun      strings.Builder
 	streamedRunIndex int
 	streamedRunOpen  bool
@@ -945,11 +945,13 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 	s.assistantParts[call.index] = durable
 }
 
-// appendAssistantPart appends part, merging a delta into the open run of its
-// type. Text deltas carry no block identity, so adjacent text blocks merge
-// unless their Narration differs; a reasoning run ends when CreatedAt, the
-// block's start time, changes, so reasoning blocks that start in the same
-// microsecond merge.
+// appendAssistantPart appends part, or appends its text to the open run if part
+// continues it. Text deltas carry no block identity, so a text run continues
+// across provider blocks until Narration changes; narration must stay a
+// separate part because the web client shows it in the working block. A
+// reasoning run continues while CreatedAt, which chatloop sets to the block's
+// start time rounded to the microsecond, stays the same, so two blocks that
+// start in the same microsecond merge.
 func (s *partialMessageConversionState) appendAssistantPart(part codersdk.ChatMessagePart) {
 	mergeable := part.Type == codersdk.ChatMessagePartTypeText || part.Type == codersdk.ChatMessagePartTypeReasoning
 	if mergeable && s.streamedRunOpen {
