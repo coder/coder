@@ -241,6 +241,81 @@ func (c *ExperimentalClient) DeleteOrganizationSkill(ctx context.Context, organi
 	return nil
 }
 
+func chatProjectSkillPath(organizationID, projectID uuid.UUID, name string) string {
+	return chatProjectPath(organizationID, projectID) + "/skills/" + url.PathEscape(name)
+}
+
+// CreateChatProjectSkill creates a chat project skill from raw Markdown
+// content.
+func (c *ExperimentalClient) CreateChatProjectSkill(ctx context.Context, organizationID, projectID uuid.UUID, req CreateSkillRequest) (Skill, error) {
+	res, err := c.Request(ctx, http.MethodPost, chatProjectPath(organizationID, projectID)+"/skills", req)
+	if err != nil {
+		return Skill{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return Skill{}, ReadBodyAsError(res)
+	}
+	var skill Skill
+	return skill, ReadBodyAsJSON(res, &skill)
+}
+
+// ChatProjectSkills lists a chat project's skill metadata.
+func (c *ExperimentalClient) ChatProjectSkills(ctx context.Context, organizationID, projectID uuid.UUID) ([]SkillMetadata, error) {
+	res, err := c.Request(ctx, http.MethodGet, chatProjectPath(organizationID, projectID)+"/skills", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var skills []SkillMetadata
+	return skills, ReadBodyAsJSON(res, &skills)
+}
+
+// ChatProjectSkill returns a chat project skill by name.
+func (c *ExperimentalClient) ChatProjectSkill(ctx context.Context, organizationID, projectID uuid.UUID, name string) (Skill, error) {
+	res, err := c.Request(ctx, http.MethodGet, chatProjectSkillPath(organizationID, projectID, name), nil)
+	if err != nil {
+		return Skill{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Skill{}, ReadBodyAsError(res)
+	}
+	var skill Skill
+	return skill, ReadBodyAsJSON(res, &skill)
+}
+
+// UpdateChatProjectSkill updates a chat project skill's raw Markdown content
+// or enabled state.
+func (c *ExperimentalClient) UpdateChatProjectSkill(ctx context.Context, organizationID, projectID uuid.UUID, name string, req UpdateSkillRequest) (Skill, error) {
+	res, err := c.Request(ctx, http.MethodPatch, chatProjectSkillPath(organizationID, projectID, name), req)
+	if err != nil {
+		return Skill{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Skill{}, ReadBodyAsError(res)
+	}
+	var skill Skill
+	return skill, ReadBodyAsJSON(res, &skill)
+}
+
+// DeleteChatProjectSkill deletes a chat project skill by name.
+func (c *ExperimentalClient) DeleteChatProjectSkill(ctx context.Context, organizationID, projectID uuid.UUID, name string) error {
+	res, err := c.Request(ctx, http.MethodDelete, chatProjectSkillPath(organizationID, projectID, name), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // OrganizationSkillACL returns the resolved ACL of an organization skill.
 func (c *ExperimentalClient) OrganizationSkillACL(ctx context.Context, organizationID uuid.UUID, name string) (OrganizationSkillACL, error) {
 	res, err := c.Request(ctx, http.MethodGet, organizationSkillPath(organizationID, name)+"/acl", nil)

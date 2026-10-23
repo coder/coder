@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { fireEvent, fn, userEvent, waitFor, within } from "storybook/test";
 import { defaultUrlTransform } from "streamdown";
+import { chatFileTextKey } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { Button } from "#/components/Button/Button";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
@@ -10,9 +11,11 @@ import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
 	buildLiveStatus,
+	MockAttachmentWorkingMessages,
 	MockCollapsedStepsPreferences,
 	MockLeadInSearchMessages,
 	MockLongTurnPageLoads,
+	MockPlanAttachmentMessages,
 	MockQuestionCallMessage,
 	MockUncitedSearchAnswerMessages,
 	MockWebSearchAnswerMessages,
@@ -223,6 +226,39 @@ export const PrependIntoExpandedBlockKeepsReadingPosition: Story = {
 
 		await loadOlderFromTop();
 		await canvas.findByText("Run every step");
+	},
+};
+
+export const AttachmentFoldsIntoBlock: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockAttachmentWorkingMessages),
+	},
+};
+
+export const AttachmentFoldsIntoBlockExpanded: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockAttachmentWorkingMessages),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: /Worked for/ }),
+		);
+	},
+};
+
+export const PlanAttachmentHidden: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+			{
+				key: chatFileTextKey("plan-file"),
+				data: "# Plan\n\nShip the attachments panel.",
+			},
+		],
+	},
+	args: {
+		onImplementPlan: fn(),
+		parsedMessages: parseMessagesWithMergedTools(MockPlanAttachmentMessages),
 	},
 };
 

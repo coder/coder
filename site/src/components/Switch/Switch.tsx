@@ -13,8 +13,8 @@ const switchVariants = cva(
 	focus-visible:ring-offset-2 focus-visible:ring-offset-surface-primary
 	disabled:cursor-not-allowed
 	data-[state=checked]:disabled:bg-surface-tertiary data-[state=unchecked]:disabled:bg-surface-tertiary
-	data-[state=checked]:hover:bg-surface-invert-secondary data-[state=unchecked]:hover:bg-surface-tertiary
-	data-[state=checked]:bg-surface-invert-primary data-[state=unchecked]:bg-surface-quaternary`,
+	data-[state=checked]:hover:bg-surface-invert-secondary data-[state=unchecked]:hover:bg-surface-invert-secondary
+	data-[state=checked]:bg-surface-invert-primary data-[state=unchecked]:bg-surface-control`,
 	{
 		variants: {
 			size: {

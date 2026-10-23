@@ -3,8 +3,7 @@ title: GitHub Copilot
 ---
 
 > [!NOTE]
-> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
-> included with a Premium license.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is included with a Premium license.
 
 [GitHub Copilot](https://github.com/features/copilot) is an AI coding assistant that doesn't support custom base URLs but does respect proxy configurations.
 This makes it compatible with [AI Gateway Proxy](../ai-gateway-proxy/index.md), which integrates with [AI Gateway](../index.md) for full access to auditing and governance features.

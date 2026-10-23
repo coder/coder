@@ -56,6 +56,7 @@ export const Empty: Story = {
 				interval_reports: [],
 				report: {
 					active_users: 0,
+					usage_total_seconds: 0,
 					end_time: "",
 					start_time: "",
 					template_ids: [],
@@ -100,11 +101,12 @@ export const Loaded: Story = {
 					end_time: "2023-07-25T00:00:00Z",
 					template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
 					active_users: 14,
+					usage_total_seconds: 3600000,
 					apps_usage: [
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
-							type: "builtin",
-							display_name: "Visual Studio Code",
+							method: "ssh",
+							display_name: "VS Code",
 							slug: "vscode",
 							icon: "/icon/code.svg",
 							seconds: 2513400,
@@ -112,7 +114,7 @@ export const Loaded: Story = {
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
-							type: "builtin",
+							method: "ssh",
 							display_name: "JetBrains",
 							slug: "jetbrains",
 							icon: "/icon/intellij.svg",
@@ -121,16 +123,16 @@ export const Loaded: Story = {
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
-							type: "builtin",
+							method: "reconnecting_pty",
 							display_name: "Web Terminal",
-							slug: "reconnecting-pty",
+							slug: "reconnecting_pty",
 							icon: "/icon/terminal.svg",
 							seconds: 110400,
 							times_used: 0,
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
-							type: "builtin",
+							method: "ssh",
 							display_name: "SSH",
 							slug: "ssh",
 							icon: "/icon/terminal.svg",
@@ -943,6 +945,92 @@ export const Loaded: Story = {
 							username: "sharkymark",
 							avatar_url: "https://avatars.githubusercontent.com/u/2022166?v=4",
 							seconds: 124440,
+						},
+					],
+				},
+			},
+			error: null,
+		},
+	},
+};
+
+const loadedReport = Loaded.args?.templateInsights?.data?.report;
+
+// Covers an unregistered app, both accounting rows (overflow as an upper
+// bound), and template apps whose slugs collide with other rows.
+export const AppUsageAccounting: Story = {
+	args: {
+		...Loaded.args,
+		templateInsights: {
+			data: {
+				interval_reports: Loaded.args?.templateInsights?.data?.interval_reports,
+				report: loadedReport && {
+					...loadedReport,
+					usage_total_seconds: 360000,
+					apps_usage: [
+						{
+							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
+							method: "ssh",
+							display_name: "VS Code",
+							slug: "vscode",
+							icon: "/icon/code.svg",
+							seconds: 252000,
+							times_used: 0,
+						},
+						{
+							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
+							method: "ssh",
+							display_name: "Cursor",
+							slug: "cursor",
+							icon: "/icon/cursor.svg",
+							seconds: 180000,
+							times_used: 0,
+						},
+						{
+							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
+							method: "ssh",
+							display_name: "future_ide",
+							slug: "future_ide",
+							icon: "",
+							seconds: 36000,
+							times_used: 0,
+						},
+						{
+							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
+							method: "ssh",
+							display_name: "Other apps",
+							slug: "overflow",
+							icon: "",
+							seconds: 7200,
+							times_used: 0,
+							seconds_is_upper_bound: true,
+						},
+						{
+							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
+							method: "ssh",
+							display_name: "Unknown",
+							slug: "unknown",
+							icon: "",
+							seconds: 3600,
+							times_used: 0,
+						},
+						{
+							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
+							method: "workspace_app",
+							display_name: "VS Code Web",
+							slug: "vscode",
+							icon: "/icon/code.svg",
+							seconds: 90000,
+							times_used: 12,
+						},
+						{
+							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
+							method: "workspace_app",
+							display_name: "Overflow Dashboard",
+							slug: "overflow",
+							icon: "",
+							seconds: 18000,
+							times_used: 3,
 						},
 					],
 				},

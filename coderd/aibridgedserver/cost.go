@@ -128,12 +128,17 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 	}
 	configuredType := string(provider.Type)
 
-	// Snapshot the price for the requested model, falling back to the model
-	// reported by the provider, and compute cost.
-	price, err := s.store.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
-		Provider:      configuredType,
-		Model:         intc.Model,
-		ProviderModel: in.GetProviderModel(),
+	// Snapshot the most specific price for the requested model, falling back
+	// to the model reported by the provider, and compute cost. Organization
+	// prices need the organization the request was made in, which
+	// interceptions do not carry yet, so only site-wide prices match.
+	// TODO(AIGOV-716): pass the organization once interceptions carry it.
+	price, err := s.store.GetAIModelPriceForProvider(ctx, database.GetAIModelPriceForProviderParams{
+		ProviderType:   configuredType,
+		Model:          intc.Model,
+		OrganizationID: uuid.NullUUID{},
+		ProviderModel:  in.GetProviderModel(),
+		ProviderID:     provider.ID,
 	})
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
@@ -184,7 +189,7 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 // the per-token prices from the price table. Prices are expressed per million
 // tokens; a NULL price column is treated as zero (e.g. providers that do not
 // charge for cache writes).
-func computeCost(price database.AIModelPrice, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens int64) (int64, error) {
+func computeCost(price database.GetAIModelPriceForProviderRow, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens int64) (int64, error) {
 	total := tokenCost(inputTokens, price.InputPrice).
 		Add(tokenCost(outputTokens, price.OutputPrice)).
 		Add(tokenCost(cacheReadTokens, price.CacheReadPrice)).
