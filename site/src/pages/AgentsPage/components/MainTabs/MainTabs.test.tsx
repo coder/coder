@@ -578,6 +578,20 @@ describe("MainTabs", () => {
 			"href",
 			`https://github.com/coder/coder/blob/${"a".repeat(40)}/src/a.go#L6`,
 		);
+		await user.keyboard("{Escape}");
+
+		// Unsaved edits move the editor's lines away from the disk's.
+		await user.type(screen.getByLabelText("File contents"), "x");
+		await user.pointer({
+			keys: "[MouseRight]",
+			target: getTab("a.go, unsaved"),
+		});
+		expect(
+			await screen.findByRole("menuitem", { name: "Open on GitHub" }),
+		).toHaveAttribute(
+			"href",
+			`https://github.com/coder/coder/blob/${"a".repeat(40)}/src/a.go`,
+		);
 	});
 
 	it("moves between tabs with the arrow keys", async () => {

@@ -72,6 +72,68 @@ export const isAddedInDiff = (diff: string, relativePath: string) => {
 	);
 };
 
+const hunkHeaderPattern = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
+
+/**
+ * The line in HEAD's version of the file at `relativePath` that is `line`
+ * on disk, through `diff`, the repository's diff against HEAD. Lines
+ * outside the diff's hunks move by the lines the hunks before them add or
+ * remove. Undefined for a line the diff adds, which HEAD lacks, and when
+ * `diff` is not a diff.
+ */
+export const getHeadLine = (
+	diff: string,
+	relativePath: string,
+	line: number,
+): number | undefined => {
+	const sections = splitDiff(diff);
+	if (!sections) {
+		return undefined;
+	}
+	const section = findDiffSection(sections, relativePath);
+	if (!section) {
+		return line;
+	}
+	// The next line of each side, past the hunks so far.
+	let headLine = 0;
+	let diskLine = 0;
+	let inHunks = false;
+	for (const text of section.split("\n")) {
+		const hunk = hunkHeaderPattern.exec(text);
+		if (hunk) {
+			const [, headStart, headCount, diskStart, diskCount] = hunk;
+			// With a count of 0, the start is the line before the hunk rather
+			// than its first.
+			headLine = Number(headStart) + (headCount === "0" ? 1 : 0);
+			diskLine = Number(diskStart) + (diskCount === "0" ? 1 : 0);
+			if (line < diskLine) {
+				return line + headLine - diskLine;
+			}
+			inHunks = true;
+			continue;
+		}
+		// The file's headers, such as "--- a/main.go", precede its hunks.
+		if (!inHunks) {
+			continue;
+		}
+		if (text.startsWith(" ")) {
+			if (diskLine === line) {
+				return headLine;
+			}
+			headLine++;
+			diskLine++;
+		} else if (text.startsWith("-")) {
+			headLine++;
+		} else if (text.startsWith("+")) {
+			if (diskLine === line) {
+				return undefined;
+			}
+			diskLine++;
+		}
+	}
+	return line + headLine - diskLine;
+};
+
 /**
  * The paths under `root` whose content may differ between two watcher
  * states. A file's content can change only if its diff against HEAD does
