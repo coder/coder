@@ -276,7 +276,8 @@ Stale heartbeats are shown separately from integrity faults, and do not by thems
 The CLI broker persists identities, timestamps, error summaries, and retained transcript events in an owner-only file beside its descriptor.
 Writes are atomic and synced before acknowledging recorded events. The file contains private conversation text; do not publish it.
 Restored records expose `archived: true` and `ended: true`. Join, Observe, and new prompts are unavailable for archives.
-Only sessions recorded by the persistence-enabled broker are retained; this does not reconstruct history lost before upgrading.
+Discovery also lists completed and failed bridge-owned native sessions, including those created before upgrading, as read-only archives.
+Their identities can be recovered from native state, but transcripts not recorded by the persistence-enabled broker are not reconstructed.
 Archives keep at most 100 sessions, 10,000 events or 8 MiB per session, and 32 MiB of event data in total, within a 40 MiB snapshot limit.
 Older transcript events can be evicted; saved history is explicitly partial. Exhausting the session count refuses new launches rather than deleting session records.
 

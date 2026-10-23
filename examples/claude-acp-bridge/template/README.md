@@ -128,7 +128,8 @@ They appear as **Ended**; select one to read its retained history.
 The file is private because transcripts can contain prompts, tool output, and secrets.
 
 Restoring history does not recover runtime registrations or resume interrupted jobs.
-The retained job status may be stale. Sessions lost before installing this persistence-enabled version are not reconstructed.
+The retained job status may be stale. Completed and failed sessions from older versions also appear when their bridge-owned native records remain on disk.
+Those records recover session identities, not transcripts lost before persistence was enabled.
 Inspect native conversation history and any tool side effects before deliberately starting replacement work with **Add session**.
 The working directory defaults to `/home/coder/project`.
 Choose an autostop policy that gives your job enough time to finish.

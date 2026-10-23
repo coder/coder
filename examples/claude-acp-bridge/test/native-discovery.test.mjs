@@ -29,7 +29,7 @@ async function fixture(t) {
   const options = { stateFile, pluginPath, jobsDirectory, run: async (command, args, options) => {
     calls++;
     assert.equal(command, 'claude');
-    assert.deepEqual(args, ['agents', '--json']);
+    assert.deepEqual(args, ['agents', '--json', '--all']);
     assert.equal(options.timeout, 5000);
     assert.equal(options.maxBuffer, 1024 * 1024);
     return { stdout: output ?? JSON.stringify([agent]), stderr: secret };
@@ -42,22 +42,52 @@ describe('structured native discovery', { concurrency: true, timeout: 10000 }, (
   test('blocked MCP sessions expose only verified identity and a controlled summary', async t => {
     const f = await fixture(t);
     f.agent.providerEnv = { secret };
+    f.agent.status = 'idle'; // Explicit MCP setup still needs approval even when the machine is idle.
     f.agent.name = secret; // A bridge-looking name is neither necessary nor sufficient.
     assert.deepEqual(await f.discover(), [{ sessionId: f.agent.sessionId, cwd: f.agent.cwd,
       startedAt: f.agent.startedAt, launchId: f.launchId, ended: false, blockedReason: MCP_BLOCKED_REASON }]);
     assert.ok(!JSON.stringify(await f.discover()).includes(secret));
     f.state.detail = 'Approve MCP ' + secret;
+    delete f.agent.status;
     await f.save();
     assert.equal((await f.discover())[0].blockedReason, NATIVE_BLOCKED_REASON);
   });
 
+  test('only structured machine idle suppresses generic blocked summaries', async t => {
+    const f = await fixture(t);
+    f.state.detail = f.state.needs = 'What would you like to work on?';
+    f.state.status = 'idle'; // Only the CLI machine status is authoritative, not arbitrary state fields.
+    await f.save();
+    for (const status of ['idle', 'busy', 'waiting', undefined, 'unknown', 'Idle', { status: 'idle' }]) {
+      f.agent.status = status;
+      const [found] = await f.discover();
+      assert.equal(found.ended, false);
+      assert.equal(found.blockedReason, status === 'idle' ? undefined : NATIVE_BLOCKED_REASON);
+    }
+  });
+
   test('starting and unknown states are pending, only explicit native termination is ended', async t => {
     const f = await fixture(t);
-    for (const state of ['starting', 'running', 'unknown', 'ended', 'stopped', 'completed']) {
+    const ended = ['ended', 'stopped', 'exited', 'completed', 'done', 'failed'];
+    for (const state of ['starting', 'running', 'unknown', 'cancelled', 'canceled', ...ended]) {
+      f.agent.state = f.state.state = state;
+      await f.save();
+      const [found] = await f.discover();
+      assert.equal(found.ended, ended.includes(state), state);
+      // Completed CLI records have no pid/status; stale MCP details must not survive termination.
+      assert.equal(found.blockedReason, undefined);
+      assert.equal(found.startedAt, f.agent.startedAt);
+    }
+  });
+
+  test('CLI termination overrides an unreconciled working or blocked state file', async t => {
+    const f = await fixture(t);
+    f.agent.state = 'failed';
+    for (const state of ['working', 'blocked']) {
       f.state.state = state;
       await f.save();
       const [found] = await f.discover();
-      assert.equal(found.ended, ['ended', 'stopped', 'completed'].includes(state));
+      assert.equal(found.ended, true);
       assert.equal(found.blockedReason, undefined);
     }
   });

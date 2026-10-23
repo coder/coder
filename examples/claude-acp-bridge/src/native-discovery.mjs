@@ -10,7 +10,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_STATE_BYTES = 256 * 1024;
 const MAX_LIST_BYTES = 1024 * 1024;
 const MAX_AGENTS = 256;
-const ENDED = new Set(['ended', 'stopped', 'exited', 'completed', 'done']);
+const ENDED = new Set(['ended', 'stopped', 'exited', 'completed', 'done', 'failed']);
 const object = value => value && typeof value === 'object' && !Array.isArray(value);
 const path = value => typeof value === 'string' && value.length <= 4096 && isAbsolute(value) && !/[\x00-\x1f\x7f]/.test(value);
 
@@ -19,10 +19,11 @@ export const NATIVE_BLOCKED_REASON = 'Native Claude needs input in the native te
 export const MCP_BLOCKED_REASON = 'Approve project MCP servers in the native terminal.';
 export const REGISTRATION_PENDING_REASON = 'Native session registration is pending; join the native terminal to complete setup.';
 
-function blockedReason(state) {
+function blockedReason(state, status) {
   if (state.state !== 'blocked') return undefined;
-  return typeof state.detail === 'string' && /^(?:\d+ new )?MCP servers? needs? approval[.!]?$/i.test(state.detail)
-    ? MCP_BLOCKED_REASON : NATIVE_BLOCKED_REASON;
+  if (typeof state.detail === 'string' && /^(?:\d+ new )?MCP servers? needs? approval[.!]?$/i.test(state.detail)) return MCP_BLOCKED_REASON;
+  // The CLI machine status distinguishes idle greetings from actual waiting; setup approval takes precedence.
+  return status === 'idle' ? undefined : NATIVE_BLOCKED_REASON;
 }
 
 function ownership(flags, stateFile, pluginPath) {
@@ -77,7 +78,7 @@ export function createNativeDiscovery({ stateFile, pluginPath, jobsDirectory = j
     } catch { return []; }
     let agents;
     try {
-      const { stdout } = await run('claude', ['agents', '--json'], { timeout: 5000, maxBuffer: MAX_LIST_BYTES, encoding: 'utf8' });
+      const { stdout } = await run('claude', ['agents', '--json', '--all'], { timeout: 5000, maxBuffer: MAX_LIST_BYTES, encoding: 'utf8' });
       if (typeof stdout !== 'string' || Buffer.byteLength(stdout) > MAX_LIST_BYTES) throw new Error();
       agents = JSON.parse(stdout);
       if (!Array.isArray(agents) || agents.length > MAX_AGENTS) throw new Error();
@@ -98,8 +99,10 @@ export function createNativeDiscovery({ stateFile, pluginPath, jobsDirectory = j
         const launchId = ownership(state.respawnFlags, stateFile, pluginPath);
         if (!launchId) continue;
         seen.add(agent.sessionId);
+        // The CLI can report a reaped process as failed before state.json changes.
+        const ended = ENDED.has(agent.state) || ENDED.has(state.state);
         sessions.push({ sessionId: agent.sessionId, cwd: agent.cwd, startedAt: agent.startedAt, launchId,
-          ended: ENDED.has(state.state), blockedReason: blockedReason(state) });
+          ended, blockedReason: ended ? undefined : blockedReason(state, agent.status) });
       } catch { /* Missing, unsafe or partially written state is not proof of termination. */ }
     }
     return sessions;

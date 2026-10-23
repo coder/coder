@@ -154,7 +154,15 @@ describe('pre-registration native sessions', { concurrency: true, timeout: 10000
     assert.equal(ended.stale, false);
     assert.equal(ended.lastError, undefined);
     assert.equal(ended.blockedReason, undefined);
-    await assert.rejects(f.client.request('POST', f.path + '/mode', { mode: 'human' }), /disconnected/);
+    assert.equal(ended.registrationPending, false);
+    assert.equal(ended.archived, true);
+    await assert.rejects(f.client.request('POST', f.path + '/mode', { mode: 'human' }), /read-only/);
+    const controller = new AbortController();
+    t.after(() => controller.abort());
+    const agent = createAgent({ signal: controller.signal, sessionUpdate: async () => {} }, f.client);
+    const loaded = await agent.loadSession({ sessionId: ended.sessionId, cwd: ended.cwd, mcpServers: [] });
+    assert.equal(loaded._meta[META].archived, true);
+    assert.equal(loaded._meta[META].registrationPending, false);
   });
 
   test('first registration promotes the same session and only later replacement invalidates integrity', async t => {

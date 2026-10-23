@@ -135,14 +135,16 @@ export async function createBroker({
           s = newSession(native.sessionId, native.cwd, native.startedAt);
           Object.assign(s, { registrationPending: true, launchId: native.launchId, mode: 'human' });
         }
-        const reason = [MCP_BLOCKED_REASON, NATIVE_BLOCKED_REASON].includes(native.blockedReason) ? native.blockedReason : undefined;
+        const reason = !native.ended && [MCP_BLOCKED_REASON, NATIVE_BLOCKED_REASON].includes(native.blockedReason) ? native.blockedReason : undefined;
         if (!s.ended && s.blockedReason !== reason) {
           s.blockedReason = reason;
           append(s, 'session.pending', { blockedReason: reason });
         }
         if (native.ended && !s.ended) {
-          s.ended = true;
-          s.blockedReason = undefined;
+          // Historical native records have identity but no registered runtime.
+          // Keep them readable without offering setup or reviving native work.
+          Object.assign(s, { ended: true, archived: true, registrationPending: false,
+            blockedReason: undefined, activeTurnId: null });
           append(s, 'session.end', { reason: 'Native state reported that the session ended' });
         }
         const item = launches.get(native.launchId);
