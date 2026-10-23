@@ -33,7 +33,7 @@ import { isMobileViewport } from "#/utils/mobile";
 import {
 	compactionThresholdLabel,
 	type ResolvedCompactionThreshold,
-} from "../compactionTriggers";
+} from "../utils/compactionTriggers";
 import { getPathBasename, getPathDirname } from "../utils/path";
 import { SvgRingProgress } from "./SvgRingProgress";
 

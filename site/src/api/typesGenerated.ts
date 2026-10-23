@@ -2866,18 +2866,27 @@ export interface ChatInputPart {
 	 * currently bound workspace.
 	 */
 	readonly workspace_file_workspace_id?: string;
+	/**
+	 * The following fields are only set when Type is
+	 * ChatInputPartTypeSkillInvocation. The server loads the skill
+	 * as the chat owner when the message is sent.
+	 */
+	readonly skill_source?: ChatSkillSource;
+	readonly skill_name?: string;
 }
 
 // From codersdk/chats.go
 export type ChatInputPartType =
 	| "file"
 	| "file-reference"
+	| "skill-invocation"
 	| "text"
 	| "workspace-file-reference";
 
 export const ChatInputPartTypes: ChatInputPartType[] = [
 	"file",
 	"file-reference",
+	"skill-invocation",
 	"text",
 	"workspace-file-reference",
 ];
@@ -2950,6 +2959,7 @@ export type ChatMessagePart =
 	| ChatContextFilePart
 	| ChatSkillPart
 	| ChatWorkspaceFileReferencePart
+	| ChatSkillInvocationPart
 	| ChatHookNoticePart;
 
 // From codersdk/chats.go
@@ -2961,6 +2971,7 @@ export type ChatMessagePartType =
 	| "hook-notice"
 	| "reasoning"
 	| "skill"
+	| "skill-invocation"
 	| "source"
 	| "text"
 	| "tool-call"
@@ -2975,6 +2986,7 @@ export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"hook-notice",
 	"reasoning",
 	"skill",
+	"skill-invocation",
 	"source",
 	"text",
 	"tool-call",
@@ -3672,11 +3684,24 @@ export type ChatRole = "" | "read";
 export const ChatRoles: ChatRole[] = ["", "read"];
 
 // From codersdk/chats.go
+export interface ChatSkillInvocationPart {
+	readonly type: "skill-invocation";
+	/**
+	 * SkillName is the kebab-case name of the skill.
+	 */
+	readonly skill_name: string;
+	/**
+	 * SkillSource is where the invoked skill of a skill-invocation
+	 * part is stored.
+	 */
+	readonly skill_source: ChatSkillSource;
+}
+
+// From codersdk/chats.go
 export interface ChatSkillPart {
 	readonly type: "skill";
 	/**
-	 * SkillName is the kebab-case name of a discovered skill
-	 * from the workspace's .agents/skills/ directory.
+	 * SkillName is the kebab-case name of the skill.
 	 */
 	readonly skill_name: string;
 	/**
@@ -3685,6 +3710,16 @@ export interface ChatSkillPart {
 	 */
 	readonly skill_description?: string;
 }
+
+// From codersdk/chats.go
+export type ChatSkillSource = "org" | "personal" | "project" | "workspace";
+
+export const ChatSkillSources: ChatSkillSource[] = [
+	"org",
+	"personal",
+	"project",
+	"workspace",
+];
 
 // From codersdk/chats.go
 export interface ChatSourcePart {
@@ -4505,6 +4540,14 @@ export interface CreateSkillRequest {
 	 * followed by a non-empty body.
 	 */
 	readonly content: string;
+	/**
+	 * Action is only accepted for project skills and defaults to false.
+	 */
+	readonly action?: boolean;
+	/**
+	 * ModelInvocable defaults to true.
+	 */
+	readonly model_invocable?: boolean;
 }
 
 // From codersdk/organizations.go
@@ -4746,7 +4789,8 @@ export interface CreateUserRequest {
 	 */
 	readonly login_type: LoginType;
 	/**
-	 * UserStatus defaults to UserStatusDormant.
+	 * UserStatus defaults to UserStatusDormant. Service accounts default to
+	 * UserStatusActive and can't be dormant.
 	 */
 	readonly user_status: UserStatus | null;
 	/**
@@ -9749,6 +9793,18 @@ export interface SkillMetadata {
 	readonly name: string;
 	readonly description: string;
 	readonly enabled: boolean;
+	/**
+	 * Action reports whether a project skill is offered as a one-click
+	 * action above project composers. It is always false for personal and
+	 * organization skills.
+	 */
+	readonly action: boolean;
+	/**
+	 * ModelInvocable reports whether agents can discover and load the skill
+	 * on their own. Users can still invoke a skill explicitly when it is
+	 * false.
+	 */
+	readonly model_invocable: boolean;
 	readonly created_at: string;
 	readonly updated_at: string;
 }
@@ -11049,6 +11105,11 @@ export interface UpdateSkillRequest {
 	 */
 	readonly content?: string;
 	readonly enabled?: boolean;
+	/**
+	 * Action is only accepted for project skills.
+	 */
+	readonly action?: boolean;
+	readonly model_invocable?: boolean;
 }
 
 // From codersdk/templates.go

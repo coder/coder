@@ -231,7 +231,6 @@ func TestDebugModel_Generate(t *testing.T) {
 		svc:   svc,
 		opts:  RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 	resp, err := model.Generate(ctx, call)
@@ -306,7 +305,6 @@ func TestDebugModel_GeneratePersistsAttemptsWithoutResponseClose(t *testing.T) {
 		svc:   svc,
 		opts:  RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 	resp, err := model.Generate(ctx, fantasy.Call{})
@@ -349,7 +347,6 @@ func TestDebugModel_GenerateError(t *testing.T) {
 		svc:  svc,
 		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 	resp, err := model.Generate(ctx, fantasy.Call{})
@@ -412,7 +409,6 @@ func TestDebugModel_GenerateRetryClearsError(t *testing.T) {
 		svc:  svc,
 		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 
 	ctx := ReuseStep(ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID}))
 
@@ -515,7 +511,6 @@ func TestDebugModel_Stream(t *testing.T) {
 		svc:  svc,
 		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 	seq, err := model.Stream(ctx, fantasy.Call{})
@@ -591,7 +586,6 @@ func TestDebugModel_StreamObject(t *testing.T) {
 		svc:  svc,
 		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 	seq, err := model.StreamObject(ctx, fantasy.ObjectCall{})
@@ -638,7 +632,6 @@ func TestDebugModel_StreamCompletedAfterFinish(t *testing.T) {
 		svc:  svc,
 		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 	seq, err := model.Stream(ctx, fantasy.Call{})
@@ -687,7 +680,6 @@ func TestDebugModel_StreamInterruptedBeforeFinish(t *testing.T) {
 		svc:  svc,
 		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 	seq, err := model.Stream(ctx, fantasy.Call{})
@@ -774,7 +766,6 @@ func TestDebugModel_StreamRejectsNilSequence(t *testing.T) {
 				svc:   NewService(db, testutil.Logger(t), nil),
 				opts:  RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 			}
-			t.Cleanup(func() { CleanupStepCounter(runID) })
 			ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 			gotNil, err := tc.stream(ctx, model)
@@ -833,7 +824,6 @@ func TestDebugModel_StreamEarlyStop(t *testing.T) {
 		svc:  svc,
 		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 	seq, err := model.Stream(ctx, fantasy.Call{})
@@ -956,7 +946,6 @@ func TestDebugModel_GenerateObject(t *testing.T) {
 		svc:   svc,
 		opts:  RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 	resp, err := model.GenerateObject(ctx, call)
@@ -1004,7 +993,6 @@ func TestDebugModel_GenerateObjectError(t *testing.T) {
 		svc:  svc,
 		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 	resp, err := model.GenerateObject(ctx, fantasy.ObjectCall{})
@@ -1050,7 +1038,6 @@ func TestDebugModel_GenerateObjectRejectsNilResponse(t *testing.T) {
 		svc:  svc,
 		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 	resp, err := model.GenerateObject(ctx, fantasy.ObjectCall{})

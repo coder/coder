@@ -232,7 +232,7 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 					onClick={() => setUserToggled((prev) => !(prev ?? expandedByDefault))}
 				>
 					<span className="text-sm font-normal">Tool call</span>
-					<Badge size="xs" className="font-mono ml-1">
+					<Badge size="sm" className="font-mono ml-1">
 						<HighlightText text={tool} highlight={highlight} />
 					</Badge>
 				</CollapseButton>

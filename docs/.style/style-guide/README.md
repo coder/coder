@@ -23,8 +23,8 @@ The doctrine for adding Vale rules lives in the [Vale doctrine README](../README
 
 A clean `make lint/prose` run is not evidence that a page follows this guide.
 The guide documents 88 rules.
-Automated tooling checks 10 of them, and 1 of those 10 doesn't run on published pages.
-The other 78 are yours to apply by reading, 79 on published pages, where the one-sentence-per-line rule is off.
+Automated tooling checks 11 of them, and 1 of those 11 doesn't run on published pages.
+The other 77 are yours to apply by reading, 78 on published pages, where the one-sentence-per-line rule is off.
 
 Open the section that matches what you're writing and work through it.
 The linters catch a narrow band of mechanical errors; they can't tell you that a page serves 2 audiences, buries a required step in a `NOTE`, or wraps every paragraph at 80 columns.
@@ -40,6 +40,7 @@ The linters catch a narrow band of mechanical errors; they can't tell you that a
 | `Coder.UnitSpacing`                | Vale                      | `warning` | `docs/**` except `docs/.style/style-guide/**` and `docs/admin/integrations/prometheus.md` and `docs/admin/setup/configuration-reference.md` and `docs/reference/{api,cli}/*.md` | A regular space, or no space, between a number and its unit           |
 | `MD001`, `MD025`, `MD040`, `MD045` | markdownlint              | `error`   | All Markdown                                                                                                                                                                    | Heading increments, single H1, fence language, missing alt text       |
 | `scripts/check_emdash.sh`          | `make lint/emdash`        | `error`   | Repository                                                                                                                                                                      | Em-dash, en-dash, and ` -- ` as punctuation                           |
+| `empty-table-header`               | `make lint/docs-html`     | `error`   | `docs/**`, including generated pages                                                                                                                                            | Table header cells with no text, in Markdown and HTML tables          |
 | `scripts/docsmanifestgen`          | `make lint/docs-manifest` | `error`   | Descriptions in `docs/manifest/**` and in the front matter of every page they list                                                                                              | A page description that doesn't end with a period                     |
 
 The markdownlint row lists only the rules that map to a rule in this guide.
@@ -48,7 +49,7 @@ markdownlint runs its full default set minus the rules `.markdownlint.jsonc` dis
 Vale runs advisory.
 `make lint/prose` passes `--no-exit`, and the CI step is advisory by design, so no Vale finding fails a build at any severity.
 Findings accumulate instead of blocking: rules that shipped against a clean corpus have since collected a backlog of warnings in `docs/`.
-The markdownlint, emdash, and docs-manifest checks do fail the build.
+The markdownlint, emdash, docs HTML, and docs-manifest checks do fail the build.
 
 ### Coverage by section
 
@@ -60,9 +61,9 @@ The markdownlint, emdash, and docs-manifest checks do fail the build.
 | [Word choice](./word-choice.md)                                       | 20    | 2            | 12      | 6                  |
 | [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 14    | 3            | 5       | 6                  |
 | [Capitalization and punctuation](./capitalization-and-punctuation.md) | 12    | 2            | 8       | 2                  |
-| [Formatting](./formatting.md)                                         | 13    | 2            | 0       | 11                 |
+| [Formatting](./formatting.md)                                         | 13    | 3            | 0       | 10                 |
 | [Numbers, units, and dates](./numbers-units-and-dates.md)             | 5     | 1            | 4       | 0                  |
-| **Total**                                                             | 88    | 10           | 34      | 44                 |
+| **Total**                                                             | 88    | 11           | 34      | 43                 |
 
 Every column counts rule sections, not linter rule names.
 A rule section is a heading that carries an enforcement footer, the italic line that names the section's enforcement status.
@@ -89,7 +90,7 @@ Classify a counted section from its footer, in this order:
    A section that names several checks still counts once.
 3. Anything else: the section is planned.
 
-So the 8 rows in the table above name 11 checks, because the markdownlint row bundles 4, and those 11 checks cover 10 sections: each check counts under the section that owns it rather than under every section that mentions it.
+So the 9 rows in the table above name 12 checks, because the markdownlint row bundles 4, and those 12 checks cover 11 sections: each check counts under the section that owns it rather than under every section that mentions it.
 
 A rule marked `(planned)` in a section footer names the rule that would enforce it if it existed.
 It isn't running today.
