@@ -199,6 +199,7 @@ To keep your client in sync with the chat:
    The server sends both again on the next connection.
 1. Wait, then open the stream again with the stored `snapshot_version`.
    Use exponential backoff: double the wait after each failed attempt.
+   If the server returns `400 Bad Request`, discard your client's state and start again from step 1.
 
 Don't reconnect with `after_id`.
 If your client misses an edit, then sends a message and reconnects with the ID of that message as `after_id`, the stream doesn't remove the messages that the edit removed and doesn't send the messages written between the edit and your message.
@@ -209,8 +210,7 @@ Apply the change again: a `message` event replaces the message with the same ID,
 If you sent a `before_id` request for older messages before the last `history_reset` event that you applied, discard its response.
 
 Send actions, such as new messages, edits, and tool results, as REST requests.
-Change your client's state only from stream events, including the results of your own requests.
-Don't apply a response body to your client's state.
+Don't apply their response bodies to your client's state, because the stream sends the result of each action.
 
 For the order of events and the errors that the stream returns, refer to [Stream chat events via WebSockets](../../reference/api/chats.md#stream-chat-events-via-websockets).
 
