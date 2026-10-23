@@ -1,6 +1,7 @@
 import { isAxiosError } from "axios";
 import { cn } from "cn";
 import { TriangleAlertIcon } from "lucide-react";
+import prettyBytes from "pretty-bytes";
 import { lazy, memo, Suspense, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -19,6 +20,7 @@ import { isBinaryData } from "#/modules/templates/TemplateFiles/isBinaryData";
 import { getOSKey } from "#/utils/platform";
 import { getPathBasename } from "../../utils/path";
 import type { FileReveal } from "../MainTabs/useMainTabs";
+import type { FileEditorStatus } from "./FileEditor";
 import {
 	MarkdownFilePreview,
 	maxMarkdownPreviewBytes,
@@ -72,6 +74,42 @@ const decodeUtf8 = (data: ArrayBuffer): string | undefined => {
 	}
 };
 
+const textEncoder = new TextEncoder();
+
+/** Lines count as `wc -l` and GitHub do: a final newline ends a line. */
+const describeLines = (text: string) => {
+	let lines = 0;
+	let crlf = 0;
+	for (let i = text.indexOf("\n"); i !== -1; i = text.indexOf("\n", i + 1)) {
+		lines++;
+		if (text[i - 1] === "\r") {
+			crlf++;
+		}
+	}
+	const lf = lines - crlf;
+	if (text !== "" && !text.endsWith("\n")) {
+		lines++;
+	}
+	return [
+		`${lines.toLocaleString("en-US")} ${lines === 1 ? "line" : "lines"}`,
+		crlf > 0 && lf > 0 ? "Mixed" : crlf > 0 ? "CRLF" : lf > 0 ? "LF" : "",
+	];
+};
+
+// A partial read holds only the first bytes. The agent's ETag carries the
+// whole file's modification time and size in hex (fileETag in
+// agent/agentfiles/files.go), and nothing else reports the size.
+const sizeFromEtag = (etag: string) => {
+	const size = /^"[0-9a-f]+-([0-9a-f]+)"$/.exec(etag)?.[1];
+	return size === undefined ? undefined : Number.parseInt(size, 16);
+};
+
+/** Such as "PNG" for "image/png" and "SVG" for "image/svg+xml". */
+const imageType = (contentType: string) =>
+	(contentType.split("/")[1] ?? "").split(/[+;]/)[0].toUpperCase();
+
+type ImageDimensions = { width: number; height: number };
+
 export const FileTab = memo<FileTabProps>(
 	({
 		chatId,
@@ -99,6 +137,8 @@ export const FileTab = memo<FileTabProps>(
 			writeWorkspaceAgentFile(queryClient, agentId),
 		);
 		const [hasSaveConflict, setHasSaveConflict] = useState(false);
+		const [editorStatus, setEditorStatus] = useState<FileEditorStatus>();
+		const [imageDimensions, setImageDimensions] = useState<ImageDimensions>();
 		const isMarkdown = isMarkdownPath(path);
 		const [mode, setMode] = useState<"edit" | "preview" | undefined>(
 			isMarkdown && reveal?.line === undefined ? undefined : "edit",
@@ -291,6 +331,7 @@ export const FileTab = memo<FileTabProps>(
 					data={data.data}
 					contentType={data.contentType}
 					alt={getPathBasename(path)}
+					onDimensions={setImageDimensions}
 				/>
 			);
 		} else if (!isText) {
@@ -319,8 +360,107 @@ export const FileTab = memo<FileTabProps>(
 						onChange={handleChange}
 						onSave={handleSave}
 						onRevealed={() => setPendingReveal(undefined)}
+						onStatusChange={setEditorStatus}
 					/>
 				</Suspense>
+			);
+		}
+
+		// The header describes the file: its type, size, lines and line endings.
+		let info: (string | false | undefined)[] = [];
+		if (data && isText) {
+			info = [
+				showsEditor ? editorStatus?.language : isMarkdown && "Markdown",
+				prettyBytes(
+					draft ? textEncoder.encode(value).byteLength : data.data.byteLength,
+				),
+				...describeLines(value),
+			];
+		} else if (data && isImage) {
+			info = [
+				imageType(data.contentType),
+				prettyBytes(data.data.byteLength),
+				imageDimensions &&
+					`${imageDimensions.width} × ${imageDimensions.height}`,
+			];
+		} else if (data) {
+			const size = data.partial
+				? sizeFromEtag(data.etag)
+				: data.data.byteLength;
+			info = [size !== undefined && prettyBytes(size)];
+		}
+		const cursor = showsEditor ? editorStatus : undefined;
+
+		// A notice takes the place of the file info, so the controls after it
+		// keep their places.
+		let notice: React.ReactNode;
+		if (isDeleted) {
+			notice = (
+				<FileNotice
+					title="Deleted on disk"
+					description={
+						canRecreate
+							? "The file was deleted on disk. Recreate it from the open content, or close the tab."
+							: "The file was deleted on disk."
+					}
+				>
+					{canRecreate && (
+						<PendingButton
+							isPending={writeMutation.isPending}
+							disabled={writeMutation.isPending}
+							onClick={() => write(value, { createOnly: true })}
+						>
+							Recreate
+						</PendingButton>
+					)}
+					<Button
+						size="xs"
+						variant="outline"
+						onClick={() => onClose(path, draft !== undefined)}
+					>
+						Close
+					</Button>
+				</FileNotice>
+			);
+		} else if (hasSaveConflict && draft) {
+			notice = (
+				<FileNotice
+					title="Changed on disk"
+					description="The file changed on disk after you started editing."
+				>
+					<PendingButton
+						isPending={fileQuery.isFetching}
+						disabled={fileQuery.isFetching || writeMutation.isPending}
+						onClick={handleReload}
+					>
+						Reload
+					</PendingButton>
+					<PendingButton
+						isPending={writeMutation.isPending}
+						disabled={fileQuery.isFetching || writeMutation.isPending}
+						onClick={() => save({})}
+					>
+						Overwrite
+					</PendingButton>
+				</FileNotice>
+			);
+		} else if (hasExternalChange) {
+			notice = (
+				<FileNotice
+					title="Changed on disk"
+					description="The file changed on disk while you have unsaved edits."
+				>
+					<PendingButton
+						isPending={fileQuery.isFetching}
+						disabled={fileQuery.isFetching}
+						onClick={handleReload}
+					>
+						Reload
+					</PendingButton>
+					<Button size="xs" variant="outline" onClick={handleKeepMine}>
+						Keep mine
+					</Button>
+				</FileNotice>
 			);
 		}
 
@@ -345,76 +485,19 @@ export const FileTab = memo<FileTabProps>(
 				{/* A fixed height, with notices inline, so the file content does not
 				    move when a notice or a spinner appears. */}
 				<div className="flex h-8 shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-3">
-					<span
-						className="min-w-0 flex-1 truncate font-mono text-xs text-content-secondary"
-						title={path}
-					>
-						{path}
-					</span>
-					{isDeleted ? (
-						<FileNotice
-							title="Deleted on disk"
-							description={
-								canRecreate
-									? "The file was deleted on disk. Recreate it from the open content, or close the tab."
-									: "The file was deleted on disk."
-							}
-						>
-							{canRecreate && (
-								<PendingButton
-									isPending={writeMutation.isPending}
-									disabled={writeMutation.isPending}
-									onClick={() => write(value, { createOnly: true })}
-								>
-									Recreate
-								</PendingButton>
-							)}
-							<Button
-								size="xs"
-								variant="outline"
-								onClick={() => onClose(path, draft !== undefined)}
-							>
-								Close
-							</Button>
-						</FileNotice>
-					) : hasSaveConflict && draft ? (
-						<FileNotice
-							title="Changed on disk"
-							description="The file changed on disk after you started editing."
-						>
-							<PendingButton
-								isPending={fileQuery.isFetching}
-								disabled={fileQuery.isFetching || writeMutation.isPending}
-								onClick={handleReload}
-							>
-								Reload
-							</PendingButton>
-							<PendingButton
-								isPending={writeMutation.isPending}
-								disabled={fileQuery.isFetching || writeMutation.isPending}
-								onClick={() => save({})}
-							>
-								Overwrite
-							</PendingButton>
-						</FileNotice>
-					) : (
-						hasExternalChange && (
-							<FileNotice
-								title="Changed on disk"
-								description="The file changed on disk while you have unsaved edits."
-							>
-								<PendingButton
-									isPending={fileQuery.isFetching}
-									disabled={fileQuery.isFetching}
-									onClick={handleReload}
-								>
-									Reload
-								</PendingButton>
-								<Button size="xs" variant="outline" onClick={handleKeepMine}>
-									Keep mine
-								</Button>
-							</FileNotice>
-						)
+					<div className="flex min-w-0 flex-1 items-center">
+						{notice ?? (
+							<span className="truncate text-xs text-content-secondary">
+								{info.filter(Boolean).join(" · ")}
+							</span>
+						)}
+					</div>
+					{cursor && (
+						<span className="shrink-0 text-xs tabular-nums text-content-secondary">
+							Ln {cursor.line}, Col {cursor.column}
+							{cursor.selectedCharacters > 0 &&
+								` (${cursor.selectedCharacters.toLocaleString("en-US")} selected)`}
+						</span>
 					)}
 					{isMarkdown && isText && (
 						<div role="group" aria-label="View mode" className="flex gap-1">
@@ -549,12 +632,14 @@ type ImagePreviewProps = {
 	data: ArrayBuffer;
 	contentType: string;
 	alt: string;
+	onDimensions: (dimensions: ImageDimensions) => void;
 };
 
 const ImagePreview: React.FC<ImagePreviewProps> = ({
 	data,
 	contentType,
 	alt,
+	onDimensions,
 }) => {
 	const [url, setUrl] = useState<string>();
 
@@ -575,6 +660,12 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
 				src={url}
 				alt={alt}
 				className="max-h-full max-w-full object-contain"
+				onLoad={(event) =>
+					onDimensions({
+						width: event.currentTarget.naturalWidth,
+						height: event.currentTarget.naturalHeight,
+					})
+				}
 			/>
 		</div>
 	);

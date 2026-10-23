@@ -1,4 +1,10 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AxiosError, AxiosHeaders } from "axios";
 import { useEffect, useRef, useState } from "react";
@@ -26,6 +32,7 @@ vi.mock("./FileEditor", () => ({
 		readOnly,
 		onChange,
 		onRevealed,
+		onStatusChange,
 	}: React.ComponentProps<typeof FileEditor>) {
 		const ref = useRef<HTMLTextAreaElement>(null);
 		useEffect(() => {
@@ -36,6 +43,24 @@ vi.mock("./FileEditor", () => ({
 				onRevealed();
 			}
 		}, [reveal, onRevealed]);
+		// Stands in for Monaco's cursor: the textarea's selection.
+		const reportStatus = (textarea: HTMLTextAreaElement) => {
+			const before = textarea.value.slice(0, textarea.selectionStart);
+			onStatusChange?.({
+				language: "Go",
+				line: before.split("\n").length,
+				column: before.length - before.lastIndexOf("\n"),
+				selectedCharacters: textarea.selectionEnd - textarea.selectionStart,
+			});
+		};
+		useEffect(() => {
+			onStatusChange?.({
+				language: "Go",
+				line: 1,
+				column: 1,
+				selectedCharacters: 0,
+			});
+		}, [onStatusChange]);
 		return (
 			<textarea
 				ref={ref}
@@ -43,6 +68,7 @@ vi.mock("./FileEditor", () => ({
 				value={value}
 				readOnly={readOnly}
 				onChange={(event) => onChange(event.target.value)}
+				onSelect={(event) => reportStatus(event.currentTarget)}
 			/>
 		);
 	},
@@ -242,6 +268,8 @@ describe("FileTab", () => {
 		expect(await screen.findByRole("alert")).toHaveTextContent(
 			/Deleted on disk/,
 		);
+		// The notice takes the place of the file info.
+		expect(screen.queryByText("Go · 11 B · 1 line")).toBeNull();
 		expect(screen.getByLabelText("File contents")).toHaveValue("hello world");
 		await user.click(screen.getByRole("button", { name: "Recreate" }));
 		await waitFor(() => {
@@ -395,6 +423,70 @@ describe("FileTab", () => {
 		await screen.findByText("Binary file");
 		expect(screen.queryByLabelText("File contents")).toBeNull();
 		expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+	});
+
+	describe("file info", () => {
+		it("describes the text in the editor and where its cursor is", async () => {
+			const user = userEvent.setup();
+			readFile.mockResolvedValue(fileContents("a\nb\n", '"v1"'));
+			renderFileTab({});
+
+			await screen.findByText("Go · 4 B · 2 lines · LF");
+			await screen.findByText("Ln 1, Col 1");
+			await editFile(user, "\nné");
+			await screen.findByText("Go · 8 B · 4 lines · LF");
+
+			const editor =
+				screen.getByLabelText<HTMLTextAreaElement>("File contents");
+			act(() => editor.setSelectionRange(2, 3));
+			fireEvent.select(editor);
+			await screen.findByText("Ln 2, Col 1 (1 selected)");
+		});
+
+		// The mock editor's textarea turns CRLF into LF on edit.
+		it.each([
+			["a\r\nb\r\n", "Go · 6 B · 2 lines · CRLF"],
+			["a\r\nb\n", "Go · 5 B · 2 lines · Mixed"],
+			["one line", "Go · 8 B · 1 line"],
+			["", "Go · 0 B · 0 lines"],
+		])("describes %j as %s", async (content, info) => {
+			readFile.mockResolvedValue(fileContents(content, '"v1"'));
+			renderFileTab({});
+
+			await screen.findByText(info);
+		});
+
+		it("describes an image by its type, size and dimensions", async () => {
+			vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:image");
+			vi.spyOn(URL, "revokeObjectURL").mockReturnValue(undefined);
+			readFile.mockResolvedValue({
+				data: new Uint8Array(2_900).buffer,
+				contentType: "image/svg+xml",
+				etag: '"v1"',
+			});
+			renderFileTab({});
+
+			const image = await screen.findByRole("img", { name: "main.go" });
+			Object.defineProperties(image, {
+				naturalWidth: { value: 640 },
+				naturalHeight: { value: 480 },
+			});
+			fireEvent.load(image);
+			await screen.findByText("SVG · 2.9 kB · 640 × 480");
+		});
+
+		it("gives the size of a file it does not show", async () => {
+			// The agent's ETag ends in the file's size in hex.
+			readFile.mockResolvedValue({
+				data: new Uint8Array(8 << 10).buffer,
+				contentType: "application/octet-stream",
+				etag: '"18e0e55e9817afe6-325aa0"',
+			});
+			renderFileTab({});
+
+			await screen.findByText("Binary file");
+			await screen.findByText("3.3 MB");
+		});
 	});
 
 	describe("reading large files", () => {
