@@ -1461,12 +1461,19 @@ type CallMCPToolRequest struct {
 	ToolName string `json:"tool_name"`
 	// Arguments is the tool input as key-value pairs.
 	Arguments map[string]any `json:"arguments"`
+	// IncludeResult asks the agent to return the MCP result in Result
+	// instead of Content. Older agents ignore it and return Content.
+	IncludeResult bool `json:"include_result,omitempty"`
 }
 
 // CallMCPToolResponse is the response from a proxied MCP tool call.
 type CallMCPToolResponse struct {
 	Content []MCPToolContent `json:"content"`
 	IsError bool             `json:"is_error"`
+	// Result is the MCP CallToolResult in MCP wire format. The agent sets
+	// it, and leaves Content empty, only when the request sets
+	// IncludeResult.
+	Result json.RawMessage `json:"result,omitempty"`
 }
 
 // MCPToolContent is a single content block in an MCP tool response.

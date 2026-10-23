@@ -118,8 +118,10 @@ func TestConvertResult(t *testing.T) {
 	tests := []struct {
 		name string
 		// input is a pointer so we can test nil.
-		input *mcp.CallToolResult
-		want  workspacesdk.CallMCPToolResponse
+		input         *mcp.CallToolResult
+		includeResult bool
+		want          workspacesdk.CallMCPToolResponse
+		wantResult    string
 	}{
 		{
 			name:  "NilInput",
@@ -219,13 +221,43 @@ func TestConvertResult(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "IncludeResultKeepsEmbeddedBlobAndStructuredContent",
+			input: &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: "report"},
+					&mcp.EmbeddedResource{Resource: &mcp.ResourceContents{
+						URI:      "file:///report.pdf",
+						MIMEType: "application/pdf",
+						Blob:     []byte("pdf-data"),
+					}},
+				},
+				StructuredContent: map[string]any{"pages": 2},
+				IsError:           true,
+			},
+			includeResult: true,
+			want:          workspacesdk.CallMCPToolResponse{IsError: true},
+			wantResult: `{
+				"content": [
+					{"type": "text", "text": "report"},
+					{"type": "resource", "resource": {"uri": "file:///report.pdf", "mimeType": "application/pdf", "blob": "cGRmLWRhdGE="}}
+				],
+				"structuredContent": {"pages": 2},
+				"isError": true
+			}`,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := convertResult(tt.input)
+			got, err := convertResult(tt.input, tt.includeResult)
+			require.NoError(t, err)
+			if tt.wantResult != "" {
+				require.JSONEq(t, tt.wantResult, string(got.Result))
+				got.Result = nil
+			}
 			assert.Equal(t, tt.want, got)
 		})
 	}
