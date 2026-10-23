@@ -1438,7 +1438,7 @@ Initial null state:
 - preview part sequence is `0`;
 - `attempt_retired` is false;
 
-A client may open the stream with the `snapshot_version` parameter, taken from the newest messages page or the highest `snapshot_version` among the versioned events it applied. Throughout this document, a stream opened with `snapshot_version` means one that sent the parameter. The endpoint rejects a value that is not an integer, below 1, or above the chat's `snapshot_version` with 400, because the chat never issued it. The synchronized `history_version` and `queue_version` start one below the parameter, so the first sync sends the messages and queue written at or after it: the connection can drop between the events of one commit. The endpoint ignores `after_id`, because a client can hold a message ID without holding every message below it.
+When the client opens the stream with a `snapshot_version` parameter, the synchronized `history_version` and `queue_version` start one below it instead of at `0`, so the first sync resends the messages and queue written by that commit. The stream then ignores `after_id`.
 
 ## Stream loop operations
 
@@ -1493,7 +1493,7 @@ Applying the database result means, in deterministic order:
 9. If `db.generation_attempt > 0`, configure the relay forwarder with `db.worker_id`, `db.history_version`, and `db.generation_attempt`.
 10. Save `snapshot_version`, `history_version`, `queue_version`, `retry_state_version`, `status`, `worker_id`, and `generation_attempt` from the db to local state.
 
-On a stream opened with `snapshot_version`, the events of steps 1 and 2 are sorted by `snapshot_version` before step 3. Within one version, `history_reset` comes first, then `message` events by ID, then `queue_update`. A client resumes from the highest version it received, so it must receive every lower one first.
+On a stream opened with `snapshot_version`, the events of steps 1 and 2 are sorted by `snapshot_version` before step 3. Within one version, `history_reset` comes first, then `message` events by ID, then `queue_update`.
 
 If `Sync` fetches from the database, all database reads for that `Sync` must happen in the same read transaction. This includes reading the chat row, changed messages, full-history refresh messages, queued messages, retry state, error data, and pending dynamic tool-call data.
 
@@ -1561,16 +1561,15 @@ If any fetched row is soft-deleted, mirror the current stream endpoint's full-re
 
 On a stream opened with `snapshot_version`, the stream does not fetch or resend the full history. Instead:
 
-1. Emit one `history_reset` per revision among the soft-deleted rows, with the lowest of their IDs as `from_message_id`. Only an edit soft-deletes messages, and a soft-deleted row keeps the revision of the edit that deleted it, because an update that changes nothing does not advance a row's revision.
+1. Emit one `history_reset` per revision among the soft-deleted rows, with the lowest of their IDs as `from_message_id`.
 2. Emit `message` events for the rows that are not soft-deleted and whose revision is newer than the local known-message revision, and update the known-message revision map.
-
-An edit soft-deletes every message from the edited one on, so each live message at or above `from_message_id` was written by that edit or a later commit, and is among the fetched rows.
 
 TODO (#29808): the first sync with an `after_id` fetches every row, including soft-deleted ones. It resets only when message `after_id` is deleted or missing; otherwise it skips soft-deleted rows and sends only live rows above `after_id`. This relies on messages being deleted only as a suffix of the chat (an edit deletes the edited message and every later one). Describe this here and add that invariant to the list below.
 
-Required invariant:
+Required invariants:
 
 - every client-visible message-history change advances the changed row revision and chat `history_version`.
+- only an edit soft-deletes messages, it soft-deletes the edited message and every later one, and a soft-deleted row keeps the revision of that edit.
 
 ### Queue synchronization
 

@@ -54,10 +54,10 @@ type streamLocalState struct {
 
 	afterMessageID         int64
 	initialMessageSyncDone bool
-	// openedWithSnapshotVersion reports whether the client opened the stream
-	// with a snapshot version. Only then do versioned events carry
-	// snapshot_version, and history_reset carry from_message_id without the
-	// full history that older clients expect after it.
+	// When openedWithSnapshotVersion is set, versioned events carry
+	// snapshot_version, and history_reset carries from_message_id instead of
+	// being followed by the full history. Clients that open the stream
+	// without snapshot_version expect the full history.
 	openedWithSnapshotVersion bool
 }
 
@@ -98,10 +98,10 @@ func newStreamLoop(chat database.Chat, db database.Store, logger slog.Logger, af
 		},
 	}
 	if snapshotVersion > 0 {
-		// A message's revision and the chat's queue version are the snapshot
-		// version of the commit that wrote them. The first sync sends those
-		// at or after snapshotVersion, since a client can hold only part of
-		// one commit's changes.
+		// A message's revision and the chat's queue version equal the snapshot
+		// version of the commit that wrote them. Starting one below
+		// snapshotVersion makes the first sync resend that commit, because the
+		// connection can drop between the events of one commit.
 		loop.state.historyVersion = snapshotVersion - 1
 		loop.state.queueVersion = snapshotVersion - 1
 		loop.state.afterMessageID = 0
@@ -461,11 +461,12 @@ func (l *streamLoop) messageEvents(snapshot streamDBSnapshot) []codersdk.ChatStr
 	return events
 }
 
-// versionedMessageEvents reports changed rows to a stream opened with a
-// snapshot version: one history_reset per edit, from the lowest ID it
-// removed, then a message per live row. An edit removes every message from
-// the edited one on, so each live row at or above that ID was written by
-// the edit or a later commit, and is among the changed rows.
+// versionedMessageEvents returns, for a stream opened with a snapshot
+// version, one history_reset per edit, from the lowest ID it removed, then a
+// message event per live row the client has not received. No full history
+// is needed: an edit removes every message from the edited one on, so each
+// live row at or above that ID was written by the edit or a later commit,
+// and is among the changed rows.
 func (l *streamLoop) versionedMessageEvents(changed []database.ChatMessage) []codersdk.ChatStreamEvent {
 	var resets, messages []codersdk.ChatStreamEvent
 	resetVersions := make(map[int64]bool)
