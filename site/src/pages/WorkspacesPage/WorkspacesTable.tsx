@@ -1,5 +1,6 @@
 import {
 	BanIcon,
+	CircleAlertIcon,
 	CloudIcon,
 	EllipsisVerticalIcon,
 	ExternalLinkIcon,
@@ -800,6 +801,27 @@ const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
 		workspace,
 		agent,
 	});
+
+	// Render a non-navigating icon with an explanatory tooltip instead of a
+	// broken link.
+	if (link.isBlocked) {
+		return (
+			<BaseIconLink
+				key={app.id}
+				label={`${link.label} has an untrusted URL`}
+				onClick={() => {}}
+			>
+				{app.icon ? (
+					<ExternalImage src={app.icon} />
+				) : (
+					<CircleAlertIcon
+						aria-hidden="true"
+						className="size-icon-sm text-content-warning"
+					/>
+				)}
+			</BaseIconLink>
+		);
+	}
 
 	return (
 		<BaseIconLink
