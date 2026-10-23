@@ -1,0 +1,26 @@
+title: Parameters
+description: Prompt users for values, such as a region or instance size, to customize each workspace.
+path: ./admin/templates/extending-templates/parameters/index.md
+children:
+  - title: Form types and styling
+    description: Choose the input control for each parameter, such as a dropdown, slider, multi-select, or text area.
+    path: ./admin/templates/extending-templates/parameters/form-types.md
+  - title: Validation
+    description: Constrain parameter values with ranges, regular expressions, and rules that depend on other parameters.
+    path: ./admin/templates/extending-templates/parameters/validation.md
+  - title: Conditional parameters
+    description: Show, hide, or change parameters based on the user's other selections in the workspace creation form.
+    path: ./admin/templates/extending-templates/parameters/conditional-parameters.md
+  - title: Identity-aware parameters
+    description: Change parameters based on the roles and groups of the user creating the workspace.
+    path: ./admin/templates/extending-templates/parameters/identity-aware-parameters.md
+    state: [premium]
+  - title: Workspace presets
+    description: Bundle commonly used parameter values into a single option in the workspace creation form.
+    path: ./admin/templates/extending-templates/parameters/workspace-presets.md
+  - title: Compatibility mode
+    description: Find templates that use the deprecated classic parameter flow and upgrade them.
+    path: ./admin/templates/extending-templates/parameters/compatibility-mode.md
+  - title: Troubleshooting
+    description: Diagnose and resolve common problems with parameter forms.
+    path: ./admin/templates/extending-templates/parameters/troubleshooting.md

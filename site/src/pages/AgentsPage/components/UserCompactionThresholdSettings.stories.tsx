@@ -17,7 +17,7 @@ import {
 import {
 	compactionOverrideWindowPercent,
 	type OrganizationCompactionTrigger,
-} from "../compactionTriggers";
+} from "../utils/compactionTriggers";
 import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
 
 const modelsOrganization = {

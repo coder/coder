@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"maps"
+	"slices"
 	"testing"
 	"time"
 
@@ -11,11 +14,26 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/migrations"
+	"github.com/coder/coder/v2/codersdk"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
+
+// templateInsightsParams passes the registry's app names and the response
+// limit, as the template insights handler does.
+func templateInsightsParams(startTime, endTime time.Time, templateIDs ...uuid.UUID) database.GetTemplateInsightsParams {
+	return database.GetTemplateInsightsParams{
+		StartTime:           startTime,
+		EndTime:             endTime,
+		TemplateIDs:         templateIDs,
+		RegisteredAppNames:  slices.Sorted(maps.Keys(codersdk.SessionCountAppFamilies())),
+		MaxUnregisteredApps: codersdk.TemplateInsightsMaxUnregisteredApps,
+	}
+}
 
 // sessionUsageMins reads one bucket's session usage. GetTemplateInsights caps
 // and totals a window across users, so it cannot show a single bucket.
@@ -62,8 +80,8 @@ func TestSessionUsageRollup(t *testing.T) {
 			ConnectionCount: connected, SessionCounts: dbgen.SessionCounts(t, counts),
 		})
 	}
-	insert(0, user, template, 1, map[string]int64{"cursor": 2, "vscode": 1, "new_app": 1})
-	insert(30*time.Second, user, template, 0, map[string]int64{"cursor": 1, "new_app": 1})
+	insert(0, user, template, 1, map[string]int64{"cursor": 2, "vscode": 1, "new_app": 1, "overflow": 1})
+	insert(30*time.Second, user, template, 0, map[string]int64{"cursor": 1, "new_app": 1, "overflow": 1})
 	insert(time.Minute, user, template, 0, map[string]int64{"cursor": 1})
 	insert(29*time.Minute, user, template, 0, map[string]int64{"vscode": 1})
 	insert(30*time.Minute, user, template, 1, map[string]int64{"cursor": 1})
@@ -89,8 +107,8 @@ func TestSessionUsageRollup(t *testing.T) {
 		}
 	}
 	require.True(t, found, "the overlapping app bucket must be present")
-	// Each app keeps its own minutes; callers add up a family's apps.
-	require.Equal(t, map[string]int64{"cursor": 2, "vscode": 2, "new_app": 1},
+	// Each app keeps its own minutes, including overlapping app usage.
+	require.Equal(t, map[string]int64{"cursor": 2, "vscode": 2, "new_app": 1, "overflow": 1},
 		sessionUsageMins(ctx, t, sqlDB, start, user, template))
 
 	// The watermark recomputes recent buckets, so unchanged minutes must not
@@ -100,9 +118,16 @@ func TestSessionUsageRollup(t *testing.T) {
 	repeated, err := db.GetTemplateUsageStats(ctx, params)
 	require.NoError(t, err)
 	require.ElementsMatch(t, rows, repeated)
-	require.Equal(t, map[string]int64{"cursor": 2, "vscode": 2, "new_app": 1},
+	require.Equal(t, map[string]int64{"cursor": 2, "vscode": 2, "new_app": 1, "overflow": 1},
 		sessionUsageMins(ctx, t, sqlDB, start, user, template))
 	require.Equal(t, version, sessionUsageRowVersion(ctx, t, sqlDB, start, user, template, "cursor"))
+
+	// Template insights keep each app's own minutes, so apps open at the same
+	// time add up past the active time.
+	insights, err := db.GetTemplateInsights(ctx, templateInsightsParams(start, start.Add(time.Hour), template))
+	require.NoError(t, err)
+	require.EqualValues(t, 5*60, insights.UsageTotalSeconds)
+	require.JSONEq(t, `{"cursor":180,"vscode":180,"new_app":60,"overflow":60}`, string(insights.SessionAppUsageSeconds))
 
 	// A new app in an already counted minute leaves the main row alone.
 	insert(0, user, template, 1, map[string]int64{"another_app": 1})
@@ -110,7 +135,7 @@ func TestSessionUsageRollup(t *testing.T) {
 	repeated, err = db.GetTemplateUsageStats(ctx, params)
 	require.NoError(t, err)
 	require.ElementsMatch(t, rows, repeated)
-	require.Equal(t, map[string]int64{"cursor": 2, "vscode": 2, "new_app": 1, "another_app": 1},
+	require.Equal(t, map[string]int64{"cursor": 2, "vscode": 2, "new_app": 1, "overflow": 1, "another_app": 1},
 		sessionUsageMins(ctx, t, sqlDB, start, user, template))
 	require.Equal(t, version, sessionUsageRowVersion(ctx, t, sqlDB, start, user, template, "cursor"))
 
@@ -163,7 +188,7 @@ func TestSessionUsageHistoryCapsAndNamespaces(t *testing.T) {
 		_, err := sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats(start_time,end_time,user_id,template_id,usage_mins) VALUES($1,$2,$3,$4,20)`,
 			start, start.Add(30*time.Minute), user, template)
 		require.NoError(t, err)
-		_, err = sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats_session_apps(start_time,template_id,user_id,app_name,usage_mins) VALUES($1,$2,$3,'some_new_ide',20),($1,$2,$3,'ssh',20),($1,$2,$3,'sftp',2)`,
+		_, err = sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats_session_apps(start_time,template_id,user_id,app_name,usage_mins) VALUES($1,$2,$3,'some_new_ide',20),($1,$2,$3,'ssh',20),($1,$2,$3,'sftp',2),($1,$2,$3,'overflow',20)`,
 			start, template, user)
 		require.NoError(t, err)
 	}
@@ -171,37 +196,266 @@ func TestSessionUsageHistoryCapsAndNamespaces(t *testing.T) {
 	_, err := sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats(start_time,end_time,user_id,template_id,usage_mins,app_usage_mins) VALUES($1,$2,$3,$4,5,'{"ssh":5}')`,
 		start, start.Add(30*time.Minute), uuid.New(), appTemplate)
 	require.NoError(t, err)
-	usage, err := db.GetTemplateInsights(ctx, database.GetTemplateInsightsParams{StartTime: start, EndTime: start.Add(30 * time.Minute)})
+	usage, err := db.GetTemplateInsights(ctx, templateInsightsParams(start, start.Add(30*time.Minute)))
 	require.NoError(t, err)
 	require.EqualValues(t, 2, usage.ActiveUsers)
 	require.EqualValues(t, 35*60, usage.UsageTotalSeconds)
 	require.ElementsMatch(t, []uuid.UUID{template1, template2, appTemplate}, usage.TemplateIDs)
-	require.JSONEq(t, `{"some_new_ide":1800,"ssh":1800,"sftp":240}`, string(usage.SessionAppUsageSeconds))
+	require.JSONEq(t, `{"some_new_ide":1800,"ssh":1800,"sftp":240,"overflow":1800}`, string(usage.SessionAppUsageSeconds))
 	var ids map[string][]uuid.UUID
 	require.NoError(t, json.Unmarshal(usage.SessionAppTemplateIds, &ids))
 	require.ElementsMatch(t, []uuid.UUID{template1, template2}, ids["some_new_ide"])
 	require.ElementsMatch(t, []uuid.UUID{template1, template2}, ids["ssh"])
-	onlyApp, err := db.GetTemplateInsights(ctx, database.GetTemplateInsightsParams{StartTime: start, EndTime: start.Add(30 * time.Minute), TemplateIDs: []uuid.UUID{appTemplate}})
+	onlyApp, err := db.GetTemplateInsights(ctx, templateInsightsParams(start, start.Add(30*time.Minute), appTemplate))
 	require.NoError(t, err)
 	require.EqualValues(t, 1, onlyApp.ActiveUsers)
 	require.EqualValues(t, 300, onlyApp.UsageTotalSeconds)
 	require.JSONEq(t, `{}`, string(onlyApp.SessionAppUsageSeconds))
 	require.JSONEq(t, `{}`, string(onlyApp.SessionAppTemplateIds))
 	// One template leaves a single-template user, so the cap does not apply.
-	onlyOne, err := db.GetTemplateInsights(ctx, database.GetTemplateInsightsParams{StartTime: start, EndTime: start.Add(30 * time.Minute), TemplateIDs: []uuid.UUID{template1}})
+	onlyOne, err := db.GetTemplateInsights(ctx, templateInsightsParams(start, start.Add(30*time.Minute), template1))
 	require.NoError(t, err)
-	require.JSONEq(t, `{"some_new_ide":1200,"ssh":1200,"sftp":120}`, string(onlyOne.SessionAppUsageSeconds))
+	require.JSONEq(t, `{"some_new_ide":1200,"ssh":1200,"sftp":120,"overflow":1200}`, string(onlyOne.SessionAppUsageSeconds))
 }
 
 func TestSessionUsageEmptyHistory(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)
 	start := dbtime.Now().Truncate(30 * time.Minute)
-	row, err := db.GetTemplateInsights(context.Background(), database.GetTemplateInsightsParams{StartTime: start, EndTime: start.Add(time.Hour)})
+	row, err := db.GetTemplateInsights(context.Background(), templateInsightsParams(start, start.Add(time.Hour)))
 	require.NoError(t, err)
 	require.Empty(t, row.TemplateIDs)
 	require.Zero(t, row.ActiveUsers)
 	require.Zero(t, row.UsageTotalSeconds)
 	require.JSONEq(t, `{}`, string(row.SessionAppUsageSeconds))
 	require.JSONEq(t, `{}`, string(row.SessionAppTemplateIds))
+}
+
+func TestSessionUsageResponseCapBucketBoundary(t *testing.T) {
+	t.Parallel()
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+	ctx := context.Background()
+	start := dbtime.Now().Add(-time.Hour).Truncate(30 * time.Minute)
+	user, template := uuid.New(), uuid.New()
+
+	// Session rows use a fixed 30-minute boundary; parent rows use end_time.
+	_, err := sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats(start_time,end_time,user_id,template_id,usage_mins) VALUES($1,$2,$3,$4,5)`,
+		start, start.Add(45*time.Minute), user, template)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats_session_apps(start_time,template_id,user_id,app_name,usage_mins) VALUES($1,$2,$3,'new_ide',3)`,
+		start, template, user)
+	require.NoError(t, err)
+
+	params := templateInsightsParams(start, start.Add(30*time.Minute), template)
+	params.MaxUnregisteredApps = 0
+	usage, err := db.GetTemplateInsights(ctx, params)
+	require.NoError(t, err)
+	require.Zero(t, usage.UsageTotalSeconds)
+	require.EqualValues(t, 1, usage.SessionFoldedAppCount)
+	require.JSONEq(t, `{}`, string(usage.SessionAppUsageSeconds))
+	var ids map[string][]uuid.UUID
+	require.NoError(t, json.Unmarshal(usage.SessionAppTemplateIds, &ids))
+	require.Equal(t, map[string][]uuid.UUID{"overflow": {template}}, ids)
+
+	params.EndTime = start.Add(time.Hour)
+	usage, err = db.GetTemplateInsights(ctx, params)
+	require.NoError(t, err)
+	require.EqualValues(t, 5*60, usage.UsageTotalSeconds)
+	require.JSONEq(t, `{"overflow":180}`, string(usage.SessionAppUsageSeconds))
+}
+
+func TestSessionUsageResponseCap(t *testing.T) {
+	t.Parallel()
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+	ctx := context.Background()
+	start := dbtime.Now().Add(-2 * time.Hour).Truncate(30 * time.Minute)
+	userA, userB := uuid.New(), uuid.New()
+	template1, template2, template3 := uuid.New(), uuid.New(), uuid.New()
+
+	bucket := func(startTime time.Time, user, template uuid.UUID, usageMins int) {
+		t.Helper()
+		_, err := sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats(start_time,end_time,user_id,template_id,usage_mins) VALUES($1,$2,$3,$4,$5)`,
+			startTime, startTime.Add(30*time.Minute), user, template, usageMins)
+		require.NoError(t, err)
+	}
+	app := func(startTime time.Time, user, template uuid.UUID, appName string, usageMins int) {
+		t.Helper()
+		_, err := sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats_session_apps(start_time,template_id,user_id,app_name,usage_mins) VALUES($1,$2,$3,$4,$5)`,
+			startTime, template, user, appName, usageMins)
+		require.NoError(t, err)
+	}
+
+	// User A uses two templates in one half hour but is active for only 10
+	// minutes of it, so the apps' minutes add up past the active time.
+	bucket(start, userA, template1, 6)
+	bucket(start, userA, template2, 4)
+	later := start.Add(30 * time.Minute)
+	bucket(later, userB, template3, 3)
+
+	limit := int(codersdk.TemplateInsightsMaxUnregisteredApps)
+	// limit-1 unregistered apps at 6 minutes, then two at 4 minutes, so the
+	// last listed slot goes to the name that sorts first.
+	for i := range limit - 1 {
+		app(start, userA, template1, fmt.Sprintf("app_%02d", i), 6)
+	}
+	app(start, userA, template1, "tie_a", 4)
+	app(start, userA, template1, "tie_b", 4)
+	// The least used unregistered apps, across templates and users.
+	app(start, userA, template1, "fold_x", 2)
+	app(later, userB, template3, "fold_x", 1)
+	app(start, userA, template2, "fold_y", 2)
+	// Registered apps stay listed however little they were used, and the
+	// accounting rows never take an unregistered slot.
+	app(start, userA, template1, "vscode", 1)
+	app(start, userA, template2, "cursor", 1)
+	app(start, userA, template1, "unknown", 3)
+	app(start, userA, template1, "overflow", 4)
+
+	usage, err := db.GetTemplateInsights(ctx, templateInsightsParams(start, start.Add(time.Hour)))
+	require.NoError(t, err)
+	require.EqualValues(t, 13*60, usage.UsageTotalSeconds)
+	require.EqualValues(t, 3, usage.SessionFoldedAppCount)
+
+	var appSeconds map[string]int64
+	require.NoError(t, json.Unmarshal(usage.SessionAppUsageSeconds, &appSeconds))
+	want := map[string]int64{"tie_a": 240, "vscode": 60, "cursor": 60, "unknown": 180}
+	for i := range limit - 1 {
+		want[fmt.Sprintf("app_%02d", i)] = 360
+	}
+	// The folded apps and the stored overflow sum to 12 minutes in user A's
+	// half hour, bounded by its 10 active minutes, plus user B's 1 minute.
+	// The sum alone would report 13 minutes.
+	want["overflow"] = 11 * 60
+	require.Equal(t, want, appSeconds)
+	require.LessOrEqual(t, appSeconds["overflow"], usage.UsageTotalSeconds)
+
+	var ids map[string][]uuid.UUID
+	require.NoError(t, json.Unmarshal(usage.SessionAppTemplateIds, &ids))
+	require.Len(t, ids, len(want))
+	require.ElementsMatch(t, []uuid.UUID{template1, template2, template3}, ids["overflow"])
+	require.ElementsMatch(t, []uuid.UUID{template2}, ids["cursor"])
+
+	// Without apps to fold, overflow reports its stored minutes exactly.
+	params := templateInsightsParams(start, start.Add(time.Hour))
+	params.MaxUnregisteredApps = 1000
+	unfolded, err := db.GetTemplateInsights(ctx, params)
+	require.NoError(t, err)
+	require.Zero(t, unfolded.SessionFoldedAppCount)
+	require.NoError(t, json.Unmarshal(unfolded.SessionAppUsageSeconds, &appSeconds))
+	require.EqualValues(t, 240, appSeconds["overflow"])
+	require.EqualValues(t, 240, appSeconds["tie_b"])
+	require.EqualValues(t, 180, appSeconds["fold_x"])
+	require.NoError(t, json.Unmarshal(unfolded.SessionAppTemplateIds, &ids))
+	require.ElementsMatch(t, []uuid.UUID{template1}, ids["overflow"])
+
+	for _, tt := range []struct {
+		limit        int64
+		folded       int64
+		overflowMins int64
+	}{
+		{-1, 67, 11},
+		{0, 67, 11},
+		{63, 4, 11},
+		{64, 3, 11},
+		{65, 2, 9},
+		{66, 1, 6},
+		{67, 0, 4},
+	} {
+		t.Run(fmt.Sprintf("Limit%d", tt.limit), func(t *testing.T) {
+			t.Parallel()
+			params := templateInsightsParams(start, start.Add(time.Hour))
+			params.MaxUnregisteredApps = tt.limit
+			usage, err := db.GetTemplateInsights(ctx, params)
+			require.NoError(t, err)
+			require.EqualValues(t, 13*60, usage.UsageTotalSeconds)
+			require.Equal(t, tt.folded, usage.SessionFoldedAppCount)
+
+			var seconds map[string]int64
+			require.NoError(t, json.Unmarshal(usage.SessionAppUsageSeconds, &seconds))
+			require.Len(t, seconds, 67-int(tt.folded)+4)
+			require.Equal(t, tt.overflowMins*60, seconds["overflow"])
+			require.EqualValues(t, 60, seconds["vscode"])
+			require.EqualValues(t, 60, seconds["cursor"])
+			require.EqualValues(t, 180, seconds["unknown"])
+		})
+	}
+
+	t.Run("FilteredTemplateWithoutStoredOverflow", func(t *testing.T) {
+		t.Parallel()
+		params := templateInsightsParams(start, start.Add(time.Hour), template2)
+		params.MaxUnregisteredApps = 0
+		usage, err := db.GetTemplateInsights(ctx, params)
+		require.NoError(t, err)
+		require.EqualValues(t, 4*60, usage.UsageTotalSeconds)
+		require.EqualValues(t, 1, usage.SessionFoldedAppCount)
+		require.JSONEq(t, `{"cursor":60,"overflow":120}`, string(usage.SessionAppUsageSeconds))
+
+		var ids map[string][]uuid.UUID
+		require.NoError(t, json.Unmarshal(usage.SessionAppTemplateIds, &ids))
+		require.Equal(t, map[string][]uuid.UUID{"cursor": {template2}, "overflow": {template2}}, ids)
+
+		params.MaxUnregisteredApps = 1
+		usage, err = db.GetTemplateInsights(ctx, params)
+		require.NoError(t, err)
+		require.Zero(t, usage.SessionFoldedAppCount)
+		require.JSONEq(t, `{"cursor":60,"fold_y":120}`, string(usage.SessionAppUsageSeconds))
+	})
+}
+
+// TestTemplateAppInsightsMergesBySlug checks that apps sharing a slug across
+// templates form one row, presented by the newest app.
+func TestTemplateAppInsightsMergesBySlug(t *testing.T) {
+	t.Parallel()
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := context.Background()
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	start := dbtime.Now().Add(-2 * time.Hour).Truncate(30 * time.Minute)
+
+	addTemplate := func(displayName, icon string, createdAt time.Time, usageMins int) uuid.UUID {
+		ws := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+		}).WithAgent(func(agents []*sdkproto.Agent) []*sdkproto.Agent {
+			agents[0].Apps = []*sdkproto.App{{Slug: "code-server", DisplayName: displayName, Icon: icon}}
+			return agents
+		}).Do()
+		_, err := sqlDB.ExecContext(ctx, `UPDATE workspace_apps SET created_at = $1 WHERE agent_id = $2`,
+			createdAt, ws.Agents[0].ID)
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats
+			(start_time, end_time, template_id, user_id, usage_mins, app_usage_mins)
+			VALUES ($1, $2, $3, $4, $5::smallint, jsonb_build_object('code-server', $5::smallint))`,
+			start, start.Add(30*time.Minute), ws.Workspace.TemplateID, user.ID, usageMins)
+		require.NoError(t, err)
+		return ws.Workspace.TemplateID
+	}
+	older := addTemplate("Old Name", "/icon/old.svg", start.Add(-time.Hour), 10)
+	newer := addTemplate("code-server", "/icon/code.svg", start, 5)
+
+	rows, err := db.GetTemplateAppInsights(ctx, database.GetTemplateAppInsightsParams{
+		StartTime: start,
+		EndTime:   start.Add(time.Hour),
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.ElementsMatch(t, []uuid.UUID{older, newer}, rows[0].TemplateIDs)
+	require.Equal(t, "code-server", rows[0].DisplayName)
+	require.Equal(t, "/icon/code.svg", rows[0].Icon)
+	require.EqualValues(t, 15*60, rows[0].UsageSeconds)
+
+	// Filtering to the older template presents its own app.
+	rows, err = db.GetTemplateAppInsights(ctx, database.GetTemplateAppInsightsParams{
+		StartTime:   start,
+		EndTime:     start.Add(time.Hour),
+		TemplateIDs: []uuid.UUID{older},
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, "Old Name", rows[0].DisplayName)
+	require.EqualValues(t, 10*60, rows[0].UsageSeconds)
 }

@@ -27,7 +27,24 @@ import (
 	"github.com/coder/quartz"
 )
 
-const defaultSubscriptionCacheTTL = 3 * time.Minute
+const (
+	defaultSubscriptionCacheTTL = 3 * time.Minute
+
+	// MaxResponseBodyBytes caps how much of a push service response is read.
+	// Push services reply with an empty body or a short error message, so a
+	// longer body comes from a misbehaving or hostile endpoint, and reading
+	// all of it would exhaust memory.
+	MaxResponseBodyBytes = 64 << 10
+
+	// pushRequestTimeout bounds the whole exchange with a push service,
+	// including reading the body, so a stalled endpoint cannot hold a
+	// goroutine open indefinitely.
+	pushRequestTimeout = 30 * time.Second
+
+	// maxResponseHeaderBytes caps the response headers, which the transport
+	// reads before the body cap applies. Go allows 10 MiB when unset.
+	maxResponseHeaderBytes = 64 << 10
+)
 
 // isStaleSubscriptionStatus reports whether a status code from a push
 // service indicates that the subscription is permanently invalid and
@@ -90,7 +107,8 @@ func WithSubscriptionCacheTTL(ttl time.Duration) Option {
 
 // WithHTTPClient overrides the default SSRF-safe HTTP client used to deliver
 // push notifications. This is intended for tests that need to deliver to
-// localhost test servers.
+// localhost test servers. The replacement client must bring its own
+// timeout; the default one is not applied to it.
 func WithHTTPClient(client *http.Client) Option {
 	return func(o *options) {
 		o.httpClient = client
@@ -418,7 +436,7 @@ func (n *Webpusher) webpushSend(ctx context.Context, msg []byte, endpoint string
 		return -1, nil, xerrors.Errorf("send webpush notification: %w", err)
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, MaxResponseBodyBytes))
 	if err != nil {
 		return -1, nil, xerrors.Errorf("read response body: %w", err)
 	}
@@ -484,7 +502,9 @@ func (*NoopWebpusher) PublicKey() string {
 // validation but resolves to an internal IP at dial time.
 func newSSRFSafeHTTPClient() *http.Client {
 	return &http.Client{
+		Timeout: pushRequestTimeout,
 		Transport: &http.Transport{
+			MaxResponseHeaderBytes: maxResponseHeaderBytes,
 			DialContext: (&net.Dialer{
 				Control: func(_ string, address string, _ syscall.RawConn) error {
 					host, _, err := net.SplitHostPort(address)

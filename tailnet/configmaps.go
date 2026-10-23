@@ -656,11 +656,18 @@ func (c *configMaps) fillPeerDiagnostics(d *PeerDiagnostics, peerID uuid.UUID) {
 	}
 
 	d.ReceivedNode = lc.node
+	d.Lost = lc.lost
 	ps, ok := status.Peer[lc.node.Key]
 	if !ok {
 		return
 	}
-	d.LastWireguardHandshake = ps.LastHandshake
+	// WireGuard reports a peer with no handshake as the Unix epoch. Use the
+	// zero time so callers can check IsZero.
+	if ps.LastHandshake.Unix() > 0 {
+		d.LastWireguardHandshake = ps.LastHandshake
+	}
+	d.TxBytes = ps.TxBytes
+	d.RxBytes = ps.RxBytes
 }
 
 func (c *configMaps) knownPeerIDs() []uuid.UUID {
