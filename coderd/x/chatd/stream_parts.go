@@ -91,14 +91,14 @@ func (e streamPartsEndpoint) serve(ctx context.Context, transport streamPartsSer
 
 	var (
 		parts        <-chan messagepartbuffer.Part
-		partCancel   func()
+		partCancel   func() error
 		partCancelFn context.CancelFunc
 		selected     streamPartsControl
 		lastSeq      int64
 	)
 	defer func() {
 		if partCancel != nil {
-			partCancel()
+			_ = partCancel()
 		}
 		if partCancelFn != nil {
 			partCancelFn()
@@ -107,7 +107,7 @@ func (e streamPartsEndpoint) serve(ctx context.Context, transport streamPartsSer
 
 	selectEpisode := func(control streamPartsControl) error {
 		if partCancel != nil {
-			partCancel()
+			_ = partCancel()
 			partCancel = nil
 		}
 		if partCancelFn != nil {

@@ -243,6 +243,7 @@ func TestBuffer_SubscribeClosedEpisodeReplaysThenCloses(t *testing.T) {
 	defer cancel()
 	require.Equal(t, "before", receivePart(t, ch).MessagePart.Text)
 	assertChannelClosed(t, ch)
+	require.NoError(t, cancel(), "an ended episode is not a dropped subscription")
 }
 
 func TestBuffer_SubscribeBeforeCreateReturnsAndWaitsWithoutNotFound(t *testing.T) {
@@ -395,6 +396,7 @@ func TestBuffer_SlowSubscriberClosed(t *testing.T) {
 	stopCall := stopTrap.MustWait(ctx)
 	stopCall.MustRelease(ctx)
 	assertChannelClosed(t, ch)
+	require.ErrorIs(t, cancel(), messagepartbuffer.ErrSubscriberSendTimeout)
 }
 
 func TestBuffer_BurstyOutputDoesNotCloseSubscriberBeforeSendTimeout(t *testing.T) {

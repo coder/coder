@@ -48,6 +48,9 @@ var (
 	ErrEpisodeFull = xerrors.New("message part episode full")
 	// ErrMessagePartBufferClosed means the whole buffer is closed.
 	ErrMessagePartBufferClosed = xerrors.New("message part buffer closed")
+	// ErrSubscriberSendTimeout means the buffer ended a subscription because
+	// the subscriber did not accept a part within the send timeout.
+	ErrSubscriberSendTimeout = xerrors.New("message part subscriber send timed out")
 )
 
 // Key identifies a buffered message part episode.
@@ -157,6 +160,9 @@ type episodeSubscriber struct {
 	stopCh   chan struct{}
 	next     int
 	stopOnce sync.Once
+	// err is why the buffer ended the subscription, or nil when the
+	// episode ended or the subscriber canceled. Guarded by Buffer.mu.
+	err error
 }
 
 // New returns a message part buffer.
@@ -382,8 +388,11 @@ func (b *Buffer) ToolCompletions(key Key) map[int]ToolCompletion {
 //
 // Subscribers may attach before CreateEpisode is called. In that case the
 // subscription stays idle until the first part added, closure, cancellation,
-// or buffer shutdown. The returned cancel function is idempotent.
-func (b *Buffer) SubscribeToEpisode(ctx context.Context, key Key) (<-chan Part, func(), error) {
+// or buffer shutdown. The returned cancel function is idempotent. After the
+// channel closes, cancel returns ErrSubscriberSendTimeout if the buffer ended
+// the subscription because the subscriber did not accept a part within the
+// send timeout, and nil otherwise.
+func (b *Buffer) SubscribeToEpisode(ctx context.Context, key Key) (<-chan Part, func() error, error) {
 	b.mu.Lock()
 	if b.closed {
 		b.mu.Unlock()
@@ -411,8 +420,8 @@ func (b *Buffer) SubscribeToEpisode(ctx context.Context, key Key) (<-chan Part, 
 	b.mu.Unlock()
 
 	go b.deliverSubscriber(ctx, key, subscriber)
-	cancel := func() {
-		b.cancelSubscriber(key, subscriber)
+	cancel := func() error {
+		return b.cancelSubscriber(key, subscriber)
 	}
 	return subscriber.out, cancel, nil
 }
@@ -573,6 +582,9 @@ func (b *Buffer) sendSubscriberPart(ctx context.Context, subscriber *episodeSubs
 	case subscriber.out <- part:
 		return true
 	case <-timer.C:
+		b.mu.Lock()
+		subscriber.err = ErrSubscriberSendTimeout
+		b.mu.Unlock()
 		return false
 	case <-subscriber.stopCh:
 		return false
@@ -583,15 +595,16 @@ func (b *Buffer) sendSubscriberPart(ctx context.Context, subscriber *episodeSubs
 	}
 }
 
-func (b *Buffer) cancelSubscriber(key Key, subscriber *episodeSubscriber) {
+func (b *Buffer) cancelSubscriber(key Key, subscriber *episodeSubscriber) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	episode := b.episodes[key]
 	if episode != nil {
 		b.stopSubscriberLocked(episode, subscriber)
-		return
+		return subscriber.err
 	}
 	subscriber.stop()
+	return subscriber.err
 }
 
 func (b *Buffer) removeSubscriber(key Key, subscriber *episodeSubscriber) {
