@@ -1206,8 +1206,18 @@ func TestHandleReadFileLines_PathStore(t *testing.T) {
 		t.Parallel()
 		pathStore := agentgit.NewPathStore()
 		chatID := uuid.New()
+		notify, unsubscribe := pathStore.Subscribe(chatID)
+		defer unsubscribe()
+
 		read(t, pathStore, readable, chatID)
-		require.Equal(t, []string{readable}, pathStore.GetPaths(chatID))
+		require.Equal(t, []string{dir}, pathStore.GetPaths(chatID))
+		require.Len(t, notify, 1, "the first read of a directory notifies")
+		<-notify
+
+		// A read does not change the repository, so reading again in
+		// a known directory must not trigger another rediscovery.
+		read(t, pathStore, readable, chatID)
+		require.Empty(t, notify, "a repeated read must not notify")
 	})
 
 	t.Run("NoChatContext", func(t *testing.T) {

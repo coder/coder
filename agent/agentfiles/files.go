@@ -169,26 +169,37 @@ func (api *API) HandleReadFileLines(rw http.ResponseWriter, r *http.Request) {
 		MaxResponseBytes: int(maxResponseBytes),
 	})
 	// chatd serves read_file through this endpoint, so a repository a
-	// chat only reads is watched too.
+	// chat only reads is watched too. The directory is recorded rather
+	// than the file so reading many files in one directory adds one
+	// path; it resolves to the same repository.
 	if resp.Success {
-		api.trackChatPaths(ctx, path)
+		if chatIDs, ok := api.chatPathIDs(ctx); ok {
+			api.pathStore.AddReadPaths(chatIDs, []string{filepath.Dir(path)})
+		}
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-// trackChatPaths records paths for git watch when the request is a chat
-// tool call, for the chat and its ancestors. Requests without chat
+// trackChatPaths records paths a chat wrote for git watch.
+func (api *API) trackChatPaths(ctx context.Context, paths ...string) {
+	if chatIDs, ok := api.chatPathIDs(ctx); ok {
+		api.pathStore.AddPaths(chatIDs, paths)
+	}
+}
+
+// chatPathIDs returns the chat and its ancestors when the request is a
+// chat tool call and a PathStore is configured. Requests without chat
 // context, such as browser requests through the coderd files proxy,
 // which forwards no chat headers, are not recorded.
-func (api *API) trackChatPaths(ctx context.Context, paths ...string) {
+func (api *API) chatPathIDs(ctx context.Context) ([]uuid.UUID, bool) {
 	if api.pathStore == nil {
-		return
+		return nil, false
 	}
 	chatContext, ok := agentchat.FromContext(ctx)
 	if !ok {
-		return
+		return nil, false
 	}
-	api.pathStore.AddPaths(append([]uuid.UUID{chatContext.ID}, chatContext.AncestorIDs...), paths)
+	return append([]uuid.UUID{chatContext.ID}, chatContext.AncestorIDs...), true
 }
 
 func (api *API) readFileLines(_ context.Context, path string, offset, limit int64, limits workspacesdk.ReadFileLinesLimits) ReadFileLinesResponse {
