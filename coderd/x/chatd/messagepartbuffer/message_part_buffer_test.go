@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/uuid"
@@ -368,33 +369,204 @@ func TestBuffer_GCRetainedSubscribedEpisodeDoesNotBlockOtherExpiredEpisodes(t *t
 	require.ErrorIs(t, err, messagepartbuffer.ErrEpisodeNotFound)
 }
 
-func TestBuffer_SlowSubscriberClosed(t *testing.T) {
+func TestBuffer_SendWaitingAtCloseTimesOutAfterClose(t *testing.T) {
 	t.Parallel()
 
-	clock := quartz.NewMock(t)
-	trap := clock.Trap().NewTimer("message-part-buffer", "subscriber-send")
-	defer trap.Close()
-	stopTrap := clock.Trap().TimerStop()
-	defer stopTrap.Close()
-	buffer := messagepartbuffer.New(messagepartbuffer.Options{
-		Clock:                 clock,
-		SubscriberSendTimeout: time.Second,
-	})
-	defer buffer.Close()
-	key := testEpisodeKey()
-	require.NoError(t, buffer.CreateEpisode(key))
-	ctx := testutil.Context(t, testutil.WaitLong)
-	ch, cancel, err := buffer.SubscribeToEpisode(ctx, key)
-	require.NoError(t, err)
-	defer cancel()
+	synctest.Test(t, func(t *testing.T) {
+		const sendTimeout = time.Second
+		clock := quartz.NewMock(t)
+		buffer := messagepartbuffer.New(messagepartbuffer.Options{
+			Clock:                 clock,
+			SubscriberSendTimeout: sendTimeout,
+		})
+		defer buffer.Close()
+		key := testEpisodeKey()
+		require.NoError(t, buffer.CreateEpisode(key))
+		require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("blocked")))
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// Both subscribers wait on the same send. alive shows that the send
+		// still waits just before the timeout, and dropped that it ends at
+		// the timeout.
+		alive, cancelAlive, err := buffer.SubscribeToEpisode(ctx, key)
+		require.NoError(t, err)
+		defer cancelAlive()
+		dropped, cancelDropped, err := buffer.SubscribeToEpisode(ctx, key)
+		require.NoError(t, err)
+		defer cancelDropped()
+		synctest.Wait()
 
-	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("blocked")))
-	call := trap.MustWait(ctx)
-	call.MustRelease(ctx)
-	clock.Advance(time.Second).MustWait(ctx)
-	stopCall := stopTrap.MustWait(ctx)
-	stopCall.MustRelease(ctx)
-	assertChannelClosed(t, ch)
+		// Waiting while the episode is open does not count toward the
+		// timeout.
+		clock.Advance(sendTimeout).MustWait(ctx)
+		require.NoError(t, buffer.CloseEpisode(key))
+		synctest.Wait()
+
+		clock.Advance(sendTimeout - time.Millisecond).MustWait(ctx)
+		synctest.Wait()
+		require.Equal(t, "blocked", receivePart(t, alive).MessagePart.Text)
+		clock.Advance(time.Millisecond).MustWait(ctx)
+		synctest.Wait()
+		assertChannelClosed(t, dropped)
+	})
+}
+
+func TestBuffer_SendAfterCloseTimesOut(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		const sendTimeout = time.Second
+		clock := quartz.NewMock(t)
+		buffer := messagepartbuffer.New(messagepartbuffer.Options{
+			Clock:                 clock,
+			SubscriberSendTimeout: sendTimeout,
+		})
+		defer buffer.Close()
+		key := testEpisodeKey()
+		require.NoError(t, buffer.CreateEpisode(key))
+		// Both parts exist before the subscriptions, so each subscriber reads
+		// them in one batch while the episode is open. alive and dropped play
+		// the same roles as in TestBuffer_SendWaitingAtCloseTimesOutAfterClose.
+		require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("first")))
+		require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("second")))
+		ctx := testutil.Context(t, testutil.WaitLong)
+		alive, cancelAlive, err := buffer.SubscribeToEpisode(ctx, key)
+		require.NoError(t, err)
+		defer cancelAlive()
+		dropped, cancelDropped, err := buffer.SubscribeToEpisode(ctx, key)
+		require.NoError(t, err)
+		defer cancelDropped()
+		synctest.Wait()
+		require.NoError(t, buffer.CloseEpisode(key))
+		synctest.Wait()
+
+		// The sends of "second" start after the close.
+		require.Equal(t, "first", receivePart(t, alive).MessagePart.Text)
+		require.Equal(t, "first", receivePart(t, dropped).MessagePart.Text)
+		synctest.Wait()
+
+		clock.Advance(sendTimeout - time.Millisecond).MustWait(ctx)
+		synctest.Wait()
+		require.Equal(t, "second", receivePart(t, alive).MessagePart.Text)
+		clock.Advance(time.Millisecond).MustWait(ctx)
+		synctest.Wait()
+		assertChannelClosed(t, dropped)
+	})
+}
+
+func TestBuffer_SlowSubscriberOfOpenEpisodeCatchesUp(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		const sendTimeout = time.Second
+		clock := quartz.NewMock(t)
+		buffer := messagepartbuffer.New(messagepartbuffer.Options{
+			Clock:                 clock,
+			SubscriberSendTimeout: sendTimeout,
+		})
+		defer buffer.Close()
+		key := testEpisodeKey()
+		require.NoError(t, buffer.CreateEpisode(key))
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ch, cancel, err := buffer.SubscribeToEpisode(ctx, key)
+		require.NoError(t, err)
+		defer cancel()
+		for i := range 3 {
+			require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText(string(rune('a'+i)))))
+		}
+		synctest.Wait()
+
+		clock.Advance(sendTimeout).MustWait(ctx)
+		synctest.Wait()
+		require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("d")))
+		for _, want := range []string{"a", "b", "c", "d"} {
+			require.Equal(t, want, receivePart(t, ch).MessagePart.Text)
+		}
+	})
+}
+
+func TestBuffer_StuckSubscriberRetainsClosedEpisodeUntilSendTimeout(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		const (
+			retention   = 30 * time.Second
+			sendTimeout = 90 * time.Second
+		)
+		clock := quartz.NewMock(t)
+		buffer := messagepartbuffer.New(messagepartbuffer.Options{
+			Clock:                  clock,
+			ClosedEpisodeRetention: retention,
+			SubscriberSendTimeout:  sendTimeout,
+		})
+		defer buffer.Close()
+		key := testEpisodeKey()
+		require.NoError(t, buffer.CreateEpisode(key))
+		require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("held")))
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ch, cancel, err := buffer.SubscribeToEpisode(ctx, key)
+		require.NoError(t, err)
+		defer cancel()
+		synctest.Wait()
+
+		// The cleanup loop runs every 30s. The episode closes at 20s and
+		// is due for collection at 60s, but the subscriber's send waits
+		// until 110s, and the next cleanup after that runs at 120s.
+		advance := func(d time.Duration) {
+			clock.Advance(d).MustWait(ctx)
+			synctest.Wait()
+		}
+		advance(20 * time.Second)
+		require.NoError(t, buffer.CloseEpisode(key))
+		synctest.Wait()
+		advance(10 * time.Second)
+		advance(30 * time.Second)
+		require.Equal(t, 1, buffer.EpisodeCount(), "a subscribed closed episode was collected")
+		advance(30 * time.Second)
+		advance(20 * time.Second)
+		assertChannelClosed(t, ch)
+		require.Equal(t, 1, buffer.EpisodeCount())
+		advance(10 * time.Second)
+		require.Equal(t, 0, buffer.EpisodeCount(), "the closed episode was not collected after the subscriber was dropped")
+	})
+}
+
+func TestBuffer_WaitingSendEndsOnShutdownAndCancel(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		end  func(buffer *messagepartbuffer.Buffer, cancelSubscription func(), cancelContext context.CancelFunc)
+	}{
+		{name: "BufferClose", end: func(buffer *messagepartbuffer.Buffer, _ func(), _ context.CancelFunc) { buffer.Close() }},
+		{name: "CancelSubscription", end: func(_ *messagepartbuffer.Buffer, cancelSubscription func(), _ context.CancelFunc) {
+			cancelSubscription()
+		}},
+		{name: "CancelContext", end: func(_ *messagepartbuffer.Buffer, _ func(), cancelContext context.CancelFunc) { cancelContext() }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: quartz.NewMock(t)})
+				defer buffer.Close()
+				key := testEpisodeKey()
+				require.NoError(t, buffer.CreateEpisode(key))
+				require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("blocked")))
+				ctx, cancelContext := context.WithCancel(context.Background())
+				defer cancelContext()
+				ch, cancelSubscription, err := buffer.SubscribeToEpisode(ctx, key)
+				require.NoError(t, err)
+				defer cancelSubscription()
+				// The send of "blocked" waits with no deadline, because the
+				// episode is open.
+				synctest.Wait()
+
+				tc.end(buffer, cancelSubscription, cancelContext)
+				assertChannelClosed(t, ch)
+			})
+		})
+	}
 }
 
 func TestBuffer_BurstyOutputDoesNotCloseSubscriberBeforeSendTimeout(t *testing.T) {
