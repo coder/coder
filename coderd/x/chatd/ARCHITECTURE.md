@@ -139,8 +139,7 @@ Queued messages wait in two lanes. These rules apply to every transition that qu
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
 - `DeleteQueuedMessage(qid)` removes one queued message without changing the active history.
 - `SteerQueuedMessage(qid)` moves a queued message to the end of the `steer` lane. A `steer` message keeps its place. From `E1`, it closes open tool calls with synthetic cancellation results, delivers the whole `steer` lane into history, and reaches `running`. From the other states it keeps the chat status, and the `steer` lane waits for the next delivery point.
-- `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog. When the chat is `running` and no worker owns it, nothing is generating, so the same transaction also applies `FinishInterruption` after inserting synthetic cancellation results for any outstanding tool calls.
-  - TODO (interrupt no-op): `Interrupt` from `W`, `E0`, `E1`, or an owned `I0` or `I1` chat now succeeds and leaves the chat unchanged, because nothing is left to interrupt. Describe this here, and add the `Interrupt` self-loops on `W`, `E0`, `E1`, `I0` and `I1` to the execution state transition diagram.
+- `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog. When no worker owns a `running` or `interrupting` chat, nothing is generating, so the same transaction also applies `FinishInterruption`, passing synthetic cancellation results for any outstanding tool calls as the interrupted suffix. In `W`, `E0`, and `E1` no turn is active, and an owned `I0` or `I1` chat is left for the chat worker to finish. In these states there is nothing to interrupt, so it succeeds and writes nothing.
 - `CompleteRequiresAction(results)` inserts submitted tool-result messages followed by any caller-provided suffix messages, clears `requires_action_deadline_at`, and lands in `running`. It preserves queued messages.
 - `RequestCompaction` records a manual compaction request on an idle or errored chat by setting `compaction_requested_at` and landing in `running` without inserting any message. It clears `last_error` per the leave-error rule, advances `history_version` to the transaction's new `snapshot_version`, and resets `generation_attempt`, so the compaction turn gets a full retry budget and message part episode keys that cannot collide with episodes retained from the previous turn. The chat worker picks the chat up like any other running chat and consumes the request. See [Manual compaction](#manual-compaction).
 - `ClearContext(messages)` commits a manual context reset synchronously, without involving the chat worker. It inserts the caller-built compressed clear boundary triplet (a hidden model-only sentinel user row, plus visible synthetic `chat_cleared` tool-call and tool-result messages), clears `last_error` and any pending `compaction_requested_at`, leaves ownership untouched, and lands in `waiting`. No worker turn or model call follows; the message insert trigger advances `history_version` and resets `generation_attempt`. `E1` is rejected because no waiting-with-queue state exists and a synchronous clear has no turn after which the queue would drain.
@@ -181,6 +180,7 @@ stateDiagram-v2
     W --> R0: EditMessage
     W --> R0: RequestCompaction
     W --> W: ClearContext
+    W --> W: Interrupt
     W --> E0: FinishError
     W --> XW: SetArchived(true)
     W --> W: SetProject
@@ -189,6 +189,7 @@ stateDiagram-v2
     E0 --> R0: EditMessage
     E0 --> R0: RequestCompaction
     E0 --> W: ClearContext
+    E0 --> E0: Interrupt
     E0 --> XE0: SetArchived(true)
     E0 --> E0: SetProject
 
@@ -202,6 +203,7 @@ stateDiagram-v2
     E1 --> E1: DeleteQueuedMessage / queue still non-empty
     E1 --> R0: SteerQueuedMessage / promoted last queued
     E1 --> R1: SteerQueuedMessage / queue still non-empty
+    E1 --> E1: Interrupt
     E1 --> XE1: SetArchived(true)
     E1 --> E1: SetProject
 
@@ -238,6 +240,7 @@ stateDiagram-v2
 
     I0 --> I1: SendMessage
     I0 --> R0: EditMessage
+    I0 --> I0: Interrupt
     I0 --> W: FinishInterruption
 
     I1 --> I1: SendMessage
@@ -245,6 +248,7 @@ stateDiagram-v2
     I1 --> I0: DeleteQueuedMessage / removed last queued
     I1 --> I1: DeleteQueuedMessage / queue still non-empty
     I1 --> I1: SteerQueuedMessage
+    I1 --> I1: Interrupt
     I1 --> R0: FinishInterruption / promoted last queued
     I1 --> R1: FinishInterruption / queue still non-empty after promoting
 
@@ -607,9 +611,15 @@ When `Interrupt(user_cancel)` lands in `I0` or `I1`, the chat is later picked up
 
 When no worker owns the chat (`worker_id` is null), for example because it is waiting for capacity, nothing is generating and no runner would finish the interruption without first taking a capacity slot. The endpoint therefore applies `FinishInterruption` in the same transaction: `R0` lands in `W`, and `R1` promotes every `steer` message, or the queue head if there are none, and lands in `R0` or `R1` without an owner, so the promoted turn still goes through capacity admission.
 
-The endpoint also accepts an unowned chat that is already in `I0` or `I1`, for example after a worker acquired the chat and then abandoned it. It applies `FinishInterruption` in the same transaction: `I0` lands in `W`, and `I1` promotes every `steer` message, or the queue head if there are none, and lands in `R0` or `R1` without an owner. An owned chat in `I0` or `I1` is rejected, because its runner already finishes the interruption.
+The endpoint also accepts an unowned chat that is already in `I0` or `I1`, for example after a worker acquired the chat and then abandoned it. It applies `FinishInterruption` in the same transaction: `I0` lands in `W`, and `I1` promotes every `steer` message, or the queue head if there are none, and lands in `R0` or `R1` without an owner.
 
-TODO (interrupt no-op): the endpoint now returns 200 and the unchanged chat for `W`, `E0`, `E1`, and an owned chat in `I0` or `I1`. A client that interrupts a chat whose turn ends first therefore gets no 409 error. The last sentence of the previous paragraph and the sentence below are stale. Describe this here.
+When there is nothing to interrupt, for example because the turn already ended, the endpoint returns the chat unchanged:
+
+- `W -> Interrupt(user_cancel) -> W`
+- `E0 -> Interrupt(user_cancel) -> E0`
+- `E1 -> Interrupt(user_cancel) -> E1`
+- `I0 -> Interrupt(user_cancel) -> I0` if a worker owns the chat
+- `I1 -> Interrupt(user_cancel) -> I1` if a worker owns the chat
 
 No other input states are supported.
 
