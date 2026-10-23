@@ -160,8 +160,12 @@ export type ChatStoreState = {
 	// Whether older messages exist below the oldest held one.
 	hasMoreMessages: boolean;
 	load: ChatStoreLoad;
-	// Display only; the selectors apply them in request order.
+	// Display only; view applies them in request order.
 	pendingActions: readonly PendingEntry[];
+	// The stored state with pendingActions drawn over it. setState builds it
+	// once per state, so selectors reading one state get the same values,
+	// which useSyncExternalStore requires.
+	view: ChatView;
 };
 
 export type ChatStore = {
@@ -216,21 +220,24 @@ export type ChatStore = {
 	resetTransientState: () => void;
 };
 
-const createInitialState = (): ChatStoreState => ({
-	messagesByID: new Map(),
-	orderedMessageIDs: [],
-	streamState: null,
-	chatStatus: null,
-	streamError: null,
-	retryState: null,
-	turnError: null,
-	reconnectState: null,
-	queuedMessages: [],
-	subagentStatusOverrides: new Map(),
-	hasMoreMessages: false,
-	load: { status: "loading" },
-	pendingActions: [],
-});
+const createInitialState = (): ChatStoreState => {
+	const state: Omit<ChatStoreState, "view"> = {
+		messagesByID: new Map(),
+		orderedMessageIDs: [],
+		streamState: null,
+		chatStatus: null,
+		streamError: null,
+		retryState: null,
+		turnError: null,
+		reconnectState: null,
+		queuedMessages: [],
+		subagentStatusOverrides: new Map(),
+		hasMoreMessages: false,
+		load: { status: "loading" },
+		pendingActions: [],
+	};
+	return { ...state, view: buildView(state) };
+};
 
 export const createChatStore = (): ChatStore => {
 	let state = createInitialState();
@@ -274,7 +281,7 @@ export const createChatStore = (): ChatStore => {
 		if (next === state) {
 			return;
 		}
-		state = next;
+		state = { ...next, view: buildView(next) };
 		if (batchDepth > 0) {
 			batchDirty = true;
 		} else {
@@ -551,12 +558,7 @@ export const createChatStore = (): ChatStore => {
 		},
 		addPendingAction: (action) => {
 			const id = nextPendingActionID++;
-			const entry = pendingEntry(
-				id,
-				action,
-				selectView(state),
-				state.chatStatus,
-			);
+			const entry = pendingEntry(id, action, state.view, state.chatStatus);
 			// An action that draws nothing gets no entry; removePendingAction
 			// ignores its ID.
 			if (!entry.message && !entry.queue && !entry.history) {
@@ -720,10 +722,6 @@ type ChatView = Pick<
 	"messagesByID" | "orderedMessageIDs" | "queuedMessages" | "streamState"
 >;
 
-// Cached per state object so selectors return the same values on every call,
-// which useSyncExternalStore requires.
-const views = new WeakMap<ChatStoreState, ChatView>();
-
 const queuedRow = (
 	message: TypesGen.ChatMessage,
 ): TypesGen.ChatQueuedMessage => ({
@@ -860,14 +858,7 @@ const endPendingParts = (
 	});
 
 // The stored state with each pending entry drawn over it in request order.
-const selectView = (state: ChatStoreState): ChatView => {
-	if (state.pendingActions.length === 0) {
-		return state;
-	}
-	const cached = views.get(state);
-	if (cached) {
-		return cached;
-	}
+const buildView = (state: Omit<ChatStoreState, "view">): ChatView => {
 	const view: ChatView = {
 		messagesByID: state.messagesByID,
 		orderedMessageIDs: state.orderedMessageIDs,
@@ -901,24 +892,23 @@ const selectView = (state: ChatStoreState): ChatView => {
 			view.queuedMessages = message.queue(view.queuedMessages);
 		}
 	}
-	views.set(state, view);
 	return view;
 };
 
 export const selectMessagesByID = (state: ChatStoreState) =>
-	selectView(state).messagesByID;
+	state.view.messagesByID;
 export const selectOrderedMessageIDs = (state: ChatStoreState) =>
-	selectView(state).orderedMessageIDs;
+	state.view.orderedMessageIDs;
 export const selectStreamState = (state: ChatStoreState) =>
-	selectView(state).streamState;
+	state.view.streamState;
 export const selectHasStreamState = (state: ChatStoreState) =>
-	selectView(state).streamState !== null;
+	state.view.streamState !== null;
 export const selectChatStatus = (state: ChatStoreState) => state.chatStatus;
 // A failure of this client, or else the error the chat's turn ended with.
 export const selectStreamError = (state: ChatStoreState) =>
 	state.streamError ?? state.turnError;
 export const selectQueuedMessages = (state: ChatStoreState) =>
-	selectView(state).queuedMessages;
+	state.view.queuedMessages;
 export const selectSubagentStatusOverrides = (state: ChatStoreState) =>
 	state.subagentStatusOverrides;
 export const selectRetryState = (state: ChatStoreState) => state.retryState;
@@ -943,7 +933,7 @@ const selectLatestMessage = (
 export const selectIsAwaitingFirstStreamChunk = (
 	state: ChatStoreState,
 ): boolean => {
-	const view = selectView(state);
+	const view = state.view;
 	const latestMessage = selectLatestMessage(view);
 	const latestMessageNeedsAssistantResponse =
 		latestMessage?.role !== "assistant";
