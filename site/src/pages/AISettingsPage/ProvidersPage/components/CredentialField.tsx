@@ -63,8 +63,6 @@ export const CredentialField: React.FC<CredentialFieldProps> = ({
 
 	const inputNode = (
 		<Input
-			// Credentials differ per provider, so browsers and password
-			// managers must not refill a previously entered key.
 			{...passwordManagerIgnoreProps}
 			id={inputId}
 			name={helpers.name}
