@@ -1077,9 +1077,9 @@ func newServerRedactor(kind connectionKind, srv Server) secretRedactor {
 	}
 	values := []string{srv.URL}
 	if u, err := url.Parse(srv.URL); err == nil {
-		for _, path := range []string{u.EscapedPath(), u.Path} {
-			values = append(values, path)
-			values = append(values, strings.Split(path, "/")...)
+		for _, urlPath := range []string{u.EscapedPath(), u.Path} {
+			values = append(values, urlPath)
+			values = append(values, strings.Split(urlPath, "/")...)
 		}
 	}
 	for _, value := range srv.Headers {
