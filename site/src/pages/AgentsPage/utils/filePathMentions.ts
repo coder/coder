@@ -400,55 +400,35 @@ export const rehypeFileMentions = () => (tree: HastNode) => visit(tree);
 
 /** Where a candidate's directory walk begins. */
 type FilePathCandidateStart = {
-	/** Directory to list first, in a form the list-directory API accepts. */
-	directory: string;
+	/**
+	 * Directory the walk lists first and a relative path resolves in, in a
+	 * form the list-directory API accepts: `/`, `~`, a repository root, or
+	 * the agent's default directory (`""`).
+	 */
+	root: string;
 	/** Index in the candidate text where the first entry name begins. */
 	offset: number;
-	/** Repository root or default directory a relative path resolves in. */
-	root: string;
-};
-
-const joinPath = (base: string, path: string) => {
-	if (!base) {
-		return path;
-	}
-	if (!path) {
-		return base;
-	}
-	return `${base.replace(/\/$/, "")}/${path}`;
 };
 
 /**
- * Lists the directories a candidate can start from. The text before the
- * first space has no ambiguity, so the walk starts in the directory that
- * its last slash names. Relative text starts in each repository root, or
- * the agent's default directory (`""`) when the chat has none.
+ * Lists the roots a candidate's walk can start from. The walk starts at a
+ * root and lists only directories that an earlier listing showed, so it
+ * never requests a directory that does not exist. Relative text starts in
+ * each repository root, or the agent's default directory (`""`) when the
+ * chat has none.
  */
 export const getFilePathCandidateStarts = (
 	text: string,
 	repoRoots: readonly string[],
 ): FilePathCandidateStart[] => {
-	const space = text.indexOf(" ");
-	// A trailing slash ends a folder name, which the walk must still verify.
-	const token = (space === -1 ? text : text.slice(0, space)).replace(
-		/(.)\/$/,
-		"$1",
-	);
-	const slash = token.lastIndexOf("/");
-	const offset = slash + 1;
-	const prefix = slash === -1 ? "" : token.slice(0, slash);
-	if (token.startsWith("/")) {
-		return [{ directory: prefix || "/", offset, root: "/" }];
+	if (text.startsWith("/")) {
+		return [{ root: "/", offset: 1 }];
 	}
-	if (token.startsWith("~/")) {
-		return [{ directory: prefix, offset, root: "~" }];
+	if (text.startsWith("~/")) {
+		return [{ root: "~", offset: 2 }];
 	}
 	const roots = repoRoots.length > 0 ? repoRoots : [""];
-	return roots.map((root) => ({
-		directory: joinPath(root, prefix),
-		offset,
-		root,
-	}));
+	return roots.map((root) => ({ root, offset: 0 }));
 };
 
 type DirectoryEntry = {
@@ -465,8 +445,9 @@ type VerifiedFilePath = {
 	isDirectory?: boolean;
 };
 
-// Bounds the list-directory calls for one candidate start.
-const maxWalkDepth = 5;
+// Bounds the list-directory calls for one candidate start. The walk lists
+// every level from the root, so the bound covers deep absolute paths.
+const maxWalkDepth = 24;
 
 const isPathEnd = (text: string, index: number) => {
 	const next = text[index];
@@ -534,9 +515,10 @@ type FilePathWalk = {
  * word boundary. A directory followed by a word boundary, with or without a
  * trailing `/`, ends the walk as a verified folder. A file or directory
  * whose name is followed by more path, as in "my docs/missing/" after
- * "my", does not fit. The walk stops with no
- * match when a listing failed or the walk exceeds its depth, and stays
- * pending at the first directory whose listing is not available.
+ * "my", does not fit. `.` and `..` segments move between directories the
+ * walk has listed; `..` above `directory` matches nothing. The walk stops
+ * with no match when a listing failed or the walk exceeds its depth, and
+ * stays pending at the first directory whose listing is not available.
  */
 export const walkFilePath = (
 	directory: string,
@@ -544,10 +526,27 @@ export const walkFilePath = (
 	getEntries: (directory: string) => DirectoryEntries,
 ): FilePathWalk => {
 	const directories: string[] = [];
+	const parents: string[] = [];
 	let current = directory;
 	let offset = 0;
 	for (let depth = 0; depth < maxWalkDepth; depth++) {
-		directories.push(current);
+		for (;;) {
+			if (text.startsWith("./", offset)) {
+				offset += 2;
+			} else if (text.startsWith("../", offset)) {
+				const parent = parents.pop();
+				if (parent === undefined) {
+					return { directories, verified: null };
+				}
+				current = parent;
+				offset += 3;
+			} else {
+				break;
+			}
+		}
+		if (!directories.includes(current)) {
+			directories.push(current);
+		}
 		const entries = getEntries(current);
 		if (entries === undefined) {
 			return { directories, verified: undefined };
@@ -588,6 +587,7 @@ export const walkFilePath = (
 					},
 				};
 			}
+			parents.push(current);
 			current = best.absolute_path_string;
 			offset = end;
 			continue;
