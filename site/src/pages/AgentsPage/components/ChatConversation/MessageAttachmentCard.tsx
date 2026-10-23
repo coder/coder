@@ -290,7 +290,11 @@ const InlineTextAttachmentCard: React.FC<InlineTextAttachmentCardProps> = ({
 	);
 };
 
-/** Previews images and text files, and offers other files as downloads. */
+/**
+ * Previews images and text files, and offers other files as downloads. For a
+ * stored text file, it loads the text only on view, and a 404 marks the card
+ * expired, with no view or download, while that response stays cached.
+ */
 export const MessageAttachmentCard: React.FC<AttachmentCardProps> = ({
 	attachment,
 }) => {

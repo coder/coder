@@ -44,7 +44,7 @@ const mockAttachmentMessage: TypesGen.ChatMessage = {
 	],
 };
 
-const renderAttachments = (queryClient = createTestQueryClient()) => {
+const renderAttachments = (queryClient = createTestQueryClient()) =>
 	renderComponent(
 		<QueryClientProvider client={queryClient}>
 			<ChatAttachments
@@ -57,7 +57,6 @@ const renderAttachments = (queryClient = createTestQueryClient()) => {
 			/>
 		</QueryClientProvider>,
 	);
-};
 
 const recordFileRequests = (respond: () => Response | Promise<Response>) => {
 	const requestedFileIds: string[] = [];
@@ -93,6 +92,27 @@ describe("ChatAttachments", () => {
 
 		await screen.findByRole("dialog", { name: "PLAN.md" });
 		expect(requestedFileIds).toEqual(["plan-file"]);
+	});
+
+	it("drops a viewed text file's text from the cache once nothing shows it", async () => {
+		const user = userEvent.setup();
+		const queryClient = createTestQueryClient();
+		recordFileRequests(() => HttpResponse.text("# Plan"));
+		const { unmount } = renderAttachments(queryClient);
+		await user.click(screen.getByRole("button", { name: "PLAN.md View file" }));
+		await waitFor(() =>
+			expect(queryClient.getQueryData(chatFileTextKey("plan-file"))).toBe(
+				"# Plan",
+			),
+		);
+
+		unmount();
+
+		await waitFor(() =>
+			expect(
+				queryClient.getQueryData(chatFileTextKey("plan-file")),
+			).toBeUndefined(),
+		);
 	});
 
 	it("previews pasted text without requesting a file", async () => {
