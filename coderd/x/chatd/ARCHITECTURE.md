@@ -1397,6 +1397,8 @@ The following chat stream events, delivered to the client over WebSocket, are su
 
 On streams opened with `snapshot_version`, `message`, `queue_update`, and `history_reset` (the versioned events) include the chat's `snapshot_version` when the change was made: the message's `revision`, the chat's `queue_version`, and the `revision` of the messages the edit deleted. A client reconnects with the highest one it received. Other streams do not set it.
 
+TODO (chat stream keepalive): the endpoint writes an empty batch (`[]`) after `httpapi.HeartbeatInterval` (15 seconds) without any other write. Browsers do not expose WebSocket pings to page code, so the web client treats 40 seconds without a message as a frozen connection and reconnects. Describe this here.
+
 ## Endpoint lifecycle
 
 When a client connects, the endpoint:
