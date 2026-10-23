@@ -1,5 +1,5 @@
-import { renderHook, waitFor } from "@testing-library/react";
-import { act } from "react";
+import { render, renderHook, waitFor } from "@testing-library/react";
+import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkspaceAgentStatus } from "#/api/typesGenerated";
 import { useGitWatcher } from "./useGitWatcher";
@@ -983,7 +983,6 @@ describe("useGitWatcher", () => {
 		});
 		const repoStateBeforeHeartbeat = result.current.repositories;
 		const everDirtyBeforeHeartbeat = result.current.everDirty;
-		vi.spyOn(Date, "now").mockReturnValue(5_000);
 
 		// Heartbeat: scanned_at advances, but repositories is absent.
 		// The server sends this shape when Scan() observed no deltas
@@ -998,8 +997,50 @@ describe("useGitWatcher", () => {
 		// Heartbeat must not mutate repo state.
 		expect(result.current.repositories).toBe(repoStateBeforeHeartbeat);
 		expect(result.current.everDirty).toBe(everDirtyBeforeHeartbeat);
-		// It still tells file tabs that the agent scanned again.
-		expect(result.current.lastWatcherMessageAt).toBe(5_000);
+	});
+
+	it("reports a heartbeat's arrival to subscribers without rendering the page", () => {
+		const socket = createMockSocket();
+		// Stands in for the chat page, which passes the watcher's state down.
+		let pageRenders = 0;
+		let gitWatcher: ReturnType<typeof useGitWatcher> | undefined;
+		const Page = (props: { gitWatcher: ReturnType<typeof useGitWatcher> }) => {
+			pageRenders++;
+			gitWatcher = props.gitWatcher;
+			return null;
+		};
+		const Host = () =>
+			createElement(Page, {
+				gitWatcher: useGitWatcher({
+					chatId: "chat-123",
+					agentStatus: "connected",
+				}),
+			});
+		render(createElement(Host));
+		act(() => socket.simulateOpen());
+		act(() => {
+			socket.simulateMessage({
+				type: "changes",
+				scanned_at: "2024-01-02T03:04:05Z",
+				repositories: [{ repo_root: "/repo", branch: "main" }],
+			});
+		});
+		const watcherMessages = gitWatcher?.watcherMessages;
+		const onMessage = vi.fn();
+		watcherMessages?.subscribe(onMessage);
+		const rendersBeforeHeartbeat = pageRenders;
+		vi.spyOn(Date, "now").mockReturnValue(5_000);
+
+		act(() => {
+			socket.simulateMessage({
+				type: "changes",
+				scanned_at: "2024-01-02T03:04:10Z",
+			});
+		});
+
+		expect(pageRenders).toBe(rendersBeforeHeartbeat);
+		expect(onMessage).toHaveBeenCalledOnce();
+		expect(watcherMessages?.getLastArrival()).toBe(5_000);
 	});
 
 	it("heartbeat with explicit empty repositories array is also a no-op for repos", async () => {

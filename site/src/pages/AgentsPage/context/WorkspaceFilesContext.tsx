@@ -3,6 +3,7 @@ import type {
 	ChatDiffStatus,
 	WorkspaceAgentRepoChanges,
 } from "#/api/typesGenerated";
+import type { WatcherMessages } from "../hooks/useGitWatcher";
 
 export type OpenFileOptions = {
 	/** 1-based line to reveal. */
@@ -25,11 +26,11 @@ export type WorkspaceFilesContextValue = {
 	 */
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
 	/**
-	 * When the latest git watcher message arrived, in `Date.now()`
-	 * milliseconds. The agent sends one after every scan, so `repositories`
-	 * describe the disk as of a scan after a file read before this time.
+	 * Arrivals of git watcher messages. The agent sends one after every scan,
+	 * so `repositories` describe the disk as of a scan after a file read
+	 * before the latest arrival. Subscribe only where the time is needed.
 	 */
-	lastWatcherMessageAt?: number;
+	watcherMessages?: WatcherMessages;
 	/** Opens an absolute path as a file tab in the chat view and focuses it. */
 	openFile: (absolutePath: string, options?: OpenFileOptions) => void;
 	/**

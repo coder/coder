@@ -59,6 +59,7 @@ import {
 	type WorkspaceFilesContextValue,
 } from "../context/WorkspaceFilesContext";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import type { WatcherMessages } from "../hooks/useGitWatcher";
 import {
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
@@ -151,7 +152,7 @@ type AgentChatPageViewProps = {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
 		everDirty: ReadonlySet<string>;
 		hasReceivedChanges: boolean;
-		lastWatcherMessageAt?: number;
+		watcherMessages?: WatcherMessages;
 
 		refresh: () => boolean;
 	};
@@ -335,7 +336,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 					defaultDirectory: workspaceAgent.expanded_directory || undefined,
 					repoRoots,
 					repositories: gitWatcher.repositories,
-					lastWatcherMessageAt: gitWatcher.lastWatcherMessageAt,
+					watcherMessages: gitWatcher.watcherMessages,
 					openFile: (path, options) => {
 						const closesPanel =
 							showSidebarPanel &&
