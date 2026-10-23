@@ -141,7 +141,7 @@ The **Disabled** policy can also be applied to the entire deployment by [setting
 
 ## Git identity and credentials
 
-Git in a shared workspace uses the workspace owner's identity and credentials for every user who connects, whatever their role.
+Git in a shared workspace uses the workspace owner's identity and credentials for every user who connects, including users with only the `use` role.
 Coder resolves each of the following from the workspace owner, not from the user who runs the command:
 
 | What                        | Where it comes from                                                                                                                                                 | Result for shared users                                                  |
