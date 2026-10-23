@@ -129,11 +129,9 @@ type ReconnectingWebSocketOptions<TSocket extends Closable> = {
 	/**
 	 * Treat the socket as disconnected when it receives no message for this
 	 * many milliseconds after the socket is created or after its last
-	 * message: call `onDisconnect`, close the socket, and reconnect.
-	 * Browsers do not expose WebSocket pings, so a frozen connection
-	 * otherwise fires no event, and its `close` event may arrive late or
-	 * never. Only set this when the server sends messages, such as
-	 * keepalives, more often than the timeout. Disabled when omitted.
+	 * message: call `onDisconnect`, close the socket, and reconnect. Only
+	 * set this when the server sends messages, such as keepalives, more
+	 * often than the timeout. Disabled when omitted.
 	 */
 	silenceTimeoutMs?: number;
 };
