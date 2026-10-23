@@ -242,10 +242,17 @@ These govern *how* content enters the docs, for both humans and the doc-check ag
   If a page changes its position in the directory structure:
   1. Update every link that relies on its existing location.
   2. Add a rule to `docs/redirects.json` in the same PR that moves the page.
-     Each rule has a `source` and a `destination`, both full `/docs/...` paths, and an optional `permanent` flag that defaults to `true`.
-     A `destination` can also be an external `http` or `https` URL.
-     A `source` is an exact path, a path ending in `/:path*`, or a path with a `:slug(.*)` capture.
-     For example: `{"source": "/docs/about/architecture", "destination": "/docs/about"}`.
+     Each rule has a `source` and a `destination`, both routes relative to the docs root with no leading slash, and an optional `permanent` flag that defaults to `true`.
+     Write the route as the URL path below `/docs`, without a version and without `.md`.
+     A `destination` of `/` is the docs root, and a `destination` can also be an `https` URL that starts with `https://github.com/coder/` or `https://coder.com/`.
+     An exact route destination can end in one `#fragment`, such as `user-guides/workspace-access#web-ides`.
+     A `source` is an exact route or a route ending in `/*`, which matches the route and everything beneath it.
+     A `destination` ending in `/*` carries the matched part over from the source.
+     For example: `{"source": "about/architecture", "destination": "/"}`.
+  3. Keep `make lint/docs-redirects` passing.
+     It fails when a route that worked on the base branch, or that the live site still serves for the target branch, neither exists nor redirects.
+     The failure prints a rule you can paste into the file.
+     The check reads the live page list over the network, so run it with `-offline` when you have no access.
 
   The website reads `docs/redirects.json` at build time, and a change to the file starts a website rebuild.
   The redirect is therefore live in the build that the merge triggers.

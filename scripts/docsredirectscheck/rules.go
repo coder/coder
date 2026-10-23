@@ -9,87 +9,75 @@ import (
 	"net/url"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 )
 
-type patternKind int
+// allowedExternalPrefixes are the only places a destination may send a reader
+// outside the docs.
+var allowedExternalPrefixes = []string{
+	"https://github.com/coder/",
+	"https://coder.com/",
+}
 
-const (
-	// kindExact matches one path.
-	kindExact patternKind = iota
-	// kindWildcard is "/prefix/:name*". It matches the prefix itself and
-	// everything beneath it.
-	kindWildcard
-	// kindRegexWildcard is "/prefix/:name(.*)". It matches everything beneath
-	// the prefix but not the bare prefix.
-	kindRegexWildcard
-)
-
-// pattern is a source or destination path in the small subset of Next.js
-// path syntax the docs website accepts.
+// pattern is a rule source: an exact route, or a route prefix ending in "/*"
+// that matches the prefix itself and every route beneath it.
 type pattern struct {
-	kind patternKind
-	// prefix is the static part of the path with no trailing slash. For an
-	// exact pattern it is the whole path.
+	wild bool
+	// prefix is the route with any trailing "/*" removed.
 	prefix string
-	// param is the parameter name of a wildcard pattern, empty for exact.
-	param string
 }
 
-func (p pattern) matches(path string) bool {
-	path = normalizePath(path)
-	switch p.kind {
-	case kindWildcard:
-		return path == p.prefix || strings.HasPrefix(path, p.prefix+"/")
-	case kindRegexWildcard:
-		return strings.HasPrefix(path, p.prefix+"/")
-	default:
-		return path == p.prefix
+func (p pattern) matches(route string) bool {
+	route = normalizeRoute(route)
+	if p.wild {
+		return route == p.prefix || strings.HasPrefix(route, p.prefix+"/")
 	}
+	return route == p.prefix
 }
 
-// key identifies a source for duplicate detection. The parameter name is left
-// out because two patterns that differ only by it match the same paths.
+// key identifies a source for duplicate detection.
 func (p pattern) key() string {
-	return fmt.Sprintf("%d %s", p.kind, p.prefix)
+	return fmt.Sprintf("%t %s", p.wild, p.prefix)
 }
 
-// covers reports whether every path q matches is also matched by p, which
-// makes q unreachable when p is earlier in the file. Redirects are applied in
-// order and the first matching rule wins, so a broad pattern placed above a
-// narrower rule swallows it.
+// covers reports whether every route q matches is also matched by p, which
+// makes q unreachable when p is earlier in the file. Rules apply in order and
+// the first match wins, so a broad pattern above a narrower rule swallows it.
 //
 // An exact p never covers anything but an identical exact q, which the
 // duplicate check already reports. In particular an exact rule above a
 // wildcard on the same prefix is deliberate: it claims the bare prefix and
 // leaves the subtree to the wildcard.
 func (p pattern) covers(q pattern) bool {
-	switch p.kind {
-	case kindWildcard:
-		// p matches its prefix and everything beneath it, and q only ever
-		// matches paths at or beneath its own prefix.
-		return q.prefix == p.prefix || strings.HasPrefix(q.prefix, p.prefix+"/")
-	case kindRegexWildcard:
-		// p matches everything strictly beneath its prefix, so it covers q
-		// only when q's paths are all strictly beneath it too.
-		if strings.HasPrefix(q.prefix, p.prefix+"/") {
-			return true
-		}
-		// On the same prefix, p misses the bare prefix that a wildcard q
-		// matches, so it covers only another regex wildcard.
-		return q.prefix == p.prefix && q.kind == kindRegexWildcard
-	default:
+	if !p.wild {
 		return false
 	}
+	return q.prefix == p.prefix || strings.HasPrefix(q.prefix, p.prefix+"/")
 }
 
+type destKind int
+
+const (
+	// destRoute is a route of the same docs version, possibly ending in "/*".
+	destRoute destKind = iota
+	// destRoot is the docs root of the same version.
+	destRoot
+	// destExternal is an allowed https URL.
+	destExternal
+)
+
 type destination struct {
-	external bool
+	kind destKind
 	// raw is the destination as written, for messages.
 	raw string
-	// pattern is the path part of an internal destination. The query string
-	// and fragment are dropped because they do not change which page it is.
-	pattern pattern
+	// wild is true for a route ending in "/*".
+	wild bool
+	// prefix is the route of a destRoute destination, without any "/*" or
+	// fragment.
+	prefix string
+	// fragment is the part after "#" of an exact route destination.
+	fragment string
 	// valid is false when the destination could not be parsed, in which case
 	// no cross-rule check uses it.
 	valid bool
@@ -97,15 +85,30 @@ type destination struct {
 
 // rule is one validated entry of docs/redirects.json.
 type rule struct {
-	index       int
-	source      string
-	destination string
-	src         pattern
-	dst         destination
+	index  int
+	source string
+	src    pattern
+	dst    destination
 }
 
-func (r rule) matches(path string) bool {
-	return r.src.matches(path)
+func (r rule) matches(route string) bool {
+	return r.src.matches(route)
+}
+
+// target returns where the rule sends a request for route: the destination
+// kind and, for a route destination, the route with the wildcard substituted.
+func (r rule) target(route string) (destKind, string) {
+	if r.dst.kind != destRoute {
+		return r.dst.kind, ""
+	}
+	if !r.dst.wild {
+		return destRoute, r.dst.prefix
+	}
+	rest := strings.TrimPrefix(strings.TrimPrefix(normalizeRoute(route), r.src.prefix), "/")
+	if rest == "" {
+		return destRoute, r.dst.prefix
+	}
+	return destRoute, r.dst.prefix + "/" + rest
 }
 
 // problem is one thing wrong with docs/redirects.json. index is the position
@@ -127,135 +130,184 @@ func formatProblem(file string, p problem) string {
 	}
 }
 
-var (
-	// staticSegment is one literal path segment.
-	staticSegment = regexp.MustCompile(`^[A-Za-z0-9._~%+-]+$`)
-	// versionSegment is a literal "@ref" segment. The docs website adds the
-	// version to a URL itself, so rules are written without it.
-	versionSegment = regexp.MustCompile(`^@[A-Za-z0-9._~%+-]+$`)
-	// sourceWildcard matches ":name*".
-	sourceWildcard = regexp.MustCompile(`^:([A-Za-z_][A-Za-z0-9_]*)\*$`)
-	// sourceRegexWildcard matches ":name(.*)".
-	sourceRegexWildcard = regexp.MustCompile(`^:([A-Za-z_][A-Za-z0-9_]*)\(\.\*\)$`)
-	// destinationParam matches ":name" and ":name*".
-	destinationParam = regexp.MustCompile(`^:([A-Za-z_][A-Za-z0-9_]*)\*?$`)
-)
+// segmentRe matches one route segment. "." and ".." match it and are rejected
+// separately.
+var segmentRe = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
-// normalizePath drops trailing slashes so "/docs/a/" and "/docs/a" compare
-// equal, the way the website routes them.
-func normalizePath(p string) string {
+// fragmentRe matches the fragment of a destination, which has the same
+// characters as a segment.
+var fragmentRe = segmentRe
+
+// legacyParam matches a trailing path parameter in the old syntax: ":name",
+// ":name*" and ":name(.*)".
+var legacyParam = regexp.MustCompile(`^:[A-Za-z_][A-Za-z0-9_]*(\*|\(\.\*\))?$`)
+
+// normalizeRoute drops trailing slashes so "a/b/" and "a/b" compare equal, the
+// way the websites route them.
+func normalizeRoute(p string) string {
 	return strings.TrimRight(p, "/")
 }
 
-// pathRole says whether a path is being parsed as a rule's source or its
-// destination, because the two accept different pattern syntax.
-type pathRole int
-
-const (
-	roleSource pathRole = iota
-	roleDestination
-)
-
-// parsePath parses a /docs/... path. Sources allow an exact path, a trailing
-// "/:name*" and a trailing "/:name(.*)". Destinations allow an exact path and
-// a trailing "/:name" or "/:name*". It returns a message describing the
-// problem when the path is outside that subset.
-func parsePath(path string, role pathRole) (pattern, string) {
-	segments := strings.Split(strings.TrimPrefix(path, "/"), "/")
-	last := len(segments) - 1
-
-	unsupported := func(why string) string {
-		if role == roleDestination {
-			return fmt.Sprintf("unsupported destination %q (%s): use an exact path or a trailing /:name or /:name*", path, why)
-		}
-		return fmt.Sprintf("unsupported source %q (%s): use an exact path, a trailing /:name*, or a trailing /:name(.*)", path, why)
-	}
-
-	for _, seg := range segments[:last] {
-		if err := checkStaticSegment(seg, path, unsupported); err != "" {
-			return pattern{}, err
-		}
-	}
-
-	lastSeg := segments[last]
-	prefix := "/" + strings.Join(segments[:last], "/")
-	if last == 0 {
-		prefix = ""
-	}
-
-	if role == roleDestination {
-		if m := destinationParam.FindStringSubmatch(lastSeg); m != nil && last > 0 {
-			return pattern{kind: kindWildcard, prefix: prefix, param: m[1]}, ""
-		}
-	} else {
-		if m := sourceWildcard.FindStringSubmatch(lastSeg); m != nil && last > 0 {
-			return pattern{kind: kindWildcard, prefix: prefix, param: m[1]}, ""
-		}
-		if m := sourceRegexWildcard.FindStringSubmatch(lastSeg); m != nil && last > 0 {
-			return pattern{kind: kindRegexWildcard, prefix: prefix, param: m[1]}, ""
-		}
-	}
-
-	if err := checkStaticSegment(lastSeg, path, unsupported); err != "" {
-		return pattern{}, err
-	}
-	return pattern{kind: kindExact, prefix: "/" + strings.Join(segments, "/")}, ""
-}
-
-func checkStaticSegment(seg, path string, unsupported func(string) string) string {
+// checkRoute returns why route is not a valid route, or "" when it is. The
+// empty route is not valid here: it is the docs root, which only a destination
+// can name, as "/".
+func checkRoute(route string) string {
 	switch {
-	case seg == "":
-		return unsupported("empty path segment")
-	case versionSegment.MatchString(seg):
-		return fmt.Sprintf("%q contains a version segment (%s): the docs website adds /@<ref> itself, so write the path without it", path, seg)
-	case !staticSegment.MatchString(seg):
-		return unsupported(fmt.Sprintf("segment %q", seg))
+	case route == "":
+		return "empty route"
+	case strings.HasPrefix(route, "/"):
+		return "routes are relative to the docs root and have no leading slash"
+	case strings.HasSuffix(route, "/"):
+		return "routes have no trailing slash"
+	}
+	segments := strings.Split(route, "/")
+	for _, seg := range segments {
+		switch {
+		case seg == "":
+			return "empty path segment"
+		case seg == "." || seg == "..":
+			return fmt.Sprintf("segment %q is not allowed", seg)
+		case !segmentRe.MatchString(seg):
+			return fmt.Sprintf("segment %q must match [A-Za-z0-9._-]+", seg)
+		}
+	}
+	if strings.HasSuffix(segments[len(segments)-1], ".md") {
+		return `routes do not end in ".md"`
 	}
 	return ""
 }
 
 func parseSource(raw string) (pattern, string) {
-	s := normalizePath(raw)
-	if !strings.HasPrefix(s, docsRoot+"/") {
-		return pattern{}, "source must start with /docs/ (write the full site path, for example /docs/admin/old-page)"
+	prefix, wild := strings.CutSuffix(raw, "/*")
+	if msg := checkRoute(prefix); msg != "" {
+		if strings.Contains(raw, "*") && !wild {
+			return pattern{}, fmt.Sprintf(`unsupported source %q: "*" is only allowed as a trailing "/*"`, raw)
+		}
+		return pattern{}, fmt.Sprintf("unsupported source %q: %s", raw, msg)
 	}
-	return parsePath(s, roleSource)
+	return pattern{wild: wild, prefix: prefix}, ""
 }
 
 func parseDestination(raw string) (destination, string) {
 	d := destination{raw: raw}
-	if strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") {
-		u, err := url.Parse(raw)
-		if err != nil || u.Host == "" {
-			return d, fmt.Sprintf("destination %q is an invalid URL", raw)
+	switch {
+	case raw == "/":
+		d.kind = destRoot
+	case strings.HasPrefix(raw, "https://"):
+		if msg := checkExternal(raw); msg != "" {
+			return d, msg
 		}
-		d.external = true
-		d.valid = true
-		return d, ""
+		d.kind = destExternal
+	case strings.Contains(raw, "://"):
+		return d, fmt.Sprintf(`unsupported destination %q: external destinations must be https:// URLs under %s`, raw, strings.Join(allowedExternalPrefixes, " or "))
+	default:
+		route, fragment, hasFragment := strings.Cut(raw, "#")
+		if hasFragment {
+			switch {
+			case route == "/" || strings.HasSuffix(route, "/*"):
+				return d, fmt.Sprintf(`unsupported destination %q: "/" and wildcard destinations do not take a fragment`, raw)
+			case !fragmentRe.MatchString(fragment):
+				return d, fmt.Sprintf(`unsupported destination %q: a fragment must match [A-Za-z0-9._-]+ and there is at most one`, raw)
+			}
+		}
+		prefix, wild := strings.CutSuffix(route, "/*")
+		if msg := checkRoute(prefix); msg != "" {
+			if strings.Contains(route, "*") && !wild {
+				return d, fmt.Sprintf(`unsupported destination %q: "*" is only allowed as a trailing "/*"`, raw)
+			}
+			return d, fmt.Sprintf(`unsupported destination %q: %s (use a route such as "admin/users", "/" for the docs root, or an allowed https URL)`, raw, msg)
+		}
+		d.kind, d.prefix, d.wild, d.fragment = destRoute, prefix, wild, fragment
 	}
-
-	p := raw
-	if i := strings.IndexAny(p, "?#"); i >= 0 {
-		p = p[:i]
-	}
-	p = normalizePath(p)
-	if p != docsRoot && !strings.HasPrefix(p, docsRoot+"/") {
-		return d, fmt.Sprintf("destination %q is not valid: destination must be a /docs/ path or an http(s) URL", raw)
-	}
-	pat, msg := parsePath(p, roleDestination)
-	if msg != "" {
-		return d, msg
-	}
-	d.pattern = pat
 	d.valid = true
 	return d, ""
 }
 
+func checkExternal(raw string) string {
+	allowed := false
+	for _, p := range allowedExternalPrefixes {
+		if strings.HasPrefix(raw, p) {
+			allowed = true
+			break
+		}
+	}
+	switch {
+	case !allowed:
+		return fmt.Sprintf("external destination %q must start with %s", raw, strings.Join(allowedExternalPrefixes, " or "))
+	case strings.Contains(strings.TrimPrefix(raw, "https://"), ":"):
+		return fmt.Sprintf(`external destination %q must not contain ":" after the scheme`, raw)
+	case strings.ContainsAny(raw, "*{} \t\r\n"):
+		return fmt.Sprintf("external destination %q must not contain a wildcard, parameter, or whitespace", raw)
+	case strings.Contains(raw, `\`):
+		// Browsers read "\" as "/" in https URLs.
+		return fmt.Sprintf(`external destination %q must not contain "\"`, raw)
+	}
+	// A "." or ".." segment, also when percent-encoded, would let a URL that
+	// starts with an allowed prefix resolve outside it.
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Sprintf("external destination %q is not a valid URL: %v", raw, err)
+	}
+	for _, seg := range strings.Split(u.Path, "/") {
+		if seg == "." || seg == ".." {
+			return fmt.Sprintf(`external destination %q must not contain a "." or ".." path segment`, raw)
+		}
+	}
+	return ""
+}
+
+func isLegacyPath(s string) bool {
+	return s == "/docs" || strings.HasPrefix(s, "/docs/")
+}
+
+// convertLegacy rewrites a source or destination from the old absolute form
+// ("/docs/admin/old", "/docs/x/:path*") to a route ("admin/old", "x/*").
+// Anything else is returned unchanged.
+func convertLegacy(s string) string {
+	if !isLegacyPath(s) {
+		return s
+	}
+	route := strings.Trim(strings.TrimPrefix(s, "/docs"), "/")
+	segments := strings.Split(route, "/")
+	if last := len(segments) - 1; last > 0 && legacyParam.MatchString(segments[last]) {
+		segments[last] = "*"
+	}
+	return strings.Join(segments, "/")
+}
+
+// convertLegacyDestination is convertLegacy for a destination, where the old
+// docs root "/docs" is "/".
+func convertLegacyDestination(s string) string {
+	if s == "/docs" || s == "/docs/" {
+		return "/"
+	}
+	return convertLegacy(s)
+}
+
+// ruleJSON renders a rule the way it is written in docs/redirects.json, on one
+// line, so a message can be pasted into the file.
+func ruleJSON(source, destination string, permanent *bool) string {
+	quote := func(s string) string {
+		b, err := json.Marshal(s)
+		if err != nil {
+			return strconv.Quote(s)
+		}
+		// json.Marshal escapes HTML characters, which would make a URL with a
+		// query string harder to read and paste.
+		return strings.NewReplacer(`\u0026`, "&", `\u003c`, "<", `\u003e`, ">").Replace(string(b))
+	}
+	out := fmt.Sprintf(`{"source": %s, "destination": %s`, quote(source), quote(destination))
+	if permanent != nil {
+		out += fmt.Sprintf(`, "permanent": %t`, *permanent)
+	}
+	return out + "}"
+}
+
 // checkRedirects validates the contents of docs/redirects.json against the set
 // of live docs routes. It returns the rules whose source could be parsed, which
-// the advisory check uses to see whether a removed route is already covered,
-// and every problem it found, ordered by rule.
-func checkRedirects(data []byte, live map[string]bool) ([]rule, []problem) {
+// the removed-route check resolves routes through, and every problem it found,
+// ordered by rule.
+func checkRedirects(data []byte, live routeSet) ([]rule, []problem) {
 	var entries []json.RawMessage
 	if err := json.Unmarshal(data, &entries); err != nil {
 		var typeErr *json.UnmarshalTypeError
@@ -291,7 +343,7 @@ const entryShape = `must be an object with "source", "destination" and optional 
 
 // checkEntry validates one array element on its own. It returns the rule when
 // the source parsed, so that cross-rule checks can still use it.
-func checkEntry(i int, entry json.RawMessage, live map[string]bool) (*rule, []problem) {
+func checkEntry(i int, entry json.RawMessage, live routeSet) (*rule, []problem) {
 	if bytes.Equal(bytes.TrimSpace(entry), []byte("null")) {
 		return nil, []problem{{index: i, message: entryShape}}
 	}
@@ -326,14 +378,22 @@ func checkEntry(i int, entry json.RawMessage, live map[string]bool) (*rule, []pr
 	if !destOK {
 		add(source, `"destination" is required and must be a non-empty string`)
 	}
+	var permanent *bool
 	if raw, ok := fields["permanent"]; ok {
 		var b bool
 		if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) || json.Unmarshal(raw, &b) != nil {
 			add(source, `"permanent" must be a boolean`)
+		} else {
+			permanent = &b
 		}
 	}
 
 	if !sourceOK {
+		return nil, problems
+	}
+	if isLegacyPath(source) || (destOK && isLegacyPath(dest)) {
+		fixed := ruleJSON(convertLegacy(source), convertLegacyDestination(dest), permanent)
+		add(source, fmt.Sprintf(`legacy absolute "/docs/..." form: write routes relative to the docs root, "/" for the docs root, and "/*" for a trailing wildcard. Converted rule: %s`, fixed))
 		return nil, problems
 	}
 	src, msg := parseSource(source)
@@ -342,7 +402,7 @@ func checkEntry(i int, entry json.RawMessage, live map[string]bool) (*rule, []pr
 		return nil, problems
 	}
 
-	r := &rule{index: i, source: source, destination: dest, src: src}
+	r := &rule{index: i, source: source, src: src}
 	if destOK {
 		d, msg := parseDestination(dest)
 		r.dst = d
@@ -373,40 +433,32 @@ func stringField(fields map[string]json.RawMessage, name string) (string, bool) 
 }
 
 // checkDestination verifies that an internal destination lands on a page that
-// exists and that any parameter it uses is one the source defines.
-func checkDestination(d destination, src pattern, live map[string]bool) []string {
-	if d.external {
+// exists and that a wildcard destination has a wildcard source to take its
+// match from.
+func checkDestination(d destination, src pattern, live routeSet) []string {
+	if d.kind != destRoute {
+		return nil
+	}
+	if !d.wild {
+		if !live.has(d.prefix) {
+			return []string{fmt.Sprintf("destination %q is not a page in docs/manifest.json; point it at an existing page", d.raw)}
+		}
 		return nil
 	}
 	var msgs []string
-	pat := d.pattern
-	if pat.kind == kindExact {
-		if !live[pat.prefix] {
-			msgs = append(msgs, fmt.Sprintf("destination %q is not a page in docs/manifest.json; point it at an existing page", d.raw))
-		}
-		return msgs
+	if !src.wild {
+		msgs = append(msgs, fmt.Sprintf(`destination %q ends in "/*" but the source is not a wildcard; end the source in "/*" too, or use an exact destination`, d.raw))
 	}
-
-	if src.param != pat.param {
-		msgs = append(msgs, fmt.Sprintf("destination uses :%s, which the source does not define; the source's parameter is %s", pat.param, describeParam(src)))
-	}
-	if !prefixHasPages(pat.prefix, live) {
-		msgs = append(msgs, fmt.Sprintf("no docs page exists under %q; point the destination at an existing section", pat.prefix))
+	if !prefixHasPages(d.prefix, live) {
+		msgs = append(msgs, fmt.Sprintf("no docs page exists under %q; point the destination at an existing section", d.prefix))
 	}
 	return msgs
 }
 
-func describeParam(p pattern) string {
-	if p.param == "" {
-		return "absent (the source is an exact path)"
-	}
-	return ":" + p.param
-}
-
-// prefixHasPages reports whether a pattern destination with this static
-// prefix can land on a page: the prefix is a page or a section of pages.
-func prefixHasPages(prefix string, live map[string]bool) bool {
-	if prefix == docsRoot || live[prefix] {
+// prefixHasPages reports whether a wildcard destination with this prefix can
+// land on a page: the prefix is a page or a section of pages.
+func prefixHasPages(prefix string, live routeSet) bool {
+	if live.has(prefix) {
 		return true
 	}
 	for route := range live {
@@ -417,9 +469,10 @@ func prefixHasPages(prefix string, live map[string]bool) bool {
 	return false
 }
 
-// checkShadowing reports a source that matches live docs pages. Redirects are
-// applied before pages, so such a rule would hide a page readers can reach.
-func checkShadowing(src pattern, live map[string]bool) string {
+// checkShadowing reports a source that matches live docs pages. A page always
+// wins over a redirect, and sites that apply redirects before pages would hide
+// it, so such a rule is rejected.
+func checkShadowing(src pattern, live routeSet) string {
 	var hidden []string
 	for route := range live {
 		if src.matches(route) {
@@ -434,13 +487,20 @@ func checkShadowing(src pattern, live map[string]bool) string {
 	if len(hidden) > 1 {
 		more = fmt.Sprintf(" (and %d more)", len(hidden)-1)
 	}
-	return fmt.Sprintf("source hides a live docs page: %s%s; remove the redirect, or remove the page from docs/manifest.json first", hidden[0], more)
+	return fmt.Sprintf("source hides a live docs page: %q%s; remove the redirect, or remove the page from docs/manifest.json first", displayRoute(hidden[0]), more)
+}
+
+func displayRoute(route string) string {
+	if route == "" {
+		return "/ (the docs root)"
+	}
+	return route
 }
 
 // checkOrder reports rules that can never apply because an earlier rule
-// already matches every URL they would. The website applies redirects in file
-// order and the first match wins, so rules have to run from most specific to
-// least: a trailing wildcard above a rule inside its subtree swallows it.
+// already matches every route they would. Rules apply in file order and the
+// first match wins, so they have to run from most specific to least: a
+// trailing wildcard above a rule inside its subtree swallows it.
 //
 // Each unreachable rule is reported once, against the first rule that covers
 // it. Pairs with the same source are left to the duplicate check.
@@ -458,7 +518,7 @@ func checkOrder(rules []rule) []problem {
 				index:  later.index,
 				source: later.source,
 				message: fmt.Sprintf(
-					"unreachable: rule [%d] (source %q) comes first and matches every URL this rule would; order rules from most specific to least",
+					"unreachable: rule [%d] (source %q) comes first and matches every route this rule would; order rules from most specific to least",
 					earlier.index, earlier.source,
 				),
 			})
@@ -490,20 +550,20 @@ func checkAcrossRules(rules []rule) []problem {
 	problems = append(problems, checkOrder(rules)...)
 
 	// next[i] is the rule whose source the destination of rule i lands on.
-	// Only exact internal destinations are followed. Where a pattern
-	// destination ends up depends on the URL being redirected, so chains
-	// through one are not checked.
+	// Only exact route destinations are followed. Where a wildcard destination
+	// ends up depends on the route being redirected, so chains through one are
+	// not checked.
 	next := make(map[int]int, len(rules))
 	byIndex := make(map[int]rule, len(rules))
 	for _, r := range rules {
 		byIndex[r.index] = r
 	}
 	for _, r := range rules {
-		if !r.dst.valid || r.dst.external || r.dst.pattern.kind != kindExact {
+		if !r.dst.valid || r.dst.kind != destRoute || r.dst.wild {
 			continue
 		}
 		for _, other := range rules {
-			if other.matches(r.dst.pattern.prefix) {
+			if other.matches(r.dst.prefix) {
 				next[r.index] = other.index
 				break
 			}
