@@ -107,8 +107,8 @@ export const isActiveChatStatus = (
 	status === "interrupting";
 
 /**
- * A request's expected result, drawn over the server state from the click
- * until the stream reports it or the request fails.
+ * A user request that the store shows from the click until the stream
+ * reports its result or the request fails.
  */
 export type PendingAction =
 	| { kind: "edit"; editedMessageID: number; message?: TypesGen.ChatMessage }
@@ -121,18 +121,17 @@ type QueueEdit = (
 ) => readonly TypesGen.ChatQueuedMessage[];
 
 /**
- * A pending action's expected result, fixed at the click from the shown
- * state. Each part is drawn until the stream's next update of its kind
- * replaces it.
+ * The expected result of a pending action, computed at the click from the
+ * shown state. The store shows each part until the stream's next update of
+ * that part's kind.
  */
 type PendingEntry = {
 	id: number;
-	// The message the request adds. The server reports it as a user message
-	// or, when it queues it, as a queue update.
+	// The message the request adds. The next user message or queue update
+	// ends it, because the server queues the message when the chat is busy.
 	message?: { shown?: TypesGen.ChatMessage; queue?: QueueEdit };
-	// Replaced by a queue update.
 	queue?: QueueEdit;
-	// The history from an edited message on, replaced by a history reset.
+	// The history from the edited message on. A history reset ends it.
 	history?: { fromID: number; draft?: TypesGen.ChatMessage };
 };
 
@@ -160,7 +159,7 @@ export type ChatStoreState = {
 	// Whether older messages exist below the oldest held one.
 	hasMoreMessages: boolean;
 	load: ChatStoreLoad;
-	// Display only; view applies them in request order.
+	// These change only what view shows. view applies them in request order.
 	pendingActions: readonly PendingEntry[];
 	// Built once per state, so selectors reading one state get the same
 	// values, which useSyncExternalStore requires.
@@ -195,7 +194,8 @@ export type ChatStore = {
 	setQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[],
 	) => void;
-	// Applies a status event; the turn error lasts while it is error.
+	// Applies a status event, and clears the turn error unless the status is
+	// error.
 	applyServerChatStatus: (status: TypesGen.ChatStatus) => void;
 	setTurnError: (reason: ChatDetailError) => void;
 	// The highest snapshot version of the newest page and the applied events.
@@ -558,8 +558,8 @@ export const createChatStore = (): ChatStore => {
 		addPendingAction: (action) => {
 			const id = nextPendingActionID++;
 			const entry = pendingEntry(id, action, state.view, state.chatStatus);
-			// An action that draws nothing gets no entry; removePendingAction
-			// ignores its ID.
+			// An action that shows nothing gets no entry, and
+			// removePendingAction ignores its ID.
 			if (!entry.message && !entry.queue && !entry.history) {
 				return id;
 			}
@@ -750,26 +750,25 @@ const withoutRow =
 		rows.filter((row) => row.id !== id);
 
 // Pending rows take IDs from the top of the safe integer range, above any ID
-// the database assigns.
+// the database assigns. They collide with no stored ID, and a later edit
+// hides them with the rest of the history from the edited message on.
 const pendingRowIDFloor = Number.MAX_SAFE_INTEGER - 2 ** 32;
 
 /**
- * Whether a shown message or queued row is drawn by a pending action. Such a
- * row has no server identity, so nothing may act on it by ID.
+ * Whether a shown message or queued row comes from a pending action. The
+ * server does not know such a row's ID, so nothing may act on it by ID.
  */
 export const isPendingRowID = (id: number) => id > pendingRowIDFloor;
 
-// The server places a request's message by the state the request finds
-// (chatstate SendMessage and PromoteQueuedMessage); the entry places it by
-// the state shown at the click.
+// pendingEntry places a request's message as chatstate SendMessage and
+// PromoteQueuedMessage do, but by the state shown at the click. The server
+// uses the state the request finds, which can differ.
 const pendingEntry = (
 	id: number,
 	action: PendingAction,
 	shown: ChatView,
 	status: TypesGen.ChatStatus | null,
 ): PendingEntry => {
-	// Above every stored message ID: it collides with none, and a later edit
-	// hides it with the rest of the history.
 	const eagerID = Number.MAX_SAFE_INTEGER - id;
 	const running = status === "running" || status === "interrupting";
 	switch (action.kind) {
@@ -800,8 +799,8 @@ const pendingEntry = (
 			if (!target) {
 				return { id };
 			}
-			// A running chat moves the row to the head. A row already at the head
-			// does not move and sends no queue update.
+			// A running chat moves the row to the head. For a row already at the
+			// head, the server sends no queue update.
 			if (running) {
 				return {
 					id,
@@ -826,7 +825,7 @@ const pendingEntry = (
 					fromID: action.editedMessageID,
 					draft: action.message && { ...action.message, id: eagerID },
 				},
-				// Clearing an empty queue sends no queue update.
+				// The server sends no queue update when the queue is already empty.
 				queue: shown.queuedMessages.length > 0 ? () => [] : undefined,
 			};
 		case "deleteQueued":
@@ -856,7 +855,7 @@ const endPendingParts = (
 		return [{ id: entry.id, message, queue, history }];
 	});
 
-// The stored state with each pending entry drawn over it in request order.
+// Returns the stored state with each pending entry applied in request order.
 const buildView = (state: Omit<ChatStoreState, "view">): ChatView => {
 	const view: ChatView = {
 		messagesByID: state.messagesByID,
@@ -903,7 +902,6 @@ export const selectStreamState = (state: ChatStoreState) =>
 export const selectHasStreamState = (state: ChatStoreState) =>
 	state.view.streamState !== null;
 export const selectChatStatus = (state: ChatStoreState) => state.chatStatus;
-// A failure of this client, or else the error the chat's turn ended with.
 export const selectStreamError = (state: ChatStoreState) =>
 	state.streamError ?? state.turnError;
 export const selectQueuedMessages = (state: ChatStoreState) =>
