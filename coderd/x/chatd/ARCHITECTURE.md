@@ -821,11 +821,11 @@ The buffer exposes the following API:
 - `ModelInvokedAt(chat_id, history_version, generation_attempt)`: returns the instant stamped by `StartModelInvocation`, or the zero time when the episode is unknown or never opened a provider stream. It must be read before `CloseEpisode`, because closed episodes are garbage collected and reading afterwards races the cleanup loop. The interrupt goroutine reads it just before closing the episode and uses the span between that instant and the interrupt as the interrupted attempt's billable runtime.
 - `RecordToolStart(chat_id, history_version, generation_attempt, call_index, started_at)` and `RecordToolCompletion(chat_id, history_version, generation_attempt, call_index, completed_at)`: record when each call occurrence starts and finishes.
 - `ToolCompletions(chat_id, history_version, generation_attempt)`: returns when each tool call started and finished.
-- `SubscribeToEpisode(chat_id, history_version, generation_attempt)`: returns a go channel that will receive all message parts for the episode. It spawns a goroutine that delivers parts to the channel. It's live until the episode is closed or until a subscriber requests that the channel be closed. Once the goroutine delivers all message parts for a closed episode, it closes the channel and exits. If the episode is already closed at the time of the call, the goroutine delivers all message parts for the episode, closes the channel, and exits. `SubscribeToEpisode` does not return an error if the episode is not found: it waits for it to be created instead.
+- `SubscribeToEpisode(chat_id, history_version, generation_attempt)`: returns a go channel that will receive all message parts for the episode. It spawns a goroutine that delivers parts to the channel. It's live until the episode is closed or until a subscriber requests that the channel be closed. Once the goroutine delivers all message parts for a closed episode, it closes the channel and exits. If the episode is already closed at the time of the call, the goroutine delivers all message parts for the episode, closes the channel, and exits. `SubscribeToEpisode` does not return an error if the episode is not found: it waits for it to be created instead. It also returns a cancel function that ends the subscription. After the channel closes, the cancel function returns a predefined error if the buffer dropped the subscription, and nil otherwise.
 
 Closed episodes are garbage collected after at least 15 seconds since they were closed and when they have no active subscribers. The message part buffer maintains a garbage collection goroutine.
 
-Subscribers must accept parts within 10 seconds of them being sent on the channel. If a subscriber does not accept a part within that timeframe, the subscription channel is closed.
+Subscribers must accept parts within 10 seconds of them being sent on the channel. If a subscriber does not accept a part within that timeframe, the buffer drops the subscription: it closes the subscription channel, and the cancel function returns the predefined error. The drop does not close the episode. The timeout limits how long an unresponsive subscriber can prevent garbage collection of a closed episode.
 
 ## Chat runner
 
@@ -1543,6 +1543,10 @@ Behavior after receiving an episode-selection message:
 - missing episode state is not an error;
 - enforce contiguous `seq` delivery for the selected episode.
 
+When the selected episode closes and the endpoint has sent all of its parts, the endpoint keeps the connection open until the next episode-selection message.
+
+If the message part buffer drops the endpoint's subscription, the endpoint has not sent some parts of the episode. It logs a warning with the episode and the last `seq` it sent, and closes the connection. The relay forwarder reconnects after a backoff, as it does after any closed connection, and selects the same episode again. The endpoint then sends the episode from `seq=1`, and the stream loop rejects the parts it already has (see [Part operation](#part-operation)). Each drop costs one reconnect and one replay of the episode.
+
 Only worker changes require a new parts WebSocket connection.
 
 The endpoint uses the [Message part buffer](#message-part-buffer) to fetch parts for each episode.
@@ -1571,7 +1575,7 @@ emit message_part
 local.last_part_seq = seq
 ```
 
-If any check fails, the operation is rejected. Parts of a retired attempt are rejected before the sequence check, so they never count as a gap.
+If any check fails, the operation is rejected. Parts of a retired attempt are rejected before the sequence check, so they never count as a gap. A part with `seq <= local.last_part_seq` is rejected without error, so a replay after the relay forwarder reconnects does not duplicate output.
 
 A sequence gap is an invariant violation because the parts endpoint must enforce contiguous delivery for each requested episode.
 
