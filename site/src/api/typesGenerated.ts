@@ -5521,6 +5521,7 @@ export type Experiment =
 	| "example"
 	| "mcp-server-http"
 	| "mcp-tool-search"
+	| "native-agents"
 	| "no_nats_pubsub"
 	| "notifications"
 	| "workspace-build-updates"
@@ -5601,6 +5602,7 @@ export const Experiments: Experiment[] = [
 	"example",
 	"mcp-server-http",
 	"mcp-tool-search",
+	"native-agents",
 	"no_nats_pubsub",
 	"notifications",
 	"workspace-build-updates",

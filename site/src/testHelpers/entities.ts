@@ -3879,6 +3879,25 @@ export const MockValidationParameter: TypesGen.PreviewParameter = {
 	order: 1,
 };
 
+/** A repository parameter with URL validation and no server diagnostics. */
+export const MockRepositoryParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: "repository_url",
+	display_name: "Repository URL",
+	description: "The repository to clone into your workspace",
+	value: { valid: true, value: "https://git.example.com/team/repo" },
+	validations: [
+		{
+			validation_error:
+				"Enter a repository URL, such as https://git.example.com/team/repo.",
+			validation_regex: "^https://git\\.example\\.com/[^/]+/[^/]+$",
+			validation_min: null,
+			validation_max: null,
+			validation_monotonic: null,
+		},
+	],
+};
+
 export const MockDynamicParametersResponseWithError: TypesGen.DynamicParametersResponse =
 	{
 		id: 2,

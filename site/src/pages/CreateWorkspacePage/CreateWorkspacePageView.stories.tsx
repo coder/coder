@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, within } from "storybook/test";
+import { expect, screen, userEvent, within } from "storybook/test";
 import { DetailedError } from "#/api/errors";
 import type { Preset, PreviewParameter } from "#/api/typesGenerated";
 import {
+	MockRepositoryParameter,
 	MockTemplate,
 	MockUserMember,
 	MockUserOwner,
@@ -354,6 +355,24 @@ export const WithParameters: Story = {
 					"This story demonstrates a workspace creation form with presets and a variety of parameter types including text inputs, dropdowns, sliders, switches, radio buttons, multi-select, textarea, and checkboxes.",
 			},
 		},
+	},
+};
+
+const mockInvalidRepositoryParameter: PreviewParameter = {
+	...MockRepositoryParameter,
+	value: { valid: true, value: "not-a-repository" },
+};
+
+/** Submission surfaces client validation failures even without preview diagnostics. */
+export const WithInvalidParameter: Story = {
+	args: {
+		defaultName: "my-workspace",
+		parameters: [mockInvalidRepositoryParameter],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Create workspace" }),
+		);
 	},
 };
 

@@ -5499,6 +5499,7 @@ type Experiment string
 const (
 	// Add new experiments here!
 	ExperimentExample                   Experiment = "example"                     // This isn't used for anything.
+	ExperimentNativeAgents              Experiment = "native-agents"               // Enables workspace ACP sessions with native terminal attachment.
 	ExperimentNotifications             Experiment = "notifications"               // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage            Experiment = "workspace-usage"             // Enables the new workspace usage tracking.
 	ExperimentMCPServerHTTP             Experiment = "mcp-server-http"             // Enables the MCP HTTP server functionality.
@@ -5521,6 +5522,8 @@ func (e Experiment) DisplayName() string {
 	switch e {
 	case ExperimentExample:
 		return "Example Experiment"
+	case ExperimentNativeAgents:
+		return "Native Workspace Agents"
 	case ExperimentNotifications:
 		return "SMTP and Webhook Notifications"
 	case ExperimentWorkspaceUsage:
@@ -5562,6 +5565,7 @@ func (e Experiment) DisplayName() string {
 // ExperimentsKnown should include all experiments defined above.
 var ExperimentsKnown = Experiments{
 	ExperimentExample,
+	ExperimentNativeAgents,
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,
 	ExperimentMCPServerHTTP,

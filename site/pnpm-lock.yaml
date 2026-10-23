@@ -16,6 +16,9 @@ importers:
 
   .:
     dependencies:
+      '@agentclientprotocol/sdk':
+        specifier: 2.0.1
+        version: 2.0.1(zod@4.1.13)
       '@dnd-kit/core':
         specifier: 6.3.1
         version: 6.3.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -434,6 +437,11 @@ packages:
 
   '@adobe/css-tools@4.4.1':
     resolution: {integrity: sha512-12WGKBQzjUAI4ayyF4IAtfw2QR/IDoqk6jTddXDhtYTJF9ASmoE1zst7cVtP0aL/F1jUJL5r+JxKXKEgHNbEUQ==, tarball: https://registry.npmjs.org/@adobe/css-tools/-/css-tools-4.4.1.tgz}
+
+  '@agentclientprotocol/sdk@2.0.1':
+    resolution: {integrity: sha512-v4E/NcBTGFEKmorGso8ysAjJTkNh5UMJPP4aDznyMNmnP9t10g/aCCo/Djy7RYaYZy5ZROFK3G5cEj9tDgGOTQ==, tarball: https://registry.npmjs.org/@agentclientprotocol/sdk/-/sdk-2.0.1.tgz}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.0.0
 
   '@antfu/install-pkg@2.0.1':
     resolution: {integrity: sha512-iCKVQcIC0e3oDxEfs3SHQGW+ovhBMZmS1TE+bTk50rVyMCBmCfClv7Qi3HQKlumYwvjb/iIMeWCW2i67q6kFfQ==, tarball: https://registry.npmjs.org/@antfu/install-pkg/-/install-pkg-2.0.1.tgz}
@@ -6836,6 +6844,10 @@ snapshots:
   '@acemir/cssom@0.9.24': {}
 
   '@adobe/css-tools@4.4.1': {}
+
+  '@agentclientprotocol/sdk@2.0.1(zod@4.1.13)':
+    dependencies:
+      zod: 4.1.13
 
   '@antfu/install-pkg@2.0.1':
     dependencies:

@@ -116,6 +116,8 @@ export const CreateWorkspacePageView: React.FC<
 	const [showPresetParameters, setShowPresetParameters] = useState(false);
 	const id = useId();
 	const workspaceNameInputRef = useRef<HTMLInputElement>(null);
+	const parameterErrorsRef = useRef<HTMLElement>(null);
+	const focusedSubmitCountRef = useRef(0);
 	const rerollSuggestedName = useCallback(() => {
 		setSuggestedName(() => generateWorkspaceName());
 	}, []);
@@ -176,15 +178,46 @@ export const CreateWorkspacePageView: React.FC<
 		}
 	}, [error]);
 
+	const parameterErrors = (form.values.rich_parameter_values ?? []).flatMap(
+		(parameterValue, index) => {
+			const { error } = form.getFieldMeta(
+				`rich_parameter_values.${index}.value`,
+			);
+			if (!error) {
+				return [];
+			}
+			const parameter = parameters.find((p) => p.name === parameterValue.name);
+			return [
+				{
+					name: parameterValue.name,
+					label: parameter?.display_name || parameterValue.name,
+					error,
+				},
+			];
+		},
+	);
+
 	useEffect(() => {
-		if (form.submitCount > 0 && Object.keys(form.errors).length > 0) {
-			workspaceNameInputRef.current?.scrollIntoView({
-				behavior: "smooth",
-				block: "center",
-			});
-			workspaceNameInputRef.current?.focus();
+		if (
+			form.isSubmitting ||
+			form.isValidating ||
+			form.submitCount === focusedSubmitCountRef.current
+		) {
+			return;
 		}
-	}, [form.submitCount, form.errors]);
+		// Focus once per submission, not each time validation changes while editing.
+		focusedSubmitCountRef.current = form.submitCount;
+		const target = form.errors.name
+			? workspaceNameInputRef.current
+			: parameterErrorsRef.current;
+		target?.focus();
+		target?.scrollIntoView({ block: "center" });
+	}, [
+		form.submitCount,
+		form.isSubmitting,
+		form.isValidating,
+		form.errors.name,
+	]);
 
 	const [presetOptions, setPresetOptions] = useState([
 		{ label: "None", value: "undefined", icon: "", description: "" },
@@ -460,6 +493,31 @@ export const CreateWorkspacePageView: React.FC<
 					data-testid="form"
 				>
 					{Boolean(error) && <ErrorAlert error={error} />}
+
+					{form.submitCount > 0 && parameterErrors.length > 0 && (
+						<section
+							ref={parameterErrorsRef}
+							tabIndex={-1}
+							aria-labelledby={`${id}-parameter-errors`}
+						>
+							<Alert severity="error" prominent>
+								<AlertTitle id={`${id}-parameter-errors`}>
+									Check your workspace parameters
+								</AlertTitle>
+								<AlertDescription>
+									Correct the following values, or contact your template
+									administrator if they cannot be changed.
+								</AlertDescription>
+								<ul className="mb-0 list-disc space-y-1 pl-5 wrap-anywhere">
+									{parameterErrors.map(({ name, label, error }) => (
+										<li key={name}>
+											<strong>{label}:</strong> {error}
+										</li>
+									))}
+								</ul>
+							</Alert>
+						</section>
+					)}
 
 					{template.use_classic_parameter_flow && (
 						<Alert

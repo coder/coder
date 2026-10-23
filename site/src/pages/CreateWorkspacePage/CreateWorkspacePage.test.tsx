@@ -10,6 +10,7 @@ import {
 	MockPreviewParameter1,
 	MockPreviewParameter2,
 	MockPreviewParameter7,
+	MockRepositoryParameter,
 	MockSliderParameter,
 	MockSwitchParameter,
 	MockTagSelectParameter,
@@ -738,6 +739,89 @@ describe("CreateWorkspacePage", () => {
 	});
 
 	describe("Form Submission", () => {
+		it("focuses parameter errors and only submits after they are corrected", async () => {
+			const user = userEvent.setup();
+			const mockInvalidRepositoryParameter: PreviewParameter = {
+				...MockRepositoryParameter,
+				value: { valid: true, value: "not-a-repository" },
+			};
+			const { mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({
+				mockPublisher,
+				parameters: [MockPreviewParameter1, mockInvalidRepositoryParameter],
+			});
+
+			const nameInput = screen.getByRole("textbox", {
+				name: /workspace name/i,
+			});
+			const createButton = screen.getByRole("button", {
+				name: /create workspace/i,
+			});
+			await act(async () => {
+				await user.click(createButton);
+			});
+			await waitFor(() => expect(nameInput).toHaveFocus());
+
+			await act(async () => {
+				await user.type(nameInput, "my-test-workspace");
+				await user.click(createButton);
+			});
+
+			await waitFor(() => {
+				expect(
+					screen.getByRole("region", {
+						name: "Check your workspace parameters",
+					}),
+				).toHaveFocus();
+			});
+			expect(API.createWorkspace).not.toHaveBeenCalled();
+
+			const repositoryInput = screen.getByRole("textbox", {
+				name: /repository url/i,
+			});
+			await act(async () => {
+				await user.clear(repositoryInput);
+				await user.type(repositoryInput, "still-invalid");
+			});
+			expect(repositoryInput).toHaveFocus();
+			await act(async () => {
+				await user.click(createButton);
+			});
+			await waitFor(() => {
+				expect(
+					screen.getByRole("region", {
+						name: "Check your workspace parameters",
+					}),
+				).toHaveFocus();
+			});
+			expect(API.createWorkspace).not.toHaveBeenCalled();
+
+			await act(async () => {
+				await user.clear(repositoryInput);
+				await user.type(repositoryInput, MockRepositoryParameter.value.value);
+				await user.click(createButton);
+			});
+
+			await waitFor(() => {
+				expect(API.createWorkspace).toHaveBeenCalledExactlyOnceWith(
+					"test-user",
+					expect.objectContaining({
+						name: "my-test-workspace",
+						rich_parameter_values: [
+							{
+								name: MockPreviewParameter1.name,
+								value: MockPreviewParameter1.value.value,
+							},
+							{
+								name: MockRepositoryParameter.name,
+								value: MockRepositoryParameter.value.value,
+							},
+						],
+					}),
+				);
+			});
+		});
+
 		it("creates workspace with correct parameters", async () => {
 			const parameters = [
 				MockDropdownParameter,

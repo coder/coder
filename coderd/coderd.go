@@ -1879,6 +1879,7 @@ func New(options *Options) *API {
 				r.Delete("/containers/devcontainers/{devcontainer}", api.workspaceAgentDeleteDevcontainer)
 				r.Post("/containers/devcontainers/{devcontainer}/recreate", api.workspaceAgentRecreateDevcontainer)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
+				r.With(apiKeyMiddleware).Get("/experimental/acp", api.workspaceAgentACP)
 
 				// PTY is part of workspaceAppServer.
 			})

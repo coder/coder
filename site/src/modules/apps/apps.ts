@@ -67,6 +67,7 @@ type GetTerminalHrefParams = {
 	workspace: string;
 	agent?: string;
 	container?: string;
+	command?: string;
 };
 
 export const getTerminalHref = ({
@@ -74,10 +75,14 @@ export const getTerminalHref = ({
 	workspace,
 	agent,
 	container,
+	command,
 }: GetTerminalHrefParams) => {
 	const params = new URLSearchParams();
 	if (container) {
 		params.append("container", container);
+	}
+	if (command) {
+		params.append("command", command);
 	}
 	// Always use the primary for the terminal link. This is a relative link.
 	return `/@${username}/${workspace}${

@@ -70,6 +70,7 @@ import { AgentMetadata } from "./AgentMetadata";
 import { AgentStatus } from "./AgentStatus";
 import { AgentVersion } from "./AgentVersion";
 import { DownloadSelectedAgentLogsButton } from "./DownloadSelectedAgentLogsButton";
+import { NativeAgentPanel } from "./NativeAgentPanel";
 import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
@@ -531,6 +532,8 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 					workspace_external_agent && (
 						<AgentExternal agent={agent} workspace={workspace} />
 					)}
+
+				<NativeAgentPanel agent={agent} workspace={workspace} />
 
 				<AgentMetadata initialMetadata={initialMetadata} agent={agent} />
 			</div>

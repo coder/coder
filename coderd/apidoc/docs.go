@@ -15942,6 +15942,62 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/workspaceagents/{workspaceagent}/experimental/acp": {
+            "get": {
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Connect to a workspace ACP adapter (experimental)",
+                "operationId": "connect-workspace-agent-acp",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/v2/workspaceagents/{workspaceagent}/listening-ports": {
             "get": {
                 "produces": [
@@ -25275,6 +25331,7 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "example",
+                "native-agents",
                 "notifications",
                 "workspace-usage",
                 "mcp-server-http",
@@ -25305,6 +25362,7 @@ const docTemplate = `{
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentMCPToolSearch": "Defers MCP tool schemas behind a searchable catalog in agent chats.",
+                "ExperimentNativeAgents": "Enables workspace ACP sessions with native terminal attachment.",
                 "ExperimentNoNATSPubsub": "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
@@ -25313,6 +25371,7 @@ const docTemplate = `{
             },
             "x-enum-descriptions": [
                 "This isn't used for anything.",
+                "Enables workspace ACP sessions with native terminal attachment.",
                 "Sends notifications via SMTP and webhooks following certain events.",
                 "Enables the new workspace usage tracking.",
                 "Enables the MCP HTTP server functionality.",
@@ -25332,6 +25391,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
+                "ExperimentNativeAgents",
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
                 "ExperimentMCPServerHTTP",

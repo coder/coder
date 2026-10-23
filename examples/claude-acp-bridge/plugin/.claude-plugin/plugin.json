@@ -1,0 +1,6 @@
+{
+  "name": "workspace-bridge",
+  "version": "0.1.0",
+  "description": "Experimental native Claude session bridge for workspace orchestration",
+  "author": { "name": "Coder" }
+}
