@@ -4186,7 +4186,7 @@ func (api *API) interruptChat(ctx context.Context, chat database.Chat) (codersdk
 			Detail:  err.Error(),
 		}, err)
 	}
-	return updated, db2sdk.Chat(updated, nil, nil), nil
+	return db2sdk.Chat(updated, nil, nil), nil
 }
 
 // @Summary Compact chat
