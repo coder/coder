@@ -21616,12 +21616,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "Data holds an inline file's bytes, which JSON carries as a base64 string.",
+                    "type": "string",
+                    "format": "byte"
                 },
                 "file_id": {
+                    "description": "Omitted, not null, for an inline file.",
                     "type": "string",
                     "format": "uuid"
                 },

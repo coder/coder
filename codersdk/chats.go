@@ -1090,8 +1090,10 @@ type ChatAttachmentFile struct {
 	Type      ChatAttachmentFileType `json:"type"`
 	MediaType string                 `json:"media_type"`
 	Name      string                 `json:"name,omitempty"`
-	Data      []byte                 `json:"data,omitempty"`
-	FileID    uuid.NullUUID          `json:"file_id,omitempty" format:"uuid"`
+	// Data holds an inline file's bytes, which JSON carries as a base64 string.
+	Data []byte `json:"data,omitempty" swaggertype:"string" format:"byte"`
+	// Omitted, not null, for an inline file.
+	FileID uuid.NullUUID `json:"file_id,omitzero" format:"uuid"`
 }
 
 // ChatAttachmentsResponse is the payload of
