@@ -219,7 +219,8 @@ export const AttachmentPreview: React.FC<{
 								type="button"
 								onClick={() => onRemove(file)}
 								// `peer-focus`, not `group-focus-within`: WebKit restyles every
-								// ancestor's subtree on focus while any `A:focus-within B` rule exists.
+								// ancestor's subtree on focus while any `A:focus-within B` rule
+								// exists.
 								className="absolute -right-2 -top-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-xs opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 peer-focus:opacity-100 focus:opacity-100"
 								aria-label={`Remove ${file.name}`}
 							>
