@@ -142,6 +142,65 @@ func TestResolveSkillInvocations(t *testing.T) {
 		requireUnavailable(t, err, "Skill workspace/missing is not available.")
 	})
 
+	t.Run("PluginFromPinnedContext", func(t *testing.T) {
+		t.Parallel()
+
+		skillResource := func(source, pluginName, name, body string) database.ChatContextResource {
+			return database.ChatContextResource{
+				Source:   source,
+				BodyKind: database.WorkspaceAgentContextBodyKindSkill,
+				Body: mustMarshalContextBody(t, &agentproto.SkillMetaBody{
+					Meta: []byte("---\nname: " + name + "\ndescription: Test\n---\n\n" + body + "\n"),
+					Name: name,
+				}),
+				Status:     database.WorkspaceAgentContextResourceStatusOk,
+				PluginName: pluginName,
+			}
+		}
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chat := database.Chat{ID: uuid.New(), WorkspaceID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
+		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chat.ID).
+			Return([]database.ChatContextResource{
+				pluginResource(t, "/home/coder/.coder/plugins/acme", "acme", database.WorkspaceAgentContextResourceStatusOk),
+				skillResource("/home/coder/.coder/plugins/acme/skills/deploy", "acme", "deploy", "Acme deploy."),
+				skillResource("/home/coder/.coder/plugins/acme/skills/lint", "acme", "lint", "Acme lint."),
+				pluginResource(t, "/home/coder/.coder/plugins/beta", "beta", database.WorkspaceAgentContextResourceStatusOk),
+				skillResource("/home/coder/.coder/plugins/beta/skills/deploy", "beta", "deploy", "Beta deploy."),
+				skillResource("/home/coder/.agents/skills/deploy", "", "deploy", "Plain deploy."),
+			}, nil).Times(3)
+		server := newPinServer(t, db)
+
+		resolved, err := server.resolveSkillInvocations(context.Background(), chat, []codersdk.ChatMessagePart{
+			codersdk.ChatMessageSkillInvocation(codersdk.ChatSkillSourceWorkspace, "deploy"),
+			codersdk.ChatMessagePluginSkillInvocation("acme", "deploy"),
+			codersdk.ChatMessagePluginSkillInvocation("beta", "deploy"),
+		})
+		require.NoError(t, err)
+		for i, want := range []string{"Plain deploy.", "Acme deploy.", "Beta deploy."} {
+			require.Equal(t, want, resolved[i].SkillBody)
+		}
+
+		_, err = server.resolveSkillInvocations(context.Background(), chat, []codersdk.ChatMessagePart{
+			codersdk.ChatMessagePluginSkillInvocation("beta", "lint"),
+		})
+		requireUnavailable(t, err, "Skill plugin/beta/lint is not available.")
+		_, err = server.resolveSkillInvocations(context.Background(), chat, []codersdk.ChatMessagePart{
+			codersdk.ChatMessageSkillInvocation(codersdk.ChatSkillSourceWorkspace, "lint"),
+		})
+		requireUnavailable(t, err, "Skill workspace/lint is not available.")
+
+		// A part whose source and plugin name disagree loads nothing.
+		workspaceWithPlugin := codersdk.ChatMessageSkillInvocation(codersdk.ChatSkillSourceWorkspace, "lint")
+		workspaceWithPlugin.SkillPluginName = "acme"
+		_, err = server.resolveSkillInvocations(context.Background(), chat, []codersdk.ChatMessagePart{workspaceWithPlugin})
+		requireUnavailable(t, err, "Skill workspace/lint is not available.")
+		_, err = server.resolveSkillInvocations(context.Background(), chat, []codersdk.ChatMessagePart{
+			codersdk.ChatMessageSkillInvocation(codersdk.ChatSkillSourcePlugin, "deploy"),
+		})
+		requireUnavailable(t, err, "Skill plugin//deploy is not available.")
+	})
+
 	t.Run("RepeatedSkillLoadsOnce", func(t *testing.T) {
 		t.Parallel()
 

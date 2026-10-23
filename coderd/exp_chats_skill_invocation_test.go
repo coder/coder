@@ -43,6 +43,21 @@ func TestChatSkillInvocation(t *testing.T) {
 			part:   codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeSkillInvocation, SkillSource: codersdk.ChatSkillSourcePersonal, SkillName: "Bad_Name"},
 			detail: "content[0].skill_name must be a kebab-case skill name.",
 		},
+		{
+			name:   "PluginWithoutPluginName",
+			part:   codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeSkillInvocation, SkillSource: codersdk.ChatSkillSourcePlugin, SkillName: "notes"},
+			detail: "content[0].skill_plugin_name: plugin name is required.",
+		},
+		{
+			name:   "InvalidPluginName",
+			part:   codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeSkillInvocation, SkillSource: codersdk.ChatSkillSourcePlugin, SkillPluginName: "Acme", SkillName: "notes"},
+			detail: `content[0].skill_plugin_name: plugin name "Acme" contains invalid character 'A'; allowed are a-z, 0-9, '.', and '-'.`,
+		},
+		{
+			name:   "PluginNameWithOtherSource",
+			part:   codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeSkillInvocation, SkillSource: codersdk.ChatSkillSourcePersonal, SkillPluginName: "acme", SkillName: "notes"},
+			detail: `content[0].skill_plugin_name is only allowed when skill_source is "plugin".`,
+		},
 	} {
 		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: firstUser.OrganizationID,
@@ -98,7 +113,17 @@ func TestChatSkillInvocation(t *testing.T) {
 	_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{Content: missing})
 	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 	require.Equal(t, "Skill personal/missing is not available.", sdkErr.Message)
+	require.Equal(t, "The skill is missing, disabled, or not shared with the chat owner.", sdkErr.Detail)
 	_, err = client.EditChatMessage(ctx, chat.ID, findUserMessage(t, messages).ID, codersdk.EditChatMessageRequest{Content: missing})
 	sdkErr = requireSDKError(t, err, http.StatusBadRequest)
 	require.Equal(t, "Skill personal/missing is not available.", sdkErr.Message)
+
+	// A valid plugin part reaches skill loading; this chat has no
+	// workspace, so the plugin skill is unavailable.
+	_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{Content: []codersdk.ChatInputPart{
+		{Type: codersdk.ChatInputPartTypeSkillInvocation, SkillSource: codersdk.ChatSkillSourcePlugin, SkillPluginName: "acme", SkillName: "notes"},
+	}})
+	sdkErr = requireSDKError(t, err, http.StatusBadRequest)
+	require.Equal(t, "Skill plugin/acme/notes is not available.", sdkErr.Message)
+	require.Equal(t, "The skill is not in this chat's workspace context.", sdkErr.Detail)
 }

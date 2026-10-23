@@ -1691,6 +1691,11 @@ func TestSkillInvocationPrompt(t *testing.T) {
 			part: codersdk.ChatMessageSkillInvocation(codersdk.ChatSkillSourcePersonal, "notes"),
 			want: "The user invoked the personal/notes skill for this message. Follow its instructions.",
 		},
+		{
+			name: "Plugin",
+			part: codersdk.ChatMessagePluginSkillInvocation("acme-tools", "triage"),
+			want: "The user invoked the plugin/acme-tools/triage skill for this message. Follow its instructions.",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

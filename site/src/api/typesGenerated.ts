@@ -2347,7 +2347,9 @@ export interface ChatContextResource {
 	/**
 	 * Source is the resource locator: the canonical file path for an
 	 * instruction file, the skill directory for a skill, the file path for
-	 * an MCP config, the server name for an MCP server, or an ACP harness slug.
+	 * an MCP config, the server name for an MCP server
+	 * ("<plugin_name>/<server_name>" for a plugin's server), the plugin
+	 * root directory for a plugin, or an ACP harness slug.
 	 */
 	readonly source: string;
 	readonly kind: ChatContextResourceKind;
@@ -2364,6 +2366,11 @@ export interface ChatContextResource {
 	 */
 	readonly skill_name?: string;
 	readonly skill_description?: string;
+	/**
+	 * PluginName is the owning Agent Plugin's name. Set on OK plugin rows
+	 * and on skill and mcp_server rows shipped by a plugin, in any status.
+	 */
+	readonly plugin_name?: string;
 	/**
 	 * Tools lists the tools exposed by an MCP server. Populated only for the
 	 * mcp_server kind; nil otherwise.
@@ -2389,6 +2396,7 @@ export type ChatContextResourceKind =
 	| "instruction_file"
 	| "mcp_config"
 	| "mcp_server"
+	| "plugin"
 	| "skill";
 
 export const ChatContextResourceKinds: ChatContextResourceKind[] = [
@@ -2396,6 +2404,7 @@ export const ChatContextResourceKinds: ChatContextResourceKind[] = [
 	"instruction_file",
 	"mcp_config",
 	"mcp_server",
+	"plugin",
 	"skill",
 ];
 
@@ -2872,6 +2881,11 @@ export interface ChatInputPart {
 	 * as the chat owner when the message is sent.
 	 */
 	readonly skill_source?: ChatSkillSource;
+	/**
+	 * SkillPluginName is required when SkillSource is
+	 * ChatSkillSourcePlugin and must be empty otherwise.
+	 */
+	readonly skill_plugin_name?: string;
 	readonly skill_name?: string;
 }
 
@@ -3695,6 +3709,11 @@ export interface ChatSkillInvocationPart {
 	 * part is stored.
 	 */
 	readonly skill_source: ChatSkillSource;
+	/**
+	 * SkillPluginName is the Agent Plugin that ships the invoked skill.
+	 * Set only when SkillSource is ChatSkillSourcePlugin.
+	 */
+	readonly skill_plugin_name?: string;
 }
 
 // From codersdk/chats.go
@@ -3712,11 +3731,17 @@ export interface ChatSkillPart {
 }
 
 // From codersdk/chats.go
-export type ChatSkillSource = "org" | "personal" | "project" | "workspace";
+export type ChatSkillSource =
+	| "org"
+	| "personal"
+	| "plugin"
+	| "project"
+	| "workspace";
 
 export const ChatSkillSources: ChatSkillSource[] = [
 	"org",
 	"personal",
+	"plugin",
 	"project",
 	"workspace",
 ];

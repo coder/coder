@@ -1048,6 +1048,21 @@ Memory tools, instruction loading and skill loading run as chatd, so `ChatProjec
 
 Chat creation checks `ChatProjectUsableBy` for the chat owner, and `resolveProjectMemory` check it on every turn. If the check fails, for example after the owner's grant is removed or for non-owner chats under `--disable-chat-sharing`, the chat stays in the project but its next turn gets no memory or instructions. Content already in the chat history stays.
 
+##### Skill index
+
+Each turn, chatd inserts an `<available-skills>` block listing each skill's alias and description into the system prompt, after the chat instruction and before the user prompt. Skills come from four sources, ordered as follows when a name is shared:
+
+- Personal: the chat owner's skills.
+- Organization: enabled skills in the chat's organization that the owner can read.
+- Workspace: skills pinned to the chat from the workspace agent's pushed context (`chat_context_resources`).
+- Plugin: pinned skills with a plugin name, keyed by (plugin, name), ordered by plugin name, and labeled `(plugin: <name>)`.
+
+Pinned skills are the chat's copy of each pushed `SKILL.md`; a later push only marks the chat dirty, and the copy changes when the chat is refreshed or bound to a different agent.
+
+A name held by one skill is listed bare; otherwise each holder is listed as `personal/<name>`, `org/<name>`, `workspace/<name>`, or `plugin/<plugin>/<name>`.
+
+`read_skill` returns a skill's body. Personal and organization bodies are read from the database on each call, so later edits, disables, deletes, and unshares take effect. Workspace and plugin bodies are parsed from the pinned `SKILL.md`, so they load while the workspace is unreachable; the result also carries the skill directory and a best-effort live file listing. `read_skill_file` reads a supporting file of a workspace or plugin skill over a live connection.
+
 ##### Reasoning effort
 
 Model configs may carry a `reasoning_effort` config (`{default, max}`) inside `chat_model_configs.options`. Users select a per-turn effort when sending or editing a message; the value is stored on `chat_messages.reasoning_effort` and on `chat_queued_messages.reasoning_effort` for queued messages. Queued messages carry the value through promotion, and `chats.last_reasoning_effort` tracks the most recent message that set one, mirroring `last_model_config_id`.

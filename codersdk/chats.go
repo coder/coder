@@ -362,6 +362,8 @@ const (
 	ChatContextResourceKindMCPConfig       ChatContextResourceKind = "mcp_config"
 	ChatContextResourceKindMCPServer       ChatContextResourceKind = "mcp_server"
 	ChatContextResourceKindACPHarness      ChatContextResourceKind = "acp_harness"
+	// ChatContextResourceKindPlugin is an Agent Plugin manifest (plugin.json).
+	ChatContextResourceKindPlugin ChatContextResourceKind = "plugin"
 )
 
 // ChatContextResource is one resource in the chat's pinned workspace-context
@@ -370,7 +372,9 @@ const (
 type ChatContextResource struct {
 	// Source is the resource locator: the canonical file path for an
 	// instruction file, the skill directory for a skill, the file path for
-	// an MCP config, the server name for an MCP server, or an ACP harness slug.
+	// an MCP config, the server name for an MCP server
+	// ("<plugin_name>/<server_name>" for a plugin's server), the plugin
+	// root directory for a plugin, or an ACP harness slug.
 	Source string                  `json:"source"`
 	Kind   ChatContextResourceKind `json:"kind"`
 	// SourcePath is the configuration directory for an ACP harness.
@@ -380,6 +384,9 @@ type ChatContextResource struct {
 	// SkillName and SkillDescription are populated only for skill kinds.
 	SkillName        string `json:"skill_name,omitempty"`
 	SkillDescription string `json:"skill_description,omitempty"`
+	// PluginName is the owning Agent Plugin's name. Set on OK plugin rows
+	// and on skill and mcp_server rows shipped by a plugin, in any status.
+	PluginName string `json:"plugin_name,omitempty"`
 	// Tools lists the tools exposed by an MCP server. Populated only for the
 	// mcp_server kind; nil otherwise.
 	Tools []ChatContextTool `json:"tools,omitempty"`
@@ -650,6 +657,9 @@ type ChatMessagePart struct {
 	// SkillSource is where the invoked skill of a skill-invocation
 	// part is stored.
 	SkillSource ChatSkillSource `json:"skill_source" variants:"skill-invocation"`
+	// SkillPluginName is the Agent Plugin that ships the invoked skill.
+	// Set only when SkillSource is ChatSkillSourcePlugin.
+	SkillPluginName string `json:"skill_plugin_name,omitempty" variants:"skill-invocation?"`
 	// SkillBody is the invoked skill body loaded when the message was
 	// sent, so past turns keep the instructions the model received.
 	// Internal only: stripped before API responses.
@@ -788,6 +798,14 @@ func ChatMessageSkillInvocation(source ChatSkillSource, name string) ChatMessage
 	}
 }
 
+// ChatMessagePluginSkillInvocation builds a skill-invocation chat message
+// part for a skill shipped by an Agent Plugin.
+func ChatMessagePluginSkillInvocation(pluginName, name string) ChatMessagePart {
+	part := ChatMessageSkillInvocation(ChatSkillSourcePlugin, name)
+	part.SkillPluginName = pluginName
+	return part
+}
+
 // ChatMessageSource builds a source chat message part.
 func ChatMessageSource(sourceID, sourceURL, title string) ChatMessagePart {
 	return ChatMessagePart{
@@ -817,6 +835,7 @@ const (
 	ChatSkillSourceOrganization ChatSkillSource = "org"
 	ChatSkillSourceProject      ChatSkillSource = "project"
 	ChatSkillSourceWorkspace    ChatSkillSource = "workspace"
+	ChatSkillSourcePlugin       ChatSkillSource = "plugin"
 )
 
 // ChatInputPart is a single user input part for creating a chat.
@@ -845,7 +864,10 @@ type ChatInputPart struct {
 	// ChatInputPartTypeSkillInvocation. The server loads the skill
 	// as the chat owner when the message is sent.
 	SkillSource ChatSkillSource `json:"skill_source,omitempty"`
-	SkillName   string          `json:"skill_name,omitempty"`
+	// SkillPluginName is required when SkillSource is
+	// ChatSkillSourcePlugin and must be empty otherwise.
+	SkillPluginName string `json:"skill_plugin_name,omitempty"`
+	SkillName       string `json:"skill_name,omitempty"`
 }
 
 // SubmitToolResultsRequest is the body for POST /chats/{id}/tool-results.

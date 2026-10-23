@@ -289,12 +289,13 @@ The same skill name can exist in more than one source.
 No source overrides another.
 Instead, each copy gets a qualified alias that names its source:
 
-| Source       | Qualified alias    |
-|--------------|--------------------|
-| Personal     | `personal/<name>`  |
-| Organization | `org/<name>`       |
-| Project      | `project/<name>`   |
-| Workspace    | `workspace/<name>` |
+| Source       | Qualified alias          |
+|--------------|--------------------------|
+| Personal     | `personal/<name>`        |
+| Organization | `org/<name>`             |
+| Project      | `project/<name>`         |
+| Workspace    | `workspace/<name>`       |
+| Plugin       | `plugin/<plugin>/<name>` |
 
 A bare name that matches more than one source is ambiguous, so `read_skill` rejects it.
 The agent must pass the qualified alias instead, for example `org/code-review`.
@@ -438,4 +439,14 @@ When two plugins use the same name, the agent keeps the first one it finds and r
 The agent checks declared sources first, in the order you declared them, then `~/.coder` and `~/.coder/skills`, then the working directory.
 Within a scan root, `plugins/` comes before `.agents/plugins/`.
 When a scan root is itself a plugin, the agent does not look for other plugins inside it.
-None of an invalid plugin's skills or MCP servers load.
+An invalid plugin appears in the chat's context list with its error, and none of its skills or MCP servers load.
+
+### Plugin skills
+
+A plugin's skills live in its `skills/` directory, in the same [layout](#directory-structure) as workspace skills.
+Unlike a workspace skill, a plugin skill requires a `description`, up to 1,024 characters.
+A plugin skill without a valid description is reported as invalid, and the plugin's other skills still load.
+The list of available skills in the agent's system prompt names each plugin skill's plugin.
+When a plugin skill shares its name with another skill, the agent needs its qualified alias, `plugin/<plugin>/<name>`.
+The `/` menu in the chat composer lists plugin skills in the **Workspace skills** group, always by their qualified alias.
+For the other qualified aliases, refer to [Skills with the same name](#skills-with-the-same-name).

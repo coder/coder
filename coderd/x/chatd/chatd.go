@@ -662,7 +662,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 
 	chatID := uuid.New()
 	// The new chat has no pinned workspace context yet, so it is resolved
-	// without a workspace and cannot invoke workspace skills.
+	// without a workspace and cannot invoke workspace or plugin skills.
 	contentParts, err := p.resolveSkillInvocations(ctx, database.Chat{
 		ID:             chatID,
 		OwnerID:        opts.OwnerID,

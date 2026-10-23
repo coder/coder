@@ -7900,6 +7900,19 @@ func createChatInputFromParts(
 			switch part.SkillSource {
 			case codersdk.ChatSkillSourcePersonal, codersdk.ChatSkillSourceOrganization,
 				codersdk.ChatSkillSourceProject, codersdk.ChatSkillSourceWorkspace:
+				if part.SkillPluginName != "" {
+					return nil, nil, &codersdk.Response{
+						Message: "Invalid input part.",
+						Detail:  fmt.Sprintf("%s[%d].skill_plugin_name is only allowed when skill_source is %q.", fieldName, i, codersdk.ChatSkillSourcePlugin),
+					}
+				}
+			case codersdk.ChatSkillSourcePlugin:
+				if err := workspacesdk.ValidatePluginName(part.SkillPluginName); err != nil {
+					return nil, nil, &codersdk.Response{
+						Message: "Invalid input part.",
+						Detail:  fmt.Sprintf("%s[%d].skill_plugin_name: %s.", fieldName, i, err),
+					}
+				}
 			default:
 				return nil, nil, &codersdk.Response{
 					Message: "Invalid input part.",
@@ -7919,7 +7932,9 @@ func createChatInputFromParts(
 					Detail:  fmt.Sprintf("%s can invoke at most %d skills.", fieldName, chatd.MaxSkillInvocationsPerMessage),
 				}
 			}
-			content = append(content, codersdk.ChatMessageSkillInvocation(part.SkillSource, part.SkillName))
+			skillPart := codersdk.ChatMessageSkillInvocation(part.SkillSource, part.SkillName)
+			skillPart.SkillPluginName = part.SkillPluginName
+			content = append(content, skillPart)
 		default:
 			return nil, nil, &codersdk.Response{
 				Message: "Invalid input part.",
@@ -7984,9 +7999,13 @@ func chatSkillInvocationError(err error) error {
 	if !errors.As(err, &unavailable) {
 		return nil
 	}
+	detail := "The skill is missing, disabled, or not shared with the chat owner."
+	if unavailable.Source == codersdk.ChatSkillSourceWorkspace || unavailable.Source == codersdk.ChatSkillSourcePlugin {
+		detail = "The skill is not in this chat's workspace context."
+	}
 	return httperror.WrapResponseError(http.StatusBadRequest, codersdk.Response{
 		Message: unavailable.Error(),
-		Detail:  "The skill is missing, disabled, or not shared with the chat owner.",
+		Detail:  detail,
 	}, err)
 }
 
