@@ -167,9 +167,6 @@ export type ChatStoreState = {
 	view: ChatView;
 };
 
-// The store's state without the view built from it.
-type StoredChatState = Omit<ChatStoreState, "view">;
-
 export type ChatStore = {
 	getSnapshot: () => ChatStoreState;
 	subscribe: (listener: () => void) => () => void;
@@ -223,7 +220,7 @@ export type ChatStore = {
 };
 
 const createInitialState = (): ChatStoreState => {
-	const state: StoredChatState = {
+	const state: Omit<ChatStoreState, "view"> = {
 		messagesByID: new Map(),
 		orderedMessageIDs: [],
 		streamState: null,
@@ -277,7 +274,7 @@ export const createChatStore = (): ChatStore => {
 	};
 
 	const setState = (
-		updater: (current: ChatStoreState) => StoredChatState,
+		updater: (current: ChatStoreState) => Omit<ChatStoreState, "view">,
 	): void => {
 		const next = updater(state);
 		if (next === state) {
@@ -860,7 +857,7 @@ const endPendingParts = (
 	});
 
 // The stored state with each pending entry drawn over it in request order.
-const buildView = (state: StoredChatState): ChatView => {
+const buildView = (state: Omit<ChatStoreState, "view">): ChatView => {
 	const view: ChatView = {
 		messagesByID: state.messagesByID,
 		orderedMessageIDs: state.orderedMessageIDs,
