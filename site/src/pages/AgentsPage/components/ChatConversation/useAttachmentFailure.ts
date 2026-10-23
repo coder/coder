@@ -18,7 +18,6 @@ export const useAttachmentFailure = (
 ): [failure: AttachmentFailureState, onError: () => void] => {
 	const {
 		hasExpired,
-		markExpired,
 		isPending,
 		markPending,
 		clearPending,
@@ -42,12 +41,7 @@ export const useAttachmentFailure = (
 		// No abort on unmount: the file's other images still need the result,
 		// and its download cards the expiry.
 		void probeAttachmentFailure(href)
-			.then((reason) => {
-				if (reason.kind === "expired") {
-					markExpired(fileId);
-				}
-				setProbeResult(fileId, reason);
-			})
+			.then((reason) => setProbeResult(fileId, reason))
 			.catch((error) => {
 				setProbeResult(fileId, attachmentFailureFromError(error));
 			})

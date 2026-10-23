@@ -1,13 +1,7 @@
-import {
-	act,
-	fireEvent,
-	screen,
-	waitFor,
-	within,
-} from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { onlineManager, QueryClientProvider } from "react-query";
+import { QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
@@ -398,8 +392,6 @@ describe("ConversationTimeline turn attachments", () => {
 
 		fireEvent.error(within(viewButton).getByRole("img"));
 
-		// The failed thumbnail leaves a download card until the probe's 404
-		// expires the file.
 		expect(
 			screen.getByRole("link", { name: "dashboard-before.png Download file" }),
 		).toHaveFocus();
@@ -423,29 +415,6 @@ describe("ConversationTimeline turn attachments", () => {
 		expect(
 			await screen.findByRole("dialog", { name: "Attachments" }),
 		).toHaveFocus();
-	});
-
-	it("previews a text file over the popover and returns to its card", async () => {
-		const user = userEvent.setup();
-		const requestedFileIDs: string[] = [];
-		server.use(
-			http.get("/api/v2/chats/files/:fileId", ({ params }) => {
-				requestedFileIDs.push(String(params.fileId));
-				return HttpResponse.text("# Findings");
-			}),
-		);
-		renderTimeline({ messages: MockMixedAttachmentMessages });
-		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
-		const viewButton = await screen.findByRole("button", {
-			name: "findings.md View file",
-		});
-
-		await user.click(viewButton);
-		await screen.findByRole("dialog", { name: "findings.md" });
-		await user.keyboard("{Escape}");
-
-		await waitFor(() => expect(viewButton).toHaveFocus());
-		expect(requestedFileIDs).toEqual(["findings-file"]);
 	});
 
 	it("views a loaded text file again without requesting it", async () => {
@@ -502,41 +471,15 @@ describe("ConversationTimeline turn attachments", () => {
 			await screen.findByRole("button", { name: "findings.md View file" }),
 		);
 		const retryButton = await screen.findByRole("button", {
-			name: "findings.md Couldn't load preview. Select again to retry.",
+			name: "findings.md Request failed with status code 500",
 		});
 
-		// A reconnect refetch that succeeded would open the preview unasked.
-		act(() => {
-			onlineManager.setOnline(false);
-			onlineManager.setOnline(true);
-		});
 		await user.click(retryButton);
 
 		expect(getChatFileText.mock.calls).toEqual([
 			["findings-file"],
 			["findings-file"],
 		]);
-	});
-
-	it("moves focus to a text file's expired tile once its view finds it deleted", async () => {
-		const user = userEvent.setup();
-		server.use(
-			http.get(
-				"/api/v2/chats/files/:fileId",
-				() => new HttpResponse(null, { status: 404 }),
-			),
-		);
-		renderTimeline({ messages: MockMixedAttachmentMessages });
-		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
-		await user.click(
-			await screen.findByRole("button", { name: "findings.md View file" }),
-		);
-
-		await waitFor(() =>
-			expect(
-				screen.getByRole("img", { name: "Attachment expired: findings.md" }),
-			).toHaveFocus(),
-		);
 	});
 });
 

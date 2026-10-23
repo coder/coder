@@ -4,9 +4,8 @@ type LightboxProps = {
 	/** Screen-reader title for the dialog. */
 	title: string;
 	onClose: () => void;
-	/** Radix focuses the dialog's Trigger after this runs unless it calls
-	 * event.preventDefault(), and a Lightbox has no Trigger, so focus would
-	 * otherwise fall to the page body. */
+	/** Prevent default when restoring focus; without a Radix Trigger,
+	 * the dialog's default close autofocus leaves focus on the page body. */
 	onCloseAutoFocus?: (event: Event) => void;
 	children: React.ReactNode;
 };

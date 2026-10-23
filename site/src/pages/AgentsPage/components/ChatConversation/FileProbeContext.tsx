@@ -34,28 +34,19 @@ export const FileProbeProvider: React.FC<
 	React.PropsWithChildren<{ evictedFileIds?: ReadonlySet<string> }>
 > = ({ evictedFileIds, children }) => {
 	const outerProbes = useContext(FileProbeContext);
-	const [expiredFileIds, setExpiredFileIds] = useState<Set<string>>(
-		() => new Set(),
-	);
 	// Ref, not state: must be readable synchronously by the second
 	// onError handler before React re-renders.
 	const pendingProbeFileIds = useRef<Set<string>>(new Set());
 	const [probeResults, setProbeResults] = useState<
 		Map<string, AttachmentFailure>
 	>(() => new Map());
+	const setProbeResult = (fileId: string, result: AttachmentFailure) => {
+		setProbeResults((prev) => new Map(prev).set(fileId, result));
+	};
 
 	const probes: FileProbeContextValue = outerProbes ?? {
-		hasExpired: (fileId) => expiredFileIds.has(fileId),
-		markExpired: (fileId) => {
-			setExpiredFileIds((previous) => {
-				if (previous.has(fileId)) {
-					return previous;
-				}
-				const next = new Set(previous);
-				next.add(fileId);
-				return next;
-			});
-		},
+		hasExpired: (fileId) => probeResults.get(fileId)?.kind === "expired",
+		markExpired: (fileId) => setProbeResult(fileId, { kind: "expired" }),
 		isPending: (fileId) => pendingProbeFileIds.current.has(fileId),
 		markPending: (fileId) => {
 			pendingProbeFileIds.current.add(fileId);
@@ -64,13 +55,7 @@ export const FileProbeProvider: React.FC<
 			pendingProbeFileIds.current.delete(fileId);
 		},
 		getProbeResult: (fileId) => probeResults.get(fileId),
-		setProbeResult: (fileId, result) => {
-			setProbeResults((prev) => {
-				const next = new Map(prev);
-				next.set(fileId, result);
-				return next;
-			});
-		},
+		setProbeResult,
 	};
 
 	return (

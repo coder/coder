@@ -6,7 +6,6 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { isRasterImageMediaType } from "../../utils/chatAttachments";
-import { ImageThumbnail } from "../AttachmentPreview";
 import { AgentAttachmentList } from "./AgentAttachmentList";
 import { isTextPreviewAttachmentMediaType } from "./AttachmentBlocks";
 import type { AgentAttachment, TurnAttachmentList } from "./messageHelpers";
@@ -35,29 +34,25 @@ const AttachmentThumbnail: React.FC<AttachmentThumbnailProps> = ({
 	attachment: { file, href },
 }) => {
 	const [failure, onError] = useAttachmentFailure(file.file_id, href);
-
-	if (isRasterImageMediaType(file.media_type) && failure.kind === "idle") {
-		return (
-			<StackSlot>
-				<ImageThumbnail
-					previewUrl={href}
-					name=""
-					className="size-full rounded-none border-0"
-					loading="lazy"
-					onError={onError}
-				/>
-			</StackSlot>
-		);
-	}
-
 	const Icon =
 		failure.kind !== "expired" &&
 		isTextPreviewAttachmentMediaType(file.media_type)
 			? FileTextIcon
 			: FileIcon;
+
 	return (
 		<StackSlot>
-			<Icon className="size-3 text-content-secondary" />
+			{isRasterImageMediaType(file.media_type) && failure.kind === "idle" ? (
+				<img
+					src={href}
+					alt=""
+					className="size-full object-cover"
+					loading="lazy"
+					onError={onError}
+				/>
+			) : (
+				<Icon className="size-3 text-content-secondary" />
+			)}
 		</StackSlot>
 	);
 };

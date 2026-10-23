@@ -1,14 +1,11 @@
 import { isAxiosError } from "axios";
 import { useRef, useState } from "react";
 import { useQuery } from "react-query";
+import { getErrorMessage } from "#/api/errors";
 import { chatFileText } from "#/api/queries/chats";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { isRasterImageMediaType } from "../../utils/chatAttachments";
-import {
-	decodeInlineTextAttachment,
-	getTextAttachmentErrorMessage,
-} from "../../utils/fetchTextAttachment";
-import { ImageThumbnail } from "../AttachmentPreview";
+import { decodeInlineTextAttachment } from "../../utils/fetchTextAttachment";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { useDialogFocusReturn } from "../useDialogFocusReturn";
@@ -22,27 +19,32 @@ import { useFileProbes } from "./FileProbeContext";
 import type { AgentAttachment } from "./messageHelpers";
 import { useAttachmentFailure } from "./useAttachmentFailure";
 
+type AttachmentViewer = ReturnType<ReturnType<typeof useAttachmentViewer>>;
+
 type AttachmentCardProps = {
 	attachment: AgentAttachment;
-	expired: boolean;
+	viewer: AttachmentViewer;
 };
 
-/** A card's viewer: whether it is open, and focus back on the card on close. */
+/**
+ * One viewer per list, so a slow read that finishes after another file was
+ * viewed cannot open a second preview.
+ */
 const useAttachmentViewer = () => {
-	const [isViewing, setIsViewing] = useState(false);
+	const [viewedKey, setViewedKey] = useState<string>();
 	const { rememberTrigger, restoreFocus } = useDialogFocusReturn();
-	const close = () => setIsViewing(false);
-	return {
-		isViewing,
-		open: (event: React.MouseEvent<HTMLButtonElement>) => {
-			rememberTrigger(event);
-			setIsViewing(true);
-		},
-		close,
-		dialogProps: {
-			onClose: close,
-			onCloseAutoFocus: restoreFocus,
-		},
+	return (key: string) => {
+		const close = () =>
+			setViewedKey((current) => (current === key ? undefined : current));
+		return {
+			isViewing: viewedKey === key,
+			open: (event: React.MouseEvent<HTMLButtonElement>) => {
+				rememberTrigger(event);
+				setViewedKey(key);
+			},
+			close,
+			dialogProps: { onClose: close, onCloseAutoFocus: restoreFocus },
+		};
 	};
 };
 
@@ -66,23 +68,14 @@ const useSwapFocusRef = () => {
 
 const ImageAttachmentCard: React.FC<AttachmentCardProps> = ({
 	attachment: { file, href },
-	expired,
+	viewer,
 }) => {
 	const [failure, onError] = useAttachmentFailure(file.file_id, href);
-	const viewer = useAttachmentViewer();
 	const swapFocusRef = useSwapFocusRef();
 
 	// The viewer would show the same broken image as a failed thumbnail.
-	if (expired || failure.kind !== "idle") {
-		return (
-			<FileCard
-				block={file}
-				href={href}
-				expired={expired || failure.kind === "expired"}
-				fullWidth
-				ref={swapFocusRef}
-			/>
-		);
+	if (failure.kind !== "idle") {
+		return <FileCard block={file} href={href} fullWidth ref={swapFocusRef} />;
 	}
 
 	return (
@@ -91,10 +84,10 @@ const ImageAttachmentCard: React.FC<AttachmentCardProps> = ({
 				block={file}
 				href={href}
 				tile={
-					<ImageThumbnail
-						previewUrl={href}
-						name=""
-						className="size-full rounded-none border-0"
+					<img
+						src={href}
+						alt=""
+						className="size-full object-cover"
 						loading="lazy"
 						onError={onError}
 					/>
@@ -112,28 +105,26 @@ type StoredTextAttachmentCardProps = AttachmentCardProps & { fileId: string };
 const isExpiredFileError = (error: unknown) =>
 	isAxiosError(error) && error.response?.status === 404;
 
-/** Loads the file's text on the first view; a 404 shows it expired. */
 const StoredTextAttachmentCard: React.FC<StoredTextAttachmentCardProps> = ({
 	attachment: { file, href },
-	expired,
 	fileId,
+	viewer,
 }) => {
-	const viewer = useAttachmentViewer();
 	const swapFocusRef = useSwapFocusRef();
-	const { markExpired } = useFileProbes();
+	const { hasExpired, markExpired } = useFileProbes();
 	// Only the view handler fetches, so that it can share a 404 with the
 	// timeline's other views of the file.
 	const textQuery = useQuery({ ...chatFileText(fileId), enabled: false });
-	const isExpired = expired || isExpiredFileError(textQuery.error);
 	const isLoadingText = textQuery.isFetching && textQuery.data === undefined;
 	const loadError = textQuery.isError
-		? (getTextAttachmentErrorMessage(textQuery.error) ?? undefined)
+		? getErrorMessage(
+				textQuery.error,
+				"Couldn't load preview. Select again to retry.",
+			)
 		: undefined;
 
-	if (isExpired) {
-		return (
-			<FileCard block={file} href={href} expired fullWidth ref={swapFocusRef} />
-		);
+	if (hasExpired(fileId)) {
+		return <FileCard block={file} href={href} fullWidth ref={swapFocusRef} />;
 	}
 
 	return (
@@ -181,14 +172,14 @@ const StoredTextAttachmentCard: React.FC<StoredTextAttachmentCardProps> = ({
 type InlineTextAttachmentCardProps = {
 	attachment: AgentAttachment;
 	data: string;
+	viewer: AttachmentViewer;
 };
 
 const InlineTextAttachmentCard: React.FC<InlineTextAttachmentCardProps> = ({
 	attachment: { file, href },
 	data,
+	viewer,
 }) => {
-	const viewer = useAttachmentViewer();
-
 	return (
 		<>
 			<ViewableFileCard block={file} href={href} onView={viewer.open} />
@@ -218,34 +209,30 @@ const AgentAttachmentCard: React.FC<AttachmentCardProps> = (props) => {
 				<InlineTextAttachmentCard
 					attachment={props.attachment}
 					data={file.data}
+					viewer={props.viewer}
 				/>
 			);
 		}
 	}
-	return (
-		<FileCard block={file} href={href} expired={props.expired} fullWidth />
-	);
+	return <FileCard block={file} href={href} fullWidth />;
 };
 
 type AgentAttachmentListProps = {
 	attachments: readonly AgentAttachment[];
 };
 
-/** Only stored files can be expired: inline attachments carry no file ID. */
+/** A card for each attachment, which views or downloads its file. */
 export const AgentAttachmentList: React.FC<AgentAttachmentListProps> = ({
 	attachments,
 }) => {
-	const { hasExpired } = useFileProbes();
+	const viewerFor = useAttachmentViewer();
 	return (
 		<ul className="flex flex-col gap-2">
 			{attachments.map((attachment) => (
 				<li key={attachment.key}>
 					<AgentAttachmentCard
 						attachment={attachment}
-						expired={
-							attachment.file.file_id !== undefined &&
-							hasExpired(attachment.file.file_id)
-						}
+						viewer={viewerFor(attachment.key)}
 					/>
 				</li>
 			))}

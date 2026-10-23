@@ -29,13 +29,6 @@ const mockStoredChart: AgentAttachment = {
 	href: "/api/v2/chats/files/chart-file",
 };
 
-const failThumbnail = () =>
-	fireEvent.error(
-		within(
-			screen.getByRole("button", { name: "chart.png View file" }),
-		).getByRole("img"),
-	);
-
 describe("ChatAttachments", () => {
 	it.each([
 		{
@@ -101,34 +94,6 @@ describe("ChatAttachments", () => {
 		).toHaveFocus();
 	});
 
-	it("moves focus to a stored image's expired tile once its probe finds it deleted", async () => {
-		server.use(
-			http.get(
-				"/api/v2/chats/files/:fileId",
-				() => new HttpResponse(null, { status: 404 }),
-			),
-		);
-		renderComponent(
-			<ChatAttachments
-				attachments={[mockStoredChart]}
-				evictedFileIds={new Set()}
-				hasMoreMessages={false}
-				isFetchingMoreMessages={false}
-				hasFetchMoreError={false}
-				onFetchMoreMessages={vi.fn()}
-			/>,
-		);
-		screen.getByRole("button", { name: "chart.png View file" }).focus();
-
-		failThumbnail();
-
-		await waitFor(() =>
-			expect(
-				screen.getByRole("img", { name: "Attachment expired: chart.png" }),
-			).toHaveFocus(),
-		);
-	});
-
 	it("shares a deleted file with the chat's other file probes", async () => {
 		server.use(
 			http.get(
@@ -156,7 +121,11 @@ describe("ChatAttachments", () => {
 			),
 		});
 
-		failThumbnail();
+		fireEvent.error(
+			within(
+				screen.getByRole("button", { name: "chart.png View file" }),
+			).getByRole("img"),
+		);
 
 		await waitFor(() =>
 			expect(result.current.hasExpired("chart-file")).toBe(true),

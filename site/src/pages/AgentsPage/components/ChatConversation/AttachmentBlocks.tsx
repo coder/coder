@@ -5,7 +5,7 @@ import {
 	FileIcon,
 	FileTextIcon,
 } from "lucide-react";
-import { useId, useState } from "react";
+import { useState } from "react";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -176,7 +176,7 @@ const AttachmentDownloadLink: React.FC<
 	React.PropsWithChildren<
 		AttachmentDownload & {
 			className: string;
-			labelledBy?: string;
+			label?: string;
 			ref?: React.Ref<HTMLAnchorElement>;
 		}
 	>
@@ -186,7 +186,7 @@ const AttachmentDownloadLink: React.FC<
 	downloadName,
 	mediaType,
 	className,
-	labelledBy,
+	label,
 	ref,
 	children,
 }) => (
@@ -202,42 +202,26 @@ const AttachmentDownloadLink: React.FC<
 				mediaType,
 			});
 		}}
-		aria-label={labelledBy ? undefined : `Download ${displayName}`}
-		aria-labelledby={labelledBy}
+		aria-label={label ?? `Download ${displayName}`}
 		className={className}
 	>
 		{children}
 	</a>
 );
 
-const DownloadOverlay: React.FC<AttachmentDownload> = (download) => (
-	<AttachmentDownloadLink
-		{...download}
-		className="invisible absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-xs backdrop-blur-xs transition-opacity hover:text-content-primary group-hover/attachment:visible group-hover/attachment:opacity-100 group-focus-within/attachment:visible group-focus-within/attachment:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
-	>
-		<DownloadIcon aria-hidden="true" className="size-3.5" />
-	</AttachmentDownloadLink>
+const AttachmentPreviewFrame: React.FC<
+	React.PropsWithChildren<AttachmentDownload>
+> = ({ children, ...download }) => (
+	<div className="group/attachment relative inline-flex flex-col items-start">
+		{children}
+		<AttachmentDownloadLink
+			{...download}
+			className="invisible absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-xs backdrop-blur-xs transition-opacity hover:text-content-primary group-hover/attachment:visible group-hover/attachment:opacity-100 group-focus-within/attachment:visible group-focus-within/attachment:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+		>
+			<DownloadIcon aria-hidden="true" className="size-3.5" />
+		</AttachmentDownloadLink>
+	</div>
 );
-
-const AttachmentPreviewFrame: React.FC<{
-	href: string;
-	displayName: string;
-	downloadName: string;
-	mediaType: string;
-	children: React.ReactNode;
-}> = ({ href, displayName, downloadName, mediaType, children }) => {
-	return (
-		<div className="group/attachment relative inline-flex flex-col items-start">
-			{children}
-			<DownloadOverlay
-				href={href}
-				displayName={displayName}
-				downloadName={downloadName}
-				mediaType={mediaType}
-			/>
-		</div>
-	);
-};
 
 type AttachmentFailureLabels = {
 	expired: string;
@@ -516,38 +500,32 @@ const FileCardDetails: React.FC<{
 	tile: React.ReactNode;
 	name: string;
 	status: string;
-	nameId: string;
-	statusId: string;
-}> = ({ tile, name, status, nameId, statusId }) => (
+}> = ({ tile, name, status }) => (
 	<>
 		<span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface-secondary">
 			{tile}
 		</span>
 		<span className="min-w-0 flex-1">
-			<span id={nameId} className="block truncate text-sm text-content-primary">
+			<span className="block truncate text-sm text-content-primary">
 				{name}
 			</span>
-			<span id={statusId} className="block text-xs text-content-secondary">
-				{status}
-			</span>
+			<span className="block text-xs text-content-secondary">{status}</span>
 		</span>
 	</>
 );
 
-/** Callers decide expiry; the card never probes the file. */
+/** Shows the file probes' expiry, but never probes the file itself. */
 export const FileCard: React.FC<{
 	block: FileAttachmentBlock;
 	href: string;
-	expired: boolean;
 	fullWidth?: boolean;
 	/** Gets the download link, or the expired tile in its place. */
 	ref?: React.RefCallback<HTMLElement>;
-}> = ({ block, href, expired, fullWidth = false, ref }) => {
-	const nameId = useId();
-	const statusId = useId();
+}> = ({ block, href, fullWidth = false, ref }) => {
+	const { hasExpired } = useFileProbes();
 	const download = getAttachmentDownload(block, href);
 
-	if (expired) {
+	if (block.file_id !== undefined && hasExpired(block.file_id)) {
 		return (
 			<AttachmentFallbackTile
 				ref={ref}
@@ -563,7 +541,7 @@ export const FileCard: React.FC<{
 		<AttachmentDownloadLink
 			{...download}
 			ref={ref}
-			labelledBy={`${nameId} ${statusId}`}
+			label={`${download.displayName} Download file`}
 			className={cn(
 				"inline-flex h-16 items-center gap-3 rounded-md border border-solid border-border bg-surface-tertiary px-3 py-2 no-underline transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 				fullWidth ? "w-full" : "max-w-sm",
@@ -573,8 +551,6 @@ export const FileCard: React.FC<{
 				tile={<FileTypeTile block={block} />}
 				name={download.displayName}
 				status="Download file"
-				nameId={nameId}
-				statusId={statusId}
 			/>
 			<DownloadIcon
 				aria-hidden="true"
@@ -598,8 +574,6 @@ export const ViewableFileCard: React.FC<{
 	status?: string;
 	ref?: React.RefCallback<HTMLElement>;
 }> = ({ block, href, onView, tile, status = "View file", ref }) => {
-	const nameId = useId();
-	const statusId = useId();
 	const download = getAttachmentDownload(block, href);
 
 	return (
@@ -609,7 +583,7 @@ export const ViewableFileCard: React.FC<{
 		>
 			<button
 				type="button"
-				aria-labelledby={`${nameId} ${statusId}`}
+				aria-label={`${download.displayName} ${status}`}
 				className="flex h-full min-w-0 flex-1 items-center gap-3 border-0 bg-transparent py-2 pl-3 text-left focus-visible:outline-hidden"
 				onClick={onView}
 			>
@@ -617,8 +591,6 @@ export const ViewableFileCard: React.FC<{
 					tile={tile ?? <FileTypeTile block={block} />}
 					name={download.displayName}
 					status={status}
-					nameId={nameId}
-					statusId={statusId}
 				/>
 			</button>
 			<AttachmentDownloadLink
@@ -638,7 +610,6 @@ export const AttachmentBlock: React.FC<{
 	framePreview?: boolean;
 }> = ({ block, onImageClick, onTextFileClick, framePreview = false }) => {
 	const [revealedInlineText, setRevealedInlineText] = useState(false);
-	const { hasExpired } = useFileProbes();
 	const href = getAttachmentHref(block);
 	const displayName = getAttachmentDisplayName(block);
 	const downloadName = getAttachmentDownloadName(block);
@@ -676,12 +647,7 @@ export const AttachmentBlock: React.FC<{
 			/>
 		);
 		return framePreview && href ? (
-			<AttachmentPreviewFrame
-				href={href}
-				displayName={displayName}
-				downloadName={downloadName}
-				mediaType={block.media_type}
-			>
+			<AttachmentPreviewFrame {...getAttachmentDownload(block, href)}>
 				{button}
 			</AttachmentPreviewFrame>
 		) : (
@@ -702,12 +668,7 @@ export const AttachmentBlock: React.FC<{
 			/>
 		);
 		return framePreview ? (
-			<AttachmentPreviewFrame
-				href={href}
-				displayName={displayName}
-				downloadName={downloadName}
-				mediaType={block.media_type}
-			>
+			<AttachmentPreviewFrame {...getAttachmentDownload(block, href)}>
 				{image}
 			</AttachmentPreviewFrame>
 		) : (
@@ -719,11 +680,5 @@ export const AttachmentBlock: React.FC<{
 		return null;
 	}
 
-	return (
-		<FileCard
-			block={block}
-			href={href}
-			expired={block.file_id !== undefined && hasExpired(block.file_id)}
-		/>
-	);
+	return <FileCard block={block} href={href} />;
 };
