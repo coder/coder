@@ -79,11 +79,26 @@ describe("UserMessageContent", () => {
 		expect(openFile).not.toHaveBeenCalled();
 	});
 
-	it("copies chips as their backticked paths", () => {
-		const text =
-			"compare `/home/coder/repo/main.go` with `/home/coder/repo/src/`";
+	it("shows chips for references that end a sentence", () => {
+		renderMessage(
+			"look in `/home/coder/repo/src/`. Then open `/home/coder/repo/main.go`.",
+		);
+		expect(
+			screen.getByRole("button", {
+				name: "Show /home/coder/repo/src in Files",
+			}),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Open /home/coder/repo/main.go" }),
+		).toBeInTheDocument();
+	});
+
+	it.each([
+		"compare `/home/coder/repo/main.go` with `/home/coder/repo/src/`",
+		"look in `/home/coder/repo/src/`. Then open `/home/coder/repo/main.go`.",
+	])("copies chips as their backticked paths: %s", (text) => {
 		renderMessage(text);
-		const message = screen.getByText(/compare/);
+		const message = screen.getByText(/compare|look in/);
 		window.getSelection()?.selectAllChildren(message);
 		const setData = vi.fn();
 		fireEvent.copy(message, { clipboardData: { setData } });
