@@ -86,7 +86,7 @@ export const HeaderFocused: Story = {
 export const AttachmentFocused: Story = {
 	play: async ({ canvasElement }) => {
 		within(canvasElement)
-			.getByRole("link", { name: "Download PLAN.md" })
+			.getByRole("button", { name: "PLAN.md View file" })
 			.focus();
 	},
 };
@@ -125,4 +125,13 @@ export const LoadEarlierMessagesRetrying: Story = {
 
 export const ExpiredAttachment: Story = {
 	args: { evictedFileIds: new Set(["report-file"]) },
+};
+
+export const ExpiredAttachmentFocused: Story = {
+	args: ExpiredAttachment.args,
+	play: async ({ canvasElement }) => {
+		within(canvasElement)
+			.getByRole("img", { name: "Attachment expired: latency-report.csv" })
+			.focus();
+	},
 };

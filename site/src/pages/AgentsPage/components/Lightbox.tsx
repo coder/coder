@@ -4,10 +4,9 @@ type LightboxProps = {
 	/** Screen-reader title for the dialog. */
 	title: string;
 	onClose: () => void;
-	/** Overrides where focus lands after closing. Radix restores it to
-	 * the previously focused element by default, which is unreliable
-	 * when the trigger lives inside a re-rendering message tree. */
-	onCloseAutoFocus?: () => void;
+	/** Prevent default when restoring focus; without a Radix Trigger,
+	 * the dialog's default close autofocus leaves focus on the page body. */
+	onCloseAutoFocus?: (event: Event) => void;
 	children: React.ReactNode;
 };
 
@@ -28,13 +27,7 @@ export const Lightbox: React.FC<LightboxProps> = ({
 			<DialogContent
 				className="max-h-[85vh] max-w-[90vw] w-fit border-0 bg-transparent p-0 shadow-none"
 				aria-describedby={undefined}
-				onCloseAutoFocus={
-					onCloseAutoFocus &&
-					((event) => {
-						event.preventDefault();
-						onCloseAutoFocus();
-					})
-				}
+				onCloseAutoFocus={onCloseAutoFocus}
 			>
 				<DialogTitle className="sr-only">{title}</DialogTitle>
 				{children}

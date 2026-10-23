@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
-import { createChatStore, selectIsAwaitingFirstStreamChunk } from "./chatStore";
+import type { IdleRunRequest } from "./chatStore";
+import {
+	createChatStore,
+	selectIsAwaitingFirstStreamChunk,
+	selectIsCompactionStarting,
+	selectIsNextTurnStarting,
+} from "./chatStore";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -892,6 +898,16 @@ describe("resetTransientState", () => {
 		expect(state.queuedMessages).toHaveLength(1);
 	});
 
+	it("clears a recorded idle run", () => {
+		const store = createChatStore();
+		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+		store.startRequestedRun("promotion");
+
+		store.resetTransientState();
+
+		expect(store.getSnapshot().idleRunRequest).toBeNull();
+	});
+
 	it("is a no-op when all transient state is already clean", () => {
 		const store = createChatStore();
 
@@ -1032,6 +1048,97 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 		store.clearStreamState();
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
+	});
+});
+
+describe("selectIsCompactionStarting", () => {
+	const requestCompaction = () => {
+		const store = createChatStore();
+		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+		store.upsertDurableMessage(makeMessage(2, "assistant", "hi there"));
+		store.setChatStatus("waiting");
+		store.startRequestedRun("compaction");
+		return store;
+	};
+
+	it("lasts from the request until the first part streams", () => {
+		const store = requestCompaction();
+		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(true);
+
+		store.applyMessagePart({
+			type: "tool-call",
+			tool_call_id: "compact",
+			tool_name: "chat_summarized",
+		});
+
+		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
+	});
+
+	it("ends once a newer message is saved", () => {
+		const store = requestCompaction();
+
+		store.upsertDurableMessage(makeMessage(3, "assistant", "summary"));
+
+		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
+	});
+
+	it("ends when its run stops, so a later run is not a compaction", () => {
+		const store = requestCompaction();
+
+		store.setChatStatus("error");
+		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
+
+		store.setChatStatus("running");
+		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
+	});
+
+	it("ends when the server reports that its run stopped", () => {
+		const store = requestCompaction();
+
+		store.applyServerChatStatus("waiting");
+		store.applyServerChatStatus("running");
+
+		expect(selectIsCompactionStarting(store.getSnapshot())).toBe(false);
+	});
+});
+
+describe("selectIsNextTurnStarting", () => {
+	const startRun = (
+		messages: readonly TypesGen.ChatMessage[],
+		kind: IdleRunRequest["kind"],
+	) => {
+		const store = createChatStore();
+		store.upsertDurableMessages(messages);
+		store.setChatStatus("error");
+		store.startRequestedRun(kind);
+		return store;
+	};
+	const mockAnsweredTurn = [
+		makeMessage(1, "user", "hello"),
+		makeMessage(2, "assistant", "hi there"),
+	];
+
+	it("lasts after a promotion until a user message starts the next turn", () => {
+		const store = startRun(mockAnsweredTurn, "promotion");
+		expect(selectIsNextTurnStarting(store.getSnapshot())).toBe(true);
+
+		store.applyMessagePart({ type: "text", text: "Sure" });
+		expect(selectIsNextTurnStarting(store.getSnapshot())).toBe(true);
+
+		store.upsertDurableMessage(makeMessage(3, "user", "next"));
+		expect(selectIsNextTurnStarting(store.getSnapshot())).toBe(false);
+	});
+
+	it("holds when the newest message was a prompt with no reply", () => {
+		const store = startRun([makeMessage(1, "user", "hello")], "promotion");
+
+		expect(selectIsNextTurnStarting(store.getSnapshot())).toBe(true);
+	});
+
+	it("is false after a compaction, which can resume the newest turn", () => {
+		const store = startRun(mockAnsweredTurn, "compaction");
+
+		expect(selectIsNextTurnStarting(store.getSnapshot())).toBe(false);
 	});
 });
 

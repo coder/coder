@@ -1,22 +1,45 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { fireEvent, fn, userEvent, waitFor, within } from "storybook/test";
+import {
+	fireEvent,
+	fn,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { defaultUrlTransform } from "streamdown";
+import { API } from "#/api/api";
 import { chatFileTextKey } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { Button } from "#/components/Button/Button";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
+import {
+	MockUserPreferenceSettings,
+	mockApiError,
+} from "#/testHelpers/entities";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
 	buildLiveStatus,
+	buildStreamRenderState,
 	MockAttachmentWorkingMessages,
+	MockBrokenImageAttachmentMessages,
+	MockClearedAttachmentMessages,
 	MockCollapsedStepsPreferences,
+	MockFindingsEvictedChatFiles,
+	MockFindingsText,
+	MockInlineTextAttachmentMessages,
 	MockLeadInSearchMessages,
 	MockLongTurnPageLoads,
+	MockMixedAttachmentMessages,
+	MockPendingToolMessage,
 	MockPlanAttachmentMessages,
 	MockQuestionCallMessage,
+	MockSearchAnswerAttachmentMessages,
+	MockUnansweredAttachmentMessages,
 	MockUncitedSearchAnswerMessages,
 	MockWebSearchAnswerMessages,
 	MockWorkingMessages,
@@ -46,6 +69,8 @@ const meta: Meta<typeof ConversationTimeline> = {
 		showDesktopPreviews: false,
 		hasActiveStream: false,
 		isAwaitingFirstStreamChunk: false,
+		isCompactionStarting: false,
+		isNextTurnStarting: false,
 		chatStatus: null,
 		hasMoreMessages: false,
 		parsedMessages: parseMessagesWithMergedTools(MockWorkingMessages),
@@ -243,6 +268,277 @@ export const AttachmentFoldsIntoBlockExpanded: Story = {
 		await userEvent.click(
 			within(canvasElement).getByRole("button", { name: /Worked for/ }),
 		);
+	},
+};
+
+const openAttachmentsPill: Story["play"] = async ({ canvasElement }) => {
+	await userEvent.click(
+		within(canvasElement).getByRole("button", { name: "Attachments (4)" }),
+	);
+};
+
+export const TurnAttachmentsPill: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+	},
+};
+
+export const TurnAttachmentsPillOpen: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+	},
+	play: openAttachmentsPill,
+};
+
+export const TurnAttachmentsPillOpenMobile: Story = {
+	globals: { viewport: { value: "mobile1", isRotated: false } },
+	// Pixel ignores the viewport global and needs its own phone width.
+	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+	},
+	play: openAttachmentsPill,
+};
+
+export const TurnAttachmentsPillExpired: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+		chatFiles: MockFindingsEvictedChatFiles,
+	},
+	play: openAttachmentsPill,
+};
+
+const viewFindingsFile: Story["play"] = async (context) => {
+	await openAttachmentsPill(context);
+	await userEvent.click(
+		await screen.findByRole("button", { name: "findings.md View file" }),
+	);
+};
+
+// The preview opens over the popover, which stays open beneath it.
+export const TurnAttachmentsPillViewText: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+			{ key: chatFileTextKey("findings-file"), data: MockFindingsText },
+		],
+	},
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+	},
+	play: viewFindingsFile,
+};
+
+export const TurnAttachmentsPillViewTextLoading: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatFileText").mockImplementation(
+			() => new Promise(() => {}),
+		);
+	},
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+	},
+	play: viewFindingsFile,
+};
+
+export const TurnAttachmentsPillViewTextFailed: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatFileText").mockRejectedValue(
+			new Error("Failed to load findings.md"),
+		);
+	},
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+	},
+	play: viewFindingsFile,
+};
+
+const mockDeletedFindingsText = () => {
+	spyOn(API.experimental, "getChatFileText").mockRejectedValue(
+		mockApiError({ message: "File not found.", status: 404 }),
+	);
+};
+
+export const TurnAttachmentsPillViewTextDeleted: Story = {
+	beforeEach: mockDeletedFindingsText,
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+	},
+	play: viewFindingsFile,
+};
+
+// A view that finds the file deleted also expires its tile in the steps.
+export const TurnAttachmentsPillViewTextDeletedBlockExpanded: Story = {
+	beforeEach: mockDeletedFindingsText,
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+	},
+	play: async (context) => {
+		await viewFindingsFile(context);
+		await screen.findByRole("img", { name: "Attachment expired: findings.md" });
+		// This press lands outside the popover, which closes it.
+		await userEvent.click(
+			within(context.canvasElement).getByRole("button", {
+				name: "Worked for 7s (4 steps)",
+			}),
+		);
+	},
+};
+
+export const TurnAttachmentsPillViewEmptyText: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+			{ key: chatFileTextKey("findings-file"), data: "" },
+		],
+	},
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+	},
+	play: viewFindingsFile,
+};
+
+export const TurnAttachmentsPillViewInlineText: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockInlineTextAttachmentMessages,
+		),
+	},
+	play: viewFindingsFile,
+};
+
+export const TurnAttachmentsPillBrokenImage: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockBrokenImageAttachmentMessages,
+		),
+	},
+};
+
+// The running turn gets its pill once it settles; the answered turn before it
+// keeps its own.
+export const TurnAttachmentsPillRunningTurn: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockUnansweredAttachmentMessages,
+		),
+		chatStatus: "running",
+	},
+};
+
+// A manual compaction runs the chat after the answer, which keeps its pill.
+export const TurnAttachmentsPillCompacting: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+		chatStatus: "running",
+		...buildStreamRenderState([
+			{
+				type: "tool-call",
+				tool_call_id: "compact",
+				tool_name: "chat_summarized",
+			},
+		]),
+	},
+};
+
+// A stop hook can nudge the agent past its answer, so the turn shows no pill
+// until the chat stops.
+export const TurnAttachmentsPillContinuedTurn: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+		chatStatus: "running",
+		...buildStreamRenderState([{ type: "text", text: "One more check." }]),
+	},
+};
+
+const mockPendingToolMessage = { ...MockPendingToolMessage, id: 23 };
+
+// The pending client tool's result resumes the turn, so it has no pill yet.
+export const TurnAttachmentsPillRequiresAction: Story = {
+	args: {
+		chatStatus: "requires_action",
+		parsedMessages: parseMessagesWithMergedTools(
+			[...MockUnansweredAttachmentMessages, mockPendingToolMessage],
+			{ pendingToolCallIDs: new Set(["editor"]) },
+		),
+	},
+};
+
+// The context-cleared row after the answer leaves the pill on the answer.
+export const TurnAttachmentsPillContextCleared: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockClearedAttachmentMessages),
+	},
+};
+
+// A turn that ends inside its working block shows the pill under the block.
+export const TurnAttachmentsPillWithoutAnswer: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockUnansweredAttachmentMessages,
+		),
+	},
+};
+
+// With steps shown, a turn that ends on an attachment hosts the pill there.
+export const TurnAttachmentsPillStepsShown: Story = {
+	parameters: {
+		queries: [{ key: preferenceSettingsKey, data: MockUserPreferenceSettings }],
+	},
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockUnansweredAttachmentMessages,
+		),
+	},
+};
+
+// Expanded, the block shows the answer's steps; the pill stays under the
+// answer text below it.
+export const TurnAttachmentsPillBlockExpanded: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockSearchAnswerAttachmentMessages,
+		),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Worked for 15s (4 steps)",
+			}),
+		);
+	},
+};
+
+// The status can settle before the streamed answer persists; until then the
+// newest turn shows no pill. With steps shown, the pill would otherwise sit
+// under the last attachment.
+export const TurnAttachmentsPillLiveAnswer: Story = {
+	parameters: {
+		queries: [{ key: preferenceSettingsKey, data: MockUserPreferenceSettings }],
+	},
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockUnansweredAttachmentMessages,
+		),
+		chatStatus: "waiting",
+		...buildStreamRenderState([
+			{ type: "text", text: "The dashboard matches the spec." },
+		]),
+	},
+};
+
+// The newest turn's prompt is on an unloaded page, so its answer has no pill
+// until that page loads.
+export const TurnAttachmentsPillPartialTurn: Story = {
+	args: {
+		hasMoreMessages: true,
+		parsedMessages: parseMessagesWithMergedTools(
+			MockMixedAttachmentMessages.slice(
+				MockMixedAttachmentMessages.findLastIndex(
+					(message) => message.role === "user",
+				) + 1,
+			),
+		),
 	},
 };
 

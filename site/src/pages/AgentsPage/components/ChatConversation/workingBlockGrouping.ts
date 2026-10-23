@@ -1,7 +1,13 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { appendTextBlock } from "./blockUtils";
-import { getVisibleContent, isProviderToolResult } from "./messageHelpers";
-import type { TimelineRow } from "./timelineRows";
+import {
+	type AgentAttachment,
+	getMessageAgentAttachments,
+	getVisibleContent,
+	isProviderToolResult,
+	type TurnAttachmentList,
+} from "./messageHelpers";
+import type { TimelineMessageRow, TimelineRow } from "./timelineRows";
 import type {
 	MergedTool,
 	ParsedMessageEntry,
@@ -49,12 +55,16 @@ export type GroupWorkingBlocksOptions = {
 	streamState?: StreamState | null;
 };
 
+const CONTEXT_BOUNDARY_TOOLS: ReadonlySet<string> = new Set([
+	"chat_summarized",
+	"chat_cleared",
+]);
+
 /** Tools that need the user's attention or record a transcript boundary. */
 const UNCOLLAPSIBLE_TOOLS: ReadonlySet<string> = new Set([
 	"ask_user_question",
 	"propose_plan",
-	"chat_summarized",
-	"chat_cleared",
+	...CONTEXT_BOUNDARY_TOOLS,
 ]);
 
 /**
@@ -144,6 +154,116 @@ export const isAgentAttachmentOnlyRow = (row: TimelineRow): boolean => {
 		visibleBlocks.every((block) => block.type === "file")
 	);
 };
+
+const isContextBoundaryRow = (row: TimelineMessageRow): boolean =>
+	row.entry.parsed.tools.some((tool) => CONTEXT_BOUNDARY_TOOLS.has(tool.name));
+
+export type TurnAttachmentsOptions = {
+	/** Collapsed steps: attachment-only rows never host the pill. */
+	hidesAttachmentRows: boolean;
+	/** The chat may still add to its newest turn. */
+	isChatActive: boolean;
+	/** The next turn's prompt is yet to arrive, so the newest turn is done. */
+	isNextTurnStarting: boolean;
+	/** A starting or streaming compaction adds no answer or file to a turn. */
+	isCompacting: boolean;
+	/**
+	 * Older messages exist that the rows do not include, so a turn without its
+	 * prompt gets no pill.
+	 */
+	hasMoreMessages: boolean;
+};
+
+type TurnDraft = {
+	hasPrompt: boolean;
+	attachments: AgentAttachment[];
+	lastShownRow?: TimelineMessageRow;
+	boundaryFollowsLastShownRow: boolean;
+};
+
+const startTurn = (hasPrompt: boolean): TurnDraft => ({
+	hasPrompt,
+	attachments: [],
+	boundaryFollowsLastShownRow: false,
+});
+
+/**
+ * Agent attachments keyed by the row hosting their turn's pill: the last shown
+ * assistant row other than a clear or summary. Earlier turns keep their pills,
+ * and the newest gets one once it can add nothing.
+ */
+export const getTurnAttachmentsByRow = (
+	rows: readonly TimelineRow[],
+	{
+		hidesAttachmentRows,
+		isChatActive,
+		isNextTurnStarting,
+		isCompacting,
+		hasMoreMessages,
+	}: TurnAttachmentsOptions,
+): ReadonlyMap<string, TurnAttachmentList> => {
+	let current = startTurn(false);
+	const turns = [current];
+	for (const row of rows) {
+		if (row.type !== "message") {
+			continue;
+		}
+		const { message } = row.entry;
+		if (message.role === "user") {
+			current = startTurn(true);
+			turns.push(current);
+			continue;
+		}
+		if (message.role !== "assistant") {
+			continue;
+		}
+		current.attachments.push(...getMessageAgentAttachments(message));
+		if (isContextBoundaryRow(row)) {
+			current.boundaryFollowsLastShownRow = true;
+		} else if (!(hidesAttachmentRows && isAgentAttachmentOnlyRow(row))) {
+			current.lastShownRow = row;
+			current.boundaryFollowsLastShownRow = false;
+		}
+	}
+
+	const byRow = new Map<string, TurnAttachmentList>();
+	for (const [index, turn] of turns.entries()) {
+		const { lastShownRow } = turn;
+		const first = turn.attachments.at(0);
+		if (
+			lastShownRow === undefined ||
+			first === undefined ||
+			(!turn.hasPrompt && hasMoreMessages)
+		) {
+			continue;
+		}
+
+		const { blocks, tools } = lastShownRow.entry.parsed;
+		// chatd resumes an unanswered turn after a compaction, and summary rows
+		// persist before the stop, so both count only for an answered turn.
+		const showsPill =
+			index < turns.length - 1 ||
+			!isChatActive ||
+			isNextTurnStarting ||
+			((isCompacting || turn.boundaryFollowsLastShownRow) &&
+				splitRowBlocks(blocks, tools).answer.length > 0);
+		if (showsPill) {
+			byRow.set(lastShownRow.key, [first, ...turn.attachments.slice(1)]);
+		}
+	}
+	return byRow;
+};
+
+/** The pill a block's steps host; an answer row after the block hosts its own. */
+export const getBlockTurnAttachments = (
+	block: WorkingBlock,
+	rows: readonly TimelineRow[],
+	turnAttachmentsByRow: ReadonlyMap<string, TurnAttachmentList>,
+): TurnAttachmentList | undefined =>
+	block.rowIndices
+		.slice(0, block.endsWithAnswer ? -1 : undefined)
+		.map((index) => turnAttachmentsByRow.get(rows[index].key))
+		.find((attachments) => attachments !== undefined);
 
 type RowContent = ReturnType<typeof getVisibleContent>;
 

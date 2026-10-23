@@ -446,6 +446,8 @@ const defaultArgs: Omit<
 	showDesktopPreviews: false,
 	hasActiveStream: false,
 	isAwaitingFirstStreamChunk: false,
+	isCompactionStarting: false,
+	isNextTurnStarting: false,
 	chatStatus: null,
 	hasMoreMessages: false,
 };
@@ -1111,7 +1113,7 @@ export const UserMessageWithDownloadableFile: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const downloadLink = canvas.getByRole("link", {
-			name: "Download deployment-report.pdf",
+			name: "deployment-report.pdf Download file",
 		});
 		expect(downloadLink).toHaveAttribute(
 			"href",
@@ -1371,7 +1373,7 @@ export const AssistantMessageWithUnnamedDownloadableFile: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const downloadLink = canvas.getByRole("link", {
-			name: "Download Attached file",
+			name: "Attached file Download file",
 		});
 		expect(downloadLink).toBeInTheDocument();
 		expect(downloadLink).toHaveAttribute("download", "attachment.pdf");
@@ -1405,7 +1407,7 @@ export const AssistantMessageWithMismatchedExtensionFile: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const downloadLink = canvas.getByRole("link", {
-			name: "Download release-notes.txt",
+			name: "release-notes.txt Download file",
 		});
 		expect(downloadLink).toHaveAttribute("download", "release-notes.txt");
 	},
@@ -1820,63 +1822,6 @@ export const AskUserQuestionSubmittedAnswer: Story = {
 	},
 };
 
-/** Copy button calls clipboard API with the raw markdown text. */
-export const CopyButtonWritesToClipboard: Story = {
-	args: {
-		...defaultArgs,
-		parsedMessages: buildMessages([
-			{
-				...baseMessage,
-				id: 1,
-				role: "user",
-				content: [{ type: "text", text: "What is the answer?" }],
-			},
-			{
-				...baseMessage,
-				id: 2,
-				role: "assistant",
-				content: [{ type: "text", text: "Here is the **answer**." }],
-			},
-		]),
-	},
-	play: async ({ canvasElement }) => {
-		const originalClipboard = navigator.clipboard;
-		const writeText = fn().mockResolvedValue(undefined);
-		Object.defineProperty(navigator, "clipboard", {
-			value: { writeText },
-			writable: true,
-			configurable: true,
-		});
-
-		try {
-			const canvas = within(canvasElement);
-			// Force the hover-reveal toolbar visible.
-			for (const el of canvasElement.querySelectorAll("[class]")) {
-				if (
-					el instanceof HTMLElement &&
-					el.className.includes("group-hover/msg:opacity-100")
-				) {
-					el.style.opacity = "1";
-				}
-			}
-			// Find the assistant's copy button (last message-actions).
-			const actions = canvas.getAllByTestId("message-actions");
-			const assistantActions = actions[actions.length - 1];
-			const copyBtn = within(assistantActions).getByRole("button", {
-				name: "Copy message",
-			});
-			await userEvent.click(copyBtn);
-			expect(writeText).toHaveBeenCalledWith("Here is the **answer**.");
-		} finally {
-			Object.defineProperty(navigator, "clipboard", {
-				value: originalClipboard,
-				writable: true,
-				configurable: true,
-			});
-		}
-	},
-};
-
 /**
  * Regression: sources-only assistant messages must have consistent
  * bottom spacing before the next user bubble. A spacer div fills the
@@ -1968,18 +1913,6 @@ export const AssistantActionBarAfterHiddenMessages: Story = {
 				content: [{ type: "text", text: "Thanks!" }],
 			},
 		]),
-	},
-	play: async ({ canvasElement }) => {
-		// Force the hover-reveal action bars visible using stable test IDs.
-		// The invisible provider-executed tool-result message (id=3)
-		// must not prevent the assistant (id=2) from showing its bar.
-		for (const el of canvasElement.querySelectorAll(
-			'[data-testid="message-actions"]',
-		)) {
-			if (el instanceof HTMLElement) {
-				el.style.opacity = "1";
-			}
-		}
 	},
 };
 

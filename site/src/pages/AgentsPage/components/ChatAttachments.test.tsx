@@ -1,6 +1,33 @@
-import { render, screen } from "@testing-library/react";
+import {
+	fireEvent,
+	render,
+	renderHook,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
+import { renderComponent } from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import { ChatAttachments } from "./ChatAttachments";
+import {
+	FileProbeProvider,
+	useFileProbes,
+} from "./ChatConversation/FileProbeContext";
+import type { AgentAttachment } from "./ChatConversation/messageHelpers";
+
+const mockStoredChart: AgentAttachment = {
+	key: "chart",
+	file: {
+		type: "file",
+		media_type: "image/png",
+		name: "chart.png",
+		file_id: "chart-file",
+	},
+	href: "/api/v2/chats/files/chart-file",
+};
 
 describe("ChatAttachments", () => {
 	it.each([
@@ -33,5 +60,75 @@ describe("ChatAttachments", () => {
 		);
 
 		expect(onFetchMoreMessages).toHaveBeenCalledTimes(calls);
+	});
+
+	it("puts an expired file in the tab order under its name", async () => {
+		const user = userEvent.setup();
+		renderComponent(
+			<ChatAttachments
+				attachments={[
+					{
+						key: "old-report",
+						file: {
+							type: "file",
+							media_type: "application/pdf",
+							name: "old-report.pdf",
+							file_id: "expired-file",
+						},
+						href: "/api/v2/chats/files/expired-file",
+					},
+				]}
+				evictedFileIds={new Set(["expired-file"])}
+				hasMoreMessages={false}
+				isFetchingMoreMessages={false}
+				hasFetchMoreError={false}
+				onFetchMoreMessages={vi.fn()}
+			/>,
+		);
+
+		await user.tab();
+		await user.tab();
+
+		expect(
+			screen.getByRole("img", { name: "Attachment expired: old-report.pdf" }),
+		).toHaveFocus();
+	});
+
+	it("shares a deleted file with the chat's other file probes", async () => {
+		server.use(
+			http.get(
+				"/api/v2/chats/files/:fileId",
+				() => new HttpResponse(null, { status: 404 }),
+			),
+		);
+		const { result } = renderHook(() => useFileProbes(), {
+			wrapper: ({ children }) => (
+				<TooltipProvider>
+					<FileProbeProvider>
+						<ChatAttachments
+							attachments={[mockStoredChart]}
+							evictedFileIds={new Set()}
+							hasMoreMessages={false}
+							isFetchingMoreMessages={false}
+							hasFetchMoreError={false}
+							onFetchMoreMessages={vi.fn()}
+						/>
+						<FileProbeProvider evictedFileIds={new Set()}>
+							{children}
+						</FileProbeProvider>
+					</FileProbeProvider>
+				</TooltipProvider>
+			),
+		});
+
+		fireEvent.error(
+			within(
+				screen.getByRole("button", { name: "chart.png View file" }),
+			).getByRole("img"),
+		);
+
+		await waitFor(() =>
+			expect(result.current.hasExpired("chart-file")).toBe(true),
+		);
 	});
 });

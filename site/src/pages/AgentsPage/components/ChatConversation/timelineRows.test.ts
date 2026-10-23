@@ -160,7 +160,7 @@ describe("assignTimelineRows", () => {
 		expect(keys(afterPrepend)).toEqual(keys(loadedFirst));
 	});
 
-	it("marks only the last message of an assistant chain", () => {
+	it("marks only the transcript's last message", () => {
 		const rows = assignTimelineRows(
 			[
 				durable(1, "user", "prompt"),
@@ -171,9 +171,6 @@ describe("assignTimelineRows", () => {
 			false,
 		);
 
-		expect(
-			rows.map((row) => row.type === "message" && row.isLastInAssistantChain),
-		).toEqual([false, false, true, false]);
 		expect(
 			rows.map((row) => row.type === "message" && row.isLastMessage),
 		).toEqual([false, false, false, true]);

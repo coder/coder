@@ -20,7 +20,6 @@ import {
 	handleAttachmentDownloadClick,
 	isAbortError,
 	isRasterImageMediaType,
-	probeAttachmentFailure,
 } from "../../utils/chatAttachments";
 import {
 	decodeInlineTextAttachment,
@@ -30,6 +29,10 @@ import {
 import { ImageThumbnail } from "../AgentChatInput";
 import { useFileProbes } from "./FileProbeContext";
 import type { RenderBlock } from "./types";
+import {
+	type AttachmentFailureState,
+	useAttachmentFailure,
+} from "./useAttachmentFailure";
 
 export type PreviewTextAttachment = {
 	content: string;
@@ -109,10 +112,11 @@ const getAttachmentExtension = (
 	);
 };
 
-const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
+/** Exact, case-sensitive match on the media type string. */
+export const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
 	TEXT_ATTACHMENT_MEDIA_TYPES.has(mediaType);
 
-const getAttachmentDisplayName = (
+export const getAttachmentDisplayName = (
 	block: Pick<FileAttachmentBlock, "media_type" | "name">,
 ): string => {
 	const name = block.name?.trim();
@@ -151,53 +155,73 @@ const getAttachmentBadgeLabel = (
 	return extension === "file" ? "" : extension.toUpperCase();
 };
 
-const DownloadOverlay: React.FC<{
+type AttachmentDownload = {
 	href: string;
 	displayName: string;
 	downloadName: string;
 	mediaType: string;
-}> = ({ href, displayName, downloadName, mediaType }) => {
-	return (
-		<a
-			href={href}
-			download={downloadName}
-			onClick={(event) => {
-				event.stopPropagation();
-				void handleAttachmentDownloadClick(event, {
-					href,
-					fileName: downloadName,
-					mediaType,
-				});
-			}}
-			aria-label={`Download ${displayName}`}
+};
+
+const getAttachmentDownload = (
+	block: FileAttachmentBlock,
+	href: string,
+): AttachmentDownload => ({
+	href,
+	displayName: getAttachmentDisplayName(block),
+	downloadName: getAttachmentDownloadName(block),
+	mediaType: block.media_type,
+});
+
+const AttachmentDownloadLink: React.FC<
+	React.PropsWithChildren<
+		AttachmentDownload & {
+			className: string;
+			label?: string;
+			ref?: React.Ref<HTMLAnchorElement>;
+		}
+	>
+> = ({
+	href,
+	displayName,
+	downloadName,
+	mediaType,
+	className,
+	label,
+	ref,
+	children,
+}) => (
+	<a
+		ref={ref}
+		href={href}
+		download={downloadName}
+		onClick={(event) => {
+			event.stopPropagation();
+			void handleAttachmentDownloadClick(event, {
+				href,
+				fileName: downloadName,
+				mediaType,
+			});
+		}}
+		aria-label={label ?? `Download ${displayName}`}
+		className={className}
+	>
+		{children}
+	</a>
+);
+
+const AttachmentPreviewFrame: React.FC<
+	React.PropsWithChildren<AttachmentDownload>
+> = ({ children, ...download }) => (
+	<div className="group/attachment relative inline-flex flex-col items-start">
+		{children}
+		<AttachmentDownloadLink
+			{...download}
 			className="invisible absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-xs backdrop-blur-xs transition-opacity hover:text-content-primary group-hover/attachment:visible group-hover/attachment:opacity-100 group-focus-within/attachment:visible group-focus-within/attachment:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 		>
 			<DownloadIcon aria-hidden="true" className="size-3.5" />
-		</a>
-	);
-};
-
-const AttachmentPreviewFrame: React.FC<{
-	href: string;
-	displayName: string;
-	downloadName: string;
-	mediaType: string;
-	children: React.ReactNode;
-}> = ({ href, displayName, downloadName, mediaType, children }) => {
-	return (
-		<div className="group/attachment relative inline-flex flex-col items-start">
-			{children}
-			<DownloadOverlay
-				href={href}
-				displayName={displayName}
-				downloadName={downloadName}
-				mediaType={mediaType}
-			/>
-		</div>
-	);
-};
-
-type AttachmentFailureState = { kind: "idle" } | AttachmentFailure;
+		</AttachmentDownloadLink>
+	</div>
+);
 
 type AttachmentFailureLabels = {
 	expired: string;
@@ -220,16 +244,24 @@ const expiredAttachmentExplanation =
 const AttachmentFallbackTile: React.FC<{
 	state: AttachmentFailure;
 	labels: AttachmentFailureLabels;
+	name?: string;
 	className?: string;
-}> = ({ state, labels, className = "size-16" }) => {
+	ref?: React.Ref<HTMLDivElement>;
+}> = ({ state, labels, name, className = "size-16", ref }) => {
 	const label = state.kind === "expired" ? labels.expired : labels.failed;
+	// A bare "failed" (e.g. an inline base64 decode failure) has nothing to add.
+	const tooltipBody =
+		state.kind === "expired" ? expiredAttachmentExplanation : state.detail;
 
 	const tile = (
 		<div
+			ref={ref}
 			role="img"
-			aria-label={label}
+			aria-label={name ? `${label}: ${name}` : label}
+			// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- needed to surface the explanation tooltip via keyboard focus.
+			tabIndex={tooltipBody ? 0 : undefined}
 			className={cn(
-				"flex flex-col items-center justify-center gap-1 rounded-md border border-border bg-surface-tertiary px-1 text-center text-2xs text-content-secondary",
+				"flex flex-col items-center justify-center gap-1 rounded-md border border-border bg-surface-tertiary px-1 text-center text-2xs text-content-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 				className,
 			)}
 		>
@@ -241,13 +273,6 @@ const AttachmentFallbackTile: React.FC<{
 		</div>
 	);
 
-	// Only surface a tooltip when we have something to add:
-	// - "expired" explains why the file is gone.
-	// - "failed" with a detail surfaces the API error or network reason.
-	// A bare "failed" (e.g. an inline base64 decode failure, where the
-	// browser exposes nothing useful) stays a plain tile.
-	const tooltipBody =
-		state.kind === "expired" ? expiredAttachmentExplanation : state.detail;
 	if (!tooltipBody) {
 		return tile;
 	}
@@ -303,11 +328,10 @@ const RemoteTextAttachmentButton: React.FC<{
 	fileId: string;
 	fileName: string;
 	mediaType: string;
-	frameHref?: string | null;
-	downloadName: string;
+	frame?: AttachmentDownload;
 	onPreview: (attachment: PreviewTextAttachment) => void | Promise<void>;
-}> = ({ fileId, fileName, mediaType, frameHref, downloadName, onPreview }) => {
-	const { hasExpired, markExpired } = useFileProbes();
+}> = ({ fileId, fileName, mediaType, frame, onPreview }) => {
+	const { hasExpired, setProbeResult } = useFileProbes();
 	const isKnownExpired = hasExpired(fileId);
 	const [content, setContent] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
@@ -383,7 +407,7 @@ const RemoteTextAttachmentButton: React.FC<{
 				setIsLoading(false);
 				if (result.kind !== "loaded") {
 					if (result.kind === "expired") {
-						markExpired(fileId);
+						setProbeResult(fileId, { kind: "expired" });
 					}
 					setFailureState(result);
 					return;
@@ -394,22 +418,13 @@ const RemoteTextAttachmentButton: React.FC<{
 		/>
 	);
 
-	const framedButton = frameHref ? (
-		<AttachmentPreviewFrame
-			href={frameHref}
-			displayName={fileName}
-			downloadName={downloadName}
-			mediaType={mediaType}
-		>
-			{button}
-		</AttachmentPreviewFrame>
-	) : (
-		button
-	);
-
 	return (
 		<div className="flex flex-col items-start gap-1">
-			{framedButton}
+			{frame ? (
+				<AttachmentPreviewFrame {...frame}>{button}</AttachmentPreviewFrame>
+			) : (
+				button
+			)}
 			{isLoading ? (
 				<span
 					role="status"
@@ -429,35 +444,12 @@ const RemoteImageBlock: React.FC<{
 	displayName: string;
 	onImageClick: (src: string) => void;
 }> = ({ fileId, href, displayName, onImageClick }) => {
-	const {
-		hasExpired,
-		markExpired,
-		isPending,
-		markPending,
-		clearPending,
-		getProbeResult,
-		setProbeResult,
-	} = useFileProbes();
-	const isKnownExpired = fileId !== undefined && hasExpired(fileId);
-	const [failureState, setFailureState] = useState<AttachmentFailureState>(
-		() => (isKnownExpired ? { kind: "expired" } : { kind: "idle" }),
-	);
-	const probeRequest = useLatestAbortController(isKnownExpired);
+	const [failure, onError] = useAttachmentFailure(fileId, href);
 
-	if (isKnownExpired) {
+	if (failure.kind !== "idle") {
 		return (
 			<AttachmentFallbackTile
-				state={{ kind: "expired" }}
-				labels={imageAttachmentFailureLabels}
-			/>
-		);
-	}
-	const sharedResult = fileId ? getProbeResult(fileId) : undefined;
-	const effectiveFailure = sharedResult ?? failureState;
-	if (effectiveFailure.kind !== "idle") {
-		return (
-			<AttachmentFallbackTile
-				state={effectiveFailure}
+				state={failure}
 				labels={imageAttachmentFailureLabels}
 			/>
 		);
@@ -477,127 +469,127 @@ const RemoteImageBlock: React.FC<{
 				previewUrl={href}
 				name={displayName}
 				className="cursor-pointer transition-opacity hover:opacity-80"
-				onError={() => {
-					// Inline (data:) images can't be probed; the browser
-					// already failed to decode them, so fall straight to a
-					// generic failure tile.
-					if (fileId === undefined) {
-						setFailureState({ kind: "failed" });
-						return;
-					}
-					if (hasExpired(fileId)) {
-						setFailureState({ kind: "expired" });
-						return;
-					}
-					// Dedup: skip probe, context will propagate the result.
-					if (isPending(fileId)) {
-						setFailureState({ kind: "failed" });
-						return;
-					}
-
-					markPending(fileId);
-					const controller = probeRequest.start();
-					// Optimistically swap to the generic failure tile. The
-					// probe will either upgrade it to "expired" or fill in
-					// a detail; showing a tile without a label flash is
-					// preferable to leaving the broken-image icon up.
-					setFailureState({ kind: "failed" });
-
-					void probeAttachmentFailure(href, controller.signal)
-						.then((reason) => {
-							clearPending(fileId);
-							// Context writes stay above the clear() guard so
-							// siblings get the result even if this block unmounted.
-							if (reason.kind === "expired") {
-								markExpired(fileId);
-							}
-							setProbeResult(fileId, reason);
-							if (probeRequest.clear(controller)) {
-								setFailureState(reason);
-							}
-						})
-						.catch((error) => {
-							clearPending(fileId);
-							if (isAbortError(error)) {
-								return;
-							}
-							const failure = attachmentFailureFromError(error);
-							setProbeResult(fileId, failure);
-							if (probeRequest.clear(controller)) {
-								setFailureState(failure);
-							}
-						});
-				}}
+				onError={onError}
 			/>
 		</button>
 	);
 };
 
-/**
- * Download card for a chat file, or the expired tile. Callers decide expiry;
- * the card never probes the file.
- */
+const FileTypeTile: React.FC<{ block: FileAttachmentBlock }> = ({ block }) => {
+	const badgeLabel = getAttachmentBadgeLabel(block);
+	return badgeLabel ? (
+		<span className="text-[10px] font-semibold tracking-wide text-content-secondary">
+			{badgeLabel}
+		</span>
+	) : (
+		<FileIcon aria-hidden="true" className="size-4 text-content-secondary" />
+	);
+};
+
+const FileCardDetails: React.FC<{
+	tile: React.ReactNode;
+	name: string;
+	status: string;
+}> = ({ tile, name, status }) => (
+	<>
+		<span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface-secondary">
+			{tile}
+		</span>
+		<span className="min-w-0 flex-1">
+			<span className="block truncate text-sm text-content-primary">
+				{name}
+			</span>
+			<span className="block text-xs text-content-secondary">{status}</span>
+		</span>
+	</>
+);
+
+/** Shows the file probes' expiry, but never probes the file itself. */
 export const FileCard: React.FC<{
 	block: FileAttachmentBlock;
 	href: string;
-	expired: boolean;
 	fullWidth?: boolean;
-}> = ({ block, href, expired, fullWidth = false }) => {
-	const displayName = getAttachmentDisplayName(block);
-	const downloadName = getAttachmentDownloadName(block);
-	const badgeLabel = getAttachmentBadgeLabel(block);
+	/** Gets the download link, or the expired tile in its place. */
+	ref?: React.RefCallback<HTMLElement>;
+}> = ({ block, href, fullWidth = false, ref }) => {
+	const { hasExpired } = useFileProbes();
+	const download = getAttachmentDownload(block, href);
 
-	if (expired) {
+	if (block.file_id !== undefined && hasExpired(block.file_id)) {
 		return (
 			<AttachmentFallbackTile
+				ref={ref}
 				state={{ kind: "expired" }}
 				labels={fileAttachmentFailureLabels}
+				name={download.displayName}
 				className={cn("h-16", fullWidth ? "w-full" : "w-28")}
 			/>
 		);
 	}
 
 	return (
-		<a
-			href={href}
-			download={downloadName}
-			onClick={(event) => {
-				event.stopPropagation();
-				void handleAttachmentDownloadClick(event, {
-					href,
-					fileName: downloadName,
-					mediaType: block.media_type,
-				});
-			}}
-			aria-label={`Download ${displayName}`}
+		<AttachmentDownloadLink
+			{...download}
+			ref={ref}
+			label={`${download.displayName} Download file`}
 			className={cn(
 				"inline-flex h-16 items-center gap-3 rounded-md border border-solid border-border bg-surface-tertiary px-3 py-2 no-underline transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 				fullWidth ? "w-full" : "max-w-sm",
 			)}
 		>
-			<div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-surface-secondary">
-				{badgeLabel ? (
-					<span className="text-[10px] font-semibold tracking-wide text-content-secondary">
-						{badgeLabel}
-					</span>
-				) : (
-					<FileIcon
-						aria-hidden="true"
-						className="size-4 text-content-secondary"
-					/>
-				)}
-			</div>
-			<div className="min-w-0 flex-1">
-				<div className="truncate text-sm text-content-primary">
-					{displayName}
-				</div>
-				<div className="text-xs text-content-secondary">Download file</div>
-			</div>
+			<FileCardDetails
+				tile={<FileTypeTile block={block} />}
+				name={download.displayName}
+				status="Download file"
+			/>
 			<DownloadIcon
 				aria-hidden="true"
 				className="size-4 shrink-0 text-content-secondary"
 			/>
-		</a>
+		</AttachmentDownloadLink>
+	);
+};
+
+/**
+ * The visible name and status name the main button, so speech input can use
+ * either.
+ */
+export const ViewableFileCard: React.FC<{
+	block: FileAttachmentBlock;
+	href: string;
+	onView: (event: React.MouseEvent<HTMLButtonElement>) => void;
+	/** Shown in place of the file type badge. */
+	tile?: React.ReactNode;
+	/** Shown under the name in place of "View file". */
+	status?: string;
+	ref?: React.RefCallback<HTMLElement>;
+}> = ({ block, href, onView, tile, status = "View file", ref }) => {
+	const download = getAttachmentDownload(block, href);
+
+	return (
+		<div
+			ref={ref}
+			className="inline-flex h-16 w-full items-center gap-1 rounded-md border border-solid border-border bg-surface-tertiary pr-2 transition-colors has-[>button:hover]:bg-surface-quaternary has-[>button:focus-visible]:ring-2 has-[>button:focus-visible]:ring-content-link"
+		>
+			<button
+				type="button"
+				aria-label={`${download.displayName} ${status}`}
+				className="flex h-full min-w-0 flex-1 items-center gap-3 border-0 bg-transparent py-2 pl-3 text-left focus-visible:outline-hidden"
+				onClick={onView}
+			>
+				<FileCardDetails
+					tile={tile ?? <FileTypeTile block={block} />}
+					name={download.displayName}
+					status={status}
+				/>
+			</button>
+			<AttachmentDownloadLink
+				{...download}
+				className="flex size-6 shrink-0 items-center justify-center rounded-md text-content-secondary transition-colors hover:bg-surface-secondary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+			>
+				<DownloadIcon aria-hidden="true" className="size-4" />
+			</AttachmentDownloadLink>
+		</div>
 	);
 };
 
@@ -608,10 +600,10 @@ export const AttachmentBlock: React.FC<{
 	framePreview?: boolean;
 }> = ({ block, onImageClick, onTextFileClick, framePreview = false }) => {
 	const [revealedInlineText, setRevealedInlineText] = useState(false);
-	const { hasExpired } = useFileProbes();
 	const href = getAttachmentHref(block);
 	const displayName = getAttachmentDisplayName(block);
-	const downloadName = getAttachmentDownloadName(block);
+	const frame =
+		framePreview && href ? getAttachmentDownload(block, href) : undefined;
 
 	if (isTextPreviewAttachmentMediaType(block.media_type)) {
 		if (block.file_id) {
@@ -620,8 +612,7 @@ export const AttachmentBlock: React.FC<{
 					fileId={block.file_id}
 					fileName={displayName}
 					mediaType={block.media_type}
-					frameHref={framePreview ? href : undefined}
-					downloadName={downloadName}
+					frame={frame}
 					onPreview={onTextFileClick}
 				/>
 			);
@@ -645,15 +636,8 @@ export const AttachmentBlock: React.FC<{
 				}}
 			/>
 		);
-		return framePreview && href ? (
-			<AttachmentPreviewFrame
-				href={href}
-				displayName={displayName}
-				downloadName={downloadName}
-				mediaType={block.media_type}
-			>
-				{button}
-			</AttachmentPreviewFrame>
+		return frame ? (
+			<AttachmentPreviewFrame {...frame}>{button}</AttachmentPreviewFrame>
 		) : (
 			button
 		);
@@ -671,15 +655,8 @@ export const AttachmentBlock: React.FC<{
 				onImageClick={onImageClick}
 			/>
 		);
-		return framePreview ? (
-			<AttachmentPreviewFrame
-				href={href}
-				displayName={displayName}
-				downloadName={downloadName}
-				mediaType={block.media_type}
-			>
-				{image}
-			</AttachmentPreviewFrame>
+		return frame ? (
+			<AttachmentPreviewFrame {...frame}>{image}</AttachmentPreviewFrame>
 		) : (
 			image
 		);
@@ -689,11 +666,5 @@ export const AttachmentBlock: React.FC<{
 		return null;
 	}
 
-	return (
-		<FileCard
-			block={block}
-			href={href}
-			expired={block.file_id !== undefined && hasExpired(block.file_id)}
-		/>
-	);
+	return <FileCard block={block} href={href} />;
 };

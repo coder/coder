@@ -69,6 +69,7 @@ import {
 	useChatSelector,
 	useChatStore,
 } from "../components/ChatConversation/chatStore";
+import { FileProbeProvider } from "../components/ChatConversation/FileProbeContext";
 import { submitChatTurn } from "../components/ChatConversation/submitChatTurn";
 import { useChatToolInvalidations } from "../components/ChatConversation/useChatToolInvalidations";
 import { useWorkspaceWatch } from "../components/ChatConversation/useWorkspaceWatch";
@@ -869,7 +870,9 @@ const KeyedAgentChatPage: React.FC = () => {
 			autoScroll
 			defaultScrollPosition="end"
 		>
-			<AgentChatPage />
+			<FileProbeProvider>
+				<AgentChatPage />
+			</FileProbeProvider>
 		</MessageScroller.Provider>
 	);
 };

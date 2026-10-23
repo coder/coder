@@ -7,6 +7,9 @@ type TextPreviewDialogProps = {
 	/** Explicit media type for the attachment, if known. */
 	mediaType?: string;
 	onClose: () => void;
+	/** Prevent default when restoring focus; without a Radix Trigger,
+	 * the dialog's default close autofocus leaves focus on the page body. */
+	onCloseAutoFocus?: (event: Event) => void;
 };
 
 /**
@@ -34,6 +37,7 @@ export const TextPreviewDialog: React.FC<TextPreviewDialogProps> = ({
 	fileName,
 	mediaType,
 	onClose,
+	onCloseAutoFocus,
 }) => {
 	const renderAsMarkdown = isMarkdownPreview(fileName, mediaType);
 
@@ -42,12 +46,17 @@ export const TextPreviewDialog: React.FC<TextPreviewDialogProps> = ({
 			<DialogContent
 				className="max-h-[85vh] max-w-[90vw] w-full sm:w-fit sm:min-w-[400px] flex flex-col gap-0 p-0"
 				aria-describedby={undefined}
+				onCloseAutoFocus={onCloseAutoFocus}
 			>
 				<DialogTitle className="px-4 py-3 border-b border-border text-sm font-medium">
 					{fileName ?? "Pasted text"}
 				</DialogTitle>
 				<div className="overflow-auto p-4 max-h-[calc(85vh-3rem)]">
-					{renderAsMarkdown ? (
+					{content === "" ? (
+						<p className="m-0 text-sm text-content-secondary">
+							This file is empty.
+						</p>
+					) : renderAsMarkdown ? (
 						// Reuse the same Markdown renderer used for chat messages
 						// so attached markdown previews look consistent with the
 						// rest of the conversation.

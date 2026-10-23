@@ -1,6 +1,10 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChatFileMetadata,
+	MockChatMessage,
+} from "#/testHelpers/chatEntities";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
+import { encodeInlineTextAttachment } from "../../utils/fetchTextAttachment";
 import {
 	type DeriveLiveStatusParams,
 	deriveLiveStatus,
@@ -390,6 +394,131 @@ export const MockAttachmentWorkingMessages: TypesGen.ChatMessage[] = [
 	},
 ];
 
+/** Base64 1x1 blue PNG, so thumbnails render without a file server. */
+const MockBluePngData =
+	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGOw6P4LAAK/AcFWgzAqAAAAAElFTkSuQmCC";
+/** Base64 1x1 amber PNG, so stacked thumbnails differ from MockBluePngData. */
+const MockAmberPngData =
+	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4Oo8bAAQqAZ9sWGBkAAAAAElFTkSuQmCC";
+
+/** MockAttachmentWorkingMessages and a turn that attaches four mixed files. */
+export const MockMixedAttachmentMessages: TypesGen.ChatMessage[] = [
+	...MockAttachmentWorkingMessages,
+	{
+		...MockChatMessage,
+		id: 10,
+		created_at: workingFixtureTime(20),
+		content: [{ type: "text", text: "Compare the dashboard with the spec" }],
+	},
+	...(
+		[
+			{
+				type: "file",
+				media_type: "image/png",
+				name: "dashboard-before.png",
+				data: MockBluePngData,
+			},
+			{
+				type: "file",
+				media_type: "image/png",
+				name: "dashboard-after.png",
+				data: MockAmberPngData,
+			},
+			{
+				type: "file",
+				media_type: "text/markdown",
+				name: "findings.md",
+				file_id: "findings-file",
+			},
+			{
+				type: "file",
+				media_type: "application/pdf",
+				name: "spec.pdf",
+				file_id: "spec-file",
+			},
+		] satisfies TypesGen.ChatFilePart[]
+	).flatMap((file, index) =>
+		attachmentStepMessages({
+			id: 11 + index * 3,
+			toolCallId: `attach-${index}`,
+			callAt: 21 + index * 2,
+			toolName: "attach_file",
+			args: { path: `/home/coder/${file.name}` },
+			file,
+			result: { name: file.name },
+		}),
+	),
+	{
+		...MockChatMessage,
+		id: 23,
+		role: "assistant",
+		created_at: workingFixtureTime(30),
+		content: [{ type: "text", text: "The dashboard matches the spec." }],
+	},
+];
+
+/** MockMixedAttachmentMessages' chat files once findings.md is evicted. */
+export const MockFindingsEvictedChatFiles: TypesGen.ChatFileMetadata[] = [
+	{
+		...MockChatFileMetadata,
+		id: "spec-file",
+		name: "spec.pdf",
+		mime_type: "application/pdf",
+	},
+];
+
+/** MockMixedAttachmentMessages before the newest turn answers. */
+export const MockUnansweredAttachmentMessages: TypesGen.ChatMessage[] =
+	MockMixedAttachmentMessages.slice(0, -1);
+
+/** MockMixedAttachmentMessages followed by a manual context clear. */
+export const MockClearedAttachmentMessages: TypesGen.ChatMessage[] = [
+	...MockMixedAttachmentMessages,
+	...workingStepMessages(24, "clear", 31, 31, {
+		toolName: "chat_cleared",
+		args: { source: "manual" },
+		result: { source: "manual" },
+	}),
+];
+
+const mockSearchAnswer =
+	MockWebSearchAnswerMessages[MockWebSearchAnswerMessages.length - 1];
+
+/** MockAttachmentWorkingMessages ending in a searched answer. */
+export const MockSearchAnswerAttachmentMessages: TypesGen.ChatMessage[] =
+	MockAttachmentWorkingMessages.map((message) =>
+		message.id === 9 ? { ...mockSearchAnswer, id: message.id } : message,
+	);
+
+/** MockMixedAttachmentMessages whose second image cannot be decoded. */
+export const MockBrokenImageAttachmentMessages: TypesGen.ChatMessage[] =
+	MockMixedAttachmentMessages.map((message) => ({
+		...message,
+		content: message.content?.map((part) =>
+			part.type === "file" && part.name === "dashboard-after.png"
+				? { ...part, data: "not-valid-base64" }
+				: part,
+		),
+	}));
+
+/** findings.md's text, whether stored or inline. */
+export const MockFindingsText = "# Findings\n\nThe dashboard matches the spec.";
+
+/** MockMixedAttachmentMessages whose findings.md arrives inline. */
+export const MockInlineTextAttachmentMessages: TypesGen.ChatMessage[] =
+	MockMixedAttachmentMessages.map((message) => ({
+		...message,
+		content: message.content?.map((part) =>
+			part.type === "file" && part.name === "findings.md"
+				? {
+						...part,
+						file_id: undefined,
+						data: encodeInlineTextAttachment(MockFindingsText),
+					}
+				: part,
+		),
+	}));
+
 const planPath = "/home/coder/.coder/plans/PLAN.md";
 
 /** A turn that proposes a plan file after the first step of MockWorkingMessages. */
@@ -429,6 +558,23 @@ export const MockQuestionCallMessage: TypesGen.ChatMessage = {
 			tool_call_id: "question",
 			tool_name: "ask_user_question",
 			args: {},
+			created_at: workingFixtureTime(5),
+		},
+	],
+};
+
+/** A client tool call after the first step of MockWorkingMessages. */
+export const MockPendingToolMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 4,
+	role: "assistant",
+	created_at: workingFixtureTime(5),
+	content: [
+		{
+			type: "tool-call",
+			tool_call_id: "editor",
+			tool_name: "open_editor",
+			args: { path: "README.md" },
 			created_at: workingFixtureTime(5),
 		},
 	],

@@ -47,6 +47,7 @@ export const runPromoteQueuedMessage = async (params: {
 		| "setQueuedMessages"
 		| "setStreamError"
 		| "setStreamState"
+		| "startRequestedRun"
 		| "suppressQueuedMessageID"
 		| "unsuppressQueuedMessageID"
 	>;
@@ -71,7 +72,7 @@ export const runPromoteQueuedMessage = async (params: {
 		);
 		store.clearStreamState();
 		store.clearStreamError();
-		store.setChatStatus("running");
+		store.startRequestedRun("promotion");
 	});
 	clearChatErrorReason(agentId);
 	try {

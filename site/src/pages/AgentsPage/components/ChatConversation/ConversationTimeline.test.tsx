@@ -1,8 +1,10 @@
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
 import { QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage } from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
@@ -10,6 +12,7 @@ import {
 	createTestQueryClient,
 	renderComponent,
 } from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import {
@@ -19,8 +22,11 @@ import {
 import {
 	buildLiveStatus,
 	buildStreamRenderState,
+	MockClearedAttachmentMessages,
 	MockCollapsedStepsPreferences,
+	MockFindingsEvictedChatFiles,
 	MockLongTurnPageLoads,
+	MockMixedAttachmentMessages,
 	MockWebSearchAnswerMessages,
 	MockWorkingMessages,
 	pinFixtureClock,
@@ -71,6 +77,8 @@ function renderTimeline(initial: TimelineStage = {}) {
 								showDesktopPreviews={false}
 								hasActiveStream={false}
 								isAwaitingFirstStreamChunk={false}
+								isCompactionStarting={false}
+								isNextTurnStarting={false}
 								onSendAskUserQuestionResponse={vi.fn()}
 								{...props}
 							/>
@@ -113,7 +121,9 @@ describe("ConversationTimeline working blocks", () => {
 		const writeText = vi
 			.spyOn(navigator.clipboard, "writeText")
 			.mockResolvedValue();
-		renderTimeline({ messages: MockWebSearchAnswerMessages });
+		const { rerenderStage } = renderTimeline({
+			messages: MockWebSearchAnswerMessages,
+		});
 
 		await user.click(
 			screen.getByRole("button", { name: "Worked for 15s (3 steps)" }),
@@ -126,6 +136,31 @@ describe("ConversationTimeline working blocks", () => {
 
 		expect(writeText).toHaveBeenCalledWith(
 			"Looking up the release notes.The workspace runs the latest Coder release.",
+		);
+
+		rerenderStage({
+			messages: MockClearedAttachmentMessages.map((message) =>
+				message.id === 23
+					? {
+							...message,
+							content: [
+								{ type: "text", text: "The dashboard **matches** the spec." },
+							],
+						}
+					: message,
+			),
+		});
+		await user.click(
+			within(screen.getByTestId("chat-message-message:23")).getByRole(
+				"button",
+				{
+					name: "Copy message",
+				},
+			),
+		);
+
+		expect(writeText).toHaveBeenLastCalledWith(
+			"The dashboard **matches** the spec.",
 		);
 	});
 
@@ -329,6 +364,151 @@ const streamingStage = (
 			created_at: workingFixtureTime(seconds),
 		},
 	]),
+});
+
+const mockStoredImageAttachmentMessages: ChatMessage[] =
+	MockMixedAttachmentMessages.map((message) => ({
+		...message,
+		content: message.content?.map((part) =>
+			part.type === "file" && part.media_type === "image/png"
+				? { ...part, data: undefined, file_id: `stored-${part.name}` }
+				: part,
+		),
+	}));
+
+describe("ConversationTimeline turn attachments", () => {
+	it("probes each stored image whose thumbnail fails to load", async () => {
+		const probedFileIDs: string[] = [];
+		server.use(
+			http.get("/api/v2/chats/files/:fileId", ({ params }) => {
+				probedFileIDs.push(String(params.fileId));
+				return new HttpResponse(null, { status: 404 });
+			}),
+		);
+		renderTimeline({ messages: mockStoredImageAttachmentMessages });
+		const pill = screen.getByRole("button", { name: "Attachments (4)" });
+
+		// Collapsed steps hide the image rows, so only the thumbnails load
+		// these files.
+		const thumbnails = within(pill).getAllByRole("img", { hidden: true });
+		for (const thumbnail of thumbnails) {
+			fireEvent.error(thumbnail);
+		}
+
+		await waitFor(() =>
+			expect(probedFileIDs.toSorted()).toEqual([
+				"stored-dashboard-after.png",
+				"stored-dashboard-before.png",
+			]),
+		);
+	});
+
+	it("keeps focus on an image card whose thumbnail fails to load", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get(
+				"/api/v2/chats/files/:fileId",
+				() => new HttpResponse(null, { status: 404 }),
+			),
+		);
+		renderTimeline({ messages: mockStoredImageAttachmentMessages });
+		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
+		const viewButton = await screen.findByRole("button", {
+			name: "dashboard-before.png View file",
+		});
+		viewButton.focus();
+
+		fireEvent.error(within(viewButton).getByRole("img"));
+
+		expect(
+			screen.getByRole("link", { name: "dashboard-before.png Download file" }),
+		).toHaveFocus();
+		await waitFor(() =>
+			expect(
+				screen.getByRole("img", {
+					name: "Attachment expired: dashboard-before.png",
+				}),
+			).toHaveFocus(),
+		);
+	});
+
+	it("focuses the popover instead of an expired file when it opens", async () => {
+		const user = userEvent.setup();
+		renderTimeline({
+			messages: MockMixedAttachmentMessages,
+			chatFiles: MockFindingsEvictedChatFiles,
+		});
+		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
+
+		expect(
+			await screen.findByRole("dialog", { name: "Attachments" }),
+		).toHaveFocus();
+	});
+
+	it("views a loaded text file again without requesting it", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get("/api/v2/chats/files/:fileId", () =>
+				HttpResponse.text("# Findings"),
+			),
+		);
+		const getChatFileText = vi.spyOn(API.experimental, "getChatFileText");
+		renderTimeline({ messages: MockMixedAttachmentMessages });
+		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
+		const viewButton = await screen.findByRole("button", {
+			name: "findings.md View file",
+		});
+		await user.click(viewButton);
+		await screen.findByRole("dialog", { name: "findings.md" });
+		await user.keyboard("{Escape}");
+		await waitFor(() => expect(viewButton).toHaveFocus());
+
+		await user.click(viewButton);
+
+		await screen.findByRole("dialog", { name: "findings.md" });
+		expect(getChatFileText.mock.calls).toEqual([["findings-file"]]);
+	});
+
+	it("returns focus to an image card once its viewer closes", async () => {
+		const user = userEvent.setup();
+		renderTimeline({ messages: MockMixedAttachmentMessages });
+		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
+		const viewButton = await screen.findByRole("button", {
+			name: "dashboard-before.png View file",
+		});
+
+		await user.click(viewButton);
+		await screen.findByRole("dialog", { name: "Image preview" });
+		await user.keyboard("{Escape}");
+
+		await waitFor(() => expect(viewButton).toHaveFocus());
+	});
+
+	it("requests a failed text file again only when viewed again", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get(
+				"/api/v2/chats/files/:fileId",
+				() => new HttpResponse(null, { status: 500 }),
+			),
+		);
+		const getChatFileText = vi.spyOn(API.experimental, "getChatFileText");
+		renderTimeline({ messages: MockMixedAttachmentMessages });
+		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
+		await user.click(
+			await screen.findByRole("button", { name: "findings.md View file" }),
+		);
+		const retryButton = await screen.findByRole("button", {
+			name: "findings.md Request failed with status code 500",
+		});
+
+		await user.click(retryButton);
+
+		expect(getChatFileText.mock.calls).toEqual([
+			["findings-file"],
+			["findings-file"],
+		]);
+	});
 });
 
 describe("ConversationTimeline live working blocks", () => {

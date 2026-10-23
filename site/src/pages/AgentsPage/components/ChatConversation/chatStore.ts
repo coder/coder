@@ -109,6 +109,12 @@ export const isActiveChatStatus = (
 	status === "requires_action" ||
 	status === "interrupting";
 
+/** A run requested on an idle chat, and the newest message at that time. */
+export type IdleRunRequest = {
+	kind: "compaction" | "promotion";
+	latestMessageID: number;
+};
+
 export type ChatStoreState = {
 	messagesByID: Map<number, TypesGen.ChatMessage>;
 	orderedMessageIDs: readonly number[];
@@ -127,6 +133,8 @@ export type ChatStoreState = {
 	// contained their promoted user rows.
 	promotedQueuedMessageIDs: ReadonlySet<number>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
+	// Cleared once the run it records stops or another chat opens.
+	idleRunRequest: IdleRunRequest | null;
 };
 
 export type ChatStore = {
@@ -176,6 +184,10 @@ export type ChatStore = {
 	unsuppressQueuedMessageID: (id: number) => void;
 	clearSuppressedQueuedMessageIDs: () => void;
 	setChatStatus: (status: TypesGen.ChatStatus | null) => void;
+	// Only an idle chat records the run: the server rejects compaction during
+	// an active turn, and a message promoted then interrupts that turn, which
+	// can still save rows.
+	startRequestedRun: (kind: IdleRunRequest["kind"]) => void;
 	setStreamState: (streamState: StreamState | null) => void;
 	setStreamError: (reason: ChatDetailError | null) => void;
 	clearStreamError: () => void;
@@ -204,6 +216,7 @@ const createInitialState = (): ChatStoreState => ({
 	suppressedQueuedMessageIDs: new Set(),
 	promotedQueuedMessageIDs: new Set(),
 	subagentStatusOverrides: new Map(),
+	idleRunRequest: null,
 });
 
 export const createChatStore = (): ChatStore => {
@@ -240,6 +253,15 @@ export const createChatStore = (): ChatStore => {
 			}
 		}
 	};
+
+	const withChatStatus = (
+		current: ChatStoreState,
+		chatStatus: TypesGen.ChatStatus | null,
+	): ChatStoreState => ({
+		...current,
+		chatStatus,
+		idleRunRequest: chatStatus === "running" ? current.idleRunRequest : null,
+	});
 
 	const setState = (
 		updater: (current: ChatStoreState) => ChatStoreState,
@@ -576,10 +598,23 @@ export const createChatStore = (): ChatStore => {
 			if (state.chatStatus === status) {
 				return;
 			}
-			setState((current) => ({
-				...current,
-				chatStatus: status,
-			}));
+			setState((current) => withChatStatus(current, status));
+		},
+		startRequestedRun: (kind) => {
+			setState((current) => {
+				if (isActiveChatStatus(current.chatStatus)) {
+					return current.chatStatus === "running"
+						? current
+						: withChatStatus(current, "running");
+				}
+				const latestMessageID = selectLatestDurableMessage(current)?.id;
+				return {
+					...current,
+					chatStatus: "running",
+					idleRunRequest:
+						latestMessageID === undefined ? null : { kind, latestMessageID },
+				};
+			});
 		},
 		setActiveChatID: (chatID) => {
 			if (activeChatID === chatID) {
@@ -597,10 +632,7 @@ export const createChatStore = (): ChatStore => {
 			if (state.chatStatus === status) {
 				return;
 			}
-			setState((current) => ({
-				...current,
-				chatStatus: status,
-			}));
+			setState((current) => withChatStatus(current, status));
 		},
 		setStreamState: (streamState) => {
 			if (state.streamState === streamState) {
@@ -719,7 +751,8 @@ export const createChatStore = (): ChatStore => {
 				state.streamError === null &&
 				state.retryState === null &&
 				state.reconnectState === null &&
-				state.subagentStatusOverrides.size === 0
+				state.subagentStatusOverrides.size === 0 &&
+				state.idleRunRequest === null
 			) {
 				return;
 			}
@@ -730,6 +763,7 @@ export const createChatStore = (): ChatStore => {
 				retryState: null,
 				reconnectState: null,
 				subagentStatusOverrides: new Map(),
+				idleRunRequest: null,
 			}));
 		},
 	};
@@ -775,6 +809,32 @@ export const selectIsAwaitingFirstStreamChunk = (
 		return false;
 	}
 	return state.chatStatus === "running";
+};
+
+/**
+ * Compaction adds no user message, so until it streams or saves anything, a
+ * running chat looks like one that continues after its answer.
+ */
+export const selectIsCompactionStarting = (state: ChatStoreState): boolean =>
+	state.streamState === null &&
+	state.idleRunRequest?.kind === "compaction" &&
+	selectLatestDurableMessage(state)?.id ===
+		state.idleRunRequest.latestMessageID;
+
+/**
+ * A promoted message's user row arrives after its run starts, so until a user
+ * message newer than the request arrives, the newest turn is settled.
+ */
+export const selectIsNextTurnStarting = (state: ChatStoreState): boolean => {
+	const request = state.idleRunRequest;
+	if (request?.kind !== "promotion") {
+		return false;
+	}
+	return state.orderedMessageIDs.every(
+		(id) =>
+			id <= request.latestMessageID ||
+			state.messagesByID.get(id)?.role !== "user",
+	);
 };
 
 export const useChatSelector = <T>(

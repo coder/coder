@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { render } from "#/testHelpers/renderHelpers";
@@ -9,6 +9,14 @@ vi.mock("@pierre/diffs/react", () => ({
 	File: ({ file }: { file: { contents: string } }) => (
 		<pre>{file.contents}</pre>
 	),
+}));
+
+// jsdom cannot lay out a real Mermaid diagram.
+vi.mock("mermaid", () => ({
+	default: {
+		initialize: vi.fn(),
+		render: vi.fn(async () => ({ svg: "<svg></svg>" })),
+	},
 }));
 
 const sampleFileCode = `package auth
@@ -34,5 +42,19 @@ describe("Response", () => {
 		await user.click(await screen.findByRole("button", { name: "Copy code" }));
 
 		expect(writeText).toHaveBeenCalledWith(sampleFileCode);
+	});
+
+	it("returns focus to a Mermaid diagram once its preview closes", async () => {
+		const user = userEvent.setup();
+		render(<Response>{"```mermaid\nflowchart TD\n  A --> B\n```\n"}</Response>);
+		const diagram = await screen.findByRole("button", {
+			name: "View diagram full size",
+		});
+
+		await user.click(diagram);
+		await screen.findByRole("dialog", { name: "Diagram preview" });
+		await user.keyboard("{Escape}");
+
+		await waitFor(() => expect(diagram).toHaveFocus());
 	});
 });

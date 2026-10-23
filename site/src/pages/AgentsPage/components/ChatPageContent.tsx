@@ -47,6 +47,8 @@ import {
 	selectChatStatus,
 	selectHasStreamState,
 	selectIsAwaitingFirstStreamChunk,
+	selectIsCompactionStarting,
+	selectIsNextTurnStarting,
 	selectMessagesByID,
 	selectQueuedMessages,
 	selectReconnectState,
@@ -158,6 +160,11 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		store,
 		selectIsAwaitingFirstStreamChunk,
 	);
+	const isCompactionStarting = useChatSelector(
+		store,
+		selectIsCompactionStarting,
+	);
+	const isNextTurnStarting = useChatSelector(store, selectIsNextTurnStarting);
 	const streamState = useChatSelector(store, selectStreamState);
 	const streamError = useChatSelector(store, selectStreamError);
 	const retryState = useChatSelector(store, selectRetryState);
@@ -210,7 +217,9 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 					   "disconnected" state. The MonitorIcon variant still
 					   renders correctly. */}
 				<ConversationTimeline
-					hasMoreMessages={hasMoreMessages}
+					// The store takes in fetched pages in an effect, so until then the
+					// rows can miss history that hasMoreMessages already counts as loaded.
+					hasMoreMessages={hasMoreMessages || isHydratingMessages}
 					chatStatus={chatStatus}
 					organizationId={organizationId}
 					parsedMessages={parsedMessages}
@@ -229,6 +238,8 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 					isChatCompleted={isChatCompleted}
 					hasActiveStream={hasStream}
 					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
+					isCompactionStarting={isCompactionStarting}
+					isNextTurnStarting={isNextTurnStarting}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 					showDesktopPreviews={false}
