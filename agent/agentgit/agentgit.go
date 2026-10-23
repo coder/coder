@@ -7,6 +7,7 @@ package agentgit
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -414,6 +415,38 @@ func getRepoChanges(ctx context.Context, logger slog.Logger, execer agentexec.Ex
 	return result, nil
 }
 
+// isUnbornHEAD reports whether HEAD names a branch that has no ref
+// yet, which is the state between `git init` and the first commit.
+// A detached HEAD or a branch ref that exists but does not resolve
+// to a commit is not unborn; diffing those against the empty tree
+// would report every tracked file as added.
+func isUnbornHEAD(ctx context.Context, execer agentexec.Execer, gitBin string, repoRoot string) (bool, error) {
+	symCmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "symbolic-ref", "-q", "HEAD")
+	out, err := symCmd.Output()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+			// Detached HEAD.
+			return false, nil
+		}
+		return false, xerrors.Errorf("git symbolic-ref HEAD: %w", err)
+	}
+	ref := strings.TrimSpace(string(out))
+
+	// show-ref exits 1 when the ref is missing and 128 when it exists
+	// but is invalid.
+	refCmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "show-ref", "--verify", "--quiet", ref)
+	err = refCmd.Run()
+	if err == nil {
+		return false, nil
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+		return true, nil
+	}
+	return false, nil
+}
+
 // computeGitDiff produces a unified diff string for the repository by
 // combining a diff of the index paths against HEAD (staged + unstaged
 // changes) with diffs for untracked files. With an unborn HEAD, index
@@ -425,6 +458,13 @@ func computeGitDiff(ctx context.Context, logger slog.Logger, execer agentexec.Ex
 	base := "HEAD"
 	checkCmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "rev-parse", "--verify", "--quiet", "HEAD^{commit}")
 	if err := checkCmd.Run(); err != nil {
+		unborn, unbornErr := isUnbornHEAD(ctx, execer, gitBin, repoRoot)
+		if unbornErr != nil {
+			return "", xerrors.Errorf("check unborn HEAD: %w", unbornErr)
+		}
+		if !unborn {
+			return "", xerrors.Errorf("HEAD does not resolve to a commit: %w", err)
+		}
 		// Hash an empty tree rather than hardcoding its ID, which
 		// differs between SHA-1 and SHA-256 repositories.
 		emptyCmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "hash-object", "-t", "tree", "--stdin")
