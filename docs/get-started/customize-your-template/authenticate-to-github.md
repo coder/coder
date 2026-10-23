@@ -597,7 +597,7 @@ This is the last guide in the series.
 To keep going, explore more of what Coder offers:
 
 - [Manage workspaces for your team](../../user-guides/workspace-management.md).
-- [Try Coder Agents](../../ai-coder/agents/getting-started.md), the chat interface and API for delegating work to coding agents.
+- [Try Coder Agents](../../coder-agents/getting-started.md), the chat interface and API for delegating work to coding agents.
 
 Or revisit the [Customize your template overview](./index.md) for the full list of guides.
 

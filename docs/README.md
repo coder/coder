@@ -28,7 +28,7 @@ Agents and developers share the same workspace infrastructure.
 
 ## Coder Agents
 
-[Coder Agents](./ai-coder/agents/index.md) is a native AI coding agent built into Coder.
+[Coder Agents](./coder-agents/index.md) is a native AI coding agent built into Coder.
 The agent loop runs in the Coder control plane on your infrastructure, not in the workspace and not in a vendor's cloud.
 Developers interact with agents through the web UI or the REST API for programmatic and CI-driven workflows.
 
@@ -155,7 +155,7 @@ See the [templates documentation](./admin/templates/index.md) for details.
 
 ## Learn more
 
-- [Coder Agents](./ai-coder/agents/index.md)
+- [Coder Agents](./coder-agents/index.md)
 - [Templates](./admin/templates/index.md)
 - [Installing Coder](./install/index.md)
 - [Quickstart tutorial](./get-started/index.md)

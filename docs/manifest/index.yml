@@ -22,6 +22,9 @@ sections:
   - install.yml
   - user-guides.yml
   - admin.yml
-  - ai-coder.yml
+  - coder-agents.yml
+  - ai-governance.yml
+  - agent-relay.yml
+  - mcp-server.yml
   - tutorials.yml
   - reference.yml

@@ -26,32 +26,32 @@ Refer to the [Agent API reference](./agent-api/index.md).
 A process-level firewall that enforces domain and verb allowlists on AI agent processes inside a workspace and streams audit logs to `coderd`.
 It was previously named Agent Boundaries and uses a sandbox backend, `nsjail` by default or `landjail`.
 This feature requires a Premium license.
-Refer to [Agent Firewall](../ai-coder/agent-firewall/index.md).
+Refer to [Agent Firewall](../ai-governance/agent-firewall/index.md).
 
 ### Agent Relay
 
 A feature that connects a supported cloud-hosted AI agent provider's hosted sessions to self-hosted [workspaces](#workspace).
 The provider's orchestration and AI inference stay cloud-hosted; a worker process inside the workspace executes the agent's tool calls.
 In [early access](./feature-stages.md#early-access-features).
-Refer to [Agent Relay](../ai-coder/agent-relay/index.md).
+Refer to [Agent Relay](../agent-relay/index.md).
 
 ### AI Gateway
 
 An LLM gateway in `coderd` that authenticates users, forwards traffic to providers such as OpenAI and Anthropic, audits prompts and tool invocations, and centralizes MCP administration.
 It was previously named AI Bridge and runs the `aibridged` component in memory inside `coderd`.
 This feature requires a Premium license.
-Refer to [AI Gateway](../ai-coder/ai-gateway/index.md).
+Refer to [AI Gateway](../ai-governance/ai-gateway/index.md).
 
 ### AI Gateway Proxy
 
 An HTTP proxy component, `aibridgeproxyd`, for AI clients that cannot override their base URL, such as GitHub Copilot.
 This feature requires a Premium license.
-Refer to [AI Gateway Proxy](../ai-coder/ai-gateway/ai-gateway-proxy/index.md).
+Refer to [AI Gateway Proxy](../ai-governance/ai-gateway/ai-gateway-proxy/index.md).
 
 ### AI Governance
 
 Included with a Premium license, AI Governance unlocks AI Gateway and Agent Firewall.
-Refer to [AI Governance](../ai-coder/ai-governance.md).
+Refer to [AI Governance](../ai-governance/index.md).
 
 ### Air-gapped deployment
 
@@ -104,7 +104,7 @@ The self-hosted platform that provisions and manages remote development environm
 The native, self-hosted AI product for delegating development work and research to coding agents.
 The agent loop runs in the control plane, and developers work through the dashboard, the `coder agents` CLI, or the REST API.
 Not to be confused with a [workspace agent](#workspace-agent) or the [`coder_agent`](#coder_agent) resource.
-Refer to [Coder Agents](../ai-coder/agents/index.md).
+Refer to [Coder Agents](../coder-agents/index.md).
 
 ### Coder CLI
 
@@ -186,7 +186,7 @@ Refer to the [`codersdk` package](https://pkg.go.dev/github.com/coder/coder/v2/c
 <!-- vale Coder.GerundHeading = YES -->
 
 An AI agent that reads and writes code on a developer's behalf, such as Claude Code or Coder Agents.
-Refer to [AI in Coder](../ai-coder/index.md).
+Refer to [Coder Agents](../coder-agents/index.md).
 
 ### Community
 
@@ -323,7 +323,7 @@ Refer to [High availability](../admin/networking/high-availability.md).
 ### IDE agent
 
 A coding agent embedded in an editor or IDE, such as Cursor, connected to a Coder workspace.
-Refer to [IDE agents](../ai-coder/ide-agents.md).
+Refer to [Access your workspace](../user-guides/workspace-access/index.md).
 
 ### IdP sync
 
@@ -350,7 +350,7 @@ Refer to [Licensing](../install/prepare/licensing.md).
 
 Model Context Protocol, the standard for exposing tools and servers to LLM agents.
 Coder ships an MCP server and lets admins centrally manage approved MCP servers through AI Gateway.
-Refer to [MCP server](../ai-coder/mcp-server.md).
+Refer to [MCP server](../mcp-server.md).
 
 ### Module
 
@@ -525,7 +525,7 @@ Refer to [Create templates](../admin/templates/creating-templates.md).
 
 A delegated child chat that a parent Coder Agents chat spawns to perform a sub-task, with its own tool allowlist.
 Not to be confused with a [dev container sub-agent](#sub-agent-dev-containers).
-Refer to [Coder Agents architecture](../ai-coder/agents/architecture.md).
+Refer to [Coder Agents architecture](../coder-agents/architecture.md).
 
 ### Sub-agent (dev containers)
 
@@ -630,6 +630,6 @@ Refer to [Workspace proxies](../admin/networking/workspace-proxies.md).
 ## Learn more
 
 - [Architecture](../install/plan/architecture.md)
-- [Coder Agents](../ai-coder/agents/index.md)
+- [Coder Agents](../coder-agents/index.md)
 - [Templates](../admin/templates/index.md)
 - [API reference](./api/index.md)

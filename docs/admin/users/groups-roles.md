@@ -69,7 +69,7 @@ Coder ships the following organization roles:
 - **Organization Workspace Creation Ban**:
   blocks creating and deleting workspaces in the organization, and overrides any role that would otherwise allow it.
 - **Coder Agents User**:
-  uses [Coder Agents](../../ai-coder/agents/index.md) in the organization.
+  uses [Coder Agents](../../coder-agents/index.md) in the organization.
   Members other than service accounts hold this role through the organization's [default member roles](./organizations.md#default-member-roles) unless an administrator removes it.
 
 Organization Admin doesn't include SSH, application, or terminal access to workspaces other members own.

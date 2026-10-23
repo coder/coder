@@ -2,5 +2,41 @@
   {
     "source": "/docs/admin/templates/extending-templates/dynamic-parameters",
     "destination": "/docs/admin/templates/extending-templates/parameters"
+  },
+  {
+    "source": "/docs/ai-coder",
+    "destination": "/docs/coder-agents"
+  },
+  {
+    "source": "/docs/ai-coder/best-practices",
+    "destination": "/docs/coder-agents"
+  },
+  {
+    "source": "/docs/ai-coder/ide-agents",
+    "destination": "/docs/user-guides/workspace-access"
+  },
+  {
+    "source": "/docs/ai-coder/ai-governance",
+    "destination": "/docs/ai-governance"
+  },
+  {
+    "source": "/docs/ai-coder/mcp-server",
+    "destination": "/docs/mcp-server"
+  },
+  {
+    "source": "/docs/ai-coder/agents/:path*",
+    "destination": "/docs/coder-agents/:path*"
+  },
+  {
+    "source": "/docs/ai-coder/agent-firewall/:path*",
+    "destination": "/docs/ai-governance/agent-firewall/:path*"
+  },
+  {
+    "source": "/docs/ai-coder/ai-gateway/:path*",
+    "destination": "/docs/ai-governance/ai-gateway/:path*"
+  },
+  {
+    "source": "/docs/ai-coder/agent-relay/:path*",
+    "destination": "/docs/agent-relay/:path*"
   }
 ]

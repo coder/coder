@@ -16,7 +16,7 @@ This is helpful in a number of scenarios, including:
 
 - Developers can do ad-hoc debugging or pair programming.
 - A workspace can be owned by a group of users for QA, on-call rotations, or shared staging.
-- AI workflows where an agent prepares a workspace and a developer takes over to review or finalize the work (ex. with [Coder Agents](https://coder.com/docs/ai-coder/agents).)
+- AI workflows where an agent prepares a workspace and a developer takes over to review or finalize the work (ex. with [Coder Agents](https://coder.com/docs/coder-agents).)
 
 <a id="getting-started"></a>
 
