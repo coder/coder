@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -987,16 +988,22 @@ func TestConfigSSH_NoWildcard(t *testing.T) {
 
 	// Create two workspaces with names in reverse lexical order so that we can
 	// verify the SSH config entries are sorted by name, not by creation order.
-	// ws1 sorts after ws2 alphabetically.
-	ws1 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+	// ws-beta sorts after ws-alpha alphabetically.
+	dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 		Name:           "ws-beta",
 	}).WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
 		a[0].Name = "agent-beta"
-		return a
+		// A second agent, so the workspace needs per-agent host entries.
+		return append(a, &sdkproto.Agent{
+			Id:   uuid.NewString(),
+			Name: "agent-gamma",
+			Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+			Env:  map[string]string{},
+		})
 	}).Do()
-	ws2 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+	dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 		Name:           "ws-alpha",
@@ -1044,11 +1051,21 @@ func TestConfigSSH_NoWildcard(t *testing.T) {
 	// user-supplied "--hostname-suffix coder" entries. With stable workspace
 	// names we can assert the complete, ordered host-entry list exactly.
 	// ws-alpha sorts before ws-beta even though ws-alpha was created second.
+	// Each workspace entry is followed by an <agent>.<workspace>.<owner> entry
+	// per agent, matching the hostnames the dashboard and Coder Connect use.
+	owner, err := client.User(testutil.Context(t, testutil.WaitShort), codersdk.Me)
+	require.NoError(t, err)
 	wantHosts := []string{
-		"Host coder." + ws2.Workspace.Name,      // coder.ws-alpha
-		"Host coder." + ws1.Workspace.Name,      // coder.ws-beta
-		"Host " + ws2.Workspace.Name + ".coder", // ws-alpha.coder
-		"Host " + ws1.Workspace.Name + ".coder", // ws-beta.coder
+		"Host coder.ws-alpha",
+		"Host coder.agent-alpha.ws-alpha." + owner.Username,
+		"Host coder.ws-beta",
+		"Host coder.agent-beta.ws-beta." + owner.Username,
+		"Host coder.agent-gamma.ws-beta." + owner.Username,
+		"Host ws-alpha.coder",
+		"Host agent-alpha.ws-alpha." + owner.Username + ".coder",
+		"Host ws-beta.coder",
+		"Host agent-beta.ws-beta." + owner.Username + ".coder",
+		"Host agent-gamma.ws-beta." + owner.Username + ".coder",
 	}
 	require.Empty(t, cmp.Diff(wantHosts, hostLines(config)))
 

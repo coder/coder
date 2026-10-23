@@ -112,7 +112,7 @@ Your workspace is now accessible via `ssh coder.<workspace_name>` (for example, 
 
 > [!TIP]
 > If you use a third-party SSH client that discovers hosts by parsing `~/.ssh/config` (such as the VS Code Remote-SSH sidebar or scripts that enumerate known hosts), run `coder config-ssh --no-wildcard` instead.
-> This generates an individual `Host` entry per workspace rather than a single wildcard block, making your workspaces visible to those tools.
+> This generates an individual `Host` entry for each workspace and each of its agents rather than a single wildcard block, making your workspaces visible to those tools.
 
 ## Visual Studio Code
 

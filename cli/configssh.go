@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -23,6 +24,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/serpent"
 )
 
@@ -64,8 +66,9 @@ type sshConfigOptions struct {
 	skipProxyCommand       bool
 	forceUnixSeparators    bool
 	// workspaceNames is populated when noWildcard is true. It holds the
-	// workspace names used to generate individual host entries. It is not
-	// persisted to the SSH config header.
+	// names used to generate individual host entries: each workspace name,
+	// followed by an <agent>.<workspace>.<owner> name for each of its agents.
+	// It is not persisted to the SSH config header.
 	workspaceNames []string
 }
 
@@ -479,6 +482,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 					}
 					for _, ws := range res.Workspaces {
 						wsNames = append(wsNames, ws.Name)
+						wsNames = append(wsNames, noWildcardAgentHosts(ctx, client, ws)...)
 					}
 					if len(res.Workspaces) < pageSize {
 						break
@@ -655,7 +659,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 		{
 			Flag: "no-wildcard",
 			Env:  "CODER_CONFIGSSH_NO_WILDCARD",
-			Description: "Generate an individual host entry for each workspace instead of a wildcard host block. " +
+			Description: "Generate an individual host entry for each workspace and each of its agents instead of a wildcard host block. " +
 				"This allows third-party tools and SSH clients to discover workspaces by reading the config file.",
 			Value:   serpent.BoolOf(&sshConfigOpts.noWildcard),
 			Default: "false",
@@ -1011,4 +1015,40 @@ func diffBytes(name string, b1, b2 []byte, color bool) ([]byte, error) {
 		b = nil
 	}
 	return b, nil
+}
+
+// noWildcardAgentHosts returns an <agent>.<workspace>.<owner> host name for
+// each agent in the workspace. These match the hostnames shown in the dashboard
+// and served by Coder Connect, so they also work with per-workspace entries.
+// Names that are not valid Coder identifiers are skipped so a server-supplied
+// value can never be written into ssh_config as syntax.
+func noWildcardAgentHosts(ctx context.Context, client *codersdk.Client, ws codersdk.Workspace) []string {
+	if codersdk.NameValid(ws.Name) != nil || codersdk.NameValid(ws.OwnerName) != nil {
+		return nil
+	}
+	resources := ws.LatestBuild.Resources
+	if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
+		// Agents only exist on start builds, so read them from the template
+		// version when the workspace is stopped. If that fails, the workspace
+		// still gets its own entry.
+		var err error
+		resources, err = client.TemplateVersionResources(ctx, ws.LatestBuild.TemplateVersionID)
+		if err != nil {
+			return nil
+		}
+	}
+	var hosts []string
+	for _, resource := range resources {
+		if resource.Transition != codersdk.WorkspaceTransitionStart {
+			continue
+		}
+		for _, agent := range resource.Agents {
+			if !provisioner.AgentNameRegex.MatchString(agent.Name) {
+				continue
+			}
+			hosts = append(hosts, fmt.Sprintf("%s.%s.%s", agent.Name, ws.Name, ws.OwnerName))
+		}
+	}
+	slices.Sort(hosts)
+	return slices.Compact(hosts)
 }
