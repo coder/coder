@@ -270,20 +270,9 @@ Because stored skills are read again at each step, a change takes effect on the 
 For example, when an administrator turns off an organization skill or removes someone's access, the chat stops listing that skill on its next step.
 
 The `/` menu in the chat composer lists skills in four groups: **Personal skills**, **Organization skills**, **Project skills**, and **Workspace skills**.
-When you write a new message in an existing chat, a **Commands** group above them also lists the built-in `/compact` and `/clear` commands, unless a skill with the same name hides the built-in command.
 The **Project skills** group appears only in chats that belong to a project.
 The **Organization skills** group shows the skills of the chat's organization that are turned on and that you can use.
 For site owners, organization admins, and auditors, the group lists every organization skill that is turned on.
-
-Choosing a skill from the `/` menu attaches it to your message as a chip, so the agent always loads that skill for the message instead of deciding whether to read it.
-The chip shows the skill's qualified alias, such as `/project/triage`, even when the menu lists the skill by its bare name.
-Coder reads the skill when you send the message, so a queued message keeps the version of the skill it was sent with.
-If the skill is turned off, deleted, or no longer available to you, Coder rejects the message with an error such as `Skill project/triage is not available.`
-Remove the chip, or turn the skill back on, and send the message again.
-Typing a skill's full alias followed by a space also attaches the skill as a chip.
-The alias can be the one the menu shows, such as `/triage`, or the qualified alias, such as `/project/triage`.
-Partial names, text that doesn't match an available skill, and a bare name that more than one source shares are sent as plain text, and the agent decides whether to read the skill.
-A typed alias also stays plain text if the message already has a chip for that skill, or already has the maximum of 8 skills.
 
 ### Turn a skill on or off
 

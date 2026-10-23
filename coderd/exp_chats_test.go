@@ -55,6 +55,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
@@ -2081,6 +2082,223 @@ func TestCreateChatAsUser(t *testing.T) {
 		denied, ok := stderrors.AsType[*chathooks.UserPromptDeniedError](err)
 		require.True(t, ok, "want a hook denial, got %v", err)
 		require.Equal(t, "blocked by policy", denied.UserMessage)
+	})
+}
+
+func TestActOnChatAsUser(t *testing.T) {
+	t.Parallel()
+
+	mAudit := audit.NewMockWithDiffFn(func(old, newVal any) audit.Map {
+		diff := audit.Map{}
+		oldChat, oldOK := old.(database.Chat)
+		newChat, newOK := newVal.(database.Chat)
+		if !oldOK || !newOK {
+			return diff
+		}
+		if oldChat.ID != newChat.ID {
+			diff["id"] = audit.OldNew{Old: oldChat.ID, New: newChat.ID}
+		}
+		if oldChat.Archived != newChat.Archived {
+			diff["archived"] = audit.OldNew{Old: oldChat.Archived, New: newChat.Archived}
+		}
+		return diff
+	})
+	client, api := newChatClientWithAPI(t, withChatWorkerDisabled, func(opts *coderdtest.Options) {
+		opts.Auditor = mAudit
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	createChatModel(t, client)
+
+	newChat := func(ctx context.Context, t *testing.T) (*codersdk.ExperimentalClient, codersdk.Chat) {
+		t.Helper()
+		memberClient, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		chat, err := api.CreateChatAsUser(ctx, member.ID, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+		})
+		require.NoError(t, err)
+		return codersdk.NewExperimentalClient(memberClient), chat
+	}
+	acquireChat := func(ctx context.Context, t *testing.T, chatID uuid.UUID) {
+		t.Helper()
+		chatdCtx := dbauthz.AsChatd(ctx) //nolint:gocritic // Test fixture mirrors chatd background transitions.
+		machine := chatstate.NewChatMachine(api.Database, api.Pubsub, chatID)
+		require.NoError(t, machine.Update(chatdCtx, func(tx *chatstate.Tx, _ database.Store) error {
+			_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()})
+			return err
+		}))
+	}
+	message := codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello again"}},
+	}
+	unarchiveRequest := codersdk.UpdateChatRequest{Archived: ptr.Ref(false)}
+	chatWrites := func(chatID uuid.UUID) []database.AuditLog {
+		var logs []database.AuditLog
+		for _, log := range mAudit.AuditLogs() {
+			if log.ResourceID == chatID && log.Action == database.AuditActionWrite {
+				logs = append(logs, log)
+			}
+		}
+		return logs
+	}
+	requireSameAudit := func(t *testing.T, overHTTP, inProcess database.AuditLog) {
+		t.Helper()
+		require.Equal(t, overHTTP.ResourceType, inProcess.ResourceType)
+		require.Equal(t, overHTTP.ResourceTarget, inProcess.ResourceTarget)
+		require.Equal(t, overHTTP.UserID, inProcess.UserID)
+		require.Equal(t, overHTTP.OrganizationID, inProcess.OrganizationID)
+		require.Equal(t, overHTTP.StatusCode, inProcess.StatusCode)
+	}
+
+	t.Run("Send", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, chat := newChat(ctx, t)
+		driveChatToWaiting(ctx, t, api, chat.ID)
+
+		resp, err := api.SendChatMessageAsUser(ctx, chat.OwnerID, chat.ID, message)
+		require.NoError(t, err)
+		require.False(t, resp.Queued)
+		require.NotNil(t, resp.Message)
+		require.Equal(t, codersdk.ChatMessageRoleUser, resp.Message.Role)
+	})
+
+	t.Run("Interrupt", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, chat := newChat(ctx, t)
+		acquireChat(ctx, t, chat.ID)
+
+		interrupted, err := api.InterruptChatAsUser(ctx, chat.OwnerID, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, interrupted.ID)
+		require.Equal(t, codersdk.ChatStatusInterrupting, interrupted.Status)
+	})
+
+	t.Run("Unarchive", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		memberClient, chat := newChat(ctx, t)
+		driveChatToWaiting(ctx, t, api, chat.ID)
+		require.NoError(t, memberClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)}))
+
+		require.NoError(t, api.UpdateChatAsUser(ctx, chat.OwnerID, chat.ID, unarchiveRequest))
+		got, err := memberClient.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.False(t, got.Archived)
+
+		logs := chatWrites(chat.ID)
+		require.Len(t, logs, 2)
+		archive, unarchive := logs[0], logs[1]
+		requireSameAudit(t, archive, unarchive)
+		require.Equal(t, chat.OwnerID, unarchive.UserID)
+		require.EqualValues(t, http.StatusNoContent, unarchive.StatusCode)
+		var diff map[string]codersdk.AuditDiffField
+		require.NoError(t, json.Unmarshal(unarchive.Diff, &diff))
+		require.Equal(t, map[string]codersdk.AuditDiffField{"archived": {Old: true, New: false}}, diff)
+	})
+
+	t.Run("UpdateAuditOnFailure", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		memberClient, chat := newChat(ctx, t)
+
+		require.Error(t, memberClient.UpdateChat(ctx, chat.ID, unarchiveRequest))
+		require.Error(t, api.UpdateChatAsUser(ctx, chat.OwnerID, chat.ID, unarchiveRequest))
+
+		logs := chatWrites(chat.ID)
+		require.Len(t, logs, 2)
+		overHTTP, inProcess := logs[0], logs[1]
+		requireSameAudit(t, overHTTP, inProcess)
+		require.EqualValues(t, http.StatusBadRequest, inProcess.StatusCode)
+		require.JSONEq(t, "{}", string(overHTTP.Diff))
+		require.JSONEq(t, "{}", string(inProcess.Diff))
+	})
+
+	t.Run("Refused", func(t *testing.T) {
+		t.Parallel()
+
+		send := func(ctx context.Context, userID, chatID uuid.UUID) error {
+			_, err := api.SendChatMessageAsUser(ctx, userID, chatID, message)
+			return err
+		}
+		interrupt := func(ctx context.Context, userID, chatID uuid.UUID) error {
+			_, err := api.InterruptChatAsUser(ctx, userID, chatID)
+			return err
+		}
+		unarchive := func(ctx context.Context, userID, chatID uuid.UUID) error {
+			return api.UpdateChatAsUser(ctx, userID, chatID, unarchiveRequest)
+		}
+		otherUser := func(_ context.Context, t *testing.T, _ *codersdk.ExperimentalClient, _ codersdk.Chat) uuid.UUID {
+			_, other := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+			return other.ID
+		}
+		cases := []struct {
+			name        string
+			act         func(ctx context.Context, userID, chatID uuid.UUID) error
+			prepare     func(ctx context.Context, t *testing.T, memberClient *codersdk.ExperimentalClient, chat codersdk.Chat) uuid.UUID
+			wantStatus  int
+			wantMessage string
+		}{
+			{
+				name:        "SendOtherUsersChat",
+				act:         send,
+				prepare:     otherUser,
+				wantStatus:  http.StatusNotFound,
+				wantMessage: "Resource not found",
+			},
+			{
+				name: "SendSiteOwnerNotChatOwner",
+				act:  send,
+				prepare: func(context.Context, *testing.T, *codersdk.ExperimentalClient, codersdk.Chat) uuid.UUID {
+					return firstUser.UserID
+				},
+				wantStatus:  http.StatusForbidden,
+				wantMessage: "Only the chat owner may send messages.",
+			},
+			{
+				name:        "InterruptOtherUsersChat",
+				act:         interrupt,
+				prepare:     otherUser,
+				wantStatus:  http.StatusNotFound,
+				wantMessage: "Resource not found",
+			},
+			{
+				name: "UnarchiveReadOnlyMember",
+				act:  unarchive,
+				prepare: func(ctx context.Context, t *testing.T, memberClient *codersdk.ExperimentalClient, chat codersdk.Chat) uuid.UUID {
+					driveChatToWaiting(ctx, t, api, chat.ID)
+					require.NoError(t, memberClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)}))
+					_, reader := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+					require.NoError(t, memberClient.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+						UserRoles: map[string]codersdk.ChatRole{reader.ID.String(): codersdk.ChatRoleRead},
+					}))
+					return reader.ID
+				},
+				wantStatus:  http.StatusNotFound,
+				wantMessage: "Resource not found",
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				memberClient, chat := newChat(ctx, t)
+				userID := tc.prepare(ctx, t, memberClient, chat)
+
+				err := tc.act(ctx, userID, chat.ID)
+				responder, ok := httperror.IsResponder(err)
+				require.True(t, ok, "want a responder error, got %v", err)
+				status, resp := responder.Response()
+				require.Equal(t, tc.wantStatus, status)
+				require.Contains(t, resp.Message, tc.wantMessage)
+			})
+		}
 	})
 }
 
