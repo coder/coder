@@ -18,6 +18,7 @@ import {
 } from "#/testHelpers/entities";
 import { withWebSocket } from "#/testHelpers/storybook";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
+import { WorkspaceFilesContext } from "../../../context/WorkspaceFilesContext";
 import { BlockList } from "../../ChatConversation/MessageBlocks";
 import { DESKTOP_SCREENSHOT_BASE64 } from "./__fixtures__/desktopScreenshot";
 import { DesktopPanelContext } from "./DesktopPanelContext";
@@ -1812,6 +1813,125 @@ export const EditFilesServerDiffMultiFile: Story = {
 				},
 			],
 		},
+	},
+};
+
+const openWorkspaceFile = fn();
+
+const withWorkspaceFiles: NonNullable<Story["decorators"]> = [
+	(Story) => (
+		<WorkspaceFilesContext
+			value={{
+				agentId: "storybook-agent",
+				defaultDirectory: "/home/coder",
+				repoRoots: ["/home/coder/app"],
+				repositories: new Map(),
+				openFile: openWorkspaceFile,
+				revealInFiles: fn(),
+				diffStatuses: [],
+			}}
+		>
+			<Story />
+		</WorkspaceFilesContext>
+	),
+];
+
+const workspaceFileEdit = (path: string) => ({
+	path,
+	edits: [
+		{
+			search: "const timeout = 30;",
+			replace: "const timeout = 60;",
+		},
+	],
+});
+
+// The agent's diffs name files by the absolute path the tool was given.
+const workspaceFileEditResult = (paths: readonly string[]) => ({
+	ok: true,
+	files: paths.map((path) => ({
+		path,
+		diff: `--- ${path}\n+++ ${path}\n@@ -1,3 +1,3 @@\n export const settings = {\n-\tconst timeout = 30;\n+\tconst timeout = 60;\n };\n`,
+	})),
+});
+
+export const EditFilesSingleOpenFileCollapsed: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		codeDiffDisplayMode: "always_collapsed",
+		args: { files: [workspaceFileEdit("/home/coder/app/src/config.ts")] },
+		result: workspaceFileEditResult(["/home/coder/app/src/config.ts"]),
+	},
+	decorators: withWorkspaceFiles,
+	play: async ({ canvasElement }) => {
+		openWorkspaceFile.mockClear();
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", { name: "Edited config.ts" });
+		const open = canvas.getByRole("button", {
+			name: "Open /home/coder/app/src/config.ts",
+		});
+		expect(open.textContent).toBe("");
+		await userEvent.click(open);
+		expect(openWorkspaceFile).toHaveBeenCalledWith(
+			"/home/coder/app/src/config.ts",
+		);
+		expect(toggle).toHaveAttribute("aria-expanded", "false");
+	},
+};
+
+export const EditFilesSingleOpenFileExpanded: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		codeDiffDisplayMode: "auto",
+		args: { files: [workspaceFileEdit("/home/coder/app/src/config.ts")] },
+		result: workspaceFileEditResult(["/home/coder/app/src/config.ts"]),
+	},
+	decorators: withWorkspaceFiles,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByLabelText("Diff of /home/coder/app/src/config.ts");
+		expect(
+			canvas.getByText("/home/coder/app/src/config.ts").closest("button"),
+		).toBeNull();
+		expect(canvas.getAllByRole("button", { name: /^Open / })).toHaveLength(1);
+	},
+};
+
+export const EditFilesMultipleOpenFiles: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		codeDiffDisplayMode: "auto",
+		args: {
+			files: [
+				workspaceFileEdit("/home/coder/app/src/config.ts"),
+				workspaceFileEdit("/home/coder/app/src/server.ts"),
+			],
+		},
+		result: workspaceFileEditResult([
+			"/home/coder/app/src/config.ts",
+			"/home/coder/app/src/server.ts",
+		]),
+	},
+	decorators: withWorkspaceFiles,
+	play: async ({ canvasElement }) => {
+		openWorkspaceFile.mockClear();
+		const canvas = within(canvasElement);
+		await canvas.findByLabelText("Diff of /home/coder/app/src/server.ts");
+		const opens = await canvas.findAllByRole("button", { name: /^Open / });
+		expect(opens.map((button) => button.getAttribute("aria-label"))).toEqual([
+			"Open /home/coder/app/src/config.ts",
+			"Open /home/coder/app/src/server.ts",
+		]);
+		for (const open of opens) {
+			expect(open.textContent).toBe("");
+		}
+		await userEvent.click(opens[1]);
+		expect(openWorkspaceFile).toHaveBeenCalledWith(
+			"/home/coder/app/src/server.ts",
+		);
 	},
 };
 

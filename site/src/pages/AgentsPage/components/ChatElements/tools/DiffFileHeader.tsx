@@ -1,17 +1,23 @@
 import type { FileContents, FileDiffMetadata } from "@pierre/diffs";
 import { cn } from "cn";
-import { useWorkspaceFiles } from "../../../context/WorkspaceFilesContext";
 import { countChangedLines } from "../../../utils/countChangedLines";
 import { changeColor, changeLabel } from "../../../utils/diffColors";
+import { OpenFileButton } from "./FileToolHeader";
 
 export function DiffFileHeader({
 	file,
+	openPath,
 }: {
 	file: FileDiffMetadata | FileContents;
+	/**
+	 * Absolute path that a button in the header opens, for rows that list
+	 * several files. Diff parsing can drop the leading slash from the file
+	 * name, so the caller passes the path it acted on.
+	 */
+	openPath?: string;
 }) {
 	const isDiff = "type" in file;
 	const stats = isDiff ? countChangedLines(file) : null;
-	const files = useWorkspaceFiles();
 
 	return (
 		<div className="flex h-8 min-w-0 items-center justify-between gap-3 border-0 border-b border-l border-solid border-border bg-transparent py-2 pr-1.5 pl-2.5 font-sans text-sm">
@@ -31,35 +37,27 @@ export function DiffFileHeader({
 						{file.prevName}
 					</span>
 				)}
-				{files && file.name.startsWith("/") ? (
-					<button
-						type="button"
-						aria-label={`Open ${file.name}`}
-						className="m-0 min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 text-left font-[inherit] text-xs font-medium text-content-primary underline decoration-dotted underline-offset-2 hover:text-content-link"
-						onClick={() => files.openFile(file.name)}
-					>
-						{file.name}
-					</button>
-				) : (
-					<span className="truncate text-xs font-medium text-content-primary">
-						{file.name}
+				<span className="truncate text-xs font-medium text-content-primary">
+					{file.name}
+				</span>
+			</div>
+			<div className="flex shrink-0 items-center gap-1">
+				{stats && (stats.additions > 0 || stats.deletions > 0) && (
+					<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border font-mono text-xs font-medium leading-5">
+						{stats.deletions > 0 && (
+							<span className="flex items-center bg-surface-git-deleted px-1 text-git-deleted-bright">
+								&minus;{stats.deletions}
+							</span>
+						)}
+						{stats.additions > 0 && (
+							<span className="flex items-center bg-surface-git-added px-1 text-git-added-bright">
+								+{stats.additions}
+							</span>
+						)}
 					</span>
 				)}
+				{openPath && <OpenFileButton path={openPath} />}
 			</div>
-			{stats && (stats.additions > 0 || stats.deletions > 0) && (
-				<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border font-mono text-xs font-medium leading-5">
-					{stats.deletions > 0 && (
-						<span className="flex items-center bg-surface-git-deleted px-1 text-git-deleted-bright">
-							&minus;{stats.deletions}
-						</span>
-					)}
-					{stats.additions > 0 && (
-						<span className="flex items-center bg-surface-git-added px-1 text-git-added-bright">
-							+{stats.additions}
-						</span>
-					)}
-				</span>
-			)}
 		</div>
 	);
 }

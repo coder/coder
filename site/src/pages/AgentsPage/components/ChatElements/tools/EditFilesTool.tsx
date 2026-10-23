@@ -99,7 +99,10 @@ export const EditFilesTool: React.FC<{
 									options={getDiffViewerOptions(isDark)}
 									style={DIFFS_FONT_STYLE}
 									renderCustomHeader={(fileDiff) => (
-										<DiffFileHeader file={fileDiff} />
+										<DiffFileHeader
+											file={fileDiff}
+											openPath={files.length > 1 ? files[i].path : undefined}
+										/>
 									)}
 								/>
 							</ToolCall.Scrollable>
