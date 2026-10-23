@@ -4043,10 +4043,9 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Browsers do not expose WebSocket pings to page code, so the web
-	// client detects a frozen connection by the absence of messages. An
-	// empty batch after HeartbeatInterval of silence keeps an idle stream
-	// from looking frozen; clients skip empty batches.
+	// Write an empty batch after HeartbeatInterval without other writes,
+	// so the web client can tell an idle stream from a frozen connection.
+	// See "Client-visible stream events" in x/chatd/ARCHITECTURE.md.
 	keepalive := api.Clock.NewTicker(httpapi.HeartbeatInterval, "chatStream", "keepalive")
 	defer keepalive.Stop()
 
