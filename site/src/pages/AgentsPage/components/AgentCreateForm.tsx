@@ -1054,6 +1054,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 						Boolean(aiGatewayDisabled)
 					}
 					isReadOnly={isForbidden}
+					lockWhileLoading
 					isLoading={isSubmitPending}
 					initialValue={initialInputValue}
 					initialEditorState={initialEditorState}
