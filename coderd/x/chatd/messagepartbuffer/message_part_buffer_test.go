@@ -384,9 +384,7 @@ func TestBuffer_SendWaitingAtCloseTimesOutAfterClose(t *testing.T) {
 		require.NoError(t, buffer.CreateEpisode(key))
 		require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("blocked")))
 		ctx := testutil.Context(t, testutil.WaitLong)
-		// Both subscribers wait on the same send. alive shows that the send
-		// still waits just before the timeout, and dropped that it ends at
-		// the timeout.
+		// alive is read just before the timeout, dropped just after.
 		alive, cancelAlive, err := buffer.SubscribeToEpisode(ctx, key)
 		require.NoError(t, err)
 		defer cancelAlive()
@@ -395,8 +393,7 @@ func TestBuffer_SendWaitingAtCloseTimesOutAfterClose(t *testing.T) {
 		defer cancelDropped()
 		synctest.Wait()
 
-		// Waiting while the episode is open does not count toward the
-		// timeout.
+		// Time waited while the episode is open does not count.
 		clock.Advance(sendTimeout).MustWait(ctx)
 		require.NoError(t, buffer.CloseEpisode(key))
 		synctest.Wait()
@@ -423,9 +420,8 @@ func TestBuffer_SendAfterCloseTimesOut(t *testing.T) {
 		defer buffer.Close()
 		key := testEpisodeKey()
 		require.NoError(t, buffer.CreateEpisode(key))
-		// Both parts exist before the subscriptions, so each subscriber reads
-		// them in one batch while the episode is open. alive and dropped play
-		// the same roles as in TestBuffer_SendWaitingAtCloseTimesOutAfterClose.
+		// Both parts exist first, so each subscriber reads them in one batch
+		// while the episode is open.
 		require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("first")))
 		require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("second")))
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -508,12 +504,9 @@ func TestBuffer_StuckSubscriberRetainsClosedEpisodeUntilSendTimeout(t *testing.T
 		defer cancel()
 		synctest.Wait()
 
-		// The cleanup loop runs every 30s. The episode closes at 20s and
-		// is due for collection from the 60s cleanup on, but the
-		// subscriber's send waits until 95s, so the 120s cleanup collects
-		// it. If the timeout counted from the start of the send instead of
-		// the close, the send would end at 75s and the 90s cleanup would
-		// collect the episode. Neither time falls on a cleanup.
+		// Cleanups run every 30s. Close at 20s, drop at 95s, collection at
+		// 120s. A timeout counted from the send's start would drop at 75s, and
+		// the 90s cleanup would collect the episode.
 		advance := func(d time.Duration) {
 			clock.Advance(d).MustWait(ctx)
 			synctest.Wait()
@@ -562,8 +555,7 @@ func TestBuffer_WaitingSendEndsOnShutdownAndCancel(t *testing.T) {
 				ch, cancelSubscription, err := buffer.SubscribeToEpisode(ctx, key)
 				require.NoError(t, err)
 				defer cancelSubscription()
-				// The send of "blocked" waits with no deadline, because the
-				// episode is open.
+				// The episode is open, so the send has no deadline.
 				synctest.Wait()
 
 				tc.end(buffer, cancelSubscription, cancelContext)

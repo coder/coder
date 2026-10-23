@@ -36,18 +36,15 @@ func TestStreamPartsDialUnrecoverable(t *testing.T) {
 	require.True(t, streamPartsDialUnrecoverable(xerrors.Errorf("wrapped: %w", fakeDialError{unrecoverable: true})))
 }
 
-// TestStreamRelayForwarderDeliversPartsAfterStall stalls the stream loop for
-// longer than the buffer's send timeout while the episode is open. The relay
-// forwarder must then deliver every part, including one added after the
-// stall, in order, over its first connection, and without a new Configure
-// call.
+// TestStreamRelayForwarderDeliversPartsAfterStall stalls the stream loop past
+// the send timeout on an open episode, then expects every part in order over
+// the first connection.
 func TestStreamRelayForwarderDeliversPartsAfterStall(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
-		// The episode holds more parts than the relay path to the stream
-		// loop can hold, so the buffer's send blocks while the stream loop
-		// does not read.
+		// The relay path holds fewer than episodeParts parts, so the buffer's
+		// send blocks.
 		const (
 			episodeParts = 1000
 			sendTimeout  = 10 * time.Second
@@ -81,9 +78,8 @@ func TestStreamRelayForwarderDeliversPartsAfterStall(t *testing.T) {
 			generationAttempt: key.GenerationAttempt,
 		})
 
-		// drain reads parts until every goroutine is blocked and no part is
-		// waiting. It requires each seq to follow the previous one, so a
-		// replay from seq 1 fails it.
+		// drain reads until every goroutine blocks. A replay from seq 1 fails
+		// its order check.
 		var lastSeq int64
 		drain := func() {
 			for {
@@ -100,8 +96,8 @@ func TestStreamRelayForwarderDeliversPartsAfterStall(t *testing.T) {
 
 		synctest.Wait()
 		require.Equal(t, cap(relay.parts), len(relay.parts), "the relay path did not fill")
-		// drain starts with synctest.Wait, so the buffer acts on any timer
-		// the advance fires before the stream loop reads again.
+		// drain waits first, so the buffer handles a fired timer before reads
+		// resume.
 		clock.Advance(sendTimeout).MustWait(ctx)
 		drain()
 		require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("live")))

@@ -392,9 +392,8 @@ func (b *Buffer) SubscribeToEpisode(ctx context.Context, key Key) (<-chan Part, 
 	episode := b.getOrCreateEpisodeLocked(key)
 	subscriber := &episodeSubscriber{
 		// out is unbuffered so the delivery goroutine only advances once the
-		// subscriber has accepted each part. After the episode closes, the
-		// send timeout bounds how long an unresponsive subscriber can keep the
-		// episode retained.
+		// subscriber has accepted each part. The send timeout bounds how long
+		// an unresponsive subscriber can keep its episode retained.
 		out: make(chan Part),
 		// notifyCh is a one-slot wakeup channel. Additional wakeups can be
 		// coalesced because the delivery goroutine copies all available parts
@@ -556,8 +555,7 @@ func (b *Buffer) deliverSubscriber(ctx context.Context, key Key, subscriber *epi
 			return
 		}
 		if len(parts) > 0 {
-			// sendSubscriberPart consumes wakeups while it waits, so look for
-			// parts added during the sends before waiting for the next one.
+			// The sends may have consumed wakeups for new parts.
 			continue
 		}
 		select {
@@ -572,23 +570,16 @@ func (b *Buffer) deliverSubscriber(ctx context.Context, key Key, subscriber *epi
 	}
 }
 
-// sendSubscriberPart sends part to the subscriber and reports whether it did.
-//
-// While the episode is open, the send has no deadline: the buffer keeps an
-// open episode whether or not it has subscribers, so dropping the subscriber
-// would not free the episode. The subscriber continues from its cursor. Once
-// the episode is closed, the send waits at most SubscriberSendTimeout, because
-// a subscriber keeps a closed episode from being garbage collected. A send that
-// is waiting when the episode closes leaves the open-episode loop on the close
-// notification and starts the timeout then.
+// sendSubscriberPart reports whether it sent part. The send timeout starts
+// only once the episode is closed, because subscribers keep only closed
+// episodes retained.
 func (b *Buffer) sendSubscriberPart(ctx context.Context, key Key, subscriber *episodeSubscriber, part Part) bool {
 	for !b.isEpisodeClosed(key) {
 		select {
 		case subscriber.out <- part:
 			return true
 		case <-subscriber.notifyCh:
-			// AddPart and CloseEpisode both notify. deliverSubscriber reads
-			// added parts after the send.
+			// deliverSubscriber reads new parts after this send.
 		case <-subscriber.stopCh:
 			return false
 		case <-ctx.Done():
