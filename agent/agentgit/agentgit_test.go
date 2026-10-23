@@ -810,8 +810,11 @@ func dialGitWatch(t *testing.T, opts ...agentgit.Option) *wsjson.Stream[
 	t.Cleanup(srv.Close)
 
 	wsURL := "ws" + srv.URL[len("http"):] + "/watch"
-	conn, _, err := websocket.Dial(context.Background(), wsURL, nil)
+	conn, resp, err := websocket.Dial(context.Background(), wsURL, nil)
 	require.NoError(t, err)
+	if resp.Body != nil {
+		_ = resp.Body.Close()
+	}
 	t.Cleanup(func() { _ = conn.Close(websocket.StatusNormalClosure, "") })
 
 	return wsjson.NewStream[
@@ -840,8 +843,11 @@ func dialGitWatchWithPathStore(
 	t.Cleanup(srv.Close)
 
 	wsURL := "ws" + srv.URL[len("http"):] + "/watch?chat_id=" + chatID.String()
-	conn, _, err := websocket.Dial(context.Background(), wsURL, nil)
+	conn, resp, err := websocket.Dial(context.Background(), wsURL, nil)
 	require.NoError(t, err)
+	if resp.Body != nil {
+		_ = resp.Body.Close()
+	}
 	t.Cleanup(func() { _ = conn.Close(websocket.StatusNormalClosure, "") })
 
 	return wsjson.NewStream[
@@ -1151,12 +1157,18 @@ func TestMultipleConcurrentConnections(t *testing.T) {
 	wsURL := "ws" + srv.URL[len("http"):] + "/watch?chat_id=" + chatID.String()
 
 	// Create two independent connections.
-	conn1, _, err := websocket.Dial(context.Background(), wsURL, nil)
+	conn1, resp1, err := websocket.Dial(context.Background(), wsURL, nil)
 	require.NoError(t, err)
+	if resp1.Body != nil {
+		_ = resp1.Body.Close()
+	}
 	t.Cleanup(func() { _ = conn1.Close(websocket.StatusNormalClosure, "") })
 
-	conn2, _, err := websocket.Dial(context.Background(), wsURL, nil)
+	conn2, resp2, err := websocket.Dial(context.Background(), wsURL, nil)
 	require.NoError(t, err)
+	if resp2.Body != nil {
+		_ = resp2.Body.Close()
+	}
 	t.Cleanup(func() { _ = conn2.Close(websocket.StatusNormalClosure, "") })
 
 	stream1 := wsjson.NewStream[
