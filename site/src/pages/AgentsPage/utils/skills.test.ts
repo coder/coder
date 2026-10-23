@@ -24,6 +24,8 @@ const skill = (
 	name,
 	description,
 	enabled: true,
+	action: false,
+	model_invocable: true,
 	created_at: now,
 	updated_at: now,
 });

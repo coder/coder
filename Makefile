@@ -1489,6 +1489,7 @@ docs/reference/api-key-scopes.md: node_modules/.installed $(wildcard scripts/sco
 
 coderd/apidoc/.gen: \
 	node_modules/.installed \
+	site/node_modules/.installed \
 	scripts/apidocgen/node_modules/.installed \
 	site/node_modules/.installed \
 	$(wildcard coderd/*.go) \
