@@ -2243,7 +2243,13 @@ export interface ChatAttachmentFile {
 	readonly type: ChatAttachmentFileType;
 	readonly media_type: string;
 	readonly name?: string;
+	/**
+	 * Data holds an inline file's bytes, which JSON carries as a base64 string.
+	 */
 	readonly data?: string;
+	/**
+	 * Omitted, not null, for an inline file.
+	 */
 	readonly file_id?: string;
 }
 

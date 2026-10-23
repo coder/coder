@@ -2123,9 +2123,7 @@ Returns every file part in the user-visible user and assistant messages of a cha
   "attachments": [
     {
       "file": {
-        "data": [
-          0
-        ],
+        "data": "string",
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "media_type": "string",
         "name": "string",

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
@@ -6582,6 +6583,47 @@ func TestGetChatAttachments(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, none.Attachments, "attachments must be [] not nil")
 		require.Empty(t, none.Attachments)
+	})
+
+	t.Run("InlineFileWireFormat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := insertChat(t, ctx, db, user, modelConfig.ID)
+		stored := codersdk.ChatMessageFile(uuid.New(), "text/plain", "stored.txt")
+		insertMessage(t, ctx, db, chat, database.ChatMessageRoleUser,
+			[]codersdk.ChatMessagePart{
+				stored,
+				{Type: codersdk.ChatMessagePartTypeFile, MediaType: "text/plain", Data: []byte("pasted")},
+			},
+			database.ChatMessageVisibilityBoth, false)
+
+		res, err := client.Request(ctx, http.MethodGet,
+			fmt.Sprintf("/api/v2/chats/%s/attachments", chat.ID), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		var body struct {
+			Attachments []struct {
+				PartIndex int                        `json:"part_index"`
+				File      map[string]json.RawMessage `json:"file"`
+			} `json:"attachments"`
+		}
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
+		files := make(map[int]map[string]json.RawMessage, len(body.Attachments))
+		for _, a := range body.Attachments {
+			files[a.PartIndex] = a.File
+		}
+		require.Len(t, files, 2)
+
+		require.JSONEq(t, fmt.Sprintf("%q", stored.FileID.UUID), string(files[0]["file_id"]))
+		require.NotContains(t, files[1], "file_id", "an inline file must omit file_id, not send null")
+		var data string
+		require.NoError(t, json.Unmarshal(files[1]["data"], &data), "data must be a base64 string")
+		require.Equal(t, base64.StdEncoding.EncodeToString([]byte("pasted")), data)
 	})
 
 	t.Run("InvalidBeforeIDRejected", func(t *testing.T) {

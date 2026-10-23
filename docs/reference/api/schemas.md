@@ -2752,9 +2752,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "file": {
-    "data": [
-      0
-    ],
+    "data": "string",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "media_type": "string",
     "name": "string",
@@ -2779,9 +2777,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "data": [
-    0
-  ],
+  "data": "string",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "media_type": "string",
   "name": "string",
@@ -2791,13 +2787,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name         | Type                                                               | Required | Restrictions | Description |
-|--------------|--------------------------------------------------------------------|----------|--------------|-------------|
-| `data`       | array of integer                                                   | false    |              |             |
-| `file_id`    | string                                                             | false    |              |             |
-| `media_type` | string                                                             | false    |              |             |
-| `name`       | string                                                             | false    |              |             |
-| `type`       | [codersdk.ChatAttachmentFileType](#codersdkchatattachmentfiletype) | false    |              |             |
+| Name         | Type                                                               | Required | Restrictions | Description                                                               |
+|--------------|--------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------|
+| `data`       | string                                                             | false    |              | Data holds an inline file's bytes, which JSON carries as a base64 string. |
+| `file_id`    | string                                                             | false    |              | Omitted, not null, for an inline file.                                    |
+| `media_type` | string                                                             | false    |              |                                                                           |
+| `name`       | string                                                             | false    |              |                                                                           |
+| `type`       | [codersdk.ChatAttachmentFileType](#codersdkchatattachmentfiletype) | false    |              |                                                                           |
 
 ## codersdk.ChatAttachmentFileType
 
@@ -2820,9 +2816,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "attachments": [
     {
       "file": {
-        "data": [
-          0
-        ],
+        "data": "string",
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "media_type": "string",
         "name": "string",
