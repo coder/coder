@@ -389,8 +389,9 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 	const [selectedPath, setSelectedPath] = useState<string>();
 	// A new object per reveal, so the tree scrolls to the row even when the
 	// same path is revealed twice.
-	const [revealTarget, setRevealTarget] = useState<{ path: string }>();
+	const [revealTarget, setRevealTarget] = useState<RevealTarget>();
 	const latestReveal = useRef<RevealRequest>(undefined);
+	const revealFocusOrigin = useRef<Element | null>(null);
 	const revealMutation = useMutation({
 		mutationFn: async ({ path, isDirectory }: RevealRequest) => {
 			const listingPath = async (directory: string) => {
@@ -458,13 +459,18 @@ const FilesBrowser: React.FC<FilesBrowserProps> = ({
 				]);
 			}
 			setSelectedPath(target);
-			setRevealTarget(target === undefined ? undefined : { path: target });
+			setRevealTarget(
+				target === undefined
+					? undefined
+					: { path: target, focusOrigin: revealFocusOrigin.current },
+			);
 		},
 	});
 
 	const startReveal = useEffectEvent((request: RevealRequest) => {
 		onRevealHandled?.();
 		latestReveal.current = request;
+		revealFocusOrigin.current = document.activeElement;
 		cancelOpenPath();
 		revealMutation.mutate(request);
 	});
@@ -754,13 +760,19 @@ const fileIconStyle: React.CSSProperties = {
 const typeaheadTimeoutMs = 500;
 const refreshFeedbackMs = 1000;
 
+type RevealTarget = {
+	path: string;
+	/** The element focused when the reveal started. */
+	focusOrigin: Element | null;
+};
+
 type DirectoryTreeProps = {
 	listing: WorkspaceAgentListDirectoryResponse;
 	refreshError: string | undefined;
 	childListings: ReadonlyMap<string, ChildListing>;
 	expandedPaths: readonly string[];
 	selectedPath: string | undefined;
-	revealTarget: { path: string } | undefined;
+	revealTarget: RevealTarget | undefined;
 	onToggleDirectory: (path: string) => void;
 	onOpenFile: (path: string) => void;
 };
@@ -812,8 +824,9 @@ const DirectoryTree: React.FC<DirectoryTreeProps> = ({
 
 	// A reveal can land before its row exists while ancestor listings load, so
 	// this waits for the row and handles each reveal once. Focus moves to the
-	// row like openFile moves it to the file.
-	const handledReveal = useRef<{ path: string }>(undefined);
+	// row like openFile moves it to the file, unless the user moved focus
+	// while the reveal loaded or the panel is hidden (inert).
+	const handledReveal = useRef<RevealTarget>(undefined);
 	useEffect(() => {
 		if (
 			revealTarget === undefined ||
@@ -828,7 +841,13 @@ const DirectoryTree: React.FC<DirectoryTreeProps> = ({
 		}
 		handledReveal.current = revealTarget;
 		row.scrollIntoView({ block: "nearest" });
-		row.focus();
+		const active = document.activeElement;
+		if (
+			(active === document.body || active === revealTarget.focusOrigin) &&
+			row.closest("[inert]") === null
+		) {
+			row.focus();
+		}
 	}, [entryPathsKey, revealTarget]);
 
 	const focusPath = (path: string | undefined) => {
