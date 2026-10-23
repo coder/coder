@@ -114,6 +114,24 @@ const holdListings = (heldPath: string) => {
 	};
 };
 
+// Never answers the first list-directory call for one path, recording the
+// signal of every call for it.
+const stallFirstListing = (stalledPath: string) => {
+	const listDirectory = vi.mocked(API.listWorkspaceAgentDirectory);
+	const fallback = listDirectory.getMockImplementation();
+	const signals: (AbortSignal | undefined)[] = [];
+	listDirectory.mockImplementation((agentId, path, signal) => {
+		if (path === stalledPath) {
+			signals.push(signal);
+			if (signals.length === 1) {
+				return new Promise(() => {});
+			}
+		}
+		return fallback ? fallback(agentId, path, signal) : Promise.reject();
+	});
+	return signals;
+};
+
 // Waits until every list-directory call has settled, releasing held calls
 // as they arrive when given a release function.
 const settled = (release?: () => void) =>
@@ -802,6 +820,36 @@ describe("FilesPanel", () => {
 			).toHaveAttribute("aria-selected", "true");
 		});
 		expect(composer).toHaveFocus();
+	});
+
+	it("restarts its own stalled lookups when a path is revealed again", async () => {
+		const { reveal } = renderRevealed(undefined);
+		await screen.findByRole("treeitem", { name: "src" });
+		const signals = stallFirstListing("/home/coder/repo/src/lib");
+		const request = { path: "/home/coder/repo/src/lib/util.go", isDirectory: false };
+
+		reveal({ ...request });
+		await waitFor(() => expect(signals).toHaveLength(1));
+		reveal({ ...request });
+
+		const util = await screen.findByRole("treeitem", { name: "util.go" });
+		await waitFor(() => expect(util).toHaveAttribute("aria-selected", "true"));
+		expect(signals[0]?.aborted).toBe(true);
+	});
+
+	it("lets Refresh restart the lookups a pending reveal waits on", async () => {
+		const user = userEvent.setup();
+		const { reveal } = renderRevealed(undefined);
+		await screen.findByRole("treeitem", { name: "src" });
+		const signals = stallFirstListing("/home/coder/repo/src/lib");
+
+		reveal({ path: "/home/coder/repo/src/lib/util.go", isDirectory: false });
+		await waitFor(() => expect(signals).toHaveLength(1));
+		await user.click(screen.getByRole("button", { name: "Refresh files" }));
+
+		const util = await screen.findByRole("treeitem", { name: "util.go" });
+		await waitFor(() => expect(util).toHaveAttribute("aria-selected", "true"));
+		expect(signals[0]?.aborted).toBe(true);
 	});
 
 	it("does not list files without a workspace agent", () => {
