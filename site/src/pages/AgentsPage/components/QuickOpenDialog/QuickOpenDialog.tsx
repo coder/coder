@@ -119,14 +119,18 @@ const QuickOpen: React.FC<{ workspaceFiles: WorkspaceFilesContextValue }> = ({
 	// cannot be opened, so Enter never opens a file the input no longer matches.
 	const isStale =
 		trimmedQuery !== debouncedQuery || findQuery.isPlaceholderData;
+	// A disabled search still returns results another chat cached for the
+	// same roots, so none show until the panel root resolves.
 	const files =
-		trimmedQuery === "" || findQuery.isError
+		trimmedQuery === "" || findQuery.isError || panelRoot === undefined
 			? []
 			: (findQuery.data?.results.filter((result) => !result.is_dir) ?? []);
 
 	let status: string | undefined;
 	if (trimmedQuery === "") {
 		status = "Type to search files.";
+	} else if (panelRoot === undefined) {
+		status = "Searching...";
 	} else if (findQuery.isError && !isStale) {
 		status =
 			// Agents without find-files answer with a plain-text 404, which
