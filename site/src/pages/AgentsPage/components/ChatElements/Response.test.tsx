@@ -2,7 +2,11 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { API, type WorkspaceAgentFile } from "#/api/api";
+import {
+	API,
+	type WorkspaceAgentFile,
+	type WorkspaceAgentFindFilesResult,
+} from "#/api/api";
 import { workspaceAgentDirectoryKey } from "#/api/queries/workspaceFiles";
 import { createDeferred } from "#/testHelpers/deferred";
 import { render } from "#/testHelpers/renderHelpers";
@@ -83,6 +87,9 @@ describe("Response", () => {
 			vi.spyOn(API, "listWorkspaceAgentDirectory").mockRejectedValue(
 				new Error("no listing"),
 			);
+			vi.spyOn(API, "findWorkspaceAgentFiles").mockResolvedValue({
+				results: [],
+			});
 		});
 		afterEach(() => {
 			vi.restoreAllMocks();
@@ -165,6 +172,26 @@ describe("Response", () => {
 		const listCalls = (list: { mock: { calls: unknown[][] } }, path: string) =>
 			list.mock.calls.filter((call) => call[1] === path);
 
+		const findResult = (
+			root: string,
+			path: string,
+		): WorkspaceAgentFindFilesResult => ({
+			absolute_path: `${root}/${path}`,
+			path,
+			root,
+			is_dir: false,
+			score: 1,
+		});
+		// Search results by the bare name searched for.
+		const mockFind = (
+			results: Record<string, WorkspaceAgentFindFilesResult[]>,
+		) =>
+			vi
+				.spyOn(API, "findWorkspaceAgentFiles")
+				.mockImplementation(async (_agentId, _roots, query) => ({
+					results: results[query] ?? [],
+				}));
+
 		const markdown =
 			"Edit `site/src/api/api.ts:42` and /home/coder/coder/go.mod#L3. " +
 			"See [main.go](https://example.com/main.go) and v1.2.3.\n\n" +
@@ -212,14 +239,31 @@ describe("Response", () => {
 			{
 				markdown: "Ignore it in .gitignore.",
 				link: ".gitignore",
-				opens: "/home/coder/.gitignore",
+				opens: "/home/coder/coder/.gitignore",
 				line: undefined,
 			},
+			{
+				markdown: "The walk lives in FileMention.tsx:120.",
+				link: "FileMention.tsx:120",
+				opens:
+					"/home/coder/coder/site/src/pages/AgentsPage/components/ChatElements/FileMention.tsx",
+				line: 120,
+			},
 		])(
-			"opens $link once a listing confirms it",
+			"opens $link once a lookup confirms it",
 			async ({ markdown, link, opens, line }) => {
 				const user = userEvent.setup();
-				mockTree({ ...markdownTree, "/home/coder": [".gitignore"] });
+				mockTree(markdownTree);
+				mockFind({
+					".gitignore": [findResult("/home/coder/coder", ".gitignore")],
+					"FileMention.tsx": [
+						findResult(
+							"/home/coder/coder",
+							"site/src/pages/AgentsPage/components/ChatElements/FileMention.tsx",
+						),
+						findResult("/home/coder/coder", "site/src/MyFileMention.tsx"),
+					],
+				});
 				const { files } = renderWithFiles(markdown);
 
 				await user.click(await screen.findByRole("button", { name: link }));
@@ -228,16 +272,20 @@ describe("Response", () => {
 			},
 		);
 
-		it("leaves mentions that no listing confirms as plain text", async () => {
+		it("leaves mentions that no lookup confirms as plain text", async () => {
 			const list = mockTree({
 				"/home/coder": ["conn.go"],
 				"/home/coder/coder": ["main.go"],
 				"/home/coder/demo": [".gitignore"],
 			});
+			const find = mockFind({
+				"main.go": [findResult("/home/coder/coder", "main.go")],
+			});
 			renderWithFiles(
 				[
 					"See ../conn.go and `/home/coder/demo/pyproject.toml`.",
 					"Also main.go, /home/coder/demo/.gitignore and src/missing.ts.",
+					"Nothing defines missing.go.",
 				].join("\n\n"),
 			);
 
@@ -248,15 +296,45 @@ describe("Response", () => {
 				expect(listCalls(list, "/home/coder/demo")).toHaveLength(1),
 			);
 			await flush();
+			await waitFor(() =>
+				expect(find).toHaveBeenCalledWith(
+					"agent-1",
+					["/home/coder/coder", "/home/coder/other"],
+					"missing.go",
+					200,
+				),
+			);
+			await flush();
 			expect(buttonTexts()).toEqual(["main.go", "/home/coder/demo/.gitignore"]);
+		});
+
+		it("looks up a bare name once for all its mentions", async () => {
+			const find = mockFind({
+				"conn.go": [findResult("/home/coder/coder", "wsjson/conn.go")],
+			});
+			renderWithFiles(
+				"See conn.go, then `conn.go:12`.\n\nAgain: conn.go and conn.go.",
+			);
+
+			await waitFor(() =>
+				expect(buttonTexts()).toEqual([
+					"conn.go",
+					"conn.go:12",
+					"conn.go",
+					"conn.go",
+				]),
+			);
+			expect(find).toHaveBeenCalledTimes(1);
 		});
 
 		it("lets the user choose between files in several repositories with the keyboard", async () => {
 			const user = userEvent.setup();
-			mockTree({
-				"/home/coder/coder": ["README.md"],
-				"/home/coder/other": ["README.md", "docs/"],
-				"/home/coder/other/docs": ["README.md"],
+			mockFind({
+				"README.md": [
+					findResult("/home/coder/coder", "README.md"),
+					findResult("/home/coder/other", "README.md"),
+					findResult("/home/coder/other", "docs/README.md"),
+				],
 			});
 			const { files } = renderWithFiles("See README.md for setup.");
 
@@ -279,18 +357,24 @@ describe("Response", () => {
 			);
 		});
 
-		it("closes the picker with Escape", async () => {
+		it("closes the picker with Escape and notes truncated results", async () => {
 			const user = userEvent.setup();
-			mockTree({
-				"/home/coder/coder": ["README.md"],
-				"/home/coder/other": ["README.md"],
+			mockFind({
+				"README.md": Array.from({ length: 200 }, (_, index) =>
+					findResult("/home/coder/coder", `pkg${index}/README.md`),
+				),
 			});
 			const { files } = renderWithFiles("See README.md for setup.");
 
 			await user.click(
 				await screen.findByRole("button", { name: "README.md" }),
 			);
-			await screen.findByRole("dialog", { name: "Files matching README.md" });
+			const picker = await screen.findByRole("dialog", {
+				name: "Files matching README.md",
+			});
+			expect(
+				within(picker).getByText(/^Showing 200 matches from the first 200/),
+			).toBeDefined();
 			await user.keyboard("{Escape}");
 
 			await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
