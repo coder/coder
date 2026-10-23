@@ -19,6 +19,7 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
 import { noHoverMediaQuery } from "#/utils/mobile";
+import { getFileCursorLine } from "../../utils/mainTabStorage";
 import { getPathBasename } from "../../utils/path";
 import { FileActionsMenuItems } from "../FileTab/FileActionsMenuItems";
 import { getTabHints } from "./tabHints";
@@ -37,6 +38,8 @@ export const getTabElementIds = (idPrefix: string, fileIndex?: number) => {
 
 type MainTabStripProps = {
 	idPrefix: string;
+	/** The chat whose file tabs these are, which keys their saved state. */
+	chatId: string;
 	paths: readonly string[];
 	activePath: string | null;
 	/** Changes on every activation; each change scrolls the active tab into view. */
@@ -97,12 +100,27 @@ const scrollIntoStrip = (strip: HTMLElement, tab: HTMLElement) => {
 // The value of the Chat tab in the open tabs menu. No file path is empty.
 const chatMenuValue = "";
 
+// The menu mounts when it opens, so it reads the cursor line the tab's
+// editor saved last, even if the strip has not rendered since.
+const TabFileActionsMenuItems: React.FC<{ chatId: string; path: string }> = ({
+	chatId,
+	path,
+}) => (
+	<FileActionsMenuItems
+		Item={ContextMenuItem}
+		Separator={ContextMenuSeparator}
+		path={path}
+		line={getFileCursorLine(chatId, path)}
+	/>
+);
+
 /**
  * The tab strip of the chat view: a pinned Chat tab followed by file tabs,
  * and a menu of all tabs while they overflow the strip.
  */
 export const MainTabStrip: React.FC<MainTabStripProps> = ({
 	idPrefix,
+	chatId,
 	paths,
 	activePath,
 	activation,
@@ -322,11 +340,7 @@ export const MainTabStrip: React.FC<MainTabStripProps> = ({
 									Close to the right
 								</ContextMenuItem>
 								<ContextMenuSeparator />
-								<FileActionsMenuItems
-									Item={ContextMenuItem}
-									Separator={ContextMenuSeparator}
-									path={path}
-								/>
+								<TabFileActionsMenuItems chatId={chatId} path={path} />
 							</ContextMenuContent>
 						</ContextMenu>
 					);

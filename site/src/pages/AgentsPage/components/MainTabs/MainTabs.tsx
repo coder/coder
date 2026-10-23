@@ -254,6 +254,7 @@ export const MainTabs: React.FC<MainTabsProps> = ({
 			{hasFileTabs && (
 				<MainTabStrip
 					idPrefix={idPrefix}
+					chatId={mainTabs.chatId}
 					paths={files.map((file) => file.path)}
 					activePath={activePath}
 					activation={mainTabs.activation}
