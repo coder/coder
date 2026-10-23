@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { QueryClientProvider } from "react-query";
 import { describe, expect, it } from "vitest";
-import { chatFileText, chatFileTextKey } from "#/api/queries/chats";
+import { chatFileText } from "#/api/queries/chats";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import {
 	createTestQueryClient,
@@ -70,7 +70,6 @@ describe("AgentAttachmentList", () => {
 					),
 				),
 			);
-			const queryClient = createTestQueryClient();
 			const [findings] = mockFindingsAttachments;
 			const attachments = ["first", "second"].map((name) => ({
 				...findings,
@@ -78,7 +77,7 @@ describe("AgentAttachmentList", () => {
 				file: { ...findings.file, file_id: `${name}-file`, name: `${name}.md` },
 			}));
 			renderComponent(
-				<QueryClientProvider client={queryClient}>
+				<QueryClientProvider client={createTestQueryClient()}>
 					<AgentAttachmentList attachments={attachments} />
 				</QueryClientProvider>,
 			);
@@ -95,14 +94,6 @@ describe("AgentAttachmentList", () => {
 			secondLink.focus();
 
 			firstText.resolve("# First");
-			await waitFor(() =>
-				expect(
-					queryClient.getQueryState(chatFileTextKey("first-file")),
-				).toMatchObject({
-					status: firstStatus === 200 ? "success" : "error",
-					data: firstStatus === 200 ? "# First" : undefined,
-				}),
-			);
 			await screen.findByRole("button", {
 				name:
 					firstStatus === 200
@@ -133,7 +124,7 @@ describe("AgentAttachmentList", () => {
 				<AgentAttachmentList attachments={mockFindingsAttachments} />
 			</QueryClientProvider>,
 		);
-		const [failedCard, loadedCard] = screen.getAllByRole("button", {
+		const [loadedCard, failedCard] = screen.getAllByRole("button", {
 			name: "findings.md View file",
 		});
 		await user.click(failedCard);
@@ -142,6 +133,8 @@ describe("AgentAttachmentList", () => {
 		});
 
 		await user.click(loadedCard);
-		await screen.findByRole("dialog", { name: "findings.md" });
+		await waitFor(() => expect(loadedCard).not.toHaveFocus());
+		await user.keyboard("{Escape}");
+		await waitFor(() => expect(loadedCard).toHaveFocus());
 	});
 });

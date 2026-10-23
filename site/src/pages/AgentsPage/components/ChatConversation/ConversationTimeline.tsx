@@ -122,7 +122,6 @@ const ChatMessageItem = memo<{
 	) => void;
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
-	hideActions?: boolean;
 	turnAttachments?: TurnAttachmentList;
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
@@ -156,7 +155,6 @@ const ChatMessageItem = memo<{
 		onEditUserMessage,
 		editingMessageId,
 		isAfterEditingMessage = false,
-		hideActions = false,
 		turnAttachments,
 		hasActiveStream = false,
 		isAwaitingFirstStreamChunk = false,
@@ -182,12 +180,13 @@ const ChatMessageItem = memo<{
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
 		const [previewText, setPreviewText] =
 			useState<PreviewTextAttachment | null>(null);
+		const isWorkSection = section === "work";
 		const displayState =
 			message && parsed
 				? deriveMessageDisplayState({
 						message,
 						parsed,
-						hideActions,
+						hideActions: isWorkSection,
 						hasActiveStream,
 						isAwaitingFirstStreamChunk,
 					})
@@ -199,7 +198,7 @@ const ChatMessageItem = memo<{
 			Boolean(onJumpToUserMessage) &&
 			(prevUserMessageKey !== undefined || nextUserMessageKey !== undefined);
 		const copyText =
-			displayState?.hasCopyableContent && parsed && !hideActions
+			displayState?.hasCopyableContent && parsed && !isWorkSection
 				? parsed.markdown
 				: undefined;
 		const showsHoverActions = canEditUserMessage || canJumpBetweenUserMessages;
@@ -237,7 +236,6 @@ const ChatMessageItem = memo<{
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
 		};
-		const isWorkSection = section === "work";
 		const rowBlocks = parsed?.blocks ?? liveBlocks;
 		const rowTools = parsed?.tools ?? liveTools;
 		const blocks = getRowBlocks(rowBlocks, rowTools, {
@@ -651,7 +649,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					hasUserResponseAfterAskQuestion={hasUserResponseAfterAskQuestion}
 					urlTransform={urlTransform}
 					isAfterEditingMessage={isAfterEditingMessage}
-					hideActions={section === "work"}
 					turnAttachments={
 						rendersAtTopLevel ? turnAttachmentsByRow.get(row.key) : undefined
 					}

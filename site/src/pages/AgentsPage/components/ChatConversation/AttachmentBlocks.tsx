@@ -328,10 +328,9 @@ const RemoteTextAttachmentButton: React.FC<{
 	fileId: string;
 	fileName: string;
 	mediaType: string;
-	frameHref?: string | null;
-	downloadName: string;
+	frame?: AttachmentDownload;
 	onPreview: (attachment: PreviewTextAttachment) => void | Promise<void>;
-}> = ({ fileId, fileName, mediaType, frameHref, downloadName, onPreview }) => {
+}> = ({ fileId, fileName, mediaType, frame, onPreview }) => {
 	const { hasExpired, setProbeResult } = useFileProbes();
 	const isKnownExpired = hasExpired(fileId);
 	const [content, setContent] = useState<string | null>(null);
@@ -419,15 +418,8 @@ const RemoteTextAttachmentButton: React.FC<{
 		/>
 	);
 
-	const framedButton = frameHref ? (
-		<AttachmentPreviewFrame
-			href={frameHref}
-			displayName={fileName}
-			downloadName={downloadName}
-			mediaType={mediaType}
-		>
-			{button}
-		</AttachmentPreviewFrame>
+	const framedButton = frame ? (
+		<AttachmentPreviewFrame {...frame}>{button}</AttachmentPreviewFrame>
 	) : (
 		button
 	);
@@ -620,8 +612,11 @@ export const AttachmentBlock: React.FC<{
 					fileId={block.file_id}
 					fileName={displayName}
 					mediaType={block.media_type}
-					frameHref={framePreview ? href : undefined}
-					downloadName={getAttachmentDownloadName(block)}
+					frame={
+						framePreview && href
+							? getAttachmentDownload(block, href)
+							: undefined
+					}
 					onPreview={onTextFileClick}
 				/>
 			);
