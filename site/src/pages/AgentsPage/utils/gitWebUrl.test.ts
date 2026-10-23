@@ -32,6 +32,14 @@ describe("getGitWebRepository", () => {
 		],
 		["git@github.com:coder/coder.git", "https://github.com/coder/coder"],
 		["git@GitHub.com:coder/coder", "https://github.com/coder/coder"],
+		[
+			"ssh://git@github.com:2222/coder/coder.git",
+			"https://github.com/coder/coder",
+		],
+		[
+			"https://github.com:8443/coder/coder.git",
+			"https://github.com:8443/coder/coder",
+		],
 	])("links %s on GitHub", (origin, url) => {
 		expect(getGitWebRepository(origin, [])).toEqual({
 			provider: "github",
@@ -119,6 +127,48 @@ describe("findDiffStatus", () => {
 		expect(
 			findDiffStatus(statuses, "git@github.com:coder/other.git", "feat"),
 		).toBeUndefined();
+	});
+
+	it.each([
+		["git@git.example.com:g/repo.git", "https://git.example.com/g/repo", true],
+		[
+			"ssh://git@git.example.com:22/g/repo",
+			"http://git.example.com/g/repo",
+			true,
+		],
+		[
+			"ssh://git@git.example.com:2222/g/repo",
+			"https://git.example.com/g/repo",
+			false,
+		],
+		[
+			"git@git.example.com:g/repo.git",
+			"https://git.example.com:8443/g/repo",
+			false,
+		],
+		[
+			"ssh://git@git.example.com:8443/g/repo",
+			"https://git.example.com:8443/g/repo",
+			false,
+		],
+		[
+			"ssh://git@git.example.com:2222/g/repo",
+			"ssh://git.example.com:2222/g/repo",
+			true,
+		],
+		[
+			"https://git.example.com:9443/g/repo",
+			"https://git.example.com:8443/g/repo",
+			false,
+		],
+	])("%s and %s name one repository: %s", (origin, remoteOrigin, matches) => {
+		const status = diffStatus({
+			remote_origin: remoteOrigin,
+			git_branch: "feature",
+		});
+		expect(findDiffStatus([status], origin, "feature")).toBe(
+			matches ? status : undefined,
+		);
 	});
 });
 
@@ -243,6 +293,41 @@ describe("getFileWebLinks", () => {
 				diffStatuses: [],
 			})?.blob,
 		).toBeUndefined();
+	});
+
+	it("links the repository on the origin's HTTPS port", () => {
+		const statuses = [
+			[8443, 1],
+			[9443, 2],
+		].map(([port, number]) =>
+			diffStatus({
+				remote_origin: `https://git.example.com:${port}/group/repo.git`,
+				git_branch: "feature",
+				url: `https://git.example.com:${port}/group/repo/-/merge_requests/${number}`,
+				pr_number: number,
+			}),
+		);
+		expect(
+			getFileWebLinks({
+				origin: "https://git.example.com:9443/group/repo.git",
+				branch: "feature",
+				headCommit,
+				relativePath: "README.md",
+				diffStatuses: statuses,
+			}),
+		).toEqual({
+			repository: {
+				provider: "gitlab",
+				url: "https://git.example.com:9443/group/repo",
+			},
+			blob: {
+				url: "https://git.example.com:9443/group/repo/-/blob/feature/README.md",
+			},
+			changeRequest: {
+				url: "https://git.example.com:9443/group/repo/-/merge_requests/2",
+				number: "2",
+			},
+		});
 	});
 });
 
