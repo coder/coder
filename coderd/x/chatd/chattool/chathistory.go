@@ -349,7 +349,7 @@ func (h historyReader) readItem(args ChatHistoryArgs) fantasy.ToolResponse {
 	return fantasy.NewTextErrorResponse(`{"error":"item_not_found"}`)
 }
 
-func (h historyReader) itemSummary(w HistoryWindow, msg database.ChatMessage, text string) map[string]any {
+func (historyReader) itemSummary(w HistoryWindow, msg database.ChatMessage, text string) map[string]any {
 	return map[string]any{
 		"item_id":   msg.ID,
 		"window_id": w.ID(),

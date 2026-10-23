@@ -43,7 +43,6 @@ func runChatHistory(ctx context.Context, t *testing.T, tool fantasy.AgentTool, a
 
 func TestChatHistory(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
 	db, _ := dbtestutil.NewDB(t)
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -90,6 +89,7 @@ func TestChatHistory(t *testing.T) {
 
 	t.Run("ListWindows", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		resp, result := runChatHistory(ctx, t, tool, chattool.ChatHistoryArgs{Action: "list_windows"})
 		require.False(t, resp.IsError, resp.Content)
 		windows, ok := result["windows"].([]any)
@@ -110,6 +110,7 @@ func TestChatHistory(t *testing.T) {
 
 	t.Run("ListItems", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		resp, result := runChatHistory(ctx, t, tool, chattool.ChatHistoryArgs{Action: "list_items", WindowID: "w:1"})
 		require.False(t, resp.IsError, resp.Content)
 		items := result["items"].([]any)
@@ -133,6 +134,7 @@ func TestChatHistory(t *testing.T) {
 
 	t.Run("Search", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		resp, result := runChatHistory(ctx, t, tool, chattool.ChatHistoryArgs{Action: "search", Query: "BILLING"})
 		require.False(t, resp.IsError, resp.Content)
 		items := result["items"].([]any)
@@ -155,6 +157,7 @@ func TestChatHistory(t *testing.T) {
 
 	t.Run("ReadItem", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		resp, result := runChatHistory(ctx, t, tool, chattool.ChatHistoryArgs{Action: "read_item", ItemID: current.ID})
 		require.False(t, resp.IsError, resp.Content)
 		require.Equal(t, "Continue", result["text"])

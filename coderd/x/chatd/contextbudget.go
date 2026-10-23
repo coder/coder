@@ -319,7 +319,7 @@ func (s *taskStarter) buildContextWindowMessages(
 
 // commitContextNudge commits a hidden nudge row, like syncMemoryIndex,
 // and asks for another pass of the step.
-func (s *taskStarter) commitContextNudge(
+func (*taskStarter) commitContextNudge(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,

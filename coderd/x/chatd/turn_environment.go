@@ -526,7 +526,7 @@ func (p *Server) buildTurnEnvironment(
 	budgetOn = budgetOn &&
 		p.experiments.Enabled(codersdk.ExperimentChatTokenBudget) &&
 		!isExploreSubagent &&
-		!(isPlanModeTurn && !isRootChat)
+		(!isPlanModeTurn || isRootChat)
 	var convertOpts []chatprompt.ConvertOption
 	if budgetOn {
 		convertOpts = append(convertOpts, chatprompt.WithItemIDSuffix())

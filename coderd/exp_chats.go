@@ -6411,7 +6411,7 @@ func (api *API) putChatContextWindowConfig(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
-	raw, err := json.Marshal(codersdk.ChatContextWindowConfig{Fallback: req.Fallback})
+	raw, err := json.Marshal(codersdk.ChatContextWindowConfig(req))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error encoding context window configuration.",
