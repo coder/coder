@@ -608,6 +608,7 @@ func TestScanDeletedRepoEmitsRemoved(t *testing.T) {
 	require.NotNil(t, msg1)
 	require.Len(t, msg1.Repositories, 1)
 	require.False(t, msg1.Repositories[0].Removed)
+	require.NotEmpty(t, msg1.Repositories[0].HeadCommit)
 
 	// Delete the entire repo directory.
 	require.NoError(t, os.RemoveAll(repoDir))
@@ -621,6 +622,7 @@ func TestScanDeletedRepoEmitsRemoved(t *testing.T) {
 	require.True(t, removed.Removed, "repo should be marked as removed")
 	require.Equal(t, repoDir, removed.RepoRoot)
 	require.Empty(t, removed.Branch)
+	require.Empty(t, removed.HeadCommit)
 
 	// Removed repo should have an empty diff.
 	require.Empty(t, removed.UnifiedDiff)
