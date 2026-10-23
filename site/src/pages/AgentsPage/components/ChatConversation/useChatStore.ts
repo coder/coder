@@ -699,6 +699,10 @@ export const useChatStore = (
 			});
 		};
 		const disposeSocket = createReconnectingWebSocket({
+			// The server writes an empty batch after 15s without messages
+			// (httpapi.HeartbeatInterval), so 40s of silence means two
+			// keepalives went missing and the connection is likely frozen.
+			silenceTimeoutMs: 40_000,
 			connect() {
 				// Use the latest known message ID so the server only
 				// sends events the client hasn't seen yet.

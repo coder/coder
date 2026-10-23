@@ -3975,6 +3975,60 @@ describe("useChatStore", () => {
 		});
 	});
 
+	it("reconnects a chat stream that stays silent for 40s", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		immediateAnimationFrame();
+		vi.spyOn(Math, "random").mockReturnValue(0.5);
+
+		const chatID = "chat-silent-stream";
+		const watchMock = vi.mocked(watchChat);
+		const sockets = mockWatchChatWithFreshSockets(watchMock);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
+					chatID,
+					chatMessages: [],
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return useChatSelector(store, selectReconnectState);
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchMock).toHaveBeenCalledWith(chatID, undefined);
+		});
+		const socket1 = sockets[0]!;
+		act(() => {
+			socket1.emitOpen();
+		});
+
+		await act(async () => {
+			vi.advanceTimersByTime(40_000);
+		});
+
+		expect(socket1.close).toHaveBeenCalled();
+		expect(result.current).toMatchObject({ attempt: 1, delayMs: 1000 });
+
+		await act(async () => {
+			vi.advanceTimersByTime(1_000);
+		});
+		expect(watchMock).toHaveBeenCalledTimes(2);
+	});
+
 	it("clears stale streamError when a reconnected socket opens", async () => {
 		vi.useFakeTimers({ shouldAdvanceTime: true });
 		immediateAnimationFrame();
