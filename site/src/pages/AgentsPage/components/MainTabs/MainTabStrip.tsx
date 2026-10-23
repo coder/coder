@@ -17,10 +17,10 @@ import {
 	DropdownMenuRadioItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { useClipboard } from "#/hooks/useClipboard";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
 import { noHoverMediaQuery } from "#/utils/mobile";
 import { getPathBasename } from "../../utils/path";
+import { FileActionsMenuItems } from "../FileTab/FileActionsMenuItems";
 import { getTabHints } from "./tabHints";
 
 /** A tab's path, or null for the Chat tab. */
@@ -45,8 +45,6 @@ type MainTabStripProps = {
 	dirtyPaths: ReadonlySet<string>;
 	/** Receives the tab buttons, which keyboard navigation focuses. */
 	tabButtonsRef: React.RefObject<Map<TabKey, HTMLButtonElement>>;
-	/** The path relative to its repository root, if it is in a repository. */
-	getRelativePath: (path: string) => string | undefined;
 	onActivate: (key: TabKey) => void;
 	onTabKeyDown: (event: React.KeyboardEvent, key: TabKey) => void;
 	/** Closes `paths`, at the request of the tab at `source`. */
@@ -110,12 +108,10 @@ export const MainTabStrip: React.FC<MainTabStripProps> = ({
 	activation,
 	dirtyPaths,
 	tabButtonsRef,
-	getRelativePath,
 	onActivate,
 	onTabKeyDown,
 	onClose,
 }) => {
-	const { copyToClipboard } = useClipboard();
 	const canHover = !useMediaQuery(noHoverMediaQuery);
 	const stripRef = useRef<HTMLDivElement>(null);
 	// File tabs scroll into view with their close buttons.
@@ -223,7 +219,6 @@ export const MainTabStrip: React.FC<MainTabStripProps> = ({
 					const isDirty = dirtyPaths.has(path);
 					const { name, hint, accessibleName } = getLabel(path);
 					const ids = getTabElementIds(idPrefix, index);
-					const relativePath = getRelativePath(path);
 					return (
 						<ContextMenu key={path}>
 							<ContextMenuTrigger asChild>
@@ -327,16 +322,11 @@ export const MainTabStrip: React.FC<MainTabStripProps> = ({
 									Close to the right
 								</ContextMenuItem>
 								<ContextMenuSeparator />
-								<ContextMenuItem onSelect={() => void copyToClipboard(path)}>
-									Copy path
-								</ContextMenuItem>
-								{relativePath !== undefined && (
-									<ContextMenuItem
-										onSelect={() => void copyToClipboard(relativePath)}
-									>
-										Copy relative path
-									</ContextMenuItem>
-								)}
+								<FileActionsMenuItems
+									Item={ContextMenuItem}
+									Separator={ContextMenuSeparator}
+									path={path}
+								/>
 							</ContextMenuContent>
 						</ContextMenu>
 					);

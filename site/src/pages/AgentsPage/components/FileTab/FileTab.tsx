@@ -1,6 +1,6 @@
 import { isAxiosError } from "axios";
 import { cn } from "cn";
-import { TriangleAlertIcon } from "lucide-react";
+import { EllipsisVerticalIcon, TriangleAlertIcon } from "lucide-react";
 import prettyBytes from "pretty-bytes";
 import { lazy, memo, Suspense, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -12,6 +12,13 @@ import {
 	writeWorkspaceAgentFile,
 } from "#/api/queries/workspaceFiles";
 import { Button } from "#/components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Loader } from "#/components/Loader/Loader";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -20,6 +27,7 @@ import { isBinaryData } from "#/modules/templates/TemplateFiles/isBinaryData";
 import { getOSKey } from "#/utils/platform";
 import { getPathBasename } from "../../utils/path";
 import type { FileReveal } from "../MainTabs/useMainTabs";
+import { FileActionsMenuItems } from "./FileActionsMenuItems";
 import type { FileEditorStatus } from "./FileEditor";
 import {
 	MarkdownFilePreview,
@@ -534,6 +542,27 @@ export const FileTab = memo<FileTabProps>(
 							Save
 						</PendingButton>
 					)}
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								variant="subtle"
+								size="icon"
+								aria-label="File actions"
+								title="File actions"
+								className="-mr-1.5 size-6 shrink-0"
+							>
+								<EllipsisVerticalIcon />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<FileActionsMenuItems
+								Item={DropdownMenuItem}
+								Separator={DropdownMenuSeparator}
+								path={path}
+								line={cursor?.line}
+							/>
+						</DropdownMenuContent>
+					</DropdownMenu>
 				</div>
 				<div className="relative flex min-h-0 flex-1 flex-col">{body}</div>
 			</div>

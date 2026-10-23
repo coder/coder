@@ -54,6 +54,7 @@ vi.mock("../FileTab/FileEditor", () => ({
 
 const chatId = "chat-main-tabs";
 const chatMounted = vi.fn();
+const revealInFiles = vi.fn();
 
 const ChatStub: React.FC<{ ref: React.Ref<HTMLTextAreaElement> }> = ({
 	ref,
@@ -116,7 +117,7 @@ const Harness: React.FC<HarnessProps> = ({
 							repoRoots: ["/repo"],
 							repositories,
 							openFile: mainTabs.openFile,
-							revealInFiles: () => {},
+							revealInFiles,
 							diffStatuses: [],
 						}
 					: undefined
@@ -510,12 +511,25 @@ describe("MainTabs", () => {
 		});
 	});
 
-	it("copies a tab's path and its path in the repository", async () => {
+	it("offers the file's actions in a tab's menu", async () => {
 		const user = userEvent.setup();
 		const writeText = vi
 			.spyOn(navigator.clipboard, "writeText")
 			.mockResolvedValue(undefined);
-		renderHarness(["/repo/src/a.go"]);
+		const { setRepositories } = renderHarness(["/repo/src/a.go"]);
+		setRepositories(
+			new Map([
+				[
+					"/repo",
+					{
+						repo_root: "/repo",
+						branch: "main",
+						remote_origin: "https://github.com/coder/coder.git",
+						head_commit: "a".repeat(40),
+					},
+				],
+			]),
+		);
 
 		await user.click(
 			screen.getByRole("button", { name: "Open /repo/src/a.go" }),
@@ -531,6 +545,16 @@ describe("MainTabs", () => {
 			await screen.findByRole("menuitem", { name: "Copy path" }),
 		);
 		expect(writeText).toHaveBeenLastCalledWith("/repo/src/a.go");
+
+		await user.pointer({ keys: "[MouseRight]", target: getTab("a.go") });
+		expect(
+			await screen.findByRole("menuitem", { name: "Open on GitHub" }),
+		).toHaveAttribute(
+			"href",
+			`https://github.com/coder/coder/blob/${"a".repeat(40)}/src/a.go`,
+		);
+		await user.click(screen.getByRole("menuitem", { name: "Reveal in Files" }));
+		expect(revealInFiles).toHaveBeenLastCalledWith("/repo/src/a.go");
 	});
 
 	it("moves between tabs with the arrow keys", async () => {

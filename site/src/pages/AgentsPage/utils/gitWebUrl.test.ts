@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { ChatDiffStatus } from "#/api/typesGenerated";
 import {
+	changeRequestLabel,
 	findDiffStatus,
 	getBlobUrl,
 	getChangeRequestFilesUrl,
 	getFileDiffAnchor,
+	getFileWebLinks,
 	getGitWebRepository,
 } from "./gitWebUrl";
 
@@ -166,5 +168,87 @@ describe("getChangeRequestFilesUrl", () => {
 				"https://github.com/coder/coder/pull/12",
 			),
 		).toBe("https://github.com/coder/coder/pull/12/files");
+	});
+});
+
+describe("getFileWebLinks", () => {
+	const origin = "git@github.com:coder/coder.git";
+	const headCommit = "0123456789abcdef0123456789abcdef01234567";
+	const links = (diffStatuses: ChatDiffStatus[], branch = "feat") =>
+		getFileWebLinks({
+			origin,
+			branch,
+			headCommit,
+			relativePath: "site/main.go",
+			line: 6,
+			diffStatuses,
+		});
+
+	it("links the pushed branch and its pull request", () => {
+		expect(
+			links([
+				diffStatus({
+					remote_origin: "https://github.com/coder/coder",
+					git_branch: "feat",
+					url: "https://github.com/coder/coder/pull/12",
+					pr_number: 12,
+				}),
+			]),
+		).toEqual({
+			repository: { provider: "github", url: "https://github.com/coder/coder" },
+			blob: {
+				url: "https://github.com/coder/coder/blob/feat/site/main.go#L6",
+			},
+			changeRequest: {
+				url: "https://github.com/coder/coder/pull/12",
+				number: "12",
+			},
+		});
+	});
+
+	it("links a pushed branch without a pull request at the branch", () => {
+		const result = links([
+			diffStatus({
+				remote_origin: "https://github.com/coder/coder",
+				git_branch: "feat",
+				url: "https://github.com/coder/coder/tree/feat",
+			}),
+		]);
+		expect(result?.blob).toEqual({
+			url: "https://github.com/coder/coder/blob/feat/site/main.go#L6",
+		});
+		expect(result?.changeRequest).toBeUndefined();
+	});
+
+	it("links HEAD when the branch is not known to be pushed", () => {
+		const result = links([
+			diffStatus({
+				remote_origin: "https://github.com/coder/coder",
+				git_branch: "other",
+				url: "https://github.com/coder/coder/pull/3",
+				pr_number: 3,
+			}),
+		]);
+		expect(result?.blob).toEqual({
+			url: `https://github.com/coder/coder/blob/${headCommit}/site/main.go#L6`,
+			commit: headCommit,
+		});
+		expect(result?.changeRequest).toBeUndefined();
+		expect(
+			getFileWebLinks({
+				origin,
+				branch: "feat",
+				headCommit: "",
+				relativePath: "site/main.go",
+				diffStatuses: [],
+			})?.blob,
+		).toBeUndefined();
+	});
+});
+
+describe("changeRequestLabel", () => {
+	it("names pull and merge requests the way their hosts do", () => {
+		expect(changeRequestLabel("github", "12")).toBe("PR #12");
+		expect(changeRequestLabel("gitlab", "7")).toBe("MR !7");
 	});
 });
