@@ -121,14 +121,8 @@ export const SelectLabel: React.FC<
 };
 
 export const SelectItem: React.FC<
-	React.ComponentProps<typeof SelectPrimitive.Item> & {
-		/**
-		 * Secondary text shown under the label in the list only. It sits outside
-		 * ItemText, so the trigger keeps showing just the label.
-		 */
-		description?: React.ReactNode;
-	}
-> = ({ className, children, description, ...props }) => (
+	React.ComponentProps<typeof SelectPrimitive.Item>
+> = ({ className, children, ...props }) => (
 	<SelectPrimitive.Item
 		className={cn(
 			"relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 ",
@@ -143,24 +137,6 @@ export const SelectItem: React.FC<
 				<CheckIcon className="size-icon-sm" />
 			</SelectPrimitive.ItemIndicator>
 		</span>
-		{description === undefined ? (
-			<SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
-		) : (
-			<span className="flex min-w-0 flex-col">
-				<SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
-				<span className="truncate text-xs text-content-secondary">
-					{description}
-				</span>
-			</span>
-		)}
+		<SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
 	</SelectPrimitive.Item>
-);
-
-export const SelectSeparator: React.FC<
-	React.ComponentProps<typeof SelectPrimitive.Separator>
-> = ({ className, ...props }) => (
-	<SelectPrimitive.Separator
-		className={cn("-mx-1 my-1 h-px bg-border", className)}
-		{...props}
-	/>
 );
