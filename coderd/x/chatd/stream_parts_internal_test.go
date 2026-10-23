@@ -177,14 +177,13 @@ func TestStreamPartsEndpointLatestSelectionWinsWhileBlocked(t *testing.T) {
 	require.NoError(t, buffer.CreateEpisode(latestKey))
 	require.NoError(t, buffer.AddPart(latestKey, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("latest")))
 
-	// Block the serve loop sending parts, then send three selections. The
-	// endpoint must read each one from the pipe: a reader that waited for
-	// the serve loop would hold the second selection and leave the third in
-	// the pipe.
 	require.NoError(t, clientTransport.WriteControl(ctx, streamPartsControl{HistoryVersion: blockingKey.HistoryVersion, GenerationAttempt: blockingKey.GenerationAttempt}))
 	require.True(t, testutil.Eventually(ctx, t, func(context.Context) bool {
 		return len(pipe.eventsCh) == cap(pipe.eventsCh)
 	}, testutil.IntervalFast))
+	// The serve loop is now blocked sending parts. A reader that waited for
+	// it would hold the second of these selections and leave the third in
+	// the pipe.
 	for _, key := range append(staleKeys, latestKey) {
 		require.NoError(t, clientTransport.WriteControl(ctx, streamPartsControl{HistoryVersion: key.HistoryVersion, GenerationAttempt: key.GenerationAttempt}))
 		require.True(t, testutil.Eventually(ctx, t, func(context.Context) bool {
