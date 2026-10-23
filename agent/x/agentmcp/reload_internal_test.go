@@ -771,6 +771,49 @@ func TestReconnect_KeepsConnectedSession(t *testing.T) {
 	assert.Same(t, before, after)
 }
 
+// TestReconnect_RedialsServerWithDeadSession verifies Reconnect replaces
+// the session of a server whose tool listing failed.
+func TestReconnect_RedialsServerWithDeadSession(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	newHandler := func() http.Handler {
+		server := mcp.NewServer(&mcp.Implementation{Name: "fake", Version: "1.0.0"}, nil)
+		server.AddTool(&mcp.Tool{Name: "echo", InputSchema: map[string]any{"type": "object"}},
+			func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				return &mcp.CallToolResult{}, nil
+			})
+		return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil)
+	}
+	var handler atomic.Pointer[http.Handler]
+	restart := func() {
+		h := newHandler()
+		handler.Store(&h)
+	}
+	restart()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		(*handler.Load()).ServeHTTP(w, r)
+	}))
+	t.Cleanup(srv.Close)
+	configPath := writeMCPConfig(t, t.TempDir(), map[string]mcpServerEntry{
+		"srv": {Type: "http", URL: srv.URL},
+	})
+	m := NewManager(ctx, slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), agentexec.DefaultExecer, nil, nil, nil, nil)
+	t.Cleanup(func() { _ = m.Close() })
+
+	require.NoError(t, m.Reload(ctx, []string{configPath}))
+	require.Len(t, m.connectedTools(), 1)
+
+	// A restarted server no longer knows the session, so the next reload
+	// records the listing failure.
+	restart()
+	require.NoError(t, m.Reconnect(ctx))
+	require.Empty(t, m.connectedTools())
+
+	require.NoError(t, m.Reconnect(ctx))
+	require.Equal(t, []catalogTool{{server: "srv", tool: "echo"}}, m.connectedTools())
+}
+
 // newHTTPMCPServer serves a single "echo" tool over streamable HTTP and
 // returns its URL. Requests fail with 503 while up is false.
 func newHTTPMCPServer(t *testing.T, up *atomic.Bool) string {
