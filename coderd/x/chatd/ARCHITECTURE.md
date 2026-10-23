@@ -135,11 +135,11 @@ Queued messages wait in two lanes. These rules apply to every transition that qu
 - When `Create(initialMessages, initialStatus)` creates a child chat, it first locks the family's root chat row with `FOR SHARE` and fails if the root is archived, so a new child never joins an archived family.
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
 - `SetProject(project)` sets or clears the project of one chat without changing its execution state. A move of a root chat applies it to the root and each descendant in one transaction, and fails without changing any chat if one of them isn't in `W`, `E0` or `E1`. Only the root's `project_id` changes; subagents go through `SetProject` only so that their execution state is checked too. As in a family archive, the root row is locked first, so a concurrent child creation either joins the move or waits for it. A move to the root's current project applies no transition.
-- `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be `queue`, `steer` or `interrupt`. `queue` and `steer` name the lane (see [Queued message lanes](#queued-message-lanes)). Outside `E1`, a busy send with one of them stores `m` in its lane and keeps the status. From `E1`, `busy_behavior=steer` inserts the queued `steer` messages and then `m` into history, and `queue` messages stay queued. From `E1`, `busy_behavior=queue` queues `m` as a `queue` message and promotes the next messages. With `busy_behavior=interrupt`, it also requests interruption, or cancels a pending dynamic-tool action and inserts the message directly. A queued interrupt message goes to the end of the `steer` lane.
+- `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be `queue`, `steer` or `interrupt`. `queue` and `steer` name the lane (see [Queued message lanes](#queued-message-lanes)). Outside `E1`, a busy send with one of them stores `m` in its lane and keeps the status. From `E1`, `busy_behavior=steer` inserts the queued `steer` messages and then `m` into history, and `queue` messages stay queued. From `E1`, `busy_behavior=queue` queues `m` as a `queue` message and promotes the next messages. With `busy_behavior=interrupt`, it also requests interruption, or cancels a pending dynamic-tool action and inserts the message directly. A queued interrupt message goes to the end of the `steer` lane. When the message is queued and no worker owns the chat, the same transaction also applies `FinishInterruption`, so the `steer` lane goes into history at once and the chat lands in `R0` or `R1` without an owner.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
 - `DeleteQueuedMessage(qid)` removes one queued message without changing the active history.
 - `SteerQueuedMessage(qid)` moves a queued message to the end of the `steer` lane. A `steer` message keeps its place. From `E1`, it closes open tool calls with synthetic cancellation results, delivers the whole `steer` lane into history, and reaches `running`. From the other states it keeps the chat status, and the `steer` lane waits for the next delivery point.
-- `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog. When the chat is `running` and no worker owns it, nothing is generating, so the same transaction also applies `FinishInterruption` after inserting synthetic cancellation results for any outstanding tool calls.
+- `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog. When no worker owns a `running` or `interrupting` chat, nothing is generating, so the same transaction also applies `FinishInterruption`, passing synthetic cancellation results for any outstanding tool calls as the interrupted suffix. In `W`, `E0`, and `E1` no turn is active, and an owned `I0` or `I1` chat is left for the chat worker to finish. In these states there is nothing to interrupt, so it succeeds and writes nothing.
 - `CompleteRequiresAction(results)` inserts submitted tool-result messages followed by any caller-provided suffix messages, clears `requires_action_deadline_at`, and lands in `running`. It preserves queued messages.
 - `RequestCompaction` records a manual compaction request on an idle or errored chat by setting `compaction_requested_at` and landing in `running` without inserting any message. It clears `last_error` per the leave-error rule, advances `history_version` to the transaction's new `snapshot_version`, and resets `generation_attempt`, so the compaction turn gets a full retry budget and message part episode keys that cannot collide with episodes retained from the previous turn. The chat worker picks the chat up like any other running chat and consumes the request. See [Manual compaction](#manual-compaction).
 - `ClearContext(messages)` commits a manual context reset synchronously, without involving the chat worker. It inserts the caller-built compressed clear boundary triplet (a hidden model-only sentinel user row, plus visible synthetic `chat_cleared` tool-call and tool-result messages), clears `last_error` and any pending `compaction_requested_at`, leaves ownership untouched, and lands in `waiting`. No worker turn or model call follows; the message insert trigger advances `history_version` and resets `generation_attempt`. `E1` is rejected because no waiting-with-queue state exists and a synchronous clear has no turn after which the queue would drain.
@@ -180,6 +180,7 @@ stateDiagram-v2
     W --> R0: EditMessage
     W --> R0: RequestCompaction
     W --> W: ClearContext
+    W --> W: Interrupt
     W --> E0: FinishError
     W --> XW: SetArchived(true)
     W --> W: SetProject
@@ -188,6 +189,7 @@ stateDiagram-v2
     E0 --> R0: EditMessage
     E0 --> R0: RequestCompaction
     E0 --> W: ClearContext
+    E0 --> E0: Interrupt
     E0 --> XE0: SetArchived(true)
     E0 --> E0: SetProject
 
@@ -201,6 +203,7 @@ stateDiagram-v2
     E1 --> E1: DeleteQueuedMessage / queue still non-empty
     E1 --> R0: SteerQueuedMessage / promoted last queued
     E1 --> R1: SteerQueuedMessage / queue still non-empty
+    E1 --> E1: Interrupt
     E1 --> XE1: SetArchived(true)
     E1 --> E1: SetProject
 
@@ -237,6 +240,7 @@ stateDiagram-v2
 
     I0 --> I1: SendMessage
     I0 --> R0: EditMessage
+    I0 --> I0: Interrupt
     I0 --> W: FinishInterruption
 
     I1 --> I1: SendMessage
@@ -244,6 +248,7 @@ stateDiagram-v2
     I1 --> I0: DeleteQueuedMessage / removed last queued
     I1 --> I1: DeleteQueuedMessage / queue still non-empty
     I1 --> I1: SteerQueuedMessage
+    I1 --> I1: Interrupt
     I1 --> R0: FinishInterruption / promoted last queued
     I1 --> R1: FinishInterruption / queue still non-empty after promoting
 
@@ -524,6 +529,8 @@ Setting `title` writes a `user` title. The write happens even when the text is u
 
 TODO (project-skills): `skill-invocation` content parts are resolved when a message is created, sent, or edited: chatd loads each invoked skill body as the chat owner (personal, organization, project via the chat's project, workspace from the pinned context snapshot), stores it on the part, and rejects the request with a 400 when the skill is not available. The prompt renders the stored body inside `<invoked-skill>`. Describe this here.
 
+`busy_behavior` must be `steer` or `queue`. If the request omits it, the endpoint uses `steer`. The endpoint rejects `busy_behavior=interrupt` with a 400 error. To interrupt the chat and send a message, a client calls `POST /api/v2/chats/{chat}/interrupt` and then sends the message.
+
 For `busy_behavior=queue`, `SendMessage(m, queue)` supports:
 
 - `W -> SendMessage(m, queue) -> R0`
@@ -531,7 +538,7 @@ For `busy_behavior=queue`, `SendMessage(m, queue)` supports:
 - `E1 -> SendMessage(m, queue) -> R1`: this appends `m` to the end of the queue, promotes every `steer` message, or the current queue head if there are none, and clears the error. The scenario where this happens is:
   - the user queued some messages
   - the chat ran into an error and stopped, for example because of an unretriable problem with the LLM provider
-  - the user then sends a new message, but there is a non-empty queue. As defined here, the UX will be “add the new message to the end of the queue and promote every `steer` message, or the queue head if there are none.” Arguably, a better UX could be “add the new message to the chat immediately and start running it, even though there's a non-empty queue.” I think the former is better because it's more consistent with the behavior of the endpoint in other cases.
+  - the user then sends a new message, but there is a non-empty queue. As defined here, the UX will be “add the new message to the end of the queue and promote every `steer` message, or the queue head if there are none.” With `busy_behavior=steer`, the default, the endpoint instead adds the new message to the chat immediately and starts running it, after the queued `steer` messages.
 - `R0 -> SendMessage(m, queue) -> R1`
 - `R1 -> SendMessage(m, queue) -> R1`
 - `I0 -> SendMessage(m, queue) -> I1`
@@ -539,19 +546,7 @@ For `busy_behavior=queue`, `SendMessage(m, queue)` supports:
 - `A0 -> SendMessage(m, queue) -> A1`
 - `A1 -> SendMessage(m, queue) -> A1`
 
-For `busy_behavior=interrupt`, `SendMessage(m, interrupt)` supports:
-
-- `W -> SendMessage(m, interrupt) -> R0`
-- `E0 -> SendMessage(m, interrupt) -> R0`
-- `E1 -> SendMessage(m, interrupt) -> R1`
-- `R0 -> SendMessage(m, interrupt) -> I1`
-- `R1 -> SendMessage(m, interrupt) -> I1`
-- `I0 -> SendMessage(m, interrupt) -> I1`
-- `I1 -> SendMessage(m, interrupt) -> I1`
-- `A0 -> SendMessage(m, interrupt) -> R0`
-- `A1 -> SendMessage(m, interrupt) -> R1`
-
-When `SendMessage(m, interrupt)` lands in `I1`, `m` goes to the end of the `steer` lane. `FinishInterruption(partial?)` finalizes the interrupted suffix and then promotes every `steer` message, so `m` goes into history after the `steer` messages that were queued before it. If no worker owns the chat, the same transaction applies `FinishInterruption` instead, so the promotion happens immediately and the chat lands in `R0` or `R1` without an owner. The response then returns `m` as `message` with `queued` set to false.
+For `busy_behavior=steer`, `SendMessage(m, steer)` supports the same input states as `queue`, with the same output states except from `E1`. From `E1`, it inserts the queued `steer` messages and then `m` into history, keeps `queue` messages queued, and clears the error: `E1 -> SendMessage(m, steer) -> R0` if no queued messages remain, or `R1` if `queue` messages remain. From the busy states, it stores `m` in the `steer` lane.
 
 Other input states are not supported.
 
@@ -618,7 +613,15 @@ When `Interrupt(user_cancel)` lands in `I0` or `I1`, the chat is later picked up
 
 When no worker owns the chat (`worker_id` is null), for example because it is waiting for capacity, nothing is generating and no runner would finish the interruption without first taking a capacity slot. The endpoint therefore applies `FinishInterruption` in the same transaction: `R0` lands in `W`, and `R1` promotes every `steer` message, or the queue head if there are none, and lands in `R0` or `R1` without an owner, so the promoted turn still goes through capacity admission.
 
-The endpoint also accepts an unowned chat that is already in `I0` or `I1`, for example after a worker acquired the chat and then abandoned it. It applies `FinishInterruption` in the same transaction: `I0` lands in `W`, and `I1` promotes every `steer` message, or the queue head if there are none, and lands in `R0` or `R1` without an owner. An owned chat in `I0` or `I1` is rejected, because its runner already finishes the interruption.
+The endpoint also accepts an unowned chat that is already in `I0` or `I1`, for example after a worker acquired the chat and then abandoned it. It applies `FinishInterruption` in the same transaction: `I0` lands in `W`, and `I1` promotes every `steer` message, or the queue head if there are none, and lands in `R0` or `R1` without an owner.
+
+When there is nothing to interrupt, for example because the turn already ended, the endpoint returns the chat unchanged:
+
+- `W -> Interrupt(user_cancel) -> W`
+- `E0 -> Interrupt(user_cancel) -> E0`
+- `E1 -> Interrupt(user_cancel) -> E1`
+- `I0 -> Interrupt(user_cancel) -> I0` if a worker owns the chat
+- `I1 -> Interrupt(user_cancel) -> I1` if a worker owns the chat
 
 No other input states are supported.
 

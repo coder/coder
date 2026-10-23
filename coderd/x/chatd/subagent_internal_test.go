@@ -3146,6 +3146,46 @@ func TestSubagentLifecycleToolErrorsIncludePersistedSubagentType(t *testing.T) {
 	}
 }
 
+func TestInterruptAgentReportsWhetherItInterrupted(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	user, org, model := seedInternalChatDeps(t, db)
+
+	for _, tc := range []struct {
+		name            string
+		status          database.ChatStatus
+		wantInterrupted bool
+		wantStatus      database.ChatStatus
+	}{
+		// No worker owns the child, so the interruption finishes inline.
+		{name: "Running", status: database.ChatStatusRunning, wantInterrupted: true, wantStatus: database.ChatStatusWaiting},
+		{name: "Waiting", status: database.ChatStatusWaiting, wantStatus: database.ChatStatusWaiting},
+		{name: "Error", status: database.ChatStatusError, wantStatus: database.ChatStatusError},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := chatdTestContext(t)
+			parent, child := createParentChildChats(ctx, t, server, user, org, model)
+			setChatStatus(ctx, t, db, child.ID, tc.status, "")
+
+			result := requireToolResponseMap(t, runSubagentTool(
+				ctx,
+				t,
+				server,
+				parent,
+				parent.LastModelConfigID,
+				"interrupt_agent",
+				interruptAgentArgs{ChatID: child.ID.String()},
+			), false)
+			require.Equal(t, tc.wantInterrupted, result["interrupted"])
+			require.Equal(t, string(tc.wantStatus), result["status"])
+		})
+	}
+}
+
 func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 	t.Parallel()
 

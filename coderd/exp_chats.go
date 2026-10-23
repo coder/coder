@@ -3121,16 +3121,16 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		sendPlanMode = &resolvedPlanMode
 	}
 
-	busyBehavior := chatd.SendMessageBusyBehaviorQueue
+	var busyBehavior chatd.SendMessageBusyBehavior
 	switch req.BusyBehavior {
-	case codersdk.ChatBusyBehaviorInterrupt:
-		busyBehavior = chatd.SendMessageBusyBehaviorInterrupt
-	case codersdk.ChatBusyBehaviorQueue, "":
-		// Default to queue.
+	case "", codersdk.ChatBusyBehaviorSteer:
+		busyBehavior = chatd.SendMessageBusyBehaviorSteer
+	case codersdk.ChatBusyBehaviorQueue:
+		busyBehavior = chatd.SendMessageBusyBehaviorQueue
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid busy_behavior value.",
-			Detail:  `Must be "queue" or "interrupt".`,
+			Detail:  `Must be "steer" or "queue".`,
 		})
 		return
 	}
@@ -3780,6 +3780,9 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Success 200 {object} codersdk.Chat
 // @Router /api/v2/chats/{chat}/interrupt [post]
+// @Description Interrupts the active turn of a chat. If the chat has
+// @Description nothing to interrupt, for example because its turn
+// @Description already ended, the endpoint returns the chat unchanged.
 func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -3795,7 +3798,7 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated, err := api.chatDaemon.InterruptChat(ctx, chat)
+	updated, _, err := api.chatDaemon.InterruptChat(ctx, chat)
 	if err != nil {
 		if writeCommonChatMutationError(ctx, rw, err, "Cannot interrupt an archived chat.") {
 			return

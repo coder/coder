@@ -1104,6 +1104,9 @@ type InterruptInput struct {
 
 // InterruptResult is returned by [Tx.Interrupt].
 type InterruptResult struct {
+	// Interrupted is false when the chat had nothing to interrupt and
+	// the call left it unchanged.
+	Interrupted          bool
 	CancellationMessages []database.ChatMessage
 	// PromotedQueuedAt is zero when no queue head was promoted.
 	PromotedQueuedAt time.Time
@@ -1114,32 +1117,37 @@ type InterruptResult struct {
 
 // Interrupt requests interruption of an active or requires-action
 // chat. It also finishes the pending interruption of an unowned
-// interrupting chat.
+// interrupting chat. An idle or errored chat, or an interrupting chat
+// that its runner is already finishing, has nothing to interrupt, so
+// the call succeeds without changing it.
 func (tx *Tx) Interrupt(input InterruptInput) (InterruptResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionInterrupt)
+	if err != nil {
+		return InterruptResult{}, err
+	}
 	reason := input.Reason
 	if reason == "" {
 		reason = "Tool execution interrupted by user"
 	}
-	if err != nil {
-		// The matrix rejects Interrupt from I*, because an owned
-		// interrupting chat is already being finished by its runner.
-		// An unowned one has no runner, and a worker would need a
-		// capacity slot to finish it, so finish it here instead.
-		if !errors.Is(err, ErrTransitionNotAllowed) || (from != StateI0 && from != StateI1) || chat.WorkerID.Valid {
-			return InterruptResult{}, err
+	switch from {
+	case StateW, StateE0, StateE1:
+		return InterruptResult{}, nil
+	case StateI0, StateI1:
+		if chat.WorkerID.Valid {
+			return InterruptResult{}, nil
 		}
+		// An unowned interrupting chat has no runner, and a worker would
+		// need a capacity slot to finish it, so finish it here instead.
 		finished, err := tx.finishUnownedInterruption(chat, reason)
 		if err != nil {
 			return InterruptResult{}, err
 		}
 		return InterruptResult{
+			Interrupted:          true,
 			CancellationMessages: finished.cancellations,
 			PromotedQueuedAt:     finished.PromotedQueuedAt,
 			FinishedInterruption: true,
 		}, nil
-	}
-	switch from {
 	case StateR0, StateR1:
 		if _, err := tx.applyExecutionState(executionStateUpdate{
 			Status:                   database.ChatStatusInterrupting,
@@ -1152,13 +1160,14 @@ func (tx *Tx) Interrupt(input InterruptInput) (InterruptResult, error) {
 			return InterruptResult{}, xerrors.Errorf("set interrupting: %w", err)
 		}
 		if chat.WorkerID.Valid {
-			return InterruptResult{}, nil
+			return InterruptResult{Interrupted: true}, nil
 		}
 		finished, err := tx.finishUnownedInterruption(chat, reason)
 		if err != nil {
 			return InterruptResult{}, err
 		}
 		return InterruptResult{
+			Interrupted:          true,
 			CancellationMessages: finished.cancellations,
 			PromotedQueuedAt:     finished.PromotedQueuedAt,
 			FinishedInterruption: true,
@@ -1183,6 +1192,7 @@ func (tx *Tx) Interrupt(input InterruptInput) (InterruptResult, error) {
 			return InterruptResult{}, xerrors.Errorf("set running: %w", err)
 		}
 		return InterruptResult{
+			Interrupted:          true,
 			CancellationMessages: inserted,
 		}, nil
 	default:

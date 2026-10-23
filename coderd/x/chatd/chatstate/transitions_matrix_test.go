@@ -975,9 +975,15 @@ func matrixCases() []transitionCaseSpec {
 		steerQueuedCase(chatstate.StateA1, chatstate.StateA1, queueShapeMulti, 0),
 		steerQueuedCase(chatstate.StateA1, chatstate.StateA1, queueShapeMulti, 1),
 
-		// Interrupt cases.
+		// Interrupt cases. W, E* and an owned I* have nothing to
+		// interrupt, so they stay unchanged.
+		interruptCase(chatstate.StateW, chatstate.StateW),
+		interruptCase(chatstate.StateE0, chatstate.StateE0),
+		interruptCase(chatstate.StateE1, chatstate.StateE1),
 		interruptCase(chatstate.StateR0, chatstate.StateI0),
 		interruptCase(chatstate.StateR1, chatstate.StateI1),
+		interruptCase(chatstate.StateI0, chatstate.StateI0),
+		interruptCase(chatstate.StateI1, chatstate.StateI1),
 		interruptCase(chatstate.StateA0, chatstate.StateR0),
 		interruptCase(chatstate.StateA1, chatstate.StateR1),
 
@@ -1710,7 +1716,16 @@ func interruptCase(from, want chatstate.ExecutionState) transitionCaseSpec {
 				"Interrupt does not touch queued messages")
 
 			switch from {
+			case chatstate.StateW, chatstate.StateE0, chatstate.StateE1, chatstate.StateI0, chatstate.StateI1:
+				require.Equal(t, chatstate.InterruptResult{}, result.interrupt,
+					"Interrupt with nothing to interrupt reports no effect")
+				require.Equal(t, base.chat.Status, after.Status)
+				require.Equal(t, base.chat.WorkerID, after.WorkerID)
+				require.Equal(t, base.chat.LastError, after.LastError)
+				require.Equal(t, base.historyIDs, afterHistory,
+					"Interrupt with nothing to interrupt leaves history unchanged")
 			case chatstate.StateR0, chatstate.StateR1:
+				require.True(t, result.interrupt.Interrupted)
 				require.Equal(t, database.ChatStatusInterrupting, after.Status,
 					"Interrupt from R* sets status interrupting")
 				require.Equal(t, base.historyIDs, afterHistory,
@@ -1718,6 +1733,7 @@ func interruptCase(from, want chatstate.ExecutionState) transitionCaseSpec {
 				require.Empty(t, result.interrupt.CancellationMessages,
 					"Interrupt from R* does not synthesize tool cancellations")
 			case chatstate.StateA0, chatstate.StateA1:
+				require.True(t, result.interrupt.Interrupted)
 				require.Equal(t, database.ChatStatusRunning, after.Status,
 					"Interrupt from A* cancels pending dynamic calls and resumes running")
 				require.False(t, after.RequiresActionDeadlineAt.Valid,

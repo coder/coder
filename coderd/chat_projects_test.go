@@ -509,10 +509,7 @@ WHERE datname = current_database()
 						_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()})
 						return err
 					}))
-					_, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
-						Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "stop"}},
-						BusyBehavior: codersdk.ChatBusyBehaviorInterrupt,
-					})
+					_, err := client.InterruptChat(ctx, chat.ID)
 					require.NoError(t, err)
 					return chat
 				},

@@ -2202,9 +2202,9 @@ export interface ChatAutoArchiveDaysResponse {
 }
 
 // From codersdk/chats.go
-export type ChatBusyBehavior = "interrupt" | "queue";
+export type ChatBusyBehavior = "queue" | "steer";
 
-export const ChatBusyBehaviors: ChatBusyBehavior[] = ["interrupt", "queue"];
+export const ChatBusyBehaviors: ChatBusyBehavior[] = ["queue", "steer"];
 
 // From codersdk/chats.go
 export type ChatClientType = "api" | "ui";
@@ -3048,6 +3048,10 @@ export interface ChatMessagesPaginationOptions {
  */
 export interface ChatMessagesResponse {
 	readonly messages: readonly ChatMessage[];
+	/**
+	 * QueuedMessages lists the queued messages in delivery order: steer
+	 * messages first, then queue messages.
+	 */
 	readonly queued_messages: readonly ChatQueuedMessage[];
 	readonly has_more: boolean;
 	/**
@@ -3643,6 +3647,12 @@ export interface ChatQueuedMessage {
 	readonly chat_id: string;
 	readonly model_config_id?: string;
 	readonly content: readonly ChatMessagePart[];
+	/**
+	 * BusyBehavior is the lane of the message. Steer messages go in
+	 * before the next model call, and queue messages go in after the
+	 * turn ends.
+	 */
+	readonly busy_behavior: ChatBusyBehavior;
 	readonly created_at: string;
 }
 
@@ -3765,6 +3775,10 @@ export interface ChatStreamEvent {
 	readonly status?: ChatStreamStatus;
 	readonly error?: ChatError;
 	readonly retry?: ChatStreamRetry;
+	/**
+	 * QueuedMessages lists the queued messages in delivery order: steer
+	 * messages first, then queue messages.
+	 */
 	readonly queued_messages?: readonly ChatQueuedMessage[];
 	readonly action_required?: ChatStreamActionRequired;
 }

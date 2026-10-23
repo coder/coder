@@ -1427,23 +1427,11 @@ func (p *Server) interruptSubagent(
 		return database.Chat{}, false, xerrors.Errorf("get target chat: %w", err)
 	}
 
-	if targetChat.Status == database.ChatStatusWaiting {
-		return targetChat, false, nil
-	}
-
-	updatedChat, err := p.InterruptChat(ctx, targetChat)
+	updatedChat, interrupted, err := p.InterruptChat(ctx, targetChat)
 	if err != nil {
-		// Idle / archived chats no longer satisfy the
-		// chatstate.Interrupt precondition. Surface the error
-		// so the caller can decide whether the parent expected
-		// the subagent to already be waiting.
 		return database.Chat{}, false, xerrors.Errorf("interrupt subagent chat: %w", err)
 	}
-	// chatstate.Interrupt lands active runs in `interrupting`
-	// and requires-action chats in `running`. Workers finalize
-	// the transition; accept either non-active status as long as
-	// the transition committed.
-	return updatedChat, true, nil
+	return updatedChat, interrupted, nil
 }
 
 func (p *Server) checkSubagentCompletion(

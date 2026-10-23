@@ -188,7 +188,7 @@ The MCP server exposes tools across several areas:
 - **Template operations**: list, inspect, create, and manage templates and versions
 - **File operations**: read, write, and edit files in a workspace
 - **Workspace interaction**: run commands, manage background processes, forward ports, list apps, and read logs
-- **Coder Agents chats**: create chats, send messages, read transcripts and status, interrupt, archive, and list available models
+- **Coder Agents chats**: create chats, send messages, read transcripts and status, interrupt, archive, and list available models. By default, a message sent to a busy chat reaches the agent before its next model call. To stop the current turn first, interrupt the chat and then send the message.
 - **User and system**: authenticated user details, organization memberships, and tar uploads
 
 The full, authoritative set of tools, including their names, descriptions, and arguments, is defined in Coder's [`toolsdk` package](../../codersdk/toolsdk/toolsdk.go).
