@@ -1,13 +1,6 @@
 import { type FormikContextType, useFormik } from "formik";
 import { ArrowLeftIcon, ExternalLinkIcon } from "lucide-react";
-import {
-	type FC,
-	useCallback,
-	useEffect,
-	useId,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -69,7 +62,7 @@ type CreateWorkspacePageViewProps = {
 	mode: CreateWorkspaceMode;
 	parameters: PreviewParameter[];
 	permissions: CreateWorkspacePermissions;
-	presets: TypesGen.Preset[];
+	presets: readonly TypesGen.Preset[];
 	template: TypesGen.Template;
 	urlPreset?: TypesGen.Preset;
 	urlPresetError?: string;
@@ -87,7 +80,9 @@ type CreateWorkspacePageViewProps = {
 	setOwner: (user: TypesGen.MinimalUser) => void;
 };
 
-export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
+export const CreateWorkspacePageView: React.FC<
+	CreateWorkspacePageViewProps
+> = ({
 	autofillParameters,
 	canUpdateTemplate,
 	creatingWorkspace,
@@ -172,6 +167,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 				onSubmit(request, owner);
 			},
 		});
+	// Formik keeps these stable across renders, unlike `form` itself.
+	const { setFieldValue, setFieldTouched } = form;
 
 	useEffect(() => {
 		if (error) {
@@ -210,7 +207,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		if (urlPreset) {
 			const idx = presets.findIndex((p) => p.ID === urlPreset.ID) + 1;
 			setSelectedPresetIndex(idx);
-			form.setFieldValue("template_version_preset_id", urlPreset.ID);
+			setFieldValue("template_version_preset_id", urlPreset.ID);
 			return;
 		}
 
@@ -218,12 +215,12 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		if (defaultPreset) {
 			const idx = presets.indexOf(defaultPreset) + 1; // +1 for "None"
 			setSelectedPresetIndex(idx);
-			form.setFieldValue("template_version_preset_id", defaultPreset.ID);
+			setFieldValue("template_version_preset_id", defaultPreset.ID);
 		} else {
 			setSelectedPresetIndex(0); // Explicitly set to "None"
-			form.setFieldValue("template_version_preset_id", undefined);
+			setFieldValue("template_version_preset_id", undefined);
 		}
-	}, [presets, form.setFieldValue, urlPreset]);
+	}, [presets, setFieldValue, urlPreset]);
 
 	const [presetParameterNames, setPresetParameterNames] = useState<string[]>(
 		[],
@@ -324,8 +321,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 
 		if (updates.length > 0) {
 			for (const update of updates) {
-				form.setFieldValue(update.field, update.fieldValue);
-				form.setFieldTouched(update.parameter.name, true);
+				setFieldValue(update.field, update.fieldValue);
+				setFieldTouched(update.parameter.name, true);
 			}
 
 			sendDynamicParamsRequest(
@@ -339,8 +336,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		presetOptions,
 		selectedPresetIndex,
 		presets,
-		form.setFieldValue,
-		form.setFieldTouched,
+		setFieldValue,
+		setFieldTouched,
 		parameters,
 		form.values.rich_parameter_values,
 		sendDynamicParamsRequest,
@@ -445,9 +442,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 								<br />
 								<Link
 									size="sm"
-									href={docs(
-										"/admin/templates/extending-templates/dynamic-parameters",
-									)}
+									href={docs("/admin/templates/extending-templates/parameters")}
 								>
 									View docs
 								</Link>
@@ -459,7 +454,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 				<form
 					onSubmit={form.handleSubmit}
 					aria-label="Create workspace form"
-					className="flex flex-col gap-10 w-full border border-border-default border-solid rounded-lg p-6"
+					className="flex flex-col gap-10 w-full border border-border border-solid rounded-lg p-6"
 					data-testid="form"
 				>
 					{Boolean(error) && <ErrorAlert error={error} />}
@@ -487,7 +482,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 								to dynamic parameters.{" "}
 								<Link
 									href={docs(
-										"/admin/templates/extending-templates/dynamic-parameters",
+										"/admin/templates/extending-templates/parameters/compatibility-mode",
 									)}
 									target="_blank"
 									rel="noreferrer"
@@ -653,7 +648,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 									parameters cannot be modified once the workspace is created.
 									<Link
 										href={docs(
-											"/admin/templates/extending-templates/dynamic-parameters",
+											"/admin/templates/extending-templates/parameters",
 										)}
 									>
 										View docs

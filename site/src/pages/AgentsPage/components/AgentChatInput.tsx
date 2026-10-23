@@ -3,7 +3,10 @@ import {
 	ArrowLeftIcon,
 	ArrowUpIcon,
 	CheckIcon,
+	ChevronDownIcon,
 	ChevronRightIcon,
+	InfoIcon,
+	LockIcon,
 	MicIcon,
 	MonitorIcon,
 	PaperclipIcon,
@@ -11,20 +14,14 @@ import {
 	PlusIcon,
 	ServerIcon,
 	SquareIcon,
+	TriangleAlertIcon,
 	UnlinkIcon,
 	XIcon,
 } from "lucide-react";
 import type React from "react";
-import {
-	type FC,
-	useEffect,
-	useImperativeHandle,
-	useRef,
-	useState,
-} from "react";
+import { useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { disconnectMCPServerOAuth2 } from "#/api/queries/chats";
 import { preferenceSettings } from "#/api/queries/users";
@@ -45,12 +42,14 @@ import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Popover,
 	PopoverContent,
+	type PopoverContentProps,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { Separator } from "#/components/Separator/Separator";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
+import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,
@@ -61,6 +60,7 @@ import {
 	ModelSelector,
 	type ModelSelectorOption,
 } from "#/modules/aiModels/ModelSelector";
+import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import {
@@ -73,12 +73,17 @@ import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import {
+	isWorkspaceUploadInProgress,
+	type WorkspaceFileUpload,
+} from "../hooks/useWorkspaceFileUploads";
+import {
 	getAgentChatSendShortcut,
 	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
 } from "../utils/agentChatSendShortcut";
 import {
 	chatAttachmentAcceptAttribute,
 	isChatAttachmentFile,
+	shouldRouteFileToWorkspace,
 } from "../utils/chatAttachments";
 import type { ChatSlashCommand } from "../utils/slashCommands";
 import { AgentSetupNotice } from "./AgentSetupNotice";
@@ -95,9 +100,12 @@ import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
+import { MCPServerIconStack } from "./MCPServerIconStack";
+import { ProjectSkillActions } from "./ProjectSkillActions";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 import { WorkspacePill } from "./WorkspacePill";
+import { WorkspaceUploadPreview } from "./WorkspaceUploadPreview";
 
 export {
 	ImageThumbnail,
@@ -106,6 +114,27 @@ export {
 } from "./AttachmentPreview";
 export type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
 export type { AgentContextUsage } from "./ContextUsageIndicator";
+
+type WorkspaceUploadsProps = {
+	uploads: readonly WorkspaceFileUpload[];
+	// Present only when the chat has a bound workspace with a
+	// connected agent; its absence hides the whole affordance.
+	onAttach?: (files: File[]) => void;
+	onRemove: (id: string) => void;
+	// Toast shown when a workspace-routed file arrives while onAttach
+	// is unavailable. Overridden on the new-chat page, where the fix
+	// is selecting a workspace rather than attaching one to the chat.
+	unavailableMessage?: string;
+	// Deferred mode (new-chat page): entries upload during submit and
+	// every entry re-uploads on the next send after a failure, so
+	// error chips still count as sendable content.
+	deferred?: boolean;
+};
+
+const workspaceRequiredAttachmentMessage =
+	"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.";
+const workspaceUploadPendingSendMessage =
+	"Wait for the current message to finish sending, then add the file again.";
 
 type AgentChatInputProps = {
 	onSend: (message: string) => void;
@@ -116,17 +145,17 @@ type AgentChatInputProps = {
 	// Ref for the Lexical editor, exposed for imperative access.
 	inputRef?: React.Ref<ChatMessageInputRef>;
 	// Initial text to seed the editor on first mount only.
-	initialValue?: string;
+	initialValue: string;
 	// Serialized Lexical editor state for restoring drafts with
 	// file-reference chips. Takes precedence over initialValue.
 	initialEditorState?: string;
 	// Monotonic counter to force editor remount.
 	remountKey?: number;
 	// Called on every content change inside the editor.
-	onContentChange?: (
+	onContentChange: (
 		content: string,
 		serializedEditorState: string,
-		hasFileReferences: boolean,
+		hasChips: boolean,
 	) => void;
 	// Model selector.
 	selectedModel: string;
@@ -136,9 +165,9 @@ type AgentChatInputProps = {
 	hasModelOptions: boolean;
 	reasoningEffort?: string;
 	onReasoningEffortChange?: (value: string) => void;
-	planModeEnabled?: boolean;
-	onPlanModeToggle?: (enabled: boolean) => void;
-	isModelCatalogLoading?: boolean;
+	planModeEnabled: boolean;
+	onPlanModeToggle: (enabled: boolean) => void;
+	isModelCatalogLoading: boolean;
 	// Streaming controls (optional, for the detail page).
 	isStreaming?: boolean;
 	onInterrupt?: () => void;
@@ -155,11 +184,20 @@ type AgentChatInputProps = {
 	// Organization ID of the current chat. When set, workspaces from
 	// other organizations are shown as disabled in the picker.
 	chatOrganizationId?: string;
+	// Project of the chat, whose skills the "/" menu offers.
+	chatProjectId?: string;
 	isWorkspaceLoading?: boolean;
+	// Opts in to project action skills above the composer, which also need
+	// the chat-projects experiment and a composer the user can send from.
+	showProjectActions?: boolean;
 	// Queued user messages rendered above the textarea.
 	queuedMessages?: readonly ChatQueuedMessage[];
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
+	// Caution shown at the top of the composer, owned by the parent.
+	warning?: string;
+	// When set, also hides the editor and every control (view-only mode).
+	readOnlyNotice?: string;
 	// History editing state, owned by the parent.
 	isEditingHistoryMessage?: boolean;
 	onCancelHistoryEdit?: () => void;
@@ -167,9 +205,9 @@ type AgentChatInputProps = {
 	userPromptHistory?: readonly string[];
 
 	// Optional context-usage summary shown to the left of the send button.
-	// Pass `null` to render fallback values (e.g. when limit is unknown).
+	// Fields the provider has not reported render as fallback values.
 	// Omit entirely to hide the indicator.
-	contextUsage?: AgentContextUsage | null;
+	contextUsage?: AgentContextUsage;
 	// Re-pins the chat to the workspace's latest context snapshot,
 	// surfaced by the context indicator when the pinned context has
 	// drifted.
@@ -181,10 +219,11 @@ type AgentChatInputProps = {
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
 	textContents?: Map<File, string>;
+	workspaceUploads?: WorkspaceUploadsProps;
 	onTextPreview?: (
 		content: string,
 		fileName: string,
-		mediaType?: string,
+		mediaType: string,
 	) => void;
 	// MCP Server picker.
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
@@ -208,6 +247,7 @@ type AgentChatInputProps = {
 	// Built-in commands offered by the "/" trigger menu ahead of
 	// personal skills.
 	slashCommands?: readonly ChatSlashCommand[];
+	fillWidth?: boolean;
 };
 
 export type AttachedWorkspaceInfo = {
@@ -223,17 +263,47 @@ export type AttachedWorkspaceInfo = {
 const pillSizingClasses =
 	"grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max";
 
+// Pills clamp to the popover width so a long name truncates instead
+// of pushing its X out of view.
+const BadgePopoverContent: React.FC<PopoverContentProps> = ({
+	className,
+	...props
+}) => (
+	<PopoverContent
+		side="top"
+		align="start"
+		className={cn(
+			"flex w-auto max-w-64 flex-wrap gap-1 p-2 *:max-w-full",
+			className,
+		)}
+		{...props}
+	/>
+);
+
 type ToolBadgeData =
 	| { kind: "workspace"; name: string }
 	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
 	| { kind: "mcp"; server: TypesGen.MCPServerConfig }
+	| { kind: "mcp-group"; servers: readonly TypesGen.MCPServerConfig[] }
 	| { kind: "planning" };
+
+// Non-MCP badges can share a kind, so their keys are position-qualified.
+const badgeKey = (badge: ToolBadgeData, index: number) => {
+	switch (badge.kind) {
+		case "mcp":
+			return badge.server.id;
+		case "mcp-group":
+			return badge.kind;
+		default:
+			return `${badge.kind}-${index}`;
+	}
+};
 
 // Small `X` button rendered inside pill-style badges (attached
 // workspace, MCP server, planning indicator) to dismiss or disable
 // the badge without opening the `+` menu. Callers pass the action
 // handler and a descriptive aria-label.
-const BadgeDismissButton: FC<{
+const BadgeDismissButton: React.FC<{
 	onClick: () => void;
 	ariaLabel: string;
 	isDisabled?: boolean;
@@ -242,7 +312,7 @@ const BadgeDismissButton: FC<{
 		type="button"
 		onClick={onClick}
 		disabled={isDisabled}
-		className="group -mx-1 -my-1 inline-flex size-5 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-content-secondary disabled:cursor-not-allowed disabled:opacity-50"
+		className="group -mx-1 -my-1 inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-content-secondary disabled:cursor-not-allowed disabled:opacity-50"
 		aria-label={ariaLabel}
 	>
 		<span className="inline-flex size-3.5 items-center justify-center rounded-full transition-colors group-hover:bg-surface-tertiary group-hover:text-content-primary">
@@ -251,12 +321,60 @@ const BadgeDismissButton: FC<{
 	</button>
 );
 
-const ToolBadge: FC<{
+type MCPGroupBadgeProps = {
+	servers: readonly TypesGen.MCPServerConfig[];
+	onRemoveMcp?: (serverId: string) => void;
+	isDisabled: boolean;
+	className: string;
+};
+
+const MCPGroupBadge: React.FC<MCPGroupBadgeProps> = ({
+	servers,
+	onRemoveMcp,
+	isDisabled,
+	className,
+}) => {
+	const [open, setOpen] = useState(false);
+	const label = `${servers.length} MCPs`;
+
+	return (
+		<Popover open={open} onOpenChange={setOpen}>
+			<PopoverTrigger asChild>
+				<button
+					type="button"
+					aria-label={label}
+					className={cn(
+						className,
+						"cursor-pointer border-0 transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+					)}
+				>
+					<MCPServerIconStack servers={servers} />
+					{label}
+					<ChevronDownIcon
+						className={cn("size-3 transition-transform", open && "rotate-180")}
+					/>
+				</button>
+			</PopoverTrigger>
+			<BadgePopoverContent>
+				{servers.map((server) => (
+					<ToolBadge
+						key={server.id}
+						badge={{ kind: "mcp", server }}
+						onRemoveMcp={onRemoveMcp}
+						isDisabled={isDisabled}
+					/>
+				))}
+			</BadgePopoverContent>
+		</Popover>
+	);
+};
+
+const ToolBadge: React.FC<{
 	badge: ToolBadgeData;
 	onRemoveWorkspace?: () => void;
 	onRemoveMcp?: (serverId: string) => void;
 	onRemovePlanning?: () => void;
-	isDisabled?: boolean;
+	isDisabled: boolean;
 	className?: string;
 	// The overflow popover auto-focuses badges; suppress the tooltip there.
 	disableTooltip?: boolean;
@@ -313,6 +431,7 @@ const ToolBadge: FC<{
 							<BadgeDismissButton
 								onClick={onRemoveWorkspace}
 								ariaLabel={`Remove workspace ${badge.name}`}
+								isDisabled={isDisabled}
 							/>
 						)}
 					</span>
@@ -336,9 +455,21 @@ const ToolBadge: FC<{
 					<BadgeDismissButton
 						onClick={onRemoveWorkspace}
 						ariaLabel={`Remove workspace ${badge.name}`}
+						isDisabled={isDisabled}
 					/>
 				)}
 			</span>
+		);
+	}
+
+	if (badge.kind === "mcp-group") {
+		return (
+			<MCPGroupBadge
+				servers={badge.servers}
+				onRemoveMcp={onRemoveMcp}
+				isDisabled={isDisabled}
+				className={badgeCls}
+			/>
 		);
 	}
 
@@ -354,18 +485,26 @@ const ToolBadge: FC<{
 			) : (
 				<ServerIcon className="size-3" />
 			)}
-			{badge.server.display_name}
-			{!isForceOn && onRemoveMcp && (
-				<BadgeDismissButton
-					onClick={() => onRemoveMcp(badge.server.id)}
-					ariaLabel={`Remove ${badge.server.display_name}`}
-				/>
+			<span className="truncate">{badge.server.display_name}</span>
+			{isForceOn ? (
+				<>
+					<LockIcon className="size-3 shrink-0" />
+					<span className="sr-only">Always on</span>
+				</>
+			) : (
+				onRemoveMcp && (
+					<BadgeDismissButton
+						onClick={() => onRemoveMcp(badge.server.id)}
+						ariaLabel={`Remove ${badge.server.display_name}`}
+						isDisabled={isDisabled}
+					/>
+				)
 			)}
 		</span>
 	);
 };
 
-export const AgentChatInput: FC<AgentChatInputProps> = ({
+export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	onSend,
 	placeholder = "Type a message...",
 	isDisabled,
@@ -383,9 +522,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	hasModelOptions,
 	reasoningEffort,
 	onReasoningEffortChange,
-	planModeEnabled = false,
+	planModeEnabled,
 	onPlanModeToggle,
-	isModelCatalogLoading = false,
+	isModelCatalogLoading,
 	isStreaming = false,
 	onInterrupt,
 	isInterruptPending = false,
@@ -393,10 +532,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	selectedWorkspaceId,
 	onWorkspaceChange,
 	chatOrganizationId,
+	chatProjectId,
 	isWorkspaceLoading,
+	showProjectActions = false,
 	queuedMessages = [],
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
+	warning,
+	readOnlyNotice,
 	isEditingHistoryMessage = false,
 	onCancelHistoryEdit,
 	userPromptHistory = [],
@@ -409,6 +552,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	uploadStates,
 	previewUrls,
 	textContents,
+	workspaceUploads,
 	onTextPreview,
 	mcpServers,
 	selectedMCPServerIds,
@@ -427,7 +571,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	unsupportedProviderNames = [],
 	aiGatewayDisabled,
 	slashCommands,
+	fillWidth = false,
 }) => {
+	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
 	const sendShortcut = getAgentChatSendShortcut(
 		preferencesQuery.data?.agent_chat_send_shortcut,
@@ -435,7 +581,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	);
 	const [chatFullWidth] = useChatFullWidth();
 	const isMobile = useMediaQuery(mobileViewportMediaQuery);
-	const { organizations } = useDashboard();
+	const { organizations, experiments } = useDashboard();
 	const chatOrganization = organizations.find(
 		(organization) => organization.id === chatOrganizationId,
 	);
@@ -484,7 +630,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		disconnectMCPServerOAuth2(queryClient),
 	);
 
-	const [hasFileReferences, setHasFileReferences] = useState(false);
+	const [hasChips, setHasChips] = useState(false);
 	const [cycleIndex, setCycleIndex] = useState<number | null>(null);
 	const [cycleSavedDraft, setCycleSavedDraft] = useState<string | null>(null);
 	const cycleHistorySnapshotRef = useRef<readonly string[] | null>(null);
@@ -511,7 +657,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		previousRemountKeyRef.current = remountKey;
 		// Inlined resetPromptCycle body. Calling resetPromptCycle directly
 		// would force it into the dep array; the React Compiler stabilises
-		// callbacks but biome's react-hooks lint does not.
+		// callbacks but the exhaustive-deps lint does not.
 		setCycleIndex(null);
 		setCycleSavedDraft(null);
 		cycleHistorySnapshotRef.current = null;
@@ -520,20 +666,18 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	}, [remountKey]);
 
 	const speech = useSpeechRecognition();
-	const [preRecordingValue, setPreRecordingValue] = useState<string>("");
+	// The draft, including skill chips, as it was when recording started.
+	const [preRecordingState, setPreRecordingState] = useState<string | null>(
+		null,
+	);
 
 	useEffect(() => {
-		if (!speech.isRecording) return;
-		const editor = internalRef.current;
-		if (!editor) return;
-		editor.clear();
-		const combined = preRecordingValue
-			? `${preRecordingValue} ${speech.transcript}`
-			: speech.transcript;
-		if (combined) {
-			editor.insertText(combined);
-		}
-	}, [speech.transcript, speech.isRecording, preRecordingValue]);
+		if (!speech.isRecording || preRecordingState === null) return;
+		internalRef.current?.restoreEditorState(
+			preRecordingState,
+			speech.transcript,
+		);
+	}, [speech.transcript, speech.isRecording, preRecordingState]);
 
 	// Forward a stable delegating handle to the parent-supplied inputRef.
 	// Delegates lazily to internalRef.current so methods see the current
@@ -548,6 +692,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			focus: () => internalRef.current?.focus(),
 			getValue: () => internalRef.current?.getValue() ?? "",
 			addFileReference: (ref) => internalRef.current?.addFileReference(ref),
+			insertSkill: (source, name) =>
+				internalRef.current?.insertSkill(source, name),
+			removeSkills: (sources) => internalRef.current?.removeSkills(sources),
+			getEditorState: () => internalRef.current?.getEditorState() ?? "",
+			restoreEditorState: (serializedEditorState, appendText) =>
+				internalRef.current?.restoreEditorState(
+					serializedEditorState,
+					appendText,
+				),
 			getContentParts: () => internalRef.current?.getContentParts() ?? [],
 		}),
 		[],
@@ -637,27 +790,37 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	if (shouldShowSelectedWorkspaceBadge && selectedWorkspace) {
 		allBadges.push({ kind: "workspace", name: selectedWorkspace.name });
 	}
-	for (const s of activeMcpServers) {
-		allBadges.push({ kind: "mcp", server: s });
+	if (activeMcpServers.length >= 3) {
+		allBadges.push({ kind: "mcp-group", servers: activeMcpServers });
+	} else {
+		for (const server of activeMcpServers) {
+			allBadges.push({ kind: "mcp", server });
+		}
 	}
 
 	const overflowCount = useOverflowCount(badgeContainerRef, allBadges.length);
 	const visibleCount = Math.max(0, allBadges.length - overflowCount);
 	const overflowBadges = allBadges.slice(visibleCount);
 
-	const handleRemoveWorkspace = () => onWorkspaceChange?.(null);
-	const removeWorkspaceHandler = onWorkspaceChange
-		? handleRemoveWorkspace
+	const isReadOnlyView = readOnlyNotice !== undefined;
+	const readOnlyModel = isReadOnlyView
+		? modelOptions.find((option) => option.id === selectedModel)
 		: undefined;
-	const handleRemoveMcp = (serverId: string) =>
-		handleMcpToggle(serverId, false);
+	const handleRemoveWorkspace = () => onWorkspaceChange?.(null);
+	const removeWorkspaceHandler =
+		onWorkspaceChange && !isReadOnlyView ? handleRemoveWorkspace : undefined;
+	const handleRemoveMcp = isReadOnlyView
+		? undefined
+		: (serverId: string) => handleMcpToggle(serverId, false);
 
 	const handlePlanModeToggle = () => {
-		onPlanModeToggle?.(!planModeEnabled);
+		onPlanModeToggle(!planModeEnabled);
 		setPlusMenuOpen(false);
 	};
 
-	const handleDisablePlanMode = () => onPlanModeToggle?.(false);
+	const handleDisablePlanMode = isReadOnlyView
+		? undefined
+		: () => onPlanModeToggle(false);
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [composerElement, setComposerElement] = useState<HTMLDivElement | null>(
@@ -800,19 +963,75 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		};
 	}, [composerElement]);
 
+	// Workspace uploads eagerly write bytes into the workspace, so a
+	// disabled (read-only) composer must not route files to them. The
+	// same holds while a send is pending: the post-send reset would drop
+	// the chip after the bytes already landed in the workspace.
+	const workspaceAttachBlockedBySend =
+		isLoading && workspaceUploads?.onAttach !== undefined;
+	const onWorkspaceAttach =
+		isDisabled || isLoading ? undefined : workspaceUploads?.onAttach;
+
+	// Splits files between the attachment pipeline and the workspace
+	// upload path by declared MIME type. Unknown or octet-stream files
+	// stay on the attachment path where the server classifies bytes.
+	// Returns whether any file was routed.
+	const routeFiles = (files: File[]): boolean => {
+		const attachable: File[] = [];
+		const forWorkspace: File[] = [];
+		const rejected: File[] = [];
+		// Workspace-routable files that arrived while the workspace
+		// upload feature is wired but currently unavailable (no
+		// connected agent, read-only composer, pending send). They need
+		// a workspace, not a different file type, so they get their own
+		// toast.
+		const workspaceRequired: File[] = [];
+		for (const file of files) {
+			if (onWorkspaceAttach && shouldRouteFileToWorkspace(file)) {
+				forWorkspace.push(file);
+			} else if (isChatAttachmentFile(file)) {
+				attachable.push(file);
+			} else if (workspaceUploads && shouldRouteFileToWorkspace(file)) {
+				workspaceRequired.push(file);
+			} else {
+				rejected.push(file);
+			}
+		}
+		if (workspaceRequired.length > 0) {
+			toast.error(
+				workspaceAttachBlockedBySend
+					? workspaceUploadPendingSendMessage
+					: (workspaceUploads?.unavailableMessage ??
+							workspaceRequiredAttachmentMessage),
+			);
+		}
+		if (rejected.length > 0) {
+			toast.error(
+				`Unsupported file type: ${rejected.map((file) => file.name).join(", ")}`,
+			);
+		}
+		if (attachable.length === 0 && forWorkspace.length === 0) {
+			return false;
+		}
+		resetPromptCycle();
+		if (attachable.length > 0) {
+			onAttach?.(attachable);
+		}
+		if (forWorkspace.length > 0) {
+			onWorkspaceAttach?.(forWorkspace);
+		}
+		return true;
+	};
+
 	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-		if (e.target.files && onAttach) {
-			resetPromptCycle();
-			onAttach(Array.from(e.target.files));
+		if (e.target.files?.length) {
+			routeFiles(Array.from(e.target.files));
 		}
 		// Reset so the same file can be selected again.
 		e.target.value = "";
 	};
 
-	const handleFilePaste = (file: File) => {
-		resetPromptCycle();
-		onAttach?.([file]);
-	};
+	const handleFilePaste = (file: File) => routeFiles([file]);
 
 	const handleInlineText = (file: File, nextContent?: string) => {
 		const content = nextContent ?? textContents?.get(file);
@@ -827,14 +1046,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const handleTextPreview = (
 		content: string,
 		fileName: string,
-		mediaType?: string,
+		mediaType: string,
 	) => {
 		if (onTextPreview) {
 			onTextPreview(content, fileName, mediaType);
 		} else {
 			setPreviewText(content);
 			setPreviewTextFileName(fileName);
-			setPreviewTextMediaType(mediaType ?? null);
+			setPreviewTextMediaType(mediaType);
 		}
 	};
 
@@ -857,34 +1076,24 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const handleDrop = (e: React.DragEvent) => {
 		e.preventDefault();
 		setIsDragging(false);
-		if (!onAttach || !e.dataTransfer.files.length) return;
-		const dropped = Array.from(e.dataTransfer.files);
-		const attachable = dropped.filter(isChatAttachmentFile);
-		const rejected = dropped.filter((file) => !isChatAttachmentFile(file));
-		if (rejected.length > 0) {
-			toast.error(
-				`Unsupported file type: ${rejected.map((file) => file.name).join(", ")}`,
-			);
-		}
-		if (attachable.length === 0) return;
-		resetPromptCycle();
-		onAttach(attachable);
+		if (!e.dataTransfer.files.length) return;
+		routeFiles(Array.from(e.dataTransfer.files));
 	};
 
 	// Track whether the editor has content so we can gate the
 	// send button without a controlled value prop.
 	const [hasContent, setHasContent] = useState(() =>
-		Boolean(initialValue?.trim()),
+		Boolean(initialValue.trim()),
 	);
 
 	const [invisibleCharCount, setInvisibleCharCount] = useState(() =>
-		countInvisibleCharacters(initialValue ?? ""),
+		countInvisibleCharacters(initialValue),
 	);
 
 	const handleContentChange = (
 		content: string,
 		serializedEditorState: string,
-		hasRefs: boolean,
+		hasChipsInEditor: boolean,
 	) => {
 		// Lexical fires onChange synchronously from editor.setValue().
 		// While cycling, compare incoming content to currentCycleValueRef,
@@ -897,9 +1106,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			resetPromptCycle();
 		}
 		setHasContent(Boolean(content.trim()));
-		setHasFileReferences(hasRefs);
+		setHasChips(hasChipsInEditor);
 		setInvisibleCharCount(countInvisibleCharacters(content));
-		onContentChange?.(content, serializedEditorState, hasRefs);
+		onContentChange(content, serializedEditorState, hasChipsInEditor);
 	};
 
 	// Re-focus the editor after a send completes (isLoading goes
@@ -912,17 +1121,29 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			internalRef.current?.focus();
 		}
 	}, [isLoading]);
-	const hasActiveUploads = attachments.some((file) =>
-		isUploadInProgress(uploadStates?.get(file)),
-	);
-	const hasUploadedAttachments = attachments.some(
-		(f) => uploadStates?.get(f)?.status === "uploaded",
-	);
+	const workspaceUploadEntries = workspaceUploads?.uploads ?? [];
+	const hasActiveUploads =
+		attachments.some((file) => isUploadInProgress(uploadStates?.get(file))) ||
+		workspaceUploadEntries.some(isWorkspaceUploadInProgress);
+	// Deferred workspace entries upload during submit, so they count as
+	// sendable content just like finished uploads. In deferred mode
+	// failed entries stay sendable too: the next send re-uploads them
+	// against the fresh chat.
+	const hasUploadedAttachments =
+		attachments.some((f) => uploadStates?.get(f)?.status === "uploaded") ||
+		workspaceUploadEntries.some(
+			(upload) =>
+				upload.status === "uploaded" ||
+				upload.status === "deferred" ||
+				(workspaceUploads?.deferred === true && upload.status === "error"),
+		);
 	const hasDraftContext =
-		hasContent || attachments.length > 0 || hasFileReferences;
+		hasContent ||
+		attachments.length > 0 ||
+		workspaceUploadEntries.length > 0 ||
+		hasChips;
 	const isComposerEffectivelyEmpty = !hasDraftContext;
-	const hasSendableContent =
-		hasContent || hasUploadedAttachments || hasFileReferences;
+	const hasSendableContent = hasContent || hasUploadedAttachments || hasChips;
 	const canSend =
 		!isDisabled &&
 		!isReadOnly &&
@@ -938,7 +1159,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		if (
 			!text &&
 			!hasUploadedAttachments &&
-			!hasFileReferences &&
+			!hasChips &&
 			!isDisabled &&
 			!isReadOnly &&
 			!isLoading &&
@@ -951,7 +1172,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		}
 
 		if (
-			(!text && !hasUploadedAttachments && !hasFileReferences) ||
+			(!text && !hasUploadedAttachments && !hasChips) ||
 			isDisabled ||
 			isReadOnly ||
 			isLoading ||
@@ -969,7 +1190,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	};
 	const handleStartRecording = () => {
 		resetPromptCycle();
-		setPreRecordingValue(internalRef.current?.getValue()?.trim() ?? "");
+		setPreRecordingState(internalRef.current?.getEditorState() ?? null);
 		speech.start();
 	};
 
@@ -981,19 +1202,17 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	};
 
 	const handleCancelRecording = () => {
-		const original = preRecordingValue;
 		speech.cancel();
 		const editor = internalRef.current;
 		if (editor) {
-			editor.clear();
-			if (original) {
-				editor.insertText(original);
+			if (preRecordingState !== null) {
+				editor.restoreEditorState(preRecordingState);
 			}
 			if (!isMobileViewport()) {
 				editor.focus();
 			}
 		}
-		setPreRecordingValue("");
+		setPreRecordingState(null);
 	};
 
 	const handleComposerKeyDown = (e: React.KeyboardEvent) => {
@@ -1101,12 +1320,23 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const draftOccupiesSlot =
 		hasSendableContent || hasActiveUploads || speech.isRecording;
 	const editingHoldsStop = isEditingHistoryMessage && !speech.isRecording;
+	const canShowProjectActions =
+		showProjectActions &&
+		experiments.includes("chat-projects") &&
+		!isReadOnly &&
+		!isReadOnlyView &&
+		!isLoading &&
+		!isDisabled &&
+		hasModelOptions &&
+		!aiGatewayDisabled;
 	const showStopButton =
+		!isReadOnlyView &&
 		isStreaming &&
 		onInterrupt !== undefined &&
 		(!draftOccupiesSlot || editingHoldsStop);
 	const showSendButton =
-		!isStreaming || (draftOccupiesSlot && !editingHoldsStop);
+		!isReadOnlyView &&
+		(!isStreaming || (draftOccupiesSlot && !editingHoldsStop));
 	// Mobile viewports advertise no send shortcut.
 	const sendShortcutLabel = isMobile
 		? undefined
@@ -1125,11 +1355,20 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const content = (
 		<div
 			className={cn(
-				"mx-auto w-full pb-0 sm:pb-4",
-				chatWidthClass(chatFullWidth),
+				"mx-auto w-full",
+				fillWidth
+					? "max-w-full"
+					: [chatWidthClass(chatFullWidth), "pb-0 sm:pb-4"],
 				isEditingHistoryMessage && "pt-1",
 			)}
 		>
+			{canShowProjectActions && chatOrganizationId && chatProjectId && (
+				<ProjectSkillActions
+					organizationId={chatOrganizationId}
+					projectId={chatProjectId}
+					onInvoke={(name) => internalRef.current?.insertSkill("project", name)}
+				/>
+			)}
 			{queuedMessages.length > 0 && (
 				<QueuedMessagesList
 					messages={queuedMessages}
@@ -1140,9 +1379,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			)}
 			{showAgentSetupNotice && (
 				<div className="relative z-0 -mb-10">
-					{(aiGatewayDisabled ||
-						(providerCount !== undefined && modelCount !== undefined)) &&
-					canConfigureAgentSetup ? (
+					{canConfigureAgentSetup ? (
 						<AgentSetupNotice
 							isAdmin
 							providerCount={providerCount ?? 0}
@@ -1170,16 +1407,26 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
-					isEditingHistoryMessage &&
+					(isEditingHistoryMessage || warning) &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
+					isReadOnlyView && "border border-solid border-border",
 				)}
 				onKeyDown={handleComposerKeyDown}
 				onDragOver={onAttach ? handleDragOver : undefined}
 				onDragLeave={onAttach ? handleDragLeave : undefined}
 				onDrop={onAttach ? handleDrop : undefined}
 			>
+				{warning && (
+					<div
+						id={warningId}
+						className="flex items-start gap-1.5 border-b border-border/70 px-3 py-1.5 text-xs font-medium text-content-warning"
+					>
+						<TriangleAlertIcon className="mt-px size-3.5 shrink-0" />
+						{warning}
+					</div>
+				)}
 				{isEditingHistoryMessage && (
-					<div className="flex items-center justify-between border-b border-border-default/70 px-3 py-1.5">
+					<div className="flex items-center justify-between border-b border-border/70 px-3 py-1.5">
 						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
 							<PencilIcon className="size-3.5" />
 							Editing will delete all subsequent messages and restart the
@@ -1210,27 +1457,48 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						onInlineText={handleInlineText}
 					/>
 				)}
-				<ChatMessageInput
-					ref={internalRef}
-					onFilePaste={onAttach ? handleFilePaste : undefined}
-					onPaste={resetPromptCycle}
-					aria-label="Chat message"
-					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
-					placeholder={placeholder}
-					initialValue={initialValue}
-					initialEditorState={initialEditorState}
-					remountKey={remountKey}
-					onChange={handleContentChange}
-					onKeyDown={handleEditorKeyDown}
-					onEnter={handleSubmit}
-					sendShortcut={sendShortcut}
-					disabled={isReadOnly || isLoading}
-					hasWorkspace={hasSkillsWorkspace}
-					workspaceSkills={workspaceSkills}
-					autoFocus
-					slashCommands={slashCommands}
-					skillsMenuAnchor={composerElement}
-				/>
+				{workspaceUploads && (
+					<WorkspaceUploadPreview
+						uploads={workspaceUploads.uploads}
+						onRemove={workspaceUploads.onRemove}
+					/>
+				)}
+				{isReadOnlyView ? (
+					<div
+						role="status"
+						className="flex items-center gap-2 px-3 py-2 text-[13px] text-content-primary"
+					>
+						<InfoIcon className="size-4 shrink-0 text-content-link" />
+						{readOnlyNotice}
+					</div>
+				) : (
+					<ChatMessageInput
+						ref={internalRef}
+						onFilePaste={onAttach ? handleFilePaste : undefined}
+						acceptFilePasteWhileDisabled={isLoading && !isReadOnly}
+						onPaste={resetPromptCycle}
+						aria-label="Chat message"
+						aria-describedby={warning ? warningId : undefined}
+						className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
+						placeholder={placeholder}
+						initialValue={initialValue}
+						initialEditorState={initialEditorState}
+						remountKey={remountKey}
+						onChange={handleContentChange}
+						onKeyDown={handleEditorKeyDown}
+						onEnter={handleSubmit}
+						sendShortcut={sendShortcut}
+						disabled={isReadOnly || isLoading}
+						hasWorkspace={hasSkillsWorkspace}
+						organizationId={chatOrganizationId}
+						projectId={
+							experiments.includes("chat-projects") ? chatProjectId : undefined
+						}
+						workspaceSkills={workspaceSkills}
+						slashCommands={slashCommands}
+						skillsMenuAnchor={composerElement}
+					/>
+				)}
 				{/* Warn about invisible Unicode in the message text.
 				 * Unlike the admin/user prompt textareas (which strip
 				 * invisible chars server-side on save), the chat input
@@ -1251,13 +1519,19 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						</Alert>
 					</div>
 				)}
-				{/* Hidden file input for attaching any server-accepted file type. */}
+				{/* Hidden file input for attaching files. When workspace
+				uploads are wired, every file type stays selectable even
+				while no workspace is ready: iOS silently greys out
+				filtered types, so routeFiles explains the refusal. */}
 				{onAttach && (
 					<input
 						ref={fileInputRef}
 						type="file"
+						data-testid="chat-attachment-file-input"
 						multiple
-						accept={chatAttachmentAcceptAttribute}
+						accept={
+							workspaceUploads ? undefined : chatAttachmentAcceptAttribute
+						}
 						onChange={handleFileSelect}
 						className="hidden"
 					/>
@@ -1280,7 +1554,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									type="button"
 									variant="subtle"
 									size="icon"
-									className="size-7 shrink-0 rounded-full [&>svg]:size-icon-sm! [&>svg]:p-0"
+									className={cn(
+										"size-7 shrink-0 rounded-full [&>svg]:size-icon-sm! [&>svg]:p-0",
+										isReadOnlyView && "hidden",
+									)}
 									disabled={
 										isDisabled &&
 										!showAgentSetupNotice &&
@@ -1333,22 +1610,20 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 												Attach file
 											</button>
 										)}
-										{onPlanModeToggle && (
-											<button
-												type="button"
-												role="menuitemcheckbox"
-												aria-checked={planModeEnabled}
-												onClick={handlePlanModeToggle}
-												disabled={isDisabled}
-												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
-											>
-												<PencilIcon className="size-3.5 shrink-0" />
-												<span>Plan first</span>
-												{planModeEnabled && (
-													<CheckIcon className="ml-auto size-icon-sm shrink-0" />
-												)}
-											</button>
-										)}
+										<button
+											type="button"
+											role="menuitemcheckbox"
+											aria-checked={planModeEnabled}
+											onClick={handlePlanModeToggle}
+											disabled={isDisabled}
+											className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
+										>
+											<PencilIcon className="size-3.5 shrink-0" />
+											<span>Plan first</span>
+											{planModeEnabled && (
+												<CheckIcon className="ml-auto size-icon-sm shrink-0" />
+											)}
+										</button>
 										{workspaceOptions &&
 											onWorkspaceChange &&
 											(isBelowMdViewport() ? (
@@ -1432,21 +1707,32 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 															<span className="min-w-0 flex-1 truncate text-xs text-content-secondary">
 																{server.display_name}
 															</span>
+															{isForceOn && (
+																<LockIcon className="size-3 shrink-0 text-content-secondary" />
+															)}
 															{needsAuth ? (
-																<Button
-																	variant="outline"
-																	size="sm"
-																	className="h-6 shrink-0 px-2 text-[10px] leading-none"
-																	onClick={() => connectMCPServer(server.id)}
-																	disabled={
-																		isDisabled || mcpConnectingId !== null
-																	}
-																>
-																	{isConnecting ? (
-																		<Spinner loading className="h-2.5 w-2.5" />
-																	) : null}
-																	Auth
-																</Button>
+																<>
+																	{isForceOn && (
+																		<span className="sr-only">Always on</span>
+																	)}
+																	<Button
+																		variant="outline"
+																		size="sm"
+																		className="h-6 shrink-0 px-2 text-[10px] leading-none"
+																		onClick={() => connectMCPServer(server.id)}
+																		disabled={
+																			isDisabled || mcpConnectingId !== null
+																		}
+																	>
+																		{isConnecting ? (
+																			<Spinner
+																				loading
+																				className="h-2.5 w-2.5"
+																			/>
+																		) : null}
+																		Auth
+																	</Button>
+																</>
 															) : (
 																<>
 																	{server.auth_type === "oauth2" && (
@@ -1471,7 +1757,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 																			handleMcpToggle(server.id, checked)
 																		}
 																		disabled={isDisabled || isForceOn}
-																		aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
+																		aria-label={
+																			isForceOn
+																				? `${server.display_name} always on`
+																				: `${isSelected ? "Disable" : "Enable"} ${server.display_name}`
+																		}
 																	/>
 																</>
 															)}
@@ -1486,6 +1776,19 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						</Popover>
 						{isModelCatalogLoading ? (
 							<Skeleton className="h-6 w-24 rounded" />
+						) : isReadOnlyView ? (
+							<span className="inline-flex min-w-0 shrink items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary">
+								{readOnlyModel && (
+									<ProviderIcon
+										provider={readOnlyModel.provider}
+										icon={readOnlyModel.providerIcon}
+										className="size-3 shrink-0"
+									/>
+								)}
+								<span className="truncate">
+									{readOnlyModel?.displayName ?? modelSelectorPlaceholder}
+								</span>
+							</span>
 						) : (
 							<ModelSelector
 								value={selectedModel}
@@ -1508,7 +1811,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							>
 								<PencilIcon className="size-3" />
 								Planning
-								{onPlanModeToggle && (
+								{handleDisablePlanMode && (
 									<BadgeDismissButton
 										onClick={handleDisablePlanMode}
 										ariaLabel="Disable plan mode"
@@ -1554,13 +1857,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								}
 								return (
 									<ToolBadge
-										key={badge.kind === "mcp" ? badge.server.id : badge.kind}
+										key={badgeKey(badge, i)}
 										badge={badge}
 										onRemoveWorkspace={removeWorkspaceHandler}
 										onRemoveMcp={handleRemoveMcp}
-										onRemovePlanning={
-											onPlanModeToggle ? handleDisablePlanMode : undefined
-										}
+										onRemovePlanning={handleDisablePlanMode}
 										isDisabled={isDisabled}
 										className={isOverflow ? "hidden" : undefined}
 									/>
@@ -1583,11 +1884,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										+{overflowCount}
 									</button>
 								</PopoverTrigger>
-								{/* Anchored above the +N pill; hugs the toolbar row. */}
-								<PopoverContent
-									side="top"
-									align="start"
-									className="flex w-auto max-w-64 flex-wrap gap-1 p-2"
+								<BadgePopoverContent
 									onInteractOutside={(event) => {
 										// The workspace pill portals its menu outside
 										// this popover; dismissing would unmount the
@@ -1631,30 +1928,22 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										}
 										return (
 											<ToolBadge
-												// Non-MCP badges can share a kind, so keys
-												// are position-qualified.
-												key={
-													badge.kind === "mcp"
-														? badge.server.id
-														: `${badge.kind}-overflow-${visibleCount + i}`
-												}
+												key={badgeKey(badge, visibleCount + i)}
 												badge={badge}
 												onRemoveWorkspace={removeWorkspaceHandler}
 												onRemoveMcp={handleRemoveMcp}
-												onRemovePlanning={
-													onPlanModeToggle ? handleDisablePlanMode : undefined
-												}
+												onRemovePlanning={handleDisablePlanMode}
 												isDisabled={isDisabled}
 												disableTooltip
 											/>
 										);
 									})}
-								</PopoverContent>
+								</BadgePopoverContent>
 							</Popover>
 						</div>
 					</div>
 					<div className="flex shrink-0 items-center gap-2">
-						{speech.isSupported && (
+						{speech.isSupported && !isReadOnlyView && (
 							<>
 								<Button
 									type="button"
@@ -1822,7 +2111,7 @@ type WorkspacePickerListProps = {
 	onSelect: (id: string | null) => void;
 };
 
-const WorkspacePickerList: FC<WorkspacePickerListProps> = ({
+const WorkspacePickerList: React.FC<WorkspacePickerListProps> = ({
 	workspaceOptions,
 	selectedWorkspaceId,
 	chatOrganizationId,

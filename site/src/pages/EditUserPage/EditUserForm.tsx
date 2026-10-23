@@ -1,6 +1,5 @@
 import { useFormik } from "formik";
 import { ArrowLeftIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import { Link } from "react-router";
 import * as Yup from "yup";
 import { hasApiFieldErrors, isApiError } from "#/api/errors";
@@ -35,12 +34,12 @@ type EditUserFormProps = {
 	initialValues: UpdateUserProfileRequest;
 	/** Hidden for login types whose avatar is synced from an identity provider. */
 	canEditAvatar: boolean;
-	headerActions?: ReactNode;
+	headerActions?: React.ReactNode;
 	onSubmit: (values: UpdateUserProfileRequest) => void;
 	onCancel: () => void;
 };
 
-export const EditUserForm: FC<EditUserFormProps> = ({
+export const EditUserForm: React.FC<EditUserFormProps> = ({
 	error,
 	isLoading,
 	initialValues,

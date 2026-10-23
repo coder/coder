@@ -1,8 +1,9 @@
 import type { DiffLineAnnotation, SelectedLineRange } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { fn, userEvent, waitFor, within } from "storybook/test";
+import { CommentableDiffViewer } from "../DiffViewer/CommentableDiffViewer";
 import type { DiffStyle } from "../DiffViewer/DiffViewer";
 import { DiffViewer } from "../DiffViewer/DiffViewer";
 import { parseDiffString } from "../DiffViewer/parseDiff";
@@ -42,9 +43,14 @@ const meta: Meta<typeof DiffViewer> = {
 	component: DiffViewer,
 	args: {
 		parsedFiles,
+		version: 0,
 		diffStyle: "unified" satisfies DiffStyle,
+		isExpanded: false,
 		onLineNumberClick: fn(),
 		onLineSelected: fn(),
+		onLineSelectionChange: fn(),
+		getLineAnnotations: () => [],
+		getSelectedLines: () => null,
 		onScrollToFileComplete: fn(),
 	},
 	decorators: [
@@ -444,9 +450,7 @@ const reparseSecondBody = [
 	"+const c = 3;",
 ].join("\n");
 
-// FileDiff renders hunks synchronously enough for play tests; CodeView
-// virtualizes and never paints lines in this environment.
-const ReparseSamePath: FC = () => {
+const ReparseSamePath: React.FC = () => {
 	const [body, setBody] = useState(reparseFirstBody);
 	const file = parseDiffString(body)[0];
 	return (
@@ -497,4 +501,26 @@ export const ReparseSamePathAfterEdit: StoryObj = {
 		// the reparsed body.
 		await waitForDiffBody(canvasElement, "const v = 3");
 	},
+};
+
+const RefreshSamePath: React.FC = () => {
+	const [body, setBody] = useState(reparseFirstBody);
+	return (
+		<div style={{ height: 400, width: 600 }}>
+			<button type="button" onClick={() => setBody(reparseSecondBody)}>
+				next body
+			</button>
+			<CommentableDiffViewer
+				parsedFiles={parseDiffString(body)}
+				isExpanded={false}
+				diffStyle="unified"
+				chatInputRef={{ current: null }}
+			/>
+		</div>
+	);
+};
+
+export const RefreshSamePathInCodeView: StoryObj = {
+	render: () => <RefreshSamePath />,
+	play: ReparseSamePathAfterEdit.play,
 };

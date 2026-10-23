@@ -576,6 +576,28 @@ func TestTelemetryInstallSource(t *testing.T) {
 	require.Equal(t, "aws_marketplace", deployment.InstallSource)
 }
 
+// TestTelemetryExcludesExperimentRuleConditions guards against condition
+// text, which only the rules API may return, leaking into telemetry.
+func TestTelemetryExcludesExperimentRuleConditions(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	sentinel := "telemetry-sentinel-" + uuid.NewString()
+	value, err := json.Marshal(map[string]any{"mode": "condition", "condition": fmt.Sprintf("user.email == %q", sentinel), "revision": 1})
+	require.NoError(t, err)
+	require.NoError(t, db.UpsertExperimentRule(ctx, database.UpsertExperimentRuleParams{
+		Experiment: string(codersdk.ExperimentExample),
+		Value:      string(value),
+	}))
+
+	deployment, snapshot := collectSnapshot(ctx, t, db, nil)
+	for _, report := range []any{deployment, snapshot} {
+		data, err := json.Marshal(report)
+		require.NoError(t, err)
+		require.NotContains(t, string(data), sentinel)
+	}
+}
+
 func TestTelemetryItem(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitMedium)
@@ -1658,6 +1680,230 @@ func TestUserSecretsTelemetry(t *testing.T) {
 		})
 		require.Nil(t, snap2.UserSecretsSummary)
 	})
+}
+
+func TestTelemetryScriptOrderSummary(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	org, err := db.GetDefaultOrganization(ctx)
+	require.NoError(t, err)
+	user := dbgen.User(t, db, database.User{})
+	now := dbtime.Now()
+
+	// Seed all fixtures into one database, then verify the combined
+	// telemetry summary below.
+	for _, tt := range []struct {
+		name        string
+		jobType     database.ProvisionerJobType
+		dataSources int32
+		rules       int32
+		completed   bool
+		failed      bool
+		canceled    bool
+		inactive    bool
+		deleted     bool
+		unattached  bool
+	}{
+		// These three templates contribute to the summary totals.  A
+		// script-order declaration counts even without literal rules.
+		{name: "FirstTemplate", dataSources: 2, rules: 3, completed: true},
+		{name: "SecondTemplate", dataSources: 1, rules: 2, completed: true},
+		{name: "NoLiteralRules", dataSources: 1, completed: true},
+		// These must not contribute to the summary totals.
+		{name: "NoScriptOrder", completed: true},
+		{name: "InactiveVersion", dataSources: 9, rules: 9, completed: true, inactive: true},
+		{name: "DeletedTemplate", dataSources: 9, rules: 9, completed: true, deleted: true},
+		{name: "UnattachedVersion", dataSources: 9, rules: 9, completed: true, unattached: true},
+		{name: "FailedImport", dataSources: 9, rules: 9, completed: true, failed: true},
+		{name: "CanceledImport", dataSources: 9, rules: 9, completed: true, canceled: true},
+		{name: "IncompleteImport", dataSources: 9, rules: 9},
+		{name: "NonImportJob", jobType: database.ProvisionerJobTypeTemplateVersionDryRun, dataSources: 9, rules: 9, completed: true},
+	} {
+		job := database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			OrganizationID: org.ID,
+			InitiatorID:    user.ID,
+		}
+		if tt.jobType != "" {
+			job.Type = tt.jobType
+		}
+		if tt.completed {
+			job.CompletedAt = sql.NullTime{Time: now, Valid: true}
+		}
+		if tt.failed {
+			job.Error = sql.NullString{String: "import failed", Valid: true}
+		}
+		if tt.canceled {
+			job.CanceledAt = sql.NullTime{Time: now, Valid: true}
+		}
+		job = dbgen.ProvisionerJob(t, db, nil, job)
+		var templateID uuid.NullUUID
+		if !tt.unattached {
+			template := dbgen.Template(t, db, database.Template{
+				OrganizationID: org.ID,
+				CreatedBy:      user.ID,
+			})
+			templateID = uuid.NullUUID{UUID: template.ID, Valid: true}
+			if tt.deleted {
+				err := db.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{
+					ID:        template.ID,
+					Deleted:   true,
+					UpdatedAt: now,
+				})
+				require.NoError(t, err, tt.name)
+			}
+		}
+		// Active versions count regardless of when they were imported.
+		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			CreatedAt:                  now.Add(-24 * time.Hour),
+			CreatedBy:                  user.ID,
+			OrganizationID:             org.ID,
+			TemplateID:                 templateID,
+			JobID:                      job.ID,
+			ScriptOrderDataSourceCount: tt.dataSources,
+			ScriptOrderRuleCount:       tt.rules,
+		})
+		if tt.inactive {
+			// A newer version without script ordering replaces one that uses it.
+			activeJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+				Type:           database.ProvisionerJobTypeTemplateVersionImport,
+				OrganizationID: org.ID,
+				InitiatorID:    user.ID,
+				CompletedAt:    sql.NullTime{Time: now, Valid: true},
+			})
+			version = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				CreatedBy:      user.ID,
+				OrganizationID: org.ID,
+				TemplateID:     templateID,
+				JobID:          activeJob.ID,
+				// No script order counts.
+			})
+		}
+		if templateID.Valid {
+			err := db.UpdateTemplateActiveVersionByID(ctx, database.UpdateTemplateActiveVersionByIDParams{
+				ID:              templateID.UUID,
+				ActiveVersionID: version.ID,
+				UpdatedAt:       now,
+			})
+			require.NoError(t, err, tt.name)
+		}
+	}
+
+	_, snapshot := collectSnapshot(ctx, t, db, nil)
+
+	// Keep totals distinct so swapped telemetry fields fail this test.
+	require.Equal(t, &telemetry.ScriptOrderSummary{
+		TemplatesWithScriptOrder: 3,
+		DataSourceCount:          4,
+		RuleCount:                5,
+	}, snapshot.ScriptOrderSummary)
+	data, err := json.Marshal(snapshot.ScriptOrderSummary)
+	require.NoError(t, err)
+
+	// Verify the serialized telemetry contains only aggregate counts,
+	// with no identifiers or rule contents.
+	require.JSONEq(t, `{
+		"templates_with_script_order":3,"data_source_count":4,"rule_count":5
+	}`, string(data))
+
+	// Verify script-order counts are excluded from individual
+	// template-version telemetry records and reported only in the
+	// deployment-wide summary.
+	versionData, err := json.Marshal(telemetry.ConvertTemplateVersion(database.TemplateVersion{
+		ScriptOrderDataSourceCount: 1,
+		ScriptOrderRuleCount:       2,
+	}))
+	require.NoError(t, err)
+	var fields map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(versionData, &fields))
+	require.NotContains(t, fields, "script_order_data_source_count")
+	require.NotContains(t, fields, "script_order_rule_count")
+}
+
+func TestTelemetryScriptOrderSummaryError(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	// Boundary counters are reset during collection, so their snapshot
+	// must still be delivered when script-order collection fails.
+	tracker := boundaryusage.NewTracker()
+	tracker.Track(uuid.New(), uuid.New(), 10, 2)
+	require.NoError(t, tracker.FlushToDB(ctx, db, uuid.New()))
+
+	_, snapshot := collectSnapshot(ctx, t, &scriptOrderSummaryErrorStore{Store: db}, nil)
+	require.Nil(t, snapshot.ScriptOrderSummary)
+	require.NotNil(t, snapshot.BoundaryUsageSummary)
+	require.Equal(t, int64(1), snapshot.BoundaryUsageSummary.UniqueWorkspaces)
+	require.Equal(t, int64(1), snapshot.BoundaryUsageSummary.UniqueUsers)
+	require.Equal(t, int64(10), snapshot.BoundaryUsageSummary.AllowedRequests)
+	require.Equal(t, int64(2), snapshot.BoundaryUsageSummary.DeniedRequests)
+}
+
+type scriptOrderSummaryErrorStore struct {
+	database.Store
+}
+
+func (*scriptOrderSummaryErrorStore) GetScriptOrderTelemetrySummary(context.Context) (database.GetScriptOrderTelemetrySummaryRow, error) {
+	return database.GetScriptOrderTelemetrySummaryRow{}, sql.ErrConnDone
+}
+
+func TestTelemetryScriptOrderSummaryEmpty(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	_, snapshot := collectSnapshot(ctx, t, db, nil)
+
+	// Verify an empty deployment reports an explicit all-zero
+	// summary, rather than a missing summary.
+	require.Equal(t, &telemetry.ScriptOrderSummary{}, snapshot.ScriptOrderSummary)
+	data, err := json.Marshal(snapshot)
+	require.NoError(t, err)
+	var fields map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(data, &fields))
+	require.JSONEq(t, `{
+		"templates_with_script_order":0,"data_source_count":0,"rule_count":0
+	}`, string(fields["script_order_summary"]))
+}
+
+func TestTelemetryScriptOrderSummaryOneReplicaPerPeriod(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	const snapshotFrequency = 5 * time.Minute
+	clock := quartz.NewMock(t)
+	clock.Set(dbtime.Now().Truncate(snapshotFrequency))
+	deploymentID := uuid.NewString()
+	options := func(opts telemetry.Options) telemetry.Options {
+		opts.Clock = clock
+		opts.SnapshotFrequency = snapshotFrequency
+		opts.DeploymentID = deploymentID
+		return opts
+	}
+
+	// The elected replica reports zero counts too, so adoption can be cleared.
+	_, first := collectSnapshot(ctx, t, db, options)
+	require.Equal(t, &telemetry.ScriptOrderSummary{}, first.ScriptOrderSummary)
+
+	// Another replica later in the same period must not collect a summary.
+	clock.Advance(time.Second)
+	_, second := collectSnapshot(ctx, t, db, options)
+	require.Nil(t, second.ScriptOrderSummary)
+	data, err := json.Marshal(second)
+	require.NoError(t, err)
+	var fields map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(data, &fields))
+	require.Equal(t, "null", string(fields["script_order_summary"]))
+
+	// The previous period's lock must not prevent the next collection.
+	clock.Advance(snapshotFrequency - time.Second)
+	_, next := collectSnapshot(ctx, t, db, options)
+	require.Equal(t, &telemetry.ScriptOrderSummary{}, next.ScriptOrderSummary)
 }
 
 func TestCollectAgentsVirtualDesktop(t *testing.T) {

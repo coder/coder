@@ -86,7 +86,7 @@ export const BreadcrumbSeparator: React.FC<
 			role="presentation"
 			aria-hidden="true"
 			className={cn(
-				"text-content-disabled [&>svg]:w-3.5 [&>svg]:h-3.5",
+				"text-content-secondary [&>svg]:w-3.5 [&>svg]:h-3.5",
 				className,
 			)}
 			{...props}

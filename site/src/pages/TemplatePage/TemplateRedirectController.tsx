@@ -1,9 +1,8 @@
-import type { FC } from "react";
 import { Navigate, Outlet, useLocation, useParams } from "react-router";
 import type { Organization } from "#/api/typesGenerated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 
-export const TemplateRedirectController: FC = () => {
+export const TemplateRedirectController: React.FC = () => {
 	const { organizations, showOrganizations } = useDashboard();
 	const { organization, template } = useParams() as {
 		organization?: string;

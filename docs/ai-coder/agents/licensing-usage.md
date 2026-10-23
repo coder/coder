@@ -1,19 +1,19 @@
 ---
-title: Licensing & Usage
+title: Licensing & usage
 ---
 
 Coder Agents licensing controls concurrent agent activity and Agent Time usage across your deployment.
 
-## Community licenses
+## Community and Premium licenses
 
-Community licenses support up to five concurrently active agents deployment-wide.
+Community and Premium licenses support up to five concurrently active agents deployment-wide.
 Coder doesn't limit how long those agents can run or how many tasks they complete over time.
 Agents queue when more than five agents are active at a time.
-With this agent pool, individuals and small teams can experiment with Coder Agents at no cost.
+With this agent pool, individuals and small teams can experiment with Coder Agents at no additional cost.
 
-## Premium licenses and Agent Hours
+## AI Premium licenses and Agent Hours
 
-A Premium license includes a preset amount of Agent Time.
+An [AI Premium](https://coder.com/pricing) license includes a preset amount of Agent Time.
 Agent Time is shared across the deployment, allowing unlimited agents to run concurrently while consuming from a shared pool of purchased working hours.
 This usage-based model supports enterprise workloads where large development teams, background automation, and API-triggered tasks can create variable bursts of agent activity.
 
@@ -44,9 +44,9 @@ Coder records Agent Time in milliseconds and sums it across all Coder Agents cha
 
 Coder handles concurrency and usage limits differently depending on the license you use.
 
-### Community concurrency limit
+### Community and Premium concurrency limit
 
-When a Community license deployment reaches its limit of five concurrently active agents, Coder places additional agents in a queue.
+When a Community or Premium license deployment reaches its limit of five concurrently active agents, Coder places additional agents in a queue.
 When an active agent completes its task, the next queued agent begins its work.
 
 ### Agent Hours exhaustion
@@ -61,11 +61,11 @@ Coder doesn't send user-identifiable information or additional chat data to Tall
 Coder also shares the reported usage with [Metronome](https://metronome.com), a Stripe product and Coder partner for usage-based billing and reporting.
 
 Your Coder deployment must be able to make outbound HTTPS requests to `https://tallyman-prod.coder.com` to report usage.
-Coder generates one `hb_agent_runtime_v1` event for each UTC hour shortly after the hour ends, then checks for unpublished events approximately every 17 minutes.
-In steady state, each hour's usage typically reaches Tallyman within about 25 minutes of the hour closing.
+Coder generates one `hb_agent_runtime_v1` event for each UTC hour shortly after the hour ends, then checks for unpublished events approximately every 17&nbsp;minutes.
+In steady state, each hour's usage typically reaches Tallyman within about 25&nbsp;minutes of the hour closing.
 You can monitor these requests in `coderd` logs.
 
-A successful request produces a debug log similar to the following example when you enable debug logging with [`CODER_LOG_FILTER=.*`](../../reference/cli/server.md#-l---log-filter):
+A successful request produces a debug log similar to the following example when you enable debug logging with [`CODER_LOG_FILTER=.*`](../../reference/cli/server/index.md#-l---log-filter):
 
 ```sh
 [debu] published usage events to tallyman accepted=1 rejected=0
@@ -78,7 +78,7 @@ Idle hours have a value of `0`.
 If the deployment was offline, Coder backfills missed hours for up to seven days, batching up to 100 events per request.
 Hours missing beyond seven days aren't reported.
 
-The following example reports 1 hour of Agent Time:
+The following example reports 1&nbsp;hour of Agent Time:
 
 ```txt
 POST /api/v1/events/ingest HTTP/1.1

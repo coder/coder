@@ -8,6 +8,8 @@ import {
 	buildDisplayMessages,
 	deriveEvictedFileIds,
 	deriveMessageDisplayState,
+	getAgentAttachments,
+	getLoadedAgentAttachments,
 } from "./messageHelpers";
 import {
 	parseMessageContent,
@@ -33,6 +35,7 @@ const getDisplayState = (
 		parsed: parseMessageContent(message.content),
 		hideActions: false,
 		hasActiveStream: false,
+		isAwaitingFirstStreamChunk: false,
 		...overrides,
 	});
 
@@ -333,6 +336,57 @@ describe("deriveMessageDisplayState", () => {
 		expect(getDisplayState(message).needsAssistantBottomSpacer).toBe(false);
 	});
 
+	it("keeps workspace-file-only user messages visible for the placeholder", () => {
+		const message = buildMessage([
+			{
+				type: "workspace-file-reference",
+				workspace_file_path: "/home/coder/.coder/chats/chat-1/files/data.csv",
+				workspace_file_name: "data.csv",
+				workspace_file_size: 42,
+				workspace_file_workspace_id: "ws-1",
+			},
+		]);
+
+		const state = getDisplayState(message);
+		expect(state.shouldHide).toBe(false);
+		expect(state.hasWorkspaceFileReferences).toBe(true);
+		expect(state.workspaceFileReferenceCount).toBe(1);
+		expect(state.hasCopyableContent).toBe(false);
+	});
+
+	it("keeps text with workspace file references visible but not copyable", () => {
+		const message = buildMessage([
+			{ type: "text", text: "Use this file." },
+			{
+				type: "workspace-file-reference",
+				workspace_file_path: "/home/coder/.coder/chats/chat-1/files/data.csv",
+				workspace_file_name: "data.csv",
+				workspace_file_size: 42,
+				workspace_file_workspace_id: "ws-1",
+			},
+		]);
+
+		const state = getDisplayState(message);
+		expect(state.shouldHide).toBe(false);
+		expect(state.hasUserMessageBody).toBe(true);
+		expect(state.hasWorkspaceFileReferences).toBe(true);
+		expect(state.hasCopyableContent).toBe(false);
+	});
+
+	it("renders a user message that only invokes a skill", () => {
+		const message = buildMessage([
+			{
+				type: "skill-invocation",
+				skill_source: "project",
+				skill_name: "triage",
+			},
+		]);
+
+		const state = getDisplayState(message);
+		expect(state.shouldHide).toBe(false);
+		expect(state.hasUserMessageBody).toBe(true);
+	});
+
 	it("hides assistant messages with no renderable content", () => {
 		const message = buildMessage([], "assistant");
 
@@ -408,6 +462,7 @@ describe("deriveMessageDisplayState", () => {
 				parsed: parsedContent,
 				hideActions: false,
 				hasActiveStream: false,
+				isAwaitingFirstStreamChunk: false,
 			}).shouldHide,
 		).toBe(true);
 	});
@@ -649,5 +704,74 @@ describe("deriveEvictedFileIds", () => {
 		);
 
 		expect([...evicted]).toEqual(["rec-1", "thumb-1"]);
+	});
+});
+
+describe("getAgentAttachments", () => {
+	it("lists assistant file parts newest first, skipping uploads and empty parts", () => {
+		const mockPlanFile: TypesGen.ChatFilePart = {
+			type: "file",
+			media_type: "text/markdown",
+			name: "plan.md",
+			file_id: "plan",
+		};
+		const mockScreenshotFile: TypesGen.ChatFilePart = {
+			type: "file",
+			media_type: "image/png",
+			data: "aGk=",
+		};
+		const mockReportFile: TypesGen.ChatFilePart = {
+			type: "file",
+			media_type: "text/csv",
+			file_id: "report",
+		};
+		const messages: TypesGen.ChatMessage[] = [
+			{ ...buildMessage([mockPlanFile], "assistant"), id: 1 },
+			{
+				...buildMessage([
+					{ type: "file", media_type: "image/png", file_id: "upload" },
+				]),
+				id: 2,
+			},
+			{
+				...buildMessage(
+					[
+						{ type: "text", text: "Here you go." },
+						mockScreenshotFile,
+						{ type: "file", media_type: "text/plain" },
+						mockReportFile,
+					],
+					"assistant",
+				),
+				id: 3,
+			},
+		];
+
+		expect(getAgentAttachments(messages)).toEqual([
+			{
+				key: "3:3",
+				file: mockReportFile,
+				href: "/api/v2/chats/files/report",
+			},
+			{
+				key: "3:1",
+				file: mockScreenshotFile,
+				href: "data:image/png;base64,aGk=",
+			},
+			{ key: "1:0", file: mockPlanFile, href: "/api/v2/chats/files/plan" },
+		]);
+	});
+});
+
+describe("getLoadedAgentAttachments", () => {
+	it("waits only for the chat's first message page", () => {
+		const reply = buildMessage(
+			[{ type: "file", media_type: "text/csv", file_id: "report" }],
+			"assistant",
+		);
+
+		expect(getLoadedAgentAttachments([], true)).toBeUndefined();
+		expect(getLoadedAgentAttachments([reply], true)).toHaveLength(1);
+		expect(getLoadedAgentAttachments([], false)).toEqual([]);
 	});
 });

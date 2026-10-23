@@ -9,6 +9,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// MCPEndpoint is the remote MCP HTTP endpoint path.
+const MCPEndpoint = "/api/experimental/mcp/http"
+
 // MCPServerOAuth2ConnectURL returns the URL the user should visit to
 // start the OAuth2 flow for an MCP server. The frontend opens this
 // in a new window/popup.
@@ -70,6 +73,7 @@ type MCPServerConfig struct {
 	OAuth2AuthURL       string `json:"oauth2_auth_url,omitempty"`
 	OAuth2TokenURL      string `json:"oauth2_token_url,omitempty"`
 	OAuth2RevocationURL string `json:"oauth2_revocation_url,omitempty"`
+	OAuth2Resource      string `json:"oauth2_resource,omitempty"`
 	OAuth2Scopes        string `json:"oauth2_scopes,omitempty"`
 
 	// API key fields (only populated for admins).
@@ -158,11 +162,14 @@ type CreateMCPServerConfigRequest struct {
 	OAuth2TokenURL     string `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
 	// OAuth2RevocationURL is the provider's RFC 7009 revocation
 	// endpoint; auto-populated by OAuth2 discovery when omitted.
-	OAuth2RevocationURL string            `json:"oauth2_revocation_url,omitempty" validate:"omitempty,url"`
-	OAuth2Scopes        string            `json:"oauth2_scopes,omitempty"`
-	APIKeyHeader        string            `json:"api_key_header,omitempty"`
-	APIKeyValue         string            `json:"api_key_value,omitempty"`
-	CustomHeaders       map[string]string `json:"custom_headers,omitempty"`
+	OAuth2RevocationURL string `json:"oauth2_revocation_url,omitempty" validate:"omitempty,url"`
+	// OAuth2Resource is the RFC 8707 resource indicator sent on OAuth2
+	// requests when set. Auto-discovery fills it if empty.
+	OAuth2Resource string            `json:"oauth2_resource,omitempty"`
+	OAuth2Scopes   string            `json:"oauth2_scopes,omitempty"`
+	APIKeyHeader   string            `json:"api_key_header,omitempty"`
+	APIKeyValue    string            `json:"api_key_value,omitempty"`
+	CustomHeaders  map[string]string `json:"custom_headers,omitempty"`
 
 	ToolAllowList []string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  []string `json:"tool_deny_list,omitempty"`
@@ -197,11 +204,14 @@ type UpdateMCPServerConfigRequest struct {
 	OAuth2TokenURL     *string `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
 	// OAuth2RevocationURL is validated in the handler because a
 	// validate tag would reject the pointer to "" that clears it.
-	OAuth2RevocationURL *string            `json:"oauth2_revocation_url,omitempty"`
-	OAuth2Scopes        *string            `json:"oauth2_scopes,omitempty"`
-	APIKeyHeader        *string            `json:"api_key_header,omitempty"`
-	APIKeyValue         *string            `json:"api_key_value,omitempty"`
-	CustomHeaders       *map[string]string `json:"custom_headers,omitempty"`
+	OAuth2RevocationURL *string `json:"oauth2_revocation_url,omitempty"`
+	// OAuth2Resource is the RFC 8707 resource indicator. Omit it to keep
+	// the stored value; send "" to clear it.
+	OAuth2Resource *string            `json:"oauth2_resource,omitempty"`
+	OAuth2Scopes   *string            `json:"oauth2_scopes,omitempty"`
+	APIKeyHeader   *string            `json:"api_key_header,omitempty"`
+	APIKeyValue    *string            `json:"api_key_value,omitempty"`
+	CustomHeaders  *map[string]string `json:"custom_headers,omitempty"`
 
 	ToolAllowList *[]string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  *[]string `json:"tool_deny_list,omitempty"`

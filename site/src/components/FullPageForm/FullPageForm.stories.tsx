@@ -1,13 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useFormik } from "formik";
-import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
 import { FormFooter } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { getFormHelpers } from "#/utils/formUtils";
 import { FullPageForm, type FullPageFormProps } from "./FullPageForm";
 
-const Template: FC<FullPageFormProps> = (props) => {
+const Template: React.FC<FullPageFormProps> = (props) => {
 	const form = useFormik({
 		initialValues: {
 			field1: "",

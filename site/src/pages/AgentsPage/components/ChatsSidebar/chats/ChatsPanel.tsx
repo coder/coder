@@ -1,19 +1,13 @@
+import { RestrictToVerticalAxis } from "@dnd-kit/abstract/modifiers";
+import { Accessibility, PointerActivationConstraints } from "@dnd-kit/dom";
 import {
-	closestCenter,
-	DndContext,
+	DragDropProvider,
 	type DragEndEvent,
+	DragOverlay,
 	KeyboardSensor,
-	MouseSensor,
-	TouchSensor,
-	useSensor,
-	useSensors,
-} from "@dnd-kit/core";
-import {
-	arrayMove,
-	SortableContext,
-	sortableKeyboardCoordinates,
-	verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
+	PointerSensor,
+} from "@dnd-kit/react";
+import { isSortable } from "@dnd-kit/react/sortable";
 import { cn } from "cn";
 import {
 	PanelLeftCloseIcon,
@@ -21,22 +15,39 @@ import {
 	SettingsIcon,
 	SquarePenIcon,
 } from "lucide-react";
-import { type FC, useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { useMutation, useQueryClient } from "react-query";
 import { Link, type Location, NavLink } from "react-router";
-import type { Chat, ChatModel } from "#/api/typesGenerated";
+import { getErrorMessage } from "#/api/errors";
+import { reorderPinnedChat } from "#/api/queries/chats";
+import type {
+	Chat,
+	ChatModel,
+	ChatProject,
+	Organization,
+} from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { toast } from "#/components/Toaster/toast";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { getOSKey } from "#/utils/platform";
 import {
+	AGENT_CHAT_STATUS_GROUP_ORDER,
 	AGENT_CHAT_STATUS_ORDER,
 	type AgentSidebarFilters,
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
 } from "../../../utils/agentSidebarFilters";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
+import { canManageChat } from "../../ChatActionsMenuItems";
+import { useMoveChatToProject } from "../../MoveToProjectMenuItems";
 import { FilterPopover } from "../filters/FilterPopover";
 import { normalizeLocationSearch } from "../locationSearch";
 import { SettingsNavItem } from "../settings/SettingsNavItem";
@@ -50,40 +61,78 @@ import {
 	type ChatTree,
 	collectVisibleChatIDs,
 } from "../tree/chatTree";
+import {
+	ChatDragPreview,
+	DraggableChatTreeNode,
+} from "../tree/DraggableChatTreeNode";
 import { SortableChatTreeNode } from "../tree/SortableChatTreeNode";
+import { getChatStatusDisplay } from "../tree/statusConfig";
+import { ChatDragAnnouncer } from "./ChatDragAnnouncer";
+import { ChatDropArea } from "./ChatDropArea";
 import {
 	ChatSectionHeader,
 	getSectionToggleTestId,
 	PINNED_SECTION_KEY,
 } from "./ChatSectionHeader";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
+import {
+	type DeleteProject,
+	type OpenProjectDialog,
+	ProjectFolders,
+} from "./ProjectFolders";
+import {
+	movedChatOf,
+	moveKeyboardChatDrag,
+	projectIdForDrop,
+	refocusKeyboardPinDrag,
+	SyncDragTargetOnScroll,
+} from "./projectDrag";
+import { groupChatsByProject } from "./projectGrouping";
 import { SectionSwitcher } from "./SectionSwitcher";
+import { SidebarSectionHeader } from "./SidebarSectionHeader";
 import { UserSidebarFooter } from "./UserSidebarFooter";
 
-const UNREAD_SECTION_KEY = "Unread";
-const READ_SECTION_KEY = "Read";
 const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 
+// The chat link is the drag handle, so a click and Enter must still open the
+// chat: a mouse drag starts after 5 pixels, and only Space starts a keyboard
+// drag.
+const dragSensors = [
+	PointerSensor.configure({
+		activationConstraints: (event) =>
+			event.pointerType === "touch"
+				? [new PointerActivationConstraints.Delay({ value: 200, tolerance: 5 })]
+				: [new PointerActivationConstraints.Distance({ value: 5 })],
+	}),
+	KeyboardSensor.configure({
+		keyboardCodes: {
+			...KeyboardSensor.defaults.keyboardCodes,
+			start: ["Space"],
+		},
+	}),
+];
+
 type ChatsPanelProps = {
+	readonly chatProjectsEnabled: boolean;
+	readonly projects: readonly ChatProject[];
+	readonly organizations: readonly Organization[];
+	readonly isProjectsLoading: boolean;
+	readonly projectsError: unknown;
+	/** True when the first projects load failed and no data is cached. */
+	readonly isProjectsLoadError: boolean;
+	readonly onRetryProjects: () => void;
+	readonly onOpenProjectDialog: OpenProjectDialog;
+	readonly onDeleteProject: DeleteProject;
 	readonly chats: readonly Chat[];
 	readonly chatErrorReasons: Record<string, string>;
 	readonly modelConfigs: readonly ChatModel[];
 	readonly isLoadingModelConfigs: boolean;
-	readonly onArchiveAgent: (chatId: string) => void;
-	readonly onUnarchiveAgent: (chatId: string) => void;
-	readonly onArchiveAndDeleteWorkspace: (
-		chatId: string,
-		workspaceId: string,
-	) => void;
-	readonly onPinAgent: (chatId: string) => void;
-	readonly onUnpinAgent: (chatId: string) => void;
-	readonly onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
+	readonly onArchiveSuccess?: (chatId: string) => void;
+	readonly navigateAfterArchive: (chatId: string) => void;
 	readonly onBeforeNewAgent?: () => void;
 	readonly onOpenSearchDialog?: () => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
 	readonly isCreating: boolean;
-	readonly isArchiving: boolean;
-	readonly archivingChatId: string | null;
 	readonly isLoading: boolean;
 	readonly loadError?: unknown;
 	readonly onRetryLoad?: () => void;
@@ -94,29 +143,33 @@ type ChatsPanelProps = {
 	readonly onSidebarFiltersChange: (filters: AgentSidebarFilters) => void;
 	readonly onCollapse?: () => void;
 	readonly activeChatId: string | undefined;
+	readonly viewedProjectId: string | undefined;
 	readonly isSettingsPanel: boolean;
 	readonly isChatsActive: boolean;
 	readonly location: Location;
 	readonly currentUserId: string;
 };
 
-export const ChatsPanel: FC<ChatsPanelProps> = ({
+export const ChatsPanel: React.FC<ChatsPanelProps> = ({
+	chatProjectsEnabled,
+	projects,
+	organizations,
+	isProjectsLoading,
+	projectsError,
+	isProjectsLoadError,
+	onRetryProjects,
+	onOpenProjectDialog,
+	onDeleteProject,
 	chats,
 	chatErrorReasons,
 	modelConfigs,
 	isLoadingModelConfigs,
-	onArchiveAgent,
-	onUnarchiveAgent,
-	onArchiveAndDeleteWorkspace,
-	onPinAgent,
-	onUnpinAgent,
-	onReorderPinnedAgent,
+	onArchiveSuccess,
+	navigateAfterArchive,
 	onBeforeNewAgent,
 	onOpenSearchDialog,
 	onOpenRenameDialog,
 	isCreating,
-	isArchiving,
-	archivingChatId,
 	isLoading,
 	loadError,
 	onRetryLoad,
@@ -127,6 +180,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	onSidebarFiltersChange,
 	onCollapse,
 	activeChatId,
+	viewedProjectId,
 	isSettingsPanel,
 	isChatsActive,
 	location,
@@ -135,6 +189,11 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	const locationSearch = normalizeLocationSearch(location.search);
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 	const [collapsedSections, setCollapsedSections] = useState<
+		Record<string, boolean>
+	>({});
+	// Explicit folder toggles. Folders without an entry follow the active
+	// project, so navigation opens the right folder in the same render.
+	const [projectFolderOverrides, setProjectFolderOverrides] = useState<
 		Record<string, boolean>
 	>({});
 
@@ -149,22 +208,31 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		visibleChatIDs.has(chatID),
 	);
 
-	const pinnedChats = visibleRootIDs
+	const visibleRootChats = visibleRootIDs
 		.map((id) => chatById.get(id))
-		.filter((chat): chat is Chat => (chat?.pin_order ?? 0) > 0)
+		.filter((chat): chat is Chat => chat !== undefined);
+	// Pin order is the owner's sidebar preference and the server ranks it
+	// per owner, so another user's chat stays out of the sortable Pinned
+	// section regardless of its pin_order.
+	const ownedChats = visibleRootChats.filter((chat) =>
+		canManageChat(chat, currentUserId),
+	);
+	const pinnedChats = ownedChats
+		.filter((chat) => chat.pin_order > 0)
 		.sort((a, b) => a.pin_order - b.pin_order);
-	const unpinnedChats = visibleRootIDs
-		.map((id) => chatById.get(id))
-		.filter((chat): chat is Chat => chat !== undefined && chat.pin_order === 0);
-	const sharedWithYouChats = unpinnedChats.filter(
-		(chat) => chat.shared && chat.owner_id !== currentUserId,
+	const sharedWithYouChats = visibleRootChats.filter(
+		(chat) => !canManageChat(chat, currentUserId),
 	);
-	const unpinnedOwnedChats = unpinnedChats.filter(
-		(chat) => !chat.shared || chat.owner_id === currentUserId,
-	);
+	const unpinnedOwnedChats = ownedChats.filter((chat) => chat.pin_order === 0);
+	const {
+		chatsByProjectId,
+		unfiledChats: unfiledOwnedChats,
+		folderProjectIds,
+	} = groupChatsByProject(unpinnedOwnedChats, projects, isProjectsLoading);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
 		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||
+		sidebarFilters.unread ||
 		sidebarFilters.sources.length !==
 			DEFAULT_AGENT_SIDEBAR_FILTERS.sources.length ||
 		sidebarFilters.sources.some(
@@ -176,6 +244,13 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	// synchronously so there's no flash between the dnd-kit
 	// transform clearing and the server data arriving.
 	const [localPinOrder, setLocalPinOrder] = useState<string[] | null>(null);
+	const queryClient = useQueryClient();
+	const reorderMutation = useMutation({
+		...reorderPinnedChat(queryClient),
+		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to reorder pinned agents."));
+		},
+	});
 
 	// Clear the local override when fresh data arrives from
 	// the server (the mutation's onSettled invalidates queries).
@@ -194,56 +269,42 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		: pinnedChats;
 
 	const pinnedChatIds = sortedPinnedChats.map((chat) => chat.id);
-	const lastDragEndedAtRef = useRef(0);
-	const pinnedContainerRef = useRef<HTMLDivElement | null>(null);
-
-	useEffect(() => {
-		const handler = (e: MouseEvent) => {
-			const container = pinnedContainerRef.current;
-			const target = e.target;
-			if (
-				container &&
-				target instanceof Node &&
-				container.contains(target) &&
-				performance.now() - lastDragEndedAtRef.current < 300
-			) {
-				e.preventDefault();
-			}
-		};
-		document.addEventListener("click", handler, true);
-		return () => document.removeEventListener("click", handler, true);
-	}, []);
-
-	const sensors = useSensors(
-		useSensor(MouseSensor, {
-			activationConstraint: { distance: 5 },
-		}),
-		useSensor(TouchSensor, {
-			activationConstraint: { delay: 200, tolerance: 5 },
-		}),
-		useSensor(KeyboardSensor, {
-			coordinateGetter: sortableKeyboardCoordinates,
-		}),
-	);
+	const dragInstructionsId = useId();
+	const moveMutation = useMoveChatToProject();
 
 	const handleDragEnd = (event: DragEndEvent) => {
-		const { active, over } = event;
-
-		if (disablePinnedReordering) {
+		const { source, target } = event.operation;
+		if (event.canceled) {
+			return;
+		}
+		const chat = movedChatOf(source);
+		if (chat) {
+			const projectId = projectIdForDrop(chat, target);
+			if (projectId === undefined) {
+				return;
+			}
+			if (projectId) {
+				// Open the folder so the user sees the chat arrive.
+				setProjectFolderOverrides((prev) => ({ ...prev, [projectId]: true }));
+			}
+			moveMutation.mutate({ chatId: chat.id, projectId });
 			return;
 		}
 
-		lastDragEndedAtRef.current = performance.now();
-		if (!over || active.id === over.id) return;
-		const activeId = String(active.id);
-		const overId = String(over.id);
-		const oldIndex = pinnedChatIds.indexOf(activeId);
-		const newIndex = pinnedChatIds.indexOf(overId);
-		if (oldIndex === -1 || newIndex === -1) return;
-
-		const reordered = arrayMove(pinnedChatIds, oldIndex, newIndex);
-		setLocalPinOrder(reordered);
-		onReorderPinnedAgent?.(activeId, newIndex + 1);
+		// dnd-kit has already moved the dragged pin to source.index, so the drop
+		// target does not matter. The pins can change during a drag, so the old
+		// index comes from the chat ID.
+		if (disablePinnedReordering || !isSortable(source)) {
+			return;
+		}
+		const chatId = String(source.id);
+		const from = pinnedChatIds.indexOf(chatId);
+		const to = source.index;
+		if (from === -1 || from === to) {
+			return;
+		}
+		setLocalPinOrder(pinnedChatIds.toSpliced(from, 1).toSpliced(to, 0, chatId));
+		reorderMutation.mutate({ chatId, pinOrder: to + 1 });
 	};
 
 	// Auto-expand ancestors of the active chat so it's always visible.
@@ -280,6 +341,46 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		}
 	}, [activeChatId]);
 
+	// Folders default open for the active chat's project or the project page.
+	const activeProjectId =
+		(activeChatId ? chatById.get(activeChatId)?.project_id : undefined) ??
+		viewedProjectId;
+	const [seenActiveProjectId, setSeenActiveProjectId] =
+		useState(activeProjectId);
+	if (activeProjectId !== seenActiveProjectId) {
+		// Arriving at a project clears an earlier collapse. A collapse made while
+		// there remains until the next arrival. The folder being left keeps its
+		// state, so navigating never collapses a folder.
+		setSeenActiveProjectId(activeProjectId);
+		const keepsLeftFolderOpen =
+			seenActiveProjectId !== undefined &&
+			!(seenActiveProjectId in projectFolderOverrides);
+		const clearsArrivalOverride =
+			activeProjectId !== undefined &&
+			activeProjectId in projectFolderOverrides;
+		if (keepsLeftFolderOpen || clearsArrivalOverride) {
+			setProjectFolderOverrides((prev) => {
+				const next = { ...prev };
+				if (
+					seenActiveProjectId !== undefined &&
+					!(seenActiveProjectId in prev)
+				) {
+					next[seenActiveProjectId] = true;
+				}
+				if (activeProjectId !== undefined) {
+					delete next[activeProjectId];
+				}
+				return next;
+			});
+		}
+	}
+	const toggleProject = (projectId: string) => {
+		setProjectFolderOverrides((prev) => ({
+			...prev,
+			[projectId]: !(prev[projectId] ?? projectId === activeProjectId),
+		}));
+	};
+
 	const toggleExpanded = (chatID: string) => {
 		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
 	};
@@ -301,40 +402,41 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		chatErrorReasons,
 		activeChatId,
 		currentUserId,
-		isArchiving,
-		archivingChatId,
 		toggleExpanded,
-		onArchiveAgent,
-		onUnarchiveAgent,
-		onArchiveAndDeleteWorkspace,
-		onPinAgent,
-		onUnpinAgent,
+		onArchiveSuccess,
+		navigateAfterArchive,
 		onOpenRenameDialog,
+		dragInstructionsId,
 	};
 
 	const chatSections = (
 		sidebarFilters.groupBy === "chat_status"
-			? [
-					{
-						key: UNREAD_SECTION_KEY,
-						label: UNREAD_SECTION_KEY,
-						chats: unpinnedOwnedChats.filter((chat) => chat.has_unread),
-					},
-					{
-						key: READ_SECTION_KEY,
-						label: READ_SECTION_KEY,
-						chats: unpinnedOwnedChats.filter((chat) => !chat.has_unread),
-					},
-				]
+			? AGENT_CHAT_STATUS_GROUP_ORDER.map((status) => {
+					const label = getChatStatusDisplay(status).label;
+					return {
+						key: label,
+						label,
+						chats: unfiledOwnedChats.filter((chat) => chat.status === status),
+					};
+				})
 			: TIME_GROUPS.map((group) => ({
 					key: group,
 					label: group,
-					chats: unpinnedOwnedChats.filter(
+					chats: unfiledOwnedChats.filter(
 						(chat) => getTimeGroup(chat.updated_at) === group,
 					),
 				}))
 	).filter((section) => section.chats.length > 0);
-	const isShowingEmptyState = visibleRootIDs.length === 0;
+	// Project chats live only in their folders, so a Chats section whose
+	// chats are all filed is empty. While projects load, chats with a project
+	// are held back, so the section is not known to be empty yet.
+	const isWithholdingProjectChats =
+		isProjectsLoading && unpinnedOwnedChats.some((chat) => chat.project_id);
+	const isShowingEmptyState =
+		!isWithholdingProjectChats &&
+		pinnedChats.length === 0 &&
+		sharedWithYouChats.length === 0 &&
+		chatSections.length === 0;
 	const isViewingArchived = sidebarFilters.archiveStatus === "archived";
 	const chatsHeadingLabel = isViewingArchived ? "Archived chats" : "Chats";
 	const emptyStateMessage = hasAppliedResultFilters
@@ -342,11 +444,39 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		: isViewingArchived
 			? "No archived agents"
 			: "No agents yet";
+	// Without projects the header stays pinned above the scrolling list, as
+	// before; with projects it scrolls below the folders.
+	const chatsHeader = (
+		<SidebarSectionHeader
+			title={chatsHeadingLabel}
+			actions={
+				<>
+					{onOpenSearchDialog && (
+						<Button
+							variant="subtle"
+							size="icon"
+							aria-label="Search chats"
+							onClick={onOpenSearchDialog}
+							className="size-7 sm:hidden"
+						>
+							<SearchIcon />
+						</Button>
+					)}
+					<FilterPopover
+						filters={sidebarFilters}
+						onFiltersChange={onSidebarFiltersChange}
+					/>
+				</>
+			}
+		/>
+	);
+
 	const clearResultFilters = () => {
 		onSidebarFiltersChange({
 			...sidebarFilters,
 			prStatuses: [],
 			chatStatuses: AGENT_CHAT_STATUS_ORDER,
+			unread: false,
 			sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
 		});
 	};
@@ -372,23 +502,34 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						<SectionSwitcher />
 					</div>
 					<div className="flex items-center gap-0.5 -mr-1.5">
-						<Button
-							asChild
-							variant="subtle"
-							size="icon"
-							aria-label="Settings"
-							className={cn(
-								"size-7 min-w-0 text-content-secondary hover:text-content-primary",
-								isSettingsPanel && "text-content-primary",
-							)}
-						>
-							<Link
-								to="/agents/settings"
-								state={{ from: location.pathname + locationSearch }}
-							>
-								<SettingsIcon />
-							</Link>
-						</Button>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									asChild
+									variant="subtle"
+									size="icon"
+									aria-label="Settings"
+									className={cn(
+										"size-7 min-w-0 text-content-secondary hover:text-content-primary",
+										isSettingsPanel && "text-content-primary",
+									)}
+								>
+									<Link
+										to="/agents/settings"
+										state={{ from: location.pathname + locationSearch }}
+									>
+										<SettingsIcon />
+									</Link>
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent side="bottom" className="flex items-center gap-2">
+								Settings
+								<KbdGroup>
+									<Kbd>{getOSKey()}</Kbd>
+									<Kbd>,</Kbd>
+								</KbdGroup>
+							</TooltipContent>
+						</Tooltip>
 						{onCollapse && (
 							<Button
 								variant="subtle"
@@ -428,30 +569,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				)}
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
-				<div className="mx-2 pt-6 mb-1.5">
-					<div className="ml-2.5 mr-2 flex h-7 items-center justify-between">
-						<h2 className="m-0 text-sm font-normal leading-6 text-content-secondary">
-							{chatsHeadingLabel}
-						</h2>
-						<div className="flex items-center gap-1">
-							{onOpenSearchDialog && (
-								<Button
-									variant="subtle"
-									size="icon"
-									aria-label="Search chats"
-									onClick={onOpenSearchDialog}
-									className="size-7 sm:hidden"
-								>
-									<SearchIcon />
-								</Button>
-							)}
-							<FilterPopover
-								filters={sidebarFilters}
-								onFiltersChange={onSidebarFiltersChange}
-							/>
-						</div>
-					</div>
-				</div>
+				{!chatProjectsEnabled && chatsHeader}
 				<ScrollArea
 					className="min-h-0 flex-1 [&_[data-radix-scroll-area-viewport]>div]:block!"
 					scrollBarClassName="w-1.5"
@@ -465,162 +583,223 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						"sm:mask-none sm:[-webkit-mask-image:none]",
 					)}
 				>
-					<div className="flex flex-col gap-2 px-2 pb-3">
-						{loadError ? (
-							<div className="space-y-3 px-1">
-								<ErrorAlert error={loadError} />
-								{onRetryLoad && (
-									<Button size="sm" variant="outline" onClick={onRetryLoad}>
-										Retry
-									</Button>
-								)}
-							</div>
-						) : isLoading ? (
-							<>
-								<Skeleton className="ml-2.5 h-3.5 w-16" />
-								<div className="flex flex-col gap-0.5">
-									{Array.from({ length: 6 }, (_, i) => (
-										<div
-											key={i}
-											className="flex items-start gap-2 rounded-md px-2 py-1"
-										>
-											<Skeleton className="mt-0.5 size-5 shrink-0 rounded-md" />
-											<div className="min-w-0 flex-1 space-y-1.5">
-												<Skeleton
-													className="h-3.5"
-													style={{ width: `${55 + ((i * 17) % 35)}%` }}
-												/>
-												<Skeleton className="h-3 w-20" />
-											</div>
-										</div>
-									))}
-								</div>
-							</>
-						) : (
+					<DragDropProvider
+						sensors={dragSensors}
+						// The Accessibility plugin gives each drag handle role="button",
+						// aria-pressed, and aria-disabled, which would turn the chat links
+						// into buttons, so the panel announces drags itself.
+						plugins={(defaults) => [
+							...defaults.filter((plugin) => plugin !== Accessibility),
+							SyncDragTargetOnScroll,
+						]}
+						modifiers={[RestrictToVerticalAxis]}
+						onDragOver={(_event, manager) => refocusKeyboardPinDrag(manager)}
+						onDragMove={moveKeyboardChatDrag}
+						onDragEnd={handleDragEnd}
+					>
+						{/* Projects share the chat list's scroll area, so expanding a folder
+					    pushes the Chats section down instead of scrolling on its own. */}
+						{chatProjectsEnabled && (
 							<ChatTreeContext value={chatTreeCtx}>
-								<div className="pb-2">
-									{isShowingEmptyState ? (
-										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-											<p className="m-0">{emptyStateMessage}</p>
-											{hasAppliedResultFilters && (
-												<button
-													type="button"
-													className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
-													onClick={clearResultFilters}
+								<ProjectFolders
+									currentUserId={currentUserId}
+									projects={projects}
+									organizations={organizations}
+									chatsByProjectId={chatsByProjectId}
+									expandedProjectIds={Object.fromEntries(
+										projects.map((project) => [
+											project.id,
+											projectFolderOverrides[project.id] ??
+												project.id === activeProjectId,
+										]),
+									)}
+									onToggle={toggleProject}
+									onOpenProjectDialog={onOpenProjectDialog}
+									onDelete={onDeleteProject}
+									isLoading={isProjectsLoading}
+									error={projectsError}
+									isLoadError={isProjectsLoadError}
+									onRetry={onRetryProjects}
+									emptyMessage={emptyStateMessage}
+								/>
+							</ChatTreeContext>
+						)}
+						<ChatDropArea target={{ kind: "unfiled", folderProjectIds }}>
+							{chatProjectsEnabled && (
+								<div className="group-data-[drop=unavailable]/drop:opacity-50">
+									{chatsHeader}
+								</div>
+							)}
+							<div className="flex flex-col gap-2 px-2 pb-3">
+								{loadError ? (
+									<div className="space-y-3 px-1">
+										<ErrorAlert error={loadError} />
+										{onRetryLoad && (
+											<Button size="sm" variant="outline" onClick={onRetryLoad}>
+												Retry
+											</Button>
+										)}
+									</div>
+								) : isLoading ? (
+									<>
+										<Skeleton className="ml-2.5 h-3.5 w-16" />
+										<div className="flex flex-col gap-0.5">
+											{Array.from({ length: 6 }, (_, i) => (
+												<div
+													key={i}
+													className="flex items-start gap-2 rounded-md px-2 py-1"
 												>
-													Clear filters
-												</button>
-											)}
+													<Skeleton className="mt-0.5 size-5 shrink-0 rounded-md" />
+													<div className="min-w-0 flex-1 space-y-1.5">
+														<Skeleton
+															className="h-3.5"
+															style={{ width: `${55 + ((i * 17) % 35)}%` }}
+														/>
+														<Skeleton className="h-3 w-20" />
+													</div>
+												</div>
+											))}
 										</div>
-									) : (
-										<>
-											{pinnedChats.length > 0 && (
-												<div className="not-first:mt-3">
-													<ChatSectionHeader
-														label={PINNED_SECTION_KEY}
-														count={pinnedChats.length}
-														expanded={!collapsedSections[PINNED_SECTION_KEY]}
-														onToggle={() => toggleSection(PINNED_SECTION_KEY)}
-														testId={getSectionToggleTestId(PINNED_SECTION_KEY)}
-													/>
-													{!collapsedSections[PINNED_SECTION_KEY] &&
-														(disablePinnedReordering ? (
-															<div className="flex flex-col gap-0.5">
-																{sortedPinnedChats.map((chat) => (
-																	<ChatTreeNode key={chat.id} chat={chat} />
-																))}
-															</div>
-														) : (
-															<DndContext
-																sensors={sensors}
-																collisionDetection={closestCenter}
-																modifiers={[
-																	// Restrict the drag to the y-axis only
-																	({ transform }) => ({
-																		...transform,
-																		x: 0,
-																	}),
-																]}
-																onDragEnd={handleDragEnd}
-															>
-																<SortableContext
-																	items={pinnedChatIds}
-																	strategy={verticalListSortingStrategy}
-																>
-																	<div
-																		ref={pinnedContainerRef}
-																		className="flex flex-col gap-0.5"
-																	>
+									</>
+								) : (
+									<ChatTreeContext value={chatTreeCtx}>
+										<div className="pb-2">
+											{isShowingEmptyState ? (
+												<div className="rounded-lg border border-dashed border-border bg-surface-primary p-4 text-center text-xs text-content-secondary">
+													<p className="m-0">{emptyStateMessage}</p>
+													{hasAppliedResultFilters && (
+														<button
+															type="button"
+															className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
+															onClick={clearResultFilters}
+														>
+															Clear filters
+														</button>
+													)}
+												</div>
+											) : (
+												<>
+													{pinnedChats.length > 0 && (
+														<div className="not-first:mt-3">
+															<ChatSectionHeader
+																label={PINNED_SECTION_KEY}
+																count={pinnedChats.length}
+																expanded={
+																	!collapsedSections[PINNED_SECTION_KEY]
+																}
+																onToggle={() =>
+																	toggleSection(PINNED_SECTION_KEY)
+																}
+																testId={getSectionToggleTestId(
+																	PINNED_SECTION_KEY,
+																)}
+															/>
+															{!collapsedSections[PINNED_SECTION_KEY] &&
+																(disablePinnedReordering ? (
+																	<div className="flex flex-col gap-0.5">
 																		{sortedPinnedChats.map((chat) => (
+																			<ChatTreeNode key={chat.id} chat={chat} />
+																		))}
+																	</div>
+																) : (
+																	<div className="flex flex-col gap-0.5">
+																		{sortedPinnedChats.map((chat, index) => (
 																			<SortableChatTreeNode
 																				key={chat.id}
 																				chat={chat}
+																				index={index}
 																			/>
 																		))}
 																	</div>
-																</SortableContext>
-															</DndContext>
-														))}
-												</div>
-											)}
-											{sharedWithYouChats.length > 0 && (
-												<div className="not-first:mt-3">
-													<ChatSectionHeader
-														label={SHARED_WITH_YOU_SECTION_KEY}
-														count={sharedWithYouChats.length}
-														expanded={
-															!collapsedSections[SHARED_WITH_YOU_SECTION_KEY]
-														}
-														onToggle={() =>
-															toggleSection(SHARED_WITH_YOU_SECTION_KEY)
-														}
-														testId={getSectionToggleTestId(
-															SHARED_WITH_YOU_SECTION_KEY,
-														)}
-													/>
-													{!collapsedSections[SHARED_WITH_YOU_SECTION_KEY] && (
-														<div className="flex flex-col gap-0.5">
-															{sharedWithYouChats.map((chat) => (
-																<ChatTreeNode key={chat.id} chat={chat} />
-															))}
+																))}
 														</div>
 													)}
-												</div>
-											)}
-											{chatSections.map((section) => {
-												const isSectionExpanded =
-													!collapsedSections[section.key];
-												return (
-													<div key={section.key} className="not-first:mt-3">
-														<ChatSectionHeader
-															label={section.label}
-															count={section.chats.length}
-															expanded={isSectionExpanded}
-															onToggle={() => toggleSection(section.key)}
-															testId={getSectionToggleTestId(section.key)}
-														/>
-														{isSectionExpanded && (
-															<div className="flex flex-col gap-0.5">
-																{section.chats.map((chat) => (
-																	<ChatTreeNode key={chat.id} chat={chat} />
-																))}
+													{sharedWithYouChats.length > 0 && (
+														<div className="not-first:mt-3">
+															<ChatSectionHeader
+																label={SHARED_WITH_YOU_SECTION_KEY}
+																count={sharedWithYouChats.length}
+																expanded={
+																	!collapsedSections[
+																		SHARED_WITH_YOU_SECTION_KEY
+																	]
+																}
+																onToggle={() =>
+																	toggleSection(SHARED_WITH_YOU_SECTION_KEY)
+																}
+																testId={getSectionToggleTestId(
+																	SHARED_WITH_YOU_SECTION_KEY,
+																)}
+															/>
+															{!collapsedSections[
+																SHARED_WITH_YOU_SECTION_KEY
+															] && (
+																<div className="flex flex-col gap-0.5">
+																	{sharedWithYouChats.map((chat) => (
+																		<ChatTreeNode key={chat.id} chat={chat} />
+																	))}
+																</div>
+															)}
+														</div>
+													)}
+													{chatSections.map((section) => {
+														const isSectionExpanded =
+															!collapsedSections[section.key];
+														return (
+															<div key={section.key} className="not-first:mt-3">
+																<ChatSectionHeader
+																	label={section.label}
+																	count={section.chats.length}
+																	expanded={isSectionExpanded}
+																	onToggle={() => toggleSection(section.key)}
+																	testId={getSectionToggleTestId(section.key)}
+																/>
+																{isSectionExpanded && (
+																	<div className="flex flex-col gap-0.5">
+																		{section.chats.map((chat) =>
+																			chatProjectsEnabled ? (
+																				<DraggableChatTreeNode
+																					key={chat.id}
+																					chat={chat}
+																				/>
+																			) : (
+																				<ChatTreeNode
+																					key={chat.id}
+																					chat={chat}
+																				/>
+																			),
+																		)}
+																	</div>
+																)}
 															</div>
-														)}
-													</div>
-												);
-											})}
-										</>
-									)}
-								</div>
-								{(hasNextPage || isFetchingNextPage) && (
-									<LoadMoreSentinel
-										onLoadMore={onLoadMore}
-										isFetchingNextPage={isFetchingNextPage}
-									/>
+														);
+													})}
+												</>
+											)}
+										</div>
+										{(hasNextPage || isFetchingNextPage) && (
+											<LoadMoreSentinel
+												onLoadMore={onLoadMore}
+												isFetchingNextPage={isFetchingNextPage}
+											/>
+										)}
+									</ChatTreeContext>
 								)}
-							</ChatTreeContext>
-						)}
-					</div>
+							</div>
+						</ChatDropArea>
+						{/* dnd-kit shows the overlay in the top layer, so the ScrollArea's
+						    clip and mask do not reach it. */}
+						<DragOverlay disabled={(source) => !movedChatOf(source)}>
+							{(source) => {
+								const chat = movedChatOf(source);
+								return chat && <ChatDragPreview chat={chat} />;
+							}}
+						</DragOverlay>
+						<ChatDragAnnouncer
+							instructionsId={dragInstructionsId}
+							pinCount={pinnedChatIds.length}
+						/>
+					</DragDropProvider>
 				</ScrollArea>
 			</div>
 			<UserSidebarFooter />

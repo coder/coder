@@ -1,11 +1,5 @@
 import { cn } from "cn";
-import {
-	type ComponentProps,
-	type FC,
-	type ReactNode,
-	useId,
-	useState,
-} from "react";
+import { useId, useState } from "react";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import {
@@ -23,14 +17,14 @@ import {
 } from "#/utils/time";
 
 type DurationFieldProps = Omit<
-	ComponentProps<typeof Input>,
+	React.ComponentProps<typeof Input>,
 	"value" | "onChange" | "type"
 > & {
 	valueMs: number;
 	onChange: (value: number) => void;
 	label?: string;
 	error?: boolean;
-	helperText?: ReactNode;
+	helperText?: React.ReactNode;
 };
 
 function toMs(value: string, unit: TimeUnit): number {
@@ -47,7 +41,7 @@ function toDisplayValue(ms: number, unit: TimeUnit): string {
 		: durationInDays(ms).toString();
 }
 
-export const DurationField: FC<DurationFieldProps> = ({
+export const DurationField: React.FC<DurationFieldProps> = ({
 	valueMs,
 	onChange,
 	label,

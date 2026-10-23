@@ -6,7 +6,7 @@ import {
 	PencilIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { type FC, type JSX, useState } from "react";
+import { useState } from "react";
 import { Button } from "#/components/Button/Button";
 import {
 	Collapsible,
@@ -46,7 +46,7 @@ type TemplateFilesTreeProps = {
 	onRename?: (path: string) => void;
 	fileTree: FileTree;
 	activePath?: string;
-	Label?: FC<{
+	Label?: React.FC<{
 		path: string;
 		filename: string;
 		label: string;
@@ -54,7 +54,7 @@ type TemplateFilesTreeProps = {
 	}>;
 };
 
-export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
+export const TemplateFileTree: React.FC<TemplateFilesTreeProps> = ({
 	fileTree,
 	activePath,
 	onDelete,
@@ -68,7 +68,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 		content?: FileTree | string,
 		parentPath?: string,
 		depth = 0,
-	): JSX.Element => {
+	): React.JSX.Element => {
 		const currentPath = parentPath ? `${parentPath}/${filename}` : filename;
 		// Used to group empty folders in one single label like VSCode does.
 		const shouldGroupFolder =
@@ -165,7 +165,7 @@ const nodeClasses =
 	"border-none bg-transparent px-4 text-sm text-left " +
 	"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link focus-visible:ring-inset";
 
-const FileNode: FC<TreeNodeProps> = ({
+const FileNode: React.FC<TreeNodeProps> = ({
 	label,
 	icon,
 	isHidden,
@@ -205,7 +205,7 @@ type FolderNodeProps = Omit<TreeNodeProps, "icon"> & {
 	children: React.ReactNode;
 };
 
-const FolderNode: FC<FolderNodeProps> = ({
+const FolderNode: React.FC<FolderNodeProps> = ({
 	label,
 	isHidden,
 	isActive,
@@ -258,7 +258,7 @@ type MoreMenuProps = {
 	onDelete?: () => void;
 };
 
-const MoreMenu: FC<MoreMenuProps> = ({ onRename, onDelete }) => {
+const MoreMenu: React.FC<MoreMenuProps> = ({ onRename, onDelete }) => {
 	if (!onRename && !onDelete) {
 		return null;
 	}

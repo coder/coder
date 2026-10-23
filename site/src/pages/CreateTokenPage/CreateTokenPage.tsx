@@ -1,8 +1,7 @@
 import { useFormik } from "formik";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail } from "#/api/errors";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -10,9 +9,10 @@ import { CodeExample } from "#/components/CodeExample/CodeExample";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { FullPageHorizontalForm } from "#/components/FullPageForm/FullPageHorizontalForm";
 import { Loader } from "#/components/Loader/Loader";
+import { toast } from "#/components/Toaster/toast";
 import { pageTitle } from "#/utils/page";
 import { CreateTokenForm } from "./CreateTokenForm";
-import { type CreateTokenData, NANO_HOUR } from "./utils";
+import { type CreateTokenData, NANO_DAY } from "./utils";
 
 const initialValues: CreateTokenData = {
 	name: "",
@@ -23,7 +23,7 @@ type CreateTokenPageProps = {
 	now?: Date;
 };
 
-const CreateTokenPage: FC<CreateTokenPageProps> = ({ now }) => {
+const CreateTokenPage: React.FC<CreateTokenPageProps> = ({ now }) => {
 	const navigate = useNavigate();
 
 	const {
@@ -62,7 +62,10 @@ const CreateTokenPage: FC<CreateTokenPageProps> = ({ now }) => {
 		onSubmit: (values) => {
 			saveToken(
 				{
-					lifetime: values.lifetime * 24 * NANO_HOUR,
+					lifetime: Math.min(
+						Math.round(values.lifetime * NANO_DAY),
+						tokenConfig?.max_token_lifetime || Number.POSITIVE_INFINITY,
+					),
 					token_name: values.name,
 					scope: "all", // tokens are currently unscoped
 				},

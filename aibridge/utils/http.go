@@ -10,6 +10,20 @@ import (
 	"time"
 )
 
+// NewStreamingTransport returns an HTTP transport for long-lived provider
+// responses. It intentionally omits both dial and response-header timeouts so
+// slow connection establishment and first-token latency are not cut off here.
+func NewStreamingTransport() *http.Transport {
+	return &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: time.Second,
+	}
+}
+
 // NewJSONErrorResponse builds an *http.Response with a JSON body
 // and optional Retry-After header. Used to synthesize bridge-side
 // error responses (e.g. key-pool exhaustion, marshaling

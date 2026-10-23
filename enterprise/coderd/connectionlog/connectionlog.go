@@ -383,16 +383,21 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 		workspaceID      = make([]uuid.UUID, 0, count)
 		workspaceName    = make([]string, 0, count)
 		agentName        = make([]string, 0, count)
-		connType         = make([]database.ConnectionType, 0, count)
+		methods          = make([]database.ConnectionLogMethod, 0, count)
 		code             = make([]int32, 0, count)
 		codeValid        = make([]bool, 0, count)
 		ip               = make([]pqtype.Inet, 0, count)
 		userAgent        = make([]string, 0, count)
 		userID           = make([]uuid.UUID, 0, count)
-		slugOrPort       = make([]string, 0, count)
+		appNameOrPort    = make([]string, 0, count)
 		connectionID     = make([]uuid.UUID, 0, count)
 		disconnectReason = make([]string, 0, count)
 		disconnectTime   = make([]time.Time, 0, count)
+		clientSessionID  = make([]string, 0, count)
+		rxBytes          = make([]int64, 0, count)
+		rxBytesValid     = make([]bool, 0, count)
+		txBytes          = make([]int64, 0, count)
+		txBytesValid     = make([]bool, 0, count)
 	)
 
 	appendEntry := func(e batchEntry) {
@@ -403,16 +408,21 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 		workspaceID = append(workspaceID, e.WorkspaceID)
 		workspaceName = append(workspaceName, e.WorkspaceName)
 		agentName = append(agentName, e.AgentName)
-		connType = append(connType, e.Type)
+		methods = append(methods, e.ConnectionMethod)
 		code = append(code, e.Code.Int32)
 		codeValid = append(codeValid, e.Code.Valid)
 		ip = append(ip, e.IP)
 		userAgent = append(userAgent, e.UserAgent.String)
 		userID = append(userID, e.UserID.UUID)
-		slugOrPort = append(slugOrPort, e.SlugOrPort.String)
+		appNameOrPort = append(appNameOrPort, e.AppNameOrPort.String)
 		connectionID = append(connectionID, e.ConnectionID.UUID)
 		disconnectReason = append(disconnectReason, e.DisconnectReason.String)
 		disconnectTime = append(disconnectTime, e.disconnectTime)
+		clientSessionID = append(clientSessionID, e.ClientSessionID.String)
+		rxBytes = append(rxBytes, e.RxBytes.Int64)
+		rxBytesValid = append(rxBytesValid, e.RxBytes.Valid)
+		txBytes = append(txBytes, e.TxBytes.Int64)
+		txBytesValid = append(txBytesValid, e.TxBytes.Valid)
 	}
 
 	for _, entry := range b.dedupedBatch {
@@ -430,16 +440,21 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 		WorkspaceID:      workspaceID,
 		WorkspaceName:    workspaceName,
 		AgentName:        agentName,
-		Type:             connType,
+		ConnectionMethod: methods,
 		Code:             code,
 		CodeValid:        codeValid,
 		Ip:               ip,
 		UserAgent:        userAgent,
 		UserID:           userID,
-		SlugOrPort:       slugOrPort,
+		AppNameOrPort:    appNameOrPort,
 		ConnectionID:     connectionID,
 		DisconnectReason: disconnectReason,
 		DisconnectTime:   disconnectTime,
+		ClientSessionID:  clientSessionID,
+		RxBytes:          rxBytes,
+		RxBytesValid:     rxBytesValid,
+		TxBytes:          txBytes,
+		TxBytesValid:     txBytesValid,
 	}
 }
 

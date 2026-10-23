@@ -3,10 +3,10 @@ title: Monitoring
 ---
 
 > [!NOTE]
-> AI Gateway is part of [AI Governance](../ai-governance.md), which is
-> included with a Premium license.
+> AI Gateway is part of [AI Governance](../ai-governance.md), which is included with a Premium license.
 
-AI Gateway records the last `user` prompt, token usage, model reasoning, and every tool invocation for each intercepted request. Each capture is tied to a single "interception" that maps back to the authenticated Coder identity, making it easy to attribute spend and behaviour.
+AI Gateway records the last `user` prompt, token usage, model reasoning, and every tool invocation for each intercepted request.
+Each capture is tied to a single "interception" that maps back to the authenticated Coder identity, making it easy to attribute spend and behaviour.
 
 ![User Prompt logging](../../images/aibridge/grafana_user_prompts_logging.png)
 
@@ -59,23 +59,22 @@ Budget enforcement runs in `coderd`.
 Cost control metrics are exported only from the `coderd` Prometheus listener.
 Standalone replicas do not export them.
 
-| Metric                                                             | Type      | Labels                               | Purpose                                                                                                                                                                                                                            |
-|--------------------------------------------------------------------|-----------|--------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `coder_ai_gateway_cost_control_blocked_requests_total`             | counter   | `group_id`                           | AI requests blocked because the initiator's budget was exceeded.                                                                                                                                                                   |
-| `coder_ai_gateway_cost_control_blocked_users`                      | gauge     | `group_id`                           | Users currently over their AI budget.                                                                                                                                                                                              |
-| `coder_ai_gateway_cost_control_enforcement_duration_seconds`       | histogram | `outcome`                            | Duration of AI budget enforcement checks. `outcome` is `allowed`, `blocked`, or `error`.                                                                                                                                           |
-| `coder_ai_gateway_cost_control_unpriced_token_usage_records_total` | counter   | `model`, `provider`, `provider_type` | Recorded token-usage records for which no model price was found. `provider` is the provider instance name, and `provider_type` is the configured type the price is keyed on, or `unknown` when the provider could not be resolved. |
+| Metric                                                             | Type      | Labels                                                 | Purpose                                                                                                                                                                                                                                                                                                                                                                                                           |
+|--------------------------------------------------------------------|-----------|--------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `coder_ai_gateway_cost_control_blocked_requests_total`             | counter   | `group_id`                                             | AI requests blocked because the initiator's budget was exceeded.                                                                                                                                                                                                                                                                                                                                                  |
+| `coder_ai_gateway_cost_control_blocked_users`                      | gauge     | `group_id`                                             | Users currently over their AI budget.                                                                                                                                                                                                                                                                                                                                                                             |
+| `coder_ai_gateway_cost_control_enforcement_duration_seconds`       | histogram | `outcome`                                              | Duration of AI budget enforcement checks. `outcome` is `allowed`, `blocked`, or `error`.                                                                                                                                                                                                                                                                                                                          |
+| `coder_ai_gateway_cost_control_unpriced_token_usage_records_total` | counter   | `model`, `provider`, `provider_model`, `provider_type` | Recorded token-usage records for which no price was found for either the requested or the provider-reported model. `provider` is the provider instance name, and `provider_type` is the configured type the price is keyed on, or `unknown` when the provider could not be resolved. `model` is the requested model, and `provider_model` is the model the provider reported, or empty when it didn't report one. |
 
 ### AI Gateway Proxy metrics
 
 AI Gateway Proxy exports metrics from the `coderd` Prometheus listener.
 
-A `proxy_excluded` status means another enabled provider with the same base URL hostname claimed the proxy route first. The proxy classifier uses first-wins by database name sort order (`ORDER BY name ASC`), so the first provider in that order wins and subsequent providers with the same hostname are excluded from proxy routing. They remain reachable via direct routing at `/api/v2/ai-gateway/{name}/...`.
+A `proxy_excluded` status means another enabled provider with the same base URL hostname claimed the proxy route first.
+The proxy classifier uses first-wins by database name sort order (`ORDER BY name ASC`), so the first provider in that order wins and subsequent providers with the same hostname are excluded from proxy routing.
+They remain reachable via direct routing at `/api/v2/ai-gateway/{name}/...`.
 
-When alerting on `coder_ai_gateway_proxy_provider_info`, exclude
-`proxy_excluded` from the alert expression unless you want to be
-notified of intended duplicate-hostname configurations:
-`status!~"enabled|proxy_excluded"`.
+When alerting on `coder_ai_gateway_proxy_provider_info`, exclude `proxy_excluded` from the alert expression unless you want to be notified of intended duplicate-hostname configurations: `status!~"enabled|proxy_excluded"`.
 
 | Metric                                                                   | Type    | Labels                                     | Purpose                                                                                                                           |
 |--------------------------------------------------------------------------|---------|--------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
@@ -171,7 +170,8 @@ A standalone AI gateway exposes health endpoints on its data-plane listener:
 
 `/readyz` returns HTTP 503 until the initial provider configuration fetch completes and whenever the control connection to `coderd` is unavailable.
 The initial fetch can return an empty provider set.
-A `200 OK` response from `/healthz` only means the HTTP listener is accepting connections. It returns `200 OK` even when the control connection is down.
+A `200 OK` response from `/healthz` only means the HTTP listener is accepting connections.
+It returns `200 OK` even when the control connection is down.
 Both endpoints are unauthenticated, bypass the concurrency, rate limiting, and BYOK middleware, and do not create trace spans.
 
 The standalone Helm chart enables a `/healthz` liveness probe and a `/readyz` readiness probe by default.
@@ -183,14 +183,15 @@ The startup probe is disabled by default.
 
 Standalone replicas use the standard Coder logging options.
 Configure them on every replica or through `coder.env` in the AI Gateway Helm chart.
-Refer to the [`coder ai-gateway start` logging options](../../reference/cli/ai-gateway_start.md#-l---log-filter) for configuration details.
+Refer to the [`coder ai-gateway start` logging options](../../reference/cli/ai-gateway/start.md#-l---log-filter) for configuration details.
 
 ### Structured interception logs
 
 AI Gateway can emit a structured log for every interception record to an external SIEM or observability platform.
-The `CODER_AI_GATEWAY_STRUCTURED_LOGGING` setting belongs to `coderd`, and the standalone gateway does not consume it.
-Standalone replicas send interception records to `coderd`, which writes the structured logs to the `coderd` log output.
-Refer to [structured logging](./setup.md#structured-logging) for configuration and record types.
+`CODER_AI_GATEWAY_STRUCTURED_LOGGING` enables the records, and `CODER_AI_GATEWAY_STRUCTURED_LOGGING_SOURCE` selects which process emits them.
+Under the default source, `coderd`, standalone replicas send interception records to `coderd`, which writes the structured logs to the `coderd` log output.
+Set the source to `gateway` or `both` on every process to have the gateway emit its own records, and ship the gateway's logs as well as `coderd`'s.
+Refer to [structured logging](./setup.md#structured-logging) for configuration and record types, and [choose which process emits the records](./setup.md#choose-which-process-emits-the-records) for the trade-offs between the sources.
 
 ## Export data
 
@@ -207,7 +208,8 @@ curl -X GET "https://coder.example.com/api/v2/ai-gateway/sessions" \
 
 Available query filters:
 
-- `client` - Filter by client name. Possible values are listed below.
+- `client` - Filter by client name.
+  Possible values are listed below.
 - `initiator` - Filter by user ID or username
 - `provider` - Filter by AI provider (e.g., `openai`, `anthropic`)
 - `model` - Filter by model name
@@ -218,8 +220,7 @@ Available query filters:
 <summary>Possible <code>client</code> values</summary>
 
 > [!NOTE]
-> Client classification is done on best effort basis using the `User-Agent` header;
-> not all clients send these headers in an easily-identifiable manner.
+> Client classification is done on best effort basis using the `User-Agent` header; not all clients send these headers in an easily-identifiable manner.
 
 - `Claude Code`
 - `Codex`
@@ -242,12 +243,10 @@ Refer to the [API documentation](../../reference/api/aigateway.md) for full deta
 
 ## Data retention
 
-AI Gateway data is retained for **60 days by default**. Configure the retention
-period to balance storage costs with your organization's compliance and analysis
-needs.
+AI Gateway data is retained for **60&nbsp;days by default**.
+Configure the retention period to balance storage costs with your organization's compliance and analysis needs.
 
-For configuration options and details, refer to [Data Retention](./setup.md#data-retention)
-in the AI Gateway setup guide.
+For configuration options and details, refer to [Data Retention](./setup.md#data-retention) in the AI Gateway setup guide.
 
 ## Tracing
 
@@ -263,7 +262,7 @@ The exporter always dials without TLS, so an `https://` endpoint is still contac
 Set only the Honeycomb key to export to Honeycomb alone, or set both to export to Honeycomb and an OTLP collector.
 
 The embedded and standalone gateways support the same tracing configuration options, but each standalone replica must be configured separately.
-Refer to the [`coder server` tracing options](../../reference/cli/server.md#--trace) for the embedded gateway and the [`coder ai-gateway start` tracing options](../../reference/cli/ai-gateway_start.md#--trace) for standalone replicas.
+Refer to the [`coder server` tracing options](../../reference/cli/server/index.md#--trace) for the embedded gateway and the [`coder ai-gateway start` tracing options](../../reference/cli/ai-gateway/start.md#--trace) for standalone replicas.
 Configure tracing on every standalone process or through `coder.env` in the AI Gateway Helm chart.
 
 The following minimal configuration enables tracing and exports spans over OTLP/gRPC:

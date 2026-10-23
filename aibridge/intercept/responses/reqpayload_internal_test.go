@@ -69,7 +69,7 @@ func TestNewRequestPayload(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, payload)
 			assert.EqualValues(t, tc.want, payload)
-			assert.Equal(t, tc.model, payload.model())
+			assert.Equal(t, tc.model, payload.Model())
 			assert.Equal(t, tc.stream, payload.Stream())
 			assert.Equal(t, tc.background, payload.background())
 		})
@@ -105,6 +105,15 @@ func TestCorrelatingToolCallID(t *testing.T) {
 			name:     "multiple function_call_outputs returns last",
 			payload:  []byte(`{"model":"gpt-4o","input":[{"type":"function_call_output","call_id":"call_first","output":"r1"},{"role":"user","content":"hi"},{"type":"function_call_output","call_id":"call_second","output":"r2"}]}`),
 			wantCall: new("call_second"),
+		},
+		{
+			name:     "custom_tool_call_output",
+			payload:  []byte(`{"model":"gpt-5","input":[{"role":"user","content":"hi"},{"type":"custom_tool_call","call_id":"call_custom","name":"apply_patch","input":"*** Begin Patch"},{"type":"custom_tool_call_output","call_id":"call_custom","output":"Done!"}]}`),
+			wantCall: new("call_custom"),
+		},
+		{
+			name:    "last input is a tool call, not a tool result",
+			payload: []byte(`{"model":"gpt-5","input":[{"type":"custom_tool_call","call_id":"call_custom","name":"apply_patch","input":"*** Begin Patch"}]}`),
 		},
 		{
 			name:    "last input is not a tool result",

@@ -1,10 +1,9 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
 import { EllipsisVerticalIcon } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useOutletContext } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	groupAIBudget,
@@ -38,6 +37,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { formatBudgetUSD } from "#/utils/currency";
@@ -54,7 +54,7 @@ type MemberWithSpend = ReducedUser & {
 	readonly spend: GroupMemberAISpend | undefined;
 };
 
-const GroupMembersPage: FC = () => {
+const GroupMembersPage: React.FC = () => {
 	const {
 		group: groupData,
 		members,
@@ -127,7 +127,10 @@ const GroupMembersPage: FC = () => {
 		<div className="flex flex-col w-full gap-1 pb-8">
 			<UsersFilter {...filterProps} />
 
-			<PaginationContainer query={membersQuery} paginationUnitLabel="members">
+			<PaginationContainer
+				query={membersQuery}
+				paginationUnitLabel={{ singular: "member", plural: "members" }}
+			>
 				<Table aria-label="Group members">
 					<TableHeader>
 						<TableRow>
@@ -230,7 +233,7 @@ type GroupMemberRowProps = {
 	onRemove: () => void;
 };
 
-const GroupMemberRow: FC<GroupMemberRowProps> = ({
+const GroupMemberRow: React.FC<GroupMemberRowProps> = ({
 	member,
 	group,
 	canUpdate,

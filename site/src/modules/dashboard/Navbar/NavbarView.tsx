@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import { NavLink, useLocation } from "react-router";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -37,7 +36,7 @@ const linkStyles = {
 	active: "text-content-primary",
 };
 
-export const NavbarView: FC<NavbarViewProps> = ({
+export const NavbarView: React.FC<NavbarViewProps> = ({
 	user,
 	buildInfo,
 	supportLinks,
@@ -156,7 +155,7 @@ type NavItemsProps = {
 	canCreateChat: boolean;
 };
 
-const NavItems: FC<NavItemsProps> = ({ className, canCreateChat }) => {
+const NavItems: React.FC<NavItemsProps> = ({ className, canCreateChat }) => {
 	const location = useLocation();
 
 	return (
@@ -205,7 +204,11 @@ type SupportButtonProps = {
 	location?: string;
 };
 
-const SupportButton: FC<SupportButtonProps> = ({ name, target, icon }) => {
+const SupportButton: React.FC<SupportButtonProps> = ({
+	name,
+	target,
+	icon,
+}) => {
 	return (
 		<Button asChild variant="outline">
 			<a

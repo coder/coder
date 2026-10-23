@@ -1,27 +1,43 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
 import { useEffect, useState } from "react";
+import { useInfiniteQuery, useQueryClient } from "react-query";
 import { useLocation } from "react-router";
 import {
 	expect,
 	fireEvent,
 	fn,
+	screen,
+	spyOn,
 	userEvent,
 	waitFor,
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import { userChatProviderConfigsKey } from "#/api/queries/chats";
+import { API } from "#/api/api";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
+import {
+	chatListKey,
+	infiniteChats,
+	toChatListParams,
+	userChatProviderConfigsKey,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
-import { MockChat } from "#/testHelpers/chatEntities";
-import { MockUserOwner, mockApiError } from "#/testHelpers/entities";
+import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
+import {
+	MockChatProject,
+	MockDefaultOrganization,
+	MockOrganization2,
+	MockUserOwner,
+	mockApiError,
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import { useAgentsPageKeybindings } from "../../hooks/useAgentsPageKeybindings";
 import { DEFAULT_AGENT_SIDEBAR_FILTERS as defaultSidebarFilters } from "../../utils/agentSidebarFilters";
+import { projectsSectionCollapsedStorageKey } from "../../utils/projectsSectionStorage";
 import { ChatsSidebar } from "./ChatsSidebar";
 
 // Probe element used by the archived-filter preservation story to surface the
@@ -67,6 +83,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 });
 
 const agentsRouting = [
+	{ path: "/agents/projects/:projectId", useStoryElement: true },
 	{ path: "/agents/:agentId", useStoryElement: true },
 	{ path: "/agents", useStoryElement: true },
 ] satisfies [
@@ -91,11 +108,7 @@ const meta: Meta<typeof ChatsSidebar> = {
 	args: {
 		chatErrorReasons: {},
 		modelConfigs: defaultModelConfigs,
-		onArchiveAgent: fn(),
-		onUnarchiveAgent: fn(),
-		onArchiveAndDeleteWorkspace: fn(),
-		onPinAgent: fn(),
-		onUnpinAgent: fn(),
+		navigateAfterArchive: fn(),
 		onRenameTitle: fn(() => Promise.resolve()),
 		onBeforeNewAgent: fn(),
 		isSearchDialogOpen: false,
@@ -120,7 +133,7 @@ export default meta;
 type Story = StoryObj<typeof ChatsSidebar>;
 
 const ChatsSidebarWithKeybindings = (
-	args: ComponentProps<typeof ChatsSidebar>,
+	args: React.ComponentProps<typeof ChatsSidebar>,
 ) => {
 	const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(
 		args.isSearchDialogOpen,
@@ -145,7 +158,7 @@ const ChatsSidebarWithKeybindings = (
 };
 
 const ChatsSidebarWithDeferredModels = (
-	args: ComponentProps<typeof ChatsSidebar>,
+	args: React.ComponentProps<typeof ChatsSidebar>,
 ) => {
 	const [modelsResolved, setModelsResolved] = useState(false);
 
@@ -243,11 +256,8 @@ export const SharedUnreadChat: Story = {
 	},
 };
 
-/**
- * The active row normally swaps its timestamp for the actions trigger, but
- * another user's shared chat has no owner actions, so the timestamp stays.
- */
-export const ActiveSharedChatViewerHasNoActions: Story = {
+/** Shared chats expose the copy menu without owner-only actions. */
+export const ActiveSharedChatViewerHasCopyMenu: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -271,8 +281,8 @@ export const ActiveSharedChatViewerHasNoActions: Story = {
 	},
 };
 
-/** Viewers keep the subagents toggle, the touch path for expanding a row. */
-export const SharedChatViewerMenuOnlyTogglesSubagents: Story = {
+/** Viewers can expand subagents and copy chat details without managing the chat. */
+export const SharedChatViewerMenuWithSubagents: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -314,6 +324,31 @@ export const SharedChatViewerMenuOnlyTogglesSubagents: Story = {
 		await within(document.body).findByRole("menuitem", {
 			name: "Show subagents (1)",
 		});
+	},
+};
+
+/**
+ * Pin order belongs to the owner, so a chat another user pinned lists under
+ * Shared with you instead of joining the viewer's sortable Pinned section.
+ */
+export const SharedChatPinnedByOwnerStaysInSharedWithYou: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "own-pinned",
+				title: "Own pinned chat",
+				pin_order: 1,
+			}),
+			buildChat({
+				id: "shared-pinned-by-owner",
+				title: "Shared chat pinned by its owner",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+				pin_order: 1,
+			}),
+		],
 	},
 };
 
@@ -1463,6 +1498,11 @@ export const NoArchivedSection: Story = {
 };
 
 export const ArchivingShowsSpinnerOnly: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "updateChat").mockImplementation(
+			() => new Promise(() => {}),
+		);
+	},
 	args: {
 		chats: [
 			buildChat({
@@ -1470,9 +1510,24 @@ export const ArchivingShowsSpinnerOnly: Story = {
 				title: "Chat being archived",
 				updated_at: recentTimestamp,
 			}),
+			buildChat({
+				id: "available-chat",
+				title: "Another chat stays available",
+				updated_at: recentTimestamp,
+			}),
 		],
-		isArchiving: true,
-		archivingChatId: "archiving-chat",
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Open actions for Chat being archived",
+			}),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("menuitem", {
+				name: "Archive agent",
+			}),
+		);
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -1507,61 +1562,65 @@ export const WithDiffStats: Story = {
 				id: "diff-both",
 				title: "Agent with additions and deletions",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "diff-both",
-					url: "https://github.com/coder/coder/pull/1",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 42,
-					deletions: 7,
-					changed_files: 5,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "diff-both",
+						pr_number: 1,
+						url: "https://github.com/coder/coder/pull/1",
+						additions: 42,
+						deletions: 7,
+						changed_files: 5,
+					},
+				],
 			}),
 			buildChat({
 				id: "diff-add-only",
 				title: "Agent with additions only",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "diff-add-only",
-					url: "https://github.com/coder/coder/pull/2",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 120,
-					deletions: 0,
-					changed_files: 3,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "diff-add-only",
+						pr_number: 2,
+						url: "https://github.com/coder/coder/pull/2",
+						additions: 120,
+						deletions: 0,
+						changed_files: 3,
+					},
+				],
 			}),
 			buildChat({
 				id: "diff-del-only",
 				title: "Agent with deletions only",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "diff-del-only",
-					url: "https://github.com/coder/coder/pull/3",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 0,
-					deletions: 35,
-					changed_files: 2,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "diff-del-only",
+						pr_number: 3,
+						url: "https://github.com/coder/coder/pull/3",
+						additions: 0,
+						deletions: 35,
+						changed_files: 2,
+					},
+				],
 			}),
 			buildChat({
 				id: "diff-none",
 				title: "Agent with no diff changes",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "diff-none",
-					url: "https://github.com/coder/coder/pull/4",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 0,
-					deletions: 0,
-					changed_files: 0,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "diff-none",
+						pr_number: 4,
+						url: "https://github.com/coder/coder/pull/4",
+						additions: 0,
+						deletions: 0,
+						changed_files: 0,
+					},
+				],
 			}),
 		],
 	},
@@ -1583,46 +1642,49 @@ export const WithDiffStatsLight: Story = {
 				id: "diff-both-light",
 				title: "Agent with additions and deletions",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "diff-both-light",
-					url: "https://github.com/coder/coder/pull/1",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 42,
-					deletions: 7,
-					changed_files: 5,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "diff-both-light",
+						pr_number: 1,
+						url: "https://github.com/coder/coder/pull/1",
+						additions: 42,
+						deletions: 7,
+						changed_files: 5,
+					},
+				],
 			}),
 			buildChat({
 				id: "diff-add-only-light",
 				title: "Agent with additions only",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "diff-add-only-light",
-					url: "https://github.com/coder/coder/pull/2",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 120,
-					deletions: 0,
-					changed_files: 3,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "diff-add-only-light",
+						pr_number: 2,
+						url: "https://github.com/coder/coder/pull/2",
+						additions: 120,
+						deletions: 0,
+						changed_files: 3,
+					},
+				],
 			}),
 			buildChat({
 				id: "diff-del-only-light",
 				title: "Agent with deletions only",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "diff-del-only-light",
-					url: "https://github.com/coder/coder/pull/3",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 0,
-					deletions: 35,
-					changed_files: 2,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "diff-del-only-light",
+						pr_number: 3,
+						url: "https://github.com/coder/coder/pull/3",
+						additions: 0,
+						deletions: 35,
+						changed_files: 2,
+					},
+				],
 			}),
 		],
 	},
@@ -1641,80 +1703,123 @@ export const WithPRStateIcons: Story = {
 				id: "pr-open",
 				title: "Open pull request",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "pr-open",
-					url: "https://github.com/coder/coder/pull/100",
-					pull_request_state: "open",
-					pull_request_title: "feat: add new feature",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 50,
-					deletions: 10,
-					changed_files: 4,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "pr-open",
+						pr_number: 100,
+						url: "https://github.com/coder/coder/pull/100",
+						pull_request_title: "feat: add new feature",
+						additions: 50,
+						deletions: 10,
+						changed_files: 4,
+					},
+				],
 			}),
 			buildChat({
 				id: "pr-draft",
 				title: "Draft pull request",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "pr-draft",
-					url: "https://github.com/coder/coder/pull/101",
-					pull_request_state: "open",
-					pull_request_title: "wip: draft changes",
-					pull_request_draft: true,
-					changes_requested: false,
-					additions: 20,
-					deletions: 5,
-					changed_files: 2,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "pr-draft",
+						pr_number: 101,
+						url: "https://github.com/coder/coder/pull/101",
+						pull_request_title: "wip: draft changes",
+						pull_request_draft: true,
+						additions: 20,
+						deletions: 5,
+						changed_files: 2,
+					},
+				],
 			}),
 			buildChat({
 				id: "pr-merged",
 				title: "Merged pull request",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "pr-merged",
-					url: "https://github.com/coder/coder/pull/102",
-					pull_request_state: "merged",
-					pull_request_title: "feat: completed feature",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 200,
-					deletions: 80,
-					changed_files: 12,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "pr-merged",
+						pr_number: 102,
+						url: "https://github.com/coder/coder/pull/102",
+						pull_request_state: "merged",
+						pull_request_title: "feat: completed feature",
+						additions: 200,
+						deletions: 80,
+						changed_files: 12,
+					},
+				],
 			}),
 			buildChat({
 				id: "pr-closed",
 				title: "Closed pull request",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "pr-closed",
-					url: "https://github.com/coder/coder/pull/103",
-					pull_request_state: "closed",
-					pull_request_title: "fix: abandoned approach",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 15,
-					deletions: 3,
-					changed_files: 1,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "pr-closed",
+						pr_number: 103,
+						url: "https://github.com/coder/coder/pull/103",
+						pull_request_state: "closed",
+						pull_request_title: "fix: abandoned approach",
+						additions: 15,
+						deletions: 3,
+						changed_files: 1,
+					},
+				],
 			}),
 			buildChat({
 				id: "pr-no-state",
 				title: "No PR state (branch only)",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "pr-no-state",
-					url: "https://github.com/coder/coder/tree/my-branch",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 10,
-					deletions: 2,
-					changed_files: 1,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "pr-no-state",
+						git_branch: "my-branch",
+						url: "https://github.com/coder/coder/tree/my-branch",
+						pr_number: undefined,
+						pull_request_state: undefined,
+						pull_request_title: "",
+						additions: 10,
+						deletions: 2,
+						changed_files: 1,
+					},
+				],
+			}),
+			// A newer branch-only push becomes the primary, but the
+			// sole PR still pairs its icon with its own line stats.
+			buildChat({
+				id: "pr-with-newer-branch",
+				title: "PR with a newer branch push",
+				updated_at: recentTimestamp,
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "pr-with-newer-branch",
+						git_branch: "feat/newer-branch",
+						url: "https://github.com/coder/coder/tree/feat/newer-branch",
+						pr_number: undefined,
+						pull_request_state: undefined,
+						pull_request_title: "",
+						additions: 0,
+						deletions: 0,
+						changed_files: 0,
+					},
+					{
+						...MockChatDiffStatus,
+						chat_id: "pr-with-newer-branch",
+						git_branch: "feat/older-pr",
+						pr_number: 104,
+						url: "https://github.com/coder/coder/pull/104",
+						pull_request_title: "feat: sole PR with newer branch",
+						additions: 33,
+						deletions: 4,
+						changed_files: 2,
+					},
+				],
 			}),
 		],
 	},
@@ -1723,6 +1828,146 @@ export const WithPRStateIcons: Story = {
 			location: { path: "/agents" },
 			routing: agentsRouting,
 		}),
+	},
+};
+
+export const WithMultiplePRs: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "multi-pr",
+				title: "Agent with three pull requests",
+				updated_at: recentTimestamp,
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "multi-pr",
+						git_branch: "feat/one",
+						pr_number: 201,
+						url: "https://github.com/coder/coder/pull/201",
+						pull_request_title: "feat: add login page",
+						additions: 50,
+						deletions: 10,
+						changed_files: 4,
+					},
+					{
+						...MockChatDiffStatus,
+						chat_id: "multi-pr",
+						git_branch: "feat/two",
+						pr_number: 202,
+						url: "https://github.com/coder/coder/pull/202",
+						pull_request_title: "fix: correct the login redirect",
+						pull_request_draft: true,
+						additions: 20,
+						deletions: 5,
+						changed_files: 2,
+					},
+					{
+						...MockChatDiffStatus,
+						chat_id: "multi-pr",
+						git_branch: "feat/three",
+						pr_number: 203,
+						url: "https://github.com/coder/coder/pull/203",
+						pull_request_state: "merged",
+						pull_request_title: "feat: add the login tests",
+						additions: 200,
+						deletions: 80,
+						changed_files: 12,
+					},
+				],
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByLabelText("Open actions for Agent with three pull requests"),
+		);
+		// The menus portal to the body, outside the story canvas.
+		const body = within(document.body);
+		await userEvent.click(await body.findByRole("menuitem", { name: "3 PRs" }));
+		await body.findByRole("menuitem", { name: /PR #201/ });
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
+// Enough PRs to show the submenu's height limit.
+export const WithManyPRs: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "many-prs",
+				title: "Agent with fifteen pull requests",
+				updated_at: recentTimestamp,
+				diff_statuses: Array.from({ length: 15 }, (_, index) => ({
+					...MockChatDiffStatus,
+					chat_id: "many-prs",
+					git_branch: `refactor/agents-${index + 1}`,
+					url: `https://github.com/coder/coder/pull/${29901 + index}`,
+					pr_number: 29901 + index,
+					pull_request_title: `refactor(site): split the agents page into smaller parts, step ${index + 1}`,
+				})),
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByLabelText(
+				"Open actions for Agent with fifteen pull requests",
+			),
+		);
+		const body = within(document.body);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "15 PRs" }),
+		);
+		await body.findByRole("menuitem", { name: /PR #29901/ });
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
+export const WithOnePRMenuOpen: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "one-pr-menu",
+				title: "Agent with one pull request",
+				updated_at: recentTimestamp,
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "one-pr-menu",
+						pr_number: 301,
+						url: "https://github.com/coder/coder/pull/301",
+						pull_request_title:
+							"fix(site/src/pages/AgentsPage): keep the session alive when the workspace restarts",
+					},
+				],
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByLabelText("Open actions for Agent with one pull request"),
+		);
+		await within(document.body).findByRole("menuitem", { name: /PR #301/ });
 	},
 };
 
@@ -1749,6 +1994,33 @@ export const ActiveChatKebabPersistent: Story = {
 			},
 			routing: agentsRouting,
 		}),
+	},
+};
+
+export const ActiveChatContextMenuOpen: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "active-context-menu",
+				title: "Active context menu chat",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/active-context-menu",
+				pathParams: { agentId: "active-context-menu" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		fireEvent.contextMenu(
+			within(canvasElement).getByTestId("agents-tree-node-active-context-menu"),
+		);
+		await within(document.body).findByText("Pin agent");
 	},
 };
 
@@ -1844,6 +2116,33 @@ export const AgentWithWorkspaceMenuFull: Story = {
 			"Open actions for Agent with workspace",
 		);
 		await userEvent.click(trigger);
+		await within(document.body).findByText("Pin agent");
+	},
+};
+
+export const AgentWithWorkspaceContextMenuFull: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-with-context-menu",
+				title: "Agent with context menu",
+				workspace_id: "workspace-1",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		fireEvent.contextMenu(
+			within(canvasElement).getByTestId(
+				"agents-tree-node-chat-with-context-menu",
+			),
+		);
 		await within(document.body).findByText("Pin agent");
 	},
 };
@@ -2030,7 +2329,7 @@ export const SubagentsMenuToggle: Story = {
 	},
 };
 
-export const ArchivedChildChatRowHasNoActionsMenu: Story = {
+export const ArchivedChildChatRowHasCopyMenu: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -2061,12 +2360,10 @@ export const ArchivedChildChatRowHasNoActionsMenu: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Right-click the archived child row: it has no menu actions, so a
-		// correct render leaves the row undisturbed for the capture. An
-		// erroneous menu would appear in the screenshot.
 		fireEvent.contextMenu(
 			canvas.getByTestId("agents-tree-node-child-archived"),
 		);
+		await within(document.body).findByRole("menuitem", { name: "Copy ID" });
 	},
 };
 
@@ -2152,21 +2449,11 @@ export const PinUnpinContextMenu: Story = {
 			routing: agentsRouting,
 		}),
 	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("Agent to pin")).toBeInTheDocument();
-		});
-		const trigger = canvas.getByLabelText("Open actions for Agent to pin");
-		await userEvent.click(trigger);
-		await waitFor(() => {
-			const body = within(document.body);
-			expect(body.getByText("Pin agent")).toBeInTheDocument();
-		});
-		// Click Pin agent and verify callback.
-		const body = within(document.body);
-		await userEvent.click(body.getByText("Pin agent"));
-		expect(args.onPinAgent).toHaveBeenCalledWith("pin-test");
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Agent to pin"),
+		);
 	},
 };
 
@@ -2187,19 +2474,251 @@ export const UnpinContextMenu: Story = {
 			routing: agentsRouting,
 		}),
 	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Agent to unpin"),
+		);
+	},
+};
+
+export const ReadStateContextMenu: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "unread-agent",
+				title: "Unread agent",
+				updated_at: recentTimestamp,
+				has_unread: true,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Unread agent"),
+		);
+		await within(document.body).findByText("Mark as read");
+	},
+};
+
+export const ReadStateUpdatePending: Story = {
+	...ReadStateContextMenu,
+	beforeEach: () => {
+		spyOn(API.experimental, "updateChat").mockImplementation(
+			() => new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Unread agent"),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("menuitem", {
+				name: "Mark as read",
+			}),
+		);
 		await waitFor(() => {
-			expect(canvas.getByText("Agent to unpin")).toBeInTheDocument();
+			if (getComputedStyle(document.body).pointerEvents === "none") {
+				throw new Error("Waiting for the actions menu to finish closing.");
+			}
 		});
-		const trigger = canvas.getByLabelText("Open actions for Agent to unpin");
-		await userEvent.click(trigger);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Unread agent"),
+		);
+		await within(document.body).findByRole("menuitem", {
+			name: "Mark as read",
+		});
+	},
+};
+
+/**
+ * The read toggle is hidden for the chat the user already has open,
+ * because opening a chat marks it read and would undo the toggle.
+ */
+export const ActiveChatContextMenuHasNoReadToggle: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "active-unread-agent",
+				title: "Active unread agent",
+				updated_at: recentTimestamp,
+				has_unread: true,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/active-unread-agent",
+				pathParams: { agentId: "active-unread-agent" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Active unread agent"),
+		);
+		await within(document.body).findByText("Rename chat");
+	},
+};
+
+export const CopySubmenuContextMenu: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "copy-agent",
+				title: "Copy agent",
+				updated_at: recentTimestamp,
+				diff_status: {
+					chat_id: "copy-agent",
+					pull_request_title: "",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 0,
+					deletions: 0,
+					changed_files: 0,
+					head_branch: "jakehwll/copy-branch",
+				},
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Copy agent"),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("menuitem", { name: "Copy" }),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Copy branch" });
+	},
+};
+
+export const CopyIDWithoutBranch: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "no-branch-agent",
+				title: "No branch agent",
+				updated_at: recentTimestamp,
+				diff_status: undefined,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for No branch agent"),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Copy ID" });
+	},
+};
+
+/** Copying is read-only, so it stays available on another user's shared chat. */
+export const CopyIDOnSharedChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "shared-copy-agent",
+				title: "Shared copy agent",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Shared copy agent"),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Copy ID" });
+	},
+};
+
+/**
+ * Archived child chats have no archive or unarchive actions, so Copy ID
+ * is the whole menu when no branch is available.
+ */
+export const CopyIDOnArchivedChildChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "archived-copy-parent",
+				title: "Archived copy parent",
+				archived: true,
+				updated_at: recentTimestamp,
+				children: [
+					buildChat({
+						id: "archived-copy-child",
+						title: "Archived copy child",
+						archived: true,
+						parent_chat_id: "archived-copy-parent",
+						root_chat_id: "archived-copy-parent",
+						updated_at: recentTimestamp,
+					}),
+				],
+			}),
+			buildChat({
+				id: "archived-copy-child",
+				title: "Archived copy child",
+				archived: true,
+				parent_chat_id: "archived-copy-parent",
+				root_chat_id: "archived-copy-parent",
+				updated_at: recentTimestamp,
+			}),
+		],
+		sidebarFilters: { ...defaultSidebarFilters, archiveStatus: "archived" },
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
 		const body = within(document.body);
-		await waitFor(() => {
-			expect(body.getByText("Unpin agent")).toBeInTheDocument();
-		});
-		await userEvent.click(body.getByText("Unpin agent"));
-		expect(args.onUnpinAgent).toHaveBeenCalledWith("unpin-test");
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Archived copy parent"),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Show subagents (1)" }),
+		);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Archived copy child"),
+		);
+		await body.findByRole("menuitem", { name: "Copy ID" });
 	},
 };
 
@@ -2370,5 +2889,506 @@ export const PreservesArchivedFilterOnSettingsNavigation: Story = {
 			expect(fromValue).toContain("/agents");
 			expect(fromValue).toContain("archived=archived");
 		});
+	},
+};
+
+const mockLooseChat = buildChat({
+	id: "loose-chat",
+	title: "Loose chat",
+	organization_id: MockChatProject.organization_id,
+});
+
+const mockProjectChats = [
+	mockLooseChat,
+	buildChat({
+		id: "project-chat",
+		title: "Project chat",
+		organization_id: MockChatProject.organization_id,
+		project_id: MockChatProject.id,
+	}),
+];
+
+export const ProjectFolderCollapsed: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject],
+			},
+		],
+	},
+};
+
+const startKeyboardDrag = async (canvasElement: HTMLElement, title: RegExp) => {
+	const row = await within(canvasElement).findByRole("link", {
+		name: title,
+		description: /pick up a chat/i,
+	});
+	row.focus();
+	await userEvent.keyboard("[Space]");
+};
+
+export const ChatDraggedOverProjectFolder: Story = {
+	args: { chats: [mockLooseChat] },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+	play: async ({ canvasElement }) => {
+		await startKeyboardDrag(canvasElement, /Loose chat/);
+		await userEvent.keyboard("[ArrowUp]");
+	},
+};
+
+/** Reads the cached chat list so the drop moves the chat. */
+export const ChatDroppedOnProjectFolder: Story = {
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{
+				key: chatListKey(
+					toChatListParams({ sources: defaultSidebarFilters.sources }),
+				),
+				data: { pages: [mockProjectChats], pageParams: [0] },
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
+	},
+	render: function ChatDroppedOnProjectFolderRender(args) {
+		// Stories have no API server, so the list must not fetch.
+		const chatsQuery = useInfiniteQuery({
+			...infiniteChats({ sources: defaultSidebarFilters.sources }),
+			enabled: false,
+		});
+		return (
+			<ChatsSidebar {...args} chats={chatsQuery.data?.pages.flat() ?? []} />
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await startKeyboardDrag(canvasElement, /Loose chat/);
+		await userEvent.keyboard("[ArrowUp]");
+		// Space drops on the folder only after the sensor has moved over it.
+		await screen.findByText("Chat Loose chat is over project Launch.");
+		await userEvent.keyboard("[Space]");
+	},
+};
+
+const mockBillingProject: TypesGen.ChatProject = {
+	...MockChatProject,
+	id: "billing-project",
+	name: "Billing",
+};
+
+const mockOtherOrganizationProject: TypesGen.ChatProject = {
+	...MockChatProject,
+	id: "other-organization-project",
+	name: "Research",
+	organization_id: MockOrganization2.id,
+};
+
+export const LooseChatDragMutesUnavailableTargets: Story = {
+	args: { chats: [mockLooseChat] },
+	parameters: {
+		experiments: ["chat-projects"],
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [
+					MockChatProject,
+					mockBillingProject,
+					mockOtherOrganizationProject,
+				],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await startKeyboardDrag(canvasElement, /Loose chat/);
+	},
+};
+
+export const ProjectChatDragMutesItsFolder: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "launch-chat",
+				title: "Launch chat",
+				organization_id: MockChatProject.organization_id,
+				project_id: MockChatProject.id,
+			}),
+		],
+	},
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject, mockBillingProject],
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${MockChatProject.id}`,
+				pathParams: { projectId: MockChatProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		await startKeyboardDrag(canvasElement, /Launch chat/);
+	},
+};
+
+export const ProjectFolderExpanded: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject],
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${MockChatProject.id}`,
+				pathParams: { projectId: MockChatProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+};
+
+const mockOtherOrganizationLaunchProject: TypesGen.ChatProject = {
+	...MockChatProject,
+	id: "other-organization-launch-project",
+	organization_id: MockOrganization2.id,
+};
+
+export const SameNamedProjects: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		experiments: ["chat-projects"],
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject, mockOtherOrganizationLaunchProject],
+			},
+		],
+	},
+};
+
+export const ProjectsSectionCollapsed: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject],
+			},
+		],
+	},
+	beforeEach: () => {
+		const key = projectsSectionCollapsedStorageKey(MockUserOwner.id);
+		localStorage.setItem(key, "true");
+		return () => localStorage.removeItem(key);
+	},
+};
+
+export const ChatDraggedOverCollapsedProjects: Story = {
+	args: { chats: [mockLooseChat] },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+	beforeEach: () => {
+		const key = projectsSectionCollapsedStorageKey(MockUserOwner.id);
+		localStorage.setItem(key, "true");
+		return () => localStorage.removeItem(key);
+	},
+	play: async ({ canvasElement }) => {
+		await startKeyboardDrag(canvasElement, /Loose chat/);
+		await userEvent.keyboard("[ArrowUp]");
+		await screen.findByText("Chat Loose chat is over Projects.");
+	},
+};
+
+export const ProjectsEmpty: Story = {
+	args: { chats: [buildChat({ id: "loose-chat", title: "Loose chat" })] },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [] }],
+	},
+};
+
+export const ProjectActionsWithoutUpdateOrDeletePermission: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [
+					{
+						...MockChatProject,
+						permissions: { update: false, delete: false, share: false },
+					},
+				],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: `Open project actions for ${MockChatProject.name}`,
+			}),
+		);
+	},
+};
+
+export const ProjectActionsWithoutDeletePermission: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [
+					{
+						...MockChatProject,
+						permissions: { update: true, delete: false, share: true },
+					},
+				],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: `Open project actions for ${MockChatProject.name}`,
+			}),
+		);
+	},
+};
+
+export const ProjectChatWithoutLoadedProject: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "unloaded-project-chat",
+				title: "Chat in an unloaded project",
+				project_id: "unloaded-project",
+			}),
+		],
+	},
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject],
+			},
+		],
+	},
+};
+
+export const UnloadedProjectChatDragMutesChats: Story = {
+	args: ProjectChatWithoutLoadedProject.args,
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+	play: async ({ canvasElement }) => {
+		await startKeyboardDrag(canvasElement, /Chat in an unloaded project/);
+	},
+};
+
+export const ProjectsLoading: Story = {
+	args: { chats: mockProjectChats },
+	parameters: { experiments: ["chat-projects"] },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+};
+
+export const ProjectsLoadError: Story = {
+	args: { chats: mockProjectChats },
+	parameters: { experiments: ["chat-projects"] },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
+			mockApiError({ message: "Failed to load projects." }),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("button", { name: "Retry" });
+	},
+};
+
+export const ProjectsEmptyRefetchError: Story = {
+	args: { chats: [buildChat({ id: "loose-chat", title: "Loose chat" })] },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [] }],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
+			mockApiError({ message: "Failed to refresh projects." }),
+		);
+	},
+	render: function ProjectsEmptyRefetchErrorRender(args) {
+		const queryClient = useQueryClient();
+		// Seeded data never goes stale in Storybook, so refetch explicitly
+		// to fail on top of the cached empty list.
+		useEffect(() => {
+			void queryClient.refetchQueries({ queryKey: chatProjectsKey });
+		}, [queryClient]);
+		return <ChatsSidebar {...args} />;
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByRole("button", { name: "Retry" });
+	},
+};
+
+const mockEmojiProject: TypesGen.ChatProject = {
+	...MockChatProject,
+	icon: "/emojis/1f680.png",
+};
+
+export const ProjectFolderEmptyWithEmojiIcon: Story = {
+	args: { chats: [buildChat({ id: "loose-chat", title: "Loose chat" })] },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [mockEmojiProject] }],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${mockEmojiProject.id}`,
+				pathParams: { projectId: mockEmojiProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+};
+
+// Only the owner of an unarchived root chat can move it, so the next three
+// menus have no Move to project.
+export const ArchivedChatMenuHasNoMoveToProject: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "archived-no-move",
+				title: "Archived chat",
+				organization_id: MockChatProject.organization_id,
+				archived: true,
+			}),
+		],
+		sidebarFilters: { ...defaultSidebarFilters, archiveStatus: "archived" },
+	},
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: "Open actions for Archived chat",
+			}),
+		);
+		await within(document.body).findByRole("menuitem", {
+			name: "Unarchive agent",
+		});
+	},
+};
+
+export const SharedChatMenuHasNoMoveToProject: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "shared-no-move",
+				title: "Shared chat",
+				organization_id: MockChatProject.organization_id,
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+			}),
+		],
+	},
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: "Open actions for Shared chat",
+			}),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Copy ID" });
+	},
+};
+
+export const ChildChatMenuHasNoMoveToProject: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "root-no-move",
+				title: "Root chat",
+				organization_id: MockChatProject.organization_id,
+				children: [
+					buildChat({
+						id: "child-no-move",
+						title: "Child chat",
+						organization_id: MockChatProject.organization_id,
+						parent_chat_id: "root-no-move",
+						root_chat_id: "root-no-move",
+					}),
+				],
+			}),
+		],
+	},
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/child-no-move",
+				pathParams: { agentId: "child-no-move" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: "Open actions for Child chat",
+			}),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Copy ID" });
+	},
+};
+
+export const MoveToProjectOffWhileSubagentRuns: Story = {
+	args: IdleParentWithRunningChild.args,
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: "Open actions for Idle parent agent",
+			}),
+		);
+		(await screen.findByRole("menuitem", { name: "Move to project" })).focus();
 	},
 };

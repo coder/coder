@@ -1,30 +1,34 @@
-import type { FC, ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
 import type { ConnectionLog } from "#/api/typesGenerated";
 import { Link } from "#/components/Link/Link";
-import { connectionTypeToFriendlyName } from "#/utils/connection";
+import { connectionLogMethodLabels } from "../../connectionLogMethodLabels";
 
 type ConnectionLogDescriptionProps = {
 	connectionLog: ConnectionLog;
 };
 
-export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
-	connectionLog,
-}) => {
-	const { type, workspace_owner_username, workspace_name, web_info } =
-		connectionLog;
+export const ConnectionLogDescription: React.FC<
+	ConnectionLogDescriptionProps
+> = ({ connectionLog }) => {
+	const {
+		connection_method,
+		app_display_name,
+		workspace_owner_username,
+		workspace_name,
+		web_info,
+	} = connectionLog;
 
-	switch (type) {
+	switch (connection_method) {
 		case "port_forwarding":
 		case "workspace_app": {
 			if (!web_info) return null;
 
 			const { user, slug_or_port, status_code } = web_info;
-			const isPortForward = type === "port_forwarding";
+			const isPortForward = connection_method === "port_forwarding";
 			const presentAction = isPortForward ? "access" : "open";
 			const pastAction = isPortForward ? "accessed" : "opened";
 
-			const target: ReactNode = isPortForward ? (
+			const target: React.ReactNode = isPortForward ? (
 				<>
 					port <strong>{slug_or_port}</strong>
 				</>
@@ -32,7 +36,7 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 				<strong>{slug_or_port}</strong>
 			);
 
-			const actionText: ReactNode = (() => {
+			const actionText: React.ReactNode = (() => {
 				if (status_code === 303) {
 					return (
 						<>
@@ -72,14 +76,22 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 			);
 		}
 
-		case "reconnecting_pty":
 		case "ssh":
-		case "jetbrains":
-		case "vscode": {
-			const friendlyType = connectionTypeToFriendlyName(type);
+		case "reconnecting_pty": {
+			const methodName = connectionLogMethodLabels[connection_method];
 			return (
 				<span>
-					{friendlyType} session to {workspace_owner_username}'s{" "}
+					{app_display_name ? (
+						<>
+							{app_display_name}{" "}
+							<span className="text-xs text-content-secondary">
+								({methodName})
+							</span>
+						</>
+					) : (
+						methodName
+					)}{" "}
+					session to {workspace_owner_username}'s{" "}
 					<Link asChild showExternalIcon={false} className="text-base">
 						<RouterLink to={`/@${workspace_owner_username}/${workspace_name}`}>
 							<strong>{workspace_name}</strong>

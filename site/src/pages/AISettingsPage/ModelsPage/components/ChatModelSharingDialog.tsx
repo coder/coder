@@ -1,19 +1,16 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
-import { chatModelACL, updateChatModelACL } from "#/api/queries/chats";
-import type * as TypesGen from "#/api/typesGenerated";
-import { getGroupSubtitle, isGroup } from "#/modules/groups";
 import {
-	ResourceSharingDialog,
-	type SharingDialogData,
-	type SharingPrincipal,
-	type SharingPrincipalSelection,
-} from "../../components/ResourceSharingDialog";
+	chatModelACL,
+	chatModelACLAvailable,
+	updateChatModelACL,
+} from "#/api/queries/chats";
+import { toast } from "#/components/Toaster/toast";
+import { ACLPrincipalAutocomplete } from "../../components/ACLPrincipalAutocomplete";
 import {
-	ChatModelPrincipalAutocomplete,
-	type ChatModelPrincipalAutocompleteValue,
-} from "./ChatModelPrincipalAutocomplete";
+	selectedPrincipal,
+	sharingDialogData,
+} from "../../components/aclSharing";
+import { ResourceSharingDialog } from "../../components/ResourceSharingDialog";
 
 type ChatModelSharingDialogProps = {
 	open: boolean;
@@ -23,56 +20,12 @@ type ChatModelSharingDialogProps = {
 	modelName: string;
 };
 
-type ChatModelPrincipal = Exclude<ChatModelPrincipalAutocompleteValue, null>;
-
-const groupPrincipal = (group: TypesGen.Group): SharingPrincipal => ({
-	id: group.id,
-	name: group.display_name || group.name,
-	subtitle: getGroupSubtitle(group),
-	avatarUrl: group.avatar_url,
-});
-
-const userPrincipal = (user: TypesGen.MinimalUser): SharingPrincipal => ({
-	id: user.id,
-	name: user.username,
-	subtitle: user.name || "User",
-	avatarUrl: user.avatar_url,
-});
-
-const sharingDialogData = (
-	acl: TypesGen.ChatModelACL,
-): SharingDialogData<TypesGen.ChatRole> => ({
-	acl: {
-		user_roles: Object.fromEntries(
-			acl.users.map((user) => [user.id, user.role]),
-		),
-		group_roles: Object.fromEntries(
-			acl.groups.map((group) => [group.id, group.role]),
-		),
-	},
-	principals: {
-		users: Object.fromEntries(
-			acl.users.map((user) => [user.id, userPrincipal(user)]),
-		),
-		groups: Object.fromEntries(
-			acl.groups.map((group) => [group.id, groupPrincipal(group)]),
-		),
-	},
-});
-
-const selectedPrincipal = (
-	option: ChatModelPrincipal,
-): SharingPrincipalSelection =>
-	isGroup(option)
-		? { kind: "group", principal: groupPrincipal(option) }
-		: { kind: "user", principal: userPrincipal(option) };
-
 type OpenChatModelSharingDialogProps = Omit<
 	ChatModelSharingDialogProps,
 	"open"
 >;
 
-const OpenChatModelSharingDialog: FC<OpenChatModelSharingDialogProps> = ({
+const OpenChatModelSharingDialog: React.FC<OpenChatModelSharingDialogProps> = ({
 	onOpenChange,
 	organizationId,
 	modelId,
@@ -108,13 +61,13 @@ const OpenChatModelSharingDialog: FC<OpenChatModelSharingDialogProps> = ({
 			readRole="read"
 			deletedRole=""
 			renderAutocomplete={({ value, onChange, excludedPrincipalIds }) => (
-				<ChatModelPrincipalAutocomplete
-					organizationId={organizationId}
+				<ACLPrincipalAutocomplete
 					value={value}
 					onChange={onChange}
-					modelId={modelId}
+					availableQueryOptions={(options) =>
+						chatModelACLAvailable(organizationId, modelId, options)
+					}
 					excludedPrincipalIds={excludedPrincipalIds}
-					className="w-full"
 				/>
 			)}
 			getPrincipal={selectedPrincipal}
@@ -134,6 +87,6 @@ const OpenChatModelSharingDialog: FC<OpenChatModelSharingDialogProps> = ({
 	);
 };
 
-export const ChatModelSharingDialog: FC<ChatModelSharingDialogProps> = (
+export const ChatModelSharingDialog: React.FC<ChatModelSharingDialogProps> = (
 	props,
 ) => (props.open ? <OpenChatModelSharingDialog {...props} /> : null);

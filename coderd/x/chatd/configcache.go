@@ -265,8 +265,7 @@ func (c *chatConfigCache) InvalidateAdvisorConfig() {
 // AdvisorConfig returns the deployment-wide advisor configuration. The
 // underlying site-config row changes on the order of hours or days, so
 // this cache saves a per-turn DB round trip on chats that reference the
-// advisor. Parse errors and lookup errors are surfaced to the caller;
-// callers that prefer silent fallback handle that at the call site.
+// advisor. Parse errors and lookup errors are surfaced to the caller.
 func (c *chatConfigCache) AdvisorConfig(ctx context.Context) (advisorRuntimeConfig, error) {
 	if config, ok := c.cachedAdvisorConfig(); ok {
 		return config, nil

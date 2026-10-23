@@ -29,16 +29,11 @@ func TitlePasteText(data []byte) string {
 	return string(data[:min(len(data), TitlePasteBytePrefix)])
 }
 
-// TitleText derives title-generation input from message parts. Text
-// and file-reference parts are joined in part order. When they yield
-// nothing, the content of synthetic pasted-text attachments is used
-// instead, looked up in pasteText by file ID and truncated to
-// syntheticPasteTitleBudget runes per file.
-//
-// The chat-creation fallback title and both title-generation paths
-// must derive their input through this function: auto-titling only
-// proceeds when the current title equals FallbackTitle of this exact
-// string, so a drift between derivations silently disables it.
+// TitleText derives title-generation input from message parts. Text,
+// file-reference, workspace-file-reference, and skill-invocation parts
+// are joined in part order. When they yield nothing, the content of synthetic
+// pasted-text attachments is used instead, looked up in pasteText by
+// file ID and truncated to syntheticPasteTitleBudget runes per file.
 func TitleText(parts []codersdk.ChatMessagePart, pasteText map[uuid.UUID]string) string {
 	texts := make([]string, 0, len(parts))
 	for _, part := range parts {
@@ -51,6 +46,16 @@ func TitleText(parts []codersdk.ChatMessagePart, pasteText map[uuid.UUID]string)
 			texts = append(texts, text)
 		case codersdk.ChatMessagePartTypeFileReference:
 			texts = append(texts, fileReferencePartToText(part))
+		case codersdk.ChatMessagePartTypeWorkspaceFileReference:
+			// The file name alone: this text can become the visible
+			// fallback title, so it must not carry prompt markers.
+			name := strings.TrimSpace(part.WorkspaceFileName)
+			if name == "" {
+				continue
+			}
+			texts = append(texts, name)
+		case codersdk.ChatMessagePartTypeSkillInvocation:
+			texts = append(texts, "/"+SkillInvocationAlias(part))
 		}
 	}
 	if joined := strings.TrimSpace(strings.Join(texts, " ")); joined != "" {
@@ -88,43 +93,25 @@ func SyntheticPasteFileIDs(parts []codersdk.ChatMessagePart) []uuid.UUID {
 	return ids
 }
 
-// fallbackTitleMaxRunes caps stored fallback titles; clients truncate
-// visually to fit their layout.
-const fallbackTitleMaxRunes = 80
+// DefaultChatTitle is the placeholder title for chats created without
+// any text to derive a title from (for example chats created with no
+// initial user message). It is always considered replaceable by
+// automatic title generation.
+const DefaultChatTitle = "New Chat"
 
 // FallbackTitle derives a deterministic chat title from title text:
 // the whole text with whitespace collapsed, capped at 80 runes and
-// ellipsized only when that cap cuts it. Empty input yields "New Chat".
+// ellipsized only when that cap cuts it. Clients truncate visually to
+// fit their layout. Empty input yields DefaultChatTitle.
 func FallbackTitle(message string) string {
+	const maxRunes = 80
+
 	title := strings.Join(strings.Fields(message), " ")
 	if title == "" {
-		return "New Chat"
+		return DefaultChatTitle
 	}
-	if len([]rune(title)) > fallbackTitleMaxRunes {
-		return stringutil.Truncate(title, fallbackTitleMaxRunes-1) + "…"
+	if len([]rune(title)) > maxRunes {
+		return stringutil.Truncate(title, maxRunes-1) + "…"
 	}
 	return title
-}
-
-// IsFallbackTitle reports whether title is the fallback title for
-// message. It also accepts the previous six-word format so chats
-// created by older replicas during a rolling deploy stay eligible for
-// auto-titling.
-func IsFallbackTitle(title, message string) bool {
-	return title == FallbackTitle(message) || title == legacyFallbackTitle(message)
-}
-
-// legacyFallbackTitle is the fallback title format used before titles
-// kept the full message: the first six words, ellipsized when cut.
-func legacyFallbackTitle(message string) string {
-	const maxWords = 6
-
-	words := strings.Fields(message)
-	if len(words) == 0 {
-		return "New Chat"
-	}
-	if len(words) <= maxWords {
-		return stringutil.Truncate(strings.Join(words, " "), fallbackTitleMaxRunes)
-	}
-	return stringutil.Truncate(strings.Join(words[:maxWords], " "), fallbackTitleMaxRunes-1) + "…"
 }

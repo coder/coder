@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { PaywallGuidance } from "#/components/Paywall/Paywall";
 import { Supergraphic } from "#/components/Supergraphic/Supergraphic";
@@ -17,7 +16,7 @@ type PremiumPageViewProps = {
 	error?: unknown;
 };
 
-export const PremiumPageView: FC<PremiumPageViewProps> = ({
+export const PremiumPageView: React.FC<PremiumPageViewProps> = ({
 	hasLicense,
 	isTrial,
 	canRequestTrial,
@@ -42,7 +41,7 @@ export const PremiumPageView: FC<PremiumPageViewProps> = ({
 	}
 
 	return (
-		<div className="rounded-lg border border-solid border-border-default bg-surface-primary overflow-hidden">
+		<div className="rounded-lg border border-solid border-border bg-surface-primary overflow-hidden">
 			<div className="grid grid-cols-1 lg:grid-cols-2 min-h-[640px]">
 				<div className="relative isolate overflow-hidden hidden lg:flex flex-col p-12 bg-surface-secondary">
 					<Supergraphic className="bg-position-[20%_20%] bg-size-[110%_125%] -scale-x-100" />

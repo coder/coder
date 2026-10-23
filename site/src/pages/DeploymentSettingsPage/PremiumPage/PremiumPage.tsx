@@ -1,8 +1,6 @@
 import dayjs from "dayjs";
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { createTrialLicense, licenses } from "#/api/queries/licenses";
 import { Link } from "#/components/Link/Link";
@@ -12,6 +10,7 @@ import {
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { DATABASE_DOCS_LINK } from "#/modules/licenses/trialLicense";
@@ -23,7 +22,7 @@ import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import { PremiumPageView } from "./PremiumPageView";
 
-const PremiumPage: FC = () => {
+const PremiumPage: React.FC = () => {
 	const { entitlements } = useDashboard();
 	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();

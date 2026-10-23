@@ -1,17 +1,16 @@
-import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import { templateByNameKey } from "#/api/queries/templates";
 import type { UpdateTemplateMeta } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { pageTitle } from "#/utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSchedulePageView } from "./TemplateSchedulePageView";
 
-const TemplateSchedulePage: FC = () => {
+const TemplateSchedulePage: React.FC = () => {
 	const getLink = useLinks();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();

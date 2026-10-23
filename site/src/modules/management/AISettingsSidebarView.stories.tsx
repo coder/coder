@@ -32,6 +32,7 @@ const LocationProbe = () => {
 
 const aiSettingsRoutes: [RouterRoute, ...RouterRoute[]] = [
 	{ path: "/ai/settings/governance", useStoryElement: true },
+	{ path: "/ai/settings/spend", useStoryElement: true },
 	{ path: "/ai/settings/gateway-keys", useStoryElement: true },
 	{ path: "/ai/settings/providers", useStoryElement: true },
 	{ path: "/ai/settings/coder-agents", useStoryElement: true },
@@ -44,6 +45,7 @@ const aiSettingsRoutes: [RouterRoute, ...RouterRoute[]] = [
 	{ path: "/ai/settings/mcp-servers/add", useStoryElement: true },
 	{ path: "/ai/settings/templates", useStoryElement: true },
 	{ path: "/ai/settings/instructions", useStoryElement: true },
+	{ path: "/ai/settings/skills", useStoryElement: true },
 	{ path: "/ai/settings/lifecycle", useStoryElement: true },
 ];
 
@@ -79,6 +81,7 @@ const meta: Meta<typeof AISettingsSidebarView> = {
 	],
 	args: {
 		permissions: MockPermissions,
+		canViewOrganizationInstructions: false,
 	},
 	parameters: {
 		reactRouter: atLocation("/ai/settings/coder-agents"),
@@ -89,6 +92,21 @@ export default meta;
 type Story = StoryObj<typeof AISettingsSidebarView>;
 
 export const CoderAgentsActive: Story = {};
+
+export const SpendVisible: Story = {
+	args: {
+		canViewAISpend: true,
+	},
+};
+
+export const SpendActive: Story = {
+	args: {
+		canViewAISpend: true,
+	},
+	parameters: {
+		reactRouter: atLocation("/ai/settings/spend"),
+	},
+};
 
 export const ModelsActive: Story = {
 	parameters: {
@@ -379,6 +397,29 @@ export const MCPServersHiddenWithoutPermission: Story = {
 		expect(
 			canvas.queryByRole("link", { name: "MCP servers" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const InstructionsForOrganizationAdmin: Story = {
+	args: {
+		permissions: MockNoPermissions,
+		canAccessOrganizationModels: true,
+		canViewOrganizationInstructions: true,
+	},
+	parameters: {
+		reactRouter: atLocation("/ai/settings/instructions"),
+	},
+};
+
+export const SkillsForOrganizationAuditor: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			viewAnyOrganizationSkills: true,
+		},
+	},
+	parameters: {
+		reactRouter: atLocation("/ai/settings/skills"),
 	},
 };
 

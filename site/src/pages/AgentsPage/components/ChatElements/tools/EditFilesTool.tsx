@@ -2,7 +2,6 @@ import type { FileDiffMetadata } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import type React from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
 import { getPathBasename } from "../../../utils/path";
 import { DiffFileHeader } from "./DiffFileHeader";
@@ -28,7 +27,7 @@ export const EditFilesTool: React.FC<{
 	status: ToolStatus;
 	isError: boolean;
 	errorMessage?: string;
-	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
+	codeDiffDisplayMode: TypesGen.AgentDisplayMode;
 }> = ({ files, diffs, status, isError, errorMessage, codeDiffDisplayMode }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
@@ -56,7 +55,7 @@ export const EditFilesTool: React.FC<{
 
 	return (
 		<ToolCall.Root
-			key={`${codeDiffDisplayMode ?? "auto"}:${EDIT_FILES_AUTO_DISPLAY_STATE}`}
+			key={`${codeDiffDisplayMode}:${EDIT_FILES_AUTO_DISPLAY_STATE}`}
 			className="w-full"
 			status={status}
 			isError={isError}
@@ -74,18 +73,16 @@ export const EditFilesTool: React.FC<{
 				<div className="mt-1.5 space-y-1.5">
 					{diffs.map((diff, i) =>
 						diff ? (
-							<ScrollArea
+							<ToolCall.Scrollable
 								key={files[i].path}
 								data-testid="edit-file-diff"
-								className="rounded-md border border-solid border-border-default text-2xs"
+								className="rounded-md border border-solid border-border text-2xs"
 								viewportClassName={
 									isAgentDisplayFullyExpanded(displayState)
 										? "max-h-[80vh]"
 										: "max-h-64"
 								}
-								viewportTabIndex={0}
-								viewportAriaLabel={`Diff of ${files[i].path}`}
-								scrollBarClassName="w-1.5"
+								ariaLabel={`Diff of ${files[i].path}`}
 							>
 								<FileDiff
 									fileDiff={stripNoNewline(diff)}
@@ -95,7 +92,7 @@ export const EditFilesTool: React.FC<{
 										<DiffFileHeader file={fileDiff} />
 									)}
 								/>
-							</ScrollArea>
+							</ToolCall.Scrollable>
 						) : null,
 					)}
 				</div>

@@ -1,11 +1,21 @@
+# Check out text files with LF line endings on every OS, so tests that read
+# checked-in files see the same bytes on Windows as on Linux.
+* text=auto eol=lf
+# SMTP golden files contain CRLF on purpose. Keep their bytes unchanged.
+coderd/notifications/testdata/rendered-templates/smtp/*.golden -text
+
 # Generated files
 agent/agentcontainers/acmock/acmock.go linguist-generated=true
 agent/agentcontainers/dcspec/dcspec_gen.go linguist-generated=true
 agent/agentcontainers/testdata/devcontainercli/*/*.log linguist-generated=true
 coderd/apidoc/docs.go linguist-generated=true
 coderd/externalauth/gitprovider/testdata/*/*/*.yaml linguist-generated=true
+docs/admin/setup/configuration-reference.md linguist-generated=true
+docs/reference/api-key-scopes.md linguist-generated=true
 docs/reference/api/*.md linguist-generated=true
-docs/reference/cli/*.md linguist-generated=true
+docs/reference/cli/**/*.md linguist-generated=true
+docs/manifest.json linguist-generated=true
+docs/manifest/generated/* linguist-generated=true
 coderd/apidoc/swagger.json linguist-generated=true
 coderd/database/dump.sql linguist-generated=true
 

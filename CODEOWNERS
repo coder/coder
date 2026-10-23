@@ -1,11 +1,11 @@
 # These APIs are versioned, so any changes need to be carefully reviewed for
 # whether to bump API major or minor versions.
-agent/proto/ @spikecurtis @johnstcn
-provisionerd/proto/ @spikecurtis @johnstcn
-provisionersdk/proto/ @spikecurtis @johnstcn
-tailnet/proto/ @spikecurtis @johnstcn
-vpn/vpn.proto @spikecurtis @johnstcn
-vpn/version.go @spikecurtis @johnstcn
+agent/proto/ @spikecurtis @mafredri
+provisionerd/proto/ @spikecurtis @mafredri
+provisionersdk/proto/ @spikecurtis @mafredri
+tailnet/proto/ @spikecurtis @mafredri
+vpn/vpn.proto @spikecurtis @mafredri
+vpn/version.go @spikecurtis @mafredri
 
 # This caching code is particularly tricky, and one must be very careful when
 # altering it.
@@ -35,9 +35,9 @@ site/src/pages/AgentsPage/ @coder/agents-frontend
 # Shared contract between chatd and aibridge: AI provider configuration and
 # model pricing, read by both. Note aicostcontrol.sql also carries group/user
 # AI budget and spend queries alongside the ai_model_prices queries.
-coderd/database/queries/ai_providers.sql @ibetitsmike @johnstcn
-coderd/database/queries/ai_provider_keys.sql @ibetitsmike @johnstcn
-coderd/database/queries/aicostcontrol.sql @ibetitsmike @johnstcn
+coderd/database/queries/ai_providers.sql @ibetitsmike @johnstcn @ssncferreira @SasSwart
+coderd/database/queries/ai_provider_keys.sql @ibetitsmike @johnstcn @ssncferreira @SasSwart
+coderd/database/queries/aicostcontrol.sql @ibetitsmike @johnstcn @ssncferreira @SasSwart
 codersdk/aiproviders.go @ibetitsmike @johnstcn
 codersdk/aiproviders_bedrock.go @ibetitsmike @johnstcn
 
@@ -45,5 +45,22 @@ codersdk/aiproviders_bedrock.go @ibetitsmike @johnstcn
 # aigateway-prices-refresh workflow proposes updates to both from live
 # models.dev data, and they carry customer-visible cost numbers, so every
 # refresh needs a review from someone who owns them.
-coderd/aibridge/prices/data/prices.json @evgeniy-scherbina @ssncferreira @johnstcn
-site/src/modules/aiModels/knownModels/knownModelsGenerated.json @evgeniy-scherbina @ssncferreira @johnstcn
+coderd/aibridge/prices/data/prices.json @ssncferreira @johnstcn @SasSwart
+site/src/modules/aiModels/knownModels/knownModelsGenerated.json @ssncferreira @johnstcn @SasSwart
+
+# The documentation and the CI that checks, previews, and publishes it. Docs
+# are served on coder.com, so a docs/ change gets the same code-owner review
+# as code. The workflow files stay co-owned with .github/'s owner, since a
+# later rule replaces an earlier one here.
+docs/ @nickvigilante
+.vale.ini @nickvigilante
+.markdownlint.jsonc @nickvigilante
+.markdownlint-cli2.jsonc @nickvigilante
+.github/workflows/audit-docs-paths.yaml @nickvigilante @jdomeracki-coder
+.github/workflows/deploy-docs.yaml @nickvigilante @jdomeracki-coder
+.github/workflows/doc-check.yaml @nickvigilante @jdomeracki-coder
+.github/workflows/docs-preview.yaml @nickvigilante @jdomeracki-coder
+.github/workflows/weekly-docs.yaml @nickvigilante @jdomeracki-coder
+.github/workflows/test-deploy-docs-diff.sh @nickvigilante @jdomeracki-coder
+.github/workflows/test-deploy-docs-release.sh @nickvigilante @jdomeracki-coder
+.github/workflows/test-docs-preview-mapper.sh @nickvigilante @jdomeracki-coder

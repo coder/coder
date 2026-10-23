@@ -1,14 +1,11 @@
 package main
 
 import (
-	"cmp"
-	"encoding/json"
+	"flag"
 	"os"
 	"path/filepath"
-	"slices"
 
 	"github.com/coder/coder/v2/enterprise/cli"
-	"github.com/coder/coder/v2/scripts/atomicwrite"
 	"github.com/coder/coder/v2/scripts/docgenenv"
 	"github.com/coder/flog"
 	"github.com/coder/serpent"
@@ -44,6 +41,9 @@ func deleteEmptyDirs(dir string) error {
 }
 
 func main() {
+	manifestOnly := flag.Bool("manifest-only", false, "Only rebuild the \"Command Line\" sidebar fragment; do not write reference pages.")
+	flag.Parse()
+
 	docgenenv.Prepare()
 
 	workdir, err := os.Getwd()
@@ -51,9 +51,6 @@ func main() {
 		flog.Fatalf("getwd: %v", err)
 	}
 	root := (&cli.RootCmd{})
-
-	// wroteMap indexes file paths to commands.
-	wroteMap := make(map[string]*serpent.Command)
 
 	var (
 		docsDir        = filepath.Join(workdir, "docs")
@@ -65,17 +62,20 @@ func main() {
 		cliMarkdownDir = filepath.Join(docsDir, "reference/cli")
 	}
 
-	// Load the manifest up front so the generated index page can mirror the
-	// "Command Line" route's curated metadata (title/description/icon_path)
+	// Load the sidebar sources up front so the generated index page can mirror
+	// the "Command Line" route's curated metadata (title/description/icon_path)
 	// instead of the root command name.
-	manifestPath := filepath.Join(docsDir, "manifest.json")
-	man, err := docgenenv.LoadManifest(manifestPath)
+	sourcesDir := filepath.Join(docsDir, docgenenv.ManifestSourcesDir)
+	man, err := docgenenv.LoadManifestSources(sourcesDir)
 	if err != nil {
 		flog.Fatalf("%v", err)
 	}
 	cmdLine := man.FindRoute("Reference", "Command Line")
 	if cmdLine == nil {
-		flog.Fatalf("could not find Command Line route in manifest %q", manifestPath)
+		flog.Fatalf("could not find Command Line route in sidebar sources %q", sourcesDir)
+	}
+	if cmdLine.ChildrenFrom == "" {
+		flog.Fatalf("Command Line route in sidebar sources %q must set children_from", sourcesDir)
 	}
 	// Mirror the whole "Command Line" route (minus its nav children) so the
 	// index page front matter carries every current and future per-page field
@@ -86,7 +86,26 @@ func main() {
 	if err != nil {
 		flog.Fatalf("creating command: %v", err)
 	}
-	err = genTree(
+	if !*manifestOnly {
+		writePages(cliMarkdownDir, cmd)
+	}
+
+	// Write the "Command Line" route's children, built from the command tree
+	// so the nav nests the same way the generated pages do, to the fragment
+	// the sources name in children_from.
+	fragment := filepath.Join(sourcesDir, filepath.FromSlash(cmdLine.ChildrenFrom))
+	if err := docgenenv.WriteRouteFragment(fragment, cliManifestChildren(cmd)); err != nil {
+		flog.Fatalf("%v", err)
+	}
+}
+
+// writePages generates a reference page for every visible command under
+// cliMarkdownDir, then deletes pages and directories left over from commands
+// that no longer exist.
+func writePages(cliMarkdownDir string, cmd *serpent.Command) {
+	// wroteMap indexes file paths to commands.
+	wroteMap := make(map[string]*serpent.Command)
+	err := genTree(
 		cliMarkdownDir,
 		cmd,
 		wroteMap,
@@ -119,33 +138,5 @@ func main() {
 	err = deleteEmptyDirs(cliMarkdownDir)
 	if err != nil {
 		flog.Fatalf("deleting empty dirs: %v", err)
-	}
-
-	// Rebuild the "Command Line" route's children from the generated pages.
-	// cmdLine aliases the manifest loaded above, so mutating it updates the
-	// manifest in place.
-	cmdLine.Children = nil
-	for path, cmd := range wroteMap {
-		relPath, err := filepath.Rel(docsDir, path)
-		if err != nil {
-			flog.Fatalf("getting relative path: %v", err)
-		}
-		child := cliCommandRoute(cmd)
-		child.Path = relPath
-		cmdLine.Children = append(cmdLine.Children, child)
-	}
-	// Sort children by title because wroteMap iteration is non-deterministic.
-	slices.SortFunc(cmdLine.Children, func(a, b docgenenv.Route) int {
-		return cmp.Compare(a.Title, b.Title)
-	})
-
-	manifestByt, err := json.MarshalIndent(man, "", "  ")
-	if err != nil {
-		flog.Fatalf("marshaling manifest: %v", err)
-	}
-
-	err = atomicwrite.File(manifestPath, manifestByt)
-	if err != nil {
-		flog.Fatalf("writing manifest: %v", err)
 	}
 }

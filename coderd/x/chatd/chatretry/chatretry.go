@@ -21,12 +21,6 @@ const (
 	// MaxDelay is the upper bound for the exponential backoff
 	// duration. Matches the cap used in coder/mux.
 	MaxDelay = 60 * time.Second
-
-	// MaxAttempts is the upper bound on retry attempts before
-	// giving up. With a 60s max backoff this allows roughly
-	// 25 minutes of retries, which is reasonable for transient
-	// LLM provider issues.
-	MaxAttempts = 25
 )
 
 type ClassifiedError = chaterror.ClassifiedError
@@ -89,9 +83,11 @@ type RetryFn func(ctx context.Context) error
 type OnRetryFn func(attempt int, err error, classified ClassifiedError, delay time.Duration)
 
 // Retry calls fn repeatedly until it succeeds, returns a
-// non-retryable error, ctx is canceled, or MaxAttempts is reached.
-// Retries use exponential backoff capped at MaxDelay, unless the
-// normalized error includes a longer provider Retry-After hint.
+// non-retryable error, ctx is canceled, or it has been retried
+// maxRetries times. Retries use exponential backoff capped at
+// MaxDelay, unless the normalized error includes a longer provider
+// Retry-After hint. maxRetries must be at least 1; otherwise Retry
+// returns an error without calling fn.
 //
 // When fn returns bare context.Canceled while ctx is still alive, Retry
 // treats it as a provider transport reset and retries it.
@@ -99,7 +95,10 @@ type OnRetryFn func(attempt int, err error, classified ClassifiedError, delay ti
 // The onRetry callback (if non-nil) is called before each retry
 // attempt, giving the caller a chance to reset state, log, or
 // publish status events.
-func Retry(ctx context.Context, fn RetryFn, onRetry OnRetryFn) error {
+func Retry(ctx context.Context, maxRetries int, fn RetryFn, onRetry OnRetryFn) error {
+	if maxRetries < 1 {
+		return xerrors.Errorf("max retries must be positive, got %d", maxRetries)
+	}
 	var attempt int
 	for {
 		if ctxErr := contextError(ctx); ctxErr != nil {
@@ -123,9 +122,9 @@ func Retry(ctx context.Context, fn RetryFn, onRetry OnRetryFn) error {
 		}
 
 		attempt++
-		if attempt >= MaxAttempts {
+		if attempt > maxRetries {
 			return chaterror.WithClassification(
-				xerrors.Errorf("max retry attempts (%d) exceeded: %w", MaxAttempts, err),
+				xerrors.Errorf("max retries (%d) exceeded: %w", maxRetries, err),
 				classified,
 			)
 		}

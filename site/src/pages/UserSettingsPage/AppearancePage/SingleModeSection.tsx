@@ -1,5 +1,6 @@
 import { cn } from "cn";
-import type { FC } from "react";
+import { useId } from "react";
+import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import type { ConcreteThemeName } from "#/theme";
 import { ThemePreview } from "./ThemePreview";
 import { DARK_THEMES, LIGHT_THEMES, THEME_COPY } from "./themeCopy";
@@ -15,74 +16,53 @@ const SINGLE_MODE_ORDER: ConcreteThemeName[] = [
 	...DARK_THEMES,
 ];
 
-export const SingleModeSection: FC<SingleModeSectionProps> = ({
+export const SingleModeSection: React.FC<SingleModeSectionProps> = ({
 	selected,
 	name = "theme-single",
 	onSelect,
 }) => {
 	return (
-		<fieldset className="m-0 min-w-0 border-0 p-0">
-			<legend className="sr-only">Theme</legend>
-			<div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-				{SINGLE_MODE_ORDER.map((theme) => (
-					<SingleTile
-						key={theme}
-						name={name}
-						theme={theme}
-						selected={theme === selected}
-						onSelect={() => onSelect(theme)}
-					/>
-				))}
-			</div>
-		</fieldset>
+		<RadioGroup
+			aria-label="Theme"
+			name={name}
+			value={selected}
+			onValueChange={(value) => {
+				const theme = SINGLE_MODE_ORDER.find((t) => t === value);
+				if (theme) {
+					onSelect(theme);
+				}
+			}}
+			className="grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+		>
+			{SINGLE_MODE_ORDER.map((theme) => (
+				<SingleTile key={theme} theme={theme} selected={theme === selected} />
+			))}
+		</RadioGroup>
 	);
 };
 
 type SingleTileProps = {
-	name: string;
 	theme: ConcreteThemeName;
 	selected: boolean;
-	onSelect: () => void;
 };
 
-const SingleTile: FC<SingleTileProps> = ({
-	name,
-	theme,
-	selected,
-	onSelect,
-}) => {
+const SingleTile: React.FC<SingleTileProps> = ({ theme, selected }) => {
 	const copy = THEME_COPY[theme];
+	const id = useId();
 	return (
 		<label
+			htmlFor={id}
 			className={cn(
 				"flex cursor-pointer flex-col gap-3 rounded-md border border-solid border-border p-4",
 				selected && "ring-2 ring-content-link",
-				"has-[input:focus-visible]:outline-solid has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-content-link",
+				"has-[button:focus-visible]:outline-solid has-[button:focus-visible]:outline-2 has-[button:focus-visible]:outline-offset-2 has-[button:focus-visible]:outline-content-link",
 			)}
 		>
-			<input
-				type="radio"
-				name={name}
-				value={theme}
-				checked={selected}
-				onChange={onSelect}
-				className="sr-only"
-			/>
 			<div className="relative">
 				<ThemePreview theme={theme} size="lg" />
 			</div>
 			<div className="flex items-start gap-3">
-				<span
-					aria-hidden="true"
-					className={cn(
-						"mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border border-solid border-border bg-surface-primary",
-						selected && "border-border-secondary",
-					)}
-				>
-					{selected && (
-						<span className="size-2.5 rounded-full bg-surface-invert-primary" />
-					)}
-				</span>
+				<RadioGroupItem id={id} value={theme} className="mt-0.5 shrink-0" />
 				<div className="flex flex-col gap-1">
 					<span className="font-medium text-content-primary">{copy.title}</span>
 					<span className="text-sm text-content-secondary">

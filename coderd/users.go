@@ -477,6 +477,12 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		if req.UserStatus != nil && *req.UserStatus == codersdk.UserStatusDormant {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Service accounts can't be dormant.",
+			})
+			return
+		}
 
 		req.UserLoginType = codersdk.LoginTypeNone
 
@@ -784,57 +790,6 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 	sdkUser := db2sdk.User(user, organizationIDs)
 	api.enrichUserAISeat(ctx, &sdkUser)
 	httpapi.Write(ctx, rw, http.StatusOK, sdkUser)
-}
-
-// Returns recent build parameters for the signed-in user.
-//
-// @Summary Get autofill build parameters for user
-// @ID get-autofill-build-parameters-for-user
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Users
-// @Param user path string true "User ID, username, or me"
-// @Param template_id query string true "Template ID"
-// @Success 200 {array} codersdk.UserParameter
-// @Router /api/v2/users/{user}/autofill-parameters [get]
-func (api *API) userAutofillParameters(rw http.ResponseWriter, r *http.Request) {
-	user := httpmw.UserParam(r)
-
-	p := httpapi.NewQueryParamParser().RequiredNotEmpty("template_id")
-	templateID := p.UUID(r.URL.Query(), uuid.UUID{}, "template_id")
-	p.ErrorExcessParams(r.URL.Query())
-	if len(p.Errors) > 0 {
-		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid query parameters.",
-			Validations: p.Errors,
-		})
-		return
-	}
-
-	params, err := api.Database.GetUserWorkspaceBuildParameters(
-		r.Context(),
-		database.GetUserWorkspaceBuildParametersParams{
-			OwnerID:    user.ID,
-			TemplateID: templateID,
-		},
-	)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching user's parameters.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	sdkParams := []codersdk.UserParameter{}
-	for _, param := range params {
-		sdkParams = append(sdkParams, codersdk.UserParameter{
-			Name:  param.Name,
-			Value: param.Value,
-		})
-	}
-
-	httpapi.Write(r.Context(), rw, http.StatusOK, sdkParams)
 }
 
 // Returns the user's login type. This only works if the api key for authorization
@@ -1485,6 +1440,15 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	collapseAssistantSteps, err := api.Database.GetUserCollapseAssistantSteps(ctx, user.ID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error reading user preference settings.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	agentChatSendShortcut, err := api.Database.GetUserAgentChatSendShortcut(ctx, user.ID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1495,10 +1459,11 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
-		ThinkingDisplayMode:   sanitizeThinkingDisplayMode(thinkingMode),
-		ShellToolDisplayMode:  sanitizeShellToolDisplayMode(shellToolMode),
-		CodeDiffDisplayMode:   sanitizeAgentDisplayMode(codeDiffMode),
-		AgentChatSendShortcut: sanitizeAgentChatSendShortcut(agentChatSendShortcut),
+		ThinkingDisplayMode:    sanitizeThinkingDisplayMode(thinkingMode),
+		ShellToolDisplayMode:   sanitizeShellToolDisplayMode(shellToolMode),
+		CodeDiffDisplayMode:    sanitizeAgentDisplayMode(codeDiffMode),
+		CollapseAssistantSteps: collapseAssistantSteps,
+		AgentChatSendShortcut:  sanitizeAgentChatSendShortcut(agentChatSendShortcut),
 	})
 }
 
@@ -1614,6 +1579,23 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 				return newUserPreferenceSettingsAPIError("Error reading code diff display mode.", err)
 			}
 			settings.CodeDiffDisplayMode = sanitizeAgentDisplayMode(stored)
+		}
+
+		if params.CollapseAssistantSteps != nil {
+			updated, err := tx.UpdateUserCollapseAssistantSteps(ctx, database.UpdateUserCollapseAssistantStepsParams{
+				UserID:                 user.ID,
+				CollapseAssistantSteps: *params.CollapseAssistantSteps,
+			})
+			if err != nil {
+				return newUserPreferenceSettingsAPIError("Internal error updating user collapse assistant steps.", err)
+			}
+			settings.CollapseAssistantSteps = updated
+		} else {
+			stored, err := tx.GetUserCollapseAssistantSteps(ctx, user.ID)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return newUserPreferenceSettingsAPIError("Error reading collapse assistant steps.", err)
+			}
+			settings.CollapseAssistantSteps = stored
 		}
 
 		if params.AgentChatSendShortcut != "" {

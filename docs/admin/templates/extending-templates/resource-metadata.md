@@ -1,16 +1,14 @@
 ---
-title: Resource Metadata
+title: Resource metadata
 ---
 
-Expose key workspace information to your users with
-[`coder_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata)
-resources in your template code.
+Expose key workspace information to your users with [`coder_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata) resources in your template code.
 
 You can use `coder_metadata` to show Terraform resource attributes like these:
 
 - Compute resources
 - IP addresses
-- [Secrets](../../security/secrets.md#displaying-secrets)
+- [Secrets](../../security/secrets.md#display-secrets)
 - Important file paths
 
 ![ui](../../../images/admin/templates/coder-metadata-ui.png)
@@ -18,13 +16,11 @@ You can use `coder_metadata` to show Terraform resource attributes like these:
 > [!NOTE]
 > Coder automatically generates the <code>type</code> metadata.
 
-You can also present automatically updating, dynamic values with
-[agent metadata](./agent-metadata.md).
+You can also present automatically updating, dynamic values with [agent metadata](./agent-metadata.md).
 
 ## Example
 
-Expose the disk size, deployment name, and persistent directory in a Kubernetes
-template with:
+Expose the disk size, deployment name, and persistent directory in a Kubernetes template with:
 
 ```tf
 resource "kubernetes_persistent_volume_claim" "root" {
@@ -59,11 +55,13 @@ resource "coder_metadata" "deployment" {
 }
 ```
 
-## Hiding resources in the dashboard
+<a id="hiding-resources-in-the-dashboard"></a>
 
-Some resources don't need to be exposed in the dashboard's UI. This helps keep
-the workspace view clean for developers. To hide a resource, use the `hide`
-attribute:
+## Hide resources in the dashboard
+
+Some resources don't need to be exposed in the dashboard's UI.
+This helps keep the workspace view clean for developers.
+To hide a resource, use the `hide` attribute:
 
 ```tf
 resource "coder_metadata" "hide_serviceaccount" {
@@ -77,10 +75,12 @@ resource "coder_metadata" "hide_serviceaccount" {
 }
 ```
 
-## Using a custom resource icon
+<a id="using-a-custom-resource-icon"></a>
 
-To use custom icons for your resource metadata, use the `icon` attribute. It
-must be a valid path or URL.
+## Use a custom resource icon
+
+To use custom icons for your resource metadata, use the `icon` attribute.
+It must be a valid path or URL.
 
 ```tf
 resource "coder_metadata" "resource_with_icon" {
@@ -94,8 +94,7 @@ resource "coder_metadata" "resource_with_icon" {
 }
 ```
 
-To make it easier for you to customize your resource we added some built-in
-icons:
+To make it easier for you to customize your resource we added some built-in icons:
 
 - Folder `/icon/folder.svg`
 - Memory `/icon/memory.svg`
@@ -103,8 +102,8 @@ icons:
 - Widgets `/icon/widgets.svg`
 - Database `/icon/database.svg`
 
-We also have other icons related to the IDEs. You can see more information on
-how to use the builtin icons [here](./icons.md).
+We also have other icons related to the IDEs.
+You can see more information on how to use the builtin icons [here](./icons.md).
 
 ## Up next
 

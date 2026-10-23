@@ -1,7 +1,9 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { getAttachmentHref } from "../../utils/chatAttachments";
 import { asRecord } from "../ChatElements/runtimeTypeUtils";
 import { shouldRenderTool } from "../ChatElements/tools/toolVisibility";
 import type {
+	MergedTool,
 	ParsedMessageContent,
 	ParsedMessageEntry,
 	RenderBlock,
@@ -9,16 +11,24 @@ import type {
 
 export type UserInlineRenderBlock =
 	| Extract<RenderBlock, { type: "response" }>
-	| Extract<RenderBlock, { type: "file-reference" }>;
+	| Extract<RenderBlock, { type: "file-reference" }>
+	| Extract<RenderBlock, { type: "skill-invocation" }>;
 
 type FileRenderBlock = Extract<RenderBlock, { type: "file" }>;
+type WorkspaceFileReferenceBlock = Extract<
+	RenderBlock,
+	{ type: "workspace-file-reference" }
+>;
 
 export type MessageDisplayState = {
 	shouldHide: boolean;
 	userInlineContent: UserInlineRenderBlock[];
 	userFileBlocks: FileRenderBlock[];
+	workspaceFileBlocks: WorkspaceFileReferenceBlock[];
+	workspaceFileReferenceCount: number;
 	hasUserMessageBody: boolean;
 	hasFileBlocks: boolean;
+	hasWorkspaceFileReferences: boolean;
 	hasCopyableContent: boolean;
 	needsAssistantBottomSpacer: boolean;
 };
@@ -36,16 +46,24 @@ type HiddenTimelineEntryReason =
 const isUserInlineRenderBlock = (
 	block: RenderBlock,
 ): block is UserInlineRenderBlock =>
-	block.type === "response" || block.type === "file-reference";
+	block.type === "response" ||
+	block.type === "file-reference" ||
+	block.type === "skill-invocation";
 
 const isFileRenderBlock = (block: RenderBlock): block is FileRenderBlock =>
 	block.type === "file";
 
+const isWorkspaceFileReferenceBlock = (
+	block: RenderBlock,
+): block is WorkspaceFileReferenceBlock =>
+	block.type === "workspace-file-reference";
+
+export const isProviderToolResult = (part: TypesGen.ChatMessagePart): boolean =>
+	part.type === "tool-result" && part.provider_executed === true;
+
 const isProviderToolResultOnlyMessage = (
 	parts: readonly TypesGen.ChatMessagePart[],
-): boolean =>
-	parts.length > 0 &&
-	parts.every((part) => part.type === "tool-result" && part.provider_executed);
+): boolean => parts.length > 0 && parts.every(isProviderToolResult);
 
 const isMetadataOnlyMessage = (
 	parts: readonly TypesGen.ChatMessagePart[],
@@ -53,8 +71,11 @@ const isMetadataOnlyMessage = (
 	parts.length > 0 &&
 	parts.every((part) => part.type === "context-file" || part.type === "skill");
 
-const getRenderableContentState = (parsed: ParsedMessageContent) => {
-	const visibleTools = parsed.tools.filter((tool) =>
+export const getVisibleContent = (
+	blocks: readonly RenderBlock[],
+	tools: readonly MergedTool[],
+) => {
+	const visibleTools = tools.filter((tool) =>
 		shouldRenderTool({
 			name: tool.name,
 			status: tool.status,
@@ -63,8 +84,21 @@ const getRenderableContentState = (parsed: ParsedMessageContent) => {
 		}),
 	);
 	const visibleToolIds = new Set(visibleTools.map((tool) => tool.id));
-	const visibleBlocks = parsed.blocks.filter(
-		(block) => block.type !== "tool" || visibleToolIds.has(block.id),
+	// Workspace file references render as chips from the display
+	// state, not as standalone timeline blocks.
+	const visibleBlocks = blocks.filter(
+		(block) =>
+			block.type !== "workspace-file-reference" &&
+			(block.type !== "tool" || visibleToolIds.has(block.id)),
+	);
+
+	return { visibleBlocks, visibleTools };
+};
+
+const getRenderableContentState = (parsed: ParsedMessageContent) => {
+	const { visibleBlocks, visibleTools } = getVisibleContent(
+		parsed.blocks,
+		parsed.tools,
 	);
 	const hasRenderableContent =
 		visibleBlocks.length > 0 ||
@@ -128,19 +162,24 @@ export const deriveMessageDisplayState = ({
 	parsed,
 	hideActions,
 	hasActiveStream,
-	isAwaitingFirstStreamChunk = false,
+	isAwaitingFirstStreamChunk,
 }: {
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
 	hideActions: boolean;
 	hasActiveStream: boolean;
-	isAwaitingFirstStreamChunk?: boolean;
+	isAwaitingFirstStreamChunk: boolean;
 }): MessageDisplayState => {
 	const isUser = message.role === "user";
 	const userInlineContent = isUser
 		? parsed.blocks.filter(isUserInlineRenderBlock)
 		: [];
 	const userFileBlocks = isUser ? parsed.blocks.filter(isFileRenderBlock) : [];
+	const workspaceFileBlocks = isUser
+		? parsed.blocks.filter(isWorkspaceFileReferenceBlock)
+		: [];
+	const workspaceFileReferenceCount = workspaceFileBlocks.length;
+	const hasWorkspaceFileReferences = workspaceFileReferenceCount > 0;
 	const hasFileAttachments = parsed.blocks.some(isFileRenderBlock);
 	const hasUserMessageBody =
 		userInlineContent.length > 0 || Boolean(parsed.markdown.trim());
@@ -154,6 +193,7 @@ export const deriveMessageDisplayState = ({
 	const hasCopyableContent =
 		Boolean(parsed.markdown.trim()) &&
 		!hasFileAttachments &&
+		!hasWorkspaceFileReferences &&
 		(isUser || endsWithResponseBlock);
 	const needsAssistantBottomSpacer =
 		!hideActions &&
@@ -166,8 +206,11 @@ export const deriveMessageDisplayState = ({
 		shouldHide: shouldHideTimelineEntry({ message, parsed }),
 		userInlineContent,
 		userFileBlocks,
+		workspaceFileBlocks,
+		workspaceFileReferenceCount,
 		hasUserMessageBody,
 		hasFileBlocks,
+		hasWorkspaceFileReferences,
 		hasCopyableContent,
 		needsAssistantBottomSpacer,
 	};
@@ -296,7 +339,7 @@ const partFileIds = (part: TypesGen.ChatMessagePart): string[] => {
  * next chat refetch is never mistaken for an evicted one.
  */
 export const deriveEvictedFileIds = (
-	entries: readonly ParsedMessageEntry[],
+	entries: readonly Pick<ParsedMessageEntry, "message">[],
 	chatFiles: readonly TypesGen.ChatFileMetadata[] | undefined,
 ): ReadonlySet<string> => {
 	if (!chatFiles) {
@@ -315,3 +358,44 @@ export const deriveEvictedFileIds = (
 			.filter((fileId) => !linkedFileIds.has(fileId)),
 	);
 };
+
+/** A downloadable file the agent attached, keyed by message and part. */
+export type AgentAttachment = {
+	key: string;
+	file: TypesGen.ChatFilePart;
+	href: string;
+};
+
+/**
+ * Downloadable files the agent attached to its messages, newest first. Files
+ * the user uploaded are left out.
+ */
+export const getAgentAttachments = (
+	messages: readonly TypesGen.ChatMessage[],
+): AgentAttachment[] =>
+	messages
+		.filter((message) => message.role === "assistant")
+		.flatMap((message) =>
+			(message.content ?? []).flatMap((part, partIndex) => {
+				if (part.type !== "file") {
+					return [];
+				}
+				const href = getAttachmentHref(part);
+				return href
+					? [{ key: `${message.id}:${partIndex}`, file: part, href }]
+					: [];
+			}),
+		)
+		.reverse();
+
+/**
+ * Undefined until the chat's first message page reaches the store; gating on
+ * isHydratingMessages alone would blank the list on every live message.
+ */
+export const getLoadedAgentAttachments = (
+	messages: readonly TypesGen.ChatMessage[],
+	isHydratingMessages: boolean,
+): AgentAttachment[] | undefined =>
+	isHydratingMessages && messages.length === 0
+		? undefined
+		: getAgentAttachments(messages);

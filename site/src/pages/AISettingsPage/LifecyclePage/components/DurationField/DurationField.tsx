@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
-import { type FC, type ReactNode, useState } from "react";
+import { useState } from "react";
 import { Input } from "#/components/Input/Input";
 import {
 	Select,
@@ -22,7 +22,7 @@ type DurationFieldProps = {
 	label?: string;
 	disabled?: boolean;
 	error?: boolean;
-	helperText?: ReactNode;
+	helperText?: React.ReactNode;
 	className?: string;
 };
 
@@ -42,7 +42,7 @@ function toDisplayValue(ms: number, unit: TimeUnit): string {
 		: durationInDays(ms).toString();
 }
 
-export const DurationField: FC<DurationFieldProps> = ({
+export const DurationField: React.FC<DurationFieldProps> = ({
 	valueMs,
 	onChange,
 	label,
@@ -100,7 +100,7 @@ export const DurationField: FC<DurationFieldProps> = ({
 					aria-label={label}
 					aria-invalid={error}
 					disabled={disabled}
-					className="h-10 w-24 flex-none gap-2 rounded-md border-border-default px-3 shadow-none"
+					className="h-10 w-24 flex-none gap-2 rounded-md border-border px-3 shadow-none"
 				/>
 				<Select
 					value={unit}
@@ -108,7 +108,7 @@ export const DurationField: FC<DurationFieldProps> = ({
 					disabled={disabled}
 				>
 					<SelectTrigger
-						className="h-10 w-[120px] flex-none gap-2 rounded-md border-border-default px-3 shadow-none"
+						className="h-10 w-[120px] flex-none gap-2 rounded-md border-border px-3 shadow-none"
 						aria-label="Time unit"
 					>
 						<SelectValue />

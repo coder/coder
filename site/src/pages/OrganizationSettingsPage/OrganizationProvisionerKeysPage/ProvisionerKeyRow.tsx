@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Link as RouterLink } from "react-router";
 import type { ProvisionerDaemon, ProvisionerKey } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -19,7 +19,7 @@ type ProvisionerKeyRowProps = {
 	defaultIsOpen: boolean;
 };
 
-export const ProvisionerKeyRow: FC<ProvisionerKeyRowProps> = ({
+export const ProvisionerKeyRow: React.FC<ProvisionerKeyRowProps> = ({
 	provisionerKey,
 	provisioners,
 	defaultIsOpen = false,
@@ -101,7 +101,7 @@ export const ProvisionerKeyRow: FC<ProvisionerKeyRowProps> = ({
 										</span>
 									)}
 									{provisioners.map((provisioner) => (
-										<Badge hover key={provisioner.id} size="sm" asChild>
+										<Badge hover key={provisioner.id} asChild>
 											<RouterLink
 												to={`../provisioners?${new URLSearchParams({ ids: provisioner.id })}`}
 											>
@@ -123,7 +123,7 @@ type TruncateProvisionersProps = {
 	provisioners: readonly ProvisionerDaemon[];
 };
 
-const TruncateProvisioners: FC<TruncateProvisionersProps> = ({
+const TruncateProvisioners: React.FC<TruncateProvisionersProps> = ({
 	provisioners,
 }) => {
 	const firstProvisioner = provisioners[0];
@@ -131,8 +131,8 @@ const TruncateProvisioners: FC<TruncateProvisionersProps> = ({
 
 	return (
 		<ProvisionerTags>
-			<Badge size="sm">{firstProvisioner.name}</Badge>
-			{remainderCount > 0 && <Badge size="sm">+{remainderCount}</Badge>}
+			<Badge>{firstProvisioner.name}</Badge>
+			{remainderCount > 0 && <Badge>+{remainderCount}</Badge>}
 		</ProvisionerTags>
 	);
 };

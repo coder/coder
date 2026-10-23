@@ -1,6 +1,5 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { deploymentIdpSyncFieldValues } from "#/api/queries/deployment";
 import {
@@ -14,6 +13,7 @@ import {
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
@@ -23,7 +23,7 @@ import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import { IdpOrgSyncPageView } from "./IdpOrgSyncPageView";
 
-const IdpOrgSyncPage: FC = () => {
+const IdpOrgSyncPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
 	// IdP sync does not have its own entitlement and is based on templace_rbac

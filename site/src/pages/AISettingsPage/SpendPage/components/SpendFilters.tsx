@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { MaxAISpendPeriodDays, type Organization } from "#/api/typesGenerated";
 import { DateTimeRangePicker } from "#/components/DateTimeRangePicker/DateTimeRangePicker";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
@@ -20,6 +19,8 @@ import {
 } from "#/pages/AIBridgePage/filters/ProviderFilter";
 import { spendQuickPresets } from "../spendPeriod";
 
+// Flex basis for each dimension dropdown. The organization picker repeats
+// this value as `basis-[150px]`, so change both together.
 const FILTER_WIDTH = 150;
 
 export type SpendFilterMenus = {
@@ -39,7 +40,7 @@ type SpendFiltersProps = {
 	onPeriodChange: (value: DateTimeRangeValue) => void;
 };
 
-export const SpendFilters: FC<SpendFiltersProps> = ({
+export const SpendFilters: React.FC<SpendFiltersProps> = ({
 	organizations,
 	organization,
 	onOrganizationChange,

@@ -17,6 +17,7 @@ import {
 	$isParagraphNode,
 	$isRangeSelection,
 	$isTextNode,
+	$parseSerializedNode,
 	COMMAND_PRIORITY_HIGH,
 	FORMAT_ELEMENT_COMMAND,
 	FORMAT_TEXT_COMMAND,
@@ -24,9 +25,9 @@ import {
 	KEY_ENTER_COMMAND,
 	type LexicalEditor,
 	PASTE_COMMAND,
+	type SerializedLexicalNode,
 } from "lexical";
 import {
-	type FC,
 	useEffect,
 	useImperativeHandle,
 	useLayoutEffect,
@@ -34,18 +35,30 @@ import {
 	useState,
 } from "react";
 import { useQuery } from "react-query";
+import {
+	chatProjectSkills,
+	chatProjectUsability,
+	usableChatProjectSkills,
+} from "#/api/queries/chatProjectSkills";
+import { chatProject } from "#/api/queries/chatProjects";
+import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MODIFIER_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
 import {
-	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
-	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
-} from "../../utils/agentChatSendShortcut";
-import { isChatAttachmentFile } from "../../utils/chatAttachments";
+	resolveSkillTriggers,
+	type SkillSource,
+	type SkillSourceList,
+} from "../../utils/skillAliases";
 import {
 	filterSkillsByQuery,
-	isPersonalSkillTriggerToken,
-} from "../../utils/personalSkills";
-import type { ChatSlashCommand } from "../../utils/slashCommands";
+	isSkillTriggerToken,
+	type SkillsScope,
+} from "../../utils/skills";
+import {
+	type ChatSlashCommand,
+	resolveChatSlashCommandAvailability,
+} from "../../utils/slashCommands";
 import {
 	$createFileReferenceNode,
 	FileReferenceNode,
@@ -59,8 +72,12 @@ import {
 	type PasteCommandEvent,
 } from "./pasteHelpers";
 import {
+	$getSkillInvocationNodes,
+	$insertSkillInvocation,
+	SkillInvocationNode,
+} from "./SkillInvocationNode";
+import {
 	createCommandMenuItem,
-	createSkillMenuItem,
 	type SkillMenuItem,
 	type SkillMetadata,
 	SkillsTriggerMenu,
@@ -69,10 +86,15 @@ import {
 	type ActiveSkillsTrigger,
 	SkillsTriggerPlugin,
 } from "./SkillsTriggerPlugin";
+import {
+	$insertClipboardNodes,
+	getClipboardNodes,
+	registerSkillAliasCopy,
+} from "./skillClipboard";
 
 // Blocks Cmd+B/I/U and element formatting shortcuts so the editor
 // stays plain-text only.
-const DisableFormattingPlugin: FC = function DisableFormattingPlugin() {
+const DisableFormattingPlugin: React.FC = function DisableFormattingPlugin() {
 	const [editor] = useLexicalComposerContext();
 
 	useEffect(() => {
@@ -145,19 +167,25 @@ function replacePlainTextInEditor(editor: LexicalEditor, text: string) {
 	});
 }
 
+const EDITOR_NAMESPACE = "ChatMessageInput";
+
 // Intercepts paste events and inserts clipboard content as plain text,
 // stripping any rich-text formatting. Image files and large pasted text
 // are forwarded to the parent via the onFilePaste callback instead.
+// Content copied from a chat composer keeps its chips, and copying puts
+// skill chips into the plain-text form as their aliases.
 //
 // Cmd/Ctrl+Shift+V ("paste and match style") is treated as an explicit
 // user intent to paste inline, so the large-paste-to-attachment
 // conversion is bypassed for that shortcut.
-const PasteSanitizationPlugin: FC<{
-	onFilePaste?: (file: File) => void;
+const PasteSanitizationPlugin: React.FC<{
+	onFilePaste?: (file: File) => boolean;
 	allowTextAttachmentPaste?: boolean;
+	isSkillAvailable: (source: SkillSource, name: string) => boolean;
 }> = function PasteSanitizationPlugin({
 	onFilePaste,
 	allowTextAttachmentPaste = true,
+	isSkillAvailable,
 }) {
 	const [editor] = useLexicalComposerContext();
 	const plainTextPasteRef = useRef(false);
@@ -165,6 +193,7 @@ const PasteSanitizationPlugin: FC<{
 
 	useEffect(() => {
 		const unregister = mergeRegister(
+			registerSkillAliasCopy(editor, EDITOR_NAMESPACE),
 			// Detect Cmd/Ctrl+Shift+V so the PASTE_COMMAND handler
 			// can bypass attachment conversion for that shortcut.
 			editor.registerCommand(
@@ -228,20 +257,40 @@ const PasteSanitizationPlugin: FC<{
 					}
 					// Native paste event (ClipboardEvent).
 
-					// Check for attachable files in the clipboard (e.g.
-					// pasted screenshots). Forward them to the parent
-					// via callback instead of inserting text.
+					// Check for files in the clipboard, such as pasted
+					// screenshots or archives. Forward all files to the
+					// parent, which routes each one to the attachment
+					// pipeline or a workspace upload by MIME type.
 					if (onFilePaste && dataTransfer?.files.length) {
-						const attachable = Array.from(dataTransfer.files).filter(
-							isChatAttachmentFile,
-						);
-						if (attachable.length > 0) {
-							event.preventDefault();
-							for (const file of attachable) {
-								onFilePaste(file);
+						let routed = false;
+						for (const file of Array.from(dataTransfer.files)) {
+							if (onFilePaste(file)) {
+								routed = true;
 							}
+						}
+						if (routed) {
+							event.preventDefault();
 							return true;
 						}
+						// Every file was refused (for example an archive
+						// pasted while workspace uploads are unavailable).
+						// Fall through so accompanying clipboard text still
+						// pastes.
+					}
+
+					// Composer content keeps its chips even when its text is long.
+					// Listeners run inside an update, so the paste applies here.
+					const composerNodes = isPlainTextPaste
+						? null
+						: getClipboardNodes(dataTransfer, EDITOR_NAMESPACE);
+					const selection = $getSelection();
+					if (
+						composerNodes &&
+						$isRangeSelection(selection) &&
+						$insertClipboardNodes(selection, composerNodes, isSkillAvailable)
+					) {
+						event.preventDefault();
+						return true;
 					}
 
 					const text = getPastedPlainText(event, dataTransfer);
@@ -278,7 +327,38 @@ const PasteSanitizationPlugin: FC<{
 			}
 			unregister();
 		};
-	}, [allowTextAttachmentPaste, editor, onFilePaste]);
+	}, [allowTextAttachmentPaste, editor, isSkillAvailable, onFilePaste]);
+
+	return null;
+};
+
+// Lexical ignores paste events while the editor is not editable, so a
+// composer locked for a pending send would silently drop pasted files
+// that the picker and drop target still route through onFilePaste.
+const LockedFilePastePlugin: React.FC<{
+	onFilePaste: (file: File) => boolean;
+}> = function LockedFilePastePlugin({ onFilePaste }) {
+	const [editor] = useLexicalComposerContext();
+
+	useEffect(() => {
+		const handlePaste = (event: ClipboardEvent) => {
+			const files = event.clipboardData?.files;
+			if (editor.isEditable() || !files?.length) {
+				return;
+			}
+			event.preventDefault();
+			for (const file of Array.from(files)) {
+				onFilePaste(file);
+			}
+		};
+		return editor.registerRootListener((rootElement) => {
+			if (!rootElement) {
+				return;
+			}
+			rootElement.addEventListener("paste", handlePaste);
+			return () => rootElement.removeEventListener("paste", handlePaste);
+		});
+	}, [editor, onFilePaste]);
 
 	return null;
 };
@@ -286,7 +366,7 @@ const PasteSanitizationPlugin: FC<{
 // Touch keyboards need plain Enter for newlines (CODAGT-210). Pointer
 // capability, not viewport width, keeps narrow desktop windows usable.
 // Cmd/Ctrl+Enter submits on either input type; Shift+Enter stays a newline.
-const EnterKeyPlugin: FC<{
+const EnterKeyPlugin: React.FC<{
 	onEnter?: () => void;
 	sendShortcut: TypesGen.AgentChatSendShortcut;
 }> = function EnterKeyPlugin({ onEnter, sendShortcut }) {
@@ -330,38 +410,39 @@ const EnterKeyPlugin: FC<{
 
 // Fires the onChange callback with the editor's plain-text content
 // on every update.
-const ContentChangePlugin: FC<{
-	onChange?: (
+const ContentChangePlugin: React.FC<{
+	onChange: (
 		content: string,
 		serializedEditorState: string,
-		hasFileReferences: boolean,
+		hasChips: boolean,
 	) => void;
 }> = function ContentChangePlugin({ onChange }) {
 	const [editor] = useLexicalComposerContext();
 
 	useEffect(() => {
-		if (!onChange) return;
-
 		return editor.registerUpdateListener(({ editorState }) => {
 			editorState.read(() => {
 				const root = $getRoot();
 				const content = root.getTextContent();
-				let hasRefs = false;
+				let hasChips = false;
 
 				for (const child of root.getChildren()) {
 					if (!$isParagraphNode(child)) continue;
 
 					for (const node of child.getChildren()) {
-						if (node instanceof FileReferenceNode) {
-							hasRefs = true;
+						if (
+							node instanceof FileReferenceNode ||
+							node instanceof SkillInvocationNode
+						) {
+							hasChips = true;
 							break;
 						}
 					}
 
-					if (hasRefs) break;
+					if (hasChips) break;
 				}
 				const serialized = JSON.stringify(editorState.toJSON());
-				onChange(content, serialized, hasRefs);
+				onChange(content, serialized, hasChips);
 			});
 		});
 	}, [editor, onChange]);
@@ -369,12 +450,26 @@ const ContentChangePlugin: FC<{
 	return null;
 };
 
+// Returns the root children of a serialized editor state, or null when
+// the state is malformed or uses node types the editor does not register.
+const getRestorableRootChildren = (
+	editor: LexicalEditor,
+	serializedEditorState: string,
+): SerializedLexicalNode[] | null => {
+	try {
+		return editor.parseEditorState(serializedEditorState).toJSON().root
+			.children;
+	} catch {
+		return null;
+	}
+};
+
 // Seeds the editor with an initial value on first mount. When
 // initialEditorState is provided (a serialized Lexical JSON string),
 // it restores the full editor state including file-reference chips.
 // Falls back to plain-text seeding via initialValue.
-const ValueSyncPlugin: FC<{
-	initialValue?: string;
+const ValueSyncPlugin: React.FC<{
+	initialValue: string;
 	initialEditorState?: string;
 }> = function ValueSyncPlugin({ initialValue, initialEditorState }) {
 	const [editor] = useLexicalComposerContext();
@@ -386,25 +481,22 @@ const ValueSyncPlugin: FC<{
 		}
 		hasInitialized.current = true;
 
-		// Prefer restoring the full serialized editor state
-		// (preserves file-reference chips and node positions).
-		if (initialEditorState) {
-			try {
-				const parsed = editor.parseEditorState(initialEditorState);
-				editor.setEditorState(parsed);
-				return;
-			} catch {
-				// Malformed state, fall through to plain-text path.
-			}
-		}
-
-		if (initialValue === undefined || initialValue === "") {
+		// Restore via editor.update, not setEditorState: a synchronous
+		// commit here makes chip decorators flushSync inside this effect.
+		const restoredChildren = initialEditorState
+			? getRestorableRootChildren(editor, initialEditorState)
+			: null;
+		if (!restoredChildren && initialValue === "") {
 			return;
 		}
 
 		editor.update(() => {
 			const root = $getRoot();
 			root.clear();
+			if (restoredChildren) {
+				root.append(...restoredChildren.map($parseSerializedNode));
+				return;
+			}
 			const paragraph = $createParagraphNode();
 			const textNode = $createTextNode(initialValue);
 			paragraph.append(textNode);
@@ -417,7 +509,7 @@ const ValueSyncPlugin: FC<{
 
 // Exposes the LexicalEditor instance to the parent via a callback
 // so it can be stored in a ref for imperative access.
-const InsertTextPlugin: FC<{
+const InsertTextPlugin: React.FC<{
 	onEditorReady: (editor: LexicalEditor) => void;
 }> = function InsertTextPlugin({ onEditorReady }) {
 	const [editor] = useLexicalComposerContext();
@@ -439,16 +531,21 @@ type FileReferenceData = {
 	readonly content: string;
 };
 
+type SkillInvocationData = {
+	readonly source: SkillSource;
+	readonly name: string;
+};
+
 /**
  * A content part extracted from the Lexical editor in document order.
- * Either a text segment or a file-reference chip.
  */
 type EditorContentPart =
 	| { readonly type: "text"; readonly text: string }
 	| {
 			readonly type: "file-reference";
 			readonly reference: FileReferenceData;
-	  };
+	  }
+	| ({ readonly type: "skill-invocation" } & SkillInvocationData);
 
 // Mutable variant used internally while building the parts
 // array so we can append to the last text segment without
@@ -458,7 +555,10 @@ type MutableFileRefPart = {
 	type: "file-reference";
 	reference: FileReferenceData;
 };
-type MutableContentPart = MutableTextPart | MutableFileRefPart;
+type MutableContentPart =
+	| MutableTextPart
+	| MutableFileRefPart
+	| ({ type: "skill-invocation" } & SkillInvocationData);
 
 export type ChatMessageInputRef = {
 	setValue: (text: string) => void;
@@ -472,8 +572,22 @@ export type ChatMessageInputRef = {
 	 */
 	addFileReference: (ref: FileReferenceData) => void;
 	/**
+	 * Focus the editor and insert a skill chip at the cursor, or at the
+	 * end when the editor has no selection. A skill already in the
+	 * editor is not added again.
+	 */
+	insertSkill: (source: SkillSource, name: string) => void;
+	removeSkills: (sources: readonly SkillSource[]) => void;
+	/** Serialize the editor content, including chips, for restoreEditorState. */
+	getEditorState: () => string;
+	/** Restore a getEditorState snapshot, appending text to its last paragraph. */
+	restoreEditorState: (
+		serializedEditorState: string,
+		appendText?: string,
+	) => void;
+	/**
 	 * Walk the Lexical tree in document order and return interleaved
-	 * text / file-reference parts. Adjacent text nodes within the same
+	 * text and chip parts. Adjacent text nodes within the same
 	 * paragraph are merged, and paragraphs are separated by newlines.
 	 */
 	getContentParts: () => EditorContentPart[];
@@ -483,37 +597,46 @@ type ChatMessageInputProps = Omit<
 	React.ComponentProps<"div">,
 	"onChange" | "role" | "ref"
 > & {
-	placeholder?: string;
-	initialValue?: string;
+	placeholder: string;
+	initialValue: string;
 	/**
 	 * Serialized Lexical editor state JSON. When provided, the editor
 	 * restores the full state (including file-reference chips) instead
 	 * of using initialValue as plain text.
 	 */
 	initialEditorState?: string;
-	onChange?: (
+	onChange: (
 		content: string,
 		serializedEditorState: string,
-		hasFileReferences: boolean,
+		hasChips: boolean,
 	) => void;
 	/** Monotonic counter to force editor remount. */
 	remountKey?: number;
 	rows?: number;
-	onEnter?: () => void;
-	sendShortcut?: TypesGen.AgentChatSendShortcut;
-	onFilePaste?: (file: File) => void;
+	onEnter: () => void;
+	sendShortcut: TypesGen.AgentChatSendShortcut;
+	// Returns whether the file was routed anywhere (attachment or
+	// workspace upload). Refused files let the paste fall back to
+	// the clipboard's text payload.
+	onFilePaste?: (file: File) => boolean;
 	allowTextAttachmentPaste?: boolean;
-	disabled?: boolean;
-	autoFocus?: boolean;
+	// Keeps routing pasted files through onFilePaste while disabled, so
+	// the parent can refuse them visibly instead of losing them.
+	acceptFilePasteWhileDisabled?: boolean;
+	disabled: boolean;
 	/**
 	 * True when the chat has a bound workspace, so workspace skills may
 	 * exist even while workspaceSkills is still undefined.
 	 */
-	hasWorkspace?: boolean;
+	hasWorkspace: boolean;
+	/** Organization whose skills the chat loads, if any. */
+	organizationId?: string;
+	/** Project, in organizationId, whose skills the chat loads, if any. */
+	projectId?: string;
 	/**
 	 * Story and test seam for deterministic personal skill menu data.
 	 */
-	personalSkillsOverride?: readonly TypesGen.UserSkillMetadata[];
+	personalSkillsOverride?: readonly TypesGen.SkillMetadata[];
 	/**
 	 * Workspace skill menu data from the chat's pinned context, so the
 	 * menu matches read_skill resolution. Undefined while the chat
@@ -532,12 +655,13 @@ type ChatMessageInputProps = Omit<
 	 */
 	skillsMenuAnchor?: HTMLElement | null;
 	"aria-label"?: string;
+	"aria-describedby"?: string;
 };
 
 // Keeps the Lexical editor's editable state in sync with the
 // disabled prop so that the underlying contentEditable element
 // becomes truly non-interactive when the input is disabled.
-const EditableStatePlugin: FC<{ disabled: boolean }> =
+const EditableStatePlugin: React.FC<{ disabled: boolean }> =
 	function EditableStatePlugin({ disabled }) {
 		const [editor] = useLexicalComposerContext();
 
@@ -554,11 +678,11 @@ type SkillsTriggerLocation = Pick<
 >;
 
 const isSameSkillsTriggerLocation = (
-	a: SkillsTriggerLocation | null,
+	a: SkillsTriggerLocation,
 	b: SkillsTriggerLocation | null,
 ): boolean => {
 	return Boolean(
-		a && b && a.nodeKey === b.nodeKey && a.slashOffset === b.slashOffset,
+		b && a.nodeKey === b.nodeKey && a.slashOffset === b.slashOffset,
 	);
 };
 
@@ -579,6 +703,34 @@ const isSameSkillsTrigger = (
 	);
 };
 
+/**
+ * Loads a Coder-stored skill source for the "/" menu while a trigger is
+ * active, without the disabled skills chatd skips.
+ */
+const useStoredSkillSource = (
+	queryOptions: SkillsScope["list"],
+	{
+		hasSource,
+		isTriggerActive,
+	}: { hasSource: boolean; isTriggerActive: boolean },
+) => {
+	const queryEnabled = isTriggerActive && hasSource;
+	const query = useQuery({
+		...queryOptions,
+		enabled: queryEnabled,
+		staleTime: 60_000,
+	});
+	const skills = hasSource ? query.data?.filter((skill) => skill.enabled) : [];
+	const isUnresolved = queryEnabled && query.data === undefined;
+	return {
+		skills,
+		isResolvedEmpty: skills?.length === 0 && !query.isFetching,
+		isLoading: isUnresolved && query.isFetching,
+		isError: isUnresolved && query.isError,
+		error: query.error,
+	};
+};
+
 const ChatMessageInput = ({
 	className,
 	placeholder,
@@ -588,27 +740,30 @@ const ChatMessageInput = ({
 	remountKey,
 	rows,
 	onEnter,
-	sendShortcut = DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
+	sendShortcut,
 	onFilePaste,
 	allowTextAttachmentPaste,
+	acceptFilePasteWhileDisabled,
 	disabled,
-	autoFocus,
 	hasWorkspace,
+	organizationId,
+	projectId,
 	personalSkillsOverride,
 	workspaceSkills,
 	slashCommands,
 	skillsMenuAnchor,
 	"aria-label": ariaLabel,
+	"aria-describedby": ariaDescribedBy,
 	ref,
 	...props
 }: ChatMessageInputProps & { ref?: React.Ref<ChatMessageInputRef> }) => {
 	const initialConfig = {
-		namespace: "ChatMessageInput",
+		namespace: EDITOR_NAMESPACE,
 		theme: {
 			paragraph: "m-0",
 		},
 		onError: (error: Error) => console.error("Lexical error:", error),
-		nodes: [FileReferenceNode],
+		nodes: [FileReferenceNode, SkillInvocationNode],
 		editable: !disabled,
 	};
 	const style = {
@@ -618,7 +773,7 @@ const ChatMessageInput = ({
 	const editorRef = useRef<LexicalEditor | null>(null);
 	// Tracks the last known text content so getValue() can return
 	// a useful value before the Lexical editor hydrates.
-	const lastKnownValueRef = useRef(initialValue ?? "");
+	const lastKnownValueRef = useRef(initialValue);
 	// Queues a setValue call made before the editor ref is ready.
 	const pendingReplacementRef = useRef<string | null>(null);
 	const [skillsTrigger, setSkillsTrigger] =
@@ -637,76 +792,113 @@ const ChatMessageInput = ({
 		// Avoid refetching on each trigger toggle from caret movement.
 		staleTime: 60_000,
 	});
-	const personalSkills = personalSkillsOverride ?? skillsQuery.data ?? [];
-	const loadedWorkspaceSkills = workspaceSkills ?? [];
-	// Until the chat detail resolves, workspace skills are unknown: keep
-	// personal triggers qualified (a qualified alias always resolves) and
-	// treat the workspace list as still loading.
-	const workspaceSkillsKnown = !hasWorkspace || workspaceSkills !== undefined;
-	// A personal or workspace skill with the same name takes
-	// precedence over a built-in command: the composer's submit
-	// intercept defers to the skill, so the menu must not advertise a
-	// dead command entry. Until both skill lists resolve, a collision
-	// cannot be ruled out, so no built-in commands are offered
-	// (matching the submit intercept, which also stands down while
-	// skills are unknown).
-	const skillsResolved =
-		(hasPersonalSkillsOverride || skillsQuery.isSuccess) &&
-		workspaceSkillsKnown;
-	const availableSlashCommands = skillsResolved
-		? (slashCommands ?? []).filter(
-				(command) =>
-					!personalSkills.some((skill) => skill.name === command.name) &&
-					!loadedWorkspaceSkills.some((skill) => skill.name === command.name),
-			)
-		: [];
+	const organizationSource = useStoredSkillSource(
+		organizationSkills(organizationId ?? ""),
+		{ hasSource: Boolean(organizationId), isTriggerActive: hasSkillsTrigger },
+	);
+	const hasProject = Boolean(organizationId && projectId);
+	const projectSource = useStoredSkillSource(
+		chatProjectSkills(organizationId ?? "", projectId ?? ""),
+		{ hasSource: hasProject, isTriggerActive: hasSkillsTrigger },
+	);
+	const projectQuery = useQuery({
+		...chatProject(projectId),
+		enabled: hasProject && hasSkillsTrigger,
+		staleTime: 60_000,
+	});
+	const projectUsability = chatProjectUsability(
+		projectQuery,
+		projectSource.error,
+	);
+	// While the caller's project list is unsettled, the menu shows the
+	// project source as loading or failed, as it does for the skills request.
+	// A project the caller cannot use is a known empty source, not a failure.
+	const isProjectUsabilityUnknown =
+		hasProject && projectUsability === "unknown";
+	const isProjectUnusable = hasProject && projectUsability === "unusable";
+	const isProjectLoading =
+		!isProjectUnusable &&
+		(projectSource.isLoading ||
+			(isProjectUsabilityUnknown && projectQuery.isFetching));
+	const isProjectError =
+		!isProjectUnusable &&
+		(projectSource.isError ||
+			(isProjectUsabilityUnknown && projectQuery.isError));
+	// chatd skips disabled skills, so they never offer or collide.
+	const personalSkills = (personalSkillsOverride ?? skillsQuery.data)?.filter(
+		(skill) => skill.enabled,
+	);
+	const loadedWorkspaceSkills =
+		workspaceSkills ?? (hasWorkspace ? undefined : []);
+	// A list stays undefined until its source loads, even after an error,
+	// which keeps triggers qualified and built-in commands hidden. A chat
+	// without an organization, project, or workspace has a known empty list.
+	// Project skills also wait for the caller's project list, and losing the
+	// use of the project gives a known empty list, because chatd then runs
+	// turns without project skills.
+	const skillLists: SkillSourceList<SkillMetadata>[] = [
+		{ source: "personal", skills: personalSkills },
+		{ source: "org", skills: organizationSource.skills },
+		{
+			source: "project",
+			skills: hasProject
+				? usableChatProjectSkills(projectUsability, projectSource.skills)
+				: [],
+		},
+		{ source: "workspace", skills: loadedWorkspaceSkills },
+	];
+	// A skill whose source list has not loaded stays a chip when pasted.
+	const isSkillAvailable = (source: SkillSource, name: string) => {
+		const skills = skillLists.find((list) => list.source === source)?.skills;
+		return !skills || skills.some((skill) => skill.name === name);
+	};
+	const availableSlashCommands = (slashCommands ?? []).filter(
+		(command) =>
+			resolveChatSlashCommandAvailability(command, skillLists) === "available",
+	);
 	const hasSlashCommands = availableSlashCommands.length > 0;
-	// A stale empty cache with a refetch in flight must not dismiss the menu.
-	const isResolvedEmptyPersonalSkills = hasPersonalSkillsOverride
-		? personalSkills.length === 0
-		: skillsQuery.isSuccess &&
-			!skillsQuery.isFetching &&
-			personalSkills.length === 0;
-	// Unknown workspace skills must not close the menu: the trigger plugin
-	// records a closed trigger as dismissed, so skills arriving later could
-	// never reopen it.
-	const isResolvedEmptyWorkspaceSkills =
-		workspaceSkillsKnown && loadedWorkspaceSkills.length === 0;
-	// Without built-in commands, "/" is plain text when both skills
-	// lists resolve empty. When only the filtered result is empty,
+	// Unknown skills, or a stale empty cache with a refetch in flight, must
+	// not close the menu: the trigger plugin records a closed trigger as
+	// dismissed, so skills arriving later could never reopen it.
+	const isResolvedEmptySkills =
+		personalSkills?.length === 0 &&
+		(hasPersonalSkillsOverride || !skillsQuery.isFetching) &&
+		organizationSource.isResolvedEmpty &&
+		(!hasProject ||
+			isProjectUnusable ||
+			(projectUsability === "usable" && projectSource.isResolvedEmpty)) &&
+		loadedWorkspaceSkills?.length === 0;
+	// Without built-in commands, "/" is plain text when every skills
+	// list resolves empty. When only the filtered result is empty,
 	// keep the menu open for the no-match message.
 	const skillsMenuOpen =
-		hasSkillsTrigger &&
-		(hasSlashCommands ||
-			!(isResolvedEmptyPersonalSkills && isResolvedEmptyWorkspaceSkills));
+		hasSkillsTrigger && (hasSlashCommands || !isResolvedEmptySkills);
 	const skillsSearchQuery = skillsTrigger?.query ?? "";
 	const commandMenuItems: readonly SkillMenuItem[] = filterSkillsByQuery(
 		availableSlashCommands.map(createCommandMenuItem),
 		skillsSearchQuery,
 	);
-	const workspaceSkillNames = new Set(
-		loadedWorkspaceSkills.map((skill) => skill.name),
-	);
-	const personalSkillItems: readonly SkillMenuItem[] = filterSkillsByQuery(
-		personalSkills.map((skill) =>
-			createSkillMenuItem(
-				"personal",
-				skill,
-				!workspaceSkillsKnown || workspaceSkillNames.has(skill.name),
-			),
-		),
-		skillsSearchQuery,
-	);
-	const workspaceSkillItems: readonly SkillMenuItem[] = filterSkillsByQuery(
-		loadedWorkspaceSkills.map((skill) =>
-			createSkillMenuItem("workspace", skill),
-		),
-		skillsSearchQuery,
-	);
+	const skillTriggers = resolveSkillTriggers(skillLists);
+	const filterSkillTriggers = (source: SkillSource) =>
+		filterSkillsByQuery(
+			skillTriggers.filter((trigger) => trigger.source === source),
+			skillsSearchQuery,
+		);
+	const personalSkillItems = filterSkillTriggers("personal");
+	const organizationSkillItems = filterSkillTriggers("org");
+	const projectSkillItems = filterSkillTriggers("project");
+	const workspaceSkillItems = filterSkillTriggers("workspace");
+	const isPersonalSkillsLoading =
+		personalSkillsQueryEnabled &&
+		skillsQuery.isFetching &&
+		skillsQuery.data === undefined;
+	const isWorkspaceSkillsLoading = loadedWorkspaceSkills === undefined;
 	// Commands come first so partitioned menu groups match selection order.
 	const allFilteredSkills: readonly SkillMenuItem[] = [
 		...commandMenuItems,
 		...personalSkillItems,
+		...organizationSkillItems,
+		...projectSkillItems,
 		...workspaceSkillItems,
 	];
 	const selectedSkillIndex =
@@ -763,16 +955,17 @@ const ChatMessageInput = ({
 			const token = node
 				.getTextContent()
 				.slice(trigger.slashOffset, caretOffset);
-			if (
-				caretOffset < trigger.slashOffset ||
-				!isPersonalSkillTriggerToken(token)
-			) {
+			if (caretOffset < trigger.slashOffset || !isSkillTriggerToken(token)) {
 				return;
 			}
 
 			selection.anchor.set(trigger.nodeKey, trigger.slashOffset, "text");
 			selection.focus.set(trigger.nodeKey, caretOffset, "text");
-			selection.insertText(skill.triggerText);
+			if (skill.source === "command") {
+				selection.insertText(skill.triggerText);
+			} else {
+				$insertSkillInvocation(selection, skill.source, skill.name);
+			}
 		});
 		setSkillsTrigger(null);
 		setSkillsMenuSelectedIndex(0);
@@ -882,6 +1075,62 @@ const ChatMessageInput = ({
 					chipNode.selectNext();
 				});
 			},
+			insertSkill: (source: SkillSource, name: string) => {
+				const editor = editorRef.current;
+				if (!editor) return;
+
+				editor.update(() => {
+					const selection = $getSelection();
+					$insertSkillInvocation(
+						$isRangeSelection(selection) ? selection : $getRoot().selectEnd(),
+						source,
+						name,
+					);
+				});
+				// Lexical restores the selection but, unlike AutoFocusPlugin,
+				// does not move DOM focus when the editor was blurred.
+				editor.focus(() => {
+					editor.getRootElement()?.focus({ preventScroll: true });
+				});
+			},
+			getEditorState: () =>
+				JSON.stringify(editorRef.current?.getEditorState().toJSON() ?? null),
+			restoreEditorState: (serializedEditorState: string, appendText = "") => {
+				const editor = editorRef.current;
+				const children =
+					editor && getRestorableRootChildren(editor, serializedEditorState);
+				if (!editor || !children) return;
+				editor.update(() => {
+					const root = $getRoot();
+					root.clear();
+					root.append(...children.map($parseSerializedNode));
+					const lastChild = root.getLastChild();
+					const paragraph = $isParagraphNode(lastChild)
+						? lastChild
+						: $createParagraphNode();
+					if (paragraph !== lastChild) {
+						root.append(paragraph);
+					}
+					if (appendText) {
+						const needsSpace =
+							paragraph.getChildrenSize() > 0 &&
+							!/\s$/.test(paragraph.getTextContent());
+						paragraph.append(
+							$createTextNode(needsSpace ? ` ${appendText}` : appendText),
+						);
+					}
+					root.selectEnd();
+				});
+			},
+			removeSkills: (sources: readonly SkillSource[]) => {
+				editorRef.current?.update(() => {
+					for (const node of $getSkillInvocationNodes()) {
+						if (sources.includes(node.__source)) {
+							node.remove();
+						}
+					}
+				});
+			},
 			getContentParts: () => {
 				const editor = editorRef.current;
 				if (!editor) return [];
@@ -921,6 +1170,12 @@ const ChatMessageInput = ({
 										content: node.__content,
 									},
 								});
+							} else if (node instanceof SkillInvocationNode) {
+								parts.push({
+									type: "skill-invocation",
+									source: node.__source,
+									name: node.__name,
+								});
 							} else {
 								const t = node.getTextContent();
 								if (t) appendText(t);
@@ -950,10 +1205,11 @@ const ChatMessageInput = ({
 				<RichTextPlugin
 					contentEditable={
 						<ContentEditable
-							className="outline-hidden w-full whitespace-pre-wrap overflow-y-auto max-h-[50vh] scrollbar-thin [scrollbar-color:hsl(var(--surface-quaternary))_transparent] [&_p]:leading-normal [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 py-px"
+							className="outline-hidden w-full whitespace-pre-wrap overflow-y-auto max-h-[50vh] scrollbar-thin [&_p]:leading-normal [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 py-px"
 							data-testid="chat-message-input"
 							style={{ minHeight: "inherit" }}
 							aria-label={ariaLabel}
+							aria-describedby={ariaDescribedBy}
 							aria-disabled={disabled}
 						/>
 					}
@@ -969,6 +1225,7 @@ const ChatMessageInput = ({
 				<PasteSanitizationPlugin
 					onFilePaste={onFilePaste}
 					allowTextAttachmentPaste={allowTextAttachmentPaste}
+					isSkillAvailable={isSkillAvailable}
 				/>
 				<EnterKeyPlugin
 					onEnter={disabled ? undefined : onEnter}
@@ -985,37 +1242,44 @@ const ChatMessageInput = ({
 					open={skillsMenuOpen}
 					skills={allFilteredSkills}
 					skillsLoading={
-						(personalSkillsQueryEnabled &&
-							skillsQuery.isFetching &&
-							skillsQuery.data === undefined) ||
-						!workspaceSkillsKnown
+						isPersonalSkillsLoading ||
+						organizationSource.isLoading ||
+						isProjectLoading ||
+						isWorkspaceSkillsLoading
 					}
 					selectedIndex={selectedSkillIndex}
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					onTriggerChange={handleSkillsTriggerChange}
 					onSkillSelect={replaceActiveSkillsTrigger}
 				/>
-				<EditableStatePlugin disabled={Boolean(disabled)} />
-				{autoFocus && <AutoFocusPlugin />}
+				<EditableStatePlugin disabled={disabled} />
+				{onFilePaste && acceptFilePasteWhileDisabled && (
+					<LockedFilePastePlugin onFilePaste={onFilePaste} />
+				)}
+				<AutoFocusPlugin />
 				<SkillsTriggerMenu
 					open={skillsMenuOpen}
 					anchor={skillsMenuAnchor ?? containerElement}
 					query={skillsSearchQuery}
 					commands={commandMenuItems}
 					personalSkills={personalSkillItems}
+					organizationSkills={organizationSkillItems}
+					projectSkills={projectSkillItems}
 					workspaceSkills={workspaceSkillItems}
-					workspaceSkillsEnabled={Boolean(hasWorkspace)}
-					isPersonalLoading={
-						personalSkillsQueryEnabled &&
-						skillsQuery.isFetching &&
-						skillsQuery.data === undefined
-					}
+					organizationSkillsEnabled={Boolean(organizationId)}
+					projectSkillsEnabled={hasProject}
+					workspaceSkillsEnabled={hasWorkspace}
+					isPersonalLoading={isPersonalSkillsLoading}
 					isPersonalError={
 						personalSkillsQueryEnabled &&
 						skillsQuery.isError &&
 						skillsQuery.data === undefined
 					}
-					isWorkspaceLoading={!workspaceSkillsKnown}
+					isOrganizationLoading={organizationSource.isLoading}
+					isOrganizationError={organizationSource.isError}
+					isProjectLoading={isProjectLoading}
+					isProjectError={isProjectError}
+					isWorkspaceLoading={isWorkspaceSkillsLoading}
 					selectedIndex={selectedSkillIndex}
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					onSelect={replaceActiveSkillsTrigger}

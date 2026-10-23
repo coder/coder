@@ -1,13 +1,6 @@
 import { cn } from "cn";
 import { ExternalLinkIcon, SlidersHorizontalIcon } from "lucide-react";
-import {
-	type ComponentProps,
-	type FC,
-	type ReactNode,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	getValidationErrorMessage,
 	hasError,
@@ -105,7 +98,10 @@ export const useFilter = ({
 	};
 };
 
-const BaseSkeleton: FC<SkeletonProps> = ({ children, ...skeletonProps }) => {
+const BaseSkeleton: React.FC<SkeletonProps> = ({
+	children,
+	...skeletonProps
+}) => {
 	return (
 		<Skeleton
 			height={36}
@@ -117,23 +113,23 @@ const BaseSkeleton: FC<SkeletonProps> = ({ children, ...skeletonProps }) => {
 	);
 };
 
-export const MenuSkeleton: FC = () => {
+export const MenuSkeleton: React.FC = () => {
 	return <BaseSkeleton className="min-w-[200px] shrink-0" />;
 };
 
-type FilterProps = ComponentProps<"div"> & {
+type FilterProps = React.ComponentProps<"div"> & {
 	filter: ReturnType<typeof useFilter>;
-	optionsSkeleton: ReactNode;
+	optionsSkeleton: React.ReactNode;
 	isLoading: boolean;
 	learnMoreLink?: string;
 	learnMoreLabel2?: string;
 	learnMoreLink2?: string;
 	error?: unknown;
-	options?: ReactNode;
+	options?: React.ReactNode;
 	presets: PresetFilter[];
 };
 
-export const Filter: FC<FilterProps> = ({
+export const Filter: React.FC<FilterProps> = ({
 	filter,
 	isLoading,
 	error,
@@ -234,7 +230,7 @@ type PresetMenuProps = {
 	onSelect: (query: string) => void;
 };
 
-const PresetMenu: FC<PresetMenuProps> = ({
+const PresetMenu: React.FC<PresetMenuProps> = ({
 	value,
 	presets,
 	learnMoreLink,

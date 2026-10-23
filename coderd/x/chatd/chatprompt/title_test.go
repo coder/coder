@@ -59,6 +59,27 @@ func TestTitleText(t *testing.T) {
 			want: "explain this [file-reference] app.ts:1",
 		},
 		{
+			name: "renders workspace file references as bare file names",
+			parts: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("Say DONE."),
+				{
+					Type:              codersdk.ChatMessagePartTypeWorkspaceFileReference,
+					WorkspaceFilePath: "/home/coder/.coder/chats/chat-id/files/frozen.zip",
+					WorkspaceFileName: " frozen.zip ",
+				},
+				{Type: codersdk.ChatMessagePartTypeWorkspaceFileReference},
+			},
+			want: "Say DONE. frozen.zip",
+		},
+		{
+			name: "renders skill invocations as slash aliases",
+			parts: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageSkillInvocation(codersdk.ChatSkillSourceProject, "triage"),
+				codersdk.ChatMessageText("the new issues"),
+			},
+			want: "/project/triage the new issues",
+		},
+		{
 			name: "falls back to paste content for file only messages",
 			parts: []codersdk.ChatMessagePart{
 				syntheticPasteFile(pasteFileID),
@@ -278,30 +299,6 @@ func TestFallbackTitle(t *testing.T) {
 			got := chatprompt.FallbackTitle(tt.message)
 			require.Equal(t, tt.want, got)
 			require.LessOrEqual(t, len([]rune(got)), 80)
-		})
-	}
-}
-
-func TestIsFallbackTitle(t *testing.T) {
-	t.Parallel()
-
-	const message = "one two three four five six seven"
-
-	tests := []struct {
-		name  string
-		title string
-		want  bool
-	}{
-		{name: "current format", title: "one two three four five six seven", want: true},
-		{name: "legacy six-word format", title: "one two three four five six…", want: true},
-		{name: "custom title", title: "Counting to seven", want: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			require.Equal(t, tt.want, chatprompt.IsFallbackTitle(tt.title, message))
 		})
 	}
 }

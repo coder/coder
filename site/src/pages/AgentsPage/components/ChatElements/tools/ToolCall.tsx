@@ -6,23 +6,24 @@ import {
 	TriangleAlertIcon,
 } from "lucide-react";
 import {
-	type ComponentProps,
 	createContext,
-	type FC,
-	type ReactNode,
 	useContext,
 	useId,
+	useLayoutEffect,
+	useRef,
 	useState,
 } from "react";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useMessageScrollerUserLayoutIntent } from "#/vendor/message-scroller";
 import { Shimmer } from "../Shimmer";
 import { TranscriptRow } from "../TranscriptRow";
 import { ToolIcon } from "./ToolIcon";
-import type { ToolStatus } from "./utils";
+import { followLogEnd, type ToolStatus } from "./utils";
 
 /**
  * Shared display states for tool call rows.
@@ -43,7 +44,7 @@ type ToolCallContextValue = {
 	errorMessage?: string;
 	expanded: boolean;
 	failed: boolean;
-	onToggle: () => void;
+	onToggle: (event: React.MouseEvent<HTMLElement>) => void;
 	status: ToolStatus;
 	view: ToolCallView;
 };
@@ -56,10 +57,10 @@ const ToolPolicyContext = createContext<{ hookRewritten: boolean }>({
 
 // Some renderer branches render no `ToolCall.Header`, so emitting the
 // badge here rather than in the header keeps attribution on those cards.
-const PolicyProvider: FC<{ hookRewritten: boolean; children: ReactNode }> = ({
-	hookRewritten,
-	children,
-}) => {
+const PolicyProvider: React.FC<{
+	hookRewritten: boolean;
+	children: React.ReactNode;
+}> = ({ hookRewritten, children }) => {
 	const badgeId = useId();
 	return (
 		<ToolPolicyContext.Provider value={{ hookRewritten }}>
@@ -67,7 +68,7 @@ const PolicyProvider: FC<{ hookRewritten: boolean; children: ReactNode }> = ({
 				<div role="group" aria-labelledby={badgeId}>
 					<span
 						id={badgeId}
-						className="mb-0.5 flex w-fit items-center gap-1 rounded border border-solid border-border-default px-1 text-[11px] leading-4 text-content-secondary"
+						className="mb-0.5 flex w-fit items-center gap-1 rounded border border-solid border-border px-1 text-[11px] leading-4 text-content-secondary"
 					>
 						<ShieldIcon aria-hidden className="size-3 shrink-0" />
 						Modified by policy
@@ -94,7 +95,7 @@ const useToolCallContext = () => {
 /**
  * Props for {@link ToolCall.Root}.
  *
- * The root can be controlled with `view` or `expanded`, or uncontrolled
+ * The root can be controlled with `expanded`, or uncontrolled
  * with `defaultView` and `defaultExpanded`. When both uncontrolled props
  * are provided, `defaultView` wins because it can represent the more
  * specific `preview` state.
@@ -105,19 +106,17 @@ const useToolCallContext = () => {
  * Standard `div` attributes are forwarded to the wrapper element so
  * callers can attach semantics such as live region roles.
  */
-type ToolCallRootProps = Omit<ComponentProps<"div">, "children"> & {
-	children: ReactNode;
+type ToolCallRootProps = Omit<React.ComponentProps<"div">, "children"> & {
+	children: React.ReactNode;
 	status: ToolStatus;
 	isError?: boolean;
 	errorMessage?: string;
-	hasContent?: boolean;
+	hasContent: boolean;
 	defaultExpanded?: boolean;
 	defaultView?: ToolCallView;
 	expanded?: boolean;
 	onExpandedChange?: (expanded: boolean) => void;
-	onViewChange?: (view: ToolCallView) => void;
 	ariaLabel?: ToolCallAriaLabel;
-	view?: ToolCallView;
 };
 
 /**
@@ -127,43 +126,41 @@ type ToolCallRootProps = Omit<ComponentProps<"div">, "children"> & {
  * it, and forwards wrapper attributes like `role` or `aria-live` to the
  * rendered `div`.
  */
-const Root: FC<ToolCallRootProps> = ({
+const Root: React.FC<ToolCallRootProps> = ({
 	children,
 	status,
 	isError = false,
 	errorMessage,
-	hasContent = true,
+	hasContent,
 	defaultExpanded = false,
 	defaultView,
 	expanded: expandedProp,
 	onExpandedChange,
-	onViewChange,
 	ariaLabel,
 	className,
-	view: viewProp,
 	...divProps
 }) => {
 	const [uncontrolledView, setUncontrolledView] = useState<ToolCallView>(
 		defaultView ?? (defaultExpanded ? "expanded" : "collapsed"),
 	);
 	const controlledView =
-		viewProp ??
-		(expandedProp === undefined
+		expandedProp === undefined
 			? undefined
 			: expandedProp
 				? "expanded"
-				: "collapsed");
+				: "collapsed";
 	const view = controlledView ?? uncontrolledView;
 	const expanded = view !== "collapsed";
 	const collapsible = hasContent;
 	const active = status === "running";
 	const failed = status !== "running" && (isError || status === "error");
-	const onToggle = () => {
+	const userLayoutIntent = useMessageScrollerUserLayoutIntent();
+	const onToggle = (event: React.MouseEvent<HTMLElement>) => {
+		userLayoutIntent(event.currentTarget);
 		const nextView: ToolCallView = expanded ? "collapsed" : "expanded";
 		if (controlledView === undefined) {
 			setUncontrolledView(nextView);
 		}
-		onViewChange?.(nextView);
 		onExpandedChange?.(nextView !== "collapsed");
 	};
 
@@ -188,23 +185,26 @@ const Root: FC<ToolCallRootProps> = ({
 	);
 };
 type ToolCallHeaderRowProps = {
-	children: ReactNode;
+	children: React.ReactNode;
 	className?: string;
 };
 
-const HeaderRow: FC<ToolCallHeaderRowProps> = ({ children, className }) => (
+const HeaderRow: React.FC<ToolCallHeaderRowProps> = ({
+	children,
+	className,
+}) => (
 	<TranscriptRow className={cn("gap-2 text-content-secondary", className)}>
 		{children}
 	</TranscriptRow>
 );
 
 type ToolCallHeaderButtonProps = {
-	children: ReactNode;
+	children: React.ReactNode;
 	className?: string;
 	alwaysButton?: boolean;
 };
 
-const HeaderButton: FC<ToolCallHeaderButtonProps> = ({
+const HeaderButton: React.FC<ToolCallHeaderButtonProps> = ({
 	children,
 	className,
 	alwaysButton = false,
@@ -246,12 +246,12 @@ const HeaderButton: FC<ToolCallHeaderButtonProps> = ({
 
 type ToolCallLeadingIconProps = {
 	name?: string;
-	children?: ReactNode;
+	children?: React.ReactNode;
 	iconUrl?: string;
 	serverName?: string;
 };
 
-const LeadingIcon: FC<ToolCallLeadingIconProps> = ({
+const LeadingIcon: React.FC<ToolCallLeadingIconProps> = ({
 	name,
 	children,
 	iconUrl,
@@ -276,22 +276,17 @@ const LeadingIcon: FC<ToolCallLeadingIconProps> = ({
 };
 
 type ToolCallLabelProps = {
-	children: ReactNode;
+	children: React.ReactNode;
 	className?: string;
-	shimmerWhenActive?: boolean;
 };
 
-const Label: FC<ToolCallLabelProps> = ({
-	children,
-	className,
-	shimmerWhenActive = true,
-}) => {
+const Label: React.FC<ToolCallLabelProps> = ({ children, className }) => {
 	const { active } = useToolCallContext();
 	const labelClassName = cn(
 		"min-w-0 truncate text-[13px] leading-6",
 		className,
 	);
-	if (active && shimmerWhenActive && typeof children === "string") {
+	if (active && typeof children === "string") {
 		return (
 			<Shimmer as="span" className={labelClassName}>
 				{children}
@@ -306,7 +301,7 @@ type ToolCallStatusProps = {
 	className?: string;
 };
 
-const Status: FC<ToolCallStatusProps> = ({ className }) => {
+const Status: React.FC<ToolCallStatusProps> = ({ className }) => {
 	const { active, errorMessage, failed } = useToolCallContext();
 	const message = errorMessage || "Tool call failed";
 	return (
@@ -339,7 +334,7 @@ const Status: FC<ToolCallStatusProps> = ({ className }) => {
 	);
 };
 
-const Chevron: FC<{ className?: string }> = ({ className }) => {
+const Chevron: React.FC<{ className?: string }> = ({ className }) => {
 	const { collapsible, expanded } = useToolCallContext();
 	if (!collapsible) {
 		return null;
@@ -355,7 +350,7 @@ const Chevron: FC<{ className?: string }> = ({ className }) => {
 	);
 };
 
-const Actions: FC<{ children: ReactNode; className?: string }> = ({
+const Actions: React.FC<{ children: React.ReactNode; className?: string }> = ({
 	children,
 	className,
 }) => (
@@ -364,24 +359,24 @@ const Actions: FC<{ children: ReactNode; className?: string }> = ({
 	</div>
 );
 
-const HeaderActions: FC<{ children: ReactNode; className?: string }> = ({
-	children,
-	className,
-}) => {
+const HeaderActions: React.FC<{
+	children: React.ReactNode;
+	className?: string;
+}> = ({ children, className }) => {
 	return <Actions className={cn("ml-auto", className)}>{children}</Actions>;
 };
 
-const HeaderLayout: FC<{ children: ReactNode; className?: string }> = ({
-	children,
-	className,
-}) => (
+const HeaderLayout: React.FC<{
+	children: React.ReactNode;
+	className?: string;
+}> = ({ children, className }) => (
 	<div className={cn("flex w-full items-center gap-2", className)}>
 		{children}
 	</div>
 );
 
 type ToolCallStateProps = {
-	children: (state: ToolCallContextValue) => ReactNode;
+	children: (state: ToolCallContextValue) => React.ReactNode;
 };
 
 /**
@@ -391,18 +386,17 @@ type ToolCallStateProps = {
  * including the resolved view, whether the row is expanded, and whether
  * the row is considered active or failed.
  */
-const State: FC<ToolCallStateProps> = ({ children }) =>
+const State: React.FC<ToolCallStateProps> = ({ children }) =>
 	children(useToolCallContext());
 
 type ToolCallHeaderProps = {
 	iconName?: string;
-	label: ReactNode;
+	label: React.ReactNode;
 	iconUrl?: string;
 	serverName?: string;
-	secondaryLabel?: ReactNode;
-	trailing?: ReactNode;
+	secondaryLabel?: React.ReactNode;
+	trailing?: React.ReactNode;
 	showStatus?: boolean;
-	headerClassName?: string;
 };
 
 /**
@@ -414,7 +408,7 @@ type ToolCallHeaderProps = {
  * need custom emphasis or status colors can compose the lower-level
  * primitives directly instead.
  */
-const Header: FC<ToolCallHeaderProps> = ({
+const Header: React.FC<ToolCallHeaderProps> = ({
 	iconName,
 	label,
 	iconUrl,
@@ -422,10 +416,9 @@ const Header: FC<ToolCallHeaderProps> = ({
 	secondaryLabel,
 	trailing,
 	showStatus = true,
-	headerClassName,
 }) => {
 	return (
-		<HeaderButton className={headerClassName}>
+		<HeaderButton>
 			<LeadingIcon name={iconName} iconUrl={iconUrl} serverName={serverName} />
 			<Label>{label}</Label>
 			{secondaryLabel}
@@ -436,15 +429,74 @@ const Header: FC<ToolCallHeaderProps> = ({
 	);
 };
 type ToolCallContentProps = {
-	children: ReactNode;
+	children: React.ReactNode;
 };
 
-const Content: FC<ToolCallContentProps> = ({ children }) => {
+const Content: React.FC<ToolCallContentProps> = ({ children }) => {
 	const { collapsible, expanded } = useToolCallContext();
 	if (!collapsible || !expanded) {
 		return null;
 	}
 	return children;
+};
+
+type ToolCallScrollableProps = Omit<
+	React.ComponentProps<typeof ScrollArea>,
+	| "viewportAriaLabel"
+	| "viewportRef"
+	| "viewportTabIndex"
+	| "scrollBarClassName"
+	| "horizontalScrollBarClassName"
+> & {
+	/** Accessible name of the scrollable region. */
+	ariaLabel: string;
+	/**
+	 * Keeps the newest content in view as the content grows, while the
+	 * reader is at the end.
+	 */
+	followEnd?: boolean;
+};
+
+/**
+ * Keyboard-focusable scroll region for tool-call output. Callers own the
+ * box styling, including the height cap on the viewport.
+ */
+const Scrollable: React.FC<ToolCallScrollableProps> = ({
+	ariaLabel,
+	followEnd = false,
+	children,
+	...props
+}) => {
+	const viewportRef = useRef<HTMLDivElement>(null);
+	const contentRef = useRef<HTMLDivElement>(null);
+
+	// A ResizeObserver also sees growth from children that rerender on
+	// their own, such as smoothly streamed text.
+	useLayoutEffect(() => {
+		const content = contentRef.current;
+		if (!followEnd || !content) {
+			return;
+		}
+		let scrollHeight = followLogEnd(viewportRef.current, 0);
+		const observer = new ResizeObserver(() => {
+			scrollHeight = followLogEnd(viewportRef.current, scrollHeight);
+		});
+		observer.observe(content);
+		return () => observer.disconnect();
+	}, [followEnd]);
+
+	return (
+		<ScrollArea
+			viewportRef={viewportRef}
+			viewportTabIndex={0}
+			viewportAriaLabel={ariaLabel}
+			scrollBarClassName="w-1.5"
+			horizontalScrollBarClassName="h-1.5"
+			{...props}
+		>
+			{followEnd ? <div ref={contentRef}>{children}</div> : children}
+		</ScrollArea>
+	);
 };
 
 export const ToolCall = {
@@ -462,4 +514,5 @@ export const ToolCall = {
 	State,
 	Header,
 	Content,
+	Scrollable,
 };

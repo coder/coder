@@ -1,15 +1,9 @@
 import { type FormikContextType, type FormikErrors, getIn } from "formik";
-import type {
-	ChangeEvent,
-	ChangeEventHandler,
-	FocusEventHandler,
-	ReactNode,
-} from "react";
 import * as Yup from "yup";
 import { isApiValidationError, mapApiErrorToFieldErrors } from "#/api/errors";
 
 type GetFormHelperOptions = {
-	helperText?: ReactNode;
+	helperText?: React.ReactNode;
 	/**
 	 * backendFieldName remaps the name in the form, for when it doesn't match the
 	 * name used by the backend
@@ -21,17 +15,28 @@ type GetFormHelperOptions = {
 	 * over the limit. Zero and negative values will be ignored.
 	 */
 	maxLength?: number;
+	/**
+	 * measureLength returns the length shown in the counter and compared with
+	 * maxLength. Defaults to value.length, which counts UTF-16 code units.
+	 */
+	measureLength?: (value: string) => number;
 };
 
 export type FormHelpers = {
 	name: string;
-	onBlur: FocusEventHandler<HTMLInputElement | HTMLTextAreaElement>;
-	onChange: ChangeEventHandler<HTMLInputElement | HTMLTextAreaElement>;
+	onBlur: React.FocusEventHandler<HTMLInputElement | HTMLTextAreaElement>;
+	onChange: React.ChangeEventHandler<HTMLInputElement | HTMLTextAreaElement>;
 	id: string;
 	value?: string | number;
 	error: boolean;
-	helperText?: ReactNode;
+	helperText?: React.ReactNode;
 };
+
+/**
+ * The length counter appears once the measured length exceeds maxLength minus
+ * this margin.
+ */
+const lengthCounterMargin = 30;
 
 export const getFormHelpers =
 	<TFormValues>(form: FormikContextType<TFormValues>, error?: unknown) =>
@@ -40,6 +45,7 @@ export const getFormHelpers =
 			backendFieldName,
 			helperText: defaultHelperText,
 			maxLength,
+			measureLength = (value: string) => value.length,
 		} = options;
 		let helperText = defaultHelperText;
 		const apiValidationErrors = isApiValidationError(error)
@@ -58,18 +64,16 @@ export const getFormHelpers =
 		const fieldProps = form.getFieldProps(fieldName);
 		const value = fieldProps.value;
 
-		let lengthError: ReactNode = null;
+		let lengthError: React.ReactNode = null;
 		// Show a message if the input is approaching or over the maximum length.
-		if (
-			maxLength &&
-			maxLength > 0 &&
-			typeof value === "string" &&
-			value.length > maxLength - 30
-		) {
-			helperText = `This cannot be longer than ${maxLength} characters. (${value.length}/${maxLength})`;
-			// Show it as an error, rather than a hint
-			if (value.length > maxLength) {
-				lengthError = helperText;
+		if (maxLength && maxLength > 0 && typeof value === "string") {
+			const length = measureLength(value);
+			if (length > maxLength - lengthCounterMargin) {
+				helperText = `This cannot be longer than ${maxLength} characters. (${length}/${maxLength})`;
+				// Show it as an error, rather than a hint
+				if (length > maxLength) {
+					lengthError = helperText;
+				}
 			}
 		}
 
@@ -88,7 +92,7 @@ export const getFormHelpers =
 
 export const onChangeTrimmed =
 	<T>(form: FormikContextType<T>, callback?: (value: string) => void) =>
-	(event: ChangeEvent<HTMLInputElement>): void => {
+	(event: React.ChangeEvent<HTMLInputElement>): void => {
 		event.target.value = event.target.value.trim();
 		form.handleChange(event);
 		callback?.(event.target.value);
@@ -101,11 +105,14 @@ const usernameRE = /^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$/;
 const displayNameRE = /^[^\s](.*[^\s])?$/;
 
 // REMARK: see #1756 for name/username semantics
-export const nameValidator = (name: string): Yup.StringSchema =>
+export const nameValidator = (
+	name: string,
+	{ maxLength = maxLenName }: { maxLength?: number } = {},
+): Yup.StringSchema =>
 	Yup.string()
 		.required(`Please enter a ${name.toLowerCase()}.`)
 		.matches(usernameRE, "Special characters (e.g.: !, @, #) are not supported")
-		.max(maxLenName, `${name} cannot be longer than ${maxLenName} characters`);
+		.max(maxLength, `${name} cannot be longer than ${maxLength} characters`);
 
 export const displayNameValidator = (displayName: string): Yup.StringSchema =>
 	Yup.string()

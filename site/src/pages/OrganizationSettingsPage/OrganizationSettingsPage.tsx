@@ -1,7 +1,5 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	deleteOrganization,
@@ -11,6 +9,7 @@ import {
 } from "#/api/queries/organizations";
 import type { ShareableWorkspaceOwners } from "#/api/typesGenerated";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { toast } from "#/components/Toaster/toast";
 import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
@@ -22,7 +21,7 @@ const sharingUpdatedToastLabels: Record<ShareableWorkspaceOwners, string> = {
 	everyone: "Workspace sharing enabled for all users.",
 };
 
-const OrganizationSettingsPage: FC = () => {
+const OrganizationSettingsPage: React.FC = () => {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const { organization, organizationPermissions } = useOrganizationSettings();

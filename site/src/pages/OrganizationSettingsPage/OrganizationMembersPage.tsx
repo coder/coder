@@ -1,7 +1,6 @@
-import { type FC, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams, useSearchParams } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { groupsByUserIdInOrganization } from "#/api/queries/groups";
 import {
@@ -11,14 +10,16 @@ import {
 	updateOrganizationMemberRoles,
 } from "#/api/queries/organizations";
 import { organizationRoles } from "#/api/queries/roles";
-import type {
-	AssignableRoles,
-	OrganizationMemberWithUserData,
-	User,
+import {
+	type AssignableRoles,
+	type OrganizationMemberWithUserData,
+	RoleAgentsAccess,
+	type User,
 } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { useFilter } from "#/components/Filter/Filter";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -28,7 +29,7 @@ import { RoleSelectorDialog } from "#/modules/roles/RoleSelectorDialog";
 import { pageTitle } from "#/utils/page";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
-const OrganizationMembersPage: FC = () => {
+const OrganizationMembersPage: React.FC = () => {
 	const queryClient = useQueryClient();
 	const { user: me } = useAuthenticated();
 	const { organization: organizationName } = useParams() as {
@@ -143,7 +144,14 @@ const OrganizationMembersPage: FC = () => {
 				key={memberToEditRoles?.username}
 				user={memberToEditRoles}
 				availableRoles={organizationRolesQuery.data}
-				additionalImpliedRoles={defaultMemberImpliedRoles}
+				// Service accounts do not inherit agents-access from the org defaults.
+				additionalImpliedRoles={
+					memberToEditRoles?.is_service_account
+						? defaultMemberImpliedRoles.filter(
+								(r) => r.name !== RoleAgentsAccess,
+							)
+						: defaultMemberImpliedRoles
+				}
 				onCancel={() => setMemberToEditRoles(undefined)}
 				onUpdateRoles={async (roles) => {
 					try {

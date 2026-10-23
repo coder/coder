@@ -1,4 +1,4 @@
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type {
 	TemplateVersionVariable,
 	VariableValue,
@@ -23,7 +23,7 @@ type MissingTemplateVariablesDialogProps = {
 	missingVariables?: TemplateVersionVariable[];
 };
 
-export const MissingTemplateVariablesDialog: FC<
+export const MissingTemplateVariablesDialog: React.FC<
 	MissingTemplateVariablesDialogProps
 > = ({ missingVariables, onSubmit, open, onClose }) => {
 	const [variableValues, setVariableValues] = useState<VariableValue[]>([]);

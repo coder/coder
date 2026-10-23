@@ -153,6 +153,56 @@ func TestResolveUserProviderKeys(t *testing.T) {
 			},
 		},
 		{
+			name: "AnthropicCentralOnlyAmbientCredentialsEnabled",
+			providers: []chatprovider.ConfiguredProvider{{
+				ProviderID:                 anthropicProviderID,
+				Provider:                   fantasyanthropic.Name,
+				CentralAPIKeyEnabled:       true,
+				SupportsAmbientCredentials: true,
+			}},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasyanthropic.Name: {Available: true},
+			},
+			wantKeys: map[string]string{
+				fantasyanthropic.Name: "",
+			},
+			wantKeyPresence: map[string]bool{
+				fantasyanthropic.Name: true,
+			},
+		},
+		{
+			name: "AnthropicAmbientCredentialsUserKeyRequiredWithoutFallback",
+			providers: []chatprovider.ConfiguredProvider{{
+				ProviderID:                 anthropicProviderID,
+				Provider:                   fantasyanthropic.Name,
+				CentralAPIKeyEnabled:       true,
+				AllowUserAPIKey:            true,
+				SupportsAmbientCredentials: true,
+			}},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasyanthropic.Name: {Available: false, UnavailableReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired},
+			},
+			wantKeys: map[string]string{
+				fantasyanthropic.Name: "",
+			},
+			wantKeyPresence: map[string]bool{
+				fantasyanthropic.Name: false,
+			},
+		},
+		{
+			name:      "AnthropicCentralOnlyKeyMissing",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(anthropicProviderID, fantasyanthropic.Name, true, "", false, false)},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasyanthropic.Name: {Available: false, UnavailableReason: codersdk.ChatModelProviderUnavailableMissingAPIKey},
+			},
+			wantKeys: map[string]string{
+				fantasyanthropic.Name: "",
+			},
+			wantKeyPresence: map[string]bool{
+				fantasyanthropic.Name: false,
+			},
+		},
+		{
 			name:      "UserOnlyUserHasKey",
 			providers: []chatprovider.ConfiguredProvider{configuredProvider(openAIProviderID, fantasyopenai.Name, false, "sk-central", true, false)},
 			userKeys:  []chatprovider.UserProviderKey{userProviderKey(openAIProviderID, "sk-user")},
@@ -1613,6 +1663,34 @@ func TestModelFromConfig_HTTPClient(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_ = testutil.TryReceive(ctx, t, called)
+}
+
+func TestIsAnthropicFamilyModelID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		modelID string
+		want    bool
+	}{
+		{modelID: "anthropic/claude-haiku-4.5", want: true},
+		{modelID: "anthropic/claude-sonnet-4.5:beta", want: true},
+		{modelID: "Anthropic/Claude-Opus-4.6", want: true},
+		{modelID: "anthropic.claude-3-5-sonnet-20241022-v2:0", want: true},
+		{modelID: "us.anthropic.claude-sonnet-4-20250514-v1:0", want: true},
+		{modelID: "claude-haiku-4-5", want: true},
+		{modelID: " claude-sonnet-4-20250514 ", want: true},
+		{modelID: "openai/gpt-5-mini", want: false},
+		{modelID: "google/gemini-2.5-flash", want: false},
+		{modelID: "deepseek/deepseek-chat-v3.1", want: false},
+		{modelID: "gpt-4o", want: false},
+		{modelID: "", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.modelID, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, chatprovider.IsAnthropicFamilyModelID(tt.modelID))
+		})
+	}
 }
 
 func TestResolveModelWithProviderHint(t *testing.T) {

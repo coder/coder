@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { Region } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import {
@@ -34,7 +33,7 @@ type WorkspaceProxyViewProps = {
 	permissions: Permissions;
 };
 
-export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
+export const WorkspaceProxyView: React.FC<WorkspaceProxyViewProps> = ({
 	proxies,
 	proxyLatencies,
 	getWorkspaceProxiesError,
@@ -107,7 +106,7 @@ type ProxiesTableBodyProps = {
 	hasLoaded: boolean;
 };
 
-const ProxiesTableBody: FC<ProxiesTableBodyProps> = ({
+const ProxiesTableBody: React.FC<ProxiesTableBodyProps> = ({
 	proxies,
 	proxyLatencies,
 	isLoading,

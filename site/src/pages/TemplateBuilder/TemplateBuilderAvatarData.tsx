@@ -1,21 +1,17 @@
-import type { FC, PropsWithChildren } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Link } from "#/components/Link/Link";
 
-type TemplateBuilderAvatarDataProps = PropsWithChildren<{
+type TemplateBuilderAvatarDataProps = React.PropsWithChildren<{
 	name: string;
 	description: string;
 	iconUrl?: string;
 	detailsUrl?: string;
 }>;
 
-export const TemplateBuilderAvatarData: FC<TemplateBuilderAvatarDataProps> = ({
-	name,
-	description,
-	iconUrl,
-	detailsUrl,
-}) => {
+export const TemplateBuilderAvatarData: React.FC<
+	TemplateBuilderAvatarDataProps
+> = ({ name, description, iconUrl, detailsUrl }) => {
 	return (
 		<AvatarData
 			avatar={<Avatar src={iconUrl} size="lg" variant="icon" />}

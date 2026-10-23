@@ -1,7 +1,7 @@
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { ClockIcon, UserIcon } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import { useState } from "react";
 import type { Workspace } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
@@ -17,13 +17,9 @@ type BatchDeleteConfirmationProps = {
 	onConfirm: () => void;
 };
 
-export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
-	checkedWorkspaces,
-	open,
-	onClose,
-	onConfirm,
-	isLoading,
-}) => {
+export const BatchDeleteConfirmation: React.FC<
+	BatchDeleteConfirmationProps
+> = ({ checkedWorkspaces, open, onClose, onConfirm, isLoading }) => {
 	const [stage, setStage] = useState<
 		"consequences" | "workspaces" | "resources"
 	>("consequences");
@@ -46,7 +42,7 @@ export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
 		checkedWorkspaces.length === 1 ? "workspace" : "workspaces"
 	}`;
 
-	let confirmText: ReactNode = <>Review selected workspaces&hellip;</>;
+	let confirmText: React.ReactNode = <>Review selected workspaces&hellip;</>;
 	if (stage === "workspaces") {
 		confirmText = <>Confirm {workspaceCount}&hellip;</>;
 	}
@@ -110,7 +106,7 @@ type StageProps = {
 	workspaces: readonly Workspace[];
 };
 
-const Consequences: FC = () => {
+const Consequences: React.FC = () => {
 	return (
 		<>
 			<p>Deleting workspaces is irreversible!</p>
@@ -124,7 +120,7 @@ const Consequences: FC = () => {
 	);
 };
 
-const Workspaces: FC<StageProps> = ({ workspaces }) => {
+const Workspaces: React.FC<StageProps> = ({ workspaces }) => {
 	const mostRecent = workspaces.reduce(
 		(latestSoFar, against) => {
 			if (!latestSoFar) {
@@ -189,7 +185,7 @@ const Workspaces: FC<StageProps> = ({ workspaces }) => {
 	);
 };
 
-const Resources: FC<StageProps> = ({ workspaces }) => {
+const Resources: React.FC<StageProps> = ({ workspaces }) => {
 	const resources: Record<string, { count: number; icon: string }> = {};
 	for (const workspace of workspaces) {
 		for (const resource of workspace.latest_build.resources) {

@@ -1,5 +1,4 @@
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router";
 import {
@@ -89,7 +88,7 @@ type GroupsPageViewProps = {
 	permissions: Permissions;
 };
 
-export const GroupsPageView: FC<GroupsPageViewProps> = ({
+export const GroupsPageView: React.FC<GroupsPageViewProps> = ({
 	groups,
 	spendError,
 	canCreateGroup,
@@ -139,7 +138,10 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 				<div className="flex flex-col gap-4">
 					<GroupsFilter {...filterProps} />
 
-					<PaginationContainer query={groupsQuery} paginationUnitLabel="groups">
+					<PaginationContainer
+						query={groupsQuery}
+						paginationUnitLabel={{ singular: "group", plural: "groups" }}
+					>
 						<Table aria-label="Groups">
 							<TableHeader>
 								<TableRow>
@@ -196,7 +198,7 @@ type GroupsTableBodyProps = {
 	filterUsed: boolean;
 };
 
-const GroupsTableBody: FC<GroupsTableBodyProps> = ({
+const GroupsTableBody: React.FC<GroupsTableBodyProps> = ({
 	groups,
 	canCreateGroup,
 	showAIBudget,
@@ -255,7 +257,7 @@ type GroupRowProps = {
 	showAIBudget: boolean;
 };
 
-const GroupRow: FC<GroupRowProps> = ({ group, showAIBudget }) => {
+const GroupRow: React.FC<GroupRowProps> = ({ group, showAIBudget }) => {
 	const navigate = useNavigate();
 	const rowProps = useClickableTableRow({
 		onClick: () => navigate(group.name),
@@ -291,7 +293,7 @@ const GroupRow: FC<GroupRowProps> = ({ group, showAIBudget }) => {
 						/>
 					}
 					title={group.display_name || group.name}
-					subtitle={`${group.total_member_count} members`}
+					subtitle={`${group.total_member_count.toLocaleString("en-US")} ${group.total_member_count === 1 ? "member" : "members"}`}
 				/>
 			</TableCell>
 
@@ -315,7 +317,7 @@ const GroupRow: FC<GroupRowProps> = ({ group, showAIBudget }) => {
 						))}
 						{remainingAvatars > 0 && (
 							<Badge className="h-(--avatar-default)">
-								+{remainingAvatars}
+								+{remainingAvatars.toLocaleString("en-US")}
 							</Badge>
 						)}
 					</div>
@@ -344,7 +346,7 @@ const GroupRow: FC<GroupRowProps> = ({ group, showAIBudget }) => {
 	);
 };
 
-const TableLoader: FC<{ showAIBudget: boolean }> = ({ showAIBudget }) => {
+const TableLoader: React.FC<{ showAIBudget: boolean }> = ({ showAIBudget }) => {
 	return (
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>

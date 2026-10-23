@@ -1,7 +1,5 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link, useNavigate, useParams } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	createOrganizationRole,
@@ -13,12 +11,13 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Loader } from "#/components/Loader/Loader";
+import { toast } from "#/components/Toaster/toast";
 import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
 import { CreateEditRolePageView } from "./CreateEditRolePageView";
 
-const CreateEditRolePage: FC = () => {
+const CreateEditRolePage: React.FC = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const { organization: organizationName, roleName } = useParams();

@@ -1,0 +1,27 @@
+# Sidebar for coder.com/docs, compiled into docs/manifest.json.
+#
+# Edit these YAML files, not docs/manifest.json. Each file under sections is
+# one top-level sidebar section, listed here in sidebar order. After editing,
+# run "make gen/docs-manifest" to format the sources and rebuild
+# docs/manifest.json.
+#
+# Each file holds one route and its direct children. A child with children of
+# its own lives in its own file, in a directory named after the parent file,
+# and the parent lists it as "- include: admin/users.yml". Include paths are
+# relative to this directory, and an include entry sets no other key.
+#
+# Keys appear in this order: title, description, path, icon_path, state,
+# children_from, include, children. A route with children_from gets its
+# children from a generated file under generated/; its children list may only
+# add description, icon_path, or state to generated routes, matched by title.
+
+versions: [main]
+sections:
+  - about.yml
+  - get-started.yml
+  - install.yml
+  - user-guides.yml
+  - admin.yml
+  - ai-coder.yml
+  - tutorials.yml
+  - reference.yml

@@ -82,6 +82,18 @@ type ChatOperationalSettings struct {
 	PersonalModelOverridesEnabled string    `db:"personal_model_overrides_enabled" json:"personal_model_overrides_enabled"`
 }
 
+// ExperimentRule is the audited form of one runtime experiment rule. The
+// rule itself is stored as JSON in site_configs. ID is derived from the
+// experiment name (experiments.AuditRecord) so that audit history groups by
+// experiment.
+type ExperimentRule struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	Experiment string    `db:"experiment" json:"experiment"`
+	Mode       string    `db:"mode" json:"mode"`
+	Condition  string    `db:"condition" json:"condition"`
+	Revision   int64     `db:"revision" json:"revision"`
+}
+
 type Actions []policy.Action
 
 func (a *Actions) Scan(src interface{}) error {

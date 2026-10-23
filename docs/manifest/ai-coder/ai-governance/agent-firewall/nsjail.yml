@@ -1,0 +1,13 @@
+title: NsJail jail type
+description: Learn how Agent Firewall's default NsJail jail type isolates agents using Linux namespaces.
+path: ./ai-coder/agent-firewall/nsjail/index.md
+children:
+  - title: NsJail on Docker
+    description: Runtime and permission requirements for running Agent Firewall's NsJail jail type on Docker.
+    path: ./ai-coder/agent-firewall/nsjail/docker.md
+  - title: NsJail on Kubernetes
+    description: Runtime and permission requirements for running Agent Firewall's NsJail jail type on Kubernetes.
+    path: ./ai-coder/agent-firewall/nsjail/k8s.md
+  - title: NsJail on ECS
+    description: Runtime and permission requirements for running Agent Firewall's NsJail jail type on AWS ECS.
+    path: ./ai-coder/agent-firewall/nsjail/ecs.md

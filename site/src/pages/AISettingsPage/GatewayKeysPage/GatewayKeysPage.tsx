@@ -1,6 +1,5 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
 	aiGatewayKeysList,
@@ -9,6 +8,7 @@ import {
 } from "#/api/queries/aiGatewayKeys";
 import type { AIGatewayKey } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -16,7 +16,7 @@ import { pageTitle } from "#/utils/page";
 import { CreateGatewayKeyDialog } from "./CreateGatewayKeyDialog";
 import { GatewayKeysPageView } from "./GatewayKeysPageView";
 
-const GatewayKeysPage: FC = () => {
+const GatewayKeysPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const featureVisibility = useFeatureVisibility();
 	const showPaywall = !featureVisibility.aibridge;

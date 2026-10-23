@@ -28,21 +28,24 @@ import (
 	"github.com/coder/coder/v2/site"
 )
 
-// Rejection reasons from scope negotiation.
+// Rejection reasons from scope negotiation and the session check.
 var (
-	// The name is not in the external scope catalog: unknown, or internal-only.
+	// The request names an unsupported scope or only retired scopes.
 	errUnknownScope = xerrors.New("unknown or unsupported scope")
-	// Every entry in the app's allowlist falls outside the catalog. Returned
-	// bare, never naming the registered value: that value is unvalidated RFC
-	// 7591 metadata bounded only by the request body limit, and it need not obey
-	// the ASCII subset RFC 6749 §5.2 allows in error_description. The reason
-	// alone is actionable, since the client is the party that registered it.
+	// Every entry in the app's allowlist falls outside the catalog. The stored
+	// value is not echoed: the admin API and DCR rows from before narrowing
+	// hold names unchecked against the catalog and the RFC 6749 section 5.2
+	// charset.
 	errNoGrantableScope = xerrors.New("none of the scopes registered for this app are supported by this deployment; change the app's registered scopes to supported ones")
 	// The scope expands to permissions the allowlist does not cover.
 	errScopeNotAllowed = xerrors.New("scope requests permissions beyond this app's allowed scopes")
 	// The coverage check itself failed. The underlying error names RBAC
 	// internals, so it is logged rather than rendered.
 	errCoverageUndecidable = xerrors.New("scope coverage could not be determined")
+	// The grant exceeds the signed-in session's scopes.
+	errBeyondSession = xerrors.New("scope requests permissions beyond the signed-in session")
+	// The session has an allow list, which `*:*` access tokens would escape.
+	errSessionAllowList = xerrors.New("the signed-in session is restricted to an allow list; authorize from an unrestricted session")
 )
 
 // canonicalScopes rewrites each name to its api_key_scope enum spelling and
@@ -56,16 +59,28 @@ func canonicalScopes(names []string) []string {
 	return slice.Unique(canonical)
 }
 
-// firstUnknownScope returns the first name clients may not request, and whether
-// there was one. The catalog is a curation, not a validity check: RBAC also
-// expands internal-only names such as debug_info:read.
-func firstUnknownScope(names []string) (string, bool) {
-	for _, name := range names {
-		if !rbac.IsExternalScope(rbac.ScopeName(name)) {
-			return name, true
+// RFC 6749 §3.3 permits ignoring retired scopes.
+// Reject retired-only requests so they cannot widen to the default grant.
+func requestedScopes(names []string) ([]string, error) {
+	canonical := canonicalScopes(names)
+	grantable := make([]string, 0, len(canonical))
+	retired := ""
+	for _, name := range canonical {
+		switch {
+		case rbac.IsExternalScope(rbac.ScopeName(name)):
+			grantable = append(grantable, name)
+		case rbac.IsRetiredScope(rbac.ScopeName(name)):
+			if retired == "" {
+				retired = name
+			}
+		default:
+			return nil, xerrors.Errorf("'%s': %w", name, errUnknownScope)
 		}
 	}
-	return "", false
+	if len(grantable) == 0 && retired != "" {
+		return nil, xerrors.Errorf("'%s': %w", retired, errUnknownScope)
+	}
+	return grantable, nil
 }
 
 // noScopeAllowlist reports whether an app has no scope allowlist. NULL and ""
@@ -78,16 +93,10 @@ func noScopeAllowlist(appScope sql.NullString) bool {
 }
 
 // grantableScopes drops allowlist entries this deployment does not offer. An
-// empty result is returned rather than rejected so the caller decides: both
-// callers happen to answer errNoGrantableScope, but only one of them can say
-// whether an empty allowlist should also fail the request.
-//
-// No allocation here may be sized by appScope. It is unvalidated RFC 7591
-// metadata bounded only by the request body limit, and it is read on every
-// authorization and redemption, so a whitespace-heavy or repetitive value would
-// otherwise cost megabytes per request. Dropping duplicates as names are read,
-// rather than once the loop has collected them all, holds the slice to the size
-// of the catalog whatever the input.
+// empty result is returned rather than rejected so the caller decides:
+// authorization and redemption answer errNoGrantableScope, registration
+// answers errUnknownScope. Duplicates are dropped as names are read so the
+// slice never grows past the catalog.
 func grantableScopes(appScope string) []string {
 	var filtered []string
 	for a := range strings.FieldsSeq(appScope) {
@@ -137,26 +146,21 @@ func firstScopeBeyondCeiling(ctx context.Context, logger slog.Logger, phase stri
 	return string(outside), nil
 }
 
-// negotiateScope decides the scope the authorization code will carry. Every
-// requested name must be in the external scope catalog and covered by the app's
-// allowlist. A rejection is an RFC 6749 §4.1.2.1 invalid_scope.
+// negotiateScope decides the scope the authorization code will carry. A
+// rejection is an RFC 6749 §4.1.2.1 invalid_scope.
 //
 //	allowlist  request  result
 //	absent     absent   ApiKeyScopeCoderAll, an unrestricted grant
-//	absent     present  the request
+//	absent     present  the request without retired names
 //	present    absent   the allowlist, catalog-filtered (RFC 6749 §3.3 default)
-//	present    present  the request, once shown to be within the allowlist
+//	present    present  the request without retired names, within the allowlist
 //
 // The result is canonical, deduplicated, and never empty when the error is nil,
 // since it is written to a NOT NULL column whose CHECK also rejects "".
 func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, requested []string) (string, error) {
-	// Canonicalized first so the catalog check, the coverage comparison, and
-	// the stored value all use one spelling. The catalog holds both spellings
-	// of the two aliases, so checking after the rewrite accepts the same names.
-	granted := canonicalScopes(requested)
-
-	if unknown, ok := firstUnknownScope(granted); ok {
-		return "", xerrors.Errorf("'%s': %w", unknown, errUnknownScope)
+	granted, err := requestedScopes(requested)
+	if err != nil {
+		return "", err
 	}
 
 	if noScopeAllowlist(app.Scope) {
@@ -190,10 +194,26 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 	return strings.Join(granted, " "), nil
 }
 
-// scopeFailureResponse maps a negotiateScope rejection to the client's error.
-// errCoverageUndecidable is this server failing to compare, not a bad request,
-// so it answers server_error (RFC 6749 §4.1.2.1) with a fixed description;
-// negotiateScope already logged the detail.
+// withinSession also requires a `*:*` allow list, since access tokens are
+// minted with one.
+func withinSession(ctx context.Context, logger slog.Logger, appID uuid.UUID, session database.APIKey, granted string) error {
+	if !slices.Contains(session.AllowList, rbac.AllowListAll()) {
+		return errSessionAllowList
+	}
+	outside, err := firstScopeBeyondCeiling(ctx, logger, phaseAuthorize, appID, canonicalScopes(slice.ToStrings(session.Scopes)), strings.Fields(granted))
+	if err != nil {
+		return err
+	}
+	if outside != "" {
+		return xerrors.Errorf("%q: %w", outside, errBeyondSession)
+	}
+	return nil
+}
+
+// scopeFailureResponse maps a negotiateScope or withinSession rejection to the
+// client's error. errCoverageUndecidable is this server failing to compare, not
+// a bad request, so it answers server_error (RFC 6749 §4.1.2.1) with a fixed
+// description; firstScopeBeyondCeiling logged the detail.
 func scopeFailureResponse(err error) (codersdk.OAuth2ErrorCode, string) {
 	if errors.Is(err, errCoverageUndecidable) {
 		return codersdk.OAuth2ErrorCodeServerError, "The requested scope could not be evaluated"
@@ -684,6 +704,9 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		// fails before the consent page renders rather than after the user
 		// clicks Allow. The result also decides what the page lists.
 		grantedScope, err := negotiateScope(r.Context(), logger, app, params.scope)
+		if err == nil {
+			err = withinSession(r.Context(), logger, app.ID, httpmw.APIKey(r), grantedScope)
+		}
 		if err != nil {
 			code, description := scopeFailureResponse(err)
 			redirectAuthorizeError(rw, r, logger, params.response, code, description)
@@ -765,6 +788,9 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 		}
 
 		grantedScope, err := negotiateScope(ctx, logger, app, params.scope)
+		if err == nil {
+			err = withinSession(ctx, logger, app.ID, apiKey, grantedScope)
+		}
 		if err != nil {
 			code, description := scopeFailureResponse(err)
 			redirectAuthorizeError(rw, r, logger, params.response, code, description)

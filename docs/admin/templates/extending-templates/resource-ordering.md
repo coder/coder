@@ -2,21 +2,20 @@
 title: UI resource ordering
 ---
 
-In Coder templates, managing the order of UI elements is crucial for a seamless
-user experience. This page outlines how resources can be aligned using the
-`order` Terraform property or inherit the natural order from the file.
+In Coder templates, managing the order of UI elements is crucial for a seamless user experience.
+This page outlines how resources can be aligned using the `order` Terraform property or inherit the natural order from the file.
 
-The resource with the lower `order` is presented before the one with greater
-value. A missing `order` property defaults to 0. If two resources have the same
-`order` property, the resources will be ordered by property `name` (or `key`).
+The resource with the lower `order` is presented before the one with greater value.
+A missing `order` property defaults to 0. If two resources have the same `order` property, the resources will be ordered by property `name` (or `key`).
 
-## Using "order" property
+<a id="using-order-property"></a>
+
+## Use the "order" property
 
 ### Coder parameters
 
-The `order` property of `coder_parameter` resource allows specifying the order
-of parameters in UI forms. In the below example, `project_id` will appear
-_before_ `account_id`:
+The `order` property of `coder_parameter` resource allows specifying the order of parameters in UI forms.
+In the below example, `project_id` will appear _before_ `account_id`:
 
 ```tf
 data "coder_parameter" "project_id" {
@@ -36,8 +35,7 @@ data "coder_parameter" "account_id" {
 
 ### Agents
 
-Agent resources within the UI left pane are sorted based on the `order`
-property, followed by `name`, ensuring a consistent and intuitive arrangement.
+Agent resources within the UI left pane are sorted based on the `order` property, followed by `name`, ensuring a consistent and intuitive arrangement.
 
 ```tf
 resource "coder_agent" "primary" {
@@ -58,8 +56,7 @@ The agent with the lowest order is presented at the top in the workspace view.
 ### Agent metadata
 
 The `coder_agent` exposes metadata to present operational metrics in the UI.
-Metrics defined with Terraform `metadata` blocks can be ordered using additional
-`order` property; otherwise, they are sorted by `key`.
+Metrics defined with Terraform `metadata` blocks can be ordered using additional `order` property; otherwise, they are sorted by `key`.
 
 ```tf
 resource "coder_agent" "main" {
@@ -102,12 +99,10 @@ resource "coder_agent" "main" {
 
 ### Applications
 
-Similarly to Coder agents, `coder_app` resources incorporate the `order`
-property to organize button apps in the app bar within a `coder_agent` in the
-workspace view.
+Similarly to Coder agents, `coder_app` resources incorporate the `order` property to organize button apps in the app bar within a `coder_agent` in the workspace view.
 
-Only template defined applications can be arranged. _VS Code_ or _Terminal_
-buttons are static.
+Only template defined applications can be arranged.
+_VS Code_ or _Terminal_ buttons are static.
 
 ```tf
 resource "coder_app" "code-server" {
@@ -133,9 +128,8 @@ resource "coder_app" "filebrowser" {
 
 ### Coder parameter options
 
-The options for Coder parameters maintain the same order as in the file
-structure. This simplifies management and ensures consistency between
-configuration files and UI presentation.
+The options for Coder parameters maintain the same order as in the file structure.
+This simplifies management and ensures consistency between configuration files and UI presentation.
 
 ```tf
 data "coder_parameter" "database_region" {
@@ -164,9 +158,7 @@ data "coder_parameter" "database_region" {
 
 ### Coder metadata items
 
-In cases where multiple item properties exist, the order is inherited from the
-file, facilitating seamless integration between a Coder template and UI
-presentation.
+In cases where multiple item properties exist, the order is inherited from the file, facilitating seamless integration between a Coder template and UI presentation.
 
 ```tf
 resource "coder_metadata" "attached_volumes" {

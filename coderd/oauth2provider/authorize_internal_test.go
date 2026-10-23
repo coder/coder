@@ -64,6 +64,30 @@ func TestNegotiateScope(t *testing.T) {
 			wantErr:   errUnknownScope,
 		},
 		{
+			name:      "RetiredScopeDroppedFromRequest",
+			requested: []string{"task:*", inCatalog, "task:read"},
+			appScope:  noAllowlist,
+			want:      inCatalog,
+		},
+		{
+			name:      "RetiredScopeDroppedBeforeAllowlistCheck",
+			requested: []string{inCatalog, "task:*"},
+			appScope:  sql.NullString{String: inCatalog, Valid: true},
+			want:      inCatalog,
+		},
+		{
+			name:      "OnlyRetiredScopesRejected",
+			requested: []string{"task:*", "task:read"},
+			appScope:  noAllowlist,
+			wantErr:   errUnknownScope,
+		},
+		{
+			name:      "UnknownScopeBesideRetiredRejected",
+			requested: []string{"task:*", "not_a_real_scope", inCatalog},
+			appScope:  noAllowlist,
+			wantErr:   errUnknownScope,
+		},
+		{
 			name:      "NoAllowlistOmittedRequestIsUnrestricted",
 			requested: nil,
 			appScope:  noAllowlist,
@@ -263,15 +287,15 @@ var (
 	ReasonNoGrantableScope    = errNoGrantableScope.Error()
 	ReasonScopeNotAllowed     = errScopeNotAllowed.Error()
 	ReasonCoverageUndecidable = errCoverageUndecidable.Error()
+	ReasonBeyondSession       = errBeyondSession.Error()
+	ReasonSessionAllowList    = errSessionAllowList.Error()
 )
 
 // MaxErrorDescription is the description bound, for the same tests.
 const MaxErrorDescription = maxErrorDescription
 
-// TestGrantableScopesNotSizedByInput pins the shape of the result, not just its
-// contents. app.Scope is unvalidated registration metadata read on every
-// authorization and redemption, so collecting duplicates and dropping them
-// afterwards would size the slice by the input rather than by the catalog.
+// TestGrantableScopesNotSizedByInput checks the result is sized by the catalog,
+// not by app.Scope, which not every write path narrows.
 func TestGrantableScopesNotSizedByInput(t *testing.T) {
 	t.Parallel()
 

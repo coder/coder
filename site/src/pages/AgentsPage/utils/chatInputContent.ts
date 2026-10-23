@@ -1,5 +1,9 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import type { PendingAttachment } from "../components/ChatPageContent";
+import type {
+	PendingAttachment,
+	PendingWorkspaceUpload,
+} from "../components/ChatPageContent";
+import type { SkillSource } from "./skillAliases";
 
 export type ChatComposerContentPart =
 	| { readonly type: "text"; readonly text: string }
@@ -11,6 +15,11 @@ export type ChatComposerContentPart =
 				readonly endLine: number;
 				readonly content: string;
 			};
+	  }
+	| {
+			readonly type: "skill-invocation";
+			readonly source: SkillSource;
+			readonly name: string;
 	  };
 
 export const buildAttachmentMediaTypes = (
@@ -25,17 +34,30 @@ export const buildAttachmentMediaTypes = (
 	);
 };
 
+export const toWorkspaceFileReferencePart = (
+	upload: PendingWorkspaceUpload,
+): TypesGen.ChatWorkspaceFileReferencePart => ({
+	type: "workspace-file-reference",
+	workspace_file_path: upload.path,
+	workspace_file_name: upload.name,
+	workspace_file_size: upload.size,
+	workspace_file_media_type: upload.mediaType || "application/octet-stream",
+	workspace_file_workspace_id: upload.workspaceId,
+});
+
 /**
- * When `composerParts` is provided, file-reference chips stay in document
- * order. Omit it to send `message` as text only.
+ * When `composerParts` is provided, file-reference and skill chips stay in
+ * document order. Omit it to send `message` as text only.
  */
 export const buildChatInputContent = ({
 	message,
 	attachments,
+	workspaceUploads,
 	composerParts,
 }: {
 	message: string;
 	attachments?: readonly PendingAttachment[];
+	workspaceUploads?: readonly PendingWorkspaceUpload[];
 	composerParts?: readonly ChatComposerContentPart[];
 }): { content: TypesGen.ChatInputPart[]; hasContent: boolean } => {
 	const content: TypesGen.ChatInputPart[] = [];
@@ -46,6 +68,12 @@ export const buildChatInputContent = ({
 				if (part.text.trim()) {
 					content.push({ type: "text", text: part.text });
 				}
+			} else if (part.type === "skill-invocation") {
+				content.push({
+					type: "skill-invocation",
+					skill_source: part.source,
+					skill_name: part.name,
+				});
 			} else {
 				const reference = part.reference;
 				content.push({
@@ -68,6 +96,12 @@ export const buildChatInputContent = ({
 	if (attachments && attachments.length > 0) {
 		for (const { fileId } of attachments) {
 			content.push({ type: "file", file_id: fileId });
+		}
+	}
+
+	if (workspaceUploads && workspaceUploads.length > 0) {
+		for (const upload of workspaceUploads) {
+			content.push(toWorkspaceFileReferencePart(upload));
 		}
 	}
 

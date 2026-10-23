@@ -3,8 +3,6 @@ package codersdk
 import (
 	"cmp"
 	"encoding/json"
-	"maps"
-	"slices"
 	"strings"
 	"unicode"
 
@@ -26,10 +24,26 @@ const (
 	AppFamilyJetBrains       AppFamilyName = "jetbrains"
 	AppFamilySSH             AppFamilyName = "ssh"
 	AppFamilyReconnectingPTY AppFamilyName = "reconnecting_pty"
-	// AppFamilySFTP only comes from history the sftp_mins column recorded.
-	AppFamilySFTP    AppFamilyName = "sftp"
-	AppFamilyUnknown AppFamilyName = "unknown"
+	AppFamilyPortForwarding  AppFamilyName = "port_forwarding"
+	AppFamilySFTP            AppFamilyName = "sftp"
+	AppFamilyUnknown         AppFamilyName = "unknown"
 )
+
+// appFamilyDisplayNames names each family.
+var appFamilyDisplayNames = map[AppFamilyName]string{
+	AppFamilyVSCode:          "Visual Studio Code",
+	AppFamilyJetBrains:       "JetBrains",
+	AppFamilySSH:             "SSH",
+	AppFamilyReconnectingPTY: "Web Terminal",
+	AppFamilyPortForwarding:  "Port Forwarding",
+	AppFamilySFTP:            "SFTP",
+	AppFamilyUnknown:         "Unknown",
+}
+
+// DisplayName returns the family's human-readable name.
+func (f AppFamilyName) DisplayName() string {
+	return appFamilyDisplayNames[f]
+}
 
 // AppNameOverflow sums the app names past the per-report cap.
 const AppNameOverflow = "overflow"
@@ -55,41 +69,81 @@ type sessionApp struct {
 // sessionApps keys attribution and presentation by normalized registry module
 // ID. An unregistered ID shows as-is under AppFamilyUnknown.
 var sessionApps = map[string]sessionApp{
+	// VS Code forks report their URI scheme, with hyphens folded.
 	"vscode":          {AppFamilyVSCode, "VS Code", "/icon/code.svg"},
 	"vscode_insiders": {AppFamilyVSCode, "VS Code Insiders", "/icon/code-insiders.svg"},
 	"vscode_web":      {AppFamilyVSCode, "VS Code Web", "/icon/code.svg"},
 	"code_server":     {AppFamilyVSCode, "code-server", "/icon/code.svg"},
+	"code_oss":        {AppFamilyVSCode, "Code - OSS", ""},
 	"cursor":          {AppFamilyVSCode, "Cursor", "/icon/cursor.svg"},
-	"windsurf":        {AppFamilyVSCode, "Windsurf", "/icon/windsurf.svg"},
-	"positron":        {AppFamilyVSCode, "Positron", "/icon/positron.svg"},
-	"vscodium":        {AppFamilyVSCode, "VSCodium", ""},
-	"codium":          {AppFamilyVSCode, "VSCodium", ""},
-	"antigravity":     {AppFamilyVSCode, "Antigravity", "/icon/antigravity.svg"},
-	"trae":            {AppFamilyVSCode, "Trae", ""},
-	"kiro":            {AppFamilyVSCode, "Kiro", "/icon/kiro.svg"},
-	"devin":           {AppFamilyVSCode, "Devin", "/icon/devin.svg"},
-	"jetbrains":       {AppFamilyJetBrains, "JetBrains", "/icon/jetbrains.svg"},
-	// No agent reports sftp; the family covers the sftp_mins history.
+	// Reported by Windsurf builds from before the Devin Desktop rename.
+	"windsurf":          {AppFamilyVSCode, "Windsurf", "/icon/windsurf.svg"},
+	"positron":          {AppFamilyVSCode, "Positron", "/icon/positron.svg"},
+	"vscodium":          {AppFamilyVSCode, "VSCodium", ""},
+	"vscodium_insiders": {AppFamilyVSCode, "VSCodium Insiders", ""},
+	"codium":            {AppFamilyVSCode, "VSCodium", ""},
+	"antigravity":       {AppFamilyVSCode, "Antigravity", "/icon/antigravity.svg"},
+	"trae":              {AppFamilyVSCode, "Trae", ""},
+	"trae_cn":           {AppFamilyVSCode, "Trae CN", ""},
+	"kiro":              {AppFamilyVSCode, "Kiro", "/icon/kiro.svg"},
+	"devin":             {AppFamilyVSCode, "Devin Desktop", "/icon/devin.svg"},
+	"devin_next":        {AppFamilyVSCode, "Devin Desktop Next", "/icon/devin.svg"},
+	"jetbrains":         {AppFamilyJetBrains, "JetBrains", "/icon/jetbrains.svg"},
+	// JetBrains plugins report one name per IDE, whatever its edition.
+	"intellij":       {AppFamilyJetBrains, "IntelliJ IDEA", "/icon/intellij.svg"},
+	"pycharm":        {AppFamilyJetBrains, "PyCharm", "/icon/pycharm.svg"},
+	"goland":         {AppFamilyJetBrains, "GoLand", "/icon/goland.svg"},
+	"webstorm":       {AppFamilyJetBrains, "WebStorm", "/icon/webstorm.svg"},
+	"phpstorm":       {AppFamilyJetBrains, "PhpStorm", "/icon/phpstorm.svg"},
+	"rubymine":       {AppFamilyJetBrains, "RubyMine", "/icon/rubymine.svg"},
+	"clion":          {AppFamilyJetBrains, "CLion", "/icon/clion.svg"},
+	"rider":          {AppFamilyJetBrains, "Rider", "/icon/rider.svg"},
+	"rustrover":      {AppFamilyJetBrains, "RustRover", "/icon/rustrover.svg"},
+	"datagrip":       {AppFamilyJetBrains, "DataGrip", "/icon/datagrip.svg"},
+	"dataspell":      {AppFamilyJetBrains, "DataSpell", "/icon/dataspell.svg"},
+	"mps":            {AppFamilyJetBrains, "MPS", ""},
+	"android_studio": {AppFamilyJetBrains, "Android Studio", "/icon/android-studio.svg"},
+	// Coder's own clients don't report sftp, but other clients can. The
+	// family also holds usage from the old sftp_mins column.
 	"sftp": {AppFamilySFTP, "SFTP", "/icon/terminal.svg"},
 	// Zed speaks SSH, so it counts toward the SSH total.
 	"zed":              {AppFamilySSH, "Zed", "/icon/zed.svg"},
 	"ssh":              {AppFamilySSH, "SSH", "/icon/terminal.svg"},
-	"reconnecting_pty": {AppFamilyReconnectingPTY, "Web Terminal", ""},
+	"reconnecting_pty": {AppFamilyReconnectingPTY, "Web Terminal", "/icon/terminal.svg"},
+	"port_forwarding":  {AppFamilyPortForwarding, "Port Forwarding", ""},
 }
 
 // SessionCountApps pairs each count with its presentation, keyed by app name.
 func SessionCountApps(counts map[string]int64) map[string]SessionCountApp {
 	apps := make(map[string]SessionCountApp, len(counts))
 	for appName, count := range counts {
-		app := sessionApps[NormalizeAppName(appName)]
+		displayName, icon, family := SessionAppPresentation(appName)
 		apps[appName] = SessionCountApp{
 			Count:       count,
-			DisplayName: cmp.Or(app.displayName, appName),
-			Icon:        app.icon,
-			Family:      cmp.Or(app.family, AppFamilyUnknown),
+			DisplayName: displayName,
+			Icon:        icon,
+			Family:      family,
 		}
 	}
 	return apps
+}
+
+// SessionAppPresentation returns registry metadata or an unknown-family label.
+func SessionAppPresentation(appName string) (displayName, icon string, family AppFamilyName) {
+	appName = NormalizeAppName(appName)
+	if app, ok := sessionApps[appName]; ok {
+		return app.displayName, app.icon, app.family
+	}
+
+	// Accounting labels are not registered apps and must not bypass app limits.
+	switch appName {
+	case string(AppFamilyUnknown):
+		return "Unknown", "", AppFamilyUnknown
+	case AppNameOverflow:
+		return "Other apps", "", AppFamilyUnknown
+	default:
+		return appName, "", AppFamilyUnknown
+	}
 }
 
 // SessionCountAppFamilies returns a copy of the registry's app-to-family mapping.
@@ -111,27 +165,6 @@ func SumByFamily(byApp map[string]int64) map[AppFamilyName]int64 {
 	return byFamily
 }
 
-// UnionByFamily folds per-app template IDs into the distinct set each family
-// was seen in, ordered by app name.
-func UnionByFamily(byApp map[string][]uuid.UUID) map[AppFamilyName][]uuid.UUID {
-	byFamily := make(map[AppFamilyName][]uuid.UUID, len(byApp))
-	seen := make(map[AppFamilyName]map[uuid.UUID]struct{}, len(byApp))
-	for _, appName := range slices.Sorted(maps.Keys(byApp)) {
-		family := AppNameFamily(appName)
-		if seen[family] == nil {
-			seen[family] = map[uuid.UUID]struct{}{}
-		}
-		for _, id := range byApp[appName] {
-			if _, ok := seen[family][id]; ok {
-				continue
-			}
-			seen[family][id] = struct{}{}
-			byFamily[family] = append(byFamily[family], id)
-		}
-	}
-	return byFamily
-}
-
 // AppNameFamily normalizes an app name and returns its family, or
 // AppFamilyUnknown.
 func AppNameFamily(appName string) AppFamilyName {
@@ -139,6 +172,13 @@ func AppNameFamily(appName string) AppFamilyName {
 		return app.family
 	}
 	return AppFamilyUnknown
+}
+
+// AppDisplayName returns the registry name of appName, or the normalized name
+// if unregistered.
+func AppDisplayName(appName string) string {
+	appName = NormalizeAppName(appName)
+	return cmp.Or(sessionApps[appName].displayName, appName)
 }
 
 // NormalizeAppName prepares a client-supplied app name for storage and

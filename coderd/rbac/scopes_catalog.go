@@ -1,6 +1,7 @@
 package rbac
 
 import (
+	"maps"
 	"sort"
 	"strings"
 
@@ -9,7 +10,7 @@ import (
 
 // externalLowLevel is the curated set of low-level scope names exposed to users.
 // Any valid resource:action pair not in this set is considered internal-only
-// and must not be user-requestable.
+// and must not be user-requestable. Move removed entries to retiredScopes.
 var externalLowLevel = map[ScopeName]struct{}{
 	// Workspaces
 	"workspace:read":                {},
@@ -46,6 +47,10 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"file:create": {},
 	"file:*":      {},
 
+	// Inbox notifications. No wildcard: it would grant create, which stays internal.
+	"inbox_notification:read":   {},
+	"inbox_notification:update": {},
+
 	// Users
 	"user:read":            {},
 	"user:read_personal":   {},
@@ -65,6 +70,14 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"user_skill:update": {},
 	"user_skill:delete": {},
 	"user_skill:*":      {},
+
+	// Organization skills
+	"organization_skill:read":   {},
+	"organization_skill:create": {},
+	"organization_skill:update": {},
+	"organization_skill:delete": {},
+	"organization_skill:share":  {},
+	"organization_skill:*":      {},
 
 	// Organizations
 	"organization:read":   {},
@@ -96,6 +109,22 @@ var scopeAliases = map[ScopeName]ScopeName{
 	"application_connect": ScopeApplicationConnect,
 }
 
+// retiredScopes preserves compatibility with clients that still request removed
+// scopes alongside supported scopes.
+var retiredScopes = map[ScopeName]struct{}{
+	"task:create": {},
+	"task:read":   {},
+	"task:update": {},
+	"task:delete": {},
+	"task:*":      {},
+}
+
+// IsRetiredScope reports whether name was removed from the external catalog.
+func IsRetiredScope(name ScopeName) bool {
+	_, ok := retiredScopes[name]
+	return ok
+}
+
 // IsExternalScope returns true if the scope is public: the `all` and
 // `application_connect` aliases, the canonical `coder:all` and
 // `coder:application_connect`, a curated low-level resource:action scope, or a
@@ -118,6 +147,12 @@ func IsExternalScope(name ScopeName) bool {
 	return false
 }
 
+// ScopeAliases returns the backward-compatibility aliases and their canonical
+// scope names. The returned map is a copy and may be modified by the caller.
+func ScopeAliases() map[ScopeName]ScopeName {
+	return maps.Clone(scopeAliases)
+}
+
 // CanonicalScopeName maps the backward-compatibility aliases IsExternalScope
 // accepts onto the names the api_key_scope enum stores. Any other name is
 // returned unchanged.
@@ -134,10 +169,9 @@ func CanonicalScopeName(name ScopeName) ScopeName {
 }
 
 // CanonicalScopeList rewrites a space-separated scope list into its canonical
-// spelling and drops duplicates, keeping first-seen order. Both app write paths
-// store the caller's spelling as given, so this is where a stored allowlist
-// gets one display form. Unknown names are kept: this shows what is
-// configured, not what is grantable.
+// spelling and drops duplicates, keeping first-seen order. Not every stored
+// allowlist is canonical, so readers call this to get one display form.
+// Unknown names are kept: this shows what is configured, not what is grantable.
 //
 // A list with no names is returned as given. An empty allowlist means
 // unrestricted, but a whitespace-only one is configured and grants nothing,

@@ -1,5 +1,5 @@
 import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type {
 	Group,
 	ReducedUser,
@@ -56,7 +56,7 @@ type AddTemplateUserOrGroupProps = {
 	) => void;
 };
 
-const AddTemplateUserOrGroup: FC<AddTemplateUserOrGroupProps> = ({
+const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
 	isLoading,
 	templateID,
 	templateACL,
@@ -137,7 +137,7 @@ type RoleSelectProps = {
 	onValueChange: (value: TemplateRole) => void;
 };
 
-const RoleSelect: FC<RoleSelectProps> = ({
+const RoleSelect: React.FC<RoleSelectProps> = ({
 	value,
 	disabled,
 	onValueChange,
@@ -201,7 +201,7 @@ type TemplatePermissionsPageViewProps = {
 	onRemoveGroup: (group: Group) => void;
 };
 
-export const TemplatePermissionsPageView: FC<
+export const TemplatePermissionsPageView: React.FC<
 	TemplatePermissionsPageViewProps
 > = ({
 	templateACL,
@@ -272,7 +272,7 @@ type MembersTableBodyProps = {
 	onRemoveGroup: (group: Group) => void;
 };
 
-const MembersTableBody: FC<MembersTableBodyProps> = ({
+const MembersTableBody: React.FC<MembersTableBodyProps> = ({
 	templateACL,
 	canUpdatePermissions,
 	updatingUserId,

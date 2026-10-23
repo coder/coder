@@ -7,14 +7,7 @@ import {
 	PlayIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import {
-	type FC,
-	type ReactNode,
-	useEffect,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { VariableSizeList as List, ListOnScrollProps } from "react-window";
 import type {
@@ -144,7 +137,7 @@ const STARTUP_SCRIPT_DISPLAY_NAME = "Startup Script";
 const isScriptFailed = (script: WorkspaceAgentScript | undefined): boolean =>
 	Boolean(script?.exit_code || (script?.status && script.status !== "ok"));
 
-export const AgentRow: FC<AgentRowProps> = ({
+export const AgentRow: React.FC<AgentRowProps> = ({
 	agent,
 	subAgents,
 	workspace,
@@ -164,6 +157,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 		agent.display_apps.includes("vscode") ||
 		agent.display_apps.includes("vscode_insiders");
 	const showVSCode = hasVSCodeApp && !browser_only;
+	const copyLogsLabel = "Copy selected logs";
 
 	const hasStartupFeatures = Boolean(agent.logs_length);
 	const runningScriptsCount = agent.scripts.filter(
@@ -339,7 +333,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 			return a.title.localeCompare(b.title);
 		});
 	const logTabs: {
-		startIcon?: ReactNode;
+		startIcon?: React.ReactNode;
 		title: string;
 		value: string;
 		error: boolean;
@@ -557,7 +551,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 									connectivityIssues.length === 0 && (
 										<Badge
 											variant="default"
-											size="xs"
+											size="sm"
 											className="ml-1.5"
 											svgSize="sm"
 										>
@@ -572,7 +566,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 								{hasConnectivityIssues && (
 									<Badge
 										variant={hasWarningConnectivityIssues ? "warning" : "info"}
-										size="xs"
+										size="sm"
 										className="ml-1.5"
 									>
 										{hasWarningConnectivityIssues ? (
@@ -637,7 +631,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 															{tab.error && (
 																<Badge
 																	variant="warning"
-																	size="xs"
+																	size="sm"
 																	className="ml-1.5"
 																>
 																	<TriangleAlertIcon />
@@ -690,7 +684,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 																			{tab.error && (
 																				<Badge
 																					variant="warning"
-																					size="xs"
+																					size="sm"
 																					className="ml-1.5"
 																				>
 																					<TriangleAlertIcon />
@@ -727,12 +721,11 @@ export const AgentRow: FC<AgentRowProps> = ({
 																) : (
 																	<CopyIcon />
 																)}
+																<span className="sr-only">{copyLogsLabel}</span>
 															</Button>
 														</TooltipTrigger>
 														<TooltipContent>
-															{showCopiedSuccess
-																? "Copied!"
-																: "Copy selected logs"}
+															{showCopiedSuccess ? "Copied!" : copyLogsLabel}
 														</TooltipContent>
 													</Tooltip>
 												</TooltipProvider>

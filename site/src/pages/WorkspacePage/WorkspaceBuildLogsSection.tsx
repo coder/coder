@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import type { ProvisionerJobLog } from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
@@ -8,9 +7,9 @@ type WorkspaceBuildLogsSectionProps = {
 	logs?: ProvisionerJobLog[];
 };
 
-export const WorkspaceBuildLogsSection: FC<WorkspaceBuildLogsSectionProps> = ({
-	logs,
-}) => {
+export const WorkspaceBuildLogsSection: React.FC<
+	WorkspaceBuildLogsSectionProps
+> = ({ logs }) => {
 	return (
 		<div className="rounded-lg border border-solid overflow-hidden bg-surface-primary">
 			<header

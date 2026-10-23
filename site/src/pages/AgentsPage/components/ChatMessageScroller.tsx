@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ArrowDownIcon, RotateCcwIcon } from "lucide-react";
-import { type FC, type ReactNode, useEffect } from "react";
+import { useEffect } from "react";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -9,11 +9,14 @@ import {
 } from "#/vendor/message-scroller";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 
-type EarlierMessagesProps = {
+/**
+ * Paging state for a chat's older messages. A page that any consumer loads
+ * reaches every consumer.
+ */
+export type EarlierMessagesProps = {
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
-	// True while fetched pages have not reached the store yet. Blocks paging
-	// without showing the loader: hydration is not a history request.
+	// True while fetched pages have not reached the store yet.
 	isHydratingMessages: boolean;
 	hasFetchMoreError: boolean;
 	hasTranscriptRows: boolean;
@@ -25,7 +28,7 @@ type EarlierMessagesProps = {
  * instead of measuring the viewport, and it never moves the scroll position:
  * MessageScroller keeps the reading position across a prepend on its own.
  */
-const EarlierMessages: FC<EarlierMessagesProps> = ({
+const EarlierMessages: React.FC<EarlierMessagesProps> = ({
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	isHydratingMessages,
@@ -42,6 +45,8 @@ const EarlierMessages: FC<EarlierMessagesProps> = ({
 		isAtHistoryStart &&
 		hasMoreMessages &&
 		!isFetchingMoreMessages &&
+		// Hydration is not a history request, so it blocks paging without
+		// showing the loader.
 		!isHydratingMessages &&
 		!hasFetchMoreError;
 
@@ -75,7 +80,7 @@ const EarlierMessages: FC<EarlierMessagesProps> = ({
 				aria-label="Loading earlier messages"
 				className="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center"
 			>
-				<div className="flex items-center gap-2 rounded-full border border-border-default bg-surface-primary px-3 py-1.5 text-xs text-content-secondary shadow-xs">
+				<div className="flex items-center gap-2 rounded-full border border-border bg-surface-primary px-3 py-1.5 text-xs text-content-secondary shadow-xs">
 					<Spinner className="size-4" loading aria-hidden />
 					Loading earlier messages
 				</div>
@@ -104,10 +109,10 @@ const EarlierMessages: FC<EarlierMessagesProps> = ({
 
 type ChatMessageScrollerProps = EarlierMessagesProps & {
 	/** One `MessageScroller.Item` per transcript row, and nothing else. */
-	children: ReactNode;
+	children: React.ReactNode;
 };
 
-export const ChatMessageScroller: FC<ChatMessageScrollerProps> = ({
+export const ChatMessageScroller: React.FC<ChatMessageScrollerProps> = ({
 	children,
 	...earlierMessages
 }) => {
@@ -115,7 +120,7 @@ export const ChatMessageScroller: FC<ChatMessageScrollerProps> = ({
 
 	return (
 		<MessageScroller.Root className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-			<MessageScroller.Viewport className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain scrollbar-gutter-stable scrollbar-thin [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+			<MessageScroller.Viewport className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain scrollbar-gutter-stable scrollbar-thin">
 				<MessageScroller.Content
 					data-testid="conversation-timeline"
 					aria-busy={earlierMessages.isFetchingMoreMessages || undefined}

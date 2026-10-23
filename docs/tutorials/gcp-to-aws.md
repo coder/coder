@@ -11,32 +11,25 @@ January 4, 2024
 
 ---
 
-This guide will walkthrough how to use a Google Cloud service account to
-authenticate the Coder control plane to AWS and create an EC2 workspace. The
-below steps assume your Coder control plane is running in Google Cloud and has
-the relevant service account assigned.
+This guide will walkthrough how to use a Google Cloud service account to authenticate the Coder control plane to AWS and create an EC2 workspace.
+The below steps assume your Coder control plane is running in Google Cloud and has the relevant service account assigned.
 
-For steps on assigning a service account to a resource like Coder, visit the
-[Google documentation](https://cloud.google.com/iam/docs/attach-service-accounts#attaching-new-resource).
+For steps on assigning a service account to a resource like Coder, visit the [Google documentation](https://cloud.google.com/iam/docs/attach-service-accounts#attaching-new-resource).
 
 ## 1. Get your Google service account OAuth Client ID
 
-Navigate to the Google Cloud console, and select **IAM & Admin** > **Service
-Accounts**. View the service account you want to use, and copy the **OAuth 2
-Client ID** value shown on the right-hand side of the row.
+Navigate to the Google Cloud console, and select **IAM & Admin** > **Service Accounts**.
+View the service account you want to use, and copy the **OAuth 2 Client ID** value shown on the right-hand side of the row.
 
-Optionally: If you do not yet have a service account, use the
-[Google IAM documentation on creating a service account](https://cloud.google.com/iam/docs/service-accounts-create) to create one.
+Optionally: If you do not yet have a service account, use the [Google IAM documentation on creating a service account](https://cloud.google.com/iam/docs/service-accounts-create) to create one.
 
 ## 2. Create AWS role
 
-Create an AWS role that is configured for Web Identity Federation, with Google
-as the identity provider, as shown below:
+Create an AWS role that is configured for Web Identity Federation, with Google as the identity provider, as shown below:
 
 ![AWS Create Role](../images/guides/gcp-to-aws/aws-create-role.png)
 
-Once created, edit the **Trust Relationship** section to look like the
-following:
+Once created, edit the **Trust Relationship** section to look like the following:
 
 ```json
 {
@@ -60,8 +53,8 @@ following:
 
 ## 3. Assign permissions to the AWS role
 
-In this example, Coder will need permissions to create the EC2 instance. Add the
-following policy to the role:
+In this example, Coder will need permissions to create the EC2 instance.
+Add the following policy to the role:
 
 ```json
 {
@@ -114,9 +107,8 @@ following policy to the role:
 
 ## 4. Generate the identity token for the service account
 
-Run the following `gcloud` command to generate the service account identity
-token. This is a JWT token with a payload that includes the service account
-email, audience, issuer, and expiration.
+Run the following `gcloud` command to generate the service account identity token.
+This is a JWT token with a payload that includes the service account email, audience, issuer, and expiration.
 
 ```console
 gcloud auth print-identity-token --audiences=https://aws.amazon.com --impersonate-service-account 12345-compute@de
@@ -124,18 +116,16 @@ veloper.gserviceaccount.com  --include-email
 ```
 
 > [!NOTE]
-> Your `gcloud` client may needed elevated permissions to run this
-> command.
+> Your `gcloud` client may needed elevated permissions to run this command.
 
 ## 5. Set identity token in Coder control plane
 
-You will need to set the token created in the previous step on a location in the
-Coder control plane. Follow the below steps for your specific deployment type:
+You will need to set the token created in the previous step on a location in the Coder control plane.
+Follow the below steps for your specific deployment type:
 
 ### VM control plane
 
-- Write the token to a file on the host, preferably inside the `/home/coder`
-  directory:
+- Write the token to a file on the host, preferably inside the `/home/coder` directory:
 
 ```console
 /home/coder/.aws/gcp-identity-token
@@ -149,8 +139,7 @@ Coder control plane. Follow the below steps for your specific deployment type:
 kubectl create secret generic gcp-identity-token -n coder --from-literal=token=<enter-token-here>
 ```
 
-Make sure the secret is created inside the same namespace where Coder is
-running.
+Make sure the secret is created inside the same namespace where Coder is running.
 
 - Mount the token file into the Coder pod using the values below:
 
@@ -168,8 +157,7 @@ coder:
 
 ## 6. Configure the AWS Terraform provider
 
-Navigate to your EC2 workspace template in Coder, and configure the AWS provider
-using the block below:
+Navigate to your EC2 workspace template in Coder, and configure the AWS provider using the block below:
 
 ```tf
 provider "aws" {
@@ -193,5 +181,4 @@ aws sts assume-role-with-web-identity \
   --web-identity-token xxx
 ```
 
-You can run this command with the identity token string to validate or
-troubleshoot the call to AWS.
+You can run this command with the identity token string to validate or troubleshoot the call to AWS.

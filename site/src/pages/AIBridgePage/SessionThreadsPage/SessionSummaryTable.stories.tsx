@@ -78,8 +78,12 @@ export const NetworkDisabledKeyboard: Story = {
 		...Default.args,
 		networkCalls: undefined,
 	},
-	play: async () => {
-		await userEvent.tab();
+	play: async ({ canvas }) => {
+		// Earlier rows, such as the token usage badges, are also focusable.
+		const info = canvas.getByRole("button", { name: "More info" });
+		while (document.activeElement !== info) {
+			await userEvent.tab();
+		}
 		await waitFor(() =>
 			expect(screen.getByRole("tooltip")).toHaveTextContent(
 				"Network request monitoring was not active for this session.",

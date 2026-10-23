@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { ArrowRightIcon, PlusIcon, TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
 import { hasError, isApiValidationError } from "#/api/errors";
 import type {
@@ -54,7 +53,7 @@ import {
 	TemplatesFilter,
 } from "./TemplatesFilter";
 
-const CompatibilityModeAlert: FC<{ templates: readonly Template[] }> = ({
+const CompatibilityModeAlert: React.FC<{ templates: readonly Template[] }> = ({
 	templates,
 }) => {
 	const singleTemplate = templates.length === 1 ? templates[0] : undefined;
@@ -90,7 +89,7 @@ const CompatibilityModeAlert: FC<{ templates: readonly Template[] }> = ({
 				settings.{" "}
 				<Link
 					href={docs(
-						"/admin/templates/extending-templates/dynamic-parameters#upgrade-from-parameter-compatibility-mode",
+						"/admin/templates/extending-templates/parameters/compatibility-mode#upgrade-from-parameter-compatibility-mode",
 					)}
 					target="_blank"
 					rel="noreferrer"
@@ -103,7 +102,7 @@ const CompatibilityModeAlert: FC<{ templates: readonly Template[] }> = ({
 	);
 };
 
-const TemplateHelpPopover: FC = () => {
+const TemplateHelpPopover: React.FC = () => {
 	return (
 		<InfoTooltip>
 			<TooltipTitle>What is a template?</TooltipTitle>
@@ -125,7 +124,7 @@ type TemplateActionsProps = {
 	templatePageLink: string;
 };
 
-const TemplateActions: FC<TemplateActionsProps> = ({
+const TemplateActions: React.FC<TemplateActionsProps> = ({
 	template,
 	workspacePermissions,
 	templatePageLink,
@@ -170,7 +169,7 @@ type TemplateRowProps = {
 	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
 };
 
-const TemplateRow: FC<TemplateRowProps> = ({
+const TemplateRow: React.FC<TemplateRowProps> = ({
 	canUpdateTemplate,
 	showOrganizations,
 	template,
@@ -182,6 +181,8 @@ const TemplateRow: FC<TemplateRowProps> = ({
 	);
 	const navigate = useNavigate();
 
+	const organizationLabel =
+		template.organization_display_name || template.organization_name;
 	const developerCount = formatTemplateActiveDevelopersLabel(
 		template.active_user_count,
 	);
@@ -203,11 +204,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 						<span className="flex flex-row items-center gap-2">
 							{template.display_name || template.name}
 							{canUpdateTemplate && template.use_classic_parameter_flow && (
-								<Badge
-									variant="warning"
-									size="sm"
-									className="border-0 shadow-none"
-								>
+								<Badge variant="warning" size="sm">
 									<TriangleAlertIcon aria-hidden="true" />
 									Compatibility mode
 								</Badge>
@@ -229,9 +226,15 @@ const TemplateRow: FC<TemplateRowProps> = ({
 			<TableCell className="text-content-secondary">
 				{showOrganizations ? (
 					<AvatarData
-						title={template.organization_display_name}
+						title={organizationLabel}
 						subtitle={`Used by ${developerCount}`}
-						avatar={<Avatar variant="icon" src={template.organization_icon} />}
+						avatar={
+							<Avatar
+								variant="icon"
+								src={template.organization_icon}
+								fallback={organizationLabel}
+							/>
+						}
 					/>
 				) : (
 					developerCount
@@ -269,7 +272,7 @@ type TemplatesPageViewProps = {
 	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
 };
 
-export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
+export const TemplatesPageView: React.FC<TemplatesPageViewProps> = ({
 	error,
 	filterState,
 	showOrganizations,
@@ -378,7 +381,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	);
 };
 
-const TableLoader: FC = () => {
+const TableLoader: React.FC = () => {
 	return (
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>

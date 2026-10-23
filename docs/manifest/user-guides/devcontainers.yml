@@ -1,0 +1,14 @@
+title: Dev Containers
+description: Run containerized development environments in your Coder workspace using the dev containers specification.
+path: ./user-guides/devcontainers/index.md
+icon_path: ./images/icons/container.svg
+children:
+  - title: Work with dev containers
+    description: Access and work inside dev containers in your Coder workspace over SSH, your IDE, or the web terminal.
+    path: ./user-guides/devcontainers/working-with-dev-containers.md
+  - title: Customizing dev containers
+    description: Configure custom agent names, apps, and display options in devcontainer.json.
+    path: ./user-guides/devcontainers/customizing-dev-containers.md
+  - title: Troubleshooting dev containers
+    description: Diagnose and resolve common issues with dev containers in your Coder workspace.
+    path: ./user-guides/devcontainers/troubleshooting-dev-containers.md

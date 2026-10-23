@@ -121,6 +121,11 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Forbidden(rw)
 			return
 		}
+		// The build was requested but does not exist.
+		if errors.Is(err, errWorkspaceBuildNotFound) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
 			Detail:  err.Error(),
@@ -294,6 +299,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, name, or me"
 // @Param workspacename path string true "Workspace name"
 // @Param include_deleted query bool false "Return data instead of HTTP 404 if the workspace is deleted"
+// @Param include_related query string false "Comma-separated list of related data to include (e.g. `template,latest_build.resources.agents.*`). Omit to include everything."
 // @Success 200 {object} codersdk.Workspace
 // @Router /api/v2/users/{user}/workspace/{workspacename} [get]
 func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request) {
@@ -341,11 +347,25 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	data, err := api.singleWorkspaceData(ctx, workspace, wsrelated.All())
+	// Omitting include_related is backward compatible: everything is returned.
+	// When present, only the requested related data is loaded.
+	related := wsrelated.All()
+	if r.URL.Query().Has("include_related") {
+		related, err = wsrelated.Parse(r.URL.Query().Get("include_related"))
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid include_related query param.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	data, err := api.singleWorkspaceData(ctx, workspace, related)
 	if err != nil {
-		// Preserve concealment: a template the actor cannot read is reported as
-		// not found rather than forbidden.
-		if errors.Is(err, errWorkspaceTemplateUnauthorized) {
+		// Preserve concealment: a template the actor cannot read, or a build
+		// that does not exist, is reported as not found rather than forbidden.
+		if errors.Is(err, errWorkspaceTemplateUnauthorized) || errors.Is(err, errWorkspaceBuildNotFound) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
@@ -356,14 +376,19 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if len(data.builds) == 0 {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	appStatus := codersdk.WorkspaceAppStatus{}
 	if len(data.appStatuses) > 0 {
 		appStatus = data.appStatuses[0]
+	}
+
+	// Related data may be omitted, in which case these carry zero values.
+	var build codersdk.WorkspaceBuild
+	if len(data.builds) > 0 {
+		build = data.builds[0]
+	}
+	var template database.Template
+	if len(data.templates) > 0 {
+		template = data.templates[0]
 	}
 
 	w, err := convertWorkspace(
@@ -371,8 +396,8 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		api.Logger,
 		apiKey.UserID,
 		workspace,
-		data.builds[0],
-		data.templates[0],
+		build,
+		template,
 		api.AllowWorkspaceRenames,
 		appStatus,
 	)
@@ -557,9 +582,9 @@ type createWorkspaceOptions struct {
 	// preCreateInTX is a function that is called within the transaction, before
 	// the workspace is created.
 	preCreateInTX func(ctx context.Context, tx database.Store) error
-	// postCreateInTX is a function that is called within the transaction, after
-	// the workspace is created but before the workspace build is created.
-	postCreateInTX func(ctx context.Context, tx database.Store, workspace database.Workspace) error
+	// postBuildInTX is a function that is called within the transaction, after
+	// the workspace and its first build are created.
+	postBuildInTX func(ctx context.Context, tx database.Store, workspace database.Workspace, build database.WorkspaceBuild) error
 	// remoteAddr is the IP address of the request initiator, used for
 	// audit logging. HTTP handlers should pass r.RemoteAddr;
 	// programmatic callers may leave it empty.
@@ -579,7 +604,7 @@ func createWorkspace(
 		opts = &createWorkspaceOptions{}
 	}
 
-	template, err := api.preflightWorkspaceCreate(ctx, owner.ID, req)
+	template, err := api.preflightWorkspaceCreate(ctx, initiatorID, owner, req)
 	if err != nil {
 		return codersdk.Workspace{}, err
 	}
@@ -605,6 +630,9 @@ func createWorkspace(
 		})
 	}
 	if err := api.requireWorkspaceOwnerExternalAuth(ctx, templateVersion, owner.ID); err != nil {
+		return codersdk.Workspace{}, err
+	}
+	if err := api.validateWorkspaceSecretInputs(req.Secrets); err != nil {
 		return codersdk.Workspace{}, err
 	}
 
@@ -791,15 +819,6 @@ func createWorkspace(
 			return xerrors.Errorf("get workspace by ID: %w", err)
 		}
 
-		// If the postCreate hook is provided, execute it. This can be used to
-		// perform additional actions after the workspace has been created, like
-		// linking the workspace to a task.
-		if opts.postCreateInTX != nil {
-			if err := opts.postCreateInTX(ctx, db, workspace); err != nil {
-				return xerrors.Errorf("workspace postCreate failed: %w", err)
-			}
-		}
-
 		builder := wsbuilder.New(workspace, database.WorkspaceTransitionStart, *api.BuildUsageChecker.Load()).
 			Reason(database.BuildReasonInitiator).
 			Initiator(initiatorID).
@@ -807,6 +826,7 @@ func createWorkspace(
 			Experiments(api.Experiments).
 			DeploymentValues(api.DeploymentValues).
 			RichParameterValues(req.RichParameterValues).
+			Secrets(req.Secrets).
 			BuildMetrics(api.WorkspaceBuilderMetrics)
 		if req.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(req.TemplateVersionID)
@@ -827,7 +847,16 @@ func createWorkspace(
 			},
 			audit.WorkspaceBuildBaggage{IP: opts.remoteAddr},
 		)
-		return err
+		if err != nil {
+			return err
+		}
+
+		if opts.postBuildInTX != nil {
+			if err := opts.postBuildInTX(ctx, db, workspace, *workspaceBuild); err != nil {
+				return xerrors.Errorf("workspace postBuild failed: %w", err)
+			}
+		}
+		return nil
 	}, nil)
 	if err != nil {
 		return codersdk.Workspace{}, err
@@ -962,7 +991,7 @@ func (api *API) requireWorkspaceOwnerExternalAuth(ctx context.Context, templateV
 // the audit request, so callers retain control over audit-organization
 // assignment and external-auth ordering. Both createWorkspace and tasksCreate
 // call it so these authorization gates cannot diverge.
-func (api *API) preflightWorkspaceCreate(ctx context.Context, ownerID uuid.UUID, req codersdk.CreateWorkspaceRequest) (database.Template, error) {
+func (api *API) preflightWorkspaceCreate(ctx context.Context, initiatorID uuid.UUID, owner workspaceOwner, req codersdk.CreateWorkspaceRequest) (database.Template, error) {
 	template, err := requestTemplate(ctx, req, api.Database)
 	if err != nil {
 		return database.Template{}, err
@@ -971,9 +1000,17 @@ func (api *API) preflightWorkspaceCreate(ctx context.Context, ownerID uuid.UUID,
 	// This is a premature auth check to avoid doing unnecessary work if the
 	// user doesn't have permission to create a workspace.
 	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionCreate,
-		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(ownerID.String())) {
+		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(owner.ID.String())) {
 		// If this check fails, return a proper unauthorized error to the user
 		// to indicate what is going on.
+		if initiatorID != owner.ID {
+			return database.Template{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+				Message: "You can't create workspaces for other users in this organization.",
+				Detail: fmt.Sprintf("Creating a workspace for %q needs permission to create workspaces owned by other users in organization %q, "+
+					"which your account doesn't have. Use an account with that permission (for example an organization admin), "+
+					"or create the workspace as %q.", owner.Username, template.OrganizationName, owner.Username),
+			})
+		}
 		return database.Template{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
 			Message: "Unauthorized to create workspace.",
 			Detail: "You are unable to create a workspace in this organization. " +
@@ -987,6 +1024,14 @@ func (api *API) preflightWorkspaceCreate(ctx context.Context, ownerID uuid.UUID,
 	// `db.InsertWorkspace`. Doing this up front can save some work below if the
 	// user doesn't have permission.
 	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionUse, template) {
+		if initiatorID != owner.ID {
+			return database.Template{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+				Message: fmt.Sprintf("You can't use the template %q to create workspaces for other users.", template.Name),
+				Detail: fmt.Sprintf("Creating a workspace for %q from this template needs \"use\" access to template %q, "+
+					"which your account doesn't have. Ask a template admin to grant it, or use an account that has it.",
+					owner.Username, template.Name),
+			})
+		}
 		return database.Template{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
 			Message: fmt.Sprintf("Unauthorized access to use the template %q.", template.Name),
 			Detail: "Although you are able to view the template, you are unable to create a workspace using it. " +
@@ -1842,12 +1887,6 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-
-	// template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
-	// if err != nil {
-	// 	httpapi.InternalServerError(rw, err)
-	// 	return
-	// }
 
 	err = api.statsReporter.ReportAgentStats(ctx, dbtime.Now(), database.WorkspaceIdentityFromWorkspace(workspace), agent.ID, agent.Name, stat, true)
 	if err != nil {
@@ -2815,11 +2854,17 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 // template means the read was denied.
 var errWorkspaceTemplateUnauthorized = xerrors.New("not authorized to read workspace template")
 
+// errWorkspaceBuildNotFound indicates the actor requested a workspace's latest
+// build but none exists. A workspace should always have a build, so an
+// absent-but-requested build means the workspace was not found.
+var errWorkspaceBuildNotFound = xerrors.New("workspace build not found")
+
 // singleWorkspaceData loads related data for one workspace. Unlike the batch
 // workspaceData, which omits templates the actor cannot read so list endpoints
 // can skip them, it returns errWorkspaceTemplateUnauthorized when the template
-// was requested but is absent. Callers map that error to the response their
-// endpoint requires (403, 404, or an SSE error).
+// was requested but is absent, and errWorkspaceBuildNotFound when the latest
+// build was requested but is absent. Callers map those errors to the response
+// their endpoint requires (403, 404, or an SSE error).
 func (api *API) singleWorkspaceData(ctx context.Context, workspace database.Workspace, cfg wsrelated.Config) (workspaceData, error) {
 	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, cfg)
 	if err != nil {
@@ -2829,6 +2874,9 @@ func (api *API) singleWorkspaceData(ctx context.Context, workspace database.Work
 		return t.ID == workspace.TemplateID
 	}) {
 		return workspaceData{}, errWorkspaceTemplateUnauthorized
+	}
+	if cfg.LatestBuild != nil && len(data.builds) == 0 {
+		return workspaceData{}, errWorkspaceBuildNotFound
 	}
 	return data, nil
 }

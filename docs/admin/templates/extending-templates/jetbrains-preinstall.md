@@ -5,7 +5,8 @@ title: Pre-install JetBrains IDEs in your template
 For a faster first time connection with JetBrains IDEs, pre-install the IDEs backend in your template.
 
 > [!NOTE]
-> This guide only talks about installing the IDEs backend. For a complete guide on setting up JetBrains Gateway with client IDEs, refer to the [JetBrains Gateway air-gapped guide](./jetbrains-airgapped.md).
+> This guide only talks about installing the IDEs backend.
+> For a complete guide on setting up JetBrains Gateway with client IDEs, refer to the [JetBrains Gateway air-gapped guide](./jetbrains-airgapped.md).
 
 ## Install the Client Downloader
 

@@ -1,14 +1,14 @@
-import type { FC, ReactNode } from "react";
+export type SectionHeaderLevel = "page" | "section";
 
 type SectionHeaderProps = {
-	label: string;
+	label: React.ReactNode;
 	description?: string;
-	badge?: ReactNode;
-	action?: ReactNode;
-	level?: "page" | "section";
+	badge?: React.ReactNode;
+	action?: React.ReactNode;
+	level?: SectionHeaderLevel;
 };
 
-export const SectionHeader: FC<SectionHeaderProps> = ({
+export const SectionHeader: React.FC<SectionHeaderProps> = ({
 	label,
 	description,
 	badge,
@@ -26,8 +26,8 @@ export const SectionHeader: FC<SectionHeaderProps> = ({
 			: "m-0 mt-0.5 text-sm text-content-secondary";
 
 	return (
-		<div className="flex items-start justify-between gap-4">
-			<div className="min-w-0 flex-1">
+		<div className="flex flex-wrap items-start justify-between gap-4">
+			<div className="min-w-0 flex-1 basis-64">
 				<div className="flex w-full items-center gap-2">
 					<Heading className={headingClass}>{label}</Heading>
 					{badge}

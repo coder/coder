@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -32,6 +33,12 @@ func TestBuildCommitStepMessages_AssistantTextAndReasoning(t *testing.T) {
 		modelConfigID:  modelConfigID,
 		contentVersion: chatprompt.CurrentContentVersion,
 		logger:         slog.Make(),
+		reasoningProvenance: reasoningProvenance{
+			ProviderIdentity: "provider-a",
+			Model:            "model-a",
+			Credential:       reasoningCredentialUser,
+			Epoch:            2,
+		},
 		step: stepData{
 			Content: []fantasy.Content{
 				fantasy.ReasoningContent{Text: "thinking"},
@@ -55,8 +62,16 @@ func TestBuildCommitStepMessages_AssistantTextAndReasoning(t *testing.T) {
 	require.Equal(t, "thinking", parts[0].Text)
 	require.Equal(t, startedAt, requireNotNilTime(t, parts[0].CreatedAt))
 	require.Equal(t, completedAt, requireNotNilTime(t, parts[0].CompletedAt))
+	require.Equal(t, "provider-a", parts[0].ProviderIdentity)
+	require.Equal(t, "model-a", parts[0].ProviderModel)
+	require.Equal(t, reasoningCredentialUser, parts[0].ProviderCredential)
+	require.Equal(t, 2, parts[0].ReasoningEpoch)
 	require.Equal(t, codersdk.ChatMessagePartTypeText, parts[1].Type)
 	require.Equal(t, "hello", parts[1].Text)
+	require.Empty(t, parts[1].ProviderIdentity)
+	require.Empty(t, parts[1].ProviderModel)
+	require.Empty(t, parts[1].ProviderCredential)
+	require.Zero(t, parts[1].ReasoningEpoch)
 }
 
 func TestBuildCommitStepMessages_LocalToolResultsBecomeToolMessages(t *testing.T) {
@@ -301,13 +316,14 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 		contentVersion: chatprompt.CurrentContentVersion,
 		toolCallID:     "summary-1",
 		toolName:       "chat_summarized",
-		compaction: compactionOutcome{
+		compaction: chatloop.CompactionResult{
 			SystemSummary:          "system summary",
 			SummaryReport:          "user report",
 			ThresholdPercent:       70,
 			UsagePercent:           81.5,
 			ContextTokens:          815,
-			ContextLimit:           1000,
+			ChatContextLimit:       1000,
+			TriggerContextLimit:    500,
 			Runtime:                1500 * time.Millisecond,
 			EstimatedContextTokens: 5,
 			ProviderResponseID:     "resp_summary",
@@ -342,7 +358,12 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 	resultPart := parseMessageParts(t, got.Messages[2].Role, got.Messages[2].Content)[0]
 	require.Equal(t, codersdk.ChatMessagePartTypeToolResult, resultPart.Type)
 	require.Equal(t, "summary-1", resultPart.ToolCallID)
-	require.JSONEq(t, `{"summary":"user report","source":"automatic","threshold_percent":70,"usage_percent":81.5,"context_tokens":815,"context_limit_tokens":1000,"estimated_context_tokens":5}`, string(resultPart.Result))
+	require.JSONEq(t, `{"summary":"user report","source":"automatic","threshold_percent":70,"usage_percent":81.5,"context_tokens":815,"context_limit_tokens":1000,"estimated_context_tokens":5,"trigger_context_limit_tokens":500}`, string(resultPart.Result))
+
+	boundary := database.ChatMessage{Role: got.Messages[2].Role, Content: got.Messages[2].Content, ContentVersion: got.Messages[2].ContentVersion, Compressed: true}
+	require.False(t, summaryRecordedUnderOtherTrigger(boundary, 70, 500))
+	require.True(t, summaryRecordedUnderOtherTrigger(boundary, 40, 500))
+	require.True(t, summaryRecordedUnderOtherTrigger(boundary, 70, 1000))
 }
 
 // A compaction that never reached the summary model call carries no
@@ -355,13 +376,13 @@ func TestBuildCompactionMessages_ZeroRuntimeLeavesRuntimeNull(t *testing.T) {
 		contentVersion: chatprompt.CurrentContentVersion,
 		toolCallID:     "summary-1",
 		toolName:       "chat_summarized",
-		compaction: compactionOutcome{
+		compaction: chatloop.CompactionResult{
 			SystemSummary:    "system summary",
 			SummaryReport:    "user report",
 			ThresholdPercent: 70,
 			UsagePercent:     81.5,
 			ContextTokens:    815,
-			ContextLimit:     1000,
+			ChatContextLimit: 1000,
 			Runtime:          0,
 		},
 	})
@@ -432,6 +453,7 @@ func TestDecisionCompactsAgainAfterPostCompactionTurn(t *testing.T) {
 	}
 
 	decision, err := decideGenerationAction(generationDecisionInput{
+		maxSteps:                   codersdk.DefaultChatMaxStepsPerTurn,
 		messages:                   messages,
 		compactionEnabled:          true,
 		compactionNeeded:           true,
@@ -442,6 +464,63 @@ func TestDecisionCompactsAgainAfterPostCompactionTurn(t *testing.T) {
 	require.Equal(t, generationActionCompact, decision.kind)
 }
 
+func TestDecideGenerationActionMaxSteps(t *testing.T) {
+	t.Parallel()
+
+	// historyWithSteps returns a prompt followed by steps resolved tool
+	// calls, so the history is incomplete and only the step limit can
+	// finish the turn.
+	historyWithSteps := func(t *testing.T, steps int) []database.ChatMessage {
+		t.Helper()
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("prompt")),
+		}
+		for i := range steps {
+			callID := fmt.Sprintf("call-%d", i)
+			nextID := int64(len(messages) + 1)
+			messages = append(messages,
+				dbMessage(t, nextID, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall(callID, "tool", json.RawMessage(`{}`))),
+				dbMessage(t, nextID+1, database.ChatMessageRoleTool, false, codersdk.ChatMessageToolResult(callID, "tool", json.RawMessage(`{}`), false, false)),
+			)
+		}
+		return messages
+	}
+
+	for _, maxSteps := range []int{1, 3, codersdk.DefaultChatMaxStepsPerTurn} {
+		t.Run(fmt.Sprintf("MaxSteps%d", maxSteps), func(t *testing.T) {
+			t.Parallel()
+
+			below, err := decideGenerationAction(generationDecisionInput{
+				messages: historyWithSteps(t, maxSteps-1),
+				maxSteps: maxSteps,
+			})
+			require.NoError(t, err)
+			require.Equal(t, generationActionGenerateAssistant, below.kind)
+
+			atLimit, err := decideGenerationAction(generationDecisionInput{
+				messages: historyWithSteps(t, maxSteps),
+				maxSteps: maxSteps,
+			})
+			require.NoError(t, err)
+			require.Equal(t, generationActionFinishTurn, atLimit.kind)
+			require.Equal(t, generationFinishReasonMaxSteps, atLimit.finishReason)
+		})
+	}
+
+	for name, maxSteps := range map[string]int{"RejectsZero": 0, "RejectsNegative": -1} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := decideGenerationAction(generationDecisionInput{
+				messages: historyWithSteps(t, 1),
+				maxSteps: maxSteps,
+			})
+			require.Error(t, err)
+			require.True(t, isTerminalGeneration(err), "a step limit below 1 cannot succeed on retry")
+		})
+	}
+}
+
 func TestBuildCompactionMessages_ManualSource(t *testing.T) {
 	t.Parallel()
 
@@ -450,7 +529,7 @@ func TestBuildCompactionMessages_ManualSource(t *testing.T) {
 		contentVersion: chatprompt.CurrentContentVersion,
 		toolCallID:     "summary-1",
 		toolName:       "chat_summarized",
-		compaction: compactionOutcome{
+		compaction: chatloop.CompactionResult{
 			SystemSummary:          "system summary",
 			SummaryReport:          "user report",
 			Source:                 chatloop.CompactionSourceManual,
@@ -458,7 +537,8 @@ func TestBuildCompactionMessages_ManualSource(t *testing.T) {
 			UsagePercent:           10,
 			EstimatedContextTokens: 5,
 			ContextTokens:          100,
-			ContextLimit:           1000,
+			ChatContextLimit:       1000,
+			TriggerContextLimit:    500,
 		},
 	})
 	require.NoError(t, err)
@@ -467,7 +547,7 @@ func TestBuildCompactionMessages_ManualSource(t *testing.T) {
 	callPart := parseMessageParts(t, got.Messages[1].Role, got.Messages[1].Content)[0]
 	require.JSONEq(t, `{"source":"manual","threshold_percent":70}`, string(callPart.Args))
 	resultPart := parseMessageParts(t, got.Messages[2].Role, got.Messages[2].Content)[0]
-	require.JSONEq(t, `{"summary":"user report","source":"manual","threshold_percent":70,"usage_percent":10,"context_tokens":100,"context_limit_tokens":1000,"estimated_context_tokens":5}`, string(resultPart.Result))
+	require.JSONEq(t, `{"summary":"user report","source":"manual","threshold_percent":70,"usage_percent":10,"context_tokens":100,"context_limit_tokens":1000,"estimated_context_tokens":5,"trigger_context_limit_tokens":500}`, string(resultPart.Result))
 }
 
 // TestDecisionForcedCompaction verifies the manual compaction request
@@ -490,6 +570,7 @@ func TestDecisionForcedCompaction(t *testing.T) {
 			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("answer")),
 		}
 		decision, err := decideGenerationAction(generationDecisionInput{
+			maxSteps: codersdk.DefaultChatMaxStepsPerTurn,
 			chat:     requestedChat,
 			messages: messages,
 		})
@@ -506,6 +587,7 @@ func TestDecisionForcedCompaction(t *testing.T) {
 			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("read-1", "read_file", json.RawMessage(`{}`))),
 		}
 		decision, err := decideGenerationAction(generationDecisionInput{
+			maxSteps: codersdk.DefaultChatMaxStepsPerTurn,
 			chat:     requestedChat,
 			messages: messages,
 		})
@@ -531,11 +613,13 @@ func TestDecisionForcedCompaction(t *testing.T) {
 		}
 		// Only messages up to the boundary: strip the follow-up.
 		requested, err := decideGenerationAction(generationDecisionInput{
+			maxSteps: codersdk.DefaultChatMaxStepsPerTurn,
 			chat:     requestedChat,
 			messages: messages[:3],
 		})
 		require.NoError(t, err)
 		unrequested, err := decideGenerationAction(generationDecisionInput{
+			maxSteps: codersdk.DefaultChatMaxStepsPerTurn,
 			chat:     database.Chat{},
 			messages: messages[:3],
 		})
@@ -547,6 +631,7 @@ func TestDecisionForcedCompaction(t *testing.T) {
 		// With an uncompressed assistant after the boundary the
 		// forced compact fires again.
 		decision, err := decideGenerationAction(generationDecisionInput{
+			maxSteps: codersdk.DefaultChatMaxStepsPerTurn,
 			chat:     requestedChat,
 			messages: messages,
 		})
@@ -563,6 +648,7 @@ func TestDecisionForcedCompaction(t *testing.T) {
 			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("answer")),
 		}
 		decision, err := decideGenerationAction(generationDecisionInput{
+			maxSteps: codersdk.DefaultChatMaxStepsPerTurn,
 			chat:     database.Chat{},
 			messages: messages,
 		})
@@ -675,6 +761,7 @@ func TestDecisionForcedCompactionRespectsClearBoundary(t *testing.T) {
 	messages = append(messages, clearBoundaryTriplet(t, 3)...)
 
 	decision, err := decideGenerationAction(generationDecisionInput{
+		maxSteps: codersdk.DefaultChatMaxStepsPerTurn,
 		chat:     requestedChat,
 		messages: messages,
 	})
@@ -743,6 +830,20 @@ func TestCompactionStatusFromHistory(t *testing.T) {
 		require.Equal(t, compactionStatusStillOverLimit, got)
 	})
 
+	t.Run("zero threshold compacts again instead of reporting still over limit", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("summary")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, true, codersdk.ChatMessageToolCall("summary-1", "chat_summarized", nil)),
+			dbMessage(t, 3, database.ChatMessageRoleTool, true, codersdk.ChatMessageToolResult("summary-1", "chat_summarized", json.RawMessage(`{}`), false, false)),
+			withUsage(dbMessage(t, 4, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("read-1", "read_file", json.RawMessage(`{}`))), 80, 100),
+		}
+
+		got := compactionStatusFromHistory(messages, compactionRequirementNeeded, 0, 100)
+		require.Equal(t, compactionStatusNeeded, got)
+	})
+
 	t.Run("still over limit includes prompt cache tokens", func(t *testing.T) {
 		t.Parallel()
 
@@ -772,6 +873,35 @@ func TestCompactionStatusFromHistory(t *testing.T) {
 
 		got = compactionStatusFromHistory(messages, compactionRequirementNeeded, thresholdPercent, 200)
 		require.Equal(t, compactionStatusNeeded, got)
+	})
+
+	t.Run("summary under a different trigger compacts again", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("summary")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, true, codersdk.ChatMessageToolCall("summary-1", "chat_summarized", json.RawMessage(`{"threshold_percent":70}`))),
+			dbMessage(t, 3, database.ChatMessageRoleTool, true, codersdk.ChatMessageToolResult("summary-1", "chat_summarized", json.RawMessage(`{"threshold_percent":70,"context_limit_tokens":1000,"trigger_context_limit_tokens":100}`), false, false)),
+			withUsage(dbMessage(t, 4, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("read-1", "read_file", json.RawMessage(`{}`))), 80, 100),
+		}
+
+		require.Equal(t, compactionStatusStillOverLimit, compactionStatusFromHistory(messages, compactionRequirementNeeded, 70, 100))
+		require.Equal(t, compactionStatusNeeded, compactionStatusFromHistory(messages, compactionRequirementNeeded, 40, 100))
+		require.Equal(t, compactionStatusNeeded, compactionStatusFromHistory(messages, compactionRequirementNeeded, 70, 90))
+	})
+
+	t.Run("summary without trigger limit compares context limit", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("summary")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, true, codersdk.ChatMessageToolCall("summary-1", "chat_summarized", json.RawMessage(`{"threshold_percent":70}`))),
+			dbMessage(t, 3, database.ChatMessageRoleTool, true, codersdk.ChatMessageToolResult("summary-1", "chat_summarized", json.RawMessage(`{"threshold_percent":70,"context_limit_tokens":1000}`), false, false)),
+			withUsage(dbMessage(t, 4, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("read-1", "read_file", json.RawMessage(`{}`))), 800, 1000),
+		}
+
+		require.Equal(t, compactionStatusStillOverLimit, compactionStatusFromHistory(messages, compactionRequirementNeeded, 70, 1000))
+		require.Equal(t, compactionStatusNeeded, compactionStatusFromHistory(messages, compactionRequirementNeeded, 70, 500))
 	})
 
 	t.Run("still over limit includes exact threshold boundary", func(t *testing.T) {
@@ -1254,7 +1384,7 @@ func TestBuildCompactionMessages_ReplaysPendingUserMessages(t *testing.T) {
 		contentVersion: chatprompt.CurrentContentVersion,
 		toolCallID:     "summary-1",
 		toolName:       "chat_summarized",
-		compaction: compactionOutcome{
+		compaction: chatloop.CompactionResult{
 			SystemSummary:    "system summary",
 			SummaryReport:    "user report",
 			ThresholdPercent: 70,
@@ -1366,11 +1496,11 @@ func TestPendingUserSegmentConversionEquivalence(t *testing.T) {
 	start := pendingUserSegmentStart(rows)
 	require.Equal(t, 6, start)
 
-	full, err := chatprompt.ConvertMessagesWithFiles(context.Background(), rows, nil, logger, nil)
+	full, err := chatprompt.ConvertMessagesWithFiles(context.Background(), rows, nil, logger, nil, uuid.NullUUID{})
 	require.NoError(t, err)
-	head, err := chatprompt.ConvertMessagesWithFiles(context.Background(), rows[:start], nil, logger, nil)
+	head, err := chatprompt.ConvertMessagesWithFiles(context.Background(), rows[:start], nil, logger, nil, uuid.NullUUID{})
 	require.NoError(t, err)
-	tail, err := chatprompt.ConvertMessagesWithFiles(context.Background(), rows[start:], nil, logger, nil)
+	tail, err := chatprompt.ConvertMessagesWithFiles(context.Background(), rows[start:], nil, logger, nil, uuid.NullUUID{})
 	require.NoError(t, err)
 
 	require.Equal(t, full, append(append([]fantasy.Message{}, head...), tail...))
@@ -1400,6 +1530,7 @@ func TestDecisionGeneratesAfterCompactionWithReplayedPendingUser(t *testing.T) {
 	}
 
 	decision, err := decideGenerationAction(generationDecisionInput{
+		maxSteps:                   codersdk.DefaultChatMaxStepsPerTurn,
 		messages:                   messages,
 		compactionEnabled:          true,
 		compactionNeeded:           false,
@@ -1410,6 +1541,7 @@ func TestDecisionGeneratesAfterCompactionWithReplayedPendingUser(t *testing.T) {
 	require.Equal(t, generationActionGenerateAssistant, decision.kind)
 
 	decision, err = decideGenerationAction(generationDecisionInput{
+		maxSteps:                   codersdk.DefaultChatMaxStepsPerTurn,
 		chat:                       database.Chat{CompactionRequestedAt: sql.NullTime{Time: time.Now(), Valid: true}},
 		messages:                   messages,
 		compactionEnabled:          true,

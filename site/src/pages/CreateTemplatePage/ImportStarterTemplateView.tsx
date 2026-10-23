@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import {
@@ -18,7 +17,9 @@ import {
 	newTemplate,
 } from "./utils";
 
-export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
+export const ImportStarterTemplateView: React.FC<
+	CreateTemplatePageViewProps
+> = ({
 	onCreateTemplate,
 	onOpenBuildLogsDrawer,
 	variablesSectionRef,

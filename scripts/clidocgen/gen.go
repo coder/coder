@@ -1,15 +1,19 @@
 package main
 
 import (
+	"cmp"
 	_ "embed"
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"text/template"
 
 	"github.com/acarl005/stripansi"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/scripts/atomicwrite"
@@ -26,16 +30,7 @@ var commandTemplate *template.Template
 func init() {
 	commandTemplate = template.Must(
 		template.New("command.tpl").Funcs(template.FuncMap{
-			"visibleSubcommands": func(cmd *serpent.Command) []*serpent.Command {
-				var visible []*serpent.Command
-				for _, sub := range cmd.Children {
-					if sub.Hidden {
-						continue
-					}
-					visible = append(visible, sub)
-				}
-				return visible
-			},
+			"visibleSubcommands": visibleSubcommands,
 			"visibleOptions": func(cmd *serpent.Command) []serpent.Option {
 				var visible []serpent.Option
 				for _, opt := range cmd.Options {
@@ -57,7 +52,7 @@ func init() {
 			"wrapCode": func(s string) string {
 				return fmt.Sprintf("<code>%s</code>", s)
 			},
-			"commandURI": fmtDocFilename,
+			"subcommandLink": subcommandLink,
 			// frontMatter renders the page's YAML front matter through the
 			// shared docgenenv emitter, so the CLI and API generators cannot
 			// drift on field set, ordering, or escaping. The CLI index mirrors
@@ -76,8 +71,11 @@ func init() {
 			"generatedContentBanner": func() string {
 				return docgenenv.GeneratedContentBanner
 			},
+			// tableHeader opens each option's metadata table (Type,
+			// Environment, YAML, Default). The header cells need text: an
+			// empty one is announced by screen readers as an unnamed column.
 			"tableHeader": func() string {
-				return `| | |
+				return `| Property | Value |
 | --- | --- |`
 			},
 			"typeHelper": func(opt *serpent.Option) string {
@@ -95,22 +93,73 @@ func init() {
 	)
 }
 
-func fullName(cmd *serpent.Command) string {
-	if cmd.FullName() == "coder" {
-		return "coder"
+// visibleSubcommands returns cmd's direct subcommands that are not hidden.
+// Hidden commands (and their subtrees) get no reference page.
+func visibleSubcommands(cmd *serpent.Command) []*serpent.Command {
+	var visible []*serpent.Command
+	for _, sub := range cmd.Children {
+		if sub.Hidden {
+			continue
+		}
+		visible = append(visible, sub)
 	}
-	return strings.TrimPrefix(cmd.FullName(), "coder ")
+	return visible
+}
+
+// inlineCode wraps s in backticks. Docs renderers show a title that is
+// entirely wrapped in one pair of backticks as inline code.
+func inlineCode(s string) string {
+	return "`" + s + "`"
+}
+
+// docsDescription returns cmd's Short as a page description. CLI help
+// leaves Short unpunctuated, but docs descriptions are sentences and the
+// manifest check requires them to end with a period.
+func docsDescription(cmd *serpent.Command) string {
+	d := strings.TrimSpace(cmd.Short)
+	if d == "" || strings.HasSuffix(d, ".") {
+		return d
+	}
+	return d + "."
 }
 
 // cliCommandRoute maps a serpent command to the docgenenv.Route whose per-page
 // metadata the CLI generator mirrors into that command's page front matter.
-// main layers the manifest Path onto the same value when it rebuilds the nav
-// tree, so the per-command field mapping lives in exactly one place.
+// The page title is the full invocation (for example "`coder users list`"), so
+// the page reads as a command even though its sidebar entry only shows the
+// last verb (see cliManifestRoute).
 func cliCommandRoute(cmd *serpent.Command) docgenenv.Route {
 	return docgenenv.Route{
-		Title:       fullName(cmd),
-		Description: cmd.Short,
+		Title:       inlineCode(cmd.FullName()),
+		Description: docsDescription(cmd),
 	}
+}
+
+// cliManifestRoute builds the manifest nav entry for cmd and, recursively, its
+// visible subcommands, so the sidebar nests the same way the command tree
+// does. Each entry is titled with only its own verb (for example "`list`"
+// under "`users`") because its ancestors already appear above it in the nav.
+func cliManifestRoute(cmd *serpent.Command) docgenenv.Route {
+	return docgenenv.Route{
+		Title:       inlineCode(cmd.Name()),
+		Description: docsDescription(cmd),
+		Path:        path.Join("reference/cli", fmtDocFilename(cmd)),
+		Children:    cliManifestChildren(cmd),
+	}
+}
+
+// cliManifestChildren returns the manifest entries for cmd's visible
+// subcommands, sorted by name so the output is deterministic.
+func cliManifestChildren(cmd *serpent.Command) []docgenenv.Route {
+	subs := visibleSubcommands(cmd)
+	slices.SortFunc(subs, func(a, b *serpent.Command) int {
+		return cmp.Compare(a.Name(), b.Name())
+	})
+	var children []docgenenv.Route
+	for _, sub := range subs {
+		children = append(children, cliManifestRoute(sub))
+	}
+	return children
 }
 
 // cliIndexRouteFrom returns the CLI index page's route: a copy of the "Command
@@ -124,13 +173,32 @@ func cliIndexRouteFrom(cmdLine docgenenv.Route) docgenenv.Route {
 	return cmdLine
 }
 
+// fmtDocFilename returns the path of cmd's reference page relative to the CLI
+// reference directory. Pages nest by command path so the URL mirrors the
+// invocation: "coder users list" is users/list.md, and a command with visible
+// subcommands is the index.md of its own directory (users/index.md) so its
+// subcommands' pages sit beneath it.
 func fmtDocFilename(cmd *serpent.Command) string {
-	if cmd.FullName() == "coder" {
-		// Special case for index.
-		return "./index.md"
+	var parts []string
+	for c := cmd; c.Parent != nil; c = c.Parent {
+		parts = append([]string{c.Name()}, parts...)
 	}
-	name := strings.ReplaceAll(fullName(cmd), " ", "_")
-	return fmt.Sprintf("%s.md", name)
+	if len(parts) == 0 || len(visibleSubcommands(cmd)) > 0 {
+		return path.Join(append(parts, "index.md")...)
+	}
+	return path.Join(parts...) + ".md"
+}
+
+// subcommandLink returns the link from a parent command's page to sub's page.
+// A parent page is always the index.md of the directory its subcommands live
+// in, so the link is relative to that directory.
+func subcommandLink(sub *serpent.Command) string {
+	parentDir := path.Dir(fmtDocFilename(sub.Parent))
+	rel := fmtDocFilename(sub)
+	if parentDir != "." {
+		rel = strings.TrimPrefix(rel, parentDir+"/")
+	}
+	return "./" + rel
 }
 
 func writeCommand(w io.Writer, cmd *serpent.Command) error {
@@ -167,7 +235,10 @@ func genTree(dir string, cmd *serpent.Command, wroteLog map[string]*serpent.Comm
 		return nil
 	}
 
-	path := filepath.Join(dir, fmtDocFilename(cmd))
+	pagePath := filepath.Join(dir, filepath.FromSlash(fmtDocFilename(cmd)))
+	if err := os.MkdirAll(filepath.Dir(pagePath), 0o755); err != nil {
+		return xerrors.Errorf("create directory for %q: %w", pagePath, err)
+	}
 
 	var buf strings.Builder
 	err := writeCommand(&buf, cmd)
@@ -175,16 +246,16 @@ func genTree(dir string, cmd *serpent.Command, wroteLog map[string]*serpent.Comm
 		return err
 	}
 
-	err = atomicwrite.File(path, []byte(buf.String()))
+	err = atomicwrite.File(pagePath, []byte(buf.String()))
 	if err != nil {
 		return err
 	}
 
 	flog.Successf(
 		"wrote\t%s",
-		path,
+		pagePath,
 	)
-	wroteLog[path] = cmd
+	wroteLog[pagePath] = cmd
 	for _, sub := range cmd.Children {
 		err = genTree(dir, sub, wroteLog)
 		if err != nil {
