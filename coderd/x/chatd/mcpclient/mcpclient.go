@@ -516,7 +516,7 @@ func connectOne(
 		err error
 	)
 	if opts.kind == connectionKindInProcess {
-		tr, err = inMemoryTransport(ctx, opts.inProcessServers[srv.ID])
+		tr, err = inMemoryTransport(opts.inProcessServers[srv.ID])
 	} else {
 		headers := buildAuthHeaders(ctx, logger, srv, tokensByConfigID, userID, oidcSrc)
 
@@ -737,9 +737,9 @@ func validateToolDefinitions(tools []fantasy.AgentTool, limits toolLimits) error
 }
 
 // Closing the client session ends the server session through the shared pipe.
-func inMemoryTransport(ctx context.Context, srv *mcp.Server) (mcp.Transport, error) {
+func inMemoryTransport(srv *mcp.Server) (mcp.Transport, error) {
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
-	if _, err := srv.Connect(ctx, serverTransport, nil); err != nil {
+	if _, err := srv.Connect(context.Background(), serverTransport, nil); err != nil {
 		return nil, xerrors.Errorf("connect in-process server: %w", err)
 	}
 	return clientTransport, nil
