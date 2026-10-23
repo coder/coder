@@ -38,7 +38,7 @@ export type WorkspaceFilesContextValue = {
 	diffStatuses: readonly ChatDiffStatus[];
 };
 
-export type RevealOptions = {
+type RevealOptions = {
 	/** Whether the path is a folder. Defaults to false. */
 	isDirectory?: boolean;
 };
