@@ -3,6 +3,7 @@ package agentmcp
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -740,7 +741,11 @@ func (m *Manager) CallTool(ctx context.Context, req workspacesdk.CallMCPToolRequ
 		return workspacesdk.CallMCPToolResponse{}, xerrors.Errorf("call tool %q on %q: %w", originalName, serverName, err)
 	}
 
-	return convertResult(result), nil
+	resp, err := convertResult(result, req.IncludeResult)
+	if err != nil {
+		return workspacesdk.CallMCPToolResponse{}, xerrors.Errorf("convert result of tool %q on %q: %w", originalName, serverName, err)
+	}
+	return resp, nil
 }
 
 // refreshCatalog re-lists tools from the connected servers and rebuilds
@@ -1014,11 +1019,23 @@ func splitToolName(prefixed string) (serverName, toolName string, err error) {
 }
 
 // convertResult translates an MCP CallToolResult into a
-// workspacesdk.CallMCPToolResponse. It iterates over content
-// items and maps each recognized type.
-func convertResult(result *mcp.CallToolResult) workspacesdk.CallMCPToolResponse {
+// workspacesdk.CallMCPToolResponse. With includeResult, it returns the
+// whole result in MCP wire format so coderd converts every content type
+// itself. Otherwise it iterates over content items and maps each
+// recognized type.
+func convertResult(result *mcp.CallToolResult, includeResult bool) (workspacesdk.CallMCPToolResponse, error) {
 	if result == nil {
-		return workspacesdk.CallMCPToolResponse{}
+		return workspacesdk.CallMCPToolResponse{}, nil
+	}
+	if includeResult {
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return workspacesdk.CallMCPToolResponse{}, xerrors.Errorf("marshal result: %w", err)
+		}
+		return workspacesdk.CallMCPToolResponse{
+			Result:  raw,
+			IsError: result.IsError,
+		}, nil
 	}
 
 	var content []workspacesdk.MCPToolContent
@@ -1064,7 +1081,7 @@ func convertResult(result *mcp.CallToolResult) workspacesdk.CallMCPToolResponse 
 	return workspacesdk.CallMCPToolResponse{
 		Content: content,
 		IsError: result.IsError,
-	}
+	}, nil
 }
 
 // ServerStatus is a point-in-time view of one MCP server's connection
