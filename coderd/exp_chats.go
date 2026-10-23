@@ -3784,9 +3784,12 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Write an empty batch after HeartbeatInterval without other writes,
-	// so the web client can tell an idle stream from a frozen connection.
-	// See "Client-visible stream events" in x/chatd/ARCHITECTURE.md.
+	// Browsers do not expose WebSocket pings to page code, and the server's
+	// close cannot reach the client over a frozen connection, one that stops
+	// delivering data without closing. The web client therefore treats a
+	// long gap between messages as a frozen connection, and the empty
+	// batches written on this ticker keep an idle stream from having such a
+	// gap.
 	keepalive := api.Clock.NewTicker(httpapi.HeartbeatInterval, "chatStream", "keepalive")
 	defer keepalive.Stop()
 

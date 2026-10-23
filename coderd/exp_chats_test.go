@@ -10565,10 +10565,9 @@ func TestStreamChat(t *testing.T) {
 		mClock := quartz.NewMock(t)
 		keepaliveTrap := mClock.Trap().NewTicker("chatStream", "keepalive")
 		defer keepaliveTrap.Close()
-		// The handler resets the keepalive ticker after it writes each event
-		// batch. nextFrame releases each reset only after it reads that
-		// batch, so every clock advance below happens after the resets it
-		// depends on.
+		// The handler calls Reset after each event batch, and the trap holds
+		// each call until nextFrame has read that batch. Each clock advance
+		// below therefore runs after the reset it depends on.
 		resetTrap := mClock.Trap().TickerReset("chatStream", "keepalive")
 		defer resetTrap.Close()
 
@@ -10589,7 +10588,8 @@ func TestStreamChat(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close(websocket.StatusNormalClosure, "")
 
-		// Reading continuously also answers the server's liveness pings.
+		// The websocket library answers the server's pings only while a Read
+		// is in progress.
 		frames := make(chan []byte, 64)
 		go func() {
 			defer close(frames)
@@ -10625,9 +10625,6 @@ func TestStreamChat(t *testing.T) {
 			})
 			require.NoError(t, err)
 		}
-		// framesBefore reads frames until one contains text, as the message
-		// or queue_update event for a sent message does, and returns the
-		// frames read before it.
 		framesBefore := func(text string) [][]codersdk.ChatStreamEvent {
 			t.Helper()
 			var before [][]codersdk.ChatStreamEvent
@@ -10642,10 +10639,9 @@ func TestStreamChat(t *testing.T) {
 			}
 		}
 
-		// The trap holds the handler in NewTicker, after it wrote the
-		// snapshot. The snapshot of a chat without messages fits in one
-		// batch, and the handler does not reset the ticker after writing the
-		// snapshot.
+		// While the trap holds NewTicker, the handler has written only the
+		// snapshot. A chat without messages has a one-batch snapshot, and no
+		// reset follows it.
 		newTicker := keepaliveTrap.MustWait(ctx)
 		snapshot := nextFrame()
 		require.NotEmpty(t, streamChatEventsOfType(snapshot, codersdk.ChatStreamEventTypeStatus))
