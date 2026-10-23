@@ -402,6 +402,35 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
+	it("keeps the saved draft when the chat unmounts during a failed send", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("hello");
+		// The editor reports its clear as a content change.
+		mockInput.clear.mockImplementation(() =>
+			result.current.handleContentChange("", "", false),
+		);
+		result.current.chatInputRef.current = mockInput.handle;
+		let rejectSend: (error: Error) => void = () => {};
+		onSend.mockReturnValueOnce(
+			new Promise((_resolve, reject) => {
+				rejectSend = reject;
+			}),
+		);
+
+		act(() => {
+			result.current.handleContentChange("hello", "hello", false);
+		});
+		let sent: Promise<void> = Promise.resolve();
+		act(() => {
+			sent = result.current.handleSendFromInput({ message: "hello" });
+		});
+		unmount();
+
+		rejectSend(new Error("boom"));
+		await expect(sent).rejects.toThrow("boom");
+		expect(localStorage.getItem(expectedKey)).toBe("hello");
+	});
+
 	it("keeps what was typed during a send after it succeeds", async () => {
 		const { result, onSend, unmount } = renderEditing();
 		const mockInput = createMockChatInputHandle("hello");
