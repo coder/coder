@@ -14,6 +14,7 @@ import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { WorkspaceFilesContext } from "../../context/WorkspaceFilesContext";
 import {
 	getPersistedMainTabs,
+	saveFileViewState,
 	savePersistedMainTabs,
 } from "../../utils/mainTabStorage";
 import { type ChatStore, createChatStore } from "../ChatConversation/chatStore";
@@ -274,6 +275,7 @@ const getTab = (name: string | RegExp) => screen.getByRole("tab", { name });
 describe("MainTabs", () => {
 	beforeEach(() => {
 		localStorage.clear();
+		sessionStorage.clear();
 		chatMounted.mockClear();
 		vi.spyOn(API, "readWorkspaceAgentFile").mockResolvedValue({
 			data: new TextEncoder().encode("package main\n").buffer,
@@ -555,6 +557,27 @@ describe("MainTabs", () => {
 		);
 		await user.click(screen.getByRole("menuitem", { name: "Reveal in Files" }));
 		expect(revealInFiles).toHaveBeenLastCalledWith("/repo/src/a.go");
+
+		// The editor saves its view state as the cursor moves.
+		const position = { lineNumber: 6, column: 3 };
+		saveFileViewState(chatId, "/repo/src/a.go", {
+			cursorState: [
+				{ inSelectionMode: false, selectionStart: position, position },
+			],
+			viewState: {
+				scrollLeft: 0,
+				firstPosition: position,
+				firstPositionDeltaTop: 0,
+			},
+			contributionsState: {},
+		});
+		await user.pointer({ keys: "[MouseRight]", target: getTab("a.go") });
+		expect(
+			await screen.findByRole("menuitem", { name: "Open on GitHub" }),
+		).toHaveAttribute(
+			"href",
+			`https://github.com/coder/coder/blob/${"a".repeat(40)}/src/a.go#L6`,
+		);
 	});
 
 	it("moves between tabs with the arrow keys", async () => {

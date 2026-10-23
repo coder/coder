@@ -82,6 +82,17 @@ export function getFileViewState(
 	}
 }
 
+/** The 1-based line of the cursor saved for a file in a chat. */
+export function getFileCursorLine(
+	chatID: string,
+	path: string,
+): number | undefined {
+	// The saved view state is parsed without validation.
+	const line: unknown = getFileViewState(chatID, path)?.cursorState?.[0]
+		?.position?.lineNumber;
+	return typeof line === "number" ? line : undefined;
+}
+
 export function saveFileViewState(
 	chatID: string,
 	path: string,
