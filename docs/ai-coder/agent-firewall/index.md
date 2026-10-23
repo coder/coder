@@ -73,7 +73,7 @@ module "agent-firewall" {
 For examples of wrapping an agent or process such as Claude Code with Agent Firewall, see the [agent-firewall module README](https://registry.coder.com/modules/coder/agent-firewall#with-claude-code).
 
 For a basic recommendation of what to allow for agents, see the [Anthropic documentation on default allowed domains](https://code.claude.com/docs/en/claude-code-on-the-web#default-allowed-domains).
-For a comprehensive configuration covering multi-language development, check out the [example policy](./example-policy.md).
+For a comprehensive configuration covering multi-language development, refer to the [example policy](./example-policy.md).
 
 To load the policy from a `config.yaml` file in your template directory instead, pass it via `agent_firewall_config`.
 The module writes the config to the workspace and exposes the resolved path via `agent_firewall_config_path`, so everyone who launches Agent Firewall manually inside the workspace picks up the same configuration without extra flags.
