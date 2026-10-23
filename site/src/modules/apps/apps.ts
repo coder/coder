@@ -1,7 +1,8 @@
-import type {
-	Workspace,
-	WorkspaceAgent,
-	WorkspaceApp,
+import {
+	ExternalAppSessionTokenSchemes,
+	type Workspace,
+	type WorkspaceAgent,
+	type WorkspaceApp,
 } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 
@@ -11,24 +12,55 @@ import { toast } from "#/components/Toaster/toast";
 // be used internally, and is highly subject to break.
 export const SESSION_TOKEN_PLACEHOLDER = "$SESSION_TOKEN";
 
-// This is a list of external app protocols that we
-// allow to be opened in a new window. This is
-// used to prevent phishing attacks where a user
-// is tricked into clicking a link that opens
-// a malicious app using the Coder session token.
-const ALLOWED_EXTERNAL_APP_PROTOCOLS = [
-	"vscode:",
-	"vscode-insiders:",
-	"windsurf:",
-	"devin:",
-	"cursor:",
-	"jetbrains-gateway:",
-	"jetbrains:",
-	"kiro:",
-	"positron:",
-	"antigravity:",
-	"antigravity-ide:",
-];
+// Only these protocols may receive the session token. This prevents phishing
+// attacks where a user is tricked into clicking a link that hands the Coder
+// session token to a malicious app or unsupported protocol. The list is generated from codersdk so the
+// server-side validation uses the same schemes.
+const isSessionTokenProtocol = (protocol: string): boolean =>
+	ExternalAppSessionTokenSchemes.some((scheme) => `${scheme}:` === protocol);
+
+// The query or fragment parameter IDE handlers read the deployment URL from.
+const SESSION_TOKEN_DESTINATION_PARAM = "url";
+
+const WEB_PROTOCOLS = ["http:", "https:"];
+
+const isDeploymentOrigin = (value: string): boolean =>
+	URL.canParse(value) && new URL(value).origin === location.origin;
+
+const isWebUrl = (value: string): boolean =>
+	URL.canParse(value) && WEB_PROTOCOLS.includes(new URL(value).protocol);
+
+/**
+ * True when the session token can be safely substituted into an external app url.
+ * Both the query and the fragment are checked because some handlers (such as JetBrains Gateway)
+ * read their parameters from the fragment.
+ */
+export const canReceiveSessionToken = (rawUrl: string): boolean => {
+	if (!URL.canParse(rawUrl)) {
+		return false;
+	}
+	const url = new URL(rawUrl);
+	if (!isSessionTokenProtocol(url.protocol)) {
+		return false;
+	}
+
+	const params = [
+		...url.searchParams,
+		...new URLSearchParams(url.hash.slice(1)),
+	];
+	const destinations = params.filter(
+		([key]) => key === SESSION_TOKEN_DESTINATION_PARAM,
+	);
+	if (destinations.length === 0) {
+		return false;
+	}
+
+	return params.every(([key, value]) =>
+		key === SESSION_TOKEN_DESTINATION_PARAM || isWebUrl(value)
+			? isDeploymentOrigin(value)
+			: true,
+	);
+};
 
 type GetVSCodeHrefParams = {
 	owner: string;
@@ -119,18 +151,8 @@ export const getAppHref = (
 	{ path, token, workspace, agent, host }: GetAppHrefParams,
 ): string => {
 	if (isExternalApp(app)) {
-		let isAllowedProtocol = false;
-		try {
-			isAllowedProtocol = ALLOWED_EXTERNAL_APP_PROTOCOLS.includes(
-				new URL(app.url).protocol,
-			);
-		} catch {
-			// The URL is unparsable. Leave isAllowedProtocol false and return
-			// the raw URL. Consumers disable the button via
-			// isAppUrlValid, so the href is never followed.
-		}
-
-		return needsSessionToken(app) && isAllowedProtocol
+		// Unparsable or untrusted URLs are returned raw. Consumers disable the button via isAppUrlValid, so the href is never followed.
+		return needsSessionToken(app) && canReceiveSessionToken(app.url)
 			? app.url.replaceAll(SESSION_TOKEN_PLACEHOLDER, token ?? "")
 			: app.url;
 	}
@@ -208,14 +230,15 @@ export const getAgentBrowserApp = (
 };
 
 /**
- * True when an app is not an external app, or is an external app whose URL can
- * be parsed by the URL constructor. External apps with an unparsable URL
- * cannot be launched. Template authors sometimes set a bare string with no
- * scheme, which would otherwise crash the page during render.
+ * An app is considered valid to launch if it is either internal or an external app with a properly formatted, parsable URL.
+ * Any app requesting a session token remains invalid unless it restricts sending that token exclusively to the current deployment.
  */
 export const isAppUrlValid = (app: WorkspaceApp): boolean => {
 	if (!isExternalApp(app)) {
 		return true;
+	}
+	if (needsSessionToken(app)) {
+		return canReceiveSessionToken(app.url);
 	}
 	return URL.canParse(app.url);
 };

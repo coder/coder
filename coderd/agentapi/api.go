@@ -265,6 +265,7 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		OwnerID:        opts.OwnerID,
 		OrganizationID: opts.OrganizationID,
 		AgentFn:        api.agent,
+		AccessURL:      opts.AccessURL,
 		Log:            opts.Log,
 		Clock:          opts.Clock,
 		Database:       opts.Database,

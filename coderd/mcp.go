@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/netip"
 	"net/url"
 	"slices"
 	"strings"
@@ -32,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/xurl"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/safedial"
@@ -1924,7 +1924,7 @@ func mcpOAuth2ResourceIndicator(serverURL *url.URL, advertised []string) string 
 		if err != nil {
 			continue
 		}
-		if !sameOrigin(parsed, serverURL) {
+		if !xurl.SameOrigin(parsed, serverURL) {
 			continue
 		}
 		query, hasQuery := comparableURIQuery(parsed)
@@ -1981,43 +1981,6 @@ func comparableURIPath(u *url.URL) string {
 // 3986 distinguishes from no query.
 func comparableURIQuery(u *url.URL) (string, bool) {
 	return normalizePercentEncoding(u.RawQuery), u.RawQuery != "" || u.ForceQuery
-}
-
-// sameOrigin reports whether two URLs have the same scheme, host, and
-// port, where an omitted port is the scheme's default.
-func sameOrigin(a, b *url.URL) bool {
-	return strings.EqualFold(a.Scheme, b.Scheme) &&
-		sameHost(a.Hostname(), b.Hostname()) &&
-		portOrDefault(a) == portOrDefault(b)
-}
-
-// sameHost compares IP addresses by value, so "::1" equals
-// "0:0:0:0:0:0:0:1", and other hosts case-insensitively.
-func sameHost(a, b string) bool {
-	addrA, errA := netip.ParseAddr(a)
-	addrB, errB := netip.ParseAddr(b)
-	if errA == nil && errB == nil {
-		return addrA == addrB
-	}
-	return strings.EqualFold(a, b)
-}
-
-func portOrDefault(u *url.URL) string {
-	if port := u.Port(); port != "" {
-		// An origin's port has no leading zeros (RFC 9110 section 4.3.1).
-		if trimmed := strings.TrimLeft(port, "0"); trimmed != "" {
-			return trimmed
-		}
-		return "0"
-	}
-	switch strings.ToLower(u.Scheme) {
-	case "http":
-		return "80"
-	case "https":
-		return "443"
-	default:
-		return ""
-	}
 }
 
 func withTrailingSlash(path string) string {

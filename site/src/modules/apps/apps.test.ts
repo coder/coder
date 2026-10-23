@@ -5,6 +5,7 @@ import {
 	MockWorkspaceApp,
 } from "#/testHelpers/entities";
 import {
+	canReceiveSessionToken,
 	getAppHref,
 	getVSCodeHref,
 	isAppBlockedByMissingWildcard,
@@ -65,6 +66,67 @@ describe("getVSCodeHref", () => {
 	});
 });
 
+const attackerTokenUrls = [
+	{
+		name: "an attacker deployment URL",
+		url: `vscode://coder.coder-remote/open?url=https://attacker.example&token=${SESSION_TOKEN_PLACEHOLDER}`,
+	},
+	{
+		name: "a deployment host used as userinfo",
+		url: `vscode://coder.coder-remote/open?url=https://${location.host}@attacker.example&token=${SESSION_TOKEN_PLACEHOLDER}`,
+	},
+	{
+		name: "a deployment host used as a subdomain prefix",
+		url: `vscode://coder.coder-remote/open?url=${location.origin}.attacker.example&token=${SESSION_TOKEN_PLACEHOLDER}`,
+	},
+	{
+		name: "a duplicate attacker deployment URL",
+		url: `vscode://coder.coder-remote/open?url=${location.origin}&url=https://attacker.example&token=${SESSION_TOKEN_PLACEHOLDER}`,
+	},
+	{
+		name: "an attacker deployment URL in the fragment",
+		url: `vscode://coder.coder-remote/open?url=${location.origin}&token=${SESSION_TOKEN_PLACEHOLDER}#url=https://attacker.example`,
+	},
+	{
+		name: "a percent-encoded attacker deployment URL key",
+		url: `vscode://coder.coder-remote/open?url=${location.origin}&%75rl=https://attacker.example&token=${SESSION_TOKEN_PLACEHOLDER}`,
+	},
+	{
+		name: "a URL with no deployment URL",
+		url: `vscode://coder.coder-remote/open?token=${SESSION_TOKEN_PLACEHOLDER}`,
+	},
+	{
+		name: "an attacker URL in another parameter",
+		url: `vscode://coder.coder-remote/open?url=${location.origin}&host=https://attacker.example&token=${SESSION_TOKEN_PLACEHOLDER}`,
+	},
+	{
+		name: "an attacker JetBrains Gateway fragment",
+		url: `jetbrains-gateway://connect#type=coder&url=https://attacker.example&token=${SESSION_TOKEN_PLACEHOLDER}`,
+	},
+];
+
+describe("canReceiveSessionToken", () => {
+	it("accepts an allowlisted protocol pointing at this deployment", () => {
+		expect(
+			canReceiveSessionToken(
+				`vscode://coder.coder-remote/open?url=${location.origin}/&token=${SESSION_TOKEN_PLACEHOLDER}`,
+			),
+		).toBe(true);
+	});
+
+	it("rejects a protocol that is not allowlisted", () => {
+		expect(
+			canReceiveSessionToken(
+				`ftp://example.com?url=${location.origin}&token=${SESSION_TOKEN_PLACEHOLDER}`,
+			),
+		).toBe(false);
+	});
+
+	it.each(attackerTokenUrls)("rejects $name", ({ url }) => {
+		expect(canReceiveSessionToken(url)).toBe(false);
+	});
+});
+
 describe("getAppHref", () => {
 	it("returns the URL without changes when external app has regular URL", () => {
 		const externalApp = {
@@ -85,23 +147,7 @@ describe("getAppHref", () => {
 		const externalApp = {
 			...MockWorkspaceApp,
 			external: true,
-			url: `vscode://example.com?token=${SESSION_TOKEN_PLACEHOLDER}`,
-		};
-		const href = getAppHref(externalApp, {
-			host: "*.apps-host.tld",
-			path: "/path-base",
-			agent: MockWorkspaceAgent,
-			workspace: MockWorkspace,
-			token: "user-session-token",
-		});
-		expect(href).toBe("vscode://example.com?token=user-session-token");
-	});
-
-	it("replaces the session token for Antigravity IDE URLs", () => {
-		const externalApp = {
-			...MockWorkspaceApp,
-			external: true,
-			url: `antigravity-ide://coder.coder-remote/open?token=${SESSION_TOKEN_PLACEHOLDER}`,
+			url: `vscode://coder.coder-remote/open?url=${location.origin}&token=${SESSION_TOKEN_PLACEHOLDER}`,
 		};
 		const href = getAppHref(externalApp, {
 			host: "*.apps-host.tld",
@@ -111,9 +157,61 @@ describe("getAppHref", () => {
 			token: "user-session-token",
 		});
 		expect(href).toBe(
-			"antigravity-ide://coder.coder-remote/open?token=user-session-token",
+			`vscode://coder.coder-remote/open?url=${location.origin}&token=user-session-token`,
 		);
 	});
+
+	it("replaces the session token for Antigravity IDE URLs", () => {
+		const externalApp = {
+			...MockWorkspaceApp,
+			external: true,
+			url: `antigravity-ide://coder.coder-remote/open?url=${location.origin}&token=${SESSION_TOKEN_PLACEHOLDER}`,
+		};
+		const href = getAppHref(externalApp, {
+			host: "*.apps-host.tld",
+			path: "/path-base",
+			agent: MockWorkspaceAgent,
+			workspace: MockWorkspace,
+			token: "user-session-token",
+		});
+		expect(href).toBe(
+			`antigravity-ide://coder.coder-remote/open?url=${location.origin}&token=user-session-token`,
+		);
+	});
+
+	it("replaces the session token when the destination is in the fragment", () => {
+		const externalApp = {
+			...MockWorkspaceApp,
+			external: true,
+			url: `jetbrains-gateway://connect#type=coder&url=${location.origin}&token=${SESSION_TOKEN_PLACEHOLDER}`,
+		};
+		const href = getAppHref(externalApp, {
+			host: "*.apps-host.tld",
+			path: "/path-base",
+			agent: MockWorkspaceAgent,
+			workspace: MockWorkspace,
+			token: "user-session-token",
+		});
+		expect(href).toBe(
+			`jetbrains-gateway://connect#type=coder&url=${location.origin}&token=user-session-token`,
+		);
+	});
+
+	it.each(attackerTokenUrls)(
+		"does not substitute the session token into $name",
+		({ url }) => {
+			const externalApp = { ...MockWorkspaceApp, external: true, url };
+			const href = getAppHref(externalApp, {
+				host: "*.apps-host.tld",
+				path: "/path-base",
+				agent: MockWorkspaceAgent,
+				workspace: MockWorkspace,
+				token: "user-session-token",
+			});
+			expect(href).toBe(url);
+			expect(href).not.toContain("user-session-token");
+		},
+	);
 
 	it("doesn't return the URL with the session token replaced when using the HTTP protocol", () => {
 		const externalApp = {
@@ -249,6 +347,24 @@ describe("isAppUrlValid", () => {
 			isAppUrlValid(buildApp({ external: true, url: "vscode://open" })),
 		).toBe(true);
 	});
+
+	it("returns true for a session token URL pointing at this deployment", () => {
+		expect(
+			isAppUrlValid(
+				buildApp({
+					external: true,
+					url: `vscode://coder.coder-remote/open?url=${location.origin}&token=${SESSION_TOKEN_PLACEHOLDER}`,
+				}),
+			),
+		).toBe(true);
+	});
+
+	it.each(attackerTokenUrls)(
+		"returns false for a session token URL with $name",
+		({ url }) => {
+			expect(isAppUrlValid(buildApp({ external: true, url }))).toBe(false);
+		},
+	);
 
 	it("returns true for non-external apps", () => {
 		expect(isAppUrlValid(buildApp({ external: false }))).toBe(true);

@@ -289,7 +289,7 @@ export const ExternalAppDefersSessionToken: Story = {
 		app: {
 			...MockWorkspaceApp,
 			external: true,
-			url: "jetbrains-gateway://connect?token=$SESSION_TOKEN",
+			url: `jetbrains-gateway://connect#type=coder&url=${location.origin}&token=$SESSION_TOKEN`,
 		},
 		agent: MockWorkspaceAgent,
 	},

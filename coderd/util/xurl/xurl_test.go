@@ -55,3 +55,60 @@ func TestContainsEncodedPath(t *testing.T) {
 		})
 	}
 }
+
+func TestSameOrigin(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		a, b string
+		want bool
+	}{
+		{name: "Identical", a: "https://coder.example.com", b: "https://coder.example.com", want: true},
+		{name: "PathIgnored", a: "https://coder.example.com/a?b=c", b: "https://coder.example.com/", want: true},
+		{name: "HostCaseInsensitive", a: "https://CODER.example.com", b: "https://coder.example.com", want: true},
+		{name: "SchemeCaseInsensitive", a: "HTTPS://coder.example.com", b: "https://coder.example.com", want: true},
+		{name: "DefaultHTTPSPort", a: "https://coder.example.com:443", b: "https://coder.example.com", want: true},
+		{name: "DefaultHTTPPort", a: "http://coder.example.com:80", b: "http://coder.example.com", want: true},
+		{name: "LeadingZeroPort", a: "https://coder.example.com:0443", b: "https://coder.example.com", want: true},
+		{name: "IPv6ByValue", a: "http://[::1]:8080", b: "http://[0:0:0:0:0:0:0:1]:8080", want: true},
+		{name: "DifferentScheme", a: "http://coder.example.com", b: "https://coder.example.com"},
+		{name: "DifferentHost", a: "https://attacker.example", b: "https://coder.example.com"},
+		{name: "HostSuffix", a: "https://coder.example.com.attacker.example", b: "https://coder.example.com"},
+		{name: "DifferentPort", a: "https://coder.example.com:8443", b: "https://coder.example.com"},
+		{name: "SwappedDefaultPort", a: "https://coder.example.com:80", b: "https://coder.example.com"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			a, err := url.Parse(tc.a)
+			require.NoError(t, err)
+			b, err := url.Parse(tc.b)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, xurl.SameOrigin(a, b))
+			require.Equal(t, tc.want, xurl.SameOrigin(b, a))
+		})
+	}
+}
+
+func TestIsHTTP(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		url  string
+		want bool
+	}{
+		{url: "http://coder.example.com", want: true},
+		{url: "https://coder.example.com", want: true},
+		{url: "HTTPS://coder.example.com", want: true},
+		{url: "vscode://coder.coder-remote/open"},
+		{url: "javascript:alert(1)"},
+		{url: "coder.example.com"},
+	} {
+		t.Run(tc.url, func(t *testing.T) {
+			t.Parallel()
+			u, err := url.Parse(tc.url)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, xurl.IsHTTP(u))
+		})
+	}
+}

@@ -5725,6 +5725,34 @@ export interface ExternalAgentCredentials {
 	readonly agent_token: string;
 }
 
+// From codersdk/workspaceapps.go
+export type ExternalAppSessionTokenScheme =
+	| "antigravity"
+	| "antigravity-ide"
+	| "cursor"
+	| "devin"
+	| "jetbrains"
+	| "jetbrains-gateway"
+	| "kiro"
+	| "positron"
+	| "vscode"
+	| "vscode-insiders"
+	| "windsurf";
+
+export const ExternalAppSessionTokenSchemes: ExternalAppSessionTokenScheme[] = [
+	"antigravity",
+	"antigravity-ide",
+	"cursor",
+	"devin",
+	"jetbrains",
+	"jetbrains-gateway",
+	"kiro",
+	"positron",
+	"vscode",
+	"vscode-insiders",
+	"windsurf",
+];
+
 // From codersdk/externalauth.go
 export interface ExternalAuth {
 	readonly authenticated: boolean;

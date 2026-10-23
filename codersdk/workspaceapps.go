@@ -59,6 +59,38 @@ var MapWorkspaceAppOpenIns = map[WorkspaceAppOpenIn]struct{}{
 	WorkspaceAppOpenInTab:        {},
 }
 
+// ExternalAppSessionTokenScheme is a URL scheme whose external app URLs may receive the viewer's session token
+// through the $SESSION_TOKEN placeholder. Each is a supported IDE handler supported by coder.
+type ExternalAppSessionTokenScheme string
+
+const (
+	ExternalAppSessionTokenSchemeVSCode           ExternalAppSessionTokenScheme = "vscode"
+	ExternalAppSessionTokenSchemeVSCodeInsiders   ExternalAppSessionTokenScheme = "vscode-insiders"
+	ExternalAppSessionTokenSchemeWindsurf         ExternalAppSessionTokenScheme = "windsurf"
+	ExternalAppSessionTokenSchemeDevin            ExternalAppSessionTokenScheme = "devin"
+	ExternalAppSessionTokenSchemeCursor           ExternalAppSessionTokenScheme = "cursor"
+	ExternalAppSessionTokenSchemeJetBrainsGateway ExternalAppSessionTokenScheme = "jetbrains-gateway"
+	ExternalAppSessionTokenSchemeJetBrains        ExternalAppSessionTokenScheme = "jetbrains"
+	ExternalAppSessionTokenSchemeKiro             ExternalAppSessionTokenScheme = "kiro"
+	ExternalAppSessionTokenSchemePositron         ExternalAppSessionTokenScheme = "positron"
+	ExternalAppSessionTokenSchemeAntigravity      ExternalAppSessionTokenScheme = "antigravity"
+	ExternalAppSessionTokenSchemeAntigravityIDE   ExternalAppSessionTokenScheme = "antigravity-ide"
+)
+
+var MapExternalAppSessionTokenSchemes = map[ExternalAppSessionTokenScheme]struct{}{
+	ExternalAppSessionTokenSchemeVSCode:           {},
+	ExternalAppSessionTokenSchemeVSCodeInsiders:   {},
+	ExternalAppSessionTokenSchemeWindsurf:         {},
+	ExternalAppSessionTokenSchemeDevin:            {},
+	ExternalAppSessionTokenSchemeCursor:           {},
+	ExternalAppSessionTokenSchemeJetBrainsGateway: {},
+	ExternalAppSessionTokenSchemeJetBrains:        {},
+	ExternalAppSessionTokenSchemeKiro:             {},
+	ExternalAppSessionTokenSchemePositron:         {},
+	ExternalAppSessionTokenSchemeAntigravity:      {},
+	ExternalAppSessionTokenSchemeAntigravityIDE:   {},
+}
+
 type WorkspaceApp struct {
 	ID uuid.UUID `json:"id" format:"uuid"`
 	// URL is the address being proxied to inside the workspace.

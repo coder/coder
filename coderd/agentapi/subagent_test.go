@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
+	"net/url"
 	"slices"
 	"sync/atomic"
 	"testing"
@@ -72,6 +73,9 @@ func TestSubAgentAPI(t *testing.T) {
 		return user, agent
 	}
 
+	accessURL, err := url.Parse("https://coder.example.com")
+	require.NoError(t, err)
+
 	newAgentAPI := func(t *testing.T, logger slog.Logger, db database.Store, clock quartz.Clock, user database.User, org database.Organization, agent database.WorkspaceAgent) *agentapi.SubAgentAPI {
 		auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
 
@@ -83,6 +87,7 @@ func TestSubAgentAPI(t *testing.T) {
 			OwnerID:        user.ID,
 			OrganizationID: org.ID,
 			AgentFn:        func(ctx context.Context) (database.WorkspaceAgent, error) { return agent, nil },
+			AccessURL:      accessURL,
 			Clock:          clock,
 			Database:       dbauthz.New(db, auth, logger, accessControlStore),
 		}
@@ -803,6 +808,167 @@ func TestSubAgentAPI(t *testing.T) {
 			require.Equal(t, "k5jd7a99-duplicate-slug", apps[0].Slug)
 			require.Equal(t, "First Duplicate", apps[0].DisplayName)
 		})
+	})
+
+	t.Run("CreateSubAgentWithAppURL", func(t *testing.T) {
+		t.Parallel()
+
+		const token = "$SESSION_TOKEN"
+
+		tests := []struct {
+			name     string
+			url      string
+			external bool
+			// wantErr is empty when the app should be created.
+			wantErr string
+		}{
+			{
+				name:     "SessionTokenToAccessURL",
+				url:      "vscode://coder.coder-remote/open?owner=me&workspace=ws&url=https://coder.example.com&token=" + token,
+				external: true,
+			},
+			{
+				name:     "SessionTokenToAccessURLWithDefaultPort",
+				url:      "cursor://coder.coder-remote/open?url=https://CODER.example.com:443/&token=" + token,
+				external: true,
+			},
+			{
+				name:     "SessionTokenToAccessURLInFragment",
+				url:      "jetbrains-gateway://connect#type=coder&workspace=ws&url=https://coder.example.com&token=" + token,
+				external: true,
+			},
+			{
+				name:     "ExternalWithoutSessionToken",
+				url:      "coder://coder.example.com/v0/open/ws/me",
+				external: true,
+			},
+			{
+				name:     "SessionTokenToAttackerURL",
+				url:      "vscode://coder.coder-remote/open?url=https://attacker.example&token=" + token,
+				external: true,
+				wantErr:  "may only be sent to the deployment access URL",
+			},
+			{
+				name:     "SessionTokenToAccessURLAsUserinfo",
+				url:      "vscode://coder.coder-remote/open?url=https://coder.example.com@attacker.example&token=" + token,
+				external: true,
+				wantErr:  "may only be sent to the deployment access URL",
+			},
+			{
+				name:     "SessionTokenToAccessURLSubdomainPrefix",
+				url:      "vscode://coder.coder-remote/open?url=https://coder.example.com.attacker.example&token=" + token,
+				external: true,
+				wantErr:  "may only be sent to the deployment access URL",
+			},
+			{
+				name:     "SessionTokenToAccessURLOtherPort",
+				url:      "vscode://coder.coder-remote/open?url=https://coder.example.com:8443&token=" + token,
+				external: true,
+				wantErr:  "may only be sent to the deployment access URL",
+			},
+			{
+				name:     "SessionTokenWithDuplicateAttackerURL",
+				url:      "vscode://coder.coder-remote/open?url=https://coder.example.com&url=https://attacker.example&token=" + token,
+				external: true,
+				wantErr:  "may only be sent to the deployment access URL",
+			},
+			{
+				name:     "SessionTokenWithAttackerURLInFragment",
+				url:      "vscode://coder.coder-remote/open?url=https://coder.example.com&token=" + token + "#url=https://attacker.example",
+				external: true,
+				wantErr:  "may only be sent to the deployment access URL",
+			},
+			{
+				name:     "SessionTokenWithAttackerURLInOtherParam",
+				url:      "vscode://coder.coder-remote/open?url=https://coder.example.com&host=https://attacker.example&token=" + token,
+				external: true,
+				wantErr:  "may only be sent to the deployment access URL",
+			},
+			{
+				name:     "SessionTokenWithoutDestination",
+				url:      "vscode://coder.coder-remote/open?token=" + token,
+				external: true,
+				wantErr:  "must set \"url\" to the deployment access URL",
+			},
+			{
+				name:     "SessionTokenWithDisallowedScheme",
+				url:      "ftp://coder.example.com?url=https://coder.example.com&token=" + token,
+				external: true,
+				wantErr:  "scheme may not use",
+			},
+			{
+				name:     "SessionTokenWithWebScheme",
+				url:      "https://attacker.example?url=https://coder.example.com&token=" + token,
+				external: true,
+				wantErr:  "scheme may not use",
+			},
+			{
+				name:    "SessionTokenOnNonExternalApp",
+				url:     "http://localhost:8080?url=https://coder.example.com&token=" + token,
+				wantErr: "only external apps may use",
+			},
+			{
+				name:     "JavascriptScheme",
+				url:      "javascript:alert(1)",
+				external: true,
+				wantErr:  "scheme is not allowed for external apps",
+			},
+			{
+				name:     "MissingScheme",
+				url:      "my-repo",
+				external: true,
+				wantErr:  "must include a scheme",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				log := testutil.Logger(t)
+				ctx := testutil.Context(t, testutil.WaitShort)
+				clock := quartz.NewMock(t)
+
+				db, org := newDatabaseWithOrg(t)
+				user, agent := newUserWithWorkspaceAgent(t, db, org)
+				api := newAgentAPI(t, log, db, clock, user, org, agent)
+
+				createResp, err := api.CreateSubAgent(ctx, &proto.CreateSubAgentRequest{
+					Name:            "child-agent",
+					Directory:       "/workspaces/coder",
+					Architecture:    "amd64",
+					OperatingSystem: "linux",
+					Apps: []*proto.CreateSubAgentRequest_App{
+						{
+							Slug:     "ide",
+							Url:      new(tt.url),
+							External: new(tt.external),
+						},
+					},
+				})
+				require.NoError(t, err)
+
+				agentID, err := uuid.FromBytes(createResp.Agent.Id)
+				require.NoError(t, err)
+
+				apps, err := api.Database.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), agentID)
+				require.NoError(t, err)
+
+				if tt.wantErr == "" {
+					require.Empty(t, createResp.AppCreationErrors)
+					require.Len(t, apps, 1)
+					require.Equal(t, tt.url, apps[0].Url.String)
+					return
+				}
+
+				require.Empty(t, apps, "rejected app must not be persisted")
+				require.Len(t, createResp.AppCreationErrors, 1)
+				appErr := createResp.AppCreationErrors[0]
+				require.NotNil(t, appErr.Field)
+				require.Equal(t, "url", *appErr.Field)
+				require.Contains(t, appErr.Error, tt.wantErr)
+			})
+		}
 	})
 
 	t.Run("CreateSubAgentWithAppRebindRejected", func(t *testing.T) {

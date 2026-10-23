@@ -7,6 +7,8 @@ import (
 	"encoding/base32"
 	"errors"
 	"fmt"
+	"net/url"
+	"slices"
 	"strings"
 	"sync/atomic"
 
@@ -19,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/portsharing"
+	"github.com/coder/coder/v2/coderd/util/xurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/quartz"
@@ -28,6 +31,8 @@ type SubAgentAPI struct {
 	OwnerID        uuid.UUID
 	OrganizationID uuid.UUID
 	AgentFn        func(context.Context) (database.WorkspaceAgent, error)
+	// AccessURL is the destination external app URLs may name when requesting viewer session token.
+	AccessURL *url.URL
 
 	Log        slog.Logger
 	Clock      quartz.Clock
@@ -237,6 +242,10 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 				sharingLevel = template.MaxPortSharingLevel
 			}
 
+			if err := validateSubAgentAppURL(app, a.AccessURL); err != nil {
+				return err
+			}
+
 			var openIn database.WorkspaceAppOpenIn
 			switch app.GetOpenIn() {
 			case agentproto.CreateSubAgentRequest_App_SLIM_WINDOW:
@@ -370,4 +379,81 @@ func (a *SubAgentAPI) ListSubAgents(ctx context.Context, _ *agentproto.ListSubAg
 	}
 
 	return &agentproto.ListSubAgentsResponse{Agents: agents}, nil
+}
+
+// sessionTokenPlaceholder is replaced with a freshly minted session token for the viewer.
+const sessionTokenPlaceholder = "$SESSION_TOKEN"
+
+// sessionTokenDestinationParam is the query or fragment parameter IDE reads the deployment URL from.
+const sessionTokenDestinationParam = "url"
+
+// blockedExternalAppSchemes execute content or read local files when opened from the dashboard.
+var blockedExternalAppSchemes = []string{"javascript", "data", "file", "vbscript"}
+
+// validateSubAgentAppURL rejects app URLs that could be used to exfiltrate the viewer's session token.
+// Sub-agent apps are registered from inside the workspace, so their URLs are untrusted.
+func validateSubAgentAppURL(app *agentproto.CreateSubAgentRequest_App, accessURL *url.URL) error {
+	rawURL := app.GetUrl()
+	if rawURL == "" {
+		return nil
+	}
+	invalid := func(format string, args ...any) error {
+		return codersdk.ValidationError{Field: "url", Detail: fmt.Sprintf(format, args...)}
+	}
+
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return invalid("%q is not a valid URL: %s", rawURL, err)
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if scheme == "" {
+		return invalid("%q must include a scheme", rawURL)
+	}
+	if app.GetExternal() && slices.Contains(blockedExternalAppSchemes, scheme) {
+		return invalid("%q scheme is not allowed for external apps", scheme)
+	}
+
+	if !strings.Contains(rawURL, sessionTokenPlaceholder) {
+		return nil
+	}
+	if !app.GetExternal() {
+		return invalid("only external apps may use %s", sessionTokenPlaceholder)
+	}
+	if _, ok := codersdk.MapExternalAppSessionTokenSchemes[codersdk.ExternalAppSessionTokenScheme(scheme)]; !ok {
+		return invalid("%q scheme may not use %s", scheme, sessionTokenPlaceholder)
+	}
+	if accessURL == nil {
+		return invalid("%s requires a deployment access URL", sessionTokenPlaceholder)
+	}
+
+	query, err := url.ParseQuery(u.RawQuery)
+	if err != nil {
+		return invalid("query is not valid: %s", err)
+	}
+	fragment, err := url.ParseQuery(u.EscapedFragment())
+	if err != nil {
+		return invalid("fragment is not valid: %s", err)
+	}
+
+	hasDestination := false
+	for _, params := range []url.Values{query, fragment} {
+		for key, values := range params {
+			for _, value := range values {
+				isDestination := key == sessionTokenDestinationParam
+				hasDestination = hasDestination || isDestination
+				target, parseErr := url.Parse(value)
+				isHTTP := parseErr == nil && xurl.IsHTTP(target)
+				if !isDestination && !isHTTP {
+					continue
+				}
+				if !isHTTP || !xurl.SameOrigin(target, accessURL) {
+					return invalid("%s may only be sent to the deployment access URL %q, but %q points to %q", sessionTokenPlaceholder, accessURL.String(), key, value)
+				}
+			}
+		}
+	}
+	if !hasDestination {
+		return invalid("URLs using %s must set %q to the deployment access URL", sessionTokenPlaceholder, sessionTokenDestinationParam)
+	}
+	return nil
 }
