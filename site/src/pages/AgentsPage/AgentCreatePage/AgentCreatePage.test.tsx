@@ -1,7 +1,7 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { onlineManager } from "react-query";
+import { onlineManager, QueryClient } from "react-query";
 import {
 	afterEach,
 	beforeAll,
@@ -12,6 +12,7 @@ import {
 	vi,
 } from "vitest";
 import { API } from "#/api/api";
+import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
@@ -268,6 +269,30 @@ describe("AgentCreatePage project assignment", () => {
 		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
 		expect(createChat.mock.calls[0][0]).toMatchObject({
 			project_id: MockChatProject.id,
+		});
+	});
+
+	it("refreshes the project's skills when creating a chat fails", async () => {
+		enableExperiments("chat-projects");
+		serveProjects(MockChatProject);
+		const { createChat } = mockPageQueries();
+		createChat.mockRejectedValue(
+			new Error("Skill project/triage is not available."),
+		);
+		const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries");
+
+		renderAgentsRoutes();
+		await screen.findByRole("button", { name: "Create chat" });
+		await expect(
+			formProps.onCreateChat?.({
+				message: "Run triage",
+				organizationId: MockChatProject.organization_id,
+				projectId: MockChatProject.id,
+			}),
+		).rejects.toThrow();
+
+		expect(invalidate).toHaveBeenCalledWith({
+			queryKey: chatProjectSkillsKey(MockChatProject.id),
 		});
 	});
 
