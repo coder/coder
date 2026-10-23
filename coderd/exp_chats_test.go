@@ -10570,6 +10570,11 @@ func TestStreamChat(t *testing.T) {
 		mClock := quartz.NewMock(t)
 		keepaliveTrap := mClock.Trap().NewTicker("chatStream", "keepalive")
 		defer keepaliveTrap.Close()
+		// The handler resets the keepalive after each event batch. Holding
+		// every reset until the test has read its batch keeps the clock
+		// advances below ordered after the resets they depend on.
+		resetTrap := mClock.Trap().TickerReset("chatStream", "keepalive")
+		defer resetTrap.Close()
 
 		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled, func(o *coderdtest.Options) {
 			o.Clock = mClock
@@ -10604,12 +10609,16 @@ func TestStreamChat(t *testing.T) {
 				}
 			}
 		}()
+		tickerStarted := false
 		nextFrame := func() []codersdk.ChatStreamEvent {
 			t.Helper()
 			data := testutil.TryReceive(ctx, t, frames)
 			require.NotNil(t, data, "chat stream closed")
 			var batch []codersdk.ChatStreamEvent
 			require.NoError(t, json.Unmarshal(data, &batch))
+			if tickerStarted && len(batch) > 0 {
+				resetTrap.MustWait(ctx).MustRelease(ctx)
+			}
 			return batch
 		}
 		sendMessage := func(text string) {
@@ -10636,8 +10645,14 @@ func TestStreamChat(t *testing.T) {
 			}
 		}
 
-		// The keepalive ticker starts once the snapshot has been written.
-		keepaliveTrap.MustWait(ctx).MustRelease(ctx)
+		// The handler is held in the ticker creation, so the snapshot, which
+		// fits in one batch for a chat without messages, is already written
+		// and has no reset after it.
+		newTicker := keepaliveTrap.MustWait(ctx)
+		snapshot := nextFrame()
+		require.NotEmpty(t, streamChatEventsOfType(snapshot, codersdk.ChatStreamEventTypeStatus))
+		newTicker.MustRelease(ctx)
+		tickerStarted = true
 
 		mClock.Advance(httpapi.HeartbeatInterval).MustWait(ctx)
 		for batch := nextFrame(); len(batch) > 0; batch = nextFrame() {
