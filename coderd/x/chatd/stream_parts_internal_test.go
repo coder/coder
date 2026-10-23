@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -14,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 )
@@ -159,6 +162,112 @@ func TestStreamPartsEndpointClientDisconnectCancels(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("stream parts endpoint did not exit after client disconnect")
 	}
+}
+
+func TestStreamPartsEndpointSubscriptionEnd(t *testing.T) {
+	t.Parallel()
+
+	t.Run("DroppedSubscriptionEndsConnection", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			const sendTimeout = 10 * time.Second
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+			buffer := messagepartbuffer.New(messagepartbuffer.Options{
+				Clock:                 clock,
+				SubscriberSendTimeout: sendTimeout,
+			})
+			defer buffer.Close()
+			chatID := uuid.New()
+			endpoint := streamPartsEndpoint{
+				chatID: chatID,
+				buffer: buffer,
+				logger: slogtest.Make(t, nil),
+			}
+			serverTransport, clientTransport := newStreamPartsChannelTransportPair()
+			defer clientTransport.Close()
+
+			// The client does not read, so the endpoint blocks once the
+			// transport is full and the buffer's next send waits.
+			key := messagepartbuffer.Key{ChatID: chatID, HistoryVersion: 1, GenerationAttempt: 1}
+			require.NoError(t, buffer.CreateEpisode(key))
+			for range 1000 {
+				require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("part")))
+			}
+			serveErr := make(chan error, 1)
+			go func() {
+				serveErr <- endpoint.serve(ctx, serverTransport)
+			}()
+			require.NoError(t, clientTransport.WriteControl(ctx, streamPartsControl{HistoryVersion: key.HistoryVersion, GenerationAttempt: key.GenerationAttempt}))
+
+			synctest.Wait()
+			clock.Advance(sendTimeout).MustWait(ctx)
+			// The mock clock delivers the timer value from another goroutine,
+			// so wait for the buffer to act on it before the client reads.
+			synctest.Wait()
+			// The client resumes reading, which unblocks the endpoint.
+			go func() {
+				for {
+					if _, err := clientTransport.ReadEvents(ctx); err != nil {
+						return
+					}
+				}
+			}()
+			select {
+			case err := <-serveErr:
+				require.ErrorIs(t, err, messagepartbuffer.ErrSubscriberSendTimeout)
+			case <-ctx.Done():
+				t.Fatal("stream parts endpoint kept the connection open after the subscription was dropped")
+			}
+		})
+	})
+
+	t.Run("EndedEpisodeKeepsConnection", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitShort)
+			buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: quartz.NewMock(t)})
+			defer buffer.Close()
+			chatID := uuid.New()
+			endpoint := streamPartsEndpoint{
+				chatID: chatID,
+				buffer: buffer,
+				logger: slogtest.Make(t, nil),
+			}
+			serverTransport, clientTransport := newStreamPartsChannelTransportPair()
+			serveErr := make(chan error, 1)
+			go func() {
+				serveErr <- endpoint.serve(ctx, serverTransport)
+			}()
+
+			endedKey := messagepartbuffer.Key{ChatID: chatID, HistoryVersion: 1, GenerationAttempt: 1}
+			nextKey := messagepartbuffer.Key{ChatID: chatID, HistoryVersion: 1, GenerationAttempt: 2}
+			require.NoError(t, buffer.CreateEpisode(endedKey))
+			require.NoError(t, buffer.AddPart(endedKey, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("ended")))
+			require.NoError(t, buffer.CloseEpisode(endedKey))
+			require.NoError(t, buffer.CreateEpisode(nextKey))
+			require.NoError(t, buffer.AddPart(nextKey, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("next")))
+
+			require.NoError(t, clientTransport.WriteControl(ctx, streamPartsControl{HistoryVersion: endedKey.HistoryVersion, GenerationAttempt: endedKey.GenerationAttempt}))
+			got := readStreamPartsTransportBatch(ctx, t, clientTransport)
+			require.Equal(t, "ended", got[0].MessagePart.Part.Text)
+			synctest.Wait()
+			select {
+			case err := <-serveErr:
+				t.Fatalf("stream parts endpoint returned after the episode ended: %v", err)
+			default:
+			}
+
+			require.NoError(t, clientTransport.WriteControl(ctx, streamPartsControl{HistoryVersion: nextKey.HistoryVersion, GenerationAttempt: nextKey.GenerationAttempt}))
+			got = readStreamPartsTransportBatch(ctx, t, clientTransport)
+			require.Equal(t, "next", got[0].MessagePart.Part.Text)
+
+			require.NoError(t, clientTransport.Close())
+			require.NoError(t, <-serveErr)
+		})
+	})
 }
 
 func TestStreamPartsEndpointWebSocket(t *testing.T) {
