@@ -16232,9 +16232,6 @@ func TestResyncAgentContextAsync(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
-	user, _, model := seedChatDependencies(t, db)
-	ws, agent := seedWorkspaceWithAgent(t, db, user.ID)
-
 	resynced := make(chan struct{})
 	conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
 	conn.EXPECT().ResyncContext(gomock.Any()).Do(func(context.Context) { close(resynced) })
@@ -16243,14 +16240,7 @@ func TestResyncAgentContextAsync(t *testing.T) {
 			return conn, func() {}, nil
 		}
 	})
-	chat := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    ws.OrganizationID,
-		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
-		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
-	})
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	server.ResyncAgentContextAsync(chat)
-	testutil.TryReceive(ctx, t, resynced)
+	server.ResyncAgentContextAsync(uuid.New())
+	testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, resynced)
 }

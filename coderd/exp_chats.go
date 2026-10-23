@@ -2599,7 +2599,12 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 		if slices.ContainsFunc(sdkChat.Context.Resources, func(r codersdk.ChatContextResource) bool {
 			return r.Kind == codersdk.ChatContextResourceKindMCPServer && r.Status == codersdk.ChatContextResourceStatusUnreadable
 		}) {
-			api.chatDaemon.ResyncAgentContextAsync(updated)
+			// Read as the caller, and skip agents that cannot answer since the
+			// dial would wait out its timeout.
+			agent, err := api.Database.GetWorkspaceAgentByID(ctx, updated.AgentID.UUID)
+			if err == nil && agent.Status(dbtime.Now(), api.AgentInactiveDisconnectTimeout).Status == database.WorkspaceAgentStatusConnected {
+				api.chatDaemon.ResyncAgentContextAsync(agent.ID)
+			}
 		}
 	}
 

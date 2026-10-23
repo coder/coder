@@ -251,32 +251,26 @@ func repinChatContext(ctx context.Context, db database.Store, chatID uuid.UUID, 
 	return nil
 }
 
-// ResyncAgentContextAsync asks the chat's agent, in the background, to resync
-// its context, which retries failed MCP servers. The agent's next context push
-// syncs them into the chat.
-func (p *Server) ResyncAgentContextAsync(chat database.Chat) {
-	if !chat.AgentID.Valid || p.agentConnFn == nil {
+// ResyncAgentContextAsync asks the agent, in the background, to resync its
+// context, which retries failed MCP servers. The agent's next context push
+// syncs them into its chats.
+func (p *Server) ResyncAgentContextAsync(agentID uuid.UUID) {
+	if p.agentConnFn == nil {
 		return
 	}
 	// Start from Background so the request logger is not used after the response.
-	ctx, stop := p.inflightChatContext(context.Background(), chat)
+	ctx, stop := p.inflightContext(context.Background())
 	if p.goInflight(func() {
 		defer stop()
 		ctx, cancel := context.WithTimeout(ctx, time.Minute)
 		defer cancel()
-		//nolint:gocritic // Chatd reads the agent row as the daemon subject.
-		agent, err := p.db.GetWorkspaceAgentByID(dbauthz.AsChatd(ctx), chat.AgentID.UUID)
-		// Dialing an unreachable agent waits out the timeout.
-		if err != nil || isAgentUnreachable(p.clock.Now(), agent, p.agentInactiveDisconnectTimeout) {
-			return
-		}
-		conn, release, err := p.agentConnFn(ctx, agent.ID)
+		conn, release, err := p.agentConnFn(ctx, agentID)
 		if err == nil {
 			defer release()
 			err = conn.ResyncContext(ctx)
 		}
 		if err != nil {
-			p.logger.Warn(ctx, "resync agent context", slog.F("chat_id", chat.ID), slog.Error(err))
+			p.logger.Warn(ctx, "resync agent context", slog.F("agent_id", agentID), slog.Error(err))
 		}
 	}) != nil {
 		stop()
