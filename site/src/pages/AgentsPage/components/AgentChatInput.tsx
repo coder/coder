@@ -1458,8 +1458,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						onKeyDown={handleEditorKeyDown}
 						onEnter={handleSubmit}
 						sendShortcut={sendShortcut}
-						// Stays editable during a send, so the user can write the
-						// next message. handleSubmit does not send while isLoading.
+						// The editor stays enabled during a send, so the user can
+						// write the next message. handleSubmit does not send while
+						// isLoading.
 						disabled={isReadOnly}
 						hasWorkspace={hasSkillsWorkspace}
 						organizationId={chatOrganizationId}

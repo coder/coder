@@ -1424,7 +1424,6 @@ const fetchMessagesPage = async (
 	return { ...page, messages };
 };
 
-// A chat's store loads this once; afterwards the chat stream keeps it current.
 export const fetchNewestChatMessages = (chatId: string) =>
 	fetchMessagesPage(chatId, undefined);
 

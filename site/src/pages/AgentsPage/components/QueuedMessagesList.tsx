@@ -124,7 +124,8 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	}));
 
 	const [hoveredID, setHoveredID] = useState<number | null>(null);
-	// The action in flight for each row. Only that row's actions wait for it.
+	// The action in flight for each row. Only that row's buttons are disabled
+	// while it runs.
 	const [busyItems, setBusyItems] = useState<
 		ReadonlyMap<number, "delete" | "promote">
 	>(new Map());

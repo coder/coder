@@ -132,10 +132,11 @@ export function useConversationEditingState(deps: {
 		setEditingFileBlocks([]);
 	};
 
-	// Clears the composer at submit and returns a rollback function that
-	// restores it, and the editing draft of a history edit, if the send
-	// fails. The composer stays editable during the request, so the
-	// restored message goes in front of anything typed since.
+	// Clears the composer at submit. The returned rollback, called when the
+	// send fails, restores the message and, for a history edit, the edited
+	// message ID and its file blocks. The composer stays editable during the
+	// request, so the rollback puts the message in front of anything typed
+	// since.
 	const clearInputForSend = (message: string) => {
 		const snapshot = {
 			editorState: serializedEditorStateRef.current,
@@ -169,8 +170,9 @@ export function useConversationEditingState(deps: {
 		};
 	};
 
-	// Ends a successful send. The composer was cleared at submit, so its
-	// content now was typed during the request; it stays and becomes the draft.
+	// Ends a successful send. The composer was cleared at submit, so any
+	// content in it was typed during the request. That content stays and
+	// becomes the saved draft.
 	const finalizeSuccessfulSend = (editedMessageID: number | undefined) => {
 		const draft = serializedEditorStateRef.current;
 		if (inputValueRef.current.trim() && draft) {
