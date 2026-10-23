@@ -208,8 +208,11 @@ To keep your client in sync with the chat:
    1. If the server returns `400 Bad Request`, discard your client's state and start again from step 1.
 
 When no events occur for 15&nbsp;seconds, the server sends an empty batch (`[]`).
-An empty batch contains no events; skip it.
-Treat a longer silence as a dead connection and reconnect.
+An empty batch contains no events, so skip it.
+If no batch arrives for 40&nbsp;seconds, close the connection and reconnect.
+That threshold allows two missed empty batches plus a margin, and the Coder dashboard uses the same value.
+Older Coder servers don't send empty batches.
+If the server is older, skip the threshold or expect idle chats to reconnect every 40&nbsp;seconds.
 
 On the next connection, the server again sends the `message_part` events of the response that the agent is writing.
 If a retry is pending, the server also sends the `retry` event again.
