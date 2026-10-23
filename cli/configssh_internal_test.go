@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -615,7 +616,7 @@ func TestSSHConfigOptions_writeToBuffer(t *testing.T) {
 				globalConfigPath: "/tmp/coder",
 				hostnameSuffix:   "coder",
 				noWildcard:       true,
-				workspaceNames:   []string{"workspace1", "workspace2"},
+				hostNames:        []string{"workspace1", "workspace2"},
 				waitEnum:         "auto",
 			},
 			want: []string{
@@ -634,7 +635,7 @@ func TestSSHConfigOptions_writeToBuffer(t *testing.T) {
 				globalConfigPath: "/tmp/coder",
 				hostnameSuffix:   "coder",
 				noWildcard:       true,
-				workspaceNames:   nil,
+				hostNames:        nil,
 				waitEnum:         "auto",
 			},
 			notWant: []string{"Host", "ProxyCommand", "Match"},
@@ -646,7 +647,7 @@ func TestSSHConfigOptions_writeToBuffer(t *testing.T) {
 				globalConfigPath: "/tmp/coder",
 				userHostPrefix:   "coder.",
 				noWildcard:       true,
-				workspaceNames:   []string{"workspace1", "workspace2"},
+				hostNames:        []string{"workspace1", "workspace2"},
 				waitEnum:         "auto",
 			},
 			want: []string{
@@ -663,7 +664,7 @@ func TestSSHConfigOptions_writeToBuffer(t *testing.T) {
 				globalConfigPath: "/tmp/coder",
 				hostnameSuffix:   "coder",
 				noWildcard:       true,
-				workspaceNames:   []string{"workspace1"},
+				hostNames:        []string{"workspace1"},
 				skipProxyCommand: true,
 				waitEnum:         "auto",
 			},
@@ -677,7 +678,7 @@ func TestSSHConfigOptions_writeToBuffer(t *testing.T) {
 				globalConfigPath: "/tmp/coder",
 				userHostPrefix:   "coder.",
 				noWildcard:       true,
-				workspaceNames:   []string{"workspace1"},
+				hostNames:        []string{"workspace1"},
 				skipProxyCommand: true,
 				waitEnum:         "auto",
 			},
@@ -691,7 +692,7 @@ func TestSSHConfigOptions_writeToBuffer(t *testing.T) {
 				globalConfigPath: "/tmp/coder",
 				hostnameSuffix:   "coder",
 				noWildcard:       true,
-				workspaceNames:   []string{"workspace1", "workspace2"},
+				hostNames:        []string{"workspace1", "workspace2"},
 				sshOptions:       []string{"ForwardAgent=yes", "LogLevel=DEBUG"},
 				waitEnum:         "auto",
 			},
@@ -724,7 +725,7 @@ func TestSSHConfigOptions_writeToBuffer(t *testing.T) {
 				userHostPrefix:   "coder.",
 				hostnameSuffix:   "testy",
 				noWildcard:       true,
-				workspaceNames:   []string{"workspace1"},
+				hostNames:        []string{"workspace1"},
 				waitEnum:         "auto",
 			},
 			want: []string{
@@ -753,4 +754,59 @@ func TestSSHConfigOptions_writeToBuffer(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_noWildcardHostNames(t *testing.T) {
+	t.Parallel()
+
+	resource := func(transition codersdk.WorkspaceTransition, agents ...string) codersdk.WorkspaceResource {
+		r := codersdk.WorkspaceResource{Transition: transition}
+		for _, name := range agents {
+			r.Agents = append(r.Agents, codersdk.WorkspaceAgent{Name: name})
+		}
+		return r
+	}
+	workspace := func(name string, versionID uuid.UUID, resources ...codersdk.WorkspaceResource) codersdk.Workspace {
+		return codersdk.Workspace{
+			Name:      name,
+			OwnerName: "alice",
+			LatestBuild: codersdk.WorkspaceBuild{
+				TemplateVersionID: versionID,
+				Resources:         resources,
+			},
+		}
+	}
+
+	fetched, missing := uuid.New(), uuid.New()
+	versionResources := map[uuid.UUID][]codersdk.WorkspaceResource{
+		fetched: {
+			resource(codersdk.WorkspaceTransitionStart, "main"),
+			// Template versions also list stop-transition resources.
+			resource(codersdk.WorkspaceTransitionStop, "ignored"),
+		},
+	}
+
+	got := noWildcardHostNames([]codersdk.Workspace{
+		// Agents of a running workspace come from its latest build, sorted,
+		// skipping names that are not valid agent names.
+		workspace("running", fetched, resource(codersdk.WorkspaceTransitionStart, "web", "dev", "bad name")),
+		// A stopped workspace uses the agents of its template version.
+		workspace("stopped", fetched, resource(codersdk.WorkspaceTransitionStop)),
+		// If the template version could not be fetched, only the workspace
+		// itself gets an entry.
+		workspace("unknown", missing),
+		// So does a workspace whose name is not a valid name, such as one
+		// created before underscores were rejected.
+		workspace("legacy_name", fetched, resource(codersdk.WorkspaceTransitionStart, "dev")),
+	}, versionResources)
+
+	require.Equal(t, []string{
+		"running",
+		"dev.running.alice",
+		"web.running.alice",
+		"stopped",
+		"main.stopped.alice",
+		"unknown",
+		"legacy_name",
+	}, got)
 }
