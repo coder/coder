@@ -1,2 +1,5 @@
 INSERT INTO chat_notes (chat_id, path, content)
-VALUES ('00000000-0000-0000-0000-000000000001', 'checkpoint.md', 'Fixture checkpoint.');
+SELECT c.id, 'checkpoint.md', 'Fixture checkpoint.'
+FROM (
+    SELECT id FROM chats ORDER BY created_at, id LIMIT 1
+) AS c;

@@ -102,7 +102,10 @@ func boundaryKind(msg database.ChatMessage, parse ParseContentFunc) (toolName st
 			var payload struct {
 				Source string `json:"source"`
 			}
-			_ = json.Unmarshal(part.Result, &payload)
+			// A result without a readable source is still a boundary.
+			if err := json.Unmarshal(part.Result, &payload); err != nil {
+				payload.Source = ""
+			}
 			return part.ToolName, payload.Source, true, true
 		case codersdk.ChatMessagePartTypeToolCall:
 			return part.ToolName, "", false, true
