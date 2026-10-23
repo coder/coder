@@ -298,7 +298,7 @@ When a chat has no skills left to load, the agent doesn't get the `read_skill` t
 
 Personal, organization, and project skills have an **Agents can use it automatically** switch in their skill editor, which is on by default.
 Turn it off to keep agents from loading the skill on their own, so it runs only when someone invokes it from the `/` menu, by typing its alias, or, for a project skill, with an action button.
-Skill lists mark these skills **Manual only**.
+Skills tables mark these skills **Manual only**.
 The agent's list of skills leaves them out, and `read_skill` reports that the skill was not found.
 
 Importing a `SKILL.md` file with `disable-model-invocation: true` in its frontmatter turns the switch off.
