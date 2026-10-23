@@ -13,6 +13,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { docs } from "#/utils/docs";
 
 type AgentSSHButtonProps = {
@@ -26,8 +27,13 @@ export const AgentSSHButton: React.FC<AgentSSHButtonProps> = ({
 	agentName,
 	workspaceOwnerUsername,
 }) => {
-	const { data } = useQuery(deploymentSSHConfig());
+	const { data, isLoading } = useQuery(deploymentSSHConfig());
 	const sshSuffix = data?.hostname_suffix;
+	// Without a hostname suffix there is no SSH host to suggest, so fall back
+	// to the CLI, which needs no SSH config.
+	const connectCommand = sshSuffix
+		? `ssh ${agentName}.${workspaceName}.${workspaceOwnerUsername}.${sshSuffix}`
+		: `coder ssh ${workspaceOwnerUsername}/${workspaceName}.${agentName}`;
 
 	return (
 		<Popover>
@@ -47,18 +53,22 @@ export const AgentSSHButton: React.FC<AgentSSHButtonProps> = ({
 					Run the following commands to connect with SSH:
 				</HelpPopoverText>
 
-				<ol style={{ margin: 0, padding: 0 }}>
-					<div className="flex flex-col gap-1 mt-3">
-						<SSHStep
-							helpText="Configure SSH hosts on machine:"
-							codeExample="coder config-ssh"
-						/>
-						<SSHStep
-							helpText="Connect to the agent:"
-							codeExample={`ssh ${agentName}.${workspaceName}.${workspaceOwnerUsername}.${sshSuffix}`}
-						/>
-					</div>
-				</ol>
+				<Spinner loading={isLoading} className="mt-3">
+					<ol style={{ margin: 0, padding: 0 }}>
+						<div className="flex flex-col gap-1 mt-3">
+							{sshSuffix && (
+								<SSHStep
+									helpText="Configure SSH hosts on machine:"
+									codeExample="coder config-ssh"
+								/>
+							)}
+							<SSHStep
+								helpText="Connect to the agent:"
+								codeExample={connectCommand}
+							/>
+						</div>
+					</ol>
+				</Spinner>
 
 				<HelpPopoverLinksGroup>
 					<HelpPopoverLink href="/install">Install Coder CLI</HelpPopoverLink>

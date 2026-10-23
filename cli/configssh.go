@@ -564,10 +564,27 @@ func (r *RootCmd) configSSH() *serpent.Command {
 
 			if len(res.Workspaces) > 0 {
 				_, _ = fmt.Fprintln(out, "You should now be able to ssh into your workspace.")
-				if configOptions.hostnameSuffix != "" {
-					_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh %s.%s\n", res.Workspaces[0].Name, configOptions.hostnameSuffix)
-				} else if configOptions.userHostPrefix != "" {
-					_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh %s%s\n", configOptions.userHostPrefix, res.Workspaces[0].Name)
+				if configOptions.hostnameSuffix != "" || configOptions.userHostPrefix != "" {
+					ws := res.Workspaces[0]
+					host := ws.Name
+					agents := startAgentNames(ws.LatestBuild.Resources)
+					if len(agents) == 0 {
+						// A stopped workspace has no agents on its latest build.
+						if resources, err := client.TemplateVersionResources(ctx, ws.LatestBuild.TemplateVersionID); err == nil {
+							agents = startAgentNames(resources)
+						}
+					}
+					if len(agents) > 1 {
+						// A bare workspace hostname is ambiguous with multiple
+						// agents, so name the agent explicitly.
+						host = agents[0] + "." + ws.Name + "." + ws.OwnerName
+					}
+					if configOptions.hostnameSuffix != "" {
+						host += "." + configOptions.hostnameSuffix
+					} else {
+						host = configOptions.userHostPrefix + host
+					}
+					_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh %s\n", host)
 				}
 			} else {
 				_, _ = fmt.Fprint(out, "You don't have any workspaces yet, try creating one with:\n\n\t$ coder create <workspace>\n")
