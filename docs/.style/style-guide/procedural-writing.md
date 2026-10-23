@@ -95,7 +95,9 @@ Do not cut words that carry meaning to meet the limit.
 ```
 
 *Adapted from ASD-STE100 Issue 9, rule 5.1.
-Enforced by `Coder.StepLength` (planned).*
+Enforced by `Coder.StepLength` (`warning`).
+The rule counts the words in each paragraph of an ordered-list step and flags paragraphs over 20.
+It approximates [How to count words](./voice-and-tone.md#how-to-count-words), and its header comment lists the approximations.*
 
 ## Use a full clause after before, after, when, and while
 

@@ -103,9 +103,11 @@ If your dev container takes a long time to start:
    This avoids the image build step, though features and lifecycle scripts still run.
 1. **Minimize features**.
    Each feature executes as a separate Docker layer during the image build, which is typically the slowest part.
+
    Changing `devcontainer.json` invalidates the layer cache, causing features to reinstall on rebuild.
 1. **Check lifecycle scripts**.
    Commands in `postStartCommand` run on every container start.
+
    Commands in `postCreateCommand` run once per build, so they execute again after each rebuild.
 
 <a id="getting-more-help"></a>

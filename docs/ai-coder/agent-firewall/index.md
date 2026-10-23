@@ -134,10 +134,13 @@ Agent Firewall supports two different jail types for process isolation, each wit
 
 1. **nsjail** - Uses Linux namespaces for isolation.
    This is the default jail type and provides network namespace isolation.
+
    See [nsjail documentation](./nsjail/index.md) for detailed information about runtime requirements and Docker configuration.
 
 2. **landjail** - Uses Landlock V4 for network isolation.
+
    This provides network isolation through the Landlock Linux Security Module (LSM) without requiring network namespace capabilities.
+
    See [landjail documentation](./landjail.md) for implementation details.
 
 The choice of jail type depends on your security requirements, available Linux capabilities, and runtime environment.

@@ -7,6 +7,7 @@ Chat sharing lets you give other users or groups read-only access to a Coder Age
 ## Share a chat
 
 1. Open the chat you want to share on the **Agents** page.
+
    Only top-level chats can be shared; sub-agent chats inherit sharing from their parent.
 1. Select the share icon in the chat top bar.
 1. Select the **Search for user or group** field.

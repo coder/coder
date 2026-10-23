@@ -61,7 +61,9 @@ For deployments with multiple [organizations](./organizations.md), configure gro
 
 ### CLI
 
-1. Confirm you have the [Coder CLI](../../install/index.md) installed and are logged in with a user who is an Owner or has an Organization Admin role.
+1. Confirm you have the [Coder CLI](../../install/index.md) installed.
+
+   Confirm you are logged in with a user who is an Owner or has an Organization Admin role.
 
 1. To fetch the current group sync settings for an organization, run the following:
 
@@ -145,9 +147,15 @@ Visit the Coder UI to confirm these changes:
      --oidc-group-field groups
      ```
 
-1. On login, users will automatically be assigned to groups that have matching names in Coder and removed from groups that the user no longer belongs to.
+1. On login, users will automatically be assigned to groups that have matching names in Coder.
 
-1. For cases when an OIDC provider only returns group IDs or you want to have different group names in Coder than in your OIDC provider, you can configure mapping between the two with the [OIDC group mapping](../../reference/cli/server/index.md#--oidc-group-mapping) server flag:
+   Users are also removed from groups that they no longer belong to.
+
+1. An OIDC provider might return only group IDs.
+
+   You might also want different group names in Coder than in your OIDC provider.
+
+   In either case, map between the two with the [OIDC group mapping](../../reference/cli/server/index.md#--oidc-group-mapping) server flag:
 
    - Environment variable:
 
@@ -171,7 +179,7 @@ Visit the Coder UI to confirm these changes:
            {"myOIDCGroupID": "myCoderGroupName"}
    ```
 
-   From this example, users that belong to the `myOIDCGroupID` group in your OIDC provider will be added to the `myCoderGroupName` group in Coder.
+   From this example, users in the `myOIDCGroupID` group in your OIDC provider are added to the `myCoderGroupName` group in Coder.
 
 </div>
 
@@ -208,7 +216,9 @@ For deployments with multiple [organizations](./organizations.md), configure rol
 
 ### CLI
 
-1. Confirm you have the [Coder CLI](../../install/index.md) installed and are logged in with a user who is an Owner or has an Organization Admin role.
+1. Confirm you have the [Coder CLI](../../install/index.md) installed.
+
+   Confirm you are logged in with a user who is an Owner or has an Organization Admin role.
 
 1. To fetch the current role sync settings for an organization, run the following:
 
@@ -308,6 +318,7 @@ You can initiate an organization sync through the Coder dashboard or CLI:
    Users are automatically added to the default organization.
 
    Do not disable **Assign Default Organization**.
+
    If you disable the default organization, the system will remove users who are already assigned to it.
 
 1. Enter an IdP organization name and Coder organization(s), then select **Add IdP organization**:
@@ -454,13 +465,17 @@ The solution is to update the value of `CODER_OIDC_SCOPES` to the correct value 
 Steps to troubleshoot.
 
 1. Ensure the user is a part of a group in the IdP.
+
    If the user has 0 groups, no `groups` claim will be sent.
 2. Check if another claim appears to be the correct claim with a different name.
+
    A common name is `memberOf` instead of `groups`.
    If this is present, update `CODER_OIDC_GROUP_FIELD=memberOf`.
 3. Make sure the number of groups being sent is under the limit of the IdP.
+
    Some IdPs will return an error, while others will just omit the `groups` claim.
-   A common solution is to create a filter on the identity provider that returns less than the limit for your IdP.
+
+   A common solution is to create a filter on the identity provider that returns fewer groups than the IdP limit.
    - [Azure AD limit is 200, and omits groups if exceeded.](https://learn.microsoft.com/en-us/azure/active-directory/hybrid/connect/how-to-connect-fed-group-claims#options-for-applications-to-consume-group-information)
    - [Okta limit is 100, and returns an error if exceeded.](https://developer.okta.com/docs/reference/api/oidc/#scope-dependent-claims-not-always-returned)
 
@@ -474,6 +489,7 @@ Steps to troubleshoot.
 > Tested on ADFS 4.0, Windows Server 2019
 
 1. In your Federation Server, create a new application group for Coder.
+
    Follow the steps as described in the [Windows Server documentation] (https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/development/msal/adfs-msal-web-app-web-api#app-registration-in-ad-fs).
 
    - **Server Application**:

@@ -21,6 +21,7 @@ For more details, visit the [official JetBrains documentation](https://www.jetbr
 1. Enter the URL address and select **Sign In**.
    ![JetBrains Toolbox Coder provider URL](../../../images/user-guides/jetbrains/toolbox/login-url.png)
 1. Authenticate to Coder adding a token for the session and select **Connect**.
+
    ![JetBrains Toolbox Coder provider token](../../../images/user-guides/jetbrains/toolbox/login-token.png) After the authentication is completed, you are connected to your development environment and can open and work on projects.
    ![JetBrains Toolbox Coder Workspaces](../../../images/user-guides/jetbrains/toolbox/workspaces.png)
 
@@ -73,7 +74,11 @@ If you encounter issues connecting to your Coder workspace via JetBrains Toolbox
 
 1. Access logs via **Toolbox App Menu > About > Show log files**.
 2. Locate the log file named `jetbrains-toolbox.log` and attach it to your support ticket.
-3. If you need to capture logs for a specific workspace, you can also generate a ZIP file using the Workspace action menu, available either on the main Workspaces page in Coder view or within the individual workspace view, under the option labeled **Collect logs**.
+3. If you need to capture logs for a specific workspace, you can also generate a ZIP file.
+
+   Use the option labeled **Collect logs** in the Workspace action menu.
+
+   The menu is available either on the main Workspaces page in Coder view or within the individual workspace view.
 
 ## Additional Resources
 

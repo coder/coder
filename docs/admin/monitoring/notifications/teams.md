@@ -27,6 +27,7 @@ The process of setting up a Teams workflow consists of three key steps:
 1. Setup the JSON Parsing Action.
 
    Add the **"Parse JSON"** action, linking the content to the **"Body"** of the received webhook request.
+
    Use the following schema to parse the notification payload:
 
    ```json
@@ -119,7 +120,10 @@ The process of setting up a Teams workflow consists of three key steps:
    }
    ```
 
-   _Notice_: The Coder `actions` format differs from the `ActionSet` schema, so its properties need to be modified: include `Action.OpenUrl` type, rename `label` to `title`.
+   _Notice_: The Coder `actions` format differs from the `ActionSet` schema, so its properties need to be modified.
+
+   Include `Action.OpenUrl` type, rename `label` to `title`.
+
    Unfortunately, there is no straightforward solution for `for-each` pattern.
 
    Feel free to customize the payload to modify the logo, notification title, or body content to suit your needs.
@@ -138,6 +142,7 @@ Finally, go to the **Notification Settings** in Coder and switch the notifier to
 
 1. **Public Webhook Trigger**:
    The Teams webhook trigger must be open to the public (**"Anyone"** can send the payload).
+
    It's recommended to keep the endpoint secret and apply additional authorization layers to protect against unauthorized access.
 
 2. **Markdown Support in Adaptive Cards**:

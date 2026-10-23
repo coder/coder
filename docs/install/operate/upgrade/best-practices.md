@@ -49,6 +49,7 @@ For production deployments running multiple replicas (HA), active connections fr
 
 1. **Perform upgrade:**
    Run your standard Helm upgrade command.
+
    When scaling to zero, this will bring up a fresh pod that can run migrations without competing for database locks.
 
 1. **Scale back:**
@@ -104,11 +105,16 @@ Remove the `livenessProbe` section entirely, then proceed with the upgrade.
 
 1. **Isolate the migration:**
    Ensure all extra replica sets are shut down.
-   If you have clear evidence of database locks from old pods, scale the deployment to 1 replica to prevent old pods from holding locks on the tables being upgraded.
+
+   If you have clear evidence of database locks from old pods, scale the deployment to 1 replica.
+
+   This prevents old pods from holding locks on the tables being upgraded.
 
 1. **Clear database locks:**
    Monitor database activity.
+
    If the migration remains blocked by locks despite scaling down, you may need to manually terminate existing connections.
+
    See [Recover from failed database migrations](#recover-from-failed-database-migrations) below for instructions.
 
 <a id="recovering-from-failed-database-migrations"></a>
@@ -126,6 +132,7 @@ If an upgrade gets stuck in a restart loop due to database locks:
 
 1. **Clear connections:**
    Terminate existing connections to the Coder database to release any lingering locks.
+
    This PostgreSQL command drops all active connections to the database:
 
    > [!CAUTION]
@@ -142,6 +149,7 @@ If an upgrade gets stuck in a restart loop due to database locks:
 
 1. **Check schema migrations:**
    Verify the level of upgrade and check if `dirty` is true.
+
    If this has progressed, this now indicates your current Coder installation state.
 
    > [!NOTE]
@@ -153,7 +161,10 @@ If an upgrade gets stuck in a restart loop due to database locks:
    ```
 
 1. **Ensure image version:**
-   Confirm the Deployment image is set to the appropriate version (old or new, depending on the database migration state found in step 3).
+   Confirm the Deployment image is set to the appropriate version.
+
+   Use the old or new version, depending on the database migration state found in step 3.
+
    Match your tag in the [migrations directory](../../../../coderd/database/migrations) to the value in the `schema_migrations` output.
 
 1. **Resume the upgrade:**
