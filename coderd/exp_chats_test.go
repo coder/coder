@@ -10565,9 +10565,10 @@ func TestStreamChat(t *testing.T) {
 		mClock := quartz.NewMock(t)
 		keepaliveTrap := mClock.Trap().NewTicker("chatStream", "keepalive")
 		defer keepaliveTrap.Close()
-		// The handler resets the keepalive after each event batch. Holding
-		// every reset until the test has read its batch keeps the clock
-		// advances below ordered after the resets they depend on.
+		// The handler resets the keepalive ticker after it writes each event
+		// batch. nextFrame releases each reset only after it reads that
+		// batch, so every clock advance below happens after the resets it
+		// depends on.
 		resetTrap := mClock.Trap().TickerReset("chatStream", "keepalive")
 		defer resetTrap.Close()
 
@@ -10624,8 +10625,9 @@ func TestStreamChat(t *testing.T) {
 			})
 			require.NoError(t, err)
 		}
-		// framesBefore reads frames until one mentions text, which a message
-		// or queue_update event does, and returns the frames read before it.
+		// framesBefore reads frames until one contains text, as the message
+		// or queue_update event for a sent message does, and returns the
+		// frames read before it.
 		framesBefore := func(text string) [][]codersdk.ChatStreamEvent {
 			t.Helper()
 			var before [][]codersdk.ChatStreamEvent
@@ -10640,9 +10642,10 @@ func TestStreamChat(t *testing.T) {
 			}
 		}
 
-		// The handler is held in the ticker creation, so the snapshot, which
-		// fits in one batch for a chat without messages, is already written
-		// and has no reset after it.
+		// The trap holds the handler in NewTicker, after it wrote the
+		// snapshot. The snapshot of a chat without messages fits in one
+		// batch, and the handler does not reset the ticker after writing the
+		// snapshot.
 		newTicker := keepaliveTrap.MustWait(ctx)
 		snapshot := nextFrame()
 		require.NotEmpty(t, streamChatEventsOfType(snapshot, codersdk.ChatStreamEventTypeStatus))
@@ -10654,8 +10657,8 @@ func TestStreamChat(t *testing.T) {
 			require.NotEqual(t, codersdk.ChatStreamEventTypeError, batch[0].Type)
 		}
 
-		// An event written 10s into the interval moves the next keepalive
-		// to 15s after that event, so none is due at the original deadline.
+		// With t counted from the ticker's start, an event batch written at
+		// t=25s moves the next keepalive to t=40s, so none is due at t=30s.
 		mClock.Advance(10 * time.Second).MustWait(ctx)
 		const first = "stream chat keepalive first"
 		sendMessage(first)
