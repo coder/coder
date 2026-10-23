@@ -551,6 +551,20 @@ describe("Response", () => {
 
 			const spacedMarkdown = "Open /path/to/file (2).txt now";
 
+			it.each([
+				'Look in "/repo/my docs/missing/" now',
+				'Look in "/repo/my docs" now',
+				"Look in /repo/my docs/missing/ now",
+			])("does not link the existing prefix of %j", async (markdown) => {
+				const list = mockTree({ "/repo": ["my/"] });
+				renderWithFiles(markdown);
+
+				await waitFor(() => expect(list).toHaveBeenCalled());
+				await flush();
+				await screen.findByText(/Look in/);
+				expect(buttonTexts()).toEqual([]);
+			});
+
 			it("lists nothing without workspace files", async () => {
 				const list = mockTree({ "/path/to": ["file (2).txt"] });
 				render(<Response>{spacedMarkdown}</Response>);

@@ -344,6 +344,7 @@ const splitMentions = (node: HastNode): HastNode[] | undefined => {
 			tagName: "span",
 			properties: {
 				dataFileMentionCandidate: value.slice(candidate.start, candidate.end),
+				dataFileMentionCandidateOpener: value[candidate.start - 1],
 			},
 			children: splitRange(value, candidate, mentions),
 		});
@@ -384,7 +385,8 @@ const visit = (node: HastNode) => {
  * `data-file-mention-line` properties: on inline code that is entirely a
  * path, and on spans it wraps around paths in prose. Text that may be a path
  * with spaces gets `data-file-mention-candidate` with the text to verify
- * instead. Links and code blocks are left alone.
+ * instead, and `data-file-mention-candidate-opener` with the character
+ * before it. Links and code blocks are left alone.
  */
 export const rehypeFileMentions = () => (tree: HastNode) => visit(tree);
 
@@ -468,6 +470,40 @@ const isPathEnd = (text: string, index: number) => {
 	);
 };
 
+// The next word continues the path when it holds a slash and does not
+// start a rooted path of its own, as "docs/missing/" does after "/repo/my"
+// in "/repo/my docs/missing/". An entry ending there is only a prefix.
+const continuesPath = (text: string, index: number) => {
+	const word = /^\s+(\S+)/.exec(text.slice(index))?.[1];
+	return word !== undefined && word.includes("/") && !/^[/~]/.test(word);
+};
+
+const isEntryEnd = (text: string, index: number) =>
+	isPathEnd(text, index) && !continuesPath(text, index);
+
+const closingQuotes: Record<string, string> = {
+	'"': '"',
+	"'": "'",
+	"“": "”",
+	"‘": "’",
+};
+
+/**
+ * Where a path that `opener` quotes ends in `text`, the text that follows
+ * the opening quote, or -1 when `opener` is not a quote or does not close.
+ * A verified path must end exactly there, so a prefix of the quoted path
+ * never links.
+ */
+export const findQuotedPathEnd = (text: string, opener: string | undefined) => {
+	const closer = opener === undefined ? undefined : closingQuotes[opener];
+	if (!closer) {
+		return -1;
+	}
+	const lineEnd = text.indexOf("\n");
+	const end = text.indexOf(closer);
+	return lineEnd !== -1 && end > lineEnd ? -1 : end;
+};
+
 const lineSuffixRegExp = /^(?::(\d+)(?::\d+)?|#L(\d+))/;
 
 /**
@@ -488,7 +524,9 @@ type FilePathWalk = {
  * with, beginning in `directory`. At each level it takes the longest entry
  * name the remaining text starts with, followed by `/` for a directory or a
  * word boundary. A directory followed by a word boundary, with or without a
- * trailing `/`, ends the walk as a verified folder. The walk stops with no
+ * trailing `/`, ends the walk as a verified folder. A file or directory
+ * whose name is followed by more path, as in "my docs/missing/" after
+ * "my", does not fit. The walk stops with no
  * match when a listing failed or the walk exceeds its depth, and stays
  * pending at the first directory whose listing is not available.
  */
@@ -521,7 +559,7 @@ export const walkFilePath = (
 				continue;
 			}
 			const fits =
-				(entry.is_dir && rest[length] === "/") || isPathEnd(rest, length);
+				(entry.is_dir && rest[length] === "/") || isEntryEnd(rest, length);
 			if (fits) {
 				best = entry;
 			}
