@@ -22,6 +22,7 @@ import {
 import {
 	buildLiveStatus,
 	buildStreamRenderState,
+	MockClearedAttachmentMessages,
 	MockCollapsedStepsPreferences,
 	MockFindingsEvictedChatFiles,
 	MockLongTurnPageLoads,
@@ -120,7 +121,9 @@ describe("ConversationTimeline working blocks", () => {
 		const writeText = vi
 			.spyOn(navigator.clipboard, "writeText")
 			.mockResolvedValue();
-		renderTimeline({ messages: MockWebSearchAnswerMessages });
+		const { rerenderStage } = renderTimeline({
+			messages: MockWebSearchAnswerMessages,
+		});
 
 		await user.click(
 			screen.getByRole("button", { name: "Worked for 15s (3 steps)" }),
@@ -133,6 +136,20 @@ describe("ConversationTimeline working blocks", () => {
 
 		expect(writeText).toHaveBeenCalledWith(
 			"Looking up the release notes.The workspace runs the latest Coder release.",
+		);
+
+		rerenderStage({ messages: MockClearedAttachmentMessages });
+		await user.click(
+			within(screen.getByTestId("chat-message-message:23")).getByRole(
+				"button",
+				{
+					name: "Copy message",
+				},
+			),
+		);
+
+		expect(writeText).toHaveBeenLastCalledWith(
+			"The dashboard matches the spec.",
 		);
 	});
 

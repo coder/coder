@@ -8,28 +8,33 @@ import {
 
 /**
  * "use memo" keys this cache on the messages and destructured flags; inlined,
- * the call would share the timeline body's cache scope, which every stream
+ * the calls would share the timeline body's cache scope, which every stream
  * chunk invalidates.
  */
-export const useTurnAttachmentsByRow = (
+export const useTurnRows = (
 	parsedMessages: readonly ParsedMessageEntry[],
 	{
+		hasLiveAssistant,
 		hidesAttachmentRows,
 		isChatActive,
 		isNextTurnStarting,
 		isCompacting,
 		hasMoreMessages,
-	}: TurnAttachmentsOptions,
+	}: TurnAttachmentsOptions & { hasLiveAssistant: boolean },
 ) => {
 	"use memo";
-	return getTurnAttachmentsByRow(
-		assignTimelineRows(buildDisplayMessages(parsedMessages), false),
-		{
+	const rows = assignTimelineRows(
+		buildDisplayMessages(parsedMessages),
+		hasLiveAssistant,
+	);
+	return [
+		rows,
+		getTurnAttachmentsByRow(rows, {
 			hidesAttachmentRows,
 			isChatActive,
 			isNextTurnStarting,
 			isCompacting,
 			hasMoreMessages,
-		},
-	);
+		}),
+	] as const;
 };

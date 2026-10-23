@@ -1822,51 +1822,6 @@ export const AskUserQuestionSubmittedAnswer: Story = {
 	},
 };
 
-/** Copy button calls clipboard API with the raw markdown text. */
-export const CopyButtonWritesToClipboard: Story = {
-	args: {
-		...defaultArgs,
-		parsedMessages: buildMessages([
-			{
-				...baseMessage,
-				id: 1,
-				role: "user",
-				content: [{ type: "text", text: "What is the answer?" }],
-			},
-			{
-				...baseMessage,
-				id: 2,
-				role: "assistant",
-				content: [{ type: "text", text: "Here is the **answer**." }],
-			},
-		]),
-	},
-	play: async ({ canvasElement }) => {
-		const originalClipboard = navigator.clipboard;
-		const writeText = fn().mockResolvedValue(undefined);
-		Object.defineProperty(navigator, "clipboard", {
-			value: { writeText },
-			writable: true,
-			configurable: true,
-		});
-
-		try {
-			const canvas = within(canvasElement);
-			const copyBtn = within(
-				canvas.getByTestId("chat-message-message:2"),
-			).getByRole("button", { name: "Copy message" });
-			await userEvent.click(copyBtn);
-			expect(writeText).toHaveBeenCalledWith("Here is the **answer**.");
-		} finally {
-			Object.defineProperty(navigator, "clipboard", {
-				value: originalClipboard,
-				writable: true,
-				configurable: true,
-			});
-		}
-	},
-};
-
 /**
  * Regression: sources-only assistant messages must have consistent
  * bottom spacing before the next user bubble. A spacer div fills the

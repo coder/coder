@@ -1,5 +1,11 @@
 import { cn } from "cn";
+import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import type { TurnAttachmentList } from "./messageHelpers";
 import { TurnAttachments } from "./TurnAttachments";
 
@@ -50,3 +56,28 @@ export const MessageActionBar: React.FC<MessageActionBarProps> = ({
 		</div>
 	);
 };
+
+/** An icon button for the hover actions, labeled by its tooltip text. */
+export const MessageActionButton: React.FC<{
+	label: string;
+	icon: React.ReactNode;
+	onClick: () => void;
+	disabled?: boolean;
+}> = ({ label, icon, onClick, disabled }) => (
+	<Tooltip>
+		<TooltipTrigger asChild>
+			<Button
+				size="icon"
+				variant="subtle"
+				className="size-6"
+				aria-label={label}
+				disabled={disabled}
+				onClick={onClick}
+			>
+				{icon}
+				<span className="sr-only">{label}</span>
+			</Button>
+		</TooltipTrigger>
+		<TooltipContent side="bottom">{label}</TooltipContent>
+	</Tooltip>
+);

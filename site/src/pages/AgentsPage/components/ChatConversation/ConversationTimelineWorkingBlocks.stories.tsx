@@ -29,7 +29,6 @@ import {
 	MockBrokenImageAttachmentMessages,
 	MockClearedAttachmentMessages,
 	MockCollapsedStepsPreferences,
-	MockContinuedAttachmentMessages,
 	MockFindingsEvictedChatFiles,
 	MockFindingsText,
 	MockInlineTextAttachmentMessages,
@@ -399,7 +398,6 @@ export const TurnAttachmentsPillViewEmptyText: Story = {
 	play: viewFindingsFile,
 };
 
-// An inline file previews the same as a stored one.
 export const TurnAttachmentsPillViewInlineText: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(
@@ -478,16 +476,6 @@ export const TurnAttachmentsPillWithoutAnswer: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(
 			MockUnansweredAttachmentMessages,
-		),
-	},
-};
-
-// A turn stopped before its answer keeps its pill under its block after the
-// next prompt continues it.
-export const TurnAttachmentsPillStoppedTurn: Story = {
-	args: {
-		parsedMessages: parseMessagesWithMergedTools(
-			MockContinuedAttachmentMessages,
 		),
 	},
 };

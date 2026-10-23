@@ -155,25 +155,11 @@ export const isAgentAttachmentOnlyRow = (row: TimelineRow): boolean => {
 	);
 };
 
-/**
- * Collapsed steps keep attachment-only rows off the timeline's top level; a
- * working block that groups one still shows its files.
- */
-export const isHiddenAttachmentRow = (
-	row: TimelineRow,
-	collapseSteps: boolean,
-): boolean => collapseSteps && isAgentAttachmentOnlyRow(row);
-
-/** Clear and compaction rows can follow the answer, which keeps the pill. */
-const isContextBoundaryRow = (row: TimelineRow): boolean =>
-	row.type === "message" &&
+const isContextBoundaryRow = (row: TimelineMessageRow): boolean =>
 	row.entry.parsed.tools.some((tool) => CONTEXT_BOUNDARY_TOOLS.has(tool.name));
 
 export type TurnAttachmentsOptions = {
-	/**
-	 * Collapsed steps show attachment-only rows only in working blocks, so
-	 * none of them hosts the pill.
-	 */
+	/** Collapsed steps: attachment-only rows never host the pill. */
 	hidesAttachmentRows: boolean;
 	/** The chat may still add to its newest turn. */
 	isChatActive: boolean;
@@ -204,7 +190,7 @@ const startTurn = (hasPrompt: boolean): TurnDraft => ({
 /**
  * Agent attachments keyed by the row hosting their turn's pill: the last shown
  * assistant row other than a clear or summary. Earlier turns keep their pills,
- * and the newest gets one once it can add nothing. Reads only rows and flags.
+ * and the newest gets one once it can add nothing.
  */
 export const getTurnAttachmentsByRow = (
 	rows: readonly TimelineRow[],
@@ -234,7 +220,7 @@ export const getTurnAttachmentsByRow = (
 		current.attachments.push(...getMessageAgentAttachments(message));
 		if (isContextBoundaryRow(row)) {
 			current.boundaryFollowsLastShownRow = true;
-		} else if (!isHiddenAttachmentRow(row, hidesAttachmentRows)) {
+		} else if (!(hidesAttachmentRows && isAgentAttachmentOnlyRow(row))) {
 			current.lastShownRow = row;
 			current.boundaryFollowsLastShownRow = false;
 		}
@@ -253,9 +239,8 @@ export const getTurnAttachmentsByRow = (
 		}
 
 		const { blocks, tools } = lastShownRow.entry.parsed;
-		// Earlier turns are done, and so is the newest once a queued message is sent
-		// now. A compaction leaves an answered newest turn done, but chatd resumes
-		// an unanswered one. Summary rows persist before the stop, so they count too.
+		// chatd resumes an unanswered turn after a compaction, and summary rows
+		// persist before the stop, so both count only for an answered turn.
 		const showsPill =
 			index < turns.length - 1 ||
 			!isChatActive ||
@@ -269,17 +254,16 @@ export const getTurnAttachmentsByRow = (
 	return byRow;
 };
 
-/** A block without an answer row shows the pill its members would host. */
+/** The pill a block's steps host; an answer row after the block hosts its own. */
 export const getBlockTurnAttachments = (
 	block: WorkingBlock,
-	memberKeys: readonly string[],
+	rows: readonly TimelineRow[],
 	turnAttachmentsByRow: ReadonlyMap<string, TurnAttachmentList>,
 ): TurnAttachmentList | undefined =>
-	block.endsWithAnswer
-		? undefined
-		: memberKeys
-				.map((key) => turnAttachmentsByRow.get(key))
-				.find((attachments) => attachments !== undefined);
+	block.rowIndices
+		.slice(0, block.endsWithAnswer ? -1 : undefined)
+		.map((index) => turnAttachmentsByRow.get(rows[index].key))
+		.find((attachments) => attachments !== undefined);
 
 type RowContent = ReturnType<typeof getVisibleContent>;
 
