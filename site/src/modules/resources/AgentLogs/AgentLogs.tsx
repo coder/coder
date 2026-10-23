@@ -222,7 +222,7 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 					<TooltipTrigger asChild>
 						<Badge
 							asChild
-							className="max-w-fit py-1.5 px-3 absolute bottom-3 left-1/2 -translate-x-1/2"
+							className="max-w-fit absolute bottom-3 left-1/2 -translate-x-1/2"
 						>
 							<span>Logs overflowed</span>
 						</Badge>

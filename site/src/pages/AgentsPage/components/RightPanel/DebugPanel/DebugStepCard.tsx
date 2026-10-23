@@ -137,7 +137,7 @@ export const DebugStepCard: React.FC<DebugStepCardProps> = ({ step }) => {
 						</div>
 						<div className="flex shrink-0 items-center gap-1.5">
 							<Badge
-								size="xs"
+								size="sm"
 								variant={getStatusBadgeVariant(step.status)}
 								className="shrink-0"
 							>

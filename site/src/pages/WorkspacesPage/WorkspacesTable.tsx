@@ -234,7 +234,7 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 													<WorkspaceOutdatedTooltip workspace={workspace} />
 												)}
 												{chatsByWorkspace?.[workspace.id] && (
-													<Badge size="xs" variant="info" hover asChild>
+													<Badge size="sm" variant="info" hover asChild>
 														<Link
 															to={`/agents/${chatsByWorkspace[workspace.id]}`}
 															onClick={(e) => e.stopPropagation()}
