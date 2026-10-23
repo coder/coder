@@ -1,3 +1,4 @@
+import { getErrorStatus } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatStore, ChatStoreState } from "./chatStore";
 
@@ -24,16 +25,34 @@ export const restoreOptimisticRequestSnapshot = (
 	});
 };
 
+// Match the server's steer-first order for the first row's Enter shortcut.
+const appendToLane = (
+	queuedMessages: readonly TypesGen.ChatQueuedMessage[],
+	message: TypesGen.ChatQueuedMessage,
+): readonly TypesGen.ChatQueuedMessage[] => {
+	const steer = queuedMessages.filter((m) => m.busy_behavior === "steer");
+	const queue = queuedMessages.filter((m) => m.busy_behavior !== "steer");
+	return message.busy_behavior === "steer"
+		? [...steer, message, ...queue]
+		: [...steer, ...queue, message];
+};
+
+const moveToSteerLane = (
+	queuedMessages: readonly TypesGen.ChatQueuedMessage[],
+	id: number,
+): readonly TypesGen.ChatQueuedMessage[] => {
+	const target = queuedMessages.find((message) => message.id === id);
+	if (target === undefined || target.busy_behavior === "steer") {
+		return queuedMessages;
+	}
+	return appendToLane(
+		queuedMessages.filter((message) => message.id !== id),
+		{ ...target, busy_behavior: "steer" },
+	);
+};
+
 /**
- * Runs the optimistic queued-message promotion flow.
- *
- * The promote endpoint returns 202 Accepted with no message body, so the
- * actual user message is delivered via SSE or the messages REST endpoint.
- * Suppress the promoted ID so the transient reordered queue published by
- * the running-case backend does not flash the message back into the
- * visible queue. Roll back queue, status, and suppression on API error.
- *
- * @internal Exported for testing.
+ * Tolerate a missing row because delivery or deletion can race "Send now".
  */
 export const runPromoteQueuedMessage = async (params: {
 	id: number;
@@ -42,13 +61,13 @@ export const runPromoteQueuedMessage = async (params: {
 		| "batch"
 		| "clearStreamError"
 		| "clearStreamState"
+		| "getQueueConvergenceFence"
+		| "getServerChatStatusVersion"
 		| "getSnapshot"
 		| "setChatStatus"
 		| "setQueuedMessages"
 		| "setStreamError"
 		| "setStreamState"
-		| "suppressQueuedMessageID"
-		| "unsuppressQueuedMessageID"
 	>;
 	promoteQueuedMessage: (id: number) => Promise<void>;
 	agentId: string;
@@ -64,10 +83,11 @@ export const runPromoteQueuedMessage = async (params: {
 		onError,
 	} = params;
 	const previousSnapshot = store.getSnapshot();
+	const queueFenceBeforePromote = store.getQueueConvergenceFence();
+	const statusVersionBeforePromote = store.getServerChatStatusVersion();
 	store.batch(() => {
-		store.suppressQueuedMessageID(id);
 		store.setQueuedMessages(
-			previousSnapshot.queuedMessages.filter((message) => message.id !== id),
+			moveToSteerLane(previousSnapshot.queuedMessages, id),
 		);
 		store.clearStreamState();
 		store.clearStreamError();
@@ -77,8 +97,27 @@ export const runPromoteQueuedMessage = async (params: {
 	try {
 		await promoteQueuedMessage(id);
 	} catch (error) {
-		store.unsuppressQueuedMessageID(id);
-		restoreOptimisticRequestSnapshot(store, previousSnapshot);
+		const isGone = getErrorStatus(error) === 404;
+		// Preserve server queue and status updates accepted during the request.
+		const queuedMessages =
+			store.getQueueConvergenceFence() === queueFenceBeforePromote
+				? previousSnapshot.queuedMessages
+				: store.getSnapshot().queuedMessages;
+		store.batch(() => {
+			store.setQueuedMessages(
+				isGone
+					? queuedMessages.filter((message) => message.id !== id)
+					: queuedMessages,
+			);
+			if (store.getServerChatStatusVersion() === statusVersionBeforePromote) {
+				store.setChatStatus(previousSnapshot.chatStatus);
+				store.setStreamState(previousSnapshot.streamState);
+				store.setStreamError(previousSnapshot.streamError);
+			}
+		});
+		if (isGone) {
+			return;
+		}
 		onError(error);
 		throw error;
 	}
@@ -86,25 +125,22 @@ export const runPromoteQueuedMessage = async (params: {
 
 const buildPromotedQueueReconciliation = (
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[],
-	insertedMessages: readonly TypesGen.ChatMessage[],
-	promotedHeadID: number | undefined,
+	promotedIDs: readonly number[],
 	queuedTail: TypesGen.ChatQueuedMessage | undefined,
 	hasObservedQueuedMessageID: (id: number) => boolean,
 ): readonly TypesGen.ChatQueuedMessage[] | undefined => {
-	if (promotedHeadID === undefined) {
-		return undefined;
-	}
-	if (!insertedMessages.some((message) => message.role === "user")) {
+	if (promotedIDs.length === 0) {
 		return undefined;
 	}
 	const remaining = queuedMessages.filter(
-		(message) => message.id !== promotedHeadID,
+		(message) => !promotedIDs.includes(message.id),
 	);
 	const tailPending =
 		queuedTail !== undefined &&
+		!promotedIDs.includes(queuedTail.id) &&
 		!remaining.some((message) => message.id === queuedTail.id) &&
 		!hasObservedQueuedMessageID(queuedTail.id);
-	return tailPending ? [...remaining, queuedTail] : remaining;
+	return tailPending ? appendToLane(remaining, queuedTail) : remaining;
 };
 
 // Prefer an inactive chat's cached queue so messages queued during the send
@@ -112,20 +148,18 @@ const buildPromotedQueueReconciliation = (
 export const buildInactiveChatQueueReconciliation = (
 	cachedQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 	queuedMessagesBeforeSend: readonly TypesGen.ChatQueuedMessage[],
-	insertedMessages: readonly TypesGen.ChatMessage[],
-	promotedHeadID: number | undefined,
+	promotedIDs: readonly number[],
 	queuedTail: TypesGen.ChatQueuedMessage | undefined,
 ): readonly TypesGen.ChatQueuedMessage[] | undefined =>
 	buildPromotedQueueReconciliation(
 		cachedQueuedMessages ?? queuedMessagesBeforeSend,
-		insertedMessages,
-		promotedHeadID,
+		promotedIDs,
 		queuedTail,
 		() => false,
 	);
 
-// Queue updates may rotate the head before the response arrives.
-export const reconcilePromotedQueueHead = (
+// Preserve queue updates received while the send was in flight.
+export const reconcilePromotedQueuedMessages = (
 	store: Pick<
 		ChatStore,
 		| "batch"
@@ -134,37 +168,35 @@ export const reconcilePromotedQueueHead = (
 		| "markQueuedMessagePromoted"
 		| "hasObservedQueuedMessageID"
 	>,
-	insertedMessages: readonly TypesGen.ChatMessage[],
-	promotedHeadID: number | undefined,
+	promotedIDs: readonly number[],
 	queuedTail: TypesGen.ChatQueuedMessage | undefined,
 ): readonly TypesGen.ChatQueuedMessage[] | undefined => {
 	const next = buildPromotedQueueReconciliation(
 		store.getSnapshot().queuedMessages,
-		insertedMessages,
-		promotedHeadID,
+		promotedIDs,
 		queuedTail,
 		store.hasObservedQueuedMessageID,
 	);
-	if (!next || promotedHeadID === undefined) {
-		return next;
+	if (!next) {
+		return undefined;
 	}
 	store.batch(() => {
-		// The promoted user row proves the server deleted its queue row.
-		store.markQueuedMessagePromoted(promotedHeadID);
+		for (const id of promotedIDs) {
+			store.markQueuedMessagePromoted(id);
+		}
 		store.setQueuedMessages(next);
 	});
 	return next;
 };
 
-// A promoted head is suppressed locally, but another tab can queue or
-// promote concurrently, so only the server knows the resulting queue.
-export const settlePromotedQueueHead = async (
+// Refetch after promotion to include concurrent queue changes from other clients.
+export const settlePromotedQueuedMessages = async (
 	store: Pick<
 		ChatStore,
 		"getQueueConvergenceFence" | "applyPromoteRefetchQueuedMessages"
 	>,
 	chatID: string,
-	promotedHeadID: number,
+	promotedIDs: readonly number[],
 	fetchMessages: (chatID: string) => Promise<TypesGen.ChatMessagesResponse>,
 ): Promise<readonly TypesGen.ChatQueuedMessage[] | undefined> => {
 	const baselineFence = store.getQueueConvergenceFence();
@@ -177,7 +209,7 @@ export const settlePromotedQueueHead = async (
 	}
 	return store.applyPromoteRefetchQueuedMessages(
 		chatID,
-		promotedHeadID,
+		promotedIDs,
 		response.queued_messages ?? [],
 		baselineFence,
 	);

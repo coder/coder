@@ -177,6 +177,12 @@ export const MockChatQueuedMessage: ChatQueuedMessage = {
 	created_at: MOCK_TIMESTAMP,
 };
 
+export const MockChatQueuedMessageNotFoundError = {
+	isAxiosError: true,
+	status: 404,
+	response: { status: 404, data: { message: "Queued message not found." } },
+};
+
 // Spread for variants, such as a merged PR or a branch without a PR
 // yet.
 export const MockChatDiffStatus: ChatDiffStatus = {

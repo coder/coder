@@ -176,10 +176,41 @@ export const AttachmentsOnly: Story = {
 	},
 };
 
+export const GroupedByLane: Story = {
+	args: {
+		messages: [
+			{
+				...buildMessage(1, textContent("Also check the error logs")),
+				busy_behavior: "steer",
+			},
+			{
+				...buildMessage(2, textContent("Skip the flaky test")),
+				busy_behavior: "steer",
+			},
+			buildMessage(3, textContent("Then open a pull request")),
+		],
+	},
+};
+
 // Queued messages retain send and delete actions without exposing edit.
 export const ActionsExcludeEdit: Story = {
 	args: {
 		messages: [buildMessage(1, textContent("Run the linter"))],
+	},
+};
+
+export const SendNowPending: Story = {
+	args: {
+		messages: [
+			buildMessage(1, textContent("First queued")),
+			buildMessage(2, textContent("Second queued")),
+		],
+		onPromote: () => new Promise<void>(() => {}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sendNowButtons = canvas.getAllByRole("button", { name: "Send now" });
+		await userEvent.click(sendNowButtons[0]);
 	},
 };
 

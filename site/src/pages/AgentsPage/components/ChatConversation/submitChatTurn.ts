@@ -25,9 +25,9 @@ import type {
 } from "../ChatPageContent";
 import {
 	buildInactiveChatQueueReconciliation,
-	reconcilePromotedQueueHead,
+	reconcilePromotedQueuedMessages,
 	restoreOptimisticRequestSnapshot,
-	settlePromotedQueueHead,
+	settlePromotedQueuedMessages,
 	submitEdit,
 } from "./chatQueueReconciliation";
 import type { ChatStore } from "./chatStore";
@@ -178,13 +178,12 @@ const runBuiltInChatCommand = async ({
 	}
 };
 
-const applyQueuedSendReconciliation = ({
+const applyPromotedQueueReconciliation = ({
 	store,
 	agentId,
 	isActiveChat,
-	insertedMessages,
+	promotedIDs,
 	queuedMessagesBeforeSend,
-	queueHeadIDBeforeSend,
 	statusVersionBeforeSend,
 	queuedTail,
 	getCacheQueuedMessages,
@@ -194,9 +193,8 @@ const applyQueuedSendReconciliation = ({
 	store: ChatStore;
 	agentId: string;
 	isActiveChat: boolean;
-	insertedMessages: readonly TypesGen.ChatMessage[];
+	promotedIDs: readonly number[];
 	queuedMessagesBeforeSend: readonly TypesGen.ChatQueuedMessage[];
-	queueHeadIDBeforeSend: number | undefined;
 	statusVersionBeforeSend: number;
 	queuedTail: TypesGen.ChatQueuedMessage | undefined;
 	getCacheQueuedMessages: SubmitChatTurnParams["getCacheQueuedMessages"];
@@ -204,44 +202,36 @@ const applyQueuedSendReconciliation = ({
 	fetchQueueConvergence: SubmitChatTurnParams["fetchQueueConvergence"];
 }): void => {
 	const reconciledQueue = isActiveChat
-		? reconcilePromotedQueueHead(
-				store,
-				insertedMessages,
-				queueHeadIDBeforeSend,
-				queuedTail,
-			)
+		? reconcilePromotedQueuedMessages(store, promotedIDs, queuedTail)
 		: buildInactiveChatQueueReconciliation(
 				getCacheQueuedMessages(),
 				queuedMessagesBeforeSend,
-				insertedMessages,
-				queueHeadIDBeforeSend,
+				promotedIDs,
 				queuedTail,
 			);
 	if (!reconciledQueue) {
 		return;
 	}
 	setCacheQueuedMessages(reconciledQueue);
-	// A promoted head starts a turn, but any server status received during
+	if (!isActiveChat) {
+		return;
+	}
+	// Promoted rows start a turn, but any server status received during
 	// the request is newer and must win.
-	if (
-		isActiveChat &&
-		store.getServerChatStatusVersion() === statusVersionBeforeSend
-	) {
+	if (store.getServerChatStatusVersion() === statusVersionBeforeSend) {
 		store.clearStreamState();
 		store.setChatStatus("running");
 	}
-	if (isActiveChat && queueHeadIDBeforeSend !== undefined) {
-		void settlePromotedQueueHead(
-			store,
-			agentId,
-			queueHeadIDBeforeSend,
-			fetchQueueConvergence,
-		).then((settled) => {
-			if (settled) {
-				setCacheQueuedMessages(settled);
-			}
-		});
-	}
+	void settlePromotedQueuedMessages(
+		store,
+		agentId,
+		promotedIDs,
+		fetchQueueConvergence,
+	).then((settled) => {
+		if (settled) {
+			setCacheQueuedMessages(settled);
+		}
+	});
 };
 
 export async function submitChatTurn(
@@ -386,10 +376,7 @@ export async function submitChatTurn(
 	clearChatErrorReason(agentId);
 	store.clearStreamError();
 
-	// An errored-chat send may promote the queue head that existed when
-	// the request began.
 	const queuedMessagesBeforeSend = store.getSnapshot().queuedMessages;
-	const queueHeadIDBeforeSend = queuedMessagesBeforeSend[0]?.id;
 	const statusVersionBeforeSend = store.getServerChatStatusVersion();
 
 	// Don't clear stream state before the POST completes. For queued sends
@@ -415,8 +402,8 @@ export async function submitChatTurn(
 		// instead, the WebSocket event overrides this optimistic value.
 		store.setChatStatus("running");
 	}
-	// Upsert the full batch because a queued send can insert a promoted
-	// head below the highest cached ID, which a reconnect would skip.
+	// Upsert the full batch because an errored-chat send can insert promoted
+	// queued rows below the highest cached ID, which a reconnect would skip.
 	const insertedMessages =
 		response.messages ?? (response.message ? [response.message] : []);
 	if (insertedMessages.length > 0) {
@@ -424,21 +411,22 @@ export async function submitChatTurn(
 		if (isActiveChat) {
 			store.upsertDurableMessages(insertedMessages);
 		}
-		if (response.queued) {
-			applyQueuedSendReconciliation({
-				store,
-				agentId,
-				isActiveChat,
-				insertedMessages,
-				queuedMessagesBeforeSend,
-				queueHeadIDBeforeSend,
-				statusVersionBeforeSend,
-				queuedTail: response.queued_message,
-				getCacheQueuedMessages,
-				setCacheQueuedMessages,
-				fetchQueueConvergence,
-			});
-		}
+		applyPromotedQueueReconciliation({
+			store,
+			agentId,
+			isActiveChat,
+			promotedIDs: insertedMessages.flatMap((message) =>
+				message.queued_message_id === undefined
+					? []
+					: [message.queued_message_id],
+			),
+			queuedMessagesBeforeSend,
+			statusVersionBeforeSend,
+			queuedTail: response.queued_message,
+			getCacheQueuedMessages,
+			setCacheQueuedMessages,
+			fetchQueueConvergence,
+		});
 	}
 	if (clearPlanMode) {
 		setCachedChatPlanMode(agentId, undefined);
