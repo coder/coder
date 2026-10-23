@@ -13,11 +13,7 @@ import {
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
-import {
-	chatEntityKey,
-	chatMessagesKey,
-	chatPromptsKey,
-} from "#/api/queries/chats";
+import { chatEntityKey, chatPromptsKey } from "#/api/queries/chats";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -50,6 +46,7 @@ import AgentSettingsGeneralPage from "./AgentSettingsPage/AgentSettingsGeneralPa
 import AgentSettingsLayout from "./AgentSettingsPage/AgentSettingsLayout";
 import AgentsPageLayout from "./AgentsPageLayout";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { loadedChatStoreQuery } from "./components/ChatConversation/storyFixtures";
 import {
 	AGENTS_MAIN_PANEL_MIN_WIDTH,
 	clampLeftSidebarWidth,
@@ -842,13 +839,11 @@ const watchedChat = (overrides: Partial<Chat> = {}): Chat => ({
 
 const watchedChatQueries = (chat: Chat) => [
 	{ key: chatEntityKey(chat.id), data: chat },
-	{
-		key: chatMessagesKey(chat.id),
-		data: {
-			pages: [{ messages: [], queued_messages: [], has_more: false }],
-			pageParams: [undefined],
-		},
-	},
+	loadedChatStoreQuery(chat.id, {
+		messages: [],
+		queued_messages: [],
+		has_more: false,
+	}),
 	{ key: chatPromptsKey(chat.id), data: { prompts: [] } },
 	{ key: preferenceSettingsKey, data: MockUserPreferenceSettings },
 	{

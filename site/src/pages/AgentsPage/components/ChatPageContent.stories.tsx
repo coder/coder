@@ -44,7 +44,6 @@ const StoryChatPageTimeline: React.FC<{
 			persistedError={undefined}
 			hasMoreMessages={false}
 			isFetchingMoreMessages={false}
-			isHydratingMessages={false}
 			hasFetchMoreError={false}
 			onFetchMoreMessages={async () => {}}
 			urlTransform={(url) => url}
@@ -158,7 +157,7 @@ export const ContextUsageAfterCompaction: Story = {
 	render: () => {
 		const store = createChatStore();
 		store.replaceMessages([MockChatCompactionMessage]);
-		store.setChatStatus("waiting");
+		store.applyServerChatStatus("waiting");
 		return <StoryChatPageInput store={store} contextLimit={200000} />;
 	},
 	play: async ({ canvasElement }) => {
@@ -176,7 +175,7 @@ export const UncommittedCompactionKeepsContextUsage: Story = {
 			usage: { input_tokens: 90000, context_limit: 200000 },
 		};
 		store.replaceMessages([previousMessage]);
-		store.setChatStatus("waiting");
+		store.applyServerChatStatus("waiting");
 		return <StoryChatPageInput store={store} contextLimit={200000} />;
 	},
 	play: async ({ canvasElement }) => {
@@ -215,7 +214,7 @@ const buildInterruptingStore = () => {
 			created_at: new Date(FIXTURE_NOW).toISOString(),
 		},
 	]);
-	store.setChatStatus("interrupting");
+	store.applyServerChatStatus("interrupting");
 	return store;
 };
 
@@ -259,7 +258,7 @@ export const DurableUnresolvedWorkspaceToolRuns: Story = {
 				},
 			]),
 		]);
-		store.setChatStatus("running");
+		store.applyServerChatStatus("running");
 
 		return (
 			<ChatWorkspaceContext value={{ workspaceId: "workspace-1" }}>
@@ -291,7 +290,7 @@ export const StreamedAdvisorResultOverlaysDurableCall: Story = {
 				},
 			]),
 		]);
-		store.setChatStatus("running");
+		store.applyServerChatStatus("running");
 		store.applyMessageParts([
 			{
 				type: "tool-result",
@@ -319,7 +318,7 @@ export const ErrorClearsStreamingTool: Story = {
 		errorClearsStreamStore.replaceMessages([
 			buildMessage(1, "user", [{ type: "text", text: "Create a workspace" }]),
 		]);
-		errorClearsStreamStore.setChatStatus("running");
+		errorClearsStreamStore.applyServerChatStatus("running");
 		errorClearsStreamStore.applyMessagePart({
 			type: "tool-call",
 			tool_call_id: "create-workspace-call",
@@ -402,7 +401,6 @@ export const InterruptingShowsBusyComposer: Story = {
 						persistedError={undefined}
 						hasMoreMessages={false}
 						isFetchingMoreMessages={false}
-						isHydratingMessages={false}
 						hasFetchMoreError={false}
 						onFetchMoreMessages={async () => {}}
 						urlTransform={(url) => url}
@@ -438,7 +436,7 @@ export const InterruptingShowsBusyComposer: Story = {
 export const RunningShowsBusyComposer: Story = {
 	render: () => {
 		const store = buildInterruptingStore();
-		store.setChatStatus("running");
+		store.applyServerChatStatus("running");
 		return <StoryChatPageInput store={store} />;
 	},
 };

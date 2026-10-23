@@ -7,7 +7,7 @@ import { getChatCostTreeID } from "./ChatConversation/chatHelpers";
 import { type ChatStore, useChatMessages } from "./ChatConversation/chatStore";
 import {
 	deriveEvictedFileIds,
-	getLoadedAgentAttachments,
+	getAgentAttachments,
 } from "./ChatConversation/messageHelpers";
 import type { EarlierMessagesProps } from "./ChatMessageScroller";
 import { ChatSummary } from "./ChatSummary";
@@ -21,7 +21,6 @@ type ChatSummaryPanelProps = {
 	EarlierMessagesProps,
 	| "hasMoreMessages"
 	| "isFetchingMoreMessages"
-	| "isHydratingMessages"
 	| "hasFetchMoreError"
 	| "onFetchMoreMessages"
 >;
@@ -30,7 +29,6 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	chatId,
 	isVisible,
 	store,
-	isHydratingMessages,
 	...earlierMessages
 }) => {
 	const showCost = Boolean(useFeatureVisibility().aibridge);
@@ -72,7 +70,7 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 		<div className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto p-4">
 			{content}
 			<ChatAttachments
-				attachments={getLoadedAgentAttachments(messages, isHydratingMessages)}
+				attachments={getAgentAttachments(messages)}
 				evictedFileIds={evictedFileIds}
 				{...earlierMessages}
 			/>

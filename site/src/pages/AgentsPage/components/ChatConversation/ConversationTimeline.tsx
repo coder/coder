@@ -27,6 +27,7 @@ import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
+import { isPendingRowID } from "./chatStore";
 import { FileProbeProvider } from "./FileProbeContext";
 import {
 	emptyLiveBlockKeys,
@@ -200,7 +201,10 @@ const ChatMessageItem = memo<{
 					})
 				: undefined;
 		const canEditUserMessage =
-			isUser && messageId !== undefined && Boolean(onEditUserMessage);
+			isUser &&
+			messageId !== undefined &&
+			!isPendingRowID(messageId) &&
+			Boolean(onEditUserMessage);
 		const canJumpBetweenUserMessages =
 			isUser &&
 			Boolean(onJumpToUserMessage) &&
@@ -577,19 +581,21 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		// prev/next arrow buttons that jump the transcript to the neighbouring
 		// user prompt. The row key doubles as the scroller's message ID.
 		const userRowKeys: string[] = [];
+		let latestUserRowIsPending = false;
 		for (const row of renderRows) {
 			if (row.type === "message" && row.entry.message.role === "user") {
 				userRowKeys.push(row.key);
+				latestUserRowIsPending = isPendingRowID(row.entry.message.id);
 			}
 		}
 		// Only the latest user row anchors the scroller, and only while its turn
-		// is active. The scroller never marks initially rendered anchors as
-		// handled, and its fallback for mutations that are neither clean appends
-		// nor clean prepends jumps to the oldest unhandled anchor, so historical
-		// rows must not be anchors at all.
+		// is active or the row is pending. The scroller never marks initially
+		// rendered anchors as handled, and its fallback for mutations that are
+		// neither clean appends nor clean prepends jumps to the oldest unhandled
+		// anchor, so historical rows must not be anchors at all.
 		const hasLiveAssistant = shouldRenderLiveAssistant(liveStatus);
 		const anchorUserRowKey =
-			hasLiveAssistant || isAwaitingFirstStreamChunk
+			hasLiveAssistant || isAwaitingFirstStreamChunk || latestUserRowIsPending
 				? userRowKeys[userRowKeys.length - 1]
 				: undefined;
 		const userNeighborsByKey = new Map<

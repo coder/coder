@@ -313,6 +313,74 @@ describe("AgentChatInput", () => {
 		expect(getChatProjectSkills).not.toHaveBeenCalled();
 	});
 
+	it("accepts typing without sending while a send is pending", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const onSend = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				onSend={onSend}
+				inputRef={inputRef}
+				isDisabled={false}
+				isLoading
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
+			/>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("Next message");
+		await waitFor(() => {
+			expect(inputRef.current?.getValue()).toBe("Next message");
+		});
+		await user.keyboard("{Enter}");
+		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it("leaves focus where the user moved it when a send completes", async () => {
+		const user = userEvent.setup();
+		const input = (isLoading: boolean) => (
+			<AppProviders>
+				<button type="button">Elsewhere</button>
+				<AgentChatInput
+					onSend={vi.fn()}
+					isDisabled={false}
+					isLoading={isLoading}
+					selectedModel={modelOptions[0].id}
+					onModelChange={vi.fn()}
+					modelOptions={modelOptions}
+					modelSelectorPlaceholder="Select model"
+					hasModelOptions
+					canConfigureAgentSetup={false}
+					initialValue=""
+					onContentChange={vi.fn()}
+					planModeEnabled={false}
+					onPlanModeToggle={vi.fn()}
+					isModelCatalogLoading={false}
+				/>
+			</AppProviders>
+		);
+		const { rerender } = render(input(true));
+
+		const elsewhere = screen.getByRole("button", { name: "Elsewhere" });
+		await user.click(elsewhere);
+		rerender(input(false));
+		// Lexical moves DOM focus in its update commit, after this render.
+		await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+
+		expect(elsewhere).toHaveFocus();
+	});
+
 	it("attaches supported dropped files and reports unsupported ones", () => {
 		const onAttach = vi.fn();
 		const toastError = vi.spyOn(toast, "error");

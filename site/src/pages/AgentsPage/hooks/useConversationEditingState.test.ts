@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
 import type { PendingAttachment } from "../components/ChatPageContent";
 import { draftInputStorageKeyPrefix } from "../utils/draftStorage";
-import { useConversationEditingState } from "./useConversationEditingState";
+import {
+	BuiltInCommandPendingError,
+	useConversationEditingState,
+} from "./useConversationEditingState";
 
 type MockChatInputHandle = {
 	handle: ChatMessageInputRef;
@@ -196,10 +199,8 @@ describe("useConversationEditingState", () => {
 		const mockInput = createMockChatInputHandle("draft before edit");
 		result.current.chatInputRef.current = mockInput.handle;
 
-		// Edit/cancel now drive the editor via editorInitialValue +
-		// remountKey, so focus is never called on the mock during
-		// edit and cancel flows. handleSendFromInput is the only
-		// path that calls focus and it skips on mobile viewports.
+		// Edit and cancel drive the editor through editorInitialValue and
+		// remountKey, so they never call focus.
 		act(() => {
 			result.current.handleEditUserMessage(7, "edited message");
 		});
@@ -357,23 +358,158 @@ describe("useConversationEditingState", () => {
 	it("preserves the composer and draft when send fails", async () => {
 		const { result, onSend, unmount } = renderEditing();
 		const mockInput = createMockChatInputHandle("hello");
+		// The editor reports its clear as a content change.
+		mockInput.clear.mockImplementation(() =>
+			result.current.handleContentChange("", "", false),
+		);
 		result.current.chatInputRef.current = mockInput.handle;
-		onSend.mockRejectedValueOnce(new Error("boom"));
+		let rejectSend: (error: Error) => void = () => {};
+		onSend.mockReturnValueOnce(
+			new Promise((_resolve, reject) => {
+				rejectSend = reject;
+			}),
+		);
 
 		act(() => {
 			result.current.handleContentChange("hello", "hello", false);
 		});
 
+		let sent: Promise<void> = Promise.resolve();
+		act(() => {
+			sent = result.current.handleSendFromInput({ message: "hello" });
+		});
+		expect(mockInput.clear).toHaveBeenCalled();
+		expect(result.current.inputValueRef.current).toBe("");
+
 		await act(async () => {
-			await expect(
-				result.current.handleSendFromInput({ message: "hello" }),
-			).rejects.toThrow("boom");
+			rejectSend(new Error("boom"));
+			await expect(sent).rejects.toThrow("boom");
 		});
 
-		expect(mockInput.clear).not.toHaveBeenCalled();
 		expect(mockInput.focus).not.toHaveBeenCalled();
 		expect(result.current.inputValueRef.current).toBe("hello");
+		expect(result.current.editorInitialValue).toBe("hello");
+		expect(result.current.initialEditorState).toBe("hello");
 		expect(localStorage.getItem(expectedKey)).toBe("hello");
+
+		// A command whose availability is still loading restores it too.
+		onSend.mockRejectedValueOnce(new BuiltInCommandPendingError());
+		await act(async () => {
+			await result.current.handleSendFromInput({ message: "hello" });
+		});
+		expect(result.current.inputValueRef.current).toBe("hello");
+		expect(localStorage.getItem(expectedKey)).toBe("hello");
+		unmount();
+	});
+
+	it("saves the sent message and what was typed since while a send is pending", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("hello");
+		// The editor reports its clear as a content change.
+		mockInput.clear.mockImplementation(() =>
+			result.current.handleContentChange("", "", false),
+		);
+		result.current.chatInputRef.current = mockInput.handle;
+		let rejectSend: (error: Error) => void = () => {};
+		onSend.mockReturnValueOnce(
+			new Promise((_resolve, reject) => {
+				rejectSend = reject;
+			}),
+		);
+
+		act(() => {
+			result.current.handleContentChange("hello", "hello", false);
+		});
+		let sent: Promise<void> = Promise.resolve();
+		act(() => {
+			sent = result.current.handleSendFromInput({ message: "hello" });
+		});
+		expect(localStorage.getItem(expectedKey)).toBe("hello");
+		act(() => {
+			result.current.handleContentChange("next", "next", false);
+		});
+		unmount();
+
+		// A reload, or a failure after the unmount, finds both.
+		expect(localStorage.getItem(expectedKey)).toBe("hello\n\nnext");
+		rejectSend(new Error("boom"));
+		await expect(sent).rejects.toThrow("boom");
+		expect(localStorage.getItem(expectedKey)).toBe("hello\n\nnext");
+	});
+
+	it("keeps what was typed during a send after it succeeds", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("hello");
+		// The editor reports its clear as a content change.
+		mockInput.clear.mockImplementation(() =>
+			result.current.handleContentChange("", "", false),
+		);
+		result.current.chatInputRef.current = mockInput.handle;
+		let resolveSend: () => void = () => {};
+		onSend.mockReturnValueOnce(
+			new Promise<void>((resolve) => {
+				resolveSend = resolve;
+			}),
+		);
+
+		let sent: Promise<void> = Promise.resolve();
+		act(() => {
+			sent = result.current.handleSendFromInput({ message: "hello" });
+		});
+		act(() => {
+			result.current.handleContentChange("next", "next state", false);
+		});
+		await act(async () => {
+			resolveSend();
+			await sent;
+		});
+
+		expect(mockInput.clear).toHaveBeenCalledTimes(1);
+		expect(result.current.inputValueRef.current).toBe("next");
+		expect(localStorage.getItem(expectedKey)).toBe("next state");
+		unmount();
+	});
+
+	it("puts a failed message in front of what was typed during it", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("hello");
+		result.current.chatInputRef.current = mockInput.handle;
+		const paragraph = (text: string) => ({
+			type: "paragraph",
+			children: [{ type: "text", text }],
+		});
+		const editorState = (text: string) =>
+			JSON.stringify({ root: { type: "root", children: [paragraph(text)] } });
+		let rejectSend: (error: Error) => void = () => {};
+		onSend.mockReturnValueOnce(
+			new Promise((_resolve, reject) => {
+				rejectSend = reject;
+			}),
+		);
+
+		act(() => {
+			result.current.handleContentChange("hello", editorState("hello"), false);
+		});
+		let sent: Promise<void> = Promise.resolve();
+		act(() => {
+			sent = result.current.handleSendFromInput({ message: "hello" });
+		});
+		act(() => {
+			result.current.handleContentChange("next", editorState("next"), false);
+		});
+		await act(async () => {
+			rejectSend(new Error("boom"));
+			await expect(sent).rejects.toThrow("boom");
+		});
+
+		expect(result.current.editorInitialValue).toBe("hello\n\nnext");
+		expect(result.current.inputValueRef.current).toBe("hello\n\nnext");
+		expect(JSON.parse(result.current.initialEditorState ?? "")).toEqual({
+			root: {
+				type: "root",
+				children: [paragraph("hello"), paragraph("next")],
+			},
+		});
 		unmount();
 	});
 
@@ -394,46 +530,7 @@ describe("useConversationEditingState", () => {
 			editedMessageID: undefined,
 		});
 		expect(mockInput.clear).toHaveBeenCalled();
-		expect(mockInput.focus).toHaveBeenCalled();
 		expect(localStorage.getItem(expectedKey)).toBeNull();
-		unmount();
-	});
-
-	it("calls focus on the input ref after a successful send", async () => {
-		const { result, onSend, unmount } = renderEditing();
-
-		// Attach a mock ChatMessageInputRef to the chatInputRef
-		const mockFocus = vi.fn();
-		const mockClear = vi.fn();
-		const mockInputRef = {
-			focus: mockFocus,
-			clear: mockClear,
-			setValue: vi.fn(),
-			insertText: vi.fn(),
-			getValue: vi.fn().mockReturnValue(""),
-			addFileReference: vi.fn(),
-			insertSkill: vi.fn(),
-			removeSkills: vi.fn(),
-			getEditorState: vi.fn(() => ""),
-			restoreEditorState: vi.fn(),
-			getContentParts: vi.fn().mockReturnValue([]),
-		}; // The hook exposes chatInputRef, so assign the mock to it.
-		result.current.chatInputRef.current = mockInputRef;
-
-		await act(async () => {
-			result.current.handleSendFromInput({ message: "hello" });
-			await vi.waitFor(() => {
-				expect(onSend).toHaveBeenCalledWith({
-					message: "hello",
-					attachments: undefined,
-					workspaceUploads: undefined,
-					editedMessageID: undefined,
-				});
-			});
-		});
-
-		expect(mockClear).toHaveBeenCalled();
-		expect(mockFocus).toHaveBeenCalled();
 		unmount();
 	});
 

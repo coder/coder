@@ -185,9 +185,8 @@ export const ActionsExcludeEdit: Story = {
 
 let rejectQueuedDelete: ((error: Error) => void) | undefined;
 
-// Deleting hides the row optimistically and disables sibling actions while
-// pending; a rejected delete restores the row and re-enables actions.
-export const DeleteRejectionRestoresRow: Story = {
+// A pending delete disables only that row's actions.
+export const DeleteRejectionReenablesActions: Story = {
 	args: {
 		messages: [
 			buildMessage(1, textContent("First queued")),

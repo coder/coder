@@ -114,7 +114,6 @@ type ChatPageTimelineProps = {
 	initialActiveTurnMaxMessageId?: number;
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
-	isHydratingMessages: boolean;
 	hasFetchMoreError: boolean;
 	onFetchMoreMessages: () => Promise<unknown>;
 	onEditUserMessage?: (
@@ -139,7 +138,6 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	initialActiveTurnMaxMessageId,
 	hasMoreMessages,
 	isFetchingMoreMessages,
-	isHydratingMessages,
 	hasFetchMoreError,
 	onFetchMoreMessages,
 	onEditUserMessage,
@@ -199,7 +197,6 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 			<ChatMessageScroller
 				hasMoreMessages={hasMoreMessages}
 				isFetchingMoreMessages={isFetchingMoreMessages}
-				isHydratingMessages={isHydratingMessages}
 				hasFetchMoreError={hasFetchMoreError}
 				hasTranscriptRows={parsedMessages.length > 0}
 				onFetchMoreMessages={onFetchMoreMessages}
@@ -668,6 +665,12 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const modeWorkspaceUploads = isEditing
 		? editWorkspaceUploads
 		: composeWorkspaceUploads;
+	// The attachments of the submit in flight. The composer hides them until
+	// the request settles and shows them again if it fails. Attachments added
+	// during the request stay in the composer.
+	const [submittedAttachments, setSubmittedAttachments] = useState<
+		readonly File[] | null
+	>(null);
 	const visibleWorkspaceUploads = isEditing
 		? [...preservedWorkspaceUploads, ...editWorkspaceUploads.uploads]
 		: composeWorkspaceUploads.uploads;
@@ -747,6 +750,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 						pendingWorkspaceUploads.length > 0
 							? pendingWorkspaceUploads
 							: undefined;
+					setSubmittedAttachments(attachments);
 					try {
 						await onSend({
 							message,
@@ -755,26 +759,34 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 						});
 					} catch {
 						// Attachments preserved for retry on failure.
+						setSubmittedAttachments(null);
 						return;
 					}
+					setSubmittedAttachments(null);
 					if (isEditing) {
 						editAttachments.resetAttachments();
 						resetEditWorkspaceUploads();
 						setPreservedWorkspaceUploads([]);
 					} else {
-						composeAttachments.resetAttachments();
+						for (const file of attachments) {
+							composeAttachments.handleRemoveAttachment(file);
+						}
 						composeWorkspaceUploads.reset();
 					}
 				})();
 			}}
-			attachments={attachments}
+			attachments={
+				submittedAttachments
+					? attachments.filter((file) => !submittedAttachments.includes(file))
+					: attachments
+			}
 			onAttach={handleAttach}
 			onRemoveAttachment={handleRemoveAttachment}
 			uploadStates={uploadStates}
 			previewUrls={previewUrls}
 			textContents={textContents}
 			workspaceUploads={{
-				uploads: visibleWorkspaceUploads,
+				uploads: submittedAttachments ? [] : visibleWorkspaceUploads,
 				onAttach: canUploadWorkspaceFiles
 					? modeWorkspaceUploads.attach
 					: undefined,

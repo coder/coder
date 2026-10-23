@@ -1,6 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { ChatMessagePart } from "#/api/typesGenerated";
-import { isMobileViewport } from "#/utils/mobile";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import {
@@ -13,6 +12,54 @@ export class BuiltInCommandPendingError extends Error {}
 
 export type SendChatTurnOptions = SendChatMessageOptions & {
 	editedMessageID?: number;
+};
+
+// Joins two serialized Lexical states, the blocks of before followed by
+// those of after. Returns undefined when either cannot be parsed; the editor
+// then seeds the plain text instead.
+const joinEditorStates = (
+	before: string | undefined,
+	after: string | undefined,
+): string | undefined => {
+	if (!before || !after) {
+		return undefined;
+	}
+	try {
+		const head = JSON.parse(before);
+		const tail = JSON.parse(after);
+		return JSON.stringify({
+			...head,
+			root: {
+				...head.root,
+				children: [...head.root.children, ...tail.root.children],
+			},
+		});
+	} catch {
+		return undefined;
+	}
+};
+
+type PendingSend = {
+	message: string;
+	editorState: string | undefined;
+	fileBlocks: readonly ChatMessagePart[];
+	messageId: number | null;
+};
+
+// The composer content a failed send restores: the sent message, followed by
+// what was typed during the request.
+const restoredDraft = (
+	send: PendingSend,
+	typedText: string,
+	typedEditorState: string | undefined,
+) => {
+	if (!typedText.trim()) {
+		return { text: send.message, editorState: send.editorState };
+	}
+	return {
+		text: `${send.message}\n\n${typedText}`,
+		editorState: joinEditorStates(send.editorState, typedEditorState),
+	};
 };
 
 /** @internal Exported for testing. */
@@ -36,6 +83,11 @@ export function useConversationEditingState(deps: {
 	const serializedEditorStateRef = useRef<string | undefined>(
 		initialEditorState,
 	);
+	// The send in flight, from a submit's clear until it settles. While it is
+	// set, content changes save what a failure would restore as the draft, so
+	// a reload or unmount mid-send keeps the sent message and what was typed
+	// since. A history edit leaves the draft from before the edit started.
+	const pendingSendRef = useRef<PendingSend | null>(null);
 
 	// Monotonic counter to force LexicalComposer remount.
 	const [remountKey, setRemountKey] = useState(0);
@@ -104,42 +156,53 @@ export function useConversationEditingState(deps: {
 		setEditingFileBlocks([]);
 	};
 
-	// Clears the composer for an in-flight history edit and
-	// returns a rollback function that restores the editing draft
-	// if the send fails.
-	const clearInputForHistoryEdit = (message: string) => {
-		const snapshot = {
+	// Returns a rollback for a failed send. The composer stays editable during
+	// the request, so the rollback puts the message before anything typed since.
+	const clearInputForSend = (message: string) => {
+		const snapshot: PendingSend = {
+			message,
 			editorState: serializedEditorStateRef.current,
 			fileBlocks: editingFileBlocks,
 			messageId: editingMessageId,
 		};
 
+		pendingSendRef.current = snapshot;
 		chatInputRef.current?.clear();
 		inputValueRef.current = "";
 		setEditingMessageId(null);
 
 		return () => {
+			const { text, editorState } = restoredDraft(
+				snapshot,
+				inputValueRef.current,
+				serializedEditorStateRef.current,
+			);
 			setDraftState({
-				editorInitialValue: message,
-				initialEditorState: snapshot.editorState,
+				editorInitialValue: text,
+				initialEditorState: editorState,
 			});
-			serializedEditorStateRef.current = snapshot.editorState;
+			serializedEditorStateRef.current = editorState;
 			setRemountKey((k) => k + 1);
-			inputValueRef.current = message;
+			inputValueRef.current = text;
 			setEditingMessageId(snapshot.messageId);
 			setEditingFileBlocks(snapshot.fileBlocks);
 		};
 	};
 
-	// Clears all input and editing state after a successful send.
+	// Ends a successful send. The composer was cleared at submit, so any
+	// content in it was typed during the request. That content stays and
+	// becomes the saved draft.
 	const finalizeSuccessfulSend = (editedMessageID: number | undefined) => {
-		chatInputRef.current?.clear();
-		if (!isMobileViewport()) {
-			chatInputRef.current?.focus();
+		const draft = serializedEditorStateRef.current;
+		if (inputValueRef.current.trim() && draft) {
+			try {
+				localStorage.setItem(draftStorageKey, draft);
+			} catch {
+				// QuotaExceededError, silently discard the draft.
+			}
+		} else {
+			localStorage.removeItem(draftStorageKey);
 		}
-		inputValueRef.current = "";
-		serializedEditorStateRef.current = undefined;
-		localStorage.removeItem(draftStorageKey);
 		if (editedMessageID !== undefined) {
 			setDraftBeforeHistoryEdit(null);
 			setEditingFileBlocks([]);
@@ -161,22 +224,19 @@ export function useConversationEditingState(deps: {
 			editedMessageID,
 		});
 
-		// For history edits, clear input immediately and prepare
-		// a rollback in case the send fails.
-		const rollback =
-			editedMessageID !== undefined
-				? clearInputForHistoryEdit(message)
-				: undefined;
+		const rollback = clearInputForSend(message);
 
 		try {
 			await sendPromise;
 		} catch (error) {
+			rollback();
+			pendingSendRef.current = null;
 			if (error instanceof BuiltInCommandPendingError) {
 				return;
 			}
-			rollback?.();
 			throw error;
 		}
+		pendingSendRef.current = null;
 
 		finalizeSuccessfulSend(editedMessageID);
 	};
@@ -192,6 +252,24 @@ export function useConversationEditingState(deps: {
 		// Don't overwrite the persisted draft while editing a history message.
 		// The original draft is saved in React state and should survive a cancel.
 		if (editingMessageId !== null) {
+			return;
+		}
+		const pendingSend = pendingSendRef.current;
+		if (pendingSend) {
+			if (pendingSend.messageId !== null) {
+				return;
+			}
+			const draft = restoredDraft(pendingSend, content, serializedEditorState);
+			const saved = draft.editorState ?? draft.text;
+			if (!saved) {
+				localStorage.removeItem(draftStorageKey);
+				return;
+			}
+			try {
+				localStorage.setItem(draftStorageKey, saved);
+			} catch {
+				// QuotaExceededError, silently discard the draft.
+			}
 			return;
 		}
 
