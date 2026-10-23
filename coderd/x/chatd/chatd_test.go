@@ -9490,8 +9490,9 @@ func TestInterruptUnownedChatClearsLastTurnSummary(t *testing.T) {
 				require.False(t, sent.Queued, "the message is promoted inline")
 				require.Equal(t, database.ChatStatusRunning, sent.Chat.Status)
 			} else {
-				updated, err := server.InterruptChat(ctx, chat)
+				updated, interrupted, err := server.InterruptChat(ctx, chat)
 				require.NoError(t, err)
+				require.True(t, interrupted, "the call reports the interruption although the chat is already waiting")
 				require.Equal(t, database.ChatStatusWaiting, updated.Status)
 			}
 
@@ -9582,7 +9583,7 @@ func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
 	}, testutil.IntervalFast)
 
 	// Interrupt the chat. The worker finalizes the interruption asynchronously.
-	updated, _ := server.InterruptChat(ctx, chat)
+	updated, _, _ := server.InterruptChat(ctx, chat)
 	require.Equal(t, database.ChatStatusInterrupting, updated.Status)
 
 	// Wait for the chat to finish processing and return to waiting.
@@ -10627,7 +10628,7 @@ func TestInterruptChatPersistsPartialResponse(t *testing.T) {
 	}, testutil.IntervalFast)
 
 	// Now interrupt the chat. The provider has sent partial content.
-	updated, _ := server.InterruptChat(ctx, chat)
+	updated, _, _ := server.InterruptChat(ctx, chat)
 	require.Equal(t, database.ChatStatusInterrupting, updated.Status)
 
 	// Wait for the partial assistant message to be persisted.
@@ -13681,7 +13682,7 @@ func TestQueuedCompletionResolvesOrganizationModel(t *testing.T) {
 		insertQueuedMessage(ctx, t, db, chat.ID, user.ID, foreignModel.ID, "queued")
 		current, err := db.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
-		_, err = server.InterruptChat(ctx, current)
+		_, _, err = server.InterruptChat(ctx, current)
 		require.NoError(t, err)
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
