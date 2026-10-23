@@ -10,9 +10,11 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
@@ -422,7 +424,9 @@ func TestResolveWorkingDir(t *testing.T) {
 }
 
 // runFakeMCPServer implements a minimal JSON-RPC / MCP server over
-// stdin/stdout, just enough for initialize + tools/list.
+// stdin/stdout, just enough for initialize + tools/list, plus a
+// tools/call handler for the unlisted "env" tool, which reports the
+// process environment and working directory as a JSON text result.
 func runFakeMCPServer() {
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
@@ -432,6 +436,9 @@ func runFakeMCPServer() {
 			JSONRPC string          `json:"jsonrpc"`
 			ID      json.RawMessage `json:"id"`
 			Method  string          `json:"method"`
+			Params  struct {
+				Name string `json:"name"`
+			} `json:"params"`
 		}
 		if err := json.Unmarshal(line, &req); err != nil {
 			continue
@@ -474,12 +481,38 @@ func runFakeMCPServer() {
 					},
 				},
 			}
+		case "tools/call":
+			if req.Params.Name != "env" {
+				resp = map[string]any{
+					"jsonrpc": "2.0",
+					"id":      req.ID,
+					"error": map[string]any{
+						"code":    jsonrpc.CodeInvalidParams,
+						"message": "unknown tool",
+					},
+				}
+				break
+			}
+			cwd, _ := os.Getwd()
+			report, err := json.Marshal(fakeEnvReport{Env: os.Environ(), Cwd: cwd})
+			if err != nil {
+				continue
+			}
+			resp = map[string]any{
+				"jsonrpc": "2.0",
+				"id":      req.ID,
+				"result": map[string]any{
+					"content": []map[string]any{
+						{"type": "text", "text": string(report)},
+					},
+				},
+			}
 		default:
 			resp = map[string]any{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
 				"error": map[string]any{
-					"code":    -32601,
+					"code":    jsonrpc.CodeMethodNotFound,
 					"message": "method not found",
 				},
 			}
@@ -491,4 +524,128 @@ func runFakeMCPServer() {
 		}
 		_, _ = fmt.Fprintf(os.Stdout, "%s\n", out)
 	}
+}
+
+// fakeEnvReport is the payload of the fake server's "env" tool.
+type fakeEnvReport struct {
+	Env []string `json:"env"`
+	Cwd string   `json:"cwd"`
+}
+
+func TestCreateTransport_HTTP(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	m := NewManager(ctx, slogtest.Make(t, nil), agentexec.DefaultExecer, nil, nil, nil, nil)
+	t.Cleanup(func() { _ = m.Close() })
+
+	originSrv, originRec, otherSrv, otherRec := headerTestServers(t)
+	headers := map[string]string{"X-Mcp-Test": "configured"}
+	scope := newPluginScope(t, "p")
+
+	for _, tc := range []struct {
+		name      string
+		transport string
+		plugin    *PluginScope
+		otherGets bool
+		client    func(mcp.Transport) *http.Client
+	}{
+		{"LegacyHTTP", "http", nil, true, func(tr mcp.Transport) *http.Client { return tr.(*mcp.StreamableClientTransport).HTTPClient }},
+		{"LegacySSE", "sse", nil, true, func(tr mcp.Transport) *http.Client { return tr.(*mcp.SSEClientTransport).HTTPClient }},
+		{"PluginHTTP", "http", &scope, false, func(tr mcp.Transport) *http.Client { return tr.(*mcp.StreamableClientTransport).HTTPClient }},
+		{"PluginSSE", "sse", &scope, false, func(tr mcp.Transport) *http.Client { return tr.(*mcp.SSEClientTransport).HTTPClient }},
+	} {
+		path := "/" + tc.name
+		tr, err := m.createTransport(ctx, ServerConfig{Name: "srv", Transport: tc.transport, URL: originSrv.URL + path, Headers: headers, Plugin: tc.plugin})
+		require.NoError(t, err, tc.name)
+		client := tc.client(tr)
+		require.NotNil(t, client, tc.name)
+
+		doGet(t, client, originSrv.URL+path, nil)
+		seen := originRec.headers(path)
+		require.Len(t, seen, 1, tc.name)
+		assert.Equal(t, "configured", seen[0].Get("X-Mcp-Test"), tc.name)
+
+		doGet(t, client, otherSrv.URL+path, nil)
+		seen = otherRec.headers(path)
+		require.Len(t, seen, 1, tc.name)
+		assert.Equal(t, tc.otherGets, seen[0].Get("X-Mcp-Test") == "configured", tc.name)
+	}
+}
+
+// sseOffOriginServers starts an SSE server whose endpoint event names a
+// message endpoint on another origin, and returns the recorder for that
+// endpoint. The message endpoint answers 500, so the connect fails.
+func sseOffOriginServers(t *testing.T) (sseURL string, otherRec *headerRecorder) {
+	t.Helper()
+	otherRec = &headerRecorder{}
+	otherSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		otherRec.ServeHTTP(httptest.NewRecorder(), r)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(otherSrv.Close)
+	originSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = fmt.Fprintf(w, "event: endpoint\ndata: %s/msg?session=1\n\n", otherSrv.URL)
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	}))
+	t.Cleanup(originSrv.Close)
+	return originSrv.URL + "/sse", otherRec
+}
+
+func TestReload_LegacySSEEndpointOffOriginGetsHeaders(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	sseURL, otherRec := sseOffOriginServers(t)
+	path := writeMCPConfig(t, t.TempDir(), map[string]mcpServerEntry{"srv": {
+		Type:    "sse",
+		URL:     sseURL,
+		Headers: map[string]string{"Authorization": "Bearer secret"},
+	}})
+	m := NewManager(ctx, slogtest.Make(t, nil), agentexec.DefaultExecer, nil, nil, nil, nil)
+	t.Cleanup(func() { _ = m.Close() })
+	require.NoError(t, m.Reload(ctx, []string{path}))
+
+	seen := otherRec.headers("/msg")
+	require.NotEmpty(t, seen, "the message endpoint must be requested")
+	for _, h := range seen {
+		assert.Equal(t, []string{"Bearer secret"}, h.Values("Authorization"))
+	}
+}
+
+func TestReloadSources_PluginSSEEndpointOffOriginWithoutHeaders(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	sseURL, otherRec := sseOffOriginServers(t)
+	scope := newPluginScope(t, "p")
+	src := writePluginMCP(t, scope, map[string]any{"srv": map[string]any{
+		"type":    "sse",
+		"url":     sseURL,
+		"headers": map[string]string{"Authorization": "Bearer secret"},
+	}})
+	sink := &entrySink{}
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(sink)
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
+	t.Cleanup(func() { _ = m.Close() })
+	require.NoError(t, m.ReloadSources(ctx, []ConfigSource{src}))
+
+	st := findStatus(t, m.Catalog(), "srv", "p")
+	assert.False(t, st.Connected)
+	seen := otherRec.headers("/msg")
+	require.NotEmpty(t, seen, "the message endpoint must still be requested")
+	for _, h := range seen {
+		assert.Empty(t, h.Values("Authorization"))
+	}
+	var withheld int
+	for _, e := range sink.warnings() {
+		if strings.Contains(e.Message, "withholding configured MCP headers") {
+			withheld++
+			assert.Equal(t, "srv", fieldValue(e, "server"))
+			assert.Equal(t, "p", fieldValue(e, "plugin"))
+		}
+	}
+	assert.Equal(t, 1, withheld)
 }
