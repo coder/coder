@@ -1336,6 +1336,46 @@ type UpdateAdvisorConfigRequest struct {
 	DeprecatedReasoningEffort *string `json:"reasoning_effort,omitempty"`
 }
 
+// ChatContextWindowFallback picks what the server does when a chat reaches
+// the forced point of its context window without calling new_context.
+//
+// EXPERIMENTAL: this type is experimental and is subject to change.
+type ChatContextWindowFallback string
+
+const (
+	// ChatContextWindowFallbackSummary runs summary compaction.
+	ChatContextWindowFallbackSummary ChatContextWindowFallback = "summary"
+	// ChatContextWindowFallbackNewWindow starts a new context window
+	// with no summary model call.
+	ChatContextWindowFallbackNewWindow ChatContextWindowFallback = "new_window"
+)
+
+// Valid reports whether f is a known fallback.
+func (f ChatContextWindowFallback) Valid() bool {
+	switch f {
+	case ChatContextWindowFallbackSummary, ChatContextWindowFallbackNewWindow:
+		return true
+	default:
+		return false
+	}
+}
+
+// ChatContextWindowConfig is the deployment-wide token-budget context
+// window configuration.
+//
+// EXPERIMENTAL: this type is experimental and is subject to change.
+type ChatContextWindowConfig struct {
+	Fallback ChatContextWindowFallback `json:"fallback" enums:"summary,new_window"`
+}
+
+// UpdateChatContextWindowConfigRequest is the request body for updating the
+// context window configuration.
+//
+// EXPERIMENTAL: this type is experimental and is subject to change.
+type UpdateChatContextWindowConfigRequest struct {
+	Fallback ChatContextWindowFallback `json:"fallback" enums:"summary,new_window"`
+}
+
 // ChatComputerUseProvider identifies the provider that backs computer use for
 // the virtual desktop.
 type ChatComputerUseProvider string
@@ -3065,6 +3105,35 @@ func (c *ExperimentalClient) GetChatAdvisorConfig(ctx context.Context) (AdvisorC
 // UpdateChatAdvisorConfig updates the deployment-wide advisor configuration.
 func (c *ExperimentalClient) UpdateChatAdvisorConfig(ctx context.Context, req UpdateAdvisorConfigRequest) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/advisor", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetChatContextWindowConfig returns the deployment-wide context window
+// configuration.
+func (c *ExperimentalClient) GetChatContextWindowConfig(ctx context.Context) (ChatContextWindowConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/context-windows", nil)
+	if err != nil {
+		return ChatContextWindowConfig{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatContextWindowConfig{}, ReadBodyAsError(res)
+	}
+	var resp ChatContextWindowConfig
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// UpdateChatContextWindowConfig updates the deployment-wide context window
+// configuration.
+func (c *ExperimentalClient) UpdateChatContextWindowConfig(ctx context.Context, req UpdateChatContextWindowConfigRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/context-windows", req)
 	if err != nil {
 		return err
 	}

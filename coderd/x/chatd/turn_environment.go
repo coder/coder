@@ -76,6 +76,9 @@ type turnEnvironment struct {
 
 	MaxSteps   int
 	Compaction *generationCompaction
+	// ContextBudget is the token-budget state, nil when the budget is
+	// off for this turn.
+	ContextBudget *contextBudget
 
 	Debug *generationDebug
 
@@ -508,6 +511,27 @@ func (p *Server) buildTurnEnvironment(
 		}
 	}
 
+	effectiveThreshold := modelConfig.CompressionThreshold
+	thresholdOverride, ok, err := p.resolveUserCompactionThreshold(ctx, chat.OwnerID, modelConfig.ID)
+	if err != nil {
+		return turnEnvironment{}, err
+	}
+	if ok {
+		effectiveThreshold = thresholdOverride
+	}
+	// The token budget is on only where its tools are offered: the
+	// experiment is on, the chat is not an Explore child, and the turn is
+	// not a plan-mode turn of a child chat (the plan filter drops them).
+	budgetLadder, budgetOn := contextLadder(modelConfig.ContextLimit, effectiveThreshold)
+	budgetOn = budgetOn &&
+		p.experiments.Enabled(codersdk.ExperimentChatTokenBudget) &&
+		!isExploreSubagent &&
+		!(isPlanModeTurn && !isRootChat)
+	var convertOpts []chatprompt.ConvertOption
+	if budgetOn {
+		convertOpts = append(convertOpts, chatprompt.WithItemIDSuffix())
+	}
+
 	var pendingPrompt []fantasy.Message
 	var g2 errgroup.Group
 	g2.Go(func() error {
@@ -519,13 +543,13 @@ func (p *Server) buildTurnEnvironment(
 		// accepts a file part is the one for model.Provider().
 		acceptsFilePart := model.AcceptsFilePartMediaType
 		providerType := string(modelRoute.Provider.Type)
-		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[:pendingRowsStart], p.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
+		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[:pendingRowsStart], p.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID, convertOpts...)
 		if err != nil {
 			return xerrors.Errorf("build chat prompt: %w", err)
 		}
 		prompt = replaceUnsupportedToolMedia(ctx, logger, prompt, model, providerType)
 		if pendingRowsStart < len(promptRows) {
-			pendingPrompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[pendingRowsStart:], p.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
+			pendingPrompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[pendingRowsStart:], p.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID, convertOpts...)
 			if err != nil {
 				return xerrors.Errorf("build pending chat prompt tail: %w", err)
 			}
@@ -828,6 +852,23 @@ func (p *Server) buildTurnEnvironment(
 	if hasMemory {
 		tools = append(tools, chattool.ReadMemory(memoryStore), chattool.SaveMemory(memoryStore, memoryProjectName), chattool.DeleteMemory(memoryStore, memoryProjectName), chattool.ConsolidateMemory(memoryStore, memoryProjectName))
 	}
+	var budget *contextBudget
+	if budgetOn {
+		windowStart, _ := contextWindowStart(promptRows, chat.CreatedAt)
+		budget = &contextBudget{
+			Ladder:       budgetLadder,
+			Fallback:     p.loadContextWindowFallback(ctx, logger),
+			ContextLimit: modelConfig.ContextLimit,
+			WindowIndex:  chattool.CurrentContextWindowIndex(input.Messages, chatprompt.ParseContent),
+			WindowStart:  windowStart,
+		}
+		notesStore := chattool.NewNotesStore(p.db, chat.ID)
+		tools = append(tools,
+			chattool.Notes(notesStore),
+			chattool.NewContext(notesStore, windowStart),
+			chattool.ChatHistory(chattool.ChatHistoryOptions{DB: p.db, ChatID: chat.ID, ParseContent: chatprompt.ParseContent}),
+		)
+	}
 	if advisorRuntime != nil {
 		tools = append(tools, chatadvisor.Tool(chatadvisor.ToolOptions{
 			Runtime: advisorRuntime,
@@ -840,6 +881,14 @@ func (p *Server) buildTurnEnvironment(
 	var exclusiveToolNames map[string]bool
 	if advisorRuntime != nil {
 		exclusiveToolNames = map[string]bool{chatadvisor.ToolName: true}
+	}
+	if budget != nil {
+		if exclusiveToolNames == nil {
+			exclusiveToolNames = map[string]bool{}
+		}
+		// The window ends after the step, so sibling results would fall
+		// before the boundary and vanish from the next window.
+		exclusiveToolNames[chattool.NewContextToolName] = true
 	}
 
 	builtinToolNames := make(map[string]bool, len(tools))
@@ -1004,17 +1053,14 @@ func (p *Server) buildTurnEnvironment(
 	}
 
 	compactionToolCallID := "chat_summarized_" + uuid.NewString()
-	effectiveThreshold := modelConfig.CompressionThreshold
-	thresholdOverride, ok, err := p.resolveUserCompactionThreshold(ctx, chat.OwnerID, modelConfig.ID)
-	if err != nil {
-		return turnEnvironment{}, err
-	}
-	if ok {
-		effectiveThreshold = thresholdOverride
-	}
 	chatTrigger := compactionTrigger{
 		thresholdPercent: effectiveThreshold,
 		contextLimit:     modelConfig.ContextLimit,
+	}
+	if budget != nil {
+		// Both fallbacks run at the forced point. The threshold point
+		// becomes the handoff nudge.
+		chatTrigger.thresholdPercent = budget.Ladder.forcedPercent
 	}
 	resolvedCompactionOverride, err := p.resolveModelOverride(ctx, modelOverrideSpec{
 		context:        compactionOverrideContext,
@@ -1043,6 +1089,17 @@ func (p *Server) buildTurnEnvironment(
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)
 	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, binding.contextLimit, binding.thresholdPercent)
+	if budget != nil {
+		stage, usage, due := contextNudgeDue(promptRows, budget.Ladder)
+		budget.Usage = usage
+		if due {
+			nudge, err := contextNudgeMessage(contextNudgeText(stage, usage, budget.ContextLimit, budget.Ladder), modelConfig.ID)
+			if err != nil {
+				return turnEnvironment{}, err
+			}
+			budget.Nudge = &nudge
+		}
+	}
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
@@ -1106,8 +1163,9 @@ func (p *Server) buildTurnEnvironment(
 			Options:         compactionOptions,
 			PendingUserRows: pendingUserRows,
 		},
-		Debug:   debug,
-		cleanup: cleanup,
+		ContextBudget: budget,
+		Debug:         debug,
+		cleanup:       cleanup,
 	}, nil
 }
 

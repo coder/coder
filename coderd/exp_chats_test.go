@@ -19633,3 +19633,58 @@ func TestChatReadState(t *testing.T) {
 		require.Equal(t, "other user chat", persisted.Title)
 	})
 }
+
+func TestChatContextWindowConfig(t *testing.T) {
+	t.Parallel()
+
+	newClient := func(t *testing.T, experiments ...codersdk.Experiment) *codersdk.ExperimentalClient {
+		values := coderdtest.DeploymentValues(t)
+		for _, experiment := range experiments {
+			values.Experiments = append(values.Experiments, string(experiment))
+		}
+		return newChatClientWithDeploymentValues(t, values)
+	}
+
+	t.Run("DefaultUpdateAndAuthz", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newClient(t, codersdk.ExperimentChatTokenBudget)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+
+		resp, err := adminClient.GetChatContextWindowConfig(ctx)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatContextWindowFallbackSummary, resp.Fallback)
+
+		require.NoError(t, adminClient.UpdateChatContextWindowConfig(ctx, codersdk.UpdateChatContextWindowConfigRequest{
+			Fallback: codersdk.ChatContextWindowFallbackNewWindow,
+		}))
+		resp, err = adminClient.GetChatContextWindowConfig(ctx)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatContextWindowFallbackNewWindow, resp.Fallback)
+
+		err = adminClient.UpdateChatContextWindowConfig(ctx, codersdk.UpdateChatContextWindowConfigRequest{Fallback: "bogus"})
+		requireSDKError(t, err, http.StatusBadRequest)
+
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		err = memberClient.UpdateChatContextWindowConfig(ctx, codersdk.UpdateChatContextWindowConfigRequest{
+			Fallback: codersdk.ChatContextWindowFallbackSummary,
+		})
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+
+	t.Run("ExperimentOff", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newClient(t, codersdk.ExperimentChatAdvisor)
+		coderdtest.CreateFirstUser(t, adminClient.Client)
+		// httpmw.RequireExperiment answers 403 with the experiment name.
+		_, err := adminClient.GetChatContextWindowConfig(ctx)
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Contains(t, sdkErr.Message, string(codersdk.ExperimentChatTokenBudget))
+		err = adminClient.UpdateChatContextWindowConfig(ctx, codersdk.UpdateChatContextWindowConfigRequest{
+			Fallback: codersdk.ChatContextWindowFallbackSummary,
+		})
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+}
