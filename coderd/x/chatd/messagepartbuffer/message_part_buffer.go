@@ -392,8 +392,9 @@ func (b *Buffer) SubscribeToEpisode(ctx context.Context, key Key) (<-chan Part, 
 	episode := b.getOrCreateEpisodeLocked(key)
 	subscriber := &episodeSubscriber{
 		// out is unbuffered so the delivery goroutine only advances once the
-		// subscriber has accepted each part. The send timeout bounds how long
-		// an unresponsive subscriber can keep its episode retained.
+		// subscriber has accepted each part. After the episode closes, the
+		// send timeout bounds how long an unresponsive subscriber can keep the
+		// episode retained.
 		out: make(chan Part),
 		// notifyCh is a one-slot wakeup channel. Additional wakeups can be
 		// coalesced because the delivery goroutine copies all available parts
@@ -541,18 +542,27 @@ func (b *Buffer) subscriberParts(key Key, subscriber *episodeSubscriber) (parts 
 func (b *Buffer) deliverSubscriber(ctx context.Context, key Key, subscriber *episodeSubscriber) {
 	defer close(subscriber.out)
 	defer b.removeSubscriber(key, subscriber)
+	episodeClosed := false
 	for {
 		parts, closed, ok := b.subscriberParts(key, subscriber)
 		if !ok {
 			return
 		}
+		episodeClosed = episodeClosed || closed
 		for _, part := range parts {
-			if !b.sendSubscriberPart(ctx, subscriber, part) {
+			var sent bool
+			sent, episodeClosed = b.sendSubscriberPart(ctx, key, subscriber, part, episodeClosed)
+			if !sent {
 				return
 			}
 		}
 		if closed {
 			return
+		}
+		if len(parts) > 0 {
+			// sendSubscriberPart consumes wakeups while it waits, so look for
+			// parts added during the sends before waiting for the next one.
+			continue
 		}
 		select {
 		case <-subscriber.notifyCh:
@@ -566,21 +576,59 @@ func (b *Buffer) deliverSubscriber(ctx context.Context, key Key, subscriber *epi
 	}
 }
 
-func (b *Buffer) sendSubscriberPart(ctx context.Context, subscriber *episodeSubscriber, part Part) bool {
-	timer := b.opts.Clock.NewTimer(b.opts.SubscriberSendTimeout, "message-part-buffer", "subscriber-send")
-	defer timer.Stop()
-	select {
-	case subscriber.out <- part:
-		return true
-	case <-timer.C:
-		return false
-	case <-subscriber.stopCh:
-		return false
-	case <-ctx.Done():
-		return false
-	case <-b.done:
-		return false
+// sendSubscriberPart sends part to the subscriber. It reports whether it sent
+// the part, and whether the episode is closed as far as it has observed.
+//
+// While the episode is open, the send has no deadline. Subscribers do not
+// affect how long an open episode is kept, so waiting retains only the batch
+// being sent, and a slow subscriber continues from its cursor. Once the
+// episode is closed, the send waits at most SubscriberSendTimeout, because a
+// subscriber keeps a closed episode from being garbage collected. A send that
+// is waiting when the episode closes wakes on the close notification and
+// starts the timeout then.
+func (b *Buffer) sendSubscriberPart(ctx context.Context, key Key, subscriber *episodeSubscriber, part Part, episodeClosed bool) (sent bool, closed bool) {
+	var timer *quartz.Timer
+	defer func() {
+		if timer != nil {
+			timer.Stop()
+		}
+	}()
+	for {
+		if episodeClosed && timer == nil {
+			timer = b.opts.Clock.NewTimer(b.opts.SubscriberSendTimeout, "message-part-buffer", "subscriber-send")
+		}
+		// Wait for a wakeup only until the episode is closed. After that the
+		// timer bounds the send.
+		wake := subscriber.notifyCh
+		var timeout <-chan time.Time
+		if timer != nil {
+			wake = nil
+			timeout = timer.C
+		}
+		select {
+		case subscriber.out <- part:
+			return true, episodeClosed
+		case <-wake:
+			// AddPart and CloseEpisode both notify. Only a close changes this
+			// send. deliverSubscriber reads the added parts after the send.
+			episodeClosed = b.isEpisodeClosed(key)
+		case <-timeout:
+			return false, episodeClosed
+		case <-subscriber.stopCh:
+			return false, episodeClosed
+		case <-ctx.Done():
+			return false, episodeClosed
+		case <-b.done:
+			return false, episodeClosed
+		}
 	}
+}
+
+func (b *Buffer) isEpisodeClosed(key Key) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	episode := b.episodes[key]
+	return episode != nil && episode.closed
 }
 
 func (b *Buffer) cancelSubscriber(key Key, subscriber *episodeSubscriber) {
