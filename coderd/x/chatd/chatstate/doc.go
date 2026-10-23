@@ -22,7 +22,7 @@
 //
 // Transition methods are explicit, typed wrappers around the durable
 // mutations needed to move between states. Each transition reads the
-// current chat row and queue cardinality, classifies the resulting
+// current chat row and queue state, classifies the resulting
 // execution state, validates it against the transition model, and
 // rejects with an [*TransitionError] wrapping [ErrTransitionNotAllowed]
 // when the transition is not legal from that state. The package owns

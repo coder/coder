@@ -165,8 +165,8 @@ type SetFamilyProjectInput struct {
 
 // SetFamilyProject moves a root chat into a project, or out of its
 // project, inside one transaction. Every family member must be in W,
-// E0 or E1, or the move rolls back, so no step of the family runs with
-// the old project's memory tools after the move. Subagent chats have no
+// E0, E1, E1P or P, or the move rolls back, so no step of the family
+// runs with the old project's memory tools after the move. Subagent chats have no
 // project and use the root's, so only the root's project_id changes.
 //
 // Like [SetFamilyArchived], it locks the root first and then each

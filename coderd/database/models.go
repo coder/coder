@@ -1920,6 +1920,7 @@ const (
 	ChatStatusError          ChatStatus = "error"
 	ChatStatusRequiresAction ChatStatus = "requires_action"
 	ChatStatusInterrupting   ChatStatus = "interrupting"
+	ChatStatusPaused         ChatStatus = "paused"
 )
 
 func (e *ChatStatus) Scan(src interface{}) error {
@@ -1963,7 +1964,8 @@ func (e ChatStatus) Valid() bool {
 		ChatStatusRunning,
 		ChatStatusError,
 		ChatStatusRequiresAction,
-		ChatStatusInterrupting:
+		ChatStatusInterrupting,
+		ChatStatusPaused:
 		return true
 	}
 	return false
@@ -1976,6 +1978,7 @@ func AllChatStatusValues() []ChatStatus {
 		ChatStatusError,
 		ChatStatusRequiresAction,
 		ChatStatusInterrupting,
+		ChatStatusPaused,
 	}
 }
 
@@ -5553,6 +5556,8 @@ type ChatQueuedMessage struct {
 	CreatedBy     uuid.UUID       `db:"created_by" json:"created_by"`
 	// Stores the selected effort until the queued row is promoted.
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
+	// Set while the owner edits the row. A row under edit is not promoted into history until the edit ends.
+	EditingSince sql.NullTime `db:"editing_since" json:"editing_since"`
 }
 
 type ChatTable struct {

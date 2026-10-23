@@ -94,6 +94,7 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 			).Post("/workspace-files", api.postChatWorkspaceFile)
 			r.Put("/context", api.refreshChatContext)
 			r.Route("/queue/{queuedMessage}", func(r chi.Router) {
+				r.Patch("/", api.patchChatQueuedMessage)
 				r.Delete("/", api.deleteChatQueuedMessage)
 				r.Post("/promote", api.promoteChatQueuedMessage)
 			})
