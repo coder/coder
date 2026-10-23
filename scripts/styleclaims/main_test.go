@@ -101,6 +101,16 @@ func TestActiveCitations(t *testing.T) {
 			wantPlanned: []string{"Coder.EmDash"},
 		},
 		{
+			name:       "docs HTML checker",
+			text:       "*Enforced by `scripts/docshtmlcheck` for empty header cells.*",
+			wantActive: []string{"scripts/docshtmlcheck"},
+		},
+		{
+			name:       "manifest checker",
+			text:       "*Enforced by `scripts/docsmanifestgen` (`make lint/docs-manifest`) for the trailing period only.*",
+			wantActive: []string{"scripts/docsmanifestgen"},
+		},
+		{
 			name: "rule named without a claim is ignored",
 			text: "*Documentation-only. No Vale rule. Imprecise rules like `Google.Passive` and `write-good.Passive` fire on every passive construction, so they stay out of the package.*",
 		},
@@ -141,6 +151,7 @@ func TestClassify(t *testing.T) {
 	}{
 		{"*Enforced by `Coder.BrandNames`.*", classTool},
 		{"*Enforced by `markdownlint` rule `MD040` for the missing-language case.*", classTool},
+		{"*Enforced by `scripts/docshtmlcheck` for empty header cells. The rest is documentation-only.*", classTool},
 		{"*Enforced by `Coder.LearnMore` (planned).*", classPlanned},
 		{"*Documentation-only. No Vale rule.*", classDocumentationOnly},
 		{"*Adapted from ASD-STE100 Issue 9, rule 5.2. Documentation-only. No Vale rule.*", classDocumentationOnly},

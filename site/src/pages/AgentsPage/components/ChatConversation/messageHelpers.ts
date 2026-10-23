@@ -1,4 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { getAttachmentHref } from "../../utils/chatAttachments";
 import { asRecord } from "../ChatElements/runtimeTypeUtils";
 import { shouldRenderTool } from "../ChatElements/tools/toolVisibility";
 import type {
@@ -10,7 +11,8 @@ import type {
 
 export type UserInlineRenderBlock =
 	| Extract<RenderBlock, { type: "response" }>
-	| Extract<RenderBlock, { type: "file-reference" }>;
+	| Extract<RenderBlock, { type: "file-reference" }>
+	| Extract<RenderBlock, { type: "skill-invocation" }>;
 
 type FileRenderBlock = Extract<RenderBlock, { type: "file" }>;
 type WorkspaceFileReferenceBlock = Extract<
@@ -44,7 +46,9 @@ type HiddenTimelineEntryReason =
 const isUserInlineRenderBlock = (
 	block: RenderBlock,
 ): block is UserInlineRenderBlock =>
-	block.type === "response" || block.type === "file-reference";
+	block.type === "response" ||
+	block.type === "file-reference" ||
+	block.type === "skill-invocation";
 
 const isFileRenderBlock = (block: RenderBlock): block is FileRenderBlock =>
 	block.type === "file";
@@ -54,11 +58,12 @@ const isWorkspaceFileReferenceBlock = (
 ): block is WorkspaceFileReferenceBlock =>
 	block.type === "workspace-file-reference";
 
+export const isProviderToolResult = (part: TypesGen.ChatMessagePart): boolean =>
+	part.type === "tool-result" && part.provider_executed === true;
+
 const isProviderToolResultOnlyMessage = (
 	parts: readonly TypesGen.ChatMessagePart[],
-): boolean =>
-	parts.length > 0 &&
-	parts.every((part) => part.type === "tool-result" && part.provider_executed);
+): boolean => parts.length > 0 && parts.every(isProviderToolResult);
 
 const isMetadataOnlyMessage = (
 	parts: readonly TypesGen.ChatMessagePart[],
@@ -334,7 +339,7 @@ const partFileIds = (part: TypesGen.ChatMessagePart): string[] => {
  * next chat refetch is never mistaken for an evicted one.
  */
 export const deriveEvictedFileIds = (
-	entries: readonly ParsedMessageEntry[],
+	entries: readonly Pick<ParsedMessageEntry, "message">[],
 	chatFiles: readonly TypesGen.ChatFileMetadata[] | undefined,
 ): ReadonlySet<string> => {
 	if (!chatFiles) {
@@ -353,3 +358,44 @@ export const deriveEvictedFileIds = (
 			.filter((fileId) => !linkedFileIds.has(fileId)),
 	);
 };
+
+/** A downloadable file the agent attached, keyed by message and part. */
+export type AgentAttachment = {
+	key: string;
+	file: TypesGen.ChatFilePart;
+	href: string;
+};
+
+/**
+ * Downloadable files the agent attached to its messages, newest first. Files
+ * the user uploaded are left out.
+ */
+export const getAgentAttachments = (
+	messages: readonly TypesGen.ChatMessage[],
+): AgentAttachment[] =>
+	messages
+		.filter((message) => message.role === "assistant")
+		.flatMap((message) =>
+			(message.content ?? []).flatMap((part, partIndex) => {
+				if (part.type !== "file") {
+					return [];
+				}
+				const href = getAttachmentHref(part);
+				return href
+					? [{ key: `${message.id}:${partIndex}`, file: part, href }]
+					: [];
+			}),
+		)
+		.reverse();
+
+/**
+ * Undefined until the chat's first message page reaches the store; gating on
+ * isHydratingMessages alone would blank the list on every live message.
+ */
+export const getLoadedAgentAttachments = (
+	messages: readonly TypesGen.ChatMessage[],
+	isHydratingMessages: boolean,
+): AgentAttachment[] | undefined =>
+	isHydratingMessages && messages.length === 0
+		? undefined
+		: getAgentAttachments(messages);

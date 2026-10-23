@@ -50,7 +50,7 @@ jobs:
       tailnet-integration: ${{ steps.filter.outputs.tailnet-integration }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -155,7 +155,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -325,7 +325,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -333,8 +333,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Depth 2 makes the PR merge commit's first parent (the base
-          # branch tip) available so lint/emdash can diff against HEAD^
-          # without fetching the base branch at runtime.
+          # branch tip) available so lint/emdash and lint/go/new-code can
+          # diff against HEAD^ without fetching the base branch at runtime.
           fetch-depth: 2
           persist-credentials: false
 
@@ -382,11 +382,17 @@ jobs:
         run: helm version --short
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - name: make lint
         # Bound concurrent lint targets to keep peak memory below the runner limit.
         run: make --output-sync=line -j"$(nproc)" lint
+        env:
+          # lint/go/new-code only checks lines changed since this revision.
+          # Pull requests check out the merge commit, whose first parent is
+          # the base branch tip (kept by fetch-depth: 2). Other events compare
+          # HEAD with itself, so the pass reports nothing.
+          GO_LINT_NEW_CODE_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || 'HEAD' }}
 
       - name: Save golangci-lint cache
         # Only the default branch is trusted to write the cache, so PR
@@ -415,7 +421,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04-8' || 'ubuntu-24.04' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -446,7 +452,7 @@ jobs:
     if: needs.changes.outputs.docs-only == 'false' || needs.changes.outputs.docs-gen == 'true' || needs.changes.outputs.ci == 'true' || github.event_name != 'pull_request'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -468,7 +474,7 @@ jobs:
         run: ./.github/scripts/retry.sh -- mise install --locked go:storj.io/drpc/cmd/protoc-gen-go-drpc go:github.com/coder/sqlc/cmd/sqlc
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - name: Start PostgreSQL container
         run: make test-postgres-docker
@@ -496,7 +502,7 @@ jobs:
 
       - name: Upload PostgreSQL logs
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: gen-postgres-logs
           path: postgres.log
@@ -508,7 +514,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -533,7 +539,7 @@ jobs:
         run: ./.github/scripts/retry.sh -- mise install --locked go:mvdan.cc/sh/v3/cmd/shfmt
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod tidy
 
       - name: make fmt
         timeout-minutes: 7
@@ -563,7 +569,7 @@ jobs:
           - windows-2022
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -743,7 +749,7 @@ jobs:
           artifact-name: go-test-failures-${{ github.job }}-${{ github.sha }}
 
       - name: Upload failed test db dumps
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: failed-test-db-dump-${{matrix.os}}
           path: "**/*.test.sql"
@@ -781,7 +787,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -856,7 +862,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -937,7 +943,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -957,7 +963,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y nginx
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - name: Run Tests
         run: make test-tailnet-integration
@@ -969,7 +975,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -1007,7 +1013,7 @@ jobs:
     name: ${{ matrix.variant.name }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -1035,7 +1041,7 @@ jobs:
         working-directory: site
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - run: make site/e2e/bin/coder
         name: make coder
@@ -1084,7 +1090,7 @@ jobs:
 
       - name: Upload Playwright failure artifacts
         if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-artifacts-${{ matrix.variant.name }}-${{ github.sha }}
           path: |
@@ -1101,7 +1107,7 @@ jobs:
 
       - name: Upload debug log
         if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coderd-debug-logs-${{ matrix.variant.name }}-${{ github.sha }}
           path: ./site/e2e/test-results/debug.log
@@ -1109,7 +1115,7 @@ jobs:
 
       - name: Upload pprof dumps
         if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: debug-pprof-dumps-${{ matrix.variant.name }}-${{ github.sha }}
           path: ./site/test-results/**/debug-pprof-*.txt
@@ -1162,7 +1168,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -1187,7 +1193,7 @@ jobs:
         run: ./.github/scripts/retry.sh -- mise install --locked go:storj.io/drpc/cmd/protoc-gen-go-drpc go:github.com/coder/sqlc/cmd/sqlc
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - name: Format
         run: |
@@ -1230,7 +1236,7 @@ jobs:
     if: always()
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -1269,7 +1275,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -1296,7 +1302,7 @@ jobs:
       - name: Build
         run: |
           set -euxo pipefail
-          ./.github/scripts/retry.sh -- go mod download
+          ./.github/scripts/retry.sh --timeout 120 -- go mod download
           make gen/mark-fresh
           make -j build
 
@@ -1322,7 +1328,7 @@ jobs:
       IMAGE: ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -1406,7 +1412,7 @@ jobs:
       - name: Build
         run: |
           set -euxo pipefail
-          ./.github/scripts/retry.sh -- go mod download
+          ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
           version="$(./scripts/version.sh)"
           tag="main-${version//+/-}"
@@ -1599,7 +1605,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           organization: coder
           container: coder-preview
-          keep-younger-than: 7 # days
+          keep-younger-than: 30 # days
           keep-tags: latest
           keep-tags-regexes: ^pr
           prune-tags-regexes: |
@@ -1609,7 +1615,7 @@ jobs:
 
       - name: Upload build artifact (coder-linux-amd64.tar.gz)
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coder-linux-amd64.tar.gz
           path: ./build/*_linux_amd64.tar.gz
@@ -1617,7 +1623,7 @@ jobs:
 
       - name: Upload build artifact (coder-linux-amd64.deb)
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coder-linux-amd64.deb
           path: ./build/*_linux_amd64.deb
@@ -1625,7 +1631,7 @@ jobs:
 
       - name: Upload build artifact (coder-linux-arm64.tar.gz)
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coder-linux-arm64.tar.gz
           path: ./build/*_linux_arm64.tar.gz
@@ -1633,7 +1639,7 @@ jobs:
 
       - name: Upload build artifact (coder-linux-arm64.deb)
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coder-linux-arm64.deb
           path: ./build/*_linux_arm64.deb
@@ -1641,7 +1647,7 @@ jobs:
 
       - name: Upload build artifact (coder-linux-armv7.tar.gz)
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coder-linux-armv7.tar.gz
           path: ./build/*_linux_armv7.tar.gz
@@ -1649,7 +1655,7 @@ jobs:
 
       - name: Upload build artifact (coder-linux-armv7.deb)
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coder-linux-armv7.deb
           path: ./build/*_linux_armv7.deb
@@ -1657,7 +1663,7 @@ jobs:
 
       - name: Upload build artifact (coder-windows-amd64.zip)
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coder-windows-amd64.zip
           path: ./build/*_windows_amd64.zip
@@ -1689,7 +1695,7 @@ jobs:
     if: needs.changes.outputs.db == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -1707,7 +1713,7 @@ jobs:
         run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/coder/sqlc/cmd/sqlc
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - name: Setup and run sqlc vet
         run: |

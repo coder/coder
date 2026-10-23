@@ -556,7 +556,29 @@ export const MockChatProject: TypesGen.ChatProject = {
 	icon: "",
 	created_at: "2026-09-01T12:00:00Z",
 	updated_at: "2026-09-02T12:00:00Z",
+	permissions: { update: true, delete: true, share: true },
 };
+
+export const MockChatProjectInstructions: TypesGen.ChatProjectInstructions = {
+	project_id: MockChatProject.id,
+	instructions:
+		"Use TypeScript for new code.\nRun the linters before committing.",
+	updated_by: {
+		id: MockUserOwner.id,
+		username: MockUserOwner.username,
+		name: MockUserOwner.name,
+		avatar_url: MockUserOwner.avatar_url,
+	},
+	updated_at: "2026-10-02T12:00:00Z",
+};
+
+export const MockUnsetChatProjectInstructions: TypesGen.ChatProjectInstructions =
+	{
+		project_id: MockChatProject.id,
+		instructions: "",
+		updated_by: null,
+		updated_at: null,
+	};
 
 export const MockUserMember: TypesGen.User = {
 	id: "test-user-2",
@@ -1106,6 +1128,7 @@ const MockWorkspaceAgentScript: TypesGen.WorkspaceAgentScript = {
 	start_blocks_login: false,
 	timeout: 0,
 	display_name: "Startup Script",
+	resource_address: "",
 };
 
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
@@ -1349,6 +1372,22 @@ export const MockWorkspaceAgentStartError: TypesGen.WorkspaceAgent = {
 			log_source_id: "d2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
 			display_name: "running",
 		},
+		{
+			...MockWorkspaceAgentScript,
+			id: "58eaca83-1221-4fad-b882-d1136981f54d",
+			log_source_id: "e2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			exit_code: 0,
+			status: "skipped",
+			display_name: "skipped",
+		},
+		{
+			...MockWorkspaceAgentScript,
+			id: "68eaca83-1221-4fad-b882-d1136981f54d",
+			log_source_id: "f2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			exit_code: 0,
+			status: "canceled",
+			display_name: "canceled",
+		},
 	],
 	logs_length: 4,
 	log_sources: [
@@ -1374,6 +1413,16 @@ export const MockWorkspaceAgentStartError: TypesGen.WorkspaceAgent = {
 			...MockWorkspaceAgentLogSource,
 			id: "d2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
 			display_name: "running",
+		},
+		{
+			...MockWorkspaceAgentLogSource,
+			id: "e2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			display_name: "skipped",
+		},
+		{
+			...MockWorkspaceAgentLogSource,
+			id: "f2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			display_name: "canceled",
 		},
 	],
 };
@@ -3110,6 +3159,7 @@ export const MockWebConnectionLog: TypesGen.ConnectionLog = {
 	agent_name: "dev",
 	ip: "127.0.0.1",
 	type: "workspace_app",
+	connection_method: "workspace_app",
 	web_info: {
 		user_agent:
 			'"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36"',
@@ -3129,6 +3179,7 @@ const MockTunnelWebInfo: TypesGen.ConnectionLogWebInfo = {
 export const MockTunnelConnectionLog: TypesGen.ConnectionLog = {
 	...MockWebConnectionLog,
 	type: "tunnel",
+	connection_method: "tunnel",
 	web_info: MockTunnelWebInfo,
 };
 
@@ -3157,6 +3208,7 @@ export const MockConnectedSSHConnectionLog: TypesGen.ConnectionLog = {
 	agent_name: "dev",
 	ip: "127.0.0.1",
 	type: "ssh",
+	connection_method: "ssh",
 	ssh_info: {
 		connection_id: "026c8c11-fc5c-4df8-a286-5fe6d7f54f98",
 		disconnect_reason: undefined,
@@ -3181,6 +3233,7 @@ export const MockDisconnectedSSHConnectionLog: TypesGen.ConnectionLog = {
 	agent_name: "dev",
 	ip: "127.0.0.1",
 	type: "ssh",
+	connection_method: "ssh",
 	ssh_info: {
 		connection_id: "026c8c11-fc5c-4df8-a286-5fe6d7f54f98",
 		disconnect_reason: "server shut down",
@@ -3382,6 +3435,14 @@ export const MockMCPServerConfigACLAvailable: TypesGen.ACLAvailable = {
 	groups: [MockGroup, MockGroup2, MockEveryoneGroup],
 };
 
+export const MockOrganizationSkillACL: TypesGen.OrganizationSkillACL = {
+	users: [{ ...MockUserMember, role: "read" }],
+	groups: [
+		{ ...MockGroup, role: "read" },
+		{ ...MockEveryoneGroup, role: "read" },
+	],
+};
+
 export const MockTemplateACL: TypesGen.TemplateACL = {
 	group: [
 		{ ...MockEveryoneGroup, role: "use" },
@@ -3445,6 +3506,7 @@ export const MockPermissions: Permissions = {
 	editAnySettings: true,
 	viewAnyIdpSyncSettings: true,
 	viewAnyMCPServerConfigs: true,
+	viewAnyOrganizationSkills: true,
 	createAnyMCPServerConfig: true,
 	updateAnyMCPServerConfig: true,
 	deleteAnyMCPServerConfig: true,
@@ -3492,6 +3554,7 @@ export const MockNoPermissions: Permissions = {
 	editAnySettings: false,
 	viewAnyIdpSyncSettings: false,
 	viewAnyMCPServerConfigs: false,
+	viewAnyOrganizationSkills: false,
 	createAnyMCPServerConfig: false,
 	updateAnyMCPServerConfig: false,
 	deleteAnyMCPServerConfig: false,
@@ -3533,6 +3596,11 @@ export const MockOrganizationPermissions: OrganizationPermissions = {
 	updateMCPServerConfig: true,
 	deleteMCPServerConfig: true,
 	shareMCPServerConfig: true,
+	viewOrganizationSkills: true,
+	createOrganizationSkill: true,
+	updateOrganizationSkill: true,
+	deleteOrganizationSkill: true,
+	shareOrganizationSkill: true,
 	viewChatModelConfigs: true,
 	createChatModelConfigs: true,
 	editChatModelConfigs: true,
@@ -3562,6 +3630,11 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	updateMCPServerConfig: false,
 	deleteMCPServerConfig: false,
 	shareMCPServerConfig: false,
+	viewOrganizationSkills: false,
+	createOrganizationSkill: false,
+	updateOrganizationSkill: false,
+	deleteOrganizationSkill: false,
+	shareOrganizationSkill: false,
 	viewChatModelConfigs: false,
 	createChatModelConfigs: false,
 	editChatModelConfigs: false,

@@ -265,25 +265,34 @@ Below are recommended instance types for each major cloud provider:
 
 ##### AWS (RDS/Aurora PostgreSQL)
 
-- **Small deployments (<1000 users)**: `db.m6i.large` (2&nbsp;vCPU, 8&nbsp;GB RAM) or `db.r6i.large` (2&nbsp;vCPU, 16&nbsp;GB RAM)
-- **Medium deployments (1000-2000 users)**: `db.m6i.xlarge` (4&nbsp;vCPU, 16&nbsp;GB RAM) or `db.r6i.xlarge` (4&nbsp;vCPU, 32&nbsp;GB RAM)
-- **Large deployments (2000+ users)**: `db.m6i.2xlarge` (8&nbsp;vCPU, 32&nbsp;GB RAM) or `db.r6i.2xlarge` (8&nbsp;vCPU, 64&nbsp;GB RAM)
+- **Small deployments (<1000 users)**:
+  `db.m6i.large` (2&nbsp;vCPU, 8&nbsp;GB RAM) or `db.r6i.large` (2&nbsp;vCPU, 16&nbsp;GB RAM)
+- **Medium deployments (1000-2000 users)**:
+  `db.m6i.xlarge` (4&nbsp;vCPU, 16&nbsp;GB RAM) or `db.r6i.xlarge` (4&nbsp;vCPU, 32&nbsp;GB RAM)
+- **Large deployments (2000+ users)**:
+  `db.m6i.2xlarge` (8&nbsp;vCPU, 32&nbsp;GB RAM) or `db.r6i.2xlarge` (8&nbsp;vCPU, 64&nbsp;GB RAM)
 
 [Comparison](https://instances.vantage.sh/rds?memory_expr=%3E%3D0&vcpus_expr=%3E%3D0&memory_per_vcpu_expr=%3E%3D0&gpu_memory_expr=%3E%3D0&gpus_expr=%3E%3D0&maxips_expr=%3E%3D0&storage_expr=%3E%3D0&filter=db.r6i.large%7Cdb.m6i.large%7Cdb.m6i.xlarge%7Cdb.r6i.xlarge%7Cdb.r6i.2xlarge%7Cdb.m6i.2xlarge&region=us-east-1&pricing_unit=instance&cost_duration=hourly&reserved_term=yrTerm1Standard.noUpfront&compare_on=true)
 
 ##### Azure (Azure Database for PostgreSQL)
 
-- **Small deployments (<1000 users)**: `Standard_D2s_v5` (2&nbsp;vCPU, 8&nbsp;GB RAM) or `Standard_E2s_v5` (2&nbsp;vCPU, 16&nbsp;GB RAM)
-- **Medium deployments (1000-2000 users)**: `Standard_D4s_v5` (4&nbsp;vCPU, 16&nbsp;GB RAM) or `Standard_E4s_v5` (4&nbsp;vCPU, 32&nbsp;GB RAM)
-- **Large deployments (2000+ users)**: `Standard_D8s_v5` (8&nbsp;vCPU, 32&nbsp;GB RAM) or `Standard_E8s_v5` (8&nbsp;vCPU, 64&nbsp;GB RAM)
+- **Small deployments (<1000 users)**:
+  `Standard_D2s_v5` (2&nbsp;vCPU, 8&nbsp;GB RAM) or `Standard_E2s_v5` (2&nbsp;vCPU, 16&nbsp;GB RAM)
+- **Medium deployments (1000-2000 users)**:
+  `Standard_D4s_v5` (4&nbsp;vCPU, 16&nbsp;GB RAM) or `Standard_E4s_v5` (4&nbsp;vCPU, 32&nbsp;GB RAM)
+- **Large deployments (2000+ users)**:
+  `Standard_D8s_v5` (8&nbsp;vCPU, 32&nbsp;GB RAM) or `Standard_E8s_v5` (8&nbsp;vCPU, 64&nbsp;GB RAM)
 
 [Comparison](https://instances.vantage.sh/azure?memory_expr=%3E%3D0&vcpus_expr=%3E%3D0&memory_per_vcpu_expr=%3E%3D0&gpu_memory_expr=%3E%3D0&gpus_expr=%3E%3D0&maxips_expr=%3E%3D0&storage_expr=%3E%3D0&filter=d2s-v5%7Ce2s-v5%7Cd4s-v5%7Ce4s-v5%7Ce8s-v5%7Cd8s-v5&region=us-east&pricing_unit=instance&cost_duration=hourly&reserved_term=yrTerm1Standard.allUpfront&compare_on=true)
 
 ##### Google Cloud (Cloud SQL for PostgreSQL)
 
-- **Small deployments (<1000 users)**: `db-perf-optimized-N-2` (2&nbsp;vCPU, 16&nbsp;GB RAM)
-- **Medium deployments (1000-2000 users)**: `db-perf-optimized-N-4` (4&nbsp;vCPU, 32&nbsp;GB RAM)
-- **Large deployments (2000+ users)**: `db-perf-optimized-N-8` (8&nbsp;vCPU, 64&nbsp;GB RAM)
+- **Small deployments (<1000 users)**:
+  `db-perf-optimized-N-2` (2&nbsp;vCPU, 16&nbsp;GB RAM)
+- **Medium deployments (1000-2000 users)**:
+  `db-perf-optimized-N-4` (4&nbsp;vCPU, 32&nbsp;GB RAM)
+- **Large deployments (2000+ users)**:
+  `db-perf-optimized-N-8` (8&nbsp;vCPU, 64&nbsp;GB RAM)
 
 [Comparison](https://cloud.google.com/sql/docs/postgres/machine-series-overview#n2)
 
@@ -291,13 +300,16 @@ Below are recommended instance types for each major cloud provider:
 
 For optimal database performance, use the following storage types:
 
-- **AWS RDS/Aurora**: Use `gp3` (General Purpose SSD) volumes with at least 3,000 IOPS for production workloads.
+- **AWS RDS/Aurora**:
+  Use `gp3` (General Purpose SSD) volumes with at least 3,000 IOPS for production workloads.
   For high-performance requirements, consider `io1` or `io2` volumes with provisioned IOPS.
 
-- **Azure Database for PostgreSQL**: Use Premium SSD (P-series) with appropriate IOPS and throughput provisioning.
+- **Azure Database for PostgreSQL**:
+  Use Premium SSD (P-series) with appropriate IOPS and throughput provisioning.
   Standard SSD can be used for development/test environments.
 
-- **Google Cloud SQL**: Use SSD persistent disks for production workloads.
+- **Google Cloud SQL**:
+  Use SSD persistent disks for production workloads.
   Standard (HDD) persistent disks are suitable only for development or low-performance requirements.
 
 If you enable [database encryption](../../../admin/security/database-encryption.md) in Coder, consider allocating an additional CPU core to every `coderd` replica.

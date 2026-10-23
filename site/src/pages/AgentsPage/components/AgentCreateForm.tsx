@@ -1,8 +1,12 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { useQuery } from "react-query";
-import { toast } from "sonner";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
+import {
+	chatProjects,
+	chatProjectsKey,
+	createChatProject,
+} from "#/api/queries/chatProjects";
 import {
 	chatModels,
 	mcpServerConfigs,
@@ -13,6 +17,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { toast } from "#/components/Toaster/toast";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { getWorkspaceAgents } from "#/utils/workspace";
 import {
@@ -23,6 +28,7 @@ import {
 	useWorkspaceFileUploads,
 	type WorkspaceFileUpload,
 } from "../hooks/useWorkspaceFileUploads";
+import type { ChatComposerContentPart } from "../utils/chatInputContent";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
 	getDefaultMCPSelection,
@@ -43,7 +49,7 @@ import {
 	pickReasoningEffort,
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
-import { AgentChatInput } from "./AgentChatInput";
+import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
 import {
 	isChatHookDeniedResponse,
@@ -51,6 +57,8 @@ import {
 } from "./ChatConversation/chatError";
 import { getErrorTitle } from "./ChatConversation/chatStatusHelpers";
 import { CompactOrgSelector } from "./ChatElements/CompactOrgSelector";
+import { CompactProjectSelector } from "./ChatElements/CompactProjectSelector";
+import { ChatProjectDialog } from "./ChatsSidebar/dialogs/ChatProjectDialog";
 import { getModelSelectorHelp } from "./ModelSelectorHelp";
 
 /** @internal Exported for testing. */
@@ -70,6 +78,8 @@ const attachDuringSubmitMessage =
 
 export type CreateChatOptions = {
 	message: string;
+	/** Composer text and chips in document order. */
+	composerParts?: readonly ChatComposerContentPart[];
 	fileIDs?: string[];
 	workspaceId?: string;
 	model?: string;
@@ -323,7 +333,8 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 	prefill,
 	fillWidth,
 }) => {
-	const { organizations, showOrganizations } = useDashboard();
+	const { organizations, showOrganizations, experiments } = useDashboard();
+	const queryClient = useQueryClient();
 	const lockedOrganizationId = project?.organization_id;
 	const draftKeys = draftStorageKeys(project?.id);
 	const {
@@ -429,6 +440,41 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 	) {
 		setSelectedOrg(effectiveOrg);
 	}
+	// The project picker only exists on the general composer; a `project` prop
+	// already fixes the project. The selection is not saved, so a remembered
+	// choice cannot silently file later chats into a project.
+	const isProjectPickerEnabled =
+		!project && experiments.includes("chat-projects");
+	const projectsQuery = useQuery({
+		...chatProjects(),
+		enabled: isProjectPickerEnabled,
+	});
+	// Holds the project itself, not just its ID, so a project created while
+	// the list cannot load stays selected.
+	const [pickedProject, setPickedProject] =
+		useState<TypesGen.ChatProject | null>(null);
+	// The server rejects a project from another organization, so only the
+	// effective organization's projects are offered.
+	const organizationProjects = (projectsQuery.data ?? []).filter(
+		(chatProject) => chatProject.organization_id === organizationId,
+	);
+	// A loaded list is authoritative: it drops a deleted project and supplies
+	// the latest name and icon.
+	const selectedProject =
+		isProjectPickerEnabled && pickedProject?.organization_id === organizationId
+			? projectsQuery.data === undefined
+				? pickedProject
+				: (organizationProjects.find(
+						(chatProject) => chatProject.id === pickedProject.id,
+					) ?? null)
+			: null;
+	const chatProjectId = project?.id ?? selectedProject?.id;
+	const createProjectMutation = useMutation(createChatProject(queryClient));
+	const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
+	const openCreateProjectDialog = () => {
+		createProjectMutation.reset();
+		setIsCreateProjectOpen(true);
+	};
 	// Clear a workspace after a settled org change, before its localStorage value
 	// is cleared post-commit. A locked form clears only the in-memory selection,
 	// so the user's saved workspace is kept. An empty permission set has no
@@ -443,6 +489,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		if (lastSettledOrgId !== null) {
 			setSelectedWorkspaceId(null);
 			setUserMCPServerIds(null);
+			setPickedProject(null);
 		}
 	}
 	useEffect(() => {
@@ -622,6 +669,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 
 	const selectOrganization = (organization: TypesGen.Organization) => {
 		setUserMCPServerIds(null);
+		setPickedProject(null);
 		setSelectedOrg(organization);
 	};
 
@@ -705,6 +753,18 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 			(agent) => !agent.parent_id && agent.status === "connected",
 		);
 
+	const chatInputRef = useRef<ChatMessageInputRef>(null);
+	// The editor lives outside React state, so drop chips whose scope changed.
+	const lastChipScopeRef = useRef({ organizationId, chatProjectId });
+	useEffect(() => {
+		const last = lastChipScopeRef.current;
+		lastChipScopeRef.current = { organizationId, chatProjectId };
+		if (last.organizationId && last.organizationId !== organizationId) {
+			chatInputRef.current?.removeSkills(["org", "project"]);
+		} else if (!chatProjectId || last.chatProjectId !== chatProjectId) {
+			chatInputRef.current?.removeSkills(["project"]);
+		}
+	}, [organizationId, chatProjectId]);
 	const handleSend = async (
 		message: string,
 		fileIDs?: string[],
@@ -713,12 +773,13 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		submitDraft();
 		await onCreateChat({
 			message,
+			composerParts: chatInputRef.current?.getContentParts(),
 			fileIDs,
 			workspaceId: effectiveWorkspaceId ?? undefined,
 			model: submittedModel,
 			reasoningEffort: effectiveReasoningEffort,
 			organizationId,
-			projectId: project?.id,
+			projectId: chatProjectId,
 			mcpServerIds:
 				effectiveMCPServerIds.length > 0
 					? [...effectiveMCPServerIds]
@@ -865,6 +926,13 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		}
 	}, [prefillFile, canAttachPrefillFile]);
 
+	const showOrgSelector =
+		showOrganizations && isUserOrgSelectionActive && permittedOrgs.length > 1;
+	// Waits for the organization to settle so the list is scoped to the
+	// organization the chat is created in.
+	const showProjectSelector =
+		isProjectPickerEnabled && isUserOrgSelectionActive && !isForbidden;
+
 	return (
 		<>
 			<div className="flex w-full flex-col gap-2">
@@ -921,38 +989,58 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 				{personalModelOverridesQuery.error != null && (
 					<ErrorAlert error={personalModelOverridesQuery.error} />
 				)}
-				{showOrganizations &&
-					isUserOrgSelectionActive &&
-					permittedOrgs.length > 1 && (
-						<CompactOrgSelector
-							value={effectiveOrg}
-							options={permittedOrgs}
-							disabled={isSubmitPending}
-							onChange={(newOrg) => {
-								const orgChanged = newOrg.id !== effectiveOrg?.id;
-								// Queued workspace files are dropped alongside DB
-								// attachments when the org changes (the workspace
-								// deselect effect clears them), so they get the
-								// same confirmation.
-								if (
-									orgChanged &&
-									(attachments.length > 0 || workspaceUploadCount > 0)
-								) {
-									setPendingOrgChange(newOrg);
-									return;
+				{(showOrgSelector || showProjectSelector) && (
+					<div className="flex min-w-0 items-center gap-1">
+						{showOrgSelector && (
+							<CompactOrgSelector
+								value={effectiveOrg}
+								options={permittedOrgs}
+								disabled={isSubmitPending}
+								onChange={(newOrg) => {
+									const orgChanged = newOrg.id !== effectiveOrg?.id;
+									// Queued workspace files are dropped alongside DB
+									// attachments when the org changes (the workspace
+									// deselect effect clears them), so they get the
+									// same confirmation.
+									if (
+										orgChanged &&
+										(attachments.length > 0 || workspaceUploadCount > 0)
+									) {
+										setPendingOrgChange(newOrg);
+										return;
+									}
+									if (orgChanged) {
+										setSelectedWorkspaceId(null);
+										selectOrganization(newOrg);
+										return;
+									}
+									setSelectedOrg(newOrg);
+								}}
+							/>
+						)}
+						{showProjectSelector && (
+							<CompactProjectSelector
+								value={selectedProject}
+								options={organizationProjects}
+								onChange={setPickedProject}
+								onCreateProject={openCreateProjectDialog}
+								isLoading={projectsQuery.isLoading}
+								// A failed background refetch keeps the cached list usable.
+								error={
+									projectsQuery.data === undefined
+										? projectsQuery.error
+										: undefined
 								}
-								if (orgChanged) {
-									setSelectedWorkspaceId(null);
-									selectOrganization(newOrg);
-									return;
-								}
-								setSelectedOrg(newOrg);
-							}}
-						/>
-					)}
+								onRetry={() => void projectsQuery.refetch()}
+								disabled={isSubmitPending}
+							/>
+						)}
+					</div>
+				)}
 				<AgentChatInput
 					fillWidth={fillWidth}
 					onSend={handleSendWithAttachments}
+					inputRef={chatInputRef}
 					placeholder="Ask Coder to build, fix bugs, or explore your project..."
 					isDisabled={
 						isSubmitPending ||
@@ -1006,6 +1094,8 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 					}}
 					mcpServers={mcpServers}
 					chatOrganizationId={organizationId}
+					chatProjectId={chatProjectId}
+					showProjectActions={project !== undefined}
 					selectedMCPServerIds={effectiveMCPServerIds}
 					onMCPSelectionChange={(ids) => {
 						setUserMCPServerIds(ids);
@@ -1058,6 +1148,41 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 				}}
 				onClose={() => setPendingOrgChange(null)}
 			/>
+			{isProjectPickerEnabled && (
+				<ChatProjectDialog
+					organizations={effectiveOrg ? [effectiveOrg] : []}
+					initialOrganizationId={effectiveOrg?.id}
+					open={isCreateProjectOpen}
+					onOpenChange={setIsCreateProjectOpen}
+					isSubmitting={createProjectMutation.isPending}
+					error={createProjectMutation.error}
+					onSubmit={({ organizationId: projectOrganizationId, ...request }) => {
+						if (!projectOrganizationId) {
+							return;
+						}
+						createProjectMutation.mutate(
+							{ organizationId: projectOrganizationId, request },
+							{
+								// Runs after the list refetch settles. A loaded list gets the
+								// project in case that refetch failed. An unloaded list is not
+								// replaced by a partial one; the selection falls back to the
+								// picked project instead.
+								onSuccess: (chatProject) => {
+									queryClient.setQueryData(
+										chatProjectsKey,
+										(projects: TypesGen.ChatProject[] | undefined) =>
+											projects?.some(({ id }) => id === chatProject.id)
+												? projects
+												: projects && [...projects, chatProject],
+									);
+									setPickedProject(chatProject);
+									setIsCreateProjectOpen(false);
+								},
+							},
+						);
+					}}
+				/>
+			)}
 		</>
 	);
 };

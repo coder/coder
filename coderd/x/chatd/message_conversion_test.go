@@ -33,6 +33,12 @@ func TestBuildCommitStepMessages_AssistantTextAndReasoning(t *testing.T) {
 		modelConfigID:  modelConfigID,
 		contentVersion: chatprompt.CurrentContentVersion,
 		logger:         slog.Make(),
+		reasoningProvenance: reasoningProvenance{
+			ProviderIdentity: "provider-a",
+			Model:            "model-a",
+			Credential:       reasoningCredentialUser,
+			Epoch:            2,
+		},
 		step: stepData{
 			Content: []fantasy.Content{
 				fantasy.ReasoningContent{Text: "thinking"},
@@ -56,8 +62,16 @@ func TestBuildCommitStepMessages_AssistantTextAndReasoning(t *testing.T) {
 	require.Equal(t, "thinking", parts[0].Text)
 	require.Equal(t, startedAt, requireNotNilTime(t, parts[0].CreatedAt))
 	require.Equal(t, completedAt, requireNotNilTime(t, parts[0].CompletedAt))
+	require.Equal(t, "provider-a", parts[0].ProviderIdentity)
+	require.Equal(t, "model-a", parts[0].ProviderModel)
+	require.Equal(t, reasoningCredentialUser, parts[0].ProviderCredential)
+	require.Equal(t, 2, parts[0].ReasoningEpoch)
 	require.Equal(t, codersdk.ChatMessagePartTypeText, parts[1].Type)
 	require.Equal(t, "hello", parts[1].Text)
+	require.Empty(t, parts[1].ProviderIdentity)
+	require.Empty(t, parts[1].ProviderModel)
+	require.Empty(t, parts[1].ProviderCredential)
+	require.Zero(t, parts[1].ReasoningEpoch)
 }
 
 func TestBuildCommitStepMessages_LocalToolResultsBecomeToolMessages(t *testing.T) {
@@ -302,7 +316,7 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 		contentVersion: chatprompt.CurrentContentVersion,
 		toolCallID:     "summary-1",
 		toolName:       "chat_summarized",
-		compaction: compactionOutcome{
+		compaction: chatloop.CompactionResult{
 			SystemSummary:          "system summary",
 			SummaryReport:          "user report",
 			ThresholdPercent:       70,
@@ -362,7 +376,7 @@ func TestBuildCompactionMessages_ZeroRuntimeLeavesRuntimeNull(t *testing.T) {
 		contentVersion: chatprompt.CurrentContentVersion,
 		toolCallID:     "summary-1",
 		toolName:       "chat_summarized",
-		compaction: compactionOutcome{
+		compaction: chatloop.CompactionResult{
 			SystemSummary:    "system summary",
 			SummaryReport:    "user report",
 			ThresholdPercent: 70,
@@ -515,7 +529,7 @@ func TestBuildCompactionMessages_ManualSource(t *testing.T) {
 		contentVersion: chatprompt.CurrentContentVersion,
 		toolCallID:     "summary-1",
 		toolName:       "chat_summarized",
-		compaction: compactionOutcome{
+		compaction: chatloop.CompactionResult{
 			SystemSummary:          "system summary",
 			SummaryReport:          "user report",
 			Source:                 chatloop.CompactionSourceManual,
@@ -1370,7 +1384,7 @@ func TestBuildCompactionMessages_ReplaysPendingUserMessages(t *testing.T) {
 		contentVersion: chatprompt.CurrentContentVersion,
 		toolCallID:     "summary-1",
 		toolName:       "chat_summarized",
-		compaction: compactionOutcome{
+		compaction: chatloop.CompactionResult{
 			SystemSummary:    "system summary",
 			SummaryReport:    "user report",
 			ThresholdPercent: 70,

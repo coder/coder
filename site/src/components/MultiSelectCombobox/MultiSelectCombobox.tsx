@@ -492,7 +492,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 									<div className="flex items-center gap-1">
 										{option.icon && (
 											<Avatar
-												size="sm"
+												size="xs"
 												src={option.icon}
 												fallback={option.label}
 											/>
@@ -541,7 +541,9 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 							}}
 							onFocus={(event) => {
 								setOpen(true);
-								triggerSearchOnFocus && onSearch?.(debouncedSearchTerm);
+								if (triggerSearchOnFocus) {
+									onSearch?.(debouncedSearchTerm);
+								}
 								inputProps?.onFocus?.(event);
 							}}
 							placeholder={

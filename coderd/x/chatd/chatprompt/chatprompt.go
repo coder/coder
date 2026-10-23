@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -651,12 +652,14 @@ func sdkPartFromContent(
 		return codersdk.ChatMessagePart{
 			Type:             codersdk.ChatMessagePartTypeText,
 			Text:             value.Text,
+			Narration:        IsNarration(value.ProviderMetadata),
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case *fantasy.TextContent:
 		return codersdk.ChatMessagePart{
 			Type:             codersdk.ChatMessagePartTypeText,
 			Text:             value.Text,
+			Narration:        IsNarration(value.ProviderMetadata),
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case fantasy.ReasoningContent:
@@ -730,6 +733,17 @@ func sdkPartFromContent(
 	default:
 		return codersdk.ChatMessagePart{}
 	}
+}
+
+// IsNarration reports whether the provider labeled text as commentary on
+// the model's work rather than its answer.
+func IsNarration(metadata fantasy.ProviderMetadata) bool {
+	for _, data := range metadata {
+		if text, ok := data.(*fantasyopenai.ResponsesTextMetadata); ok && text != nil {
+			return text.Phase == "commentary"
+		}
+	}
+	return false
 }
 
 // toolResultContentToPart converts a fantasy ToolResultContent into a
@@ -1321,6 +1335,32 @@ func workspaceFilePartToText(part codersdk.ChatMessagePart, chatWorkspaceID uuid
 	return sb.String()
 }
 
+// SkillInvocationAlias returns the source-qualified name of the skill a
+// skill-invocation part invokes, such as "project/triage".
+func SkillInvocationAlias(part codersdk.ChatMessagePart) string {
+	return string(part.SkillSource) + "/" + part.SkillName
+}
+
+// invokedSkillTagPattern matches opening and closing <invoked-skill> tags,
+// including case and spacing variants.
+var invokedSkillTagPattern = regexp.MustCompile(`(?i)<\s*/?\s*invoked-skill\b[^>]*>`)
+
+// skillInvocationPartToText tells the model which skill the user invoked
+// and includes the skill body loaded at send time. Wrapper tags inside the
+// body are escaped so it cannot end the block early.
+func skillInvocationPartToText(part codersdk.ChatMessagePart) string {
+	alias := SkillInvocationAlias(part)
+	text := fmt.Sprintf("The user invoked the %s skill for this message. Follow its instructions.", alias)
+	body := strings.TrimSpace(codersdk.SanitizePromptText(part.SkillBody))
+	if body == "" {
+		return text
+	}
+	body = invokedSkillTagPattern.ReplaceAllStringFunc(body, func(tag string) string {
+		return "&lt;" + tag[1:len(tag)-1] + "&gt;"
+	})
+	return text + "\n<invoked-skill name=\"" + alias + "\">\n" + body + "\n</invoked-skill>"
+}
+
 // toolResultPartToMessagePart converts an SDK tool-result part
 // into a fantasy ToolResultPart for LLM dispatch.
 func toolResultPartToMessagePart(logger slog.Logger, part codersdk.ChatMessagePart) fantasy.ToolResultPart {
@@ -1481,7 +1521,9 @@ func partsToMessageParts(
 			})
 		case codersdk.ChatMessagePartTypeReasoning:
 			opts := providerMetadataToOptions(logger, part.ProviderMetadata)
-			if strings.TrimSpace(part.Text) == "" && !chatsanitize.HasAnthropicSignedReasoningOptions(opts) {
+			if strings.TrimSpace(part.Text) == "" &&
+				!chatsanitize.HasAnthropicSignedReasoningOptions(opts) &&
+				!chatsanitize.HasOpenAIReasoningOptions(opts) {
 				continue
 			}
 			result = append(result, fantasy.ReasoningPart{
@@ -1581,6 +1623,10 @@ func partsToMessageParts(
 		case codersdk.ChatMessagePartTypeWorkspaceFileReference:
 			result = append(result, fantasy.TextPart{
 				Text: workspaceFilePartToText(part, chatWorkspaceID),
+			})
+		case codersdk.ChatMessagePartTypeSkillInvocation:
+			result = append(result, fantasy.TextPart{
+				Text: skillInvocationPartToText(part),
 			})
 		case codersdk.ChatMessagePartTypeContextFile:
 			if part.ContextFileContent == "" {
@@ -1895,10 +1941,14 @@ var partNulFields = []partNulField{
 	{name: "ProviderMetadata", policy: nulEncode, raw: func(p *codersdk.ChatMessagePart) *json.RawMessage { return &p.ProviderMetadata }},
 	{name: "ContextFileContent", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.ContextFileContent }},
 	{name: "SkillDescription", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillDescription }},
+	{name: "SkillBody", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillBody }},
 	{name: "Type", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return (*string)(&p.Type) }},
 	{name: "ToolCallID", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ToolCallID }},
 	{name: "ToolName", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ToolName }},
 	{name: "ParsedCommands", policy: nulReject, grid: func(p *codersdk.ChatMessagePart) [][]string { return p.ParsedCommands }},
+	{name: "ProviderIdentity", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ProviderIdentity }},
+	{name: "ProviderModel", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ProviderModel }},
+	{name: "ProviderCredential", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ProviderCredential }},
 	{name: "SourceID", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.SourceID }},
 	{name: "URL", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.URL }},
 	{name: "MediaType", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.MediaType }},
@@ -1909,6 +1959,7 @@ var partNulFields = []partNulField{
 	{name: "ContextFileDirectory", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ContextFileDirectory }},
 	{name: "ContextFileSkillMetaFile", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ContextFileSkillMetaFile }},
 	{name: "SkillName", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillName }},
+	{name: "SkillSource", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return (*string)(&p.SkillSource) }},
 	{name: "SkillDir", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillDir }},
 	{name: "WorkspaceFilePath", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.WorkspaceFilePath }},
 	{name: "WorkspaceFileName", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.WorkspaceFileName }},

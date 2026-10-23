@@ -1476,6 +1476,40 @@ export const UserMessageWithInlineFileRef: Story = {
 	},
 };
 
+export const UserMessageWithSkillChips: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "Use " },
+					{
+						type: "skill-invocation",
+						skill_source: "project",
+						skill_name: "triage",
+					},
+					{ type: "text", text: " on the flaky test." },
+				],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "user",
+				content: [
+					{
+						type: "skill-invocation",
+						skill_source: "personal",
+						skill_name: "release-notes",
+					},
+				],
+			},
+		]),
+	},
+};
+
 export const MetadataOnlyUserMessageRendersNoRow: Story = {
 	args: {
 		...defaultArgs,
@@ -1675,6 +1709,7 @@ export const UserMessageCopyButton: Story = {
 		expect(args.onEditUserMessage).toHaveBeenCalledWith(
 			1,
 			"Can you fix this bug?",
+			undefined,
 			undefined,
 		);
 

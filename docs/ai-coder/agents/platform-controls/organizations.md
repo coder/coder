@@ -22,6 +22,8 @@ Running more than 1 organization requires a [Premium license](../../../admin/use
 | Personal model overrides        | User, per organization | **Agents** > **Settings** > **Agents**                                     |
 | Personal override toggle        | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**   |
 | MCP servers                     | Organization           | **Admin settings** > **AI** > **Coder Agents** > **MCP servers**           |
+| Organization skills             | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Skills**                |
+| Personal skills                 | User                   | **Agents** > **Settings** > **Skills**                                     |
 | System prompt                   | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
 | Organization instructions       | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
 | Plan mode instructions          | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
@@ -115,9 +117,8 @@ You can add only the members and the groups of the organization that owns the mo
 To change a model's access list, open **Model actions** > **Manage permissions** on the **Models** page.
 Refer to [Manage model permissions](../models.md#manage-model-permissions) for the steps.
 
-To change an MCP server's access list, open **Server actions** >
-**Manage permissions** on the **MCP servers** page. Refer to
-[Access control](./mcp-servers.md#access-control) for details.
+To change an MCP server's access list, open **Server actions** > **Manage permissions** on the **MCP servers** page.
+Refer to [Access control](./mcp-servers.md#access-control) for details.
 
 You can also use the API:
 

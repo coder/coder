@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("sonner", () => ({
+vi.mock("#/components/Toaster/toast", () => ({
 	toast: {
 		info: vi.fn(),
 		error: vi.fn(),
 	},
 }));
 
-import { toast } from "sonner";
 import type { ChatMessage } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import {
 	MockChatMessage,
@@ -46,6 +46,8 @@ const buildParams = (
 		hasModelOptions: true,
 		isEditReasoningEffortDirtyRef: { current: false },
 		personalSkills: [],
+		organizationSkills: [],
+		projectSkills: [],
 		workspaceSkills: [],
 		compact: vi.fn().mockResolvedValue(undefined),
 		clearChatContext: vi.fn().mockResolvedValue(undefined),
@@ -148,25 +150,63 @@ describe("submitChatTurn", () => {
 		expect(sendMessage).not.toHaveBeenCalled();
 	});
 
-	it("throws BuiltInCommandPendingError while slash-command skills are unresolved", async () => {
-		const compact = vi.fn();
+	it.each([
+		["compact", "personalSkills"],
+		["clear", "organizationSkills"],
+		["compact", "projectSkills"],
+	] as const)(
+		"throws BuiltInCommandPendingError for /%s while %s is unresolved",
+		async (command, unknownList) => {
+			const compact = vi.fn();
+			const clearChatContext = vi.fn();
+			const sendMessage = vi.fn();
+			await expect(
+				submitChatTurn(
+					buildParams({
+						message: `/${command}`,
+						[unknownList]: undefined,
+						compact,
+						clearChatContext,
+						sendMessage,
+					}),
+				),
+			).rejects.toBeInstanceOf(BuiltInCommandPendingError);
+			expect(toast.info).toHaveBeenCalledWith(
+				`Checking whether /${command} is available. Try again in a moment.`,
+			);
+			expect(compact).not.toHaveBeenCalled();
+			expect(clearChatContext).not.toHaveBeenCalled();
+			expect(sendMessage).not.toHaveBeenCalled();
+		},
+	);
+
+	it("clears instead of sending when every skill list is known", async () => {
+		const clearChatContext = vi.fn().mockResolvedValue(undefined);
 		const sendMessage = vi.fn();
-		await expect(
-			submitChatTurn(
-				buildParams({
-					message: "/compact",
-					personalSkills: undefined,
-					workspaceSkills: [],
-					compact,
-					sendMessage,
-				}),
-			),
-		).rejects.toBeInstanceOf(BuiltInCommandPendingError);
-		expect(toast.info).toHaveBeenCalledWith(
-			"Checking whether /compact is available. Try again in a moment.",
+		await submitChatTurn(
+			buildParams({ message: "/clear", clearChatContext, sendMessage }),
+		);
+		expect(clearChatContext).toHaveBeenCalledTimes(1);
+		expect(sendMessage).not.toHaveBeenCalled();
+	});
+
+	it("sends /compact as a message when an organization skill owns the name", async () => {
+		const compact = vi.fn();
+		const sendMessage = vi.fn().mockResolvedValue({ queued: false });
+		await submitChatTurn(
+			buildParams({
+				message: "/compact",
+				organizationSkills: [{ name: "compact" }],
+				compact,
+				sendMessage,
+			}),
 		);
 		expect(compact).not.toHaveBeenCalled();
-		expect(sendMessage).not.toHaveBeenCalled();
+		expect(sendMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				content: [{ type: "text", text: "/compact" }],
+			}),
+		);
 	});
 
 	it("compacts instead of sending and restores state if compact fails", async () => {

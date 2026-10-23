@@ -1,3 +1,7 @@
+---
+review-personas: [audience, learner, structure]
+---
+
 # Audience and scope
 
 Every page in the Coder documentation targets one audience working toward one outcome.
@@ -244,6 +248,32 @@ On a Quickstart that walked the same reader through starting the server, the rea
 
 A page may assume a persona, as long as it knows which persona it assumes and matches its depth and its caveats to what that persona can already do.
 This is the complement of [gating privileged pages](#gate-privileged-pages-with-a-prerequisite-callout): add a prerequisite callout when the reader might be the wrong role, and cut wrong-role caveats when the audience is, by definition, the right role.
+
+*Documentation-only.
+No Vale rule.*
+
+## Lead with the surface the reader uses
+
+When the reader can do a task in more than one place, such as the dashboard, the CLI, the API, or a configuration file, lead with the place the page's persona uses.
+For most user tasks, that is the dashboard, so the UI label comes first.
+Give the API field, CLI flag, or file key once, in a sentence framed for the reader who uses that surface.
+A page whose reader works in the API or the CLI leads with that surface instead.
+
+The reader looks for what the screen shows.
+A page that opens with a field name sends the dashboard user looking for a control that has a different name.
+
+**Do**:
+
+> Turn off **Agents can use it automatically** to make a skill manual-only.
+> In the API, the setting is the `model_invocable` field.
+
+**Don't**:
+
+> Skills have a `model_invocable` setting that is on by default.
+> When it is off, agents can't choose the skill on their own.
+
+Tutorials that show the same step in the UI and the CLI keep both paths, in the same order on every step.
+For which identifiers belong on the page at all, refer to [Evidence justifies a claim; it does not belong in the claim](../content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim).
 
 *Documentation-only.
 No Vale rule.*

@@ -8,7 +8,6 @@ import {
 import { useEffect, useState } from "react";
 import { useIsMutating, useMutation, useQueryClient } from "react-query";
 import { NavLink, useLocation } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
 	archiveChat,
@@ -20,10 +19,10 @@ import {
 	unarchiveChat,
 	unpinChat,
 } from "#/api/queries/chats";
-
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { toast } from "#/components/Toaster/toast";
 import { shortRelativeTime } from "#/utils/time";
 import { clearPersistedRightPanelState } from "../../../utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "../../../utils/sidebarTabStorage";
@@ -43,6 +42,11 @@ import { getChatDisplayConfig } from "./statusConfig";
 type ChatTreeNodeProps = {
 	readonly chat: Chat;
 	readonly depth?: number;
+	/**
+	 * Drag handle props for this row's chat link. Subagent rows get none, so
+	 * pressing on one does not drag its root chat.
+	 */
+	readonly dragHandleProps?: React.ComponentProps<"a">;
 };
 
 const CHILD_INDENT_PX = 26;
@@ -50,6 +54,7 @@ const CHILD_INDENT_PX = 26;
 export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 	chat,
 	depth = 0,
+	dragHandleProps,
 }) => {
 	const location = useLocation();
 	const locationSearch = normalizeLocationSearch(location.search);
@@ -298,6 +303,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 						)}
 					</div>
 					<NavLink
+						{...dragHandleProps}
 						to={{
 							pathname: `/agents/${chat.id}`,
 							search: locationSearch,

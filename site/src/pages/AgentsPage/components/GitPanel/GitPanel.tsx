@@ -4,6 +4,7 @@ import {
 	ChevronDownIcon,
 	CircleDotIcon,
 	ColumnsIcon,
+	ExternalLinkIcon,
 	GitBranchIcon,
 	GitCompareArrowsIcon,
 	GitMergeIcon,
@@ -14,7 +15,11 @@ import {
 	RowsIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { useQueryClient } from "react-query";
+import {
+	invalidateChatDiffContents,
+	invalidateChatEntity,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type {
 	ChatDiffStatus,
@@ -27,6 +32,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,
@@ -128,7 +134,11 @@ type GitPanelProps = {
 	chatId: string;
 	/** Repository data from git watcher. */
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
-	/** Callback to send a refresh to the git watcher. Returns false when disconnected. */
+	/**
+	 * Callback to send a refresh to the git watcher. Returns false when
+	 * disconnected. The panel refetches the chat and its diff contents
+	 * itself.
+	 */
 	onRefresh: () => boolean;
 	/** Whether the panel is in expanded/fullscreen mode. */
 	isExpanded: boolean;
@@ -324,7 +334,10 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 	const [spinning, setSpinning] = useState(false);
 	const spinTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 	useEffect(() => () => clearTimeout(spinTimerRef.current), []);
+	const queryClient = useQueryClient();
 	const handleRefresh = () => {
+		void invalidateChatEntity(queryClient, chatId);
+		void invalidateChatDiffContents(queryClient, chatId);
 		const sent = onRefresh();
 		if (!sent) {
 			toast.error("Unable to refresh git status.", {
@@ -366,6 +379,9 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 	// row needs a PR number to belong to.
 	const showPrTitleRow =
 		isRemoteView && Boolean(selectedPrNumber) && Boolean(prTitle);
+	// A branch-only ref's url can point at its branch, not a PR.
+	const selectedPrUrl =
+		isRemoteView && selectedPrNumber ? selectedRemote?.url : undefined;
 
 	const [isPrTitleTruncated, setIsPrTitleTruncated] = useState(false);
 	// Ref callback so the observer attaches whenever the title span
@@ -449,6 +465,7 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 						onSelect={handleSelectItem}
 					/>
 				</div>
+				{selectedPrUrl && <ViewPrButton href={selectedPrUrl} />}
 				{/* Controls */}
 				<div className="flex shrink-0 items-center gap-1">
 					<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border">
@@ -483,29 +500,23 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 							<ColumnsIcon className="size-3.5" />
 						</button>
 					</div>
-					{/*
-					 * The shared Button applies `disabled:pointer-events-none`,
-					 * which would suppress the native `title` tooltip when the
-					 * control is disabled. Wrap it in a span so the tooltip is
-					 * still reachable on hover in the disabled state.
-					 */}
-					<span title={!hasGitContext ? GIT_NOT_SETUP_TITLE : undefined}>
-						<Button
-							variant="subtle"
-							size="icon"
-							onClick={handleRefresh}
-							aria-label="Refresh"
-							disabled={!hasGitContext}
-							className="size-6 text-content-secondary hover:text-content-primary"
-						>
-							<RefreshCwIcon
-								className={cn(
-									"size-3.5",
-									spinning && "motion-safe:animate-spin-once",
-								)}
-							/>
-						</Button>
-					</span>
+					{/* Refresh stays enabled without git context, since a repo
+					    created after the chat touched its path only appears
+					    once the agent re-resolves the chat's paths. */}
+					<Button
+						variant="subtle"
+						size="icon"
+						onClick={handleRefresh}
+						aria-label="Refresh"
+						className="size-6 text-content-secondary hover:text-content-primary"
+					>
+						<RefreshCwIcon
+							className={cn(
+								"size-3.5",
+								spinning && "motion-safe:animate-spin-once",
+							)}
+						/>
+					</Button>
 				</div>
 			</div>
 			{/* PR title row: truncates with a hover tooltip only when the
@@ -569,6 +580,19 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 		</div>
 	);
 };
+
+type ViewPrButtonProps = {
+	href: string;
+};
+
+const ViewPrButton: React.FC<ViewPrButtonProps> = ({ href }) => (
+	<Button asChild variant="outline" size="sm" className="h-6">
+		<a href={href} target="_blank" rel="noreferrer">
+			View PR
+			<ExternalLinkIcon />
+		</a>
+	</Button>
+);
 
 // ---------------------------------------------------------------
 // Git view switcher: dropdown for the active PR/Branch/Working view.

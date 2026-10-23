@@ -68,9 +68,6 @@ type (
 // has not expired, and belongs to a non-deleted, non-system user. It does not
 // verify the key secret, because the caller never has it.
 func WithDelegatedAPIKeyID(ctx context.Context, id string) context.Context {
-	/*
-		return WithDelegatedRequest(ctx, id, Attribution{})
-	*/
 	return context.WithValue(ctx, deletedAPIKeyIDCtxKey{}, id)
 }
 

@@ -87,7 +87,8 @@ endif
 	coderd/rbac/object_gen.go \
 	coderd/rbac/scopes_constants_gen.go \
 	codersdk/rbacresources_gen.go \
-	codersdk/apikey_scopes_gen.go
+	codersdk/apikey_scopes_gen.go \
+	codersdk/dbenums_gen.go
 
 # atomic_write runs a command, captures stdout into a temp file, and
 # atomically replaces $@. An optional second argument is a formatting
@@ -780,7 +781,7 @@ gen/docs-manifest: fmt/docs-manifest site/node_modules/.installed | _gen
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/docs-manifest lint/docs-redirects lint/style-claims lint/check-scopes lint/check-experiment-keys lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions lint/docs-gen-filter $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/go/new-code lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/docs-manifest lint/docs-redirects lint/style-claims lint/check-scopes lint/check-experiment-keys lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions lint/docs-gen-filter $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 # Fast lint subset for lightweight hooks. Some targets use mise-managed tools.
@@ -800,11 +801,27 @@ lint/ts: site/node_modules/.installed
 GO_LINT_CONCURRENCY := $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1); echo $$(( n < 8 ? n : 8 )))
 GO_LINT_MEMLIMIT ?= 8GiB
 
+# --allow-serial-runners makes lint/go and lint/go/new-code wait for each
+# other's golangci-lint lock when `make -j lint` starts them together.
 lint/go:
-	GOMEMLIMIT="$${GOMEMLIMIT:-$(GO_LINT_MEMLIMIT)}" golangci-lint run --concurrency="$(GO_LINT_CONCURRENCY)"
+	./scripts/check_golangci_exclusions.sh
+	GOMEMLIMIT="$${GOMEMLIMIT:-$(GO_LINT_MEMLIMIT)}" golangci-lint run --allow-serial-runners --concurrency="$(GO_LINT_CONCURRENCY)"
 	paralleltestctx -custom-funcs="testutil.Context,chatdTestContext" ./...
 	go run ./scripts/intxcheck ./...
 .PHONY: lint/go
+
+# Revision whose merge base with HEAD bounds the lines lint/go/new-code checks.
+GO_LINT_NEW_CODE_BASE ?= origin/main
+
+# Rules the existing tree does not pass yet, applied only to changed lines.
+# golangci-lint matches changed lines against symlink-resolved file paths
+# made relative to PWD, so a checkout reached through a symlink would
+# silently report nothing; `pwd -P` resolves the working directory first.
+lint/go/new-code:
+	cd "$$(pwd -P)"
+	GOMEMLIMIT="$${GOMEMLIMIT:-$(GO_LINT_MEMLIMIT)}" golangci-lint run --allow-serial-runners --concurrency="$(GO_LINT_CONCURRENCY)" \
+		--config=.golangci.new-code.yaml --new-from-merge-base="$(GO_LINT_NEW_CODE_BASE)"
+.PHONY: lint/go/new-code
 
 lint/examples: | _gen/bin/examplegen
 	_gen/bin/examplegen -lint
@@ -827,15 +844,17 @@ lint/emdash:
 # Fails when docs Markdown contains invalid inline HTML the docs site drops or
 # mangles: swallowed angle-bracket placeholders (e.g. <region>), void-element
 # end tags (</br>), capitalized or unregistered component tags (e.g. <Image>),
-# and unclosed container tags.
+# and unclosed container tags. Also fails on table header cells with no text.
 lint/docs-html:
-	echo "--- check for invalid inline HTML in docs"
+	echo "--- check for invalid inline HTML and empty table headers in docs"
 	go run ./scripts/docshtmlcheck
 .PHONY: lint/docs-html
 
 # Fails when the YAML sidebar sources under docs/manifest are unformatted or
 # invalid: unknown or misordered keys, missing pages, overlays that match no
-# generated route, or source files that nothing references.
+# generated route, source files that nothing references, or a page description
+# (in the sources, a generated fragment, or page front matter) that doesn't end
+# with a period.
 lint/docs-manifest: _gen/bin/docsmanifestgen
 	echo "--- check docs sidebar sources"
 	_gen/bin/docsmanifestgen check
@@ -1099,6 +1118,7 @@ GEN_FILES := \
 	codersdk/rbacresources_gen.go \
 	coderd/rbac/scopes_constants_gen.go \
 	codersdk/apikey_scopes_gen.go \
+	codersdk/dbenums_gen.go \
 	docs/admin/integrations/prometheus.md \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
@@ -1153,7 +1173,7 @@ coderd/aibridge/prices/data/prices.json: _gen/bin/aibridgepricesgen _gen/models-
 # snapshot joined with the editorial curation in
 # scripts/aibridgepricesgen/curation.json. Kept out of `make gen` for the
 # same live-upstream-data reason as prices.json.
-site/src/modules/aiModels/knownModels/knownModelsGenerated.json: _gen/bin/aibridgepricesgen _gen/models-dev.json | _gen
+site/src/modules/aiModels/knownModels/knownModelsGenerated.json: site/node_modules/.installed _gen/bin/aibridgepricesgen _gen/models-dev.json | _gen
 	$(call atomic_write,_gen/bin/aibridgepricesgen -format=catalog -upstream _gen/models-dev.json,./scripts/biome_format.sh)
 .PHONY: site/src/modules/aiModels/knownModels/knownModelsGenerated.json
 
@@ -1201,6 +1221,7 @@ gen/mark-fresh:
 		codersdk/rbacresources_gen.go \
 		coderd/rbac/scopes_constants_gen.go \
 		codersdk/apikey_scopes_gen.go \
+		codersdk/dbenums_gen.go \
 		site/src/api/rbacresourcesGenerated.ts \
 		site/src/api/countriesGenerated.ts \
 		site/src/api/chatModelOptionsGenerated.json \
@@ -1398,6 +1419,11 @@ codersdk/rbacresources_gen.go: scripts/typegen/codersdk.gotmpl scripts/typegen/m
 	$(call atomic_write,_gen/bin/typegen rbac codersdk)
 	touch "$@"
 
+# Reads coderd/database/models.go, which generate.sh writes with querier.go.
+codersdk/dbenums_gen.go: scripts/typegen/dbenums.gotmpl scripts/typegen/main.go coderd/database/querier.go | _gen _gen/bin/typegen
+	$(call atomic_write,_gen/bin/typegen dbenums)
+	touch "$@"
+
 # NOTE: depends on object_gen.go and scopes_constants_gen.go because
 # the generator build compiles coderd/rbac which includes both.
 codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scopes_catalog.go coderd/rbac/scopes.go \
@@ -1415,7 +1441,7 @@ site/src/api/rbacresourcesGenerated.ts: site/node_modules/.installed scripts/typ
 site/src/api/countriesGenerated.ts: site/node_modules/.installed scripts/typegen/countries.tstmpl scripts/typegen/main.go codersdk/countries.go | _gen _gen/bin/typegen
 	$(call atomic_write,_gen/bin/typegen countries,./scripts/biome_format.sh)
 
-site/src/api/chatModelOptionsGenerated.json: scripts/modeloptionsgen/main.go codersdk/chats.go | _gen _gen/bin/modeloptionsgen
+site/src/api/chatModelOptionsGenerated.json: site/node_modules/.installed scripts/modeloptionsgen/main.go codersdk/chats.go | _gen _gen/bin/modeloptionsgen
 	$(call atomic_write,_gen/bin/modeloptionsgen | tail -n +2,./scripts/biome_format.sh)
 
 scripts/metricsdocgen/generated_metrics: $(GO_SRC_FILES) | _gen _gen/bin/metricsdocgen-scanner
@@ -1463,7 +1489,9 @@ docs/reference/api-key-scopes.md: node_modules/.installed $(wildcard scripts/sco
 
 coderd/apidoc/.gen: \
 	node_modules/.installed \
+	site/node_modules/.installed \
 	scripts/apidocgen/node_modules/.installed \
+	site/node_modules/.installed \
 	$(wildcard coderd/*.go) \
 	$(wildcard enterprise/coderd/*.go) \
 	$(wildcard codersdk/*.go) \

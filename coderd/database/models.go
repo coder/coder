@@ -539,6 +539,18 @@ const (
 	ApiKeyScopeChatProjectMemoryCreate             APIKeyScope = "chat_project_memory:create"
 	ApiKeyScopeChatProjectMemoryRead               APIKeyScope = "chat_project_memory:read"
 	ApiKeyScopeChatProjectMemoryDelete             APIKeyScope = "chat_project_memory:delete"
+	ApiKeyScopeOrganizationSkill                   APIKeyScope = "organization_skill:*"
+	ApiKeyScopeOrganizationSkillCreate             APIKeyScope = "organization_skill:create"
+	ApiKeyScopeOrganizationSkillRead               APIKeyScope = "organization_skill:read"
+	ApiKeyScopeOrganizationSkillUpdate             APIKeyScope = "organization_skill:update"
+	ApiKeyScopeOrganizationSkillDelete             APIKeyScope = "organization_skill:delete"
+	ApiKeyScopeOrganizationSkillShare              APIKeyScope = "organization_skill:share"
+	ApiKeyScopeChatProjectShare                    APIKeyScope = "chat_project:share"
+	ApiKeyScopeWorkspaceSecret                     APIKeyScope = "workspace_secret:*"
+	ApiKeyScopeWorkspaceSecretCreate               APIKeyScope = "workspace_secret:create"
+	ApiKeyScopeWorkspaceSecretRead                 APIKeyScope = "workspace_secret:read"
+	ApiKeyScopeWorkspaceSecretReadSecret           APIKeyScope = "workspace_secret:read_secret"
+	ApiKeyScopeWorkspaceSecretUpdate               APIKeyScope = "workspace_secret:update"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -829,7 +841,19 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatProjectMemory,
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
-		ApiKeyScopeChatProjectMemoryDelete:
+		ApiKeyScopeChatProjectMemoryDelete,
+		ApiKeyScopeOrganizationSkill,
+		ApiKeyScopeOrganizationSkillCreate,
+		ApiKeyScopeOrganizationSkillRead,
+		ApiKeyScopeOrganizationSkillUpdate,
+		ApiKeyScopeOrganizationSkillDelete,
+		ApiKeyScopeOrganizationSkillShare,
+		ApiKeyScopeChatProjectShare,
+		ApiKeyScopeWorkspaceSecret,
+		ApiKeyScopeWorkspaceSecretCreate,
+		ApiKeyScopeWorkspaceSecretRead,
+		ApiKeyScopeWorkspaceSecretReadSecret,
+		ApiKeyScopeWorkspaceSecretUpdate:
 		return true
 	}
 	return false
@@ -1089,6 +1113,18 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
 		ApiKeyScopeChatProjectMemoryDelete,
+		ApiKeyScopeOrganizationSkill,
+		ApiKeyScopeOrganizationSkillCreate,
+		ApiKeyScopeOrganizationSkillRead,
+		ApiKeyScopeOrganizationSkillUpdate,
+		ApiKeyScopeOrganizationSkillDelete,
+		ApiKeyScopeOrganizationSkillShare,
+		ApiKeyScopeChatProjectShare,
+		ApiKeyScopeWorkspaceSecret,
+		ApiKeyScopeWorkspaceSecretCreate,
+		ApiKeyScopeWorkspaceSecretRead,
+		ApiKeyScopeWorkspaceSecretReadSecret,
+		ApiKeyScopeWorkspaceSecretUpdate,
 	}
 }
 
@@ -2005,6 +2041,73 @@ func AllChatTitleSourceValues() []ChatTitleSource {
 	}
 }
 
+type ConnectionLogMethod string
+
+const (
+	ConnectionLogMethodSSH             ConnectionLogMethod = "ssh"
+	ConnectionLogMethodReconnectingPTY ConnectionLogMethod = "reconnecting_pty"
+	ConnectionLogMethodWorkspaceApp    ConnectionLogMethod = "workspace_app"
+	ConnectionLogMethodPortForwarding  ConnectionLogMethod = "port_forwarding"
+	ConnectionLogMethodTunnel          ConnectionLogMethod = "tunnel"
+)
+
+func (e *ConnectionLogMethod) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ConnectionLogMethod(s)
+	case string:
+		*e = ConnectionLogMethod(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ConnectionLogMethod: %T", src)
+	}
+	return nil
+}
+
+type NullConnectionLogMethod struct {
+	ConnectionLogMethod ConnectionLogMethod `json:"connection_log_method"`
+	Valid               bool                `json:"valid"` // Valid is true if ConnectionLogMethod is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullConnectionLogMethod) Scan(value interface{}) error {
+	if value == nil {
+		ns.ConnectionLogMethod, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ConnectionLogMethod.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullConnectionLogMethod) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ConnectionLogMethod), nil
+}
+
+func (e ConnectionLogMethod) Valid() bool {
+	switch e {
+	case ConnectionLogMethodSSH,
+		ConnectionLogMethodReconnectingPTY,
+		ConnectionLogMethodWorkspaceApp,
+		ConnectionLogMethodPortForwarding,
+		ConnectionLogMethodTunnel:
+		return true
+	}
+	return false
+}
+
+func AllConnectionLogMethodValues() []ConnectionLogMethod {
+	return []ConnectionLogMethod{
+		ConnectionLogMethodSSH,
+		ConnectionLogMethodReconnectingPTY,
+		ConnectionLogMethodWorkspaceApp,
+		ConnectionLogMethodPortForwarding,
+		ConnectionLogMethodTunnel,
+	}
+}
+
 type ConnectionStatus string
 
 const (
@@ -2060,79 +2163,6 @@ func AllConnectionStatusValues() []ConnectionStatus {
 	return []ConnectionStatus{
 		ConnectionStatusConnected,
 		ConnectionStatusDisconnected,
-	}
-}
-
-type ConnectionType string
-
-const (
-	ConnectionTypeSsh             ConnectionType = "ssh"
-	ConnectionTypeVscode          ConnectionType = "vscode"
-	ConnectionTypeJetbrains       ConnectionType = "jetbrains"
-	ConnectionTypeReconnectingPty ConnectionType = "reconnecting_pty"
-	ConnectionTypeWorkspaceApp    ConnectionType = "workspace_app"
-	ConnectionTypePortForwarding  ConnectionType = "port_forwarding"
-	ConnectionTypeTunnel          ConnectionType = "tunnel"
-)
-
-func (e *ConnectionType) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = ConnectionType(s)
-	case string:
-		*e = ConnectionType(s)
-	default:
-		return fmt.Errorf("unsupported scan type for ConnectionType: %T", src)
-	}
-	return nil
-}
-
-type NullConnectionType struct {
-	ConnectionType ConnectionType `json:"connection_type"`
-	Valid          bool           `json:"valid"` // Valid is true if ConnectionType is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullConnectionType) Scan(value interface{}) error {
-	if value == nil {
-		ns.ConnectionType, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.ConnectionType.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullConnectionType) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.ConnectionType), nil
-}
-
-func (e ConnectionType) Valid() bool {
-	switch e {
-	case ConnectionTypeSsh,
-		ConnectionTypeVscode,
-		ConnectionTypeJetbrains,
-		ConnectionTypeReconnectingPty,
-		ConnectionTypeWorkspaceApp,
-		ConnectionTypePortForwarding,
-		ConnectionTypeTunnel:
-		return true
-	}
-	return false
-}
-
-func AllConnectionTypeValues() []ConnectionType {
-	return []ConnectionType{
-		ConnectionTypeSsh,
-		ConnectionTypeVscode,
-		ConnectionTypeJetbrains,
-		ConnectionTypeReconnectingPty,
-		ConnectionTypeWorkspaceApp,
-		ConnectionTypePortForwarding,
-		ConnectionTypeTunnel,
 	}
 }
 
@@ -3761,6 +3791,9 @@ const (
 	ResourceTypeChatAutomation               ResourceType = "chat_automation"
 	ResourceTypeChatProjectMemory            ResourceType = "chat_project_memory"
 	ResourceTypeChatOrganizationSystemPrompt ResourceType = "chat_organization_system_prompt"
+	ResourceTypeChatProjectInstructions      ResourceType = "chat_project_instructions"
+	ResourceTypeOrganizationSkill            ResourceType = "organization_skill"
+	ResourceTypeChatProjectSkill             ResourceType = "chat_project_skill"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3844,7 +3877,10 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatProject,
 		ResourceTypeChatAutomation,
 		ResourceTypeChatProjectMemory,
-		ResourceTypeChatOrganizationSystemPrompt:
+		ResourceTypeChatOrganizationSystemPrompt,
+		ResourceTypeChatProjectInstructions,
+		ResourceTypeOrganizationSkill,
+		ResourceTypeChatProjectSkill:
 		return true
 	}
 	return false
@@ -3897,6 +3933,9 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatAutomation,
 		ResourceTypeChatProjectMemory,
 		ResourceTypeChatOrganizationSystemPrompt,
+		ResourceTypeChatProjectInstructions,
+		ResourceTypeOrganizationSkill,
+		ResourceTypeChatProjectSkill,
 	}
 }
 
@@ -4150,6 +4189,7 @@ const (
 	WorkspaceAgentContextBodyKindHook            WorkspaceAgentContextBodyKind = "hook"
 	WorkspaceAgentContextBodyKindSubagent        WorkspaceAgentContextBodyKind = "subagent"
 	WorkspaceAgentContextBodyKindCommand         WorkspaceAgentContextBodyKind = "command"
+	WorkspaceAgentContextBodyKindAcpHarness      WorkspaceAgentContextBodyKind = "acp_harness"
 )
 
 func (e *WorkspaceAgentContextBodyKind) Scan(src interface{}) error {
@@ -4196,7 +4236,8 @@ func (e WorkspaceAgentContextBodyKind) Valid() bool {
 		WorkspaceAgentContextBodyKindPlugin,
 		WorkspaceAgentContextBodyKindHook,
 		WorkspaceAgentContextBodyKindSubagent,
-		WorkspaceAgentContextBodyKindCommand:
+		WorkspaceAgentContextBodyKindCommand,
+		WorkspaceAgentContextBodyKindAcpHarness:
 		return true
 	}
 	return false
@@ -4212,6 +4253,7 @@ func AllWorkspaceAgentContextBodyKindValues() []WorkspaceAgentContextBodyKind {
 		WorkspaceAgentContextBodyKindHook,
 		WorkspaceAgentContextBodyKindSubagent,
 		WorkspaceAgentContextBodyKindCommand,
+		WorkspaceAgentContextBodyKindAcpHarness,
 	}
 }
 
@@ -4481,7 +4523,7 @@ func AllWorkspaceAgentScriptTimingStageValues() []WorkspaceAgentScriptTimingStag
 	}
 }
 
-// What the exit status of the script is.
+// The terminal outcome of a script execution.
 type WorkspaceAgentScriptTimingStatus string
 
 const (
@@ -4489,6 +4531,8 @@ const (
 	WorkspaceAgentScriptTimingStatusExitFailure   WorkspaceAgentScriptTimingStatus = "exit_failure"
 	WorkspaceAgentScriptTimingStatusTimedOut      WorkspaceAgentScriptTimingStatus = "timed_out"
 	WorkspaceAgentScriptTimingStatusPipesLeftOpen WorkspaceAgentScriptTimingStatus = "pipes_left_open"
+	WorkspaceAgentScriptTimingStatusSkipped       WorkspaceAgentScriptTimingStatus = "skipped"
+	WorkspaceAgentScriptTimingStatusCanceled      WorkspaceAgentScriptTimingStatus = "canceled"
 )
 
 func (e *WorkspaceAgentScriptTimingStatus) Scan(src interface{}) error {
@@ -4531,7 +4575,9 @@ func (e WorkspaceAgentScriptTimingStatus) Valid() bool {
 	case WorkspaceAgentScriptTimingStatusOk,
 		WorkspaceAgentScriptTimingStatusExitFailure,
 		WorkspaceAgentScriptTimingStatusTimedOut,
-		WorkspaceAgentScriptTimingStatusPipesLeftOpen:
+		WorkspaceAgentScriptTimingStatusPipesLeftOpen,
+		WorkspaceAgentScriptTimingStatusSkipped,
+		WorkspaceAgentScriptTimingStatusCanceled:
 		return true
 	}
 	return false
@@ -4543,6 +4589,8 @@ func AllWorkspaceAgentScriptTimingStatusValues() []WorkspaceAgentScriptTimingSta
 		WorkspaceAgentScriptTimingStatusExitFailure,
 		WorkspaceAgentScriptTimingStatusTimedOut,
 		WorkspaceAgentScriptTimingStatusPipesLeftOpen,
+		WorkspaceAgentScriptTimingStatusSkipped,
+		WorkspaceAgentScriptTimingStatusCanceled,
 	}
 }
 
@@ -4799,6 +4847,64 @@ func AllWorkspaceAppStatusStateValues() []WorkspaceAppStatusState {
 	}
 }
 
+type WorkspaceSecretSource string
+
+const (
+	WorkspaceSecretSourceRequest      WorkspaceSecretSource = "request"
+	WorkspaceSecretSourceCarryForward WorkspaceSecretSource = "carry_forward"
+)
+
+func (e *WorkspaceSecretSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceSecretSource(s)
+	case string:
+		*e = WorkspaceSecretSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceSecretSource: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceSecretSource struct {
+	WorkspaceSecretSource WorkspaceSecretSource `json:"workspace_secret_source"`
+	Valid                 bool                  `json:"valid"` // Valid is true if WorkspaceSecretSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceSecretSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceSecretSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceSecretSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceSecretSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceSecretSource), nil
+}
+
+func (e WorkspaceSecretSource) Valid() bool {
+	switch e {
+	case WorkspaceSecretSourceRequest,
+		WorkspaceSecretSourceCarryForward:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceSecretSourceValues() []WorkspaceSecretSource {
+	return []WorkspaceSecretSource{
+		WorkspaceSecretSourceRequest,
+		WorkspaceSecretSourceCarryForward,
+	}
+}
+
 type WorkspaceTransition string
 
 const (
@@ -4971,6 +5077,22 @@ type AIGatewayKey struct {
 	SecretPrefix    string       `db:"secret_prefix" json:"secret_prefix"`
 	HashedSecret    []byte       `db:"hashed_secret" json:"hashed_secret"`
 	LastHeartbeatAt sql.NullTime `db:"last_heartbeat_at" json:"last_heartbeat_at"`
+}
+
+// AI Governance configuration for one model on one configured AI provider within one organization. The token prices override site-wide prices in ai_model_prices.
+type AIModelConfig struct {
+	ID              uuid.UUID     `db:"id" json:"id"`
+	OrganizationID  uuid.UUID     `db:"organization_id" json:"organization_id"`
+	ProviderID      uuid.UUID     `db:"provider_id" json:"provider_id"`
+	Model           string        `db:"model" json:"model"`
+	InputPrice      sql.NullInt64 `db:"input_price" json:"input_price"`
+	OutputPrice     sql.NullInt64 `db:"output_price" json:"output_price"`
+	CacheReadPrice  sql.NullInt64 `db:"cache_read_price" json:"cache_read_price"`
+	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
+	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
+	// Soft delete flag. Soft-deleted rows are kept for history and do not block a new live row for the same model.
+	Deleted bool `db:"deleted" json:"deleted"`
 }
 
 // Per-model token prices used by AI Bridge to compute interception cost.
@@ -5393,6 +5515,20 @@ type ChatProject struct {
 	Icon      string    `db:"icon" json:"icon"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	// Users the project is shared with, keyed by user ID.
+	UserACL ChatACL `db:"user_acl" json:"user_acl"`
+	// Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.
+	GroupACL ChatACL `db:"group_acl" json:"group_acl"`
+}
+
+// Per-project instructions injected into the system prompt of every chat in the project, for every user. A project without a row has no instructions.
+type ChatProjectInstruction struct {
+	ProjectID      uuid.UUID     `db:"project_id" json:"project_id"`
+	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
+	Instructions   string        `db:"instructions" json:"instructions"`
+	UpdatedBy      uuid.NullUUID `db:"updated_by" json:"updated_by"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
 }
 
 // Organization-scoped durable memories for chat projects. Memories are immutable; changing one deletes it and creates its replacement.
@@ -5503,23 +5639,24 @@ type ChatUserModelOverride struct {
 }
 
 type ConnectionLog struct {
-	ID               uuid.UUID      `db:"id" json:"id"`
-	ConnectTime      time.Time      `db:"connect_time" json:"connect_time"`
-	OrganizationID   uuid.UUID      `db:"organization_id" json:"organization_id"`
-	WorkspaceOwnerID uuid.UUID      `db:"workspace_owner_id" json:"workspace_owner_id"`
-	WorkspaceID      uuid.UUID      `db:"workspace_id" json:"workspace_id"`
-	WorkspaceName    string         `db:"workspace_name" json:"workspace_name"`
-	AgentName        string         `db:"agent_name" json:"agent_name"`
-	Type             ConnectionType `db:"type" json:"type"`
-	Ip               pqtype.Inet    `db:"ip" json:"ip"`
+	ID               uuid.UUID `db:"id" json:"id"`
+	ConnectTime      time.Time `db:"connect_time" json:"connect_time"`
+	OrganizationID   uuid.UUID `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID uuid.UUID `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID      uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName    string    `db:"workspace_name" json:"workspace_name"`
+	AgentName        string    `db:"agent_name" json:"agent_name"`
+	// How the connection was established.
+	ConnectionMethod ConnectionLogMethod `db:"connection_method" json:"connection_method"`
+	Ip               pqtype.Inet         `db:"ip" json:"ip"`
 	// Either the HTTP status code of the web request, or the exit code of an SSH connection. For non-web connections, this is Null until we receive a disconnect event for the same connection_id.
 	Code sql.NullInt32 `db:"code" json:"code"`
 	// Null for SSH events. For web connections, this is the User-Agent header from the request.
 	UserAgent sql.NullString `db:"user_agent" json:"user_agent"`
 	// Null for SSH events. For web connections, this is the ID of the user that made the request.
 	UserID uuid.NullUUID `db:"user_id" json:"user_id"`
-	// Null for SSH events. For web connections, this is the slug of the app or the port number being forwarded.
-	SlugOrPort sql.NullString `db:"slug_or_port" json:"slug_or_port"`
+	// Self-reported name of the connecting application for SSH and reconnecting PTY; destination slug or port for workspace apps and port forwarding. Null when absent.
+	AppNameOrPort sql.NullString `db:"app_name_or_port" json:"app_name_or_port"`
 	// The SSH connection ID. Used to correlate connections and disconnections. As it originates from the agent, it is not guaranteed to be unique.
 	ConnectionID uuid.NullUUID `db:"connection_id" json:"connection_id"`
 	// The time the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.
@@ -5528,6 +5665,10 @@ type ConnectionLog struct {
 	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
 	// Tracks all connections over the lifetime of a single client (IDE or ssh) session. As it originates from the client, it is not guaranteed to be unique.
 	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
+	// Total bytes received by the agent on this connection. Null for web events and non-disconnect events.
+	RxBytes sql.NullInt64 `db:"rx_bytes" json:"rx_bytes"`
+	// Total bytes sent by the agent on this connection. Null for web events and non-disconnect events.
+	TxBytes sql.NullInt64 `db:"tx_bytes" json:"tx_bytes"`
 }
 
 type CryptoKey struct {
@@ -5728,6 +5869,7 @@ type MCPServerConfig struct {
 	UserACL                 ChatACL        `db:"user_acl" json:"user_acl"`
 	SigningSecret           string         `db:"signing_secret" json:"signing_secret"`
 	SigningSecretKeyID      sql.NullString `db:"signing_secret_key_id" json:"signing_secret_key_id"`
+	OAuth2Resource          string         `db:"oauth2_resource" json:"oauth2_resource"`
 }
 
 type MCPServerUserToken struct {
@@ -6066,6 +6208,23 @@ type SiteConfig struct {
 	Value string `db:"value" json:"value"`
 }
 
+type Skill struct {
+	ID             uuid.UUID     `db:"id" json:"id"`
+	UserID         uuid.NullUUID `db:"user_id" json:"user_id"`
+	Name           string        `db:"name" json:"name"`
+	Description    string        `db:"description" json:"description"`
+	Content        string        `db:"content" json:"content"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
+	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
+	ProjectID      uuid.NullUUID `db:"project_id" json:"project_id"`
+	Enabled        bool          `db:"enabled" json:"enabled"`
+	GroupACL       ChatACL       `db:"group_acl" json:"group_acl"`
+	UserACL        ChatACL       `db:"user_acl" json:"user_acl"`
+	Action         bool          `db:"action" json:"action"`
+	ModelInvocable bool          `db:"model_invocable" json:"model_invocable"`
+}
+
 // We keep this separate from replicas in case we need to break the coordinator out into its own service
 type TailnetCoordinator struct {
 	ID          uuid.UUID `db:"id" json:"id"`
@@ -6227,23 +6386,25 @@ type TemplateUsageStatsSessionApp struct {
 
 // Joins in the username + avatar url of the created by user.
 type TemplateVersion struct {
-	ID                    uuid.UUID       `db:"id" json:"id"`
-	TemplateID            uuid.NullUUID   `db:"template_id" json:"template_id"`
-	OrganizationID        uuid.UUID       `db:"organization_id" json:"organization_id"`
-	CreatedAt             time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt             time.Time       `db:"updated_at" json:"updated_at"`
-	Name                  string          `db:"name" json:"name"`
-	Readme                string          `db:"readme" json:"readme"`
-	JobID                 uuid.UUID       `db:"job_id" json:"job_id"`
-	CreatedBy             uuid.UUID       `db:"created_by" json:"created_by"`
-	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
-	Message               string          `db:"message" json:"message"`
-	Archived              bool            `db:"archived" json:"archived"`
-	SourceExampleID       sql.NullString  `db:"source_example_id" json:"source_example_id"`
-	HasExternalAgent      sql.NullBool    `db:"has_external_agent" json:"has_external_agent"`
-	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
-	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
-	CreatedByName         string          `db:"created_by_name" json:"created_by_name"`
+	ID                         uuid.UUID       `db:"id" json:"id"`
+	TemplateID                 uuid.NullUUID   `db:"template_id" json:"template_id"`
+	OrganizationID             uuid.UUID       `db:"organization_id" json:"organization_id"`
+	CreatedAt                  time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt                  time.Time       `db:"updated_at" json:"updated_at"`
+	Name                       string          `db:"name" json:"name"`
+	Readme                     string          `db:"readme" json:"readme"`
+	JobID                      uuid.UUID       `db:"job_id" json:"job_id"`
+	CreatedBy                  uuid.UUID       `db:"created_by" json:"created_by"`
+	ExternalAuthProviders      json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
+	Message                    string          `db:"message" json:"message"`
+	Archived                   bool            `db:"archived" json:"archived"`
+	SourceExampleID            sql.NullString  `db:"source_example_id" json:"source_example_id"`
+	HasExternalAgent           sql.NullBool    `db:"has_external_agent" json:"has_external_agent"`
+	ScriptOrderDataSourceCount int32           `db:"script_order_data_source_count" json:"script_order_data_source_count"`
+	ScriptOrderRuleCount       int32           `db:"script_order_rule_count" json:"script_order_rule_count"`
+	CreatedByAvatarURL         string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
+	CreatedByUsername          string          `db:"created_by_username" json:"created_by_username"`
+	CreatedByName              string          `db:"created_by_name" json:"created_by_name"`
 }
 
 type TemplateVersionParameter struct {
@@ -6332,6 +6493,10 @@ type TemplateVersionTable struct {
 	Archived         bool           `db:"archived" json:"archived"`
 	SourceExampleID  sql.NullString `db:"source_example_id" json:"source_example_id"`
 	HasExternalAgent sql.NullBool   `db:"has_external_agent" json:"has_external_agent"`
+	// Number of coder_script_order data source declarations in the template configuration.
+	ScriptOrderDataSourceCount int32 `db:"script_order_data_source_count" json:"script_order_data_source_count"`
+	// Number of rule blocks across coder_script_order declarations in the template configuration.
+	ScriptOrderRuleCount int32 `db:"script_order_rule_count" json:"script_order_rule_count"`
 }
 
 type TemplateVersionTerraformValue struct {
@@ -6485,16 +6650,6 @@ type UserSecret struct {
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 	ValueKeyID  sql.NullString `db:"value_key_id" json:"value_key_id"`
 	Enabled     bool           `db:"enabled" json:"enabled"`
-}
-
-type UserSkill struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	UserID      uuid.UUID `db:"user_id" json:"user_id"`
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description"`
-	Content     string    `db:"content" json:"content"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // Tracks the history of user status changes
@@ -6710,18 +6865,20 @@ type WorkspaceAgentPortShare struct {
 }
 
 type WorkspaceAgentScript struct {
-	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	LogSourceID      uuid.UUID `db:"log_source_id" json:"log_source_id"`
-	LogPath          string    `db:"log_path" json:"log_path"`
-	CreatedAt        time.Time `db:"created_at" json:"created_at"`
-	Script           string    `db:"script" json:"script"`
-	Cron             string    `db:"cron" json:"cron"`
-	StartBlocksLogin bool      `db:"start_blocks_login" json:"start_blocks_login"`
-	RunOnStart       bool      `db:"run_on_start" json:"run_on_start"`
-	RunOnStop        bool      `db:"run_on_stop" json:"run_on_stop"`
-	TimeoutSeconds   int32     `db:"timeout_seconds" json:"timeout_seconds"`
-	DisplayName      string    `db:"display_name" json:"display_name"`
-	ID               uuid.UUID `db:"id" json:"id"`
+	WorkspaceAgentID uuid.UUID       `db:"workspace_agent_id" json:"workspace_agent_id"`
+	LogSourceID      uuid.UUID       `db:"log_source_id" json:"log_source_id"`
+	LogPath          string          `db:"log_path" json:"log_path"`
+	CreatedAt        time.Time       `db:"created_at" json:"created_at"`
+	Script           string          `db:"script" json:"script"`
+	Cron             string          `db:"cron" json:"cron"`
+	StartBlocksLogin bool            `db:"start_blocks_login" json:"start_blocks_login"`
+	RunOnStart       bool            `db:"run_on_start" json:"run_on_start"`
+	RunOnStop        bool            `db:"run_on_stop" json:"run_on_stop"`
+	TimeoutSeconds   int32           `db:"timeout_seconds" json:"timeout_seconds"`
+	DisplayName      string          `db:"display_name" json:"display_name"`
+	ID               uuid.UUID       `db:"id" json:"id"`
+	ResourceAddress  string          `db:"resource_address" json:"resource_address"`
+	Dependencies     json.RawMessage `db:"dependencies" json:"dependencies"`
 }
 
 type WorkspaceAgentScriptTiming struct {
@@ -7007,6 +7164,21 @@ type WorkspaceResourceMetadatum struct {
 	Value               sql.NullString `db:"value" json:"value"`
 	Sensitive           bool           `db:"sensitive" json:"sensitive"`
 	ID                  int64          `db:"id" json:"id"`
+}
+
+type WorkspaceSecret struct {
+	ID               uuid.UUID             `db:"id" json:"id"`
+	WorkspaceID      uuid.UUID             `db:"workspace_id" json:"workspace_id"`
+	WorkspaceBuildID uuid.UUID             `db:"workspace_build_id" json:"workspace_build_id"`
+	Name             string                `db:"name" json:"name"`
+	Value            sql.NullString        `db:"value" json:"value"`
+	ValueKeyID       sql.NullString        `db:"value_key_id" json:"value_key_id"`
+	EnvName          string                `db:"env_name" json:"env_name"`
+	FilePath         string                `db:"file_path" json:"file_path"`
+	Ephemeral        bool                  `db:"ephemeral" json:"ephemeral"`
+	Source           WorkspaceSecretSource `db:"source" json:"source"`
+	CreatedAt        time.Time             `db:"created_at" json:"created_at"`
+	ClearedAt        sql.NullTime          `db:"cleared_at" json:"cleared_at"`
 }
 
 type WorkspaceTable struct {

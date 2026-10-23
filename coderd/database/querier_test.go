@@ -857,20 +857,33 @@ func TestGetTemplateInsightsByTemplate(t *testing.T) {
 	insertStat(15*time.Second, sharedConnectionTemplateID, sharedConnectionUserID, uuid.New(), 0, map[string]int64{"vscode": 1})
 	insertStat(30*time.Second, sharedConnectionTemplateID, sharedConnectionUserID, uuid.New(), 1, map[string]int64{"unknown": 1})
 
-	insights, err := db.GetTemplateInsightsByTemplate(ctx, database.GetTemplateInsightsByTemplateParams{
-		StartTime: startTime,
-		EndTime:   endTime,
-	})
+	// Apps of one family open in the same minute count that minute once.
+	overlapTemplateID := uuid.New()
+	overlapUserID := uuid.New()
+	insertStat(5*time.Second, overlapTemplateID, overlapUserID, uuid.New(), 1, map[string]int64{"vscode": 1, "cursor": 1, "zed": 1, "ssh": 1})
+	insertStat(10*time.Second, overlapTemplateID, overlapUserID, uuid.New(), 0, map[string]int64{"port_forwarding": 1, "some_new_ide": 1, "overflow": 1})
+	insertStat(time.Minute+5*time.Second, overlapTemplateID, overlapUserID, uuid.New(), 0, map[string]int64{"cursor": 1})
+
+	insights, err := db.GetTemplateInsightsByTemplate(ctx, templateInsightsByTemplateParams(t, startTime, endTime))
 	require.NoError(t, err)
 	byTemplate := make(map[uuid.UUID]database.GetTemplateInsightsByTemplateRow)
 	for _, row := range insights {
 		byTemplate[row.TemplateID] = row
 	}
-	require.Len(t, byTemplate, 2)
+	require.Len(t, byTemplate, 3)
 	require.EqualValues(t, 2, byTemplate[templateID].ActiveUsers)
-	require.Equal(t, database.StringMapOfInt{"vscode": 120, "jetbrains": 60, "reconnecting_pty": 60, "ssh": 120, "unknown": 60}, byTemplate[templateID].SessionAppUsageSeconds)
+	require.Equal(t, database.StringMapOfInt{"vscode": 120, "jetbrains": 60, "reconnecting_pty": 60, "ssh": 120, "unknown": 60}, byTemplate[templateID].SessionFamilyUsageSeconds)
 	require.EqualValues(t, 1, byTemplate[sharedConnectionTemplateID].ActiveUsers)
-	require.Equal(t, database.StringMapOfInt{"vscode": 60, "unknown": 60}, byTemplate[sharedConnectionTemplateID].SessionAppUsageSeconds)
+	require.Equal(t, database.StringMapOfInt{"vscode": 60, "unknown": 60}, byTemplate[sharedConnectionTemplateID].SessionFamilyUsageSeconds)
+	require.EqualValues(t, 1, byTemplate[overlapTemplateID].ActiveUsers)
+	require.Equal(t, database.StringMapOfInt{"vscode": 120, "ssh": 60, "port_forwarding": 60, "unknown": 60}, byTemplate[overlapTemplateID].SessionFamilyUsageSeconds)
+}
+
+func templateInsightsByTemplateParams(t *testing.T, startTime, endTime time.Time) database.GetTemplateInsightsByTemplateParams {
+	t.Helper()
+	appFamilies, err := json.Marshal(codersdk.SessionCountAppFamilies())
+	require.NoError(t, err)
+	return database.GetTemplateInsightsByTemplateParams{StartTime: startTime, EndTime: endTime, AppFamilies: appFamilies}
 }
 
 func TestGetWorkspaceAgentUsageStats(t *testing.T) {
@@ -2024,6 +2037,170 @@ func TestGetAuthorizedChatsACLSharing(t *testing.T) {
 	disabledRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedRecipient)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []uuid.UUID{recipientChat.ID}, chatIDs(disabledRows))
+}
+
+func TestChatProjectUserACLDroppedOnOrgMemberDelete(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	sharee := dbgen.User(t, db, database.User{})
+	stays := dbgen.User(t, db, database.User{})
+	for _, user := range []database.User{owner, sharee, stays} {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	}
+	for _, user := range []database.User{owner, sharee} {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: otherOrg.ID})
+	}
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	otherProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: otherOrg.ID, OwnerID: owner.ID})
+	admin := database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionShare}}
+	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+		ID:       project.ID,
+		UserACL:  database.ChatACL{sharee.ID.String(): admin, stays.ID.String(): admin},
+		GroupACL: database.ChatACL{},
+	}))
+	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+		ID:       otherProject.ID,
+		UserACL:  database.ChatACL{sharee.ID.String(): admin},
+		GroupACL: database.ChatACL{},
+	}))
+
+	// The trigger only drops grants in the organization the user left.
+	require.NoError(t, db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{OrganizationID: otherOrg.ID, UserID: sharee.ID}))
+	gotOther, err := db.GetChatProjectByID(ctx, otherProject.ID)
+	require.NoError(t, err)
+	require.NotContains(t, gotOther.UserACL, sharee.ID.String())
+	got, err := db.GetChatProjectByID(ctx, project.ID)
+	require.NoError(t, err)
+	require.Contains(t, got.UserACL, sharee.ID.String())
+	usable, err := db.IsChatProjectUsableByUserID(ctx, database.IsChatProjectUsableByUserIDParams{ProjectID: project.ID, UserID: sharee.ID})
+	require.NoError(t, err)
+	require.True(t, usable)
+
+	require.NoError(t, db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{OrganizationID: org.ID, UserID: sharee.ID}))
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: sharee.ID, OrganizationID: org.ID})
+
+	got, err = db.GetChatProjectByID(ctx, project.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatACL{stays.ID.String(): admin}, got.UserACL, "rejoining does not restore the grant")
+	usable, err = db.IsChatProjectUsableByUserID(ctx, database.IsChatProjectUsableByUserIDParams{ProjectID: project.ID, UserID: sharee.ID})
+	require.NoError(t, err)
+	require.False(t, usable)
+}
+
+func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	direct := dbgen.User(t, db, database.User{})
+	groupMember := dbgen.User(t, db, database.User{})
+	orgMember := dbgen.User(t, db, database.User{})
+	wildcard := dbgen.User(t, db, database.User{})
+	outsider := dbgen.User(t, db, database.User{})
+	for _, user := range []database.User{owner, direct, groupMember, orgMember, wildcard} {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	}
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: outsider.ID, OrganizationID: otherOrg.ID})
+	group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+	dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: groupMember.ID, GroupID: group.ID})
+
+	read := database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
+	share := func(project database.ChatProject, users, groups database.ChatACL) {
+		t.Helper()
+		require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+			ID: project.ID, UserACL: users, GroupACL: groups,
+		}))
+	}
+	private := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	userShared := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(userShared, database.ChatACL{direct.ID.String(): read}, database.ChatACL{})
+	groupShared := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(groupShared, database.ChatACL{}, database.ChatACL{group.ID.String(): read})
+	everyoneShared := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(everyoneShared, database.ChatACL{}, database.ChatACL{org.ID.String(): read})
+	outsiderShared := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(outsiderShared, database.ChatACL{outsider.ID.String(): read}, database.ChatACL{})
+	noReadEntry := database.ChatACLEntry{Permissions: []policy.Action{policy.ActionShare}}
+	noRead := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(noRead, database.ChatACL{direct.ID.String(): noReadEntry}, database.ChatACL{})
+	groupNoRead := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(groupNoRead, database.ChatACL{}, database.ChatACL{group.ID.String(): noReadEntry})
+	everyoneNoRead := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(everyoneNoRead, database.ChatACL{}, database.ChatACL{org.ID.String(): noReadEntry})
+	wildcardShared := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	wildcardEntry := database.ChatACLEntry{Permissions: []policy.Action{policy.WildcardSymbol}}
+	share(wildcardShared, database.ChatACL{wildcard.ID.String(): wildcardEntry}, database.ChatACL{})
+	groupWildcard := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(groupWildcard, database.ChatACL{}, database.ChatACL{group.ID.String(): wildcardEntry})
+	everyoneWildcard := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(everyoneWildcard, database.ChatACL{}, database.ChatACL{org.ID.String(): wildcardEntry})
+	all := []uuid.UUID{private.ID, userShared.ID, groupShared.ID, everyoneShared.ID, outsiderShared.ID, noRead.ID, groupNoRead.ID, everyoneNoRead.ID, wildcardShared.ID, groupWildcard.ID, everyoneWildcard.ID}
+
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+	authzdb := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+	ids := func(projects []database.ChatProject) []uuid.UUID {
+		got := make([]uuid.UUID, 0, len(projects))
+		for _, project := range projects {
+			got = append(got, project.ID)
+		}
+		return got
+	}
+
+	for _, tc := range []struct {
+		name       string
+		user       database.User
+		raw        []uuid.UUID
+		authorized []uuid.UUID
+	}{
+		{"Direct", direct, []uuid.UUID{userShared.ID, everyoneShared.ID, noRead.ID, everyoneNoRead.ID, everyoneWildcard.ID}, []uuid.UUID{userShared.ID, everyoneShared.ID, everyoneWildcard.ID}},
+		{"Group", groupMember, []uuid.UUID{groupShared.ID, everyoneShared.ID, groupNoRead.ID, everyoneNoRead.ID, groupWildcard.ID, everyoneWildcard.ID}, []uuid.UUID{groupShared.ID, everyoneShared.ID, groupWildcard.ID, everyoneWildcard.ID}},
+		{"Everyone", orgMember, []uuid.UUID{everyoneShared.ID, everyoneNoRead.ID, everyoneWildcard.ID}, []uuid.UUID{everyoneShared.ID, everyoneWildcard.ID}},
+		{"Wildcard", wildcard, []uuid.UUID{wildcardShared.ID, everyoneShared.ID, everyoneNoRead.ID, everyoneWildcard.ID}, []uuid.UUID{wildcardShared.ID, everyoneShared.ID, everyoneWildcard.ID}},
+		{"Outsider", outsider, nil, nil},
+	} {
+		projects, err := db.GetChatProjectsOwnedOrSharedWithUserID(ctx, tc.user.ID)
+		require.NoError(t, err, tc.name)
+		require.ElementsMatch(t, tc.raw, ids(projects), tc.name)
+
+		subject, _, err := httpmw.UserRBACSubject(ctx, db, tc.user.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err, tc.name)
+		projects, err = authzdb.GetChatProjectsOwnedOrSharedWithUserID(dbauthz.As(ctx, subject), tc.user.ID)
+		require.NoError(t, err, tc.name)
+		require.ElementsMatch(t, tc.authorized, ids(projects), tc.name)
+
+		for _, projectID := range all {
+			accessible, err := db.IsChatProjectUsableByUserID(ctx, database.IsChatProjectUsableByUserIDParams{
+				ProjectID: projectID,
+				UserID:    tc.user.ID,
+			})
+			require.NoError(t, err, tc.name)
+			require.Equal(t, slices.Contains(tc.authorized, projectID), accessible, "%s: project %s", tc.name, projectID)
+		}
+	}
+
+	projects, err := db.GetChatProjectsOwnedOrSharedWithUserID(ctx, owner.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, all, ids(projects))
+	for _, projectID := range all {
+		accessible, err := db.IsChatProjectUsableByUserID(ctx, database.IsChatProjectUsableByUserIDParams{ProjectID: projectID, UserID: owner.ID})
+		require.NoError(t, err)
+		require.True(t, accessible)
+	}
 }
 
 //nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
@@ -4541,7 +4718,7 @@ func TestCountConnectionLogs(t *testing.T) {
 			OrganizationID:   wsA.OrganizationID,
 			WorkspaceOwnerID: wsA.OwnerID,
 			WorkspaceID:      wsA.ID,
-			Type:             database.ConnectionTypeSsh,
+			ConnectionMethod: database.ConnectionLogMethodSSH,
 		})
 	}
 	for i := 0; i < 10; i++ {
@@ -4549,7 +4726,7 @@ func TestCountConnectionLogs(t *testing.T) {
 			OrganizationID:   wsB.OrganizationID,
 			WorkspaceOwnerID: wsB.OwnerID,
 			WorkspaceID:      wsB.ID,
-			Type:             database.ConnectionTypeSsh,
+			ConnectionMethod: database.ConnectionLogMethodSSH,
 		})
 	}
 
@@ -4619,11 +4796,11 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		WorkspaceOwnerID: ws1.OwnerID,
 		WorkspaceID:      ws1.ID,
 		WorkspaceName:    ws1.Name,
-		Type:             database.ConnectionTypeWorkspaceApp,
+		ConnectionMethod: database.ConnectionLogMethodWorkspaceApp,
 		ConnectionStatus: database.ConnectionStatusConnected,
 		UserID:           uuid.NullUUID{UUID: user1.ID, Valid: true},
 		UserAgent:        sql.NullString{String: "Mozilla/5.0", Valid: true},
-		SlugOrPort:       sql.NullString{String: "code-server", Valid: true},
+		AppNameOrPort:    sql.NullString{String: "code-server", Valid: true},
 		ConnectionID:     uuid.NullUUID{UUID: log1ConnID, Valid: true},
 	})
 
@@ -4634,7 +4811,8 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		WorkspaceOwnerID: ws1.OwnerID,
 		WorkspaceID:      ws1.ID,
 		WorkspaceName:    ws1.Name,
-		Type:             database.ConnectionTypeVscode,
+		ConnectionMethod: database.ConnectionLogMethodSSH,
+		AppNameOrPort:    sql.NullString{String: "vscode", Valid: true},
 		ConnectionStatus: database.ConnectionStatusConnected,
 		ConnectionID:     uuid.NullUUID{UUID: log2ConnID, Valid: true},
 	})
@@ -4658,7 +4836,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		WorkspaceOwnerID: ws2.OwnerID,
 		WorkspaceID:      ws2.ID,
 		WorkspaceName:    ws2.Name,
-		Type:             database.ConnectionTypeSsh,
+		ConnectionMethod: database.ConnectionLogMethodSSH,
 		ConnectionStatus: database.ConnectionStatusConnected,
 		UserID:           uuid.NullUUID{UUID: user2.ID, Valid: true},
 		ConnectionID:     uuid.NullUUID{UUID: log3ConnID, Valid: true},
@@ -4682,7 +4860,8 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		WorkspaceOwnerID: ws2.OwnerID,
 		WorkspaceID:      ws2.ID,
 		WorkspaceName:    ws2.Name,
-		Type:             database.ConnectionTypeVscode,
+		ConnectionMethod: database.ConnectionLogMethodSSH,
+		AppNameOrPort:    sql.NullString{String: "vscode", Valid: true},
 		ConnectionStatus: database.ConnectionStatusConnected,
 		UserID:           uuid.NullUUID{UUID: user3.ID, Valid: true},
 	})
@@ -4696,10 +4875,30 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		WorkspaceOwnerID: ws1.OwnerID,
 		WorkspaceID:      ws1.ID,
 		WorkspaceName:    ws1.Name,
-		Type:             database.ConnectionTypeTunnel,
+		ConnectionMethod: database.ConnectionLogMethodTunnel,
 		ConnectionStatus: database.ConnectionStatusConnected,
 		UserID:           uuid.NullUUID{UUID: user1.ID, Valid: true},
 	})
+
+	agentLog := func(ago time.Duration, method database.ConnectionLogMethod, appName string) database.ConnectionLog {
+		return dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+			Time:             now.Add(-ago),
+			OrganizationID:   ws1.OrganizationID,
+			WorkspaceOwnerID: ws1.OwnerID,
+			WorkspaceID:      ws1.ID,
+			WorkspaceName:    ws1.Name,
+			ConnectionMethod: method,
+			AppNameOrPort:    sql.NullString{String: appName, Valid: appName != ""},
+			ConnectionStatus: database.ConnectionStatusConnected,
+			ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		})
+	}
+	log6 := agentLog(15*time.Minute, database.ConnectionLogMethodSSH, "cursor")
+	log7 := agentLog(10*time.Minute, database.ConnectionLogMethodSSH, "an_unregistered_ide")
+	log8 := agentLog(5*time.Minute, database.ConnectionLogMethodReconnectingPTY, "")
+	log9 := agentLog(4*time.Minute, database.ConnectionLogMethodSSH, "goland")
+	// An app name reported over the web terminal.
+	log10 := agentLog(3*time.Minute, database.ConnectionLogMethodReconnectingPTY, "cursor")
 
 	testCases := []struct {
 		name           string
@@ -4710,7 +4909,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			name:   "NoFilter",
 			params: database.GetConnectionLogsOffsetParams{},
 			expectedLogIDs: []uuid.UUID{
-				log1.ID, log2.ID, log3.ID, log4.ID, log5.ID,
+				log1.ID, log2.ID, log3.ID, log4.ID, log5.ID, log6.ID, log7.ID, log8.ID, log9.ID, log10.ID,
 			},
 		},
 		{
@@ -4725,14 +4924,14 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			params: database.GetConnectionLogsOffsetParams{
 				WorkspaceOwner: user1.Username,
 			},
-			expectedLogIDs: []uuid.UUID{log1.ID, log2.ID, log5.ID},
+			expectedLogIDs: []uuid.UUID{log1.ID, log2.ID, log5.ID, log6.ID, log7.ID, log8.ID, log9.ID, log10.ID},
 		},
 		{
 			name: "WorkspaceOwnerID",
 			params: database.GetConnectionLogsOffsetParams{
 				WorkspaceOwnerID: user1.ID,
 			},
-			expectedLogIDs: []uuid.UUID{log1.ID, log2.ID, log5.ID},
+			expectedLogIDs: []uuid.UUID{log1.ID, log2.ID, log5.ID, log6.ID, log7.ID, log8.ID, log9.ID, log10.ID},
 		},
 		{
 			name: "WorkspaceOwnerEmail",
@@ -4742,18 +4941,73 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			expectedLogIDs: []uuid.UUID{log3.ID, log4.ID},
 		},
 		{
-			name: "Type",
+			name: "MethodSSH",
 			params: database.GetConnectionLogsOffsetParams{
-				Type: string(database.ConnectionTypeVscode),
+				ConnectionMethod: string(database.ConnectionLogMethodSSH),
 			},
-			expectedLogIDs: []uuid.UUID{log2.ID, log4.ID},
+			expectedLogIDs: []uuid.UUID{log2.ID, log3.ID, log4.ID, log6.ID, log7.ID, log9.ID},
 		},
 		{
-			name: "TypeTunnel",
+			name: "MethodReconnectingPTY",
 			params: database.GetConnectionLogsOffsetParams{
-				Type: string(database.ConnectionTypeTunnel),
+				ConnectionMethod: string(database.ConnectionLogMethodReconnectingPTY),
+			},
+			expectedLogIDs: []uuid.UUID{log8.ID, log10.ID},
+		},
+		{
+			name: "MethodWorkspaceApp",
+			params: database.GetConnectionLogsOffsetParams{
+				ConnectionMethod: string(database.ConnectionLogMethodWorkspaceApp),
+			},
+			expectedLogIDs: []uuid.UUID{log1.ID},
+		},
+		{
+			name: "MethodTunnel",
+			params: database.GetConnectionLogsOffsetParams{
+				ConnectionMethod: string(database.ConnectionLogMethodTunnel),
 			},
 			expectedLogIDs: []uuid.UUID{log5.ID},
+		},
+		{
+			// Matches the app name over any agent method.
+			name: "AppNames",
+			params: database.GetConnectionLogsOffsetParams{
+				AppNames: []string{"vscode", "cursor"},
+			},
+			expectedLogIDs: []uuid.UUID{log2.ID, log4.ID, log6.ID, log10.ID},
+		},
+		{
+			// A workspace app slug is a destination, not the connecting app.
+			name: "AppNamesDoNotMatchDestination",
+			params: database.GetConnectionLogsOffsetParams{
+				AppNames: []string{"code-server"},
+			},
+			expectedLogIDs: []uuid.UUID{},
+		},
+		{
+			// An empty list, unlike nil, filters out every row.
+			name: "EmptyAppNames",
+			params: database.GetConnectionLogsOffsetParams{
+				AppNames: []string{},
+			},
+			expectedLogIDs: []uuid.UUID{},
+		},
+		{
+			name: "MethodAndAppNames",
+			params: database.GetConnectionLogsOffsetParams{
+				ConnectionMethod: string(database.ConnectionLogMethodSSH),
+				AppNames:         []string{"cursor"},
+			},
+			expectedLogIDs: []uuid.UUID{log6.ID},
+		},
+		{
+			// An absent or unregistered app name is never excluded.
+			name: "MethodAndExcludedAppNames",
+			params: database.GetConnectionLogsOffsetParams{
+				ConnectionMethod: string(database.ConnectionLogMethodSSH),
+				ExcludedAppNames: []string{"vscode", "cursor", "goland"},
+			},
+			expectedLogIDs: []uuid.UUID{log3.ID, log7.ID},
 		},
 		{
 			name: "UserID",
@@ -4781,7 +5035,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			params: database.GetConnectionLogsOffsetParams{
 				ConnectedAfter: now.Add(-90 * time.Minute), // 1.5 hours ago
 			},
-			expectedLogIDs: []uuid.UUID{log4.ID, log5.ID},
+			expectedLogIDs: []uuid.UUID{log4.ID, log5.ID, log6.ID, log7.ID, log8.ID, log9.ID, log10.ID},
 		},
 		{
 			name: "ConnectedBefore",
@@ -4809,7 +5063,8 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			params: database.GetConnectionLogsOffsetParams{
 				Status: string(codersdk.ConnectionLogStatusOngoing),
 			},
-			expectedLogIDs: []uuid.UUID{log4.ID},
+			// Web and tunnel events have no lifecycle, so they are excluded.
+			expectedLogIDs: []uuid.UUID{log4.ID, log6.ID, log7.ID, log8.ID, log9.ID, log10.ID},
 		},
 		{
 			name: "StatusCompleted",
@@ -4819,10 +5074,10 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			expectedLogIDs: []uuid.UUID{log2.ID, log3.ID},
 		},
 		{
-			name: "OrganizationAndTypeAndStatus",
+			name: "OrganizationAndAppNamesAndStatus",
 			params: database.GetConnectionLogsOffsetParams{
 				OrganizationID: orgA.Org.ID,
-				Type:           string(database.ConnectionTypeVscode),
+				AppNames:       []string{"vscode", "cursor"},
 				Status:         string(codersdk.ConnectionLogStatusCompleted),
 			},
 			expectedLogIDs: []uuid.UUID{log2.ID},
@@ -4838,7 +5093,9 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			count, err := db.CountConnectionLogs(ctx, database.CountConnectionLogsParams{
 				OrganizationID:      tc.params.OrganizationID,
 				WorkspaceOwner:      tc.params.WorkspaceOwner,
-				Type:                tc.params.Type,
+				ConnectionMethod:    tc.params.ConnectionMethod,
+				AppNames:            tc.params.AppNames,
+				ExcludedAppNames:    tc.params.ExcludedAppNames,
 				UserID:              tc.params.UserID,
 				Username:            tc.params.Username,
 				UserEmail:           tc.params.UserEmail,
@@ -4920,17 +5177,21 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			WorkspaceID:      []uuid.UUID{ws.ID},
 			WorkspaceName:    []string{ws.Name},
 			AgentName:        []string{"agent"},
-			Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
 			Code:             []int32{0},
 			CodeValid:        []bool{false},
 			Ip:               []pqtype.Inet{defaultIP},
 			UserAgent:        []string{""},
 			UserID:           []uuid.UUID{uuid.Nil},
-			SlugOrPort:       []string{""},
+			AppNameOrPort:    []string{""},
 			ConnectionID:     []uuid.UUID{connID},
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
 			ClientSessionID:  []string{""},
+			RxBytes:          []int64{0},
+			RxBytesValid:     []bool{false},
+			TxBytes:          []int64{0},
+			TxBytesValid:     []bool{false},
 		})
 		require.NoError(t, err)
 
@@ -4959,17 +5220,21 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			WorkspaceID:      []uuid.UUID{ws.ID},
 			WorkspaceName:    []string{ws.Name},
 			AgentName:        []string{"agent"},
-			Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
 			Code:             []int32{0},
 			CodeValid:        []bool{false},
 			Ip:               []pqtype.Inet{defaultIP},
 			UserAgent:        []string{""},
 			UserID:           []uuid.UUID{uuid.Nil},
-			SlugOrPort:       []string{""},
+			AppNameOrPort:    []string{""},
 			ConnectionID:     []uuid.UUID{connID},
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
 			ClientSessionID:  []string{""},
+			RxBytes:          []int64{0},
+			RxBytesValid:     []bool{false},
+			TxBytes:          []int64{0},
+			TxBytesValid:     []bool{false},
 		})
 		require.NoError(t, err)
 
@@ -4983,17 +5248,21 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			WorkspaceID:      []uuid.UUID{ws.ID},
 			WorkspaceName:    []string{ws.Name},
 			AgentName:        []string{"agent"},
-			Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
 			Code:             []int32{1},
 			CodeValid:        []bool{true},
 			Ip:               []pqtype.Inet{defaultIP},
 			UserAgent:        []string{""},
 			UserID:           []uuid.UUID{uuid.Nil},
-			SlugOrPort:       []string{""},
+			AppNameOrPort:    []string{""},
 			ConnectionID:     []uuid.UUID{connID},
 			DisconnectReason: []string{"test disconnect"},
 			DisconnectTime:   []time.Time{disconnectTime},
 			ClientSessionID:  []string{""},
+			RxBytes:          []int64{10},
+			RxBytesValid:     []bool{true},
+			TxBytes:          []int64{20},
+			TxBytesValid:     []bool{true},
 		})
 		require.NoError(t, err)
 
@@ -5006,6 +5275,8 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		require.True(t, disconnectTime.Equal(row.DisconnectTime.Time))
 		require.Equal(t, "test disconnect", row.DisconnectReason.String)
 		require.Equal(t, int32(1), row.Code.Int32)
+		require.Equal(t, int64(10), row.RxBytes.Int64)
+		require.Equal(t, int64(20), row.TxBytes.Int64)
 	})
 
 	t.Run("DuplicateConnectIsNoOp", func(t *testing.T) {
@@ -5025,17 +5296,21 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				WorkspaceID:      []uuid.UUID{ws.ID},
 				WorkspaceName:    []string{ws.Name},
 				AgentName:        []string{"agent"},
-				Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+				ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
 				Code:             []int32{0},
 				CodeValid:        []bool{false},
 				Ip:               []pqtype.Inet{ip},
 				UserAgent:        []string{""},
 				UserID:           []uuid.UUID{uuid.Nil},
-				SlugOrPort:       []string{""},
+				AppNameOrPort:    []string{""},
 				ConnectionID:     []uuid.UUID{connID},
 				DisconnectReason: []string{""},
 				DisconnectTime:   []time.Time{zeroTime},
 				ClientSessionID:  []string{""},
+				RxBytes:          []int64{0},
+				RxBytesValid:     []bool{false},
+				TxBytes:          []int64{0},
+				TxBytesValid:     []bool{false},
 			}
 		}
 
@@ -5085,17 +5360,21 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			WorkspaceID:      []uuid.UUID{ws.ID},
 			WorkspaceName:    []string{ws.Name},
 			AgentName:        []string{"agent"},
-			Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
 			Code:             []int32{0},
 			CodeValid:        []bool{true},
 			Ip:               []pqtype.Inet{defaultIP},
 			UserAgent:        []string{""},
 			UserID:           []uuid.UUID{uuid.Nil},
-			SlugOrPort:       []string{""},
+			AppNameOrPort:    []string{""},
 			ConnectionID:     []uuid.UUID{connID},
 			DisconnectReason: []string{"bye"},
 			DisconnectTime:   []time.Time{disconnectTime},
 			ClientSessionID:  []string{""},
+			RxBytes:          []int64{10},
+			RxBytesValid:     []bool{true},
+			TxBytes:          []int64{20},
+			TxBytesValid:     []bool{true},
 		})
 		require.NoError(t, err)
 
@@ -5108,17 +5387,21 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			WorkspaceID:      []uuid.UUID{ws.ID},
 			WorkspaceName:    []string{ws.Name},
 			AgentName:        []string{"agent"},
-			Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
 			Code:             []int32{0},
 			CodeValid:        []bool{false},
 			Ip:               []pqtype.Inet{defaultIP},
 			UserAgent:        []string{""},
 			UserID:           []uuid.UUID{uuid.Nil},
-			SlugOrPort:       []string{""},
+			AppNameOrPort:    []string{""},
 			ConnectionID:     []uuid.UUID{connID},
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
 			ClientSessionID:  []string{""},
+			RxBytes:          []int64{0},
+			RxBytesValid:     []bool{false},
+			TxBytes:          []int64{0},
+			TxBytesValid:     []bool{false},
 		})
 		require.NoError(t, err)
 
@@ -5137,7 +5420,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		connID := uuid.New()
 		disconnectTime := dbtime.Now()
 
-		mkDisconnect := func(reason string, code int32) database.BatchUpsertConnectionLogsParams {
+		mkDisconnect := func(reason string, code int32, rxBytes, txBytes int64) database.BatchUpsertConnectionLogsParams {
 			return database.BatchUpsertConnectionLogsParams{
 				ID:               []uuid.UUID{uuid.New()},
 				ConnectTime:      []time.Time{disconnectTime},
@@ -5146,25 +5429,29 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				WorkspaceID:      []uuid.UUID{ws.ID},
 				WorkspaceName:    []string{ws.Name},
 				AgentName:        []string{"agent"},
-				Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+				ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
 				Code:             []int32{code},
 				CodeValid:        []bool{true},
 				Ip:               []pqtype.Inet{defaultIP},
 				UserAgent:        []string{""},
 				UserID:           []uuid.UUID{uuid.Nil},
-				SlugOrPort:       []string{""},
+				AppNameOrPort:    []string{""},
 				ConnectionID:     []uuid.UUID{connID},
 				DisconnectReason: []string{reason},
 				DisconnectTime:   []time.Time{disconnectTime},
 				ClientSessionID:  []string{""},
+				RxBytes:          []int64{rxBytes},
+				RxBytesValid:     []bool{true},
+				TxBytes:          []int64{txBytes},
+				TxBytesValid:     []bool{true},
 			}
 		}
 
-		err := db.BatchUpsertConnectionLogs(ctx, mkDisconnect("first reason", 1))
+		err := db.BatchUpsertConnectionLogs(ctx, mkDisconnect("first reason", 1, 33, 44))
 		require.NoError(t, err)
 
-		// Second disconnect with different reason and code.
-		err = db.BatchUpsertConnectionLogs(ctx, mkDisconnect("second reason", 2))
+		// Second disconnect with different reason, code, and bytes.
+		err = db.BatchUpsertConnectionLogs(ctx, mkDisconnect("second reason", 2, 55, 66))
 		require.NoError(t, err)
 
 		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
@@ -5175,51 +5462,51 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			"disconnect_reason should not be overwritten")
 		require.Equal(t, int32(1), row.Code.Int32,
 			"code should not be overwritten")
+		require.Equal(t, int64(33), row.RxBytes.Int64,
+			"rx bytes should not be overwritten")
+		require.Equal(t, int64(44), row.TxBytes.Int64,
+			"tx bytes should not be overwritten")
 	})
 
-	t.Run("ClientSessionIDIsWriteOnce", func(t *testing.T) {
+	// A later report for the same connection, such as its disconnect, cannot
+	// change how the connection was established or who opened it.
+	t.Run("ConnectionOriginIsWriteOnce", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		ctx := context.Background()
 		ws := createWorkspace(t, db)
 		connID := uuid.New()
-		connectTime := dbtime.Now()
-
-		mkParams := func(id string) database.BatchUpsertConnectionLogsParams {
-			return database.BatchUpsertConnectionLogsParams{
-				ID:               []uuid.UUID{uuid.New()},
-				ConnectTime:      []time.Time{connectTime},
-				OrganizationID:   []uuid.UUID{ws.OrganizationID},
-				WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
-				WorkspaceID:      []uuid.UUID{ws.ID},
-				WorkspaceName:    []string{ws.Name},
-				AgentName:        []string{"agent"},
-				Type:             []database.ConnectionType{database.ConnectionTypeSsh},
-				Code:             []int32{0},
-				CodeValid:        []bool{true},
-				Ip:               []pqtype.Inet{defaultIP},
-				UserAgent:        []string{""},
-				UserID:           []uuid.UUID{uuid.Nil},
-				SlugOrPort:       []string{""},
-				ConnectionID:     []uuid.UUID{connID},
-				DisconnectReason: []string{""},
-				DisconnectTime:   []time.Time{zeroTime},
-				ClientSessionID:  []string{id},
-			}
+		report := func(seed database.UpsertConnectionLogParams) database.ConnectionLog {
+			seed.OrganizationID = ws.OrganizationID
+			seed.WorkspaceOwnerID = ws.OwnerID
+			seed.WorkspaceID = ws.ID
+			seed.WorkspaceName = ws.Name
+			seed.AgentName = "agent"
+			seed.ConnectionID = uuid.NullUUID{UUID: connID, Valid: true}
+			return dbgen.ConnectionLog(t, db, seed)
 		}
 
-		err := db.BatchUpsertConnectionLogs(ctx, mkParams("0123456789abcdef0123456789abcdef"))
-		require.NoError(t, err)
+		report(database.UpsertConnectionLogParams{
+			ConnectionMethod: database.ConnectionLogMethodSSH,
+			AppNameOrPort:    sql.NullString{String: "cursor", Valid: true},
+			ClientSessionID:  sql.NullString{String: "0123456789abcdef0123456789abcdef", Valid: true},
+		})
+		disconnectTime := dbtime.Now().Add(time.Second)
+		report(database.UpsertConnectionLogParams{
+			Time:             disconnectTime,
+			ConnectionMethod: database.ConnectionLogMethodReconnectingPTY,
+			AppNameOrPort:    sql.NullString{String: "vscode", Valid: true},
+			ClientSessionID:  sql.NullString{String: "fedcba9876543210fedcba9876543210", Valid: true},
+			ConnectionStatus: database.ConnectionStatusDisconnected,
+			DisconnectReason: sql.NullString{String: "bye", Valid: true},
+		})
+		// An overlapping report with no app name does not clear it either.
+		row := report(database.UpsertConnectionLogParams{})
 
-		err = db.BatchUpsertConnectionLogs(ctx, mkParams(""))
-		require.NoError(t, err)
-
-		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
-		require.NoError(t, err)
-		require.Len(t, rows, 1)
-		row := rows[0].ConnectionLog
-		require.Equal(t, "0123456789abcdef0123456789abcdef", row.ClientSessionID.String,
-			"client_session_id should not be overwritten")
+		require.Equal(t, database.ConnectionLogMethodSSH, row.ConnectionMethod)
+		require.Equal(t, sql.NullString{String: "cursor", Valid: true}, row.AppNameOrPort)
+		require.Equal(t, sql.NullString{String: "0123456789abcdef0123456789abcdef", Valid: true}, row.ClientSessionID)
+		require.True(t, disconnectTime.Equal(row.DisconnectTime.Time))
+		require.Equal(t, "bye", row.DisconnectReason.String)
 	})
 	t.Run("NullConnectionIDEvents", func(t *testing.T) {
 		t.Parallel()
@@ -5239,17 +5526,21 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				WorkspaceID:      []uuid.UUID{ws.ID},
 				WorkspaceName:    []string{ws.Name},
 				AgentName:        []string{"agent"},
-				Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+				ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodWorkspaceApp},
 				Code:             []int32{200},
 				CodeValid:        []bool{true},
 				Ip:               []pqtype.Inet{defaultIP},
 				UserAgent:        []string{"Mozilla/5.0"},
 				UserID:           []uuid.UUID{uuid.Nil},
-				SlugOrPort:       []string{"web-terminal"},
+				AppNameOrPort:    []string{"web-terminal"},
 				ConnectionID:     []uuid.UUID{uuid.Nil},
 				DisconnectReason: []string{""},
 				DisconnectTime:   []time.Time{zeroTime},
 				ClientSessionID:  []string{""},
+				RxBytes:          []int64{0},
+				RxBytesValid:     []bool{false},
+				TxBytes:          []int64{0},
+				TxBytesValid:     []bool{false},
 			})
 			require.NoError(t, err)
 		}
@@ -5274,95 +5565,114 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			WorkspaceID:      []uuid.UUID{ws.ID},
 			WorkspaceName:    []string{ws.Name},
 			AgentName:        []string{"agent"},
-			Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
 			Code:             []int32{42},
 			CodeValid:        []bool{true},
 			Ip:               []pqtype.Inet{defaultIP},
 			UserAgent:        []string{""},
 			UserID:           []uuid.UUID{uuid.Nil},
-			SlugOrPort:       []string{""},
+			AppNameOrPort:    []string{""},
 			ConnectionID:     []uuid.UUID{uuid.New()},
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
 			ClientSessionID:  []string{"invalid"},
+			RxBytes:          []int64{0},
+			RxBytesValid:     []bool{false},
+			TxBytes:          []int64{0},
+			TxBytesValid:     []bool{false},
 		})
 		require.Error(t, err)
 		require.ErrorContains(t, err, "violates check constraint")
 	})
 
-	t.Run("CodeZeroPreserved", func(t *testing.T) {
+	// Test that nullable fields can properly differentiate between a value, the
+	// empty value, and null.  For null tests, specifically set a non-empty value,
+	// just as a sanity check that it properly comes back as {empty value, false}
+	// rather than {original value, false} somehow.
+	t.Run("NullableFields", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := context.Background()
-		ws := createWorkspace(t, db)
-		connID := uuid.New()
-		now := dbtime.Now()
 
-		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
-			ID:               []uuid.UUID{uuid.New()},
-			ConnectTime:      []time.Time{now},
-			OrganizationID:   []uuid.UUID{ws.OrganizationID},
-			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
-			WorkspaceID:      []uuid.UUID{ws.ID},
-			WorkspaceName:    []string{ws.Name},
-			AgentName:        []string{"agent"},
-			Type:             []database.ConnectionType{database.ConnectionTypeSsh},
-			Code:             []int32{0},
-			CodeValid:        []bool{true},
-			Ip:               []pqtype.Inet{defaultIP},
-			UserAgent:        []string{""},
-			UserID:           []uuid.UUID{uuid.Nil},
-			SlugOrPort:       []string{""},
-			ConnectionID:     []uuid.UUID{connID},
-			DisconnectReason: []string{"normal"},
-			DisconnectTime:   []time.Time{now},
-			ClientSessionID:  []string{""},
-		})
-		require.NoError(t, err)
-
-		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
-		require.NoError(t, err)
-		require.Len(t, rows, 1)
-		require.True(t, rows[0].ConnectionLog.Code.Valid, "code should be non-NULL")
-		require.Equal(t, int32(0), rows[0].ConnectionLog.Code.Int32,
-			"code=0 should be preserved, not treated as NULL")
-	})
-
-	t.Run("CodeNullWhenInvalid", func(t *testing.T) {
-		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := context.Background()
-		ws := createWorkspace(t, db)
-		connID := uuid.New()
-		now := dbtime.Now()
-
-		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
-			ID:               []uuid.UUID{uuid.New()},
-			ConnectTime:      []time.Time{now},
-			OrganizationID:   []uuid.UUID{ws.OrganizationID},
-			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
-			WorkspaceID:      []uuid.UUID{ws.ID},
-			WorkspaceName:    []string{ws.Name},
-			AgentName:        []string{"agent"},
-			Type:             []database.ConnectionType{database.ConnectionTypeSsh},
-			Code:             []int32{99},
-			CodeValid:        []bool{false},
-			Ip:               []pqtype.Inet{defaultIP},
-			UserAgent:        []string{""},
-			UserID:           []uuid.UUID{uuid.Nil},
-			SlugOrPort:       []string{""},
-			ConnectionID:     []uuid.UUID{connID},
-			DisconnectReason: []string{""},
-			DisconnectTime:   []time.Time{zeroTime},
-			ClientSessionID:  []string{""},
-		})
-		require.NoError(t, err)
-
-		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
-		require.NoError(t, err)
-		require.Len(t, rows, 1)
-		require.False(t, rows[0].ConnectionLog.Code.Valid,
-			"code should be NULL when code_valid is false")
+		tests := []struct {
+			name string
+			seed func(*database.UpsertConnectionLogParams)
+		}{
+			{
+				name: "CodeNull",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.Code = sql.NullInt32{Int32: 10, Valid: false}
+				},
+			},
+			{
+				name: "CodeZero",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.Code = sql.NullInt32{Int32: 0, Valid: true}
+				},
+			},
+			{
+				name: "RxBytesNull",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.RxBytes = sql.NullInt64{Int64: 20, Valid: false}
+				},
+			},
+			{
+				name: "RxBytesZero",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.RxBytes = sql.NullInt64{Int64: 0, Valid: true}
+				},
+			},
+			{
+				name: "TxBytesNull",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.TxBytes = sql.NullInt64{Int64: 30, Valid: false}
+				},
+			},
+			{
+				name: "TxBytesZero",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.TxBytes = sql.NullInt64{Int64: 0, Valid: true}
+				},
+			},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				db, _ := dbtestutil.NewDB(t)
+				ws := createWorkspace(t, db)
+				connID := uuid.New()
+				// Base seed has non-null and > 0 values for every field.
+				seed := database.UpsertConnectionLogParams{
+					OrganizationID:   ws.OrganizationID,
+					WorkspaceOwnerID: ws.OwnerID,
+					WorkspaceID:      ws.ID,
+					WorkspaceName:    ws.Name,
+					AgentName:        "agent",
+					ConnectionID:     uuid.NullUUID{UUID: connID, Valid: true},
+					UserAgent:        sql.NullString{String: "Mozilla/5.0", Valid: true},
+					UserID:           uuid.NullUUID{UUID: uuid.Nil, Valid: true},
+					ConnectionMethod: database.ConnectionLogMethodSSH,
+					AppNameOrPort:    sql.NullString{String: "test", Valid: true},
+					ClientSessionID:  sql.NullString{String: "0123456789abcdef0123456789abcdef", Valid: true},
+					DisconnectReason: sql.NullString{String: "test", Valid: true},
+					Code:             sql.NullInt32{Int32: 10, Valid: true},
+					RxBytes:          sql.NullInt64{Int64: 20, Valid: true},
+					TxBytes:          sql.NullInt64{Int64: 30, Valid: true},
+				}
+				tc.seed(&seed)
+				log := dbgen.ConnectionLog(t, db, seed)
+				if !seed.Code.Valid {
+					seed.Code.Int32 = 0
+				}
+				require.Equal(t, seed.Code, log.Code)
+				if !seed.RxBytes.Valid {
+					seed.RxBytes.Int64 = 0
+				}
+				require.Equal(t, seed.RxBytes, log.RxBytes)
+				if !seed.TxBytes.Valid {
+					seed.TxBytes.Int64 = 0
+				}
+				require.Equal(t, seed.TxBytes, log.TxBytes)
+			})
+		}
 	})
 
 	t.Run("NullConnectionIDEvents", func(t *testing.T) {
@@ -5383,17 +5693,21 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				WorkspaceID:      []uuid.UUID{ws.ID},
 				WorkspaceName:    []string{ws.Name},
 				AgentName:        []string{"agent"},
-				Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+				ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodWorkspaceApp},
 				Code:             []int32{200},
 				CodeValid:        []bool{true},
 				Ip:               []pqtype.Inet{defaultIP},
 				UserAgent:        []string{"Mozilla/5.0"},
 				UserID:           []uuid.UUID{uuid.Nil},
-				SlugOrPort:       []string{"web-terminal"},
+				AppNameOrPort:    []string{"web-terminal"},
 				ConnectionID:     []uuid.UUID{uuid.Nil},
 				DisconnectReason: []string{""},
 				DisconnectTime:   []time.Time{zeroTime},
 				ClientSessionID:  []string{""},
+				RxBytes:          []int64{0},
+				RxBytesValid:     []bool{true},
+				TxBytes:          []int64{0},
+				TxBytesValid:     []bool{true},
 			})
 			require.NoError(t, err)
 		}
@@ -5419,7 +5733,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		wsIDs := make([]uuid.UUID, n)
 		wsNames := make([]string, n)
 		agentNames := make([]string, n)
-		types := make([]database.ConnectionType, n)
+		methods := make([]database.ConnectionLogMethod, n)
 		codes := make([]int32, n)
 		codeValids := make([]bool, n)
 		ips := make([]pqtype.Inet, n)
@@ -5430,6 +5744,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		disconnectReasons := make([]string, n)
 		disconnectTimes := make([]time.Time, n)
 		clientSessionIDs := make([]string, n)
+		rxBytes := make([]int64, n)
+		rxBytesValids := make([]bool, n)
+		txBytes := make([]int64, n)
+		txBytesValids := make([]bool, n)
 
 		for i := range n {
 			ids[i] = uuid.New()
@@ -5439,7 +5757,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			wsIDs[i] = ws.ID
 			wsNames[i] = ws.Name
 			agentNames[i] = "agent"
-			types[i] = database.ConnectionTypeSsh
+			methods[i] = database.ConnectionLogMethodSSH
 			codes[i] = 0
 			codeValids[i] = false
 			ips[i] = defaultIP
@@ -5450,6 +5768,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			disconnectReasons[i] = ""
 			disconnectTimes[i] = zeroTime
 			clientSessionIDs[i] = ""
+			rxBytes[i] = 0
+			rxBytesValids[i] = false
+			txBytes[i] = 0
+			txBytesValids[i] = false
 		}
 
 		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
@@ -5460,17 +5782,21 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			WorkspaceID:      wsIDs,
 			WorkspaceName:    wsNames,
 			AgentName:        agentNames,
-			Type:             types,
+			ConnectionMethod: methods,
 			Code:             codes,
 			CodeValid:        codeValids,
 			Ip:               ips,
 			UserAgent:        userAgents,
 			UserID:           userIDs,
-			SlugOrPort:       slugOrPorts,
+			AppNameOrPort:    slugOrPorts,
 			ConnectionID:     connIDs,
 			DisconnectReason: disconnectReasons,
 			DisconnectTime:   disconnectTimes,
 			ClientSessionID:  clientSessionIDs,
+			RxBytes:          rxBytes,
+			RxBytesValid:     rxBytesValids,
+			TxBytes:          txBytes,
+			TxBytesValid:     txBytesValids,
 		})
 		require.NoError(t, err)
 
@@ -11541,61 +11867,66 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		CreatedBy:      owner.ID,
 	})
 
-	t.Run("DuringStopBuild", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-			OwnerID:        owner.ID,
-			OrganizationID: org.ID,
-			TemplateID:     tpl.ID,
-		})
+	for name, transition := range map[string]database.WorkspaceTransition{
+		"Stop":   database.WorkspaceTransitionStop,
+		"Delete": database.WorkspaceTransitionDelete,
+	} {
+		t.Run("During"+name+"Build", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+				OwnerID:        owner.ID,
+				OrganizationID: org.ID,
+				TemplateID:     tpl.ID,
+			})
 
-		// Create start build with succeeded job (already completed).
-		startJob := database.ProvisionerJob{
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			InitiatorID:    owner.ID,
-			OrganizationID: org.ID,
-		}
-		setJobStatus(t, database.ProvisionerJobStatusSucceeded, &startJob)
-		startJob = dbgen.ProvisionerJob(t, db, nil, startJob)
-		startResource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-			JobID:      startJob.ID,
-			Transition: database.WorkspaceTransitionStart,
-		})
-		startBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: ver.ID,
-			BuildNumber:       1,
-			Transition:        database.WorkspaceTransitionStart,
-			InitiatorID:       owner.ID,
-			JobID:             startJob.ID,
-		})
-		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-			ResourceID: startResource.ID,
-		})
+			// Create start build with succeeded job (already completed).
+			startJob := database.ProvisionerJob{
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				InitiatorID:    owner.ID,
+				OrganizationID: org.ID,
+			}
+			setJobStatus(t, database.ProvisionerJobStatusSucceeded, &startJob)
+			startJob = dbgen.ProvisionerJob(t, db, nil, startJob)
+			startResource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+				JobID:      startJob.ID,
+				Transition: database.WorkspaceTransitionStart,
+			})
+			startBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				WorkspaceID:       workspace.ID,
+				TemplateVersionID: ver.ID,
+				BuildNumber:       1,
+				Transition:        database.WorkspaceTransitionStart,
+				InitiatorID:       owner.ID,
+				JobID:             startJob.ID,
+			})
+			agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ResourceID: startResource.ID,
+			})
 
-		// Create stop build (becomes latest).
-		stopJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			InitiatorID:    owner.ID,
-			OrganizationID: org.ID,
-			JobStatus:      database.ProvisionerJobStatusRunning,
-		})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: ver.ID,
-			BuildNumber:       2,
-			Transition:        database.WorkspaceTransitionStop,
-			InitiatorID:       owner.ID,
-			JobID:             stopJob.ID,
-		})
+			// Create the stop or delete build (becomes latest).
+			stopJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				InitiatorID:    owner.ID,
+				OrganizationID: org.ID,
+				JobStatus:      database.ProvisionerJobStatusRunning,
+			})
+			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				WorkspaceID:       workspace.ID,
+				TemplateVersionID: ver.ID,
+				BuildNumber:       2,
+				Transition:        transition,
+				InitiatorID:       owner.ID,
+				JobID:             stopJob.ID,
+			})
 
-		// Agent should still authenticate during stop build execution.
-		row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent.AuthToken)
-		require.NoError(t, err, "agent should authenticate during stop build execution")
-		require.Equal(t, agent.ID, row.WorkspaceAgent.ID)
-		require.Equal(t, startBuild.ID, row.WorkspaceBuild.ID, "should return start build, not stop build")
-	})
+			// Agent should still authenticate during stop build execution.
+			row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent.AuthToken)
+			require.NoError(t, err, "agent should authenticate during %s build execution", transition)
+			require.Equal(t, agent.ID, row.WorkspaceAgent.ID)
+			require.Equal(t, startBuild.ID, row.WorkspaceBuild.ID, "should return start build, not %s build", transition)
+		})
+	}
 
 	t.Run("AfterStopJobCompletes", func(t *testing.T) {
 		t.Parallel()
@@ -16386,443 +16717,6 @@ func TestDeleteChatDebugDataAfterMessageIDStepLevelFieldBoundariesAndNulls(t *te
 	require.Len(t, remaining, 4)
 }
 
-func TestFinalizeStaleChatDebugRows(t *testing.T) {
-	t.Parallel()
-
-	store, _ := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitMedium)
-
-	org := dbgen.Organization(t, store, database.Organization{})
-	user := dbgen.User(t, store, database.User{})
-
-	providerName := "openai"
-	modelName := "debug-model-finalize-" + uuid.NewString()
-
-	dbgen.ChatProvider(t, store, database.ChatProvider{
-		Provider:             providerName,
-		DisplayName:          "Debug Provider",
-		APIKey:               "test-key",
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
-	})
-
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
-		Model:                modelName,
-		DisplayName:          "Debug Model",
-		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:              true,
-		IsDefault:            true,
-		ContextLimit:         128000,
-		CompressionThreshold: 80,
-		Options:              json.RawMessage(`{}`),
-	})
-	require.NoError(t, err)
-
-	chat, err := store.InsertChat(ctx, database.InsertChatParams{
-		OrganizationID:    org.ID,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
-		OwnerID:           user.ID,
-		LastModelConfigID: modelCfg.ID,
-		Title:             "chat-finalize-" + uuid.NewString(),
-	})
-	require.NoError(t, err)
-
-	// staleTime is well before the threshold so rows stamped with it
-	// are considered stale.  The threshold sits between staleTime and
-	// NOW(), letting us create rows that are stale-by-age and rows
-	// that are fresh-by-age in the same test.
-	staleTime := time.Now().Add(-2 * time.Hour)
-	staleThreshold := time.Now().Add(-1 * time.Hour)
-
-	// preExistingError is attached to staleStep so we can verify
-	// that finalization preserves pre-existing error JSON rather
-	// than clearing or overwriting it.
-	preExistingError := json.RawMessage(`{"code":"timeout","message":"upstream deadline exceeded"}`)
-
-	// --- staleRun: in_progress run with no finished_at --- should be
-	// finalized.
-	staleRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
-		ChatID:              chat.ID,
-		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
-		TriggerMessageID:    sql.NullInt64{Int64: 1, Valid: true},
-		HistoryTipMessageID: sql.NullInt64{Int64: 1, Valid: true},
-		Kind:                "chat_turn",
-		Status:              "in_progress",
-		Provider:            sql.NullString{String: providerName, Valid: true},
-		Model:               sql.NullString{String: modelName, Valid: true},
-		UpdatedAt:           sql.NullTime{Time: staleTime, Valid: true},
-	})
-	require.NoError(t, err)
-
-	// staleStep: in_progress step attached to staleRun with a
-	// pre-existing error JSON payload.
-	staleStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
-		RunID:      staleRun.ID,
-		ChatID:     chat.ID,
-		StepNumber: 1,
-		Operation:  "stream",
-		Status:     "in_progress",
-		UpdatedAt:  sql.NullTime{Time: staleTime, Valid: true},
-		Error: pqtype.NullRawMessage{
-			RawMessage: preExistingError,
-			Valid:      true,
-		},
-	})
-	require.NoError(t, err)
-	require.True(t, staleStep.Error.Valid,
-		"precondition: error must be stored at insertion")
-
-	// --- orphanStep: in_progress step whose run is already completed ---
-	// Its own updated_at is old, so it should be finalized directly.
-	// The step must be inserted while the run is still open because
-	// InsertChatDebugStep requires finished_at IS NULL on the parent
-	// run (atomic guard against appending steps to finalized runs).
-	completedRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
-		ChatID:              chat.ID,
-		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
-		TriggerMessageID:    sql.NullInt64{Int64: 2, Valid: true},
-		HistoryTipMessageID: sql.NullInt64{Int64: 2, Valid: true},
-		Kind:                "chat_turn",
-		Status:              "completed",
-	})
-	require.NoError(t, err)
-
-	// Insert the step while the run is still open (finished_at IS NULL).
-	orphanStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
-		RunID:      completedRun.ID,
-		ChatID:     chat.ID,
-		StepNumber: 1,
-		Operation:  "stream",
-		Status:     "in_progress",
-		UpdatedAt:  sql.NullTime{Time: staleTime, Valid: true},
-	})
-	require.NoError(t, err)
-
-	// Now mark the run as completed with a finished_at timestamp,
-	// leaving the step orphaned in in_progress state.
-	_, err = store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
-		ID:     completedRun.ID,
-		ChatID: completedRun.ChatID,
-		Status: sql.NullString{String: "completed", Valid: true},
-		FinishedAt: sql.NullTime{
-			Time:  time.Now(),
-			Valid: true,
-		},
-		Now: time.Now(),
-	})
-	require.NoError(t, err)
-
-	// --- cascadeRun: stale in_progress run with a FRESH step ---
-	// The run's updated_at is old so the run itself is finalized by
-	// age.  The step's updated_at is recent (default NOW()), so it is
-	// NOT caught by the age predicate.  It must be finalized solely
-	// via the cascade CTE clause: run_id IN (SELECT id FROM
-	// finalized_runs).  Removing that clause would leave this step
-	// stuck in 'in_progress'.
-	cascadeRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
-		ChatID:              chat.ID,
-		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
-		TriggerMessageID:    sql.NullInt64{Int64: 10, Valid: true},
-		HistoryTipMessageID: sql.NullInt64{Int64: 10, Valid: true},
-		Kind:                "chat_turn",
-		Status:              "in_progress",
-		Provider:            sql.NullString{String: providerName, Valid: true},
-		Model:               sql.NullString{String: modelName, Valid: true},
-		UpdatedAt:           sql.NullTime{Time: staleTime, Valid: true},
-	})
-	require.NoError(t, err)
-
-	// cascadeStep: recent updated_at (default NOW()), so only the
-	// cascade path can finalize it.
-	cascadeStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
-		RunID:      cascadeRun.ID,
-		ChatID:     chat.ID,
-		StepNumber: 1,
-		Operation:  "stream",
-		Status:     "in_progress",
-	})
-	require.NoError(t, err)
-
-	// The InsertChatDebugStep CTE atomically bumps the parent run's
-	// updated_at to NOW(). Reset it back to staleTime so the run is
-	// still caught by the age predicate in FinalizeStaleChatDebugRows.
-	err = store.TouchChatDebugRunUpdatedAt(ctx, database.TouchChatDebugRunUpdatedAtParams{
-		ID:     cascadeRun.ID,
-		ChatID: chat.ID,
-		Now:    staleTime,
-	})
-	require.NoError(t, err)
-
-	// --- alreadyDone: completed run/step --- should NOT be touched.
-	doneRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
-		ChatID:              chat.ID,
-		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
-		TriggerMessageID:    sql.NullInt64{Int64: 3, Valid: true},
-		HistoryTipMessageID: sql.NullInt64{Int64: 3, Valid: true},
-		Kind:                "chat_turn",
-		Status:              "completed",
-	})
-	require.NoError(t, err)
-
-	// Insert step while run is still open.
-	doneStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
-		RunID:      doneRun.ID,
-		ChatID:     chat.ID,
-		StepNumber: 1,
-		Operation:  "stream",
-		Status:     "completed",
-	})
-	require.NoError(t, err)
-
-	// Now finalize both run and step.
-	_, err = store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
-		ID:     doneRun.ID,
-		ChatID: doneRun.ChatID,
-		Status: sql.NullString{String: "completed", Valid: true},
-		FinishedAt: sql.NullTime{
-			Time:  time.Now(),
-			Valid: true,
-		},
-		Now: time.Now(),
-	})
-	require.NoError(t, err)
-
-	_, err = store.UpdateChatDebugStep(ctx, database.UpdateChatDebugStepParams{
-		ID:     doneStep.ID,
-		ChatID: chat.ID,
-		Status: sql.NullString{String: "completed", Valid: true},
-		FinishedAt: sql.NullTime{
-			Time:  time.Now(),
-			Valid: true,
-		},
-		Now: time.Now(),
-	})
-	require.NoError(t, err)
-
-	// --- errorRun: error run/step --- should NOT be touched either,
-	// exercising the 'error' branch of the NOT IN clause.
-	errorRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
-		ChatID:              chat.ID,
-		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
-		TriggerMessageID:    sql.NullInt64{Int64: 4, Valid: true},
-		HistoryTipMessageID: sql.NullInt64{Int64: 4, Valid: true},
-		Kind:                "chat_turn",
-		Status:              "error",
-	})
-	require.NoError(t, err)
-
-	// Insert step while run is still open.
-	errorStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
-		RunID:      errorRun.ID,
-		ChatID:     chat.ID,
-		StepNumber: 1,
-		Operation:  "stream",
-		Status:     "error",
-	})
-	require.NoError(t, err)
-
-	// Now finalize both run and step.
-	_, err = store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
-		ID:     errorRun.ID,
-		ChatID: errorRun.ChatID,
-		Status: sql.NullString{String: "error", Valid: true},
-		FinishedAt: sql.NullTime{
-			Time:  time.Now(),
-			Valid: true,
-		},
-		Now: time.Now(),
-	})
-	require.NoError(t, err)
-
-	_, err = store.UpdateChatDebugStep(ctx, database.UpdateChatDebugStepParams{
-		ID:     errorStep.ID,
-		ChatID: chat.ID,
-		Status: sql.NullString{String: "error", Valid: true},
-		FinishedAt: sql.NullTime{
-			Time:  time.Now(),
-			Valid: true,
-		},
-		Now: time.Now(),
-	})
-	require.NoError(t, err)
-
-	// --- freshRun: recent in_progress run with current timestamp ---
-	// should NOT be finalized because its updated_at is after the
-	// threshold, exercising the age predicate (not just terminal
-	// status) as the survival reason.
-	freshRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
-		ChatID:              chat.ID,
-		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
-		TriggerMessageID:    sql.NullInt64{Int64: 20, Valid: true},
-		HistoryTipMessageID: sql.NullInt64{Int64: 20, Valid: true},
-		Kind:                "chat_turn",
-		Status:              "in_progress",
-		Provider:            sql.NullString{String: providerName, Valid: true},
-		Model:               sql.NullString{String: modelName, Valid: true},
-		// UpdatedAt defaults to NOW(), which is after staleThreshold.
-	})
-	require.NoError(t, err)
-
-	freshStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
-		RunID:      freshRun.ID,
-		ChatID:     chat.ID,
-		StepNumber: 1,
-		Operation:  "stream",
-		Status:     "in_progress",
-		// UpdatedAt defaults to NOW().
-	})
-	require.NoError(t, err)
-
-	// --- Execute the finalization sweep. ---
-	// Capture the @now timestamp so we can verify finalized rows
-	// received exactly this value for updated_at and finished_at.
-	nowParam := time.Now().Truncate(time.Microsecond)
-	result, err := store.FinalizeStaleChatDebugRows(ctx, database.FinalizeStaleChatDebugRowsParams{
-		Now:           nowParam,
-		UpdatedBefore: staleThreshold,
-	})
-	require.NoError(t, err)
-
-	// staleRun + cascadeRun were finalized; completedRun and doneRun
-	// were already terminal, and freshRun survives because its
-	// updated_at is after the threshold — so only 2 runs are expected.
-	assert.EqualValues(t, 2, result.RunsFinalized,
-		"stale + cascade in_progress runs should be finalized")
-	// staleStep (age), orphanStep (age), cascadeStep (cascade only)
-	// should all be finalized.
-	assert.EqualValues(t, 3, result.StepsFinalized,
-		"stale step + orphan step + cascade step should all be finalized")
-
-	// Verify the stale run was set to interrupted with correct
-	// timestamps matching the @now parameter.
-	updatedStaleRun, err := store.GetChatDebugRunByID(ctx, staleRun.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "interrupted", updatedStaleRun.Status)
-	assert.True(t, updatedStaleRun.FinishedAt.Valid,
-		"finalized run should have a finished_at timestamp")
-	assert.WithinDuration(t, nowParam, updatedStaleRun.FinishedAt.Time, time.Microsecond,
-		"finished_at should match the @now parameter")
-	assert.WithinDuration(t, nowParam, updatedStaleRun.UpdatedAt, time.Microsecond,
-		"updated_at should match the @now parameter")
-
-	// Verify the stale step was set to interrupted and its
-	// pre-existing error JSON was preserved.
-	staleSteps, err := store.GetChatDebugStepsByRunID(ctx, staleRun.ID)
-	require.NoError(t, err)
-	require.Len(t, staleSteps, 1)
-	assert.Equal(t, staleStep.ID, staleSteps[0].ID)
-	assert.Equal(t, "interrupted", staleSteps[0].Status)
-	assert.True(t, staleSteps[0].FinishedAt.Valid,
-		"finalized step should have a finished_at timestamp")
-	assert.WithinDuration(t, nowParam, staleSteps[0].FinishedAt.Time, time.Microsecond,
-		"step finished_at should match the @now parameter")
-	assert.WithinDuration(t, nowParam, staleSteps[0].UpdatedAt, time.Microsecond,
-		"step updated_at should match the @now parameter")
-	// The error JSON that was set at insertion time must survive
-	// finalization. The query does not touch the error column, so
-	// this proves the JSONB payload is preserved.
-	assert.True(t, staleSteps[0].Error.Valid,
-		"pre-existing error JSON must be preserved after finalization")
-	assert.JSONEq(t, string(preExistingError), string(staleSteps[0].Error.RawMessage),
-		"error JSON content must match the value set at insertion")
-
-	// Verify the orphan step was also finalized with correct timestamps.
-	orphanSteps, err := store.GetChatDebugStepsByRunID(ctx, completedRun.ID)
-	require.NoError(t, err)
-	require.Len(t, orphanSteps, 1)
-	assert.Equal(t, orphanStep.ID, orphanSteps[0].ID)
-	assert.Equal(t, "interrupted", orphanSteps[0].Status)
-	assert.True(t, orphanSteps[0].FinishedAt.Valid,
-		"orphan step should have a finished_at timestamp")
-	assert.WithinDuration(t, nowParam, orphanSteps[0].FinishedAt.Time, time.Microsecond,
-		"orphan step finished_at should match the @now parameter")
-	assert.WithinDuration(t, nowParam, orphanSteps[0].UpdatedAt, time.Microsecond,
-		"orphan step updated_at should match the @now parameter")
-	// The orphan step had no error set; verify it remains null.
-	assert.False(t, orphanSteps[0].Error.Valid,
-		"step without pre-existing error should remain null after finalization")
-
-	// Verify the cascade run was finalized with correct timestamps.
-	updatedCascadeRun, err := store.GetChatDebugRunByID(ctx, cascadeRun.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "interrupted", updatedCascadeRun.Status)
-	assert.True(t, updatedCascadeRun.FinishedAt.Valid,
-		"cascade run should have a finished_at timestamp")
-	assert.WithinDuration(t, nowParam, updatedCascadeRun.FinishedAt.Time, time.Microsecond,
-		"cascade run finished_at should match the @now parameter")
-	assert.WithinDuration(t, nowParam, updatedCascadeRun.UpdatedAt, time.Microsecond,
-		"cascade run updated_at should match the @now parameter")
-
-	// Verify the cascade step was finalized despite its recent
-	// updated_at, proving the cascade CTE clause is required.
-	cascadeSteps, err := store.GetChatDebugStepsByRunID(ctx, cascadeRun.ID)
-	require.NoError(t, err)
-	require.Len(t, cascadeSteps, 1)
-	assert.Equal(t, cascadeStep.ID, cascadeSteps[0].ID)
-	assert.Equal(t, "interrupted", cascadeSteps[0].Status,
-		"fresh step should be finalized via cascade, not age")
-	assert.True(t, cascadeSteps[0].FinishedAt.Valid,
-		"cascade step should have a finished_at timestamp")
-	assert.WithinDuration(t, nowParam, cascadeSteps[0].FinishedAt.Time, time.Microsecond,
-		"cascade step finished_at should match the @now parameter")
-	assert.WithinDuration(t, nowParam, cascadeSteps[0].UpdatedAt, time.Microsecond,
-		"cascade step updated_at should match the @now parameter")
-	// The cascade step also had no error set.
-	assert.False(t, cascadeSteps[0].Error.Valid,
-		"cascade step without pre-existing error should remain null")
-
-	// Verify the completed run/step are untouched.
-	unchangedRun, err := store.GetChatDebugRunByID(ctx, doneRun.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "completed", unchangedRun.Status)
-
-	doneSteps, err := store.GetChatDebugStepsByRunID(ctx, doneRun.ID)
-	require.NoError(t, err)
-	require.Len(t, doneSteps, 1)
-	assert.Equal(t, "completed", doneSteps[0].Status)
-
-	// Verify the error run/step are untouched.
-	unchangedErrorRun, err := store.GetChatDebugRunByID(ctx, errorRun.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "error", unchangedErrorRun.Status)
-
-	errorSteps, err := store.GetChatDebugStepsByRunID(ctx, errorRun.ID)
-	require.NoError(t, err)
-	require.Len(t, errorSteps, 1)
-	assert.Equal(t, "error", errorSteps[0].Status)
-
-	// Verify the fresh in_progress run survived due to recency,
-	// not terminal status — its updated_at is after the threshold.
-	unchangedFreshRun, err := store.GetChatDebugRunByID(ctx, freshRun.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "in_progress", unchangedFreshRun.Status,
-		"fresh in_progress run must survive due to recency")
-	assert.False(t, unchangedFreshRun.FinishedAt.Valid,
-		"fresh run should not have a finished_at timestamp")
-
-	freshSteps, err := store.GetChatDebugStepsByRunID(ctx, freshRun.ID)
-	require.NoError(t, err)
-	require.Len(t, freshSteps, 1)
-	assert.Equal(t, freshStep.ID, freshSteps[0].ID)
-	assert.Equal(t, "in_progress", freshSteps[0].Status,
-		"fresh in_progress step must survive due to recency")
-	assert.False(t, freshSteps[0].FinishedAt.Valid,
-		"fresh step should not have a finished_at timestamp")
-
-	// A second sweep should be a no-op.
-	result2, err := store.FinalizeStaleChatDebugRows(ctx, database.FinalizeStaleChatDebugRowsParams{
-		Now:           time.Now(),
-		UpdatedBefore: staleThreshold,
-	})
-	require.NoError(t, err)
-	assert.EqualValues(t, 0, result2.RunsFinalized,
-		"second sweep should find nothing to finalize")
-	assert.EqualValues(t, 0, result2.StepsFinalized,
-		"second sweep should find nothing to finalize")
-}
-
 func TestChatDebugSQLGuards(t *testing.T) {
 	t.Parallel()
 
@@ -19112,85 +19006,6 @@ func TestGetUnpricedAIModelsSince(t *testing.T) {
 	}, got)
 }
 
-func TestGetAIModelPriceByProviderModel(t *testing.T) {
-	t.Parallel()
-
-	const defaultSeed = `[{"provider":"anthropic","model":"model-a","input_price":1,"output_price":2,"cache_read_price":3,"cache_write_price":4}]`
-	const customSeed = `[{"provider":"anthropic","model":"model-a","input_price":5,"output_price":6,"cache_read_price":0,"cache_write_price":null}]`
-
-	defaultPrices := database.AIModelPrice{
-		InputPrice:      sql.NullInt64{Int64: 1, Valid: true},
-		OutputPrice:     sql.NullInt64{Int64: 2, Valid: true},
-		CacheReadPrice:  sql.NullInt64{Int64: 3, Valid: true},
-		CacheWritePrice: sql.NullInt64{Int64: 4, Valid: true},
-	}
-	customPrices := database.AIModelPrice{
-		InputPrice:      sql.NullInt64{Int64: 5, Valid: true},
-		OutputPrice:     sql.NullInt64{Int64: 6, Valid: true},
-		CacheReadPrice:  sql.NullInt64{Int64: 0, Valid: true},
-		CacheWritePrice: sql.NullInt64{},
-	}
-
-	tests := []struct {
-		name       string
-		seeds      []database.UpsertAIModelPricesParams
-		want       database.AIModelPrice
-		wantSource database.AIModelPriceSource
-	}{
-		{
-			name:       "DefaultOnly",
-			seeds:      []database.UpsertAIModelPricesParams{{Seed: []byte(defaultSeed), Source: database.AIModelPriceSourceDefault}},
-			want:       defaultPrices,
-			wantSource: database.AIModelPriceSourceDefault,
-		},
-		{
-			name:       "CustomOnly",
-			seeds:      []database.UpsertAIModelPricesParams{{Seed: []byte(customSeed), Source: database.AIModelPriceSourceCustom}},
-			want:       customPrices,
-			wantSource: database.AIModelPriceSourceCustom,
-		},
-		{
-			name: "CustomWinsOverDefault",
-			seeds: []database.UpsertAIModelPricesParams{
-				{Seed: []byte(defaultSeed), Source: database.AIModelPriceSourceDefault},
-				{Seed: []byte(customSeed), Source: database.AIModelPriceSourceCustom},
-			},
-			want:       customPrices,
-			wantSource: database.AIModelPriceSourceCustom,
-		},
-		{
-			name: "CustomWinsWhateverTheWriteOrder",
-			seeds: []database.UpsertAIModelPricesParams{
-				{Seed: []byte(customSeed), Source: database.AIModelPriceSourceCustom},
-				{Seed: []byte(defaultSeed), Source: database.AIModelPriceSourceDefault},
-			},
-			want:       customPrices,
-			wantSource: database.AIModelPriceSourceCustom,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitShort)
-			db, _ := dbtestutil.NewDB(t)
-			for _, seed := range tt.seeds {
-				require.NoError(t, db.UpsertAIModelPrices(ctx, seed))
-			}
-
-			got, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
-				Provider: "anthropic", Model: "model-a",
-			})
-			require.NoError(t, err)
-			require.Equal(t, tt.wantSource, got.Source)
-			require.Equal(t, tt.want.InputPrice, got.InputPrice)
-			require.Equal(t, tt.want.OutputPrice, got.OutputPrice)
-			require.Equal(t, tt.want.CacheReadPrice, got.CacheReadPrice)
-			require.Equal(t, tt.want.CacheWritePrice, got.CacheWritePrice)
-		})
-	}
-}
-
 func TestGetAIModelPrices(t *testing.T) {
 	t.Parallel()
 
@@ -19324,6 +19139,461 @@ func TestGetAIModelPrices(t *testing.T) {
 	}
 }
 
+// aiModelPriceSeed returns a one-element batch for a model price upsert, keyed
+// by keys and with only an input price set.
+func aiModelPriceSeed(t *testing.T, keys map[string]string, inputPrice int64) json.RawMessage {
+	t.Helper()
+	elem := map[string]any{
+		"input_price":       inputPrice,
+		"output_price":      nil,
+		"cache_read_price":  nil,
+		"cache_write_price": nil,
+	}
+	for k, v := range keys {
+		elem[k] = v
+	}
+	raw, err := json.Marshal([]any{elem})
+	require.NoError(t, err)
+	return raw
+}
+
+// upsertOrgProviderPrice sets an organization's price for a model on a
+// configured provider, with only an input price.
+func upsertOrgProviderPrice(ctx context.Context, t *testing.T, db database.Store, orgID, providerID uuid.UUID, model string, inputPrice int64) {
+	t.Helper()
+	require.NoError(t, db.UpsertOrganizationAIProviderModelConfig(ctx, database.UpsertOrganizationAIProviderModelConfigParams{
+		OrganizationID: orgID,
+		ProviderID:     providerID,
+		Model:          model,
+		InputPrice:     sql.NullInt64{Int64: inputPrice, Valid: true},
+	}))
+}
+
+func TestGetAIModelPriceForProvider(t *testing.T) {
+	t.Parallel()
+
+	const model = "model-a"
+
+	// Each kind of price carries its own input price, so the match is
+	// identifiable from the price alone.
+	const (
+		siteDefault      int64 = 1
+		siteCustom       int64 = 2
+		orgProvider      int64 = 3
+		otherOrgProvider int64 = 4
+	)
+
+	type kinds struct {
+		siteDefault, siteCustom, orgProvider, otherProvider bool
+	}
+	all := kinds{siteDefault: true, siteCustom: true, orgProvider: true}
+
+	tests := []struct {
+		name string
+		kinds
+		// noOrg looks the price up without organization context.
+		noOrg bool
+		// otherOrg looks the price up for an organization holding no prices.
+		otherOrg  bool
+		wantPrice int64
+		// wantNone expects no price to match.
+		wantNone bool
+	}{
+		{name: "SiteDefault", kinds: kinds{siteDefault: true}, wantPrice: siteDefault},
+		{name: "SiteCustomBeatsSiteDefault", kinds: kinds{siteDefault: true, siteCustom: true}, wantPrice: siteCustom},
+		{name: "OrgProviderBeatsAll", kinds: all, wantPrice: orgProvider},
+		{name: "OrgProviderWithoutSitePrice", kinds: kinds{orgProvider: true}, wantPrice: orgProvider},
+		{name: "NoOrgContextFallsBackToSite", kinds: all, noOrg: true, wantPrice: siteCustom},
+		{name: "OtherOrgFallsBackToSite", kinds: all, otherOrg: true, wantPrice: siteCustom},
+		// A price for another provider of the same type does not apply.
+		{name: "OtherProviderPriceDoesNotApply", kinds: kinds{siteDefault: true, otherProvider: true}, wantPrice: siteDefault},
+		{name: "NoPrice", kinds: kinds{otherProvider: true}, wantNone: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			db, _ := dbtestutil.NewDB(t)
+			org := dbgen.Organization(t, db, database.Organization{})
+			otherOrg := dbgen.Organization(t, db, database.Organization{})
+			provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+			otherProvider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+			providerType := string(provider.Type)
+
+			if tt.siteDefault {
+				require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+					Seed:   aiModelPriceSeed(t, map[string]string{"provider": providerType, "model": model}, siteDefault),
+					Source: database.AIModelPriceSourceDefault,
+				}))
+			}
+			if tt.siteCustom {
+				require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+					Seed:   aiModelPriceSeed(t, map[string]string{"provider": providerType, "model": model}, siteCustom),
+					Source: database.AIModelPriceSourceCustom,
+				}))
+			}
+			if tt.orgProvider {
+				upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, model, orgProvider)
+			}
+			if tt.otherProvider {
+				upsertOrgProviderPrice(ctx, t, db, org.ID, otherProvider.ID, model, otherOrgProvider)
+			}
+
+			orgID := uuid.NullUUID{UUID: org.ID, Valid: true}
+			switch {
+			case tt.noOrg:
+				orgID = uuid.NullUUID{}
+			case tt.otherOrg:
+				orgID = uuid.NullUUID{UUID: otherOrg.ID, Valid: true}
+			}
+
+			got, err := db.GetAIModelPriceForProvider(ctx, database.GetAIModelPriceForProviderParams{
+				ProviderType:   providerType,
+				Model:          model,
+				OrganizationID: orgID,
+				ProviderID:     provider.ID,
+			})
+			if tt.wantNone {
+				require.ErrorIs(t, err, sql.ErrNoRows)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantPrice, got.InputPrice.Int64)
+			require.Equal(t, model, got.Model)
+		})
+	}
+}
+
+// The requested model is preferred over the model reported by the provider
+// whatever the kind of price, and organization prices for the reported model
+// are still used when the requested model has none.
+func TestGetAIModelPriceForProviderProviderModel(t *testing.T) {
+	t.Parallel()
+
+	const (
+		requested = "model-alias"
+		reported  = "model-alias-20260101"
+	)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+	providerType := string(provider.Type)
+	lookup := database.GetAIModelPriceForProviderParams{
+		ProviderType:   providerType,
+		Model:          requested,
+		ProviderModel:  reported,
+		OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+		ProviderID:     provider.ID,
+	}
+
+	// Only the reported model is priced, by the organization for the provider.
+	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, reported, 4)
+	got, err := db.GetAIModelPriceForProvider(ctx, lookup)
+	require.NoError(t, err)
+	require.Equal(t, reported, got.Model)
+	require.Equal(t, int64(4), got.InputPrice.Int64)
+
+	// A price book price for the requested model beats the organization's
+	// price for the reported model.
+	require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+		Seed:   aiModelPriceSeed(t, map[string]string{"provider": providerType, "model": requested}, 1),
+		Source: database.AIModelPriceSourceDefault,
+	}))
+	got, err = db.GetAIModelPriceForProvider(ctx, lookup)
+	require.NoError(t, err)
+	require.Equal(t, requested, got.Model)
+	require.Equal(t, int64(1), got.InputPrice.Int64)
+}
+
+// An organization price is used as a whole, and an organization config that
+// sets no price falls back to the site-wide price.
+func TestGetAIModelPriceForProviderOrganizationConfig(t *testing.T) {
+	t.Parallel()
+
+	const model = "model-a"
+
+	setup := func(t *testing.T) (context.Context, database.Store, database.GetAIModelPriceForProviderParams) {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+
+		// The site-wide price sets all four prices.
+		seed, err := json.Marshal([]map[string]any{{
+			"provider":          string(provider.Type),
+			"model":             model,
+			"input_price":       1,
+			"output_price":      2,
+			"cache_read_price":  3,
+			"cache_write_price": 4,
+		}})
+		require.NoError(t, err)
+		require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+			Seed:   seed,
+			Source: database.AIModelPriceSourceCustom,
+		}))
+
+		return ctx, db, database.GetAIModelPriceForProviderParams{
+			ProviderType:   string(provider.Type),
+			Model:          model,
+			OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+			ProviderID:     provider.ID,
+		}
+	}
+
+	t.Run("PriceIsUsedWhole", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, lookup := setup(t)
+		upsertOrgProviderPrice(ctx, t, db, lookup.OrganizationID.UUID, lookup.ProviderID, model, 10)
+
+		got, err := db.GetAIModelPriceForProvider(ctx, lookup)
+		require.NoError(t, err)
+		require.Equal(t, sql.NullInt64{Int64: 10, Valid: true}, got.InputPrice)
+		require.False(t, got.OutputPrice.Valid)
+		require.False(t, got.CacheReadPrice.Valid)
+		require.False(t, got.CacheWritePrice.Valid)
+	})
+
+	t.Run("NoPricesFallsBackToSite", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, lookup := setup(t)
+		require.NoError(t, db.UpsertOrganizationAIProviderModelConfig(ctx, database.UpsertOrganizationAIProviderModelConfigParams{
+			OrganizationID: lookup.OrganizationID.UUID,
+			ProviderID:     lookup.ProviderID,
+			Model:          model,
+		}))
+
+		got, err := db.GetAIModelPriceForProvider(ctx, lookup)
+		require.NoError(t, err)
+		require.Equal(t, sql.NullInt64{Int64: 1, Valid: true}, got.InputPrice)
+		require.Equal(t, sql.NullInt64{Int64: 2, Valid: true}, got.OutputPrice)
+		require.Equal(t, sql.NullInt64{Int64: 3, Valid: true}, got.CacheReadPrice)
+		require.Equal(t, sql.NullInt64{Int64: 4, Valid: true}, got.CacheWritePrice)
+	})
+}
+
+func TestOrganizationAIModelPricesOpenAICompat(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	gateway := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeOpenaiCompat})
+	const model = "bedrock/claude-sonnet-4-5"
+
+	// A price for one gateway is matched.
+	upsertOrgProviderPrice(ctx, t, db, org.ID, gateway.ID, model, 7)
+	got, err := db.GetAIModelPriceForProvider(ctx, database.GetAIModelPriceForProviderParams{
+		ProviderType:   string(database.AIProviderTypeOpenaiCompat),
+		Model:          model,
+		OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+		ProviderID:     gateway.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(7), got.InputPrice.Int64)
+
+	// Without organization context the gateway's model stays unpriced.
+	_, err = db.GetAIModelPriceForProvider(ctx, database.GetAIModelPriceForProviderParams{
+		ProviderType: string(database.AIProviderTypeOpenaiCompat),
+		Model:        model,
+		ProviderID:   gateway.ID,
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
+func TestGetOrganizationAIProviderModelConfig(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+	otherProvider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+
+	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "model-a", 1)
+	upsertOrgProviderPrice(ctx, t, db, otherOrg.ID, provider.ID, "model-a", 2)
+	upsertOrgProviderPrice(ctx, t, db, org.ID, otherProvider.ID, "model-a", 3)
+	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "model-b", 4)
+
+	got, err := db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
+		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
+	})
+	require.NoError(t, err)
+	require.Equal(t, org.ID, got.OrganizationID)
+	require.Equal(t, provider.ID, got.ProviderID)
+	require.Equal(t, "model-a", got.Model)
+	require.Equal(t, sql.NullInt64{Int64: 1, Valid: true}, got.InputPrice)
+	require.False(t, got.OutputPrice.Valid)
+
+	_, err = db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
+		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-c",
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
+func TestUpsertOrganizationAIProviderModelConfig(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+
+	get := func(ctx context.Context, t *testing.T, model string) database.AIModelConfig {
+		t.Helper()
+		got, err := db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
+			OrganizationID: org.ID, ProviderID: provider.ID, Model: model,
+		})
+		require.NoError(t, err)
+		return got
+	}
+
+	t.Run("IdenticalPricesKeepUpdatedAt", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "identical", 1)
+		before := get(ctx, t, "identical")
+
+		upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "identical", 1)
+		require.Equal(t, before, get(ctx, t, "identical"))
+	})
+
+	t.Run("ChangedPricesAdvanceUpdatedAt", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "changed", 1)
+		before := get(ctx, t, "changed")
+
+		upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "changed", 2)
+		after := get(ctx, t, "changed")
+		require.Equal(t, int64(2), after.InputPrice.Int64)
+		require.Equal(t, before.CreatedAt, after.CreatedAt)
+		require.True(t, after.UpdatedAt.After(before.UpdatedAt), "updated_at must advance")
+	})
+
+	t.Run("EmptyModel", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := db.UpsertOrganizationAIProviderModelConfig(ctx, database.UpsertOrganizationAIProviderModelConfigParams{
+			OrganizationID: org.ID,
+			ProviderID:     provider.ID,
+			Model:          "",
+			InputPrice:     sql.NullInt64{Int64: 1, Valid: true},
+		})
+		require.True(t, database.IsCheckViolation(err, database.CheckAIModelConfigsModelCheck), "got %v", err)
+	})
+}
+
+func TestDeleteOrganizationAIProviderModelConfig(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+
+	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "model-a", 1)
+	upsertOrgProviderPrice(ctx, t, db, otherOrg.ID, provider.ID, "model-a", 2)
+	deletedRow, err := db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
+		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
+	})
+	require.NoError(t, err)
+
+	del := func(orgID uuid.UUID, model string) int64 {
+		t.Helper()
+		n, err := db.DeleteOrganizationAIProviderModelConfig(ctx, database.DeleteOrganizationAIProviderModelConfigParams{
+			OrganizationID: orgID, ProviderID: provider.ID, Model: model,
+		})
+		require.NoError(t, err)
+		return n
+	}
+
+	require.EqualValues(t, 1, del(org.ID, "model-a"))
+	_, err = db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
+		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	// The other organization's price for the same model is untouched.
+	_, err = db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
+		OrganizationID: otherOrg.ID, ProviderID: provider.ID, Model: "model-a",
+	})
+	require.NoError(t, err)
+
+	// Deleting a price that is already soft deleted matches nothing.
+	require.Zero(t, del(org.ID, "model-a"))
+
+	// readRow reads a row by ID, including soft-deleted rows, which the
+	// queries under test cannot see.
+	readRow := func(id uuid.UUID) (deleted bool, inputPrice int64) {
+		t.Helper()
+		require.NoError(t, sqlDB.QueryRowContext(ctx,
+			`SELECT deleted, input_price FROM ai_model_configs WHERE id = $1`, id,
+		).Scan(&deleted, &inputPrice))
+		return deleted, inputPrice
+	}
+	deleted, inputPrice := readRow(deletedRow.ID)
+	require.True(t, deleted, "the row must be kept and flagged as deleted")
+	require.EqualValues(t, 1, inputPrice)
+
+	// Setting the price again inserts a new live row and leaves the
+	// soft-deleted row untouched.
+	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "model-a", 5)
+	live, err := db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
+		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, deletedRow.ID, live.ID)
+	require.False(t, live.Deleted)
+	require.EqualValues(t, 5, live.InputPrice.Int64)
+	deleted, inputPrice = readRow(deletedRow.ID)
+	require.True(t, deleted)
+	require.EqualValues(t, 1, inputPrice)
+}
+
+// Deleting an organization price makes the lookup fall back to the site-wide
+// price, which the delete leaves in place.
+func TestGetAIModelPriceForProviderAfterDelete(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+
+	require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+		Seed:   aiModelPriceSeed(t, map[string]string{"provider": "anthropic", "model": "model-a"}, 1),
+		Source: database.AIModelPriceSourceDefault,
+	}))
+	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "model-a", 2)
+
+	lookup := func() int64 {
+		t.Helper()
+		got, err := db.GetAIModelPriceForProvider(ctx, database.GetAIModelPriceForProviderParams{
+			ProviderType:   "anthropic",
+			Model:          "model-a",
+			OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+			ProviderID:     provider.ID,
+		})
+		require.NoError(t, err)
+		return got.InputPrice.Int64
+	}
+	require.Equal(t, int64(2), lookup())
+
+	n, err := db.DeleteOrganizationAIProviderModelConfig(ctx, database.DeleteOrganizationAIProviderModelConfigParams{
+		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, n)
+	// The site-wide price is untouched.
+	require.Equal(t, int64(1), lookup())
+}
+
 func TestGetChatSiteConfigValue(t *testing.T) {
 	t.Parallel()
 
@@ -19398,24 +19668,21 @@ func TestSessionCountsAttributeByFamily(t *testing.T) {
 	require.Zero(t, sessionFamilyCounts(t, stats.SessionCounts)["jetbrains"])
 	require.Zero(t, sessionFamilyCounts(t, stats.SessionCounts)["reconnecting_pty"])
 
-	insights, err := db.GetTemplateInsightsByTemplate(ctx, database.GetTemplateInsightsByTemplateParams{
-		StartTime: dbtime.Now().Add(-time.Hour),
-		EndTime:   dbtime.Now().Add(time.Hour),
-	})
+	insights, err := db.GetTemplateInsightsByTemplate(ctx, templateInsightsByTemplateParams(t, dbtime.Now().Add(-time.Hour), dbtime.Now().Add(time.Hour)))
 	require.NoError(t, err)
 
 	byTemplate := make(map[uuid.UUID]database.GetTemplateInsightsByTemplateRow, len(insights))
 	for _, row := range insights {
 		byTemplate[row.TemplateID] = row
 	}
-	require.Equal(t, database.StringMapOfInt{"cursor": 60}, byTemplate[cursorTemplate].SessionAppUsageSeconds)
-	require.Equal(t, database.StringMapOfInt{"zed": 60}, byTemplate[zedTemplate].SessionAppUsageSeconds)
+	require.Equal(t, database.StringMapOfInt{"vscode": 60}, byTemplate[cursorTemplate].SessionFamilyUsageSeconds)
+	require.Equal(t, database.StringMapOfInt{"ssh": 60}, byTemplate[zedTemplate].SessionFamilyUsageSeconds)
 
 	// An app with no family is still activity, so the user is not counted idle.
 	unknown, ok := byTemplate[unknownTemplate]
 	require.True(t, ok, "a session with no family must still appear as usage")
 	require.Equal(t, int64(1), unknown.ActiveUsers)
-	require.Equal(t, database.StringMapOfInt{"some_new_ide": 60}, unknown.SessionAppUsageSeconds)
+	require.Equal(t, database.StringMapOfInt{"unknown": 60}, unknown.SessionFamilyUsageSeconds)
 }
 
 // The rollup stores the app name the agent reported, whether or not the
@@ -19943,4 +20210,295 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		// Then: the page is empty.
 		require.Empty(t, outOfRange)
 	})
+}
+
+func TestClearWorkspaceSecretsBeforeBuild(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	first := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+	}).Do()
+	ws := first.Workspace
+	build1 := first.Build
+	build2 := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{BuildNumber: 2}).Do().Build
+	build3 := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{BuildNumber: 3}).Do().Build
+
+	for _, b := range []database.WorkspaceBuild{build1, build2, build3} {
+		dbgen.WorkspaceSecret(t, db, database.WorkspaceSecret{
+			WorkspaceID:      ws.ID,
+			WorkspaceBuildID: b.ID,
+			Name:             "api-key",
+		})
+	}
+
+	live := func(buildID uuid.UUID) int {
+		rows, err := db.ListActiveWorkspaceSecrets(ctx, buildID)
+		require.NoError(t, err)
+		return len(rows)
+	}
+
+	// A cutoff build from another workspace must clear nothing, even though
+	// its build number is higher than every build of this workspace.
+	otherBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+	}).Seed(database.WorkspaceBuild{BuildNumber: 10}).Do().Build
+	err := db.ClearWorkspaceSecretsBeforeBuild(ctx, database.ClearWorkspaceSecretsBeforeBuildParams{
+		WorkspaceID:      ws.ID,
+		WorkspaceBuildID: otherBuild.ID,
+	})
+	require.NoError(t, err)
+	for _, b := range []database.WorkspaceBuild{build1, build2, build3} {
+		require.Equal(t, 1, live(b.ID), "another workspace's build clears nothing")
+	}
+
+	// Build 2 clearing late must not touch build 3, which is newer.
+	err = db.ClearWorkspaceSecretsBeforeBuild(ctx, database.ClearWorkspaceSecretsBeforeBuildParams{
+		WorkspaceID:      ws.ID,
+		WorkspaceBuildID: build2.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 0, live(build1.ID), "earlier build is cleared")
+	require.Equal(t, 1, live(build2.ID), "the clearing build keeps its own secrets")
+	require.Equal(t, 1, live(build3.ID), "a later build is untouched")
+
+	history, err := db.GetWorkspaceSecretsHistory(ctx, database.GetWorkspaceSecretsHistoryParams{WorkspaceID: ws.ID})
+	require.NoError(t, err)
+	require.Len(t, history, 3, "cleared rows are kept as history")
+	for _, row := range history {
+		require.Equal(t, row.WorkspaceBuildID == build1.ID, row.ClearedAt.Valid,
+			"only build 1's row is cleared")
+	}
+
+	// Filtering by build includes that build's cleared rows.
+	build1History, err := db.GetWorkspaceSecretsHistory(ctx, database.GetWorkspaceSecretsHistoryParams{WorkspaceID: ws.ID, WorkspaceBuildID: build1.ID})
+	require.NoError(t, err)
+	require.Len(t, build1History, 1)
+	require.Equal(t, build1.ID, build1History[0].WorkspaceBuildID)
+	require.True(t, build1History[0].ClearedAt.Valid)
+}
+
+// TestInsertWorkspaceSecretBuildMismatch checks that a secret cannot name a
+// build of another workspace. Inserts are authorized by workspace_id while
+// reads select by workspace_build_id, so the pair must come from one build.
+func TestInsertWorkspaceSecretBuildMismatch(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	newWorkspace := func() dbfake.WorkspaceResponse {
+		return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+		}).Do()
+	}
+	first := newWorkspace()
+	second := newWorkspace()
+
+	_, err := db.InsertWorkspaceSecret(ctx, database.InsertWorkspaceSecretParams{
+		ID:               uuid.New(),
+		WorkspaceID:      first.Workspace.ID,
+		WorkspaceBuildID: second.Build.ID,
+		Name:             "api-key",
+		Value:            sql.NullString{String: "secret", Valid: true},
+		EnvName:          "API_KEY",
+		Source:           database.WorkspaceSecretSourceRequest,
+	})
+	require.True(t, database.IsForeignKeyViolation(err, database.ForeignKeyWorkspaceSecretsBuildWorkspace), err)
+}
+
+// TestWorkspaceSecretLimits exercises the per-build caps enforced by
+// enforce_workspace_secrets_per_build_limits: the accepted value at each cap,
+// the first rejected value past it, and that a second build of the same
+// workspace has its own budget.
+func TestWorkspaceSecretLimits(t *testing.T) {
+	t.Parallel()
+
+	const (
+		countLimit      = 50
+		totalBytesLimit = 204800
+		envBytesLimit   = 24576
+	)
+
+	setup := func(t *testing.T) (database.Store, context.Context, dbfake.WorkspaceResponse) {
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		first := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: dbgen.Organization(t, db, database.Organization{}).ID,
+			OwnerID:        dbgen.User(t, db, database.User{}).ID,
+		}).Do()
+		return db, ctx, first
+	}
+	insert := func(ctx context.Context, db database.Store, ws database.WorkspaceTable, build database.WorkspaceBuild, name string, valueBytes int, env bool) error {
+		params := database.InsertWorkspaceSecretParams{
+			ID:               uuid.New(),
+			WorkspaceID:      ws.ID,
+			WorkspaceBuildID: build.ID,
+			Name:             name,
+			Value:            sql.NullString{String: strings.Repeat("a", valueBytes), Valid: true},
+			Source:           database.WorkspaceSecretSourceRequest,
+		}
+		if env {
+			params.EnvName = strings.ToUpper(strings.ReplaceAll(name, "-", "_"))
+		} else {
+			params.FilePath = "/tmp/" + name
+		}
+		_, err := db.InsertWorkspaceSecret(ctx, params)
+		return err
+	}
+	requireLimit := func(t *testing.T, err error, constraint string) {
+		t.Helper()
+		require.True(t, database.IsCheckViolation(err, database.CheckConstraint(constraint)), err)
+	}
+
+	t.Run("Count", func(t *testing.T) {
+		t.Parallel()
+		db, ctx, first := setup(t)
+		ws, build := first.Workspace, first.Build
+
+		for i := range countLimit {
+			require.NoError(t, insert(ctx, db, ws, build, fmt.Sprintf("count-%02d", i), 1, true))
+		}
+		err := insert(ctx, db, ws, build, "count-over", 1, true)
+		requireLimit(t, err, "workspace_secrets_per_build_count_limit")
+
+		// The budget is per build.
+		second := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{BuildNumber: 2}).Do().Build
+		require.NoError(t, insert(ctx, db, ws, second, "count-next-build", 1, true))
+	})
+
+	t.Run("TotalBytes", func(t *testing.T) {
+		t.Parallel()
+		db, ctx, first := setup(t)
+		ws, build := first.Workspace, first.Build
+
+		// File secrets do not count toward the env budget, so the total
+		// budget can be filled exactly.
+		require.NoError(t, insert(ctx, db, ws, build, "total-a", totalBytesLimit-1, false))
+		require.NoError(t, insert(ctx, db, ws, build, "total-b", 1, false))
+		err := insert(ctx, db, ws, build, "total-over", 1, false)
+		requireLimit(t, err, "workspace_secrets_per_build_total_bytes_limit")
+
+		second := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{BuildNumber: 2}).Do().Build
+		require.NoError(t, insert(ctx, db, ws, second, "total-next-build", totalBytesLimit, false))
+	})
+
+	t.Run("EnvBytes", func(t *testing.T) {
+		t.Parallel()
+		db, ctx, first := setup(t)
+		ws, build := first.Workspace, first.Build
+
+		require.NoError(t, insert(ctx, db, ws, build, "env-a", envBytesLimit-1, true))
+		require.NoError(t, insert(ctx, db, ws, build, "env-b", 1, true))
+		err := insert(ctx, db, ws, build, "env-over", 1, true)
+		requireLimit(t, err, "workspace_secrets_per_build_env_bytes_limit")
+		// The env budget is full, but the total budget is not.
+		require.NoError(t, insert(ctx, db, ws, build, "env-full-file", 1, false))
+
+		second := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{BuildNumber: 2}).Do().Build
+		require.NoError(t, insert(ctx, db, ws, second, "env-next-build", envBytesLimit, true))
+	})
+}
+
+func TestClearWorkspaceSecretsByWorkspaceID(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	newWorkspace := func() dbfake.WorkspaceResponse {
+		resp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+		}).Do()
+		dbgen.WorkspaceSecret(t, db, database.WorkspaceSecret{
+			WorkspaceID:      resp.Workspace.ID,
+			WorkspaceBuildID: resp.Build.ID,
+		})
+		return resp
+	}
+	deleted := newWorkspace()
+	other := newWorkspace()
+
+	require.NoError(t, db.ClearWorkspaceSecretsByWorkspaceID(ctx, deleted.Workspace.ID))
+
+	live, err := db.ListActiveWorkspaceSecrets(ctx, deleted.Build.ID)
+	require.NoError(t, err)
+	require.Empty(t, live, "the workspace's secrets are cleared")
+	history, err := db.GetWorkspaceSecretsHistory(ctx, database.GetWorkspaceSecretsHistoryParams{WorkspaceID: deleted.Workspace.ID})
+	require.NoError(t, err)
+	require.Len(t, history, 1, "cleared rows are kept as history")
+	require.True(t, history[0].ClearedAt.Valid)
+
+	live, err = db.ListActiveWorkspaceSecrets(ctx, other.Build.ID)
+	require.NoError(t, err)
+	require.Len(t, live, 1, "other workspaces are untouched")
+}
+
+func TestGetWorkspaceSecretsPaginates(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	first := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: dbgen.Organization(t, db, database.Organization{}).ID,
+		OwnerID:        dbgen.User(t, db, database.User{}).ID,
+	}).Do()
+	ws := first.Workspace
+	second := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{BuildNumber: 2}).Do().Build
+
+	// Build 1's secret is cleared below and must not be listed.
+	dbgen.WorkspaceSecret(t, db, database.WorkspaceSecret{
+		WorkspaceID:      ws.ID,
+		WorkspaceBuildID: first.Build.ID,
+		Name:             "cleared",
+	})
+	var want []uuid.UUID
+	for i := range 5 {
+		secret := dbgen.WorkspaceSecret(t, db, database.WorkspaceSecret{
+			WorkspaceID:      ws.ID,
+			WorkspaceBuildID: second.ID,
+			Name:             fmt.Sprintf("secret-%d", i),
+			EnvName:          fmt.Sprintf("SECRET_%d", i),
+		})
+		want = append(want, secret.ID)
+	}
+	require.NoError(t, db.ClearWorkspaceSecretsBeforeBuild(ctx, database.ClearWorkspaceSecretsBeforeBuildParams{
+		WorkspaceID:      ws.ID,
+		WorkspaceBuildID: second.ID,
+	}))
+	slices.SortFunc(want, func(a, b uuid.UUID) int { return bytes.Compare(a[:], b[:]) })
+
+	var got []uuid.UUID
+	var pages int
+	afterID := uuid.Nil
+	for {
+		page, err := db.GetWorkspaceSecrets(ctx, database.GetWorkspaceSecretsParams{
+			AfterID:    afterID,
+			LimitCount: 2,
+		})
+		require.NoError(t, err)
+		if len(page) == 0 {
+			break
+		}
+		pages++
+		for _, secret := range page {
+			got = append(got, secret.ID)
+		}
+		afterID = page[len(page)-1].ID
+	}
+	require.Equal(t, want, got, "every live secret is listed once, in id order")
+	require.Equal(t, 3, pages)
 }

@@ -3,13 +3,13 @@ title: AI Gateway Proxy
 ---
 
 > [!NOTE]
-> AI Gateway Proxy is part of [AI Governance](../../ai-governance.md), which is
-> included with a Premium license.
+> AI Gateway Proxy is part of [AI Governance](../../ai-governance.md), which is included with a Premium license.
 
 AI Gateway Proxy extends [AI Gateway](../index.md) to support clients that don't allow base URL overrides.
 While AI Gateway requires clients to support custom base URLs, many popular AI coding tools lack this capability.
 
-AI Gateway Proxy solves this by acting as an HTTP proxy that intercepts traffic to supported AI providers and forwards it to AI Gateway. Since most clients respect proxy configurations even when they don't support base URL overrides, this provides a universal compatibility layer for AI Gateway.
+AI Gateway Proxy solves this by acting as an HTTP proxy that intercepts traffic to supported AI providers and forwards it to AI Gateway.
+Since most clients respect proxy configurations even when they don't support base URL overrides, this provides a universal compatibility layer for AI Gateway.
 
 For a list of clients supported through AI Gateway Proxy, see [Client Configuration](../clients/index.md).
 

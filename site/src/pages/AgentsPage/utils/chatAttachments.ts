@@ -1,7 +1,7 @@
-import { toast } from "sonner";
 import { getErrorMessage, isApiErrorResponse } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatAttachmentMediaTypes } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { decodeDataURL } from "./dataUrls";
 
 const undisplayableAttachmentDetail = "File exists but could not be displayed.";
@@ -12,6 +12,19 @@ export type AttachmentFailure =
 
 export const getChatFileURL = (fileId: string) =>
 	`/api/v2/chats/files/${encodeURIComponent(fileId)}`;
+
+/** Where a file part downloads from, or null when it holds no file. */
+export const getAttachmentHref = (
+	file: TypesGen.ChatFilePart,
+): string | null => {
+	if (file.file_id) {
+		return getChatFileURL(file.file_id);
+	}
+	if (file.data) {
+		return `data:${file.media_type};base64,${file.data}`;
+	}
+	return null;
+};
 
 export const isAbortError = (error: unknown): error is Error =>
 	error instanceof Error && error.name === "AbortError";

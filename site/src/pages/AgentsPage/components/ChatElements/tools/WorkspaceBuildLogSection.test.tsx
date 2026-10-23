@@ -1,12 +1,15 @@
-import { render } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as apiModule from "#/api/api";
 import { API } from "#/api/api";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
+import type { ProvisionerJobLog } from "#/api/typesGenerated";
 import {
 	MockStoppedWorkspace,
 	MockStoppingWorkspace,
+	MockWorkspace,
+	MockWorkspaceBuildLogs,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { createMockWebSocket } from "#/testHelpers/websockets";
@@ -49,4 +52,41 @@ describe("WorkspaceBuildLogSection", () => {
 			}
 		},
 	);
+
+	it("does not scroll the transcript as the build log streams and completes", async () => {
+		const scrollIntoView = vi.spyOn(HTMLElement.prototype, "scrollIntoView");
+		let publishLog: ((log: ProvisionerJobLog) => void) | undefined;
+		vi.spyOn(apiModule, "watchBuildLogsByBuildId").mockImplementation(
+			(_buildId, { onMessage }) => {
+				publishLog = onMessage;
+				return createMockWebSocket("ws://test")[0];
+			},
+		);
+		vi.spyOn(API, "getWorkspaceBuildLogs").mockResolvedValue(
+			MockWorkspaceBuildLogs,
+		);
+		const buildId = MockWorkspace.latest_build.id;
+		const queryClient = createTestQueryClient();
+		const ui = (
+			props: React.ComponentProps<typeof WorkspaceBuildLogSection>,
+		) => (
+			<QueryClientProvider client={queryClient}>
+				<ChatWorkspaceContext
+					value={{ workspaceId: MockWorkspace.id, buildId }}
+				>
+					<WorkspaceBuildLogSection {...props} />
+				</ChatWorkspaceContext>
+			</QueryClientProvider>
+		);
+
+		const { rerender } = render(ui({ status: "running" }));
+		act(() => publishLog?.(MockWorkspaceBuildLogs[0]));
+		act(() => publishLog?.(MockWorkspaceBuildLogs[1]));
+
+		// The completed call's fetched logs replace the streamed ones.
+		rerender(ui({ status: "completed", buildId }));
+		await screen.findByText(/Apply complete!/);
+
+		expect(scrollIntoView).not.toHaveBeenCalled();
+	});
 });
