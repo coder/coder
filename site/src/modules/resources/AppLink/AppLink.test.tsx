@@ -1,4 +1,7 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { API } from "#/api/api";
+import { SESSION_TOKEN_PLACEHOLDER } from "#/modules/apps/apps";
 import {
 	MockWorkspace,
 	MockWorkspaceAgent,
@@ -31,5 +34,17 @@ describe("AppLink", () => {
 		const link = await screen.findByRole("link");
 		expect(link).not.toHaveAttribute("target");
 		expect(link).not.toHaveAttribute("rel");
+	});
+
+	it.each([
+		`vscode://coder.coder-remote/open?url=https://attacker.example&token=${SESSION_TOKEN_PLACEHOLDER}`,
+		`coder://open?url=${location.origin}&token=${SESSION_TOKEN_PLACEHOLDER}`,
+	])("does not mint a session key for %s", async (url) => {
+		const getApiKey = vi.spyOn(API, "getApiKey");
+		renderAppLink({ ...MockWorkspaceApp, external: true, url });
+		const button = await screen.findByText("Test App");
+		expect(button).not.toHaveAttribute("href");
+		await userEvent.click(button);
+		expect(getApiKey).not.toHaveBeenCalled();
 	});
 });
