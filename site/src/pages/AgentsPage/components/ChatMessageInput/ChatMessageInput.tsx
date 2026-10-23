@@ -41,7 +41,10 @@ import {
 	usableChatProjectSkills,
 } from "#/api/queries/chatProjectSkills";
 import { chatProject } from "#/api/queries/chatProjects";
-import { organizationSkills } from "#/api/queries/organizationSkills";
+import {
+	organizationSkillPreferences,
+	organizationSkills,
+} from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MODIFIER_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
@@ -51,6 +54,7 @@ import {
 	type SkillSourceList,
 } from "../../utils/skillAliases";
 import {
+	activeOrganizationSkills,
 	filterSkillsByQuery,
 	isSkillTriggerToken,
 	type SkillsScope,
@@ -792,10 +796,18 @@ const ChatMessageInput = ({
 		// Avoid refetching on each trigger toggle from caret movement.
 		staleTime: 60_000,
 	});
-	const organizationSource = useStoredSkillSource(
-		organizationSkills(organizationId ?? ""),
-		{ hasSource: Boolean(organizationId), isTriggerActive: hasSkillsTrigger },
-	);
+	const organizationQueriesEnabled =
+		hasSkillsTrigger && Boolean(organizationId);
+	const organizationSkillsQuery = useQuery({
+		...organizationSkills(organizationId ?? ""),
+		enabled: organizationQueriesEnabled,
+		staleTime: 60_000,
+	});
+	const organizationPreferencesQuery = useQuery({
+		...organizationSkillPreferences(organizationId ?? ""),
+		enabled: organizationQueriesEnabled,
+		staleTime: 60_000,
+	});
 	const hasProject = Boolean(organizationId && projectId);
 	const projectSource = useStoredSkillSource(
 		chatProjectSkills(organizationId ?? "", projectId ?? ""),
@@ -828,6 +840,24 @@ const ChatMessageInput = ({
 	const personalSkills = (personalSkillsOverride ?? skillsQuery.data)?.filter(
 		(skill) => skill.enabled,
 	);
+	const organizationSkillList = organizationId
+		? activeOrganizationSkills(
+				organizationSkillsQuery.data,
+				organizationPreferencesQuery.data,
+			)
+		: [];
+	// The list waits for the skills request and then, when it returns enabled
+	// skills, for the preferences that decide the member's opt-outs.
+	const pendingOrganizationQuery =
+		organizationSkillsQuery.data === undefined
+			? organizationSkillsQuery
+			: organizationPreferencesQuery;
+	const isOrganizationUnresolved =
+		organizationQueriesEnabled && organizationSkillList === undefined;
+	const isOrganizationLoading =
+		isOrganizationUnresolved && pendingOrganizationQuery.isFetching;
+	const isOrganizationError =
+		isOrganizationUnresolved && pendingOrganizationQuery.isError;
 	const loadedWorkspaceSkills =
 		workspaceSkills ?? (hasWorkspace ? undefined : []);
 	// A list stays undefined until its source loads, even after an error,
@@ -838,7 +868,7 @@ const ChatMessageInput = ({
 	// turns without project skills.
 	const skillLists: SkillSourceList<SkillMetadata>[] = [
 		{ source: "personal", skills: personalSkills },
-		{ source: "org", skills: organizationSource.skills },
+		{ source: "org", skills: organizationSkillList },
 		{
 			source: "project",
 			skills: hasProject
@@ -863,7 +893,8 @@ const ChatMessageInput = ({
 	const isResolvedEmptySkills =
 		personalSkills?.length === 0 &&
 		(hasPersonalSkillsOverride || !skillsQuery.isFetching) &&
-		organizationSource.isResolvedEmpty &&
+		organizationSkillList?.length === 0 &&
+		!organizationSkillsQuery.isFetching &&
 		(!hasProject ||
 			isProjectUnusable ||
 			(projectUsability === "usable" && projectSource.isResolvedEmpty)) &&
@@ -1243,7 +1274,7 @@ const ChatMessageInput = ({
 					skills={allFilteredSkills}
 					skillsLoading={
 						isPersonalSkillsLoading ||
-						organizationSource.isLoading ||
+						isOrganizationLoading ||
 						isProjectLoading ||
 						isWorkspaceSkillsLoading
 					}
@@ -1275,8 +1306,8 @@ const ChatMessageInput = ({
 						skillsQuery.isError &&
 						skillsQuery.data === undefined
 					}
-					isOrganizationLoading={organizationSource.isLoading}
-					isOrganizationError={organizationSource.isError}
+					isOrganizationLoading={isOrganizationLoading}
+					isOrganizationError={isOrganizationError}
 					isProjectLoading={isProjectLoading}
 					isProjectError={isProjectError}
 					isWorkspaceLoading={isWorkspaceSkillsLoading}

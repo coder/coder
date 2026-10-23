@@ -96,6 +96,9 @@ type SkillsTableProps = {
 	enabledOnly?: boolean;
 	headerLevel?: SectionHeaderLevel;
 	toolbar?: React.ReactNode;
+	renderEnabledCell?: SkillsTableViewProps["renderEnabledCell"];
+	/** Shows the loading rows while the caller loads data the rows need. */
+	isLoading?: boolean;
 	onManagePermissions?: SkillsTableViewProps["onManagePermissions"];
 };
 
@@ -106,6 +109,8 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 	enabledOnly = false,
 	headerLevel,
 	toolbar,
+	renderEnabledCell,
+	isLoading = false,
 	onManagePermissions,
 }) => {
 	const lowerNoun = copy.noun.toLocaleLowerCase("en-US");
@@ -335,9 +340,10 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 			access={access}
 			headerLevel={headerLevel}
 			toolbar={toolbar}
+			renderEnabledCell={renderEnabledCell}
 			onManagePermissions={onManagePermissions}
 			error={skillsQuery.error}
-			isLoading={skillsQuery.isLoading}
+			isLoading={skillsQuery.isLoading || isLoading}
 			isRetrying={skillsQuery.isFetching}
 			onRetry={() => {
 				void skillsQuery.refetch();

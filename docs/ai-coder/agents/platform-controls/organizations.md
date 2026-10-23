@@ -23,6 +23,8 @@ Running more than 1 organization requires a [Premium license](../../../admin/use
 | Personal override toggle        | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**   |
 | MCP servers                     | Organization           | **Admin settings** > **AI** > **Coder Agents** > **MCP servers**           |
 | Organization skills             | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Skills**                |
+| Member skill opt-out            | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Skills**                |
+| Organization skill choices      | User, per organization | **Agents** > **Settings** > **Skills**                                     |
 | Personal skills                 | User                   | **Agents** > **Settings** > **Skills**                                     |
 | System prompt                   | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
 | Organization instructions       | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
@@ -101,6 +103,8 @@ Chats in that organization offer no MCP servers.
 - Users with edit access to an organization's models configure that organization's models, admin model overrides, and organization instructions.
 - Users with read access to an organization's models can open the **Models** page and the **Coder Agents** page, and Coder shows the fields as read-only.
 - Users with access to an organization's MCP servers can open the **MCP servers** page.
+- Users who can edit an organization's skills decide whether members of that organization can turn off organization skills for their own chats.
+  Refer to [Let members turn off organization skills](../extending-agents.md#let-members-turn-off-organization-skills) for more information.
 - Auditors and custom roles can hold read access without edit access.
 - Users with a custom role that grants edit access without read access can save organization instructions through the API, but they can't view them.
 

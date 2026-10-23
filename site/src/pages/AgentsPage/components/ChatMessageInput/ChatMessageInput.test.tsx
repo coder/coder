@@ -6,20 +6,27 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
-import { organizationSkills } from "#/api/queries/organizationSkills";
+import {
+	organizationSkillPreferencesKey,
+	organizationSkills,
+} from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type {
 	AgentChatSendShortcut,
 	ChatMessagePart,
 	ChatProject,
 	ChatSkillSource,
+	OrganizationSkillPreferences,
 	SkillMetadata,
 } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { MockChatProject } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
-import { MockSkill } from "#/testHelpers/skills";
+import {
+	MockOrganizationSkillPreferences,
+	MockSkill,
+} from "#/testHelpers/skills";
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
 import { buildChatInputContent } from "../../utils/chatInputContent";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
@@ -290,6 +297,7 @@ describe("ChatMessageInput", () => {
 		const renderWithSkills = ({
 			personal,
 			organization,
+			organizationPreferences = MockOrganizationSkillPreferences,
 			projectId,
 			projects = projectId ? [{ ...MockChatProject, id: projectId }] : [],
 			staleProject,
@@ -297,6 +305,8 @@ describe("ChatMessageInput", () => {
 		}: {
 			personal: SkillMetadata[];
 			organization?: SkillMetadata[];
+			// Null leaves the preferences request to the API.
+			organizationPreferences?: OrganizationSkillPreferences | null;
 			projectId?: string;
 			projects?: ChatProject[];
 			// Project skills loaded long ago, so opening the menu refetches.
@@ -304,6 +314,12 @@ describe("ChatMessageInput", () => {
 			queryClient?: QueryClient;
 		}) => {
 			queryClient.setQueryData(userSkills().queryKey, personal);
+			if (organizationPreferences) {
+				queryClient.setQueryData(
+					organizationSkillPreferencesKey(organizationId),
+					organizationPreferences,
+				);
+			}
 			vi.spyOn(API.experimental, "getChatProjects").mockResolvedValue(projects);
 			if (projectId && staleProject) {
 				queryClient.setQueryData(
@@ -389,6 +405,29 @@ describe("ChatMessageInput", () => {
 			]);
 		});
 
+		it("ignores organization skills the member turned off when qualifying triggers", async () => {
+			const mockOrganizationReviewerSkill: SkillMetadata = {
+				...mockReviewerSkill,
+				id: "skill-organization-reviewer",
+			};
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [mockOrganizationReviewerSkill],
+				organizationPreferences: {
+					...MockOrganizationSkillPreferences,
+					members_can_disable_skills: true,
+					disabled_skill_ids: [mockOrganizationReviewerSkill.id],
+				},
+			});
+			const user = await pasteTrigger("/rev");
+			await user.click(
+				await screen.findByRole("option", { name: /^\/reviewer/ }),
+			);
+			expect(getRequestContent(inputRef)).toEqual([
+				mockSkillPart("personal", "reviewer"),
+			]);
+		});
+
 		it("hides built-in commands when the organization list fails", async () => {
 			// With /compact hidden, Enter picks the personal match.
 			const inputRef = renderWithSkills({
@@ -400,6 +439,30 @@ describe("ChatMessageInput", () => {
 			expect(getRequestContent(inputRef)).toEqual([
 				mockSkillPart("personal", "compactor"),
 			]);
+		});
+
+		it("offers built-in commands when preferences fail for an organization without skills", async () => {
+			vi.spyOn(
+				API.experimental,
+				"getOrganizationSkillPreferences",
+			).mockRejectedValue(new Error("Failed to load your skill choices."));
+			const queryClient = createTestQueryClient();
+			const inputRef = renderWithSkills({
+				personal: [mockCompactorSkill],
+				organization: [],
+				organizationPreferences: null,
+				queryClient,
+			});
+			const user = await pasteTrigger("/comp");
+			await waitFor(() => {
+				expect(
+					queryClient.getQueryState(
+						organizationSkillPreferencesKey(organizationId),
+					)?.status,
+				).toBe("error");
+			});
+			await user.keyboard("{Enter}");
+			expect(inputRef.current?.getValue()).toBe("/compact");
 		});
 
 		it.each([403, 404])(

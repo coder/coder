@@ -1,10 +1,10 @@
-import { CheckIcon, XIcon } from "lucide-react";
 import { useMutation, useQueryClient } from "react-query";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { SkillMetadata } from "#/api/typesGenerated";
 import { Switch } from "#/components/Switch/Switch";
 import { toast } from "#/components/Toaster/toast";
 import type { SkillsScope } from "../utils/skills";
+import { EnabledStateIcon } from "./EnabledStateIcon";
 
 type SkillEnabledSwitchProps = {
 	scope: SkillsScope;
@@ -28,19 +28,7 @@ export const SkillEnabledSwitch: React.FC<SkillEnabledSwitchProps> = ({
 	});
 
 	if (readOnly) {
-		return skill.enabled ? (
-			<CheckIcon
-				role="img"
-				aria-label="Enabled"
-				className="size-icon-sm text-content-success"
-			/>
-		) : (
-			<XIcon
-				role="img"
-				aria-label="Disabled"
-				className="size-icon-sm text-content-secondary"
-			/>
-		);
+		return <EnabledStateIcon enabled={skill.enabled} />;
 	}
 
 	return (
