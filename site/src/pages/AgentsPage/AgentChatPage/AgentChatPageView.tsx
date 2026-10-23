@@ -335,6 +335,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							onSetShowSidebarPanel(false);
 						}
 					},
+					// Implemented with the Files panel reveal.
+					revealInFiles: () => {},
+					diffStatuses: chat.diff_statuses ?? [],
 				}
 			: undefined;
 

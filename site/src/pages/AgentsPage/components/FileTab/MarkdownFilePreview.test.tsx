@@ -38,6 +38,8 @@ const makeFiles = (): WorkspaceFilesContextValue => ({
 	repoRoots: ["/repo"],
 	repositories: new Map(),
 	openFile: vi.fn(),
+	revealInFiles: vi.fn(),
+	diffStatuses: [],
 });
 
 const renderWithProviders = (element: React.ReactNode) => {

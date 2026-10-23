@@ -45,6 +45,8 @@ export const WorkspacePathReferences: Story = {
 					repoRoots: ["/home/coder/coder"],
 					repositories: new Map(),
 					openFile: fn(),
+					revealInFiles: fn(),
+					diffStatuses: [],
 				}}
 			>
 				<Story />

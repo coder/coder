@@ -19876,6 +19876,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "repositories": [
     {
       "branch": "string",
+      "head_commit": "string",
       "remote_origin": "string",
       "removed": true,
       "repo_root": "string",
@@ -20253,6 +20254,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "branch": "string",
+  "head_commit": "string",
   "remote_origin": "string",
   "removed": true,
   "repo_root": "string",
@@ -20262,13 +20264,14 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name            | Type    | Required | Restrictions | Description |
-|-----------------|---------|----------|--------------|-------------|
-| `branch`        | string  | false    |              |             |
-| `remote_origin` | string  | false    |              |             |
-| `removed`       | boolean | false    |              |             |
-| `repo_root`     | string  | false    |              |             |
-| `unified_diff`  | string  | false    |              |             |
+| Name            | Type    | Required | Restrictions | Description                                                                                           |
+|-----------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------------|
+| `branch`        | string  | false    |              |                                                                                                       |
+| `head_commit`   | string  | false    |              | Head commit is the full SHA of HEAD. It is empty when HEAD is unborn or the agent predates the field. |
+| `remote_origin` | string  | false    |              |                                                                                                       |
+| `removed`       | boolean | false    |              |                                                                                                       |
+| `repo_root`     | string  | false    |              |                                                                                                       |
+| `unified_diff`  | string  | false    |              |                                                                                                       |
 
 ## codersdk.WorkspaceAgentScript
 

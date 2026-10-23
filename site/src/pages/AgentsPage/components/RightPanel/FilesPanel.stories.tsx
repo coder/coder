@@ -46,6 +46,8 @@ const meta: Meta<typeof FilesPanel> = {
 					repoRoots: [],
 					repositories: new Map(),
 					openFile: () => {},
+					revealInFiles: () => {},
+					diffStatuses: [],
 				}}
 			>
 				<div className="flex h-[420px] w-80 flex-col border border-solid border-border">
@@ -101,6 +103,8 @@ export const RootPicker: Story = {
 					repoRoots: ["/home/coder/coder", "/home/coder/demo/site"],
 					repositories: new Map(),
 					openFile: () => {},
+					revealInFiles: () => {},
+					diffStatuses: [],
 				}}
 			>
 				<Story />
