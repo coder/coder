@@ -49,14 +49,25 @@ export const AgentSSHButton: React.FC<AgentSSHButtonProps> = ({
 
 				<ol style={{ margin: 0, padding: 0 }}>
 					<div className="flex flex-col gap-1 mt-3">
-						<SSHStep
-							helpText="Configure SSH hosts on machine:"
-							codeExample="coder config-ssh"
-						/>
-						<SSHStep
-							helpText="Connect to the agent:"
-							codeExample={`ssh ${agentName}.${workspaceName}.${workspaceOwnerUsername}.${sshSuffix}`}
-						/>
+						{sshSuffix ? (
+							<>
+								<SSHStep
+									helpText="Configure SSH hosts on machine:"
+									codeExample="coder config-ssh"
+								/>
+								<SSHStep
+									helpText="Connect to the agent:"
+									codeExample={`ssh ${agentName}.${workspaceName}.${workspaceOwnerUsername}.${sshSuffix}`}
+								/>
+							</>
+						) : (
+							// Without a hostname suffix there is no SSH host to suggest,
+							// so fall back to the CLI, which needs no SSH config.
+							<SSHStep
+								helpText="Connect to the agent:"
+								codeExample={`coder ssh ${workspaceOwnerUsername}/${workspaceName}.${agentName}`}
+							/>
+						)}
 					</div>
 				</ol>
 
