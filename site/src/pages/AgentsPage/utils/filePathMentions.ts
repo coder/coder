@@ -127,9 +127,10 @@ type TextRange = {
 const candidateTailLimit = 160;
 
 // A path-like token followed by a space and more text, as in
-// /path/to/file (2).txt, where only the filesystem knows where it ends.
+// /path/to/file (2).txt, where only the filesystem knows where it ends, or
+// a token ending in a slash, as in site/src/, that may name a folder.
 const candidateTokenRegExp =
-	/(?<![\w./~@:#\\\])}-])((?:~\/|\/)?[\w.+-]+(?:\/[\w.+-]+)*) (?=\S)/g;
+	/(?<![\w./~@:#\\\])}-])((?:~\/|\/)?[\w.+-]+(?:\/[\w.+-]+)*)(?: (?=\S)|(\/)(?=[\s,;:!?)\]}"'>]|\.?$|\.\s))/g;
 
 const isPathLike = (token: string) =>
 	token.startsWith("/") || token.startsWith("~/") || token.includes("/");
@@ -144,7 +145,7 @@ const findCandidateTokens = (text: string): CandidateToken[] => {
 	for (const match of text.matchAll(candidateTokenRegExp)) {
 		const token = match[1];
 		const start = match.index;
-		if (!isPathLike(token)) {
+		if (!isPathLike(token) && !match[2]) {
 			continue;
 		}
 		const before = text[start - 1];
@@ -221,11 +222,12 @@ export const findFilePathCandidates = (text: string): TextRange[] =>
 	findCandidates(text, findFilePathMentions(text));
 
 /**
- * Reports whether inline code text may be a path containing spaces. The
- * code span bounds the path, so verification must consume all of it.
+ * Reports whether inline code text may be a path containing spaces, or a
+ * folder path ending in a slash. The code span bounds the path, so
+ * verification must consume all of it.
  */
 export const isWholeFilePathCandidate = (text: string): boolean =>
-	text.includes(" ") &&
+	(text.includes(" ") || text.endsWith("/")) &&
 	text.length <= candidateTailLimit &&
 	isPathLike(text) &&
 	!/[\n"'`$|&;<>=*?]|:\/\//.test(text);
@@ -417,7 +419,11 @@ export const getFilePathCandidateStarts = (
 	repoRoots: readonly string[],
 ): FilePathCandidateStart[] => {
 	const space = text.indexOf(" ");
-	const token = space === -1 ? text : text.slice(0, space);
+	// A trailing slash ends a folder name, which the walk must still verify.
+	const token = (space === -1 ? text : text.slice(0, space)).replace(
+		/(.)\/$/,
+		"$1",
+	);
 	const slash = token.lastIndexOf("/");
 	const offset = slash + 1;
 	const prefix = slash === -1 ? "" : token.slice(0, slash);
@@ -446,6 +452,7 @@ type VerifiedFilePath = {
 	/** Characters of the walked text that the path and line suffix cover. */
 	length: number;
 	line?: number;
+	isDirectory?: boolean;
 };
 
 // Bounds the list-directory calls for one candidate start.
@@ -477,12 +484,13 @@ type FilePathWalk = {
 };
 
 /**
- * Walks directory listings to find the longest file path that `text`
- * starts with, beginning in `directory`. At each level it takes the
- * longest entry name the remaining text starts with, followed by `/` for a
- * directory or a word boundary for a file. The walk stops with no match
- * when a listing failed or the walk exceeds its depth, and stays pending at
- * the first directory whose listing is not available.
+ * Walks directory listings to find the longest path that `text` starts
+ * with, beginning in `directory`. At each level it takes the longest entry
+ * name the remaining text starts with, followed by `/` for a directory or a
+ * word boundary. A directory followed by a word boundary, with or without a
+ * trailing `/`, ends the walk as a verified folder. The walk stops with no
+ * match when a listing failed or the walk exceeds its depth, and stays
+ * pending at the first directory whose listing is not available.
  */
 export const walkFilePath = (
 	directory: string,
@@ -512,9 +520,8 @@ export const walkFilePath = (
 			) {
 				continue;
 			}
-			const fits = entry.is_dir
-				? rest[length] === "/"
-				: isPathEnd(rest, length);
+			const fits =
+				(entry.is_dir && rest[length] === "/") || isPathEnd(rest, length);
 			if (fits) {
 				best = entry;
 			}
@@ -523,8 +530,20 @@ export const walkFilePath = (
 			return { directories, verified: null };
 		}
 		if (best.is_dir) {
+			const slash = rest[best.name.length] === "/";
+			const end = offset + best.name.length + (slash ? 1 : 0);
+			if (!slash || isPathEnd(text, end)) {
+				return {
+					directories,
+					verified: {
+						absolutePath: best.absolute_path_string,
+						length: end,
+						isDirectory: true,
+					},
+				};
+			}
 			current = best.absolute_path_string;
-			offset += best.name.length + 1;
+			offset = end;
 			continue;
 		}
 		const end = offset + best.name.length;

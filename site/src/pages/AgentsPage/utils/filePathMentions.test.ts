@@ -115,6 +115,11 @@ describe("findFilePathCandidates", () => {
 		["Visit example.com/my page", []],
 		["Edit C:/Users/my dir/a.ts", []],
 		["Two /a/b c\n/d/e f", ["/a/b c", "/d/e f"]],
+		["See site/src/pages/ for routes", ["site/src/pages/ for routes"]],
+		["Look in docs/.", ["docs/."]],
+		["Ends with /etc/", ["/etc/"]],
+		["Visit https://example.com/ or example.com/a/", []],
+		["Read site/src/a.ts/ now", ["site/src/a.ts/ now"]],
 	])("finds candidates in %j", (text, expected) => {
 		expect(candidateText(text)).toEqual(expected);
 	});
@@ -130,6 +135,7 @@ describe("isWholeFilePathCandidate", () => {
 		["/path/to/file (2).txt", true],
 		["my dir/a.ts", true],
 		["~/My Documents/x.md", true],
+		["site/src/pages/", true],
 		["/home/coder/a.ts", false],
 		["git status", false],
 		['git commit -m "fix/thing x"', false],
@@ -159,6 +165,13 @@ describe("getFilePathCandidateStarts", () => {
 		],
 		["my dir/a.ts", [], [{ directory: "", offset: 0, root: "" }]],
 		["src/my dir/a.ts", [], [{ directory: "src", offset: 4, root: "" }]],
+		[
+			"site/src/pages/ for routes",
+			["/r1"],
+			[{ directory: "/r1/site/src", offset: 9, root: "/r1" }],
+		],
+		["/home/", [], [{ directory: "/", offset: 1, root: "/" }]],
+		["~/projects/", [], [{ directory: "~", offset: 2, root: "~" }]],
 	])("starts %j in %j", (text, roots, expected) => {
 		expect(getFilePathCandidateStarts(text, roots)).toEqual(expected);
 	});
@@ -206,6 +219,21 @@ describe("walkFilePath", () => {
 		],
 		["/home/coder", "my dir/b.ts", null],
 		["/home/coder", "my dirt", { absolutePath: "/home/coder/my", length: 2 }],
+		[
+			"/home/coder",
+			"my dir/ holds it",
+			{ absolutePath: "/home/coder/my dir", length: 7, isDirectory: true },
+		],
+		[
+			"/home/coder",
+			"my dir, which",
+			{ absolutePath: "/home/coder/my dir", length: 6, isDirectory: true },
+		],
+		[
+			"/home/coder",
+			"my dir/",
+			{ absolutePath: "/home/coder/my dir", length: 7, isDirectory: true },
+		],
 		["/missing", "a b.ts", null],
 		["/not/listed/yet", "a b.ts", undefined],
 	])("walks from %j through %j", (directory, text, expected) => {
