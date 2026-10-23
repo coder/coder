@@ -24461,9 +24461,17 @@ const docTemplate = `{
         "codersdk.CreateSkillRequest": {
             "type": "object",
             "properties": {
+                "action": {
+                    "description": "Action is only accepted for project skills and defaults to false.",
+                    "type": "boolean"
+                },
                 "content": {
                     "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
                     "type": "string"
+                },
+                "model_invocable": {
+                    "description": "ModelInvocable defaults to true.",
+                    "type": "boolean"
                 }
             }
         },
@@ -30828,6 +30836,10 @@ const docTemplate = `{
         "codersdk.Skill": {
             "type": "object",
             "properties": {
+                "action": {
+                    "description": "Action reports whether a project skill is offered as a one-click\naction above project composers. It is always false for personal and\norganization skills.",
+                    "type": "boolean"
+                },
                 "content": {
                     "type": "string"
                 },
@@ -30845,6 +30857,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "model_invocable": {
+                    "description": "ModelInvocable reports whether agents can discover and load the skill\non their own. Users can still invoke a skill explicitly when it is\nfalse.",
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -30857,6 +30873,10 @@ const docTemplate = `{
         "codersdk.SkillMetadata": {
             "type": "object",
             "properties": {
+                "action": {
+                    "description": "Action reports whether a project skill is offered as a one-click\naction above project composers. It is always false for personal and\norganization skills.",
+                    "type": "boolean"
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
@@ -30870,6 +30890,10 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "model_invocable": {
+                    "description": "ModelInvocable reports whether agents can discover and load the skill\non their own. Users can still invoke a skill explicitly when it is\nfalse.",
+                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"
@@ -32736,11 +32760,18 @@ const docTemplate = `{
         "codersdk.UpdateSkillRequest": {
             "type": "object",
             "properties": {
+                "action": {
+                    "description": "Action is only accepted for project skills.",
+                    "type": "boolean"
+                },
                 "content": {
                     "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
                     "type": "string"
                 },
                 "enabled": {
+                    "type": "boolean"
+                },
+                "model_invocable": {
                     "type": "boolean"
                 }
             }

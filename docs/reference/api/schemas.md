@@ -7252,15 +7252,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "content": "string"
+  "action": true,
+  "content": "string",
+  "model_invocable": true
 }
 ```
 
 ### Properties
 
-| Name      | Type   | Required | Restrictions | Description                                                                                                                                                           |
-|-----------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `content` | string | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                           |
+|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action is only accepted for project skills and defaults to false.                                                                                                     |
+| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
+| `model_invocable` | boolean | false    |              | Model invocable defaults to true.                                                                                                                                     |
 
 ## codersdk.CreateTemplateRequest
 
@@ -14931,11 +14935,13 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
+  "action": true,
   "content": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "description": "string",
   "enabled": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "model_invocable": true,
   "name": "string",
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -14943,24 +14949,28 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name          | Type    | Required | Restrictions | Description |
-|---------------|---------|----------|--------------|-------------|
-| `content`     | string  | false    |              |             |
-| `created_at`  | string  | false    |              |             |
-| `description` | string  | false    |              |             |
-| `enabled`     | boolean | false    |              |             |
-| `id`          | string  | false    |              |             |
-| `name`        | string  | false    |              |             |
-| `updated_at`  | string  | false    |              |             |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                               |
+|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action reports whether a project skill is offered as a one-click action above project composers. It is always false for personal and organization skills. |
+| `content`         | string  | false    |              |                                                                                                                                                           |
+| `created_at`      | string  | false    |              |                                                                                                                                                           |
+| `description`     | string  | false    |              |                                                                                                                                                           |
+| `enabled`         | boolean | false    |              |                                                                                                                                                           |
+| `id`              | string  | false    |              |                                                                                                                                                           |
+| `model_invocable` | boolean | false    |              | Model invocable reports whether agents can discover and load the skill on their own. Users can still invoke a skill explicitly when it is false.          |
+| `name`            | string  | false    |              |                                                                                                                                                           |
+| `updated_at`      | string  | false    |              |                                                                                                                                                           |
 
 ## codersdk.SkillMetadata
 
 ```json
 {
+  "action": true,
   "created_at": "2019-08-24T14:15:22Z",
   "description": "string",
   "enabled": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "model_invocable": true,
   "name": "string",
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -14968,14 +14978,16 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name          | Type    | Required | Restrictions | Description |
-|---------------|---------|----------|--------------|-------------|
-| `created_at`  | string  | false    |              |             |
-| `description` | string  | false    |              |             |
-| `enabled`     | boolean | false    |              |             |
-| `id`          | string  | false    |              |             |
-| `name`        | string  | false    |              |             |
-| `updated_at`  | string  | false    |              |             |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                               |
+|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action reports whether a project skill is offered as a one-click action above project composers. It is always false for personal and organization skills. |
+| `created_at`      | string  | false    |              |                                                                                                                                                           |
+| `description`     | string  | false    |              |                                                                                                                                                           |
+| `enabled`         | boolean | false    |              |                                                                                                                                                           |
+| `id`              | string  | false    |              |                                                                                                                                                           |
+| `model_invocable` | boolean | false    |              | Model invocable reports whether agents can discover and load the skill on their own. Users can still invoke a skill explicitly when it is false.          |
+| `name`            | string  | false    |              |                                                                                                                                                           |
+| `updated_at`      | string  | false    |              |                                                                                                                                                           |
 
 ## codersdk.SlimRole
 
@@ -17357,17 +17369,21 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 
 ```json
 {
+  "action": true,
   "content": "string",
-  "enabled": true
+  "enabled": true,
+  "model_invocable": true
 }
 ```
 
 ### Properties
 
-| Name      | Type    | Required | Restrictions | Description                                                                                                                                                           |
-|-----------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `content` | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
-| `enabled` | boolean | false    |              |                                                                                                                                                                       |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                           |
+|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action is only accepted for project skills.                                                                                                                           |
+| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
+| `enabled`         | boolean | false    |              |                                                                                                                                                                       |
+| `model_invocable` | boolean | false    |              |                                                                                                                                                                       |
 
 ## codersdk.UpdateTemplateACL
 
