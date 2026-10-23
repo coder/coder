@@ -490,7 +490,7 @@ func TestBuffer_StuckSubscriberRetainsClosedEpisodeUntilSendTimeout(t *testing.T
 	synctest.Test(t, func(t *testing.T) {
 		const (
 			retention   = 30 * time.Second
-			sendTimeout = 90 * time.Second
+			sendTimeout = 75 * time.Second
 		)
 		clock := quartz.NewMock(t)
 		buffer := messagepartbuffer.New(messagepartbuffer.Options{
@@ -509,8 +509,11 @@ func TestBuffer_StuckSubscriberRetainsClosedEpisodeUntilSendTimeout(t *testing.T
 		synctest.Wait()
 
 		// The cleanup loop runs every 30s. The episode closes at 20s and
-		// is due for collection at 60s, but the subscriber's send waits
-		// until 110s, and the next cleanup after that runs at 120s.
+		// is due for collection from the 60s cleanup on, but the
+		// subscriber's send waits until 95s, so the 120s cleanup collects
+		// it. If the timeout counted from the start of the send instead of
+		// the close, the send would end at 75s and the 90s cleanup would
+		// collect the episode. Neither time falls on a cleanup.
 		advance := func(d time.Duration) {
 			clock.Advance(d).MustWait(ctx)
 			synctest.Wait()
@@ -520,12 +523,13 @@ func TestBuffer_StuckSubscriberRetainsClosedEpisodeUntilSendTimeout(t *testing.T
 		synctest.Wait()
 		advance(10 * time.Second)
 		advance(30 * time.Second)
+		advance(15 * time.Second)
+		advance(15 * time.Second)
 		require.Equal(t, 1, buffer.EpisodeCount(), "a subscribed closed episode was collected")
-		advance(30 * time.Second)
-		advance(20 * time.Second)
+		advance(5 * time.Second)
 		assertChannelClosed(t, ch)
 		require.Equal(t, 1, buffer.EpisodeCount())
-		advance(10 * time.Second)
+		advance(25 * time.Second)
 		require.Equal(t, 0, buffer.EpisodeCount(), "the closed episode was not collected after the subscriber was dropped")
 	})
 }
@@ -569,7 +573,7 @@ func TestBuffer_WaitingSendEndsOnShutdownAndCancel(t *testing.T) {
 	}
 }
 
-func TestBuffer_BurstyOutputDoesNotCloseSubscriberBeforeSendTimeout(t *testing.T) {
+func TestBuffer_BurstyOutputDeliversEveryPartInOrder(t *testing.T) {
 	t.Parallel()
 
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
