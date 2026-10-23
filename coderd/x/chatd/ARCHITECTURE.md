@@ -1701,9 +1701,8 @@ Behavior after receiving an episode-selection message:
 - stream future parts for that episode as they are produced;
 - if the worker has not produced parts for that episode yet, keep the connection open and emit nothing until matching parts become available;
 - missing episode state is not an error;
-- enforce contiguous `seq` delivery for the selected episode.
-
-TODO (relay-selection): the endpoint keeps only the latest selection it has not acted on yet. A selection that a later one replaces before the endpoint acts on it is never served, so the steps above apply only to the latest selection. Describe this here.
+- enforce contiguous `seq` delivery for the selected episode;
+- keep reading selection messages while waiting to send parts, and if a newer selection arrives before the endpoint starts serving this one, serve only the newer one.
 
 Only worker changes require a new parts WebSocket connection.
 
