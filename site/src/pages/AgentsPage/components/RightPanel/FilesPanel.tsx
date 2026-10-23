@@ -71,6 +71,8 @@ export const useFilesPanelRoot = (
 		queryFn: (): DefaultRoot => ({ root: repoRoots[0] ?? "", pinned: false }),
 		enabled: storedRoot === null && repoRootsSettled,
 		staleTime: Number.POSITIVE_INFINITY,
+		// Kept while the page lives, so returning to a chat keeps its root and pin.
+		gcTime: Number.POSITIVE_INFINITY,
 	});
 	const defaultRoot = defaultRootQuery.data;
 	const upgradedRoot =
