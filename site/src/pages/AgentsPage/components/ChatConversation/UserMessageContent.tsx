@@ -38,7 +38,8 @@ const getInlineParts = (
 	});
 };
 
-// Paths that "@" chips sent render as chips again; files open on click.
+// Paths that "@" chips sent render as chips again. A file opens in a tab and
+// a folder shows in the Files panel.
 const UserMessageText: React.FC<{ text: string }> = ({ text }) => {
 	const workspaceFiles = useWorkspaceFiles();
 	return (
@@ -47,10 +48,13 @@ const UserMessageText: React.FC<{ text: string }> = ({ text }) => {
 				if (segment.type === "text") {
 					return <Fragment key={index}>{segment.text}</Fragment>;
 				}
-				const openFile =
-					workspaceFiles && !segment.isDirectory
-						? () => workspaceFiles.openFile(segment.path)
-						: undefined;
+				let openPath: (() => void) | undefined;
+				if (workspaceFiles && segment.isDirectory) {
+					openPath = () =>
+						workspaceFiles.revealInFiles(segment.path, { isDirectory: true });
+				} else if (workspaceFiles) {
+					openPath = () => workspaceFiles.openFile(segment.path);
+				}
 				return (
 					<span
 						key={index}
@@ -62,7 +66,12 @@ const UserMessageText: React.FC<{ text: string }> = ({ text }) => {
 						<WorkspacePathChip
 							path={segment.path}
 							isDirectory={segment.isDirectory}
-							onOpen={openFile}
+							onOpen={openPath}
+							label={
+								segment.isDirectory
+									? `Show ${segment.path} in Files`
+									: undefined
+							}
 						/>
 					</span>
 				);
