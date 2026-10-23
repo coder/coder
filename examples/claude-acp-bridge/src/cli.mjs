@@ -58,6 +58,8 @@ async function main() {
     await privateDirectory(dirname(stateFile));
     const pluginPath = resolve(root, 'plugin');
     const broker = await createBroker({
+      sessionFile: stateFile + '.sessions.json',
+      deferPersistence: true,
       discover: createNativeDiscovery({ stateFile, pluginPath }),
       launch: async (cwd, launchId) => {
         // The native supervisor does not inherit arbitrary caller env vars.
@@ -80,17 +82,23 @@ async function main() {
     });
     try { await writeFile(stateFile, JSON.stringify({ url: broker.url, token: broker.token, pid: process.pid }) + '\n', { mode: 0o600, flag: 'wx' }); }
     catch (error) { await broker.close(); throw new Error('Cannot create descriptor ' + stateFile + ' (' + error.code + '). An existing descriptor may be running or stale; inspect before removing it. Nothing was restarted.'); }
-    console.error('Workspace bridge listening on ' + broker.url + '; private descriptor: ' + stateFile);
     let stopping = false;
     async function stop() {
       if (stopping) return;
       stopping = true;
-      await broker.close();
-      let current;
-      try { current = JSON.parse(await readFile(stateFile, 'utf8')); }
-      catch { return; } // Leave an unreadable or replaced descriptor for manual inspection.
-      if (current?.token === broker.token) await unlink(stateFile);
+      try { await broker.close(); }
+      finally {
+        let current;
+        try { current = JSON.parse(await readFile(stateFile, 'utf8')); }
+        catch { /* Leave an unreadable or replaced descriptor for manual inspection. */ }
+        if (current?.token === broker.token) await unlink(stateFile);
+      }
     }
+    // The session path is derived from this descriptor. A competing serve cannot
+    // reach recovery because it cannot claim the descriptor with exclusive create.
+    try { await broker.preparePersistence(); }
+    catch (error) { await stop(); throw error; }
+    console.error('Workspace bridge listening on ' + broker.url + '; private descriptor: ' + stateFile);
     process.once('SIGINT', () => stop().catch(error => console.error(error.message)));
     process.once('SIGTERM', () => stop().catch(error => console.error(error.message)));
     if (process.send) process.send({ type: 'bridge-ready' }, () => {});

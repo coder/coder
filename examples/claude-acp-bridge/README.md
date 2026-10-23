@@ -227,10 +227,14 @@ Command acknowledgement deadlines are separate from heartbeat freshness. An
 unacknowledged command or a broken event sequence still stops automation with an
 unknown outcome. Inspect the native session before starting replacement work.
 
-Broker restart loses its port, token, session registry, and retained event log.
-Old native sessions may continue running but do not automatically reconnect to a
-new broker. Inspect or stop them natively before creating replacements. There is
-no guarantee of exactly-once side effects across crashes.
+Broker restart replaces its port and token, but retains session identities and
+bounded transcript history in `<descriptor-path>.sessions.json`.
+Restored sessions are read-only archives: they remain listed as **Ended**, and
+selecting one loads its retained transcript without polling or resuming work.
+This marks the broker attachment as ended, not proof that an old native process
+stopped. Native processes may survive a broker-only restart; inspect them natively
+before creating replacements. There is no guarantee of exactly-once side effects
+across crashes.
 
 ## Coder UI roundtrip
 
@@ -269,7 +273,12 @@ The session start time is the native background start time when discovery suppli
 A broker without that timestamp shows an unknown start time rather than an invented age.
 The adapter retains the latest known error summary even if a later turn succeeds.
 Stale heartbeats are shown separately from integrity faults, and do not by themselves mean that native work failed.
-These records are in memory and do not survive broker restart.
+The CLI broker persists identities, timestamps, error summaries, and retained transcript events in an owner-only file beside its descriptor.
+Writes are atomic and synced before acknowledging recorded events. The file contains private conversation text; do not publish it.
+Restored records expose `archived: true` and `ended: true`. Join, Observe, and new prompts are unavailable for archives.
+Only sessions recorded by the persistence-enabled broker are retained; this does not reconstruct history lost before upgrading.
+Archives keep at most 100 sessions, 10,000 events or 8 MiB per session, and 32 MiB of event data in total, within a 40 MiB snapshot limit.
+Older transcript events can be evicted; saved history is explicitly partial. Exhausting the session count refuses new launches rather than deleting session records.
 
 Sessions waiting at a native startup dialog appear before the runtime registers.
 They expose `registrationPending: true` and, when known, a controlled `blockedReason` in the adapter's ACP metadata.
@@ -284,7 +293,7 @@ Discovery uses structured Claude background-session state scoped to this broker'
 | `coder-acp acp`                                                                       | ACP v1 NDJSON on stdin/stdout. Diagnostics on stderr. Connects to the existing broker; no banners, native launches, or auto-start. |
 | `coder-acp attach SESSION_ID`                                                         | Uses a full native UUID, selects human mode, and delegates to interactive `claude attach` with inherited terminal I/O.             |
 | `coder-acp serve [--detach] [--model MODEL]`                                          | Explicitly starts a broker, foreground by default. Never overwrites an existing descriptor.                                        |
-| `coder-acp list`                                                                      | Lists registered sessions and owned background sessions awaiting registration as JSON.                                        |
+| `coder-acp list`                                                                      | Lists live sessions, owned pending sessions, and saved read-only archives as JSON.                                        |
 | `coder-acp start --cwd /absolute/project`                                             | Explicitly creates an idle instrumented native session; returns its full ID.                                                       |
 | `coder-acp run --cwd /absolute/project --prompt-file FILE --job-file FILE [--detach]` | Creates and prompts a session through ACP once, retaining private dispatch state.                                                  |
 | `coder-acp inspect SESSION_ID`                                                        | Shows structured native identity, mode, runtime, and status.                                                                       |
@@ -428,9 +437,10 @@ protocol correctness.
   and its bridge descriptor; unrelated native processes are not adopted.
   New background launches pass settings explicitly because the supervisor does
   not inherit arbitrary caller environment variables.
-- **No durable broker journal.** ACP clients can reconnect while the broker lives.
-  Load replays retained events from the current runtime, not complete saved Claude
-  history. Metadata labels this partial history. Expired cursors fail explicitly.
+- **Bounded saved history.** The CLI broker persists its retained current-runtime
+  events, not complete saved Claude history. Metadata labels this partial history.
+  Restored archives are read-only and can start after older events were evicted.
+  Live clients still fail explicitly on expired cursors.
 - **Restart is not seamless recovery.** Mod reload or native process replacement
   invalidates pending requests. Explicit reattachment starts a new history
   boundary. Broker restart needs newly configured sessions; it does not recover

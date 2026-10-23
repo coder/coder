@@ -727,6 +727,59 @@ describe("ACP broker acceptance", { concurrency: true, timeout: 10000 }, () => {
     assert.equal(textOf(f.updates()), "current runtime");
   });
 
+  test("persisted archives replay read-only history without polling or reviving work", async (t) => {
+    const f = await connect(t);
+    Object.assign(f.broker.session, { archived: true, ended: true, mode: "human", fault: true });
+    f.broker.emit("mode", { mode: "automation" });
+    f.broker.emit("turn.start", { turnId: "saved-turn", text: "saved prompt" });
+    f.broker.emit("text", { turnId: "saved-turn", text: "saved answer" });
+    f.broker.emit("turn.complete", { turnId: "saved-turn", reason: "answer", answer: "saved answer" });
+    f.broker.emit("session.end", { reason: "stopped" });
+    f.broker.emit("overflow", { reason: "historical integrity fault" });
+    const loaded = await f.loadSession();
+    assert.equal(loaded._meta[META].archived, true);
+    assert.equal(loaded._meta[META].ended, true);
+    assert.equal(loaded.modes.currentModeId, "human");
+    assert.equal(textOf(f.updates()), "saved answer");
+    assert.equal(f.updates().filter(u => u.sessionUpdate === "user_message_chunk")[0].content.text, "saved prompt");
+    assert.ok(!f.updates().some(u => u.sessionUpdate === "current_mode_update"));
+    const before = f.notifications.length;
+    await f.loadSession();
+    assert.equal(f.notifications.length, before, "reopening does not duplicate archive history");
+    const listed = await f.rpc.request(methods.agent.session.list, {});
+    assert.equal(listed.sessions[0]._meta[META].archived, true);
+    await assert.rejects(f.prompt().promise, /read-only/);
+    await assert.rejects(f.rpc.request(methods.agent.session.setMode, { sessionId: f.broker.session.sessionId, modeId: "automation" }), /read-only/);
+    assert.equal(f.broker.calls.filter(c => c.method === "POST").length, 0);
+    assert.equal(f.broker.calls.filter(c => c.path.includes("/events?")).length, 1);
+    assert.ok(!f.broker.calls.some(c => c.path.endsWith("wait=1")));
+  });
+
+  test("archived partial history starts at its retained boundary without inventing missing text", async (t) => {
+    const f = await connect(t);
+    Object.assign(f.broker.session, { archived: true, ended: true, mode: "human", historyStartCursor: 2 });
+    f.broker.emit("turn.start", { turnId: "saved-turn", text: "evicted prompt" });
+    f.broker.emit("text", { turnId: "saved-turn", text: "evicted answer prefix" });
+    f.broker.emit("text", { turnId: "saved-turn", text: "retained suffix" });
+    f.broker.emit("turn.complete", { turnId: "saved-turn", reason: "answer", answer: "evicted answer prefix retained suffix" });
+    f.broker.events.splice(0, 2);
+    const loaded = await f.loadSession();
+    assert.equal(textOf(f.updates()), "retained suffix");
+    assert.equal(loaded._meta[META].fullHistory, false);
+    assert.equal(loaded._meta[META].cursor, 4);
+  });
+
+  test("an archived startup session without a runtime or transcript loads as empty read-only history", async (t) => {
+    const f = await connect(t);
+    Object.assign(f.broker.session, { archived: true, ended: true, mode: "human", runtimeId: undefined });
+    const loaded = await f.loadSession();
+    assert.equal(loaded._meta[META].archived, true);
+    assert.equal(loaded._meta[META].runtimeId, undefined);
+    assert.deepEqual(f.updates(), []);
+    await assert.rejects(f.rpc.request(methods.agent.session.setMode, { sessionId: f.broker.session.sessionId, modeId: "human" }), /read-only/);
+    assert.ok(!f.broker.calls.some(c => c.method === "POST" || c.path.endsWith("wait=1")));
+  });
+
   test("closed and faulted sessions stay listed with their error but cannot be loaded as usable", async (t) => {
     for (const field of ["ended", "fault"]) {
       const f = await connect(t);

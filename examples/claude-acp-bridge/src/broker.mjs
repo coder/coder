@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events';
 import { createServer } from 'node:http';
 import { isAbsolute } from 'node:path';
 import { MCP_BLOCKED_REASON, NATIVE_BLOCKED_REASON, REGISTRATION_PENDING_REASON } from './native-discovery.mjs';
+import { openSessionStore, sessionRecord, SESSION_LIMITS } from './session-store.mjs';
 
 class HTTPError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -28,7 +29,7 @@ async function readBody(req) {
 
 /** Create a loopback-only, single-user broker with a byte-bounded event journal. */
 export async function createBroker({
-  token = randomBytes(32).toString('hex'), launch, discover, now = Date.now,
+  token = randomBytes(32).toString('hex'), launch, discover, sessionFile, deferPersistence = false, now = Date.now,
   setTimer = setTimeout, clearTimer = clearTimeout, discoveryTTL = 2000,
   staleMs = 10000, commandTimeoutMs = 10000, maxEvents = 10000, waitMs = 15000,
   maxEventBytes = 128 * 1024, maxJournalBytes = 8 * 1024 * 1024,
@@ -36,6 +37,13 @@ export async function createBroker({
 } = {}) {
   for (const value of [staleMs, commandTimeoutMs, maxEvents, waitMs, maxEventBytes, maxJournalBytes, maxTotalJournalBytes, maxRetiredRuntimes, discoveryTTL]) {
     requireValue(Number.isSafeInteger(value) && value > 0, 'Broker limits must be positive integers');
+  }
+  const store = sessionFile === undefined ? undefined : await openSessionStore(sessionFile);
+  if (store) {
+    maxEvents = Math.min(maxEvents, SESSION_LIMITS.events);
+    maxEventBytes = Math.min(maxEventBytes, SESSION_LIMITS.eventBytes);
+    maxJournalBytes = Math.min(maxJournalBytes, SESSION_LIMITS.journalBytes);
+    maxTotalJournalBytes = Math.min(maxTotalJournalBytes, SESSION_LIMITS.totalJournalBytes);
   }
   const sessions = new Map();
   const changes = new EventEmitter();
@@ -48,12 +56,66 @@ export async function createBroker({
   let closing = false;
   let discovering;
   let discoveredAt = -Infinity;
+  let revision = 0;
+  let savedRevision = 0;
+  let writing;
+  let scheduled = false;
+  let persistenceError;
+  let persistenceReady = !deferPersistence;
+  let loading = true;
+
+  function dirty() {
+    if (!store || loading) return;
+    revision++;
+    if (scheduled) return;
+    scheduled = true;
+    queueMicrotask(() => {
+      scheduled = false;
+      // Timer and disconnected-request faults must also reach disk without a
+      // subsequent HTTP request. flush retains any failure for callers and close.
+      void flush().catch(() => {});
+    });
+  }
+  async function flush() {
+    if (!store) return;
+    if (persistenceError) throw persistenceError;
+    if (!writing && savedRevision < revision) {
+      const target = revision;
+      writing = store.save([...sessions.values()].map(sessionRecord)).then(() => {
+        savedRevision = target;
+      }).catch(error => {
+        persistenceError = error;
+        for (const s of sessions.values()) invalidate(s);
+        for (const key of changes.eventNames()) changes.emit(key);
+        console.error(error.message);
+        throw error;
+      }).finally(() => { writing = undefined; });
+    }
+    if (writing) await writing;
+    if (savedRevision < revision) await flush();
+  }
 
   function newSession(sessionId, cwd, startedAt) {
     const s = { sessionId, startedAt, registrationPending: false, retired: new Set(), cwd, events: [], eventBytes: 0, cursor: 0, historyStartCursor: 0, runtimeSeq: 0, ended: false, fault: false, commands: new Map(), commandResults: new Map(), requests: new Map(), activeRequestId: null };
     sessions.set(sessionId, s);
+    dirty();
     return s;
   }
+  for (const record of store?.records ?? []) {
+    const s = newSession(record.sessionId, record.cwd, record.startedAt);
+    Object.assign(s, record, { archived: true, ended: true, mode: 'human', registrationPending: false, activeTurnId: null });
+    for (const event of s.events) {
+      const bytes = Buffer.byteLength(JSON.stringify(event));
+      s.eventBytes += bytes;
+      journalBytes += bytes;
+      journal.set(event, { session: s, bytes });
+    }
+    while (s.events.length > maxEvents || s.eventBytes > maxJournalBytes) evict(s);
+  }
+  while (journalBytes > maxTotalJournalBytes) evict(journal.values().next().value.session);
+  for (const s of sessions.values()) s.historyStartCursor = Math.max(s.historyStartCursor, (s.events[0]?.seq ?? s.cursor + 1) - 1);
+  loading = false;
+
   async function refreshDiscovery(force = false) {
     if (!discover || closing) return;
     if (discovering) return discovering;
@@ -67,7 +129,7 @@ export async function createBroker({
         if (!native || !uuid(native.sessionId) || !uuid(native.launchId) || typeof native.cwd !== 'string' || !isAbsolute(native.cwd) || native.cwd.length > 4096 ||
             !Number.isSafeInteger(native.startedAt) || native.startedAt < 0 || typeof native.ended !== 'boolean') continue;
         let s = sessions.get(native.sessionId);
-        if (s && (!s.registrationPending || s.launchId !== native.launchId || s.cwd !== native.cwd)) continue;
+        if (s && (s.archived || !s.registrationPending || s.launchId !== native.launchId || s.cwd !== native.cwd)) continue;
         if (!s) {
           if (sessions.size >= 100) continue;
           s = newSession(native.sessionId, native.cwd, native.startedAt);
@@ -97,6 +159,7 @@ export async function createBroker({
     journal.delete(event);
     s.eventBytes -= bytes;
     journalBytes -= bytes;
+    if (s.archived) s.historyStartCursor = event.seq;
   }
   function append(s, type, data) {
     const event = { seq: ++s.cursor, type, data };
@@ -107,6 +170,7 @@ export async function createBroker({
     journal.set(event, { session: s, bytes });
     while (s.events.length > maxEvents || s.eventBytes > maxJournalBytes) evict(s);
     while (journalBytes > maxTotalJournalBytes) evict(journal.values().next().value.session);
+    dirty();
     changes.emit(s.sessionId);
   }
   function removeCommand(s, id) {
@@ -124,6 +188,7 @@ export async function createBroker({
   function recordError(s, message) {
     // Retain only the latest summary independently of journal eviction or recovery.
     s.lastError = { message: message.slice(0, 512), at: now() };
+    dirty();
   }
   function fault(s, reason) {
     if (s.fault) return;
@@ -135,9 +200,10 @@ export async function createBroker({
     append(s, 'overflow', { reason });
   }
   function isStale(s) {
-    return !s.registrationPending && now() - s.lastSeen > staleMs;
+    return !s.archived && !s.registrationPending && now() - s.lastSeen > staleMs;
   }
   function queueCommand(s, command) {
+    if (persistenceError) throw persistenceError;
     if (s.registrationPending) throw new HTTPError(409, REGISTRATION_PENDING_REASON);
     if (s.commands.has(command.id)) return;
     // A heartbeat gap blocks new commands, not observation or known request outcomes.
@@ -147,11 +213,12 @@ export async function createBroker({
     s.commands.set(command.id, { command, timer });
   }
   function publicSession(s) {
-    return { sessionId: s.sessionId, runtimeId: s.runtimeId, registrationPending: s.registrationPending, blockedReason: s.blockedReason, cwd: s.cwd, mode: s.mode, activeTurnId: s.activeTurnId, startedAt: s.startedAt, lastSeen: s.lastSeen, stale: isStale(s), version: s.version, cursor: s.cursor, historyStartCursor: s.historyStartCursor, ended: s.ended, fault: s.fault, lastError: s.lastError, attachCommand: 'claude attach ' + s.sessionId.slice(0, 8) };
+    return { sessionId: s.sessionId, runtimeId: s.runtimeId, ...(s.archived ? { archived: true } : {}), registrationPending: s.registrationPending, blockedReason: s.blockedReason, cwd: s.cwd, mode: s.mode, activeTurnId: s.activeTurnId, startedAt: s.startedAt, lastSeen: s.lastSeen, stale: isStale(s), version: s.version, cursor: s.cursor, historyStartCursor: s.historyStartCursor, ended: s.ended, fault: s.fault, lastError: s.lastError, attachCommand: 'claude attach ' + s.sessionId.slice(0, 8) };
   }
   function getSession(id, live = false) {
     const s = sessions.get(id);
     if (!s) throw new HTTPError(404, 'Unknown native session');
+    if (live && s.archived) throw new HTTPError(409, 'Archived session is read-only; native resume is not supported');
     if (live && (s.ended || s.fault)) throw new HTTPError(409, 'Native session disconnected; attach to inspect before retrying');
     return s;
   }
@@ -244,9 +311,10 @@ export async function createBroker({
         if (event.type === 'turn.start') requireValue(typeof event.data.turnId === 'string' && event.data.turnId.length <= 200, 'Invalid turn identity');
       }
       let s = sessions.get(body.sessionId);
+      if (s?.archived) throw new HTTPError(409, 'Archived session is read-only; native resume is not supported');
       const promoting = s?.registrationPending === true;
       if (!s) {
-        requireValue(sessions.size < 100, 'Session budget exhausted; restart the broker');
+        requireValue(sessions.size < 100, store ? 'Session archive budget exhausted; inspect saved history' : 'Session budget exhausted; restart the broker');
         // Without native discovery, only this broker's first observation is known.
         s = newSession(body.sessionId, body.cwd, now());
         s.runtimeId = body.runtimeId;
@@ -278,6 +346,7 @@ export async function createBroker({
         }
         sequence = event.seq;
       }
+      if (s.cwd !== body.cwd) dirty();
       Object.assign(s, { lastSeen: now(), cwd: body.cwd, version: body.version, activeTurnId: body.activeTurnId, reportedMode: body.mode });
       if (s.humanRequested && !s.pendingHumanCommand && body.mode === 'human') s.humanRequested = false;
       s.mode = s.ended || s.fault || s.humanRequested ? 'human' : body.mode;
@@ -308,7 +377,10 @@ export async function createBroker({
       const pendingLaunch = launches.get(body.launchId);
       if (pendingLaunch) { pendingLaunch.session = s; changes.emit(body.launchId); }
       changes.emit(s.sessionId);
-      return { ack: s.runtimeSeq, commands: s.ended || s.fault ? [] : [...s.commands.values()].map(entry => entry.command) };
+      const ack = s.runtimeSeq;
+      // Disk I/O can outlast a command deadline or runtime replacement. Select
+      // deliverable work only after durability, never from a pre-flush snapshot.
+      return () => ({ ack, commands: closing || s.runtimeId !== body.runtimeId || s.ended || s.fault ? [] : [...s.commands.values()].map(entry => entry.command) });
     }
     if (url.pathname === '/v1/sessions' && req.method === 'GET') {
       await refreshDiscovery();
@@ -318,6 +390,7 @@ export async function createBroker({
       const { cwd } = await readBody(req);
       requireValue(typeof cwd === 'string' && isAbsolute(cwd), 'cwd must be absolute');
       if (!launch) throw new HTTPError(501, 'Native launching is not configured');
+      if (store && sessions.size >= 100) throw new HTTPError(409, 'Session archive budget exhausted; inspect saved history');
       const launchId = randomUUID();
       const item = {};
       launches.set(launchId, item);
@@ -357,6 +430,7 @@ export async function createBroker({
       return { events: s.events.filter(e => e.seq > after), cursor: s.cursor };
     }
     if (req.method !== 'POST') throw new HTTPError(405, 'Method not allowed');
+    if (s.archived) getSession(id, true);
     const requestedRuntime = s.runtimeId;
     const body = await readBody(req);
     if (s.runtimeId !== requestedRuntime) throw new HTTPError(409, 'Native runtime replaced; reattach before retrying');
@@ -431,14 +505,21 @@ export async function createBroker({
     const abort = new AbortController();
     res.once('close', () => abort.abort());
     activeHTTP++;
+    let authorized = false;
     try {
       if (activeHTTP > 128) throw new HTTPError(503, 'Broker request budget exhausted');
       const supplied = Buffer.from(req.headers.authorization || '');
       const expected = Buffer.from('Bearer ' + token);
       if (req.headers.origin || req.headers.host !== '127.0.0.1:' + port || supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) throw new HTTPError(403, 'Forbidden');
+      authorized = true;
+      if (!persistenceReady) throw new HTTPError(503, 'Session persistence preparation is not complete');
+      if (persistenceError) throw persistenceError;
       const result = await route(req, abort.signal);
-      if (!res.destroyed) { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(result)); }
+      await flush();
+      if (!res.destroyed) { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(typeof result === 'function' ? result() : result)); }
     } catch (error) {
+      // Rejected batches and failed commands can still have recorded a fault.
+      if (authorized) try { await flush(); } catch (failure) { error = failure; }
       if (!res.destroyed) { res.writeHead(error.status || 500, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify({ error: error.message })); }
     } finally { activeHTTP--; }
   });
@@ -447,6 +528,12 @@ export async function createBroker({
   return {
     url: 'http://127.0.0.1:' + port,
     token,
+    /** Call only after exclusively claiming the descriptor associated with sessionFile. */
+    async preparePersistence() {
+      persistenceReady = false;
+      await store?.discardInterruptedTemporary();
+      persistenceReady = true;
+    },
     /** Close only this broker; native Claude sessions intentionally outlive it. */
     async close() {
       closing = true;
@@ -454,6 +541,7 @@ export async function createBroker({
       for (const key of changes.eventNames()) changes.emit(key);
       server.closeAllConnections();
       await new Promise(resolve => server.close(resolve));
+      await flush();
     },
   };
 }

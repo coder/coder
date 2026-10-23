@@ -122,8 +122,13 @@ For older descriptors without a marker, startup migrates automatically only when
 Authentication failures, live legacy PIDs, and ambiguous same-instance failures require inspection rather than automatic replacement.
 A retained unknown job outcome remains visible but does not prevent broker startup or replay the task.
 
-Broker startup does not recover old runtime registrations or resume interrupted jobs.
-The retained status may be stale and the old session may not appear in Coder.
+Broker startup reloads saved session identities and retained transcripts from
+`/home/coder/.local/state/coder-acp/bridge.json.sessions.json`.
+They appear as **Ended**; select one to read its retained history.
+The file is private because transcripts can contain prompts, tool output, and secrets.
+
+Restoring history does not recover runtime registrations or resume interrupted jobs.
+The retained job status may be stale. Sessions lost before installing this persistence-enabled version are not reconstructed.
 Inspect native conversation history and any tool side effects before deliberately starting replacement work with **Add session**.
 The working directory defaults to `/home/coder/project`.
 Choose an autostop policy that gives your job enough time to finish.

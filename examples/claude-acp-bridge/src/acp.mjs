@@ -76,6 +76,7 @@ function sessionStatus(session) {
   return {
     startedAt: session.startedAt,
     ended: session.ended,
+    ...(session.archived === true ? { archived: true } : {}),
     fault: session.fault,
     stale: session.stale,
     registrationPending: session.registrationPending === true,
@@ -183,6 +184,8 @@ export function createAgent(connection, client) {
   async function consume(state, event, replay) {
     const { type, data } = event;
     if (!data || typeof data !== "object") throw bridgeError("Invalid broker event data");
+    // Saved terminal/control events describe history, not the current runtime.
+    if (replay && state.archived && ["session.end", "overflow", "mode", "needs.input"].includes(type)) return;
     if (type === "runtime.replaced" || type === "overflow") {
       throw bridgeError(`Broker event ${type}; reattach explicitly`, { sessionId: state.sessionId });
     }
@@ -386,7 +389,7 @@ export function createAgent(connection, client) {
     if (resolve(session.cwd) !== resolve(cwd)) throw invalid("Native session cwd does not match requested cwd");
     if (sessions.has(session.sessionId)) throw invalid("Session is already attached to this ACP connection");
     lifetime.signal.throwIfAborted();
-    if (session.ended || session.fault) throw bridgeError("Native session is closed or faulted; inspect it before continuing");
+    if ((session.ended || session.fault) && session.archived !== true) throw bridgeError("Native session is closed or faulted; inspect it before continuing");
     const cursor = session.historyStartCursor ?? 0;
     if (!Number.isSafeInteger(cursor) || cursor < 0) throw bridgeError("Invalid runtime history boundary");
     const state = {
@@ -400,11 +403,11 @@ export function createAgent(connection, client) {
     };
     sessions.set(session.sessionId, state);
     try {
-      // A non-waiting snapshot makes loading an empty session finite. It is not
-      // saved Claude history, and a truncated broker log is an explicit error.
+      // Archives replay the retained broker log, not complete native history.
+      // A non-waiting snapshot also makes loading an empty session finite.
       await readEvents(state, false, replay);
       state.ready = true;
-      void poll(state);
+      if (!state.archived) void poll(state);
       return state;
     } catch (error) {
       fail(state, error);
@@ -444,7 +447,7 @@ export function createAgent(connection, client) {
         const state = getSession(params.sessionId);
         checkSession(session);
         if (resolve(session.cwd) !== resolve(params.cwd)) throw invalid("Native session cwd does not match requested cwd");
-        if (session.ended || session.fault) throw bridgeError("Native session is closed or faulted; inspect it before continuing");
+        if ((session.ended || session.fault) && session.archived !== true) throw bridgeError("Native session is closed or faulted; inspect it before continuing");
         // Refresh an existing attachment without replaying or starting a second
         // poller. Wait for its stream to reach the snapshot before enabling work.
         const cursor = session.cursor ?? state.cursor;
@@ -477,6 +480,7 @@ export function createAgent(connection, client) {
 
     async setSessionMode({ sessionId, modeId }) {
       const state = getSession(sessionId);
+      if (state.archived) throw bridgeError("Saved session history is read-only; no native runtime was resumed");
       if (!MODES.some(({ id }) => id === modeId)) throw invalid("Unsupported native session mode");
       if (state.registrationPending && modeId !== "human") throw bridgeError(REGISTRATION_PENDING_REASON);
       await request("POST", `${sessionPath(sessionId)}/mode`, { mode: modeId }, state.controller.signal);
@@ -489,6 +493,7 @@ export function createAgent(connection, client) {
 
     async prompt({ sessionId, prompt }, signal) {
       const state = getSession(sessionId);
+      if (state.archived) throw bridgeError("Saved session history is read-only; no native runtime was resumed");
       if (state.registrationPending) throw bridgeError(REGISTRATION_PENDING_REASON);
       if (!Array.isArray(prompt) || !prompt.length ||
           prompt.some((block) => block.type !== "text" || typeof block.text !== "string")) {
