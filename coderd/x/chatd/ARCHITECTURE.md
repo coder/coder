@@ -1703,6 +1703,8 @@ Behavior after receiving an episode-selection message:
 - missing episode state is not an error;
 - enforce contiguous `seq` delivery for the selected episode.
 
+TODO (relay-selection): the endpoint keeps only the latest selection it has not acted on yet. A selection that a later one replaces before the endpoint acts on it is never served, so the steps above apply only to the latest selection. Describe this here.
+
 Only worker changes require a new parts WebSocket connection.
 
 The endpoint uses the [Message part buffer](#message-part-buffer) to fetch parts for each episode.
