@@ -118,6 +118,33 @@ const imageType = (contentType: string) =>
 
 type ImageDimensions = { width: number; height: number };
 
+const joinInfo = (items: readonly (string | false | undefined)[]) =>
+	items.filter(Boolean).join(" · ");
+
+type TextFileInfoProps = {
+	language: string | false | undefined;
+	text: string;
+	/** The size on disk, or undefined to count the text's UTF-8 bytes. */
+	byteLength: number | undefined;
+};
+
+// A component rather than calls in FileTab: the React Compiler assumes a
+// call may mutate its argument, which would stop FileTab's handlers from
+// being memoized. Here the counts rerun only when the props change.
+const TextFileInfo: React.FC<TextFileInfoProps> = ({
+	language,
+	text,
+	byteLength,
+}) => (
+	<>
+		{joinInfo([
+			language,
+			prettyBytes(byteLength ?? textEncoder.encode(text).byteLength),
+			...describeLines(text),
+		])}
+	</>
+);
+
 export const FileTab = memo<FileTabProps>(
 	({
 		chatId,
@@ -375,27 +402,29 @@ export const FileTab = memo<FileTabProps>(
 		}
 
 		// The header describes the file: its type, size, lines and line endings.
-		let info: (string | false | undefined)[] = [];
+		let info: React.ReactNode;
 		if (data && isText) {
-			info = [
-				showsEditor ? editorStatus?.language : isMarkdown && "Markdown",
-				prettyBytes(
-					draft ? textEncoder.encode(value).byteLength : data.data.byteLength,
-				),
-				...describeLines(value),
-			];
+			info = (
+				<TextFileInfo
+					language={
+						showsEditor ? editorStatus?.language : isMarkdown && "Markdown"
+					}
+					text={value}
+					byteLength={draft ? undefined : data.data.byteLength}
+				/>
+			);
 		} else if (data && isImage) {
-			info = [
+			info = joinInfo([
 				imageType(data.contentType),
 				prettyBytes(data.data.byteLength),
 				imageDimensions &&
 					`${imageDimensions.width} × ${imageDimensions.height}`,
-			];
+			]);
 		} else if (data) {
 			const size = data.partial
 				? sizeFromEtag(data.etag)
 				: data.data.byteLength;
-			info = [size !== undefined && prettyBytes(size)];
+			info = size !== undefined && prettyBytes(size);
 		}
 		const cursor = showsEditor ? editorStatus : undefined;
 
@@ -496,7 +525,7 @@ export const FileTab = memo<FileTabProps>(
 					<div className="flex min-w-0 flex-1 items-center">
 						{notice ?? (
 							<span className="truncate text-xs text-content-secondary">
-								{info.filter(Boolean).join(" · ")}
+								{info}
 							</span>
 						)}
 					</div>
