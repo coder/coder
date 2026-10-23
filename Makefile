@@ -1173,7 +1173,7 @@ coderd/aibridge/prices/data/prices.json: _gen/bin/aibridgepricesgen _gen/models-
 # snapshot joined with the editorial curation in
 # scripts/aibridgepricesgen/curation.json. Kept out of `make gen` for the
 # same live-upstream-data reason as prices.json.
-site/src/modules/aiModels/knownModels/knownModelsGenerated.json: _gen/bin/aibridgepricesgen _gen/models-dev.json | _gen
+site/src/modules/aiModels/knownModels/knownModelsGenerated.json: site/node_modules/.installed _gen/bin/aibridgepricesgen _gen/models-dev.json | _gen
 	$(call atomic_write,_gen/bin/aibridgepricesgen -format=catalog -upstream _gen/models-dev.json,./scripts/biome_format.sh)
 .PHONY: site/src/modules/aiModels/knownModels/knownModelsGenerated.json
 
@@ -1441,7 +1441,7 @@ site/src/api/rbacresourcesGenerated.ts: site/node_modules/.installed scripts/typ
 site/src/api/countriesGenerated.ts: site/node_modules/.installed scripts/typegen/countries.tstmpl scripts/typegen/main.go codersdk/countries.go | _gen _gen/bin/typegen
 	$(call atomic_write,_gen/bin/typegen countries,./scripts/biome_format.sh)
 
-site/src/api/chatModelOptionsGenerated.json: scripts/modeloptionsgen/main.go codersdk/chats.go | _gen _gen/bin/modeloptionsgen
+site/src/api/chatModelOptionsGenerated.json: site/node_modules/.installed scripts/modeloptionsgen/main.go codersdk/chats.go | _gen _gen/bin/modeloptionsgen
 	$(call atomic_write,_gen/bin/modeloptionsgen | tail -n +2,./scripts/biome_format.sh)
 
 scripts/metricsdocgen/generated_metrics: $(GO_SRC_FILES) | _gen _gen/bin/metricsdocgen-scanner
@@ -1491,6 +1491,7 @@ coderd/apidoc/.gen: \
 	node_modules/.installed \
 	site/node_modules/.installed \
 	scripts/apidocgen/node_modules/.installed \
+	site/node_modules/.installed \
 	$(wildcard coderd/*.go) \
 	$(wildcard enterprise/coderd/*.go) \
 	$(wildcard codersdk/*.go) \
