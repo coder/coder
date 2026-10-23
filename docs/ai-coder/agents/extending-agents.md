@@ -339,6 +339,7 @@ The agent spawns the process in the workspace.
 **HTTP transport**:
 set `url`, and optionally `headers`.
 The agent connects to the HTTP endpoint from the workspace.
+`type` can be `http`, `sse`, or `streamable-http`, which is the same transport as `http`.
 
 ### How discovery works
 
