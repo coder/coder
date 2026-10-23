@@ -47,7 +47,10 @@ import { useMainTabs } from "../components/MainTabs/useMainTabs";
 import { QuickOpenDialog } from "../components/QuickOpenDialog/QuickOpenDialog";
 import { DebugPanel } from "../components/RightPanel/DebugPanel/DebugPanel";
 import { DesktopPanel } from "../components/RightPanel/DesktopPanel";
-import { FilesPanel } from "../components/RightPanel/FilesPanel";
+import {
+	FilesPanel,
+	type RevealRequest,
+} from "../components/RightPanel/FilesPanel";
 import { PortPreviewPanel } from "../components/RightPanel/PortPreviewPanel";
 import { RightPanel } from "../components/RightPanel/RightPanel";
 import { RightPanelAddTabControl } from "../components/RightPanel/RightPanelAddTabControl";
@@ -412,6 +415,15 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const preferredFolder = repoRoots[0] || workspaceAgent?.expanded_directory;
 
 	const mainTabs = useMainTabs(chat.id);
+	// Held here because the Files panel may not have mounted yet; it takes
+	// the request when it does.
+	const [revealRequest, setRevealRequest] = useState<RevealRequest>();
+	const activateRightPanelTab = (tabId: string) => {
+		onSetShowSidebarPanel(true);
+		setPendingTabId(null);
+		setSidebarTabId(tabId);
+	};
+
 	const workspaceFiles: WorkspaceFilesContextValue | undefined =
 		workspaceFilesEnabled && workspaceAgent
 			? {
@@ -437,8 +449,13 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							onSetShowSidebarPanel(false);
 						}
 					},
-					// Implemented with the Files panel reveal.
-					revealInFiles: () => {},
+					revealInFiles: (path, options) => {
+						setRevealRequest({
+							path,
+							isDirectory: options?.isDirectory ?? false,
+						});
+						activateRightPanelTab("files");
+					},
 					diffStatuses: chat.diff_statuses ?? [],
 				}
 			: undefined;
@@ -540,12 +557,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	];
 	const sidebarTabIds = sidebarTabConfigs.map((tab) => tab.id);
 	const effectiveSidebarTabId = getEffectiveTabId(sidebarTabIds, sidebarTabId);
-
-	const activateRightPanelTab = (tabId: string) => {
-		onSetShowSidebarPanel(true);
-		setPendingTabId(null);
-		setSidebarTabId(tabId);
-	};
 
 	const showSingletonTab = (tabId: SingletonRightPanelTabId) => {
 		setVisibleSingletonTabsState((currentTabIds) =>
@@ -718,7 +729,13 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 					/>
 				);
 			case "files":
-				return <FilesPanel chatId={agentId} />;
+				return (
+					<FilesPanel
+						chatId={agentId}
+						revealRequest={revealRequest}
+						onRevealHandled={() => setRevealRequest(undefined)}
+					/>
+				);
 			case "browser":
 				return workspace && workspaceAgent && availableBrowserApp ? (
 					<WorkspaceAppFrame
