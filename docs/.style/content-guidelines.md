@@ -245,9 +245,24 @@ These govern *how* content enters the docs, for both humans and the doc-check ag
 - **Moving or renaming a page requires link updates and a redirect.**
   If a page changes its position in the directory structure:
   1. Update every link that relies on its existing location.
-  2. Add a redirect in the
-     [`coder/coder.com`](https://github.com/coder/coder.com/blob/master/redirects.json)
-     repo (`redirects.json`).
+  2. Add a rule to `docs/redirects.json` in the same PR that moves the page.
+     Each rule has a `source` and a `destination`, both routes relative to the docs root with no leading slash, and an optional `permanent` flag that defaults to `true`.
+     Write the route as the URL path below `/docs`, without a version and without `.md`.
+     A `destination` of `/` is the docs root, and a `destination` can also be an `https` URL that starts with `https://github.com/coder/` or `https://coder.com/`.
+     An exact route destination can end in one `#fragment`, such as `user-guides/workspace-access#web-ides`.
+     A `source` is an exact route or a route ending in `/*`, which matches the route and everything beneath it.
+     A `destination` ending in `/*` carries the matched part over from the source.
+     For example: `{"source": "about/architecture", "destination": "/"}`.
+  3. Keep `make lint/docs-redirects` passing.
+     It fails when a route that worked on the base branch, or that the live site still serves for the target branch, neither exists nor redirects.
+     The failure prints a rule you can paste into the file.
+     The check reads the live page list over the network, so run it with `-offline` when you have no access.
+
+  The website reads `docs/redirects.json` at build time, and a change to the file starts a website rebuild.
+  The redirect is therefore live in the build that the merge triggers.
+  Each release branch has its own copy of the file, and the unversioned docs are served from the mainline release branch.
+  Backport the move and its redirect together so the old URL keeps working there.
+  Redirects that predate this file stay where they are and keep working.
 
   Do not create a `docs/_redirects` file.
   That format isn't processed by [coder.com](https://coder.com).
@@ -360,4 +375,4 @@ Update this section as they land.
   If it becomes real, revisit loosening the screenshots policy.
   Until then, the screenshot rules in [What belongs in the docs](#what-belongs-in-the-docs) govern.
 - **doc-check redirect suggestions.**
-  When doc-check detects a moved or renamed page, it should suggest the exact `redirects.json` entry for `coder/coder.com` in a code block, so applying it is at most a copy-paste job.
+  When doc-check detects a moved or renamed page, it should suggest the exact `docs/redirects.json` entry in a code block, so applying it is at most a copy-paste job.

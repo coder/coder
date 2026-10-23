@@ -743,11 +743,11 @@ endif
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/style-claims lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/docs-redirects lint/style-claims lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 # Fast lint subset for lightweight hooks. Some targets use mise-managed tools.
-lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos lint/emdash lint/style-claims lint/mise-versions
+lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos lint/emdash lint/docs-redirects lint/style-claims lint/mise-versions
 .PHONY: lint-light
 
 lint/site-icons:
@@ -795,6 +795,18 @@ lint/docs-html:
 	echo "--- check for invalid inline HTML in docs"
 	go run ./scripts/docshtmlcheck
 .PHONY: lint/docs-html
+
+# Fails when docs/redirects.json, the redirects the docs site applies for pages
+# that moved or were removed, is malformed, points at a page that is not in
+# docs/manifest.json, hides a live page, or has duplicate, chained, or looping
+# rules. Also fails when a route that worked on the base branch or on the live
+# site for the target branch no longer resolves. The live page list needs
+# network access; pass -offline to skip it. Passes when the file does not
+# exist. See scripts/docsredirectscheck/README.md.
+lint/docs-redirects:
+	echo "--- check docs/redirects.json"
+	go run ./scripts/docsredirectscheck
+.PHONY: lint/docs-redirects
 
 # Fails when the style guide claims a prose rule is enforced by tooling that is
 # not enabled, when an enabled rule has no style guide section, or when the
