@@ -234,12 +234,15 @@ export function WorkspacePathChip({
 	path,
 	isDirectory,
 	onOpen,
+	label,
 	className,
 }: {
 	path: string;
 	isDirectory: boolean;
 	/** Makes the chip a button. */
 	onOpen?: () => void;
+	/** The button's accessible name. Defaults to "Open" and the path. */
+	label?: string;
 	className?: string;
 }) {
 	const name = getPathBasename(path);
@@ -271,7 +274,7 @@ export function WorkspacePathChip({
 				className,
 			)}
 			title={title}
-			aria-label={`Open ${title}`}
+			aria-label={label ?? `Open ${title}`}
 			onClick={onOpen}
 		>
 			{content}
