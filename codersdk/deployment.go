@@ -5602,6 +5602,7 @@ var ExperimentsSafe = Experiments{
 var ExperimentsUserScoped = Experiments{
 	ExperimentExample,
 	ExperimentMCPToolSearch,
+	ExperimentWorkspaceFiles,
 }
 
 // Experiments is a list of experiments.

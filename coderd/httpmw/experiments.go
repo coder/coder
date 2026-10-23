@@ -1,9 +1,12 @@
 package httpmw
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -56,6 +59,35 @@ func RequireExperimentWithDevBypass(experiments codersdk.Experiments, requiredEx
 			}
 
 			RequireExperiment(experiments, requiredExperiments...)(next).ServeHTTP(w, r)
+		})
+	}
+}
+
+// UserExperiments decides experiments per user, such as the experiment
+// rules evaluator.
+type UserExperiments interface {
+	Enabled(ctx context.Context, userID uuid.UUID, ex codersdk.Experiment) bool
+}
+
+// RequireUserExperimentWithDevBypass is RequireExperimentWithDevBypass for
+// a user-scoped experiment. It decides the experiment for the user of the
+// request's API key, so runtime experiment rules apply, and must run after
+// API key extraction.
+func RequireUserExperimentWithDevBypass(experiments UserExperiments, experiment codersdk.Experiment) func(next http.Handler) http.Handler {
+	return requireUserExperiment(experiments, experiment, buildinfo.IsDev())
+}
+
+func requireUserExperiment(experiments UserExperiments, experiment codersdk.Experiment, devBypass bool) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if devBypass || experiments.Enabled(r.Context(), APIKey(r).UserID, experiment) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			httpapi.Write(r.Context(), w, http.StatusForbidden, codersdk.Response{
+				Message: fmt.Sprintf("%s functionality requires enabling the '%s' experiment.",
+					experiment.DisplayName(), experiment),
+			})
 		})
 	}
 }
