@@ -198,6 +198,42 @@ func TestWithExecerRunsGit(t *testing.T) {
 	require.Contains(t, commands, "git -C "+repoDir+" ls-files --others --exclude-standard")
 }
 
+// TestSubscribeResolvesEachPathOnce pins that a path already mapped to
+// a watched repo is not resolved again. Every PathStore notification
+// passes all of a chat's paths, so re-resolving would run git once per
+// path per notification. Paths outside a repo are retried, and a
+// removed repo's paths are resolved again so a recreated repo is found.
+func TestSubscribeResolvesEachPathOnce(t *testing.T) {
+	t.Parallel()
+
+	repoDir := initTestRepo(t)
+	plainDir := testutil.TempDirResolved(t)
+	inRepo := filepath.Join(repoDir, "README.md")
+	notInRepo := filepath.Join(plainDir, "notes.txt")
+	execer := &recordingExecer{Execer: agentexec.DefaultExecer}
+	h := agentgit.NewHandler(slogtest.Make(t, nil), agentgit.WithExecer(execer))
+	resolves := func() int {
+		return len(slices.DeleteFunc(execer.recorded(), func(c string) bool {
+			return c != "git rev-parse --show-toplevel"
+		}))
+	}
+
+	require.True(t, h.Subscribe([]string{inRepo, notInRepo}))
+	require.Equal(t, 2, resolves())
+	require.False(t, h.Subscribe([]string{inRepo, notInRepo}))
+	require.Equal(t, 3, resolves(), "only the path outside a repo is resolved again")
+
+	// A removed repo's paths resolve again, so recreating it is seen.
+	require.NotNil(t, h.Scan(context.Background()))
+	require.NoError(t, os.RemoveAll(filepath.Join(repoDir, ".git")))
+	msg := h.Scan(context.Background())
+	require.NotNil(t, msg)
+	require.Len(t, msg.Repositories, 1)
+	require.True(t, msg.Repositories[0].Removed)
+	gitCmd(t, repoDir, "init")
+	require.True(t, h.Subscribe([]string{inRepo}), "a recreated repo must be watched again")
+}
+
 func TestScanRespectsGitignore(t *testing.T) {
 	t.Parallel()
 
@@ -1081,6 +1117,49 @@ func TestWebSocketRefreshResolvesNewRepo(t *testing.T) {
 	msg = recvMsg(ctx, t, ch)
 	require.Len(t, msg.Repositories, 1)
 	require.Equal(t, dir, msg.Repositories[0].RepoRoot)
+}
+
+// TestWebSocketRefreshResolvesNestedRepo pins that refresh drops cached
+// path resolutions, so a repo created inside a watched repo is found
+// for paths that already resolved to the outer repo.
+func TestWebSocketRefreshResolvesNestedRepo(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	outer := initTestRepo(t)
+	inner := filepath.Join(outer, "inner")
+	require.NoError(t, os.MkdirAll(inner, 0o700))
+	file := filepath.Join(inner, "main.go")
+	require.NoError(t, os.WriteFile(file, []byte("package main\n"), 0o600))
+
+	ps := agentgit.NewPathStore()
+	chatID := uuid.New()
+	ps.AddPaths([]uuid.UUID{chatID}, []string{file})
+
+	mClock := quartz.NewMock(t)
+	stream := dialGitWatchWithPathStore(t, ps, chatID, agentgit.WithClock(mClock))
+	ch := stream.Chan()
+
+	msg := recvMsg(ctx, t, ch)
+	require.Len(t, msg.Repositories, 1)
+	require.Equal(t, outer, msg.Repositories[0].RepoRoot)
+
+	gitCmd(t, inner, "init")
+	mClock.Advance(2 * time.Second).MustWait(ctx)
+
+	err := stream.Send(codersdk.WorkspaceAgentGitClientMessage{
+		Type: codersdk.WorkspaceAgentGitClientMessageTypeRefresh,
+	})
+	require.NoError(t, err)
+
+	for {
+		msg = recvMsg(ctx, t, ch)
+		if slices.ContainsFunc(msg.Repositories, func(r codersdk.WorkspaceAgentRepoChanges) bool {
+			return r.RepoRoot == inner
+		}) {
+			return
+		}
+	}
 }
 
 func TestWebSocketUnknownMessageType(t *testing.T) {
