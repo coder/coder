@@ -409,9 +409,8 @@ function useMessageScrollerController({
       return
     }
 
-    // LOCAL CHANGE: when the viewport and content mount under a provider that
-    // is already mounted, Content's layout effect calls this before the
-    // viewport ref attaches. attachViewport calls it again once it does.
+    // LOCAL CHANGE: Content's layout effect calls this before the viewport ref
+    // attaches. Record no items until syncAfterViewportAttach calls it again.
     if (!viewportRef.current) {
       return
     }
@@ -777,12 +776,15 @@ function useMessageScrollerController({
   // LOCAL CHANGE: commit the scroll state now instead of on the next frame,
   // so a subscriber that rendered at scrollTop 0 re-renders before its
   // next-frame callbacks run.
-  const attachViewport = React.useCallback(() => {
+  const syncAfterViewportAttach = React.useCallback(() => {
     mirrorStateAttributes()
     handleContentChange()
     commitScrollState()
   }, [commitScrollState, handleContentChange, mirrorStateAttributes])
-  const setViewportElement = useElementRef(viewportRef, attachViewport)
+  const setViewportElement = useElementRef(
+    viewportRef,
+    syncAfterViewportAttach
+  )
 
   const setContentElement = React.useCallback(
     (element: HTMLDivElement | null) => {
