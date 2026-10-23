@@ -228,8 +228,7 @@ export const HeadUnderEdit: Story = {
 
 let rejectQueuedDelete: ((error: Error) => void) | undefined;
 
-// A pending delete disables that row's actions; a rejected delete
-// re-enables them.
+// A pending delete disables only that row's actions.
 export const DeleteRejectionReenablesActions: Story = {
 	args: {
 		messages: [

@@ -50,6 +50,7 @@ const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 		state.retryState !== null ||
 		isActiveChatStatus(state.chatStatus));
 
+/** Exported so story fixtures can put a loaded store in the query cache. */
 export const chatStoreKey = (chatID: string) => ["chatStore", chatID] as const;
 
 type UseChatStoreOptions = {
@@ -113,8 +114,6 @@ export const useChatStore = (
 		[chatID, queryClient],
 	);
 
-	// A store loads its newest page once. After that, only stream events and
-	// older pages change it.
 	useEffect(() => {
 		store.load(() => fetchNewestChatMessages(chatID));
 	}, [chatID, store]);

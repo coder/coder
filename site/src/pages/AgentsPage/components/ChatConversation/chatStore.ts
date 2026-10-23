@@ -172,7 +172,8 @@ export type ChatStore = {
 	batch: (fn: () => void) => void;
 	// Fills a store that has not loaded yet with the newest messages page.
 	seed: (page: TypesGen.ChatMessagesResponse) => void;
-	// Seeds the store from fetchPage unless it is loaded or loading.
+	// Seeds the store from fetchPage unless it is loaded or loading. After
+	// that, only stream events and older pages change the stored state.
 	load: (fetchPage: () => Promise<TypesGen.ChatMessagesResponse>) => void;
 	replaceMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
 	// Applies a history_reset: drops the messages with IDs at or above fromID.
