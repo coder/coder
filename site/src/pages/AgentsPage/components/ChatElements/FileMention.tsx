@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useQueries, useQuery, useQueryClient } from "react-query";
-import type { WorkspaceAgentFindFilesResult } from "#/api/api";
+import { API, type WorkspaceAgentFindFilesResult } from "#/api/api";
 import {
 	workspaceAgentDirectory,
 	workspaceAgentDirectoryKey,
@@ -32,6 +32,46 @@ import { getPathBasename } from "../../utils/path";
 
 // The agent's maximum; common names such as README.md can match many files.
 const findFilesLimit = 200;
+
+// The agent accepts at most this many roots per find-files request
+// (maxFinderRoots in agent/agentfiles/findfiles.go).
+const findFilesRootsPerRequest = 8;
+
+type BareNameSearch = {
+	results: WorkspaceAgentFindFilesResult[];
+	/** Some request hit the result limit, so matches may be missing. */
+	truncated: boolean;
+};
+
+/**
+ * Searches every root for a bare file name, in requests of at most
+ * `findFilesRootsPerRequest` roots, one after another so they do not
+ * compete for the agent's index. A failed request counts as no matches,
+ * so the result is cached like any other instead of retried per mention.
+ */
+const searchBareName = async (
+	agentId: string,
+	roots: readonly string[],
+	name: string,
+): Promise<BareNameSearch> => {
+	const search: BareNameSearch = { results: [], truncated: false };
+	for (let i = 0; i < roots.length; i += findFilesRootsPerRequest) {
+		const batch = roots.slice(i, i + findFilesRootsPerRequest);
+		try {
+			const { results } = await API.findWorkspaceAgentFiles(
+				agentId,
+				batch,
+				name,
+				findFilesLimit,
+			);
+			search.results.push(...results);
+			search.truncated ||= results.length >= findFilesLimit;
+		} catch {
+			// A failed batch has no matches.
+		}
+	}
+	return search;
+};
 
 /**
  * Keeps the search results that a bare file name names. A file at a root
@@ -286,15 +326,18 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 	const searchRoots =
 		files && files.repoRoots.length > 0 ? files.repoRoots : [""];
 	const search = useQuery({
-		...workspaceAgentFindFiles(
-			agentId,
-			searchRoots,
-			bareName ?? "",
-			findFilesLimit,
-		),
+		queryKey: [
+			...workspaceAgentFindFiles(
+				agentId,
+				searchRoots,
+				bareName ?? "",
+				findFilesLimit,
+			).queryKey,
+			"mention",
+		],
+		queryFn: () => searchBareName(agentId, searchRoots, bareName ?? ""),
 		enabled: available && visible && !streaming && bareName !== undefined,
 		staleTime: directoryStaleTime,
-		retry: false,
 	});
 	const starts =
 		files && bareName === undefined
@@ -326,7 +369,7 @@ export const FileMentionCandidate: React.FC<FileMentionCandidateProps> = ({
 						path={matches.length > 1 ? bareName : matches[0].absolute_path}
 						line={mention?.line}
 						choices={matches.length > 1 ? matches : undefined}
-						truncated={results.length >= findFilesLimit}
+						truncated={search.data?.truncated}
 					>
 						{children}
 					</FileMention>

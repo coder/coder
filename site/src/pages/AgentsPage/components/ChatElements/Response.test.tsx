@@ -105,8 +105,11 @@ describe("Response", () => {
 			diffStatuses: [],
 		});
 
-		const renderWithFiles = (markdown: string) => {
-			const files = makeFiles();
+		const renderWithFiles = (
+			markdown: string,
+			overrides: Partial<WorkspaceFilesContextValue> = {},
+		) => {
+			const files = { ...makeFiles(), ...overrides };
 			const { unmount, queryClient } = render(
 				<WorkspaceFilesContext.Provider value={files}>
 					<Response>{markdown}</Response>
@@ -306,6 +309,70 @@ describe("Response", () => {
 			);
 			await flush();
 			expect(buttonTexts()).toEqual(["main.go", "/home/coder/demo/.gitignore"]);
+		});
+
+		it("searches more than eight repositories in batches the agent accepts", async () => {
+			const user = userEvent.setup();
+			const repoRoots = Array.from(
+				{ length: 9 },
+				(_, index) => `/home/coder/repo${index}`,
+			);
+			const find = vi
+				.spyOn(API, "findWorkspaceAgentFiles")
+				.mockImplementation(async (_agentId, roots) => {
+					if (roots.length > 8) {
+						throw new Error("at most 8 roots");
+					}
+					return {
+						results: roots.includes("/home/coder/repo8")
+							? [findResult("/home/coder/repo8", "pkg/conn.go")]
+							: [],
+					};
+				});
+			const { files } = renderWithFiles("See conn.go.", { repoRoots });
+
+			await user.click(await screen.findByRole("button", { name: "conn.go" }));
+
+			expect(files.openFile).toHaveBeenCalledWith(
+				"/home/coder/repo8/pkg/conn.go",
+				{ line: undefined },
+			);
+			expect(find.mock.calls.map((call) => call[1])).toEqual([
+				repoRoots.slice(0, 8),
+				repoRoots.slice(8),
+			]);
+		});
+
+		it("remembers a failed search as no match", async () => {
+			const user = userEvent.setup();
+			const find = vi
+				.spyOn(API, "findWorkspaceAgentFiles")
+				.mockRejectedValue(new Error("agent too old"));
+			const Harness = () => {
+				const [count, setCount] = useState(1);
+				return (
+					<>
+						<button type="button" onClick={() => setCount(5)}>
+							More
+						</button>
+						<WorkspaceFilesContext.Provider value={makeFiles()}>
+							{Array.from({ length: count }, (_, index) => (
+								<Response key={index}>{`See conn.go, part ${index}.`}</Response>
+							))}
+						</WorkspaceFilesContext.Provider>
+					</>
+				);
+			};
+			render(<Harness />);
+			await waitFor(() => expect(find).toHaveBeenCalledTimes(1));
+			await flush();
+
+			await user.click(screen.getByRole("button", { name: "More" }));
+			await screen.findByText(/part 4/);
+			await flush();
+
+			expect(find).toHaveBeenCalledTimes(1);
+			expect(buttonTexts()).toEqual(["More"]);
 		});
 
 		it("looks up a bare name once for all its mentions", async () => {
