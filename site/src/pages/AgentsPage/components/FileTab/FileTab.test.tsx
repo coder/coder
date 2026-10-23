@@ -603,7 +603,10 @@ describe("FileTab", () => {
 				"href",
 				`https://github.com/coder/coder/blob/${headCommit}/main.go#L1`,
 			);
-			expect(link.getAttribute("title")).toContain("0123456");
+			expect(link).toHaveAttribute(
+				"title",
+				"Opens commit 0123456, the checked-out HEAD. GitHub shows a 404 if the commit is not pushed.",
+			);
 			expect(screen.queryByRole("menuitem", { name: /^Open in/ })).toBeNull();
 		});
 
