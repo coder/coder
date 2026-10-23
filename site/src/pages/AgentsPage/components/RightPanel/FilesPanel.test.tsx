@@ -14,7 +14,11 @@ import {
 	WorkspaceFilesContext,
 	type WorkspaceFilesContextValue,
 } from "../../context/WorkspaceFilesContext";
-import { FilesPanel, filesPanelRootStorageKeyPrefix } from "./FilesPanel";
+import {
+	FilesPanel,
+	filesPanelRootStorageKeyPrefix,
+	type RevealRequest,
+} from "./FilesPanel";
 
 const entry = (absolutePath: string, isDir: boolean): WorkspaceAgentFile => ({
 	name: absolutePath.slice(absolutePath.lastIndexOf("/") + 1),
@@ -56,6 +60,27 @@ const listings: Record<string, WorkspaceAgentListDirectoryResponse> = {
 			entry("/home/coder/notes.md", false),
 		],
 	},
+};
+
+listings["/home/coder"] = listings["~"];
+
+const renderRevealed = (
+	request: RevealRequest,
+	value: WorkspaceFilesContextValue = contextValue(),
+) => {
+	const onRevealHandled = vi.fn();
+	render(
+		<QueryClientProvider client={createTestQueryClient()}>
+			<WorkspaceFilesContext value={value}>
+				<FilesPanel
+					chatId="chat-1"
+					revealRequest={request}
+					onRevealHandled={onRevealHandled}
+				/>
+			</WorkspaceFilesContext>
+		</QueryClientProvider>,
+	);
+	return { onRevealHandled };
 };
 
 const apiError = (status: number) =>
@@ -634,6 +659,69 @@ describe("FilesPanel", () => {
 
 		await screen.findByRole("treeitem", { name: "fresh.go" });
 		expect(libSignals[1]?.aborted).toBe(true);
+	});
+
+	it("reveals a nested file inside the root: expands, selects and focuses it", async () => {
+		const { onRevealHandled } = renderRevealed({
+			path: "/home/coder/repo/src/lib/util.go",
+			isDirectory: false,
+		});
+
+		const util = await screen.findByRole("treeitem", { name: "util.go" });
+		await waitFor(() => expect(util).toHaveFocus());
+		expect(util).toHaveAttribute("aria-selected", "true");
+		expect(screen.getByRole("treeitem", { name: "src" })).toHaveAttribute(
+			"aria-expanded",
+			"true",
+		);
+		expect(onRevealHandled).toHaveBeenCalledTimes(1);
+		expect(
+			localStorage.getItem(`${filesPanelRootStorageKeyPrefix}chat-1`),
+		).toBeNull();
+	});
+
+	it("reveals and expands a folder", async () => {
+		renderRevealed({ path: "/home/coder/repo/src", isDirectory: true });
+
+		await screen.findByRole("treeitem", { name: "main.go" });
+		const src = screen.getByRole("treeitem", { name: "src" });
+		expect(src).toHaveAttribute("aria-expanded", "true");
+		expect(src).toHaveAttribute("aria-selected", "true");
+	});
+
+	it("roots a reveal outside the root at its repository", async () => {
+		localStorage.setItem(
+			`${filesPanelRootStorageKeyPrefix}chat-1`,
+			"/home/coder/repo/src",
+		);
+		renderRevealed({ path: "/home/coder/repo/README.md", isDirectory: false });
+
+		const readme = await screen.findByRole("treeitem", { name: "README.md" });
+		await waitFor(() => expect(readme).toHaveFocus());
+		expect(
+			localStorage.getItem(`${filesPanelRootStorageKeyPrefix}chat-1`),
+		).toBe("/home/coder/repo");
+	});
+
+	it("roots a reveal outside every repository at its folder", async () => {
+		renderRevealed({ path: "/home/coder/notes.md", isDirectory: false });
+
+		const notes = await screen.findByRole("treeitem", { name: "notes.md" });
+		await waitFor(() => expect(notes).toHaveFocus());
+		expect(
+			localStorage.getItem(`${filesPanelRootStorageKeyPrefix}chat-1`),
+		).toBe("/home/coder");
+	});
+
+	it("keeps a root that contains the revealed path", async () => {
+		localStorage.setItem(`${filesPanelRootStorageKeyPrefix}chat-1`, "~");
+		renderRevealed({ path: "/home/coder/notes.md", isDirectory: false });
+
+		const notes = await screen.findByRole("treeitem", { name: "notes.md" });
+		await waitFor(() => expect(notes).toHaveFocus());
+		expect(
+			localStorage.getItem(`${filesPanelRootStorageKeyPrefix}chat-1`),
+		).toBe("~");
 	});
 
 	it("does not list files without a workspace agent", () => {
