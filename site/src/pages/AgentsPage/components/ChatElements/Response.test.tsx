@@ -502,6 +502,12 @@ describe("Response", () => {
 					link: "~/projects/",
 					reveals: "/home/coder/projects",
 				},
+				{
+					markdown: "Look in /etc/nginx/conf.d today",
+					tree: { "/etc/nginx": ["conf.d/"] },
+					link: "/etc/nginx/conf.d",
+					reveals: "/etc/nginx/conf.d",
+				},
 			])(
 				"shows the folder $link in Files once the listings confirm it",
 				async ({ markdown, tree, link, reveals }) => {
