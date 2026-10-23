@@ -1,6 +1,7 @@
 import type React from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
+import { buildInfo } from "#/api/queries/buildInfo";
 import { apiKey } from "#/api/queries/users";
 import type {
 	Workspace,
@@ -8,11 +9,14 @@ import type {
 	WorkspaceApp,
 } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import {
 	getAppHref,
 	isExternalApp,
+	isSessionTokenLinkBlocked,
 	needsSessionToken,
 	openAppInNewWindow,
+	SESSION_TOKEN_LINK_BLOCKED_MESSAGE,
 } from "./apps";
 
 type UseAppLinkParams = {
@@ -25,6 +29,7 @@ type AppLink = {
 	onClick: (e: React.MouseEvent) => void;
 	label: string;
 	hasToken: boolean;
+	isBlocked: boolean;
 };
 
 export const useAppLink = (
@@ -33,21 +38,37 @@ export const useAppLink = (
 ): AppLink => {
 	const label = app.display_name ?? app.slug;
 	const { proxy } = useProxy();
+	const { metadata } = useEmbeddedMetadata();
+	const { data: build } = useQuery(buildInfo(metadata["build-info"]));
+	const accessUrl = build?.dashboard_url;
+	const isBlocked = isSessionTokenLinkBlocked(app, accessUrl);
+	// Sub-agent apps never get a token, so they don't need a key to open.
+	const isSubAgent = Boolean(agent.parent_id);
 	const { data: apiKeyResponse } = useQuery({
 		...apiKey(),
-		enabled: isExternalApp(app) && needsSessionToken(app),
+		enabled:
+			isExternalApp(app) && needsSessionToken(app) && !isBlocked && !isSubAgent,
 	});
 
 	const href = getAppHref(app, {
 		agent,
 		workspace,
 		token: apiKeyResponse?.key,
+		accessUrl,
 		path: proxy.preferredPathAppURL,
 		host: proxy.preferredWildcardHostname,
 	});
 
 	const onClick = (e: React.MouseEvent) => {
 		if (!e.currentTarget.getAttribute("href")) {
+			return;
+		}
+
+		if (isBlocked) {
+			e.preventDefault();
+			toast.error(`Failed to open "${label}".`, {
+				description: SESSION_TOKEN_LINK_BLOCKED_MESSAGE,
+			});
 			return;
 		}
 
@@ -111,6 +132,7 @@ export const useAppLink = (
 		href,
 		onClick,
 		label,
-		hasToken: Boolean(apiKeyResponse?.key),
+		hasToken: isSubAgent || Boolean(apiKeyResponse?.key),
+		isBlocked,
 	};
 };
