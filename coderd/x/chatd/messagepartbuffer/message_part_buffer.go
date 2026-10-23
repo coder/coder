@@ -574,13 +574,14 @@ func (b *Buffer) deliverSubscriber(ctx context.Context, key Key, subscriber *epi
 
 // sendSubscriberPart sends part to the subscriber and reports whether it did.
 //
-// While the episode is open, the send has no deadline. Subscribers do not
-// affect how long an open episode is kept, so waiting retains only the batch
-// being sent, and a slow subscriber continues from its cursor. Once the
-// episode is closed, the send waits at most SubscriberSendTimeout, because a
-// subscriber keeps a closed episode from being garbage collected. A send that
-// is waiting when the episode closes wakes on the close notification and
-// starts the timeout then.
+// While the episode is open, the send has no deadline: the buffer keeps an
+// open episode whether or not it has subscribers, so dropping the subscriber
+// would not free the episode. Waiting holds only the batch being sent, and
+// the subscriber continues from its cursor. Once the episode is closed, the
+// send waits at most SubscriberSendTimeout, because a subscriber keeps a
+// closed episode from being garbage collected. A send that is waiting when
+// the episode closes wakes on the close notification and starts the timeout
+// then.
 func (b *Buffer) sendSubscriberPart(ctx context.Context, key Key, subscriber *episodeSubscriber, part Part) bool {
 	var timer *quartz.Timer
 	defer func() {
