@@ -90,6 +90,7 @@ const StoryMainTabs: React.FC<{ children?: React.ReactNode }> = ({
 				agentId,
 				defaultDirectory: "/repo",
 				repoRoots: ["/repo"],
+				repoRootsSettled: true,
 				repositories,
 				openFile: mainTabs.openFile,
 				revealInFiles: () => {},

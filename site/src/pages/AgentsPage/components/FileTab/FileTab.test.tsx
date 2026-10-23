@@ -566,6 +566,7 @@ describe("FileTab", () => {
 			agentId,
 			defaultDirectory: "/home/coder",
 			repoRoots: ["/repo"],
+			repoRootsSettled: true,
 			repositories: new Map([
 				[
 					"/repo",

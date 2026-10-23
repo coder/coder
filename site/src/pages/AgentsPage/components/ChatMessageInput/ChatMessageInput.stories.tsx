@@ -233,6 +233,7 @@ const withWorkspaceFiles: Decorator = (Story) => (
 			agentId: "agent-1",
 			defaultDirectory: "/home/coder",
 			repoRoots: workspaceFilesRoots,
+			repoRootsSettled: true,
 			repositories: new Map(),
 			openFile: fn(),
 			revealInFiles: fn(),

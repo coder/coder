@@ -108,6 +108,7 @@ const buildGitWatcher = (): React.ComponentProps<
 	repositories: new Map(),
 	everDirty: new Set(),
 	hasReceivedChanges: true,
+	repoRootsSettled: true,
 	refresh: fn().mockReturnValue(true),
 });
 

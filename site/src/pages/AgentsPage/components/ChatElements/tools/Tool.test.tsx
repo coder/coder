@@ -150,6 +150,7 @@ describe("Tool file rows", () => {
 							agentId: "agent-1",
 							defaultDirectory: "/home/coder",
 							repoRoots: [],
+							repoRootsSettled: true,
 							repositories: new Map(),
 							openFile,
 							revealInFiles: vi.fn(),

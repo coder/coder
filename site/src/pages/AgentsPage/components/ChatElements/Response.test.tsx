@@ -99,6 +99,7 @@ describe("Response", () => {
 			agentId: "agent-1",
 			defaultDirectory: "/home/coder",
 			repoRoots: ["/home/coder/coder", "/home/coder/other"],
+			repoRootsSettled: true,
 			repositories: new Map(),
 			openFile: vi.fn(),
 			revealInFiles: vi.fn(),
