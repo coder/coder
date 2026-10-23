@@ -184,8 +184,11 @@ Data envelopes contain batches of events:
 | `queue_update` | The queued message list changed                         |
 
 When no events occur for 15&nbsp;seconds, the server sends an empty batch (`[]`).
-An empty batch contains no events; skip it.
-Treat a longer silence as a dead connection and reconnect.
+An empty batch contains no events, so skip it.
+If no batch arrives for 40&nbsp;seconds, close the connection and reconnect.
+That threshold allows two missed empty batches plus a margin, and the Coder dashboard uses the same value.
+Older Coder servers don't send empty batches.
+If the server is older, skip the threshold or expect idle chats to reconnect every 40&nbsp;seconds.
 
 Use `after_id` as a query parameter when reconnecting to skip messages the client already has.
 
