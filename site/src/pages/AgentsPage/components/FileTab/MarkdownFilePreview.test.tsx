@@ -1,6 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { QueryClientProvider } from "react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
@@ -12,6 +12,7 @@ import {
 	WorkspaceFilesContext,
 	type WorkspaceFilesContextValue,
 } from "../../context/WorkspaceFilesContext";
+import type FileEditor from "./FileEditor";
 import { type FileDraft, FileTab } from "./FileTab";
 import { MarkdownFilePreview } from "./MarkdownFilePreview";
 
@@ -24,9 +25,20 @@ const { fileViewer } = vi.hoisted(() => ({
 vi.mock("@pierre/diffs/react", () => ({ File: fileViewer }));
 
 vi.mock("./FileEditor", () => ({
-	default: ({ value }: { value: string }) => (
-		<textarea aria-label="File contents" value={value} readOnly />
-	),
+	default: function MockFileEditor({
+		value,
+		onStatusChange,
+	}: React.ComponentProps<typeof FileEditor>) {
+		useEffect(() => {
+			onStatusChange?.({
+				language: "Markdown",
+				line: 3,
+				column: 1,
+				selectedCharacters: 0,
+			});
+		}, [onStatusChange]);
+		return <textarea aria-label="File contents" value={value} readOnly />;
+	},
 }));
 
 const agentId = "agent-1";
@@ -370,6 +382,7 @@ describe("FileTab markdown preview", () => {
 		renderWithProviders(<Harness />);
 
 		await screen.findByLabelText("File contents");
+		await screen.findByText("Ln 3, Col 1");
 		const preview = screen.getByRole("button", {
 			name: "Preview (large file)",
 		});
@@ -379,5 +392,8 @@ describe("FileTab markdown preview", () => {
 		expect((await screen.findByRole("heading", { name: "Big" })).id).toBe(
 			"user-content-big",
 		);
+		// The preview has no cursor.
+		await screen.findByText("Markdown · 300 kB · 3 lines · LF");
+		expect(screen.queryByText("Ln 3, Col 1")).toBeNull();
 	});
 });

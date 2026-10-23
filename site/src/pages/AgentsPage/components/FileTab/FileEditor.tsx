@@ -48,6 +48,45 @@ type FileEditorProps = {
 	onSave: () => void;
 	/** Called once `reveal` is applied. */
 	onRevealed: () => void;
+	/** Called when the language, the cursor or the selection changes. */
+	onStatusChange?: (status: FileEditorStatus) => void;
+};
+
+export type FileEditorStatus = {
+	/** The language's display name, such as "Go" or "Plain Text". */
+	language: string;
+	/** 1-based cursor line. */
+	line: number;
+	/** 1-based cursor column. */
+	column: number;
+	/** Characters in all selections, 0 without one. */
+	selectedCharacters: number;
+};
+
+const getStatus = (
+	editor: monaco.editor.IStandaloneCodeEditor,
+): FileEditorStatus | undefined => {
+	const model = editor.getModel();
+	const position = editor.getPosition();
+	if (!model || !position) {
+		return undefined;
+	}
+	const languageId = model.getLanguageId();
+	const language =
+		monaco.languages
+			.getLanguages()
+			.find((candidate) => candidate.id === languageId)?.aliases?.[0] ??
+		languageId;
+	const selectedCharacters = (editor.getSelections() ?? []).reduce(
+		(total, selection) => total + model.getValueLengthInRange(selection),
+		0,
+	);
+	return {
+		language,
+		line: position.lineNumber,
+		column: position.column,
+		selectedCharacters,
+	};
 };
 
 /** Loaded with React.lazy so the Monaco chunk loads only when a file opens. */
@@ -60,12 +99,21 @@ const FileEditor: React.FC<FileEditorProps> = ({
 	onChange,
 	onSave,
 	onRevealed,
+	onStatusChange,
 }) => {
 	const theme = useTheme();
 	const coderTheme = useCoderTheme();
 	const [editor, setEditor] = useState<monaco.editor.IStandaloneCodeEditor>();
 	const save = useEffectEvent(onSave);
 	const revealed = useEffectEvent(onRevealed);
+	const reportStatus = useEffectEvent(
+		(target: monaco.editor.IStandaloneCodeEditor) => {
+			const status = getStatus(target);
+			if (status) {
+				onStatusChange?.(status);
+			}
+		},
+	);
 	// The mount applies the first reveal before Monaco paints, so the effect
 	// below must not apply it again.
 	const appliedRevealRef = useRef<FileReveal>(undefined);
@@ -88,6 +136,22 @@ const FileEditor: React.FC<FileEditorProps> = ({
 			run: () => save(),
 		});
 		return () => action.dispose();
+	}, [editor]);
+
+	useEffect(() => {
+		if (!editor) {
+			return;
+		}
+		reportStatus(editor);
+		const listeners = [
+			editor.onDidChangeCursorSelection(() => reportStatus(editor)),
+			editor.onDidChangeModelLanguage(() => reportStatus(editor)),
+		];
+		return () => {
+			for (const listener of listeners) {
+				listener.dispose();
+			}
+		};
 	}, [editor]);
 
 	useEffect(() => {
