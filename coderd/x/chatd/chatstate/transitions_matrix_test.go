@@ -1066,10 +1066,19 @@ func matrixCases() []transitionCaseSpec {
 		steerQueuedCase(chatstate.StateA1P, chatstate.StateA1, queueShapeMulti, 1),
 		withSeed(steerQueuedCase(chatstate.StateA1P, chatstate.StateA1P, queueShapeMulti, 1), scenarioEditSteerHead, seedSteerHeadUnderEdit),
 
-		// Interrupt cases.
+		// Interrupt cases. W, E*, P and an owned I* have nothing to
+		// interrupt, so they stay unchanged.
+		interruptCase(chatstate.StateW, chatstate.StateW),
+		interruptCase(chatstate.StateE0, chatstate.StateE0),
+		interruptCase(chatstate.StateE1, chatstate.StateE1),
+		interruptCase(chatstate.StateE1P, chatstate.StateE1P),
+		interruptCase(chatstate.StateP, chatstate.StateP),
 		interruptCase(chatstate.StateR0, chatstate.StateI0),
 		interruptCase(chatstate.StateR1, chatstate.StateI1),
 		interruptCase(chatstate.StateR1P, chatstate.StateI1P),
+		interruptCase(chatstate.StateI0, chatstate.StateI0),
+		interruptCase(chatstate.StateI1, chatstate.StateI1),
+		interruptCase(chatstate.StateI1P, chatstate.StateI1P),
 		interruptCase(chatstate.StateA0, chatstate.StateR0),
 		interruptCase(chatstate.StateA1, chatstate.StateR1),
 		interruptCase(chatstate.StateA1P, chatstate.StateR1P),
@@ -1910,7 +1919,17 @@ func interruptCase(from, want chatstate.ExecutionState) transitionCaseSpec {
 			assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 
 			switch from {
+			case chatstate.StateW, chatstate.StateE0, chatstate.StateE1, chatstate.StateE1P, chatstate.StateP,
+				chatstate.StateI0, chatstate.StateI1, chatstate.StateI1P:
+				require.Equal(t, chatstate.InterruptResult{}, result.interrupt,
+					"Interrupt with nothing to interrupt reports no effect")
+				require.Equal(t, base.chat.Status, after.Status)
+				require.Equal(t, base.chat.WorkerID, after.WorkerID)
+				require.Equal(t, base.chat.LastError, after.LastError)
+				require.Equal(t, base.historyIDs, afterHistory,
+					"Interrupt with nothing to interrupt leaves history unchanged")
 			case chatstate.StateR0, chatstate.StateR1, chatstate.StateR1P:
+				require.True(t, result.interrupt.Interrupted)
 				require.Equal(t, database.ChatStatusInterrupting, after.Status,
 					"Interrupt from R* sets status interrupting")
 				require.Equal(t, base.historyIDs, afterHistory,
@@ -1918,6 +1937,7 @@ func interruptCase(from, want chatstate.ExecutionState) transitionCaseSpec {
 				require.Empty(t, result.interrupt.CancellationMessages,
 					"Interrupt from R* does not synthesize tool cancellations")
 			case chatstate.StateA0, chatstate.StateA1, chatstate.StateA1P:
+				require.True(t, result.interrupt.Interrupted)
 				require.Equal(t, database.ChatStatusRunning, after.Status,
 					"Interrupt from A* cancels pending dynamic calls and resumes running")
 				require.False(t, after.RequiresActionDeadlineAt.Valid,
