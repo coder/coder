@@ -89,6 +89,7 @@ func TestManifest(t *testing.T) {
 		Directory:                "/home/coder",
 		MOTDFile:                 "/etc/motd",
 		DisableDirectConnections: true,
+		AgentPluginsEnabled:      true,
 		Metadata: []codersdk.WorkspaceAgentMetadataDescription{
 			{
 				DisplayName: "CPU",
@@ -175,6 +176,7 @@ func TestManifest(t *testing.T) {
 	require.Equal(t, manifest.Metadata, back.Metadata)
 	require.Equal(t, manifest.Scripts, back.Scripts)
 	require.Equal(t, manifest.Devcontainers, back.Devcontainers)
+	require.Equal(t, manifest.AgentPluginsEnabled, back.AgentPluginsEnabled)
 }
 
 func TestScriptDependencyConversionRejectsInvalidRequirements(t *testing.T) {

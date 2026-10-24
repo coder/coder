@@ -191,3 +191,49 @@ func TestParseSkillFrontmatter(t *testing.T) {
 		require.Equal(t, "spaced", name)
 	})
 }
+
+func TestValidatePluginName(t *testing.T) {
+	t.Parallel()
+
+	valid := []string{
+		"a",
+		"acme",
+		"acme-tools",
+		"acme.tools",
+		"a1.b2-c3",
+		"a.-b",
+		"a-.b",
+		"deployment.tools",
+		"lint3r",
+		"0",
+		strings.Repeat("a", workspacesdk.MaxPluginNameLength),
+	}
+	for _, name := range valid {
+		require.NoError(t, workspacesdk.ValidatePluginName(name), name)
+	}
+
+	invalid := []string{
+		"",
+		"Acme",
+		"acme tools",
+		"acme_tools",
+		"-acme",
+		"acme-",
+		".acme",
+		"acme.",
+		"acme--tools",
+		"acme..tools",
+		"acme/tools",
+		"ac\u00e9me",
+		"My-Plugin",
+		"has--double",
+		"too.many..dots",
+		strings.Repeat("a", workspacesdk.MaxPluginNameLength+1),
+	}
+	for _, name := range invalid {
+		require.Error(t, workspacesdk.ValidatePluginName(name), name)
+	}
+
+	err := workspacesdk.ValidatePluginName("ac\u00e9me")
+	require.ErrorContains(t, err, "invalid character '\u00e9'")
+}

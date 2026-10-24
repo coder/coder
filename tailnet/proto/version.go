@@ -109,9 +109,16 @@ import (
 //     lifecycle script that never ran because of a prerequisite and one the
 //     agent shut down before it finished.
 //   - A v2.15 agent reports skipped and canceled startup scripts.
+//
+// API v2.16:
+//   - Added the PluginBody variant to ContextResource on the Agent API, for
+//     Agent Plugins (agent-plugins.org). PluginBody carries the plugin's
+//     skills and MCP servers as nested ContextResources.
+//   - Added agent_plugins_enabled to Manifest on the Agent API. coderd sets
+//     it when the agent-plugins experiment is enabled.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 15
+	CurrentMinor = 16
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

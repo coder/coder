@@ -5328,6 +5328,8 @@ type ChatContextResource struct {
 	SourcePath string    `db:"source_path" json:"source_path"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+	// Agent Plugin name: the plugin's own name on an OK plugin row, the owning plugin's name on a skill or mcp_server row the plugin ships, and empty otherwise.
+	PluginName string `db:"plugin_name" json:"plugin_name"`
 }
 
 type ChatDebugRun struct {
@@ -6783,6 +6785,8 @@ type WorkspaceAgentContextResource struct {
 	SourcePath string    `db:"source_path" json:"source_path"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+	// Agent Plugin name: the plugin's own name on an OK plugin row, the owning plugin's name on a skill or mcp_server row the plugin ships, and empty otherwise.
+	PluginName string `db:"plugin_name" json:"plugin_name"`
 }
 
 // Latest workspace agent context snapshot received via PushContextState. One row per workspace agent, overwritten in place.
