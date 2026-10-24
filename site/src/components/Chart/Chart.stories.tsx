@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { expect, waitFor, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import {
 	type ChartConfig,
 	ChartContainer,
@@ -87,5 +87,20 @@ export const Default: Story = {
 		await waitFor(() =>
 			expect(liveRegion).toHaveTextContent(/^January Users 186$/),
 		);
+	},
+};
+
+export const TooltipHovered: Story = {
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("show the tooltip for the first data point", async () => {
+			await userEvent.tab();
+			await userEvent.keyboard("{ArrowRight}");
+		});
+
+		await step("move the pointer onto the tooltip", async () => {
+			await userEvent.hover(await canvas.findByText("February"));
+		});
 	},
 };

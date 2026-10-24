@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -51,6 +52,19 @@ describe("UserDropdownContent", () => {
 		expect(link).toHaveTextContent(MockBuildInfo.version);
 		expect(link).toHaveAttribute("target", "_blank");
 		expect(link).toHaveAttribute("href", MockBuildInfo.external_url);
+	});
+
+	it("keeps focus on the version item when the pointer leaves it", async () => {
+		// The modal menu sets pointer-events: none on the body.
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
+		renderUserDropdownContent({ onSignOut: vi.fn() });
+		await waitForLoaderToBeRemoved();
+
+		const item = screen.getByRole("menuitem", { name: /opens in new tab/ });
+		await user.hover(item);
+		expect(item).toHaveFocus();
+		await user.unhover(item);
+		expect(item).toHaveFocus();
 	});
 
 	it("calls the onSignOut function", async () => {
