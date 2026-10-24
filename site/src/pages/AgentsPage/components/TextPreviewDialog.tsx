@@ -1,12 +1,20 @@
 import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
+import { Loader } from "#/components/Loader/Loader";
 import { Response } from "./ChatElements/Response";
 
 type TextPreviewDialogProps = {
-	content: string;
+	/** Undefined while the text loads. */
+	content: string | undefined;
 	fileName?: string;
 	/** Explicit media type for the attachment, if known. */
 	mediaType?: string;
 	onClose: () => void;
+	/**
+	 * Radix focuses the dialog's Trigger after this runs unless it calls
+	 * event.preventDefault(), and this dialog has no Trigger, so focus would
+	 * otherwise fall to the page body.
+	 */
+	onCloseAutoFocus?: (event: Event) => void;
 };
 
 /**
@@ -34,6 +42,7 @@ export const TextPreviewDialog: React.FC<TextPreviewDialogProps> = ({
 	fileName,
 	mediaType,
 	onClose,
+	onCloseAutoFocus,
 }) => {
 	const renderAsMarkdown = isMarkdownPreview(fileName, mediaType);
 
@@ -42,12 +51,15 @@ export const TextPreviewDialog: React.FC<TextPreviewDialogProps> = ({
 			<DialogContent
 				className="max-h-[85vh] max-w-[90vw] w-full sm:w-fit sm:min-w-[400px] flex flex-col gap-0 p-0"
 				aria-describedby={undefined}
+				onCloseAutoFocus={onCloseAutoFocus}
 			>
 				<DialogTitle className="px-4 py-3 border-b border-border text-sm font-medium">
 					{fileName ?? "Pasted text"}
 				</DialogTitle>
 				<div className="overflow-auto p-4 max-h-[calc(85vh-3rem)]">
-					{renderAsMarkdown ? (
+					{content === undefined ? (
+						<Loader size="sm" label="Loading file" className="p-0" />
+					) : renderAsMarkdown ? (
 						// Reuse the same Markdown renderer used for chat messages
 						// so attached markdown previews look consistent with the
 						// rest of the conversation.

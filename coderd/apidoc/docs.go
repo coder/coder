@@ -4131,6 +4131,48 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v2/chats/{chat}/attachments": {
+            "get": {
+                "description": "Returns every file part in the user-visible user and assistant messages of a chat, newest first, so a client can list a chat's attachments without paging through every message in the chat.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat attachments",
+                "operationId": "list-chat-attachments",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Return attachments from messages with id \u003c before_id",
+                        "name": "before_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAttachmentsResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/chats/{chat}/clear": {
             "post": {
                 "description": "Resets the model context of an idle or errored chat,\nclearing any stored error. The reset commits\nsynchronously with no model call: the transcript is\npreserved and the next prompt starts from a fresh\ncontext.",
@@ -21548,6 +21590,79 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatUser"
+                    }
+                }
+            }
+        },
+        "codersdk.ChatAttachment": {
+            "type": "object",
+            "properties": {
+                "file": {
+                    "$ref": "#/definitions/codersdk.ChatAttachmentFile"
+                },
+                "message_id": {
+                    "type": "integer"
+                },
+                "part_index": {
+                    "description": "PartIndex is the file part's position in the message content the\nmessages endpoint returns.",
+                    "type": "integer"
+                },
+                "role": {
+                    "$ref": "#/definitions/codersdk.ChatAttachmentRole"
+                }
+            }
+        },
+        "codersdk.ChatAttachmentFile": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Data holds an inline file's bytes, which JSON carries as a base64 string.",
+                    "type": "string",
+                    "format": "byte"
+                },
+                "file_id": {
+                    "description": "Omitted, not null, for an inline file.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "media_type": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.ChatAttachmentFileType"
+                }
+            }
+        },
+        "codersdk.ChatAttachmentFileType": {
+            "type": "string",
+            "enum": [
+                "file"
+            ],
+            "x-enum-varnames": [
+                "ChatAttachmentFileTypeFile"
+            ]
+        },
+        "codersdk.ChatAttachmentRole": {
+            "type": "string",
+            "enum": [
+                "user",
+                "assistant"
+            ],
+            "x-enum-varnames": [
+                "ChatAttachmentRoleUser",
+                "ChatAttachmentRoleAssistant"
+            ]
+        },
+        "codersdk.ChatAttachmentsResponse": {
+            "type": "object",
+            "properties": {
+                "attachments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatAttachment"
                     }
                 }
             }

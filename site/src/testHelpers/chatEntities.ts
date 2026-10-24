@@ -1,5 +1,6 @@
 import type {
 	Chat,
+	ChatAttachment,
 	ChatContext,
 	ChatContextResource,
 	ChatCost,
@@ -147,6 +148,18 @@ export const MockChatFileMetadata: ChatFileMetadata = {
 	mime_type: "text/plain",
 	size_bytes: 128,
 	created_at: MOCK_TIMESTAMP,
+};
+
+export const MockChatAttachment: ChatAttachment = {
+	message_id: MockChatMessage.id,
+	part_index: 0,
+	role: "user",
+	file: {
+		type: "file",
+		media_type: MockChatFileMetadata.mime_type,
+		name: MockChatFileMetadata.name,
+		file_id: MockChatFileMetadata.id,
+	},
 };
 
 export const MockChatCompactionMessage: ChatMessage = {
