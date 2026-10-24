@@ -1103,7 +1103,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 	}
 	titleSource := database.ChatTitleSourceUser
 	if title == "" {
-		title = subagentFallbackChatTitle(prompt)
+		title = chatprompt.FallbackTitle(prompt)
 		titleSource = database.ChatTitleSourceFallback
 	}
 
@@ -1542,42 +1542,6 @@ func isSubagentDescendant(
 		}
 		currentID = chat.ParentChatID.UUID
 	}
-}
-
-func subagentFallbackChatTitle(message string) string {
-	const maxWords = 6
-	const maxRunes = 80
-
-	words := strings.Fields(message)
-	if len(words) == 0 {
-		return chatprompt.DefaultChatTitle
-	}
-
-	truncated := false
-	if len(words) > maxWords {
-		words = words[:maxWords]
-		truncated = true
-	}
-
-	title := strings.Join(words, " ")
-	if truncated {
-		title += "..."
-	}
-
-	return subagentTruncateRunes(title, maxRunes)
-}
-
-func subagentTruncateRunes(value string, maxRunes int) string {
-	if maxRunes <= 0 {
-		return ""
-	}
-
-	runes := []rune(value)
-	if len(runes) <= maxRunes {
-		return value
-	}
-
-	return string(runes[:maxRunes])
 }
 
 func toolJSONResponse(result map[string]any) fantasy.ToolResponse {

@@ -46,40 +46,6 @@ import (
 	"github.com/coder/quartz"
 )
 
-func TestSubagentFallbackChatTitle(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		input string
-		want  string
-	}{
-		{
-			name:  "EmptyPrompt",
-			input: "",
-			want:  "New Chat",
-		},
-		{
-			name:  "ShortPrompt",
-			input: "Open Firefox",
-			want:  "Open Firefox",
-		},
-		{
-			name:  "LongPrompt",
-			input: "Please open the Firefox browser and navigate to the settings page",
-			want:  "Please open the Firefox browser and...",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := subagentFallbackChatTitle(tt.input)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
 type internalTestServerConfig struct {
 	logger           slog.Logger
 	clock            quartz.Clock
@@ -965,7 +931,7 @@ func TestCreateChildSubagentChatInheritsWorkspaceBinding(t *testing.T) {
 	require.Equal(t, parentChat.WorkspaceID, childChat.WorkspaceID)
 	require.Equal(t, parentChat.BuildID, childChat.BuildID)
 	require.Equal(t, parentChat.AgentID, childChat.AgentID)
-	require.Equal(t, subagentFallbackChatTitle("inspect bindings"), childChat.Title)
+	require.Equal(t, chatprompt.FallbackTitle("inspect bindings"), childChat.Title)
 	require.Equal(t, database.ChatTitleSourceFallback, childChat.TitleSource)
 }
 
