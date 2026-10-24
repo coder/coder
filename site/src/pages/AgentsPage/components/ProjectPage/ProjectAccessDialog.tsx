@@ -44,13 +44,19 @@ import {
 	type UserOrGroupAutocompleteValue,
 } from "#/modules/workspaces/WorkspaceSharingForm/UserOrGroupAutocomplete";
 import { RetryButton } from "../RetryButton";
-import {
-	type AccessChangeCallbacks,
-	type AssignableRole,
-	chatProjectRoleLabel,
-	type ProjectAccessEntry,
-	type ProjectAccessPrincipal,
+import type {
+	AccessChangeCallbacks,
+	ProjectAccessEntry,
+	ProjectAccessPrincipal,
 } from "./projectAccess";
+
+/** Display labels for project roles. The empty role only removes access in update requests. */
+const chatProjectRoleLabel: Record<Exclude<ChatProjectRole, "">, string> = {
+	admin: "Admin",
+	use: "Member",
+};
+
+type AssignableRole = Exclude<ChatProjectRole, "">;
 
 const roleDescriptions: Record<AssignableRole, string> = {
 	admin:

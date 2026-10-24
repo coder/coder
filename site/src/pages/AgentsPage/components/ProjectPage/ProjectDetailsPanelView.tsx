@@ -279,7 +279,7 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 					))}
 					{hiddenEntries.length > 0 && (
 						<MemberTile
-							label={`${hiddenEntries.length} more`}
+							label={`+${hiddenEntries.length} more`}
 							tooltip={hiddenEntries.map((entry) => entry.name).join(", ")}
 						>
 							<Avatar

@@ -278,7 +278,7 @@ export const MembersOverflow: Story = {
 export const MembersOverflowFocused: Story = {
 	args: MembersOverflow.args,
 	play: async ({ canvasElement }) => {
-		within(canvasElement).getByRole("button", { name: "3 more" }).focus();
+		within(canvasElement).getByRole("button", { name: "+3 more" }).focus();
 	},
 };
 
@@ -316,9 +316,14 @@ export const MembersWithGroups: Story = {
 /** Hovering a member avatar shows the member's name. */
 export const MemberTooltip: Story = {
 	play: async ({ canvasElement }) => {
-		await userEvent.hover(within(canvasElement).getByText("AD"));
+		await userEvent.hover(
+			within(canvasElement).getByRole("button", { name: "Ada Lovelace" }),
+		);
 	},
 };
+
+const mockLongName =
+	"Augusta Ada King, Countess of Lovelace, Analyst of the Analytical Engine and Poet of Science";
 
 /** Long names wrap instead of running off narrow screens. */
 export const MemberTooltipLongName: Story = {
@@ -330,7 +335,7 @@ export const MemberTooltipLongName: Story = {
 				users: [
 					{
 						...mockSharees[0],
-						name: "Augusta Ada King, Countess of Lovelace, Analyst of the Analytical Engine and Poet of Science",
+						name: mockLongName,
 					},
 				],
 				groups: [],
@@ -338,7 +343,9 @@ export const MemberTooltipLongName: Story = {
 		},
 	},
 	play: async ({ canvasElement }) => {
-		await userEvent.hover(within(canvasElement).getByText("AU"));
+		await userEvent.hover(
+			within(canvasElement).getByRole("button", { name: mockLongName }),
+		);
 	},
 };
 
@@ -352,6 +359,17 @@ export const MembersLoadError: Story = {
 			...mockMembers,
 			entries: undefined,
 			error: mockApiError({ message: "Failed to get chat project ACL." }),
+		},
+	},
+};
+
+export const MembersRetrying: Story = {
+	args: {
+		members: {
+			...mockMembers,
+			entries: undefined,
+			error: mockApiError({ message: "Failed to get chat project ACL." }),
+			isRetrying: true,
 		},
 	},
 };

@@ -5,15 +5,6 @@ import type {
 } from "#/api/typesGenerated";
 import { getGroupSubtitle } from "#/modules/groups";
 
-/** A role that can be granted; the empty role only removes access. */
-export type AssignableRole = Exclude<ChatProjectRole, "">;
-
-/** Display labels for project roles. */
-export const chatProjectRoleLabel: Record<AssignableRole, string> = {
-	admin: "Admin",
-	use: "Member",
-};
-
 type ProjectAccessEntryBase = {
 	readonly id: string;
 	readonly name: string;
