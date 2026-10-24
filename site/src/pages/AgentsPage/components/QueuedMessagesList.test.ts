@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
-import { getQueuedMessageInfo } from "./QueuedMessagesList";
+import {
+	getFirstLinePreview,
+	getQueuedMessageInfo,
+} from "./QueuedMessagesList";
 
 const buildMessage = (
 	content: ChatQueuedMessage["content"],
@@ -13,10 +16,31 @@ describe("getQueuedMessageInfo", () => {
 			buildMessage([{ type: "text", text: "hello" }]),
 		);
 		expect(result).toEqual({
-			displayText: "hello",
+			previewParts: [{ type: "text", text: "hello" }],
 			attachmentCount: 0,
 			hookNotices: [],
 		});
+	});
+
+	it("keeps invoked skills in document order", () => {
+		const result = getQueuedMessageInfo(
+			buildMessage([
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+				{ type: "text", text: "the flaky test" },
+			]),
+		);
+		expect(result.previewParts).toEqual([
+			{
+				type: "skill-invocation",
+				skill_source: "project",
+				skill_name: "triage",
+			},
+			{ type: "text", text: "the flaky test" },
+		]);
 	});
 
 	it("collects hook notices without polluting the preview text", () => {
@@ -27,7 +51,7 @@ describe("getQueuedMessageInfo", () => {
 			]),
 		);
 		expect(result).toEqual({
-			displayText: "hello",
+			previewParts: [{ type: "text", text: "hello" }],
 			attachmentCount: 0,
 			hookNotices: ["policy notice"],
 		});
@@ -38,24 +62,24 @@ describe("getQueuedMessageInfo", () => {
 			buildMessage([{ type: "text", text: "line1\nline2" }]),
 		);
 		expect(result).toEqual({
-			displayText: "line1\nline2",
+			previewParts: [{ type: "text", text: "line1\nline2" }],
 			attachmentCount: 0,
 			hookNotices: [],
 		});
 	});
 
-	it("returns attachment label for a single file", () => {
+	it("returns no preview for a single file", () => {
 		const result = getQueuedMessageInfo(
 			buildMessage([{ type: "file", file_id: "a", media_type: "image/png" }]),
 		);
 		expect(result).toEqual({
-			displayText: "[Queued message]",
+			previewParts: [],
 			attachmentCount: 1,
 			hookNotices: [],
 		});
 	});
 
-	it("returns attachment label for multiple files", () => {
+	it("returns no preview for multiple files", () => {
 		const result = getQueuedMessageInfo(
 			buildMessage([
 				{ type: "file", file_id: "a", media_type: "image/png" },
@@ -63,7 +87,7 @@ describe("getQueuedMessageInfo", () => {
 			]),
 		);
 		expect(result).toEqual({
-			displayText: "[Queued message]",
+			previewParts: [],
 			attachmentCount: 2,
 			hookNotices: [],
 		});
@@ -77,33 +101,33 @@ describe("getQueuedMessageInfo", () => {
 			]),
 		);
 		expect(result).toEqual({
-			displayText: "look",
+			previewParts: [{ type: "text", text: "look" }],
 			attachmentCount: 1,
 			hookNotices: [],
 		});
 	});
 
-	it("returns fallback for empty content", () => {
+	it("returns no preview for empty content", () => {
 		const result = getQueuedMessageInfo(buildMessage([]));
 		expect(result).toEqual({
-			displayText: "[Queued message]",
+			previewParts: [],
 			attachmentCount: 0,
 			hookNotices: [],
 		});
 	});
 
-	it("returns fallback for whitespace-only text", () => {
+	it("returns no preview for whitespace-only text", () => {
 		const result = getQueuedMessageInfo(
 			buildMessage([{ type: "text", text: "  " }]),
 		);
 		expect(result).toEqual({
-			displayText: "[Queued message]",
+			previewParts: [],
 			attachmentCount: 0,
 			hookNotices: [],
 		});
 	});
 
-	it("returns attachment label for whitespace text + file", () => {
+	it("returns no preview for whitespace text + file", () => {
 		const result = getQueuedMessageInfo(
 			buildMessage([
 				{ type: "text", text: " " },
@@ -111,13 +135,13 @@ describe("getQueuedMessageInfo", () => {
 			]),
 		);
 		expect(result).toEqual({
-			displayText: "[Queued message]",
+			previewParts: [],
 			attachmentCount: 1,
 			hookNotices: [],
 		});
 	});
 
-	it("joins multiple text parts with a space", () => {
+	it("keeps each text part", () => {
 		const result = getQueuedMessageInfo(
 			buildMessage([
 				{ type: "text", text: "a" },
@@ -125,7 +149,10 @@ describe("getQueuedMessageInfo", () => {
 			]),
 		);
 		expect(result).toEqual({
-			displayText: "a b",
+			previewParts: [
+				{ type: "text", text: "a" },
+				{ type: "text", text: "b" },
+			],
 			attachmentCount: 0,
 			hookNotices: [],
 		});
@@ -140,9 +167,48 @@ describe("getQueuedMessageInfo", () => {
 			]),
 		);
 		expect(result).toEqual({
-			displayText: "check this",
+			previewParts: [{ type: "text", text: "check this" }],
 			attachmentCount: 2,
 			hookNotices: [],
+		});
+	});
+});
+
+describe("getFirstLinePreview", () => {
+	it("ends the first line at a break before a skill chip", () => {
+		const { previewParts } = getQueuedMessageInfo(
+			buildMessage([
+				{ type: "text", text: "Fix the build\n" },
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+			]),
+		);
+		expect(getFirstLinePreview(previewParts)).toEqual({
+			parts: [{ type: "text", text: "Fix the build" }],
+			isTruncated: true,
+		});
+	});
+
+	it("ends the first line at a line break between skill chips", () => {
+		const skillPart = (name: string) =>
+			({
+				type: "skill-invocation",
+				skill_source: "project",
+				skill_name: name,
+			}) as const;
+		const { previewParts } = getQueuedMessageInfo(
+			buildMessage([
+				skillPart("triage"),
+				{ type: "text", text: "\n" },
+				skillPart("review"),
+			]),
+		);
+		expect(getFirstLinePreview(previewParts)).toEqual({
+			parts: [skillPart("triage")],
+			isTruncated: true,
 		});
 	});
 });

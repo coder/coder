@@ -51,7 +51,7 @@ import {
 	formatCompactionPercent,
 	isCompactionPointBeyondWindow,
 	type OrganizationCompactionTrigger,
-} from "../compactionTriggers";
+} from "../utils/compactionTriggers";
 import { getModelLabel } from "../utils/modelOptions";
 
 type UserCompactionThresholdSettingsProps = {

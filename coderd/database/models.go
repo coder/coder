@@ -4189,6 +4189,7 @@ const (
 	WorkspaceAgentContextBodyKindHook            WorkspaceAgentContextBodyKind = "hook"
 	WorkspaceAgentContextBodyKindSubagent        WorkspaceAgentContextBodyKind = "subagent"
 	WorkspaceAgentContextBodyKindCommand         WorkspaceAgentContextBodyKind = "command"
+	WorkspaceAgentContextBodyKindAcpHarness      WorkspaceAgentContextBodyKind = "acp_harness"
 )
 
 func (e *WorkspaceAgentContextBodyKind) Scan(src interface{}) error {
@@ -4235,7 +4236,8 @@ func (e WorkspaceAgentContextBodyKind) Valid() bool {
 		WorkspaceAgentContextBodyKindPlugin,
 		WorkspaceAgentContextBodyKindHook,
 		WorkspaceAgentContextBodyKindSubagent,
-		WorkspaceAgentContextBodyKindCommand:
+		WorkspaceAgentContextBodyKindCommand,
+		WorkspaceAgentContextBodyKindAcpHarness:
 		return true
 	}
 	return false
@@ -4251,6 +4253,7 @@ func AllWorkspaceAgentContextBodyKindValues() []WorkspaceAgentContextBodyKind {
 		WorkspaceAgentContextBodyKindHook,
 		WorkspaceAgentContextBodyKindSubagent,
 		WorkspaceAgentContextBodyKindCommand,
+		WorkspaceAgentContextBodyKindAcpHarness,
 	}
 }
 
@@ -5074,6 +5077,22 @@ type AIGatewayKey struct {
 	SecretPrefix    string       `db:"secret_prefix" json:"secret_prefix"`
 	HashedSecret    []byte       `db:"hashed_secret" json:"hashed_secret"`
 	LastHeartbeatAt sql.NullTime `db:"last_heartbeat_at" json:"last_heartbeat_at"`
+}
+
+// AI Governance configuration for one model on one configured AI provider within one organization. The token prices override site-wide prices in ai_model_prices.
+type AIModelConfig struct {
+	ID              uuid.UUID     `db:"id" json:"id"`
+	OrganizationID  uuid.UUID     `db:"organization_id" json:"organization_id"`
+	ProviderID      uuid.UUID     `db:"provider_id" json:"provider_id"`
+	Model           string        `db:"model" json:"model"`
+	InputPrice      sql.NullInt64 `db:"input_price" json:"input_price"`
+	OutputPrice     sql.NullInt64 `db:"output_price" json:"output_price"`
+	CacheReadPrice  sql.NullInt64 `db:"cache_read_price" json:"cache_read_price"`
+	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
+	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
+	// Soft delete flag. Soft-deleted rows are kept for history and do not block a new live row for the same model.
+	Deleted bool `db:"deleted" json:"deleted"`
 }
 
 // Per-model token prices used by AI Bridge to compute interception cost.
@@ -6202,6 +6221,8 @@ type Skill struct {
 	Enabled        bool          `db:"enabled" json:"enabled"`
 	GroupACL       ChatACL       `db:"group_acl" json:"group_acl"`
 	UserACL        ChatACL       `db:"user_acl" json:"user_acl"`
+	Action         bool          `db:"action" json:"action"`
+	ModelInvocable bool          `db:"model_invocable" json:"model_invocable"`
 }
 
 // We keep this separate from replicas in case we need to break the coordinator out into its own service
