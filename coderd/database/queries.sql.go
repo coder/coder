@@ -11942,6 +11942,107 @@ func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastCh
 	return i, err
 }
 
+const getLatestSuccessfulChatToolCallArgs = `-- name: GetLatestSuccessfulChatToolCallArgs :one
+WITH privacy_floor AS (
+    SELECT
+        COALESCE(MAX(id), 0)::bigint AS id
+    FROM
+        chat_messages
+    WHERE
+        chat_id = $1::uuid
+        AND deleted = false
+        AND compressed = true
+        AND role = 'assistant'
+        AND content @> '[{"type": "tool-call", "tool_name": "chat_cleared"}]'::jsonb
+),
+calls AS (
+    SELECT
+        call_msg.id AS message_id,
+        call_part.ordinality,
+        call_part.part,
+        ROW_NUMBER() OVER (
+            PARTITION BY call_msg.id, call_part.part->>'tool_call_id'
+            ORDER BY call_part.ordinality
+        ) AS occurrence
+    FROM
+        chat_messages call_msg,
+        jsonb_array_elements(call_msg.content) WITH ORDINALITY AS call_part(part, ordinality)
+    WHERE
+        call_msg.chat_id = $1::uuid
+        AND call_msg.deleted = false
+        AND call_msg.role = 'assistant'
+        AND call_msg.id > (SELECT id FROM privacy_floor)
+        AND jsonb_typeof(call_msg.content) = 'array'
+        AND call_msg.content @> jsonb_build_array(jsonb_build_object('type', 'tool-call', 'tool_name', $2::text))
+        AND call_part.part->>'type' = 'tool-call'
+)
+SELECT
+    (calls.part->'args')::jsonb AS args
+FROM
+    calls
+    CROSS JOIN LATERAL (
+        SELECT
+            result_part.part
+        FROM
+            chat_messages result_msg,
+            jsonb_array_elements(result_msg.content) WITH ORDINALITY AS result_part(part, ordinality)
+        WHERE
+            result_msg.chat_id = $1::uuid
+            AND result_msg.deleted = false
+            AND result_msg.role = 'tool'
+            AND result_msg.id > calls.message_id
+            AND NOT EXISTS (
+                SELECT
+                    1
+                FROM
+                    chat_messages next_msg
+                WHERE
+                    next_msg.chat_id = $1::uuid
+                    AND next_msg.deleted = false
+                    AND next_msg.role = 'assistant'
+                    AND next_msg.id > calls.message_id
+                    AND next_msg.id < result_msg.id
+            )
+            AND jsonb_typeof(result_msg.content) = 'array'
+            AND result_part.part->>'type' = 'tool-result'
+            AND result_part.part->>'tool_call_id' = calls.part->>'tool_call_id'
+        ORDER BY
+            result_msg.id,
+            result_part.ordinality
+        OFFSET
+            calls.occurrence - 1
+        LIMIT
+            1
+    ) matched
+WHERE
+    calls.part->>'tool_name' = $2::text
+    AND matched.part->>'tool_name' = $2::text
+    AND COALESCE((matched.part->>'is_error')::boolean, false) = false
+ORDER BY
+    calls.message_id DESC,
+    calls.ordinality DESC
+LIMIT
+    1
+`
+
+type GetLatestSuccessfulChatToolCallArgsParams struct {
+	ChatID   uuid.UUID `db:"chat_id" json:"chat_id"`
+	ToolName string    `db:"tool_name" json:"tool_name"`
+}
+
+// Returns the arguments of the newest non-deleted call to the named tool
+// that has a successful result. Calls before the newest chat_cleared
+// boundary are ignored, so a clear hides them. Providers may repeat tool
+// call IDs, so a call's result is the result with the same ID and
+// occurrence among its step's tool rows, which end at the next assistant
+// row.
+func (q *sqlQuerier) GetLatestSuccessfulChatToolCallArgs(ctx context.Context, arg GetLatestSuccessfulChatToolCallArgsParams) (json.RawMessage, error) {
+	row := q.db.QueryRowContext(ctx, getLatestSuccessfulChatToolCallArgs, arg.ChatID, arg.ToolName)
+	var args json.RawMessage
+	err := row.Scan(&args)
+	return args, err
+}
+
 const getStaleChats = `-- name: GetStaleChats :many
 SELECT
     id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at, title_source, title_updated_at

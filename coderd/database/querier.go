@@ -6,6 +6,7 @@ package database
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -740,6 +741,13 @@ type sqlcQuerier interface {
 	GetLastChatMessageByRole(ctx context.Context, arg GetLastChatMessageByRoleParams) (ChatMessage, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
 	GetLatestCryptoKeyByFeature(ctx context.Context, feature CryptoKeyFeature) (CryptoKey, error)
+	// Returns the arguments of the newest non-deleted call to the named tool
+	// that has a successful result. Calls before the newest chat_cleared
+	// boundary are ignored, so a clear hides them. Providers may repeat tool
+	// call IDs, so a call's result is the result with the same ID and
+	// occurrence among its step's tool rows, which end at the next assistant
+	// row.
+	GetLatestSuccessfulChatToolCallArgs(ctx context.Context, arg GetLatestSuccessfulChatToolCallArgsParams) (json.RawMessage, error)
 	GetLatestWorkspaceAgentContextSnapshot(ctx context.Context, workspaceAgentID uuid.UUID) (WorkspaceAgentContextSnapshot, error)
 	GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (WorkspaceAppStatus, error)
 	// id DESC is a stability tiebreaker, not an insertion-order signal: back-to-back
