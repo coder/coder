@@ -5108,7 +5108,7 @@ func TestWorkspaceUsageArbitraryAppNameNormalized(t *testing.T) {
 	var count int64
 	require.True(t, testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		err := sqlDB.QueryRowContext(ctx, `
-			SELECT coalesce(sum((session_counts->>'some_future_ide')::bigint), 0)
+			SELECT coalesce(sum((session_counts->'ssh'->>'some_future_ide')::bigint), 0)
 			FROM workspace_agent_stats
 			WHERE agent_id = $1`, agentID).Scan(&count)
 		if err != nil {
@@ -5124,7 +5124,7 @@ func TestWorkspaceUsageArbitraryAppNameNormalized(t *testing.T) {
 	err = sqlDB.QueryRowContext(ctx, `
 		SELECT count(*)
 		FROM workspace_agent_stats
-		WHERE agent_id = $1 AND session_counts ? 'Some-Future-IDE'`, agentID).Scan(&rawKeyRows)
+		WHERE agent_id = $1 AND session_counts->'ssh' ? 'Some-Future-IDE'`, agentID).Scan(&rawKeyRows)
 	require.NoError(t, err)
 	require.Zero(t, rawKeyRows)
 }

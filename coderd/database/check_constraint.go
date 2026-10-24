@@ -83,6 +83,7 @@ const (
 	CheckSkillsSingleOwner                                   CheckConstraint = "skills_single_owner"                                       // skills
 	CheckSkillsUserAclIsObject                               CheckConstraint = "skills_user_acl_is_object"                                 // skills
 	CheckTelemetryLockEventTypeConstraint                    CheckConstraint = "telemetry_lock_event_type_constraint"                      // telemetry_locks
+	CheckTemplateUsageStatsSessionAppsMethodCheck            CheckConstraint = "template_usage_stats_session_apps_method_check"            // template_usage_stats_session_apps
 	CheckValidationMonotonicOrder                            CheckConstraint = "validation_monotonic_order"                                // template_version_parameters
 	CheckTemplateVersionsScriptOrderDataSourceCountCheck     CheckConstraint = "template_versions_script_order_data_source_count_check"    // template_versions
 	CheckTemplateVersionsScriptOrderRuleCountCheck           CheckConstraint = "template_versions_script_order_rule_count_check"           // template_versions
