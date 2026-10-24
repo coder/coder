@@ -103,7 +103,7 @@ export const chatProjectInstructions = (project: TypesGen.ChatProject) =>
 export const chatProjectACLKey = (projectId: string) =>
 	[...chatProjectsKey, projectId, "acl"] as const;
 
-/** Lists the users and groups a project is shared with, without its owner. */
+/** Lists a project's owner and the users and groups it is shared with. */
 export const chatProjectACL = (project: TypesGen.ChatProject) =>
 	queryOptions({
 		queryKey: chatProjectACLKey(project.id),

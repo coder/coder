@@ -579,7 +579,6 @@ describe("ProjectDetailsPanel", () => {
 		});
 
 		await user.click(accessButton);
-		// Opening the dialog refetches so it shows access changed elsewhere.
 		await waitFor(() => expect(getACL).toHaveBeenCalledTimes(2));
 		await user.click(await screen.findByRole("button", { name: "Close" }));
 
@@ -590,31 +589,20 @@ describe("ProjectDetailsPanel", () => {
 		);
 	});
 
-	it.each([
-		{ source: "the ACL", aclFails: false, userLookups: [] },
-		{
-			source: "the users API when the ACL fails",
-			aclFails: true,
-			userLookups: [[MockUserMember.id]],
-		},
-	])(
-		"names another user's project owner from $source",
-		async ({ aclFails, userLookups }) => {
-			mockInstructions(MockChatProjectInstructions);
-			const owner = { ...MockUserMember, name: "Jane Doe" };
-			const getACL = vi.spyOn(API.experimental, "getChatProjectACL");
-			if (aclFails) {
-				getACL.mockRejectedValue(mockApiError({ message: "Forbidden." }));
-			} else {
-				getACL.mockResolvedValue({ owner, users: [], groups: [] });
-			}
-			const getUser = vi.spyOn(API, "getUser").mockResolvedValue(owner);
-			renderPanel({ ...MockChatProject, owner_id: owner.id });
+	it("names another user's project owner from the ACL", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		const owner = { ...MockUserMember, name: "Jane Doe" };
+		vi.spyOn(API.experimental, "getChatProjectACL").mockResolvedValue({
+			owner,
+			users: [],
+			groups: [],
+		});
+		const getUser = vi.spyOn(API, "getUser").mockResolvedValue(owner);
+		renderPanel({ ...MockChatProject, owner_id: owner.id });
 
-			await within(screen.getByRole("region", { name: "Details" })).findByText(
-				owner.name,
-			);
-			expect(getUser.mock.calls).toEqual(userLookups);
-		},
-	);
+		await within(screen.getByRole("region", { name: "Details" })).findByText(
+			owner.name,
+		);
+		expect(getUser).not.toHaveBeenCalled();
+	});
 });

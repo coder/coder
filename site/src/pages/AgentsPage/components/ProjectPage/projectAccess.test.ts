@@ -38,7 +38,7 @@ describe("buildAccessEntries", () => {
 		const mockGroupB = {
 			...MockGroup,
 			id: "group-b",
-			name: "b-team",
+			name: "team 10",
 			display_name: "",
 		};
 		const entries = buildAccessEntries({
@@ -46,7 +46,7 @@ describe("buildAccessEntries", () => {
 			users: [...mockACL.users].reverse(),
 			groups: [
 				{ ...mockGroupB, role: "use" },
-				{ ...MockGroup, id: "group-a", display_name: "A-team", role: "use" },
+				{ ...MockGroup, id: "group-a", display_name: "Team 9", role: "use" },
 			],
 		});
 		expect(entries.map(({ kind, id }) => ({ kind, id }))).toEqual([

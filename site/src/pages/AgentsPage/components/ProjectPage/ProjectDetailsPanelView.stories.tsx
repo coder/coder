@@ -1,10 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import type {
-	ChatProjectACL,
-	ChatProjectUser,
-	MinimalUser,
-} from "#/api/typesGenerated";
+import type { ChatProjectACL, ChatProjectUser } from "#/api/typesGenerated";
 import {
 	MockChatProject,
 	MockChatProjectInstructions,
@@ -50,11 +46,6 @@ const mockMembers = {
 	onRetry: fn(),
 	onOpenAccess: fn(),
 };
-
-const mockMembersWithOwner = (owner: MinimalUser) => ({
-	...mockMembers,
-	entries: buildAccessEntries({ ...mockACL, owner }),
-});
 
 const meta: Meta<typeof ProjectDetailsPanelView> = {
 	title: "pages/AgentsPage/ProjectPage/ProjectDetailsPanelView",
@@ -127,13 +118,26 @@ export const OwnerLoading: Story = {
 export const OtherOwner: Story = {
 	args: {
 		ownerLabel: "Jane Doe",
-		members: mockMembersWithOwner({ ...MockUserMember, name: "Jane Doe" }),
+		members: {
+			...mockMembers,
+			entries: buildAccessEntries({
+				...mockACL,
+				owner: { ...MockUserMember, name: "Jane Doe" },
+			}),
+		},
 	},
 };
 
-/** Neither the ACL nor the users API could name the owner. */
+/** The ACL failed to load, so it could not name the owner. */
 export const OwnerUnknown: Story = {
-	args: { ownerLabel: "Unknown", members: undefined },
+	args: {
+		ownerLabel: "Unknown",
+		members: {
+			...mockMembers,
+			entries: undefined,
+			error: mockApiError({ message: "Failed to get chat project ACL." }),
+		},
+	},
 };
 
 /** Long owner and organization names wrap so they stay readable. */
@@ -141,11 +145,17 @@ export const LongNames: Story = {
 	args: {
 		ownerLabel: "bartholomewmontgomeryfitzgerald1",
 		organizationLabel: "Platform-Infrastructure-Engineering-Europe",
-		members: mockMembersWithOwner({
-			...MockUserMember,
-			username: "bartholomewmontgomeryfitzgerald1",
-			name: "",
-		}),
+		members: {
+			...mockMembers,
+			entries: buildAccessEntries({
+				...mockACL,
+				owner: {
+					...MockUserMember,
+					username: "bartholomewmontgomeryfitzgerald1",
+					name: "",
+				},
+			}),
+		},
 	},
 };
 
@@ -255,6 +265,14 @@ export const MembersOverflow: Story = {
 				groups: [],
 			}),
 		},
+	},
+};
+
+/** Keyboard focus on the "+K" tile lists the hidden members below the row. */
+export const MembersOverflowFocused: Story = {
+	args: MembersOverflow.args,
+	play: async ({ canvasElement }) => {
+		within(canvasElement).getByRole("button", { name: "3 more" }).focus();
 	},
 };
 

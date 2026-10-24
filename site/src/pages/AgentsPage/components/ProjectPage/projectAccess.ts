@@ -49,23 +49,22 @@ const userSubtitle = (user: MinimalUser) =>
 const compareEntries = (a: ProjectAccessEntry, b: ProjectAccessEntry) =>
 	a.name.localeCompare(b.name, undefined, {
 		sensitivity: "base",
+		numeric: true,
 	}) || a.id.localeCompare(b.id);
 
 /**
  * Orders the owner first, then users, then groups, each sorted by name. The
- * ACL never lists the owner in `users`. `owner` overrides `acl.owner`, such as
- * with the signed-in user when they own the project.
+ * ACL never lists the owner in `users`.
  */
 export const buildAccessEntries = (
 	acl: ChatProjectACL,
-	owner: MinimalUser = acl.owner,
 ): ProjectAccessEntry[] => [
 	{
 		kind: "owner",
-		id: owner.id,
-		name: owner.name || owner.username,
-		subtitle: userSubtitle(owner),
-		avatarUrl: owner.avatar_url,
+		id: acl.owner.id,
+		name: acl.owner.name || acl.owner.username,
+		subtitle: userSubtitle(acl.owner),
+		avatarUrl: acl.owner.avatar_url,
 	},
 	...acl.users
 		.map(
