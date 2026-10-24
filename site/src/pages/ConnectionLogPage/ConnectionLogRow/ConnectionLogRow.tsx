@@ -1,18 +1,51 @@
-import { InfoIcon, NetworkIcon } from "lucide-react";
-import { Link as RouterLink } from "react-router";
-import userAgentParser from "ua-parser-js";
+import { NetworkIcon } from "lucide-react";
 import type { ConnectionLog } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
-import { Link } from "#/components/Link/Link";
 import { StatusBadge } from "#/components/StatusBadge/StatusBadge";
 import { TableCell } from "#/components/Table/Table";
 import { TimelineEntry } from "#/components/Timeline/TimelineEntry";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+import { humanDurationShort } from "#/utils/time";
 import { ConnectionLogDescription } from "./ConnectionLogDescription/ConnectionLogDescription";
+import { ConnectionLogDetailsPopover } from "./ConnectionLogDetailsPopover";
+
+type ConnectionTiming = {
+	range: string;
+	detail?: string;
+};
+
+const formatTime = (time: string): string =>
+	new Date(time).toLocaleTimeString();
+
+const connectionTiming = ({
+	connect_time,
+	ssh_info,
+}: ConnectionLog): ConnectionTiming => {
+	const start = formatTime(connect_time);
+	const end = ssh_info?.disconnect_time && formatTime(ssh_info.disconnect_time);
+	switch (ssh_info?.duration?.status) {
+		case "no_disconnect":
+			return { range: `${start} → Ongoing` };
+		case "missing_connect":
+			return { range: `Unknown → ${end}` };
+		case "invalid":
+			return {
+				range: `${start} → ${end}`,
+				detail: "Disconnect recorded before connect",
+			};
+		case "recorded": {
+			const seconds = ssh_info.duration.seconds;
+			return {
+				range: `${start} → ${end}`,
+				detail:
+					seconds === undefined
+						? undefined
+						: humanDurationShort(seconds * 1000),
+			};
+		}
+		default:
+			return { range: end ? `${start} → ${end}` : start };
+	}
+};
 
 type ConnectionLogRowProps = {
 	connectionLog: ConnectionLog;
@@ -21,12 +54,10 @@ type ConnectionLogRowProps = {
 export const ConnectionLogRow: React.FC<ConnectionLogRowProps> = ({
 	connectionLog,
 }) => {
-	const userAgent = connectionLog.web_info?.user_agent
-		? userAgentParser(connectionLog.web_info?.user_agent)
-		: undefined;
 	const isWeb = connectionLog.web_info !== undefined;
 	const code =
 		connectionLog.web_info?.status_code ?? connectionLog.ssh_info?.exit_code;
+	const timing = connectionTiming(connectionLog);
 
 	return (
 		<TimelineEntry
@@ -54,10 +85,13 @@ export const ConnectionLogRow: React.FC<ConnectionLogRowProps> = ({
 							<div className="flex flex-row items-baseline gap-2 text-base">
 								<ConnectionLogDescription connectionLog={connectionLog} />
 								<span className="text-content-secondary text-xs">
-									{new Date(connectionLog.connect_time).toLocaleTimeString()}
-									{connectionLog.ssh_info?.disconnect_time &&
-										` → ${new Date(connectionLog.ssh_info.disconnect_time).toLocaleTimeString()}`}
+									{timing.range}
 								</span>
+								{timing.detail && (
+									<span className="text-content-secondary text-xs">
+										{timing.detail}
+									</span>
+								)}
 							</div>
 
 							<div className="flex flex-row items-center gap-4">
@@ -68,68 +102,7 @@ export const ConnectionLogRow: React.FC<ConnectionLogRowProps> = ({
 										label={isWeb ? "HTTP Status Code" : "SSH Exit Code"}
 									/>
 								)}
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<InfoIcon className="size-icon-sm text-content-secondary" />
-									</TooltipTrigger>
-									<TooltipContent side="bottom">
-										<div className="flex flex-col gap-2">
-											{connectionLog.ip && (
-												<div>
-													<h4 className="m-0 text-content-primary text-sm leading-[150%] font-semibold">
-														IP:
-													</h4>
-													<div>{connectionLog.ip}</div>
-												</div>
-											)}
-											{userAgent?.os.name && (
-												<div>
-													<h4 className="m-0 text-content-primary text-sm leading-[150%] font-semibold">
-														OS:
-													</h4>
-													<div>{userAgent.os.name}</div>
-												</div>
-											)}
-											{userAgent?.browser.name && (
-												<div>
-													<h4 className="m-0 text-content-primary text-sm leading-[150%] font-semibold">
-														Browser:
-													</h4>
-													<div>
-														{userAgent.browser.name} {userAgent.browser.version}
-													</div>
-												</div>
-											)}
-											{connectionLog.organization && (
-												<div>
-													<h4 className="m-0 text-content-primary text-sm leading-[150%] font-semibold">
-														Organization:
-													</h4>
-													<Link
-														asChild
-														showExternalIcon={false}
-														className="px-0 text-xs"
-													>
-														<RouterLink
-															to={`/organizations/${connectionLog.organization.name}`}
-														>
-															{connectionLog.organization.display_name ||
-																connectionLog.organization.name}
-														</RouterLink>
-													</Link>
-												</div>
-											)}
-											{connectionLog.ssh_info?.disconnect_reason && (
-												<div>
-													<h4 className="m-0 text-content-primary text-sm leading-[150%] font-semibold">
-														Close Reason:
-													</h4>
-													<div>{connectionLog.ssh_info?.disconnect_reason}</div>
-												</div>
-											)}
-										</div>
-									</TooltipContent>
-								</Tooltip>
+								<ConnectionLogDetailsPopover connectionLog={connectionLog} />
 							</div>
 						</div>
 					</div>

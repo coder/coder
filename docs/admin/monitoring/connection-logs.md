@@ -25,6 +25,11 @@ These events are reported by workspace agents, and their receipt by the control 
 Agent-reported events do not identify the Coder user who connected.
 To attribute SSH and IDE activity to a user, correlate them with tunnel events for the same workspace and agent.
 
+The Coder CLI attaches a client session ID to the SSH and reconnecting PTY connections it opens.
+Tools that launch the CLI, such as IDE extensions, can reuse one ID across launches to group their connections.
+The client sets the ID, so it isn't guaranteed to be unique, and connections that share one can overlap or have gaps.
+To list connections in the same workspace that share an ID, open an entry's details and select **View related connections**.
+
 ## Tunnel Connections
 
 The connection log records the authorization decision for each request to add a tunnel to a workspace agent.
@@ -68,6 +73,8 @@ You can filter connection logs by the following parameters:
   Uses the RFC3339Nano format.
 - `workspace_id`: The ID of the workspace being connected to.
 - `connection_id`: The ID of the connection.
+- `client_session_id`: Exact, case-insensitive match for a 32-character hexadecimal client session ID.
+  Entries without a client session ID don't match.
 - `status`: The status of the connection, either `ongoing` or `completed`.
   Only SSH and reconnecting PTY connections have a status.
   A connection is `completed` after Coder receives its disconnect event, and `ongoing` until then.
@@ -102,6 +109,11 @@ Each connection log in the response describes the connection with these fields:
   The client reports this name, so treat it as a label rather than a verified identity.
   The response omits this field when the app isn't known, and for workspace app, port forwarding, and tunnel connections.
 - `web_info.slug_or_port`: The workspace app slug or forwarded port, for workspace app and port forwarding connections.
+- `ssh_info.client_session_id`: The optional client session ID for SSH or reconnecting PTY connections.
+  Omitted when the client didn't supply an ID.
+- `ssh_info.duration.status`: How Coder determined the duration, as listed in [Duration status values](#duration-status-values).
+- `ssh_info.duration.seconds`: Seconds between the stored connect and disconnect times.
+  Included only when `ssh_info.duration.status` is `recorded`.
 - `type`: Deprecated.
   Use `connection_method` and `app_name` instead.
   It will be removed in a future release.
@@ -117,6 +129,21 @@ If you read `type`, map its values to the new fields as follows:
 | `workspace_app`, `port_forwarding`, `tunnel` | Same as `type`      | Omitted                                                       |
 
 The `type` field keeps the same values, but the API schema describes it as a string rather than an enum.
+
+#### Duration status values
+
+Durations are the time between the recorded connect and disconnect events of an SSH or reconnecting PTY connection.
+They aren't running timers.
+
+| `duration.status` | Meaning                                                      | Connection Log page                                   |
+|-------------------|--------------------------------------------------------------|-------------------------------------------------------|
+| `recorded`        | Connect and disconnect events recorded                       | Connect and disconnect times, and the duration        |
+| `no_disconnect`   | No disconnect recorded yet, so the connection may be ongoing | Connect time, then **Ongoing**                        |
+| `missing_connect` | Disconnect recorded without its connect                      | **Unknown**, then the disconnect time                 |
+| `invalid`         | Disconnect recorded before connect                           | Both times and **Disconnect recorded before connect** |
+
+`no_disconnect` matches `status:ongoing`.
+All other duration statuses match `status:completed`.
 
 ### Service Logs
 

@@ -23827,6 +23827,33 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ConnectionLogDuration": {
+            "type": "object",
+            "properties": {
+                "seconds": {
+                    "description": "Seconds is set only when Status is recorded.",
+                    "type": "number"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.ConnectionLogDurationStatus"
+                }
+            }
+        },
+        "codersdk.ConnectionLogDurationStatus": {
+            "type": "string",
+            "enum": [
+                "recorded",
+                "no_disconnect",
+                "missing_connect",
+                "invalid"
+            ],
+            "x-enum-varnames": [
+                "ConnectionLogDurationRecorded",
+                "ConnectionLogDurationNoDisconnect",
+                "ConnectionLogDurationMissingConnect",
+                "ConnectionLogDurationInvalid"
+            ]
+        },
         "codersdk.ConnectionLogMethod": {
             "type": "string",
             "enum": [
@@ -23864,6 +23891,10 @@ const docTemplate = `{
         "codersdk.ConnectionLogSSHInfo": {
             "type": "object",
             "properties": {
+                "client_session_id": {
+                    "description": "ClientSessionID is set by the client and isn't guaranteed to be unique.",
+                    "type": "string"
+                },
                 "connection_id": {
                     "type": "string",
                     "format": "uuid"
@@ -23876,6 +23907,9 @@ const docTemplate = `{
                     "description": "DisconnectTime is omitted if a disconnect event with the same connection ID\nhas not yet been seen.",
                     "type": "string",
                     "format": "date-time"
+                },
+                "duration": {
+                    "$ref": "#/definitions/codersdk.ConnectionLogDuration"
                 },
                 "exit_code": {
                     "description": "ExitCode is the exit code of the SSH session. It is omitted if a\ndisconnect event with the same connection ID has not yet been seen.",
