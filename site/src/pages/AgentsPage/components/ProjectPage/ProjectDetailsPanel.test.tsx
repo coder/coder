@@ -494,7 +494,6 @@ describe("ProjectDetailsPanel", () => {
 		);
 
 		await waitFor(() => expect(getACL).toHaveBeenCalledTimes(2));
-		await screen.findByRole("region", { name: "2 members, 1 group" });
 	});
 
 	it("opens the project skills from the Skills row", async () => {

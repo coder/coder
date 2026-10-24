@@ -22,7 +22,6 @@ const MAX_MEMBER_TILES_NARROW = 7;
 // Keeps the "+K" tooltip short on large projects; the dialog lists everyone.
 const MAX_TOOLTIP_NAMES = 10;
 
-/** How many entries get an avatar tile in a row of at most `maxTiles`. */
 const avatarTileCount = (entryCount: number, maxTiles: number) =>
 	entryCount > maxTiles ? maxTiles - 1 : entryCount;
 
@@ -374,14 +373,14 @@ const OverflowTile: React.FC<OverflowTileProps> = ({ className, entries }) => {
 		return null;
 	}
 	const names = entries.slice(0, MAX_TOOLTIP_NAMES).map((entry) => entry.name);
-	const unnamedCount = entries.length - names.length;
+	const omittedNameCount = entries.length - names.length;
 	return (
 		<MemberTile
 			className={className}
 			label={`+${entries.length} more`}
 			tooltip={
-				unnamedCount > 0
-					? `${names.join(", ")}, and ${unnamedCount} more`
+				omittedNameCount > 0
+					? `${names.join(", ")}, and ${omittedNameCount} more`
 					: names.join(", ")
 			}
 		>
