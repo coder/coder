@@ -3,9 +3,8 @@ import { fn, screen, userEvent } from "storybook/test";
 import type { ChatProjectACL } from "#/api/typesGenerated";
 import {
 	MockChatProject,
-	MockGroup,
+	MockChatProjectACL,
 	MockUserMember,
-	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { pixelWithPhone } from "#/testHelpers/pixel";
@@ -13,7 +12,7 @@ import { ProjectAccessDialog } from "./ProjectAccessDialog";
 import { buildAccessEntries } from "./projectAccess";
 
 const mockACL: ChatProjectACL = {
-	owner: MockUserOwner,
+	...MockChatProjectACL,
 	users: [
 		{
 			...MockUserMember,
@@ -28,7 +27,6 @@ const mockACL: ChatProjectACL = {
 			role: "use",
 		},
 	],
-	groups: [{ ...MockGroup, role: "use" }],
 };
 
 const meta: Meta<typeof ProjectAccessDialog> = {
@@ -44,7 +42,7 @@ const meta: Meta<typeof ProjectAccessDialog> = {
 		onCloseAutoFocus: fn(),
 		canManage: false,
 		organizationId: MockChatProject.organization_id,
-		currentUserId: MockUserOwner.id,
+		currentUserId: MockChatProjectACL.owner.id,
 		onAdd: fn(),
 		onChangeRole: fn(),
 		onRemove: fn(),

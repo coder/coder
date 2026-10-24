@@ -233,7 +233,6 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 		const groupCount = entries.filter((entry) => entry.kind === "group").length;
 		heading = formatMembersHeading(entries.length - groupCount, groupCount);
 	}
-	// Fill the last tile with an avatar when it fits; otherwise it shows "+K".
 	const overflows = entries !== undefined && entries.length > MAX_MEMBER_TILES;
 	const visibleEntries = overflows
 		? entries.slice(0, MAX_MEMBER_TILES - 1)

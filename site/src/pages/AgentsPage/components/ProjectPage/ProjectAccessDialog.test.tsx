@@ -3,12 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import type {
-	ChatProjectACL,
-	OrganizationMemberWithUserData,
-} from "#/api/typesGenerated";
+import type { OrganizationMemberWithUserData } from "#/api/typesGenerated";
 import {
 	MockChatProject,
+	MockChatProjectACL,
 	MockGroup,
 	MockGroup3,
 	MockOrganizationMember,
@@ -31,12 +29,6 @@ const MockOtherMember: OrganizationMemberWithUserData = {
 	name: "",
 };
 
-const mockACL: ChatProjectACL = {
-	owner: MockUserOwner,
-	users: [{ ...MockUserMember, role: "admin" }],
-	groups: [],
-};
-
 type DialogProps = React.ComponentProps<typeof ProjectAccessDialog>;
 
 const renderDialog = (props: Partial<DialogProps> = {}) => {
@@ -51,7 +43,7 @@ const renderDialog = (props: Partial<DialogProps> = {}) => {
 			<ProjectAccessDialog
 				open
 				onOpenChange={vi.fn()}
-				entries={buildAccessEntries(mockACL)}
+				entries={buildAccessEntries(MockChatProjectACL)}
 				error={undefined}
 				isRetrying={false}
 				onRetry={vi.fn()}
@@ -177,11 +169,7 @@ describe("ProjectAccessDialog", () => {
 		// Site admins can manage access without an entry of their own.
 		const { user } = renderDialog({
 			currentUserId: MockUserMember.id,
-			entries: buildAccessEntries({
-				owner: MockUserOwner,
-				users: [],
-				groups: [{ ...MockGroup, role: "use" }],
-			}),
+			entries: buildAccessEntries({ ...MockChatProjectACL, users: [] }),
 		});
 
 		await user.click(getAutocomplete());
