@@ -154,7 +154,9 @@ const TestingScreen = () => {
 			<div data-testid="isLoading" title={isLoading.toString()}></div>
 			<div data-testid="preferredProxy" title={proxy.proxy?.id}></div>
 			<div data-testid="userProxy" title={userProxy?.id}></div>
-			<button data-testid="clearProxy" onClick={clearProxy}></button>
+			<button data-testid="clearProxy" onClick={clearProxy}>
+				Clear proxy
+			</button>
 			<div data-testid="userSelectProxyData"></div>
 			<button
 				data-testid="userSelectProxy"
@@ -164,7 +166,9 @@ const TestingScreen = () => {
 						setProxy(JSON.parse(data.innerText));
 					}
 				}}
-			></button>
+			>
+				Select proxy
+			</button>
 		</>
 	);
 };
