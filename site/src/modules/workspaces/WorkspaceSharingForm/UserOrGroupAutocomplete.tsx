@@ -23,6 +23,10 @@ type UserOrGroupAutocompleteProps = {
 	organizationId: string;
 	exclude: ExcludableOption[];
 	className?: string;
+	/** Lets callers label and focus the trigger. */
+	id?: string;
+	clearable?: boolean;
+	triggerAriaLabelledBy?: string;
 };
 
 const normalizeMember = (
@@ -34,7 +38,16 @@ const normalizeMember = (
 
 export const UserOrGroupAutocomplete: React.FC<
 	UserOrGroupAutocompleteProps
-> = ({ value, onChange, organizationId, exclude, className = "w-80" }) => {
+> = ({
+	value,
+	onChange,
+	organizationId,
+	exclude,
+	className = "w-80",
+	id,
+	clearable,
+	triggerAriaLabelledBy,
+}) => {
 	const [inputValue, setInputValue] = useState("");
 	const [open, setOpen] = useState(false);
 
@@ -131,7 +144,9 @@ export const UserOrGroupAutocomplete: React.FC<
 			placeholder="Search for user or group"
 			noOptionsText="No users or groups found"
 			className={className}
-			id="workspace-user-or-group-autocomplete"
+			id={id ?? "workspace-user-or-group-autocomplete"}
+			clearable={clearable}
+			triggerAriaLabelledBy={triggerAriaLabelledBy}
 		/>
 	);
 };

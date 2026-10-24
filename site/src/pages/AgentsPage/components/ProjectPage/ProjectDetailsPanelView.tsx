@@ -26,6 +26,8 @@ type MembersSectionProps = {
 	readonly error: unknown;
 	readonly isRetrying: boolean;
 	readonly onRetry: () => void;
+	/** Whether the viewer can change access, which relabels the access button. */
+	readonly canManage: boolean;
 	readonly onOpenAccess: (event: React.MouseEvent<HTMLButtonElement>) => void;
 };
 
@@ -224,6 +226,7 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 	error,
 	isRetrying,
 	onRetry,
+	canManage,
 	onOpenAccess,
 }) => {
 	const headingId = useId();
@@ -266,7 +269,7 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 				</h3>
 				{isLoading && <Skeleton className="h-3 w-24" />}
 				<Button size="sm" variant="outline" onClick={onOpenAccess}>
-					View access
+					{canManage ? "Manage access" : "View access"}
 				</Button>
 			</div>
 			{entries && (
