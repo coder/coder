@@ -106,7 +106,7 @@ Update your template descriptions to include:
 
 - The language, framework, or stack the template targets.
 - Which repository or service it is for, if applicable.
-- What type of work it supports (backend, frontend, data pipeline, etc.).
+- What type of work it supports (backend, frontend, data pipeline, and so on).
 
 When 128 characters is not enough, put the most important routing context near the top of the template's [`README.md`](./platform-controls/template-optimization.md#put-routing-context-near-the-top-of-the-readme).
 The chat agent's template listing includes a bounded README excerpt (roughly the first 1,000 characters), and template detail includes the README (up to roughly 8,000 characters).

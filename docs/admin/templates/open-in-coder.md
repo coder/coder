@@ -93,11 +93,11 @@ resource "coder_agent" "dev" {
 [![Open in Coder](https://YOUR_ACCESS_URL/open-in-coder.svg)](https://YOUR_ACCESS_URL/templates/YOUR_TEMPLATE/workspace)
 ```
 
-Be sure to replace `YOUR_ACCESS_URL` with your Coder access url (e.g. <https://coder.example.com>) and `YOUR_TEMPLATE` with the name of your template.
+Be sure to replace `YOUR_ACCESS_URL` with your Coder access url (for example, <https://coder.example.com>) and `YOUR_TEMPLATE` with the name of your template.
 
 ### 4. Optional: pre-fill parameter values in the "Create Workspace" page
 
-This can be used to pre-fill the git repo URL, disk size, image, etc.
+This can be used to pre-fill the git repo URL, disk size, image, and so on.
 
 ```md
 [![Open in Coder](https://YOUR_ACCESS_URL/open-in-coder.svg)](https://YOUR_ACCESS_URL/templates/YOUR_TEMPLATE/workspace?param.git_repo=https://github.com/coder/slog&param.home_disk_size%20%28GB%29=20)

@@ -62,7 +62,7 @@ Starting with Coder v2.30.0, liveness probes are *disabled by default* in the He
 This change was made because:
 
 - Liveness probes can kill pods during legitimate long-running migrations
-- If a Coder pod becomes unresponsive (due to a deadlock, etc.), it's better to investigate the issue rather than have Kubernetes silently restart the pod
+- If a Coder pod becomes unresponsive (due to a deadlock, and so on), it's better to investigate the issue rather than have Kubernetes silently restart the pod
 
 If you have enabled liveness probes in your deployment and observe pods restarting with `CrashLoopBackOff` during an upgrade, the liveness probe may be killing the pod prematurely.
 
