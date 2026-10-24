@@ -667,7 +667,7 @@ type ChatMessagePart struct {
 	// SkillDir of an invoked workspace skill. Internal only: the
 	// prompt shows SkillDir only while the chat stays bound to this
 	// workspace.
-	SkillWorkspaceID uuid.UUID `json:"skill_workspace_id,omitzero" typescript:"-" swaggerignore:"true"`
+	SkillWorkspaceID uuid.UUID `json:"skill_workspace_id,omitzero" format:"uuid" typescript:"-" swaggerignore:"true"`
 	// ContextFileSkillMetaFile is the basename of the skill
 	// meta file (e.g. "SKILL.md") at the time of persistence.
 	// Internal only: restored on subsequent turns so the
