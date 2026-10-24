@@ -276,6 +276,37 @@ export const MembersOverflowFocused: Story = {
 	},
 };
 
+/** Phones fit one tile fewer, so the "+K" tile covers one more entry. */
+export const MembersOverflowPhone: Story = {
+	args: MembersOverflow.args,
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
+
+/** The "+K" tooltip names the first ten hidden entries and counts the rest. */
+export const MembersOverflowManyFocused: Story = {
+	args: {
+		members: {
+			...mockMembers,
+			entries: buildAccessEntries({
+				...mockACL,
+				users: Array.from({ length: 24 }, (_, index) => ({
+					...MockUserMember,
+					id: `member-${index}`,
+					username: `member${index + 1}`,
+					name: `Member ${index + 1}`,
+					role: "use",
+				})),
+			}),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		within(canvasElement).getByRole("button", { name: "+18 more" }).focus();
+	},
+};
+
 /** A full row shows every avatar instead of a "+1" tile. */
 export const MembersFullRow: Story = {
 	args: {

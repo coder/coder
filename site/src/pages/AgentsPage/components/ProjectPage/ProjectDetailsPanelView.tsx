@@ -17,6 +17,14 @@ import { formatMembersHeading, type ProjectAccessEntry } from "./projectAccess";
 
 /** The most avatar tiles the members row shows, including the "+K" tile. */
 const MAX_MEMBER_TILES = 8;
+// Below `sm`, the Details card is too narrow for more tiles.
+const MAX_MEMBER_TILES_NARROW = 7;
+// Keeps the "+K" tooltip short on large projects; the dialog lists everyone.
+const MAX_TOOLTIP_NAMES = 10;
+
+/** How many entries get an avatar tile in a row of at most `maxTiles`. */
+const avatarTileCount = (entryCount: number, maxTiles: number) =>
+	entryCount > maxTiles ? maxTiles - 1 : entryCount;
 
 type MembersSectionProps = {
 	/** `undefined` while the access list loads or after loading fails. */
@@ -230,11 +238,11 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 		const groupCount = entries.filter((entry) => entry.kind === "group").length;
 		heading = formatMembersHeading(entries.length - groupCount, groupCount);
 	}
-	const overflows = entries !== undefined && entries.length > MAX_MEMBER_TILES;
-	const visibleEntries = overflows
-		? entries.slice(0, MAX_MEMBER_TILES - 1)
-		: entries;
-	const hiddenEntries = overflows ? entries.slice(MAX_MEMBER_TILES - 1) : [];
+	const avatarCount = avatarTileCount(entries?.length ?? 0, MAX_MEMBER_TILES);
+	const narrowAvatarCount = avatarTileCount(
+		entries?.length ?? 0,
+		MAX_MEMBER_TILES_NARROW,
+	);
 	const isLoading = !entries && !error;
 
 	return (
@@ -257,11 +265,14 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 					View access
 				</Button>
 			</div>
-			{visibleEntries && (
+			{entries && (
 				<ul aria-label="Project members" className="m-0 flex list-none p-0">
-					{visibleEntries.map((entry) => (
+					{entries.slice(0, avatarCount).map((entry, index) => (
 						<MemberTile
 							key={`${entry.kind}:${entry.id}`}
+							className={
+								index >= narrowAvatarCount ? "max-sm:hidden" : undefined
+							}
 							label={entry.name}
 							tooltip={entry.name}
 						>
@@ -273,20 +284,14 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 							/>
 						</MemberTile>
 					))}
-					{hiddenEntries.length > 0 && (
-						<MemberTile
-							label={`+${hiddenEntries.length} more`}
-							tooltip={hiddenEntries.map((entry) => entry.name).join(", ")}
-						>
-							<Avatar
-								size="lg"
-								aria-hidden="true"
-								className="items-center justify-center"
-							>
-								+{hiddenEntries.length}
-							</Avatar>
-						</MemberTile>
-					)}
+					<OverflowTile
+						className="sm:hidden"
+						entries={entries.slice(narrowAvatarCount)}
+					/>
+					<OverflowTile
+						className="max-sm:hidden"
+						entries={entries.slice(avatarCount)}
+					/>
 				</ul>
 			)}
 			{isLoading && (
@@ -319,17 +324,24 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 };
 
 type MemberTileProps = {
+	readonly className?: string;
 	readonly label: string;
 	readonly tooltip: string;
 	readonly children: React.ReactNode;
 };
 
 const MemberTile: React.FC<MemberTileProps> = ({
+	className,
 	label,
 	tooltip,
 	children,
 }) => (
-	<li className="flex rounded-[6px] ring-2 ring-surface-primary not-first:-ml-2">
+	<li
+		className={cn(
+			"flex rounded-[6px] ring-2 ring-surface-primary not-first:-ml-2",
+			className,
+		)}
+	>
 		<Tooltip>
 			{/* A button so keyboard users can focus a tile to read its tooltip. */}
 			<TooltipTrigger
@@ -350,6 +362,39 @@ const MemberTile: React.FC<MemberTileProps> = ({
 		</Tooltip>
 	</li>
 );
+
+type OverflowTileProps = {
+	readonly className: string;
+	/** The entries without an avatar tile. */
+	readonly entries: readonly ProjectAccessEntry[];
+};
+
+const OverflowTile: React.FC<OverflowTileProps> = ({ className, entries }) => {
+	if (entries.length === 0) {
+		return null;
+	}
+	const names = entries.slice(0, MAX_TOOLTIP_NAMES).map((entry) => entry.name);
+	const unnamedCount = entries.length - names.length;
+	return (
+		<MemberTile
+			className={className}
+			label={`+${entries.length} more`}
+			tooltip={
+				unnamedCount > 0
+					? `${names.join(", ")}, and ${unnamedCount} more`
+					: names.join(", ")
+			}
+		>
+			<Avatar
+				size="lg"
+				aria-hidden="true"
+				className="items-center justify-center"
+			>
+				+{entries.length}
+			</Avatar>
+		</MemberTile>
+	);
+};
 
 type DetailRowProps = {
 	readonly label: string;
