@@ -1,6 +1,5 @@
 import { mutationOptions, type QueryClient, queryOptions } from "react-query";
 import { API } from "#/api/api";
-import { getErrorStatus } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	chatEntitiesFamilyKey,
@@ -112,72 +111,38 @@ export const chatProjectACL = (project: TypesGen.ChatProject) =>
 			API.experimental.getChatProjectACL(project.organization_id, project.id),
 	});
 
-type SetChatProjectUserRoleVariables = {
+type SetChatProjectRoleVariables = {
 	project: TypesGen.ChatProject;
-	userId: string;
-	/** `""` removes the user's access. */
+	principal: { readonly kind: "user" | "group"; readonly id: string };
 	role: TypesGen.ChatProjectRole;
 };
 
-type SetChatProjectGroupRoleVariables = {
-	project: TypesGen.ChatProject;
-	groupId: string;
-	/** `""` removes the group's access. */
-	role: TypesGen.ChatProjectRole;
-};
-
-// A 403 means the viewer can no longer share the project, so also refresh
-// the project, whose permissions decide whether its access is editable.
-const refreshForbiddenAccess = (
-	queryClient: QueryClient,
-	error: unknown,
-	project: TypesGen.ChatProject,
-) =>
-	getErrorStatus(error) === 403 &&
-	Promise.all([
-		queryClient.invalidateQueries({ queryKey: chatProjectsKey, exact: true }),
-		queryClient.invalidateQueries({
-			queryKey: chatProjectACLKey(project.id),
-			exact: true,
-		}),
-	]);
-
-export const setChatProjectUserRole = (queryClient: QueryClient) =>
+/** Sets a user's or group's project role; an empty role removes access. */
+export const setChatProjectRole = (queryClient: QueryClient) =>
 	mutationOptions({
-		mutationFn: ({ project, userId, role }: SetChatProjectUserRoleVariables) =>
+		mutationFn: ({ project, principal, role }: SetChatProjectRoleVariables) =>
 			API.experimental.updateChatProjectACL(
 				project.organization_id,
 				project.id,
-				{ user_roles: { [userId]: role } },
+				{
+					[principal.kind === "group" ? "group_roles" : "user_roles"]: {
+						[principal.id]: role,
+					},
+				},
 			),
-		onSuccess: (_data, { project }) =>
-			queryClient.invalidateQueries({
-				queryKey: chatProjectACLKey(project.id),
-				exact: true,
-			}),
-		onError: (error, { project }) =>
-			refreshForbiddenAccess(queryClient, error, project),
-	});
-
-export const setChatProjectGroupRole = (queryClient: QueryClient) =>
-	mutationOptions({
-		mutationFn: ({
-			project,
-			groupId,
-			role,
-		}: SetChatProjectGroupRoleVariables) =>
-			API.experimental.updateChatProjectACL(
-				project.organization_id,
-				project.id,
-				{ group_roles: { [groupId]: role } },
-			),
-		onSuccess: (_data, { project }) =>
-			queryClient.invalidateQueries({
-				queryKey: chatProjectACLKey(project.id),
-				exact: true,
-			}),
-		onError: (error, { project }) =>
-			refreshForbiddenAccess(queryClient, error, project),
+		// Refresh the project too: its permissions decide whether access is
+		// editable, and a change (or a 403) can revoke the viewer's own admin.
+		onSettled: (_data, _error, { project }) =>
+			Promise.all([
+				queryClient.invalidateQueries({
+					queryKey: chatProjectsKey,
+					exact: true,
+				}),
+				queryClient.invalidateQueries({
+					queryKey: chatProjectACLKey(project.id),
+					exact: true,
+				}),
+			]),
 	});
 
 export const updateChatProjectInstructions = (

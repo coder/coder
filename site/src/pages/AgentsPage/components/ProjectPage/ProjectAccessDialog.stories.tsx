@@ -128,6 +128,15 @@ export const ManageRoleOptions: Story = {
 	},
 };
 
+export const ManageRowMenu: Story = {
+	args: { canManage: true },
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Open menu for grace" }),
+		);
+	},
+};
+
 export const ManagePendingChange: Story = {
 	args: { canManage: true, pendingPrincipalId: "sharee-2" },
 };

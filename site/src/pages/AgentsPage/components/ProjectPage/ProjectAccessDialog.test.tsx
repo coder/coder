@@ -5,12 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type {
 	ChatProjectACL,
-	Group,
 	OrganizationMemberWithUserData,
 } from "#/api/typesGenerated";
 import {
 	MockChatProject,
 	MockGroup,
+	MockGroup3,
 	MockOrganizationMember,
 	MockOrganizationMember2,
 	MockUserMember,
@@ -27,15 +27,8 @@ const MockOtherMember: OrganizationMemberWithUserData = {
 	...MockOrganizationMember2,
 	user_id: "test-user-3",
 	username: "TestUser3",
-	email: "test3@coder.com",
+	email: "test3@example.com",
 	name: "",
-};
-
-const MockOtherGroup: Group = {
-	...MockGroup,
-	id: "other-group",
-	name: "Back-End",
-	display_name: "Back-End",
 };
 
 const mockACL: ChatProjectACL = {
@@ -77,9 +70,6 @@ const renderDialog = (props: Partial<DialogProps> = {}) => {
 const getAutocomplete = () =>
 	screen.getByRole("button", { name: "User or group" });
 
-const openAutocomplete = (user: ReturnType<typeof userEvent.setup>) =>
-	user.click(getAutocomplete());
-
 const chooseAddRole = async (
 	user: ReturnType<typeof userEvent.setup>,
 	role: "Admin" | "Member",
@@ -102,7 +92,7 @@ describe("ProjectAccessDialog", () => {
 		});
 		vi.spyOn(API, "getGroupsByOrganization").mockResolvedValue([
 			MockGroup,
-			MockOtherGroup,
+			MockGroup3,
 		]);
 	});
 
@@ -113,7 +103,7 @@ describe("ProjectAccessDialog", () => {
 	it("adds the selected user as an admin, then clears the form", async () => {
 		const { user, onAdd } = renderDialog();
 
-		await openAutocomplete(user);
+		await user.click(getAutocomplete());
 		await user.click(await screen.findByRole("option", { name: /TestUser3/ }));
 		await chooseAddRole(user, "Admin");
 		await user.click(screen.getByRole("button", { name: "Add" }));
@@ -121,33 +111,53 @@ describe("ProjectAccessDialog", () => {
 		expect(onAdd).toHaveBeenCalledWith(
 			{ kind: "user", id: MockOtherMember.user_id },
 			"admin",
-			expect.any(Function),
+			expect.anything(),
 		);
-		act(() => onAdd.mock.calls[0][2]());
+		act(() => onAdd.mock.calls[0][2].onSuccess?.());
+		act(() => onAdd.mock.calls[0][2].onSettled());
 		expect(getAutocomplete()).toHaveFocus();
 		await user.click(screen.getByRole("button", { name: "Add" }));
 		expect(onAdd).toHaveBeenCalledTimes(1);
 	});
 
+	it("keeps a selection changed while an add saves", async () => {
+		const { user, onAdd } = renderDialog();
+
+		await user.click(getAutocomplete());
+		await user.click(await screen.findByRole("option", { name: /TestUser3/ }));
+		await chooseAddRole(user, "Admin");
+		await user.click(screen.getByRole("button", { name: "Add" }));
+		await user.click(getAutocomplete());
+		await user.click(await screen.findByRole("option", { name: /Back-End/ }));
+		act(() => onAdd.mock.calls[0][2].onSuccess?.());
+		await user.click(screen.getByRole("button", { name: "Add" }));
+
+		expect(onAdd).toHaveBeenLastCalledWith(
+			{ kind: "group", id: MockGroup3.id },
+			"admin",
+			expect.anything(),
+		);
+	});
+
 	it("adds the selected group as a member", async () => {
 		const { user, onAdd } = renderDialog();
 
-		await openAutocomplete(user);
+		await user.click(getAutocomplete());
 		await user.click(await screen.findByRole("option", { name: /Back-End/ }));
 		await chooseAddRole(user, "Member");
 		await user.click(screen.getByRole("button", { name: "Add" }));
 
 		expect(onAdd).toHaveBeenCalledWith(
-			{ kind: "group", id: MockOtherGroup.id },
+			{ kind: "group", id: MockGroup3.id },
 			"use",
-			expect.any(Function),
+			expect.anything(),
 		);
 	});
 
 	it("does not add a user or group without a role", async () => {
 		const { user, onAdd } = renderDialog();
 
-		await openAutocomplete(user);
+		await user.click(getAutocomplete());
 		await user.click(await screen.findByRole("option", { name: /TestUser3/ }));
 		await user.click(screen.getByRole("button", { name: "Add" }));
 
@@ -164,7 +174,7 @@ describe("ProjectAccessDialog", () => {
 			}),
 		});
 
-		await openAutocomplete(user);
+		await user.click(getAutocomplete());
 		await screen.findByRole("option", { name: /TestUser3/ });
 
 		expect(
@@ -187,8 +197,11 @@ describe("ProjectAccessDialog", () => {
 			expect(onChangeRole).toHaveBeenCalledWith(
 				expect.objectContaining({ kind: "user", id: MockUserMember.id }),
 				"use",
+				expect.anything(),
 			),
 		);
+		act(() => onChangeRole.mock.calls[0][2].onSettled());
+		expect(getAutocomplete()).toHaveFocus();
 	});
 
 	it("removes a listed user", async () => {
@@ -203,18 +216,19 @@ describe("ProjectAccessDialog", () => {
 
 		expect(onRemove).toHaveBeenCalledWith(
 			expect.objectContaining({ kind: "user", id: MockUserMember.id }),
-			expect.any(Function),
+			expect.anything(),
 		);
-		act(() => onRemove.mock.calls[0][1]());
+		// A failed removal settles without succeeding.
+		act(() => onRemove.mock.calls[0][1].onSettled());
 		expect(getAutocomplete()).toHaveFocus();
 	});
 
 	it("ignores adds and row changes while another change saves", async () => {
 		const { user, onAdd, onChangeRole, onRemove } = renderDialog({
-			pendingPrincipalId: MockOtherGroup.id,
+			pendingPrincipalId: MockGroup3.id,
 		});
 
-		await openAutocomplete(user);
+		await user.click(getAutocomplete());
 		await user.click(await screen.findByRole("option", { name: /TestUser3/ }));
 		await chooseAddRole(user, "Admin");
 		await user.click(screen.getByRole("button", { name: "Add" }));

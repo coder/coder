@@ -6,8 +6,7 @@ import {
 	chatProjectACL,
 	chatProjectInstructions,
 	deleteChatProjectInstructions,
-	setChatProjectGroupRole,
-	setChatProjectUserRole,
+	setChatProjectRole,
 	updateChatProjectInstructions,
 } from "#/api/queries/chatProjects";
 import { user } from "#/api/queries/users";
@@ -20,6 +19,7 @@ import { ProjectDetailsPanelView } from "./ProjectDetailsPanelView";
 import { ProjectInstructionsDialog } from "./ProjectInstructionsDialog";
 import { ProjectSkillsDialog } from "./ProjectSkillsDialog";
 import {
+	type AccessChangeCallbacks,
 	buildAccessEntries,
 	type ProjectAccessPrincipal,
 } from "./projectAccess";
@@ -78,11 +78,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	const [isAccessDialogOpen, setIsAccessDialogOpen] = useState(false);
 	const accessFocusReturn = useDialogFocusReturn();
 	const retryACL = () => void aclQuery.refetch();
-	const userRoleMutation = useMutation(setChatProjectUserRole(queryClient));
-	const groupRoleMutation = useMutation(setChatProjectGroupRole(queryClient));
-	// Like isMutationInFlight below: one access change at a time, so a
-	// newer change cannot hide the result of an earlier one.
-	const isAccessChangeInFlight = useRef(false);
+	const roleMutation = useMutation(setChatProjectRole(queryClient));
 	const updateMutation = useMutation(
 		updateChatProjectInstructions(queryClient, project),
 	);
@@ -93,6 +89,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	// isPending reaches the dialog only after a render, so a fast double
 	// click could otherwise submit the same change twice.
 	const isMutationInFlight = useRef(false);
+	const isAccessChangeInFlight = useRef(false);
 
 	const resetErrors = () => {
 		updateMutation.reset();
@@ -104,15 +101,19 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 		setIsEditorOpen(true);
 	};
 
-	const runMutation = (mutate: (onSettled: () => void) => void) => {
-		if (isMutationInFlight.current) {
+	const runMutation = (
+		inFlight: React.RefObject<boolean>,
+		reset: () => void,
+		mutate: (onSettled: () => void) => void,
+	) => {
+		if (inFlight.current) {
 			return;
 		}
-		isMutationInFlight.current = true;
+		inFlight.current = true;
 		// Clear the previous action's error so only the latest one shows.
-		resetErrors();
+		reset();
 		mutate(() => {
-			isMutationInFlight.current = false;
+			inFlight.current = false;
 		});
 	};
 
@@ -120,39 +121,27 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 		// Resetting a pending mutation drops its per-call onSettled, which
 		// would leave isAccessChangeInFlight set.
 		if (!isAccessChangeInFlight.current) {
-			userRoleMutation.reset();
-			groupRoleMutation.reset();
+			roleMutation.reset();
 		}
 	};
 
 	const setAccessRole = (
 		principal: ProjectAccessPrincipal,
 		role: ChatProjectRole,
-		onSuccess?: () => void,
-	) => {
-		if (isAccessChangeInFlight.current) {
-			return;
-		}
-		resetAccessErrors();
-		isAccessChangeInFlight.current = true;
-		const callbacks = {
-			onSuccess,
-			onSettled: () => {
-				isAccessChangeInFlight.current = false;
-			},
-		};
-		if (principal.kind === "group") {
-			groupRoleMutation.mutate(
-				{ project, groupId: principal.id, role },
-				callbacks,
-			);
-		} else {
-			userRoleMutation.mutate(
-				{ project, userId: principal.id, role },
-				callbacks,
-			);
-		}
-	};
+		{ onSuccess, onSettled }: AccessChangeCallbacks,
+	) =>
+		runMutation(isAccessChangeInFlight, roleMutation.reset, (onDone) =>
+			roleMutation.mutate(
+				{ project, principal, role },
+				{
+					onSuccess,
+					onSettled: () => {
+						onDone();
+						onSettled();
+					},
+				},
+			),
+		);
 
 	return (
 		<>
@@ -211,7 +200,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 					}
 				}}
 				onSave={(instructions) =>
-					runMutation((onSettled) =>
+					runMutation(isMutationInFlight, resetErrors, (onSettled) =>
 						updateMutation.mutate(
 							{ instructions },
 							{ onSuccess: () => setIsEditorOpen(false), onSettled },
@@ -219,7 +208,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 					)
 				}
 				onDelete={() =>
-					runMutation((onSettled) =>
+					runMutation(isMutationInFlight, resetErrors, (onSettled) =>
 						deleteMutation.mutate(undefined, {
 							onSuccess: () => setIsEditorOpen(false),
 							onSettled,
@@ -250,17 +239,15 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				currentUserId={me.id}
 				onAdd={setAccessRole}
 				onChangeRole={setAccessRole}
-				onRemove={(principal, onSuccess) =>
-					setAccessRole(principal, "", onSuccess)
+				onRemove={(principal, callbacks) =>
+					setAccessRole(principal, "", callbacks)
 				}
 				pendingPrincipalId={
-					userRoleMutation.isPending
-						? userRoleMutation.variables.userId
-						: groupRoleMutation.isPending
-							? groupRoleMutation.variables.groupId
-							: undefined
+					roleMutation.isPending
+						? roleMutation.variables.principal.id
+						: undefined
 				}
-				mutationError={userRoleMutation.error ?? groupRoleMutation.error}
+				mutationError={roleMutation.error}
 			/>
 		</>
 	);

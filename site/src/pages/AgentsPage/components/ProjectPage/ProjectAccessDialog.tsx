@@ -46,12 +46,12 @@ import {
 } from "#/modules/workspaces/WorkspaceSharingForm/UserOrGroupAutocomplete";
 import { RetryButton } from "../RetryButton";
 import {
+	type AccessChangeCallbacks,
+	type AssignableRole,
 	chatProjectRoleLabel,
 	type ProjectAccessEntry,
 	type ProjectAccessPrincipal,
 } from "./projectAccess";
-
-type AssignableRole = Exclude<ChatProjectRole, "">;
 
 const roleDescriptions: Record<AssignableRole, string> = {
 	admin:
@@ -73,19 +73,16 @@ type ProjectAccessDialogProps = {
 	readonly organizationId: string;
 	/** The viewer cannot change their own access. */
 	readonly currentUserId: string;
-	/** Grants access; call `onSuccess` once the change is saved. */
+	/** Grants access. Each change runs its callbacks once it saves or fails. */
 	readonly onAdd: (
 		principal: ProjectAccessPrincipal,
 		role: AssignableRole,
-		onSuccess: () => void,
+		callbacks: AccessChangeCallbacks,
 	) => void;
-	readonly onChangeRole: (
-		principal: ProjectAccessPrincipal,
-		role: AssignableRole,
-	) => void;
+	readonly onChangeRole: ProjectAccessDialogProps["onAdd"];
 	readonly onRemove: (
 		principal: ProjectAccessPrincipal,
-		onSuccess: () => void,
+		callbacks: AccessChangeCallbacks,
 	) => void;
 	/** The user or group whose change is saving, including one being added. */
 	readonly pendingPrincipalId: string | undefined;
@@ -97,9 +94,11 @@ export const ProjectAccessDialog: React.FC<ProjectAccessDialogProps> = (
 	props,
 ) => <ProjectAccessDialogContent {...props} addTriggerId={useId()} />;
 
-const ProjectAccessDialogContent: React.FC<
-	ProjectAccessDialogProps & { readonly addTriggerId: string }
-> = ({
+type ProjectAccessDialogContentProps = ProjectAccessDialogProps & {
+	readonly addTriggerId: string;
+};
+
+const ProjectAccessDialogContent: React.FC<ProjectAccessDialogContentProps> = ({
 	open,
 	onOpenChange,
 	entries,
@@ -130,8 +129,6 @@ const ProjectAccessDialogContent: React.FC<
 					<AddAccessForm
 						triggerId={addTriggerId}
 						organizationId={organizationId}
-						// Owners and existing entries cannot be added, and the
-						// viewer cannot change their own access.
 						exclude={[...entries, { id: currentUserId }]}
 						pendingPrincipalId={pendingPrincipalId}
 						onAdd={onAdd}
@@ -195,9 +192,8 @@ const ProjectAccessDialogContent: React.FC<
 										}
 										disabled={pendingPrincipalId !== undefined}
 										onChangeRole={onChangeRole}
-										onRemove={(principal) =>
-											onRemove(principal, () => focusById(addTriggerId))
-										}
+										onRemove={onRemove}
+										onSettled={() => focusById(addTriggerId)}
 									/>
 								))
 							) : (
@@ -220,7 +216,8 @@ const ProjectAccessDialogContent: React.FC<
 	</Dialog>
 );
 
-// Keeps focus in the add row, not on the dialog, after access changes.
+// Saving disables the control that started a change, which drops its focus,
+// so focus returns to the add row once the change settles.
 const focusById = (id: string) => document.getElementById(id)?.focus();
 
 type AddAccessFormProps = {
@@ -238,9 +235,11 @@ const AddAccessForm: React.FC<AddAccessFormProps> = ({
 	pendingPrincipalId,
 	onAdd,
 }) => {
-	const [selection, setSelection] =
-		useState<UserOrGroupAutocompleteValue>(null);
-	const [role, setRole] = useState<AssignableRole | "">("");
+	const [draft, setDraft] = useState<{
+		selection: UserOrGroupAutocompleteValue;
+		role: AssignableRole | "";
+	}>({ selection: null, role: "" });
+	const { selection, role } = draft;
 	// The selection is never listed yet, so a pending change for it is this add.
 	const isAdding = selection !== null && selection.id === pendingPrincipalId;
 	const isChangePending = pendingPrincipalId !== undefined;
@@ -256,10 +255,15 @@ const AddAccessForm: React.FC<AddAccessFormProps> = ({
 				onAdd(
 					{ kind: isGroup(selection) ? "group" : "user", id: selection.id },
 					role,
-					() => {
-						setSelection(null);
-						setRole("");
-						focusById(triggerId);
+					{
+						// Keep a selection the user changed while this add saved.
+						onSuccess: () =>
+							setDraft((current) =>
+								current.selection?.id === selection.id
+									? { selection: null, role: "" }
+									: current,
+							),
+						onSettled: () => focusById(triggerId),
 					},
 				);
 			}}
@@ -271,7 +275,9 @@ const AddAccessForm: React.FC<AddAccessFormProps> = ({
 				<UserOrGroupAutocomplete
 					id={triggerId}
 					value={selection}
-					onChange={setSelection}
+					onChange={(selection) =>
+						setDraft((current) => ({ ...current, selection }))
+					}
 					organizationId={organizationId}
 					exclude={exclude}
 					className="w-full"
@@ -281,11 +287,11 @@ const AddAccessForm: React.FC<AddAccessFormProps> = ({
 				value={role}
 				label="Role"
 				disabled={isAdding}
-				onValueChange={setRole}
+				onValueChange={(role) => setDraft((current) => ({ ...current, role }))}
 			/>
 			<Button type="submit" disabled={!selection || !role || isChangePending}>
 				<Spinner loading={isAdding}>
-					<UserPlusIcon className="size-icon-sm" />
+					<UserPlusIcon />
 				</Spinner>
 				Add
 			</Button>
@@ -344,10 +350,10 @@ type AccessRowProps = {
 	readonly entry: ProjectAccessEntry;
 	readonly canManage: boolean;
 	readonly isCurrentUser: boolean;
-	/** True while any access change saves. */
 	readonly disabled: boolean;
 	readonly onChangeRole: ProjectAccessDialogProps["onChangeRole"];
-	readonly onRemove: (principal: ProjectAccessPrincipal) => void;
+	readonly onRemove: ProjectAccessDialogProps["onRemove"];
+	readonly onSettled: () => void;
 };
 
 const AccessRow: React.FC<AccessRowProps> = ({
@@ -357,6 +363,7 @@ const AccessRow: React.FC<AccessRowProps> = ({
 	disabled,
 	onChangeRole,
 	onRemove,
+	onSettled,
 }) => {
 	const editableEntry =
 		canManage && entry.kind !== "owner" && !isCurrentUser ? entry : undefined;
@@ -385,7 +392,9 @@ const AccessRow: React.FC<AccessRowProps> = ({
 						value={editableEntry.role}
 						label={`Role for ${editableEntry.name}`}
 						disabled={disabled}
-						onValueChange={(role) => onChangeRole(editableEntry, role)}
+						onValueChange={(role) =>
+							onChangeRole(editableEntry, role, { onSettled })
+						}
 					/>
 				) : entry.kind === "owner" ? (
 					<Badge variant="info">Owner</Badge>
@@ -412,7 +421,7 @@ const AccessRow: React.FC<AccessRowProps> = ({
 							<DropdownMenuContent align="end">
 								<DropdownMenuItem
 									className="text-content-destructive focus:text-content-destructive"
-									onClick={() => onRemove(editableEntry)}
+									onClick={() => onRemove(editableEntry, { onSettled })}
 								>
 									Remove
 								</DropdownMenuItem>

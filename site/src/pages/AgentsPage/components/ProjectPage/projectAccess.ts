@@ -5,11 +5,11 @@ import type {
 } from "#/api/typesGenerated";
 import { getGroupSubtitle } from "#/modules/groups";
 
-/** Display labels for project roles. The empty role only removes access in update requests. */
-export const chatProjectRoleLabel: Record<
-	Exclude<ChatProjectRole, "">,
-	string
-> = {
+/** A role that can be granted; the empty role only removes access. */
+export type AssignableRole = Exclude<ChatProjectRole, "">;
+
+/** Display labels for project roles. */
+export const chatProjectRoleLabel: Record<AssignableRole, string> = {
 	admin: "Admin",
 	use: "Member",
 };
@@ -37,6 +37,12 @@ export type ProjectAccessEntry =
 export type ProjectAccessPrincipal = {
 	readonly kind: "user" | "group";
 	readonly id: string;
+};
+
+/** Run once an access change saves, and once it finishes either way. */
+export type AccessChangeCallbacks = {
+	readonly onSuccess?: () => void;
+	readonly onSettled: () => void;
 };
 
 /** `memberCount` includes the owner; groups are counted separately. */
