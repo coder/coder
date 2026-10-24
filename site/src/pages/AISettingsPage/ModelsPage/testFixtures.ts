@@ -111,6 +111,14 @@ export const MockBedrockProviderState: ProviderState = {
 	models: [mockBedrockClaude],
 };
 
+export const MockBedrockInvokeModelProviderState: ProviderState = {
+	...MockBedrockProviderState,
+	providerDescriptor: {
+		...MockBedrockProviderDescriptor,
+		bedrock_invoke_model: true,
+	},
+};
+
 export const MockAzureProviderState: ProviderState = {
 	...MockOpenAIProviderState,
 	key: "prov-azure",

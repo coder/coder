@@ -4512,6 +4512,76 @@ func TestListChatModelConfigs(t *testing.T) {
 		}
 		t.Fatal("bedrock provider descriptor not found")
 	})
+
+	t.Run("BedrockDescriptorReportsInvokeModelOverride", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		newBedrockProvider := func(providerType database.AIProviderType, protocol codersdk.AIProviderBedrockProtocol) database.AIProvider {
+			settings, err := json.Marshal(codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:         "us-east-1",
+					Model:          "us.anthropic.claude-sonnet-5",
+					SmallFastModel: "us.anthropic.claude-haiku-5-5",
+					Protocol:       protocol,
+				},
+			})
+			require.NoError(t, err)
+			return dbgen.AIProvider(t, db, database.AIProvider{
+				Type:     providerType,
+				Settings: sql.NullString{String: string(settings), Valid: true},
+			})
+		}
+		defaultProtocol := newBedrockProvider(database.AIProviderTypeBedrock, "")
+		invokeModel := newBedrockProvider(database.AIProviderTypeBedrock, codersdk.AIProviderBedrockProtocolInvokeModel)
+		mantle := newBedrockProvider(database.AIProviderTypeBedrock, codersdk.AIProviderBedrockProtocolMantle)
+		// Anthropic rows can carry Bedrock settings until the backfill promotes
+		// them, but the gateway serves them as plain Anthropic providers.
+		anthropic := newBedrockProvider(database.AIProviderTypeAnthropic, codersdk.AIProviderBedrockProtocolInvokeModel)
+
+		response, err := client.ChatModels(ctx, firstUser.OrganizationID)
+		require.NoError(t, err)
+		invokeModelByProvider := make(map[uuid.UUID]bool)
+		for _, descriptor := range response.Providers {
+			invokeModelByProvider[descriptor.ID] = descriptor.BedrockInvokeModel
+		}
+
+		require.True(t, invokeModelByProvider[defaultProtocol.ID])
+		require.True(t, invokeModelByProvider[invokeModel.ID])
+		require.Contains(t, invokeModelByProvider, mantle.ID)
+		require.False(t, invokeModelByProvider[mantle.ID])
+		require.Contains(t, invokeModelByProvider, anthropic.ID)
+		require.False(t, invokeModelByProvider[anthropic.ID])
+	})
+
+	t.Run("BedrockDescriptorToleratesCorruptSettings", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		// Bedrock providers always support ambient credentials, so listing
+		// them must not depend on decoding their settings.
+		provider := dbgen.AIProvider(t, db, database.AIProvider{
+			Type:     database.AIProviderTypeBedrock,
+			Settings: sql.NullString{String: `{"bedrock":`, Valid: true},
+		})
+
+		response, err := client.ChatModels(ctx, firstUser.OrganizationID)
+		require.NoError(t, err)
+		for _, descriptor := range response.Providers {
+			if descriptor.ID == provider.ID {
+				require.True(t, descriptor.HasEffectiveAPIKey)
+				require.False(t, descriptor.BedrockInvokeModel)
+				return
+			}
+		}
+		t.Fatal("bedrock provider descriptor not found")
+	})
 }
 
 func TestGetChatModel(t *testing.T) {

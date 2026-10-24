@@ -22897,6 +22897,10 @@ const docTemplate = `{
                 "available": {
                     "type": "boolean"
                 },
+                "bedrock_invoke_model": {
+                    "description": "BedrockInvokeModel reports whether the provider uses the AWS Bedrock\nInvokeModel protocol. That protocol ignores the model a client requests\nand sends the provider's configured models upstream instead.",
+                    "type": "boolean"
+                },
                 "display_name": {
                     "type": "string"
                 },

@@ -2821,6 +2821,10 @@ type ChatModelProviderDescriptor struct {
 	AllowUserAPIKey    bool                               `json:"allow_user_api_key"`
 	Available          bool                               `json:"available"`
 	UnavailableReason  ChatModelProviderUnavailableReason `json:"unavailable_reason,omitempty"`
+	// BedrockInvokeModel reports whether the provider uses the AWS Bedrock
+	// InvokeModel protocol. That protocol ignores the model a client requests
+	// and sends the provider's configured models upstream instead.
+	BedrockInvokeModel bool `json:"bedrock_invoke_model,omitempty"`
 }
 
 // OrganizationChatModelsResponse is the org chat model config collection:

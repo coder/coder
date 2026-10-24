@@ -32,6 +32,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
+	aibridgeconfig "github.com/coder/coder/v2/aibridge/config"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
@@ -8437,13 +8439,15 @@ func (api *API) chatModelProviderDescriptors(
 			}
 		}
 		hasUserKey := userKeyStatus[provider.ID]
+		settings, settingsErr := db2sdk.AIProviderSettings(provider.Settings)
 		// Some provider configurations support ambient credentials rather than a
 		// stored key. Actual credential availability is checked by the gateway.
+		// Bedrock always supports them, so its settings are only needed for the
+		// InvokeModel hint, which corrupt settings leave false.
 		supportsAmbientCredentials := provider.Type == database.AIProviderTypeBedrock
 		if !supportsAmbientCredentials {
-			settings, err := db2sdk.AIProviderSettings(provider.Settings)
-			if err != nil {
-				return nil, xerrors.Errorf("decode AI provider settings: %w", err)
+			if settingsErr != nil {
+				return nil, xerrors.Errorf("decode AI provider settings: %w", settingsErr)
 			}
 			supportsAmbientCredentials = aiProviderSupportsAmbientCredentials(settings)
 		}
@@ -8457,9 +8461,19 @@ func (api *API) chatModelProviderDescriptors(
 			HasUserAPIKey:      hasUserKey,
 			HasEffectiveAPIKey: hasKey || hasUserKey || supportsAmbientCredentials,
 			AllowUserAPIKey:    api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
+			BedrockInvokeModel: provider.Type == database.AIProviderTypeBedrock &&
+				bedrockUsesInvokeModel(settings.Bedrock),
 		})
 	}
 	return out, nil
+}
+
+// bedrockUsesInvokeModel reports whether the gateway serves the provider over
+// the Bedrock InvokeModel protocol, which sends the provider's configured
+// models upstream in place of the requested model.
+func bedrockUsesInvokeModel(settings *codersdk.AIProviderBedrockSettings) bool {
+	cfg := agplaibridge.BedrockConfig("", settings)
+	return cfg != nil && cfg.ResolvedProtocol() == aibridgeconfig.BedrockProtocolInvokeModel
 }
 
 // aiProviderSupportsAmbientCredentials reports whether the provider's settings

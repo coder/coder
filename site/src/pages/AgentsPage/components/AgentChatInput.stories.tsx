@@ -13,6 +13,7 @@ import {
 import { API } from "#/api/api";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockBedrockInvokeModelSelectorOption } from "#/modules/aiModels/modelSelectorFixtures";
 import {
 	MockChatContextClean,
 	MockMCPServerConfig,
@@ -264,6 +265,27 @@ export const NoModelOptions: Story = {
 		isDisabled: false,
 		hasModelOptions: false,
 		initialValue: "Model required",
+	},
+};
+
+export const BedrockInvokeModelNotice: Story = {
+	args: {
+		selectedModel: MockBedrockInvokeModelSelectorOption.id,
+		modelOptions: [MockBedrockInvokeModelSelectorOption],
+	},
+};
+
+export const WithWarning: Story = {
+	args: {
+		warning: "This prompt was prefilled from a link. Review it before sending.",
+	},
+};
+
+export const WithWarningAndBedrockInvokeModelNotice: Story = {
+	args: {
+		warning: "This prompt was prefilled from a link. Review it before sending.",
+		selectedModel: MockBedrockInvokeModelSelectorOption.id,
+		modelOptions: [MockBedrockInvokeModelSelectorOption],
 	},
 };
 
@@ -712,6 +734,17 @@ export const ReadOnlyNotice: Story = {
 		...mcpDefaults,
 		mcpServers: [linearMCP, githubMCPConnected],
 		selectedMCPServerIds: [linearMCP.id, githubMCPConnected.id],
+		isDisabled: true,
+		isReadOnly: true,
+		readOnlyNotice: "This chat is owned by Tyler. It is read-only.",
+	},
+};
+
+/** A read-only viewer cannot send, so the Bedrock InvokeModel notice is hidden. */
+export const ReadOnlyWithBedrockInvokeModel: Story = {
+	args: {
+		selectedModel: MockBedrockInvokeModelSelectorOption.id,
+		modelOptions: [MockBedrockInvokeModelSelectorOption],
 		isDisabled: true,
 		isReadOnly: true,
 		readOnlyNotice: "This chat is owned by Tyler. It is read-only.",

@@ -11,7 +11,9 @@ import { withToaster } from "#/testHelpers/storybook";
 import { OrganizationModelsContext } from "../organizationModels";
 import {
 	MockAnthropicProviderState,
+	MockBedrockInvokeModelProviderState,
 	MockOpenAIProviderState,
+	mockBedrockClaude,
 	mockGPT5,
 } from "../testFixtures";
 import UpdateModelPage from "./UpdateModelPage";
@@ -85,6 +87,14 @@ export const Default: Story = {
 				name: `Organization ${MockDefaultOrganization.display_name}`,
 			}),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const BedrockInvokeModelProvider: Story = {
+	args: {
+		model: mockBedrockClaude,
+		providerStates: [MockBedrockInvokeModelProviderState],
+		selectedProviderState: MockBedrockInvokeModelProviderState,
 	},
 };
 
