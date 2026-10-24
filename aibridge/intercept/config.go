@@ -22,4 +22,9 @@ type Config struct {
 	// Nil turns forwarding off; an empty map enables cleanup without injection.
 	// Attributes without a destination are not forwarded.
 	ActorHeaderNames map[string]string
+	// UpstreamHeaders carries admin-configured custom headers applied to
+	// every upstream request for the provider. See
+	// headers.ApplyUpstreamHeaders. Nil or empty leaves default behavior
+	// unchanged.
+	UpstreamHeaders map[string]string
 }

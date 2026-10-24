@@ -74,6 +74,11 @@ type Anthropic struct {
 	// ActorHeaderNames maps actor attributes to upstream header names.
 	// Nil turns forwarding off; an empty map enables cleanup without injection.
 	ActorHeaderNames map[string]string
+	// UpstreamHeaders carries admin-configured custom headers sent on
+	// every upstream request for this provider. Values may embed
+	// headers.ChatIDPlaceholder for per-conversation stability. Nil or
+	// empty leaves default behavior unchanged.
+	UpstreamHeaders map[string]string
 }
 
 // BedrockProtocol selects which AWS Bedrock wire protocol a provider targets.
@@ -188,6 +193,13 @@ type OpenAI struct {
 	// ActorHeaderNames maps actor attributes to upstream header names.
 	// Nil turns forwarding off; an empty map enables cleanup without injection.
 	ActorHeaderNames map[string]string
+	// UpstreamHeaders carries admin-configured custom headers sent on
+	// every upstream request for this provider (e.g. a routing session
+	// header required by OpenAI-compatible endpoints such as OpenCode
+	// Zen). Values may embed headers.ChatIDPlaceholder for
+	// per-conversation stability. Nil or empty leaves default behavior
+	// unchanged.
+	UpstreamHeaders map[string]string
 }
 
 type Copilot struct {
@@ -196,6 +208,10 @@ type Copilot struct {
 	BaseURL        string
 	APIDumpDir     string
 	CircuitBreaker *CircuitBreaker
+	// UpstreamHeaders carries admin-configured custom headers sent on
+	// every upstream request for this provider. Nil or empty leaves
+	// default behavior unchanged.
+	UpstreamHeaders map[string]string
 }
 
 // CircuitBreaker holds configuration for circuit breakers.

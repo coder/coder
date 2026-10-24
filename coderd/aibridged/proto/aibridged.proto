@@ -231,6 +231,11 @@ message AIProvider {
   // Claude Platform for AWS, Anthropic's AWS-hosted Messages API. It is
   // mutually exclusive with bedrock.
   AIProviderKindClaudePlatformAWS claude_platform_aws = 7;
+  // upstream_headers carries admin-configured custom headers sent on every
+  // upstream request for the provider (e.g. a routing session header).
+  // Values are plain strings, never credentials. Populated only for
+  // enabled providers.
+  map<string, string> upstream_headers = 8;
 }
 
 // AIProviderKindClaudePlatformAWS configures Anthropic's AWS-hosted Messages
