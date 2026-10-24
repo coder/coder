@@ -110,6 +110,7 @@
 		"erasing-op": "error",
 		"no-unused-expressions": "error",
 		"static-components": "error",
+		"no-conditional-tests": "error",
 
 		// --- security ---
 		"jsx-no-target-blank": "error",
@@ -238,7 +239,6 @@
 		"control-has-associated-label": "off", // (small)
 		"no-noninteractive-element-interactions": "off", // (small)
 		"no-useless-fallback-in-spread": "off", // (small)
-		"no-conditional-tests": "off", // (small)
 
 		"no-restricted-imports": [
 			"error",
