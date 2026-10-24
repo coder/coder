@@ -80,7 +80,7 @@ To correctly route the traffic backwards, the corporate router must correctly ro
 - Traffic sent from the client to the external IP of the corporate router back to the cluster router, and
 - Traffic sent from the agent to the external IP of the corporate router to the VPN exit node.
 
-This behaviour is known as "hairpinning", and may not be supported in all network configurations.
+This behavior is known as "hairpinning", and may not be supported in all network configurations.
 
 If hairpinning is not supported, deploying an internal STUN server can aid establishing direct connections between client and agent.
 When the agent and client query this internal STUN server, they will be able to determine the addresses on the corporate network from which their traffic appears to originate.

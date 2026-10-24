@@ -353,7 +353,7 @@ It does not cancel running provisioner jobs, so there may still be some delay in
 At this stage, most prebuild related impact will have been mitigated.
 There may still be a bugged template version, but it will no longer pollute provisioner queues with prebuilt workspace jobs.
 If the latest version of a template is also broken for reasons unrelated to prebuilds, then users are able to create workspaces using a previous template version.
-Some running jobs may have been initiated by the prebuild system, but these cannot be cancelled without potentially orphaning resources that have already been deployed by Terraform.
+Some running jobs may have been initiated by the prebuild system, but these cannot be canceled without potentially orphaning resources that have already been deployed by Terraform.
 Depending on your deployment and template provisioning times, it might be best to upload a new template version and wait for it to be processed organically.
 
 #### Cancel running prebuild provisioning jobs (Optional)

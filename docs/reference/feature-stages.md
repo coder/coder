@@ -129,7 +129,7 @@ Log lines about a failed condition record only the experiment, the rule revision
 #### When a change takes effect
 
 On supporting replicas, a fresh authoritative database read after the update commits observes the new rule.
-In-flight evaluations and work already using an earlier decision are not cancelled.
+In-flight evaluations and work already using an earlier decision are not canceled.
 All serving replicas must run a supporting version before you rely on this control.
 
 Replicas that run an earlier version ignore rules and use their startup `--experiments` list.

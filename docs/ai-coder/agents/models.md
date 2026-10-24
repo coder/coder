@@ -41,7 +41,7 @@ Configuring such a provider does not unlock Agents; add one of the supported pro
 ### Add a provider
 
 LLM providers are managed from the deployment AI settings, not from the Agents settings page.
-A provider is deployment-wide, whilst the models that reference it are organization-scoped.
+A provider is deployment-wide, while the models that reference it are organization-scoped.
 
 1. Navigate to **Admin settings** > **AI**.
 1. Select **Providers**.
