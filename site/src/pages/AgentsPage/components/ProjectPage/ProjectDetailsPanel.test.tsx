@@ -605,4 +605,16 @@ describe("ProjectDetailsPanel", () => {
 		);
 		expect(getUser).not.toHaveBeenCalled();
 	});
+
+	it("shows an unknown owner for another user's project when the ACL fails", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		vi.spyOn(API.experimental, "getChatProjectACL").mockRejectedValue(
+			mockApiError({ message: "Failed to get chat project ACL." }),
+		);
+		renderPanel({ ...MockChatProject, owner_id: MockUserMember.id });
+
+		await within(screen.getByRole("region", { name: "Details" })).findByText(
+			"Unknown",
+		);
+	});
 });
