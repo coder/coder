@@ -15,6 +15,7 @@ import (
 
 	"github.com/aymanbagabas/go-udiff"
 	"github.com/google/uuid"
+	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -128,6 +129,7 @@ func (api *API) streamFile(ctx context.Context, rw http.ResponseWriter, path str
 	}
 	rw.Header().Set("Content-Type", mimeType)
 	rw.Header().Set("Content-Length", strconv.FormatInt(bytesToRead, 10))
+	rw.Header().Set("ETag", fileETag(stat))
 	rw.WriteHeader(http.StatusOK)
 
 	reader := io.NewSectionReader(f, offset, bytesToRead)
@@ -166,7 +168,38 @@ func (api *API) HandleReadFileLines(rw http.ResponseWriter, r *http.Request) {
 		MaxResponseLines: int(maxResponseLines),
 		MaxResponseBytes: int(maxResponseBytes),
 	})
+	// chatd serves read_file through this endpoint, so a repository a
+	// chat only reads is watched too. The directory is recorded rather
+	// than the file so reading many files in one directory adds one
+	// path; it resolves to the same repository.
+	if resp.Success {
+		if chatIDs, ok := api.chatPathIDs(ctx); ok {
+			api.pathStore.AddReadPaths(chatIDs, []string{filepath.Dir(path)})
+		}
+	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// trackChatPaths records paths a chat wrote for git watch.
+func (api *API) trackChatPaths(ctx context.Context, paths ...string) {
+	if chatIDs, ok := api.chatPathIDs(ctx); ok {
+		api.pathStore.AddPaths(chatIDs, paths)
+	}
+}
+
+// chatPathIDs returns the chat and its ancestors when the request is a
+// chat tool call and a PathStore is configured. Requests without chat
+// context, such as browser requests through the coderd files proxy,
+// which forwards no chat headers, are not recorded.
+func (api *API) chatPathIDs(ctx context.Context) ([]uuid.UUID, bool) {
+	if api.pathStore == nil {
+		return nil, false
+	}
+	chatContext, ok := agentchat.FromContext(ctx)
+	if !ok {
+		return nil, false
+	}
+	return append([]uuid.UUID{chatContext.ID}, chatContext.AncestorIDs...), true
 }
 
 func (api *API) readFileLines(_ context.Context, path string, offset, limit int64, limits workspacesdk.ReadFileLinesLimits) ReadFileLinesResponse {
@@ -305,7 +338,21 @@ func (api *API) HandleWriteFile(rw http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	parser := httpapi.NewQueryParamParser().RequiredNotEmpty("path")
 	path := parser.String(query, "", "path")
+	ifMatchValue := parser.String(query, "", "if_match")
+	ifNoneMatchValue := parser.String(query, "", "if_none_match")
 	parser.ErrorExcessParams(query)
+	if query.Has("if_none_match") && ifNoneMatchValue != "*" {
+		parser.Errors = append(parser.Errors, codersdk.ValidationError{
+			Field:  "if_none_match",
+			Detail: `Query param "if_none_match" only accepts "*"`,
+		})
+	}
+	if query.Has("if_match") && query.Has("if_none_match") {
+		parser.Errors = append(parser.Errors, codersdk.ValidationError{
+			Field:  "if_none_match",
+			Detail: `Query params "if_match" and "if_none_match" cannot be combined`,
+		})
+	}
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Query parameters have invalid values.",
@@ -313,8 +360,16 @@ func (api *API) HandleWriteFile(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// A present but empty if_match is a precondition no file matches.
+	var ifMatch *string
+	if query.Has("if_match") {
+		ifMatch = &ifMatchValue
+	}
 
-	status, err := api.writeFile(ctx, r, path)
+	status, etag, err := api.writeFile(ctx, r, path, ifMatch, query.Has("if_none_match"))
+	if etag != "" {
+		rw.Header().Set("ETag", etag)
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, status, codersdk.Response{
 			Message: err.Error(),
@@ -323,27 +378,55 @@ func (api *API) HandleWriteFile(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Track edited path for git watch.
-	if api.pathStore != nil {
-		if chatContext, ok := agentchat.FromContext(ctx); ok {
-			api.pathStore.AddPaths(append([]uuid.UUID{chatContext.ID}, chatContext.AncestorIDs...), []string{path})
-		}
-	}
+	api.trackChatPaths(ctx, path)
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: fmt.Sprintf("Successfully wrote to %q", path),
 	})
 }
 
-func (api *API) writeFile(ctx context.Context, r *http.Request, path string) (HTTPResponseCode, error) {
+// writeFile writes the request body to path. When ifMatch is non-nil,
+// the write only happens if the current file's ETag equals it; when
+// ifNoneMatch is set, only if no file exists. Otherwise it returns 412
+// with the current ETag, if the file exists.
+// The returned ETag is the written file's on success.
+func (api *API) writeFile(ctx context.Context, r *http.Request, path string, ifMatch *string, ifNoneMatch bool) (HTTPResponseCode, string, error) {
 	if !filepath.IsAbs(path) {
-		return http.StatusBadRequest, xerrors.Errorf("file path must be absolute: %q", path)
+		return http.StatusBadRequest, "", xerrors.Errorf("file path must be absolute: %q", path)
 	}
 
 	resolved, err := api.resolvePath(path)
 	if err != nil {
-		return http.StatusInternalServerError, xerrors.Errorf("resolve symlink %q: %w", path, err)
+		return http.StatusInternalServerError, "", xerrors.Errorf("resolve symlink %q: %w", path, err)
 	}
 	path = resolved
+
+	// The precondition is checked before any side effect and again
+	// right before the rename to narrow the window in which a
+	// concurrent write can be overwritten. It is still not atomic.
+	var currentETag string
+	var precondition func() (int, error)
+	var publish func(tmp, path string) error
+	switch {
+	case ifMatch != nil:
+		precondition = func() (int, error) {
+			status, etag, err := api.checkIfMatch(path, *ifMatch)
+			currentETag = etag
+			return status, err
+		}
+	case ifNoneMatch:
+		precondition = func() (int, error) {
+			status, etag, err := api.checkIfNoneMatch(path)
+			currentETag = etag
+			return status, err
+		}
+		publish = api.publishNoReplace
+	}
+	if precondition != nil {
+		if status, err := precondition(); err != nil {
+			return status, currentETag, err
+		}
+	}
 
 	dir := filepath.Dir(path)
 	err = api.filesystem.MkdirAll(dir, 0o755)
@@ -355,7 +438,7 @@ func (api *API) writeFile(ctx context.Context, r *http.Request, path string) (HT
 		case errors.Is(err, syscall.ENOTDIR):
 			status = http.StatusBadRequest
 		}
-		return status, err
+		return status, "", err
 	}
 
 	// Check if the target already exists so we can preserve its
@@ -363,13 +446,62 @@ func (api *API) writeFile(ctx context.Context, r *http.Request, path string) (HT
 	var mode *os.FileMode
 	if stat, serr := api.filesystem.Stat(path); serr == nil {
 		if stat.IsDir() {
-			return http.StatusBadRequest, xerrors.Errorf("open %s: is a directory", path)
+			return http.StatusBadRequest, "", xerrors.Errorf("open %s: is a directory", path)
 		}
 		m := stat.Mode()
 		mode = &m
 	}
 
-	return api.atomicWrite(ctx, path, mode, r.Body)
+	info, status, err := api.atomicWrite(ctx, path, mode, r.Body, precondition, publish)
+	if err != nil {
+		if status == http.StatusPreconditionFailed && currentETag == "" {
+			if stat, serr := api.filesystem.Stat(path); serr == nil && !stat.IsDir() {
+				currentETag = fileETag(stat)
+			}
+		}
+		return status, currentETag, err
+	}
+	return 0, fileETag(info), nil
+}
+
+// checkIfMatch returns 412 when the file at path is missing or its
+// ETag differs from ifMatch. On a mismatch it also returns the current
+// ETag.
+func (api *API) checkIfMatch(path, ifMatch string) (HTTPResponseCode, string, error) {
+	stat, err := api.filesystem.Stat(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return http.StatusPreconditionFailed, "", xerrors.Errorf("file %s does not exist", path)
+		}
+		return http.StatusInternalServerError, "", xerrors.Errorf("stat %s: %w", path, err)
+	}
+	etag := fileETag(stat)
+	if etag != ifMatch {
+		return http.StatusPreconditionFailed, etag, xerrors.Errorf("file %s was modified: current ETag %s does not match %s", path, etag, ifMatch)
+	}
+	return 0, "", nil
+}
+
+// checkIfNoneMatch returns 412 and the existing file's ETag when
+// path exists.
+func (api *API) checkIfNoneMatch(path string) (HTTPResponseCode, string, error) {
+	stat, err := api.filesystem.Stat(path)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return 0, "", nil
+	case err != nil:
+		return http.StatusInternalServerError, "", xerrors.Errorf("stat %s: %w", path, err)
+	case stat.IsDir():
+		return http.StatusPreconditionFailed, "", xerrors.Errorf("%s already exists as a directory", path)
+	default:
+		return http.StatusPreconditionFailed, fileETag(stat), xerrors.Errorf("file %s already exists", path)
+	}
+}
+
+// fileETag returns a strong ETag derived from the file's modification
+// time and size.
+func fileETag(stat os.FileInfo) string {
+	return fmt.Sprintf(`"%x-%x"`, stat.ModTime().UnixNano(), stat.Size())
 }
 
 func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
@@ -454,7 +586,7 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 	// cross-file atomicity would require filesystem transactions.
 	for _, p := range pending {
 		mode := p.mode
-		s, err := api.atomicWrite(ctx, p.path, &mode, strings.NewReader(p.content))
+		_, s, err := api.atomicWrite(ctx, p.path, &mode, strings.NewReader(p.content), nil, nil)
 		if err != nil {
 			httpapi.Write(ctx, rw, s, codersdk.Response{
 				Message: err.Error(),
@@ -464,15 +596,11 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Track edited paths for git watch.
-	if api.pathStore != nil {
-		if chatContext, ok := agentchat.FromContext(ctx); ok {
-			filePaths := make([]string, 0, len(req.Files))
-			for _, f := range req.Files {
-				filePaths = append(filePaths, f.Path)
-			}
-			api.pathStore.AddPaths(append([]uuid.UUID{chatContext.ID}, chatContext.AncestorIDs...), filePaths)
-		}
+	filePaths := make([]string, 0, len(req.Files))
+	for _, f := range req.Files {
+		filePaths = append(filePaths, f.Path)
 	}
+	api.trackChatPaths(ctx, filePaths...)
 
 	resp := workspacesdk.FileEditResponse{}
 	if req.IncludeDiff {
@@ -570,8 +698,14 @@ func (api *API) prepareFileEdit(path string, edits []workspacesdk.FileEdit) (int
 // atomicWrite writes content from r to path via a temp file in the
 // same directory. If the target exists, its permissions are preserved.
 // On failure the temp file is cleaned up and the original is
-// untouched.
-func (api *API) atomicWrite(ctx context.Context, path string, mode *os.FileMode, r io.Reader) (int, error) {
+// untouched. A non-nil beforeRename runs after the temp file is
+// written; if it fails, the write is abandoned and its status and
+// error are returned. The returned FileInfo is the temp file's, taken
+// before the rename; its size and modification time are the written
+// file's even if another writer replaces path afterwards. publish moves
+// the temp file into place; nil renames it. A publish error matching
+// os.ErrExist returns 412; see publishNoReplace.
+func (api *API) atomicWrite(ctx context.Context, path string, mode *os.FileMode, r io.Reader, beforeRename func() (int, error), publish func(tmp, path string) error) (os.FileInfo, int, error) {
 	logger := api.logger.With(agentchat.Fields(ctx)...)
 
 	dir := filepath.Dir(path)
@@ -583,7 +717,7 @@ func (api *API) atomicWrite(ctx context.Context, path string, mode *os.FileMode,
 		if errors.Is(err, os.ErrPermission) {
 			status = http.StatusForbidden
 		}
-		return status, err
+		return nil, status, err
 	}
 
 	cleanup := func() {
@@ -596,14 +730,21 @@ func (api *API) atomicWrite(ctx context.Context, path string, mode *os.FileMode,
 	if err != nil {
 		_ = tmpfile.Close()
 		cleanup()
-		return http.StatusInternalServerError, xerrors.Errorf("write %s: %w", path, err)
+		return nil, http.StatusInternalServerError, xerrors.Errorf("write %s: %w", path, err)
+	}
+
+	info, err := tmpfile.Stat()
+	if err != nil {
+		_ = tmpfile.Close()
+		cleanup()
+		return nil, http.StatusInternalServerError, xerrors.Errorf("stat %s: %w", tmpName, err)
 	}
 
 	// Close before rename to flush buffered data and catch write
 	// errors (e.g. delayed allocation failures).
 	if err := tmpfile.Close(); err != nil {
 		cleanup()
-		return http.StatusInternalServerError, xerrors.Errorf("write %s: %w", path, err)
+		return nil, http.StatusInternalServerError, xerrors.Errorf("write %s: %w", path, err)
 	}
 
 	// Set permissions on the temp file before rename so there is
@@ -617,16 +758,45 @@ func (api *API) atomicWrite(ctx context.Context, path string, mode *os.FileMode,
 		}
 	}
 
-	if err := api.filesystem.Rename(tmpName, path); err != nil {
-		cleanup()
-		status := http.StatusInternalServerError
-		if errors.Is(err, os.ErrPermission) {
-			status = http.StatusForbidden
+	if beforeRename != nil {
+		if status, err := beforeRename(); err != nil {
+			cleanup()
+			return nil, status, err
 		}
-		return status, xerrors.Errorf("write %s: %w", path, err)
 	}
 
-	return 0, nil
+	if publish == nil {
+		publish = api.filesystem.Rename
+	}
+	if err := publish(tmpName, path); err != nil {
+		cleanup()
+		status := http.StatusInternalServerError
+		switch {
+		case errors.Is(err, os.ErrExist):
+			status = http.StatusPreconditionFailed
+		case errors.Is(err, os.ErrPermission):
+			status = http.StatusForbidden
+		}
+		return nil, status, xerrors.Errorf("write %s: %w", path, err)
+	}
+
+	return info, 0, nil
+}
+
+// publishNoReplace moves tmp to path, failing with os.ErrExist instead
+// of replacing an existing file, so concurrent creates cannot
+// overwrite each other. Filesystems that support neither
+// renameat2(RENAME_NOREPLACE) nor hard links, and non-OS filesystems,
+// fall back to a plain rename; the caller's existence checks before it
+// then narrow, but do not close, the race.
+func (api *API) publishNoReplace(tmp, path string) error {
+	if _, ok := api.filesystem.(*afero.OsFs); ok {
+		err := renameNoReplace(tmp, path)
+		if !errors.Is(err, errNoReplaceUnsupported) {
+			return err
+		}
+	}
+	return api.filesystem.Rename(tmp, path)
 }
 
 // splitEnding separates a line produced by strings.SplitAfter(s,

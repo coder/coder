@@ -49,6 +49,50 @@ func TestEngine_SearchFindsKnownFile(t *testing.T) {
 	requireResultHasPath(t, results, "src/main.go")
 }
 
+func TestEngine_ResultRootAndCase(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	createFile(t, dir, "Src/MainHandler.go", "package main")
+
+	eng, ctx := newTestEngine(t)
+	require.NoError(t, eng.AddRoot(ctx, dir))
+
+	results, err := eng.Search(ctx, "mainhandler", filefinder.DefaultSearchOptions())
+	require.NoError(t, err)
+	require.NotEmpty(t, results)
+	require.Equal(t, "Src/MainHandler.go", results[0].Path)
+	require.Equal(t, dir, results[0].Root)
+}
+
+func TestEngine_SearchRootsOption(t *testing.T) {
+	t.Parallel()
+	dirA, dirB := t.TempDir(), t.TempDir()
+	createFile(t, dirA, "shared_name_a.go", "")
+	createFile(t, dirB, "shared_name_b.go", "")
+
+	eng, ctx := newTestEngine(t)
+	require.NoError(t, eng.AddRoot(ctx, dirA))
+	require.NoError(t, eng.AddRoot(ctx, dirB))
+
+	opts := filefinder.DefaultSearchOptions()
+	opts.Roots = []string{dirB}
+	results, err := eng.Search(ctx, "shared_name", opts)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, dirB, results[0].Root)
+}
+
+func TestEngine_AddRootCanceled(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	createFile(t, dir, "a.go", "")
+
+	eng, _ := newTestEngine(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.ErrorIs(t, eng.AddRoot(ctx, dir), context.Canceled)
+}
+
 func TestEngine_SearchFuzzyMatch(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -88,6 +132,29 @@ func TestEngine_IndexPicksUpNewFile(t *testing.T) {
 		}
 		return false
 	}, testutil.WaitShort, testutil.IntervalFast, "expected newfile_unique.txt to appear via watcher")
+}
+
+func TestEngine_AtomicRenameLeavesNoTempEntry(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	eng, ctx := newTestEngine(t)
+	require.NoError(t, eng.AddRoot(ctx, dir))
+
+	tmp := filepath.Join(dir, ".renamed_unique.txt.tmp.abcd1234")
+	require.NoError(t, os.WriteFile(tmp, []byte("x"), 0o600))
+	require.NoError(t, os.Rename(tmp, filepath.Join(dir, "renamed_unique.txt")))
+
+	var paths []string
+	require.Eventually(t, func() bool {
+		results, sErr := eng.Search(ctx, "renamed_unique", filefinder.DefaultSearchOptions())
+		if sErr != nil {
+			return false
+		}
+		paths = resultPaths(results)
+		return slices.Contains(paths, "renamed_unique.txt")
+	}, testutil.WaitShort, testutil.IntervalFast, "expected renamed_unique.txt to appear via watcher")
+	require.Equal(t, []string{"renamed_unique.txt"}, paths)
 }
 
 func TestEngine_IndexRemovesDeletedFile(t *testing.T) {

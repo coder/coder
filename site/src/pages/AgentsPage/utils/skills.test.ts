@@ -110,11 +110,11 @@ describe("filterSkillsByQuery", () => {
 describe("skill slash triggers", () => {
 	it("parses trigger text at line start or after whitespace", () => {
 		expect(parseSkillTrigger("/rev")).toEqual({
-			slashOffset: 0,
+			offset: 0,
 			query: "rev",
 		});
 		expect(parseSkillTrigger("ask /docs")).toEqual({
-			slashOffset: 4,
+			offset: 4,
 			query: "docs",
 		});
 	});

@@ -1,8 +1,8 @@
 import { File as FileViewer } from "@pierre/diffs/react";
 import type React from "react";
 import { useTheme } from "#/theme/context";
-import { getPathBasename } from "../../../utils/path";
 import { asRecord, asString } from "../runtimeTypeUtils";
+import { FileToolHeader } from "./FileToolHeader";
 import { ToolCall } from "./ToolCall";
 import {
 	DIFFS_FONT_STYLE,
@@ -80,8 +80,6 @@ export const ReadFileTool: React.FC<{
 }) => {
 	const hasContent = content.length > 0 || isError;
 	const isRunning = status === "running";
-	const filename = getPathBasename(path);
-	const label = isRunning ? `Reading ${filename}…` : `Read ${filename}`;
 
 	return (
 		<ToolCall.Root
@@ -93,7 +91,12 @@ export const ReadFileTool: React.FC<{
 			expanded={expanded}
 			onExpandedChange={onExpandedChange}
 		>
-			<ToolCall.Header iconName="read_file" label={label} />
+			<FileToolHeader
+				iconName="read_file"
+				verb={isRunning ? "Reading" : "Read"}
+				path={path}
+				running={isRunning}
+			/>
 			<ToolCall.Content>
 				{isError && (
 					<div className="mt-1 text-xs text-content-destructive">

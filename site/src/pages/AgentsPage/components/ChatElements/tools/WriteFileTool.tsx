@@ -3,13 +3,13 @@ import { FileDiff } from "@pierre/diffs/react";
 import type React from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useTheme } from "#/theme/context";
-import { getPathBasename } from "../../../utils/path";
 import { DiffFileHeader } from "./DiffFileHeader";
 import {
 	type AgentDisplayState,
 	isAgentDisplayFullyExpanded,
 	resolveAgentDisplayState,
 } from "./displayMode";
+import { FileToolHeader } from "./FileToolHeader";
 import { ToolCall } from "./ToolCall";
 import {
 	DIFFS_FONT_STYLE,
@@ -37,12 +37,11 @@ export const WriteFileTool: React.FC<{
 		WRITE_FILE_AUTO_DISPLAY_STATE,
 	);
 
-	const filename = getPathBasename(path);
-	let label = `Wrote ${filename}`;
+	let verb = "Wrote";
 	if (isRunning) {
-		label = `Writing ${filename}…`;
+		verb = "Writing";
 	} else if (isError) {
-		label = `Failed to write ${filename}`;
+		verb = "Failed to write";
 	}
 	// The diff is synthesized from tool args, so showing it on error could
 	// misrepresent the content as written.
@@ -59,7 +58,12 @@ export const WriteFileTool: React.FC<{
 			hasContent={showDiff || Boolean(errorDetail)}
 			defaultView={displayState}
 		>
-			<ToolCall.Header iconName="write_file" label={label} />
+			<FileToolHeader
+				iconName="write_file"
+				verb={verb}
+				path={path}
+				running={isRunning}
+			/>
 			<ToolCall.Content>
 				{errorDetail && (
 					<pre className="m-0 mt-1.5 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs leading-5 text-content-destructive">

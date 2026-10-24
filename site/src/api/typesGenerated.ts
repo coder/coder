@@ -5636,6 +5636,7 @@ export type Experiment =
 	| "notifications"
 	| "workspace-build-updates"
 	| "workspace-capable-licensing"
+	| "workspace-files"
 	| "workspace-usage";
 
 // From codersdk/experimentrules.go
@@ -5717,6 +5718,7 @@ export const Experiments: Experiment[] = [
 	"notifications",
 	"workspace-build-updates",
 	"workspace-capable-licensing",
+	"workspace-files",
 	"workspace-usage",
 ];
 
@@ -12464,12 +12466,17 @@ export interface WorkspaceAgentPortShares {
  * WorkspaceAgentRepoChanges describes the current state of a single
  * git repository's working tree. When Removed is true the repo root
  * directory or its .git subdirectory no longer exists; all other
- * fields (Branch, RemoteOrigin, UnifiedDiff) are empty/zero.
+ * fields (Branch, RemoteOrigin, HeadCommit, UnifiedDiff) are empty/zero.
  */
 export interface WorkspaceAgentRepoChanges {
 	readonly repo_root: string;
 	readonly branch: string;
 	readonly remote_origin?: string;
+	/**
+	 * HeadCommit is the full SHA of HEAD. It is empty when HEAD is unborn
+	 * or the agent predates the field.
+	 */
+	readonly head_commit?: string;
 	readonly unified_diff?: string;
 	readonly removed?: boolean;
 }

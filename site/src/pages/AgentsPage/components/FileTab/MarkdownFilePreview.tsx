@@ -1,0 +1,385 @@
+import { cn } from "cn";
+import { useEffect, useId, useRef, useState } from "react";
+import { useQuery } from "react-query";
+import {
+	type Components,
+	defaultRehypePlugins,
+	parseMarkdownIntoBlocks,
+	type StreamdownProps,
+} from "streamdown";
+import { workspaceAgentFileHead } from "#/api/queries/workspaceFiles";
+import { Button } from "#/components/Button/Button";
+import { useTheme } from "#/theme/context";
+import { useWorkspaceFiles } from "../../context/WorkspaceFilesContext";
+import {
+	countImageCandidates,
+	getHastText,
+	groupMarkdownBlocks,
+	isWorkspaceImageSource,
+	maxPreviewImages,
+	type PreviewHeadings,
+	previewIdPrefix,
+	rehypeFilePreview,
+	rehypeRemoveStyleElements,
+	resolvePreviewLink,
+	resolveWorkspaceUrl,
+} from "../../utils/markdownPreview";
+import { getPathBasename, getPathDirname } from "../../utils/path";
+import { MarkdownImage } from "../ChatElements/MarkdownImage";
+import { Response } from "../ChatElements/Response";
+
+/**
+ * Markdown files larger than this open in Edit: rendering a megabyte of
+ * markdown blocks the page for seconds.
+ */
+export const maxMarkdownPreviewBytes = 256 * 1024;
+
+const maxPreviewImageBytes = 2 * 1024 * 1024;
+
+// GitHub-like raw HTML: rehype-raw parses it and Streamdown's sanitize
+// schema (GitHub's allowlist) drops scripts, event handlers, iframes, and
+// comments. Streamdown's harden step is left out because it rewrites
+// relative links to the Coder origin; sanitizing already blocks unsafe
+// protocols.
+const previewRehypePlugins = (
+	options: Parameters<typeof rehypeFilePreview>[0],
+): StreamdownProps["rehypePlugins"] => [
+	defaultRehypePlugins.raw,
+	rehypeRemoveStyleElements,
+	defaultRehypePlugins.sanitize,
+	[rehypeFilePreview, options],
+];
+
+// A chunk this size parses and renders in tens of milliseconds, so the
+// page stays responsive while a large file fills in.
+const previewChunkSize = 16 * 1024;
+
+const prepareChunks = (content: string) => {
+	const texts = groupMarkdownBlocks(
+		parseMarkdownIntoBlocks(content),
+		previewChunkSize,
+	);
+	const chunks: { index: number; text: string; firstImage: number }[] = [];
+	let images = 0;
+	for (const [index, text] of texts.entries()) {
+		chunks.push({ index, text, firstImage: images });
+		images += countImageCandidates(text);
+	}
+	return { content, chunks };
+};
+
+const linkClassName =
+	"cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-content-link no-underline hover:underline";
+
+type MarkdownFilePreviewProps = {
+	agentId: string;
+	/** Absolute path of the previewed file. */
+	path: string;
+	content: string;
+};
+
+/**
+ * Renders a workspace markdown file the way GitHub does: sanitized raw
+ * HTML, links that open workspace files as tabs, and images loaded from the
+ * workspace.
+ */
+export const MarkdownFilePreview: React.FC<MarkdownFilePreviewProps> = ({
+	agentId,
+	path,
+	content,
+}) => {
+	const files = useWorkspaceFiles();
+	const theme = useTheme();
+	const containerRef = useRef<HTMLDivElement>(null);
+	// Remote images would tell whoever controls their URL that this viewer
+	// opened the file, so each preview loads them only on request.
+	const [remoteImagesAllowed, setRemoteImagesAllowed] = useState(false);
+	const hasRemoteImages =
+		/!\[|<img\b/i.test(content) && /https?:\/\//i.test(content);
+	const isLargeFile = content.length > maxMarkdownPreviewBytes;
+
+	// Splitting lexes the whole file, so it runs once per content, not on
+	// every render that adds a chunk. Chunks then render one per task, so a
+	// large file never blocks the page for long; small files are one chunk.
+	// A reread of the file keeps the chunks already shown, keyed by
+	// position, so unchanged ones keep their DOM and the reader's scroll
+	// position.
+	const [prepared, setPrepared] = useState(() => prepareChunks(content));
+	const [shownChunks, setShownChunks] = useState(1);
+	const [headings] = useState<PreviewHeadings>(() => new Map());
+	// Streamdown caches processors by plugin names and JSON options, and
+	// the headings map serializes to {}, so the id keeps one preview from
+	// reusing another's processor and its headings.
+	const previewId = useId();
+	if (prepared.content !== content) {
+		setPrepared(prepareChunks(content));
+	}
+	const { chunks } = prepared;
+	const renderedChunks = Math.min(shownChunks, chunks.length);
+	useEffect(() => {
+		if (renderedChunks >= chunks.length) {
+			return;
+		}
+		const timer = setTimeout(() => setShownChunks(renderedChunks + 1), 0);
+		return () => clearTimeout(timer);
+	}, [renderedChunks, chunks.length]);
+	const directory = getPathDirname(path);
+	let repoRoot: string | undefined;
+	for (const root of files?.repoRoots ?? []) {
+		if (path.startsWith(`${root}/`) && root.length > (repoRoot?.length ?? 0)) {
+			repoRoot = root;
+		}
+	}
+	// GitHub shows these only in the matching color scheme.
+	const hiddenModeSuffix = `#gh-${theme.palette.mode === "dark" ? "light" : "dark"}-mode-only`;
+
+	const scrollToAnchor = (id: string) => {
+		const targetId = `${previewIdPrefix}${id}`;
+		for (const element of containerRef.current?.querySelectorAll(
+			"[id], [name]",
+		) ?? []) {
+			if (
+				element.id === targetId ||
+				element.getAttribute("name") === targetId
+			) {
+				element.scrollIntoView({ block: "start" });
+				return;
+			}
+		}
+	};
+
+	const components: Components = {
+		a: ({
+			href,
+			children,
+		}: {
+			href?: string;
+			children?: React.ReactNode;
+			node?: unknown;
+		}) => {
+			if (!href) {
+				return <span>{children}</span>;
+			}
+			if (href.endsWith(hiddenModeSuffix)) {
+				return null;
+			}
+			const link = resolvePreviewLink(href, directory, repoRoot);
+			if (link.kind === "external") {
+				return (
+					<a
+						href={href}
+						target="_blank"
+						rel="noopener noreferrer"
+						className={linkClassName}
+					>
+						{children}
+					</a>
+				);
+			}
+			if (link.kind === "anchor") {
+				return (
+					<a
+						href={href}
+						className={linkClassName}
+						onClick={(event) => {
+							event.preventDefault();
+							scrollToAnchor(link.id);
+						}}
+					>
+						{children}
+					</a>
+				);
+			}
+			if (!files) {
+				return <span>{children}</span>;
+			}
+			return (
+				<button
+					type="button"
+					title={link.path}
+					className={linkClassName}
+					onClick={() => files.openFile(link.path, { line: link.line })}
+				>
+					{children}
+				</button>
+			);
+		},
+		img: ({
+			src,
+			alt,
+			node,
+		}: {
+			src?: string | Blob;
+			alt?: string;
+			node?: { properties?: Record<string, unknown> };
+		}) => {
+			if (typeof src !== "string" || src.endsWith(hiddenModeSuffix)) {
+				return null;
+			}
+			if (/^https?:\/\//i.test(src)) {
+				if (!remoteImagesAllowed) {
+					return <ImagePlaceholder alt={alt} reason="blocked" />;
+				}
+				return (
+					<img
+						src={src}
+						alt={alt ?? ""}
+						loading="lazy"
+						referrerPolicy="no-referrer"
+						className="max-w-full"
+					/>
+				);
+			}
+			if (!isWorkspaceImageSource(src)) {
+				return <MarkdownImage src={src} alt={alt} />;
+			}
+			const index = node?.properties?.dataPreviewImage;
+			if (typeof index !== "number" || index >= maxPreviewImages) {
+				return <ImagePlaceholder alt={alt} reason="not loaded" />;
+			}
+			return (
+				<WorkspaceImage
+					agentId={agentId}
+					path={resolveWorkspaceUrl(src, directory, repoRoot)}
+					alt={alt}
+				/>
+			);
+		},
+		// Sources would load without the image checks; the <img> fallback
+		// inside each <picture> renders instead.
+		source: () => null,
+		// Each highlighted block is a code viewer with its own resize
+		// handling; hundreds of them make showing, hiding, and scrolling the
+		// tab take seconds, so large files show code as plain text.
+		...(isLargeFile && {
+			pre: ({ node }: { node?: Parameters<typeof getHastText>[0] }) => (
+				<pre className="my-4 overflow-x-auto rounded-md border border-solid border-border bg-surface-primary px-3 py-2 font-mono text-xs leading-5">
+					{node ? getHastText(node).trimEnd() : null}
+				</pre>
+			),
+		}),
+	};
+
+	return (
+		<div
+			ref={containerRef}
+			role="region"
+			aria-label={`Preview of ${getPathBasename(path)}`}
+			// Focusable so focus stays in the preview when a control in it,
+			// such as "Load remote images", goes away.
+			tabIndex={-1}
+			className="min-h-0 flex-1 overflow-y-auto px-6 py-4 outline-none"
+		>
+			{hasRemoteImages && !remoteImagesAllowed && (
+				<div className="mb-3 flex items-center gap-3 rounded-md border border-solid border-border bg-surface-secondary px-3 py-1.5 text-xs text-content-secondary">
+					<span className="min-w-0 flex-1">
+						Remote images are blocked so their hosts do not see your IP address.
+					</span>
+					<Button
+						size="xs"
+						variant="outline"
+						onClick={() => {
+							containerRef.current?.focus({ preventScroll: true });
+							setRemoteImagesAllowed(true);
+						}}
+					>
+						Load remote images
+					</Button>
+				</div>
+			)}
+			{/* Streamdown's block memo ignores new components, so the overrides
+			    that read these values remount the rendered markdown. */}
+			<div
+				key={`${theme.palette.mode}:${remoteImagesAllowed}:${repoRoot}`}
+				className="space-y-4"
+			>
+				{chunks.slice(0, renderedChunks).map((chunk) => (
+					// In large files, off-screen chunks skip style and layout, so
+					// showing the tab again or scrolling does not lay out the whole
+					// file.
+					<div
+						key={chunk.index}
+						className={cn(
+							isLargeFile &&
+								"[contain-intrinsic-size:auto_1000px] [content-visibility:auto]",
+						)}
+					>
+						<Response
+							rehypePlugins={previewRehypePlugins({
+								firstImage: chunk.firstImage,
+								chunk: chunk.index,
+								headings,
+								preview: previewId,
+							})}
+							components={components}
+						>
+							{chunk.text}
+						</Response>
+					</div>
+				))}
+			</div>
+			{renderedChunks < chunks.length && (
+				<p role="status" className="my-4 text-xs text-content-secondary">
+					Rendering preview…
+				</p>
+			)}
+		</div>
+	);
+};
+
+const ImagePlaceholder: React.FC<{ alt?: string; reason: string }> = ({
+	alt,
+	reason,
+}) => (
+	<span className="inline-flex rounded-md border border-solid border-border bg-surface-secondary px-2 py-1 text-xs text-content-secondary">
+		{alt ? `${alt} (image ${reason})` : `Image ${reason}`}
+	</span>
+);
+
+type WorkspaceImageProps = {
+	agentId: string;
+	path: string;
+	alt?: string;
+};
+
+const WorkspaceImage: React.FC<WorkspaceImageProps> = ({
+	agentId,
+	path,
+	alt,
+}) => {
+	// One byte past the cap shows the file is too large without trusting
+	// listing metadata or reading the whole file.
+	const file = useQuery(
+		workspaceAgentFileHead(agentId, path, maxPreviewImageBytes + 1),
+	);
+	const data = file.data;
+	const fits =
+		data !== undefined && data.data.byteLength <= maxPreviewImageBytes;
+	const isImage = data?.contentType.startsWith("image/") ?? false;
+	const [url, setUrl] = useState<string>();
+
+	useEffect(() => {
+		if (!data || !fits || !isImage) {
+			return;
+		}
+		const objectUrl = URL.createObjectURL(
+			new Blob([data.data], { type: data.contentType }),
+		);
+		setUrl(objectUrl);
+		return () => URL.revokeObjectURL(objectUrl);
+	}, [data, fits, isImage]);
+
+	if (file.isError) {
+		return <ImagePlaceholder alt={alt} reason="not found" />;
+	}
+	if (data && !fits) {
+		return <ImagePlaceholder alt={alt} reason="too large to preview" />;
+	}
+	if (data && !isImage) {
+		return <ImagePlaceholder alt={alt} reason="not an image" />;
+	}
+	if (!url) {
+		return <ImagePlaceholder alt={alt} reason="loading" />;
+	}
+	return <img src={url} alt={alt ?? ""} className="max-w-full" />;
+};

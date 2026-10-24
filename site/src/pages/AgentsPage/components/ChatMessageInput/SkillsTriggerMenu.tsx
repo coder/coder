@@ -64,6 +64,8 @@ type SkillsTriggerMenuProps = {
 	// Call `event.preventDefault()` to keep the menu open so the editor's
 	// own Escape handling can close it instead.
 	onEscapeKeyDown: (event: KeyboardEvent) => void;
+	/** Receives the listbox element the editor names as its popup. */
+	listboxRef?: React.Ref<HTMLDivElement>;
 };
 
 const getEmptyMessage = (
@@ -181,6 +183,7 @@ export const SkillsTriggerMenu = ({
 	onSelect,
 	onClose,
 	onEscapeKeyDown,
+	listboxRef,
 }: SkillsTriggerMenuProps) => {
 	const pointerHighlightRef = useRef(false);
 
@@ -284,7 +287,11 @@ export const SkillsTriggerMenu = ({
 					onValueChange={handleHighlightedValueChange}
 					value={selectedValue}
 				>
-					<CommandList className="max-h-72 border-t-0 mobile-full-width-dropdown-scroll-area">
+					<CommandList
+						ref={listboxRef}
+						label="Commands and skills"
+						className="max-h-72 border-t-0 mobile-full-width-dropdown-scroll-area"
+					>
 						{commands.length > 0 && (
 							<CommandGroup heading="Commands">
 								{commands.map((skill, index) => renderSkill(skill, index))}

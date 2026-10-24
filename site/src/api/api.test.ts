@@ -849,4 +849,29 @@ describe("api.ts", () => {
 			);
 		});
 	});
+
+	describe("writeWorkspaceAgentFile", () => {
+		it("sends if_none_match=* for a write that only creates the file", async () => {
+			const postSpy = vi
+				.spyOn(axiosInstance, "post")
+				.mockResolvedValueOnce({ headers: { etag: '"v1"' } });
+
+			const result = await API.writeWorkspaceAgentFile(
+				"agent-1",
+				"/repo/main.go",
+				"package main\n",
+				undefined,
+				{ createOnly: true },
+			);
+
+			expect(postSpy).toHaveBeenCalledWith(
+				"/api/experimental/workspaceagents/agent-1/files/write-file",
+				"package main\n",
+				expect.objectContaining({
+					params: { path: "/repo/main.go", if_none_match: "*" },
+				}),
+			);
+			expect(result).toEqual({ etag: '"v1"' });
+		});
+	});
 });

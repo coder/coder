@@ -8,10 +8,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"testing/iotest"
@@ -1168,6 +1170,70 @@ func TestHandleWriteFile_ChatHeaders_UpdatesPathStore(t *testing.T) {
 
 	ancestorPaths := pathStore.GetPaths(ancestorID)
 	require.Equal(t, []string{testPath}, ancestorPaths)
+}
+
+// TestHandleReadFileLines_PathStore pins that read_file, which chatd
+// serves through read-file-lines, records the path for git watch only
+// for chat tool calls: browser reads through the coderd files proxy
+// carry no chat headers and must not register repositories.
+func TestHandleReadFileLines_PathStore(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	fs := afero.NewMemMapFs()
+	dir := filepath.Join(os.TempDir(), "read-tracked")
+	readable := filepath.Join(dir, "main.go")
+	require.NoError(t, afero.WriteFile(fs, readable, []byte("package main\n"), 0o600))
+
+	read := func(t *testing.T, pathStore *agentgit.PathStore, path string, chatID uuid.UUID) {
+		t.Helper()
+		api := agentfiles.NewAPI(logger, fs, pathStore)
+		req := httptest.NewRequest(http.MethodGet, "/read-file-lines?path="+url.QueryEscape(path), nil)
+		if chatID != uuid.Nil {
+			ancestorJSON, err := json.Marshal([]string{uuid.NewString()})
+			require.NoError(t, err)
+			req.Header.Set(workspacesdk.CoderChatIDHeader, chatID.String())
+			req.Header.Set(workspacesdk.CoderAncestorChatIDsHeader, string(ancestorJSON))
+		}
+		rr := httptest.NewRecorder()
+		r := chi.NewRouter()
+		r.Get("/read-file-lines", api.HandleReadFileLines)
+		agentchat.Middleware(r).ServeHTTP(rr, req)
+		require.Equal(t, http.StatusOK, rr.Code)
+	}
+
+	t.Run("ChatToolCall", func(t *testing.T) {
+		t.Parallel()
+		pathStore := agentgit.NewPathStore()
+		chatID := uuid.New()
+		notify, unsubscribe := pathStore.Subscribe(chatID)
+		defer unsubscribe()
+
+		read(t, pathStore, readable, chatID)
+		require.Equal(t, []string{dir}, pathStore.GetPaths(chatID))
+		require.Len(t, notify, 1, "the first read of a directory notifies")
+		<-notify
+
+		// A read does not change the repository, so reading again in
+		// a known directory must not trigger another rediscovery.
+		read(t, pathStore, readable, chatID)
+		require.Empty(t, notify, "a repeated read must not notify")
+	})
+
+	t.Run("NoChatContext", func(t *testing.T) {
+		t.Parallel()
+		pathStore := agentgit.NewPathStore()
+		read(t, pathStore, readable, uuid.Nil)
+		require.Zero(t, pathStore.Len())
+	})
+
+	t.Run("FailedRead", func(t *testing.T) {
+		t.Parallel()
+		pathStore := agentgit.NewPathStore()
+		chatID := uuid.New()
+		read(t, pathStore, filepath.Join(dir, "missing.go"), chatID)
+		require.Empty(t, pathStore.GetPaths(chatID))
+	})
 }
 
 func TestHandleWriteFile_NoChatHeaders_NoPathStoreUpdate(t *testing.T) {
@@ -3476,4 +3542,290 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 			require.Equal(t, tt.content, string(data))
 		})
 	}
+}
+
+func TestFileETags(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	api := agentfiles.NewAPI(logger, afero.NewOsFs(), nil)
+	handler := api.Routes()
+
+	do := func(t *testing.T, method, target, body string) *httptest.ResponseRecorder {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequestWithContext(ctx, method, target, strings.NewReader(body))
+		handler.ServeHTTP(w, r)
+		return w
+	}
+	readETag := func(t *testing.T, path string) string {
+		t.Helper()
+		w := do(t, http.MethodGet, "/read-file?path="+url.QueryEscape(path), "")
+		require.Equal(t, http.StatusOK, w.Code)
+		etag := w.Header().Get("ETag")
+		require.Regexp(t, `^"[0-9a-f]+-[0-9a-f]+"$`, etag)
+		return etag
+	}
+	write := func(t *testing.T, path, ifMatch, body string) *httptest.ResponseRecorder {
+		t.Helper()
+		target := "/write-file?path=" + url.QueryEscape(path)
+		if ifMatch != "" {
+			target += "&if_match=" + url.QueryEscape(ifMatch)
+		}
+		return do(t, http.MethodPost, target, body)
+	}
+
+	t.Run("ReadFile", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "read.txt")
+		require.NoError(t, os.WriteFile(path, []byte("abc"), 0o600))
+		info, err := os.Stat(path)
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf(`"%x-%x"`, info.ModTime().UnixNano(), info.Size()), readETag(t, path))
+	})
+
+	t.Run("WriteWithoutIfMatch", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "plain.txt")
+		w := write(t, path, "", "new")
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, readETag(t, path), w.Header().Get("ETag"))
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+		require.Equal(t, "new", string(data))
+	})
+
+	t.Run("IfMatchMatches", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "match.txt")
+		require.NoError(t, os.WriteFile(path, []byte("old"), 0o600))
+		etag := readETag(t, path)
+
+		w := write(t, path, etag, "updated")
+		require.Equal(t, http.StatusOK, w.Code)
+		newETag := w.Header().Get("ETag")
+		require.NotEqual(t, etag, newETag)
+		require.Equal(t, readETag(t, path), newETag)
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+		require.Equal(t, "updated", string(data))
+	})
+
+	t.Run("IfMatchMismatch", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "mismatch.txt")
+		require.NoError(t, os.WriteFile(path, []byte("old"), 0o600))
+		stale := readETag(t, path)
+		require.NoError(t, os.WriteFile(path, []byte("changed elsewhere"), 0o600))
+		current := readETag(t, path)
+		require.NotEqual(t, stale, current)
+
+		w := write(t, path, stale, "mine")
+		require.Equal(t, http.StatusPreconditionFailed, w.Code)
+		require.Equal(t, current, w.Header().Get("ETag"))
+		got := &codersdk.Error{}
+		require.NoError(t, json.NewDecoder(w.Body).Decode(got))
+		require.ErrorContains(t, got, "was modified")
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+		require.Equal(t, "changed elsewhere", string(data))
+	})
+
+	t.Run("IfMatchMissingFile", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		path := filepath.Join(dir, "nested", "missing.txt")
+		w := write(t, path, `"1-1"`, "content")
+		require.Equal(t, http.StatusPreconditionFailed, w.Code)
+		require.Empty(t, w.Header().Get("ETag"))
+		_, err := os.Stat(filepath.Join(dir, "nested"))
+		require.ErrorIs(t, err, os.ErrNotExist)
+	})
+
+	t.Run("EmptyIfMatch", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		existing := filepath.Join(dir, "existing.txt")
+		require.NoError(t, os.WriteFile(existing, []byte("old"), 0o600))
+		current := readETag(t, existing)
+
+		w := do(t, http.MethodPost, "/write-file?if_match=&path="+url.QueryEscape(existing), "mine")
+		require.Equal(t, http.StatusPreconditionFailed, w.Code)
+		require.Equal(t, current, w.Header().Get("ETag"))
+		data, err := os.ReadFile(existing)
+		require.NoError(t, err)
+		require.Equal(t, "old", string(data))
+
+		missing := filepath.Join(dir, "missing.txt")
+		w = do(t, http.MethodPost, "/write-file?if_match=&path="+url.QueryEscape(missing), "mine")
+		require.Equal(t, http.StatusPreconditionFailed, w.Code)
+		_, err = os.Stat(missing)
+		require.ErrorIs(t, err, os.ErrNotExist)
+	})
+
+	t.Run("IfNoneMatch", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		create := func(path, query, body string) *httptest.ResponseRecorder {
+			return do(t, http.MethodPost, "/write-file?path="+url.QueryEscape(path)+query, body)
+		}
+
+		// Missing file: written, with its ETag.
+		missing := filepath.Join(dir, "nested", "recreated.txt")
+		w := create(missing, "&if_none_match=*", "new")
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, readETag(t, missing), w.Header().Get("ETag"))
+
+		// Existing file: 412 with its ETag, content untouched.
+		current := readETag(t, missing)
+		w = create(missing, "&if_none_match=*", "clobber")
+		require.Equal(t, http.StatusPreconditionFailed, w.Code)
+		require.Equal(t, current, w.Header().Get("ETag"))
+		data, err := os.ReadFile(missing)
+		require.NoError(t, err)
+		require.Equal(t, "new", string(data))
+
+		// Existing directory: 412.
+		w = create(filepath.Join(dir, "nested"), "&if_none_match=*", "x")
+		require.Equal(t, http.StatusPreconditionFailed, w.Code)
+
+		// Only "*" is valid, and it cannot be combined with if_match.
+		for _, query := range []string{
+			"&if_none_match=",
+			"&if_none_match=" + url.QueryEscape(current),
+			"&if_none_match=*&if_match=" + url.QueryEscape(current),
+		} {
+			other := filepath.Join(dir, "invalid.txt")
+			w = create(other, query, "x")
+			require.Equal(t, http.StatusBadRequest, w.Code, query)
+			_, err = os.Stat(other)
+			require.ErrorIs(t, err, os.ErrNotExist, query)
+		}
+	})
+}
+
+// tempCreateHookFs runs beforeTemp when the atomic write creates its
+// temp file, after the first precondition check and before the rename.
+type tempCreateHookFs struct {
+	afero.Fs
+	beforeTemp func()
+}
+
+func (fs *tempCreateHookFs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
+	if strings.Contains(filepath.Base(name), ".tmp.") {
+		fs.beforeTemp()
+	}
+	return fs.Fs.OpenFile(name, flag, perm)
+}
+
+func TestWriteFile_IfNoneMatchRechecksBeforeRename(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "raced.txt")
+	const concurrent = "created by another process"
+	fs := &tempCreateHookFs{Fs: afero.NewOsFs(), beforeTemp: func() {
+		require.NoError(t, os.WriteFile(path, []byte(concurrent), 0o600))
+	}}
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	handler := agentfiles.NewAPI(logger, fs, nil).Routes()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/write-file?if_none_match=*&path="+url.QueryEscape(path), strings.NewReader("mine"))
+	handler.ServeHTTP(w, r)
+	require.Equal(t, http.StatusPreconditionFailed, w.Code)
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, concurrent, string(data))
+	entries, err := os.ReadDir(filepath.Dir(path))
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "temp file was not cleaned up")
+}
+
+// renameHookFs runs afterRename after each successful rename, to
+// simulate another writer replacing the file right after a write.
+type renameHookFs struct {
+	afero.Fs
+	afterRename func(newname string)
+}
+
+func (fs *renameHookFs) Rename(oldname, newname string) error {
+	if err := fs.Fs.Rename(oldname, newname); err != nil {
+		return err
+	}
+	fs.afterRename(newname)
+	return nil
+}
+
+func TestWriteFile_ETagIsOwnWrite(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "raced.txt")
+	const concurrent = "written by another process"
+	fs := &renameHookFs{Fs: afero.NewOsFs(), afterRename: func(newname string) {
+		require.NoError(t, os.WriteFile(newname, []byte(concurrent), 0o600))
+	}}
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	handler := agentfiles.NewAPI(logger, fs, nil).Routes()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/write-file?path="+url.QueryEscape(path), strings.NewReader("mine"))
+	handler.ServeHTTP(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	require.Equal(t, int64(len(concurrent)), info.Size())
+	// The ETag describes the 4-byte write, not the file now on disk.
+	require.Regexp(t, `^"[0-9a-f]+-4"$`, w.Header().Get("ETag"))
+}
+
+func TestWriteFile_IfNoneMatchConcurrentCreates(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	handler := agentfiles.NewAPI(logger, afero.NewOsFs(), nil).Routes()
+	dir := t.TempDir()
+
+	const rounds, writers = 20, 8
+	for round := range rounds {
+		path := filepath.Join(dir, fmt.Sprintf("created-%d.txt", round))
+		codes := make([]int, writers)
+		var wg sync.WaitGroup
+		for i := range writers {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				ctx := testutil.Context(t, testutil.WaitShort)
+				w := httptest.NewRecorder()
+				r := httptest.NewRequestWithContext(ctx, http.MethodPost,
+					"/write-file?if_none_match=*&path="+url.QueryEscape(path), strings.NewReader(fmt.Sprintf("writer %d", i)))
+				handler.ServeHTTP(w, r)
+				codes[i] = w.Code
+			}()
+		}
+		wg.Wait()
+
+		winner := -1
+		for i, code := range codes {
+			switch code {
+			case http.StatusOK:
+				require.Equal(t, -1, winner, "round %d: writers %d and %d both created the file", round, winner, i)
+				winner = i
+			case http.StatusPreconditionFailed:
+			default:
+				require.Failf(t, "unexpected status", "round %d writer %d: %d", round, i, code)
+			}
+		}
+		require.NotEqual(t, -1, winner, "round %d: no writer created the file", round)
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf("writer %d", winner), string(data))
+	}
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	require.Len(t, entries, rounds, "temp files were left behind")
 }

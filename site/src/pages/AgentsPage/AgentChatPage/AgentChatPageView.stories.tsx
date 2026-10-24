@@ -108,6 +108,7 @@ const buildGitWatcher = (): React.ComponentProps<
 	repositories: new Map(),
 	everDirty: new Set(),
 	hasReceivedChanges: true,
+	repoRootsSettled: true,
 	refresh: fn().mockReturnValue(true),
 });
 
@@ -502,6 +503,13 @@ index abc1234..def5678 100644
  start(port);`,
 		});
 	},
+};
+
+/** With workspace files on, Files is a fixed tab between Summary and Git. */
+export const WithFilesTab: Story = {
+	render: () => (
+		<StoryAgentChatPageView showSidebarPanel workspaceFilesEnabled />
+	),
 };
 
 export const NarrowWithSidebarPanel: Story = {

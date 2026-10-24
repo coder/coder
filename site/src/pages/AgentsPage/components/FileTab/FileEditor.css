@@ -1,0 +1,12 @@
+/*
+ * Monaco toggles `visible` and `invisible` classes for its own state, such as
+ * the find widget and the scrollbar fade, and styles them with opacity and
+ * transforms. Tailwind's utilities of the same names set `visibility`, which
+ * cuts the scrollbar fade short and lets the find widget show through a
+ * hidden ancestor. Unlayered CSS wins over the utilities in
+ * `@layer utilities`.
+ */
+.agents-file-editor .visible,
+.agents-file-editor .invisible {
+	visibility: inherit;
+}

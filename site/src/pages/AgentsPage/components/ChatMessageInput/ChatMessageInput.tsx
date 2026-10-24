@@ -53,6 +53,7 @@ import {
 import {
 	filterSkillsByQuery,
 	isSkillTriggerToken,
+	parseSkillTrigger,
 	type SkillsScope,
 } from "../../utils/skills";
 import {
@@ -83,14 +84,16 @@ import {
 	SkillsTriggerMenu,
 } from "./SkillsTriggerMenu";
 import {
-	type ActiveSkillsTrigger,
-	SkillsTriggerPlugin,
-} from "./SkillsTriggerPlugin";
-import {
 	$insertClipboardNodes,
 	getClipboardNodes,
 	registerSkillAliasCopy,
 } from "./skillClipboard";
+import {
+	type ActiveTypeaheadTrigger,
+	TypeaheadTriggerPlugin,
+} from "./TypeaheadTriggerPlugin";
+import { WorkspacePathNode } from "./WorkspacePathNode";
+import { WorkspacePathPicker } from "./WorkspacePathPicker";
 
 // Blocks Cmd+B/I/U and element formatting shortcuts so the editor
 // stays plain-text only.
@@ -650,7 +653,7 @@ type ChatMessageInputProps = Omit<
 	 */
 	slashCommands?: readonly ChatSlashCommand[];
 	/**
-	 * Composer box element the skills menu is pinned above and sized
+	 * Composer box element the "/" and "@" menus are pinned above and sized
 	 * to match. Falls back to this component's own container.
 	 */
 	skillsMenuAnchor?: HTMLElement | null;
@@ -672,23 +675,18 @@ const EditableStatePlugin: React.FC<{ disabled: boolean }> =
 		return null;
 	};
 
-type SkillsTriggerLocation = Pick<
-	ActiveSkillsTrigger,
-	"nodeKey" | "slashOffset"
->;
+type SkillsTriggerLocation = Pick<ActiveTypeaheadTrigger, "nodeKey" | "offset">;
 
 const isSameSkillsTriggerLocation = (
 	a: SkillsTriggerLocation,
 	b: SkillsTriggerLocation | null,
 ): boolean => {
-	return Boolean(
-		b && a.nodeKey === b.nodeKey && a.slashOffset === b.slashOffset,
-	);
+	return Boolean(b && a.nodeKey === b.nodeKey && a.offset === b.offset);
 };
 
 const isSameSkillsTrigger = (
-	a: ActiveSkillsTrigger | null,
-	b: ActiveSkillsTrigger | null,
+	a: ActiveTypeaheadTrigger | null,
+	b: ActiveTypeaheadTrigger | null,
 ): boolean => {
 	if (a === b) {
 		return true;
@@ -697,9 +695,7 @@ const isSameSkillsTrigger = (
 		return false;
 	}
 	return (
-		a.nodeKey === b.nodeKey &&
-		a.slashOffset === b.slashOffset &&
-		a.query === b.query
+		a.nodeKey === b.nodeKey && a.offset === b.offset && a.query === b.query
 	);
 };
 
@@ -763,7 +759,7 @@ const ChatMessageInput = ({
 			paragraph: "m-0",
 		},
 		onError: (error: Error) => console.error("Lexical error:", error),
-		nodes: [FileReferenceNode, SkillInvocationNode],
+		nodes: [FileReferenceNode, SkillInvocationNode, WorkspacePathNode],
 		editable: !disabled,
 	};
 	const style = {
@@ -777,9 +773,12 @@ const ChatMessageInput = ({
 	// Queues a setValue call made before the editor ref is ready.
 	const pendingReplacementRef = useRef<string | null>(null);
 	const [skillsTrigger, setSkillsTrigger] =
-		useState<ActiveSkillsTrigger | null>(null);
+		useState<ActiveTypeaheadTrigger | null>(null);
 	const [containerElement, setContainerElement] =
 		useState<HTMLDivElement | null>(null);
+	const [skillsListbox, setSkillsListbox] = useState<HTMLDivElement | null>(
+		null,
+	);
 	const suppressedSkillsTriggerRef = useRef<SkillsTriggerLocation | null>(null);
 	const [skillsMenuSelectedIndex, setSkillsMenuSelectedIndex] = useState(0);
 	const hasSkillsTrigger = Boolean(skillsTrigger);
@@ -906,7 +905,9 @@ const ChatMessageInput = ({
 			? -1
 			: Math.min(skillsMenuSelectedIndex, allFilteredSkills.length - 1);
 
-	const handleSkillsTriggerChange = (trigger: ActiveSkillsTrigger | null) => {
+	const handleSkillsTriggerChange = (
+		trigger: ActiveTypeaheadTrigger | null,
+	) => {
 		if (
 			trigger &&
 			isSameSkillsTriggerLocation(trigger, suppressedSkillsTriggerRef.current)
@@ -952,14 +953,12 @@ const ChatMessageInput = ({
 			}
 
 			const caretOffset = anchor.offset;
-			const token = node
-				.getTextContent()
-				.slice(trigger.slashOffset, caretOffset);
-			if (caretOffset < trigger.slashOffset || !isSkillTriggerToken(token)) {
+			const token = node.getTextContent().slice(trigger.offset, caretOffset);
+			if (caretOffset < trigger.offset || !isSkillTriggerToken(token)) {
 				return;
 			}
 
-			selection.anchor.set(trigger.nodeKey, trigger.slashOffset, "text");
+			selection.anchor.set(trigger.nodeKey, trigger.offset, "text");
 			selection.focus.set(trigger.nodeKey, caretOffset, "text");
 			if (skill.source === "command") {
 				selection.insertText(skill.triggerText);
@@ -1211,6 +1210,8 @@ const ChatMessageInput = ({
 							aria-label={ariaLabel}
 							aria-describedby={ariaDescribedBy}
 							aria-disabled={disabled}
+							ariaAutoComplete="list"
+							aria-haspopup="listbox"
 						/>
 					}
 					placeholder={
@@ -1238,19 +1239,23 @@ const ChatMessageInput = ({
 					initialEditorState={initialEditorState}
 				/>
 				<InsertTextPlugin onEditorReady={handleEditorReady} />
-				<SkillsTriggerPlugin
+				<TypeaheadTriggerPlugin
 					open={skillsMenuOpen}
-					skills={allFilteredSkills}
-					skillsLoading={
+					items={allFilteredSkills}
+					loading={
 						isPersonalSkillsLoading ||
 						organizationSource.isLoading ||
 						isProjectLoading ||
 						isWorkspaceSkillsLoading
 					}
 					selectedIndex={selectedSkillIndex}
+					parseTrigger={parseSkillTrigger}
+					submitOnEmptyEnter
+					reopenOnQueryChange={false}
+					listbox={skillsListbox}
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					onTriggerChange={handleSkillsTriggerChange}
-					onSkillSelect={replaceActiveSkillsTrigger}
+					onSelect={replaceActiveSkillsTrigger}
 				/>
 				<EditableStatePlugin disabled={disabled} />
 				{onFilePaste && acceptFilePasteWhileDisabled && (
@@ -1284,6 +1289,7 @@ const ChatMessageInput = ({
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					onSelect={replaceActiveSkillsTrigger}
 					onClose={() => handleSkillsTriggerChange(null)}
+					listboxRef={setSkillsListbox}
 					onEscapeKeyDown={(event) => {
 						// On a real keypress React commits Radix's dismiss before
 						// Lexical sees the same keydown, so the trigger plugin
@@ -1300,6 +1306,7 @@ const ChatMessageInput = ({
 						}
 					}}
 				/>
+				<WorkspacePathPicker anchor={skillsMenuAnchor ?? containerElement} />
 			</div>
 		</LexicalComposer>
 	);

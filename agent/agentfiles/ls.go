@@ -1,7 +1,9 @@
 package agentfiles
 
 import (
+	"bufio"
 	"errors"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,6 +16,7 @@ import (
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/agent/filefinder"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -21,11 +24,16 @@ import (
 
 var WindowsDriveRegex = regexp.MustCompile(`^[a-zA-Z]:\\$`)
 
+// maxLSEntries caps the number of entries in a list-directory response.
+const maxLSEntries = 10000
+
+var errNotDirectory = xerrors.New("is not a directory")
+
 func (api *API) HandleLS(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// An absolute path may be optionally provided, otherwise a path split into an
-	// array must be provided in the body (which can be relative).
+	// The path query parameter accepts the forms documented on
+	// resolvePathForm unless the body selects the legacy form.
 	query := r.URL.Query()
 	parser := httpapi.NewQueryParamParser()
 	path := parser.String(query, "", "path")
@@ -38,9 +46,45 @@ func (api *API) HandleLS(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req workspacesdk.LSRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
+	// body.Relativity is set when the body has a relativity key, as
+	// every AgentConn.LS caller sends. Those requests keep the original
+	// semantics: an absolute path query parameter, or a path array
+	// relative to relativity. It shadows the embedded field.
+	var body struct {
+		workspacesdk.LSRequest
+		Relativity *workspacesdk.LSRelativity `json:"relativity"`
+	}
+	// An empty body selects the path forms with no request fields.
+	br := bufio.NewReader(r.Body)
+	if _, err := br.Peek(1); err == nil {
+		r.Body = struct {
+			io.Reader
+			io.Closer
+		}{br, r.Body}
+		if !httpapi.Read(ctx, rw, r, &body) {
+			return
+		}
+	} else if !errors.Is(err, io.EOF) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to read request body.",
+			Detail:  err.Error(),
+		})
 		return
+	}
+	req := body.LSRequest
+	if body.Relativity != nil {
+		req.Relativity = *body.Relativity
+	}
+
+	if body.Relativity == nil {
+		var err error
+		path, err = api.resolvePathForm(path)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: err.Error(),
+			})
+			return
+		}
 	}
 
 	resp, err := listFiles(api.filesystem, path, req)
@@ -51,12 +95,25 @@ func (api *API) HandleLS(rw http.ResponseWriter, r *http.Request) {
 			status = http.StatusNotFound
 		case errors.Is(err, os.ErrPermission):
 			status = http.StatusForbidden
+		case errors.Is(err, errNotDirectory):
+			status = http.StatusBadRequest
 		default:
 		}
 		httpapi.Write(ctx, rw, status, codersdk.Response{
 			Message: err.Error(),
 		})
 		return
+	}
+
+	if resp.AbsolutePathString != "" && len(resp.Contents) > 0 {
+		queries := make([]filefinder.IgnoreQuery, len(resp.Contents))
+		for i, f := range resp.Contents {
+			// git matches a symlink as a file, whatever its target.
+			queries[i] = filefinder.IgnoreQuery{Path: f.AbsolutePathString, IsDir: f.IsDir && !f.IsSymlink}
+		}
+		for i, ignored := range api.getIgnorer().Ignored(ctx, queries) {
+			resp.Contents[i].Ignored = ignored
+		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
@@ -114,17 +171,28 @@ func listFiles(fs afero.Fs, path string, query workspacesdk.LSRequest) (workspac
 	}
 
 	if !stat.IsDir() {
-		return workspacesdk.LSResponse{}, xerrors.Errorf("path %q is not a directory", absolutePathString)
+		return workspacesdk.LSResponse{}, xerrors.Errorf("path %q %w", absolutePathString, errNotDirectory)
 	}
 
 	// `contents` may be partially populated even if the operation fails midway.
 	contents, _ := f.Readdir(-1)
 	respContents := make([]workspacesdk.LSFile, 0, len(contents))
 	for _, file := range contents {
+		absPath := filepath.Join(absolutePathString, file.Name())
+		isSymlink := file.Mode()&os.ModeSymlink != 0
+		isDir := file.IsDir()
+		if isSymlink {
+			if target, err := fs.Stat(absPath); err == nil {
+				isDir = target.IsDir()
+			}
+		}
 		respContents = append(respContents, workspacesdk.LSFile{
 			Name:               file.Name(),
-			AbsolutePathString: filepath.Join(absolutePathString, file.Name()),
-			IsDir:              file.IsDir(),
+			AbsolutePathString: absPath,
+			IsDir:              isDir,
+			IsSymlink:          isSymlink,
+			Size:               file.Size(),
+			ModTime:            file.ModTime(),
 		})
 	}
 
@@ -139,12 +207,18 @@ func listFiles(fs afero.Fs, path string, query workspacesdk.LSRequest) (workspac
 		return strings.Compare(a.Name, b.Name)
 	})
 
+	truncated := len(respContents) > maxLSEntries
+	if truncated {
+		respContents = respContents[:maxLSEntries]
+	}
+
 	absolutePath := pathToArray(absolutePathString)
 
 	return workspacesdk.LSResponse{
 		AbsolutePath:       absolutePath,
 		AbsolutePathString: absolutePathString,
 		Contents:           respContents,
+		Truncated:          truncated,
 	}, nil
 }
 

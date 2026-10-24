@@ -1,7 +1,16 @@
 import { cn } from "cn";
 import { Fragment } from "react";
+import { useWorkspaceFiles } from "../../context/WorkspaceFilesContext";
+import { getSkillAlias } from "../../utils/skillAliases";
+import {
+	formatWorkspacePathReference,
+	splitWorkspacePathReferences,
+} from "../../utils/workspacePathReference";
 import { Message, MessageContent } from "../ChatElements/Message";
-import { FileReferenceChip } from "../ChatMessageInput/FileReferenceChip";
+import {
+	FileReferenceChip,
+	WorkspacePathChip,
+} from "../ChatMessageInput/FileReferenceChip";
 import {
 	hasInlineContentAfter,
 	hasInlineContentBefore,
@@ -29,13 +38,108 @@ const getInlineParts = (
 	});
 };
 
+// Paths that "@" chips sent render as chips again. A file opens in a tab and
+// a folder shows in the Files panel.
+const UserMessageText: React.FC<{ text: string }> = ({ text }) => {
+	const workspaceFiles = useWorkspaceFiles();
+	return (
+		<>
+			{splitWorkspacePathReferences(text).map((segment, index) => {
+				if (segment.type === "text") {
+					return <Fragment key={index}>{segment.text}</Fragment>;
+				}
+				let openPath: (() => void) | undefined;
+				if (workspaceFiles && segment.isDirectory) {
+					openPath = () =>
+						workspaceFiles.revealInFiles(segment.path, { isDirectory: true });
+				} else if (workspaceFiles) {
+					openPath = () => workspaceFiles.openFile(segment.path);
+				}
+				return (
+					<span
+						key={index}
+						data-copy-text={formatWorkspacePathReference(
+							segment.path,
+							segment.isDirectory,
+						)}
+					>
+						<WorkspacePathChip
+							path={segment.path}
+							isDirectory={segment.isDirectory}
+							onOpen={openPath}
+							label={
+								segment.isDirectory
+									? `Show ${segment.path} in Files`
+									: undefined
+							}
+						/>
+					</span>
+				);
+			})}
+		</>
+	);
+};
+
+type CopySegment = { text: string; isMessagePart: boolean };
+
+// The text runs and chip copy texts of a copied fragment, in document order.
+// A skill chip is its own message part; a path chip is part of the text.
+const getCopySegments = (node: Node): CopySegment[] => {
+	if (node instanceof Element && node.hasAttribute("data-copy-text")) {
+		return [
+			{
+				text: node.getAttribute("data-copy-text") ?? "",
+				isMessagePart: node.hasAttribute("data-message-part"),
+			},
+		];
+	}
+	if (node.nodeType === Node.TEXT_NODE) {
+		return [{ text: node.textContent ?? "", isMessagePart: false }];
+	}
+	return Array.from(node.childNodes).flatMap(getCopySegments);
+};
+
+// Chips are not selectable, so a copy of a selection within the message
+// writes each chip's text form, its data-copy-text, in place of the chip.
+// The server trims each sent text part, so one space separates a chip that
+// is its own message part from text it would otherwise touch.
+const handleMessageCopy = (event: React.ClipboardEvent<HTMLElement>) => {
+	const selection = window.getSelection();
+	const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
+	if (!range || !event.currentTarget.contains(range.commonAncestorContainer)) {
+		return;
+	}
+	const fragment = range.cloneContents();
+	if (!fragment.querySelector("[data-copy-text]")) {
+		return;
+	}
+	let text = "";
+	let previousIsMessagePart = false;
+	for (const segment of getCopySegments(fragment)) {
+		if (!segment.text) {
+			continue;
+		}
+		if (
+			(segment.isMessagePart || previousIsMessagePart) &&
+			/\S$/.test(text) &&
+			/^\S/.test(segment.text)
+		) {
+			text += " ";
+		}
+		text += segment.text;
+		previousIsMessagePart = segment.isMessagePart;
+	}
+	event.clipboardData.setData("text/plain", text);
+	event.preventDefault();
+};
+
 const renderUserInlineBlock = (
 	inlineParts: readonly InlinePart[],
 	block: UserInlineRenderBlock,
 	index: number,
 ) => {
 	if (block.type === "response") {
-		return <Fragment key={index}>{block.text}</Fragment>;
+		return <UserMessageText key={index} text={block.text} />;
 	}
 	const spacing = cn(
 		hasInlineContentBefore(inlineParts, index) && "ml-1",
@@ -43,12 +147,17 @@ const renderUserInlineBlock = (
 	);
 	if (block.type === "skill-invocation") {
 		return (
-			<SkillChip
+			<span
 				key={index}
-				source={block.skill_source}
-				name={block.skill_name}
-				className={spacing}
-			/>
+				data-copy-text={getSkillAlias(block.skill_source, block.skill_name)}
+				data-message-part
+			>
+				<SkillChip
+					source={block.skill_source}
+					name={block.skill_name}
+					className={spacing}
+				/>
+			</span>
 		);
 	}
 
@@ -90,10 +199,12 @@ export const UserMessageContent: React.FC<{
 					{(displayState.hasUserMessageBody || displayState.hasFileBlocks) && (
 						<div className="flex items-start gap-2">
 							{displayState.hasUserMessageBody && (
-								<span className="min-w-0 flex-1">
-									{displayState.userInlineContent.length > 0
-										? renderUserInlineContent(displayState.userInlineContent)
-										: markdown || ""}
+								<span className="min-w-0 flex-1" onCopy={handleMessageCopy}>
+									{displayState.userInlineContent.length > 0 ? (
+										renderUserInlineContent(displayState.userInlineContent)
+									) : (
+										<UserMessageText text={markdown} />
+									)}
 								</span>
 							)}
 						</div>

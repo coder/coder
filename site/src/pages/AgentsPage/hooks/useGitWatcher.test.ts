@@ -1,5 +1,5 @@
-import { renderHook, waitFor } from "@testing-library/react";
-import { act } from "react";
+import { render, renderHook, waitFor } from "@testing-library/react";
+import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkspaceAgentStatus } from "#/api/typesGenerated";
 import { useGitWatcher } from "./useGitWatcher";
@@ -999,6 +999,50 @@ describe("useGitWatcher", () => {
 		expect(result.current.everDirty).toBe(everDirtyBeforeHeartbeat);
 	});
 
+	it("reports a heartbeat's arrival to subscribers without rendering the page", () => {
+		const socket = createMockSocket();
+		// Stands in for the chat page, which passes the watcher's state down.
+		let pageRenders = 0;
+		let gitWatcher: ReturnType<typeof useGitWatcher> | undefined;
+		const Page = (props: { gitWatcher: ReturnType<typeof useGitWatcher> }) => {
+			pageRenders++;
+			gitWatcher = props.gitWatcher;
+			return null;
+		};
+		const Host = () =>
+			createElement(Page, {
+				gitWatcher: useGitWatcher({
+					chatId: "chat-123",
+					agentStatus: "connected",
+				}),
+			});
+		render(createElement(Host));
+		act(() => socket.simulateOpen());
+		act(() => {
+			socket.simulateMessage({
+				type: "changes",
+				scanned_at: "2024-01-02T03:04:05Z",
+				repositories: [{ repo_root: "/repo", branch: "main" }],
+			});
+		});
+		const watcherMessages = gitWatcher?.watcherMessages;
+		const onMessage = vi.fn();
+		watcherMessages?.subscribe(onMessage);
+		const rendersBeforeHeartbeat = pageRenders;
+		vi.spyOn(Date, "now").mockReturnValue(5_000);
+
+		act(() => {
+			socket.simulateMessage({
+				type: "changes",
+				scanned_at: "2024-01-02T03:04:10Z",
+			});
+		});
+
+		expect(pageRenders).toBe(rendersBeforeHeartbeat);
+		expect(onMessage).toHaveBeenCalledOnce();
+		expect(watcherMessages?.getLastArrival()).toBe(5_000);
+	});
+
 	it("heartbeat with explicit empty repositories array is also a no-op for repos", async () => {
 		const socket = createMockSocket();
 
@@ -1079,5 +1123,58 @@ describe("useGitWatcher", () => {
 		createMockSocket();
 		rerender({ agentStatus: "connected" as WorkspaceAgentStatus });
 		expect(result.current.everDirty.has("/repo")).toBe(true);
+	});
+
+	it("settles repo roots on the first changes message and stays settled across reconnects", () => {
+		vi.useFakeTimers();
+		try {
+			const socket1 = createMockSocket();
+			const { result, rerender } = renderHook(
+				({ agentStatus }: { agentStatus: WorkspaceAgentStatus }) =>
+					useGitWatcher({ chatId: "chat-settle", agentStatus }),
+				{ initialProps: { agentStatus: "connected" as WorkspaceAgentStatus } },
+			);
+
+			act(() => socket1.simulateOpen());
+			expect(result.current.repoRootsSettled).toBe(false);
+			act(() => socket1.simulateMessage({ type: "changes", repositories: [] }));
+			expect(result.current.repoRootsSettled).toBe(true);
+
+			const socket2 = createMockSocket();
+			act(() => socket1.simulateClose());
+			act(() => vi.advanceTimersByTime(2_000));
+			act(() => socket2.simulateOpen());
+			expect(result.current.hasReceivedChanges).toBe(false);
+			expect(result.current.repoRootsSettled).toBe(true);
+
+			createMockSocket();
+			rerender({ agentStatus: "connecting" });
+			rerender({ agentStatus: "connected" });
+			expect(result.current.repoRootsSettled).toBe(true);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("settles repo roots when a connection attempt fails, until the chat changes", () => {
+		vi.useFakeTimers();
+		try {
+			const socket = createMockSocket();
+			const { result, rerender } = renderHook(
+				({ chatId }: { chatId: string }) =>
+					useGitWatcher({ chatId, agentStatus: "connected" }),
+				{ initialProps: { chatId: "chat-fail" } },
+			);
+
+			expect(result.current.repoRootsSettled).toBe(false);
+			act(() => socket.simulateClose());
+			expect(result.current.repoRootsSettled).toBe(true);
+
+			createMockSocket();
+			rerender({ chatId: "chat-other" });
+			expect(result.current.repoRootsSettled).toBe(false);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
