@@ -76,12 +76,25 @@ type credential struct {
 // It supports storing multiple credentials for different server URLs.
 type credentialsMap map[string]credential
 
-// normalizeHost returns a normalized version of the URL host for use as a map key.
-func normalizeHost(u *url.URL) (string, error) {
+// credentialKey returns the keyring map key and the normalized origin for the
+// server URL. HTTPS keys are the bare host plus any non-default port, as older
+// CLI versions write them. HTTP keys are the full origin, so they never share
+// an entry with HTTPS. Default ports are dropped so each origin has one key.
+func credentialKey(u *url.URL) (key, origin string, err error) {
 	if u == nil || u.Host == "" {
-		return "", xerrors.New("nil server URL")
+		return "", "", xerrors.New("nil server URL")
 	}
-	return strings.TrimSpace(strings.ToLower(u.Host)), nil
+	host := strings.TrimSpace(strings.ToLower(u.Host))
+	switch u.Scheme {
+	case "https":
+		host = strings.TrimSuffix(host, ":443")
+		return host, "https://" + host, nil
+	case "http":
+		origin = "http://" + strings.TrimSuffix(host, ":80")
+		return origin, origin, nil
+	default:
+		return "", "", xerrors.Errorf("unsupported server URL scheme %q", u.Scheme)
+	}
 }
 
 // parseCredentialsJSON parses the JSON from the keyring into a credentialsMap.
@@ -119,7 +132,7 @@ func NewKeyringWithService(serviceName string) Keyring {
 }
 
 func (o Keyring) Read(serverURL *url.URL) (string, error) {
-	host, err := normalizeHost(serverURL)
+	host, _, err := credentialKey(serverURL)
 	if err != nil {
 		return "", err
 	}
@@ -137,7 +150,6 @@ func (o Keyring) Read(serverURL *url.URL) (string, error) {
 		return "", xerrors.Errorf("read: parse existing credentials: %w", err)
 	}
 
-	// Return the credential for the specified URL
 	cred, ok := creds[host]
 	if !ok {
 		return "", os.ErrNotExist
@@ -146,7 +158,7 @@ func (o Keyring) Read(serverURL *url.URL) (string, error) {
 }
 
 func (o Keyring) Write(serverURL *url.URL, token string) error {
-	host, err := normalizeHost(serverURL)
+	host, origin, err := credentialKey(serverURL)
 	if err != nil {
 		return err
 	}
@@ -161,9 +173,8 @@ func (o Keyring) Write(serverURL *url.URL, token string) error {
 		return xerrors.Errorf("write: parse existing credentials: %w", err)
 	}
 
-	// Upsert the credential for this URL.
 	creds[host] = credential{
-		CoderURL: host,
+		CoderURL: origin,
 		APIToken: token,
 	}
 
@@ -180,7 +191,7 @@ func (o Keyring) Write(serverURL *url.URL, token string) error {
 }
 
 func (o Keyring) Delete(serverURL *url.URL) error {
-	host, err := normalizeHost(serverURL)
+	host, _, err := credentialKey(serverURL)
 	if err != nil {
 		return err
 	}
