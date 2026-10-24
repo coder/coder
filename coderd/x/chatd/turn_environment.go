@@ -475,8 +475,19 @@ func (p *Server) buildTurnEnvironment(
 		}
 		tokenBudget = strategy == codersdk.ChatCompactionStrategyTokenBudget
 	}
-	conversionRows := promptRows
-	if !tokenBudget {
+	var conversionRows []database.ChatMessage
+	var contextWindowBlock string
+	if tokenBudget {
+		conversionRows, err = tagUserRowsWithItemIDs(promptRows)
+		if err != nil {
+			return turnEnvironment{}, err
+		}
+		previousWindowID, err := previousContextWindowID(promptRows)
+		if err != nil {
+			return turnEnvironment{}, err
+		}
+		contextWindowBlock = contextWindowPrompt(contextWindowID(promptRows), previousWindowID)
+	} else {
 		conversionRows, err = withoutChatHistoryLeadIn(promptRows)
 		if err != nil {
 			return turnEnvironment{}, err
@@ -748,6 +759,7 @@ func (p *Server) buildTurnEnvironment(
 			chatMode:             chat.Mode,
 			planModeInstructions: planModeInstructions,
 			isRootChat:           isRootChat,
+			contextWindow:        contextWindowBlock,
 		},
 	)
 	if advisorRuntime != nil {
@@ -2221,6 +2233,9 @@ type systemPromptBehaviorContext struct {
 	chatMode             database.NullChatMode
 	planModeInstructions string
 	isRootChat           bool
+	// contextWindow is the token budget strategy's guidance and window
+	// IDs, appended last.
+	contextWindow string
 }
 
 func workspaceSkillsForResolution(workspaceSkills []chattool.SkillMeta) []skillspkg.Skill {
@@ -2254,7 +2269,8 @@ func mergeTurnSkills(
 
 // buildSystemPrompt applies system-level prompt injections in a fixed
 // order: subagent instruction, chat instruction, skill index, memory index,
-// project instructions, user prompt, then mode overlay prompts. Project
+// project instructions, user prompt, mode overlay prompts, then the context
+// window block of the token budget strategy. Project
 // instructions precede the user prompt so personal instructions keep the
 // last word.
 func buildSystemPrompt(
@@ -2287,7 +2303,7 @@ func buildSystemPrompt(
 	}
 	if isExploreSubagentMode(behaviorContext.chatMode) {
 		prompt = chatprompt.InsertSystem(prompt, ExploreSubagentOverlayPrompt)
-		return prompt
+		return chatprompt.InsertSystem(prompt, behaviorContext.contextWindow)
 	}
 	isPlanModeTurn := behaviorContext.planMode.Valid && behaviorContext.planMode.ChatPlanMode == database.ChatPlanModePlan
 	if isPlanModeTurn {
@@ -2300,7 +2316,7 @@ func buildSystemPrompt(
 			prompt = chatprompt.InsertSystem(prompt, PlanningSubagentOverlayPrompt)
 		}
 	}
-	return prompt
+	return chatprompt.InsertSystem(prompt, behaviorContext.contextWindow)
 }
 
 type rootChatToolsOptions struct {
