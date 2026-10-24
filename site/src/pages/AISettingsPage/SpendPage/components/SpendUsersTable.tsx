@@ -31,10 +31,12 @@ export type SpendReportQuery =
 
 type SpendUsersTableProps = {
 	reportQuery: SpendReportQuery;
+	configuredProviders?: readonly TypesGen.AIBridgeProvider[];
 };
 
 export const SpendUsersTable: React.FC<SpendUsersTableProps> = ({
 	reportQuery,
+	configuredProviders,
 }) => {
 	const retryButton = (
 		<Button
@@ -108,7 +110,11 @@ export const SpendUsersTable: React.FC<SpendUsersTableProps> = ({
 								<TableEmpty message="No AI Gateway spend found" isCompact />
 							) : (
 								report.users.map((user) => (
-									<SpendUserRow key={user.user_id} user={user} />
+									<SpendUserRow
+										key={user.user_id}
+										user={user}
+										configuredProviders={configuredProviders}
+									/>
 								))
 							)}
 						</TableBody>
@@ -121,9 +127,13 @@ export const SpendUsersTable: React.FC<SpendUsersTableProps> = ({
 
 type SpendUserRowProps = {
 	user: TypesGen.OrganizationAISpendUser;
+	configuredProviders?: readonly TypesGen.AIBridgeProvider[];
 };
 
-const SpendUserRow: React.FC<SpendUserRowProps> = ({ user }) => (
+const SpendUserRow: React.FC<SpendUserRowProps> = ({
+	user,
+	configuredProviders,
+}) => (
 	<TableRow>
 		{/* The row header gives the count badges and warning their user. */}
 		<TableHead
@@ -139,7 +149,10 @@ const SpendUserRow: React.FC<SpendUserRowProps> = ({ user }) => (
 			/>
 		</TableHead>
 		<TableCell>
-			<ProvidersBadge providers={user.providers} />
+			<ProvidersBadge
+				providers={user.providers}
+				configuredProviders={configuredProviders}
+			/>
 		</TableCell>
 		<TableCell>
 			<ModelsBadge models={user.models} />
