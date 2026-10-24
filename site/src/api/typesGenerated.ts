@@ -4545,7 +4545,8 @@ export interface CreateSkillRequest {
 	 */
 	readonly action?: boolean;
 	/**
-	 * ModelInvocable defaults to true.
+	 * ModelInvocable defaults to false when the content's frontmatter sets
+	 * disable-model-invocation: true, and to true otherwise.
 	 */
 	readonly model_invocable?: boolean;
 }
