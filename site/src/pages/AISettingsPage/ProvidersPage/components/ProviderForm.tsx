@@ -414,7 +414,7 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 			...defaultInitialValues,
 			// Layer order: base defaults < type prefills < parent's initialValues.
 			// Edit overrides prefills with server values; create gets them as-is.
-			...(typeDefaults ?? {}),
+			...typeDefaults,
 			...initialValues,
 			accessKey: maskedAccessKey,
 			accessKeySecret: maskedAccessKeySecret,
