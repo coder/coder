@@ -21652,7 +21652,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "resources": {
-                    "description": "Resources is the chat's pinned context (instruction files and\nskills) the prompt is built from, metadata only (no bodies). It is\npopulated only on the single-chat GET response; list and watch\npayloads leave it nil to stay lightweight.",
+                    "description": "Resources is the chat's pinned workspace-context inventory,\nmetadata only (no bodies). It is populated only on the single-chat\nGET response; list and watch\npayloads leave it nil to stay lightweight.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatContextResource"
@@ -21682,7 +21682,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "source": {
-                    "description": "Source is the resource locator: the canonical file path for an\ninstruction file, the skill directory for a skill, the file path for\nan MCP config, or the server name for an MCP server.",
+                    "description": "Source is the resource locator: the canonical file path for an\ninstruction file, the skill directory for a skill, the file path for\nan MCP config, the server name for an MCP server, or an ACP harness slug.",
+                    "type": "string"
+                },
+                "source_path": {
+                    "description": "SourcePath is the configuration directory for an ACP harness.",
                     "type": "string"
                 },
                 "status": {
@@ -21708,13 +21712,15 @@ const docTemplate = `{
                 "instruction_file",
                 "skill",
                 "mcp_config",
-                "mcp_server"
+                "mcp_server",
+                "acp_harness"
             ],
             "x-enum-varnames": [
                 "ChatContextResourceKindInstructionFile",
                 "ChatContextResourceKindSkill",
                 "ChatContextResourceKindMCPConfig",
-                "ChatContextResourceKindMCPServer"
+                "ChatContextResourceKindMCPServer",
+                "ChatContextResourceKindACPHarness"
             ]
         },
         "codersdk.ChatContextResourceStatus": {
@@ -22073,6 +22079,17 @@ const docTemplate = `{
                     "description": "The following fields are only set when Type is\nChatInputPartTypeFileReference.",
                     "type": "string"
                 },
+                "skill_name": {
+                    "type": "string"
+                },
+                "skill_source": {
+                    "description": "The following fields are only set when Type is\nChatInputPartTypeSkillInvocation. The server loads the skill\nas the chat owner when the message is sent.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatSkillSource"
+                        }
+                    ]
+                },
                 "start_line": {
                     "type": "integer"
                 },
@@ -22108,13 +22125,15 @@ const docTemplate = `{
                 "text",
                 "file",
                 "file-reference",
-                "workspace-file-reference"
+                "workspace-file-reference",
+                "skill-invocation"
             ],
             "x-enum-varnames": [
                 "ChatInputPartTypeText",
                 "ChatInputPartTypeFile",
                 "ChatInputPartTypeFileReference",
-                "ChatInputPartTypeWorkspaceFileReference"
+                "ChatInputPartTypeWorkspaceFileReference",
+                "ChatInputPartTypeSkillInvocation"
             ]
         },
         "codersdk.ChatMessage": {
@@ -22297,8 +22316,16 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "skill_name": {
-                    "description": "SkillName is the kebab-case name of a discovered skill\nfrom the workspace's .agents/skills/ directory.",
+                    "description": "SkillName is the kebab-case name of the skill.",
                     "type": "string"
+                },
+                "skill_source": {
+                    "description": "SkillSource is where the invoked skill of a skill-invocation\npart is stored.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatSkillSource"
+                        }
+                    ]
                 },
                 "source_id": {
                     "type": "string"
@@ -22360,6 +22387,7 @@ const docTemplate = `{
                 "context-file",
                 "skill",
                 "workspace-file-reference",
+                "skill-invocation",
                 "hook-context",
                 "hook-notice"
             ],
@@ -22374,6 +22402,7 @@ const docTemplate = `{
                 "ChatMessagePartTypeContextFile",
                 "ChatMessagePartTypeSkill",
                 "ChatMessagePartTypeWorkspaceFileReference",
+                "ChatMessagePartTypeSkillInvocation",
                 "ChatMessagePartTypeHookContext",
                 "ChatMessagePartTypeHookNotice"
             ]
@@ -23391,6 +23420,21 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ChatRoleRead",
                 "ChatRoleDeleted"
+            ]
+        },
+        "codersdk.ChatSkillSource": {
+            "type": "string",
+            "enum": [
+                "personal",
+                "org",
+                "project",
+                "workspace"
+            ],
+            "x-enum-varnames": [
+                "ChatSkillSourcePersonal",
+                "ChatSkillSourceOrganization",
+                "ChatSkillSourceProject",
+                "ChatSkillSourceWorkspace"
             ]
         },
         "codersdk.ChatStatus": {
@@ -24417,9 +24461,17 @@ const docTemplate = `{
         "codersdk.CreateSkillRequest": {
             "type": "object",
             "properties": {
+                "action": {
+                    "description": "Action is only accepted for project skills and defaults to false.",
+                    "type": "boolean"
+                },
                 "content": {
                     "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
                     "type": "string"
+                },
+                "model_invocable": {
+                    "description": "ModelInvocable defaults to true.",
+                    "type": "boolean"
                 }
             }
         },
@@ -24841,7 +24893,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "user_status": {
-                    "description": "UserStatus defaults to UserStatusDormant.",
+                    "description": "UserStatus defaults to UserStatusDormant. Service accounts default to\nUserStatusActive and can't be dormant.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.UserStatus"
@@ -25856,12 +25908,14 @@ const docTemplate = `{
                 "agent-lifecycle-hooks",
                 "chat-inline-mcp-servers",
                 "enable-ai-workspace-debug",
-                "chat-stage-metrics"
+                "chat-stage-metrics",
+                "chat-acp-subagents"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
+                "ExperimentChatACPSubagents": "Enables workspace-local ACP subagent tools in root chats.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
                 "ExperimentChatProjects": "Enables organization-scoped projects that group agent chats.",
@@ -25894,7 +25948,8 @@ const docTemplate = `{
                 "Enables chat lifecycle hook webhooks for agent chats.",
                 "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents.",
-                "Exposes chat lifecycle stage durations as Prometheus metrics."
+                "Exposes chat lifecycle stage durations as Prometheus metrics.",
+                "Enables workspace-local ACP subagent tools in root chats."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -25913,7 +25968,8 @@ const docTemplate = `{
                 "ExperimentAgentLifecycleHooks",
                 "ExperimentChatInlineMCPServers",
                 "ExperimentEnableAIWorkspaceDebug",
-                "ExperimentChatStageMetrics"
+                "ExperimentChatStageMetrics",
+                "ExperimentChatACPSubagents"
             ]
         },
         "codersdk.ExperimentRule": {
@@ -30780,6 +30836,10 @@ const docTemplate = `{
         "codersdk.Skill": {
             "type": "object",
             "properties": {
+                "action": {
+                    "description": "Action reports whether a project skill is offered as a one-click\naction above project composers. It is always false for personal and\norganization skills.",
+                    "type": "boolean"
+                },
                 "content": {
                     "type": "string"
                 },
@@ -30797,6 +30857,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "model_invocable": {
+                    "description": "ModelInvocable reports whether agents can discover and load the skill\non their own. Users can still invoke a skill explicitly when it is\nfalse.",
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -30809,6 +30873,10 @@ const docTemplate = `{
         "codersdk.SkillMetadata": {
             "type": "object",
             "properties": {
+                "action": {
+                    "description": "Action reports whether a project skill is offered as a one-click\naction above project composers. It is always false for personal and\norganization skills.",
+                    "type": "boolean"
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
@@ -30822,6 +30890,10 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "model_invocable": {
+                    "description": "ModelInvocable reports whether agents can discover and load the skill\non their own. Users can still invoke a skill explicitly when it is\nfalse.",
+                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"
@@ -32688,11 +32760,18 @@ const docTemplate = `{
         "codersdk.UpdateSkillRequest": {
             "type": "object",
             "properties": {
+                "action": {
+                    "description": "Action is only accepted for project skills.",
+                    "type": "boolean"
+                },
                 "content": {
                     "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
                     "type": "string"
                 },
                 "enabled": {
+                    "type": "boolean"
+                },
+                "model_invocable": {
                     "type": "boolean"
                 }
             }

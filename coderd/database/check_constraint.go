@@ -9,6 +9,11 @@ const (
 	CheckAIGatewayKeysHashedSecretCheck                      CheckConstraint = "ai_gateway_keys_hashed_secret_check"                       // ai_gateway_keys
 	CheckAIGatewayKeysNameCheck                              CheckConstraint = "ai_gateway_keys_name_check"                                // ai_gateway_keys
 	CheckAIGatewayKeysSecretPrefixCheck                      CheckConstraint = "ai_gateway_keys_secret_prefix_check"                       // ai_gateway_keys
+	CheckAIModelConfigsCacheReadPriceCheck                   CheckConstraint = "ai_model_configs_cache_read_price_check"                   // ai_model_configs
+	CheckAIModelConfigsCacheWritePriceCheck                  CheckConstraint = "ai_model_configs_cache_write_price_check"                  // ai_model_configs
+	CheckAIModelConfigsInputPriceCheck                       CheckConstraint = "ai_model_configs_input_price_check"                        // ai_model_configs
+	CheckAIModelConfigsModelCheck                            CheckConstraint = "ai_model_configs_model_check"                              // ai_model_configs
+	CheckAIModelConfigsOutputPriceCheck                      CheckConstraint = "ai_model_configs_output_price_check"                       // ai_model_configs
 	CheckAIModelPricesCacheReadPriceCheck                    CheckConstraint = "ai_model_prices_cache_read_price_check"                    // ai_model_prices
 	CheckAIModelPricesCacheWritePriceCheck                   CheckConstraint = "ai_model_prices_cache_write_price_check"                   // ai_model_prices
 	CheckAIModelPricesInputPriceCheck                        CheckConstraint = "ai_model_prices_input_price_check"                         // ai_model_prices
@@ -69,6 +74,7 @@ const (
 	CheckMaxProvisionerLogsLength                            CheckConstraint = "max_provisioner_logs_length"                               // provisioner_jobs
 	CheckNatsPortValidTcp                                    CheckConstraint = "nats_port_valid_tcp"                                       // replicas
 	CheckSkillsAclOnlyOnOrganizationSkills                   CheckConstraint = "skills_acl_only_on_organization_skills"                    // skills
+	CheckSkillsActionProjectOnly                             CheckConstraint = "skills_action_project_only"                                // skills
 	CheckSkillsContentSize                                   CheckConstraint = "skills_content_size"                                       // skills
 	CheckSkillsDescriptionSize                               CheckConstraint = "skills_description_size"                                   // skills
 	CheckSkillsGroupAclIsObject                              CheckConstraint = "skills_group_acl_is_object"                                // skills

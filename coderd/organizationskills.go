@@ -58,13 +58,14 @@ func (api *API) postOrganizationSkill(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	skill, ok := createSkill(ctx, rw, r, organizationSkillCreateErrors, func(parsed skills.ParsedSkill, content string) (database.Skill, error) {
+	skill, ok := createSkill(ctx, rw, r, organizationSkillCreateErrors, skillOwnerOrganization, func(parsed skills.ParsedSkill, create skillCreate) (database.Skill, error) {
 		return api.Database.InsertOrganizationSkill(ctx, database.InsertOrganizationSkillParams{
 			ID:             uuid.New(),
 			OrganizationID: organization.ID,
 			Name:           parsed.Name,
 			Description:    parsed.Description,
-			Content:        content,
+			Content:        create.Content,
+			ModelInvocable: create.ModelInvocable,
 			// The Everyone group shares the organization's ID, so new skills
 			// reach every member until an admin narrows the ACL.
 			GroupACL: database.ChatACL{
@@ -147,7 +148,7 @@ func (api *API) patchOrganizationSkill(rw http.ResponseWriter, r *http.Request) 
 	defer commitAudit()
 	aReq.Old = database.AuditableOrganizationSkill{Skill: oldSkill}
 
-	current, skill, ok := api.updateSkill(ctx, rw, r, oldSkill.Name, organizationSkillUpdateErrors, func(tx database.Store, update skillUpdate) (database.Skill, database.Skill, error) {
+	current, skill, ok := api.updateSkill(ctx, rw, r, oldSkill.Name, organizationSkillUpdateErrors, skillOwnerOrganization, func(tx database.Store, update skillUpdate) (database.Skill, database.Skill, error) {
 		//nolint:gocritic // The update below reauthorizes the locked row for update.
 		locked, err := tx.GetOrganizationSkillByIDForUpdate(dbauthz.AsSystemRestricted(ctx), oldSkill.ID)
 		if err != nil {
@@ -157,6 +158,7 @@ func (api *API) patchOrganizationSkill(rw http.ResponseWriter, r *http.Request) 
 			Description:    update.Description,
 			Content:        update.Content,
 			Enabled:        update.Enabled,
+			ModelInvocable: update.ModelInvocable,
 			OrganizationID: locked.OrganizationID.UUID,
 			Name:           locked.Name,
 		})

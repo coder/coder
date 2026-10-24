@@ -132,7 +132,7 @@ For other providers, refer to the [CertBot documentation](https://eff-certbot.re
    }
    ```
 
-   > Don't forget to change: `coder.example.com` by your (sub)domain
+   > Do not forget to change: `coder.example.com` by your (sub)domain
 
 3. Test the configuration:
 

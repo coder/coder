@@ -24,7 +24,7 @@ Promote an existing template version to be the active version for the specified 
 
 ### -t, --template
 
-|             |                                   |
+| Property    | Value                             |
 |-------------|-----------------------------------|
 | Type        | <code>string</code>               |
 | Environment | <code>$CODER_TEMPLATE_NAME</code> |
@@ -33,7 +33,7 @@ Specify the template name.
 
 ### --template-version
 
-|             |                                           |
+| Property    | Value                                     |
 |-------------|-------------------------------------------|
 | Type        | <code>string</code>                       |
 | Environment | <code>$CODER_TEMPLATE_VERSION_NAME</code> |
@@ -42,7 +42,7 @@ Specify the template version name to promote.
 
 ### -O, --org
 
-|             |                                  |
+| Property    | Value                            |
 |-------------|----------------------------------|
 | Type        | <code>string</code>              |
 | Environment | <code>$CODER_ORGANIZATION</code> |

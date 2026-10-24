@@ -30,6 +30,13 @@ const buildOptimisticEditedContent = ({
 				content: part.content ?? "",
 			};
 		}
+		if (part.type === "skill-invocation") {
+			return {
+				type: "skill-invocation",
+				skill_source: part.skill_source ?? "personal",
+				skill_name: part.skill_name ?? "",
+			};
+		}
 		if (part.type === "workspace-file-reference") {
 			return {
 				type: "workspace-file-reference",
