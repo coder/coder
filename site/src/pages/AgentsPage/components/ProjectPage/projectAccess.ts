@@ -12,7 +12,10 @@ type ProjectAccessEntryBase = {
 	readonly avatarUrl: string | undefined;
 };
 
-/** The owner, a user, or a group with access to a project. */
+/**
+ * Flattens the ACL owner, users, and groups into one list for display. The owner
+ * has no role because the ACL never lists them and they can always manage access.
+ */
 export type ProjectAccessEntry =
 	| (ProjectAccessEntryBase & { readonly kind: "owner" })
 	| (ProjectAccessEntryBase & {

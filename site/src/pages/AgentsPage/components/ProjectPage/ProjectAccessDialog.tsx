@@ -40,7 +40,7 @@ type ProjectAccessDialogProps = {
 	readonly onCloseAutoFocus: (event: Event) => void;
 };
 
-/** Lists who can use a project and their role; onCloseAutoFocus restores focus. */
+/** `onCloseAutoFocus` restores focus to the control that opened the dialog. */
 export const ProjectAccessDialog: React.FC<ProjectAccessDialogProps> = ({
 	open,
 	onOpenChange,
