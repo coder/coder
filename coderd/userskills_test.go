@@ -206,6 +206,52 @@ func TestSkillsCRUD(t *testing.T) {
 	}
 }
 
+func TestSkillFrontmatterDisablesModelInvocation(t *testing.T) {
+	t.Parallel()
+
+	withKey := func(name, body string) string {
+		return fmt.Sprintf("---\nname: %s\ndisable-model-invocation: true\ndescription: Manual skill\n---\n\n%s\n", name, body)
+	}
+	withoutKey := func(name, body string) string {
+		return userSkillMarkdown(name, "Manual skill", body)
+	}
+
+	for _, tc := range skillOwnerCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			owner, _ := tc.setup(t, nil)
+			ctx := testutil.Context(t, testutil.WaitMedium)
+
+			created, err := owner.create(ctx, codersdk.CreateSkillRequest{Content: withKey("manual", "Body.")})
+			require.NoError(t, err)
+			assert.False(t, created.ModelInvocable)
+			assert.Equal(t, withoutKey("manual", "Body."), created.Content)
+
+			explicit, err := owner.create(ctx, codersdk.CreateSkillRequest{
+				Content:        withKey("explicit", "Body."),
+				ModelInvocable: ptr.Ref(true),
+			})
+			require.NoError(t, err)
+			assert.True(t, explicit.ModelInvocable)
+			assert.Equal(t, withoutKey("explicit", "Body."), explicit.Content)
+
+			// Content without the key leaves the setting unchanged.
+			edited, err := owner.update(ctx, "manual", codersdk.UpdateSkillRequest{Content: ptr.Ref(withoutKey("manual", "Edited."))})
+			require.NoError(t, err)
+			assert.False(t, edited.ModelInvocable)
+
+			automatic, err := owner.create(ctx, codersdk.CreateSkillRequest{Content: withoutKey("automatic", "Body.")})
+			require.NoError(t, err)
+			require.True(t, automatic.ModelInvocable)
+			marked, err := owner.update(ctx, "automatic", codersdk.UpdateSkillRequest{Content: ptr.Ref(withKey("automatic", "Edited."))})
+			require.NoError(t, err)
+			assert.False(t, marked.ModelInvocable)
+			assert.Equal(t, withoutKey("automatic", "Edited."), marked.Content)
+		})
+	}
+}
+
 func requireRawSkillList(ctx context.Context, t *testing.T, owner skillOwnerAPI) []map[string]json.RawMessage {
 	t.Helper()
 	res, err := owner.client.Request(ctx, http.MethodGet, owner.path, nil)

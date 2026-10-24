@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"golang.org/x/xerrors"
+	"gopkg.in/yaml.v3"
 
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -142,6 +143,83 @@ func ParsePersonalSkillMarkdown(raw []byte) (ParsedSkill, error) {
 		},
 		Body: body,
 	}, nil
+}
+
+// disableModelInvocationKey is the SKILL.md frontmatter key that Claude Code,
+// Cursor, and VS Code use to mark a skill that only users may invoke.
+const disableModelInvocationKey = "disable-model-invocation"
+
+// RemoveDisableModelInvocation removes the top-level disable-model-invocation
+// key from the frontmatter of raw skill Markdown, and reports whether the key
+// was the YAML boolean true. Stored skills keep that setting in their
+// model_invocable column, so removing the key keeps the stored file from
+// disagreeing with the column. raw should already have passed
+// ParsePersonalSkillMarkdown. When the key is absent, or cannot be removed
+// line by line (for example, a quoted key), content is raw unchanged.
+func RemoveDisableModelInvocation(raw string) (content string, disabled bool) {
+	const bom = "\xef\xbb\xbf"
+	prefix := ""
+	rest := raw
+	if strings.HasPrefix(raw, bom) {
+		prefix, rest = bom, raw[len(bom):]
+	}
+	// SplitAfter keeps each line's newline, so joining the lines restores
+	// the original bytes, including CRLF line endings.
+	lines := strings.SplitAfter(rest, "\n")
+	if strings.TrimSpace(lines[0]) != "---" {
+		return raw, false
+	}
+	closingIdx := -1
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimSpace(lines[i]) == "---" {
+			closingIdx = i
+			break
+		}
+	}
+	if closingIdx < 0 {
+		return raw, false
+	}
+
+	frontmatter := lines[1:closingIdx]
+	value, ok, err := frontmatterValue(frontmatter, disableModelInvocationKey)
+	if err != nil || !ok {
+		return raw, false
+	}
+	disabled, _ = value.(bool)
+
+	kept := make([]string, 0, len(frontmatter))
+	for i := 0; i < len(frontmatter); i++ {
+		if !strings.HasPrefix(frontmatter[i], disableModelInvocationKey+":") {
+			kept = append(kept, frontmatter[i])
+			continue
+		}
+		// Skip the indented continuation lines of a multi-line value.
+		for i+1 < len(frontmatter) && isYAMLContinuationLine(frontmatter[i+1]) {
+			i++
+		}
+	}
+	if _, stillSet, err := frontmatterValue(kept, disableModelInvocationKey); err != nil || stillSet {
+		return raw, disabled
+	}
+
+	return prefix + lines[0] + strings.Join(kept, "") + strings.Join(lines[closingIdx:], ""), disabled
+}
+
+// frontmatterValue decodes frontmatter lines as a YAML mapping and returns
+// the value of key.
+func frontmatterValue(lines []string, key string) (value any, ok bool, err error) {
+	var frontmatter map[string]any
+	if err := yaml.Unmarshal([]byte(strings.Join(lines, "")), &frontmatter); err != nil {
+		return nil, false, xerrors.Errorf("parse frontmatter YAML: %w", err)
+	}
+	value, ok = frontmatter[key]
+	return value, ok, nil
+}
+
+// isYAMLContinuationLine reports whether line continues the value of the
+// previous top-level key: it is blank or indented.
+func isYAMLContinuationLine(line string) bool {
+	return strings.TrimSpace(line) == "" || strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t")
 }
 
 // SourceSkills holds the skills found in one source.

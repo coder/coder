@@ -24470,7 +24470,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "model_invocable": {
-                    "description": "ModelInvocable defaults to true.",
+                    "description": "ModelInvocable defaults to true, or to false when the content\nfrontmatter has ` + "`" + `disable-model-invocation: true` + "`" + `. The server removes\nthat frontmatter key before storing the content.",
                     "type": "boolean"
                 }
             }
@@ -32772,6 +32772,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "model_invocable": {
+                    "description": "ModelInvocable is left unchanged when unset, unless the new content\nfrontmatter has ` + "`" + `disable-model-invocation: true` + "`" + `, which turns it off.\nThe server removes that frontmatter key before storing the content.",
                     "type": "boolean"
                 }
             }
