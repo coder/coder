@@ -8,12 +8,15 @@ import {
 	WORKING_FIXTURE_START,
 } from "./storyFixtures";
 import { assignTimelineRows, type TimelineRow } from "./timelineRows";
+import type { RenderBlock } from "./types";
 import {
 	type GroupWorkingBlocksOptions,
-	getRowBlocks,
+	getSliceContent,
 	groupWorkingBlocks,
 	isAgentAttachmentOnlyRow,
-	type WorkingBlock,
+	type RowSlice,
+	splitRowPieces,
+	type WorkingBlockLayout,
 } from "./workingBlockGrouping";
 
 let nextId = 1;
@@ -79,11 +82,12 @@ const call = (
 	id: string,
 	createdAt?: string,
 	name = "execute",
+	args: Record<string, string> = { command: `echo ${id}` },
 ): TypesGen.ChatMessagePart => ({
 	type: "tool-call",
 	tool_call_id: id,
 	tool_name: name,
-	args: { command: `echo ${id}` },
+	args,
 	created_at: createdAt,
 });
 const result = (
@@ -132,6 +136,25 @@ const step = (
 	),
 ];
 
+const attachStep = (
+	id: string,
+	callAt: number,
+	resultAt: number,
+): TypesGen.ChatMessage[] => [
+	message("assistant", [
+		call(id, at(callAt), "attach_file", { path: "/home/coder/report.md" }),
+	]),
+	message("assistant", [
+		{
+			type: "file",
+			media_type: "text/markdown",
+			name: "report.md",
+			file_id: `file-${id}`,
+		},
+	]),
+	message("tool", [result(id, at(resultAt), { name: "attach_file" })]),
+];
+
 const defaultOptions: GroupWorkingBlocksOptions = {
 	hasMoreMessages: false,
 	isTurnActive: false,
@@ -141,28 +164,55 @@ const defaultOptions: GroupWorkingBlocksOptions = {
 	liveTools: [],
 };
 
+type GroupedLayout = WorkingBlockLayout & { rows: readonly TimelineRow[] };
+
 const group = (
 	messages: readonly TypesGen.ChatMessage[],
 	options: Partial<GroupWorkingBlocksOptions> = {},
-): { rows: readonly TimelineRow[]; blocks: WorkingBlock[] } => {
+): GroupedLayout => {
 	const entries = parseMessagesWithMergedTools(messages);
 	const hasLive = options.isTurnActive ?? false;
 	const rows = assignTimelineRows(buildDisplayMessages(entries), hasLive);
 
 	return {
 		rows,
-		blocks: groupWorkingBlocks(rows, entries, {
+		...groupWorkingBlocks(rows, entries, {
 			...defaultOptions,
 			...options,
 		}),
 	};
 };
 
-const rowIds = (rows: readonly TimelineRow[], indices: readonly number[]) =>
-	indices.map((i) => {
-		const row = rows[i];
-		return row.type === "live" ? "live" : row.entry.message.id;
-	});
+const rowId = (row: TimelineRow) =>
+	row.type === "live" ? "live" : row.entry.message.id;
+
+const rowIds = (rows: readonly TimelineRow[], slices: readonly RowSlice[]) =>
+	slices.map(({ rowIndex }) => rowId(rows[rowIndex]));
+
+/**
+ * The rendered order: message IDs, with the first piece of each part of a
+ * split row, and each block as a nested list.
+ */
+const layoutOf = ({ rows, items }: GroupedLayout) => {
+	const splitRows = new Set(
+		items.flatMap((item) =>
+			item.type === "slice" && item.slice.pieceRange
+				? [item.slice.rowIndex]
+				: [],
+		),
+	);
+	const formatSlice = ({ rowIndex, pieceRange }: RowSlice) => {
+		const id = `${rowId(rows[rowIndex])}`;
+		return splitRows.has(rowIndex) && pieceRange
+			? `${id}[${pieceRange.start}]`
+			: id;
+	};
+	return items.map((item) =>
+		item.type === "block"
+			? item.block.slices.map(formatSlice)
+			: formatSlice(item.slice),
+	);
+};
 
 beforeEach(() => {
 	nextId = 1;
@@ -173,11 +223,16 @@ describe("groupWorkingBlocks", () => {
 		const prompt = user("Inspect");
 		const steps = [...step("a", 1, 4), ...step("b", 5, 13)];
 		const answer = message("assistant", [text("Done.")], at(14));
-		const { rows, blocks } = group([prompt, ...steps, answer]);
+		const layout = group([prompt, ...steps, answer]);
+		const { rows, blocks } = layout;
 
-		expect(blocks).toHaveLength(1);
+		expect(layoutOf(layout)).toEqual([
+			`${prompt.id}`,
+			[`${steps[0].id}`, `${steps[2].id}`],
+			`${answer.id}`,
+		]);
 		const [block] = blocks;
-		expect(rowIds(rows, block.rowIndices)).toEqual([steps[0].id, steps[2].id]);
+		expect(rowIds(rows, block.slices)).toEqual([steps[0].id, steps[2].id]);
 		expect(block).toMatchObject({
 			stepCount: 2,
 			isLive: false,
@@ -189,7 +244,7 @@ describe("groupWorkingBlocks", () => {
 		});
 	});
 
-	it("treats reasoning and narration before a tool call as part of the step", () => {
+	it("closes the block at text before a tool call and opens the next below it", () => {
 		const prompt = user("Go");
 		const steps = [
 			...step("a", 1, 2, {
@@ -197,17 +252,69 @@ describe("groupWorkingBlocks", () => {
 			}),
 			...step("b", 3, 4, { leading: [text("Let me check the tests.")] }),
 		];
-		const answer = message("assistant", [reasoning("Wrap up"), text("Done.")]);
-		const { rows, blocks } = group([prompt, ...steps, answer]);
-
-		expect(blocks).toHaveLength(1);
-		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([
-			steps[0].id,
-			steps[2].id,
-			answer.id,
+		const answer = message("assistant", [
+			reasoning("Wrap up", at(5), at(6)),
+			text("Done."),
 		]);
-		// Reasoning start counts toward the wall-clock span.
-		expect(blocks[0].startedAt).toBe(WORKING_FIXTURE_START + 500);
+		const layout = group([prompt, ...steps, answer]);
+		const [firstStepId, secondStepId] = [steps[0].id, steps[2].id];
+
+		expect(layoutOf(layout)).toEqual([
+			`${prompt.id}`,
+			[`${firstStepId}`],
+			`${secondStepId}[0]`,
+			[`${secondStepId}[1]`, `${answer.id}[0]`],
+			`${answer.id}[1]`,
+		]);
+		// Reasoning start counts toward the wall-clock span of its block.
+		expect(layout.blocks).toMatchObject([
+			{
+				stepCount: 1,
+				startedAt: WORKING_FIXTURE_START + 500,
+				endedAt: WORKING_FIXTURE_START + 2000,
+				key: `working:through:message:${firstStepId}`,
+				liveKey: `working:live:message:${prompt.id}:0`,
+			},
+			{
+				stepCount: 1,
+				startedAt: WORKING_FIXTURE_START + 3000,
+				endedAt: WORKING_FIXTURE_START + 6000,
+				key: `working:through:message:${answer.id}`,
+				liveKey: `working:live:message:${prompt.id}:1`,
+			},
+		]);
+	});
+
+	it("keys the blocks on either side of text inside one step apart", () => {
+		const prompt = user("Go");
+		const callsAroundText = message("assistant", [
+			call("a", at(1)),
+			text("Now the tests."),
+			call("b", at(2)),
+		]);
+		const results = message("tool", [result("a", at(3)), result("b", at(4))]);
+		const layout = group([prompt, callsAroundText, results]);
+
+		expect(layoutOf(layout)).toEqual([
+			`${prompt.id}`,
+			[`${callsAroundText.id}[0]`],
+			`${callsAroundText.id}[1]`,
+			[`${callsAroundText.id}[2]`],
+		]);
+		expect(layout.blocks).toMatchObject([
+			{
+				key: `working:through:message:${callsAroundText.id}`,
+				pieceKeys: [`${callsAroundText.id}:0`],
+				startedAt: WORKING_FIXTURE_START + 1000,
+				endedAt: WORKING_FIXTURE_START + 3000,
+			},
+			{
+				key: `working:through:message:${callsAroundText.id}:1`,
+				pieceKeys: [`${callsAroundText.id}:1`],
+				startedAt: WORKING_FIXTURE_START + 2000,
+				endedAt: WORKING_FIXTURE_START + 4000,
+			},
+		]);
 	});
 
 	it("folds the final answer's reasoning and web search into the block it ends", () => {
@@ -226,14 +333,13 @@ describe("groupWorkingBlocks", () => {
 		const { rows, blocks } = group([prompt, ...steps, answer]);
 
 		expect(blocks).toHaveLength(1);
-		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([
+		expect(rowIds(rows, blocks[0].slices)).toEqual([
 			steps[0].id,
 			steps[2].id,
 			answer.id,
 		]);
 		expect(blocks[0]).toMatchObject({
 			stepCount: 3,
-			endsWithAnswer: true,
 			endedAt: WORKING_FIXTURE_START + 9000,
 			key: `working:through:message:${answer.id}`,
 		});
@@ -250,16 +356,13 @@ describe("groupWorkingBlocks", () => {
 			...step("c", 5, 6),
 		];
 		const answer = message("assistant", [text("Done.")], at(7));
-		const { rows, blocks } = group([prompt, ...steps, answer]);
+		const layout = group([prompt, ...steps, answer]);
 
-		expect(blocks).toHaveLength(1);
-		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([
-			steps[0].id,
-			steps[2].id,
-			steps[3].id,
-			steps[5].id,
+		expect(layoutOf(layout)).toEqual([
+			`${prompt.id}`,
+			[`${steps[0].id}`, `${steps[2].id}`, `${steps[3].id}`, `${steps[5].id}`],
+			`${answer.id}`,
 		]);
-		expect(blocks[0].endsWithAnswer).toBe(false);
 	});
 
 	it("treats an answer whose citations trail its text as the block's answer", () => {
@@ -271,7 +374,7 @@ describe("groupWorkingBlocks", () => {
 		]);
 		const { blocks } = group([prompt, ...steps, answer]);
 
-		expect(blocks[0]).toMatchObject({ stepCount: 2, endsWithAnswer: true });
+		expect(blocks[0]).toMatchObject({ stepCount: 2 });
 	});
 
 	it("starts a one-step block from an answer that searched in a turn without tools", () => {
@@ -284,8 +387,8 @@ describe("groupWorkingBlocks", () => {
 		const { rows, blocks } = group([prompt, answer]);
 
 		expect(blocks).toHaveLength(1);
-		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([answer.id]);
-		expect(blocks[0]).toMatchObject({ stepCount: 1, endsWithAnswer: true });
+		expect(rowIds(rows, blocks[0].slices)).toEqual([answer.id]);
+		expect(blocks[0]).toMatchObject({ stepCount: 1 });
 	});
 
 	it("counts a reissued search once, ignoring its unanswered first call", () => {
@@ -299,7 +402,7 @@ describe("groupWorkingBlocks", () => {
 		]);
 		const { blocks } = group([prompt, ...steps, answer]);
 
-		expect(blocks).toMatchObject([{ stepCount: 2, endsWithAnswer: true }]);
+		expect(blocks).toMatchObject([{ stepCount: 2 }]);
 	});
 
 	it.each([
@@ -371,7 +474,7 @@ describe("groupWorkingBlocks", () => {
 		const { rows, blocks } = group([prompt, ...first, thinking, ...second]);
 
 		expect(blocks).toHaveLength(1);
-		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([
+		expect(rowIds(rows, blocks[0].slices)).toEqual([
 			first[0].id,
 			thinking.id,
 			second[0].id,
@@ -390,12 +493,12 @@ describe("groupWorkingBlocks", () => {
 		const { rows, blocks } = group([prompt, ...first, search, ...second]);
 
 		expect(blocks).toHaveLength(1);
-		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([
+		expect(rowIds(rows, blocks[0].slices)).toEqual([
 			first[0].id,
 			search.id,
 			second[0].id,
 		]);
-		expect(blocks[0]).toMatchObject({ stepCount: 3, endsWithAnswer: false });
+		expect(blocks[0]).toMatchObject({ stepCount: 3 });
 	});
 
 	it("starts a new block after an answer row closes one", () => {
@@ -406,15 +509,14 @@ describe("groupWorkingBlocks", () => {
 			text("Halfway there."),
 		]);
 		const second = step("b", 4, 5);
-		const { rows, blocks } = group([prompt, ...first, interlude, ...second]);
+		const layout = group([prompt, ...first, interlude, ...second]);
 
-		expect(blocks).toHaveLength(2);
-		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([
-			first[0].id,
-			interlude.id,
+		expect(layoutOf(layout)).toEqual([
+			`${prompt.id}`,
+			[`${first[0].id}`, `${interlude.id}[0]`],
+			`${interlude.id}[1]`,
+			[`${second[0].id}`],
 		]);
-		expect(blocks[0].endsWithAnswer).toBe(true);
-		expect(rowIds(rows, blocks[1].rowIndices)).toEqual([second[0].id]);
 	});
 
 	it("counts a search between two blocks once", () => {
@@ -449,8 +551,8 @@ describe("groupWorkingBlocks", () => {
 		const { rows, blocks } = group([prompt, ...first, interlude, ...second]);
 
 		expect(blocks).toHaveLength(2);
-		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([first[0].id]);
-		expect(rowIds(rows, blocks[1].rowIndices)).toEqual([second[0].id]);
+		expect(rowIds(rows, blocks[0].slices)).toEqual([first[0].id]);
+		expect(rowIds(rows, blocks[1].slices)).toEqual([second[0].id]);
 		expect(blocks[0].liveKey).toBe(`working:live:message:${prompt.id}:0`);
 		expect(blocks[1].liveKey).toBe(`working:live:message:${prompt.id}:1`);
 	});
@@ -468,7 +570,7 @@ describe("groupWorkingBlocks", () => {
 			const { rows, blocks } = group([prompt, ...before, ...special, ...after]);
 
 			expect(blocks).toHaveLength(2);
-			expect(blocks.flatMap((b) => rowIds(rows, b.rowIndices))).toEqual([
+			expect(blocks.flatMap((b) => rowIds(rows, b.slices))).toEqual([
 				before[0].id,
 				after[0].id,
 			]);
@@ -552,7 +654,7 @@ describe("groupWorkingBlocks", () => {
 		]);
 
 		expect(blocks).toHaveLength(1);
-		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([
+		expect(rowIds(rows, blocks[0].slices)).toEqual([
 			createWorkspace[0].id,
 			steps[0].id,
 			steps[2].id,
@@ -601,13 +703,43 @@ describe("groupWorkingBlocks", () => {
 		expect(complete.blocks[0].key).toBe(newest.blocks[0].key);
 	});
 
-	it("does not mark a block partial when the loaded history starts at its prompt", () => {
-		const prompt = user("Go");
-		const steps = step("a", 1, 2);
-		const { blocks } = group([prompt, ...steps], { hasMoreMessages: true });
+	it("opens a partial block at the attached files that start the loaded history", () => {
+		const prompt = user("Report");
+		const [attachCall, files, attachResult] = attachStep("a", 1, 2);
+		const steps = step("b", 3, 4);
+		const answer = message("assistant", [text("Done.")], at(5));
+		const all = [prompt, attachCall, files, attachResult, ...steps, answer];
 
-		expect(blocks[0].isPartial).toBe(false);
+		const newest = group(all.slice(2), { hasMoreMessages: true });
+		expect(layoutOf(newest)).toEqual([
+			[`${files.id}`, `${steps[0].id}`],
+			`${answer.id}`,
+		]);
+		expect(newest.blocks[0]).toMatchObject({ isPartial: true, stepCount: 1 });
+
+		expect(layoutOf(group(all))).toEqual([
+			`${prompt.id}`,
+			[`${attachCall.id}`, `${files.id}`, `${steps[0].id}`],
+			`${answer.id}`,
+		]);
 	});
+
+	it.each([
+		{ name: "its prompt", opening: () => user("Go") },
+		{
+			name: "an assistant text row",
+			opening: () => message("assistant", [text("Next, the tests.")]),
+		},
+	])(
+		"does not mark a block partial when the loaded history starts at $name",
+		({ opening }) => {
+			const { blocks } = group([opening(), ...step("a", 1, 2)], {
+				hasMoreMessages: true,
+			});
+
+			expect(blocks[0].isPartial).toBe(false);
+		},
+	);
 
 	describe("live turns", () => {
 		const groupLive = (
@@ -637,7 +769,7 @@ describe("groupWorkingBlocks", () => {
 			);
 
 			expect(blocks).toHaveLength(1);
-			expect(rowIds(rows, blocks[0].rowIndices)).toEqual([steps[0].id, "live"]);
+			expect(rowIds(rows, blocks[0].slices)).toEqual([steps[0].id, "live"]);
 			expect(blocks[0]).toMatchObject({
 				isLive: true,
 				stepCount: 2,
@@ -657,24 +789,27 @@ describe("groupWorkingBlocks", () => {
 			);
 
 			expect(blocks).toHaveLength(1);
-			expect(rowIds(rows, blocks[0].rowIndices)).toEqual([steps[0].id]);
+			expect(rowIds(rows, blocks[0].slices)).toEqual([steps[0].id]);
 			expect(blocks[0].isLive).toBe(true);
 		});
 
 		it("keeps a live answer row with reasoning in the live block", () => {
 			const prompt = user("Go");
 			const steps = step("a", 1, 2);
-			const { rows, blocks } = groupLive(
+			const live = groupLive(
 				[prompt, ...steps],
 				[reasoning("Wrap up", at(3)), text("Here is what I found")],
 			);
 
-			expect(blocks).toHaveLength(1);
-			expect(rowIds(rows, blocks[0].rowIndices)).toEqual([steps[0].id, "live"]);
-			expect(blocks[0]).toMatchObject({ isLive: true, endsWithAnswer: true });
+			expect(layoutOf(live)).toEqual([
+				`${prompt.id}`,
+				[`${steps[0].id}`, "live[0]"],
+				"live[1]",
+			]);
+			expect(live.blocks[0]).toMatchObject({ isLive: true, stepCount: 1 });
 		});
 
-		it("folds an answer's search without citations into the block it ends", () => {
+		it("counts an answer's search without citations toward the block it closes", () => {
 			const prompt = user("Go");
 			const steps = step("a", 1, 2);
 			const parts = [
@@ -686,23 +821,19 @@ describe("groupWorkingBlocks", () => {
 			const live = groupLive([prompt, ...steps], parts);
 			const persisted = group([prompt, ...steps, answer]);
 
-			expect(rowIds(live.rows, live.blocks[0].rowIndices)).toEqual([
-				steps[0].id,
+			expect(layoutOf(live)).toEqual([
+				`${prompt.id}`,
+				[`${steps[0].id}`],
 				"live",
 			]);
-			expect(live.blocks).toMatchObject([
-				{ stepCount: 2, endsWithAnswer: true, isLive: true },
-			]);
-			expect(rowIds(persisted.rows, persisted.blocks[0].rowIndices)).toEqual([
-				steps[0].id,
-				answer.id,
+			expect(live.blocks).toMatchObject([{ stepCount: 2, isLive: true }]);
+			expect(layoutOf(persisted)).toEqual([
+				`${prompt.id}`,
+				[`${steps[0].id}`],
+				`${answer.id}`,
 			]);
 			expect(persisted.blocks).toMatchObject([
-				{
-					stepCount: 2,
-					endsWithAnswer: true,
-					endedAt: WORKING_FIXTURE_START + 4000,
-				},
+				{ stepCount: 2, endedAt: WORKING_FIXTURE_START + 4000 },
 			]);
 		});
 
@@ -727,7 +858,64 @@ describe("groupWorkingBlocks", () => {
 			expect(blocks).toEqual([]);
 		});
 
-		it("folds labeled narration into the live block from its first delta", () => {
+		it("streams text between steps outside the block and opens the next below it", () => {
+			const prompt = user("Go");
+			const steps = step("a", 1, 2);
+			const parts = [text("P1 trials are running."), call("b", at(3))];
+			const answer = message("assistant", parts);
+			const streaming = groupLive([prompt, ...steps], parts.slice(0, 1));
+			const next = groupLive([prompt, ...steps], parts);
+			const persisted = groupLive(
+				[prompt, ...steps, answer, message("tool", [result("b", at(4))])],
+				[],
+			);
+			const first = `working:live:message:${prompt.id}:0`;
+			const second = `working:live:message:${prompt.id}:1`;
+
+			expect(layoutOf(streaming)).toEqual([
+				`${prompt.id}`,
+				[`${steps[0].id}`],
+				"live",
+			]);
+			expect(streaming.blocks).toMatchObject([{ key: first, isLive: true }]);
+			expect(layoutOf(next)).toEqual([
+				`${prompt.id}`,
+				[`${steps[0].id}`],
+				"live[0]",
+				["live[1]"],
+			]);
+			expect(next.blocks).toMatchObject([
+				{
+					liveKey: first,
+					isLive: false,
+					endedAt: WORKING_FIXTURE_START + 2000,
+				},
+				{
+					key: second,
+					isLive: true,
+					liveWorkOrdinal: 0,
+					pieceKeys: [],
+					startedAt: WORKING_FIXTURE_START + 3000,
+				},
+			]);
+			expect(
+				next.items.map((item) =>
+					item.type === "slice" ? item.slice.key : "block",
+				),
+			).toEqual([`message:${prompt.id}`, "block", "live-assistant", "block"]);
+			expect(layoutOf(persisted)).toEqual([
+				`${prompt.id}`,
+				[`${steps[0].id}`],
+				`${answer.id}[0]`,
+				[`${answer.id}[1]`, "live"],
+			]);
+			expect(persisted.blocks).toMatchObject([
+				{ liveKey: first, isLive: false },
+				{ key: second, isLive: true, pieceKeys: [`${answer.id}:0`] },
+			]);
+		});
+
+		it("renders labeled narration as output that closes the live block", () => {
 			const prompt = user("Go");
 			const parts = [
 				reasoning("Planning", at(1)),
@@ -735,28 +923,26 @@ describe("groupWorkingBlocks", () => {
 				narration("update the tests."),
 				call("a", at(2)),
 			];
+			const live = groupLive([prompt], parts);
 
-			for (const index of parts.keys()) {
-				const { rows, blocks } = groupLive([prompt], parts.slice(0, index + 1));
-				expect(blocks).toMatchObject([
-					{
-						key: `working:live:message:${prompt.id}:0`,
-						endsWithAnswer: false,
-					},
-				]);
-				expect(rowIds(rows, blocks[0].rowIndices)).toEqual(["live"]);
-			}
+			expect(layoutOf(live)).toEqual([`${prompt.id}`, "live[0]", ["live[2]"]]);
+			expect(live.blocks).toMatchObject([
+				{
+					key: `working:live:message:${prompt.id}:1`,
+					stepCount: 1,
+					liveWorkOrdinal: 1,
+				},
+			]);
 		});
 
-		it("keeps a tool-less turn's labeled narration folded above its answer", () => {
+		it("leaves a tool-less turn's labeled narration in the transcript", () => {
 			const prompt = user("Go");
 			const parts = [narration("Checking the docs."), text("They cover it.")];
 			const live = groupLive([prompt], parts);
 			const persisted = group([prompt, message("assistant", parts)]);
 
-			for (const { blocks } of [live, persisted]) {
-				expect(blocks).toMatchObject([{ stepCount: 0, endsWithAnswer: true }]);
-			}
+			expect(live.blocks).toEqual([]);
+			expect(persisted.blocks).toEqual([]);
 		});
 
 		// OpenAI streams a search's citations inside the answer text that follows
@@ -801,7 +987,7 @@ describe("groupWorkingBlocks", () => {
 				stepCount: 1,
 			},
 			{
-				name: "narration before the search",
+				name: "text before the search",
 				live: [
 					text("Searching."),
 					searchCall("a", at(1)),
@@ -886,7 +1072,6 @@ describe("groupWorkingBlocks", () => {
 					{
 						liveKey,
 						stepCount,
-						endsWithAnswer: true,
 						isLive: false,
 						startedAt: WORKING_FIXTURE_START + 1000,
 					},
@@ -917,7 +1102,7 @@ describe("groupWorkingBlocks", () => {
 			const { rows, blocks } = groupLive([prompt, ...steps], []);
 
 			expect(blocks).toHaveLength(1);
-			expect(rowIds(rows, blocks[0].rowIndices)).toEqual([steps[0].id, "live"]);
+			expect(rowIds(rows, blocks[0].slices)).toEqual([steps[0].id, "live"]);
 			expect(blocks[0]).toMatchObject({ isLive: true, stepCount: 1 });
 		});
 
@@ -935,7 +1120,7 @@ describe("groupWorkingBlocks", () => {
 			);
 
 			expect(blocks).toHaveLength(1);
-			expect(rowIds(rows, blocks[0].rowIndices)).toEqual(["live"]);
+			expect(rowIds(rows, blocks[0].slices)).toEqual(["live"]);
 			expect(blocks[0]).toMatchObject({
 				isLive: true,
 				stepCount: 0,
@@ -953,7 +1138,7 @@ describe("groupWorkingBlocks", () => {
 				{ isLiveRowCollapsible: false },
 			);
 
-			expect(rowIds(rows, blocks[0].rowIndices)).toEqual([steps[0].id]);
+			expect(rowIds(rows, blocks[0].slices)).toEqual([steps[0].id]);
 			expect(blocks[0].isLive).toBe(true);
 		});
 
@@ -985,7 +1170,7 @@ describe("groupWorkingBlocks", () => {
 				},
 			);
 			const rows = assignTimelineRows(buildDisplayMessages(entries), false);
-			const blocks = groupWorkingBlocks(rows, entries, {
+			const { blocks } = groupWorkingBlocks(rows, entries, {
 				...defaultOptions,
 				isTurnActive: true,
 				isWorking: true,
@@ -1000,6 +1185,21 @@ describe("groupWorkingBlocks", () => {
 			});
 		});
 
+		it("stays live while only files attached after its last step follow it", () => {
+			const entries = parseMessagesWithMergedTools([
+				user("Go"),
+				...attachStep("a", 1, 2),
+			]);
+			const rows = assignTimelineRows(buildDisplayMessages(entries), false);
+			const { blocks } = groupWorkingBlocks(rows, entries, {
+				...defaultOptions,
+				isTurnActive: true,
+				isWorking: true,
+			});
+
+			expect(blocks).toMatchObject([{ isLive: true, endedAt: undefined }]);
+		});
+
 		it("stops the block's clock while an interrupt drains the turn", () => {
 			const prompt = user("Go");
 			const steps = step("a", 1, 2);
@@ -1011,7 +1211,7 @@ describe("groupWorkingBlocks", () => {
 				},
 			);
 			const rows = assignTimelineRows(buildDisplayMessages(entries), false);
-			const blocks = groupWorkingBlocks(rows, entries, {
+			const { blocks } = groupWorkingBlocks(rows, entries, {
 				...defaultOptions,
 				isTurnActive: true,
 			});
@@ -1036,10 +1236,10 @@ describe("groupWorkingBlocks", () => {
 				pendingToolCallIDs: new Set(["b"]),
 			});
 			const rows = assignTimelineRows(buildDisplayMessages(entries), false);
-			const blocks = groupWorkingBlocks(rows, entries, defaultOptions);
+			const { blocks } = groupWorkingBlocks(rows, entries, defaultOptions);
 
 			expect(blocks).toHaveLength(1);
-			expect(rowIds(rows, blocks[0].rowIndices)).toEqual([steps[0].id]);
+			expect(rowIds(rows, blocks[0].slices)).toEqual([steps[0].id]);
 			expect(blocks[0]).toMatchObject({
 				isLive: false,
 				stepCount: 1,
@@ -1085,33 +1285,49 @@ describe("groupWorkingBlocks", () => {
 	});
 });
 
-describe("getRowBlocks", () => {
-	const answerOf = (content: TypesGen.ChatMessagePart[]) => {
+describe("splitRowPieces", () => {
+	const piecesOf = (content: TypesGen.ChatMessagePart[]) => {
 		const [{ parsed }] = parseMessagesWithMergedTools([
 			message("assistant", content),
 		]);
-		return getRowBlocks(parsed.blocks, parsed.tools, {
-			section: "answer",
-			hideAttachments: false,
-		});
+		return splitRowPieces(parsed.blocks, parsed.tools).pieces;
+	};
+	const work = (...blocks: RenderBlock[]) => ({ kind: "work", blocks });
+	const output = (...blocks: RenderBlock[]) => ({ kind: "output", blocks });
+	const said = (value: string): RenderBlock => ({
+		type: "response",
+		text: value,
+	});
+	const thought = (value: string): RenderBlock => ({
+		type: "thinking",
+		text: value,
+	});
+	const cited: RenderBlock = {
+		type: "sources",
+		sources: [{ url: "https://go.example.com", title: "Go" }],
 	};
 
-	it("folds narration that precedes the answer's last reasoning", () => {
+	it("alternates work and output, folding a citation ahead of its text", () => {
 		expect(
-			answerOf([
+			piecesOf([
 				reasoning("Plan"),
 				text("Looking it up."),
-				source("https://example.com", "Example"),
+				citation,
 				reasoning("Compare"),
 				text("Done."),
 			]),
-		).toEqual([{ type: "response", text: "Done." }]);
+		).toEqual([
+			work(thought("Plan"), cited),
+			output(said("Looking it up.")),
+			work(thought("Compare")),
+			output(said("Done.")),
+		]);
 	});
 
 	// Persisted rows store text at its end, after the citations streamed in it.
 	it.each([
 		{
-			name: "narration before search results",
+			name: "text before search results",
 			persisted: [
 				text("Searching."),
 				searchCall("a"),
@@ -1126,10 +1342,18 @@ describe("getRowBlocks", () => {
 				searchResult("a"),
 				text("Go 1.27 is out."),
 			],
-			answer: "Go 1.27 is out.",
+			pieces: [
+				output({
+					type: "response",
+					text: "Searching.",
+					beforeProviderTool: true,
+				}),
+				work(cited),
+				output(said("Go 1.27 is out.")),
+			],
 		},
 		{
-			name: "narration before cited text",
+			name: "text before cited text",
 			persisted: [
 				text("Searching."),
 				searchCall("a"),
@@ -1145,31 +1369,21 @@ describe("getRowBlocks", () => {
 				citation,
 				text(" Rust 1.98 is out."),
 			],
-			answer: "Go 1.27 is out. Rust 1.98 is out.",
-		},
-		{
-			name: "cited text before a search",
-			persisted: [
-				citation,
-				text("Go 1.27 is out."),
-				searchCall("a"),
-				searchResult("a"),
-				text("Rust 1.98 is out."),
+			pieces: [
+				output({
+					type: "response",
+					text: "Searching.",
+					beforeProviderTool: true,
+				}),
+				work(cited),
+				output(said("Go 1.27 is out. Rust 1.98 is out.")),
 			],
-			live: [
-				text("Go 1.27 is out."),
-				citation,
-				searchCall("a"),
-				searchResult("a"),
-				text("Rust 1.98 is out."),
-			],
-			answer: "Rust 1.98 is out.",
 		},
 		{
 			name: "cited text without a search call",
 			persisted: [citation, text("Go 1.27 is out. Rust 1.98 is out.")],
 			live: [text("Go 1.27 is out."), citation, text(" Rust 1.98 is out.")],
-			answer: "Go 1.27 is out. Rust 1.98 is out.",
+			pieces: [work(cited), output(said("Go 1.27 is out. Rust 1.98 is out."))],
 		},
 		{
 			name: "labeled narration before the answer",
@@ -1179,24 +1393,25 @@ describe("getRowBlocks", () => {
 				narration("the docs."),
 				text("They cover it."),
 			],
-			answer: "They cover it.",
+			pieces: [
+				output(
+					{ type: "response", text: "Checking the docs.", narration: true },
+					said("They cover it."),
+				),
+			],
 		},
 	])(
 		"splits $name the same live and persisted",
-		({ persisted, live, answer }) => {
+		({ persisted, live, pieces }) => {
 			const { streamState, streamTools } = buildStreamRenderState(live);
 			if (!streamState) {
 				throw new Error("The live parts built no stream state.");
 			}
-			const expected = [{ type: "response", text: answer }];
 
-			expect(answerOf(persisted)).toEqual(expected);
-			expect(
-				getRowBlocks(streamState.blocks, streamTools, {
-					section: "answer",
-					hideAttachments: false,
-				}),
-			).toEqual(expected);
+			expect(piecesOf(persisted)).toEqual(pieces);
+			expect(splitRowPieces(streamState.blocks, streamTools).pieces).toEqual(
+				pieces,
+			);
 		},
 	);
 
@@ -1207,44 +1422,52 @@ describe("getRowBlocks", () => {
 		args: { command: "" },
 	});
 
-	it("ignores hidden tools when splitting the answer", () => {
+	it("leaves hidden tools out of the pieces", () => {
 		expect(
-			answerOf([
+			piecesOf([
 				reasoning("Plan"),
 				hiddenCall("before"),
 				text("Done."),
 				hiddenCall("after"),
 			]),
-		).toEqual([{ type: "response", text: "Done." }]);
+		).toEqual([work(thought("Plan")), output(said("Done."))]);
 	});
 
-	it("keeps answer text on either side of a hidden tool apart", () => {
+	it("keeps text on either side of a hidden tool apart", () => {
 		expect(
-			answerOf([
+			piecesOf([
 				reasoning("Plan"),
 				text("Checked the logs."),
 				hiddenCall("between"),
 				text("The fix is in."),
 			]),
 		).toEqual([
-			{ type: "response", text: "Checked the logs." },
-			{ type: "response", text: "The fix is in." },
+			work(thought("Plan")),
+			output(said("Checked the logs."), said("The fix is in.")),
 		]);
 	});
+});
 
-	it("drops a row's files only when attachments are hidden", () => {
-		const [{ parsed }] = parseMessagesWithMergedTools([
-			message("assistant", [text("Report:"), mockAttachment]),
-		]);
-		const blockTypes = (hideAttachments: boolean) =>
-			getRowBlocks(parsed.blocks, parsed.tools, {
-				section: undefined,
-				hideAttachments,
-			}).map((block) => block.type);
+describe("getSliceContent", () => {
+	it.each([
+		{ name: "whole row", pieceRange: undefined },
+		{ name: "slice", pieceRange: { start: 0, end: 2 } },
+	])(
+		"drops a $name's files only when attachments are hidden",
+		({ pieceRange }) => {
+			const [{ parsed }] = parseMessagesWithMergedTools([
+				message("assistant", [text("Report:"), mockAttachment]),
+			]);
+			const blockTypes = (hideAttachments: boolean) =>
+				getSliceContent(parsed.blocks, parsed.tools, {
+					pieceRange,
+					hideAttachments,
+				}).blocks.map((block) => block.type);
 
-		expect(blockTypes(false)).toEqual(["response", "file"]);
-		expect(blockTypes(true)).toEqual(["response"]);
-	});
+			expect(blockTypes(false)).toEqual(["response", "file"]);
+			expect(blockTypes(true)).toEqual(["response"]);
+		},
+	);
 });
 
 describe("isAgentAttachmentOnlyRow", () => {

@@ -76,6 +76,7 @@ const emptyParsedMessageContent = (): ParsedMessageContent => ({
 	toolResults: [],
 	tools: [],
 	blocks: [],
+	partBlockIndices: [],
 	sources: [],
 	hookNotices: [],
 });
@@ -363,6 +364,7 @@ export const parseMessageContent = (
 				break;
 			}
 		}
+		parsed.partBlockIndices.push(parsed.blocks.length - 1);
 	}
 	return parsed;
 };

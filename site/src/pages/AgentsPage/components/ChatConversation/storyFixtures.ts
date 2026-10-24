@@ -116,14 +116,17 @@ export const workingFixtureTime = (seconds: number) =>
 
 /** Two completed steps that ran for the twelve seconds before the pinned clock. */
 export const MockWorkingBlock: WorkingBlock = {
-	key: "working:through:message:5",
+	key: "working:through:message:4",
 	liveKey: "working:live:message:1:0",
-	rowIndices: [0, 1],
+	slices: [
+		{ rowIndex: 1, pieceRange: { start: 0, end: 1 }, key: "message:2" },
+		{ rowIndex: 2, pieceRange: { start: 0, end: 1 }, key: "message:4" },
+	],
 	memberIds: [2, 4],
+	pieceKeys: ["2:0", "4:0"],
 	startedAt: FIXTURE_NOW - 12_000,
 	endedAt: FIXTURE_NOW,
 	stepCount: 2,
-	endsWithAnswer: false,
 	isLive: false,
 	isPartial: false,
 };
@@ -321,6 +324,41 @@ export const MockUncitedSearchAnswerMessages: TypesGen.ChatMessage[] = [
 			},
 			{ type: "text", text: "No release notes mention the workspace." },
 		],
+	},
+];
+
+/** A turn whose first step attached a report from 1s to 2s. */
+export const MockAttachedFileMessages: TypesGen.ChatMessage[] = [
+	MockWorkingMessages[0],
+	...attachmentStepMessages({
+		id: 2,
+		toolCallId: "attach",
+		callAt: 1,
+		toolName: "attach_file",
+		args: { path: "/home/coder/report.md" },
+		file: {
+			type: "file",
+			media_type: "text/markdown",
+			name: "report.md",
+			file_id: "storybook-report",
+		},
+		result: { name: "report.md" },
+	}),
+];
+
+/**
+ * A history page that starts at MockAttachedFileMessages' file, then runs a
+ * shell step from 5s to 13s and answers at 14s.
+ */
+export const MockPageFromAttachedFileMessages: TypesGen.ChatMessage[] = [
+	...MockAttachedFileMessages.slice(2),
+	...workingStepMessages(5, "verify", 5, 13),
+	{
+		...MockChatMessage,
+		id: 7,
+		role: "assistant",
+		created_at: workingFixtureTime(14),
+		content: [{ type: "text", text: "The inspection report is attached." }],
 	},
 ];
 
