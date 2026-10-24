@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, screen, userEvent } from "storybook/test";
-import { groupsByOrganization } from "#/api/queries/groups";
-import { organizationMembers } from "#/api/queries/organizations";
+import { getGroupsByOrganizationQueryKey } from "#/api/queries/groups";
+import { organizationMembersKey } from "#/api/queries/organizations";
 import type { ChatProjectACL } from "#/api/typesGenerated";
 import {
 	MockChatProject,
@@ -136,9 +136,9 @@ export const ManagePendingAdd: Story = {
 	args: { canManage: true, pendingPrincipalId: MockGroup3.id },
 	parameters: {
 		queries: [
-			{ key: groupsByOrganization(orgId).queryKey, data: [MockGroup3] },
+			{ key: getGroupsByOrganizationQueryKey(orgId), data: [MockGroup3] },
 			{
-				key: organizationMembers(orgId, { limit: 0 }).queryKey,
+				key: organizationMembersKey(orgId, { limit: 0 }),
 				data: { members: [], count: 0 },
 			},
 		],
