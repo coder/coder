@@ -3495,6 +3495,7 @@ export interface ChatProject {
 	 * default folder glyph.
 	 */
 	readonly icon: string;
+	readonly templates: ChatProjectTemplates;
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly permissions: ChatProjectPermissions;
@@ -3563,6 +3564,34 @@ export interface ChatProjectPermissions {
 export type ChatProjectRole = "admin" | "" | "use";
 
 export const ChatProjectRoles: ChatProjectRole[] = ["admin", "", "use"];
+
+// From codersdk/chats.go
+/**
+ * ChatProjectTemplates are the workspace templates a project's chats may use.
+ * An empty TemplateIDs means the project's chats cannot create or attach
+ * workspaces.
+ */
+export interface ChatProjectTemplates {
+	readonly template_ids: readonly string[];
+	/**
+	 * DefaultTemplateID is recommended to the project's chats and must be one
+	 * of TemplateIDs.
+	 */
+	readonly default_template_id?: string;
+	/**
+	 * DefaultPresetID is a preset of the default template's active version,
+	 * applied when a chat creates a workspace from the default template
+	 * without choosing a preset. It is mutually exclusive with
+	 * DefaultParameters.
+	 */
+	readonly default_preset_id?: string;
+	/**
+	 * DefaultParameters are parameter values, keyed by name, applied when a
+	 * chat creates a workspace from the default template. Values the chat
+	 * passes take precedence.
+	 */
+	readonly default_parameters?: Record<string, string>;
+}
 
 // From codersdk/chats.go
 export interface ChatProjectUser extends MinimalUser {
@@ -4359,6 +4388,10 @@ export interface CreateChatProjectRequest {
 	readonly name: string;
 	readonly description: string;
 	readonly icon?: string;
+	/**
+	 * Templates defaults to no templates.
+	 */
+	readonly templates?: ChatProjectTemplates;
 }
 
 // From codersdk/chats.go
@@ -10867,6 +10900,11 @@ export interface UpdateChatProjectRequest {
 	readonly name?: string;
 	readonly description?: string;
 	readonly icon?: string;
+	/**
+	 * Templates replaces the project's templates and defaults as a whole when
+	 * set.
+	 */
+	readonly templates?: ChatProjectTemplates;
 }
 
 // From codersdk/chats.go
