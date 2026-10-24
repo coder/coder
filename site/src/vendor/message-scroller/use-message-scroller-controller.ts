@@ -773,7 +773,8 @@ function useMessageScrollerController({
   )
 
   const setRootElement = useElementRef(rootRef, mirrorStateAttributes)
-  // LOCAL CHANGE
+  // LOCAL CHANGE: rerun handleContentChange, which returned without recording
+  // items while the viewport was missing.
   const syncAfterViewportAttach = React.useCallback(() => {
     mirrorStateAttributes()
     handleContentChange()
