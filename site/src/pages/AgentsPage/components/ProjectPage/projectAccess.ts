@@ -5,7 +5,7 @@ import type {
 } from "#/api/typesGenerated";
 import { getGroupSubtitle } from "#/modules/groups";
 
-/** Display labels for project roles. The empty role means removed and never appears in an ACL. */
+/** Display labels for project roles. The empty role only removes access in update requests. */
 export const chatProjectRoleLabel: Record<
 	Exclude<ChatProjectRole, "">,
 	string

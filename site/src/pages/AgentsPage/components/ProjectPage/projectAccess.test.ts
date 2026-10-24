@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { ChatProjectACL } from "#/api/typesGenerated";
 import {
 	MockGroup,
 	MockUserMember,
@@ -24,12 +25,12 @@ describe("buildAccessEntries", () => {
 		username: "unnamed",
 		name: "",
 	};
-	const mockACL = {
+	const mockACL: ChatProjectACL = {
 		users: [
-			{ ...MockUserMember, role: "admin" as const },
-			{ ...mockUnnamedUser, role: "use" as const },
+			{ ...MockUserMember, role: "admin" },
+			{ ...mockUnnamedUser, role: "use" },
 		],
-		groups: [{ ...MockGroup, role: "use" as const }],
+		groups: [{ ...MockGroup, role: "use" }],
 	};
 
 	it("lists the owner first, then users, then groups", () => {

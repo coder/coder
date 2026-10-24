@@ -563,7 +563,7 @@ describe("ProjectDetailsPanel", () => {
 		await waitFor(() => expect(skillsButton).toHaveFocus());
 	});
 
-	it("opens the project access from View access and returns focus when it closes", async () => {
+	it("opens the project access dialog from View access and returns focus when it closes", async () => {
 		mockInstructions(MockChatProjectInstructions);
 		const getACL = vi
 			.spyOn(API.experimental, "getChatProjectACL")
