@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -771,6 +773,28 @@ func TestReconnect_KeepsConnectedSession(t *testing.T) {
 	assert.Same(t, before, after)
 }
 
+// TestReconnect_RedialsServerWithDeadSession verifies Reconnect replaces
+// the session of a server that restarted after it connected.
+func TestReconnect_RedialsServerWithDeadSession(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	serverURL, restart := newRestartableHTTPMCPServer(t)
+	configPath := writeMCPConfig(t, t.TempDir(), map[string]mcpServerEntry{
+		"srv": {Type: "http", URL: serverURL},
+	})
+	m := NewManager(ctx, slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), agentexec.DefaultExecer, nil, nil, nil, nil)
+	t.Cleanup(func() { _ = m.Close() })
+
+	require.NoError(t, m.Reload(ctx, []string{configPath}))
+	restart()
+	require.NoError(t, m.Reconnect(ctx))
+	require.Empty(t, m.connectedTools())
+
+	require.NoError(t, m.Reconnect(ctx))
+	require.Equal(t, []catalogTool{{server: "srv", tool: "echo"}}, m.connectedTools())
+}
+
 // newHTTPMCPServer serves a single "echo" tool over streamable HTTP and
 // returns its URL. Requests fail with 503 while up is false.
 func newHTTPMCPServer(t *testing.T, up *atomic.Bool) string {
@@ -792,6 +816,26 @@ func newHTTPMCPServer(t *testing.T, up *atomic.Bool) string {
 	}))
 	t.Cleanup(srv.Close)
 	return srv.URL
+}
+
+// newRestartableHTTPMCPServer serves newHTTPMCPServer behind a stable URL.
+// restart swaps in a fresh server, which does not know existing sessions.
+func newRestartableHTTPMCPServer(t *testing.T) (serverURL string, restart func()) {
+	t.Helper()
+	var up atomic.Bool
+	up.Store(true)
+	var proxy atomic.Pointer[httputil.ReverseProxy]
+	restart = func() {
+		target, err := url.Parse(newHTTPMCPServer(t, &up))
+		require.NoError(t, err)
+		proxy.Store(httputil.NewSingleHostReverseProxy(target))
+	}
+	restart()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		proxy.Load().ServeHTTP(w, r)
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL, restart
 }
 
 // TestClose_SuppressesSubprocessExitError verifies that Close

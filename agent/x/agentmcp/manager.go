@@ -199,7 +199,7 @@ func (m *Manager) Reload(ctx context.Context, paths []string) error {
 }
 
 // Reconnect re-runs the last reload even when the config is unchanged,
-// so servers that failed to connect are retried.
+// so servers that failed to connect or list tools are retried.
 func (m *Manager) Reconnect(ctx context.Context) error {
 	m.mu.Lock()
 	paths := slices.Clone(m.lastPaths)
@@ -561,9 +561,15 @@ func (m *Manager) classifyServers(wanted map[string]ServerConfig) (*serverDiff, 
 		keep: make(map[string]*serverEntry),
 	}
 
+	// A server whose last tool listing failed may hold a dead session.
+	failed := make(map[string]bool, len(m.catalog))
+	for _, st := range m.catalog {
+		failed[st.Name] = !st.Connected
+	}
+
 	for name, wantCfg := range wanted {
 		if existing, ok := m.servers[name]; ok {
-			if reflect.DeepEqual(existing.config, wantCfg) {
+			if reflect.DeepEqual(existing.config, wantCfg) && !failed[name] {
 				diff.keep[name] = existing
 			} else {
 				diff.toConnect = append(diff.toConnect, wantCfg)

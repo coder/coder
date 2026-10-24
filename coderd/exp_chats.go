@@ -2546,7 +2546,8 @@ func (api *API) applyChatTitleUpdate(
 }
 
 // refreshChatContext re-pins a chat to its agent's latest context snapshot
-// and clears the dirty marker.
+// and clears the dirty marker. When an MCP server failed, it also asks the
+// agent to retry it; the new state reaches the chat on the agent's next push.
 //
 // @Summary Refresh chat context
 // @ID refresh-chat-context
@@ -2594,6 +2595,16 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 			)
 		} else {
 			sdkChat.Context.Resources = resources
+		}
+		if slices.ContainsFunc(sdkChat.Context.Resources, func(r codersdk.ChatContextResource) bool {
+			return r.Kind == codersdk.ChatContextResourceKindMCPServer && r.Status == codersdk.ChatContextResourceStatusUnreadable
+		}) {
+			// Read as the caller, and skip agents that cannot answer since the
+			// dial would wait out its timeout.
+			agent, err := api.Database.GetWorkspaceAgentByID(ctx, updated.AgentID.UUID)
+			if err == nil && agent.Status(dbtime.Now(), api.AgentInactiveDisconnectTimeout).Status == database.WorkspaceAgentStatusConnected {
+				api.chatDaemon.ResyncAgentContextAsync(agent.ID)
+			}
 		}
 	}
 
