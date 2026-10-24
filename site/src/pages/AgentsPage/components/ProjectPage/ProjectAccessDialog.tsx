@@ -1,3 +1,4 @@
+import type { ChatProjectRole } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Badge } from "#/components/Badge/Badge";
@@ -20,7 +21,13 @@ import {
 } from "#/components/Table/Table";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { RetryButton } from "../RetryButton";
-import { chatProjectRoleLabel, type ProjectAccessEntry } from "./projectAccess";
+import type { ProjectAccessEntry } from "./projectAccess";
+
+/** Display labels for project roles. The empty role only removes access in update requests. */
+const chatProjectRoleLabel: Record<Exclude<ChatProjectRole, "">, string> = {
+	admin: "Admin",
+	use: "Member",
+};
 
 type ProjectAccessDialogProps = {
 	readonly open: boolean;

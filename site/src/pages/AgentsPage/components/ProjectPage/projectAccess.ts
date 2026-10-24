@@ -5,15 +5,6 @@ import type {
 } from "#/api/typesGenerated";
 import { getGroupSubtitle } from "#/modules/groups";
 
-/** Display labels for project roles. The empty role only removes access in update requests. */
-export const chatProjectRoleLabel: Record<
-	Exclude<ChatProjectRole, "">,
-	string
-> = {
-	admin: "Admin",
-	use: "Member",
-};
-
 type ProjectAccessEntryBase = {
 	readonly id: string;
 	readonly name: string;
