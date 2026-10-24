@@ -482,20 +482,31 @@ describe("ProjectDetailsPanel", () => {
 		await screen.findByRole("button", { name: "Edit instructions" });
 	});
 
-	it("retries loading the project members after an error", async () => {
+	it.each([
+		{ source: "the members section", role: "region", name: "Members" },
+		{ source: "the access dialog", role: "dialog", name: "View access" },
+	])("retries loading access from $source", async ({ role, name }) => {
 		mockInstructions(MockChatProjectInstructions);
+		const aclError = mockApiError({ message: "Failed to load." });
 		const getACL = vi
 			.spyOn(API.experimental, "getChatProjectACL")
-			.mockRejectedValueOnce(mockApiError({ message: "Failed to load." }))
+			.mockRejectedValueOnce(aclError)
+			.mockRejectedValueOnce(aclError)
 			.mockResolvedValue(MockChatProjectACL);
 		const { user } = renderPanel();
 
-		const members = await screen.findByRole("region", { name: "Members" });
-		await user.click(
-			await within(members).findByRole("button", { name: "Retry" }),
-		);
+		if (role === "dialog") {
+			await user.click(await screen.findByRole("button", { name }));
+		}
+		const scope = within(await screen.findByRole(role, { name }));
+		const retry = await scope.findByRole("button", { name: "Retry" });
+		await waitFor(() => expect(retry).toBeEnabled());
+		const callsBeforeRetry = getACL.mock.calls.length;
+		await user.click(retry);
 
-		await waitFor(() => expect(getACL).toHaveBeenCalledTimes(2));
+		await waitFor(() =>
+			expect(getACL).toHaveBeenCalledTimes(callsBeforeRetry + 1),
+		);
 	});
 
 	it("opens the project skills from the Skills row", async () => {
