@@ -295,6 +295,7 @@ type ProviderTool struct {
 type stepResult struct {
 	content              []fantasy.Content
 	usage                fantasy.Usage
+	responseBytes        int
 	providerMetadata     fantasy.ProviderMetadata
 	providerResponseID   string
 	finishReason         fantasy.FinishReason
@@ -400,6 +401,8 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ As
 	}()
 
 	result, processErr := processStepStream(attempt.stream, opts.Clock, publishMessagePart)
+	// Observe before error handling so failed or rejected responses are still counted.
+	opts.Metrics.ResponseSizeBytes.WithLabelValues(provider, modelName).Observe(float64(result.responseBytes))
 	if err := attempt.finish(processErr); err != nil {
 		wrappedErr := wrapProviderStreamError(errorProvider, err)
 		classified := chaterror.Classify(wrappedErr).WithProvider(errorProvider)
@@ -972,6 +975,11 @@ func processStepStream(
 	var startedToolInputIDs []string
 
 	for part := range stream {
+		// Counts Delta on every part type. This relies on providers keeping
+		// summary data, such as ToolCall input, out of Delta. Only
+		// TestGenerateAssistant_ResponseSizeBytesByPartType checks this, so
+		// update it when adding new part types.
+		result.responseBytes += len(part.Delta)
 		switch part.Type {
 		case fantasy.StreamPartTypeTextStart:
 			// OpenAI labels narration when the text starts, so every delta
