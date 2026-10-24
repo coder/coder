@@ -54,9 +54,17 @@ type fakeContainerCLI struct {
 	execErr    error
 	stopErr    error
 	removeErr  error
+	onList     func()
 }
 
 func (f *fakeContainerCLI) List(_ context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
+	f.mu.Lock()
+	onList := f.onList
+	f.mu.Unlock()
+	if onList != nil {
+		onList()
+	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.containers, f.listErr
@@ -113,6 +121,8 @@ type fakeDevcontainerCLI struct {
 	upID           string
 	upErr          error
 	upErrC         chan func() error // If set, send to return err, close to return upErr.
+	upReady        bool              // If set, Up calls OnReady before waiting on upErrC.
+	upCanceledC    chan struct{}     // If set, Up sends to it when ctx is done.
 	execErr        error
 	execErrC       chan func(cmd string, args ...string) error // If set, send fn to return err, nil or close to return execErr.
 	readConfig     agentcontainers.DevcontainerConfig
@@ -122,13 +132,25 @@ type fakeDevcontainerCLI struct {
 	configMap map[string]agentcontainers.DevcontainerConfig // By config path
 }
 
-func (f *fakeDevcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath string, _ ...agentcontainers.DevcontainerCLIUpOptions) (string, error) {
+func (f *fakeDevcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath string, opts ...agentcontainers.DevcontainerCLIUpOptions) (string, error) {
 	if f.up != nil {
 		return f.up(workspaceFolder, configPath)
+	}
+	if f.upReady {
+		var conf agentcontainers.DevcontainerCLIUpConfig
+		for _, opt := range opts {
+			opt(&conf)
+		}
+		if conf.OnReady != nil {
+			conf.OnReady()
+		}
 	}
 	if f.upErrC != nil {
 		select {
 		case <-ctx.Done():
+			if f.upCanceledC != nil {
+				f.upCanceledC <- struct{}{}
+			}
 			return "", ctx.Err()
 		case fn, ok := <-f.upErrC:
 			if ok {
@@ -226,6 +248,28 @@ func (f *fakeDevcontainerCLI) ReadConfig(ctx context.Context, _, configPath stri
 		}
 	}
 	return f.readConfig, f.readConfigErr
+}
+
+// listDevcontainers returns the devcontainers from the API list endpoint.
+func listDevcontainers(t *testing.T, router http.Handler) []codersdk.WorkspaceAgentDevcontainer {
+	t.Helper()
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	require.Equal(t, http.StatusOK, rec.Code)
+	var response codersdk.WorkspaceAgentListContainersResponse
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&response))
+	return response.Devcontainers
+}
+
+// getDevcontainer returns the only devcontainer from the API list
+// endpoint.
+func getDevcontainer(t *testing.T, router http.Handler) codersdk.WorkspaceAgentDevcontainer {
+	t.Helper()
+
+	dcs := listDevcontainers(t, router)
+	require.Len(t, dcs, 1)
+	return dcs[0]
 }
 
 // fakeWatcher implements the watcher.Watcher interface for testing.
@@ -3330,6 +3374,230 @@ func TestAPI(t *testing.T) {
 			// Then: We expect that the error will be gone
 			require.Len(t, response.Devcontainers, 1)
 			require.Equal(t, "", response.Devcontainers[0].Error)
+		})
+	})
+
+	// These tests cover lifecycle commands that run after waitFor in
+	// devcontainer.json. CreateDevcontainer returns when the
+	// devcontainer is ready, while devcontainer up still runs.
+	t.Run("WaitFor", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("Dev Container tests are not supported on Windows (this test uses mocks but fails due to Windows paths)")
+		}
+
+		const (
+			workspaceFolder = "/workspaces/project"
+			configPath      = "/workspaces/project/.devcontainer/devcontainer.json"
+		)
+
+		type testEnv struct {
+			ctx             context.Context
+			router          chi.Router
+			api             *agentcontainers.API
+			containerCLI    *fakeContainerCLI
+			devcontainerCLI *fakeDevcontainerCLI
+			subAgentClient  *fakeSubAgentClient
+		}
+		clearOnList := func(f *fakeContainerCLI) {
+			f.mu.Lock()
+			f.onList = nil
+			f.mu.Unlock()
+		}
+		// newStartingEnv returns an API with a starting devcontainer and
+		// no container. Its devcontainer up calls OnReady, then blocks
+		// on upErrC. Until clearOnList is called, each container list
+		// checks that a running devcontainer has a container, which a
+		// delete needs to stop and remove it.
+		newStartingEnv := func(t *testing.T) testEnv {
+			t.Helper()
+
+			var (
+				ctx    = testutil.Context(t, testutil.WaitMedium)
+				logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+				mClock = quartz.NewMock(t)
+				fCCLI  = &fakeContainerCLI{arch: runtime.GOARCH}
+				fDCCLI = &fakeDevcontainerCLI{
+					upID:        "test-container-id",
+					upErrC:      make(chan func() error, 1),
+					upReady:     true,
+					upCanceledC: make(chan struct{}, 2),
+					readConfig: agentcontainers.DevcontainerConfig{
+						Workspace: agentcontainers.DevcontainerWorkspace{WorkspaceFolder: workspaceFolder},
+					},
+				}
+				fSAC = &fakeSubAgentClient{
+					logger: logger.Named("fakeSubAgentClient"),
+					agents: make(map[uuid.UUID]agentcontainers.SubAgent),
+				}
+			)
+
+			mClock.Set(time.Now()).MustWait(ctx)
+			tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
+
+			api := agentcontainers.NewAPI(logger,
+				agentcontainers.WithClock(mClock),
+				agentcontainers.WithContainerCLI(fCCLI),
+				agentcontainers.WithDevcontainerCLI(fDCCLI),
+				agentcontainers.WithDevcontainers(
+					[]codersdk.WorkspaceAgentDevcontainer{{
+						ID:              uuid.New(),
+						Name:            "test-devcontainer",
+						WorkspaceFolder: workspaceFolder,
+						ConfigPath:      configPath,
+						Status:          codersdk.WorkspaceAgentDevcontainerStatusStarting,
+					}},
+					nil,
+				),
+				agentcontainers.WithSubAgentClient(fSAC),
+				agentcontainers.WithSubAgentURL("test-subagent-url"),
+				agentcontainers.WithWatcher(watcher.NewNoop()),
+			)
+			api.Start()
+			t.Cleanup(func() {
+				close(fDCCLI.upErrC)
+				_ = api.Close()
+			})
+			tickerTrap.MustWait(ctx).MustRelease(ctx)
+			tickerTrap.Close()
+
+			r := chi.NewRouter()
+			r.Mount("/", api.Routes())
+
+			fCCLI.mu.Lock()
+			fCCLI.onList = func() {
+				rec := httptest.NewRecorder()
+				r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+				var response codersdk.WorkspaceAgentListContainersResponse
+				if !assert.NoError(t, json.NewDecoder(rec.Body).Decode(&response)) {
+					return
+				}
+				for _, dc := range response.Devcontainers {
+					if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusRunning {
+						assert.NotNil(t, dc.Container, "running devcontainer has no container")
+					}
+				}
+			}
+			fCCLI.mu.Unlock()
+			t.Cleanup(func() { clearOnList(fCCLI) })
+
+			return testEnv{
+				ctx:             ctx,
+				router:          r,
+				api:             api,
+				containerCLI:    fCCLI,
+				devcontainerCLI: fDCCLI,
+				subAgentClient:  fSAC,
+			}
+		}
+		// newReadyEnv returns an env where the devcontainer is ready
+		// while devcontainer up still runs.
+		newReadyEnv := func(t *testing.T) testEnv {
+			t.Helper()
+			env := newStartingEnv(t)
+
+			env.containerCLI.mu.Lock()
+			env.containerCLI.containers.Containers = []codersdk.WorkspaceAgentContainer{{
+				ID:           "test-container-id",
+				FriendlyName: "test-container",
+				Running:      true,
+				CreatedAt:    time.Now(),
+				Labels: map[string]string{
+					agentcontainers.DevcontainerLocalFolderLabel: workspaceFolder,
+					agentcontainers.DevcontainerConfigFileLabel:  configPath,
+				},
+			}}
+			env.containerCLI.mu.Unlock()
+
+			createErrC := make(chan error, 1)
+			go func() { createErrC <- env.api.CreateDevcontainer(workspaceFolder, configPath) }()
+			require.NoError(t, testutil.RequireReceive(env.ctx, t, createErrC), "CreateDevcontainer returns while devcontainer up runs")
+			clearOnList(env.containerCLI)
+
+			dc := getDevcontainer(t, env.router)
+			require.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, dc.Status)
+			require.Empty(t, dc.Error)
+			require.NotNil(t, dc.Container)
+			env.subAgentClient.mu.Lock()
+			created := len(env.subAgentClient.created)
+			env.subAgentClient.mu.Unlock()
+			require.Equal(t, 1, created, "subagent is injected while devcontainer up runs")
+
+			return env
+		}
+
+		t.Run("NoContainer", func(t *testing.T) {
+			t.Parallel()
+			env := newStartingEnv(t)
+
+			// Without a container, the devcontainer is not ready before
+			// devcontainer up exits.
+			createErrC := make(chan error, 1)
+			go func() { createErrC <- env.api.CreateDevcontainer(workspaceFolder, configPath) }()
+			testutil.RequireSend(env.ctx, t, env.devcontainerCLI.upErrC, func() error { return nil })
+			require.NoError(t, testutil.RequireReceive(env.ctx, t, createErrC))
+			require.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusStopped, getDevcontainer(t, env.router).Status)
+		})
+
+		t.Run("LifecycleCommandFails", func(t *testing.T) {
+			t.Parallel()
+			env := newReadyEnv(t)
+
+			testutil.RequireSend(env.ctx, t, env.devcontainerCLI.upErrC, func() error {
+				return xerrors.New("postCreateCommand failed")
+			})
+			require.True(t, testutil.Eventually(env.ctx, t, func(context.Context) bool {
+				return getDevcontainer(t, env.router).Error == "postCreateCommand failed"
+			}, testutil.IntervalFast))
+			require.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, getDevcontainer(t, env.router).Status)
+		})
+
+		t.Run("DeleteCancelsLifecycleCommands", func(t *testing.T) {
+			t.Parallel()
+			env := newReadyEnv(t)
+			dc := getDevcontainer(t, env.router)
+
+			req := httptest.NewRequest(http.MethodDelete, "/devcontainers/"+dc.ID.String(), nil)
+			rec := httptest.NewRecorder()
+			env.router.ServeHTTP(rec, req)
+			require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
+
+			// The delete waits for devcontainer up to exit.
+			select {
+			case <-env.devcontainerCLI.upCanceledC:
+			default:
+				t.Fatal("devcontainer up was not canceled before the delete finished")
+			}
+			require.Empty(t, listDevcontainers(t, env.router), "canceled devcontainer up must not change state")
+		})
+
+		t.Run("RecreateCancelsLifecycleCommands", func(t *testing.T) {
+			t.Parallel()
+			env := newReadyEnv(t)
+			dc := getDevcontainer(t, env.router)
+			env.devcontainerCLI.upReady = false
+
+			req := httptest.NewRequest(http.MethodPost, "/devcontainers/"+dc.ID.String()+"/recreate", nil)
+			rec := httptest.NewRecorder()
+			env.router.ServeHTTP(rec, req)
+			require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+			testutil.RequireReceive(env.ctx, t, env.devcontainerCLI.upCanceledC)
+
+			// The new devcontainer up runs after the canceled one exits.
+			testutil.RequireSend(env.ctx, t, env.devcontainerCLI.upErrC, func() error {
+				rec := httptest.NewRecorder()
+				env.router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+				var response codersdk.WorkspaceAgentListContainersResponse
+				if assert.NoError(t, json.NewDecoder(rec.Body).Decode(&response)) && assert.Len(t, response.Devcontainers, 1) {
+					assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusStarting, response.Devcontainers[0].Status)
+					assert.Empty(t, response.Devcontainers[0].Error, "canceled devcontainer up must not change state")
+				}
+				return xerrors.New("postStartCommand failed")
+			})
+			require.True(t, testutil.Eventually(env.ctx, t, func(context.Context) bool {
+				return getDevcontainer(t, env.router).Status == codersdk.WorkspaceAgentDevcontainerStatusRunning
+			}, testutil.IntervalFast))
 		})
 	})
 
