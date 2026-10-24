@@ -22,7 +22,8 @@ IDE integrations add their own diagnostics, which aren't included by the CLI alo
 
 Any authenticated user can generate a bundle.
 Your permissions, deployment configuration, and agent connectivity determine which data is available.
-Users with the Owner role get the most complete bundle. Unavailable data can leave files empty or JSON values `null`.
+Users with the Owner role get the most complete bundle.
+Unavailable data can leave files empty or JSON values `null`.
 
 Choose a collection method:
 
@@ -130,7 +131,8 @@ The workspace agent evaluates paths and globs:
 
 - Environment variables such as `$HOME` expand inside the workspace.
 - Paths must resolve to absolute paths or start with `~/`, which resolves to the agent user's home directory.
-- Direct paths follow symlinks. Glob traversal doesn't follow symlinks.
+- Direct paths follow symlinks.
+   Glob traversal doesn't follow symlinks.
 - Collection is limited to 10,000 files and 100&nbsp;MiB in total.
 - Each file contributes at most its last 10&nbsp;MiB, or less if the total budget is nearly exhausted, with truncation recorded in the manifest.
 

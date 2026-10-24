@@ -87,7 +87,8 @@ Visit the [Claude Code module on the Coder Registry](https://registry.coder.com/
 The Claude Code VS Code extension is also supported.
 
 1. If pre-configured in the workspace environment variables (as shown above), it typically respects them.
-2. You may need to sign in once. Afterwards, it respects the workspace environment variables.
+2. You may need to sign in once.
+   Afterwards, it respects the workspace environment variables.
 
 **References:**
 [Claude Code Settings](https://docs.claude.com/en/docs/claude-code/settings#environment-variables)

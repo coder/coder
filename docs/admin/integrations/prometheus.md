@@ -3,25 +3,18 @@ title: Prometheus
 ---
 
 
-Coder exposes many metrics which can be consumed by a Prometheus server, and
-give insight into the current state of a live Coder deployment.
+Coder exposes many metrics which can be consumed by a Prometheus server, and give insight into the current state of a live Coder deployment.
 
-If you don't have a Prometheus server installed, you can follow the Prometheus
-[Getting started](https://prometheus.io/docs/prometheus/latest/getting_started/) guide.
+If you don't have a Prometheus server installed, you can follow the Prometheus [Getting started](https://prometheus.io/docs/prometheus/latest/getting_started/) guide.
 
 ## Enable Prometheus metrics
 
-Coder server exports metrics via the HTTP endpoint, which can be enabled using
-either the environment variable `CODER_PROMETHEUS_ENABLE` or the flag
-`--prometheus-enable`.
+Coder server exports metrics via the HTTP endpoint, which can be enabled using either the environment variable `CODER_PROMETHEUS_ENABLE` or the flag `--prometheus-enable`.
 
-The Prometheus endpoint address is `http://localhost:2112/` by default. You can
-use either the environment variable `CODER_PROMETHEUS_ADDRESS` or the flag
-`--prometheus-address <network-interface>:<port>` to select a different listen
-address.
+The Prometheus endpoint address is `http://localhost:2112/` by default.
+You can use either the environment variable `CODER_PROMETHEUS_ADDRESS` or the flag `--prometheus-address <network-interface>:<port>` to select a different listen address.
 
-If `coder server --prometheus-enable` is started locally, you can preview the
-metrics endpoint in your browser or with `curl`:
+If `coder server --prometheus-enable` is started locally, you can preview the metrics endpoint in your browser or with `curl`:
 
 ```console
 $ curl http://localhost:2112/
@@ -33,11 +26,10 @@ coderd_api_active_users_duration_hour 0
 
 ### Kubernetes deployment
 
-The Prometheus endpoint can be enabled in the [Helm chart's](../../../helm)
-`values.yml` by setting `CODER_PROMETHEUS_ENABLE=true`. Once enabled, the environment variable `CODER_PROMETHEUS_ADDRESS` will be set by default to
-`0.0.0.0:2112`. A Service Endpoint will not be exposed. If you need to
-expose the Prometheus port on a Service, (for example, to use a
-`ServiceMonitor`), create a separate headless service instead.
+The Prometheus endpoint can be enabled in the [Helm chart's](../../../helm) `values.yml` by setting `CODER_PROMETHEUS_ENABLE=true`.
+Once enabled, the environment variable `CODER_PROMETHEUS_ADDRESS` will be set by default to `0.0.0.0:2112`.
+A Service Endpoint will not be exposed.
+If you need to expose the Prometheus port on a Service, (for example, to use a `ServiceMonitor`), create a separate headless service instead.
 
 ```yaml
 apiVersion: v1
@@ -60,9 +52,8 @@ spec:
 
 ### Prometheus configuration
 
-To allow Prometheus to scrape the Coder metrics, you will need to create a
-`scrape_config` in your `prometheus.yml` file, or in the Prometheus Helm chart
-values. The following is an example `scrape_config`.
+To allow Prometheus to scrape the Coder metrics, you will need to create a `scrape_config` in your `prometheus.yml` file, or in the Prometheus Helm chart values.
+The following is an example `scrape_config`.
 
 ```yaml
 scrape_configs:
@@ -79,9 +70,8 @@ If you run a [standalone AI gateway](../../ai-coder/ai-gateway/standalone.md), e
 Its Helm chart uses the same `0.0.0.0:2112` default as the `coder` chart, but sets up no scrape discovery.
 Refer to [AI gateway monitoring](../../ai-coder/ai-gateway/monitoring.md#kubernetes-discovery) for more details.
 
-To use the Kubernetes Prometheus operator to scrape metrics, you will need to
-create a `ServiceMonitor` in your Coder deployment namespace. The following is
-an example `ServiceMonitor`.
+To use the Kubernetes Prometheus operator to scrape metrics, you will need to create a `ServiceMonitor` in your Coder deployment namespace.
+The following is an example `ServiceMonitor`.
 
 ```yaml
 apiVersion: monitoring.coreos.com/v1
@@ -104,10 +94,8 @@ spec:
 
 ## Available metrics
 
-You must first enable `coderd_agentstats_*` with the flag
-`--prometheus-collect-agent-stats`, or the environment variable
-`CODER_PROMETHEUS_COLLECT_AGENT_STATS` before they can be retrieved from the
-deployment. They will always be available from the agent.
+You must first enable `coderd_agentstats_*` with the flag `--prometheus-collect-agent-stats`, or the environment variable `CODER_PROMETHEUS_COLLECT_AGENT_STATS` before they can be retrieved from the deployment.
+They will always be available from the agent.
 
 The `coder_ai_gateway_cost_control_*` metrics are exported only by `coderd`.
 

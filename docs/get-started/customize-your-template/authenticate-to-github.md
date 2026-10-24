@@ -70,7 +70,8 @@ coder templates push -d ~/coder-quickstart -y quickstart
 ## Step 2: Connect your workspace to GitHub
 
 Update the workspace you built in [Launch your first workspace](../index.md) to the version you just published.
-Because the local control plane is already connected to GitHub, you don't configure an OAuth app. You only authorize the workspace.
+Because the local control plane is already connected to GitHub, you don't configure an OAuth app.
+You only authorize the workspace.
 
 <div class="tabs">
 
@@ -90,7 +91,8 @@ Update the workspace:
 coder update <your-workspace>
 ```
 
-If you aren't authenticated yet, Coder prints a URL to log in with GitHub. Open it, authorize Coder, then run the command again.
+If you aren't authenticated yet, Coder prints a URL to log in with GitHub.
+Open it, authorize Coder, then run the command again.
 
 </div>
 

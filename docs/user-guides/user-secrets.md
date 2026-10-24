@@ -43,7 +43,8 @@ To pick up a change to a secret while a workspace is running, restart the worksp
 
 Disabling a secret (`coder secret disable`) stops it from being injected from the next workspace start onward.
 Running sessions keep values that were already injected until the agent manifest is refetched, which happens on workspace restart.
-Disabling does not remove a file that was already written. The same "Coder never deletes secret files" rule below applies.
+Disabling does not remove a file that was already written.
+The same "Coder never deletes secret files" rule below applies.
 
 Coder controls where a secret is delivered, not whether it is still valid.
 Changing or deleting a secret in Coder does not revoke a credential that a workspace has already received.
@@ -86,7 +87,8 @@ If the file already exists, Coder overwrites the contents and leaves the existin
 
 Coder rejects a second secret that uses a file path you already use.
 Two different paths can still resolve to the same absolute path (for example `~/config` and `/home/coder/config`).
-Coder accepts both, but only one of them ends up on disk. The workspace agent logs a warning to help spot this.
+Coder accepts both, but only one of them ends up on disk.
+The workspace agent logs a warning to help spot this.
 Use distinct paths to avoid the collision.
 
 ## Limits
@@ -106,7 +108,8 @@ Delete or shrink an existing secret to make room.
 Only secrets created with `--env` count against the env-injected budget.
 Coder injects these into the workspace agent's process environment, which on Windows has a ~32&nbsp;KiB total budget.
 The 24&nbsp;KiB ceiling leaves room for Coder's own variables (`CODER_*`, `PATH`, `HOME`, ...) plus any template-defined env.
-To inject a value larger than this budget, use `--file` instead. File secrets do not count against the env budget.
+To inject a value larger than this budget, use `--file` instead.
+File secrets do not count against the env budget.
 
 The per-secret cap matches the env aggregate cap because a value larger than the env aggregate could never be injected successfully as an environment variable.
 
@@ -123,7 +126,8 @@ You can create, edit, and delete user secrets from the Coder dashboard:
 
 From this page you can add a new secret, update an existing secret's value, description, or environment variable and file targets, and delete secrets you no longer need.
 Each row has an enable/disable toggle that controls whether Coder injects the secret.
-A secret with no environment variable or file target cannot be enabled from the dashboard. The toggle is disabled with a tooltip, mirroring the API invariant that an enabled secret must have a target.
+A secret with no environment variable or file target cannot be enabled from the dashboard.
+The toggle is disabled with a tooltip, mirroring the API invariant that an enabled secret must have a target.
 
 The rest of this guide shows the equivalent CLI commands.
 The same behaviors, limits, and injection rules apply whether you manage secrets from the dashboard or the CLI.
@@ -207,7 +211,8 @@ coder secret import - --input-format yaml < ./secrets.yaml
 ```
 
 The import is all or nothing and never overwrites existing secrets.
-Keys that are valid environment variable names are injected under the same name. Other keys are imported without an environment variable target.
+Keys that are valid environment variable names are injected under the same name.
+Other keys are imported without an environment variable target.
 For details, see [`coder secret import`](../reference/cli/secret/import.md).
 
 ### Create a disabled secret
@@ -247,7 +252,8 @@ If another secret takes it, setting the original target back is rejected until y
 ### Enable and disable a secret
 
 Disable a secret to stop injecting it without deleting it, then enable it again to resume.
-Enabling a secret that has no target is rejected. Add a target first.
+Enabling a secret that has no target is rejected.
+Add a target first.
 
 ```sh
 # Stop injecting a secret without deleting it.
