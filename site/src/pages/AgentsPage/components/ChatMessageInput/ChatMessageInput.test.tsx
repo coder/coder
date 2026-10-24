@@ -378,6 +378,101 @@ describe("ChatMessageInput", () => {
 			]);
 		});
 
+		it.each(["/reviewer", "/personal/reviewer"])(
+			"sends a typed %s ended by a space as a skill chip",
+			async (alias) => {
+				const inputRef = renderWithSkills({
+					personal: [mockReviewerSkill],
+					organization: [],
+				});
+				const user = await pasteTrigger(`Run ${alias}`);
+				await screen.findByRole("option", { name: /^\/reviewer/ });
+				await user.keyboard(" now");
+				expect(getRequestContent(inputRef)).toEqual([
+					{ type: "text", text: "Run " },
+					mockSkillPart("personal", "reviewer"),
+					{ type: "text", text: " now" },
+				]);
+			},
+		);
+
+		it("keeps a typed alias as text at the skill limit and says why", async () => {
+			const toastError = vi.spyOn(toast, "error");
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [],
+			});
+			await waitFor(() => expect(inputRef.current).not.toBeNull());
+			act(() => {
+				for (let index = 0; index < 8; index++) {
+					inputRef.current?.insertSkill("project", `skill-${index}`);
+				}
+			});
+			const user = await pasteTrigger("/reviewer");
+			await screen.findByRole("option", { name: /^\/reviewer/ });
+			await user.keyboard(" now");
+			expect(inputRef.current?.getValue()).toContain("/reviewer now");
+			expect(toastError).toHaveBeenCalledWith(
+				"A message can include up to 8 skills.",
+			);
+		});
+
+		it("keeps a typed alias as text when its chip is already present", async () => {
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [],
+			});
+			await waitFor(() => expect(inputRef.current).not.toBeNull());
+			act(() => inputRef.current?.insertSkill("personal", "reviewer"));
+			const user = await pasteTrigger("/reviewer");
+			await screen.findByRole("option", { name: /^\/reviewer/ });
+			await user.keyboard(" now");
+			expect(getRequestContent(inputRef)).toEqual([
+				mockSkillPart("personal", "reviewer"),
+				{ type: "text", text: " /reviewer now" },
+			]);
+		});
+
+		it("keeps an alias as text when the caret only moves past its space", async () => {
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [],
+			});
+			const user = await pasteTrigger("/reviewer rest");
+			await user.keyboard("{ArrowLeft>5/}");
+			await screen.findByRole("option", { name: /^\/reviewer/ });
+			await user.keyboard("{ArrowRight}");
+			expect(getRequestContent(inputRef)).toEqual([
+				{ type: "text", text: "/reviewer rest" },
+			]);
+		});
+
+		it("sends a typed bare alias that two sources share as text", async () => {
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [mockReviewerSkill],
+			});
+			const user = await pasteTrigger("Run /reviewer");
+			await screen.findAllByRole("option", { name: /reviewer/ });
+			await user.keyboard(" now");
+			expect(getRequestContent(inputRef)).toEqual([
+				{ type: "text", text: "Run /reviewer now" },
+			]);
+		});
+
+		it("sends a typed partial skill name as text", async () => {
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [],
+			});
+			const user = await pasteTrigger("Run /rev");
+			await screen.findByRole("option", { name: /^\/reviewer/ });
+			await user.keyboard(" now");
+			expect(getRequestContent(inputRef)).toEqual([
+				{ type: "text", text: "Run /rev now" },
+			]);
+		});
+
 		it("inserts built-in commands as text", async () => {
 			const inputRef = renderWithSkills({ personal: [], organization: [] });
 			const user = await pasteTrigger("/comp");
