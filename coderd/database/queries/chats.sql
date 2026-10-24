@@ -2977,20 +2977,12 @@ WHERE id = @id::bigint AND chat_id = @chat_id::uuid;
 DELETE FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
 
--- name: ReorderChatQueuedMessageToHead :execrows
--- Sets the target queued message's position to one less than the
--- current minimum position for that chat, moving it to the head.
-UPDATE chat_queued_messages AS target
-SET position = COALESCE(
-    (SELECT MIN(position) FROM chat_queued_messages WHERE chat_id = @chat_id::uuid),
-    0
-) - 1
-WHERE target.id = @id::bigint
-  AND target.chat_id = @chat_id::uuid
-  AND target.position > COALESCE(
-    (SELECT MIN(position) FROM chat_queued_messages WHERE chat_id = @chat_id::uuid),
-    target.position
-  );
+-- name: SteerChatQueuedMessage :execrows
+UPDATE chat_queued_messages
+SET position = nextval('chat_queued_messages_position_seq'),
+    busy_behavior = 'steer'
+WHERE id = @id::bigint
+  AND chat_id = @chat_id::uuid;
 
 -- name: UpsertChatHeartbeat :exec
 -- Upserts a heartbeat row for the (chat_id, runner_id) lease. Uses

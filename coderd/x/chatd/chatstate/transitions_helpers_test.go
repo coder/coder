@@ -34,11 +34,9 @@ type seededChat struct {
 	// the text body each queued message was seeded with. Cases that
 	// promote queued messages into history use this to assert the
 	// promoted message content matches what was originally queued.
-	queuedMessageBodies    []string
-	queuedMessageCreatedBy []uuid.UUID
-	dynamicToolName        string
-	pendingToolCallID      string
-	pendingToolCallIDs     []string
+	queuedMessageBodies []string
+	dynamicToolName     string
+	pendingToolCallID   string
 }
 
 // dynamicToolJSON returns the canonical [{name,description,input_schema}]
@@ -458,9 +456,8 @@ func seedStateMultiQueued(t *testing.T, f *testFixture, state chatstate.Executio
 
 // seedA1WithMixedOutstandingToolCalls seeds A1 with one queued message
 // and one assistant message carrying both a dynamic and non-dynamic
-// outstanding tool call. It is used by PromoteQueuedMessage(A1) to
-// prove all tool calls are closed before inserting the promoted user,
-// and by CancelRequiresAction(A1) to prove only the dynamic one is.
+// outstanding tool call. CancelRequiresAction(A1) uses it to prove only
+// the dynamic one is closed.
 func seedA1WithMixedOutstandingToolCalls(t *testing.T, f *testFixture, queuedExtras int, namePrefix string) seededChat {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -485,9 +482,8 @@ func seedA1WithMixedOutstandingToolCalls(t *testing.T, f *testFixture, queuedExt
 		return err
 	}))
 	var (
-		queuedIDs       []int64
-		queuedBodies    []string
-		queuedCreatedBy []uuid.UUID
+		queuedIDs    []int64
+		queuedBodies []string
 	)
 	for i := range queuedExtras {
 		body := fmt.Sprintf("queued-%s-%d", namePrefix, i)
@@ -502,7 +498,6 @@ func seedA1WithMixedOutstandingToolCalls(t *testing.T, f *testFixture, queuedExt
 		require.NoError(t, err)
 		queuedIDs = append(queuedIDs, queued.ID)
 		queuedBodies = append(queuedBodies, body)
-		queuedCreatedBy = append(queuedCreatedBy, createdBy)
 	}
 	return seededChat{
 		chatID:                 created.Chat.ID,
@@ -511,10 +506,8 @@ func seedA1WithMixedOutstandingToolCalls(t *testing.T, f *testFixture, queuedExt
 		assistantToolCallMsgID: step.InsertedMessages[0].ID,
 		queuedMessageIDs:       queuedIDs,
 		queuedMessageBodies:    queuedBodies,
-		queuedMessageCreatedBy: queuedCreatedBy,
 		dynamicToolName:        toolName,
 		pendingToolCallID:      dynCallID,
-		pendingToolCallIDs:     []string{dynCallID, nonDynCallID},
 	}
 }
 
@@ -665,7 +658,6 @@ func seedForEnterRequiresAction(t *testing.T, f *testFixture, state chatstate.Ex
 			assistantToolCallMsgID: step.InsertedMessages[0].ID,
 			dynamicToolName:        toolName,
 			pendingToolCallID:      callID,
-			pendingToolCallIDs:     []string{callID},
 		}
 	case chatstate.StateR1:
 		toolName := "ra_tool_r1"
@@ -695,15 +687,11 @@ func seedForEnterRequiresAction(t *testing.T, f *testFixture, state chatstate.Ex
 			queuedMessageBodies:    []string{queuedBody},
 			dynamicToolName:        toolName,
 			pendingToolCallID:      callID,
-			pendingToolCallIDs:     []string{callID},
 		}
 	}
 	return seedState(t, f, state)
 }
 
-// activeHistoryIDs returns the ids of non-deleted history messages
-// for the chat in row-id order. Useful for verifying CommitStep,
-// EditMessage replacement, and PromoteQueuedMessage head insertion.
 func activeHistoryIDs(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID) []int64 {
 	t.Helper()
 	msgs, err := f.DB.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
@@ -848,21 +836,6 @@ func assertQueuedMessageContent(t *testing.T, content json.RawMessage, want stri
 	require.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type,
 		"expected a text content part")
 	require.Equal(t, want, parts[0].Text, "unexpected queued message text")
-}
-
-// assertQueueBodiesInOrder fetches the queued messages for the chat
-// in queue order and asserts each row's text body matches the
-// supplied bodies. Used by matrix cases that need to verify the
-// remaining queue content after a promote / finish-turn /
-// finish-interruption.
-func assertQueueBodiesInOrder(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID, want []string) {
-	t.Helper()
-	rows, err := f.DB.GetChatQueuedMessages(ctx, chatID)
-	require.NoError(t, err)
-	require.Len(t, rows, len(want), "queue length must match expected bodies")
-	for i, r := range rows {
-		assertQueuedMessageContent(t, r.Content, want[i])
-	}
 }
 
 // snapshotBaseline records the chat's snapshot_version and the

@@ -126,7 +126,8 @@ Queued messages wait in two lanes. These rules apply to every transition that qu
 
 1. `busy_behavior` names the lane, `steer` or `queue`. Inside a lane, `position` gives the order.
 2. The whole `steer` lane goes first, in position order, then the `queue` lane. Every queue list shows this delivery order: the HTTP API, the `queue_update` stream event, and the `coder_get_chat_messages` MCP tool.
-3. Queued messages go into history only at delivery points. Before each assistant LLM API call, the whole `steer` lane goes in, and never a `queue` message. At `FinishTurn` and `FinishInterruption`, the whole `steer` lane goes in; if it is empty, the first `queue` message goes in. In an errored chat with queued messages, each `queue` or `steer` send is a delivery point with the same rule; a `steer` send delivers the `steer` lane with the new message at its end. From `E1` or `A1`, `PromoteQueuedMessage(qid)` delivers only `qid`.
+3. Queued messages go into history only at delivery points. Before each assistant LLM API call, the whole `steer` lane goes in, and never a `queue` message. At `FinishTurn` and `FinishInterruption`, the whole `steer` lane goes in; if it is empty, the first `queue` message goes in. In an errored chat with queued messages, each `queue` or `steer` send, and each `SteerQueuedMessage`, is a delivery point with the same rule; a `steer` send delivers the `steer` lane with the new message at its end.
+4. `SteerQueuedMessage` never interrupts.
 
 ### Transitions used by the HTTP endpoints
 
@@ -137,7 +138,7 @@ Queued messages wait in two lanes. These rules apply to every transition that qu
 - `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be `queue`, `steer` or `interrupt`. `queue` and `steer` name the lane (see [Queued message lanes](#queued-message-lanes)). Outside `E1`, a busy send with one of them stores `m` in its lane and keeps the status. From `E1`, `busy_behavior=steer` inserts the queued `steer` messages and then `m` into history, and `queue` messages stay queued. From `E1`, `busy_behavior=queue` queues `m` as a `queue` message and promotes the next messages. With `busy_behavior=interrupt`, it also requests interruption, or cancels a pending dynamic-tool action and inserts the message directly. A queued interrupt message goes to the end of the `steer` lane.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
 - `DeleteQueuedMessage(qid)` removes one queued message without changing the active history.
-- `PromoteQueuedMessage(qid)` makes a queued message the next message to process in its lane. It reorders the queue, interrupts active work, cancels pending dynamic-tool action, or promotes into history immediately as required by the input state.
+- `SteerQueuedMessage(qid)` moves a queued message to the end of the `steer` lane. A `steer` message keeps its place. From `E1`, it closes open tool calls with synthetic cancellation results, delivers the whole `steer` lane into history, and reaches `running`. From the other states it keeps the chat status, and the `steer` lane waits for the next delivery point.
 - `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog. When the chat is `running` and no worker owns it, nothing is generating, so the same transaction also applies `FinishInterruption` after inserting synthetic cancellation results for any outstanding tool calls.
 - `CompleteRequiresAction(results)` inserts submitted tool-result messages followed by any caller-provided suffix messages, clears `requires_action_deadline_at`, and lands in `running`. It preserves queued messages.
 - `RequestCompaction` records a manual compaction request on an idle or errored chat by setting `compaction_requested_at` and landing in `running` without inserting any message. It clears `last_error` per the leave-error rule, advances `history_version` to the transaction's new `snapshot_version`, and resets `generation_attempt`, so the compaction turn gets a full retry budget and message part episode keys that cannot collide with episodes retained from the previous turn. The chat worker picks the chat up like any other running chat and consumes the request. See [Manual compaction](#manual-compaction).
@@ -198,8 +199,8 @@ stateDiagram-v2
     E1 --> R1: RequestCompaction
     E1 --> E0: DeleteQueuedMessage / removed last queued
     E1 --> E1: DeleteQueuedMessage / queue still non-empty
-    E1 --> R0: PromoteQueuedMessage / promoted last queued
-    E1 --> R1: PromoteQueuedMessage / queue still non-empty
+    E1 --> R0: SteerQueuedMessage / promoted last queued
+    E1 --> R1: SteerQueuedMessage / queue still non-empty
     E1 --> XE1: SetArchived(true)
     E1 --> E1: SetProject
 
@@ -230,7 +231,7 @@ stateDiagram-v2
     R1 --> R1: DeliverSteerMessages / queue still non-empty
     R1 --> R0: DeleteQueuedMessage / removed last queued
     R1 --> R1: DeleteQueuedMessage / queue still non-empty
-    R1 --> I1: PromoteQueuedMessage
+    R1 --> R1: SteerQueuedMessage
     R1 --> R0: FinishTurn / promoted last queued
     R1 --> R1: FinishTurn / queue still non-empty after promoting
 
@@ -242,7 +243,7 @@ stateDiagram-v2
     I1 --> R0: EditMessage
     I1 --> I0: DeleteQueuedMessage / removed last queued
     I1 --> I1: DeleteQueuedMessage / queue still non-empty
-    I1 --> I1: PromoteQueuedMessage
+    I1 --> I1: SteerQueuedMessage
     I1 --> R0: FinishInterruption / promoted last queued
     I1 --> R1: FinishInterruption / queue still non-empty after promoting
 
@@ -263,8 +264,7 @@ stateDiagram-v2
     A1 --> R0: EditMessage
     A1 --> A0: DeleteQueuedMessage / removed last queued
     A1 --> A1: DeleteQueuedMessage / queue still non-empty
-    A1 --> R0: PromoteQueuedMessage / promoted last queued
-    A1 --> R1: PromoteQueuedMessage / queue still non-empty
+    A1 --> A1: SteerQueuedMessage
 
     XW --> W: SetArchived(false)
     XE0 --> E0: SetArchived(false)
@@ -588,16 +588,16 @@ No other input states are supported.
 
 ### `POST /api/v2/chats/{chat}/queue/{queuedMessage}/promote`
 
-This endpoint uses `PromoteQueuedMessage(qid)`:
+This endpoint is "Send now". It applies `SteerQueuedMessage(qid)`, and then `Interrupt` in the same transaction if the chat is `running` or `requires_action`, or is `interrupting` and no worker owns it:
 
-- `E1 -> PromoteQueuedMessage(qid) -> R0` if promoting the last queued message
-- `E1 -> PromoteQueuedMessage(qid) -> R1` if the queue remains non-empty
-- `R1 -> PromoteQueuedMessage(qid) -> I1`
-- `I1 -> PromoteQueuedMessage(qid) -> I1`
-- `A1 -> PromoteQueuedMessage(qid) -> R0` if promoting the last queued message
-- `A1 -> PromoteQueuedMessage(qid) -> R1` if the queue remains non-empty
+- `E1 -> SteerQueuedMessage(qid) -> R0 | R1`
+- `R1 -> SteerQueuedMessage(qid) -> R1 -> Interrupt -> I1`
+- `I1 -> SteerQueuedMessage(qid) -> I1`
+- `A1 -> SteerQueuedMessage(qid) -> A1 -> Interrupt -> R1`
 
-`PromoteQueuedMessage` reorders `qid` to the head of its lane internally when needed. From `E1` and `A1`, it removes the queued message and inserts it into history immediately. From `R1` and `I1`, it leaves the message queued at the head of its lane. After `FinishInterruption(partial?)` finalizes the interrupted suffix, it promotes every `steer` message, or `qid` if there are none. If `qid` is a `queue` message and `steer` messages are queued, `qid` stays queued at the head of the `queue` lane.
+`SteerQueuedMessage` moves `qid` to the end of the `steer` lane with a new, highest `position`. If `qid` is already a `steer` message, it keeps its place. From `E1`, it closes open tool calls with synthetic cancellation results and delivers the whole `steer` lane into history: `R0` if no queued messages remain, or `R1` if `queue` messages remain. From the other states it keeps the chat status.
+
+When the endpoint lands in `I1`, `FinishInterruption(partial?)` finalizes the interrupted suffix and then delivers the `steer` lane, ahead of `queue` messages. When it lands in `R1` from `A1`, `Interrupt` has closed the pending dynamic tool calls with synthetic cancellation results, and the chat worker delivers the `steer` lane with `DeliverSteerMessages` before its next LLM API call. If no worker owns an `R1` or `I1` chat, `Interrupt` applies `FinishInterruption` in the same transaction, so the `steer` lane goes into history immediately and the chat lands in `R0` or `R1` without an owner. If `qid` does not exist, the transaction rolls back, so the interrupt does not happen either.
 
 When `qid` goes into history, the history message has `queued_message_id = qid`.
 
@@ -1209,7 +1209,7 @@ Users can also request a compaction on demand via `POST /api/v2/chats/{chat}/com
 3. A forced compaction bypasses the automatic threshold gates (usage below threshold, unknown context window, and the threshold=100 disable) and stamps `source: "manual"` instead of `source: "automatic"` into the `chat_summarized` tool call arguments, tool result JSON, and streamed parts so clients can render manual compactions distinctly.
 4. The compaction `CommitStep` consumes the request by clearing `compaction_requested_at` in the same transaction that commits the summary triplet. The next decision pass finds the history complete and finishes the turn, so a chat with an empty queue returns to `waiting` with no assistant follow-up; a chat compacted from `E1` proceeds to its queued messages instead. A `post_compact` hook effect is the one exception: because the decision reads user-visible history, an effect that commits a user-visible message leaves the history incomplete and the turn continues with an assistant response. A model-only effect such as `model_context` reaches the model without resuming generation.
 
-The `compaction_requested_at` marker is one-shot: transitions that keep an active turn alive (`Acquire`, `Abandon`, `SetArchived`, queueing a message on a busy chat) carry it forward, while every other transition that rewrites the execution state (`FinishTurn`, `FinishError`, `Interrupt`, `EditMessage`, `PromoteQueuedMessage`, `CancelRequiresAction`, `ReconcileInvalidState`, and so on) clears it by construction, so a stale request can never replay on a later turn.
+The `compaction_requested_at` marker is one-shot: transitions that keep an active turn alive (`Acquire`, `Abandon`, `SetArchived`, queueing a message on a busy chat, `SteerQueuedMessage` on a busy chat) carry it forward, while every other transition that rewrites the execution state (`FinishTurn`, `FinishError`, `Interrupt`, `EditMessage`, `CancelRequiresAction`, `ReconcileInvalidState`, and so on) clears it by construction, so a stale request can never replay on a later turn.
 
 # Lifecycle hooks
 

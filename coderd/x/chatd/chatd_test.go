@@ -1121,8 +1121,7 @@ func TestArchivedChatRejectsMutations(t *testing.T) {
 			return err
 		},
 		"PromoteQueued": func(ctx context.Context) error {
-			_, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{ChatID: chat.ID, QueuedMessageID: 1})
-			return err
+			return server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{ChatID: chat.ID, QueuedMessageID: 1})
 		},
 		"SubmitToolResults": func(ctx context.Context) error {
 			return server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{ChatID: chat.ID, UserID: user.ID})
@@ -9957,6 +9956,58 @@ func TestInterruptUnownedChatClearsLastTurnSummary(t *testing.T) {
 	}
 }
 
+func TestSteerThenInterruptUnownedRunningChatKeepsQueueHead(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	// The server is never started, so no worker acquires the chat.
+	server := newChatdServer(t, ps, chatd.Config{
+		Logger:    slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		Database:  db,
+		ReplicaID: uuid.New(),
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+	user, org, model := seedChatDependencies(t, db)
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "steer-then-interrupt-unowned",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+	queue := func(text string) database.ChatQueuedMessage {
+		sent, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:       chat.ID,
+			CreatedBy:    user.ID,
+			Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(text)},
+			BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
+		})
+		require.NoError(t, err)
+		require.True(t, sent.Queued)
+		return *sent.QueuedMessage
+	}
+	head := queue("head")
+	target := queue("target")
+	require.NoError(t, server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+		ChatID:          chat.ID,
+		QueuedMessageID: target.ID,
+	}))
+
+	requireDeliveredQueuedMessage(ctx, t, db, chat.ID, target.ID)
+	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, queued, 1)
+	require.Equal(t, head.ID, queued[0].ID)
+	updated, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusRunning, updated.Status)
+	require.False(t, updated.WorkerID.Valid)
+}
+
 func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
 	t.Parallel()
 
@@ -14526,12 +14577,13 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 		})
 		queued := insertQueuedMessage(ctx, t, db, chat.ID, user.ID, foreignModel.ID, "queued")
 
-		result, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+		err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 			ChatID:          chat.ID,
 			QueuedMessageID: queued.ID,
 		})
 		require.NoError(t, err)
-		require.Equal(t, localDefault.ID, result.PromotedMessage.ModelConfigID.UUID)
+		delivered := requireDeliveredQueuedMessage(ctx, t, db, chat.ID, queued.ID)
+		require.Equal(t, localDefault.ID, delivered.ModelConfigID.UUID)
 	})
 
 	t.Run("ErrorStateSendPromotion", func(t *testing.T) {
@@ -14581,7 +14633,7 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 		})
 		queued := insertQueuedMessage(ctx, t, db, chat.ID, user.ID, foreignModel.ID, "queued")
 
-		_, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+		err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 			ChatID:          chat.ID,
 			QueuedMessageID: queued.ID,
 		})
@@ -14619,6 +14671,23 @@ func insertQueuedMessage(
 	return queued
 }
 
+func requireDeliveredQueuedMessage(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	chatID uuid.UUID,
+	queuedID int64,
+) database.ChatMessage {
+	t.Helper()
+	for _, message := range chatMessages(ctx, t, db, chatID) {
+		if message.QueuedMessageID.Valid && message.QueuedMessageID.Int64 == queuedID {
+			return message
+		}
+	}
+	require.FailNow(t, "queued message not delivered", "queued message %d", queuedID)
+	return database.ChatMessage{}
+}
+
 func TestPromoteQueuedPreservesReasoningEffort(t *testing.T) {
 	t.Parallel()
 
@@ -14649,13 +14718,14 @@ func TestPromoteQueuedPreservesReasoningEffort(t *testing.T) {
 	require.True(t, queued.ReasoningEffort.Valid)
 	require.Equal(t, database.ChatReasoningEffortHigh, queued.ReasoningEffort.ChatReasoningEffort)
 
-	result, err := replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+	err = replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 		ChatID:          chat.ID,
 		QueuedMessageID: queued.ID,
 	})
 	require.NoError(t, err)
-	require.True(t, result.PromotedMessage.ReasoningEffort.Valid)
-	require.Equal(t, database.ChatReasoningEffortHigh, result.PromotedMessage.ReasoningEffort.ChatReasoningEffort)
+	delivered := requireDeliveredQueuedMessage(ctx, t, db, chat.ID, queued.ID)
+	require.True(t, delivered.ReasoningEffort.Valid)
+	require.Equal(t, database.ChatReasoningEffortHigh, delivered.ReasoningEffort.ChatReasoningEffort)
 
 	storedChat, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
@@ -16174,7 +16244,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.True(t, sent.Queued)
-		_, err = h.server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+		err = h.server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 			ChatID:          chat.ID,
 			QueuedMessageID: sent.QueuedMessage.ID,
 		})
@@ -16255,7 +16325,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		h, chat, queued := failWithQueuedMessage(ctx, t)
 
-		_, err := h.server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+		err := h.server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 			ChatID:          chat.ID,
 			QueuedMessageID: queued.ID,
 		})
