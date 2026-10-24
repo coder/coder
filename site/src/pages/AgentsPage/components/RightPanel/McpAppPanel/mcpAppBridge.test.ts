@@ -80,7 +80,7 @@ describe("attachMcpAppBridge", () => {
 			theme: "dark",
 			hostVersion: "v2.0.0",
 			callTool: vi.fn(),
-			insertComposerText: vi.fn(),
+			sendMessage: vi.fn(),
 		});
 
 		const response = await initialize(view);
@@ -107,14 +107,14 @@ describe("attachMcpAppBridge", () => {
 		const callTool = vi.fn().mockResolvedValue({
 			content: [{ type: "text", text: "Rolled 6" }],
 		});
-		const insertComposerText = vi.fn();
+		const sendMessage = vi.fn().mockResolvedValue(undefined);
 		const openWindow = vi.spyOn(window, "open").mockReturnValue(null);
 		handle = attachMcpAppBridge(view.frame, {
 			app: mockMcpApp,
 			theme: "light",
 			hostVersion: "v2.0.0",
 			callTool,
-			insertComposerText,
+			sendMessage,
 		});
 		await initialize(view);
 		view.send({ method: "ui/notifications/initialized", params: {} });
@@ -138,8 +138,9 @@ describe("attachMcpAppBridge", () => {
 				content: [{ type: "text", text: "What are the odds?" }],
 			},
 		});
-		await view.waitFor((message) => message.id === 3);
-		expect(insertComposerText).toHaveBeenCalledWith("What are the odds?");
+		const messageResponse = await view.waitFor((message) => message.id === 3);
+		expect(messageResponse.result).toEqual({});
+		expect(sendMessage).toHaveBeenCalledWith("What are the odds?");
 
 		view.send({
 			id: 4,
@@ -151,6 +152,40 @@ describe("attachMcpAppBridge", () => {
 		expect(openWindow).not.toHaveBeenCalled();
 	});
 
+	it("refuses view messages that the chat must not send", async () => {
+		const view = mountView();
+		const sendMessage = vi
+			.fn()
+			.mockRejectedValue(new Error("The chat cannot take a message now."));
+		handle = attachMcpAppBridge(view.frame, {
+			app: mockMcpApp,
+			theme: "light",
+			hostVersion: "v2.0.0",
+			callTool: vi.fn(),
+			sendMessage,
+		});
+		await initialize(view);
+		view.send({ method: "ui/notifications/initialized", params: {} });
+
+		view.send({
+			id: 2,
+			method: "ui/message",
+			params: { role: "user", content: [{ type: "text", text: " /clear" }] },
+		});
+		const slashResponse = await view.waitFor((message) => message.id === 2);
+		expect(slashResponse.result).toEqual({ isError: true });
+		expect(sendMessage).not.toHaveBeenCalled();
+
+		view.send({
+			id: 3,
+			method: "ui/message",
+			params: { role: "user", content: [{ type: "text", text: "Roll again" }] },
+		});
+		const refusedResponse = await view.waitFor((message) => message.id === 3);
+		expect(refusedResponse.result).toEqual({ isError: true });
+		expect(sendMessage).toHaveBeenCalledWith("Roll again");
+	});
+
 	it("ignores messages from other windows", async () => {
 		const view = mountView();
 		handle = attachMcpAppBridge(view.frame, {
@@ -158,7 +193,7 @@ describe("attachMcpAppBridge", () => {
 			theme: "light",
 			hostVersion: "v2.0.0",
 			callTool: vi.fn(),
-			insertComposerText: vi.fn(),
+			sendMessage: vi.fn(),
 		});
 
 		window.dispatchEvent(

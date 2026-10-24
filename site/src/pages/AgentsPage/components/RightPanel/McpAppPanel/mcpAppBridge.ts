@@ -11,8 +11,8 @@ import {
 } from "@modelcontextprotocol/ext-apps/app-bridge";
 import type { ChatMCPApp } from "#/api/typesGenerated";
 
-// A view must not be able to flood the composer.
-const maxComposerTextLength = 16_000;
+// A view must not be able to flood the chat.
+const maxMessageTextLength = 16_000;
 
 type McpAppBridgeOptions = {
 	app: ChatMCPApp;
@@ -23,8 +23,8 @@ type McpAppBridgeOptions = {
 		name: string,
 		args: Record<string, unknown> | undefined,
 	) => Promise<unknown>;
-	/** Inserts the text into the composer. The user still sends it. */
-	insertComposerText: (text: string) => void;
+	/** Sends the text as the user's message. It starts or queues a turn. */
+	sendMessage: (text: string) => Promise<void>;
 };
 
 export type McpAppBridgeHandle = {
@@ -74,8 +74,7 @@ export function attachMcpAppBridge(
 		return result;
 	};
 	bridge.onopenlink = async (params) => openLink(params);
-	bridge.onmessage = async (params) =>
-		insertMessage(params, opts.insertComposerText);
+	bridge.onmessage = async (params) => sendMessage(params, opts.sendMessage);
 
 	// The transport only accepts messages from this view's window.
 	void bridge.connect(new PostMessageTransport(view, view));
@@ -111,17 +110,27 @@ function openLink({
 	return {};
 }
 
-// Unlike the spec, this prototype lets the user read and send the message.
-function insertMessage(
+// The text runs as the user's prompt, and the user does not review it first.
+async function sendMessage(
 	params: McpUiMessageRequest["params"],
-	insert: (text: string) => void,
-): McpUiMessageResult {
+	send: (text: string) => Promise<void>,
+): Promise<McpUiMessageResult> {
 	const text = params.content
 		.flatMap((block) => (block.type === "text" ? [block.text] : []))
 		.join("\n");
-	if (!text) {
+	// A slash command acts on the chat itself (for example, /clear), so only
+	// the user can run one.
+	if (
+		!text.trim() ||
+		text.length > maxMessageTextLength ||
+		text.trimStart().startsWith("/")
+	) {
 		return { isError: true };
 	}
-	insert(text.slice(0, maxComposerTextLength));
+	try {
+		await send(text);
+	} catch {
+		return { isError: true };
+	}
 	return {};
 }

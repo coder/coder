@@ -164,6 +164,7 @@ type AgentChatPageViewProps = {
 
 	onImplementPlan: () => Promise<void> | void;
 	onSendAskUserQuestionResponse: (message: string) => Promise<void> | void;
+	onSendMcpAppMessage: (message: string) => Promise<void>;
 
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
@@ -188,7 +189,7 @@ type UserTabContentProps = {
 	tab: UserRightPanelTab;
 	chatId: string;
 	store: ChatStoreHandle;
-	onInsertComposerText: (text: string) => void;
+	onSendMcpAppMessage: ((message: string) => Promise<void>) | undefined;
 	workspace: TypesGen.Workspace | undefined;
 	workspaceAgent: TypesGen.WorkspaceAgent | undefined;
 	wildcardHostname: string;
@@ -202,7 +203,7 @@ const UserTabContent: React.FC<UserTabContentProps> = ({
 	tab,
 	chatId,
 	store,
-	onInsertComposerText,
+	onSendMcpAppMessage,
 	workspace,
 	workspaceAgent,
 	wildcardHostname,
@@ -267,7 +268,7 @@ const UserTabContent: React.FC<UserTabContentProps> = ({
 					tab={tab}
 					isVisible={sidebarVisible && isActive}
 					store={store}
-					onInsertComposerText={onInsertComposerText}
+					onSendMessage={onSendMcpAppMessage}
 				/>
 			);
 		default: {
@@ -318,6 +319,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	handlePromoteQueuedMessage,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
+	onSendMcpAppMessage,
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	isHydratingMessages,
@@ -746,8 +748,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 						tab={userTab}
 						chatId={agentId}
 						store={store}
-						onInsertComposerText={(text) =>
-							editing.chatInputRef.current?.insertText(text)
+						// canSubmitChatTurn is false for archived chats and other users' chats.
+						onSendMcpAppMessage={
+							canSubmitChatTurn ? onSendMcpAppMessage : undefined
 						}
 						workspace={workspace}
 						workspaceAgent={workspaceAgent}

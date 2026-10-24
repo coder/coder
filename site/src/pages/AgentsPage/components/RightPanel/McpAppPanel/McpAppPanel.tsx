@@ -39,7 +39,8 @@ type McpAppPanelProps = {
 	/** True when the user can see this tab. */
 	isVisible: boolean;
 	store: ChatStore;
-	onInsertComposerText: (text: string) => void;
+	/** Sends a view's message as the user. Undefined while the user cannot send. */
+	onSendMessage: ((text: string) => Promise<void>) | undefined;
 };
 
 /**
@@ -51,13 +52,13 @@ export const McpAppPanel: React.FC<McpAppPanelProps> = ({
 	tab,
 	isVisible,
 	store,
-	onInsertComposerText,
+	onSendMessage,
 }) => {
 	const frameProps = {
 		chatId,
 		mcpServerConfigId: tab.mcpServerConfigId,
 		title: tab.label,
-		onInsertComposerText,
+		onSendMessage,
 	};
 	if (tab.toolCallId !== undefined) {
 		return (
@@ -148,7 +149,7 @@ type McpAppFrameProps = {
 	mcpServerConfigId: string;
 	title: string;
 	app: ChatMCPApp;
-	onInsertComposerText: (text: string) => void;
+	onSendMessage: ((text: string) => Promise<void>) | undefined;
 };
 
 const McpAppFrame: React.FC<McpAppFrameProps> = ({
@@ -156,7 +157,7 @@ const McpAppFrame: React.FC<McpAppFrameProps> = ({
 	mcpServerConfigId,
 	title,
 	app,
-	onInsertComposerText,
+	onSendMessage,
 }) => {
 	const frameRef = useRef<HTMLIFrameElement>(null);
 	const bridgeRef = useRef<McpAppBridgeHandle | null>(null);
@@ -168,13 +169,20 @@ const McpAppFrame: React.FC<McpAppFrameProps> = ({
 		callChatMCPAppTool(chatId, mcpServerConfigId),
 	);
 
+	// The bridge outlives renders, so it must read the current send callback.
+	const sendViewMessage = useEffectEvent(async (text: string) => {
+		if (!onSendMessage) {
+			throw new Error("The chat cannot take a message now.");
+		}
+		await onSendMessage(text);
+	});
 	const bridgeOptions = useEffectEvent(() => ({
 		app,
 		theme,
 		hostVersion: buildInfo.version,
 		callTool: (name: string, args: Record<string, unknown> | undefined) =>
 			callTool({ name, arguments: args }),
-		insertComposerText: onInsertComposerText,
+		sendMessage: (text: string) => sendViewMessage(text),
 	}));
 
 	// The bridge belongs to the iframe's browsing context, so it connects

@@ -212,6 +212,7 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		isWorkspaceLoading: false,
 		onImplementPlan: fn(),
 		onSendAskUserQuestionResponse: fn(),
+		onSendMcpAppMessage: fn(),
 		urlTransform: (url: string) => url,
 		initialMessages: [],
 		...overrides,

@@ -321,8 +321,12 @@
     var text = "I rolled " + state.rolls.join(", ") + " (total " + state.total +
       ") on the dice board. What are the odds of that?";
     request("ui/message", { role: "user", content: [{ type: "text", text: text }] })
-      .then(function () {
-        setStatus("Sent to the composer", "ok");
+      .then(function (result) {
+        if (result && result.isError) {
+          setStatus("The chat refused the message", "error");
+        } else {
+          setStatus("Sent to the chat", "ok");
+        }
       })
       .catch(function (err) {
         setStatus("ui/message failed: " + errorText(err), "error");
