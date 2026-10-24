@@ -2296,6 +2296,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
+            "source_path": "string",
             "status": "ok",
             "tools": [
               {
@@ -2440,6 +2441,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
+        "source_path": "string",
         "status": "ok",
         "tools": [
           {
@@ -2779,6 +2781,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "skill_description": "string",
       "skill_name": "string",
       "source": "string",
+      "source_path": "string",
       "status": "ok",
       "tools": [
         {
@@ -2793,12 +2796,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name          | Type                                                                  | Required | Restrictions | Description                                                                                                                                                                                                                                |
-|---------------|-----------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `dirty`       | boolean                                                               | false    |              | Dirty is true when the agent's latest snapshot hash differs from the chat's pinned hash.                                                                                                                                                   |
-| `dirty_since` | string                                                                | false    |              | Dirty since is when drift was first detected; nil when not dirty.                                                                                                                                                                          |
-| `error`       | string                                                                | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).                                                                                                                                                    |
-| `resources`   | array of [codersdk.ChatContextResource](#codersdkchatcontextresource) | false    |              | Resources is the chat's pinned context (instruction files and skills) the prompt is built from, metadata only (no bodies). It is populated only on the single-chat GET response; list and watch payloads leave it nil to stay lightweight. |
+| Name          | Type                                                                  | Required | Restrictions | Description                                                                                                                                                                                            |
+|---------------|-----------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dirty`       | boolean                                                               | false    |              | Dirty is true when the agent's latest snapshot hash differs from the chat's pinned hash.                                                                                                               |
+| `dirty_since` | string                                                                | false    |              | Dirty since is when drift was first detected; nil when not dirty.                                                                                                                                      |
+| `error`       | string                                                                | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).                                                                                                                |
+| `resources`   | array of [codersdk.ChatContextResource](#codersdkchatcontextresource) | false    |              | Resources is the chat's pinned workspace-context inventory, metadata only (no bodies). It is populated only on the single-chat GET response; list and watch payloads leave it nil to stay lightweight. |
 
 ## codersdk.ChatContextResource
 
@@ -2810,6 +2813,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "skill_description": "string",
   "skill_name": "string",
   "source": "string",
+  "source_path": "string",
   "status": "ok",
   "tools": [
     {
@@ -2829,7 +2833,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `size_bytes`        | integer                                                                  | false    |              | Size bytes is the original payload size in bytes.                                                                                                                                                                                                                          |
 | `skill_description` | string                                                                   | false    |              |                                                                                                                                                                                                                                                                            |
 | `skill_name`        | string                                                                   | false    |              | Skill name and SkillDescription are populated only for skill kinds.                                                                                                                                                                                                        |
-| `source`            | string                                                                   | false    |              | Source is the resource locator: the canonical file path for an instruction file, the skill directory for a skill, the file path for an MCP config, or the server name for an MCP server.                                                                                   |
+| `source`            | string                                                                   | false    |              | Source is the resource locator: the canonical file path for an instruction file, the skill directory for a skill, the file path for an MCP config, the server name for an MCP server, or an ACP harness slug.                                                              |
+| `source_path`       | string                                                                   | false    |              | Source path is the configuration directory for an ACP harness.                                                                                                                                                                                                             |
 | `status`            | [codersdk.ChatContextResourceStatus](#codersdkchatcontextresourcestatus) | false    |              | Status is the resource's health. Non-ok resources (invalid, unreadable, oversize, excluded) are still reported so the UI can surface why a resource was dropped from the prompt instead of silently omitting it; their body-specific fields (skill name, tools) are empty. |
 | `tools`             | array of [codersdk.ChatContextTool](#codersdkchatcontexttool)            | false    |              | Tools lists the tools exposed by an MCP server. Populated only for the mcp_server kind; nil otherwise.                                                                                                                                                                     |
 
@@ -2843,9 +2848,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                |
-|---------------------------------------------------------|
-| `instruction_file`, `mcp_config`, `mcp_server`, `skill` |
+| Value(s)                                                               |
+|------------------------------------------------------------------------|
+| `acp_harness`, `instruction_file`, `mcp_config`, `mcp_server`, `skill` |
 
 ## codersdk.ChatContextResourceStatus
 
@@ -5861,6 +5866,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "skill_description": "string",
           "skill_name": "string",
           "source": "string",
+          "source_path": "string",
           "status": "ok",
           "tools": [
             {
@@ -7537,17 +7543,17 @@ This is required on creation to enable a user-flow of validating a template work
 
 ### Properties
 
-| Name               | Type                                       | Required | Restrictions | Description                                                                         |
-|--------------------|--------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------|
-| `email`            | string                                     | false    |              |                                                                                     |
-| `login_type`       | [codersdk.LoginType](#codersdklogintype)   | false    |              | Login type defaults to LoginTypePassword.                                           |
-| `name`             | string                                     | false    |              |                                                                                     |
-| `organization_ids` | array of string                            | false    |              | Organization ids is a list of organization IDs that the user should be a member of. |
-| `password`         | string                                     | false    |              |                                                                                     |
-| `roles`            | array of string                            | false    |              | Roles is an optional list of site-level roles to assign at creation.                |
-| `service_account`  | boolean                                    | false    |              | Service accounts are admin-managed accounts that cannot login.                      |
-| `user_status`      | [codersdk.UserStatus](#codersdkuserstatus) | false    |              | User status defaults to UserStatusDormant.                                          |
-| `username`         | string                                     | true     |              |                                                                                     |
+| Name               | Type                                       | Required | Restrictions | Description                                                                                                   |
+|--------------------|--------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------|
+| `email`            | string                                     | false    |              |                                                                                                               |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)   | false    |              | Login type defaults to LoginTypePassword.                                                                     |
+| `name`             | string                                     | false    |              |                                                                                                               |
+| `organization_ids` | array of string                            | false    |              | Organization ids is a list of organization IDs that the user should be a member of.                           |
+| `password`         | string                                     | false    |              |                                                                                                               |
+| `roles`            | array of string                            | false    |              | Roles is an optional list of site-level roles to assign at creation.                                          |
+| `service_account`  | boolean                                    | false    |              | Service accounts are admin-managed accounts that cannot login.                                                |
+| `user_status`      | [codersdk.UserStatus](#codersdkuserstatus) | false    |              | User status defaults to UserStatusDormant. Service accounts default to UserStatusActive and can't be dormant. |
+| `username`         | string                                     | true     |              |                                                                                                               |
 
 ## codersdk.CreateUserSecretRequest
 
@@ -9842,9 +9848,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                 |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-projects`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                       |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-projects`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 

@@ -69,6 +69,22 @@ The rules in that file apply to humans and AI-assisted workflows alike; when it 
 Open a PR against the appropriate subpage of `docs/.style/style-guide/`.
 Follow-up PRs add each rule and the matching style-guide section together.
 
+## Reviewer personas in front matter
+
+The `doc-check` skill reviews docs changes through several personas, each focused on one kind of problem, such as accuracy or word choice.
+Each rule page lists the personas that apply its rules in a `review-personas` front matter field:
+
+```yaml
+---
+review-personas: [language, consistency, accuracy]
+---
+```
+
+The skill finds a persona's rules by reading this field, not by file path, so pages can move or split without breaking the review.
+When you add a rule page, add the field.
+When you move a rule to a different page, check that the new page lists every persona that applied it.
+The persona IDs and what each one reviews are in `.claude/skills/doc-check/personas/`.
+
 ## Add a Vale rule
 
 Each rule in the repo-root `.vale.ini` at `warning` or `error` severity ships clean: zero baseline findings against the current `docs/` corpus, excluding `docs/.style/style-guide/`, which is exempt because the style guide demonstrates the violations the rules ban.

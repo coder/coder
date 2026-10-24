@@ -572,8 +572,8 @@ const ProjectSkillRow: React.FC<ProjectSkillRowProps> = ({
 				<span className="truncate font-medium text-content-primary">
 					{skill.name}
 				</span>
-				{skill.action && <Badge size="xs">Action</Badge>}
-				{!skill.model_invocable && <Badge size="xs">Manual only</Badge>}
+				{skill.action && <Badge size="sm">Action</Badge>}
+				{!skill.model_invocable && <Badge size="sm">Manual only</Badge>}
 			</div>
 			<div
 				className="truncate text-xs text-content-secondary"

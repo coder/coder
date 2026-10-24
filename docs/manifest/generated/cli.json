@@ -1,46 +1,46 @@
 [
 	{
 		"title": "`agent-firewall`",
-		"description": "Network isolation tool for monitoring and restricting HTTP/HTTPS requests",
+		"description": "Network isolation tool for monitoring and restricting HTTP/HTTPS requests.",
 		"path": "reference/cli/agent-firewall.md"
 	},
 	{
 		"title": "`ai-gateway`",
-		"description": "Manage AI Gateway",
+		"description": "Manage AI Gateway.",
 		"path": "reference/cli/ai-gateway/index.md",
 		"children": [
 			{
 				"title": "`keys`",
-				"description": "Manage AI Gateway keys",
+				"description": "Manage AI Gateway keys.",
 				"path": "reference/cli/ai-gateway/keys/index.md",
 				"children": [
 					{
 						"title": "`create`",
-						"description": "Create an AI Gateway key",
+						"description": "Create an AI Gateway key.",
 						"path": "reference/cli/ai-gateway/keys/create.md"
 					},
 					{
 						"title": "`delete`",
-						"description": "Delete an AI Gateway key",
+						"description": "Delete an AI Gateway key.",
 						"path": "reference/cli/ai-gateway/keys/delete.md"
 					},
 					{
 						"title": "`list`",
-						"description": "List AI Gateway keys",
+						"description": "List AI Gateway keys.",
 						"path": "reference/cli/ai-gateway/keys/list.md"
 					}
 				]
 			},
 			{
 				"title": "`start`",
-				"description": "Run a standalone AI Gateway server",
+				"description": "Run a standalone AI Gateway server.",
 				"path": "reference/cli/ai-gateway/start.md"
 			}
 		]
 	},
 	{
 		"title": "`autoupdate`",
-		"description": "Toggle auto-update policy for a workspace",
+		"description": "Toggle auto-update policy for a workspace.",
 		"path": "reference/cli/autoupdate.md"
 	},
 	{
@@ -50,66 +50,66 @@
 	},
 	{
 		"title": "`config-ssh`",
-		"description": "Add an SSH Host entry for your workspaces \"ssh workspace.coder\"",
+		"description": "Add an SSH Host entry for your workspaces \"ssh workspace.coder\".",
 		"path": "reference/cli/config-ssh.md"
 	},
 	{
 		"title": "`create`",
-		"description": "Create a workspace",
+		"description": "Create a workspace.",
 		"path": "reference/cli/create.md"
 	},
 	{
 		"title": "`delete`",
-		"description": "Delete a workspace",
+		"description": "Delete a workspace.",
 		"path": "reference/cli/delete.md"
 	},
 	{
 		"title": "`dotfiles`",
-		"description": "Personalize your workspace by applying a canonical dotfiles repository",
+		"description": "Personalize your workspace by applying a canonical dotfiles repository.",
 		"path": "reference/cli/dotfiles.md"
 	},
 	{
 		"title": "`external-auth`",
-		"description": "Manage external authentication",
+		"description": "Manage external authentication.",
 		"path": "reference/cli/external-auth/index.md",
 		"children": [
 			{
 				"title": "`access-token`",
-				"description": "Print auth for an external provider",
+				"description": "Print auth for an external provider.",
 				"path": "reference/cli/external-auth/access-token.md"
 			}
 		]
 	},
 	{
 		"title": "`external-workspaces`",
-		"description": "Create or manage external workspaces",
+		"description": "Create or manage external workspaces.",
 		"path": "reference/cli/external-workspaces/index.md",
 		"children": [
 			{
 				"title": "`agent-instructions`",
-				"description": "Get the instructions for an external agent",
+				"description": "Get the instructions for an external agent.",
 				"path": "reference/cli/external-workspaces/agent-instructions.md"
 			},
 			{
 				"title": "`create`",
-				"description": "Create a new external workspace",
+				"description": "Create a new external workspace.",
 				"path": "reference/cli/external-workspaces/create.md"
 			},
 			{
 				"title": "`list`",
-				"description": "List external workspaces",
+				"description": "List external workspaces.",
 				"path": "reference/cli/external-workspaces/list.md"
 			}
 		]
 	},
 	{
 		"title": "`favorite`",
-		"description": "Add a workspace to your favorites",
+		"description": "Add a workspace to your favorites.",
 		"path": "reference/cli/favorite.md"
 	},
 	{
 		"title": "`features`",
-		"description": "List license features and entitlements",
+		"description": "List license features and entitlements.",
 		"path": "reference/cli/features/index.md",
 		"children": [
 			{
@@ -120,130 +120,130 @@
 	},
 	{
 		"title": "`groups`",
-		"description": "Manage groups",
+		"description": "Manage groups.",
 		"path": "reference/cli/groups/index.md",
 		"children": [
 			{
 				"title": "`create`",
-				"description": "Create a user group",
+				"description": "Create a user group.",
 				"path": "reference/cli/groups/create.md"
 			},
 			{
 				"title": "`delete`",
-				"description": "Delete a user group",
+				"description": "Delete a user group.",
 				"path": "reference/cli/groups/delete.md"
 			},
 			{
 				"title": "`edit`",
-				"description": "Edit a user group",
+				"description": "Edit a user group.",
 				"path": "reference/cli/groups/edit.md"
 			},
 			{
 				"title": "`list`",
-				"description": "List user groups",
+				"description": "List user groups.",
 				"path": "reference/cli/groups/list.md"
 			}
 		]
 	},
 	{
 		"title": "`licenses`",
-		"description": "Add, delete, and list licenses",
+		"description": "Add, delete, and list licenses.",
 		"path": "reference/cli/licenses/index.md",
 		"children": [
 			{
 				"title": "`add`",
-				"description": "Add license to Coder deployment",
+				"description": "Add license to Coder deployment.",
 				"path": "reference/cli/licenses/add.md"
 			},
 			{
 				"title": "`delete`",
-				"description": "Delete license by ID",
+				"description": "Delete license by ID.",
 				"path": "reference/cli/licenses/delete.md"
 			},
 			{
 				"title": "`list`",
-				"description": "List licenses (including expired)",
+				"description": "List licenses (including expired).",
 				"path": "reference/cli/licenses/list.md"
 			}
 		]
 	},
 	{
 		"title": "`list`",
-		"description": "List workspaces",
+		"description": "List workspaces.",
 		"path": "reference/cli/list.md"
 	},
 	{
 		"title": "`login`",
-		"description": "Authenticate with Coder deployment",
+		"description": "Authenticate with Coder deployment.",
 		"path": "reference/cli/login/index.md",
 		"children": [
 			{
 				"title": "`token`",
-				"description": "Print the current session token",
+				"description": "Print the current session token.",
 				"path": "reference/cli/login/token.md"
 			}
 		]
 	},
 	{
 		"title": "`logout`",
-		"description": "Unauthenticate your local session",
+		"description": "Unauthenticate your local session.",
 		"path": "reference/cli/logout.md"
 	},
 	{
 		"title": "`logs`",
-		"description": "View logs for a workspace",
+		"description": "View logs for a workspace.",
 		"path": "reference/cli/logs.md"
 	},
 	{
 		"title": "`netcheck`",
-		"description": "Print network debug information for DERP and STUN",
+		"description": "Print network debug information for DERP and STUN.",
 		"path": "reference/cli/netcheck.md"
 	},
 	{
 		"title": "`notifications`",
-		"description": "Manage Coder notifications",
+		"description": "Manage Coder notifications.",
 		"path": "reference/cli/notifications/index.md",
 		"children": [
 			{
 				"title": "`custom`",
-				"description": "Send a custom notification",
+				"description": "Send a custom notification.",
 				"path": "reference/cli/notifications/custom.md"
 			},
 			{
 				"title": "`pause`",
-				"description": "Pause notifications",
+				"description": "Pause notifications.",
 				"path": "reference/cli/notifications/pause.md"
 			},
 			{
 				"title": "`resume`",
-				"description": "Resume notifications",
+				"description": "Resume notifications.",
 				"path": "reference/cli/notifications/resume.md"
 			},
 			{
 				"title": "`test`",
-				"description": "Send a test notification",
+				"description": "Send a test notification.",
 				"path": "reference/cli/notifications/test.md"
 			}
 		]
 	},
 	{
 		"title": "`oauth2-provider`",
-		"description": "Manage Coder OAuth2 provider settings",
+		"description": "Manage Coder OAuth2 provider settings.",
 		"path": "reference/cli/oauth2-provider/index.md",
 		"children": [
 			{
 				"title": "`dcr`",
-				"description": "Manage OAuth2 dynamic client registration (RFC 7591)",
+				"description": "Manage OAuth2 dynamic client registration (RFC 7591).",
 				"path": "reference/cli/oauth2-provider/dcr/index.md",
 				"children": [
 					{
 						"title": "`disable`",
-						"description": "Disable OAuth2 dynamic client registration",
+						"description": "Disable OAuth2 dynamic client registration.",
 						"path": "reference/cli/oauth2-provider/dcr/disable.md"
 					},
 					{
 						"title": "`enable`",
-						"description": "Enable OAuth2 dynamic client registration",
+						"description": "Enable OAuth2 dynamic client registration.",
 						"path": "reference/cli/oauth2-provider/dcr/enable.md"
 					}
 				]
@@ -252,7 +252,7 @@
 	},
 	{
 		"title": "`open`",
-		"description": "Open a workspace",
+		"description": "Open a workspace.",
 		"path": "reference/cli/open/index.md",
 		"children": [
 			{
@@ -262,14 +262,14 @@
 			},
 			{
 				"title": "`vscode`",
-				"description": "Open a workspace in VS Code Desktop",
+				"description": "Open a workspace in VS Code Desktop.",
 				"path": "reference/cli/open/vscode.md"
 			}
 		]
 	},
 	{
 		"title": "`organizations`",
-		"description": "Organization related commands",
+		"description": "Organization related commands.",
 		"path": "reference/cli/organizations/index.md",
 		"children": [
 			{
@@ -279,7 +279,7 @@
 			},
 			{
 				"title": "`delete`",
-				"description": "Delete an organization",
+				"description": "Delete an organization.",
 				"path": "reference/cli/organizations/delete.md"
 			},
 			{
@@ -289,32 +289,32 @@
 			},
 			{
 				"title": "`list`",
-				"description": "List all organizations",
+				"description": "List all organizations.",
 				"path": "reference/cli/organizations/list.md"
 			},
 			{
 				"title": "`members`",
-				"description": "Manage organization members",
+				"description": "Manage organization members.",
 				"path": "reference/cli/organizations/members/index.md",
 				"children": [
 					{
 						"title": "`add`",
-						"description": "Add a new member to the current organization",
+						"description": "Add a new member to the current organization.",
 						"path": "reference/cli/organizations/members/add.md"
 					},
 					{
 						"title": "`edit-roles`",
-						"description": "Edit organization member's roles",
+						"description": "Edit organization member's roles.",
 						"path": "reference/cli/organizations/members/edit-roles.md"
 					},
 					{
 						"title": "`list`",
-						"description": "List all organization members",
+						"description": "List all organization members.",
 						"path": "reference/cli/organizations/members/list.md"
 					},
 					{
 						"title": "`remove`",
-						"description": "Remove a new member to the current organization",
+						"description": "Remove a new member to the current organization.",
 						"path": "reference/cli/organizations/members/remove.md"
 					}
 				]
@@ -326,17 +326,17 @@
 				"children": [
 					{
 						"title": "`create`",
-						"description": "Create a new organization custom role",
+						"description": "Create a new organization custom role.",
 						"path": "reference/cli/organizations/roles/create.md"
 					},
 					{
 						"title": "`show`",
-						"description": "Show role(s)",
+						"description": "Show role(s).",
 						"path": "reference/cli/organizations/roles/show.md"
 					},
 					{
 						"title": "`update`",
-						"description": "Update an organization custom role",
+						"description": "Update an organization custom role.",
 						"path": "reference/cli/organizations/roles/update.md"
 					}
 				]
@@ -411,7 +411,7 @@
 	},
 	{
 		"title": "`ping`",
-		"description": "Ping a workspace",
+		"description": "Ping a workspace.",
 		"path": "reference/cli/ping.md"
 	},
 	{
@@ -421,100 +421,100 @@
 	},
 	{
 		"title": "`prebuilds`",
-		"description": "Manage Coder prebuilds",
+		"description": "Manage Coder prebuilds.",
 		"path": "reference/cli/prebuilds/index.md",
 		"children": [
 			{
 				"title": "`pause`",
-				"description": "Pause prebuilds",
+				"description": "Pause prebuilds.",
 				"path": "reference/cli/prebuilds/pause.md"
 			},
 			{
 				"title": "`resume`",
-				"description": "Resume prebuilds",
+				"description": "Resume prebuilds.",
 				"path": "reference/cli/prebuilds/resume.md"
 			}
 		]
 	},
 	{
 		"title": "`provisioner`",
-		"description": "View and manage provisioner daemons and jobs",
+		"description": "View and manage provisioner daemons and jobs.",
 		"path": "reference/cli/provisioner/index.md",
 		"children": [
 			{
 				"title": "`jobs`",
-				"description": "View and manage provisioner jobs",
+				"description": "View and manage provisioner jobs.",
 				"path": "reference/cli/provisioner/jobs/index.md",
 				"children": [
 					{
 						"title": "`cancel`",
-						"description": "Cancel a provisioner job",
+						"description": "Cancel a provisioner job.",
 						"path": "reference/cli/provisioner/jobs/cancel.md"
 					},
 					{
 						"title": "`list`",
-						"description": "List provisioner jobs",
+						"description": "List provisioner jobs.",
 						"path": "reference/cli/provisioner/jobs/list.md"
 					}
 				]
 			},
 			{
 				"title": "`keys`",
-				"description": "Manage provisioner keys",
+				"description": "Manage provisioner keys.",
 				"path": "reference/cli/provisioner/keys/index.md",
 				"children": [
 					{
 						"title": "`create`",
-						"description": "Create a new provisioner key",
+						"description": "Create a new provisioner key.",
 						"path": "reference/cli/provisioner/keys/create.md"
 					},
 					{
 						"title": "`delete`",
-						"description": "Delete a provisioner key",
+						"description": "Delete a provisioner key.",
 						"path": "reference/cli/provisioner/keys/delete.md"
 					},
 					{
 						"title": "`list`",
-						"description": "List provisioner keys in an organization",
+						"description": "List provisioner keys in an organization.",
 						"path": "reference/cli/provisioner/keys/list.md"
 					}
 				]
 			},
 			{
 				"title": "`list`",
-				"description": "List provisioner daemons in an organization",
+				"description": "List provisioner daemons in an organization.",
 				"path": "reference/cli/provisioner/list.md"
 			},
 			{
 				"title": "`start`",
-				"description": "Run a provisioner daemon",
+				"description": "Run a provisioner daemon.",
 				"path": "reference/cli/provisioner/start.md"
 			}
 		]
 	},
 	{
 		"title": "`publickey`",
-		"description": "Output your Coder public key used for Git operations",
+		"description": "Output your Coder public key used for Git operations.",
 		"path": "reference/cli/publickey.md"
 	},
 	{
 		"title": "`rename`",
-		"description": "Rename a workspace",
+		"description": "Rename a workspace.",
 		"path": "reference/cli/rename.md"
 	},
 	{
 		"title": "`reset-password`",
-		"description": "Directly connect to the database to reset a user's password",
+		"description": "Directly connect to the database to reset a user's password.",
 		"path": "reference/cli/reset-password.md"
 	},
 	{
 		"title": "`restart`",
-		"description": "Restart a workspace",
+		"description": "Restart a workspace.",
 		"path": "reference/cli/restart.md"
 	},
 	{
 		"title": "`schedule`",
-		"description": "Schedule automated start and stop times for workspaces",
+		"description": "Schedule automated start and stop times for workspaces.",
 		"path": "reference/cli/schedule/index.md",
 		"children": [
 			{
@@ -524,66 +524,66 @@
 			},
 			{
 				"title": "`show`",
-				"description": "Show workspace schedules",
+				"description": "Show workspace schedules.",
 				"path": "reference/cli/schedule/show.md"
 			},
 			{
 				"title": "`start`",
-				"description": "Edit workspace start schedule",
+				"description": "Edit workspace start schedule.",
 				"path": "reference/cli/schedule/start.md"
 			},
 			{
 				"title": "`stop`",
-				"description": "Edit workspace stop schedule",
+				"description": "Edit workspace stop schedule.",
 				"path": "reference/cli/schedule/stop.md"
 			}
 		]
 	},
 	{
 		"title": "`secret`",
-		"description": "Manage secrets",
+		"description": "Manage secrets.",
 		"path": "reference/cli/secret/index.md",
 		"children": [
 			{
 				"title": "`create`",
-				"description": "Create a secret",
+				"description": "Create a secret.",
 				"path": "reference/cli/secret/create.md"
 			},
 			{
 				"title": "`delete`",
-				"description": "Delete a secret",
+				"description": "Delete a secret.",
 				"path": "reference/cli/secret/delete.md"
 			},
 			{
 				"title": "`disable`",
-				"description": "Disable a secret without removing it",
+				"description": "Disable a secret without removing it.",
 				"path": "reference/cli/secret/disable.md"
 			},
 			{
 				"title": "`enable`",
-				"description": "Enable a secret so it is injected into workspaces",
+				"description": "Enable a secret so it is injected into workspaces.",
 				"path": "reference/cli/secret/enable.md"
 			},
 			{
 				"title": "`import`",
-				"description": "Import secrets from a file",
+				"description": "Import secrets from a file.",
 				"path": "reference/cli/secret/import.md"
 			},
 			{
 				"title": "`list`",
-				"description": "List secrets, or show one by name",
+				"description": "List secrets, or show one by name.",
 				"path": "reference/cli/secret/list.md"
 			},
 			{
 				"title": "`update`",
-				"description": "Update a secret",
+				"description": "Update a secret.",
 				"path": "reference/cli/secret/update.md"
 			}
 		]
 	},
 	{
 		"title": "`server`",
-		"description": "Start a Coder server",
+		"description": "Start a Coder server.",
 		"path": "reference/cli/server/index.md",
 		"children": [
 			{
@@ -632,7 +632,7 @@
 	},
 	{
 		"title": "`sharing`",
-		"description": "Commands for managing shared workspaces",
+		"description": "Commands for managing shared workspaces.",
 		"path": "reference/cli/sharing/index.md",
 		"children": [
 			{
@@ -654,22 +654,22 @@
 	},
 	{
 		"title": "`show`",
-		"description": "Display details of a workspace's resources and agents",
+		"description": "Display details of a workspace's resources and agents.",
 		"path": "reference/cli/show.md"
 	},
 	{
 		"title": "`speedtest`",
-		"description": "Run upload and download tests from your machine to a workspace",
+		"description": "Run upload and download tests from your machine to a workspace.",
 		"path": "reference/cli/speedtest.md"
 	},
 	{
 		"title": "`ssh`",
-		"description": "Start a shell into a workspace or run a command",
+		"description": "Start a shell into a workspace or run a command.",
 		"path": "reference/cli/ssh.md"
 	},
 	{
 		"title": "`start`",
-		"description": "Start a workspace",
+		"description": "Start a workspace.",
 		"path": "reference/cli/start.md"
 	},
 	{
@@ -696,7 +696,7 @@
 	},
 	{
 		"title": "`state`",
-		"description": "Manually manage Terraform state to fix broken workspaces",
+		"description": "Manually manage Terraform state to fix broken workspaces.",
 		"path": "reference/cli/state/index.md",
 		"children": [
 			{
@@ -713,7 +713,7 @@
 	},
 	{
 		"title": "`stop`",
-		"description": "Stop a workspace",
+		"description": "Stop a workspace.",
 		"path": "reference/cli/stop.md"
 	},
 	{
@@ -730,22 +730,22 @@
 	},
 	{
 		"title": "`templates`",
-		"description": "Manage templates",
+		"description": "Manage templates.",
 		"path": "reference/cli/templates/index.md",
 		"children": [
 			{
 				"title": "`archive`",
-				"description": "Archive unused or failed template versions from a given template(s)",
+				"description": "Archive unused or failed template versions from a given template(s).",
 				"path": "reference/cli/templates/archive.md"
 			},
 			{
 				"title": "`create`",
-				"description": "DEPRECATED: Create a template from the current directory or as specified by flag",
+				"description": "DEPRECATED: Create a template from the current directory or as specified by flag.",
 				"path": "reference/cli/templates/create.md"
 			},
 			{
 				"title": "`delete`",
-				"description": "Delete templates",
+				"description": "Delete templates.",
 				"path": "reference/cli/templates/delete.md"
 			},
 			{
@@ -760,12 +760,12 @@
 			},
 			{
 				"title": "`list`",
-				"description": "List all the templates available for the organization",
+				"description": "List all the templates available for the organization.",
 				"path": "reference/cli/templates/list.md"
 			},
 			{
 				"title": "`presets`",
-				"description": "Manage presets of the specified template",
+				"description": "Manage presets of the specified template.",
 				"path": "reference/cli/templates/presets/index.md",
 				"children": [
 					{
@@ -782,12 +782,12 @@
 			},
 			{
 				"title": "`push`",
-				"description": "Create or update a template from the current directory or as specified by flag",
+				"description": "Create or update a template from the current directory or as specified by flag.",
 				"path": "reference/cli/templates/push.md"
 			},
 			{
 				"title": "`versions`",
-				"description": "Manage different versions of the specified template",
+				"description": "Manage different versions of the specified template.",
 				"path": "reference/cli/templates/versions/index.md",
 				"children": [
 					{
@@ -797,7 +797,7 @@
 					},
 					{
 						"title": "`list`",
-						"description": "List all the versions of the specified template",
+						"description": "List all the versions of the specified template.",
 						"path": "reference/cli/templates/versions/list.md"
 					},
 					{
@@ -816,34 +816,34 @@
 	},
 	{
 		"title": "`tokens`",
-		"description": "Manage personal access tokens",
+		"description": "Manage personal access tokens.",
 		"path": "reference/cli/tokens/index.md",
 		"children": [
 			{
 				"title": "`create`",
-				"description": "Create a token",
+				"description": "Create a token.",
 				"path": "reference/cli/tokens/create.md"
 			},
 			{
 				"title": "`list`",
-				"description": "List tokens",
+				"description": "List tokens.",
 				"path": "reference/cli/tokens/list.md"
 			},
 			{
 				"title": "`remove`",
-				"description": "Expire or delete a token",
+				"description": "Expire or delete a token.",
 				"path": "reference/cli/tokens/remove.md"
 			},
 			{
 				"title": "`view`",
-				"description": "Display detailed information about a token",
+				"description": "Display detailed information about a token.",
 				"path": "reference/cli/tokens/view.md"
 			}
 		]
 	},
 	{
 		"title": "`unfavorite`",
-		"description": "Remove a workspace from your favorites",
+		"description": "Remove a workspace from your favorites.",
 		"path": "reference/cli/unfavorite.md"
 	},
 	{
@@ -853,12 +853,12 @@
 	},
 	{
 		"title": "`users`",
-		"description": "Manage users",
+		"description": "Manage users.",
 		"path": "reference/cli/users/index.md",
 		"children": [
 			{
 				"title": "`activate`",
-				"description": "Update a user's status to 'active'. Active users can fully interact with the platform",
+				"description": "Update a user's status to 'active'. Active users can fully interact with the platform.",
 				"path": "reference/cli/users/activate.md"
 			},
 			{
@@ -873,7 +873,7 @@
 			},
 			{
 				"title": "`edit-roles`",
-				"description": "Edit a user's roles by username or id",
+				"description": "Edit a user's roles by username or id.",
 				"path": "reference/cli/users/edit-roles.md"
 			},
 			{
@@ -900,12 +900,12 @@
 	},
 	{
 		"title": "`version`",
-		"description": "Show coder version",
+		"description": "Show coder version.",
 		"path": "reference/cli/version.md"
 	},
 	{
 		"title": "`whoami`",
-		"description": "Fetch authenticated user info for Coder deployment",
+		"description": "Fetch authenticated user info for Coder deployment.",
 		"path": "reference/cli/whoami.md"
 	},
 	{
@@ -915,22 +915,22 @@
 		"children": [
 			{
 				"title": "`create`",
-				"description": "Create a workspace proxy",
+				"description": "Create a workspace proxy.",
 				"path": "reference/cli/workspace-proxy/create.md"
 			},
 			{
 				"title": "`delete`",
-				"description": "Delete a workspace proxy",
+				"description": "Delete a workspace proxy.",
 				"path": "reference/cli/workspace-proxy/delete.md"
 			},
 			{
 				"title": "`edit`",
-				"description": "Edit a workspace proxy",
+				"description": "Edit a workspace proxy.",
 				"path": "reference/cli/workspace-proxy/edit.md"
 			},
 			{
 				"title": "`ls`",
-				"description": "List all workspace proxies",
+				"description": "List all workspace proxies.",
 				"path": "reference/cli/workspace-proxy/ls.md"
 			},
 			{
@@ -940,7 +940,7 @@
 			},
 			{
 				"title": "`server`",
-				"description": "Start a workspace proxy server",
+				"description": "Start a workspace proxy server.",
 				"path": "reference/cli/workspace-proxy/server.md"
 			}
 		]

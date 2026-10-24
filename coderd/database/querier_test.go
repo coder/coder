@@ -16717,443 +16717,6 @@ func TestDeleteChatDebugDataAfterMessageIDStepLevelFieldBoundariesAndNulls(t *te
 	require.Len(t, remaining, 4)
 }
 
-func TestFinalizeStaleChatDebugRows(t *testing.T) {
-	t.Parallel()
-
-	store, _ := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitMedium)
-
-	org := dbgen.Organization(t, store, database.Organization{})
-	user := dbgen.User(t, store, database.User{})
-
-	providerName := "openai"
-	modelName := "debug-model-finalize-" + uuid.NewString()
-
-	dbgen.ChatProvider(t, store, database.ChatProvider{
-		Provider:             providerName,
-		DisplayName:          "Debug Provider",
-		APIKey:               "test-key",
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
-	})
-
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
-		Model:                modelName,
-		DisplayName:          "Debug Model",
-		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:              true,
-		IsDefault:            true,
-		ContextLimit:         128000,
-		CompressionThreshold: 80,
-		Options:              json.RawMessage(`{}`),
-	})
-	require.NoError(t, err)
-
-	chat, err := store.InsertChat(ctx, database.InsertChatParams{
-		OrganizationID:    org.ID,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
-		OwnerID:           user.ID,
-		LastModelConfigID: modelCfg.ID,
-		Title:             "chat-finalize-" + uuid.NewString(),
-	})
-	require.NoError(t, err)
-
-	// staleTime is well before the threshold so rows stamped with it
-	// are considered stale.  The threshold sits between staleTime and
-	// NOW(), letting us create rows that are stale-by-age and rows
-	// that are fresh-by-age in the same test.
-	staleTime := time.Now().Add(-2 * time.Hour)
-	staleThreshold := time.Now().Add(-1 * time.Hour)
-
-	// preExistingError is attached to staleStep so we can verify
-	// that finalization preserves pre-existing error JSON rather
-	// than clearing or overwriting it.
-	preExistingError := json.RawMessage(`{"code":"timeout","message":"upstream deadline exceeded"}`)
-
-	// --- staleRun: in_progress run with no finished_at --- should be
-	// finalized.
-	staleRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
-		ChatID:              chat.ID,
-		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
-		TriggerMessageID:    sql.NullInt64{Int64: 1, Valid: true},
-		HistoryTipMessageID: sql.NullInt64{Int64: 1, Valid: true},
-		Kind:                "chat_turn",
-		Status:              "in_progress",
-		Provider:            sql.NullString{String: providerName, Valid: true},
-		Model:               sql.NullString{String: modelName, Valid: true},
-		UpdatedAt:           sql.NullTime{Time: staleTime, Valid: true},
-	})
-	require.NoError(t, err)
-
-	// staleStep: in_progress step attached to staleRun with a
-	// pre-existing error JSON payload.
-	staleStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
-		RunID:      staleRun.ID,
-		ChatID:     chat.ID,
-		StepNumber: 1,
-		Operation:  "stream",
-		Status:     "in_progress",
-		UpdatedAt:  sql.NullTime{Time: staleTime, Valid: true},
-		Error: pqtype.NullRawMessage{
-			RawMessage: preExistingError,
-			Valid:      true,
-		},
-	})
-	require.NoError(t, err)
-	require.True(t, staleStep.Error.Valid,
-		"precondition: error must be stored at insertion")
-
-	// --- orphanStep: in_progress step whose run is already completed ---
-	// Its own updated_at is old, so it should be finalized directly.
-	// The step must be inserted while the run is still open because
-	// InsertChatDebugStep requires finished_at IS NULL on the parent
-	// run (atomic guard against appending steps to finalized runs).
-	completedRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
-		ChatID:              chat.ID,
-		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
-		TriggerMessageID:    sql.NullInt64{Int64: 2, Valid: true},
-		HistoryTipMessageID: sql.NullInt64{Int64: 2, Valid: true},
-		Kind:                "chat_turn",
-		Status:              "completed",
-	})
-	require.NoError(t, err)
-
-	// Insert the step while the run is still open (finished_at IS NULL).
-	orphanStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
-		RunID:      completedRun.ID,
-		ChatID:     chat.ID,
-		StepNumber: 1,
-		Operation:  "stream",
-		Status:     "in_progress",
-		UpdatedAt:  sql.NullTime{Time: staleTime, Valid: true},
-	})
-	require.NoError(t, err)
-
-	// Now mark the run as completed with a finished_at timestamp,
-	// leaving the step orphaned in in_progress state.
-	_, err = store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
-		ID:     completedRun.ID,
-		ChatID: completedRun.ChatID,
-		Status: sql.NullString{String: "completed", Valid: true},
-		FinishedAt: sql.NullTime{
-			Time:  time.Now(),
-			Valid: true,
-		},
-		Now: time.Now(),
-	})
-	require.NoError(t, err)
-
-	// --- cascadeRun: stale in_progress run with a FRESH step ---
-	// The run's updated_at is old so the run itself is finalized by
-	// age.  The step's updated_at is recent (default NOW()), so it is
-	// NOT caught by the age predicate.  It must be finalized solely
-	// via the cascade CTE clause: run_id IN (SELECT id FROM
-	// finalized_runs).  Removing that clause would leave this step
-	// stuck in 'in_progress'.
-	cascadeRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
-		ChatID:              chat.ID,
-		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
-		TriggerMessageID:    sql.NullInt64{Int64: 10, Valid: true},
-		HistoryTipMessageID: sql.NullInt64{Int64: 10, Valid: true},
-		Kind:                "chat_turn",
-		Status:              "in_progress",
-		Provider:            sql.NullString{String: providerName, Valid: true},
-		Model:               sql.NullString{String: modelName, Valid: true},
-		UpdatedAt:           sql.NullTime{Time: staleTime, Valid: true},
-	})
-	require.NoError(t, err)
-
-	// cascadeStep: recent updated_at (default NOW()), so only the
-	// cascade path can finalize it.
-	cascadeStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
-		RunID:      cascadeRun.ID,
-		ChatID:     chat.ID,
-		StepNumber: 1,
-		Operation:  "stream",
-		Status:     "in_progress",
-	})
-	require.NoError(t, err)
-
-	// The InsertChatDebugStep CTE atomically bumps the parent run's
-	// updated_at to NOW(). Reset it back to staleTime so the run is
-	// still caught by the age predicate in FinalizeStaleChatDebugRows.
-	err = store.TouchChatDebugRunUpdatedAt(ctx, database.TouchChatDebugRunUpdatedAtParams{
-		ID:     cascadeRun.ID,
-		ChatID: chat.ID,
-		Now:    staleTime,
-	})
-	require.NoError(t, err)
-
-	// --- alreadyDone: completed run/step --- should NOT be touched.
-	doneRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
-		ChatID:              chat.ID,
-		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
-		TriggerMessageID:    sql.NullInt64{Int64: 3, Valid: true},
-		HistoryTipMessageID: sql.NullInt64{Int64: 3, Valid: true},
-		Kind:                "chat_turn",
-		Status:              "completed",
-	})
-	require.NoError(t, err)
-
-	// Insert step while run is still open.
-	doneStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
-		RunID:      doneRun.ID,
-		ChatID:     chat.ID,
-		StepNumber: 1,
-		Operation:  "stream",
-		Status:     "completed",
-	})
-	require.NoError(t, err)
-
-	// Now finalize both run and step.
-	_, err = store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
-		ID:     doneRun.ID,
-		ChatID: doneRun.ChatID,
-		Status: sql.NullString{String: "completed", Valid: true},
-		FinishedAt: sql.NullTime{
-			Time:  time.Now(),
-			Valid: true,
-		},
-		Now: time.Now(),
-	})
-	require.NoError(t, err)
-
-	_, err = store.UpdateChatDebugStep(ctx, database.UpdateChatDebugStepParams{
-		ID:     doneStep.ID,
-		ChatID: chat.ID,
-		Status: sql.NullString{String: "completed", Valid: true},
-		FinishedAt: sql.NullTime{
-			Time:  time.Now(),
-			Valid: true,
-		},
-		Now: time.Now(),
-	})
-	require.NoError(t, err)
-
-	// --- errorRun: error run/step --- should NOT be touched either,
-	// exercising the 'error' branch of the NOT IN clause.
-	errorRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
-		ChatID:              chat.ID,
-		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
-		TriggerMessageID:    sql.NullInt64{Int64: 4, Valid: true},
-		HistoryTipMessageID: sql.NullInt64{Int64: 4, Valid: true},
-		Kind:                "chat_turn",
-		Status:              "error",
-	})
-	require.NoError(t, err)
-
-	// Insert step while run is still open.
-	errorStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
-		RunID:      errorRun.ID,
-		ChatID:     chat.ID,
-		StepNumber: 1,
-		Operation:  "stream",
-		Status:     "error",
-	})
-	require.NoError(t, err)
-
-	// Now finalize both run and step.
-	_, err = store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
-		ID:     errorRun.ID,
-		ChatID: errorRun.ChatID,
-		Status: sql.NullString{String: "error", Valid: true},
-		FinishedAt: sql.NullTime{
-			Time:  time.Now(),
-			Valid: true,
-		},
-		Now: time.Now(),
-	})
-	require.NoError(t, err)
-
-	_, err = store.UpdateChatDebugStep(ctx, database.UpdateChatDebugStepParams{
-		ID:     errorStep.ID,
-		ChatID: chat.ID,
-		Status: sql.NullString{String: "error", Valid: true},
-		FinishedAt: sql.NullTime{
-			Time:  time.Now(),
-			Valid: true,
-		},
-		Now: time.Now(),
-	})
-	require.NoError(t, err)
-
-	// --- freshRun: recent in_progress run with current timestamp ---
-	// should NOT be finalized because its updated_at is after the
-	// threshold, exercising the age predicate (not just terminal
-	// status) as the survival reason.
-	freshRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
-		ChatID:              chat.ID,
-		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
-		TriggerMessageID:    sql.NullInt64{Int64: 20, Valid: true},
-		HistoryTipMessageID: sql.NullInt64{Int64: 20, Valid: true},
-		Kind:                "chat_turn",
-		Status:              "in_progress",
-		Provider:            sql.NullString{String: providerName, Valid: true},
-		Model:               sql.NullString{String: modelName, Valid: true},
-		// UpdatedAt defaults to NOW(), which is after staleThreshold.
-	})
-	require.NoError(t, err)
-
-	freshStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
-		RunID:      freshRun.ID,
-		ChatID:     chat.ID,
-		StepNumber: 1,
-		Operation:  "stream",
-		Status:     "in_progress",
-		// UpdatedAt defaults to NOW().
-	})
-	require.NoError(t, err)
-
-	// --- Execute the finalization sweep. ---
-	// Capture the @now timestamp so we can verify finalized rows
-	// received exactly this value for updated_at and finished_at.
-	nowParam := time.Now().Truncate(time.Microsecond)
-	result, err := store.FinalizeStaleChatDebugRows(ctx, database.FinalizeStaleChatDebugRowsParams{
-		Now:           nowParam,
-		UpdatedBefore: staleThreshold,
-	})
-	require.NoError(t, err)
-
-	// staleRun + cascadeRun were finalized; completedRun and doneRun
-	// were already terminal, and freshRun survives because its
-	// updated_at is after the threshold — so only 2 runs are expected.
-	assert.EqualValues(t, 2, result.RunsFinalized,
-		"stale + cascade in_progress runs should be finalized")
-	// staleStep (age), orphanStep (age), cascadeStep (cascade only)
-	// should all be finalized.
-	assert.EqualValues(t, 3, result.StepsFinalized,
-		"stale step + orphan step + cascade step should all be finalized")
-
-	// Verify the stale run was set to interrupted with correct
-	// timestamps matching the @now parameter.
-	updatedStaleRun, err := store.GetChatDebugRunByID(ctx, staleRun.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "interrupted", updatedStaleRun.Status)
-	assert.True(t, updatedStaleRun.FinishedAt.Valid,
-		"finalized run should have a finished_at timestamp")
-	assert.WithinDuration(t, nowParam, updatedStaleRun.FinishedAt.Time, time.Microsecond,
-		"finished_at should match the @now parameter")
-	assert.WithinDuration(t, nowParam, updatedStaleRun.UpdatedAt, time.Microsecond,
-		"updated_at should match the @now parameter")
-
-	// Verify the stale step was set to interrupted and its
-	// pre-existing error JSON was preserved.
-	staleSteps, err := store.GetChatDebugStepsByRunID(ctx, staleRun.ID)
-	require.NoError(t, err)
-	require.Len(t, staleSteps, 1)
-	assert.Equal(t, staleStep.ID, staleSteps[0].ID)
-	assert.Equal(t, "interrupted", staleSteps[0].Status)
-	assert.True(t, staleSteps[0].FinishedAt.Valid,
-		"finalized step should have a finished_at timestamp")
-	assert.WithinDuration(t, nowParam, staleSteps[0].FinishedAt.Time, time.Microsecond,
-		"step finished_at should match the @now parameter")
-	assert.WithinDuration(t, nowParam, staleSteps[0].UpdatedAt, time.Microsecond,
-		"step updated_at should match the @now parameter")
-	// The error JSON that was set at insertion time must survive
-	// finalization. The query does not touch the error column, so
-	// this proves the JSONB payload is preserved.
-	assert.True(t, staleSteps[0].Error.Valid,
-		"pre-existing error JSON must be preserved after finalization")
-	assert.JSONEq(t, string(preExistingError), string(staleSteps[0].Error.RawMessage),
-		"error JSON content must match the value set at insertion")
-
-	// Verify the orphan step was also finalized with correct timestamps.
-	orphanSteps, err := store.GetChatDebugStepsByRunID(ctx, completedRun.ID)
-	require.NoError(t, err)
-	require.Len(t, orphanSteps, 1)
-	assert.Equal(t, orphanStep.ID, orphanSteps[0].ID)
-	assert.Equal(t, "interrupted", orphanSteps[0].Status)
-	assert.True(t, orphanSteps[0].FinishedAt.Valid,
-		"orphan step should have a finished_at timestamp")
-	assert.WithinDuration(t, nowParam, orphanSteps[0].FinishedAt.Time, time.Microsecond,
-		"orphan step finished_at should match the @now parameter")
-	assert.WithinDuration(t, nowParam, orphanSteps[0].UpdatedAt, time.Microsecond,
-		"orphan step updated_at should match the @now parameter")
-	// The orphan step had no error set; verify it remains null.
-	assert.False(t, orphanSteps[0].Error.Valid,
-		"step without pre-existing error should remain null after finalization")
-
-	// Verify the cascade run was finalized with correct timestamps.
-	updatedCascadeRun, err := store.GetChatDebugRunByID(ctx, cascadeRun.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "interrupted", updatedCascadeRun.Status)
-	assert.True(t, updatedCascadeRun.FinishedAt.Valid,
-		"cascade run should have a finished_at timestamp")
-	assert.WithinDuration(t, nowParam, updatedCascadeRun.FinishedAt.Time, time.Microsecond,
-		"cascade run finished_at should match the @now parameter")
-	assert.WithinDuration(t, nowParam, updatedCascadeRun.UpdatedAt, time.Microsecond,
-		"cascade run updated_at should match the @now parameter")
-
-	// Verify the cascade step was finalized despite its recent
-	// updated_at, proving the cascade CTE clause is required.
-	cascadeSteps, err := store.GetChatDebugStepsByRunID(ctx, cascadeRun.ID)
-	require.NoError(t, err)
-	require.Len(t, cascadeSteps, 1)
-	assert.Equal(t, cascadeStep.ID, cascadeSteps[0].ID)
-	assert.Equal(t, "interrupted", cascadeSteps[0].Status,
-		"fresh step should be finalized via cascade, not age")
-	assert.True(t, cascadeSteps[0].FinishedAt.Valid,
-		"cascade step should have a finished_at timestamp")
-	assert.WithinDuration(t, nowParam, cascadeSteps[0].FinishedAt.Time, time.Microsecond,
-		"cascade step finished_at should match the @now parameter")
-	assert.WithinDuration(t, nowParam, cascadeSteps[0].UpdatedAt, time.Microsecond,
-		"cascade step updated_at should match the @now parameter")
-	// The cascade step also had no error set.
-	assert.False(t, cascadeSteps[0].Error.Valid,
-		"cascade step without pre-existing error should remain null")
-
-	// Verify the completed run/step are untouched.
-	unchangedRun, err := store.GetChatDebugRunByID(ctx, doneRun.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "completed", unchangedRun.Status)
-
-	doneSteps, err := store.GetChatDebugStepsByRunID(ctx, doneRun.ID)
-	require.NoError(t, err)
-	require.Len(t, doneSteps, 1)
-	assert.Equal(t, "completed", doneSteps[0].Status)
-
-	// Verify the error run/step are untouched.
-	unchangedErrorRun, err := store.GetChatDebugRunByID(ctx, errorRun.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "error", unchangedErrorRun.Status)
-
-	errorSteps, err := store.GetChatDebugStepsByRunID(ctx, errorRun.ID)
-	require.NoError(t, err)
-	require.Len(t, errorSteps, 1)
-	assert.Equal(t, "error", errorSteps[0].Status)
-
-	// Verify the fresh in_progress run survived due to recency,
-	// not terminal status — its updated_at is after the threshold.
-	unchangedFreshRun, err := store.GetChatDebugRunByID(ctx, freshRun.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "in_progress", unchangedFreshRun.Status,
-		"fresh in_progress run must survive due to recency")
-	assert.False(t, unchangedFreshRun.FinishedAt.Valid,
-		"fresh run should not have a finished_at timestamp")
-
-	freshSteps, err := store.GetChatDebugStepsByRunID(ctx, freshRun.ID)
-	require.NoError(t, err)
-	require.Len(t, freshSteps, 1)
-	assert.Equal(t, freshStep.ID, freshSteps[0].ID)
-	assert.Equal(t, "in_progress", freshSteps[0].Status,
-		"fresh in_progress step must survive due to recency")
-	assert.False(t, freshSteps[0].FinishedAt.Valid,
-		"fresh step should not have a finished_at timestamp")
-
-	// A second sweep should be a no-op.
-	result2, err := store.FinalizeStaleChatDebugRows(ctx, database.FinalizeStaleChatDebugRowsParams{
-		Now:           time.Now(),
-		UpdatedBefore: staleThreshold,
-	})
-	require.NoError(t, err)
-	assert.EqualValues(t, 0, result2.RunsFinalized,
-		"second sweep should find nothing to finalize")
-	assert.EqualValues(t, 0, result2.StepsFinalized,
-		"second sweep should find nothing to finalize")
-}
-
 func TestChatDebugSQLGuards(t *testing.T) {
 	t.Parallel()
 
@@ -19443,85 +19006,6 @@ func TestGetUnpricedAIModelsSince(t *testing.T) {
 	}, got)
 }
 
-func TestGetAIModelPriceByProviderModel(t *testing.T) {
-	t.Parallel()
-
-	const defaultSeed = `[{"provider":"anthropic","model":"model-a","input_price":1,"output_price":2,"cache_read_price":3,"cache_write_price":4}]`
-	const customSeed = `[{"provider":"anthropic","model":"model-a","input_price":5,"output_price":6,"cache_read_price":0,"cache_write_price":null}]`
-
-	defaultPrices := database.AIModelPrice{
-		InputPrice:      sql.NullInt64{Int64: 1, Valid: true},
-		OutputPrice:     sql.NullInt64{Int64: 2, Valid: true},
-		CacheReadPrice:  sql.NullInt64{Int64: 3, Valid: true},
-		CacheWritePrice: sql.NullInt64{Int64: 4, Valid: true},
-	}
-	customPrices := database.AIModelPrice{
-		InputPrice:      sql.NullInt64{Int64: 5, Valid: true},
-		OutputPrice:     sql.NullInt64{Int64: 6, Valid: true},
-		CacheReadPrice:  sql.NullInt64{Int64: 0, Valid: true},
-		CacheWritePrice: sql.NullInt64{},
-	}
-
-	tests := []struct {
-		name       string
-		seeds      []database.UpsertAIModelPricesParams
-		want       database.AIModelPrice
-		wantSource database.AIModelPriceSource
-	}{
-		{
-			name:       "DefaultOnly",
-			seeds:      []database.UpsertAIModelPricesParams{{Seed: []byte(defaultSeed), Source: database.AIModelPriceSourceDefault}},
-			want:       defaultPrices,
-			wantSource: database.AIModelPriceSourceDefault,
-		},
-		{
-			name:       "CustomOnly",
-			seeds:      []database.UpsertAIModelPricesParams{{Seed: []byte(customSeed), Source: database.AIModelPriceSourceCustom}},
-			want:       customPrices,
-			wantSource: database.AIModelPriceSourceCustom,
-		},
-		{
-			name: "CustomWinsOverDefault",
-			seeds: []database.UpsertAIModelPricesParams{
-				{Seed: []byte(defaultSeed), Source: database.AIModelPriceSourceDefault},
-				{Seed: []byte(customSeed), Source: database.AIModelPriceSourceCustom},
-			},
-			want:       customPrices,
-			wantSource: database.AIModelPriceSourceCustom,
-		},
-		{
-			name: "CustomWinsWhateverTheWriteOrder",
-			seeds: []database.UpsertAIModelPricesParams{
-				{Seed: []byte(customSeed), Source: database.AIModelPriceSourceCustom},
-				{Seed: []byte(defaultSeed), Source: database.AIModelPriceSourceDefault},
-			},
-			want:       customPrices,
-			wantSource: database.AIModelPriceSourceCustom,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitShort)
-			db, _ := dbtestutil.NewDB(t)
-			for _, seed := range tt.seeds {
-				require.NoError(t, db.UpsertAIModelPrices(ctx, seed))
-			}
-
-			got, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
-				Provider: "anthropic", Model: "model-a",
-			})
-			require.NoError(t, err)
-			require.Equal(t, tt.wantSource, got.Source)
-			require.Equal(t, tt.want.InputPrice, got.InputPrice)
-			require.Equal(t, tt.want.OutputPrice, got.OutputPrice)
-			require.Equal(t, tt.want.CacheReadPrice, got.CacheReadPrice)
-			require.Equal(t, tt.want.CacheWritePrice, got.CacheWritePrice)
-		})
-	}
-}
-
 func TestGetAIModelPrices(t *testing.T) {
 	t.Parallel()
 
@@ -19653,6 +19137,461 @@ func TestGetAIModelPrices(t *testing.T) {
 			}
 		})
 	}
+}
+
+// aiModelPriceSeed returns a one-element batch for a model price upsert, keyed
+// by keys and with only an input price set.
+func aiModelPriceSeed(t *testing.T, keys map[string]string, inputPrice int64) json.RawMessage {
+	t.Helper()
+	elem := map[string]any{
+		"input_price":       inputPrice,
+		"output_price":      nil,
+		"cache_read_price":  nil,
+		"cache_write_price": nil,
+	}
+	for k, v := range keys {
+		elem[k] = v
+	}
+	raw, err := json.Marshal([]any{elem})
+	require.NoError(t, err)
+	return raw
+}
+
+// upsertOrgProviderPrice sets an organization's price for a model on a
+// configured provider, with only an input price.
+func upsertOrgProviderPrice(ctx context.Context, t *testing.T, db database.Store, orgID, providerID uuid.UUID, model string, inputPrice int64) {
+	t.Helper()
+	require.NoError(t, db.UpsertOrganizationAIProviderModelConfig(ctx, database.UpsertOrganizationAIProviderModelConfigParams{
+		OrganizationID: orgID,
+		ProviderID:     providerID,
+		Model:          model,
+		InputPrice:     sql.NullInt64{Int64: inputPrice, Valid: true},
+	}))
+}
+
+func TestGetAIModelPriceForProvider(t *testing.T) {
+	t.Parallel()
+
+	const model = "model-a"
+
+	// Each kind of price carries its own input price, so the match is
+	// identifiable from the price alone.
+	const (
+		siteDefault      int64 = 1
+		siteCustom       int64 = 2
+		orgProvider      int64 = 3
+		otherOrgProvider int64 = 4
+	)
+
+	type kinds struct {
+		siteDefault, siteCustom, orgProvider, otherProvider bool
+	}
+	all := kinds{siteDefault: true, siteCustom: true, orgProvider: true}
+
+	tests := []struct {
+		name string
+		kinds
+		// noOrg looks the price up without organization context.
+		noOrg bool
+		// otherOrg looks the price up for an organization holding no prices.
+		otherOrg  bool
+		wantPrice int64
+		// wantNone expects no price to match.
+		wantNone bool
+	}{
+		{name: "SiteDefault", kinds: kinds{siteDefault: true}, wantPrice: siteDefault},
+		{name: "SiteCustomBeatsSiteDefault", kinds: kinds{siteDefault: true, siteCustom: true}, wantPrice: siteCustom},
+		{name: "OrgProviderBeatsAll", kinds: all, wantPrice: orgProvider},
+		{name: "OrgProviderWithoutSitePrice", kinds: kinds{orgProvider: true}, wantPrice: orgProvider},
+		{name: "NoOrgContextFallsBackToSite", kinds: all, noOrg: true, wantPrice: siteCustom},
+		{name: "OtherOrgFallsBackToSite", kinds: all, otherOrg: true, wantPrice: siteCustom},
+		// A price for another provider of the same type does not apply.
+		{name: "OtherProviderPriceDoesNotApply", kinds: kinds{siteDefault: true, otherProvider: true}, wantPrice: siteDefault},
+		{name: "NoPrice", kinds: kinds{otherProvider: true}, wantNone: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			db, _ := dbtestutil.NewDB(t)
+			org := dbgen.Organization(t, db, database.Organization{})
+			otherOrg := dbgen.Organization(t, db, database.Organization{})
+			provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+			otherProvider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+			providerType := string(provider.Type)
+
+			if tt.siteDefault {
+				require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+					Seed:   aiModelPriceSeed(t, map[string]string{"provider": providerType, "model": model}, siteDefault),
+					Source: database.AIModelPriceSourceDefault,
+				}))
+			}
+			if tt.siteCustom {
+				require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+					Seed:   aiModelPriceSeed(t, map[string]string{"provider": providerType, "model": model}, siteCustom),
+					Source: database.AIModelPriceSourceCustom,
+				}))
+			}
+			if tt.orgProvider {
+				upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, model, orgProvider)
+			}
+			if tt.otherProvider {
+				upsertOrgProviderPrice(ctx, t, db, org.ID, otherProvider.ID, model, otherOrgProvider)
+			}
+
+			orgID := uuid.NullUUID{UUID: org.ID, Valid: true}
+			switch {
+			case tt.noOrg:
+				orgID = uuid.NullUUID{}
+			case tt.otherOrg:
+				orgID = uuid.NullUUID{UUID: otherOrg.ID, Valid: true}
+			}
+
+			got, err := db.GetAIModelPriceForProvider(ctx, database.GetAIModelPriceForProviderParams{
+				ProviderType:   providerType,
+				Model:          model,
+				OrganizationID: orgID,
+				ProviderID:     provider.ID,
+			})
+			if tt.wantNone {
+				require.ErrorIs(t, err, sql.ErrNoRows)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantPrice, got.InputPrice.Int64)
+			require.Equal(t, model, got.Model)
+		})
+	}
+}
+
+// The requested model is preferred over the model reported by the provider
+// whatever the kind of price, and organization prices for the reported model
+// are still used when the requested model has none.
+func TestGetAIModelPriceForProviderProviderModel(t *testing.T) {
+	t.Parallel()
+
+	const (
+		requested = "model-alias"
+		reported  = "model-alias-20260101"
+	)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+	providerType := string(provider.Type)
+	lookup := database.GetAIModelPriceForProviderParams{
+		ProviderType:   providerType,
+		Model:          requested,
+		ProviderModel:  reported,
+		OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+		ProviderID:     provider.ID,
+	}
+
+	// Only the reported model is priced, by the organization for the provider.
+	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, reported, 4)
+	got, err := db.GetAIModelPriceForProvider(ctx, lookup)
+	require.NoError(t, err)
+	require.Equal(t, reported, got.Model)
+	require.Equal(t, int64(4), got.InputPrice.Int64)
+
+	// A price book price for the requested model beats the organization's
+	// price for the reported model.
+	require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+		Seed:   aiModelPriceSeed(t, map[string]string{"provider": providerType, "model": requested}, 1),
+		Source: database.AIModelPriceSourceDefault,
+	}))
+	got, err = db.GetAIModelPriceForProvider(ctx, lookup)
+	require.NoError(t, err)
+	require.Equal(t, requested, got.Model)
+	require.Equal(t, int64(1), got.InputPrice.Int64)
+}
+
+// An organization price is used as a whole, and an organization config that
+// sets no price falls back to the site-wide price.
+func TestGetAIModelPriceForProviderOrganizationConfig(t *testing.T) {
+	t.Parallel()
+
+	const model = "model-a"
+
+	setup := func(t *testing.T) (context.Context, database.Store, database.GetAIModelPriceForProviderParams) {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+
+		// The site-wide price sets all four prices.
+		seed, err := json.Marshal([]map[string]any{{
+			"provider":          string(provider.Type),
+			"model":             model,
+			"input_price":       1,
+			"output_price":      2,
+			"cache_read_price":  3,
+			"cache_write_price": 4,
+		}})
+		require.NoError(t, err)
+		require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+			Seed:   seed,
+			Source: database.AIModelPriceSourceCustom,
+		}))
+
+		return ctx, db, database.GetAIModelPriceForProviderParams{
+			ProviderType:   string(provider.Type),
+			Model:          model,
+			OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+			ProviderID:     provider.ID,
+		}
+	}
+
+	t.Run("PriceIsUsedWhole", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, lookup := setup(t)
+		upsertOrgProviderPrice(ctx, t, db, lookup.OrganizationID.UUID, lookup.ProviderID, model, 10)
+
+		got, err := db.GetAIModelPriceForProvider(ctx, lookup)
+		require.NoError(t, err)
+		require.Equal(t, sql.NullInt64{Int64: 10, Valid: true}, got.InputPrice)
+		require.False(t, got.OutputPrice.Valid)
+		require.False(t, got.CacheReadPrice.Valid)
+		require.False(t, got.CacheWritePrice.Valid)
+	})
+
+	t.Run("NoPricesFallsBackToSite", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, lookup := setup(t)
+		require.NoError(t, db.UpsertOrganizationAIProviderModelConfig(ctx, database.UpsertOrganizationAIProviderModelConfigParams{
+			OrganizationID: lookup.OrganizationID.UUID,
+			ProviderID:     lookup.ProviderID,
+			Model:          model,
+		}))
+
+		got, err := db.GetAIModelPriceForProvider(ctx, lookup)
+		require.NoError(t, err)
+		require.Equal(t, sql.NullInt64{Int64: 1, Valid: true}, got.InputPrice)
+		require.Equal(t, sql.NullInt64{Int64: 2, Valid: true}, got.OutputPrice)
+		require.Equal(t, sql.NullInt64{Int64: 3, Valid: true}, got.CacheReadPrice)
+		require.Equal(t, sql.NullInt64{Int64: 4, Valid: true}, got.CacheWritePrice)
+	})
+}
+
+func TestOrganizationAIModelPricesOpenAICompat(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	gateway := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeOpenaiCompat})
+	const model = "bedrock/claude-sonnet-4-5"
+
+	// A price for one gateway is matched.
+	upsertOrgProviderPrice(ctx, t, db, org.ID, gateway.ID, model, 7)
+	got, err := db.GetAIModelPriceForProvider(ctx, database.GetAIModelPriceForProviderParams{
+		ProviderType:   string(database.AIProviderTypeOpenaiCompat),
+		Model:          model,
+		OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+		ProviderID:     gateway.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(7), got.InputPrice.Int64)
+
+	// Without organization context the gateway's model stays unpriced.
+	_, err = db.GetAIModelPriceForProvider(ctx, database.GetAIModelPriceForProviderParams{
+		ProviderType: string(database.AIProviderTypeOpenaiCompat),
+		Model:        model,
+		ProviderID:   gateway.ID,
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
+func TestGetOrganizationAIProviderModelConfig(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+	otherProvider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+
+	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "model-a", 1)
+	upsertOrgProviderPrice(ctx, t, db, otherOrg.ID, provider.ID, "model-a", 2)
+	upsertOrgProviderPrice(ctx, t, db, org.ID, otherProvider.ID, "model-a", 3)
+	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "model-b", 4)
+
+	got, err := db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
+		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
+	})
+	require.NoError(t, err)
+	require.Equal(t, org.ID, got.OrganizationID)
+	require.Equal(t, provider.ID, got.ProviderID)
+	require.Equal(t, "model-a", got.Model)
+	require.Equal(t, sql.NullInt64{Int64: 1, Valid: true}, got.InputPrice)
+	require.False(t, got.OutputPrice.Valid)
+
+	_, err = db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
+		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-c",
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
+func TestUpsertOrganizationAIProviderModelConfig(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+
+	get := func(ctx context.Context, t *testing.T, model string) database.AIModelConfig {
+		t.Helper()
+		got, err := db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
+			OrganizationID: org.ID, ProviderID: provider.ID, Model: model,
+		})
+		require.NoError(t, err)
+		return got
+	}
+
+	t.Run("IdenticalPricesKeepUpdatedAt", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "identical", 1)
+		before := get(ctx, t, "identical")
+
+		upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "identical", 1)
+		require.Equal(t, before, get(ctx, t, "identical"))
+	})
+
+	t.Run("ChangedPricesAdvanceUpdatedAt", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "changed", 1)
+		before := get(ctx, t, "changed")
+
+		upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "changed", 2)
+		after := get(ctx, t, "changed")
+		require.Equal(t, int64(2), after.InputPrice.Int64)
+		require.Equal(t, before.CreatedAt, after.CreatedAt)
+		require.True(t, after.UpdatedAt.After(before.UpdatedAt), "updated_at must advance")
+	})
+
+	t.Run("EmptyModel", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := db.UpsertOrganizationAIProviderModelConfig(ctx, database.UpsertOrganizationAIProviderModelConfigParams{
+			OrganizationID: org.ID,
+			ProviderID:     provider.ID,
+			Model:          "",
+			InputPrice:     sql.NullInt64{Int64: 1, Valid: true},
+		})
+		require.True(t, database.IsCheckViolation(err, database.CheckAIModelConfigsModelCheck), "got %v", err)
+	})
+}
+
+func TestDeleteOrganizationAIProviderModelConfig(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+
+	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "model-a", 1)
+	upsertOrgProviderPrice(ctx, t, db, otherOrg.ID, provider.ID, "model-a", 2)
+	deletedRow, err := db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
+		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
+	})
+	require.NoError(t, err)
+
+	del := func(orgID uuid.UUID, model string) int64 {
+		t.Helper()
+		n, err := db.DeleteOrganizationAIProviderModelConfig(ctx, database.DeleteOrganizationAIProviderModelConfigParams{
+			OrganizationID: orgID, ProviderID: provider.ID, Model: model,
+		})
+		require.NoError(t, err)
+		return n
+	}
+
+	require.EqualValues(t, 1, del(org.ID, "model-a"))
+	_, err = db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
+		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	// The other organization's price for the same model is untouched.
+	_, err = db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
+		OrganizationID: otherOrg.ID, ProviderID: provider.ID, Model: "model-a",
+	})
+	require.NoError(t, err)
+
+	// Deleting a price that is already soft deleted matches nothing.
+	require.Zero(t, del(org.ID, "model-a"))
+
+	// readRow reads a row by ID, including soft-deleted rows, which the
+	// queries under test cannot see.
+	readRow := func(id uuid.UUID) (deleted bool, inputPrice int64) {
+		t.Helper()
+		require.NoError(t, sqlDB.QueryRowContext(ctx,
+			`SELECT deleted, input_price FROM ai_model_configs WHERE id = $1`, id,
+		).Scan(&deleted, &inputPrice))
+		return deleted, inputPrice
+	}
+	deleted, inputPrice := readRow(deletedRow.ID)
+	require.True(t, deleted, "the row must be kept and flagged as deleted")
+	require.EqualValues(t, 1, inputPrice)
+
+	// Setting the price again inserts a new live row and leaves the
+	// soft-deleted row untouched.
+	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "model-a", 5)
+	live, err := db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
+		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, deletedRow.ID, live.ID)
+	require.False(t, live.Deleted)
+	require.EqualValues(t, 5, live.InputPrice.Int64)
+	deleted, inputPrice = readRow(deletedRow.ID)
+	require.True(t, deleted)
+	require.EqualValues(t, 1, inputPrice)
+}
+
+// Deleting an organization price makes the lookup fall back to the site-wide
+// price, which the delete leaves in place.
+func TestGetAIModelPriceForProviderAfterDelete(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+
+	require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+		Seed:   aiModelPriceSeed(t, map[string]string{"provider": "anthropic", "model": "model-a"}, 1),
+		Source: database.AIModelPriceSourceDefault,
+	}))
+	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "model-a", 2)
+
+	lookup := func() int64 {
+		t.Helper()
+		got, err := db.GetAIModelPriceForProvider(ctx, database.GetAIModelPriceForProviderParams{
+			ProviderType:   "anthropic",
+			Model:          "model-a",
+			OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+			ProviderID:     provider.ID,
+		})
+		require.NoError(t, err)
+		return got.InputPrice.Int64
+	}
+	require.Equal(t, int64(2), lookup())
+
+	n, err := db.DeleteOrganizationAIProviderModelConfig(ctx, database.DeleteOrganizationAIProviderModelConfigParams{
+		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, n)
+	// The site-wide price is untouched.
+	require.Equal(t, int64(1), lookup())
 }
 
 func TestGetChatSiteConfigValue(t *testing.T) {

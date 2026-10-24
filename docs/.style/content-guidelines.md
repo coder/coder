@@ -1,3 +1,7 @@
+---
+review-personas: [accuracy, coverage, audience, structure]
+---
+
 # Coder docs content guidelines
 
 > [!NOTE]
@@ -13,7 +17,7 @@ When you have a candidate change for the docs, apply these rules in order:
 2. If the checklist routes the content away from the docs, find the correct home in the [routing table](#routing-table).
 3. If the content does belong in the docs, follow the [guiding principles](#guiding-principles), the [what belongs](#what-belongs-in-the-docs) catalog, and the [structural rules](#structural-rules).
 4. If you're still unsure, file a question in the DOCS project in Linear or tag `@vigilante` on a draft PR.
-   Don't guess.
+   Do not guess.
 
 ## Quick decision checklist
 
@@ -31,7 +35,7 @@ If any answer routes you away from the docs, refer to the [routing table](#routi
 5. Is it about contributing to the Coder codebase or writing style?
    **GitHub** (or public Notion), not docs.
 6. Is it already documented by a third-party vendor (Terraform, AWS, Azure, GCP, etc.)?
-   **Link to their docs**, don't duplicate.
+   **Link to their docs**, do not duplicate.
 7. Is it relevant only to a past or hypothetical future version?
    **Doesn't belong**; keep docs scoped to the version they describe.
 
@@ -64,6 +68,9 @@ Tutorials and how-to guides that include CLI commands (or chained commands) must
 
 *Why:* If we can run it, we can detect drift.
 Untestable claims rot silently.
+
+The same holds for claims about product behavior, such as a default, a limit, a file format, or an ordering.
+When no test pins the behavior a page describes, add one in the product, so the build fails before the page becomes false.
 
 ### Verify against the code; document exact values
 
@@ -122,7 +129,7 @@ Tying the docs bar to default visibility keeps backend-only plumbing PRs out of 
 Three corollaries:
 
 1. **Features that introduce or change behavior get documented in the PR that introduces or changes them.**
-   Don't merge a behavior change without the matching doc update.
+   Do not merge a behavior change without the matching doc update.
 2. **Features that are not yet confirmed to exist do not get documented.**
    No speculative docs for unmerged or uncommitted work.
 3. **Multi-PR launch exception.**
@@ -133,7 +140,7 @@ Three corollaries:
 ### Experiments versus feature stages
 
 Coder has two related but distinct concepts.
-Don't conflate them:
+Do not conflate them:
 
 - **Experiments** are the feature flagging system: the `--experiments` flag on `coder server` and the `CODER_EXPERIMENTS` environment variable.
   An experiment is either *safe* (ready for users to try) or *unsafe* (active development, not designed for users at all).
@@ -231,7 +238,7 @@ These govern *how* content enters the docs, for both humans and the doc-check ag
 
 - **Every new page must be added to the sidebar sources in `docs/manifest/`.**
   Pages not in the sidebar don't appear in navigation and effectively don't exist on [coder.com/docs](https://coder.com/docs).
-  Run `make gen/docs-manifest` to rebuild `docs/manifest.json` from the sources; don't edit the JSON directly.
+  Run `make gen/docs-manifest` to rebuild `docs/manifest.json` from the sources; do not edit the JSON directly.
 - **Never hand-edit auto-generated content.**
   Files under `docs/reference/cli/` are generated from Go code; changes go in the CLI definitions (typically under `cli/`), then regenerate.
   Generated sections are marked with `<!-- Code generated ... DO NOT EDIT -->`.
@@ -307,7 +314,7 @@ Each entry includes the destination and the reason.
 - **Timeless, predictive, or stale content.**
   Only content relevant to the specific version a doc applies to belongs in that doc.
 
-  *Why:* Don't predict the future; don't carry forward material that no longer applies.
+  *Why:* Do not predict the future; do not carry forward material that no longer applies.
   Version-scoped content is what keeps the docs trustworthy and drift-detectable.
   Refer to the multi-PR launch exception in [Documentation lands with the change](#documentation-lands-with-the-change).
 
