@@ -25,6 +25,7 @@ type UserOrGroupAutocompleteProps = {
 	className?: string;
 	/** Lets a `<label htmlFor>` name the trigger. */
 	id?: string;
+	clearable?: boolean;
 };
 
 const normalizeMember = (
@@ -36,7 +37,15 @@ const normalizeMember = (
 
 export const UserOrGroupAutocomplete: React.FC<
 	UserOrGroupAutocompleteProps
-> = ({ value, onChange, organizationId, exclude, className = "w-80", id }) => {
+> = ({
+	value,
+	onChange,
+	organizationId,
+	exclude,
+	className = "w-80",
+	id,
+	clearable,
+}) => {
 	const [inputValue, setInputValue] = useState("");
 	const [open, setOpen] = useState(false);
 
@@ -134,6 +143,7 @@ export const UserOrGroupAutocomplete: React.FC<
 			noOptionsText="No users or groups found"
 			className={className}
 			id={id ?? "workspace-user-or-group-autocomplete"}
+			clearable={clearable}
 		/>
 	);
 };
