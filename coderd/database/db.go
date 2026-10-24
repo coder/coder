@@ -87,6 +87,18 @@ type TxOptions struct {
 	// in metrics. Can be any string.
 	TxIdentifier string
 
+	// SerialMaxAttempts overrides the store's default number of attempts for
+	// serializable transactions that fail with a serialization error. Zero
+	// uses the default.
+	SerialMaxAttempts int
+	// BeforeSerialRetry, if set, is called between serializable attempts,
+	// after the failed transaction has been rolled back, with the number of
+	// attempts made so far. A non-nil error stops retrying and is returned.
+	//
+	// Both fields only apply to the outermost serializable InTx call. They are
+	// ignored inside an existing transaction, where the outer call owns retries.
+	BeforeSerialRetry func(attempt int) error
+
 	// Set by InTx
 	executionCount int
 }
@@ -159,9 +171,18 @@ func (q *sqlQuerier) InTx(function func(Store) error, txOpts *TxOptions) error {
 	// If we are in a transaction already, the parent InTx call will handle the retry.
 	// We do not want to duplicate those retries.
 	if !inTx && sqlOpts.Isolation == sql.LevelSerializable {
+		maxAttempts := q.serialRetryCount
+		if txOpts.SerialMaxAttempts > 0 {
+			maxAttempts = txOpts.SerialMaxAttempts
+		}
 		var err error
 		attempts := 0
-		for attempts = 0; attempts < q.serialRetryCount; attempts++ {
+		for attempts = 0; attempts < maxAttempts; attempts++ {
+			if attempts > 0 && txOpts.BeforeSerialRetry != nil {
+				if hookErr := txOpts.BeforeSerialRetry(attempts); hookErr != nil {
+					return xerrors.Errorf("transaction retry stopped after %d attempts: %w", attempts, hookErr)
+				}
+			}
 			txOpts.executionCount++
 			err = q.runTx(function, sqlOpts)
 			if err == nil {
