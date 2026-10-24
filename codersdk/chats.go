@@ -1330,10 +1330,6 @@ type AdvisorConfig struct {
 type UpdateAdvisorConfigRequest struct {
 	MaxUsesPerRun   int   `json:"max_uses_per_run"`
 	MaxOutputTokens int64 `json:"max_output_tokens"`
-	// Deprecated: moved to the organization model override endpoint.
-	DeprecatedModelConfigID *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
-	// Deprecated: moved to the organization model override endpoint.
-	DeprecatedReasoningEffort *string `json:"reasoning_effort,omitempty"`
 }
 
 // ChatComputerUseProvider identifies the provider that backs computer use for
