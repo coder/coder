@@ -27,13 +27,14 @@ beforeEach(() => {
 	vi.stubGlobal("cancelAnimationFrame", (handle: number) =>
 		window.clearTimeout(handle),
 	);
-	// jsdom has no Element.scrollTo.
+	// jsdom has no Element.scrollTo. The scroller only calls its options form.
 	Element.prototype.scrollTo = function (
 		this: Element,
-		optionsOrX?: ScrollToOptions | number,
+		options?: ScrollToOptions | number,
 	) {
-		this.scrollTop =
-			typeof optionsOrX === "number" ? optionsOrX : (optionsOrX?.top ?? 0);
+		if (typeof options === "object") {
+			this.scrollTop = options.top ?? 0;
+		}
 	};
 });
 
