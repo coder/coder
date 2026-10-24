@@ -620,7 +620,8 @@ func (s *taskStarter) runGenerationStep(
 	}
 	cleanup := prepared.Close
 	var decision generationDecision
-	if input.StopNudges.consume(stopNudgeKey(prepared.Messages)) {
+	stopNudged := input.StopNudges.consume(stopNudgeKey(prepared.Messages))
+	if stopNudged {
 		decision = generationDecision{kind: generationActionGenerateAssistant}
 	} else {
 		decision, err = retryGenerationPhase(ctx, s, "decide", func() (generationDecision, error) {
@@ -639,6 +640,14 @@ func (s *taskStarter) runGenerationStep(
 				compactionOtherTrigger:     generationCompactionOtherTrigger(prepared.Compaction),
 			})
 		})
+	}
+	// Not on the stop-hook path: it skips the decision, and the second
+	// pass would see a complete history (decisions do not see model-only
+	// rows) and end the turn.
+	if err == nil && !stopNudged && decision.kind == generationActionGenerateAssistant &&
+		prepared.ContextBudget != nil && prepared.ContextBudget.Nudge != nil {
+		cleanup()
+		return s.commitContextNudge(ctx, machine, input, *prepared.ContextBudget.Nudge)
 	}
 	if err != nil {
 		cleanup()
@@ -1173,6 +1182,14 @@ func (s *taskStarter) executeLocalTools(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
+	if prepared.ContextBudget != nil && newContextSucceeded(outcome.Content) {
+		// The tool results and the window boundary commit together.
+		boundary, err := s.buildContextWindowMessages(ctx, prepared, chatloop.CompactionSourceNewContext)
+		if err != nil {
+			return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+		}
+		messages.Messages = append(messages.Messages, boundary...)
+	}
 	var postCommitErr error
 	switch {
 	case spawnDispatchErr != nil:
@@ -1218,6 +1235,17 @@ func (s *taskStarter) generateCompaction(
 	defer attempt.closeEpisode()
 	if prepared.Compaction == nil {
 		return s.finishGenerationError(ctx, machine, input, xerrors.New("compaction action missing options"), requireGenerationAttempt(attempt.number))
+	}
+	// The new_window fallback starts a new context window with no summary
+	// model call. Manual /compact still summarizes.
+	if prepared.ContextBudget != nil &&
+		prepared.ContextBudget.Fallback == codersdk.ChatContextWindowFallbackNewWindow &&
+		source == chatloop.CompactionSourceAutomatic {
+		boundary, err := s.buildContextWindowMessages(ctx, prepared, chatloop.CompactionSourceContextLimit)
+		if err != nil {
+			return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+		}
+		return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionCompact, stepMessagesForCommit{Messages: boundary}, generationCommitHooks{})
 	}
 	compactionOpts := prepared.Compaction.Options
 	metricProvider, metricModel := compactionMetricIdentity(prepared.Compaction)

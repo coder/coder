@@ -7560,6 +7560,164 @@ func (q *sqlQuerier) UpsertChatUserModelOverride(ctx context.Context, arg Upsert
 	return err
 }
 
+const appendChatNote = `-- name: AppendChatNote :one
+INSERT INTO chat_notes (chat_id, path, content)
+VALUES ($1::uuid, $2::text, $3::text)
+ON CONFLICT (chat_id, path) DO UPDATE
+SET
+    content = CASE
+        WHEN chat_notes.content = '' THEN EXCLUDED.content
+        ELSE chat_notes.content || E'\n' || EXCLUDED.content
+    END,
+    updated_at = now()
+RETURNING chat_id, path, content, created_at, updated_at
+`
+
+type AppendChatNoteParams struct {
+	ChatID  uuid.UUID `db:"chat_id" json:"chat_id"`
+	Path    string    `db:"path" json:"path"`
+	Content string    `db:"content" json:"content"`
+}
+
+// AppendChatNote adds content as a new line at the end of a note, and
+// creates the note when it does not exist. The table check keeps the
+// 16 KiB cap.
+func (q *sqlQuerier) AppendChatNote(ctx context.Context, arg AppendChatNoteParams) (ChatNote, error) {
+	row := q.db.QueryRowContext(ctx, appendChatNote, arg.ChatID, arg.Path, arg.Content)
+	var i ChatNote
+	err := row.Scan(
+		&i.ChatID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const countChatNotes = `-- name: CountChatNotes :one
+SELECT COUNT(*)::bigint
+FROM chat_notes
+WHERE chat_id = $1::uuid
+`
+
+func (q *sqlQuerier) CountChatNotes(ctx context.Context, chatID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countChatNotes, chatID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const getChatNote = `-- name: GetChatNote :one
+SELECT chat_id, path, content, created_at, updated_at
+FROM chat_notes
+WHERE chat_id = $1::uuid AND path = $2::text
+`
+
+type GetChatNoteParams struct {
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+	Path   string    `db:"path" json:"path"`
+}
+
+func (q *sqlQuerier) GetChatNote(ctx context.Context, arg GetChatNoteParams) (ChatNote, error) {
+	row := q.db.QueryRowContext(ctx, getChatNote, arg.ChatID, arg.Path)
+	var i ChatNote
+	err := row.Scan(
+		&i.ChatID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getChatNotesChangedSince = `-- name: GetChatNotesChangedSince :one
+SELECT EXISTS (
+    SELECT 1
+    FROM chat_notes
+    WHERE chat_id = $1::uuid AND updated_at > $2::timestamptz
+)::boolean AS changed
+`
+
+type GetChatNotesChangedSinceParams struct {
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+	Since  time.Time `db:"since" json:"since"`
+}
+
+func (q *sqlQuerier) GetChatNotesChangedSince(ctx context.Context, arg GetChatNotesChangedSinceParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getChatNotesChangedSince, arg.ChatID, arg.Since)
+	var changed bool
+	err := row.Scan(&changed)
+	return changed, err
+}
+
+const listChatNotes = `-- name: ListChatNotes :many
+SELECT
+    path,
+    octet_length(content)::bigint AS bytes,
+    updated_at
+FROM chat_notes
+WHERE chat_id = $1::uuid
+ORDER BY path
+`
+
+type ListChatNotesRow struct {
+	Path      string    `db:"path" json:"path"`
+	Bytes     int64     `db:"bytes" json:"bytes"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) ListChatNotes(ctx context.Context, chatID uuid.UUID) ([]ListChatNotesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listChatNotes, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListChatNotesRow
+	for rows.Next() {
+		var i ListChatNotesRow
+		if err := rows.Scan(&i.Path, &i.Bytes, &i.UpdatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const upsertChatNote = `-- name: UpsertChatNote :one
+INSERT INTO chat_notes (chat_id, path, content)
+VALUES ($1::uuid, $2::text, $3::text)
+ON CONFLICT (chat_id, path) DO UPDATE
+SET content = EXCLUDED.content, updated_at = now()
+RETURNING chat_id, path, content, created_at, updated_at
+`
+
+type UpsertChatNoteParams struct {
+	ChatID  uuid.UUID `db:"chat_id" json:"chat_id"`
+	Path    string    `db:"path" json:"path"`
+	Content string    `db:"content" json:"content"`
+}
+
+func (q *sqlQuerier) UpsertChatNote(ctx context.Context, arg UpsertChatNoteParams) (ChatNote, error) {
+	row := q.db.QueryRowContext(ctx, upsertChatNote, arg.ChatID, arg.Path, arg.Content)
+	var i ChatNote
+	err := row.Scan(
+		&i.ChatID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getChatOrganizationSystemPrompt = `-- name: GetChatOrganizationSystemPrompt :one
 SELECT organization_id, system_prompt, created_at, updated_at
 FROM chat_organization_system_prompts
@@ -27993,6 +28151,21 @@ func (q *sqlQuerier) GetChatComputerUseProvider(ctx context.Context) (string, er
 	return provider, err
 }
 
+const getChatContextWindowConfig = `-- name: GetChatContextWindowConfig :one
+SELECT
+    COALESCE((SELECT value FROM site_configs WHERE key = 'agents_context_window_config'), '{}') :: text AS context_window_config
+`
+
+// GetChatContextWindowConfig returns the deployment-wide context window
+// configuration as a JSON blob. Callers unmarshal the result into
+// codersdk.ChatContextWindowConfig. Returns '{}' when unset.
+func (q *sqlQuerier) GetChatContextWindowConfig(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatContextWindowConfig)
+	var context_window_config string
+	err := row.Scan(&context_window_config)
+	return context_window_config, err
+}
+
 const getChatDebugLoggingAllowUsers = `-- name: GetChatDebugLoggingAllowUsers :one
 SELECT
 	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'agents_chat_debug_logging_allow_users'), false) :: boolean AS allow_users
@@ -28494,6 +28667,18 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_comp
 
 func (q *sqlQuerier) UpsertChatComputerUseProvider(ctx context.Context, provider string) error {
 	_, err := q.db.ExecContext(ctx, upsertChatComputerUseProvider, provider)
+	return err
+}
+
+const upsertChatContextWindowConfig = `-- name: UpsertChatContextWindowConfig :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_context_window_config', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_context_window_config'
+`
+
+// UpsertChatContextWindowConfig stores the deployment-wide context window
+// configuration. Callers marshal codersdk.ChatContextWindowConfig to JSON.
+func (q *sqlQuerier) UpsertChatContextWindowConfig(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertChatContextWindowConfig, value)
 	return err
 }
 

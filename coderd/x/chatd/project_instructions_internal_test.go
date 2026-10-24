@@ -12,14 +12,13 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 func newProjectTestServer(t *testing.T, db database.Store) *Server {
 	return &Server{
 		db:          db,
 		logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-		experiments: codersdk.ExperimentsKnown,
+		experiments: internalTestDefaultExperiments,
 	}
 }
 

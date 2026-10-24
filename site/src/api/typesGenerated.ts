@@ -2434,6 +2434,25 @@ export interface ChatContextTool {
 
 // From codersdk/chats.go
 /**
+ * ChatContextWindowConfig is the deployment-wide token-budget context
+ * window configuration.
+ *
+ * EXPERIMENTAL: this type is experimental and is subject to change.
+ */
+export interface ChatContextWindowConfig {
+	readonly fallback: ChatContextWindowFallback;
+}
+
+// From codersdk/chats.go
+export type ChatContextWindowFallback = "new_window" | "summary";
+
+export const ChatContextWindowFallbacks: ChatContextWindowFallback[] = [
+	"new_window",
+	"summary",
+];
+
+// From codersdk/chats.go
+/**
  * ChatCost is the AI Gateway cost for the requested chat's whole tree.
  * Root and subagent chats report the same total.
  * RequestCount counts every finished request in the tree, including ones that
@@ -5627,6 +5646,7 @@ export type Experiment =
 	| "chat-inline-mcp-servers"
 	| "chat-projects"
 	| "chat-stage-metrics"
+	| "chat-token-budget"
 	| "chat-virtual-desktop"
 	| "enable-ai-workspace-debug"
 	| "example"
@@ -5708,6 +5728,7 @@ export const Experiments: Experiment[] = [
 	"chat-inline-mcp-servers",
 	"chat-projects",
 	"chat-stage-metrics",
+	"chat-token-budget",
 	"chat-virtual-desktop",
 	"enable-ai-workspace-debug",
 	"example",
@@ -10764,6 +10785,17 @@ export interface UpdateChatAutoArchiveDaysRequest {
  */
 export interface UpdateChatComputerUseProviderRequest {
 	readonly provider: ChatComputerUseProvider;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatContextWindowConfigRequest is the request body for updating the
+ * context window configuration.
+ *
+ * EXPERIMENTAL: this type is experimental and is subject to change.
+ */
+export interface UpdateChatContextWindowConfigRequest {
+	readonly fallback: ChatContextWindowFallback;
 }
 
 // From codersdk/chats.go

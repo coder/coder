@@ -94,6 +94,12 @@ type CompactionSource string
 const (
 	CompactionSourceAutomatic CompactionSource = "automatic"
 	CompactionSourceManual    CompactionSource = "manual"
+	// CompactionSourceNewContext marks a window boundary the agent
+	// started with the new_context tool. It has no summary model call.
+	CompactionSourceNewContext CompactionSource = "new_context"
+	// CompactionSourceContextLimit marks a window boundary the server
+	// started at the forced point with the new_window fallback.
+	CompactionSourceContextLimit CompactionSource = "context_limit"
 )
 
 // CompactionResult is one generated summary. ThresholdPercent and

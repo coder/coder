@@ -160,6 +160,14 @@ func (m queryMetricsStore) AllUserIDs(ctx context.Context, includeSystem bool) (
 	return r0, r1
 }
 
+func (m queryMetricsStore) AppendChatNote(ctx context.Context, arg database.AppendChatNoteParams) (database.ChatNote, error) {
+	start := time.Now()
+	r0, r1 := m.s.AppendChatNote(ctx, arg)
+	m.queryLatencies.WithLabelValues("AppendChatNote").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AppendChatNote").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.ArchiveChatByID(ctx, id)
@@ -357,6 +365,14 @@ func (m queryMetricsStore) CountChatCapacityQueuedByPool(ctx context.Context, st
 	r0, r1 := m.s.CountChatCapacityQueuedByPool(ctx, staleSeconds)
 	m.queryLatencies.WithLabelValues("CountChatCapacityQueuedByPool").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountChatCapacityQueuedByPool").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) CountChatNotes(ctx context.Context, chatID uuid.UUID) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountChatNotes(ctx, chatID)
+	m.queryLatencies.WithLabelValues("CountChatNotes").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountChatNotes").Inc()
 	return r0, r1
 }
 
@@ -1584,6 +1600,14 @@ func (m queryMetricsStore) GetChatComputerUseProvider(ctx context.Context) (stri
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatContextWindowConfig(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatContextWindowConfig(ctx)
+	m.queryLatencies.WithLabelValues("GetChatContextWindowConfig").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatContextWindowConfig").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatDebugLoggingAllowUsers(ctx context.Context) (bool, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatDebugLoggingAllowUsers(ctx)
@@ -1829,6 +1853,22 @@ func (m queryMetricsStore) GetChatModelConfigsForTelemetry(ctx context.Context) 
 	r0, r1 := m.s.GetChatModelConfigsForTelemetry(ctx)
 	m.queryLatencies.WithLabelValues("GetChatModelConfigsForTelemetry").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatModelConfigsForTelemetry").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatNote(ctx context.Context, arg database.GetChatNoteParams) (database.ChatNote, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatNote(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatNote").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatNote").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatNotesChangedSince(ctx context.Context, arg database.GetChatNotesChangedSinceParams) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatNotesChangedSince(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatNotesChangedSince").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatNotesChangedSince").Inc()
 	return r0, r1
 }
 
@@ -5168,6 +5208,14 @@ func (m queryMetricsStore) ListChatContextResourcesByChatID(ctx context.Context,
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListChatNotes(ctx context.Context, chatID uuid.UUID) ([]database.ListChatNotesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListChatNotes(ctx, chatID)
+	m.queryLatencies.WithLabelValues("ListChatNotes").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListChatNotes").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListOrganizationAISpendUsers(ctx context.Context, arg database.ListOrganizationAISpendUsersParams) ([]database.ListOrganizationAISpendUsersRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListOrganizationAISpendUsers(ctx, arg)
@@ -6745,6 +6793,14 @@ func (m queryMetricsStore) UpsertChatComputerUseProvider(ctx context.Context, pr
 	return r0
 }
 
+func (m queryMetricsStore) UpsertChatContextWindowConfig(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertChatContextWindowConfig(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertChatContextWindowConfig").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatContextWindowConfig").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpsertChatDebugLoggingAllowUsers(ctx context.Context, allowUsers bool) error {
 	start := time.Now()
 	r0 := m.s.UpsertChatDebugLoggingAllowUsers(ctx, allowUsers)
@@ -6806,6 +6862,14 @@ func (m queryMetricsStore) UpsertChatMCPServer(ctx context.Context, arg database
 	r0, r1 := m.s.UpsertChatMCPServer(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertChatMCPServer").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatMCPServer").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpsertChatNote(ctx context.Context, arg database.UpsertChatNoteParams) (database.ChatNote, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertChatNote(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertChatNote").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatNote").Inc()
 	return r0, r1
 }
 

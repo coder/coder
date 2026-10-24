@@ -168,7 +168,7 @@ func TestHookDispatcherRequiresExperiment(t *testing.T) {
 	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
 		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
 		cfg.Experiments = slices.DeleteFunc(
-			slices.Clone(codersdk.ExperimentsKnown),
+			slices.Clone(testDefaultExperiments),
 			func(e codersdk.Experiment) bool { return e == codersdk.ExperimentAgentLifecycleHooks },
 		)
 	})

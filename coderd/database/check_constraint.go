@@ -32,6 +32,8 @@ const (
 	CheckChatModelConfigsContextLimitCheck                   CheckConstraint = "chat_model_configs_context_limit_check"                    // chat_model_configs
 	CheckChatModelConfigsGroupAclIsObject                    CheckConstraint = "chat_model_configs_group_acl_is_object"                    // chat_model_configs
 	CheckChatModelConfigsUserAclIsObject                     CheckConstraint = "chat_model_configs_user_acl_is_object"                     // chat_model_configs
+	CheckChatNotesContentCheck                               CheckConstraint = "chat_notes_content_check"                                  // chat_notes
+	CheckChatNotesPathCheck                                  CheckConstraint = "chat_notes_path_check"                                     // chat_notes
 	CheckChatOrganizationModelOverridesContextCheck          CheckConstraint = "chat_organization_model_overrides_context_check"           // chat_organization_model_overrides
 	CheckChatProjectInstructionsNotBlank                     CheckConstraint = "chat_project_instructions_not_blank"                       // chat_project_instructions
 	CheckChatProjectMemoriesBodyLength                       CheckConstraint = "chat_project_memories_body_length"                         // chat_project_memories
