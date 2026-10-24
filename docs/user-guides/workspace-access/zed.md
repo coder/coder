@@ -23,11 +23,11 @@ Use the Coder CLI to log in and configure SSH, then connect to your workspace wi
    curl -fsSL https://coder.com/install.sh | sh
    ```
 
-   Refer to [GitHub releases](https://github.com/coder/coder/releases) for alternate installation methods (e.g. standalone binaries, system packages).
+   For standalone binaries, system packages, and other installation methods, visit the [Coder downloads page](https://coder.com/downloads).
 
    ### Windows
 
-   Use [GitHub releases](https://github.com/coder/coder/releases) to download the Windows installer (`.msi`) or standalone binary (`.exe`).
+   Download the Windows installer (`.exe`) or standalone binary (`.zip`) from the [Coder downloads page](https://coder.com/downloads).
 
    ![Windows setup wizard](../../images/install/windows-installer.png)
 

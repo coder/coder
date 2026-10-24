@@ -57,7 +57,7 @@ brew install --cask coder/coder/coder-desktop
 
 #### Manual Installation
 
-1. Download the latest release from [coder-desktop-macos releases](https://github.com/coder/coder-desktop-macos/releases)
+1. Download the latest installer (`.pkg`) from the [Coder downloads page](https://coder.com/downloads)
 1. Run `Coder-Desktop.pkg` and follow the prompts to install
 1. `Coder Desktop.app` will be installed to your Applications folder
 
@@ -83,7 +83,7 @@ winget install Coder.CoderDesktop
 
 #### Manual Installation
 
-1. Download the latest `CoderDesktop` installer (`.exe`) from [coder-desktop-windows releases](https://github.com/coder/coder-desktop-windows/releases)
+1. Download the latest `CoderDesktop` installer (`.exe`) from the [Coder downloads page](https://coder.com/downloads)
 1. Choose the correct architecture (`x64` or `arm64`) for your system
 1. Run the installer and accept the license terms
 1. If prompted, install the .NET Windows Desktop Runtime

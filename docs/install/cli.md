@@ -6,7 +6,7 @@ A single CLI (`coder`) is used for both the control plane and the client.
 
 We support two release channels: mainline and stable - read the [Releases](../reference/releases.md) page to learn more about which best suits your team.
 
-## Download the latest release from GitHub
+## Download the latest release
 
 <div class="tabs">
 
@@ -18,7 +18,7 @@ Our install script is the fastest way to install Coder on Linux/macOS:
 curl -fsSL https://coder.com/install.sh | sh
 ```
 
-Refer to [GitHub releases](https://github.com/coder/coder/releases) for alternate installation methods (e.g. standalone binaries, system packages).
+For standalone binaries, system packages, and other installation methods, visit the [Coder downloads page](https://coder.com/downloads).
 
 To run the Coder control plane on a Red Hat Enterprise Linux host or another RHEL-family distribution, refer to [Install Coder on RHEL-family Linux](./server/rpm.md).
 
@@ -26,7 +26,7 @@ To run the Coder control plane on a Red Hat Enterprise Linux host or another RHE
 
 If you plan to use the built-in PostgreSQL database, ensure that the [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version) is installed.
 
-Use [GitHub releases](https://github.com/coder/coder/releases) to download the Windows installer (`.msi`) or standalone binary (`.exe`).
+Download the Windows installer (`.exe`) or standalone binary (`.zip`) from the [Coder downloads page](https://coder.com/downloads).
 
 ![Windows setup wizard](../images/install/windows-installer.png)
 
