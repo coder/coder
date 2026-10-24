@@ -203,6 +203,44 @@ func requestHasSystemSubstring(req recordedOpenAIRequest, want string) bool {
 	return false
 }
 
+func requestHasUserMessage(req recordedOpenAIRequest, want string) bool {
+	want = strings.TrimSpace(want)
+	for _, msg := range req.Messages {
+		if msg.Role == "user" && strings.TrimSpace(msg.Content) == want {
+			return true
+		}
+	}
+	return false
+}
+
+func splitSubagentRequests(requests []recordedOpenAIRequest, childPrompt string) (root, child []recordedOpenAIRequest) {
+	for _, request := range requests {
+		if requestHasUserMessage(request, childPrompt) {
+			child = append(child, request)
+			continue
+		}
+		root = append(root, request)
+	}
+	return root, child
+}
+
+func requireRequestToolPolicy(
+	t *testing.T,
+	requests []recordedOpenAIRequest,
+	required []string,
+	forbidden []string,
+) {
+	t.Helper()
+	for i, request := range requests {
+		for _, tool := range required {
+			require.Contains(t, request.Tools, tool, "request %d should include tool %q", i, tool)
+		}
+		for _, tool := range forbidden {
+			require.NotContains(t, request.Tools, tool, "request %d should exclude tool %q", i, tool)
+		}
+	}
+}
+
 func newWorkspaceToolTestServer(
 	t *testing.T,
 	db database.Store,
@@ -239,7 +277,7 @@ func newWorkspaceToolTestServer(
 	return newActiveTestServer(t, db, ps, configOverrides...)
 }
 
-func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
+func TestGeneralSubagentToolAndPromptPolicy(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -261,30 +299,24 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-	// Track tools sent in LLM requests. The first call is for the
-	// root chat which spawns a subagent; the second call is for the
-	// subagent itself.
-	var toolsMu sync.Mutex
-	toolsByCall := make([][]string, 0, 2)
+	var requestsMu sync.Mutex
+	requestsByCall := make([]recordedOpenAIRequest, 0, 3)
 
+	const childPrompt = "do the thing"
 	var callCount atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("ok")
 		}
 
-		names := make([]string, 0, len(req.Tools))
-		for _, tool := range req.Tools {
-			names = append(names, tool.Function.Name)
-		}
-		toolsMu.Lock()
-		toolsByCall = append(toolsByCall, names)
-		toolsMu.Unlock()
+		requestsMu.Lock()
+		requestsByCall = append(requestsByCall, recordOpenAIRequest(req))
+		requestsMu.Unlock()
 
 		if callCount.Add(1) == 1 {
 			// Root chat: model calls spawn_agent.
 			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk("spawn_agent", `{"type":"general","prompt":"do the thing","title":"sub"}`),
+				chattest.OpenAIToolCallChunk("spawn_agent", fmt.Sprintf(`{"type":"general","prompt":%q,"title":"sub"}`, childPrompt)),
 			)
 		}
 		// Subsequent calls (including the subagent): just reply.
@@ -323,75 +355,41 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 		if got.Status != codersdk.ChatStatusWaiting && got.Status != codersdk.ChatStatusError {
 			return false
 		}
-		// Also ensure the subagent LLM call has been made.
-		toolsMu.Lock()
-		n := len(toolsByCall)
-		toolsMu.Unlock()
-		// Expect at least 3 calls: root-1 (spawn_agent), child-1, root-2.
-		return n >= 3
+		requestsMu.Lock()
+		defer requestsMu.Unlock()
+		rootRequests, childRequests := splitSubagentRequests(requestsByCall, childPrompt)
+		return len(rootRequests) > 0 && len(childRequests) > 0
 	}, testutil.WaitLong, testutil.IntervalFast)
 
-	// There should be at least two streamed calls: one for the root
-	// chat and one for the subagent child chat.
-	toolsMu.Lock()
-	recorded := append([][]string(nil), toolsByCall...)
-	toolsMu.Unlock()
+	requestsMu.Lock()
+	recordedRequests := append([]recordedOpenAIRequest(nil), requestsByCall...)
+	requestsMu.Unlock()
 
-	require.GreaterOrEqual(t, len(recorded), 2,
-		"expected at least 2 streamed LLM calls (root + subagent)")
+	rootRequests, childRequests := splitSubagentRequests(recordedRequests, childPrompt)
+	require.NotEmpty(t, rootRequests, "expected at least one root chat LLM call")
+	require.NotEmpty(t, childRequests, "expected at least one subagent LLM call")
 
 	workspaceTools := []string{
 		"list_templates", "read_template", "create_workspace",
 		"start_workspace", "stop_workspace",
 	}
-	subagentTools := []string{"spawn_agent", "wait_agent", "message_agent", "interrupt_agent", "list_agents"}
-
-	// Identify root and subagent calls. Root chat calls include
-	// spawn_agent; the subagent call does not. Because the root chat
-	// makes multiple LLM calls (before and after spawn_agent), we
-	// find exactly one call that lacks spawn_agent. That's the
-	// subagent.
-	var rootCalls, childCalls [][]string
-	for _, tools := range recorded {
-		hasSpawnAgent := slice.Contains(tools, "spawn_agent")
-		if hasSpawnAgent {
-			rootCalls = append(rootCalls, tools)
-		} else {
-			childCalls = append(childCalls, tools)
-		}
+	rootOrchestrationTools := []string{
+		"spawn_agent", "list_subagent_models", "wait_agent", "message_agent",
+		"queue_agent_work", "interrupt_agent", "list_agents",
 	}
-
-	require.NotEmpty(t, rootCalls, "expected at least one root chat LLM call")
-	require.NotEmpty(t, childCalls, "expected at least one subagent LLM call")
-
-	// Root chat calls must include workspace and subagent tools.
-	for _, tool := range workspaceTools {
-		require.Contains(t, rootCalls[0], tool,
-			"root chat should have workspace tool %q", tool)
+	requireRequestToolPolicy(t, rootRequests,
+		append(append([]string{}, workspaceTools...), rootOrchestrationTools...),
+		[]string{"ask_user_question", "propose_plan"},
+	)
+	requireRequestToolPolicy(t, childRequests,
+		[]string{"message_agent"},
+		append(append([]string{}, workspaceTools...),
+			"spawn_agent", "list_subagent_models", "wait_agent", "queue_agent_work", "interrupt_agent", "list_agents", "ask_user_question"),
+	)
+	for _, request := range childRequests {
+		require.True(t, requestHasSystemSubstring(request, "Use message_agent to contact the parent when you are blocked and need a decision"))
+		require.True(t, requestHasSystemSubstring(request, "Do not use it for routine progress updates"))
 	}
-	for _, tool := range subagentTools {
-		require.Contains(t, rootCalls[0], tool,
-			"root chat should have subagent tool %q", tool)
-	}
-
-	// Standard turns (no turn mode) hide plan-only tools until
-	// plan mode.
-	require.NotContains(t, rootCalls[0], "ask_user_question",
-		"standard-turn root chat should NOT have ask_user_question")
-	require.NotContains(t, rootCalls[0], "propose_plan",
-		"standard-turn root chat should NOT have propose_plan")
-
-	// Subagent calls must NOT include workspace or subagent tools.
-	for _, tool := range workspaceTools {
-		require.NotContains(t, childCalls[0], tool,
-			"subagent chat should NOT have workspace tool %q", tool)
-	}
-	for _, tool := range subagentTools {
-		require.NotContains(t, childCalls[0], tool,
-			"subagent chat should NOT have subagent tool %q", tool)
-	}
-	require.NotContains(t, childCalls[0], "ask_user_question",
-		"subagent chat should NOT have ask_user_question")
 }
 
 // TestArchiveStateRejectsChildChat verifies that Server.ArchiveChat and
@@ -10684,14 +10682,15 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 				"provisioning tool %q", tool)
 	}
 
-	// 5. Verify subagent tools are NOT present.
-	subagentTools := []string{
-		"spawn_agent",
-		"wait_agent", "message_agent", "interrupt_agent", "list_agents",
+	// 5. Verify only message_agent is present from the orchestration tools.
+	require.Contains(t, childTools, "message_agent",
+		"computer use subagent should have message_agent for parent communication")
+	excludedSubagentTools := []string{
+		"spawn_agent", "list_subagent_models", "wait_agent", "queue_agent_work", "interrupt_agent", "list_agents",
 	}
-	for _, tool := range subagentTools {
+	for _, tool := range excludedSubagentTools {
 		require.NotContains(t, childTools, tool,
-			"computer use subagent should NOT have subagent "+
+			"computer use subagent should NOT have orchestration "+
 				"tool %q", tool)
 	}
 

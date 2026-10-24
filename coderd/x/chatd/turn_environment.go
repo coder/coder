@@ -780,6 +780,8 @@ func (p *Server) buildTurnEnvironment(
 		if err != nil {
 			return turnEnvironment{}, err
 		}
+	} else {
+		tools = append(tools, p.childMessageAgentTool(chat))
 	}
 
 	skillOpts := chattool.ReadSkillOptions{
@@ -880,7 +882,7 @@ func (p *Server) buildTurnEnvironment(
 	// children also drop the tools their allowlist blocks.
 	if isExploreSubagent && !isRootChat {
 		tools = slices.DeleteFunc(tools, func(tool fantasy.AgentTool) bool {
-			return !exploreToolAllowed(tool)
+			return !exploreToolAllowed(tool, true)
 		})
 	}
 
@@ -935,7 +937,7 @@ func (p *Server) buildTurnEnvironment(
 
 	activeToolNames := activeToolNamesForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 	if isExploreSubagent {
-		activeToolNames = allowedExploreToolNames(tools)
+		activeToolNames = allowedExploreToolNames(tools, chat.ParentChatID.Valid)
 	}
 	var allowInactiveTools map[string]bool
 	// The owner is the subject: only the owner posts turns and descendant
@@ -2056,7 +2058,9 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 		"ask_user_question", "attach_file",
 		chattool.ReadMemoryToolName, chattool.SaveMemoryToolName, chattool.DeleteMemoryToolName, chattool.ConsolidateMemoryToolName:
 		return isRootChat
-	case "process_list", "process_signal", "message_agent", "interrupt_agent", "close_agent",
+	case "message_agent":
+		return !isRootChat
+	case "process_list", "process_signal", "queue_agent_work", "interrupt_agent", "close_agent",
 		"spawn_computer_use_agent":
 		return false
 	default:
@@ -2118,10 +2122,12 @@ func activeToolNamesForTurn(
 	return toolNames
 }
 
-func exploreToolAllowed(tool fantasy.AgentTool) bool {
+func exploreToolAllowed(tool fantasy.AgentTool, allowParentMessage bool) bool {
 	switch tool.Info().Name {
 	case "read_file", "execute", "process_output", "read_skill", "read_skill_file":
 		return true
+	case "message_agent":
+		return allowParentMessage
 	}
 	// Org tools use the spawn-time snapshot; inline tools require
 	// allow_in_subagents. Internal servers decide access in ServerForChat.
@@ -2130,10 +2136,10 @@ func exploreToolAllowed(tool fantasy.AgentTool) bool {
 	return ok
 }
 
-func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
+func allowedExploreToolNames(allTools []fantasy.AgentTool, allowParentMessage bool) []string {
 	toolNames := make([]string, 0, len(allTools))
 	for _, tool := range allTools {
-		if exploreToolAllowed(tool) {
+		if exploreToolAllowed(tool, allowParentMessage) {
 			toolNames = append(toolNames, tool.Info().Name)
 		}
 	}

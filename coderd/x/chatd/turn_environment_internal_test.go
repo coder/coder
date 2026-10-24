@@ -787,6 +787,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		planRootOverlay  = "You are in Plan Mode."
 		planChildOverlay = "You are in Plan Mode as a delegated sub-agent."
 		proposePlan      = "When the plan is ready, call propose_plan"
+		childMessage     = "Use message_agent to contact the parent when you are blocked and need a decision"
 	)
 	tests := []struct {
 		name     string
@@ -822,17 +823,21 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 				"write_file", "edit_files", "execute", "process_output", "ask_user_question", "spawn_agent",
 				"approved__echo", "filtered__visible", "inline__echo",
 			},
-			dontWant: []string{"blocked__echo", "filtered__hidden", "forced__echo", "workspace__echo", "web_search"},
+			dontWant: []string{
+				"blocked__echo", "filtered__hidden", "forced__echo", "workspace__echo", "web_search",
+				"message_agent", "queue_agent_work", "interrupt_agent",
+			},
 		},
 		{
 			name:     "PlanChild",
 			planMode: plan,
 			child:    true,
-			prompt:   []string{planChildOverlay},
-			want:     []string{"read_file", "execute", "process_output"},
+			prompt:   []string{planChildOverlay, childMessage},
+			want:     []string{"read_file", "execute", "process_output", "message_agent"},
 			dontWant: []string{
 				"write_file", "edit_files", "ask_user_question", "approved__echo", "inline__echo",
-				"workspace__echo", "web_search",
+				"workspace__echo", "web_search", "spawn_agent", "wait_agent", "queue_agent_work",
+				"interrupt_agent", "list_agents",
 			},
 		},
 		{
@@ -842,21 +847,21 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			want:   []string{"read_file", "execute", "process_output"},
 			dontWant: []string{
 				"write_file", "edit_files", "approved__echo", "blocked__echo", "forced__echo", "inline__echo",
-				"workspace__echo", "web_search",
+				"workspace__echo", "web_search", "message_agent",
 			},
 		},
 		{
 			name:   "ExploreChild",
 			mode:   explore,
 			child:  true,
-			prompt: []string{exploreOverlay},
+			prompt: []string{exploreOverlay, childMessage},
 			want: []string{
 				"read_file", "execute", "process_output", "approved__echo", "blocked__echo", "filtered__visible",
-				"web_search",
+				"web_search", "message_agent",
 			},
 			dontWant: []string{
 				"write_file", "edit_files", "spawn_agent", "wait_agent", "unselected__echo", "forced__echo",
-				"inline__echo", "workspace__echo",
+				"inline__echo", "workspace__echo", "queue_agent_work", "interrupt_agent", "list_agents",
 			},
 		},
 		{
@@ -864,7 +869,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			mode:       explore,
 			child:      true,
 			replaceMCP: true,
-			prompt:     []string{exploreOverlay},
+			prompt:     []string{exploreOverlay, childMessage},
 			want:       []string{"approved__echo", "blocked__echo", "filtered__visible"},
 			dontWant:   []string{"unselected__echo"},
 		},
@@ -970,7 +975,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 					}
 				}
 			}
-			for _, instruction := range []string{exploreOverlay, planRootOverlay, planChildOverlay, proposePlan} {
+			for _, instruction := range []string{exploreOverlay, planRootOverlay, planChildOverlay, proposePlan, childMessage} {
 				require.Equal(t, slices.Contains(tt.prompt, instruction), strings.Contains(system.String(), instruction), instruction)
 			}
 
