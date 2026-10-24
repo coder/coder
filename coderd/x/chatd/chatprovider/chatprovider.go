@@ -180,16 +180,6 @@ type ProviderAPIKeys struct {
 	Anthropic         string
 	ByProvider        map[string]string
 	BaseURLByProvider map[string]string
-	RegionByProvider  map[string]string
-}
-
-// Empty reports whether no provider keys or base URL overrides are set.
-func (k ProviderAPIKeys) Empty() bool {
-	return k.OpenAI == "" &&
-		k.Anthropic == "" &&
-		len(k.ByProvider) == 0 &&
-		len(k.BaseURLByProvider) == 0 &&
-		len(k.RegionByProvider) == 0
 }
 
 // UserProviderKey is a user-supplied API key for a specific provider.
@@ -211,7 +201,6 @@ type ConfiguredProvider struct {
 	Provider                   string
 	APIKey                     string
 	BaseURL                    string
-	Region                     string
 	CentralAPIKeyEnabled       bool
 	AllowUserAPIKey            bool
 	AllowCentralAPIKeyFallback bool
@@ -263,36 +252,8 @@ func (k ProviderAPIKeys) BaseURL(provider string) string {
 	return strings.TrimSpace(k.BaseURLByProvider[normalized])
 }
 
-// Region returns the configured region for a provider.
-func (k ProviderAPIKeys) Region(provider string) string {
-	normalized := NormalizeProvider(provider)
-	if normalized == "" || k.RegionByProvider == nil {
-		return ""
-	}
-	return strings.TrimSpace(k.RegionByProvider[normalized])
-}
-
-// setRegion records a normalized, non-empty region for a provider. The
-// RegionByProvider map is allocated lazily so an unused set stays nil, which
-// keeps Empty() and value comparisons stable.
-func (k *ProviderAPIKeys) setRegion(provider, region string) {
-	if provider == "" {
-		return
-	}
-	if region = strings.TrimSpace(region); region == "" {
-		return
-	}
-	if k.RegionByProvider == nil {
-		k.RegionByProvider = map[string]string{}
-	}
-	k.RegionByProvider[provider] = region
-}
-
-// mergedFromFallback seeds a ProviderAPIKeys from a fallback set, normalizing
-// provider names and dropping blank values. ByProvider and BaseURLByProvider
-// are always non-nil; RegionByProvider stays nil until a region is set. The
-// legacy OpenAI/Anthropic keys are mirrored into ByProvider so callers can
-// look them up by provider name.
+// mergedFromFallback keeps both maps non-nil so callers can add providers and
+// mirrors legacy OpenAI/Anthropic keys into ByProvider for provider-name lookups.
 func mergedFromFallback(fallback ProviderAPIKeys) ProviderAPIKeys {
 	merged := ProviderAPIKeys{
 		OpenAI:            strings.TrimSpace(fallback.OpenAI),
@@ -313,9 +274,6 @@ func mergedFromFallback(fallback ProviderAPIKeys) ProviderAPIKeys {
 				merged.BaseURLByProvider[normalized] = url
 			}
 		}
-	}
-	for provider, region := range fallback.RegionByProvider {
-		merged.setRegion(NormalizeProvider(provider), region)
 	}
 	if merged.OpenAI != "" {
 		merged.ByProvider[fantasyopenai.Name] = merged.OpenAI
@@ -357,7 +315,6 @@ func ResolveUserProviderKeys(
 		if url := strings.TrimSpace(provider.BaseURL); url != "" {
 			merged.BaseURLByProvider[normalizedProvider] = url
 		}
-		merged.setRegion(normalizedProvider, provider.Region)
 
 		var userKey string
 		if provider.ProviderID != uuid.Nil {
@@ -438,11 +395,8 @@ func setResolvedProviderAPIKey(keys *ProviderAPIKeys, provider string, apiKey st
 	}
 }
 
-// PruneDisabledProviderKeys removes entries from keys that do not
-// belong to an enabled provider. It clears ByProvider,
-// BaseURLByProvider, and RegionByProvider entries for disabled
-// providers and zeroes the legacy OpenAI and Anthropic fields when
-// those providers are not enabled.
+// PruneDisabledProviderKeys removes keys and base URLs for disabled providers,
+// including the legacy OpenAI and Anthropic key fields.
 func PruneDisabledProviderKeys(keys *ProviderAPIKeys, enabledProviders map[string]struct{}) {
 	for provider := range keys.ByProvider {
 		if _, ok := enabledProviders[provider]; ok {
@@ -455,12 +409,6 @@ func PruneDisabledProviderKeys(keys *ProviderAPIKeys, enabledProviders map[strin
 			continue
 		}
 		delete(keys.BaseURLByProvider, provider)
-	}
-	for provider := range keys.RegionByProvider {
-		if _, ok := enabledProviders[provider]; ok {
-			continue
-		}
-		delete(keys.RegionByProvider, provider)
 	}
 	if _, ok := enabledProviders[NormalizeProvider("openai")]; !ok {
 		keys.OpenAI = ""
@@ -776,38 +724,6 @@ func ModelFromConfig(
 			options = append(options, fantasyanthropic.WithHTTPClient(httpClient))
 		}
 		providerClient, err = fantasyanthropic.New(options...)
-	case fantasyazure.Name:
-		if baseURL == "" {
-			return Model{}, xerrors.New("AZURE_OPENAI_BASE_URL is not set")
-		}
-		azureOpts := []fantasyazure.Option{
-			fantasyazure.WithAPIKey(apiKey),
-			fantasyazure.WithBaseURL(baseURL),
-			fantasyazure.WithUseResponsesAPI(),
-			fantasyazure.WithUserAgent(userAgent),
-		}
-		if len(extraHeaders) > 0 {
-			azureOpts = append(azureOpts, fantasyazure.WithHeaders(extraHeaders))
-		}
-		if httpClient != nil {
-			azureOpts = append(azureOpts, fantasyazure.WithHTTPClient(httpClient))
-		}
-		providerClient, err = fantasyazure.New(azureOpts...)
-	case fantasygoogle.Name:
-		options := []fantasygoogle.Option{
-			fantasygoogle.WithGeminiAPIKey(apiKey),
-			fantasygoogle.WithUserAgent(userAgent),
-		}
-		if len(extraHeaders) > 0 {
-			options = append(options, fantasygoogle.WithHeaders(extraHeaders))
-		}
-		if baseURL != "" {
-			options = append(options, fantasygoogle.WithBaseURL(baseURL))
-		}
-		if httpClient != nil {
-			options = append(options, fantasygoogle.WithHTTPClient(httpClient))
-		}
-		providerClient, err = fantasygoogle.New(options...)
 	case fantasyopenai.Name:
 		// Resolved once here so a later mutation of the config cannot move
 		// the client off the transport NewModel records.
@@ -853,33 +769,6 @@ func ModelFromConfig(
 			options = append(options, fantasyopenaicompat.WithHTTPClient(httpClient))
 		}
 		providerClient, err = fantasyopenaicompat.New(options...)
-	case fantasyopenrouter.Name:
-		routerOpts := []fantasyopenrouter.Option{
-			fantasyopenrouter.WithAPIKey(apiKey),
-			fantasyopenrouter.WithUserAgent(userAgent),
-		}
-		if len(extraHeaders) > 0 {
-			routerOpts = append(routerOpts, fantasyopenrouter.WithHeaders(extraHeaders))
-		}
-		if httpClient != nil {
-			routerOpts = append(routerOpts, fantasyopenrouter.WithHTTPClient(httpClient))
-		}
-		providerClient, err = fantasyopenrouter.New(routerOpts...)
-	case fantasyvercel.Name:
-		options := []fantasyvercel.Option{
-			fantasyvercel.WithAPIKey(apiKey),
-			fantasyvercel.WithUserAgent(userAgent),
-		}
-		if len(extraHeaders) > 0 {
-			options = append(options, fantasyvercel.WithHeaders(extraHeaders))
-		}
-		if baseURL != "" {
-			options = append(options, fantasyvercel.WithBaseURL(baseURL))
-		}
-		if httpClient != nil {
-			options = append(options, fantasyvercel.WithHTTPClient(httpClient))
-		}
-		providerClient, err = fantasyvercel.New(options...)
 	default:
 		return Model{}, xerrors.Errorf("unsupported model provider %q", provider)
 	}
@@ -898,18 +787,10 @@ func missingProviderAPIKeyError(provider string) error {
 	switch provider {
 	case fantasyanthropic.Name:
 		return xerrors.New("ANTHROPIC_API_KEY is not set")
-	case fantasyazure.Name:
-		return xerrors.New("AZURE_OPENAI_API_KEY is not set")
-	case fantasygoogle.Name:
-		return xerrors.New("GOOGLE_API_KEY is not set")
 	case fantasyopenai.Name:
 		return xerrors.New("OPENAI_API_KEY is not set")
 	case fantasyopenaicompat.Name:
 		return xerrors.New("OPENAI_COMPAT_API_KEY is not set")
-	case fantasyopenrouter.Name:
-		return xerrors.New("OPENROUTER_API_KEY is not set")
-	case fantasyvercel.Name:
-		return xerrors.New("VERCEL_API_KEY is not set")
 	default:
 		return xerrors.Errorf("API key for provider %q is not set", provider)
 	}
