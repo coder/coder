@@ -64,11 +64,12 @@ Excluded and oversize resources still appear in the chat's context list with the
 ## Skills
 
 Skills are structured, reusable instruction sets that the agent loads on demand.
-A chat can use skills from three sources:
+A chat can use skills from four sources:
 
 - Workspace skills live in the workspace filesystem and are discovered automatically when a chat attaches to a workspace.
 - [Personal skills](#personal-skills) belong to you and are available to all of your chats.
 - [Organization skills](#organization-skills) belong to an organization and are available to the chats in that organization.
+- [Project skills](#project-skills) belong to a chat project and are available to the chats in that project.
 
 The rest of this section describes workspace skills.
 
@@ -237,22 +238,45 @@ To save all of the listed skills of the selected organization in one archive, se
 This section is read-only.
 Ask an organization admin to change an organization skill.
 
+## Project skills
+
+Project skills let the people who work in a chat project share skills with every chat in that project.
+Chats outside the project never receive them.
+Chat projects are experimental and require the `chat-projects` experiment.
+
+Project skills use the same single-file `SKILL.md` format and the same 64&nbsp;KB limit as personal skills, so they cannot include supporting files.
+Each project can have up to 100 skills, and skills that are turned off count toward that limit.
+
+Anyone who can edit a project can add, change, turn on or off, and delete its skills.
+To manage them, open the project page and select the **Skills** row in the **Details** panel.
+A chat in the project can use the project's skills while the chat owner owns the project or the project is shared with them, the same rule as for project instructions and memory.
+An administrator role that can view every project does not count.
+A sub-agent chat uses the skills of the project its top-level chat belongs to.
+
+**Show as action** adds a button that inserts the skill into your message, above the composer on the project page and in the project's chats.
+Turn off **Agents can use it automatically** to keep agents from loading the skill on their own, so it runs only when someone invokes it from the `/` menu or an action button.
+
+The project skill API lives under `/api/experimental/organizations/{organization}/chats/projects/{project}/skills`.
+It is experimental and might change.
+
 ## How chats load stored skills
 
-Personal and organization skills are stored in Coder, not in the workspace.
+Personal, organization, and project skills are stored in Coder, not in the workspace.
 At each step, a chat loads the personal skills of the chat owner that are turned on, and the organization skills of the chat's organization that are turned on and that the chat owner can use.
+A chat in a project also loads the project's skills that are turned on, as long as the chat owner owns the project or the project is shared with them.
 Workspace skills come from the chat's pinned context snapshot.
 
 Because stored skills are read again at each step, a change takes effect on the chat's next step.
 For example, when an administrator turns off an organization skill or removes someone's access, the chat stops listing that skill on its next step.
 
-The `/` menu in the chat composer lists skills in three groups: **Personal skills**, **Organization skills**, and **Workspace skills**.
+The `/` menu in the chat composer lists skills in four groups: **Personal skills**, **Organization skills**, **Project skills**, and **Workspace skills**.
+The **Project skills** group appears only in chats that belong to a project.
 The **Organization skills** group shows the skills of the chat's organization that are turned on and that you can use.
 For site owners, organization admins, and auditors, the group lists every organization skill that is turned on.
 
 ### Turn a skill on or off
 
-Personal and organization skills each have an **Enabled** column in their skills table.
+Personal, organization, and project skills each have an **Enabled** column in their skills table.
 If you can edit the skill, the column shows a switch that turns the skill on or off.
 Otherwise, the column shows a check mark for a skill that is turned on and an X for a skill that is turned off.
 For example, auditors on the **Skills** admin page and everyone in the **From your organizations** section see these icons instead of a switch.
@@ -270,6 +294,7 @@ Instead, each copy gets a qualified alias that names its source:
 |--------------|--------------------|
 | Personal     | `personal/<name>`  |
 | Organization | `org/<name>`       |
+| Project      | `project/<name>`   |
 | Workspace    | `workspace/<name>` |
 
 A bare name that matches more than one source is ambiguous, so `read_skill` rejects it.

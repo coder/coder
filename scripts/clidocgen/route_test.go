@@ -40,11 +40,29 @@ func TestCLICommandRoute(t *testing.T) {
 
 	got := cliCommandRoute(newCommandTree().list)
 	require.Equal(t, "`coder users roles list`", got.Title)
-	require.Equal(t, "List user roles", got.Description)
+	require.Equal(t, "List user roles.", got.Description)
 	require.Empty(t, got.Path)
 	require.Empty(t, got.IconPath)
 	require.Nil(t, got.State)
 	require.Contains(t, docgenenv.FrontMatter(got), "title: \"`coder users roles list`\"\n")
+}
+
+// TestCLIDescriptionEndsWithPeriod pins the docs description for a command:
+// its Short with a period added when missing, so the docs site gets a full
+// sentence while CLI help keeps the unpunctuated Short.
+func TestCLIDescriptionEndsWithPeriod(t *testing.T) {
+	t.Parallel()
+
+	for short, want := range map[string]string{
+		"":                     "",
+		"List user roles":      "List user roles.",
+		"List user roles.":     "List user roles.",
+		"Show role(s)":         "Show role(s).",
+		"Trailing space here ": "Trailing space here.",
+	} {
+		got := cliCommandRoute(&serpent.Command{Use: "x", Short: short}).Description
+		require.Equal(t, want, got, "Short %q", short)
+	}
 }
 
 // TestFmtDocFilename pins the page layout: pages nest by command path, and a
@@ -80,18 +98,18 @@ func TestCLIManifestChildren(t *testing.T) {
 
 	got := cliManifestChildren(newCommandTree().root)
 	want := []docgenenv.Route{
-		{Title: "`ping`", Description: "Ping a workspace", Path: "reference/cli/ping.md"},
+		{Title: "`ping`", Description: "Ping a workspace.", Path: "reference/cli/ping.md"},
 		{
 			Title:       "`users`",
-			Description: "Manage users",
+			Description: "Manage users.",
 			Path:        "reference/cli/users/index.md",
 			Children: []docgenenv.Route{{
 				Title:       "`roles`",
-				Description: "Manage user roles",
+				Description: "Manage user roles.",
 				Path:        "reference/cli/users/roles/index.md",
 				Children: []docgenenv.Route{{
 					Title:       "`list`",
-					Description: "List user roles",
+					Description: "List user roles.",
 					Path:        "reference/cli/users/roles/list.md",
 				}},
 			}},

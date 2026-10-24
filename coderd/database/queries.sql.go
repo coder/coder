@@ -2817,6 +2817,32 @@ func (q *sqlQuerier) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID)
 	return i, err
 }
 
+const deleteOrganizationAIProviderModelConfig = `-- name: DeleteOrganizationAIProviderModelConfig :execrows
+UPDATE ai_model_configs
+SET deleted = TRUE,
+	updated_at = NOW()
+WHERE organization_id = $1
+	AND provider_id = $2
+	AND model = $3
+	AND deleted = FALSE
+`
+
+type DeleteOrganizationAIProviderModelConfigParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ProviderID     uuid.UUID `db:"provider_id" json:"provider_id"`
+	Model          string    `db:"model" json:"model"`
+}
+
+// Soft deletes the organization's live config for one model on one configured
+// provider. Returns zero rows when there is no live config.
+func (q *sqlQuerier) DeleteOrganizationAIProviderModelConfig(ctx context.Context, arg DeleteOrganizationAIProviderModelConfigParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOrganizationAIProviderModelConfig, arg.OrganizationID, arg.ProviderID, arg.Model)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteUserAIBudgetOverride = `-- name: DeleteUserAIBudgetOverride :one
 DELETE FROM user_ai_budget_overrides WHERE user_id = $1 RETURNING user_id, group_id, spend_limit_micros, created_at, updated_at
 `
@@ -2961,42 +2987,94 @@ func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOr
 	return items, nil
 }
 
-const getAIModelPriceByProviderModel = `-- name: GetAIModelPriceByProviderModel :one
-SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at, source
-FROM ai_model_prices
-WHERE provider = $1 AND model IN ($2, $3)
+const getAIModelPriceForProvider = `-- name: GetAIModelPriceForProvider :one
+WITH prices AS (
+	SELECT
+		CASE source WHEN 'custom' THEN 2 ELSE 3 END AS specificity,
+		model,
+		input_price,
+		output_price,
+		cache_read_price,
+		cache_write_price
+	FROM ai_model_prices
+	WHERE ai_model_prices.provider = $2::text
+		AND ai_model_prices.model IN ($1::text, $3::text)
+	UNION ALL
+	SELECT
+		1,
+		model,
+		input_price,
+		output_price,
+		cache_read_price,
+		cache_write_price
+	FROM ai_model_configs
+	WHERE ai_model_configs.organization_id = $4::uuid
+		AND ai_model_configs.provider_id = $5::uuid
+		AND ai_model_configs.model IN ($1::text, $3::text)
+		AND ai_model_configs.deleted = FALSE
+		AND COALESCE(
+			ai_model_configs.input_price,
+			ai_model_configs.output_price,
+			ai_model_configs.cache_read_price,
+			ai_model_configs.cache_write_price
+		) IS NOT NULL
+)
+SELECT
+	prices.model,
+	prices.input_price,
+	prices.output_price,
+	prices.cache_read_price,
+	prices.cache_write_price
+FROM prices
 ORDER BY
-	CASE WHEN model = $2 THEN 0 ELSE 1 END ASC,
-	CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
+	CASE WHEN prices.model = $1::text THEN 0 ELSE 1 END ASC,
+	prices.specificity ASC
 LIMIT 1
 `
 
-type GetAIModelPriceByProviderModelParams struct {
-	Provider      string `db:"provider" json:"provider"`
-	Model         string `db:"model" json:"model"`
-	ProviderModel string `db:"provider_model" json:"provider_model"`
+type GetAIModelPriceForProviderParams struct {
+	Model          string        `db:"model" json:"model"`
+	ProviderType   string        `db:"provider_type" json:"provider_type"`
+	ProviderModel  string        `db:"provider_model" json:"provider_model"`
+	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
+	ProviderID     uuid.UUID     `db:"provider_id" json:"provider_id"`
 }
 
-// Returns the price in effect for the requested model, falling back to the
-// model reported by the provider when the requested model has no price.
-// Rows are ordered by model first, then by source, so the lookup order is:
-//  1. Custom price for the requested model.
-//  2. Price book price for the requested model.
-//  3. Custom price for the provider-reported model.
-//  4. Price book price for the provider-reported model.
-func (q *sqlQuerier) GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AIModelPrice, error) {
-	row := q.db.QueryRowContext(ctx, getAIModelPriceByProviderModel, arg.Provider, arg.Model, arg.ProviderModel)
-	var i AIModelPrice
+type GetAIModelPriceForProviderRow struct {
+	Model           string        `db:"model" json:"model"`
+	InputPrice      sql.NullInt64 `db:"input_price" json:"input_price"`
+	OutputPrice     sql.NullInt64 `db:"output_price" json:"output_price"`
+	CacheReadPrice  sql.NullInt64 `db:"cache_read_price" json:"cache_read_price"`
+	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
+}
+
+// Returns the price in effect for the model served by the configured provider.
+// The requested model is preferred over the model reported by the provider,
+// whatever the kind of price. For each model, the lookup order is:
+//  1. The organization's price for the provider.
+//  2. A site-wide custom price.
+//  3. The price book price.
+//
+// A NULL organization_id matches no organization price, so only site-wide
+// prices apply. Soft-deleted organization configs, and those that set no
+// price, are ignored. A matched price is used as a whole: its NULL prices are
+// not filled in from a less specific price. Each branch is a unique index
+// lookup.
+func (q *sqlQuerier) GetAIModelPriceForProvider(ctx context.Context, arg GetAIModelPriceForProviderParams) (GetAIModelPriceForProviderRow, error) {
+	row := q.db.QueryRowContext(ctx, getAIModelPriceForProvider,
+		arg.Model,
+		arg.ProviderType,
+		arg.ProviderModel,
+		arg.OrganizationID,
+		arg.ProviderID,
+	)
+	var i GetAIModelPriceForProviderRow
 	err := row.Scan(
-		&i.Provider,
 		&i.Model,
 		&i.InputPrice,
 		&i.OutputPrice,
 		&i.CacheReadPrice,
 		&i.CacheWritePrice,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Source,
 	)
 	return i, err
 }
@@ -3283,6 +3361,42 @@ func (q *sqlQuerier) GetHighestGroupAIBudgetByUser(ctx context.Context, userID u
 	row := q.db.QueryRowContext(ctx, getHighestGroupAIBudgetByUser, userID)
 	var i GetHighestGroupAIBudgetByUserRow
 	err := row.Scan(&i.GroupID, &i.SpendLimitMicros)
+	return i, err
+}
+
+const getOrganizationAIProviderModelConfig = `-- name: GetOrganizationAIProviderModelConfig :one
+SELECT id, organization_id, provider_id, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at, deleted
+FROM ai_model_configs
+WHERE organization_id = $1
+	AND provider_id = $2
+	AND model = $3
+	AND deleted = FALSE
+`
+
+type GetOrganizationAIProviderModelConfigParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ProviderID     uuid.UUID `db:"provider_id" json:"provider_id"`
+	Model          string    `db:"model" json:"model"`
+}
+
+// Returns the organization's live config for one model on one configured
+// provider. Soft-deleted rows are ignored.
+func (q *sqlQuerier) GetOrganizationAIProviderModelConfig(ctx context.Context, arg GetOrganizationAIProviderModelConfigParams) (AIModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationAIProviderModelConfig, arg.OrganizationID, arg.ProviderID, arg.Model)
+	var i AIModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ProviderID,
+		&i.Model,
+		&i.InputPrice,
+		&i.OutputPrice,
+		&i.CacheReadPrice,
+		&i.CacheWritePrice,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Deleted,
+	)
 	return i, err
 }
 
@@ -3905,6 +4019,58 @@ func (q *sqlQuerier) UpsertGroupAIBudget(ctx context.Context, arg UpsertGroupAIB
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const upsertOrganizationAIProviderModelConfig = `-- name: UpsertOrganizationAIProviderModelConfig :exec
+INSERT INTO ai_model_configs (
+	organization_id, provider_id, model, input_price, output_price, cache_read_price, cache_write_price
+) VALUES (
+	$1, $2, $3, $4, $5, $6, $7
+)
+ON CONFLICT (organization_id, provider_id, model) WHERE deleted = FALSE DO UPDATE SET
+	input_price       = EXCLUDED.input_price,
+	output_price      = EXCLUDED.output_price,
+	cache_read_price  = EXCLUDED.cache_read_price,
+	cache_write_price = EXCLUDED.cache_write_price,
+	updated_at        = NOW()
+WHERE (
+	ai_model_configs.input_price,
+	ai_model_configs.output_price,
+	ai_model_configs.cache_read_price,
+	ai_model_configs.cache_write_price
+) IS DISTINCT FROM (
+	EXCLUDED.input_price,
+	EXCLUDED.output_price,
+	EXCLUDED.cache_read_price,
+	EXCLUDED.cache_write_price
+)
+`
+
+type UpsertOrganizationAIProviderModelConfigParams struct {
+	OrganizationID  uuid.UUID     `db:"organization_id" json:"organization_id"`
+	ProviderID      uuid.UUID     `db:"provider_id" json:"provider_id"`
+	Model           string        `db:"model" json:"model"`
+	InputPrice      sql.NullInt64 `db:"input_price" json:"input_price"`
+	OutputPrice     sql.NullInt64 `db:"output_price" json:"output_price"`
+	CacheReadPrice  sql.NullInt64 `db:"cache_read_price" json:"cache_read_price"`
+	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
+}
+
+// Sets the organization's config for one model on one configured provider. A
+// NULL price is unknown. An existing live row is only rewritten when a price
+// differs, so updated_at records when a price last changed. Soft-deleted rows
+// are left untouched, and a new live row is inserted beside them.
+func (q *sqlQuerier) UpsertOrganizationAIProviderModelConfig(ctx context.Context, arg UpsertOrganizationAIProviderModelConfigParams) error {
+	_, err := q.db.ExecContext(ctx, upsertOrganizationAIProviderModelConfig,
+		arg.OrganizationID,
+		arg.ProviderID,
+		arg.Model,
+		arg.InputPrice,
+		arg.OutputPrice,
+		arg.CacheReadPrice,
+		arg.CacheWritePrice,
+	)
+	return err
 }
 
 const upsertUserAIBudgetOverride = `-- name: UpsertUserAIBudgetOverride :one
@@ -5580,65 +5746,6 @@ func (q *sqlQuerier) DeleteOldChatDebugRuns(ctx context.Context, arg DeleteOldCh
 	return result.RowsAffected()
 }
 
-const finalizeStaleChatDebugRows = `-- name: FinalizeStaleChatDebugRows :one
-WITH finalized_runs AS (
-    UPDATE chat_debug_runs
-    SET
-        status = 'interrupted',
-        updated_at = $1::timestamptz,
-        finished_at = $1::timestamptz
-    WHERE updated_at < $2::timestamptz
-        AND finished_at IS NULL
-        AND status NOT IN ('completed', 'error', 'interrupted')
-    RETURNING id
-), finalized_steps AS (
-    UPDATE chat_debug_steps
-    SET
-        status = 'interrupted',
-        updated_at = $1::timestamptz,
-        finished_at = $1::timestamptz
-    WHERE (
-            updated_at < $2::timestamptz
-            OR run_id IN (SELECT id FROM finalized_runs)
-        )
-        AND finished_at IS NULL
-        AND status NOT IN ('completed', 'error', 'interrupted')
-    RETURNING 1
-)
-SELECT
-    (SELECT COUNT(*) FROM finalized_runs)::bigint AS runs_finalized,
-    (SELECT COUNT(*) FROM finalized_steps)::bigint AS steps_finalized
-`
-
-type FinalizeStaleChatDebugRowsParams struct {
-	Now           time.Time `db:"now" json:"now"`
-	UpdatedBefore time.Time `db:"updated_before" json:"updated_before"`
-}
-
-type FinalizeStaleChatDebugRowsRow struct {
-	RunsFinalized  int64 `db:"runs_finalized" json:"runs_finalized"`
-	StepsFinalized int64 `db:"steps_finalized" json:"steps_finalized"`
-}
-
-// Marks orphaned in-progress rows as interrupted so they do not stay
-// in a non-terminal state forever. The NOT IN list must match the
-// terminal statuses defined by ChatDebugStatus in codersdk/chats.go.
-//
-// The steps CTE also catches steps whose parent run was just finalized
-// (via run_id IN), because PostgreSQL data-modifying CTEs share the
-// same snapshot and cannot see each other's row updates. Without this,
-// a step with a recent updated_at would survive its run's finalization
-// and remain in 'in_progress' state permanently.
-//
-// @now is the caller's clock timestamp so that mock-clock tests stay
-// consistent with the @updated_before cutoff.
-func (q *sqlQuerier) FinalizeStaleChatDebugRows(ctx context.Context, arg FinalizeStaleChatDebugRowsParams) (FinalizeStaleChatDebugRowsRow, error) {
-	row := q.db.QueryRowContext(ctx, finalizeStaleChatDebugRows, arg.Now, arg.UpdatedBefore)
-	var i FinalizeStaleChatDebugRowsRow
-	err := row.Scan(&i.RunsFinalized, &i.StepsFinalized)
-	return i, err
-}
-
 const getChatDebugRunByID = `-- name: GetChatDebugRunByID :one
 SELECT id, chat_id, root_chat_id, parent_chat_id, model_config_id, trigger_message_id, history_tip_message_id, kind, status, provider, model, summary, started_at, updated_at, finished_at
 FROM chat_debug_runs
@@ -5893,7 +6000,10 @@ INSERT INTO chat_debug_steps (
 SELECT
     $1::uuid,
     locked_run.chat_id,
-    $2::int,
+    COALESCE(
+        NULLIF($2::int, 0),
+        (SELECT COALESCE(MAX(s.step_number), 0) + 1 FROM chat_debug_steps s WHERE s.run_id = $1::uuid)
+    ),
     $3::text,
     $4::text,
     $5::bigint,
@@ -5931,11 +6041,15 @@ type InsertChatDebugStepParams struct {
 }
 
 // The CTE atomically locks the parent run via UPDATE, bumps its
-// updated_at (eliminating a separate TouchChatDebugRunUpdatedAt
-// call), and enforces the finalization guard: if the run is already
+// updated_at, and enforces the finalization guard: if the run is already
 // finished, the UPDATE returns zero rows, the INSERT gets no source
 // rows, and sql.ErrNoRows is returned. The UPDATE also serializes
-// with concurrent FinalizeStale under READ COMMITTED isolation.
+// with a concurrent run finalization under READ COMMITTED isolation.
+// A zero @step_number numbers the step after the run's highest step.
+// The row lock does not make that number unique, because the statement
+// snapshot predates the lock wait. Callers hold LockIDChatDebugRunSteps
+// from an earlier statement of the same transaction, so the snapshot
+// includes every committed step.
 func (q *sqlQuerier) InsertChatDebugStep(ctx context.Context, arg InsertChatDebugStepParams) (ChatDebugStep, error) {
 	row := q.db.QueryRowContext(ctx, insertChatDebugStep,
 		arg.RunID,
@@ -5976,80 +6090,6 @@ func (q *sqlQuerier) InsertChatDebugStep(ctx context.Context, arg InsertChatDebu
 		&i.FinishedAt,
 	)
 	return i, err
-}
-
-const touchChatDebugRunUpdatedAt = `-- name: TouchChatDebugRunUpdatedAt :exec
-UPDATE chat_debug_runs
-SET updated_at = $1::timestamptz
-WHERE id = $2::uuid
-    AND chat_id = $3::uuid
-`
-
-type TouchChatDebugRunUpdatedAtParams struct {
-	Now    time.Time `db:"now" json:"now"`
-	ID     uuid.UUID `db:"id" json:"id"`
-	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
-}
-
-// Overrides updated_at on the parent run without touching any
-// other column. Used by tests that need to stamp a run with a
-// specific timestamp after the InsertChatDebugStep CTE has
-// already bumped it to NOW(), so stale-row finalization paths
-// can be exercised deterministically. The chatdebug service
-// itself does not call this: heartbeats go through
-// TouchChatDebugStepAndRun, and step creation updates the parent
-// run via the InsertChatDebugStep CTE.
-func (q *sqlQuerier) TouchChatDebugRunUpdatedAt(ctx context.Context, arg TouchChatDebugRunUpdatedAtParams) error {
-	_, err := q.db.ExecContext(ctx, touchChatDebugRunUpdatedAt, arg.Now, arg.ID, arg.ChatID)
-	return err
-}
-
-const touchChatDebugStepAndRun = `-- name: TouchChatDebugStepAndRun :exec
-WITH touched_run AS (
-    UPDATE chat_debug_runs
-    SET updated_at = $1::timestamptz
-    WHERE id = $3::uuid
-        AND chat_id = $4::uuid
-    RETURNING id, chat_id
-)
-UPDATE chat_debug_steps
-SET updated_at = $1::timestamptz
-FROM touched_run
-WHERE chat_debug_steps.id = $2::uuid
-    AND chat_debug_steps.run_id = touched_run.id
-    AND chat_debug_steps.chat_id = touched_run.chat_id
-`
-
-type TouchChatDebugStepAndRunParams struct {
-	Now    time.Time `db:"now" json:"now"`
-	StepID uuid.UUID `db:"step_id" json:"step_id"`
-	RunID  uuid.UUID `db:"run_id" json:"run_id"`
-	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
-}
-
-// Atomically bumps updated_at on both the step and its parent run
-// in a single statement. This prevents FinalizeStale from
-// interleaving between the two touches and finalizing a run whose
-// step heartbeat was just written.
-//
-// The step UPDATE joins through touched_run (via FROM) and reads
-// its RETURNING rows. Per the PostgreSQL WITH semantics, RETURNING
-// is the only way to communicate values between a data-modifying
-// CTE and the main query, and consuming those rows forces the run
-// UPDATE to complete before the step UPDATE. That matches the
-// lock order used by FinalizeStaleChatDebugRows and avoids a
-// deadlock between concurrent heartbeats and stale sweeps. The
-// join also constrains the step update to the specified run so a
-// mismatched (run_id, step_id) pair cannot silently refresh an
-// unrelated step.
-func (q *sqlQuerier) TouchChatDebugStepAndRun(ctx context.Context, arg TouchChatDebugStepAndRunParams) error {
-	_, err := q.db.ExecContext(ctx, touchChatDebugStepAndRun,
-		arg.Now,
-		arg.StepID,
-		arg.RunID,
-		arg.ChatID,
-	)
-	return err
 }
 
 const updateChatDebugRun = `-- name: UpdateChatDebugRun :one
@@ -6177,8 +6217,7 @@ type UpdateChatDebugStepParams struct {
 // existing value." This is intentional: debug rows follow a
 // write-once-finalize pattern where fields are set at creation
 // or finalization and never cleared back to NULL. The @now
-// parameter keeps updated_at under the caller's clock, matching
-// the injectable quartz.Clock used by FinalizeStale sweeps.
+// parameter keeps updated_at under the caller's clock.
 func (q *sqlQuerier) UpdateChatDebugStep(ctx context.Context, arg UpdateChatDebugStepParams) (ChatDebugStep, error) {
 	row := q.db.QueryRowContext(ctx, updateChatDebugStep,
 		arg.Status,
@@ -28799,7 +28838,7 @@ func (q *sqlQuerier) UpsertWebpushVAPIDKeys(ctx context.Context, arg UpsertWebpu
 const deleteOrganizationSkillByOrganizationIDAndName = `-- name: DeleteOrganizationSkillByOrganizationIDAndName :one
 DELETE FROM skills
 WHERE organization_id = $1::uuid AND name = $2
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
 `
 
 type DeleteOrganizationSkillByOrganizationIDAndNameParams struct {
@@ -28823,6 +28862,8 @@ func (q *sqlQuerier) DeleteOrganizationSkillByOrganizationIDAndName(ctx context.
 		&i.Enabled,
 		&i.GroupACL,
 		&i.UserACL,
+		&i.Action,
+		&i.ModelInvocable,
 	)
 	return i, err
 }
@@ -28830,7 +28871,7 @@ func (q *sqlQuerier) DeleteOrganizationSkillByOrganizationIDAndName(ctx context.
 const deleteProjectSkillByProjectIDAndName = `-- name: DeleteProjectSkillByProjectIDAndName :one
 DELETE FROM skills
 WHERE project_id = $1::uuid AND name = $2
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
 `
 
 type DeleteProjectSkillByProjectIDAndNameParams struct {
@@ -28854,6 +28895,8 @@ func (q *sqlQuerier) DeleteProjectSkillByProjectIDAndName(ctx context.Context, a
 		&i.Enabled,
 		&i.GroupACL,
 		&i.UserACL,
+		&i.Action,
+		&i.ModelInvocable,
 	)
 	return i, err
 }
@@ -28861,7 +28904,7 @@ func (q *sqlQuerier) DeleteProjectSkillByProjectIDAndName(ctx context.Context, a
 const deleteUserSkillByUserIDAndName = `-- name: DeleteUserSkillByUserIDAndName :one
 DELETE FROM skills
 WHERE user_id = $1::uuid AND name = $2
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
 `
 
 type DeleteUserSkillByUserIDAndNameParams struct {
@@ -28885,12 +28928,14 @@ func (q *sqlQuerier) DeleteUserSkillByUserIDAndName(ctx context.Context, arg Del
 		&i.Enabled,
 		&i.GroupACL,
 		&i.UserACL,
+		&i.Action,
+		&i.ModelInvocable,
 	)
 	return i, err
 }
 
 const getOrganizationSkillByIDForUpdate = `-- name: GetOrganizationSkillByIDForUpdate :one
-SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
 FROM skills
 WHERE id = $1::uuid AND organization_id IS NOT NULL
 FOR UPDATE
@@ -28912,12 +28957,14 @@ func (q *sqlQuerier) GetOrganizationSkillByIDForUpdate(ctx context.Context, id u
 		&i.Enabled,
 		&i.GroupACL,
 		&i.UserACL,
+		&i.Action,
+		&i.ModelInvocable,
 	)
 	return i, err
 }
 
 const getOrganizationSkillByOrganizationIDAndName = `-- name: GetOrganizationSkillByOrganizationIDAndName :one
-SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
 FROM skills
 WHERE organization_id = $1::uuid AND name = $2
 `
@@ -28943,12 +28990,14 @@ func (q *sqlQuerier) GetOrganizationSkillByOrganizationIDAndName(ctx context.Con
 		&i.Enabled,
 		&i.GroupACL,
 		&i.UserACL,
+		&i.Action,
+		&i.ModelInvocable,
 	)
 	return i, err
 }
 
 const getProjectSkillByIDForUpdate = `-- name: GetProjectSkillByIDForUpdate :one
-SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
 FROM skills
 WHERE id = $1::uuid AND project_id IS NOT NULL
 FOR UPDATE
@@ -28970,12 +29019,14 @@ func (q *sqlQuerier) GetProjectSkillByIDForUpdate(ctx context.Context, id uuid.U
 		&i.Enabled,
 		&i.GroupACL,
 		&i.UserACL,
+		&i.Action,
+		&i.ModelInvocable,
 	)
 	return i, err
 }
 
 const getProjectSkillByProjectIDAndName = `-- name: GetProjectSkillByProjectIDAndName :one
-SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
 FROM skills
 WHERE project_id = $1::uuid AND name = $2
 `
@@ -29001,12 +29052,14 @@ func (q *sqlQuerier) GetProjectSkillByProjectIDAndName(ctx context.Context, arg 
 		&i.Enabled,
 		&i.GroupACL,
 		&i.UserACL,
+		&i.Action,
+		&i.ModelInvocable,
 	)
 	return i, err
 }
 
 const getUserSkillByUserIDAndName = `-- name: GetUserSkillByUserIDAndName :one
-SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
 FROM skills
 WHERE user_id = $1::uuid AND name = $2
 `
@@ -29032,24 +29085,27 @@ func (q *sqlQuerier) GetUserSkillByUserIDAndName(ctx context.Context, arg GetUse
 		&i.Enabled,
 		&i.GroupACL,
 		&i.UserACL,
+		&i.Action,
+		&i.ModelInvocable,
 	)
 	return i, err
 }
 
 const insertOrganizationSkill = `-- name: InsertOrganizationSkill :one
-INSERT INTO skills (id, organization_id, name, description, content, group_acl, user_acl)
-VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text, $6, $7)
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+INSERT INTO skills (id, organization_id, name, description, content, model_invocable, group_acl, user_acl)
+VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text, COALESCE($6::boolean, true), $7, $8)
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
 `
 
 type InsertOrganizationSkillParams struct {
-	ID             uuid.UUID `db:"id" json:"id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	Name           string    `db:"name" json:"name"`
-	Description    string    `db:"description" json:"description"`
-	Content        string    `db:"content" json:"content"`
-	GroupACL       ChatACL   `db:"group_acl" json:"group_acl"`
-	UserACL        ChatACL   `db:"user_acl" json:"user_acl"`
+	ID             uuid.UUID    `db:"id" json:"id"`
+	OrganizationID uuid.UUID    `db:"organization_id" json:"organization_id"`
+	Name           string       `db:"name" json:"name"`
+	Description    string       `db:"description" json:"description"`
+	Content        string       `db:"content" json:"content"`
+	ModelInvocable sql.NullBool `db:"model_invocable" json:"model_invocable"`
+	GroupACL       ChatACL      `db:"group_acl" json:"group_acl"`
+	UserACL        ChatACL      `db:"user_acl" json:"user_acl"`
 }
 
 func (q *sqlQuerier) InsertOrganizationSkill(ctx context.Context, arg InsertOrganizationSkillParams) (Skill, error) {
@@ -29059,6 +29115,7 @@ func (q *sqlQuerier) InsertOrganizationSkill(ctx context.Context, arg InsertOrga
 		arg.Name,
 		arg.Description,
 		arg.Content,
+		arg.ModelInvocable,
 		arg.GroupACL,
 		arg.UserACL,
 	)
@@ -29076,22 +29133,26 @@ func (q *sqlQuerier) InsertOrganizationSkill(ctx context.Context, arg InsertOrga
 		&i.Enabled,
 		&i.GroupACL,
 		&i.UserACL,
+		&i.Action,
+		&i.ModelInvocable,
 	)
 	return i, err
 }
 
 const insertProjectSkill = `-- name: InsertProjectSkill :one
-INSERT INTO skills (id, project_id, name, description, content)
-VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text)
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+INSERT INTO skills (id, project_id, name, description, content, action, model_invocable)
+VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text, COALESCE($6::boolean, false), COALESCE($7::boolean, true))
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
 `
 
 type InsertProjectSkillParams struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	ProjectID   uuid.UUID `db:"project_id" json:"project_id"`
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description"`
-	Content     string    `db:"content" json:"content"`
+	ID             uuid.UUID    `db:"id" json:"id"`
+	ProjectID      uuid.UUID    `db:"project_id" json:"project_id"`
+	Name           string       `db:"name" json:"name"`
+	Description    string       `db:"description" json:"description"`
+	Content        string       `db:"content" json:"content"`
+	Action         sql.NullBool `db:"action" json:"action"`
+	ModelInvocable sql.NullBool `db:"model_invocable" json:"model_invocable"`
 }
 
 func (q *sqlQuerier) InsertProjectSkill(ctx context.Context, arg InsertProjectSkillParams) (Skill, error) {
@@ -29101,6 +29162,8 @@ func (q *sqlQuerier) InsertProjectSkill(ctx context.Context, arg InsertProjectSk
 		arg.Name,
 		arg.Description,
 		arg.Content,
+		arg.Action,
+		arg.ModelInvocable,
 	)
 	var i Skill
 	err := row.Scan(
@@ -29116,22 +29179,25 @@ func (q *sqlQuerier) InsertProjectSkill(ctx context.Context, arg InsertProjectSk
 		&i.Enabled,
 		&i.GroupACL,
 		&i.UserACL,
+		&i.Action,
+		&i.ModelInvocable,
 	)
 	return i, err
 }
 
 const insertUserSkill = `-- name: InsertUserSkill :one
-INSERT INTO skills (id, user_id, name, description, content)
-VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text)
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+INSERT INTO skills (id, user_id, name, description, content, model_invocable)
+VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text, COALESCE($6::boolean, true))
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
 `
 
 type InsertUserSkillParams struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	UserID      uuid.UUID `db:"user_id" json:"user_id"`
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description"`
-	Content     string    `db:"content" json:"content"`
+	ID             uuid.UUID    `db:"id" json:"id"`
+	UserID         uuid.UUID    `db:"user_id" json:"user_id"`
+	Name           string       `db:"name" json:"name"`
+	Description    string       `db:"description" json:"description"`
+	Content        string       `db:"content" json:"content"`
+	ModelInvocable sql.NullBool `db:"model_invocable" json:"model_invocable"`
 }
 
 func (q *sqlQuerier) InsertUserSkill(ctx context.Context, arg InsertUserSkillParams) (Skill, error) {
@@ -29141,6 +29207,7 @@ func (q *sqlQuerier) InsertUserSkill(ctx context.Context, arg InsertUserSkillPar
 		arg.Name,
 		arg.Description,
 		arg.Content,
+		arg.ModelInvocable,
 	)
 	var i Skill
 	err := row.Scan(
@@ -29156,13 +29223,15 @@ func (q *sqlQuerier) InsertUserSkill(ctx context.Context, arg InsertUserSkillPar
 		&i.Enabled,
 		&i.GroupACL,
 		&i.UserACL,
+		&i.Action,
+		&i.ModelInvocable,
 	)
 	return i, err
 }
 
 const listOrganizationSkillMetadataByOrganizationID = `-- name: ListOrganizationSkillMetadataByOrganizationID :many
 SELECT
-    id, organization_id, name, description, enabled, created_at, updated_at
+    id, organization_id, name, description, enabled, action, model_invocable, created_at, updated_at
 FROM skills
 WHERE organization_id = $1::uuid
     -- Authorize Filter clause will be injected below in GetAuthorizedOrganizationSkillMetadata
@@ -29176,6 +29245,8 @@ type ListOrganizationSkillMetadataByOrganizationIDRow struct {
 	Name           string        `db:"name" json:"name"`
 	Description    string        `db:"description" json:"description"`
 	Enabled        bool          `db:"enabled" json:"enabled"`
+	Action         bool          `db:"action" json:"action"`
+	ModelInvocable bool          `db:"model_invocable" json:"model_invocable"`
 	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
 }
@@ -29195,6 +29266,8 @@ func (q *sqlQuerier) ListOrganizationSkillMetadataByOrganizationID(ctx context.C
 			&i.Name,
 			&i.Description,
 			&i.Enabled,
+			&i.Action,
+			&i.ModelInvocable,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -29213,20 +29286,22 @@ func (q *sqlQuerier) ListOrganizationSkillMetadataByOrganizationID(ctx context.C
 
 const listProjectSkillMetadataByProjectID = `-- name: ListProjectSkillMetadataByProjectID :many
 SELECT
-    id, project_id, name, description, enabled, created_at, updated_at
+    id, project_id, name, description, enabled, action, model_invocable, created_at, updated_at
 FROM skills
 WHERE project_id = $1::uuid
 ORDER BY name ASC
 `
 
 type ListProjectSkillMetadataByProjectIDRow struct {
-	ID          uuid.UUID     `db:"id" json:"id"`
-	ProjectID   uuid.NullUUID `db:"project_id" json:"project_id"`
-	Name        string        `db:"name" json:"name"`
-	Description string        `db:"description" json:"description"`
-	Enabled     bool          `db:"enabled" json:"enabled"`
-	CreatedAt   time.Time     `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time     `db:"updated_at" json:"updated_at"`
+	ID             uuid.UUID     `db:"id" json:"id"`
+	ProjectID      uuid.NullUUID `db:"project_id" json:"project_id"`
+	Name           string        `db:"name" json:"name"`
+	Description    string        `db:"description" json:"description"`
+	Enabled        bool          `db:"enabled" json:"enabled"`
+	Action         bool          `db:"action" json:"action"`
+	ModelInvocable bool          `db:"model_invocable" json:"model_invocable"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) ListProjectSkillMetadataByProjectID(ctx context.Context, projectID uuid.UUID) ([]ListProjectSkillMetadataByProjectIDRow, error) {
@@ -29244,6 +29319,8 @@ func (q *sqlQuerier) ListProjectSkillMetadataByProjectID(ctx context.Context, pr
 			&i.Name,
 			&i.Description,
 			&i.Enabled,
+			&i.Action,
+			&i.ModelInvocable,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -29262,20 +29339,22 @@ func (q *sqlQuerier) ListProjectSkillMetadataByProjectID(ctx context.Context, pr
 
 const listUserSkillMetadataByUserID = `-- name: ListUserSkillMetadataByUserID :many
 SELECT
-    id, user_id, name, description, enabled, created_at, updated_at
+    id, user_id, name, description, enabled, action, model_invocable, created_at, updated_at
 FROM skills
 WHERE user_id = $1::uuid
 ORDER BY name ASC
 `
 
 type ListUserSkillMetadataByUserIDRow struct {
-	ID          uuid.UUID     `db:"id" json:"id"`
-	UserID      uuid.NullUUID `db:"user_id" json:"user_id"`
-	Name        string        `db:"name" json:"name"`
-	Description string        `db:"description" json:"description"`
-	Enabled     bool          `db:"enabled" json:"enabled"`
-	CreatedAt   time.Time     `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time     `db:"updated_at" json:"updated_at"`
+	ID             uuid.UUID     `db:"id" json:"id"`
+	UserID         uuid.NullUUID `db:"user_id" json:"user_id"`
+	Name           string        `db:"name" json:"name"`
+	Description    string        `db:"description" json:"description"`
+	Enabled        bool          `db:"enabled" json:"enabled"`
+	Action         bool          `db:"action" json:"action"`
+	ModelInvocable bool          `db:"model_invocable" json:"model_invocable"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) ListUserSkillMetadataByUserID(ctx context.Context, userID uuid.UUID) ([]ListUserSkillMetadataByUserIDRow, error) {
@@ -29293,6 +29372,8 @@ func (q *sqlQuerier) ListUserSkillMetadataByUserID(ctx context.Context, userID u
 			&i.Name,
 			&i.Description,
 			&i.Enabled,
+			&i.Action,
+			&i.ModelInvocable,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -29316,7 +29397,7 @@ SET
     user_acl   = $2,
     updated_at = now()
 WHERE id = $3::uuid AND organization_id IS NOT NULL
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
 `
 
 type UpdateOrganizationSkillACLByIDParams struct {
@@ -29341,6 +29422,8 @@ func (q *sqlQuerier) UpdateOrganizationSkillACLByID(ctx context.Context, arg Upd
 		&i.Enabled,
 		&i.GroupACL,
 		&i.UserACL,
+		&i.Action,
+		&i.ModelInvocable,
 	)
 	return i, err
 }
@@ -29351,15 +29434,17 @@ SET
     description = COALESCE($1::text, description),
     content     = COALESCE($2::text, content),
     enabled     = COALESCE($3::boolean, enabled),
+    model_invocable = COALESCE($4::boolean, model_invocable),
     updated_at  = now()
-WHERE organization_id = $4::uuid AND name = $5
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+WHERE organization_id = $5::uuid AND name = $6
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
 `
 
 type UpdateOrganizationSkillByOrganizationIDAndNameParams struct {
 	Description    sql.NullString `db:"description" json:"description"`
 	Content        sql.NullString `db:"content" json:"content"`
 	Enabled        sql.NullBool   `db:"enabled" json:"enabled"`
+	ModelInvocable sql.NullBool   `db:"model_invocable" json:"model_invocable"`
 	OrganizationID uuid.UUID      `db:"organization_id" json:"organization_id"`
 	Name           string         `db:"name" json:"name"`
 }
@@ -29369,6 +29454,7 @@ func (q *sqlQuerier) UpdateOrganizationSkillByOrganizationIDAndName(ctx context.
 		arg.Description,
 		arg.Content,
 		arg.Enabled,
+		arg.ModelInvocable,
 		arg.OrganizationID,
 		arg.Name,
 	)
@@ -29386,6 +29472,8 @@ func (q *sqlQuerier) UpdateOrganizationSkillByOrganizationIDAndName(ctx context.
 		&i.Enabled,
 		&i.GroupACL,
 		&i.UserACL,
+		&i.Action,
+		&i.ModelInvocable,
 	)
 	return i, err
 }
@@ -29396,17 +29484,21 @@ SET
     description = COALESCE($1::text, description),
     content     = COALESCE($2::text, content),
     enabled     = COALESCE($3::boolean, enabled),
+    model_invocable = COALESCE($4::boolean, model_invocable),
+    action      = COALESCE($5::boolean, action),
     updated_at  = now()
-WHERE project_id = $4::uuid AND name = $5
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+WHERE project_id = $6::uuid AND name = $7
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
 `
 
 type UpdateProjectSkillByProjectIDAndNameParams struct {
-	Description sql.NullString `db:"description" json:"description"`
-	Content     sql.NullString `db:"content" json:"content"`
-	Enabled     sql.NullBool   `db:"enabled" json:"enabled"`
-	ProjectID   uuid.UUID      `db:"project_id" json:"project_id"`
-	Name        string         `db:"name" json:"name"`
+	Description    sql.NullString `db:"description" json:"description"`
+	Content        sql.NullString `db:"content" json:"content"`
+	Enabled        sql.NullBool   `db:"enabled" json:"enabled"`
+	ModelInvocable sql.NullBool   `db:"model_invocable" json:"model_invocable"`
+	Action         sql.NullBool   `db:"action" json:"action"`
+	ProjectID      uuid.UUID      `db:"project_id" json:"project_id"`
+	Name           string         `db:"name" json:"name"`
 }
 
 func (q *sqlQuerier) UpdateProjectSkillByProjectIDAndName(ctx context.Context, arg UpdateProjectSkillByProjectIDAndNameParams) (Skill, error) {
@@ -29414,6 +29506,8 @@ func (q *sqlQuerier) UpdateProjectSkillByProjectIDAndName(ctx context.Context, a
 		arg.Description,
 		arg.Content,
 		arg.Enabled,
+		arg.ModelInvocable,
+		arg.Action,
 		arg.ProjectID,
 		arg.Name,
 	)
@@ -29431,6 +29525,8 @@ func (q *sqlQuerier) UpdateProjectSkillByProjectIDAndName(ctx context.Context, a
 		&i.Enabled,
 		&i.GroupACL,
 		&i.UserACL,
+		&i.Action,
+		&i.ModelInvocable,
 	)
 	return i, err
 }
@@ -29441,17 +29537,19 @@ SET
     description = COALESCE($1::text, description),
     content     = COALESCE($2::text, content),
     enabled     = COALESCE($3::boolean, enabled),
+    model_invocable = COALESCE($4::boolean, model_invocable),
     updated_at  = now()
-WHERE user_id = $4::uuid AND name = $5
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+WHERE user_id = $5::uuid AND name = $6
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
 `
 
 type UpdateUserSkillByUserIDAndNameParams struct {
-	Description sql.NullString `db:"description" json:"description"`
-	Content     sql.NullString `db:"content" json:"content"`
-	Enabled     sql.NullBool   `db:"enabled" json:"enabled"`
-	UserID      uuid.UUID      `db:"user_id" json:"user_id"`
-	Name        string         `db:"name" json:"name"`
+	Description    sql.NullString `db:"description" json:"description"`
+	Content        sql.NullString `db:"content" json:"content"`
+	Enabled        sql.NullBool   `db:"enabled" json:"enabled"`
+	ModelInvocable sql.NullBool   `db:"model_invocable" json:"model_invocable"`
+	UserID         uuid.UUID      `db:"user_id" json:"user_id"`
+	Name           string         `db:"name" json:"name"`
 }
 
 func (q *sqlQuerier) UpdateUserSkillByUserIDAndName(ctx context.Context, arg UpdateUserSkillByUserIDAndNameParams) (Skill, error) {
@@ -29459,6 +29557,7 @@ func (q *sqlQuerier) UpdateUserSkillByUserIDAndName(ctx context.Context, arg Upd
 		arg.Description,
 		arg.Content,
 		arg.Enabled,
+		arg.ModelInvocable,
 		arg.UserID,
 		arg.Name,
 	)
@@ -29476,6 +29575,8 @@ func (q *sqlQuerier) UpdateUserSkillByUserIDAndName(ctx context.Context, arg Upd
 		&i.Enabled,
 		&i.GroupACL,
 		&i.UserACL,
+		&i.Action,
+		&i.ModelInvocable,
 	)
 	return i, err
 }
@@ -34234,9 +34335,13 @@ INSERT INTO
 	)
 VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8, $9,
-		-- if the status passed in is empty, fallback to dormant, which is what
-		-- we were doing before.
-		COALESCE(NULLIF($10::text, '')::user_status, 'dormant'::user_status),
+		-- If the status passed in is empty, service accounts fall back to
+		-- active, because they are never dormant. Other users fall back to
+		-- dormant.
+		COALESCE(
+			NULLIF($10::text, '')::user_status,
+			CASE WHEN $11::bool THEN 'active'::user_status ELSE 'dormant'::user_status END
+		),
 		$11::bool
 	) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
 `
@@ -34335,6 +34440,7 @@ WHERE
     last_seen_at < $2 :: timestamp
     AND status = 'active'::user_status
 		AND NOT is_system
+		AND NOT is_service_account
 RETURNING id, email, username, last_seen_at
 `
 

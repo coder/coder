@@ -123,7 +123,7 @@ This example assumes Coder is running locally on `127.0.0.1:3000` and that you'r
     </VirtualHost>
    ```
 
-   > Don't forget to change: `coder.example.com` by your (sub)domain
+   > Do not forget to change: `coder.example.com` by your (sub)domain
 
 3. Enable the site:
 
