@@ -10,8 +10,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/aisdk-go"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/toolsdk/tooldef"
 )
 
 const chatIDDescription = "UUID of the chat."
@@ -86,12 +86,12 @@ type CreateChatArgs struct {
 }
 
 var CreateChat = Tool[CreateChatArgs, ChatToolStatus]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name: ToolNameCreateChat,
 		Description: `Start a Coder Agents chat: a server-side AI coding agent that works autonomously from a prompt.
 
 The chat runs asynchronously. Poll coder_get_chat for status and read the transcript with coder_get_chat_messages.`,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"prompt": map[string]any{
 					"type":        "string",
@@ -177,10 +177,10 @@ type GetChatArgs struct {
 }
 
 var GetChat = Tool[GetChatArgs, ChatToolStatus]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameGetChat,
 		Description: `Get the status of a Coder Agents chat, including its last error, last turn summary, workspace, and attached files.`,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"chat_id": map[string]any{
 					"type":        "string",
@@ -229,12 +229,12 @@ func chatFilesDescription(files []codersdk.ChatFileMetadata) string {
 }
 
 var DownloadChatFile = Tool[DownloadChatFileArgs, DownloadChatFileResponse]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name: ToolNameDownloadChatFile,
 		Description: `Create a short-lived download URL for a file attached to a Coder Agents chat.
 
 Address the file with file_id alone, or with chat_id and an exact file_name. The URL expires in about 5 minutes and needs no authentication header. Fetch it with curl -fSs -o <path> "<url>". Do not read binary contents into context.`,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"file_id": map[string]any{
 					"type":        "string",
@@ -323,10 +323,10 @@ func chatStatusBusy(status codersdk.ChatStatus) bool {
 }
 
 var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameAwaitChat,
 		Description: `Block until a Coder Agents chat stops generating or the wait times out. Waiting, error, and requires_action all end the wait. If timed_out is true, chat holds the last status observed inside the wait window; call this tool again to continue waiting.`,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"chat_id": map[string]any{
 					"type":        "string",
@@ -483,10 +483,10 @@ type ListChatsResponse struct {
 }
 
 var ListChats = Tool[ListChatsArgs, ListChatsResponse]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameListChats,
 		Description: `List Coder Agents chats, optionally filtered by labels or a search query.`,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"labels": map[string]any{
 					"type":                 "object",
@@ -599,12 +599,12 @@ func chatToolMessage(msg codersdk.ChatMessage) (ChatToolMessage, bool) {
 }
 
 var GetChatMessages = Tool[GetChatMessagesArgs, GetChatMessagesResponse]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name: ToolNameGetChatMessages,
 		Description: `Get messages from a Coder Agents chat in chronological order.
 
 Only user-facing text content is returned (including lifecycle hook notices); tool calls and other internal parts are omitted. Prompts still queued behind a busy chat appear in queued_messages. Use before_id with next_before_id to page backward from the newest messages, or after_id with next_after_id to page forward.`,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"chat_id": map[string]any{
 					"type":        "string",
@@ -737,10 +737,10 @@ type SendChatMessageResponse struct {
 }
 
 var SendChatMessage = Tool[SendChatMessageArgs, SendChatMessageResponse]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameSendChatMessage,
 		Description: `Send a message to a Coder Agents chat.`,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"chat_id": map[string]any{
 					"type":        "string",
@@ -801,10 +801,10 @@ type InterruptChatArgs struct {
 }
 
 var InterruptChat = Tool[InterruptChatArgs, ChatToolStatus]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameInterruptChat,
 		Description: `Interrupt a running Coder Agents chat. Progress so far is preserved.`,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"chat_id": map[string]any{
 					"type":        "string",
@@ -833,10 +833,10 @@ type ArchiveChatArgs struct {
 }
 
 var ArchiveChat = Tool[ArchiveChatArgs, codersdk.Response]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameArchiveChat,
 		Description: `Archive a Coder Agents chat. The chat is hidden from default listings but can be unarchived from the UI.`,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"chat_id": map[string]any{
 					"type":        "string",
@@ -882,14 +882,14 @@ type ListChatModelConfigsResponse struct {
 }
 
 var ListChatModelConfigs = Tool[ListChatModelConfigsArgs, ListChatModelConfigsResponse]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name: ToolNameListChatModelConfigs,
 		Description: `List the enabled chat models available for Coder Agents chats. Use a model config ID with coder_create_chat to pick a model.
 
 Model configs are organization-scoped. The response includes the organization_id the models belong to; pass it as coder_create_chat's organization_id together with the chosen model config ID.
 
 Per-user provider credentials are validated when creating a chat, so coder_create_chat can still reject a listed model with an explanatory error.`,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"organization_id": map[string]any{
 					"type":        "string",
