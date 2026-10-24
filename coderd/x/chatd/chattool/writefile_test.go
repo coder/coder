@@ -14,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 )
@@ -88,67 +89,47 @@ func TestWriteFile(t *testing.T) {
 		assert.Equal(t, `{"ok":true}`, strings.TrimSpace(resp.Content))
 	})
 
-	t.Run("PlanTurnAllowsLegacyAgentWithoutResolvePath", func(t *testing.T) {
+	t.Run("PlanTurnRejectsPlanPathNotResolvingToItself", func(t *testing.T) {
 		t.Parallel()
-		ctrl := gomock.NewController(t)
-		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 		planPath := "/home/coder/.coder/plans/PLAN-test-uuid.md"
-		mockConn.EXPECT().
-			ResolvePath(gomock.Any(), planPath).
-			Return("", statusError{statusCode: http.StatusNotFound, message: "missing resolve-path endpoint"})
-		mockConn.EXPECT().
-			WriteFile(gomock.Any(), planPath, gomock.Any()).
-			DoAndReturn(func(_ context.Context, path string, reader io.Reader) error {
-				data, err := io.ReadAll(reader)
+		notFound := codersdk.NewError(http.StatusNotFound, codersdk.Response{Message: "Route not found."})
+		internal := codersdk.NewError(http.StatusInternalServerError, codersdk.Response{Message: "Internal error."})
+		tests := []struct {
+			name     string
+			resolved string
+			err      error
+			want     string
+		}{
+			{name: "Symlinked", resolved: "/home/coder/README.md", want: "the chat-specific plan path /home/coder/.coder/plans/PLAN-test-uuid.md resolves to /home/coder/README.md; symlinked plan paths are not allowed during plan turns"},
+			{name: "ResolvePathNotFound", err: notFound, want: "resolve plan path: " + notFound.Error()},
+			{name: "ResolvePathError", err: internal, want: "resolve plan path: " + internal.Error()},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctrl := gomock.NewController(t)
+				mockConn := agentconnmock.NewMockAgentConn(ctrl)
+				mockConn.EXPECT().ResolvePath(gomock.Any(), planPath).Return(tc.resolved, tc.err)
+				tool := chattool.WriteFile(chattool.WriteFileOptions{
+					GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+						return mockConn, nil
+					},
+					ResolvePlanPath: func(context.Context) (string, string, error) {
+						return planPath, "/home/coder", nil
+					},
+					IsPlanTurn: true,
+				})
+
+				resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+					ID:    "call-1",
+					Name:  "write_file",
+					Input: `{"path":"` + planPath + `","content":"# Plan"}`,
+				})
 				require.NoError(t, err)
-				require.Equal(t, planPath, path)
-				require.Equal(t, "# Plan", string(data))
-				return nil
+				assert.True(t, resp.IsError)
+				assert.Equal(t, tc.want, resp.Content)
 			})
-		tool := chattool.WriteFile(chattool.WriteFileOptions{
-			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
-				return mockConn, nil
-			},
-			ResolvePlanPath: func(context.Context) (string, string, error) {
-				return planPath, "/home/coder", nil
-			},
-			IsPlanTurn: true,
-		})
-
-		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
-			ID:    "call-1",
-			Name:  "write_file",
-			Input: `{"path":"` + planPath + `","content":"# Plan"}`,
-		})
-		require.NoError(t, err)
-		assert.False(t, resp.IsError)
-		assert.Equal(t, `{"ok":true}`, strings.TrimSpace(resp.Content))
-	})
-
-	t.Run("PlanTurnRejectsSymlinkedPlanPath", func(t *testing.T) {
-		t.Parallel()
-		ctrl := gomock.NewController(t)
-		mockConn := agentconnmock.NewMockAgentConn(ctrl)
-		planPath := "/home/coder/.coder/plans/PLAN-test-uuid.md"
-		mockConn.EXPECT().ResolvePath(gomock.Any(), planPath).Return("/home/coder/README.md", nil)
-		tool := chattool.WriteFile(chattool.WriteFileOptions{
-			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
-				return mockConn, nil
-			},
-			ResolvePlanPath: func(context.Context) (string, string, error) {
-				return planPath, "/home/coder", nil
-			},
-			IsPlanTurn: true,
-		})
-
-		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
-			ID:    "call-1",
-			Name:  "write_file",
-			Input: `{"path":"` + planPath + `","content":"# Plan"}`,
-		})
-		require.NoError(t, err)
-		assert.True(t, resp.IsError)
-		assert.Equal(t, "the chat-specific plan path /home/coder/.coder/plans/PLAN-test-uuid.md resolves to /home/coder/README.md; symlinked plan paths are not allowed during plan turns", resp.Content)
+		}
 	})
 
 	t.Run("RejectsHomeRootPlanVariantsWhenResolvePlanPathIsConfigured", func(t *testing.T) {
