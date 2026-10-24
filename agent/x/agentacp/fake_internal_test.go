@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -26,7 +27,7 @@ func TestACPHarness(t *testing.T) {
 		return
 	}
 	mode := fakeHarnessMode(os.Getenv("CODER_ACP_TEST_MODE"))
-	f := &fakeHarness{mode: mode, value: "default"}
+	f := &fakeHarness{mode: mode, connReady: make(chan struct{}), value: "default"}
 	if value := os.Getenv("CODER_ACP_TEST_MODEL"); value != "" {
 		f.value = value
 	}
@@ -38,6 +39,7 @@ func TestACPHarness(t *testing.T) {
 		f.ready = ready
 	}
 	f.conn = acp.NewAgentSideConnection(f, os.Stdout, os.Stdin)
+	close(f.connReady)
 	<-f.conn.Done()
 	// Keep the readiness connection open until the helper process exits.
 	runtime.KeepAlive(f.ready)
@@ -66,11 +68,14 @@ const (
 )
 
 type fakeHarness struct {
+	mu     sync.Mutex
+	cancel context.CancelFunc
 	acp.Agent
-	conn  *acp.AgentSideConnection
-	mode  fakeHarnessMode
-	value string
-	ready net.Conn
+	conn      *acp.AgentSideConnection
+	connReady chan struct{}
+	mode      fakeHarnessMode
+	value     string
+	ready     net.Conn
 }
 
 func (f *fakeHarness) Initialize(ctx context.Context, req acp.InitializeRequest) (acp.InitializeResponse, error) {
@@ -129,6 +134,62 @@ func (f *fakeHarness) NewSession(_ context.Context, req acp.NewSessionRequest) (
 		result.ConfigOptions = f.options()
 	}
 	return result, err
+}
+
+func (f *fakeHarness) update(ctx context.Context, id acp.SessionId, kind, text string) error {
+	<-f.connReady
+	raw, _ := json.Marshal(map[string]any{"sessionUpdate": kind, "content": map[string]any{"type": "text", "text": text}})
+	var update acp.SessionUpdate
+	_ = json.Unmarshal(raw, &update)
+	return f.conn.SessionUpdate(ctx, acp.SessionNotification{SessionId: id, Update: update})
+}
+
+func (f *fakeHarness) Prompt(ctx context.Context, req acp.PromptRequest) (acp.PromptResponse, error) {
+	text := req.Prompt[0].Text.Text
+	if text == "exit-secret" {
+		_, _ = fmt.Fprintln(os.Stderr, "credential=runtime-secret")
+		os.Exit(7) //nolint:revive // Exercise stderr confidentiality on failure.
+	}
+	if text == "exit" {
+		os.Exit(7) //nolint:revive // Exercise a real harness process failure.
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	f.mu.Lock()
+	f.cancel = cancel
+	f.mu.Unlock()
+	_ = f.update(ctx, req.SessionId, "agent_thought_chunk", "thinking")
+	if strings.HasPrefix(text, "hold") {
+		_ = f.update(ctx, req.SessionId, "agent_message_chunk", "started")
+		<-ctx.Done()
+		return acp.PromptResponse{StopReason: acp.StopReasonCancelled}, nil
+	}
+	response := "answer:" + text + ":" + f.value
+	_ = f.update(ctx, req.SessionId, "agent_message_chunk", response)
+	return acp.PromptResponse{StopReason: acp.StopReasonEndTurn}, nil
+}
+
+func (f *fakeHarness) Cancel(context.Context, acp.CancelNotification) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.cancel != nil {
+		f.cancel()
+	}
+	return nil
+}
+
+func (f *fakeHarness) SetSessionConfigOption(_ context.Context, req acp.SetSessionConfigOptionRequest) (acp.SetSessionConfigOptionResponse, error) {
+	if req.ValueId == nil || req.ValueId.ConfigId != "model" {
+		return acp.SetSessionConfigOptionResponse{}, xerrors.New("unknown config")
+	}
+	f.value = string(req.ValueId.Value)
+	raw, _ := os.ReadFile(string(req.ValueId.SessionId) + ".json")
+	var saved fakeNativeSession
+	_ = json.Unmarshal(raw, &saved)
+	saved.Value = f.value
+	raw, _ = json.Marshal(saved)
+	_ = os.WriteFile(string(req.ValueId.SessionId)+".json", raw, 0o600)
+	return acp.SetSessionConfigOptionResponse{ConfigOptions: f.options()}, nil
 }
 
 func fakeCommand(t *testing.T, mode fakeHarnessMode) string {
