@@ -133,12 +133,12 @@ describe("theme CSS variables", () => {
 				expect(block).not.toBeNull();
 			});
 
-			if (effectiveBlock !== null) {
-				for (const variable of REQUIRED_VARIABLES) {
-					it(`resolves ${variable}`, () => {
-						expect(extractVariable(effectiveBlock, variable)).not.toBeNull();
-					});
-				}
+			for (const variable of REQUIRED_VARIABLES) {
+				it(`resolves ${variable}`, () => {
+					expect(
+						extractVariable(effectiveBlock ?? "", variable),
+					).not.toBeNull();
+				});
 			}
 		});
 	}
