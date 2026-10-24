@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { PenIcon } from "lucide-react";
-import { useId } from "react";
+import { useId, useState } from "react";
 import type { ChatProjectInstructions } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -17,13 +17,8 @@ import { formatMembersHeading, type ProjectAccessEntry } from "./projectAccess";
 
 /** The most avatar tiles the members row shows, including the "+K" tile. */
 const MAX_MEMBER_TILES = 8;
-// Below `sm`, the Details card is too narrow for more tiles.
-const MAX_MEMBER_TILES_NARROW = 7;
 // Keeps the "+K" tooltip short on large projects; the dialog lists everyone.
 const MAX_TOOLTIP_NAMES = 10;
-
-const avatarTileCount = (entryCount: number, maxTiles: number) =>
-	entryCount > maxTiles ? maxTiles - 1 : entryCount;
 
 type MembersSectionProps = {
 	/** `undefined` while the access list loads or after loading fails. */
@@ -235,20 +230,30 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 	onOpenAccess,
 }) => {
 	const headingId = useId();
+	const [rowWidth, setRowWidth] = useState(0);
+	const observeRowWidth = (section: HTMLElement) => {
+		const observer = new ResizeObserver(([entry]) =>
+			setRowWidth(entry.contentRect.width),
+		);
+		observer.observe(section);
+		return () => observer.disconnect();
+	};
 	let heading = "Members";
 	if (entries) {
 		const groupCount = entries.filter((entry) => entry.kind === "group").length;
 		heading = formatMembersHeading(entries.length - groupCount, groupCount);
 	}
-	const avatarCount = avatarTileCount(entries?.length ?? 0, MAX_MEMBER_TILES);
-	const narrowAvatarCount = avatarTileCount(
-		entries?.length ?? 0,
-		MAX_MEMBER_TILES_NARROW,
-	);
+	// 40px avatars overlap by 8px, so each tile after the first takes 32px.
+	const maxTiles = rowWidth
+		? Math.min(MAX_MEMBER_TILES, Math.max(1, Math.floor((rowWidth - 8) / 32)))
+		: MAX_MEMBER_TILES;
+	const entryCount = entries?.length ?? 0;
+	const avatarCount = entryCount > maxTiles ? maxTiles - 1 : entryCount;
 	const isLoading = !entries && !error;
 
 	return (
 		<section
+			ref={observeRowWidth}
 			aria-labelledby={headingId}
 			className="flex flex-col gap-3 border-0 border-t border-solid border-border p-4"
 		>
@@ -269,12 +274,9 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 			</div>
 			{entries && (
 				<ul aria-label="Project members" className="m-0 flex list-none p-0">
-					{entries.slice(0, avatarCount).map((entry, index) => (
+					{entries.slice(0, avatarCount).map((entry) => (
 						<MemberTile
 							key={`${entry.kind}:${entry.id}`}
-							className={
-								index >= narrowAvatarCount ? "max-sm:hidden" : undefined
-							}
 							label={entry.name}
 							tooltip={entry.name}
 						>
@@ -286,14 +288,7 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 							/>
 						</MemberTile>
 					))}
-					<OverflowTile
-						className="sm:hidden"
-						entries={entries.slice(narrowAvatarCount)}
-					/>
-					<OverflowTile
-						className="max-sm:hidden"
-						entries={entries.slice(avatarCount)}
-					/>
+					<OverflowTile entries={entries.slice(avatarCount)} />
 				</ul>
 			)}
 			{isLoading && (
@@ -326,25 +321,20 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 };
 
 type MemberTileProps = {
-	readonly className?: string;
 	readonly label: string;
 	readonly tooltip: string;
 	readonly children: React.ReactNode;
 };
 
 const MemberTile: React.FC<MemberTileProps> = ({
-	className,
 	label,
 	tooltip,
 	children,
 }) => (
-	<li
-		className={cn(
-			"flex rounded-[6px] ring-2 ring-surface-primary not-first:-ml-2",
-			className,
-		)}
-	>
-		<Tooltip>
+	<li className="flex rounded-[6px] ring-2 ring-surface-primary not-first:-ml-2">
+		{/* Tooltips flip above the row when there is no room below, so they
+		    must not take clicks meant for the View access button. */}
+		<Tooltip disableHoverableContent>
 			{/* A button so keyboard users can focus a tile to read its tooltip. */}
 			<TooltipTrigger
 				type="button"
@@ -353,11 +343,10 @@ const MemberTile: React.FC<MemberTileProps> = ({
 			>
 				{children}
 			</TooltipTrigger>
-			{/* Below the row so it never covers the View access button, and
-			    capped in width so long names wrap on narrow screens. */}
+			{/* Capped in width so long names wrap on narrow screens. */}
 			<TooltipContent
 				side="bottom"
-				className="max-w-[min(20rem,calc(100vw-2rem))] break-words"
+				className="popper-click-through max-w-[min(20rem,calc(100vw-2rem))] break-words"
 			>
 				{tooltip}
 			</TooltipContent>
@@ -366,12 +355,11 @@ const MemberTile: React.FC<MemberTileProps> = ({
 );
 
 type OverflowTileProps = {
-	readonly className: string;
 	/** The entries without an avatar tile. */
 	readonly entries: readonly ProjectAccessEntry[];
 };
 
-const OverflowTile: React.FC<OverflowTileProps> = ({ className, entries }) => {
+const OverflowTile: React.FC<OverflowTileProps> = ({ entries }) => {
 	if (entries.length === 0) {
 		return null;
 	}
@@ -379,7 +367,6 @@ const OverflowTile: React.FC<OverflowTileProps> = ({ className, entries }) => {
 	const omittedNameCount = entries.length - names.length;
 	return (
 		<MemberTile
-			className={className}
 			label={`+${entries.length} more`}
 			tooltip={
 				omittedNameCount > 0
