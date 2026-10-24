@@ -3784,10 +3784,24 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Browsers do not expose WebSocket pings to page code, and the server's
+	// close cannot reach the client over a frozen connection, one that stops
+	// delivering data without closing. The web client therefore treats a
+	// long gap between messages as a frozen connection, and the empty
+	// batches written on this ticker keep an idle stream from having such a
+	// gap.
+	keepalive := api.Clock.NewTicker(httpapi.HeartbeatInterval, "chatStream", "keepalive")
+	defer keepalive.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-keepalive.C:
+			if err := encoder.Encode([]codersdk.ChatStreamEvent{}); err != nil {
+				logger.Debug(ctx, "failed to send chat stream keepalive", slog.Error(err))
+				return
+			}
 		case firstEvent, ok := <-events:
 			if !ok {
 				return
@@ -3800,6 +3814,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 				logger.Debug(ctx, "failed to send chat stream event", slog.Error(err))
 				return
 			}
+			keepalive.Reset(httpapi.HeartbeatInterval, "chatStream", "keepalive")
 			if streamClosed {
 				return
 			}

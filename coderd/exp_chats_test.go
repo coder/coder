@@ -47,6 +47,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -60,6 +61,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -10553,6 +10555,115 @@ func TestStreamChat(t *testing.T) {
 					foundInitialUserMessage = true
 				}
 			}
+		}
+	})
+
+	t.Run("Keepalive", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mClock := quartz.NewMock(t)
+		keepaliveTrap := mClock.Trap().NewTicker("chatStream", "keepalive")
+		defer keepaliveTrap.Close()
+		// The handler calls Reset after each event batch, and the trap holds
+		// each call until nextFrame has read that batch. Each clock advance
+		// below therefore runs after the reset it depends on.
+		resetTrap := mClock.Trap().TickerReset("chatStream", "keepalive")
+		defer resetTrap.Close()
+
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled, func(o *coderdtest.Options) {
+			o.Clock = mClock
+		})
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "stream chat keepalive",
+			Status:            database.ChatStatusWaiting,
+		})
+
+		conn, err := client.Dial(ctx, fmt.Sprintf("/api/v2/chats/%s/stream", chat.ID), nil)
+		require.NoError(t, err)
+		defer conn.Close(websocket.StatusNormalClosure, "")
+
+		// The websocket library answers the server's pings only while a Read
+		// is in progress.
+		frames := make(chan []byte, 64)
+		go func() {
+			defer close(frames)
+			for {
+				_, data, err := conn.Read(ctx)
+				if err != nil {
+					return
+				}
+				select {
+				case frames <- data:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+		tickerStarted := false
+		nextFrame := func() []codersdk.ChatStreamEvent {
+			t.Helper()
+			data := testutil.TryReceive(ctx, t, frames)
+			require.NotNil(t, data, "chat stream closed")
+			var batch []codersdk.ChatStreamEvent
+			require.NoError(t, json.Unmarshal(data, &batch))
+			if tickerStarted && len(batch) > 0 {
+				resetTrap.MustWait(ctx).MustRelease(ctx)
+			}
+			return batch
+		}
+		sendMessage := func(text string) {
+			t.Helper()
+			_, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+				Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: text}},
+				BusyBehavior: codersdk.ChatBusyBehaviorQueue,
+			})
+			require.NoError(t, err)
+		}
+		framesBefore := func(text string) [][]codersdk.ChatStreamEvent {
+			t.Helper()
+			var before [][]codersdk.ChatStreamEvent
+			for {
+				batch := nextFrame()
+				encoded, err := json.Marshal(batch)
+				require.NoError(t, err)
+				if bytes.Contains(encoded, []byte(text)) {
+					return before
+				}
+				before = append(before, batch)
+			}
+		}
+
+		// While the trap holds NewTicker, the handler has written only the
+		// snapshot. A chat without messages has a one-batch snapshot, and no
+		// reset follows it.
+		newTicker := keepaliveTrap.MustWait(ctx)
+		snapshot := nextFrame()
+		require.NotEmpty(t, streamChatEventsOfType(snapshot, codersdk.ChatStreamEventTypeStatus))
+		newTicker.MustRelease(ctx)
+		tickerStarted = true
+
+		mClock.Advance(httpapi.HeartbeatInterval).MustWait(ctx)
+		for batch := nextFrame(); len(batch) > 0; batch = nextFrame() {
+			require.NotEqual(t, codersdk.ChatStreamEventTypeError, batch[0].Type)
+		}
+
+		// With t counted from the ticker's start, an event batch written at
+		// t=25s moves the next keepalive to t=40s, so none is due at t=30s.
+		mClock.Advance(10 * time.Second).MustWait(ctx)
+		const first = "stream chat keepalive first"
+		sendMessage(first)
+		_ = framesBefore(first)
+		mClock.Advance(5 * time.Second).MustWait(ctx)
+		const second = "stream chat keepalive second"
+		sendMessage(second)
+		for _, batch := range framesBefore(second) {
+			require.NotEmpty(t, batch, "keepalive written 5s after an event")
 		}
 	})
 
