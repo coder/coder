@@ -3,6 +3,7 @@ package chatd //nolint:testpackage // Exercises unexported rollover helpers.
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -219,6 +220,56 @@ func TestContextWindowID(t *testing.T) {
 	require.Equal(t, "w:10", contextWindowID([]database.ChatMessage{anchor, replay, next}))
 }
 
+func TestWithoutChatHistoryLeadIn(t *testing.T) {
+	t.Parallel()
+
+	anchor := func(t *testing.T, checkpoint string) database.ChatMessage {
+		messages, err := buildRolloverMessages(buildRolloverMessagesInput{
+			toolCallID:    "call",
+			payload:       contextRolloverPayload{Reason: rolloverReasonLimit, PreviousWindowID: "w:0", Checkpoint: checkpoint},
+			requestItemID: 7,
+		})
+		require.NoError(t, err)
+		return database.ChatMessage{ID: 10, Role: messages[0].Role, Visibility: messages[0].Visibility, Compressed: messages[0].Compressed, Content: messages[0].Content, ContentVersion: messages[0].ContentVersion}
+	}
+	text := func(t *testing.T, msg database.ChatMessage) string {
+		parts, err := chatprompt.ParseContent(msg)
+		require.NoError(t, err)
+		require.Len(t, parts, 1)
+		return parts[0].Text
+	}
+
+	t.Run("NoCheckpoint", func(t *testing.T) {
+		t.Parallel()
+		rows := []database.ChatMessage{anchor(t, "")}
+		original := slices.Clone(rows)
+		got, err := withoutChatHistoryLeadIn(rows)
+		require.NoError(t, err)
+		require.Equal(t, original, rows, "the input rows are persisted elsewhere and must stay unchanged")
+		leadIn := text(t, got[0])
+		require.NotContains(t, leadIn, "chat_history")
+		require.Contains(t, leadIn, "No checkpoint was saved.")
+		require.Contains(t, leadIn, "The window reached its usable limit.")
+	})
+	t.Run("CheckpointIsVerbatim", func(t *testing.T) {
+		t.Parallel()
+		checkpoint := rolloverRecoveryLine + "\nNo checkpoint was saved; this line is the agent's own text."
+		got, err := withoutChatHistoryLeadIn([]database.ChatMessage{anchor(t, checkpoint)})
+		require.NoError(t, err)
+		leadIn := text(t, got[0])
+		require.Contains(t, leadIn, "<checkpoint>\n"+checkpoint+"\n</checkpoint>")
+		require.Equal(t, 1, strings.Count(leadIn, "chat_history"), "only the checkpoint keeps its chat_history mention")
+	})
+	t.Run("OtherAnchorsUnchanged", func(t *testing.T) {
+		t.Parallel()
+		summary := dbMessage(t, 10, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("Summary: "+rolloverRecoveryLine))
+		summary.Visibility = database.ChatMessageVisibilityModel
+		got, err := withoutChatHistoryLeadIn([]database.ChatMessage{summary})
+		require.NoError(t, err)
+		require.Equal(t, []database.ChatMessage{summary}, got)
+	})
+}
+
 func TestContextWindowToolsAllowedInRestrictedModes(t *testing.T) {
 	t.Parallel()
 
@@ -250,6 +301,7 @@ func TestBuildRolloverMessages(t *testing.T) {
 			modelConfigID: modelConfigID,
 			toolCallID:    "call",
 			payload:       payload,
+			requestItemID: 42,
 		})
 		require.NoError(t, err)
 		require.Len(t, messages, 3)
@@ -259,7 +311,8 @@ func TestBuildRolloverMessages(t *testing.T) {
 		require.Equal(t, "A context window rollover started a fresh context window. Previous window: w:12.\n"+
 			"Your previous turn was interrupted by a context rollover; continue the task.\n"+
 			"The window reached its usable limit.\n"+
-			"No checkpoint was saved.", parts[0].Text)
+			"Completed tool results remain in the previous window: retrieve them with chat_history rather than re-executing their side effects. The request in progress is item 42.\n"+
+			"No checkpoint was saved; recover the task with chat_history, starting with item 42.", parts[0].Text)
 	})
 
 	t.Run("ReplaysPendingUserRows", func(t *testing.T) {
@@ -269,6 +322,7 @@ func TestBuildRolloverMessages(t *testing.T) {
 			modelConfigID:       modelConfigID,
 			toolCallID:          "call",
 			payload:             payload,
+			requestItemID:       50,
 			pendingUserMessages: []database.ChatMessage{pending},
 		})
 		require.NoError(t, err)
