@@ -623,7 +623,7 @@ func logCorruptRedirectURI(ctx context.Context, logger slog.Logger, app database
 }
 
 // ShowAuthorizePage handles GET /oauth2/authorize requests to display the HTML authorization page.
-func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc {
+func ShowAuthorizePage(db database.Store, accessURL *url.URL, logger slog.Logger) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		app := httpmw.OAuth2ProviderApp(r)
 		ua := httpmw.UserAuthorization(r.Context())
@@ -720,6 +720,18 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 			"The resource owner or authorization server denied the request")
 
 		scopes, unrestricted := consentScopes(grantedScope)
+		// A failed lookup leaves the page following the OS color scheme.
+		var appearance codersdk.UserAppearanceSettings
+		if settings, err := db.GetUserAppearanceSettings(r.Context(), httpmw.APIKey(r).UserID); err == nil {
+			appearance = codersdk.UserAppearanceSettings{
+				ThemePreference: settings.ThemePreference,
+				ThemeMode:       codersdk.ThemeMode(settings.ThemeMode),
+				ThemeLight:      settings.ThemeLight,
+				ThemeDark:       settings.ThemeDark,
+			}
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			logger.Warn(r.Context(), "get user appearance settings for consent page", slog.Error(err))
+		}
 		site.RenderOAuthAllowPage(rw, r, site.RenderOAuthAllowData{
 			AppIcon: app.Icon,
 			AppName: app.Name,
@@ -731,6 +743,7 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 			Username:     ua.FriendlyName,
 			Scopes:       scopes,
 			Unrestricted: unrestricted,
+			Appearance:   appearance,
 		})
 	}
 }

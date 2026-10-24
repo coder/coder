@@ -131,7 +131,7 @@ func (api *API) deleteOAuth2ProviderAppSecret() http.HandlerFunc {
 // @Failure 500 "HTML error page. One of the app's registered redirect URIs is not usable"
 // @Router /oauth2/authorize [get]
 func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
-	return oauth2provider.ShowAuthorizePage(api.AccessURL, api.Logger)
+	return oauth2provider.ShowAuthorizePage(api.Database, api.AccessURL, api.Logger)
 }
 
 // @Summary OAuth2 authorization request (POST - process authorization).
