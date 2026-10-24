@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/binary"
 	"io"
@@ -81,6 +82,39 @@ func TestPostFiles(t *testing.T) {
 		require.NoError(t, err)
 		_, err = client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(data))
 		require.NoError(t, err)
+	})
+	// A gzipped tar uploaded with a .tar content type used to be stored
+	// unread, only to panic much later when the previewer tried to read
+	// it back as a tar filesystem.
+	// Ref: https://github.com/coder/coder/issues/28913
+	t.Run("GzipAsTar", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		tarBytes := testutil.CreateTar(t, map[string]string{"main.tf": "terraform {}"})
+
+		var gzipBuf bytes.Buffer
+		gw := gzip.NewWriter(&gzipBuf)
+		_, err := gw.Write(tarBytes)
+		require.NoError(t, err)
+		require.NoError(t, gw.Close())
+
+		_, err = client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(gzipBuf.Bytes()))
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Detail, "gzip")
+	})
+	t.Run("InvalidTar", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader([]byte("this is not a tar archive")))
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 	t.Run("InvalidZipMetadata", func(t *testing.T) {
 		t.Parallel()

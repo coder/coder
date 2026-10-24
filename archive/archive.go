@@ -228,3 +228,25 @@ func WriteZip(w io.Writer, tarReader *tar.Reader, maxSize int64) error {
 	}
 	return nil // don't need to flush as we call `writer.Close()`
 }
+
+// ValidateTar checks that the given data can be read as a tar archive. Only
+// the headers are walked, so the cost is proportional to the number of
+// entries rather than the size of their contents. Without this, an archive
+// that cannot be read is stored and returns a hash, and the failure surfaces
+// much later in whatever first tries to read the filesystem back out.
+func ValidateTar(data []byte) error {
+	if len(data) > 1 && data[0] == 0x1f && data[1] == 0x8b {
+		return xerrors.New("archive is gzip compressed, upload an uncompressed tar or a .zip archive")
+	}
+
+	reader := tar.NewReader(bytes.NewReader(data))
+	for {
+		_, err := reader.Next()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+	}
+}
