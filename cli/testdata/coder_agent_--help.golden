@@ -70,6 +70,11 @@ OPTIONS:
       --devcontainers-project-discovery-enable bool, $CODER_AGENT_DEVCONTAINERS_PROJECT_DISCOVERY_ENABLE (default: true)
           Allow the agent to search the filesystem for devcontainer projects.
 
+      --git-credential-helper bool, $CODER_AGENT_GIT_CREDENTIAL_HELPER (default: true)
+          Register a Git credential helper that provides external auth tokens,
+          in addition to GIT_ASKPASS. This covers programs that disable askpass
+          for the Git processes they run.
+
       --log-dir string, $CODER_AGENT_LOG_DIR (default: /tmp)
           Specify the location for the agent log files.
 
