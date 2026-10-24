@@ -8768,32 +8768,8 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
-		if writeChatProviderPreconditionError(ctx, rw, err) {
-			return
-		}
-		var providerModelErr *chatModelConfigProviderModelError
-		switch {
-		case errors.As(err, &providerModelErr):
-			httpapi.Write(ctx, rw, http.StatusBadRequest, providerModelErr.Response)
-			return
-		case database.IsUniqueViolation(err):
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Chat model config already exists.",
-				Detail:  err.Error(),
-			})
-			return
-		case dbauthz.IsNotAuthorizedError(err):
-			// The dbauthz create-in-org check is the write access boundary;
-			// surface its denial as 403, not a concealed 404 or a 500.
-			httpapi.Forbidden(rw)
-			return
-		default:
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to create chat model config.",
-				Detail:  err.Error(),
-			})
-			return
-		}
+		writeChatModelConfigWriteError(ctx, rw, err, "Failed to create chat model config.")
+		return
 	}
 
 	aReq.New = inserted
@@ -9021,35 +8997,8 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
-		if writeChatProviderPreconditionError(ctx, rw, err) {
-			return
-		}
-		var providerModelErr *chatModelConfigProviderModelError
-		switch {
-		case errors.As(err, &providerModelErr):
-			httpapi.Write(ctx, rw, http.StatusBadRequest, providerModelErr.Response)
-			return
-		case database.IsUniqueViolation(err):
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Chat model config already exists.",
-				Detail:  err.Error(),
-			})
-			return
-		case dbauthz.IsNotAuthorizedError(err):
-			// The dbauthz object update check is the write access boundary;
-			// surface its denial as 403, not a concealed 404 or a 500.
-			httpapi.Forbidden(rw)
-			return
-		case xerrors.Is(err, errChatModelConfigNotFound), httpapi.Is404Error(err):
-			httpapi.ResourceNotFound(rw)
-			return
-		default:
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to update chat model config.",
-				Detail:  err.Error(),
-			})
-			return
-		}
+		writeChatModelConfigWriteError(ctx, rw, err, "Failed to update chat model config.")
+		return
 	}
 
 	aReq.New = updated
@@ -9113,20 +9062,7 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 		return nil
 	}); err != nil {
-		if dbauthz.IsNotAuthorizedError(err) {
-			// The dbauthz object delete check is the write access boundary;
-			// surface its denial as 403, not a concealed 404 or a 500.
-			httpapi.Forbidden(rw)
-			return
-		}
-		if xerrors.Is(err, errChatModelConfigNotFound) || httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to delete chat model config.",
-			Detail:  err.Error(),
-		})
+		writeChatModelConfigWriteError(ctx, rw, err, "Failed to delete chat model config.")
 		return
 	}
 
@@ -9415,6 +9351,34 @@ func validateChatProviderAPIKeySize(apiKey string) error {
 		return xerrors.Errorf("API key exceeds maximum size of 10 KB (%d bytes)", maxChatProviderAPIKeySize)
 	}
 	return nil
+}
+
+func writeChatModelConfigWriteError(ctx context.Context, rw http.ResponseWriter, err error, failMessage string) {
+	if writeChatProviderPreconditionError(ctx, rw, err) {
+		return
+	}
+	var providerModelErr *chatModelConfigProviderModelError
+	switch {
+	case errors.As(err, &providerModelErr):
+		httpapi.Write(ctx, rw, http.StatusBadRequest, providerModelErr.Response)
+	case database.IsUniqueViolation(err):
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Chat model config already exists.",
+			Detail:  err.Error(),
+		})
+	case dbauthz.IsNotAuthorizedError(err):
+		// The dbauthz write check is the access boundary; surface its denial
+		// as 403, not a concealed 404 or a 500. Is404Error below also matches
+		// authorization errors, so this case must come first.
+		httpapi.Forbidden(rw)
+	case xerrors.Is(err, errChatModelConfigNotFound), httpapi.Is404Error(err):
+		httpapi.ResourceNotFound(rw)
+	default:
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: failMessage,
+			Detail:  err.Error(),
+		})
+	}
 }
 
 func writeChatProviderPreconditionError(ctx context.Context, rw http.ResponseWriter, err error) bool {
