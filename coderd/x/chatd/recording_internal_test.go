@@ -1196,73 +1196,45 @@ func TestStopAndStoreRecording_UnknownPartIgnored(t *testing.T) {
 	assert.Equal(t, thumbData, thumbFile.Data)
 }
 
-// TestStopAndStoreRecording_MalformedContentType verifies that a
-// response with an unparsable Content-Type returns an empty result.
-func TestStopAndStoreRecording_MalformedContentType(t *testing.T) {
+func TestRecordingBoundary(t *testing.T) {
 	t.Parallel()
 
-	db, ps := dbtestutil.NewDB(t)
-	ctx := chatdTestContext(t)
+	tests := []struct {
+		name         string
+		contentType  string
+		wantBoundary string
+		wantOK       bool
+		wantLogs     []string
+	}{
+		{
+			name:     "Empty",
+			wantLogs: []string{"failed to parse content type from recording response"},
+		},
+		{
+			name:        "MissingBoundary",
+			contentType: "multipart/mixed",
+			wantLogs:    []string{"missing boundary in recording response content type"},
+		},
+		{
+			name:         "Valid",
+			contentType:  "multipart/mixed; boundary=abc123",
+			wantBoundary: "abc123",
+			wantOK:       true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	mockConn := agentconnmock.NewMockAgentConn(ctrl)
-
-	user, org, model := seedInternalChatDeps(t, db)
-	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
-
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
-	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
-
-	mockConn.EXPECT().
-		StopDesktopRecording(gomock.Any(), gomock.Any()).
-		Return(workspacesdk.StopDesktopRecordingResponse{
-			Body:        io.NopCloser(bytes.NewReader(nil)),
-			ContentType: "",
-		}, nil).
-		Times(1)
-
-	recordingID := uuid.New().String()
-	result := server.stopAndStoreRecording(
-		ctx, mockConn, recordingID, parent.ID, user.ID,
-		uuid.NullUUID{UUID: workspace.ID, Valid: true},
-	)
-
-	assert.Empty(t, result.recordingFileID, "RecordingFileID should be empty for malformed content type")
-	assert.Empty(t, result.thumbnailFileID, "ThumbnailFileID should be empty for malformed content type")
-}
-
-// TestStopAndStoreRecording_MissingBoundary verifies that a
-// multipart response without a boundary parameter returns an empty
-// result.
-func TestStopAndStoreRecording_MissingBoundary(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := chatdTestContext(t)
-
-	ctrl := gomock.NewController(t)
-	mockConn := agentconnmock.NewMockAgentConn(ctrl)
-
-	user, org, model := seedInternalChatDeps(t, db)
-	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
-
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
-	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
-
-	mockConn.EXPECT().
-		StopDesktopRecording(gomock.Any(), gomock.Any()).
-		Return(workspacesdk.StopDesktopRecordingResponse{
-			Body:        io.NopCloser(bytes.NewReader(nil)),
-			ContentType: "multipart/mixed",
-		}, nil).
-		Times(1)
-
-	recordingID := uuid.New().String()
-	result := server.stopAndStoreRecording(
-		ctx, mockConn, recordingID, parent.ID, user.ID,
-		uuid.NullUUID{UUID: workspace.ID, Valid: true},
-	)
-
-	assert.Empty(t, result.recordingFileID, "RecordingFileID should be empty when boundary is missing")
-	assert.Empty(t, result.thumbnailFileID, "ThumbnailFileID should be empty when boundary is missing")
+			sink := testutil.NewFakeSink(t)
+			boundary, ok := recordingBoundary(testutil.Context(t, testutil.WaitShort), sink.Logger(), tt.contentType)
+			require.Equal(t, tt.wantBoundary, boundary)
+			require.Equal(t, tt.wantOK, ok)
+			var logs []string
+			for _, e := range sink.Entries() {
+				logs = append(logs, e.Message)
+			}
+			require.Equal(t, tt.wantLogs, logs)
+		})
+	}
 }
