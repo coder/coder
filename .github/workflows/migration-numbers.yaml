@@ -1,0 +1,74 @@
+name: migration-numbers
+
+# Reports a "migration-numbers" commit status on pull requests that add
+# database migrations. The status fails when a new migration number is
+# not greater than every number already on the base branch.
+#
+# Normal CI only runs when a PR is pushed, so two PRs can both pass with
+# the same migration number and then collide on main. The push trigger
+# re-evaluates every open PR each time a migration lands on the base
+# branch, so a PR that became stale turns red before it can be merged.
+# Make the "migration-numbers" status required on main for this to
+# block the merge button.
+
+on:
+  # pull_request_target runs with a token that can write statuses, which
+  # pull_request does not get for forks. It is safe here because the job
+  # checks out the base branch only and reads PR file names through the
+  # API. It never checks out or executes code from the PR.
+  # zizmor: ignore[dangerous-triggers] Base branch only; PR code is never checked out.
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - main
+      - release/*
+    paths:
+      - coderd/database/migrations/**
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      # For pull_request_target, github.sha is the latest commit on the
+      # PR base branch, not the PR head. For push, it is the pushed
+      # commit. Either way this is the branch new numbers must exceed.
+      - name: Checkout base branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Check pull request
+        if: github.event_name == 'pull_request_target'
+        run: ./scripts/check_migration_numbers.sh --post-status "$PR_NUMBER"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Re-check open pull requests
+        if: github.event_name == 'push'
+        run: ./scripts/check_migration_numbers.sh --post-status --all
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
