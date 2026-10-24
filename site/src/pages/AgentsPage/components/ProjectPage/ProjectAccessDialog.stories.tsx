@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { fn, screen, userEvent } from "storybook/test";
 import type { ChatProjectACL } from "#/api/typesGenerated";
 import {
+	MockChatProject,
 	MockGroup,
 	MockUserMember,
 	MockUserOwner,
@@ -35,6 +36,14 @@ const meta: Meta<typeof ProjectAccessDialog> = {
 		isRetrying: false,
 		onRetry: fn(),
 		onCloseAutoFocus: fn(),
+		canManage: false,
+		organizationId: MockChatProject.organization_id,
+		currentUserId: MockUserOwner.id,
+		onAdd: fn(),
+		onChangeRole: fn(),
+		onRemove: fn(),
+		pendingPrincipalId: undefined,
+		mutationError: undefined,
 	},
 };
 
@@ -87,5 +96,46 @@ export const Retrying: Story = {
 export const RefetchError: Story = {
 	args: {
 		error: mockApiError({ message: "Failed to get chat project ACL." }),
+	},
+};
+
+export const Manage: Story = {
+	args: { canManage: true },
+};
+
+export const ManageOwnerOnly: Story = {
+	args: {
+		canManage: true,
+		entries: buildAccessEntries(MockUserOwner.id, MockUserOwner, {
+			users: [],
+			groups: [],
+		}),
+	},
+};
+
+/** A project admin cannot change their own role. */
+export const ManageAsAdmin: Story = {
+	args: { canManage: true, currentUserId: MockUserMember.id },
+};
+
+export const ManageRoleOptions: Story = {
+	args: { canManage: true },
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("combobox", { name: "Role for grace" }),
+		);
+	},
+};
+
+export const ManagePendingChange: Story = {
+	args: { canManage: true, pendingPrincipalId: "sharee-2" },
+};
+
+export const ManageChangeError: Story = {
+	args: {
+		canManage: true,
+		mutationError: mockApiError({
+			message: "Failed to update chat project ACL.",
+		}),
 	},
 };

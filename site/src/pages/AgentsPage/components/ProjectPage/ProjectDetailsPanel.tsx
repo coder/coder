@@ -6,10 +6,12 @@ import {
 	chatProjectACL,
 	chatProjectInstructions,
 	deleteChatProjectInstructions,
+	setChatProjectGroupRole,
+	setChatProjectUserRole,
 	updateChatProjectInstructions,
 } from "#/api/queries/chatProjects";
 import { user } from "#/api/queries/users";
-import type { ChatProject } from "#/api/typesGenerated";
+import type { ChatProject, ChatProjectRole } from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useDialogFocusReturn } from "../useDialogFocusReturn";
@@ -17,13 +19,16 @@ import { ProjectAccessDialog } from "./ProjectAccessDialog";
 import { ProjectDetailsPanelView } from "./ProjectDetailsPanelView";
 import { ProjectInstructionsDialog } from "./ProjectInstructionsDialog";
 import { ProjectSkillsDialog } from "./ProjectSkillsDialog";
-import { buildAccessEntries } from "./projectAccess";
+import {
+	buildAccessEntries,
+	type ProjectAccessPrincipal,
+} from "./projectAccess";
 
 type ProjectDetailsPanelProps = {
 	readonly project: ChatProject;
 };
 
-/** Loads a project's details and members, and edits its instructions and skills. */
+/** Loads a project's details and members, and edits its instructions, skills, and access. */
 export const ProjectDetailsPanel: React.FC<ProjectDetailsPanelProps> = ({
 	project,
 }) => (
@@ -73,6 +78,11 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	const [isAccessDialogOpen, setIsAccessDialogOpen] = useState(false);
 	const accessFocusReturn = useDialogFocusReturn();
 	const retryACL = () => void aclQuery.refetch();
+	const userRoleMutation = useMutation(setChatProjectUserRole(queryClient));
+	const groupRoleMutation = useMutation(setChatProjectGroupRole(queryClient));
+	// Like isMutationInFlight below: one access change at a time, so a
+	// newer change cannot hide the result of an earlier one.
+	const isAccessChangeInFlight = useRef(false);
 	const updateMutation = useMutation(
 		updateChatProjectInstructions(queryClient, project),
 	);
@@ -106,6 +116,44 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 		});
 	};
 
+	const resetAccessErrors = () => {
+		// Resetting a pending mutation drops its per-call onSettled, which
+		// would leave isAccessChangeInFlight set.
+		if (!isAccessChangeInFlight.current) {
+			userRoleMutation.reset();
+			groupRoleMutation.reset();
+		}
+	};
+
+	const setAccessRole = (
+		principal: ProjectAccessPrincipal,
+		role: ChatProjectRole,
+		onSuccess?: () => void,
+	) => {
+		if (isAccessChangeInFlight.current) {
+			return;
+		}
+		resetAccessErrors();
+		isAccessChangeInFlight.current = true;
+		const callbacks = {
+			onSuccess,
+			onSettled: () => {
+				isAccessChangeInFlight.current = false;
+			},
+		};
+		if (principal.kind === "group") {
+			groupRoleMutation.mutate(
+				{ project, groupId: principal.id, role },
+				callbacks,
+			);
+		} else {
+			userRoleMutation.mutate(
+				{ project, userId: principal.id, role },
+				callbacks,
+			);
+		}
+	};
+
 	return (
 		<>
 			<ProjectDetailsPanelView
@@ -133,8 +181,10 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 								error: aclQuery.error,
 								isRetrying: aclQuery.isFetching,
 								onRetry: retryACL,
+								canManage: project.permissions.share,
 								onOpenAccess: (event) => {
 									accessFocusReturn.rememberTrigger(event);
+									resetAccessErrors();
 									setIsAccessDialogOpen(true);
 									// Show access changes made since the page loaded.
 									void aclQuery.refetch();
@@ -186,12 +236,29 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 			/>
 			<ProjectAccessDialog
 				open={isAccessDialogOpen}
-				onOpenChange={setIsAccessDialogOpen}
+				onOpenChange={(open) => {
+					resetAccessErrors();
+					setIsAccessDialogOpen(open);
+				}}
 				entries={accessEntries}
 				error={aclQuery.error}
 				isRetrying={aclQuery.isFetching}
 				onRetry={retryACL}
 				onCloseAutoFocus={accessFocusReturn.restoreFocus}
+				canManage={project.permissions.share}
+				organizationId={project.organization_id}
+				currentUserId={me.id}
+				onAdd={setAccessRole}
+				onChangeRole={setAccessRole}
+				onRemove={(principal) => setAccessRole(principal, "")}
+				pendingPrincipalId={
+					userRoleMutation.isPending
+						? userRoleMutation.variables.userId
+						: groupRoleMutation.isPending
+							? groupRoleMutation.variables.groupId
+							: undefined
+				}
+				mutationError={userRoleMutation.error ?? groupRoleMutation.error}
 			/>
 		</>
 	);

@@ -33,6 +33,12 @@ export type ProjectAccessEntry =
 			readonly role: ChatProjectRole;
 	  });
 
+/** A user or group that can be granted a project role. */
+export type ProjectAccessPrincipal = {
+	readonly kind: "user" | "group";
+	readonly id: string;
+};
+
 /** `memberCount` includes the owner; groups are counted separately. */
 export const formatMembersHeading = (
 	memberCount: number,

@@ -1,11 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { MutationObserver } from "react-query";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
 import { MockChatProject } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import {
 	chatProject,
+	chatProjectACLKey,
+	chatProjectInstructionsKey,
 	chatProjectsKey,
 	createChatProject,
 	deleteChatProject,
+	setChatProjectGroupRole,
+	setChatProjectUserRole,
 	updateChatProject,
 } from "./chatProjects";
 import {
@@ -68,5 +74,68 @@ describe("chat project mutations", () => {
 		}
 		// A chat's nested queries do not depend on its project.
 		expect(isInvalidated(queryClient, messagesKey)).toBe(false);
+	});
+});
+
+describe("chat project access mutations", () => {
+	const aclKey = chatProjectACLKey(MockChatProject.id);
+	const otherKeys = [
+		chatProjectsKey,
+		chatProjectInstructionsKey(MockChatProject.id),
+		chatProjectACLKey("other-project"),
+	];
+	const setup = () => {
+		const queryClient = createTestQueryClient();
+		for (const key of [aclKey, ...otherKeys]) {
+			queryClient.setQueryData(key, {});
+		}
+		const updateACL = vi
+			.spyOn(API.experimental, "updateChatProjectACL")
+			.mockResolvedValue();
+		return { queryClient, updateACL };
+	};
+	const expectOnlyACLInvalidated = (
+		queryClient: ReturnType<typeof createTestQueryClient>,
+	) => {
+		expect(queryClient.getQueryState(aclKey)?.isInvalidated).toBe(true);
+		for (const key of otherKeys) {
+			expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
+		}
+	};
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("sets a user's role and refreshes only the project's access", async () => {
+		const { queryClient, updateACL } = setup();
+
+		await new MutationObserver(
+			queryClient,
+			setChatProjectUserRole(queryClient),
+		).mutate({ project: MockChatProject, userId: "user-1", role: "admin" });
+
+		expect(updateACL).toHaveBeenCalledWith(
+			MockChatProject.organization_id,
+			MockChatProject.id,
+			{ user_roles: { "user-1": "admin" } },
+		);
+		expectOnlyACLInvalidated(queryClient);
+	});
+
+	it("removes a group and refreshes only the project's access", async () => {
+		const { queryClient, updateACL } = setup();
+
+		await new MutationObserver(
+			queryClient,
+			setChatProjectGroupRole(queryClient),
+		).mutate({ project: MockChatProject, groupId: "group-1", role: "" });
+
+		expect(updateACL).toHaveBeenCalledWith(
+			MockChatProject.organization_id,
+			MockChatProject.id,
+			{ group_roles: { "group-1": "" } },
+		);
+		expectOnlyACLInvalidated(queryClient);
 	});
 });

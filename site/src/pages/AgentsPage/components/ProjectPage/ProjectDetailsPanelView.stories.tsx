@@ -47,6 +47,7 @@ const mockMembers = {
 	error: undefined,
 	isRetrying: false,
 	onRetry: fn(),
+	canManage: false,
 	onOpenAccess: fn(),
 };
 
@@ -218,6 +219,11 @@ export const RefetchError: Story = {
 			message: "Failed to get chat project instructions.",
 		}),
 	},
+};
+
+/** Owners and project admins can change access. */
+export const CanManageAccess: Story = {
+	args: { members: { ...mockMembers, canManage: true } },
 };
 
 /** Chat sharing is disabled for the deployment, so the members are hidden. */

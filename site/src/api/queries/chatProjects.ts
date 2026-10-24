@@ -111,6 +111,54 @@ export const chatProjectACL = (project: TypesGen.ChatProject) =>
 			API.experimental.getChatProjectACL(project.organization_id, project.id),
 	});
 
+type SetChatProjectUserRoleVariables = {
+	project: TypesGen.ChatProject;
+	userId: string;
+	/** `""` removes the user's access. */
+	role: TypesGen.ChatProjectRole;
+};
+
+type SetChatProjectGroupRoleVariables = {
+	project: TypesGen.ChatProject;
+	groupId: string;
+	/** `""` removes the group's access. */
+	role: TypesGen.ChatProjectRole;
+};
+
+export const setChatProjectUserRole = (queryClient: QueryClient) =>
+	mutationOptions({
+		mutationFn: ({ project, userId, role }: SetChatProjectUserRoleVariables) =>
+			API.experimental.updateChatProjectACL(
+				project.organization_id,
+				project.id,
+				{ user_roles: { [userId]: role } },
+			),
+		onSuccess: (_data, { project }) =>
+			queryClient.invalidateQueries({
+				queryKey: chatProjectACLKey(project.id),
+				exact: true,
+			}),
+	});
+
+export const setChatProjectGroupRole = (queryClient: QueryClient) =>
+	mutationOptions({
+		mutationFn: ({
+			project,
+			groupId,
+			role,
+		}: SetChatProjectGroupRoleVariables) =>
+			API.experimental.updateChatProjectACL(
+				project.organization_id,
+				project.id,
+				{ group_roles: { [groupId]: role } },
+			),
+		onSuccess: (_data, { project }) =>
+			queryClient.invalidateQueries({
+				queryKey: chatProjectACLKey(project.id),
+				exact: true,
+			}),
+	});
+
 export const updateChatProjectInstructions = (
 	queryClient: QueryClient,
 	project: TypesGen.ChatProject,
