@@ -33,20 +33,7 @@ describe("buildAccessEntries", () => {
 		groups: [{ ...MockGroup, role: "use" }],
 	};
 
-	it("lists the owner first, then users, then groups", () => {
-		expect(
-			buildAccessEntries(MockUserOwner.id, MockUserOwner, mockACL).map(
-				({ kind, id }) => ({ kind, id }),
-			),
-		).toEqual([
-			{ kind: "owner", id: MockUserOwner.id },
-			{ kind: "user", id: MockUserMember.id },
-			{ kind: "user", id: mockUnnamedUser.id },
-			{ kind: "group", id: MockGroup.id },
-		]);
-	});
-
-	it("sorts users and groups by name regardless of the API order", () => {
+	it("lists the owner first, then users and groups each sorted by name", () => {
 		const mockGroupB = {
 			...MockGroup,
 			id: "group-b",
@@ -60,12 +47,12 @@ describe("buildAccessEntries", () => {
 				{ ...MockGroup, id: "group-a", display_name: "A-team", role: "use" },
 			],
 		});
-		expect(entries.map(({ id }) => id)).toEqual([
-			MockUserOwner.id,
-			MockUserMember.id,
-			mockUnnamedUser.id,
-			"group-a",
-			mockGroupB.id,
+		expect(entries.map(({ kind, id }) => ({ kind, id }))).toEqual([
+			{ kind: "owner", id: MockUserOwner.id },
+			{ kind: "user", id: MockUserMember.id },
+			{ kind: "user", id: mockUnnamedUser.id },
+			{ kind: "group", id: "group-a" },
+			{ kind: "group", id: mockGroupB.id },
 		]);
 	});
 
