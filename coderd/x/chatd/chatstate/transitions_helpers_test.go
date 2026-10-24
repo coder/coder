@@ -435,20 +435,18 @@ func seedStateMultiQueued(t *testing.T, f *testFixture, state chatstate.Executio
 	case chatstate.StateI1:
 		created := createTestChat(t, f)
 		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-		tailBody := "queued-i1-b"
-		tail := sendQueuedMessage(t, f, m, tailBody)
-		require.NotNil(t, tail.QueuedMessage)
-		// R1 -> I1 via interrupt-mode SendMessage queues a second
-		// message and flips status to interrupting.
-		headBody := "queued-i1-a"
-		head := sendInterruptMessage(t, f, m, created.Chat.ID, headBody)
-		require.NotNil(t, head.QueuedMessage)
+		firstBody := "queued-i1-a"
+		first := sendQueuedMessage(t, f, m, firstBody)
+		require.NotNil(t, first.QueuedMessage)
+		secondBody := "queued-i1-b"
+		second := sendInterruptMessage(t, f, m, created.Chat.ID, secondBody)
+		require.NotNil(t, second.QueuedMessage)
 		return seededChat{
 			chatID:               created.Chat.ID,
 			exists:               true,
 			initialUserMessageID: firstUserMessageID(ctx, t, f, created.Chat.ID),
-			queuedMessageIDs:     []int64{head.QueuedMessage.ID, tail.QueuedMessage.ID},
-			queuedMessageBodies:  []string{headBody, tailBody},
+			queuedMessageIDs:     []int64{first.QueuedMessage.ID, second.QueuedMessage.ID},
+			queuedMessageBodies:  []string{firstBody, secondBody},
 		}
 
 	case chatstate.StateA1:
