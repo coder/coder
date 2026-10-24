@@ -48,7 +48,7 @@ For more information on feature rollout, see our
 - Receives only critical bugfixes and security patches
 - Ideal for regulated environments or large deployments with strict upgrade cycles
 
-ESR releases will be updated with critical bugfixes and security patches that are available to paying customers. This extended support model provides predictable, long-term maintenance for organizations that require enhanced stability. Because ESR forgoes new features in favor of maintenance and stability, it is best suited for teams with strict upgrade constraints. The latest ESR version is [Coder 2.34](https://github.com/coder/coder/releases/tag/v2.34.5).
+ESR releases will be updated with critical bugfixes and security patches that are available to paying customers. This extended support model provides predictable, long-term maintenance for organizations that require enhanced stability. Because ESR forgoes new features in favor of maintenance and stability, it is best suited for teams with strict upgrade constraints. The latest ESR version is [Coder 2.34](https://github.com/coder/coder/releases/tag/v2.34.13).
 
 For more information, see the [Coder ESR announcement](https://coder.com/blog/esr) or the [2.29 to 2.34 ESR Upgrade Guide](../install/operate/upgrade/esr-2.29-2.34-upgrade.md).
 
@@ -83,12 +83,12 @@ pages.
 <!-- RELEASE_CALENDAR_START -->
 | Release name                                     | Release Date       | Status                   | Latest Release                                                   |
 |--------------------------------------------------|--------------------|--------------------------|------------------------------------------------------------------|
-| [2.29](https://coder.com/changelog/coder-2-29)   | December 02, 2025  | Extended Support Release | [v2.29.21](https://github.com/coder/coder/releases/tag/v2.29.21) |
+| [2.29](https://coder.com/changelog/coder-2-29)   | December 02, 2025  | Extended Support Release | [v2.29.22](https://github.com/coder/coder/releases/tag/v2.29.22) |
 | [2.33](https://coder.com/changelog/coder-2-33)   | May 05, 2026       | Not Supported            | [v2.33.11](https://github.com/coder/coder/releases/tag/v2.33.11) |
-| [2.34](https://coder.com/changelog/coder-2-34)   | June 02, 2026      | Extended Support Release | [v2.34.12](https://github.com/coder/coder/releases/tag/v2.34.12) |
-| [2.35](https://coder.com/changelog/coder-2-35-1) | July 07, 2026      | Not Supported            | [v2.35.9](https://github.com/coder/coder/releases/tag/v2.35.9)   |
-| [2.36](https://coder.com/changelog/coder-2-36)   | August 04, 2026    | Security Support         | [v2.36.7](https://github.com/coder/coder/releases/tag/v2.36.7)   |
-| [2.37](https://coder.com/changelog/coder-2-37)   | September 01, 2026 | Stable                   | [v2.37.4](https://github.com/coder/coder/releases/tag/v2.37.4)   |
+| [2.34](https://coder.com/changelog/coder-2-34)   | June 02, 2026      | Extended Support Release | [v2.34.13](https://github.com/coder/coder/releases/tag/v2.34.13) |
+| [2.35](https://coder.com/changelog/coder-2-35-1) | July 07, 2026      | Not Supported            | [v2.35.10](https://github.com/coder/coder/releases/tag/v2.35.10) |
+| [2.36](https://coder.com/changelog/coder-2-36)   | August 04, 2026    | Security Support         | [v2.36.8](https://github.com/coder/coder/releases/tag/v2.36.8)   |
+| [2.37](https://coder.com/changelog/coder-2-37)   | September 01, 2026 | Stable                   | [v2.37.5](https://github.com/coder/coder/releases/tag/v2.37.5)   |
 | [2.38](https://coder.com/changelog/coder-2-38)   | October 06, 2026   | Mainline                 | [v2.38.0](https://github.com/coder/coder/releases/tag/v2.38.0)   |
 | 2.39                                             |                    | Not Released             | N/A                                                              |
 <!-- RELEASE_CALENDAR_END -->
