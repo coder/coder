@@ -38,21 +38,22 @@ const mockSharees: ChatProjectUser[] = [
 }));
 
 const mockACL: ChatProjectACL = {
+	owner: MockUserOwner,
 	users: mockSharees.slice(0, 2),
 	groups: [],
 };
 
 const mockMembers = {
-	entries: buildAccessEntries(MockUserOwner.id, MockUserOwner, mockACL),
+	entries: buildAccessEntries(mockACL),
 	error: undefined,
 	isRetrying: false,
 	onRetry: fn(),
 	onOpenAccess: fn(),
 };
 
-const mockMembersWithOwner = (owner: MinimalUser | null | undefined) => ({
+const mockMembersWithOwner = (owner: MinimalUser) => ({
 	...mockMembers,
-	entries: buildAccessEntries(MockUserMember.id, owner, mockACL),
+	entries: buildAccessEntries({ ...mockACL, owner }),
 });
 
 const meta: Meta<typeof ProjectDetailsPanelView> = {
@@ -115,8 +116,12 @@ export const WithOrganization: Story = {
 	args: { organizationLabel: "Coder" },
 };
 
+/** The ACL names the owner, so both load together. */
 export const OwnerLoading: Story = {
-	args: { ownerLabel: undefined, members: mockMembersWithOwner(undefined) },
+	args: {
+		ownerLabel: undefined,
+		members: { ...mockMembers, entries: undefined },
+	},
 };
 
 export const OtherOwner: Story = {
@@ -126,8 +131,9 @@ export const OtherOwner: Story = {
 	},
 };
 
+/** Neither the ACL nor the users API could name the owner. */
 export const OwnerUnknown: Story = {
-	args: { ownerLabel: "Unknown", members: mockMembersWithOwner(null) },
+	args: { ownerLabel: "Unknown", members: undefined },
 };
 
 /** Long owner and organization names wrap so they stay readable. */
@@ -229,7 +235,8 @@ export const OwnerOnly: Story = {
 	args: {
 		members: {
 			...mockMembers,
-			entries: buildAccessEntries(MockUserOwner.id, MockUserOwner, {
+			entries: buildAccessEntries({
+				...mockACL,
 				users: [],
 				groups: [],
 			}),
@@ -242,7 +249,8 @@ export const MembersOverflow: Story = {
 	args: {
 		members: {
 			...mockMembers,
-			entries: buildAccessEntries(MockUserOwner.id, MockUserOwner, {
+			entries: buildAccessEntries({
+				...mockACL,
 				users: mockSharees,
 				groups: [],
 			}),
@@ -255,7 +263,8 @@ export const MembersFullRow: Story = {
 	args: {
 		members: {
 			...mockMembers,
-			entries: buildAccessEntries(MockUserOwner.id, MockUserOwner, {
+			entries: buildAccessEntries({
+				...mockACL,
 				users: mockSharees.slice(0, 7),
 				groups: [],
 			}),
@@ -268,7 +277,8 @@ export const MembersWithGroups: Story = {
 	args: {
 		members: {
 			...mockMembers,
-			entries: buildAccessEntries(MockUserOwner.id, MockUserOwner, {
+			entries: buildAccessEntries({
+				...mockACL,
 				users: mockSharees.slice(0, 2),
 				groups: [
 					{ ...MockGroup, role: "use" },
@@ -291,7 +301,8 @@ export const MemberTooltipLongName: Story = {
 	args: {
 		members: {
 			...mockMembers,
-			entries: buildAccessEntries(MockUserOwner.id, MockUserOwner, {
+			entries: buildAccessEntries({
+				...mockACL,
 				users: [
 					{
 						...mockSharees[0],

@@ -329,35 +329,25 @@ type MemberAvatarProps = {
 	readonly entry: ProjectAccessEntry;
 };
 
-const MemberAvatar: React.FC<MemberAvatarProps> = ({ entry }) => {
-	if (entry.name === undefined) {
-		return (
-			<>
-				<Skeleton className="size-(--avatar-lg) rounded-[6px]" />
-				<span className="sr-only">Loading</span>
-			</>
-		);
-	}
-	return (
-		<Tooltip>
-			<TooltipTrigger
-				type="button"
-				aria-label={entry.name}
-				className={memberTileTriggerClassName}
-			>
-				<Avatar
-					size="lg"
-					src={entry.avatarUrl}
-					fallback={entry.name}
-					aria-hidden="true"
-				/>
-			</TooltipTrigger>
-			<TooltipContent className={memberTooltipClassName}>
-				{entry.name}
-			</TooltipContent>
-		</Tooltip>
-	);
-};
+const MemberAvatar: React.FC<MemberAvatarProps> = ({ entry }) => (
+	<Tooltip>
+		<TooltipTrigger
+			type="button"
+			aria-label={entry.name}
+			className={memberTileTriggerClassName}
+		>
+			<Avatar
+				size="lg"
+				src={entry.avatarUrl}
+				fallback={entry.name}
+				aria-hidden="true"
+			/>
+		</TooltipTrigger>
+		<TooltipContent className={memberTooltipClassName}>
+			{entry.name}
+		</TooltipContent>
+	</Tooltip>
+);
 
 type DetailRowProps = {
 	readonly label: string;

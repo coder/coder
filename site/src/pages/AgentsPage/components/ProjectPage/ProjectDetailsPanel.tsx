@@ -40,11 +40,20 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	const { user: me } = useAuthenticated();
 	const { organizations, showOrganizations } = useDashboard();
 	const isOwner = project.owner_id === me.id;
-	const ownerQuery = useQuery({ ...user(project.owner_id), enabled: !isOwner });
-	// `undefined` while the owner loads, `null` if loading failed.
+	const aclQuery = useQuery(chatProjectACL(project));
+	// The ACL names the owner for anyone who can read the project. If it
+	// fails, such as with a 403 while chat sharing is disabled, the remaining
+	// readers are admins, who can look the owner up through the users API.
+	const ownerQuery = useQuery({
+		...user(project.owner_id),
+		enabled: !isOwner && aclQuery.isError && !aclQuery.data,
+	});
+	// `undefined` while the owner loads, `null` if every source failed.
 	const owner = isOwner
 		? me
-		: (ownerQuery.data ?? (ownerQuery.isError ? null : undefined));
+		: (aclQuery.data?.owner ??
+			ownerQuery.data ??
+			(ownerQuery.isError ? null : undefined));
 	const ownerLabel = isOwner
 		? "You"
 		: owner === null
@@ -64,11 +73,10 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	);
 	const [isSkillsDialogOpen, setIsSkillsDialogOpen] = useState(false);
 	const skillsFocusReturn = useDialogFocusReturn();
-	const aclQuery = useQuery(chatProjectACL(project));
 	// The ACL endpoints return 403 when chat sharing is disabled.
 	const isSharingDisabled = getErrorStatus(aclQuery.error) === 403;
 	const accessEntries = aclQuery.data
-		? buildAccessEntries(project.owner_id, owner, aclQuery.data)
+		? buildAccessEntries(aclQuery.data, isOwner ? me : undefined)
 		: undefined;
 	const [isAccessDialogOpen, setIsAccessDialogOpen] = useState(false);
 	const accessFocusReturn = useDialogFocusReturn();

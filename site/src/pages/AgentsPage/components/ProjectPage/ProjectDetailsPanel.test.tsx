@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
 	focusManager,
@@ -19,6 +19,7 @@ import {
 	MockChatProjectInstructions,
 	MockUnsetChatProjectInstructions,
 	MockUserMember,
+	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
@@ -99,6 +100,7 @@ const renderPanel = (initialProject: ChatProject = MockChatProject) => {
 describe("ProjectDetailsPanel", () => {
 	beforeEach(() => {
 		vi.spyOn(API.experimental, "getChatProjectACL").mockResolvedValue({
+			owner: MockUserOwner,
 			users: [],
 			groups: [],
 		});
@@ -515,7 +517,6 @@ describe("ProjectDetailsPanel", () => {
 
 	it("lets a non-owner turn a skill off when the project permits update", async () => {
 		mockInstructions(MockChatProjectInstructions);
-		vi.spyOn(API, "getUser").mockResolvedValue(MockUserMember);
 		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([
 			MockSkills[0],
 		]);
@@ -568,6 +569,7 @@ describe("ProjectDetailsPanel", () => {
 		const getACL = vi
 			.spyOn(API.experimental, "getChatProjectACL")
 			.mockResolvedValue({
+				owner: MockUserOwner,
 				users: [{ ...MockUserMember, role: "use" }],
 				groups: [],
 			});
@@ -587,4 +589,32 @@ describe("ProjectDetailsPanel", () => {
 			MockChatProject.id,
 		);
 	});
+
+	it.each([
+		{ source: "the ACL", aclFails: false, userLookups: [] },
+		{
+			source: "the users API when the ACL fails",
+			aclFails: true,
+			userLookups: [[MockUserMember.id]],
+		},
+	])(
+		"names another user's project owner from $source",
+		async ({ aclFails, userLookups }) => {
+			mockInstructions(MockChatProjectInstructions);
+			const owner = { ...MockUserMember, name: "Jane Doe" };
+			const getACL = vi.spyOn(API.experimental, "getChatProjectACL");
+			if (aclFails) {
+				getACL.mockRejectedValue(mockApiError({ message: "Forbidden." }));
+			} else {
+				getACL.mockResolvedValue({ owner, users: [], groups: [] });
+			}
+			const getUser = vi.spyOn(API, "getUser").mockResolvedValue(owner);
+			renderPanel({ ...MockChatProject, owner_id: owner.id });
+
+			await within(screen.getByRole("region", { name: "Details" })).findByText(
+				owner.name,
+			);
+			expect(getUser.mock.calls).toEqual(userLookups);
+		},
+	);
 });

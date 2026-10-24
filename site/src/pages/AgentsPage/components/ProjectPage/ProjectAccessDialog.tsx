@@ -1,6 +1,5 @@
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { AvatarData } from "#/components/Avatar/AvatarData";
-import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import {
@@ -107,18 +106,11 @@ type AccessRowProps = {
 const AccessRow: React.FC<AccessRowProps> = ({ entry }) => (
 	<TableRow>
 		<TableCell>
-			{entry.name === undefined ? (
-				<>
-					<AvatarDataSkeleton />
-					<span className="sr-only">Loading</span>
-				</>
-			) : (
-				<AvatarData
-					title={entry.name}
-					subtitle={entry.subtitle}
-					src={entry.avatarUrl}
-				/>
-			)}
+			<AvatarData
+				title={entry.name}
+				subtitle={entry.subtitle}
+				src={entry.avatarUrl}
+			/>
 		</TableCell>
 		<TableCell>
 			{entry.kind === "owner" ? (

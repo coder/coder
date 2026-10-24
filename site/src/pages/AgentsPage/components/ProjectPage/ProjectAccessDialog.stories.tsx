@@ -11,6 +11,7 @@ import { ProjectAccessDialog } from "./ProjectAccessDialog";
 import { buildAccessEntries } from "./projectAccess";
 
 const mockACL: ChatProjectACL = {
+	owner: MockUserOwner,
 	users: [
 		{ ...MockUserMember, role: "admin" },
 		{
@@ -30,7 +31,7 @@ const meta: Meta<typeof ProjectAccessDialog> = {
 	args: {
 		open: true,
 		onOpenChange: fn(),
-		entries: buildAccessEntries(MockUserOwner.id, MockUserOwner, mockACL),
+		entries: buildAccessEntries(mockACL),
 		error: undefined,
 		isRetrying: false,
 		onRetry: fn(),
@@ -45,22 +46,7 @@ export const Default: Story = {};
 
 export const OwnerOnly: Story = {
 	args: {
-		entries: buildAccessEntries(MockUserOwner.id, MockUserOwner, {
-			users: [],
-			groups: [],
-		}),
-	},
-};
-
-export const OwnerLoading: Story = {
-	args: {
-		entries: buildAccessEntries(MockUserOwner.id, undefined, mockACL),
-	},
-};
-
-export const OwnerUnknown: Story = {
-	args: {
-		entries: buildAccessEntries(MockUserOwner.id, null, mockACL),
+		entries: buildAccessEntries({ ...mockACL, users: [], groups: [] }),
 	},
 };
 
