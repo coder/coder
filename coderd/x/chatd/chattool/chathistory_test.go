@@ -1,14 +1,17 @@
 package chattool_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf16"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -17,7 +20,9 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 type chatHistoryItem struct {
@@ -98,10 +103,14 @@ func (f chatHistoryFixture) boundary(t *testing.T, toolName, resultJSON string) 
 
 func runChatHistory(t *testing.T, tool fantasy.AgentTool, args map[string]any) (chatHistoryResult, string) {
 	t.Helper()
-	ctx := testutil.Context(t, testutil.WaitLong)
+	return runChatHistoryCall(testutil.Context(t, testutil.WaitLong), t, tool, "", args)
+}
+
+func runChatHistoryCall(ctx context.Context, t *testing.T, tool fantasy.AgentTool, callID string, args map[string]any) (chatHistoryResult, string) {
+	t.Helper()
 	input, err := json.Marshal(args)
 	require.NoError(t, err)
-	resp, err := tool.Run(ctx, fantasy.ToolCall{Input: string(input)})
+	resp, err := tool.Run(ctx, fantasy.ToolCall{ID: callID, Input: string(input)})
 	require.NoError(t, err)
 	require.False(t, resp.IsError, resp.Content)
 	var result chatHistoryResult
@@ -111,6 +120,14 @@ func runChatHistory(t *testing.T, tool fantasy.AgentTool, args map[string]any) (
 
 func (f chatHistoryFixture) tool() fantasy.AgentTool {
 	return chattool.ChatHistory(chattool.ChatHistoryOptions{DB: f.db, ChatID: f.chat.ID, ParseContent: chatprompt.ParseContent})
+}
+
+func itemTexts(items []chatHistoryItem) []string {
+	texts := make([]string, 0, len(items))
+	for _, item := range items {
+		texts = append(texts, item.Text)
+	}
+	return texts
 }
 
 func TestChatHistory(t *testing.T) {
@@ -143,6 +160,10 @@ func TestChatHistory(t *testing.T) {
 		result, _ = runChatHistory(t, tool, map[string]any{"action": "list_windows", "recent_first": true, "limit": 1})
 		require.Equal(t, []chatHistoryWindow{{WindowID: rolloverWindow, BoundaryKind: "rollover"}}, result.Windows)
 		require.True(t, result.HasMore)
+
+		result, _ = runChatHistory(t, tool, map[string]any{"action": "list_items", "window_id": summaryWindow, "role": "user"})
+		require.Equal(t, []string{"second request"}, itemTexts(result.Items))
+		require.Equal(t, summaryWindow, result.Items[0].WindowID)
 	})
 
 	t.Run("PrivacyFloor", func(t *testing.T) {
@@ -154,16 +175,45 @@ func TestChatHistory(t *testing.T) {
 		f.user(t, "after clear")
 		tool := f.tool()
 
-		result, _ := runChatHistory(t, tool, map[string]any{"action": "list_windows"})
+		result, _ := runChatHistory(t, tool, map[string]any{"action": "search", "query": "secret"})
+		require.True(t, result.Success)
+		require.Empty(t, result.Items)
+
+		result, _ = runChatHistory(t, tool, map[string]any{"action": "list_windows"})
 		require.Equal(t, []chatHistoryWindow{{WindowID: clearWindow, BoundaryKind: "clear"}}, result.Windows)
 
 		result, _ = runChatHistory(t, tool, map[string]any{"action": "read_item", "item_id": fmt.Sprint(secret)})
 		require.False(t, result.Success)
 		require.Equal(t, "item_not_found", result.Error)
 
-		result, _ = runChatHistory(t, tool, map[string]any{"action": "list_windows", "window_id": "w:0"})
+		result, _ = runChatHistory(t, tool, map[string]any{"action": "list_items", "window_id": "w:0"})
 		require.False(t, result.Success)
 		require.Equal(t, "window_not_found", result.Error)
+
+		result, _ = runChatHistory(t, tool, map[string]any{"action": "list_items", "role": "user"})
+		require.Equal(t, []string{"after clear"}, itemTexts(result.Items))
+	})
+
+	t.Run("HasMore", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		for _, text := range []string{"one", "two", "three"} {
+			f.user(t, text)
+		}
+		tool := f.tool()
+
+		result, _ := runChatHistory(t, tool, map[string]any{"action": "list_items", "limit": 2})
+		require.Equal(t, []string{"one", "two"}, itemTexts(result.Items))
+		require.True(t, result.HasMore)
+
+		// A full page stops the scan, so has_more stays conservative.
+		result, _ = runChatHistory(t, tool, map[string]any{"action": "list_items", "limit": 3})
+		require.Len(t, result.Items, 3)
+		require.True(t, result.HasMore)
+
+		result, _ = runChatHistory(t, tool, map[string]any{"action": "list_items", "limit": 1, "recent_first": true})
+		require.Equal(t, []string{"three"}, itemTexts(result.Items))
+		require.True(t, result.HasMore)
 	})
 
 	t.Run("ReadItemPaging", func(t *testing.T) {
@@ -194,6 +244,64 @@ func TestChatHistory(t *testing.T) {
 		result, _ := runChatHistory(t, tool, map[string]any{"action": "read_item", "item_id": fmt.Sprint(id), "offset_chars": 5, "limit_chars": 3})
 		require.Equal(t, 4, result.Items[0].StartCharOffset)
 		require.Equal(t, "\U0001F600e", result.Items[0].Text)
+	})
+
+	t.Run("LiteralCaseInsensitiveSearch", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		f.user(t, "The PRICE is $5.00 (approx)")
+		f.user(t, "the price is 5500 approx")
+		long := strings.Repeat("x", 2000) + "needle" + strings.Repeat("y", 2000)
+		f.user(t, long)
+		tool := f.tool()
+
+		result, _ := runChatHistory(t, tool, map[string]any{"action": "search", "query": "price IS $5.00 ("})
+		require.Equal(t, []string{"The PRICE is $5.00 (approx)"}, itemTexts(result.Items))
+
+		result, _ = runChatHistory(t, tool, map[string]any{"action": "search", "query": "NEEDLE"})
+		require.Len(t, result.Items, 1)
+		item := result.Items[0]
+		require.Len(t, item.Text, 500)
+		require.Equal(t, strings.Index(long, "needle")-120, item.StartCharOffset)
+		require.Contains(t, item.Text, "needle")
+
+		// A short snippet drops the lead-in rather than the match.
+		f.user(t, "a\U0001F600")
+		result, _ = runChatHistory(t, tool, map[string]any{"action": "search", "query": "\U0001F600", "max_chars_per_item": 2})
+		require.Equal(t, []string{"\U0001F600"}, itemTexts(result.Items))
+
+		// A lead-in that would start inside a surrogate pair cannot hide the match.
+		f.user(t, "\U0001F600q")
+		result, _ = runChatHistory(t, tool, map[string]any{"action": "search", "query": "q", "max_chars_per_item": 2})
+		require.Equal(t, []string{"q"}, itemTexts(result.Items))
+	})
+
+	t.Run("HistoryQueriesDoNotSelfMatch", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		// An earlier chat_history call searched for the same query under
+		// the ID the provider reuses for the running call.
+		older := f.insert(t, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, false,
+			codersdk.ChatMessageText("older text"),
+			codersdk.ChatMessageToolCall("reused", chattool.ChatHistoryToolName, json.RawMessage(`{"action":"search","query":"needle"}`)))
+		// The running call's row, committed before its tools run, narrates
+		// the query.
+		active := f.insert(t, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, false,
+			codersdk.ChatMessageText("I'll search for needle"),
+			codersdk.ChatMessageToolCall("reused", chattool.ChatHistoryToolName, json.RawMessage(`{"action":"search","query":"needle"}`)))
+		ctx := workspacesdk.WithToolCallID(testutil.Context(t, testutil.WaitLong), chattool.ToolCallID(f.chat.ID, active, "reused"))
+		tool := f.tool()
+
+		result, _ := runChatHistoryCall(ctx, t, tool, "reused", map[string]any{"action": "search", "query": "needle"})
+		require.Empty(t, result.Items)
+		for _, args := range []map[string]any{
+			{"action": "search", "query": "older"},
+			{"action": "list_items", "tool_name": chattool.ChatHistoryToolName},
+			{"action": "read_item", "item_id": fmt.Sprint(older)},
+		} {
+			result, _ := runChatHistoryCall(ctx, t, tool, "reused", args)
+			require.Equal(t, []string{"older text\n[tool call: chat_history]"}, itemTexts(result.Items), args)
+		}
 	})
 
 	t.Run("ProjectionOmitsReasoningAndNestedHistory", func(t *testing.T) {
@@ -227,6 +335,35 @@ func TestChatHistory(t *testing.T) {
 		require.NotContains(t, text, "recursive")
 		require.Contains(t, text, "[tool result: computer] [media: image/png] Screenshot taken")
 		require.NotContains(t, text, "QUJD", "media results keep only their annotation")
+
+		result, _ = runChatHistory(t, tool, map[string]any{"action": "search", "query": "recursive"})
+		require.Empty(t, result.Items)
+	})
+
+	t.Run("ToolNameFilter", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		f.user(t, "run the build")
+		call := f.insert(t, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, false,
+			codersdk.ChatMessageToolCall("build", "execute", json.RawMessage(`{"command":"make"}`)))
+		result := f.insert(t, database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, false,
+			codersdk.ChatMessageToolResult("build", "execute", json.RawMessage(`{"output":"ok"}`), false, false))
+		f.insert(t, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, false,
+			codersdk.ChatMessageToolCall("read", "read_file", json.RawMessage(`{"path":"Makefile"}`)))
+		tool := f.tool()
+
+		itemIDs := func(items []chatHistoryItem) []string {
+			ids := make([]string, 0, len(items))
+			for _, item := range items {
+				ids = append(ids, item.ItemID)
+			}
+			return ids
+		}
+		got, _ := runChatHistory(t, tool, map[string]any{"action": "list_items", "tool_name": "execute"})
+		require.Equal(t, []string{fmt.Sprint(call), fmt.Sprint(result)}, itemIDs(got.Items))
+
+		got, _ = runChatHistory(t, tool, map[string]any{"action": "list_items", "tool_name": "execute", "role": "assistant"})
+		require.Equal(t, []string{fmt.Sprint(call)}, itemIDs(got.Items), "role and tool_name combine with AND")
 	})
 
 	t.Run("RejectsUnsupportedArguments", func(t *testing.T) {
@@ -237,24 +374,44 @@ func TestChatHistory(t *testing.T) {
 			want string
 		}{
 			{map[string]any{"action": "delete"}, "invalid_action"},
+			{map[string]any{"action": "search", "query": "  "}, "query_required"},
 			{map[string]any{"action": "read_item"}, "item_id_required"},
-			{map[string]any{"action": "read_item", "item_id": "1", "recent_first": true}, "filters_unsupported"},
-			{map[string]any{"action": "list_windows", "limit": -1}, "invalid_arguments"},
+			{map[string]any{"action": "read_item", "item_id": "1", "role": "user"}, "filters_unsupported"},
+			{map[string]any{"action": "list_windows", "tool_name": "execute"}, "filters_unsupported"},
+			{map[string]any{"action": "list_items", "query": "needle"}, "filters_unsupported"},
+			{map[string]any{"action": "list_items", "role": "assisstant"}, "invalid_arguments"},
+			{map[string]any{"action": "search", "query": "needle", "offset_chars": 10}, "filters_unsupported"},
+			{map[string]any{"action": "list_windows", "item_id": "1"}, "filters_unsupported"},
+			{map[string]any{"action": "read_item", "item_id": "1", "limit": 5}, "filters_unsupported"},
+			{map[string]any{"action": "list_items", "limit": -1}, "invalid_arguments"},
 		} {
 			got, _ := runChatHistory(t, tool, tc.args)
 			require.False(t, got.Success, tc.args)
 			require.Equal(t, tc.want, got.Error, tc.args)
 		}
+
+		// The query limit counts characters, not UTF-8 bytes.
+		got, _ := runChatHistory(t, tool, map[string]any{"action": "search", "query": strings.Repeat("界", 600)})
+		require.True(t, got.Success, got.Error)
+		got, _ = runChatHistory(t, tool, map[string]any{"action": "search", "query": strings.Repeat("界", 1025)})
+		require.Equal(t, "invalid_arguments", got.Error)
 	})
 
 	t.Run("ResultCap", func(t *testing.T) {
 		t.Parallel()
 		f := newFixture(t)
 		// JSON escapes '<' as six bytes, so the cap must count encoded bytes.
-		id := f.user(t, strings.Repeat("<", 40_000))
+		big := strings.Repeat("<", 40_000)
+		for range 5 {
+			f.user(t, big)
+		}
 		tool := f.tool()
 
-		result, raw := runChatHistory(t, tool, map[string]any{"action": "read_item", "item_id": fmt.Sprint(id), "limit_chars": 16000})
+		result, raw := runChatHistory(t, tool, map[string]any{"action": "list_items", "max_chars_per_item": 16000, "limit": 25})
+		require.LessOrEqual(t, len(raw), 16*1024)
+		require.True(t, result.HasMore)
+
+		result, raw = runChatHistory(t, tool, map[string]any{"action": "read_item", "item_id": result.Items[0].ItemID, "limit_chars": 16000})
 		require.LessOrEqual(t, len(raw), 16*1024)
 		require.True(t, result.Truncated)
 		item := result.Items[0]
@@ -262,4 +419,85 @@ func TestChatHistory(t *testing.T) {
 		require.NotNil(t, item.NextCharOffset)
 		require.Equal(t, item.StartCharOffset+len(utf16.Encode([]rune(item.Text))), *item.NextCharOffset)
 	})
+
+	t.Run("ScanByteBudget", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		// One row over the 32 MiB scan budget is never parsed.
+		huge := &hugeRowStore{Store: db, size: 32*1024*1024 + 1}
+		var parsed int
+		tool := chattool.ChatHistory(chattool.ChatHistoryOptions{DB: huge, ChatID: f.chat.ID, ParseContent: func(database.ChatMessage) ([]codersdk.ChatMessagePart, error) {
+			parsed++
+			return []codersdk.ChatMessagePart{codersdk.ChatMessageText("huge row")}, nil
+		}})
+
+		result, _ := runChatHistory(t, tool, map[string]any{"action": "search", "query": "huge"})
+		require.True(t, result.Success)
+		require.Empty(t, result.Items)
+		require.True(t, result.HasMore)
+		require.Zero(t, parsed)
+	})
+
+	t.Run("TimeoutWhileProcessingRows", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		f.user(t, "a row")
+		clock := quartz.NewMock(t)
+		tool := chattool.ChatHistory(chattool.ChatHistoryOptions{DB: db, ChatID: f.chat.ID, Clock: clock, ParseContent: func(row database.ChatMessage) ([]codersdk.ChatMessagePart, error) {
+			clock.Advance(11 * time.Second)
+			return chatprompt.ParseContent(row)
+		}})
+
+		result, _ := runChatHistory(t, tool, map[string]any{"action": "search", "query": "row"})
+		require.False(t, result.Success)
+		require.Equal(t, "history_timeout", result.Error)
+
+		// A full page returns before the deadline check can discard it.
+		result, _ = runChatHistory(t, tool, map[string]any{"action": "search", "query": "row", "limit": 1})
+		require.Equal(t, []string{"a row"}, itemTexts(result.Items))
+	})
+
+	t.Run("Timeout", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		f.user(t, "a row")
+		clock := quartz.NewMock(t)
+		slow := &advancingStore{Store: db, clock: clock}
+		tool := chattool.ChatHistory(chattool.ChatHistoryOptions{DB: slow, ChatID: f.chat.ID, ParseContent: chatprompt.ParseContent, Clock: clock})
+
+		result, _ := runChatHistory(t, tool, map[string]any{"action": "search", "query": "missing"})
+		require.False(t, result.Success)
+		require.Equal(t, "history_timeout", result.Error)
+	})
+}
+
+// advancingStore makes every boundary read take longer than the
+// chat_history deadline.
+type advancingStore struct {
+	database.Store
+	clock *quartz.Mock
+}
+
+func (s *advancingStore) GetChatContextBoundaryMessages(ctx context.Context, chatID uuid.UUID) ([]database.GetChatContextBoundaryMessagesRow, error) {
+	s.clock.Advance(11 * time.Second)
+	return s.Store.GetChatContextBoundaryMessages(ctx, chatID)
+}
+
+// hugeRowStore returns one user row of the given content size.
+type hugeRowStore struct {
+	database.Store
+	size int
+}
+
+func (s *hugeRowStore) GetChatMessagesByChatIDAscPaginated(_ context.Context, arg database.GetChatMessagesByChatIDAscPaginatedParams) ([]database.ChatMessage, error) {
+	if arg.AfterID > 0 {
+		return nil, nil
+	}
+	return []database.ChatMessage{{
+		ID:         1,
+		ChatID:     arg.ChatID,
+		Role:       database.ChatMessageRoleUser,
+		Visibility: database.ChatMessageVisibilityBoth,
+		Content:    pqtype.NullRawMessage{RawMessage: make([]byte, s.size), Valid: true},
+	}}, nil
 }

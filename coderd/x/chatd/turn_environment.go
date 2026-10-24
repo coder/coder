@@ -863,6 +863,7 @@ func (p *Server) buildTurnEnvironment(
 			DB:           p.db,
 			ChatID:       chat.ID,
 			ParseContent: chatprompt.ParseContent,
+			Clock:        p.clock,
 		}))
 	}
 	if advisorRuntime != nil {
