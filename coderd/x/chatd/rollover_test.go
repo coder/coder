@@ -125,6 +125,7 @@ func TestActiveServer_ContextRollover(t *testing.T) {
 			tokenBudget := !tc.wantSummary
 			require.Equal(t, tokenBudget, slices.Contains(anthropicToolNames(first), "new_context"))
 			require.Equal(t, tokenBudget, slices.Contains(anthropicToolNames(first), "save_checkpoint"))
+			require.Equal(t, tokenBudget, slices.Contains(anthropicToolNames(first), "chat_history"))
 
 			messages := chatMessages(ctx, t, db, chat.ID)
 			promptRows, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
