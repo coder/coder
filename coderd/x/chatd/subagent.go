@@ -959,6 +959,11 @@ type childSubagentChatOptions struct {
 	reasoningEffortOverride *string
 	planModeOverride        *database.NullChatPlanMode
 	inheritedMCPServerIDs   []uuid.UUID
+	// chatID, labels and dynamicTools are set by workflow steps. A zero
+	// chatID gets a random ID.
+	chatID       uuid.UUID
+	labels       database.StringMap
+	dynamicTools pqtype.NullRawMessage
 }
 
 // resolveExploreToolSnapshot computes the child chat's inherited MCP
@@ -1052,7 +1057,11 @@ func (p *Server) createChildSubagentChatWithOptions(
 		mcpServerIDs = []uuid.UUID{}
 	}
 
-	labelsJSON, err := json.Marshal(database.StringMap{})
+	labels := opts.labels
+	if labels == nil {
+		labels = database.StringMap{}
+	}
+	labelsJSON, err := json.Marshal(labels)
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal labels: %w", err)
 	}
@@ -1073,7 +1082,10 @@ func (p *Server) createChildSubagentChatWithOptions(
 	}
 
 	// Review before persistence so spawned chats cannot bypass prompt policy.
-	childChatID := uuid.New()
+	childChatID := opts.chatID
+	if childChatID == uuid.Nil {
+		childChatID = uuid.New()
+	}
 	var promptResult *chathooks.Result
 	if p.hooks.Enabled() {
 		mintedTurnID := uuid.New()
@@ -1182,7 +1194,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 			RawMessage: labelsJSON,
 			Valid:      true,
 		},
-		DynamicTools:    pqtype.NullRawMessage{},
+		DynamicTools:    opts.dynamicTools,
 		ClientType:      parent.ClientType,
 		InitialMessages: initialMessages,
 		InitialStatus:   database.ChatStatusRunning,

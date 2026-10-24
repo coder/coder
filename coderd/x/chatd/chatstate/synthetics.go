@@ -176,6 +176,11 @@ func parseDynamicToolNamesFromRaw(raw pqtype.NullRawMessage) (map[string]bool, e
 	}
 	out := make(map[string]bool, len(tools))
 	for _, t := range tools {
+		// chatd runs workflow_report (chatd.workflowReportToolName) itself.
+		// It is not a client tool.
+		if t.Name == "workflow_report" {
+			continue
+		}
 		out[t.Name] = true
 	}
 	return out, nil
