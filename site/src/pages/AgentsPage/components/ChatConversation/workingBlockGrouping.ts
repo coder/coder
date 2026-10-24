@@ -14,9 +14,9 @@ export type RowSlice = {
 	/** Half-open range of the row's pieces from `splitRowPieces`. */
 	pieceRange?: { start: number; end: number };
 	/**
-	 * The row key, plus an ordinal counted separately over the row's work
-	 * slices and its output runs. The first of each keeps the bare key, so a
-	 * row that splits does not remount its reasoning or streaming text.
+	 * The row key, plus a count of the row's block slices or output pieces
+	 * before this one. A count of 0 keeps the bare key, so splitting or
+	 * folding a row does not remount its reasoning or text.
 	 */
 	key: string;
 };
@@ -29,9 +29,11 @@ export type WorkingBlock = {
 	 * while live survives.
 	 */
 	liveKey: string;
+	/** Set once its turn has ended, so the turn's fold starts collapsed. */
+	turnKey?: string;
 	/**
-	 * Each member row's work piece, oldest first, or an empty slice for the
-	 * stream before a step.
+	 * Member rows' pieces, oldest first: a slice per work piece, or per row
+	 * once the turn ends, and an empty slice for the stream before a step.
 	 */
 	slices: Required<RowSlice>[];
 	/**
@@ -41,8 +43,8 @@ export type WorkingBlock = {
 	 */
 	memberIds: number[];
 	/**
-	 * Durable `${messageId}:${workOrdinal}` keys of the persisted slices,
-	 * which survive paging and the block's own completion.
+	 * Durable `${messageId}:${workOrdinal}` keys of the persisted work pieces,
+	 * which survive paging, the block's completion, and its turn's fold.
 	 */
 	pieceKeys: string[];
 	/** The work ordinal of the block's slice of the live row. */
@@ -56,6 +58,10 @@ export type WorkingBlock = {
 	startedAt?: number;
 	endedAt?: number;
 };
+
+/** The newest piece wins; the live row's key spans turns, so it is left out. */
+export const getExpansionKeys = (block: WorkingBlock, itemKey: string) =>
+	block.turnKey ? [block.turnKey] : [itemKey, ...block.pieceKeys];
 
 /** The timeline in render order: rows, parts of rows, and working blocks. */
 type TimelineItem =
@@ -77,6 +83,8 @@ export type GroupWorkingBlocksOptions = {
 	hasMoreMessages: boolean;
 	/** The agent still owns the turn, including while an interrupt drains it. */
 	isTurnActive: boolean;
+	/** A turn parked on a client tool (requires_action) has not ended. */
+	isTurnParked: boolean;
 	/** The agent is producing output, so the newest block's clock runs. */
 	isWorking: boolean;
 	/** False while retry, reconnect, or interrupt callouts render in the row. */
@@ -131,7 +139,13 @@ const textBefore = (piece: PieceDraft | undefined, previousIndex: number) => {
 		: undefined;
 };
 
-/** Work and output pieces alternate. */
+const isNarration = (block: RenderBlock | undefined) =>
+	block?.type === "response" && Boolean(block.narration);
+
+/**
+ * Work and output pieces alternate, except that labeled narration is an
+ * output piece of its own.
+ */
 export const splitRowPieces = (
 	blocks: readonly RenderBlock[],
 	tools: readonly MergedTool[],
@@ -140,7 +154,11 @@ export const splitRowPieces = (
 	const pieces: PieceDraft[] = [];
 	const push = (kind: RowPiece["kind"], item: PieceItem) => {
 		const last = pieces.at(-1);
-		if (last?.kind === kind) {
+		if (
+			last?.kind === kind &&
+			(kind === "work" ||
+				isNarration(last.items.at(-1)?.block) === isNarration(item.block))
+		) {
 			last.items.push(item);
 		} else {
 			pieces.push({ kind, items: [item] });
@@ -338,11 +356,15 @@ const getPartTimestamps = (part: TypesGen.ChatMessagePart): number[] => {
 const rowMessageIds = (row: TimelineRow): readonly number[] =>
 	row.type === "live" ? [] : (row.entry.mergedFrom ?? [row.entry.message.id]);
 
+type PiecePosition = { rowIndex: number; pieceIndex: number };
+
 type DraftSlice = {
 	rowIndex: number;
 	start: number;
 	end: number;
-	workOrdinal: number;
+	keyOrdinal: number;
+	/** Each work piece's ordinal in its row; the empty stream takes 0. */
+	workOrdinals: number[];
 };
 
 type Draft = {
@@ -354,15 +376,16 @@ type Draft = {
 	anchorKey?: string;
 	ordinal: number;
 	containsLiveRow: boolean;
+	containsNarration: boolean;
 	/** Type of the row whose text, or non-folding content, closed the block. */
 	closedByRowType?: TimelineRow["type"];
 	isPartial: boolean;
 };
 
 /**
- * Any text, even a sentence between two tool calls of one step, closes the
- * open block. Timestamps come from the raw entries, because the timeline rows
- * already dropped tool-result messages and merged read_file runs.
+ * Text closes the open block in an open turn. An ended turn folds its
+ * narration and the text before its last work. Timestamps come from the
+ * raw entries, as the rows dropped tool results and merged read_file runs.
  */
 export const groupWorkingBlocks = (
 	rows: readonly TimelineRow[],
@@ -375,9 +398,23 @@ export const groupWorkingBlocks = (
 	const openAtStart: (Draft | undefined)[] = [];
 	const openAfter: (Draft | undefined)[] = [];
 	const draftOfTool = new Map<string, Draft>();
+	// The latest turn stays open while the agent owns it or waits on a
+	// client; every earlier turn has ended. Hook notices split a turn but do
+	// not start one.
+	const latestTurnStart = rows.findLastIndex(
+		(row) => row.type === "message" && row.entry.message.role === "user",
+	);
+	const isLatestTurnOpen = options.isTurnActive || options.isTurnParked;
+	const isRowEnded = (rowIndex: number) =>
+		!isLatestTurnOpen || rowIndex < latestTurnStart;
+	const slicesInRow = rows.map(() => 0);
 	let open: Draft | undefined;
-	// Until assistant text or a row that never folds loads, the loaded rows may
-	// continue a block that older history opened.
+	// An ended turn's text waits here until later work or narration folds it,
+	// or a row that never folds closes the block.
+	let pendingText: PiecePosition[] = [];
+	// Until a row that never folds, or an open turn's text, loads, the loaded
+	// rows may continue a block that older history opened, since an ended
+	// turn's text leaves its block open.
 	let mayContinueOlderBlock = options.hasMoreMessages;
 	let anchorKey: string | undefined;
 	let ordinal = 0;
@@ -386,7 +423,50 @@ export const groupWorkingBlocks = (
 			open.closedByRowType = row.type;
 			open = undefined;
 		}
+		pendingText = [];
 		mayContinueOlderBlock = false;
+	};
+	const joinOrOpenBlock = ({
+		rowIndex,
+		pieceIndex,
+		workOrdinal,
+		isEnded,
+	}: PiecePosition & { workOrdinal?: number; isEnded: boolean }) => {
+		if (!open) {
+			open = {
+				slices: [],
+				toolIds: new Set(),
+				sourceBlocks: 0,
+				searches: 0,
+				times: [],
+				anchorKey,
+				ordinal,
+				containsLiveRow: false,
+				containsNarration: false,
+				isPartial: mayContinueOlderBlock,
+			};
+			ordinal += 1;
+			drafts.push(open);
+		}
+
+		const workOrdinals = workOrdinal === undefined ? [] : [workOrdinal];
+		// An ended turn's row folds as one slice.
+		const last = open.slices.at(-1);
+		if (isEnded && last?.rowIndex === rowIndex && last.end === pieceIndex) {
+			last.end += 1;
+			last.workOrdinals.push(...workOrdinals);
+		} else {
+			open.slices.push({
+				rowIndex,
+				start: pieceIndex,
+				end: pieceIndex + 1,
+				keyOrdinal: slicesInRow[rowIndex]++,
+				workOrdinals,
+			});
+		}
+		open.containsLiveRow ||= rows[rowIndex].type === "live";
+		pieceDrafts[rowIndex][pieceIndex] = open;
+		return open;
 	};
 
 	for (const [rowIndex, row] of rows.entries()) {
@@ -401,51 +481,57 @@ export const groupWorkingBlocks = (
 			continue;
 		}
 
+		const isEnded = isRowEnded(rowIndex);
 		// The empty stream before each step extends a block but never starts
 		// one, so a turn's first moments keep the thinking indicator.
 		if (split.pieces.length === 0 && open) {
-			open.slices.push({ rowIndex, start: 0, end: 0, workOrdinal: 0 });
+			open.slices.push({
+				rowIndex,
+				start: 0,
+				end: 0,
+				keyOrdinal: 0,
+				workOrdinals: [0],
+			});
 			open.containsLiveRow = true;
 		}
 
 		let workOrdinal = 0;
 		for (const [pieceIndex, piece] of split.pieces.entries()) {
-			if (piece.kind === "output") {
-				closeAnyBlock(row);
+			const isFoldingNarration = isEnded && piece.blocks.some(isNarration);
+			if (piece.kind === "output" && !isFoldingNarration) {
+				if (isEnded) {
+					pendingText.push({ rowIndex, pieceIndex });
+				} else {
+					closeAnyBlock(row);
+				}
 				continue;
 			}
 
-			if (!open) {
-				open = {
-					slices: [],
-					toolIds: new Set(),
-					sourceBlocks: 0,
-					searches: 0,
-					times: [],
-					anchorKey,
-					ordinal,
-					containsLiveRow: false,
-					isPartial: mayContinueOlderBlock,
-				};
-				ordinal += 1;
-				drafts.push(open);
+			for (const position of pendingText) {
+				joinOrOpenBlock({ ...position, isEnded });
 			}
-
-			open.slices.push({
+			pendingText = [];
+			if (piece.kind === "output") {
+				joinOrOpenBlock({
+					rowIndex,
+					pieceIndex,
+					isEnded,
+				}).containsNarration = true;
+				continue;
+			}
+			const draft = joinOrOpenBlock({
 				rowIndex,
-				start: pieceIndex,
-				end: pieceIndex + 1,
+				pieceIndex,
 				workOrdinal,
+				isEnded,
 			});
 			workOrdinal += 1;
-			open.containsLiveRow ||= row.type === "live";
-			pieceDrafts[rowIndex][pieceIndex] = open;
 			for (const block of piece.blocks) {
 				if (block.type === "tool") {
-					open.toolIds.add(block.id);
-					draftOfTool.set(block.id, open);
+					draft.toolIds.add(block.id);
+					draftOfTool.set(block.id, draft);
 				} else if (block.type === "sources") {
-					open.sourceBlocks += 1;
+					draft.sourceBlocks += 1;
 				}
 			}
 		}
@@ -512,11 +598,9 @@ export const groupWorkingBlocks = (
 					: openAfter[previousRowIndex];
 			const nextRowIndex =
 				previousRowIndex === undefined ? 0 : previousRowIndex + 1;
-			if (
-				parts.some(isProviderToolResult) &&
-				rowPieces[nextRowIndex]?.pieces.at(0)?.kind === "work"
-			) {
-				draft = pieceDrafts[nextRowIndex][0];
+			const nextRowDraft = pieceDrafts[nextRowIndex]?.[0];
+			if (parts.some(isProviderToolResult) && nextRowDraft) {
+				draft = nextRowDraft;
 			}
 			getDraft = () => draft;
 		}
@@ -612,6 +696,8 @@ export const groupWorkingBlocks = (
 	const blockDrafts = drafts.filter(
 		(draft) =>
 			getStepCount(draft) > 0 ||
+			// Otherwise a tool-less ended turn's narration reads as its answer.
+			draft.containsNarration ||
 			(draft.containsLiveRow &&
 				options.isTurnActive &&
 				draft.closedByRowType === undefined) ||
@@ -627,6 +713,16 @@ export const groupWorkingBlocks = (
 
 	const blocks = blockDrafts.map((draft, draftIndex): WorkingBlock => {
 		const last = draft.slices[draft.slices.length - 1];
+		const workPieces = draft.slices.flatMap(({ rowIndex, workOrdinals }) =>
+			workOrdinals.map((workOrdinal) => ({ rowIndex, workOrdinal })),
+		);
+		// Keyed on the last work piece's slice key in an open turn, so an ended
+		// turn's fold keeps the key of the turn's last block while it ran. A
+		// block of only narration keys on its last row.
+		const lastWork = workPieces.at(-1);
+		const throughKey = lastWork
+			? sliceKey(lastWork.rowIndex, lastWork.workOrdinal)
+			: rows[last.rowIndex].key;
 		// A persisted row closing a block completes it even while the chat
 		// still runs; text still streaming does not.
 		const isLive =
@@ -636,24 +732,25 @@ export const groupWorkingBlocks = (
 		const liveKey = getLiveKey(draft);
 
 		const block: WorkingBlock = {
-			key: isLive
-				? liveKey
-				: `working:through:${sliceKey(last.rowIndex, last.workOrdinal)}`,
+			key: isLive ? liveKey : `working:through:${throughKey}`,
 			liveKey,
-			slices: draft.slices.map(({ rowIndex, start, end, workOrdinal }) => ({
+			turnKey: isRowEnded(last.rowIndex)
+				? `working:turn:${throughKey}`
+				: undefined,
+			slices: draft.slices.map(({ rowIndex, start, end, keyOrdinal }) => ({
 				rowIndex,
 				pieceRange: { start, end },
-				key: sliceKey(rowIndex, workOrdinal),
+				key: sliceKey(rowIndex, keyOrdinal),
 			})),
 			memberIds: draft.slices.flatMap(({ rowIndex }) =>
 				rowMessageIds(rows[rowIndex]),
 			),
-			pieceKeys: draft.slices.flatMap(({ rowIndex, workOrdinal }) =>
+			pieceKeys: workPieces.flatMap(({ rowIndex, workOrdinal }) =>
 				rowMessageIds(rows[rowIndex]).map((id) => `${id}:${workOrdinal}`),
 			),
 			liveWorkOrdinal: draft.slices.find(
 				({ rowIndex }) => rowIndex === liveRowIndex,
-			)?.workOrdinal,
+			)?.workOrdinals[0],
 			stepCount: getStepCount(draft),
 			isLive,
 			isPartial: draft.isPartial,
@@ -664,8 +761,10 @@ export const groupWorkingBlocks = (
 					: Math.max(...draft.times),
 		};
 
-		for (const { rowIndex, start } of draft.slices) {
-			blockOfPiece[rowIndex][start] = block;
+		for (const { rowIndex, start, end } of draft.slices) {
+			for (let pieceIndex = start; pieceIndex < end; pieceIndex++) {
+				blockOfPiece[rowIndex][pieceIndex] = block;
+			}
 			rowInBlock[rowIndex] = true;
 		}
 		return block;
@@ -682,21 +781,22 @@ export const groupWorkingBlocks = (
 		}
 
 		let runStart: number | undefined;
-		let runOrdinal = 0;
 		const endRun = (end: number) => {
 			if (runStart === undefined) {
 				return;
 			}
+			const outputsBefore = split.pieces
+				.slice(0, runStart)
+				.filter((piece) => piece.kind === "output").length;
 			items.push({
 				type: "slice",
 				slice: {
 					rowIndex,
 					pieceRange: { start: runStart, end },
-					key: sliceKey(rowIndex, runOrdinal),
+					key: sliceKey(rowIndex, outputsBefore),
 				},
 			});
 			runStart = undefined;
-			runOrdinal += 1;
 		};
 
 		const pieceCount = split.pieces.length;

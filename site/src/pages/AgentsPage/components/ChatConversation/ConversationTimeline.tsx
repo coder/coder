@@ -53,6 +53,7 @@ import type {
 import { UserMessageContent } from "./UserMessageContent";
 import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
 import {
+	getExpansionKeys,
 	getSliceContent,
 	groupWorkingBlocks,
 	isAgentAttachmentOnlyRow,
@@ -542,6 +543,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					// requires_action is the agent waiting on the user, not working.
 					isTurnActive:
 						chatStatus === "running" || chatStatus === "interrupting",
+					isTurnParked: chatStatus === "requires_action",
 					isWorking: chatStatus === "running",
 					isLiveRowCollapsible:
 						liveStatus.phase === "streaming" || liveStatus.phase === "starting",
@@ -727,14 +729,13 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						const { block } = item;
 						const itemKey =
 							nextLiveBlockKeys.itemKeys.get(block.key) ?? block.key;
-						// Keyed on durable pieces and the item key, excluding the live
-						// row so the choice does not carry into the next turn; the newest
-						// piece wins.
+						const expansionKeys = getExpansionKeys(block, itemKey);
+						const expandedKey = expansionKeys.findLast((key) =>
+							expandedBlocks.has(key),
+						);
 						const expanded =
-							expandedBlocks.get(
-								block.pieceKeys.findLast((key) => expandedBlocks.has(key)) ??
-									itemKey,
-							) ?? false;
+							expandedKey !== undefined &&
+							expandedBlocks.get(expandedKey) === true;
 						const firstRow = renderRows[block.slices[0].rowIndex];
 						const isAfterEditingMessage =
 							firstRow.type === "message" &&
@@ -758,7 +759,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 										keepBlock(block.liveKey);
 										setExpandedBlocks((previous) => {
 											const next = new Map(previous);
-											for (const key of [itemKey, ...block.pieceKeys]) {
+											for (const key of expansionKeys) {
 												next.set(key, value);
 											}
 											return next;
