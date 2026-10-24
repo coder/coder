@@ -608,6 +608,7 @@ message ContextResource {
 	// source_path is the user-declared scan root that produced
 	// this resource (empty for built-in roots, set to the owning
 	// .mcp.json for mcp_server entries declared in a user config).
+	// For ACP harnesses, it is the harness configuration directory.
 	optional string source_path = 2;
 	// content_hash is sha256 over the original on-disk bytes (or
 	// over the agent's canonical encoding for non-file kinds).
@@ -638,6 +639,7 @@ message ContextResource {
 		SkillMetaBody skill = 11;
 		MCPConfigBody mcp_config = 12;
 		MCPServerBody mcp_server = 13;
+		ACPHarnessBody acp_harness = 17;
 	}
 
 	// Reserved tags from the legacy v2.10 schema that carried
@@ -729,4 +731,30 @@ service Agent {
 	rpc ReportBoundaryLogs(ReportBoundaryLogsRequest) returns (ReportBoundaryLogsResponse);
 	rpc UpdateAppStatus(UpdateAppStatusRequest) returns (UpdateAppStatusResponse);
 	rpc PushContextState(PushContextStateRequest) returns (PushContextStateResponse);
+}
+
+// ACPHarnessBody advertises cached harness metadata without launch configuration.
+message ACPHarnessBody {
+	string slug = 1;
+	string display_name = 2;
+	repeated ACPConfigOption config_options = 3;
+}
+
+// ACPConfigOption preserves a harness's selectable configuration and default.
+message ACPConfigOption {
+	string id = 1;
+	string name = 2;
+	string description = 3;
+	string current_value = 4;
+	repeated ACPConfigValue values = 5;
+	string category = 6;
+}
+
+// ACPConfigValue is a selectable configuration value.
+message ACPConfigValue {
+	string id = 1;
+	string name = 2;
+	string description = 3;
+	string group = 4;
+	string group_name = 5;
 }

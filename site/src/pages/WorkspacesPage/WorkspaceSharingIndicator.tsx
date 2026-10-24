@@ -43,7 +43,7 @@ export const WorkspaceSharingIndicator: React.FC<
 						return (
 							<li
 								key={actor.id}
-								className="flex px-3 gap-2 text-sm text-content-secondary"
+								className="flex items-center px-3 gap-2 text-sm text-content-secondary"
 							>
 								<span className="text-sm truncate">{actor.name}</span>
 								{isAdmin && (

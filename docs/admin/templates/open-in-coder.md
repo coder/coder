@@ -131,4 +131,4 @@ Selecting **Cancel** falls back to the standard creation form where all paramete
 
 ### Example: Kubernetes
 
-For a full example of the Open in Coder flow in Kubernetes, check out [this example template](https://github.com/bpmct/coder-templates/tree/main/kubernetes-open-in-coder).
+For a full example of the Open in Coder flow in Kubernetes, visit [this example template](https://github.com/bpmct/coder-templates/tree/main/kubernetes-open-in-coder).

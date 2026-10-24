@@ -13,10 +13,8 @@ import (
 	"unicode/utf8"
 
 	"charm.land/fantasy"
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 )
 
@@ -217,13 +215,7 @@ func (d *debugModel) Generate(
 		return d.inner.Generate(ctx, call)
 	}
 
-	// Keep the step alive during the blocking provider call so the
-	// stale finalizer does not mark it as interrupted.
-	heartbeatDone := make(chan struct{})
-	launchHeartbeat(ctx, handle.svc, handle.stepCtx.StepID, handle.stepCtx.RunID, handle.stepCtx.ChatID, heartbeatDone)
-
 	resp, err := d.inner.Generate(enrichedCtx, call)
-	close(heartbeatDone)
 	if err != nil {
 		handle.finish(ctx, stepStatusForError(err), nil, nil, normalizeError(ctx, err), nil)
 		return nil, err
@@ -286,13 +278,7 @@ func (d *debugModel) GenerateObject(
 		return d.inner.GenerateObject(ctx, call)
 	}
 
-	// Keep the step alive during the blocking provider call so the
-	// stale finalizer does not mark it as interrupted.
-	heartbeatDone := make(chan struct{})
-	launchHeartbeat(ctx, handle.svc, handle.stepCtx.StepID, handle.stepCtx.RunID, handle.stepCtx.ChatID, heartbeatDone)
-
 	resp, err := d.inner.GenerateObject(enrichedCtx, call)
-	close(heartbeatDone)
 	if err != nil {
 		handle.finish(ctx, stepStatusForError(err), nil, nil, normalizeError(ctx, err),
 			map[string]any{"structured_output": true})
@@ -351,55 +337,103 @@ func (d *debugModel) Model() string {
 	return d.inner.Model()
 }
 
-// launchHeartbeat starts a goroutine that periodically calls TouchStep
-// to keep the step and run rows alive during long-running streams.  The
-// goroutine also listens on the service's threshold-change channel so
-// that a runtime SetStaleAfter call immediately resets the ticker
-// instead of waiting for the old (possibly longer) period to elapse.
-// The goroutine exits when done is closed or ctx is canceled.
-func launchHeartbeat(ctx context.Context, svc *Service, stepID, runID, chatID uuid.UUID, done <-chan struct{}) {
-	if svc == nil {
+type streamStep struct {
+	ctx    context.Context
+	handle *stepHandle
+
+	// A mutex rather than sync.Once lets cancellation defer to the iterator
+	// when complete is set, preserving the response and usage payloads.
+	mu        sync.Mutex
+	finalized bool
+	complete  atomic.Bool
+
+	stop func() bool
+}
+
+func newStreamStep(ctx context.Context, handle *stepHandle) *streamStep {
+	s := &streamStep{ctx: ctx, handle: handle}
+	// Finalize a dropped or abandoned stream when ctx ends so the step
+	// does not stay in progress.
+	s.stop = context.AfterFunc(ctx, func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.finalized || s.complete.Load() {
+			return
+		}
+		s.finalizeLocked(StatusInterrupted, nil, nil, nil, nil)
+	})
+	return s
+}
+
+func (s *streamStep) finish(status Status, out *streamOutcome, payload func() (resp, metadata any)) {
+	s.stop()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.finalized {
 		return
 	}
-	go func() {
-		// Subscribe before reading the interval. The channel invalidates
-		// the interval, so any concurrent SetStaleAfter either happened
-		// before this interval read or will close thresholdCh below.
-		thresholdCh := svc.thresholdChan()
-		interval := svc.heartbeatInterval()
-		ticker := svc.clock.NewTicker(interval, "chatdebug", "heartbeat")
-		defer ticker.Stop()
-		resetTicker := func() {
-			if newInterval := svc.heartbeatInterval(); newInterval != interval {
-				interval = newInterval
-				ticker.Reset(interval, "chatdebug", "heartbeat")
-			}
-		}
+	resp, metadata := payload()
+	var usage any
+	if out.finished {
+		usage = &out.usage
+	}
+	s.finalizeLocked(status, resp, usage, out.err, metadata)
+}
 
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-done:
-				return
-			case <-thresholdCh:
-				// SetStaleAfter was called; re-read the interval
-				// and reset the ticker immediately.
-				thresholdCh = svc.thresholdChan()
-				resetTicker()
-			case <-ticker.C:
-				if err := svc.TouchStep(ctx, stepID, runID, chatID); err != nil {
-					svc.log.Debug(ctx, "heartbeat touch failed",
-						slog.Error(err),
-						slog.F("step_id", stepID),
-					)
-				}
-				// Also re-read interval on every tick as a
-				// secondary check.
-				resetTicker()
-			}
-		}
-	}()
+func (s *streamStep) finalizeLocked(status Status, resp, usage, errPayload, metadata any) {
+	s.finalized = true
+	s.handle.finish(s.ctx, status, resp, usage, errPayload, metadata)
+}
+
+type streamOutcome struct {
+	status       Status
+	finished     bool
+	finishReason fantasy.FinishReason
+	usage        fantasy.Usage
+	err          any
+	errorCount   int
+	lastError    string
+}
+
+// Mark completion before yielding so cancellation while the consumer holds
+// the finish part leaves finalization to the iterator.
+func (o *streamOutcome) observeFinish(step *streamStep, reason fantasy.FinishReason, usage fantasy.Usage) {
+	o.finished = true
+	o.finishReason = reason
+	o.usage = usage
+	step.complete.Store(true)
+}
+
+func (o *streamOutcome) observeError(ctx context.Context, err error) {
+	o.errorCount++
+	if err != nil {
+		o.lastError = err.Error()
+		o.err = normalizeError(ctx, err)
+	} else {
+		o.lastError = "stream error part with nil error"
+		o.err = map[string]string{"error": "stream error part with nil error"}
+	}
+	o.status = streamErrorStatus(o.status, err)
+}
+
+// Stopping at the finish part is not an interruption.
+func (o *streamOutcome) stoppedStatus() Status {
+	switch {
+	case o.status == StatusError:
+		return StatusError
+	case o.finished:
+		return StatusCompleted
+	default:
+		return StatusInterrupted
+	}
+}
+
+// A clean iterator exit without a finish part can still mean truncated output.
+func (o *streamOutcome) endedStatus() Status {
+	if o.status == StatusCompleted && !o.finished {
+		return StatusInterrupted
+	}
+	return o.status
 }
 
 func wrapStreamSeq(
@@ -407,177 +441,70 @@ func wrapStreamSeq(
 	handle *stepHandle,
 	seq iter.Seq[fantasy.StreamPart],
 ) fantasy.StreamResponse {
-	// mu and finalized guard both the normal finalization path
-	// inside the iterator and the safety-net AfterFunc below.
-	// This ensures handle.finish is called exactly once regardless
-	// of whether the caller iterates, drops the stream, or the
-	// context is canceled mid-flight. We use a mutex rather than
-	// sync.Once so the AfterFunc can yield to the normal path
-	// when the stream already received its terminal chunk
-	// (streamComplete), preventing the AfterFunc from clobbering
-	// completed stream data with nil.
-	var (
-		mu             sync.Mutex
-		finalized      bool
-		streamComplete atomic.Bool
-	)
-
-	// heartbeatDone is closed when the stream finalizes (either
-	// normally or via the safety net) to stop the heartbeat goroutine.
-	heartbeatDone := make(chan struct{})
-
-	// Safety net: if the caller drops the returned iterator without
-	// consuming it (or abandons mid-stream and the context is
-	// canceled), finalize the step so it does not remain permanently
-	// in_progress once persistence lands in later branches.
-	stop := context.AfterFunc(ctx, func() {
-		mu.Lock()
-		defer mu.Unlock()
-		// If the stream already received a finish chunk, let
-		// finalize handle it; it has the real response payload
-		// and usage data that we would otherwise clobber.
-		if finalized || streamComplete.Load() {
-			return
-		}
-		finalized = true
-		close(heartbeatDone)
-		handle.finish(ctx, StatusInterrupted, nil, nil, nil, nil)
-	})
-
-	// startHeartbeat launches the heartbeat goroutine on first call.
-	// Deferring the start until the caller begins consuming the stream
-	// prevents leaked goroutines when the iterator is dropped without
-	// being iterated.
-	startHeartbeat := sync.OnceFunc(func() {
-		launchHeartbeat(ctx, handle.svc, handle.stepCtx.StepID, handle.stepCtx.RunID, handle.stepCtx.ChatID, heartbeatDone)
-	})
-
+	step := newStreamStep(ctx, handle)
 	return func(yield func(fantasy.StreamPart) bool) {
-		startHeartbeat()
 		var (
 			summary          streamSummary
-			latestUsage      fantasy.Usage
-			usageSeen        bool
-			finishSeen       bool
-			finishReason     fantasy.FinishReason
+			out              = streamOutcome{status: StatusCompleted}
 			content          []normalizedContentPart
 			currentText      *strings.Builder
 			currentTextIdx   int
 			argBuilders      = make(map[string]*strings.Builder)
 			warnings         []normalizedWarning
 			streamDebugBytes int
-			streamError      any
-			streamStatus     = StatusCompleted
 		)
 
 		finalize := func(status Status) {
-			// Cancel the safety net and heartbeat since we're finalizing.
-			if stop != nil {
-				stop()
-			}
-			mu.Lock()
-			defer mu.Unlock()
-			if finalized {
-				return
-			}
-			finalized = true
-			close(heartbeatDone)
-
-			summary.FinishReason = string(finishReason)
-			materializeStreamContent(content, currentText, currentTextIdx, argBuilders)
-
-			resp := normalizedResponsePayload{
-				Content:      content,
-				FinishReason: string(finishReason),
-				Warnings:     warnings,
-			}
-			if usageSeen {
-				resp.Usage = normalizeUsage(latestUsage)
-			}
-
-			var usage any
-			if usageSeen {
-				usage = &latestUsage
-			}
-			handle.finish(ctx, status, resp, usage, streamError, map[string]any{
-				"stream_summary": summary,
+			step.finish(status, &out, func() (any, any) {
+				summary.FinishReason = string(out.finishReason)
+				summary.ErrorCount = out.errorCount
+				summary.LastError = out.lastError
+				materializeStreamContent(content, currentText, currentTextIdx, argBuilders)
+				resp := normalizedResponsePayload{
+					Content:      content,
+					FinishReason: string(out.finishReason),
+					Usage:        normalizeUsage(out.usage),
+					Warnings:     warnings,
+				}
+				return resp, map[string]any{"stream_summary": summary}
 			})
 		}
 
-		if seq != nil {
-			seq(func(part fantasy.StreamPart) bool {
-				summary.PartCount++
-				summary.WarningCount += len(part.Warnings)
-				if len(part.Warnings) > 0 {
-					warnings = append(warnings, normalizeWarnings(part.Warnings)...)
-				}
+		seq(func(part fantasy.StreamPart) bool {
+			summary.PartCount++
+			summary.WarningCount += len(part.Warnings)
+			if len(part.Warnings) > 0 {
+				warnings = append(warnings, normalizeWarnings(part.Warnings)...)
+			}
 
-				switch part.Type {
-				case fantasy.StreamPartTypeTextDelta:
-					summary.TextDeltaCount++
-				case fantasy.StreamPartTypeReasoningStart,
-					fantasy.StreamPartTypeReasoningDelta:
-				case fantasy.StreamPartTypeToolCall:
-					summary.ToolCallCount++
-				case fantasy.StreamPartTypeToolResult:
-				case fantasy.StreamPartTypeSource:
-					summary.SourceCount++
-				case fantasy.StreamPartTypeFinish:
-					finishReason = part.FinishReason
-					latestUsage = part.Usage
-					usageSeen = true
-					finishSeen = true
-					// Signal that the stream received its terminal
-					// chunk so the AfterFunc safety net yields to
-					// finalize, which has the real response payload.
-					streamComplete.Store(true)
-				}
+			switch part.Type {
+			case fantasy.StreamPartTypeTextDelta:
+				summary.TextDeltaCount++
+			case fantasy.StreamPartTypeReasoningStart,
+				fantasy.StreamPartTypeReasoningDelta:
+			case fantasy.StreamPartTypeToolCall:
+				summary.ToolCallCount++
+			case fantasy.StreamPartTypeToolResult:
+			case fantasy.StreamPartTypeSource:
+				summary.SourceCount++
+			case fantasy.StreamPartTypeFinish:
+				out.observeFinish(step, part.FinishReason, part.Usage)
+			}
 
-				content, currentText, currentTextIdx = appendNormalizedStreamContent(
-					content, currentText, currentTextIdx, argBuilders, part, &streamDebugBytes)
+			content, currentText, currentTextIdx = appendNormalizedStreamContent(
+				content, currentText, currentTextIdx, argBuilders, part, &streamDebugBytes)
 
-				if part.Type == fantasy.StreamPartTypeError || part.Error != nil {
-					summary.ErrorCount++
-					if part.Error != nil {
-						summary.LastError = part.Error.Error()
-						streamError = normalizeError(ctx, part.Error)
-					} else {
-						summary.LastError = "stream error part with nil error"
-						streamError = map[string]string{"error": "stream error part with nil error"}
-					}
-					streamStatus = streamErrorStatus(streamStatus, part.Error)
-				}
+			if part.Type == fantasy.StreamPartTypeError || part.Error != nil {
+				out.observeError(ctx, part.Error)
+			}
 
-				if !yield(part) {
-					// When the consumer stops iteration after
-					// receiving a finish part, the stream completed
-					// successfully; the consumer simply has nothing
-					// left to read. Only mark as interrupted when the
-					// consumer exits before the provider finished.
-					switch {
-					case streamStatus == StatusError:
-						finalize(StatusError)
-					case finishSeen:
-						finalize(StatusCompleted)
-					default:
-						finalize(StatusInterrupted)
-					}
-					return false
-				}
-
-				return true
-			})
-		}
-
-		// If the stream ended without a finish part and
-		// without an explicit error, the provider closed
-		// the connection prematurely. Record this as
-		// interrupted so debug runs surface incomplete
-		// output instead of falsely reporting success.
-		if streamStatus == StatusCompleted && !finishSeen {
-			streamStatus = StatusInterrupted
-		}
-		finalize(streamStatus)
+			if !yield(part) {
+				finalize(out.stoppedStatus())
+				return false
+			}
+			return true
+		})
+		finalize(out.endedStatus())
 	}
 }
 
@@ -586,142 +513,59 @@ func wrapObjectStreamSeq(
 	handle *stepHandle,
 	seq iter.Seq[fantasy.ObjectStreamPart],
 ) fantasy.ObjectStreamResponse {
-	// Same safety-net pattern as wrapStreamSeq: a mutex rather
-	// than sync.Once lets the AfterFunc yield to the normal
-	// finalization path when the stream has already completed.
-	var (
-		mu             sync.Mutex
-		finalized      bool
-		streamComplete atomic.Bool
-	)
-
-	heartbeatDone := make(chan struct{})
-
-	stop := context.AfterFunc(ctx, func() {
-		mu.Lock()
-		defer mu.Unlock()
-		if finalized || streamComplete.Load() {
-			return
-		}
-		finalized = true
-		close(heartbeatDone)
-		handle.finish(ctx, StatusInterrupted, nil, nil, nil, nil)
-	})
-
-	// Deferred heartbeat: start the heartbeat goroutine only when the
-	// caller begins consuming the stream.
-	startHeartbeat := sync.OnceFunc(func() {
-		launchHeartbeat(ctx, handle.svc, handle.stepCtx.StepID, handle.stepCtx.RunID, handle.stepCtx.ChatID, heartbeatDone)
-	})
-
+	step := newStreamStep(ctx, handle)
 	return func(yield func(fantasy.ObjectStreamPart) bool) {
-		startHeartbeat()
 		var (
 			summary       = objectStreamSummary{StructuredOutput: true}
-			latestUsage   fantasy.Usage
-			usageSeen     bool
-			finishSeen    bool
-			finishReason  fantasy.FinishReason
+			out           = streamOutcome{status: StatusCompleted}
 			rawTextLength int
 			warnings      []normalizedWarning
-			streamError   any
-			streamStatus  = StatusCompleted
 		)
 
 		finalize := func(status Status) {
-			if stop != nil {
-				stop()
-			}
-			mu.Lock()
-			defer mu.Unlock()
-			if finalized {
-				return
-			}
-			finalized = true
-			close(heartbeatDone)
-
-			summary.FinishReason = string(finishReason)
-
-			resp := normalizedObjectResponsePayload{
-				RawTextLength:    rawTextLength,
-				FinishReason:     string(finishReason),
-				Warnings:         warnings,
-				StructuredOutput: true,
-			}
-			if usageSeen {
-				resp.Usage = normalizeUsage(latestUsage)
-			}
-
-			var usage any
-			if usageSeen {
-				usage = &latestUsage
-			}
-			handle.finish(ctx, status, resp, usage, streamError, map[string]any{
-				"structured_output": true,
-				"stream_summary":    summary,
+			step.finish(status, &out, func() (any, any) {
+				summary.FinishReason = string(out.finishReason)
+				summary.ErrorCount = out.errorCount
+				summary.LastError = out.lastError
+				resp := normalizedObjectResponsePayload{
+					RawTextLength:    rawTextLength,
+					FinishReason:     string(out.finishReason),
+					Usage:            normalizeUsage(out.usage),
+					Warnings:         warnings,
+					StructuredOutput: true,
+				}
+				return resp, map[string]any{"structured_output": true, "stream_summary": summary}
 			})
 		}
 
-		if seq != nil {
-			seq(func(part fantasy.ObjectStreamPart) bool {
-				summary.PartCount++
-				summary.WarningCount += len(part.Warnings)
-				if len(part.Warnings) > 0 {
-					warnings = append(warnings, normalizeWarnings(part.Warnings)...)
-				}
+		seq(func(part fantasy.ObjectStreamPart) bool {
+			summary.PartCount++
+			summary.WarningCount += len(part.Warnings)
+			if len(part.Warnings) > 0 {
+				warnings = append(warnings, normalizeWarnings(part.Warnings)...)
+			}
 
-				switch part.Type {
-				case fantasy.ObjectStreamPartTypeObject:
-					summary.ObjectPartCount++
-				case fantasy.ObjectStreamPartTypeTextDelta:
-					summary.TextDeltaCount++
-					rawTextLength += utf8.RuneCountInString(part.Delta)
-				case fantasy.ObjectStreamPartTypeFinish:
-					finishReason = part.FinishReason
-					latestUsage = part.Usage
-					usageSeen = true
-					finishSeen = true
-					streamComplete.Store(true)
-				}
+			switch part.Type {
+			case fantasy.ObjectStreamPartTypeObject:
+				summary.ObjectPartCount++
+			case fantasy.ObjectStreamPartTypeTextDelta:
+				summary.TextDeltaCount++
+				rawTextLength += utf8.RuneCountInString(part.Delta)
+			case fantasy.ObjectStreamPartTypeFinish:
+				out.observeFinish(step, part.FinishReason, part.Usage)
+			}
 
-				if part.Type == fantasy.ObjectStreamPartTypeError || part.Error != nil {
-					summary.ErrorCount++
-					if part.Error != nil {
-						summary.LastError = part.Error.Error()
-						streamError = normalizeError(ctx, part.Error)
-					} else {
-						summary.LastError = "stream error part with nil error"
-						streamError = map[string]string{"error": "stream error part with nil error"}
-					}
-					streamStatus = streamErrorStatus(streamStatus, part.Error)
-				}
+			if part.Type == fantasy.ObjectStreamPartTypeError || part.Error != nil {
+				out.observeError(ctx, part.Error)
+			}
 
-				if !yield(part) {
-					// Same as the regular stream wrapper: if a
-					// finish part was already seen, the consumer
-					// exited normally after completion.
-					switch {
-					case streamStatus == StatusError:
-						finalize(StatusError)
-					case finishSeen:
-						finalize(StatusCompleted)
-					default:
-						finalize(StatusInterrupted)
-					}
-					return false
-				}
-
-				return true
-			})
-		}
-
-		// Same as the regular stream wrapper: treat a
-		// stream that ended without a finish part as
-		// interrupted rather than falsely completed.
-		if streamStatus == StatusCompleted && !finishSeen {
-			streamStatus = StatusInterrupted
-		}
-		finalize(streamStatus)
+			if !yield(part) {
+				finalize(out.stoppedStatus())
+				return false
+			}
+			return true
+		})
+		finalize(out.endedStatus())
 	}
 }
 

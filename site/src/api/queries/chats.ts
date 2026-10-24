@@ -2868,7 +2868,7 @@ export const updateUserChatCustomPrompt = (queryClient: QueryClient) => ({
 	},
 });
 
-const userChatPersonalModelOverridesKey = (
+export const userChatPersonalModelOverridesKey = (
 	organizationId: string,
 	user: string,
 ) => [...userChatPersonalModelOverridesKeyRoot, organizationId, user] as const;

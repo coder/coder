@@ -1,3 +1,7 @@
+---
+review-personas: [language, consistency, accuracy]
+---
+
 # Word choice
 
 Coder documentation uses canonical brand and product names, plain language for product actions, and "refer to" or "visit" instead of "see" for navigational pointers.
@@ -227,6 +231,7 @@ Use the word that has only the meaning you intend.
 | `should` | Mixes an obligation ("you should back up") with an expected result             | `must` for an obligation, the present tense for a result |
 | `may`    | Mixes permission ("you may skip this") with possibility ("the build may fail") | `can` for ability or permission, `might` for possibility |
 | `since`  | Mixes time ("since version 2.20") with cause ("since the agent is offline")    | `because` for cause, `after` or `starting in` for time   |
+| `as`     | Mixes cause ("as it reduces noise") with time ("as the build runs")            | `because` for cause, `while` or `when` for time          |
 
 The month `May` followed by a day or a year ("May 5, 2026", "May 2026") isn't the word `may`.
 
@@ -239,6 +244,8 @@ The month `May` followed by a day or a year ("May 5, 2026", "May 2026") isn't th
 > The build might fail if the image is missing.
 >
 > Restart the agent, because the configuration changed.
+>
+> This filter is useful when you have many workspaces, because it reduces noise.
 
 **Don't**:
 
@@ -249,9 +256,14 @@ The month `May` followed by a day or a year ("May 5, 2026", "May 2026") isn't th
 > The build may fail if the image is missing.
 >
 > Restart the agent, since the configuration changed.
+>
+> This filter is useful when you have many workspaces, as it reduces noise.
+
+`as` stays correct in comparisons ("as fast as") and in role phrases ("run as root", "save as a template").
 
 *Adapted from ASD-STE100 Issue 9, which approves one meaning per word.
-Enforced by `Coder.AmbiguousWords` (planned).*
+Enforced by `Coder.AmbiguousWords` at `suggestion` severity: a substitution rule that flags the `ensure` family, `should`, `since`, and `may`, and skips the month `May` before a date.
+The `as` row has too many correct uses for a word list and stays documentation-only.*
 
 ## Use US spelling
 
@@ -419,7 +431,8 @@ In a list of outcomes, "learn why the build fails" or "find out why the build fa
 >
 > Add a Ruby option, then see why the option alone doesn't install the toolchain.
 
-*Enforced by `Coder.SeeAlternatives` (planned) and `Coder.CheckOut` (planned).*
+*Enforced by `Coder.SeeAlternatives` (planned) and `Coder.CheckOut` (`warning`).
+The rule leaves the Git sense alone: it skips a "check out" followed within 3 words by a Git object such as a branch, repository, commit, tag, or pull request, or by "and".*
 
 ## Learn more, not Next steps
 

@@ -64,6 +64,7 @@ export function useConversationEditingState(deps: {
 		messageId: number,
 		text: string,
 		fileBlocks?: readonly ChatMessagePart[],
+		editorState?: string,
 	) => {
 		if (editingMessageId === null) {
 			// Read the current serialized editor state from localStorage
@@ -80,9 +81,9 @@ export function useConversationEditingState(deps: {
 		setEditingMessageId(messageId);
 		setDraftState({
 			editorInitialValue: text,
-			initialEditorState: undefined,
+			initialEditorState: editorState,
 		});
-		serializedEditorStateRef.current = undefined;
+		serializedEditorStateRef.current = editorState;
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = text;
 		setEditingFileBlocks(fileBlocks ?? []);
