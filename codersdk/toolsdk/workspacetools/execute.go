@@ -92,6 +92,10 @@ type ExecuteResult struct {
 	Running             bool                            `json:"running,omitempty"`
 	Backgrounded        bool                            `json:"backgrounded,omitempty"`
 	Canceled            bool                            `json:"canceled,omitempty"` // an interrupt canceled the command while it ran
+	// Hooks lists the workspace hooks that ran for this call and their
+	// decisions. It is not serialized: a decision's model_context must not
+	// reach the model as tool output. PROTOTYPE (CODAGT-1083).
+	Hooks []workspacesdk.HookDecision `json:"-"`
 }
 
 // ExecuteRequest describes a command to run in the workspace.
@@ -156,6 +160,7 @@ func Execute(ctx context.Context, conn workspacesdk.AgentConn, req ExecuteReques
 			Success:             true,
 			BackgroundProcessID: resp.ID,
 			Backgrounded:        true,
+			Hooks:               resp.Hooks,
 		}, nil
 	}
 
@@ -194,6 +199,7 @@ func Execute(ctx context.Context, conn workspacesdk.AgentConn, req ExecuteReques
 
 	result := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout, req.Names)
 	result.WallDurationMs = time.Since(start).Milliseconds()
+	result.Hooks = resp.Hooks
 	if note := detectFileDump(command, req.Names); note != "" {
 		result.Note = note
 	}
@@ -201,8 +207,12 @@ func Execute(ctx context.Context, conn workspacesdk.AgentConn, req ExecuteReques
 }
 
 // StartErrorResult reports a failed process start, adding remediation
-// guidance when the workspace has no POSIX shell.
+// guidance when the workspace has no POSIX shell. A workspace hook
+// denial is reported as the policy decision it is.
 func StartErrorResult(action string, err error) ExecuteResult {
+	if denied := hookDenial(err, "command"); denied != nil {
+		return ExecuteResult{Success: false, Error: denied.Message, Hooks: denied.Hooks}
+	}
 	msg := fmt.Sprintf("%s: %v", action, err)
 	if strings.Contains(msg, shNotFoundFragment) {
 		msg += "\n\n" + shNotFoundGuidance

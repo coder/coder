@@ -298,6 +298,10 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			// loop so config survives agent restarts.
 			contextConfig := agentcontextconfig.ReadEnvConfig()
 			agentcontextconfig.ClearEnvVars()
+			// PROTOTYPE (CODAGT-1083): workspace hooks are enabled by
+			// naming the hooks file, e.g. ".coder/hooks.json".
+			workspaceHooksFile := strings.TrimSpace(os.Getenv("CODER_AGENT_EXP_WORKSPACE_HOOKS_FILE"))
+			_ = os.Unsetenv("CODER_AGENT_EXP_WORKSPACE_HOOKS_FILE")
 
 			var (
 				lastOwnerID uuid.UUID
@@ -356,6 +360,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					SocketServerEnabled:             socketServerEnabled,
 					AgentFirewallLogProxySocketPath: agentFirewallLogProxySocketPath,
 					ContextConfig:                   contextConfig,
+					WorkspaceHooksFile:              workspaceHooksFile,
 				})
 
 				if debugAddress != "" {

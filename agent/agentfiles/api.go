@@ -8,6 +8,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentgit"
+	"github.com/coder/coder/v2/agent/agenthooks"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -19,10 +20,20 @@ type API struct {
 	pathStore         *agentgit.PathStore
 	envInfo           usershell.EnvInfoer
 	bundleFilesLimits workspacesdk.BundleFilesLimits
+	// preToolHook, when set, runs workspace hooks before read_file,
+	// write_file, and edit_files do their work. PROTOTYPE (CODAGT-1083).
+	preToolHook agenthooks.PreToolHook
 }
 
 // Option configures the API.
 type Option func(*API)
+
+// WithPreToolHook installs the workspace hook runner.
+func WithPreToolHook(hook agenthooks.PreToolHook) Option {
+	return func(api *API) {
+		api.preToolHook = hook
+	}
+}
 
 // WithBundleFilesLimits overrides the bundle files collection limits.
 func WithBundleFilesLimits(limits workspacesdk.BundleFilesLimits) Option {
