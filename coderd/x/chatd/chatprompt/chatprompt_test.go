@@ -1633,9 +1633,10 @@ func TestSkillInvocationPrompt(t *testing.T) {
 			prompt, err := chatprompt.ConvertMessagesWithFiles(
 				context.Background(),
 				[]database.ChatMessage{{
-					Role:       database.ChatMessageRoleUser,
-					Visibility: database.ChatMessageVisibilityBoth,
-					Content:    raw,
+					Role:           database.ChatMessageRoleUser,
+					Visibility:     database.ChatMessageVisibilityBoth,
+					Content:        raw,
+					ContentVersion: chatprompt.CurrentContentVersion,
 				}},
 				nil,
 				slogtest.Make(t, nil),
