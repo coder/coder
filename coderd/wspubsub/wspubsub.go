@@ -124,7 +124,6 @@ const (
 	WorkspaceEventKindAgentFirstLogs        WorkspaceEventKind = "agt_first_logs"
 	WorkspaceEventKindAgentLogsOverflow     WorkspaceEventKind = "agt_logs_overflow"
 	WorkspaceEventKindAgentTimeout          WorkspaceEventKind = "agt_timeout"
-	WorkspaceEventKindAgentAppStatusUpdate  WorkspaceEventKind = "agt_app_status_update"
 )
 
 func (w *WorkspaceEvent) Validate() error {

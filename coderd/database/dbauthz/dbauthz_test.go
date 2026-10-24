@@ -5260,21 +5260,6 @@ func (s *MethodTestSuite) TestCryptoKeys() {
 }
 
 func (s *MethodTestSuite) TestSystemFunctions() {
-	s.Run("GetLatestWorkspaceAppStatusByAppID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		appID := uuid.New()
-		dbm.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), appID).Return(database.WorkspaceAppStatus{}, nil).AnyTimes()
-		check.Args(appID).Asserts(rbac.ResourceSystem, policy.ActionRead)
-	}))
-	s.Run("GetLatestWorkspaceAppStatusesByWorkspaceIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		ids := []uuid.UUID{uuid.New()}
-		dbm.EXPECT().GetLatestWorkspaceAppStatusesByWorkspaceIDs(gomock.Any(), ids).Return([]database.WorkspaceAppStatus{}, nil).AnyTimes()
-		check.Args(ids).Asserts(rbac.ResourceSystem, policy.ActionRead)
-	}))
-	s.Run("GetWorkspaceAppStatusesByAppIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		ids := []uuid.UUID{uuid.New()}
-		dbm.EXPECT().GetWorkspaceAppStatusesByAppIDs(gomock.Any(), ids).Return([]database.WorkspaceAppStatus{}, nil).AnyTimes()
-		check.Args(ids).Asserts(rbac.ResourceSystem, policy.ActionRead)
-	}))
 	s.Run("GetLatestWorkspaceBuildsByWorkspaceIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		wsID := uuid.New()
 		b := testutil.Fake(s.T(), faker, database.WorkspaceBuild{})
@@ -5619,11 +5604,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		v := testutil.Fake(s.T(), faker, database.TemplateVersion{})
 		arg := database.InsertTemplateVersionParameterParams{TemplateVersionID: v.ID, Options: json.RawMessage("{}")}
 		dbm.EXPECT().InsertTemplateVersionParameter(gomock.Any(), arg).Return(testutil.Fake(s.T(), faker, database.TemplateVersionParameter{TemplateVersionID: v.ID}), nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
-	}))
-	s.Run("InsertWorkspaceAppStatus", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.InsertWorkspaceAppStatusParams{ID: uuid.New(), State: "working"}
-		dbm.EXPECT().InsertWorkspaceAppStatus(gomock.Any(), arg).Return(testutil.Fake(s.T(), gofakeit.New(0), database.WorkspaceAppStatus{ID: arg.ID, State: arg.State}), nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("InsertWorkspaceResource", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

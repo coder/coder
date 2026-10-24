@@ -39186,74 +39186,6 @@ func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg Ups
 	return new_or_stale, err
 }
 
-const getLatestWorkspaceAppStatusByAppID = `-- name: GetLatestWorkspaceAppStatusByAppID :one
-SELECT id, created_at, agent_id, app_id, workspace_id, state, message, uri
-FROM workspace_app_statuses
-WHERE app_id = $1::uuid
-ORDER BY created_at DESC, id DESC
-LIMIT 1
-`
-
-func (q *sqlQuerier) GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (WorkspaceAppStatus, error) {
-	row := q.db.QueryRowContext(ctx, getLatestWorkspaceAppStatusByAppID, appID)
-	var i WorkspaceAppStatus
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.AgentID,
-		&i.AppID,
-		&i.WorkspaceID,
-		&i.State,
-		&i.Message,
-		&i.Uri,
-	)
-	return i, err
-}
-
-const getLatestWorkspaceAppStatusesByWorkspaceIDs = `-- name: GetLatestWorkspaceAppStatusesByWorkspaceIDs :many
-SELECT DISTINCT ON (workspace_id)
-  id, created_at, agent_id, app_id, workspace_id, state, message, uri
-FROM workspace_app_statuses
-WHERE workspace_id = ANY($1 :: uuid[])
-ORDER BY workspace_id, created_at DESC, id DESC
-`
-
-// id DESC is a stability tiebreaker, not an insertion-order signal: back-to-back
-// inserts can share a created_at on platforms with coarse time.Now() resolution,
-// and id is a random UUID, so this only guarantees a deterministic pick, not the
-// later row. Callers must not depend on sub-microsecond recency here.
-func (q *sqlQuerier) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAppStatus, error) {
-	rows, err := q.db.QueryContext(ctx, getLatestWorkspaceAppStatusesByWorkspaceIDs, pq.Array(ids))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WorkspaceAppStatus
-	for rows.Next() {
-		var i WorkspaceAppStatus
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.AgentID,
-			&i.AppID,
-			&i.WorkspaceID,
-			&i.State,
-			&i.Message,
-			&i.Uri,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getWorkspaceAppByAgentIDAndSlug = `-- name: GetWorkspaceAppByAgentIDAndSlug :one
 SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group, tooltip FROM workspace_apps WHERE agent_id = $1 AND slug = $2
 `
@@ -39289,43 +39221,6 @@ func (q *sqlQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg Ge
 		&i.Tooltip,
 	)
 	return i, err
-}
-
-const getWorkspaceAppStatusesByAppIDs = `-- name: GetWorkspaceAppStatusesByAppIDs :many
-SELECT id, created_at, agent_id, app_id, workspace_id, state, message, uri FROM workspace_app_statuses WHERE app_id = ANY($1 :: uuid [ ])
-ORDER BY created_at DESC, id DESC
-`
-
-func (q *sqlQuerier) GetWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAppStatus, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceAppStatusesByAppIDs, pq.Array(ids))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WorkspaceAppStatus
-	for rows.Next() {
-		var i WorkspaceAppStatus
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.AgentID,
-			&i.AppID,
-			&i.WorkspaceID,
-			&i.State,
-			&i.Message,
-			&i.Uri,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const getWorkspaceAppsByAgentID = `-- name: GetWorkspaceAppsByAgentID :many
@@ -39470,48 +39365,6 @@ func (q *sqlQuerier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt
 		return nil, err
 	}
 	return items, nil
-}
-
-const insertWorkspaceAppStatus = `-- name: InsertWorkspaceAppStatus :one
-INSERT INTO workspace_app_statuses (id, created_at, workspace_id, agent_id, app_id, state, message, uri)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, created_at, agent_id, app_id, workspace_id, state, message, uri
-`
-
-type InsertWorkspaceAppStatusParams struct {
-	ID          uuid.UUID               `db:"id" json:"id"`
-	CreatedAt   time.Time               `db:"created_at" json:"created_at"`
-	WorkspaceID uuid.UUID               `db:"workspace_id" json:"workspace_id"`
-	AgentID     uuid.UUID               `db:"agent_id" json:"agent_id"`
-	AppID       uuid.UUID               `db:"app_id" json:"app_id"`
-	State       WorkspaceAppStatusState `db:"state" json:"state"`
-	Message     string                  `db:"message" json:"message"`
-	Uri         sql.NullString          `db:"uri" json:"uri"`
-}
-
-func (q *sqlQuerier) InsertWorkspaceAppStatus(ctx context.Context, arg InsertWorkspaceAppStatusParams) (WorkspaceAppStatus, error) {
-	row := q.db.QueryRowContext(ctx, insertWorkspaceAppStatus,
-		arg.ID,
-		arg.CreatedAt,
-		arg.WorkspaceID,
-		arg.AgentID,
-		arg.AppID,
-		arg.State,
-		arg.Message,
-		arg.Uri,
-	)
-	var i WorkspaceAppStatus
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.AgentID,
-		&i.AppID,
-		&i.WorkspaceID,
-		&i.State,
-		&i.Message,
-		&i.Uri,
-	)
-	return i, err
 }
 
 const updateWorkspaceAppHealthByID = `-- name: UpdateWorkspaceAppHealthByID :exec
