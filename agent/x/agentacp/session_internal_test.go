@@ -96,7 +96,7 @@ func TestRejectedUserOperationsPreserveTranscript(t *testing.T) {
 
 func TestSessionFSMUpdateValidation(t *testing.T) {
 	t.Parallel()
-	for _, status := range []workspacesdk.ACPSessionStatus{workspacesdk.ACPSessionStatusIdle, workspacesdk.ACPSessionStatusRunning, workspacesdk.ACPSessionStatusInterrupting, workspacesdk.ACPSessionStatusError} {
+	for _, status := range []workspacesdk.ACPSessionStatus{workspacesdk.ACPSessionStatusInitializing, workspacesdk.ACPSessionStatusIdle, workspacesdk.ACPSessionStatusRunning, workspacesdk.ACPSessionStatusInterrupting, workspacesdk.ACPSessionStatusError} {
 		t.Run(string(status), func(t *testing.T) {
 			t.Parallel()
 			s, _, _ := newRuntimeSession(t, status)
