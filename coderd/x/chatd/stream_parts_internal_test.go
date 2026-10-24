@@ -138,6 +138,68 @@ func TestStreamPartsEndpointReselectsWhileEpisodeMissing(t *testing.T) {
 	require.Equal(t, selectedKey.HistoryVersion, got[0].MessagePart.HistoryVersion)
 }
 
+func TestStreamPartsEndpointLatestSelectionWinsWhileBlocked(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	chatID := uuid.New()
+	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
+	endpoint := streamPartsEndpoint{
+		chatID: chatID,
+		buffer: buffer,
+		logger: slogtest.Make(t, nil),
+	}
+	serverTransport, clientTransport := newStreamPartsChannelTransportPair()
+	channelTransport, ok := serverTransport.(streamPartsChannelServerTransport)
+	require.True(t, ok, "unexpected transport type %T", serverTransport)
+	pipe := channelTransport.pipe
+	serveDone := serveStreamPartsEndpoint(ctx, t, endpoint, serverTransport)
+	defer func() {
+		require.NoError(t, clientTransport.Close())
+		<-serveDone
+	}()
+
+	blockingKey := messagepartbuffer.Key{ChatID: chatID, HistoryVersion: 1, GenerationAttempt: 1}
+	staleKeys := []messagepartbuffer.Key{
+		{ChatID: chatID, HistoryVersion: 2, GenerationAttempt: 1},
+		{ChatID: chatID, HistoryVersion: 3, GenerationAttempt: 1},
+	}
+	latestKey := messagepartbuffer.Key{ChatID: chatID, HistoryVersion: 4, GenerationAttempt: 1}
+	require.NoError(t, buffer.CreateEpisode(blockingKey))
+	for range cap(pipe.eventsCh) + 2 {
+		require.NoError(t, buffer.AddPart(blockingKey, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("blocking")))
+	}
+	for _, key := range staleKeys {
+		require.NoError(t, buffer.CreateEpisode(key))
+		require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("stale")))
+	}
+	require.NoError(t, buffer.CreateEpisode(latestKey))
+	require.NoError(t, buffer.AddPart(latestKey, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("latest")))
+
+	require.NoError(t, clientTransport.WriteControl(ctx, streamPartsControl{HistoryVersion: blockingKey.HistoryVersion, GenerationAttempt: blockingKey.GenerationAttempt}))
+	require.True(t, testutil.Eventually(ctx, t, func(context.Context) bool {
+		return len(pipe.eventsCh) == cap(pipe.eventsCh)
+	}, testutil.IntervalFast))
+	// The serve loop is now blocked sending parts. A reader that waited for
+	// it would hold the second of these selections and leave the third in
+	// the pipe.
+	for _, key := range append(staleKeys, latestKey) {
+		require.NoError(t, clientTransport.WriteControl(ctx, streamPartsControl{HistoryVersion: key.HistoryVersion, GenerationAttempt: key.GenerationAttempt}))
+		require.True(t, testutil.Eventually(ctx, t, func(context.Context) bool {
+			return len(pipe.controlCh) == 0
+		}, testutil.IntervalFast), "selection for history version %d was not read", key.HistoryVersion)
+	}
+
+	for {
+		got := readStreamPartsTransportBatch(ctx, t, clientTransport)
+		if got[0].MessagePart.HistoryVersion == latestKey.HistoryVersion {
+			require.Equal(t, "latest", got[0].MessagePart.Part.Text)
+			return
+		}
+	}
+}
+
 func TestStreamPartsEndpointClientDisconnectCancels(t *testing.T) {
 	t.Parallel()
 
