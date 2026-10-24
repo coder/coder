@@ -170,7 +170,7 @@ const DownloadOverlay: React.FC<{
 				});
 			}}
 			aria-label={`Download ${displayName}`}
-			className="invisible absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-xs backdrop-blur-xs transition-opacity hover:text-content-primary group-hover/attachment:visible group-hover/attachment:opacity-100 group-focus-within/attachment:visible group-focus-within/attachment:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+			className="invisible absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-xs backdrop-blur-xs transition-opacity hover:text-content-primary group-hover/attachment:visible group-hover/attachment:opacity-100 peer-focus-within/attachment:visible peer-focus-within/attachment:opacity-100 focus:visible focus:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 		>
 			<DownloadIcon aria-hidden="true" className="size-3.5" />
 		</a>
@@ -186,7 +186,8 @@ const AttachmentPreviewFrame: React.FC<{
 }> = ({ href, displayName, downloadName, mediaType, children }) => {
 	return (
 		<div className="group/attachment relative inline-flex flex-col items-start">
-			{children}
+			{/* `peer`, not `group-focus-within`, for the reason in AttachmentPreview. */}
+			<div className="peer/attachment contents">{children}</div>
 			<DownloadOverlay
 				href={href}
 				displayName={displayName}

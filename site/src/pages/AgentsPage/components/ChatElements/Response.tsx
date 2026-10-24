@@ -3,6 +3,7 @@ import {
 	type SupportedLanguages,
 } from "@pierre/diffs/react";
 import { cn } from "cn";
+import { useState } from "react";
 import {
 	type Components,
 	defaultRehypePlugins,
@@ -10,10 +11,10 @@ import {
 	type UrlTransform,
 } from "streamdown";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
 import { MarkdownImage } from "./MarkdownImage";
 import { MermaidDiagram } from "./MermaidDiagram";
+import { createStreamingBlockParser } from "./streamingBlockParser";
 
 type ResponseProps = Omit<React.ComponentProps<"div">, "children"> & {
 	children: string;
@@ -234,32 +235,33 @@ const createComponents = (
 						: (lang as SupportedLanguages);
 					// MermaidDiagram's error fallback strips the margin, border
 					// and rounding from its direct child, so the frame must stay
-					// on the outermost element rather than the ScrollArea.
+					// on the outermost element rather than the scroll container.
 					const codeBlock = (
 						<div className="group/code-block relative my-4 overflow-hidden rounded-md border border-solid border-border bg-surface-primary">
-							<ScrollArea
-								orientation="both"
-								scrollBarClassName="w-1.5"
-								horizontalScrollBarClassName="h-1.5"
-							>
-								<FileViewer
-									file={{
-										name: `block.${viewerLang}`,
-										lang: viewerLang,
-										contents: content,
-										cacheKey: content,
-									}}
-									options={{
-										overflow: "scroll",
-										themeType: fileViewerThemeType,
-										disableFileHeader: true,
-										disableLineNumbers: true,
-										theme: viewerTheme,
-										unsafeCSS: markdownFileViewerCSS,
-									}}
-									style={markdownFileViewerStyle}
-								/>
-							</ScrollArea>
+							{/* Not ScrollArea: its per-instance <style> makes WebKit restyle the
+							    whole document each time a code block mounts or unmounts. */}
+							<div className="overflow-auto scrollbar-thin [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+								{/* Sizes the viewer to its longest line, so long lines scroll. */}
+								<div className="table min-w-full">
+									<FileViewer
+										file={{
+											name: `block.${viewerLang}`,
+											lang: viewerLang,
+											contents: content,
+											cacheKey: content,
+										}}
+										options={{
+											overflow: "scroll",
+											themeType: fileViewerThemeType,
+											disableFileHeader: true,
+											disableLineNumbers: true,
+											theme: viewerTheme,
+											unsafeCSS: markdownFileViewerCSS,
+										}}
+										style={markdownFileViewerStyle}
+									/>
+								</div>
+							</div>
 							<CopyButton
 								text={content}
 								label="Copy code"
@@ -299,6 +301,8 @@ export const Response = ({
 	const fileViewerThemeType: FileViewerThemeType =
 		theme.palette.mode === "dark" ? "dark" : "light";
 	const components = componentsByTheme[fileViewerThemeType];
+	// One parser per Response, so its cache holds only this message's blocks.
+	const [parseStreamingBlocks] = useState(() => createStreamingBlockParser());
 
 	return (
 		<div
@@ -316,6 +320,7 @@ export const Response = ({
 				rehypePlugins={chatRehypePlugins}
 				mode={streaming ? "streaming" : "static"}
 				parseIncompleteMarkdown={streaming}
+				parseMarkdownIntoBlocksFn={streaming ? parseStreamingBlocks : undefined}
 				// Streamdown only flags the trailing block as an
 				// incomplete code fence while isAnimating is set, which
 				// MermaidDiagram relies on to defer rendering.

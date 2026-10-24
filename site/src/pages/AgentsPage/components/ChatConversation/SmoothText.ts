@@ -293,8 +293,12 @@ type GraphemeSegment = {
 	segment: string;
 };
 
+type GraphemeSegments = Iterable<GraphemeSegment> & {
+	containing(codeUnitIndex: number): GraphemeSegment | undefined;
+};
+
 type GraphemeSegmenterInstance = {
-	segment(input: string): Iterable<GraphemeSegment>;
+	segment(input: string): GraphemeSegments;
 };
 
 const graphemeSegmenter: GraphemeSegmenterInstance | null = (() => {
@@ -336,21 +340,16 @@ export function sliceAtGraphemeBoundary(
 	}
 
 	if (graphemeSegmenter) {
-		let safeEnd = 0;
-		// Iterate the segmenter lazily instead of materializing
-		// with Array.from(). The early break makes this O(prefix)
-		// instead of O(full text), which matters at 60fps during
-		// streaming where the visible prefix is much shorter than
-		// the full accumulated text.
-		for (const segment of graphemeSegmenter.segment(text)) {
-			const segmentEnd = segment.index + segment.segment.length;
-			if (segmentEnd > maxCodeUnitLength) {
-				break;
-			}
-			safeEnd = segmentEnd;
+		// This runs on every animation frame while streaming. containing()
+		// finds the cluster at the cut without iterating every cluster
+		// before it.
+		const last = graphemeSegmenter
+			.segment(text)
+			.containing(maxCodeUnitLength - 1);
+		if (last) {
+			const end = last.index + last.segment.length;
+			return text.slice(0, end <= maxCodeUnitLength ? end : last.index);
 		}
-
-		return text.slice(0, safeEnd);
 	}
 
 	// Fallback: iterate by codepoint to avoid splitting surrogate
