@@ -1,5 +1,7 @@
-import { render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { Line } from "#/components/Logs/LogLine";
+import { renderComponent } from "#/testHelpers/renderHelpers";
 import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogLine";
 import { AgentLogs } from "./AgentLogs";
 import { MockSources } from "./mocks";
@@ -82,5 +84,51 @@ describe("AgentLogs virtualized height", () => {
 		expect(
 			Number.parseFloat(getInnerSizer(container).style.height),
 		).toBeGreaterThan(ROW_COUNT * AGENT_LOG_LINE_HEIGHT);
+	});
+});
+
+describe("AgentLogs source icons", () => {
+	it("tabs once per run of lines from the same source", async () => {
+		const user = userEvent.setup();
+		const [startup, personalize] = MockSources;
+		const logs: Line[] = [
+			startup.id,
+			startup.id,
+			personalize.id,
+			personalize.id,
+			startup.id,
+		].map((sourceId, i) => ({
+			id: i + 1,
+			level: "info",
+			output: `log line ${i + 1}`,
+			sourceId,
+			time: "2024-03-14T11:31:04.090715Z",
+		}));
+		renderComponent(
+			<AgentLogs
+				logs={logs}
+				sources={MockSources}
+				overflowed={false}
+				height={1000}
+				width={600}
+			/>,
+		);
+
+		const [firstStartup, secondStartup] = screen.getAllByRole("button", {
+			name: startup.display_name,
+		});
+		const personalizeTrigger = screen.getByRole("button", {
+			name: personalize.display_name,
+		});
+
+		await user.tab();
+		expect(firstStartup).toHaveFocus();
+		await waitFor(() =>
+			expect(firstStartup).toHaveAccessibleDescription(startup.display_name),
+		);
+		await user.tab();
+		expect(personalizeTrigger).toHaveFocus();
+		await user.tab();
+		expect(secondStartup).toHaveFocus();
 	});
 });

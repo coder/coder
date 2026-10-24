@@ -112,7 +112,13 @@ export const StagesChart: React.FC<StagesChartProps> = ({
 												{stage.label}
 												<Tooltip>
 													<TooltipTrigger asChild>
-														<InfoIcon className="size-icon-xs cursor-pointer text-content-secondary" />
+														<button
+															type="button"
+															aria-label={`About ${stage.label}`}
+															className="flex items-center text-content-secondary rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+														>
+															<InfoIcon className="size-icon-xs" />
+														</button>
 													</TooltipTrigger>
 													<TooltipContent
 														side="bottom"
