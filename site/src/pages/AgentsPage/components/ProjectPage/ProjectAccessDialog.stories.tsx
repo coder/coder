@@ -155,7 +155,22 @@ export const ManageForbiddenError: Story = {
 	},
 };
 
+/** Rows stack on phones, and long names truncate. */
 export const ManageOnPhone: Story = {
-	args: { canManage: true },
+	args: {
+		canManage: true,
+		entries: buildAccessEntries(MockUserOwner.id, MockUserOwner, {
+			...mockACL,
+			users: [
+				...mockACL.users,
+				{
+					...MockUserMember,
+					id: "sharee-3",
+					name: "Maximiliana Bartholomea Featherstonehaugh",
+					role: "use",
+				},
+			],
+		}),
+	},
 	parameters: { pixel: { matrix: pixelWithPhone } },
 };

@@ -165,19 +165,25 @@ const ProjectAccessDialogContent: React.FC<
 					/>
 				)}
 				{(entries || !error) && (
-					<Table aria-label="Project access" className="table-fixed">
-						<TableHeader>
+					<Table
+						aria-label="Project access"
+						className="max-sm:block"
+						// Grows the scroll area instead of scrolling inside it.
+						wrapperClassName="shrink-0"
+					>
+						<TableHeader className="max-sm:hidden">
 							<TableRow>
-								<TableHead>User or group</TableHead>
-								<TableHead className="w-32 sm:w-40">Role</TableHead>
+								<TableHead className="w-full">User or group</TableHead>
+								<TableHead>Role</TableHead>
 								{canManage && (
-									<TableHead className="w-16">
+									<TableHead>
 										<span className="sr-only">Actions</span>
 									</TableHead>
 								)}
 							</TableRow>
 						</TableHeader>
-						<TableBody>
+						{/* Phones stack each row's role and actions under its name. */}
+						<TableBody className="max-sm:block max-sm:rounded-md max-sm:border max-sm:border-border max-sm:border-solid max-sm:[&>tr:last-child]:border-b-0 max-sm:[&>tr>td:first-child]:col-span-full max-sm:[&>tr>td:not(:first-child)]:pt-0 max-sm:[&>tr>td]:border-0! max-sm:[&>tr]:grid max-sm:[&>tr]:grid-cols-[minmax(0,1fr)_auto]">
 							{entries ? (
 								entries.map((entry) => (
 									<AccessRow
@@ -357,7 +363,8 @@ const AccessRow: React.FC<AccessRowProps> = ({
 
 	return (
 		<TableRow>
-			<TableCell>
+			{/* With the header's w-full, max-w-0 lets long names truncate. */}
+			<TableCell className="min-w-0 sm:max-w-0">
 				{entry.name === undefined ? (
 					<>
 						<AvatarDataSkeleton />
