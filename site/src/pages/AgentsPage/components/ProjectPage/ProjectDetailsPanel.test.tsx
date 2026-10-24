@@ -633,7 +633,7 @@ describe("ProjectDetailsPanel", () => {
 			await screen.findByRole("button", { name: "Manage access" }),
 		);
 		await user.click(
-			await screen.findByRole("button", { name: "User or group" }),
+			await screen.findByRole("button", { name: /^User or group/ }),
 		);
 		await user.click(
 			await screen.findByRole("option", {

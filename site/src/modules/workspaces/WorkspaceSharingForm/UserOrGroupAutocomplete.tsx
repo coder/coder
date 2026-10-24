@@ -23,9 +23,10 @@ type UserOrGroupAutocompleteProps = {
 	organizationId: string;
 	exclude: ExcludableOption[];
 	className?: string;
-	/** Lets a `<label htmlFor>` name the trigger. */
+	/** Lets callers label and focus the trigger. */
 	id?: string;
 	clearable?: boolean;
+	triggerAriaLabelledBy?: string;
 };
 
 const normalizeMember = (
@@ -45,6 +46,7 @@ export const UserOrGroupAutocomplete: React.FC<
 	className = "w-80",
 	id,
 	clearable,
+	triggerAriaLabelledBy,
 }) => {
 	const [inputValue, setInputValue] = useState("");
 	const [open, setOpen] = useState(false);
@@ -144,6 +146,7 @@ export const UserOrGroupAutocomplete: React.FC<
 			className={className}
 			id={id ?? "workspace-user-or-group-autocomplete"}
 			clearable={clearable}
+			triggerAriaLabelledBy={triggerAriaLabelledBy}
 		/>
 	);
 };

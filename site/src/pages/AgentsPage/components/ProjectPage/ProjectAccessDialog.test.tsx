@@ -69,7 +69,7 @@ const renderDialog = (props: Partial<DialogProps> = {}) => {
 };
 
 const getAutocomplete = () =>
-	screen.getByRole("button", { name: "User or group" });
+	screen.getByRole("button", { name: /^User or group/ });
 
 const chooseAddRole = async (
 	user: ReturnType<typeof userEvent.setup>,
@@ -106,6 +106,7 @@ describe("ProjectAccessDialog", () => {
 
 		await user.click(getAutocomplete());
 		await user.click(await screen.findByRole("option", { name: /TestUser3/ }));
+		expect(getAutocomplete()).toHaveAccessibleName(/test3@example\.com$/);
 		await chooseAddRole(user, "Admin");
 		await user.click(screen.getByRole("button", { name: "Add" }));
 

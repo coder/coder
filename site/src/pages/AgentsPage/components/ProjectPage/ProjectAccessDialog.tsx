@@ -273,11 +273,13 @@ const AddAccessForm: React.FC<AddAccessFormProps> = ({
 			}}
 		>
 			<div className="min-w-0 flex-1">
-				<label htmlFor={triggerId} className="sr-only">
+				<span id={`${triggerId}-label`} className="sr-only">
 					User or group
-				</label>
+				</span>
 				<UserOrGroupAutocomplete
 					id={triggerId}
+					// The name is the label, then the selection the trigger shows.
+					triggerAriaLabelledBy={`${triggerId}-label ${triggerId}`}
 					// Its clear control would nest a button inside the trigger button.
 					clearable={false}
 					value={selection}

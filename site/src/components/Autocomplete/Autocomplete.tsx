@@ -42,6 +42,7 @@ type AutocompleteProps<TOption> = {
 	className?: string;
 	triggerAriaInvalid?: boolean;
 	triggerAriaDescribedBy?: string;
+	triggerAriaLabelledBy?: string;
 	id?: string;
 	"data-testid"?: string;
 };
@@ -70,6 +71,7 @@ export function Autocomplete<TOption>({
 	className,
 	triggerAriaInvalid,
 	triggerAriaDescribedBy,
+	triggerAriaLabelledBy,
 	id,
 	"data-testid": testId,
 }: AutocompleteProps<TOption>) {
@@ -265,6 +267,7 @@ export function Autocomplete<TOption>({
 						aria-haspopup="listbox"
 						aria-invalid={triggerAriaInvalid}
 						aria-describedby={triggerAriaDescribedBy}
+						aria-labelledby={triggerAriaLabelledBy}
 						disabled={disabled}
 						placeholder={placeholder}
 						value={inlineInputValue}
@@ -367,6 +370,7 @@ export function Autocomplete<TOption>({
 					aria-expanded={isOpen}
 					aria-haspopup="listbox"
 					aria-describedby={triggerAriaDescribedBy}
+					aria-labelledby={triggerAriaLabelledBy}
 					disabled={disabled}
 					className={cn(
 						`flex h-10 w-full items-center justify-between gap-2
