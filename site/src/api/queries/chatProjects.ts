@@ -100,6 +100,17 @@ export const chatProjectInstructions = (project: TypesGen.ChatProject) =>
 		refetchOnWindowFocus: true,
 	});
 
+const chatProjectACLKey = (projectId: string) =>
+	[...chatProjectsKey, projectId, "acl"] as const;
+
+/** Lists the users and groups a project is shared with, without its owner. */
+export const chatProjectACL = (project: TypesGen.ChatProject) =>
+	queryOptions({
+		queryKey: chatProjectACLKey(project.id),
+		queryFn: () =>
+			API.experimental.getChatProjectACL(project.organization_id, project.id),
+	});
+
 export const updateChatProjectInstructions = (
 	queryClient: QueryClient,
 	project: TypesGen.ChatProject,

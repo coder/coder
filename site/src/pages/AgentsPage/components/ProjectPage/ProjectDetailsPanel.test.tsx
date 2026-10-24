@@ -5,7 +5,7 @@ import {
 	type QueryClient,
 	QueryClientProvider,
 } from "react-query";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { chatProjectInstructionsKey } from "#/api/queries/chatProjects";
 import type {
@@ -97,6 +97,13 @@ const renderPanel = (initialProject: ChatProject = MockChatProject) => {
 };
 
 describe("ProjectDetailsPanel", () => {
+	beforeEach(() => {
+		vi.spyOn(API.experimental, "getChatProjectACL").mockResolvedValue({
+			users: [],
+			groups: [],
+		});
+	});
+
 	afterEach(() => {
 		vi.restoreAllMocks();
 		focusManager.setFocused(undefined);
@@ -554,5 +561,28 @@ describe("ProjectDetailsPanel", () => {
 		await user.click(await screen.findByRole("button", { name: "Close" }));
 
 		await waitFor(() => expect(skillsButton).toHaveFocus());
+	});
+
+	it("opens the project access from View access and returns focus when it closes", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		const getACL = vi
+			.spyOn(API.experimental, "getChatProjectACL")
+			.mockResolvedValue({
+				users: [{ ...MockUserMember, role: "use" }],
+				groups: [],
+			});
+		const { user } = renderPanel();
+		const accessButton = await screen.findByRole("button", {
+			name: "View access",
+		});
+
+		await user.click(accessButton);
+		await user.click(await screen.findByRole("button", { name: "Close" }));
+
+		await waitFor(() => expect(accessButton).toHaveFocus());
+		expect(getACL).toHaveBeenCalledWith(
+			MockChatProject.organization_id,
+			MockChatProject.id,
+		);
 	});
 });

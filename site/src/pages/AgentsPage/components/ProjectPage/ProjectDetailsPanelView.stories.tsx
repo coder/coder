@@ -1,13 +1,47 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, within } from "storybook/test";
+import type { ChatProjectUser } from "#/api/typesGenerated";
 import {
 	MockChatProject,
 	MockChatProjectInstructions,
+	MockEveryoneGroup,
+	MockGroup,
 	MockUnsetChatProjectInstructions,
+	MockUserMember,
+	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { ProjectDetailsPanelView } from "./ProjectDetailsPanelView";
+import { buildAccessEntries } from "./projectAccess";
+
+const mockSharees: ChatProjectUser[] = [
+	"Ada Lovelace",
+	"Grace Hopper",
+	"Alan Turing",
+	"Katherine Johnson",
+	"Linus Torvalds",
+	"Margaret Hamilton",
+	"Dennis Ritchie",
+	"Barbara Liskov",
+	"Ken Thompson",
+].map((name, index) => ({
+	...MockUserMember,
+	id: `sharee-${index}`,
+	username: name.toLowerCase().replace(" ", "."),
+	name,
+	role: index === 0 ? "admin" : "use",
+}));
+
+const mockMembers = {
+	entries: buildAccessEntries(MockUserOwner.id, MockUserOwner, {
+		users: mockSharees.slice(0, 2),
+		groups: [],
+	}),
+	error: undefined,
+	onRetry: fn(),
+	onOpenAccess: fn(),
+};
 
 const meta: Meta<typeof ProjectDetailsPanelView> = {
 	title: "pages/AgentsPage/ProjectPage/ProjectDetailsPanelView",
@@ -30,6 +64,7 @@ const meta: Meta<typeof ProjectDetailsPanelView> = {
 		error: undefined,
 		onRetry: fn(),
 		onEditInstructions: fn(),
+		members: mockMembers,
 	},
 };
 
@@ -162,5 +197,88 @@ export const RefetchError: Story = {
 		error: mockApiError({
 			message: "Failed to get chat project instructions.",
 		}),
+	},
+};
+
+/** Chat sharing is disabled for the deployment, so the members are hidden. */
+export const SharingDisabled: Story = {
+	args: { members: undefined },
+};
+
+export const OwnerOnly: Story = {
+	args: {
+		members: {
+			...mockMembers,
+			entries: buildAccessEntries(MockUserOwner.id, MockUserOwner, {
+				users: [],
+				groups: [],
+			}),
+		},
+	},
+};
+
+/** Entries past the seventh collapse into a "+K" tile. */
+export const MembersOverflow: Story = {
+	args: {
+		members: {
+			...mockMembers,
+			entries: buildAccessEntries(MockUserOwner.id, MockUserOwner, {
+				users: mockSharees,
+				groups: [],
+			}),
+		},
+	},
+};
+
+/** Groups follow users and count separately in the heading. */
+export const MembersWithGroups: Story = {
+	args: {
+		members: {
+			...mockMembers,
+			entries: buildAccessEntries(MockUserOwner.id, MockUserOwner, {
+				users: mockSharees.slice(0, 2),
+				groups: [
+					{ ...MockGroup, role: "use" },
+					{ ...MockEveryoneGroup, role: "use" },
+				],
+			}),
+		},
+	},
+};
+
+/** The owner of a project shared with the viewer is still loading. */
+export const MembersOwnerLoading: Story = {
+	args: {
+		members: {
+			...mockMembers,
+			entries: buildAccessEntries(MockUserOwner.id, undefined, {
+				users: mockSharees.slice(0, 2),
+				groups: [],
+			}),
+		},
+	},
+};
+
+export const MembersLoading: Story = {
+	args: { members: { ...mockMembers, entries: undefined } },
+};
+
+export const MembersLoadError: Story = {
+	args: {
+		members: {
+			...mockMembers,
+			entries: undefined,
+			error: mockApiError({ message: "Failed to get chat project ACL." }),
+		},
+	},
+};
+
+/** A failed refetch keeps the cached members and shows the error. */
+export const MembersRefetchError: Story = {
+	args: {
+		members: {
+			...mockMembers,
+			error: mockApiError({ message: "Failed to get chat project ACL." }),
+		},
 	},
 };

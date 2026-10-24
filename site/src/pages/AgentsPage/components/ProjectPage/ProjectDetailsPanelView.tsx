@@ -3,6 +3,7 @@ import { PenIcon } from "lucide-react";
 import { useId } from "react";
 import type { ChatProjectInstructions } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
@@ -11,6 +12,17 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
+import { formatMembersHeading, type ProjectAccessEntry } from "./projectAccess";
+
+const MAX_VISIBLE_MEMBERS = 7;
+
+type ProjectMembers = {
+	/** `undefined` while the access list loads or after loading fails. */
+	readonly entries: readonly ProjectAccessEntry[] | undefined;
+	readonly error: unknown;
+	readonly onRetry: () => void;
+	readonly onOpenAccess: (event: React.MouseEvent<HTMLButtonElement>) => void;
+};
 
 type ProjectDetailsPanelViewProps = {
 	/** The owner's display label. `undefined` while it loads. */
@@ -30,6 +42,8 @@ type ProjectDetailsPanelViewProps = {
 	readonly onRetry: () => void;
 	/** Opens the instructions editor. Omit when the caller cannot edit. */
 	readonly onEditInstructions?: () => void;
+	/** Omit to hide the members section, such as when sharing is disabled. */
+	readonly members?: ProjectMembers;
 };
 
 /** The project's shared configuration, shown beside its chats. */
@@ -47,6 +61,7 @@ export const ProjectDetailsPanelView: React.FC<
 	error,
 	onRetry,
 	onEditInstructions,
+	members,
 }) => {
 	const headingId = useId();
 	const instructionsHeadingId = useId();
@@ -193,8 +208,119 @@ export const ProjectDetailsPanelView: React.FC<
 						</>
 					)}
 				</section>
+				{members && <MembersSection {...members} />}
 			</div>
 		</section>
+	);
+};
+
+const MembersSection: React.FC<ProjectMembers> = ({
+	entries,
+	error,
+	onRetry,
+	onOpenAccess,
+}) => {
+	const headingId = useId();
+	let heading = "Members";
+	if (entries) {
+		const groupCount = entries.filter((entry) => entry.kind === "group").length;
+		heading = formatMembersHeading(entries.length - groupCount, groupCount);
+	}
+	const visibleEntries = entries?.slice(0, MAX_VISIBLE_MEMBERS);
+	const hiddenCount = entries ? entries.length - MAX_VISIBLE_MEMBERS : 0;
+	const isLoading = !entries && !error;
+
+	return (
+		<section
+			aria-labelledby={headingId}
+			className="flex flex-col gap-3 border-0 border-t border-solid border-border p-4"
+		>
+			<div className="flex items-center justify-between gap-4">
+				<h3
+					id={headingId}
+					className={cn(
+						"m-0 text-sm font-medium text-content-secondary",
+						isLoading && "sr-only",
+					)}
+				>
+					{heading}
+				</h3>
+				{isLoading && <Skeleton className="h-3 w-24" />}
+				<Button size="sm" variant="outline" onClick={onOpenAccess}>
+					View access
+				</Button>
+			</div>
+			{visibleEntries && (
+				<ul aria-label="Project members" className="m-0 flex list-none p-0">
+					{visibleEntries.map((entry) => (
+						<li
+							key={`${entry.kind}:${entry.id}`}
+							className="flex rounded-[6px] ring-2 ring-surface-primary not-first:-ml-2"
+						>
+							<MemberAvatar entry={entry} />
+						</li>
+					))}
+					{hiddenCount > 0 && (
+						<li className="-ml-2 flex size-(--avatar-lg) items-center justify-center rounded-[6px] border border-solid border-border bg-surface-secondary text-sm font-medium text-content-secondary ring-2 ring-surface-primary">
+							<span aria-hidden="true">+{hiddenCount}</span>
+							<span className="sr-only">{hiddenCount} more</span>
+						</li>
+					)}
+				</ul>
+			)}
+			{isLoading && (
+				<div className="flex">
+					{Array.from({ length: 3 }, (_, index) => (
+						<Skeleton
+							key={index}
+							className="size-(--avatar-lg) rounded-[6px] ring-2 ring-surface-primary not-first:-ml-2"
+						/>
+					))}
+					<span className="sr-only">Loading</span>
+				</div>
+			)}
+			{Boolean(error) && (
+				<ErrorAlert
+					error={error}
+					actions={
+						<Button size="sm" variant="outline" onClick={onRetry}>
+							Retry
+						</Button>
+					}
+				/>
+			)}
+		</section>
+	);
+};
+
+type MemberAvatarProps = {
+	readonly entry: ProjectAccessEntry;
+};
+
+const MemberAvatar: React.FC<MemberAvatarProps> = ({ entry }) => {
+	if (entry.name === undefined) {
+		return (
+			<>
+				<Skeleton className="size-(--avatar-lg) rounded-[6px]" />
+				<span className="sr-only">Loading</span>
+			</>
+		);
+	}
+	return (
+		<>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Avatar
+						size="lg"
+						src={entry.avatarUrl}
+						fallback={entry.name}
+						aria-hidden="true"
+					/>
+				</TooltipTrigger>
+				<TooltipContent>{entry.name}</TooltipContent>
+			</Tooltip>
+			<span className="sr-only">{entry.name}</span>
+		</>
 	);
 };
 
