@@ -42,7 +42,7 @@ export type ProjectAccessPrincipal = {
 /** Run once an access change saves, and once it finishes either way. */
 export type AccessChangeCallbacks = {
 	readonly onSuccess?: () => void;
-	readonly onSettled: () => void;
+	readonly onSettled?: () => void;
 };
 
 /** `memberCount` includes the owner; groups are counted separately. */

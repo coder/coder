@@ -1,5 +1,5 @@
 import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { getErrorDetail, getErrorMessage, getErrorStatus } from "#/api/errors";
 import type { ChatProjectRole } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
@@ -193,7 +193,7 @@ const ProjectAccessDialogContent: React.FC<ProjectAccessDialogContentProps> = ({
 										disabled={pendingPrincipalId !== undefined}
 										onChangeRole={onChangeRole}
 										onRemove={onRemove}
-										onSettled={() => focusById(addTriggerId)}
+										onRemoved={() => focusById(addTriggerId)}
 									/>
 								))
 							) : (
@@ -216,8 +216,7 @@ const ProjectAccessDialogContent: React.FC<ProjectAccessDialogContentProps> = ({
 	</Dialog>
 );
 
-// Saving disables the control that started a change, which drops its focus,
-// so focus returns to the add row once the change settles.
+// Returns focus to the add row after saving a change drops it.
 const focusById = (id: string) => document.getElementById(id)?.focus();
 
 type AddAccessFormProps = {
@@ -305,6 +304,7 @@ type ProjectRoleSelectProps = {
 	readonly label: string;
 	readonly disabled: boolean;
 	readonly onValueChange: (role: AssignableRole) => void;
+	readonly ref?: React.Ref<HTMLButtonElement>;
 };
 
 const ProjectRoleSelect: React.FC<ProjectRoleSelectProps> = ({
@@ -312,6 +312,7 @@ const ProjectRoleSelect: React.FC<ProjectRoleSelectProps> = ({
 	label,
 	disabled,
 	onValueChange,
+	ref,
 }) => (
 	<Select
 		value={value}
@@ -322,7 +323,7 @@ const ProjectRoleSelect: React.FC<ProjectRoleSelectProps> = ({
 			}
 		}}
 	>
-		<SelectTrigger className="w-full sm:w-32" aria-label={label}>
+		<SelectTrigger ref={ref} className="w-full sm:w-32" aria-label={label}>
 			<SelectValue placeholder="Role">
 				{value === "" ? undefined : chatProjectRoleLabel[value]}
 			</SelectValue>
@@ -353,7 +354,7 @@ type AccessRowProps = {
 	readonly disabled: boolean;
 	readonly onChangeRole: ProjectAccessDialogProps["onChangeRole"];
 	readonly onRemove: ProjectAccessDialogProps["onRemove"];
-	readonly onSettled: () => void;
+	readonly onRemoved: () => void;
 };
 
 const AccessRow: React.FC<AccessRowProps> = ({
@@ -363,10 +364,20 @@ const AccessRow: React.FC<AccessRowProps> = ({
 	disabled,
 	onChangeRole,
 	onRemove,
-	onSettled,
+	onRemoved,
 }) => {
 	const editableEntry =
 		canManage && entry.kind !== "owner" && !isCurrentUser ? entry : undefined;
+	const roleTriggerRef = useRef<HTMLButtonElement>(null);
+	const menuTriggerRef = useRef<HTMLButtonElement>(null);
+	// Saving disables the row; refocus the control that started the change.
+	const focusAfterSave = useRef<HTMLButtonElement | null>(null);
+	useEffect(() => {
+		if (!disabled) {
+			focusAfterSave.current?.focus();
+			focusAfterSave.current = null;
+		}
+	}, [disabled]);
 
 	return (
 		<TableRow>
@@ -392,9 +403,11 @@ const AccessRow: React.FC<AccessRowProps> = ({
 						value={editableEntry.role}
 						label={`Role for ${editableEntry.name}`}
 						disabled={disabled}
-						onValueChange={(role) =>
-							onChangeRole(editableEntry, role, { onSettled })
-						}
+						ref={roleTriggerRef}
+						onValueChange={(role) => {
+							focusAfterSave.current = roleTriggerRef.current;
+							onChangeRole(editableEntry, role, {});
+						}}
 					/>
 				) : entry.kind === "owner" ? (
 					<Badge variant="info">Owner</Badge>
@@ -412,6 +425,7 @@ const AccessRow: React.FC<AccessRowProps> = ({
 								<Button
 									size="icon-lg"
 									variant="subtle"
+									ref={menuTriggerRef}
 									aria-label={`Open menu for ${editableEntry.name}`}
 									disabled={disabled}
 								>
@@ -421,7 +435,10 @@ const AccessRow: React.FC<AccessRowProps> = ({
 							<DropdownMenuContent align="end">
 								<DropdownMenuItem
 									className="text-content-destructive focus:text-content-destructive"
-									onClick={() => onRemove(editableEntry, { onSettled })}
+									onClick={() => {
+										focusAfterSave.current = menuTriggerRef.current;
+										onRemove(editableEntry, { onSuccess: onRemoved });
+									}}
 								>
 									Remove
 								</DropdownMenuItem>

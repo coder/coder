@@ -44,8 +44,9 @@ const renderDialog = (props: Partial<DialogProps> = {}) => {
 		onChangeRole: vi.fn<DialogProps["onChangeRole"]>(),
 		onRemove: vi.fn<DialogProps["onRemove"]>(),
 	};
-	renderComponent(
-		<QueryClientProvider client={createTestQueryClient()}>
+	const queryClient = createTestQueryClient();
+	const dialog = (pendingPrincipalId?: string) => (
+		<QueryClientProvider client={queryClient}>
 			<ProjectAccessDialog
 				open
 				onOpenChange={vi.fn()}
@@ -57,14 +58,21 @@ const renderDialog = (props: Partial<DialogProps> = {}) => {
 				canManage
 				organizationId={MockChatProject.organization_id}
 				currentUserId={MockUserOwner.id}
-				pendingPrincipalId={undefined}
+				pendingPrincipalId={pendingPrincipalId}
 				mutationError={undefined}
 				{...callbacks}
 				{...props}
 			/>
-		</QueryClientProvider>,
+		</QueryClientProvider>
 	);
-	return { user: userEvent.setup(), ...callbacks };
+	const { rerender } = renderComponent(dialog());
+	// Saving disables the control that changed the row, which drops its focus.
+	const saveRowChange = (control: HTMLElement) => {
+		act(() => control.blur());
+		rerender(dialog(MockUserMember.id));
+		rerender(dialog());
+	};
+	return { user: userEvent.setup(), ...callbacks, saveRowChange };
 };
 
 const getAutocomplete = () =>
@@ -114,7 +122,7 @@ describe("ProjectAccessDialog", () => {
 			expect.anything(),
 		);
 		act(() => onAdd.mock.calls[0][2].onSuccess?.());
-		act(() => onAdd.mock.calls[0][2].onSettled());
+		act(() => onAdd.mock.calls[0][2].onSettled?.());
 		expect(getAutocomplete()).toHaveFocus();
 		await user.click(screen.getByRole("button", { name: "Add" }));
 		expect(onAdd).toHaveBeenCalledTimes(1);
@@ -186,11 +194,11 @@ describe("ProjectAccessDialog", () => {
 	});
 
 	it("changes a listed user's role", async () => {
-		const { user, onChangeRole } = renderDialog();
+		const { user, onChangeRole, saveRowChange } = renderDialog();
+		const name = `Role for ${MockUserMember.name}`;
+		const roleSelect = screen.getByRole("combobox", { name });
 
-		await user.click(
-			screen.getByRole("combobox", { name: `Role for ${MockUserMember.name}` }),
-		);
+		await user.click(roleSelect);
 		await user.click(await screen.findByRole("option", { name: /Member/ }));
 
 		await waitFor(() =>
@@ -200,26 +208,25 @@ describe("ProjectAccessDialog", () => {
 				expect.anything(),
 			),
 		);
-		act(() => onChangeRole.mock.calls[0][2].onSettled());
-		expect(getAutocomplete()).toHaveFocus();
+		saveRowChange(roleSelect);
+		expect(roleSelect).toHaveFocus();
 	});
 
 	it("removes a listed user", async () => {
-		const { user, onRemove } = renderDialog();
+		const { user, onRemove, saveRowChange } = renderDialog();
+		const name = `Open menu for ${MockUserMember.name}`;
+		const menuButton = screen.getByRole("button", { name });
 
-		await user.click(
-			screen.getByRole("button", {
-				name: `Open menu for ${MockUserMember.name}`,
-			}),
-		);
+		await user.click(menuButton);
 		await user.click(await screen.findByRole("menuitem", { name: "Remove" }));
 
 		expect(onRemove).toHaveBeenCalledWith(
 			expect.objectContaining({ kind: "user", id: MockUserMember.id }),
 			expect.anything(),
 		);
-		// A failed removal settles without succeeding.
-		act(() => onRemove.mock.calls[0][1].onSettled());
+		saveRowChange(menuButton);
+		expect(menuButton).toHaveFocus();
+		act(() => onRemove.mock.calls[0][1].onSuccess?.());
 		expect(getAutocomplete()).toHaveFocus();
 	});
 

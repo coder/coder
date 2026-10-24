@@ -14,7 +14,11 @@ import { buildAccessEntries } from "./projectAccess";
 
 const mockACL: ChatProjectACL = {
 	users: [
-		{ ...MockUserMember, role: "admin" },
+		{
+			...MockUserMember,
+			name: "Maximiliana Bartholomea Featherstonehaugh",
+			role: "admin",
+		},
 		{
 			...MockUserMember,
 			id: "sharee-2",
@@ -166,20 +170,6 @@ export const ManageForbiddenError: Story = {
 
 /** Rows stack on phones, and long names truncate. */
 export const ManageOnPhone: Story = {
-	args: {
-		canManage: true,
-		entries: buildAccessEntries(MockUserOwner.id, MockUserOwner, {
-			...mockACL,
-			users: [
-				...mockACL.users,
-				{
-					...MockUserMember,
-					id: "sharee-3",
-					name: "Maximiliana Bartholomea Featherstonehaugh",
-					role: "use",
-				},
-			],
-		}),
-	},
+	args: { canManage: true },
 	parameters: { pixel: { matrix: pixelWithPhone } },
 };

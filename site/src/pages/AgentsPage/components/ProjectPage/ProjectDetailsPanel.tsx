@@ -137,7 +137,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 					onSuccess,
 					onSettled: () => {
 						onDone();
-						onSettled();
+						onSettled?.();
 					},
 				},
 			),
