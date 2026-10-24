@@ -484,7 +484,7 @@ describe("ProjectDetailsPanel", () => {
 
 	it.each([
 		{ source: "the members section", role: "region", name: "Members" },
-		{ source: "the access dialog", role: "dialog", name: "View access" },
+		{ source: "the access dialog", role: "dialog", name: "Manage access" },
 	])("retries loading access from $source", async ({ role, name }) => {
 		mockInstructions(MockChatProjectInstructions);
 		const aclError = mockApiError({ message: "Failed to load." });
