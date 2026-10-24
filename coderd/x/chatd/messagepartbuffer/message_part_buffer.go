@@ -547,12 +547,16 @@ func (b *Buffer) deliverSubscriber(ctx context.Context, key Key, subscriber *epi
 			return
 		}
 		for _, part := range parts {
-			if !b.sendSubscriberPart(ctx, subscriber, part) {
+			if !b.sendSubscriberPart(ctx, key, subscriber, part) {
 				return
 			}
 		}
 		if closed {
 			return
+		}
+		if len(parts) > 0 {
+			// The sends may have consumed wakeups for new parts.
+			continue
 		}
 		select {
 		case <-subscriber.notifyCh:
@@ -566,7 +570,22 @@ func (b *Buffer) deliverSubscriber(ctx context.Context, key Key, subscriber *epi
 	}
 }
 
-func (b *Buffer) sendSubscriberPart(ctx context.Context, subscriber *episodeSubscriber, part Part) bool {
+// sendSubscriberPart has no timeout while the episode is open: open episodes
+// are kept regardless of subscribers, so a drop would not free the episode.
+func (b *Buffer) sendSubscriberPart(ctx context.Context, key Key, subscriber *episodeSubscriber, part Part) bool {
+	for !b.isEpisodeClosed(key) {
+		select {
+		case subscriber.out <- part:
+			return true
+		case <-subscriber.notifyCh:
+		case <-subscriber.stopCh:
+			return false
+		case <-ctx.Done():
+			return false
+		case <-b.done:
+			return false
+		}
+	}
 	timer := b.opts.Clock.NewTimer(b.opts.SubscriberSendTimeout, "message-part-buffer", "subscriber-send")
 	defer timer.Stop()
 	select {
@@ -581,6 +600,13 @@ func (b *Buffer) sendSubscriberPart(ctx context.Context, subscriber *episodeSubs
 	case <-b.done:
 		return false
 	}
+}
+
+func (b *Buffer) isEpisodeClosed(key Key) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	episode := b.episodes[key]
+	return episode != nil && episode.closed
 }
 
 func (b *Buffer) cancelSubscriber(key Key, subscriber *episodeSubscriber) {
