@@ -376,8 +376,6 @@ const chatProjectSkillPath = (
 	name: string,
 ) =>
 	`${chatProjectSkillsPath(organizationId, projectId)}/${encodeURIComponent(name)}`;
-const chatProjectACLPath = (organizationId: string, projectId: string) =>
-	`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/acl`;
 const userAIProviderKeysPath = (user = "me") =>
 	`/api/v2/users/${encodeURIComponent(user)}/ai-provider-keys`;
 const mcpServerConfigsPath = (organization: string) =>
@@ -3436,7 +3434,7 @@ class ExperimentalApiMethods {
 		projectId: string,
 	): Promise<TypesGen.ChatProjectACL> => {
 		const response = await this.axios.get<TypesGen.ChatProjectACL>(
-			chatProjectACLPath(organizationId, projectId),
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/acl`,
 		);
 		return response.data;
 	};
@@ -3446,7 +3444,10 @@ class ExperimentalApiMethods {
 		projectId: string,
 		req: TypesGen.UpdateChatProjectACL,
 	): Promise<void> => {
-		await this.axios.patch(chatProjectACLPath(organizationId, projectId), req);
+		await this.axios.patch(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/acl`,
+			req,
+		);
 	};
 
 	getChat = async (

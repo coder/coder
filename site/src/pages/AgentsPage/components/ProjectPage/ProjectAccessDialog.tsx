@@ -94,7 +94,7 @@ type ProjectAccessDialogProps = {
 	readonly mutationError: unknown;
 };
 
-/** Lists who can use a project, and lets owners and admins change it; onCloseAutoFocus restores focus. */
+/** Lets owners and admins change access; `onCloseAutoFocus` restores focus to the control that opened the dialog. */
 export const ProjectAccessDialog: React.FC<ProjectAccessDialogProps> = (
 	props,
 ) => <ProjectAccessDialogContent {...props} addTriggerId={useId()} />;
