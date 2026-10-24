@@ -112,6 +112,7 @@ type Options struct {
 	BlockFileTransfer               bool
 	BlockReversePortForwarding      bool
 	BlockLocalPortForwarding        bool
+	BlockX11Forwarding              bool
 	Execer                          agentexec.Execer
 	Devcontainers                   bool
 	DevcontainerAPIOptions          []agentcontainers.Option // Enable Devcontainers for these to be effective.
@@ -237,6 +238,7 @@ func New(options Options) Agent {
 		blockFileTransfer:                  options.BlockFileTransfer,
 		blockReversePortForwarding:         options.BlockReversePortForwarding,
 		blockLocalPortForwarding:           options.BlockLocalPortForwarding,
+		BlockX11Forwarding:                 options.BlockX11Forwarding,
 
 		prometheusRegistry: prometheusRegistry,
 		metrics:            newAgentMetrics(prometheusRegistry),
@@ -313,6 +315,7 @@ type agent struct {
 	blockFileTransfer                  bool
 	blockReversePortForwarding         bool
 	blockLocalPortForwarding           bool
+	BlockX11Forwarding                 bool
 
 	lifecycleUpdate            chan struct{}
 	lifecycleReported          chan codersdk.WorkspaceAgentLifecycle
@@ -414,6 +417,7 @@ func (a *agent) init() {
 		BlockFileTransfer:          a.blockFileTransfer,
 		BlockReversePortForwarding: a.blockReversePortForwarding,
 		BlockLocalPortForwarding:   a.blockLocalPortForwarding,
+		BlockX11Forwarding:         a.BlockX11Forwarding,
 		ConnectionReporter:         a.connectionReporter,
 		ExperimentalContainers:     a.devcontainers,
 	})
