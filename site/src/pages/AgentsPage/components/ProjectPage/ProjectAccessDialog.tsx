@@ -1,6 +1,8 @@
 import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
+import { getErrorDetail, getErrorMessage, getErrorStatus } from "#/api/errors";
 import type { ChatProjectRole } from "#/api/typesGenerated";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
@@ -81,14 +83,23 @@ type ProjectAccessDialogProps = {
 		principal: ProjectAccessPrincipal,
 		role: AssignableRole,
 	) => void;
-	readonly onRemove: (principal: ProjectAccessPrincipal) => void;
+	readonly onRemove: (
+		principal: ProjectAccessPrincipal,
+		onSuccess: () => void,
+	) => void;
 	/** The user or group whose change is saving, including one being added. */
 	readonly pendingPrincipalId: string | undefined;
 	readonly mutationError: unknown;
 };
 
 /** Lists who can use a project, and lets owners and admins change it; onCloseAutoFocus restores focus. */
-export const ProjectAccessDialog: React.FC<ProjectAccessDialogProps> = ({
+export const ProjectAccessDialog: React.FC<ProjectAccessDialogProps> = (
+	props,
+) => <ProjectAccessDialogContent {...props} addTriggerId={useId()} />;
+
+const ProjectAccessDialogContent: React.FC<
+	ProjectAccessDialogProps & { readonly addTriggerId: string }
+> = ({
 	open,
 	onOpenChange,
 	entries,
@@ -104,6 +115,7 @@ export const ProjectAccessDialog: React.FC<ProjectAccessDialogProps> = ({
 	onRemove,
 	pendingPrincipalId,
 	mutationError,
+	addTriggerId,
 }) => (
 	<Dialog open={open} onOpenChange={onOpenChange}>
 		<DialogContent
@@ -116,6 +128,7 @@ export const ProjectAccessDialog: React.FC<ProjectAccessDialogProps> = ({
 			<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-4">
 				{canManage && entries && (
 					<AddAccessForm
+						triggerId={addTriggerId}
 						organizationId={organizationId}
 						// Owners and existing entries cannot be added, and the
 						// viewer cannot change their own access.
@@ -124,7 +137,19 @@ export const ProjectAccessDialog: React.FC<ProjectAccessDialogProps> = ({
 						onAdd={onAdd}
 					/>
 				)}
-				{Boolean(mutationError) && <ErrorAlert error={mutationError} />}
+				{Boolean(mutationError) && (
+					<Alert severity="error" prominent>
+						<AlertTitle>
+							{getErrorMessage(mutationError, "Failed to change access.")}
+						</AlertTitle>
+						<AlertDescription>
+							{/* The generic 403 detail is about viewing content, not sharing. */}
+							{getErrorStatus(mutationError) === 403
+								? "You don't have permission to change access to this project."
+								: getErrorDetail(mutationError)}
+						</AlertDescription>
+					</Alert>
+				)}
 				{Boolean(error) && (
 					<ErrorAlert
 						error={error}
@@ -140,13 +165,13 @@ export const ProjectAccessDialog: React.FC<ProjectAccessDialogProps> = ({
 					/>
 				)}
 				{(entries || !error) && (
-					<Table aria-label="Project access">
+					<Table aria-label="Project access" className="table-fixed">
 						<TableHeader>
 							<TableRow>
-								<TableHead className="w-full">User or group</TableHead>
-								<TableHead>Role</TableHead>
+								<TableHead>User or group</TableHead>
+								<TableHead className="w-32 sm:w-40">Role</TableHead>
 								{canManage && (
-									<TableHead>
+									<TableHead className="w-16">
 										<span className="sr-only">Actions</span>
 									</TableHead>
 								)}
@@ -162,9 +187,11 @@ export const ProjectAccessDialog: React.FC<ProjectAccessDialogProps> = ({
 										isCurrentUser={
 											entry.kind === "user" && entry.id === currentUserId
 										}
-										isPending={entry.id === pendingPrincipalId}
+										disabled={pendingPrincipalId !== undefined}
 										onChangeRole={onChangeRole}
-										onRemove={onRemove}
+										onRemove={(principal) =>
+											onRemove(principal, () => focusById(addTriggerId))
+										}
 									/>
 								))
 							) : (
@@ -187,7 +214,11 @@ export const ProjectAccessDialog: React.FC<ProjectAccessDialogProps> = ({
 	</Dialog>
 );
 
+// Keeps focus in the add row, not on the dialog, after access changes.
+const focusById = (id: string) => document.getElementById(id)?.focus();
+
 type AddAccessFormProps = {
+	readonly triggerId: string;
 	readonly organizationId: string;
 	readonly exclude: { readonly id: string }[];
 	readonly pendingPrincipalId: string | undefined;
@@ -195,6 +226,7 @@ type AddAccessFormProps = {
 };
 
 const AddAccessForm: React.FC<AddAccessFormProps> = ({
+	triggerId,
 	organizationId,
 	exclude,
 	pendingPrincipalId,
@@ -205,13 +237,14 @@ const AddAccessForm: React.FC<AddAccessFormProps> = ({
 	const [role, setRole] = useState<AssignableRole | "">("");
 	// The selection is never listed yet, so a pending change for it is this add.
 	const isAdding = selection !== null && selection.id === pendingPrincipalId;
+	const isChangePending = pendingPrincipalId !== undefined;
 
 	return (
 		<form
 			className="flex flex-col gap-2 sm:flex-row sm:items-center"
 			onSubmit={(event) => {
 				event.preventDefault();
-				if (!selection || !role || isAdding) {
+				if (!selection || !role || isChangePending) {
 					return;
 				}
 				onAdd(
@@ -220,12 +253,17 @@ const AddAccessForm: React.FC<AddAccessFormProps> = ({
 					() => {
 						setSelection(null);
 						setRole("");
+						focusById(triggerId);
 					},
 				);
 			}}
 		>
 			<div className="min-w-0 flex-1">
+				<label htmlFor={triggerId} className="sr-only">
+					User or group
+				</label>
 				<UserOrGroupAutocomplete
+					id={triggerId}
 					value={selection}
 					onChange={setSelection}
 					organizationId={organizationId}
@@ -239,7 +277,7 @@ const AddAccessForm: React.FC<AddAccessFormProps> = ({
 				disabled={isAdding}
 				onValueChange={setRole}
 			/>
-			<Button type="submit" disabled={!selection || !role || isAdding}>
+			<Button type="submit" disabled={!selection || !role || isChangePending}>
 				<Spinner loading={isAdding}>
 					<UserPlusIcon className="size-icon-sm" />
 				</Spinner>
@@ -300,16 +338,17 @@ type AccessRowProps = {
 	readonly entry: ProjectAccessEntry;
 	readonly canManage: boolean;
 	readonly isCurrentUser: boolean;
-	readonly isPending: boolean;
+	/** True while any access change saves. */
+	readonly disabled: boolean;
 	readonly onChangeRole: ProjectAccessDialogProps["onChangeRole"];
-	readonly onRemove: ProjectAccessDialogProps["onRemove"];
+	readonly onRemove: (principal: ProjectAccessPrincipal) => void;
 };
 
 const AccessRow: React.FC<AccessRowProps> = ({
 	entry,
 	canManage,
 	isCurrentUser,
-	isPending,
+	disabled,
 	onChangeRole,
 	onRemove,
 }) => {
@@ -326,6 +365,7 @@ const AccessRow: React.FC<AccessRowProps> = ({
 					</>
 				) : (
 					<AvatarData
+						truncate
 						title={entry.name}
 						subtitle={entry.subtitle}
 						src={entry.avatarUrl}
@@ -337,7 +377,7 @@ const AccessRow: React.FC<AccessRowProps> = ({
 					<ProjectRoleSelect
 						value={editableEntry.role}
 						label={`Role for ${editableEntry.name}`}
-						disabled={isPending}
+						disabled={disabled}
 						onValueChange={(role) => onChangeRole(editableEntry, role)}
 					/>
 				) : entry.kind === "owner" ? (
@@ -357,7 +397,7 @@ const AccessRow: React.FC<AccessRowProps> = ({
 									size="icon-lg"
 									variant="subtle"
 									aria-label={`Open menu for ${editableEntry.name}`}
-									disabled={isPending}
+									disabled={disabled}
 								>
 									<EllipsisVerticalIcon aria-hidden="true" />
 								</Button>

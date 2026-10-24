@@ -74,8 +74,11 @@ const renderDialog = (props: Partial<DialogProps> = {}) => {
 	return { user: userEvent.setup(), ...callbacks };
 };
 
+const getAutocomplete = () =>
+	screen.getByRole("button", { name: "User or group" });
+
 const openAutocomplete = (user: ReturnType<typeof userEvent.setup>) =>
-	user.click(screen.getByRole("button", { name: "Search for user or group" }));
+	user.click(getAutocomplete());
 
 const chooseAddRole = async (
 	user: ReturnType<typeof userEvent.setup>,
@@ -121,6 +124,7 @@ describe("ProjectAccessDialog", () => {
 			expect.any(Function),
 		);
 		act(() => onAdd.mock.calls[0][2]());
+		expect(getAutocomplete()).toHaveFocus();
 		await user.click(screen.getByRole("button", { name: "Add" }));
 		expect(onAdd).toHaveBeenCalledTimes(1);
 	});
@@ -199,6 +203,34 @@ describe("ProjectAccessDialog", () => {
 
 		expect(onRemove).toHaveBeenCalledWith(
 			expect.objectContaining({ kind: "user", id: MockUserMember.id }),
+			expect.any(Function),
 		);
+		act(() => onRemove.mock.calls[0][1]());
+		expect(getAutocomplete()).toHaveFocus();
+	});
+
+	it("ignores adds and row changes while another change saves", async () => {
+		const { user, onAdd, onChangeRole, onRemove } = renderDialog({
+			pendingPrincipalId: MockOtherGroup.id,
+		});
+
+		await openAutocomplete(user);
+		await user.click(await screen.findByRole("option", { name: /TestUser3/ }));
+		await chooseAddRole(user, "Admin");
+		await user.click(screen.getByRole("button", { name: "Add" }));
+		// Typing "m" picks Member, and Enter opens the menu, then removes.
+		const name = MockUserMember.name;
+		act(() =>
+			screen.getByRole("combobox", { name: `Role for ${name}` }).focus(),
+		);
+		await user.keyboard("m");
+		act(() =>
+			screen.getByRole("button", { name: `Open menu for ${name}` }).focus(),
+		);
+		await user.keyboard("{Enter}{Enter}");
+
+		expect(onAdd).not.toHaveBeenCalled();
+		expect(onChangeRole).not.toHaveBeenCalled();
+		expect(onRemove).not.toHaveBeenCalled();
 	});
 });

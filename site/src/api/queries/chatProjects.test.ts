@@ -1,7 +1,7 @@
 import { MutationObserver } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import { MockChatProject } from "#/testHelpers/entities";
+import { MockChatProject, mockApiError } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import {
 	chatProject,
@@ -137,5 +137,22 @@ describe("chat project access mutations", () => {
 			{ group_roles: { "group-1": "" } },
 		);
 		expectOnlyACLInvalidated(queryClient);
+	});
+
+	it("refreshes the project after a 403 so it shows the lost permission", async () => {
+		const { queryClient, updateACL } = setup();
+		updateACL.mockRejectedValue({ ...mockApiError({}), status: 403 });
+
+		await expect(
+			new MutationObserver(
+				queryClient,
+				setChatProjectUserRole(queryClient),
+			).mutate({ project: MockChatProject, userId: "user-1", role: "use" }),
+		).rejects.toMatchObject({ status: 403 });
+
+		expect(queryClient.getQueryState(chatProjectsKey)?.isInvalidated).toBe(
+			true,
+		);
+		expect(queryClient.getQueryState(aclKey)?.isInvalidated).toBe(true);
 	});
 });

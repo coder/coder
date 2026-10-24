@@ -1,5 +1,6 @@
 import { mutationOptions, type QueryClient, queryOptions } from "react-query";
 import { API } from "#/api/api";
+import { getErrorStatus } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	chatEntitiesFamilyKey,
@@ -125,6 +126,22 @@ type SetChatProjectGroupRoleVariables = {
 	role: TypesGen.ChatProjectRole;
 };
 
+// A 403 means the viewer can no longer share the project, so also refresh
+// the project, whose permissions decide whether its access is editable.
+const refreshForbiddenAccess = (
+	queryClient: QueryClient,
+	error: unknown,
+	project: TypesGen.ChatProject,
+) =>
+	getErrorStatus(error) === 403 &&
+	Promise.all([
+		queryClient.invalidateQueries({ queryKey: chatProjectsKey, exact: true }),
+		queryClient.invalidateQueries({
+			queryKey: chatProjectACLKey(project.id),
+			exact: true,
+		}),
+	]);
+
 export const setChatProjectUserRole = (queryClient: QueryClient) =>
 	mutationOptions({
 		mutationFn: ({ project, userId, role }: SetChatProjectUserRoleVariables) =>
@@ -138,6 +155,8 @@ export const setChatProjectUserRole = (queryClient: QueryClient) =>
 				queryKey: chatProjectACLKey(project.id),
 				exact: true,
 			}),
+		onError: (error, { project }) =>
+			refreshForbiddenAccess(queryClient, error, project),
 	});
 
 export const setChatProjectGroupRole = (queryClient: QueryClient) =>
@@ -157,6 +176,8 @@ export const setChatProjectGroupRole = (queryClient: QueryClient) =>
 				queryKey: chatProjectACLKey(project.id),
 				exact: true,
 			}),
+		onError: (error, { project }) =>
+			refreshForbiddenAccess(queryClient, error, project),
 	});
 
 export const updateChatProjectInstructions = (

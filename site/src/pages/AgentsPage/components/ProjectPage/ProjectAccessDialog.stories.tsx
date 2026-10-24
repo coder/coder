@@ -8,6 +8,7 @@ import {
 	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
+import { pixelWithPhone } from "#/testHelpers/pixel";
 import { ProjectAccessDialog } from "./ProjectAccessDialog";
 import { buildAccessEntries } from "./projectAccess";
 
@@ -138,4 +139,23 @@ export const ManageChangeError: Story = {
 			message: "Failed to update chat project ACL.",
 		}),
 	},
+};
+
+/** A 403 skips the generic detail about viewing content. */
+export const ManageForbiddenError: Story = {
+	args: {
+		canManage: true,
+		mutationError: {
+			...mockApiError({
+				message: "Forbidden.",
+				detail: "You don't have permission to view this content.",
+			}),
+			status: 403,
+		},
+	},
+};
+
+export const ManageOnPhone: Story = {
+	args: { canManage: true },
+	parameters: { pixel: { matrix: pixelWithPhone } },
 };

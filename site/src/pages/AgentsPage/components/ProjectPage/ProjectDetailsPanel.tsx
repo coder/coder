@@ -250,7 +250,9 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				currentUserId={me.id}
 				onAdd={setAccessRole}
 				onChangeRole={setAccessRole}
-				onRemove={(principal) => setAccessRole(principal, "")}
+				onRemove={(principal, onSuccess) =>
+					setAccessRole(principal, "", onSuccess)
+				}
 				pendingPrincipalId={
 					userRoleMutation.isPending
 						? userRoleMutation.variables.userId
