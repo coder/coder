@@ -361,6 +361,14 @@
 	}
 }
 
+/* Lets clicks pass through a popper, including its positioning wrapper. */
+@utility popper-click-through {
+	pointer-events: none;
+	[data-radix-popper-content-wrapper]:has(> &) {
+		pointer-events: none;
+	}
+}
+
 @utility mobile-full-width-dropdown-top {
 	@media (max-width: 767px) {
 		[data-radix-popper-content-wrapper]:has(> &) {

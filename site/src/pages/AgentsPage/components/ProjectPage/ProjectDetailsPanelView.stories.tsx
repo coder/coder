@@ -276,13 +276,16 @@ export const MembersOverflowFocused: Story = {
 	},
 };
 
-/** Phones fit one tile fewer, so the "+K" tile covers one more entry. */
-export const MembersOverflowPhone: Story = {
+/** A narrow card fits fewer tiles, so the "+K" tile covers more entries. */
+export const MembersOverflowNarrow: Story = {
 	args: MembersOverflow.args,
-	parameters: {
-		viewport: { defaultViewport: "mobile1" },
-		pixel: { matrix: { viewports: ["phone"] } },
-	},
+	decorators: [
+		(Story) => (
+			<div className="w-[200px]">
+				<Story />
+			</div>
+		),
+	],
 };
 
 /** The "+K" tooltip names the first ten hidden entries and counts the rest. */
