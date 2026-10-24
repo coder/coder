@@ -29,6 +29,7 @@ export const groups = () => {
 	} satisfies UseQueryOptions<Group[]>;
 };
 
+/** Query key for an organization's groups, shared by `groupsByOrganization`. */
 export const getGroupsByOrganizationQueryKey = (organization: string) => [
 	"organization",
 	organization,
