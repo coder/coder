@@ -170,7 +170,7 @@ env {
 [Podman](https://docs.podman.io/en/latest/) is Docker alternative that is compatible with OCI containers specification. which can run rootless inside Kubernetes pods.
 No custom RuntimeClass is required.
 
-Before using Podman, please review the following documentation:
+Before using Podman, review the following documentation:
 
 - [Basic setup and use of Podman in a rootless environment](https://github.com/containers/podman/blob/main/docs/tutorials/rootless_tutorial.md)
 

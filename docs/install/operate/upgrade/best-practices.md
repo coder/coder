@@ -168,7 +168,7 @@ If you encounter any of the following issues, contact [Coder support](../../../s
 - Resource consumption issues (excessive memory, CPU, or OOM kills) during upgrades
 - Any other upgrade problems not covered by this documentation
 
-When contacting support, please collect and provide:
+When contacting support, collect and provide:
 
 - `coderd` logs with details on the stages where the upgrade stalled
 - PostgreSQL logs if available

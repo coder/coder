@@ -79,7 +79,7 @@ ALTER ROLE coder SET search_path = myschema;
 
 ### `coder server` fails startup with "current_schema: converting NULL to string is unsupported"
 
-Please make sure that the schema selected in the connection string `...&search_path=myschema` exists and the role has granted permissions to access it.
+Make sure that the schema selected in the connection string `...&search_path=myschema` exists and the role has granted permissions to access it.
 The schema should be present on this listing:
 
 ```sh

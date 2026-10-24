@@ -42,7 +42,7 @@ You can also enable a [Swagger endpoint](../reference/cli/server/index.md#--swag
 
 ## Use cases
 
-We strive to keep the following use cases up to date, but please note that changes to API queries and routes can occur.
+We strive to keep the following use cases up to date, but note that changes to API queries and routes can occur.
 For the most recent queries and payloads, we recommend checking the relevant documentation.
 
 ### Users & Groups
