@@ -37,9 +37,13 @@ jobs:
   doc-check:
     name: Analyze PR for Documentation Updates Needed
     runs-on: ubuntu-latest
+    # Set the repository variable DOC_CHECK_ENABLED to 'true' to run reviews.
+    # Unset or any other value turns reviews off without a code change. The
+    # delete-workspace job is not gated, so cleanup keeps running.
     # Run on: opened, synchronize, labeled (with doc-check label), ready_for_review, or workflow_dispatch
     # Skip draft PRs unless manually triggered
     if: |
+      vars.DOC_CHECK_ENABLED == 'true' &&
       (
         github.event.action == 'opened' ||
         github.event.action == 'synchronize' ||
