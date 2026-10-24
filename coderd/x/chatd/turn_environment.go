@@ -220,7 +220,6 @@ func (p *Server) buildTurnEnvironment(
 	// The chat config keeps driving compaction, sanitization, and debug
 	// attribution even when computer use swaps the resolved call below.
 	modelConfig := resolved.dbConfig
-	providerIdentity := modelConfigProviderIdentity(modelConfig, chatprovider.NormalizeProvider(string(resolved.route.Provider.Type)))
 
 	// Computer-use turns swap in a specialized model, so the substitution
 	// must happen before anything model-sensitive runs: file-part
@@ -258,7 +257,7 @@ func (p *Server) buildTurnEnvironment(
 	model := resolved.model
 	callConfig := resolved.callConfig
 	reasoningSource := reasoningProvenance{
-		ProviderIdentity: providerIdentity,
+		ProviderIdentity: modelConfig.AIProviderID.UUID.String(),
 		Model:            model.ModelID(),
 		Credential:       reasoningCredential(resolved.route.ProviderAuth),
 	}
