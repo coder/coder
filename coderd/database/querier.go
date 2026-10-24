@@ -470,6 +470,11 @@ type sqlcQuerier interface {
 	GetChatByIDForShare(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatComputerUseProvider(ctx context.Context) (string, error)
+	// Returns the user-visible tool-call rows of the chat's context window
+	// boundaries (summaries, clears, and rollovers), oldest first. anchor_id
+	// is the boundary's model-only anchor row, whose ID names the context
+	// window that the boundary starts.
+	GetChatContextBoundaryMessages(ctx context.Context, chatID uuid.UUID) ([]GetChatContextBoundaryMessagesRow, error)
 	// GetChatDebugLoggingAllowUsers returns the runtime admin setting that
 	// allows users to opt into chat debug logging when the deployment does
 	// not already force debug logging on globally.

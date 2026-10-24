@@ -3376,6 +3376,15 @@ func (q *querier) GetChatComputerUseProvider(ctx context.Context) (string, error
 	return q.db.GetChatComputerUseProvider(ctx)
 }
 
+func (q *querier) GetChatContextBoundaryMessages(ctx context.Context, chatID uuid.UUID) ([]database.GetChatContextBoundaryMessagesRow, error) {
+	// Authorize read on the parent chat.
+	_, err := q.GetChatByID(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetChatContextBoundaryMessages(ctx, chatID)
+}
+
 func (q *querier) GetChatDebugLoggingAllowUsers(ctx context.Context) (bool, error) {
 	// The allow-users flag is a deployment-wide setting read by any
 	// authenticated chat user. We only require that an explicit actor
