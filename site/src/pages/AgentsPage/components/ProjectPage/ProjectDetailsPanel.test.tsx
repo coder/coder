@@ -480,6 +480,23 @@ describe("ProjectDetailsPanel", () => {
 		await screen.findByRole("button", { name: "Edit instructions" });
 	});
 
+	it("retries loading the project members after an error", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		const getACL = vi
+			.spyOn(API.experimental, "getChatProjectACL")
+			.mockRejectedValueOnce(mockApiError({ message: "Failed to load." }))
+			.mockResolvedValue(MockChatProjectACL);
+		const { user } = renderPanel();
+
+		const members = await screen.findByRole("region", { name: "Members" });
+		await user.click(
+			await within(members).findByRole("button", { name: "Retry" }),
+		);
+
+		await waitFor(() => expect(getACL).toHaveBeenCalledTimes(2));
+		await screen.findByRole("region", { name: "2 members, 1 group" });
+	});
+
 	it("opens the project skills from the Skills row", async () => {
 		mockInstructions(MockChatProjectInstructions);
 		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([
