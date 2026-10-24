@@ -4,6 +4,7 @@ import type { Feature } from "#/api/typesGenerated";
 import {
 	MockAgentRuntimeHoursFeature,
 	MockLicenseResponse,
+	mockApiError,
 } from "#/testHelpers/entities";
 import LicensesSettingsPageView from "./LicensesSettingsPageView";
 
@@ -17,6 +18,7 @@ const meta: Meta<typeof LicensesSettingsPageView> = {
 		userLimitActual: 1,
 		userLimitLimit: 10,
 		licenses: MockLicenseResponse,
+		canViewLicenses: true,
 		isRemovingLicense: false,
 		isRefreshing: false,
 		removeLicense: fn(),
@@ -41,6 +43,23 @@ export const Default: Story = {};
 export const Empty: Story = {
 	args: {
 		licenses: [],
+	},
+};
+
+export const NoLicensePermission: Story = {
+	args: {
+		licenses: [],
+		canViewLicenses: false,
+	},
+};
+
+export const LoadError: Story = {
+	args: {
+		licenses: undefined,
+		licensesError: mockApiError({
+			message: "Internal error fetching licenses.",
+			detail: "database connection refused",
+		}),
 	},
 };
 
