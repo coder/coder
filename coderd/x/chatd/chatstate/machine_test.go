@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -171,6 +172,136 @@ func TestChatMachine_Update_RejectsMissingChat(t *testing.T) {
 	err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error { return nil })
 	require.ErrorIs(t, err, chatstate.ErrChatNotFound)
 	require.Empty(t, f.Pub.channels)
+}
+
+// chatReadCounts counts chat reads issued on transactional handles.
+type chatReadCounts struct {
+	mu          sync.Mutex
+	getChatByID int
+	countQueued int
+}
+
+type chatReadCountingStore struct {
+	database.Store
+	counts *chatReadCounts
+	inTx   bool
+}
+
+func (s *chatReadCountingStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return fn(&chatReadCountingStore{Store: tx, counts: s.counts, inTx: true})
+	}, opts)
+}
+
+func (s *chatReadCountingStore) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+	if s.inTx {
+		s.counts.mu.Lock()
+		s.counts.getChatByID++
+		s.counts.mu.Unlock()
+	}
+	return s.Store.GetChatByID(ctx, id)
+}
+
+func (s *chatReadCountingStore) CountChatQueuedMessages(ctx context.Context, id uuid.UUID) (int64, error) {
+	if s.inTx {
+		s.counts.mu.Lock()
+		s.counts.countQueued++
+		s.counts.mu.Unlock()
+	}
+	return s.Store.CountChatQueuedMessages(ctx, id)
+}
+
+// Reads under the transition lock directly lengthen lock hold time, so
+// validation must use the row the lock returned.
+func TestChatMachine_Update_ValidatesFromLockedRow(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+
+	counts := &chatReadCounts{}
+	m := chatstate.NewChatMachine(&chatReadCountingStore{Store: f.DB, counts: counts}, f.Pub, created.Chat.ID)
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		if _, _, err := tx.Current(); err != nil {
+			return err
+		}
+		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
+		return err
+	}))
+
+	require.Equal(t, 1, counts.getChatByID, "only the publication read")
+	require.Equal(t, 2, counts.countQueued, "the post-lock count and the publication read")
+}
+
+func TestChatMachine_Update_CurrentMatchesDatabase(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+
+	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		locked, state, err := tx.Current()
+		require.NoError(t, err)
+		read, err := store.GetChatByID(ctx, created.Chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, read, locked, "the locked row must match an in-transaction read")
+		require.Equal(t, created.Chat.SnapshotVersion+1, locked.SnapshotVersion)
+		require.Equal(t, chatstate.StateR0, state)
+
+		if _, err := tx.FinishTurn(chatstate.FinishTurnInput{}); err != nil {
+			return err
+		}
+		after, state, err := tx.Current()
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusWaiting, after.Status, "Current must observe the transition's write")
+		require.Equal(t, chatstate.StateW, state)
+		return nil
+	}))
+}
+
+func TestChatMachine_UpdateReturning(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ReturnsCommittedRow", func(t *testing.T) {
+		t.Parallel()
+		f := newTestFixture(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		created := createTestChat(t, f)
+
+		counts := &chatReadCounts{}
+		m := chatstate.NewChatMachine(&chatReadCountingStore{Store: f.DB, counts: counts}, f.Pub, created.Chat.ID)
+		updated, err := m.UpdateReturning(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+			_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
+			return err
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, counts.getChatByID, "the returned row is the publication read")
+
+		committed := f.readChat(ctx, t, created.Chat.ID)
+		require.Equal(t, committed, updated)
+		require.Equal(t, database.ChatStatusWaiting, updated.Status)
+		require.Equal(t, created.Chat.SnapshotVersion+1, updated.SnapshotVersion)
+	})
+
+	t.Run("CallbackErrorReturnsNoRow", func(t *testing.T) {
+		t.Parallel()
+		f := newTestFixture(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		created := createTestChat(t, f)
+
+		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+		wantErr := xerrors.New("callback failed")
+		updated, err := m.UpdateReturning(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+			if _, err := tx.FinishTurn(chatstate.FinishTurnInput{}); err != nil {
+				return err
+			}
+			return wantErr
+		})
+		require.ErrorIs(t, err, wantErr)
+		require.Zero(t, updated)
+		require.Equal(t, created.Chat.SnapshotVersion, f.readChat(ctx, t, created.Chat.ID).SnapshotVersion)
+	})
 }
 
 func TestChatMachine_Lock_DoesNotBumpSnapshot(t *testing.T) {
