@@ -1,6 +1,7 @@
 import dayjs from "dayjs";
 import timezone from "dayjs/plugin/timezone";
 import { type FormikTouched, useFormik } from "formik";
+import { useId } from "react";
 import * as Yup from "yup";
 import type { Template } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -13,22 +14,15 @@ import {
 } from "#/components/Form/Form";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
+import { TimezoneCombobox } from "#/components/TimezoneCombobox/TimezoneCombobox";
 import {
 	defaultSchedule,
 	emptySchedule,
 } from "#/pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
 import { getFormHelpers } from "#/utils/formUtils";
 import { humanDuration } from "#/utils/time";
-import { timeZones } from "#/utils/timeZones";
 
 // Need dayjs.tz functions for timezone validation
 dayjs.extend(timezone);
@@ -212,6 +206,7 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
 
 	const startTimeField = formHelpers("startTime");
 	const timezoneField = formHelpers("timezone");
+	const timezoneId = useId();
 	const ttlField = formHelpers("ttl", {
 		helperText: ttlShutdownAt(form.values.ttl),
 		backendFieldName: "ttl_ms",
@@ -261,7 +256,7 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
 						</div>
 					</div>
 
-					<div className="flex gap-4">
+					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 						<div className="flex flex-col gap-2 flex-1">
 							<Label htmlFor="startTime">Start time</Label>
 							<Input
@@ -280,26 +275,16 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
 								</span>
 							)}
 						</div>
-						<div className="flex flex-col gap-2 flex-1">
-							<Label htmlFor="timezone">Timezone</Label>
-							<Select
+						<div className="flex flex-col gap-2 min-w-0">
+							<Label htmlFor={timezoneId}>Timezone</Label>
+							<TimezoneCombobox
+								id={timezoneId}
 								value={form.values.timezone}
 								onValueChange={(value) => {
 									void form.setFieldValue("timezone", value);
 								}}
 								disabled={autostartDisabled}
-							>
-								<SelectTrigger id="timezone">
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									{timeZones.map((zone) => (
-										<SelectItem key={zone} value={zone}>
-											{zone}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
+							/>
 							{timezoneField.error && (
 								<span className="text-xs text-content-destructive">
 									{timezoneField.helperText}
