@@ -931,6 +931,11 @@
 									]
 								}
 							]
+						},
+						{
+							"title": "Nix(OS)",
+							"description": "Define workspaces as code with NixOS flakes, without containers.",
+							"path": "./admin/integrations/nixos.md"
 						}
 					]
 				},

@@ -10,3 +10,5 @@ Envbuilder transforms the workspace image itself from a dev container configurat
 For setup instructions, see [Envbuilder documentation](../../integrations/devcontainers/envbuilder/index.md).
 
 For an alternative that uses Docker inside workspaces, see [Dev Containers Integration](../../integrations/devcontainers/integration.md).
+
+For an alternative without containers, see [Nix(OS)](../../integrations/nixos.md).

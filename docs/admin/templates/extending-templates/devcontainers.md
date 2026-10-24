@@ -9,3 +9,5 @@ Coder's Dev Containers Integration uses the standard `@devcontainers/cli` and Do
 For setup instructions, see [Dev Containers Integration](../../integrations/devcontainers/integration.md).
 
 For an alternative approach that doesn't require Docker, see [Envbuilder](../../integrations/devcontainers/envbuilder/index.md).
+
+To define workspaces without containers, see [Nix(OS)](../../integrations/nixos.md).
