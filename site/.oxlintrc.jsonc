@@ -114,6 +114,7 @@
 		"no-useless-fallback-in-spread": "error",
 		"no-noninteractive-element-interactions": "error",
 		"control-has-associated-label": "error",
+		"preserve-manual-memoization": "error",
 
 		// --- security ---
 		"jsx-no-target-blank": "error",
@@ -238,7 +239,6 @@
 		"vitest/valid-expect": "off", // (small)
 		"purity": "off", // (small)
 		"no-useless-spread": "off", // (small)
-		"preserve-manual-memoization": "off", // (small)
 
 		"no-restricted-imports": [
 			"error",
