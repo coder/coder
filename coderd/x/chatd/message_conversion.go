@@ -585,8 +585,9 @@ func summaryRecordedUnderOtherTrigger(boundary database.ChatMessage, thresholdPe
 }
 
 // latestContextBoundaryIndex finds the latest compressed
-// chat_summarized or chat_cleared boundary. Compaction and clear
-// eligibility both stop here so neither reaches across the other.
+// chat_summarized, chat_cleared, or chat_context_rollover boundary.
+// Compaction and clear eligibility both stop here so neither reaches
+// across the other.
 func latestContextBoundaryIndex(messages []database.ChatMessage) int {
 	for i := len(messages) - 1; i >= 0; i-- {
 		if isContextBoundaryMessage(messages[i]) {
@@ -605,7 +606,7 @@ func isContextBoundaryMessage(msg database.ChatMessage) bool {
 		return false
 	}
 	for _, part := range parts {
-		if (part.ToolName == "chat_summarized" || part.ToolName == "chat_cleared") &&
+		if (part.ToolName == "chat_summarized" || part.ToolName == "chat_cleared" || part.ToolName == rolloverToolName) &&
 			(part.Type == codersdk.ChatMessagePartTypeToolCall || part.Type == codersdk.ChatMessagePartTypeToolResult) {
 			return true
 		}

@@ -75,6 +75,24 @@ func decideRollover(contextTokens int64, budget contextWindowBudget) rolloverDec
 	}
 }
 
+// windowContextTokens returns the provider-reported context usage of the
+// newest assistant step in the current context window, or zero when the
+// window has none. Usage from before the latest boundary must not count:
+// it would roll the fresh window over again at once.
+func windowContextTokens(messages []database.ChatMessage) int64 {
+	boundary := latestContextBoundaryIndex(messages)
+	for i := len(messages) - 1; i > boundary; i-- {
+		msg := messages[i]
+		if msg.Deleted || msg.Compressed || msg.Role != database.ChatMessageRoleAssistant {
+			continue
+		}
+		if tokens := contextTokensFromUsage(usageFromMessage(msg)); tokens > 0 {
+			return tokens
+		}
+	}
+	return 0
+}
+
 // contextWindowID names the current context window: w:0 before any
 // boundary, then w:<anchor message ID> of the latest boundary of any
 // kind. It reads prompt rows, whose only compressed row is that anchor.
