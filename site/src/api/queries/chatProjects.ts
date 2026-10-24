@@ -130,8 +130,7 @@ export const setChatProjectRole = (queryClient: QueryClient) =>
 					},
 				},
 			),
-		// Refresh the project too: its permissions decide whether access is
-		// editable, and a change (or a 403) can revoke the viewer's own admin.
+		// Also refresh the project: a change or a 403 can revoke the viewer's admin.
 		onSettled: (_data, _error, { project }) =>
 			Promise.all([
 				queryClient.invalidateQueries({
