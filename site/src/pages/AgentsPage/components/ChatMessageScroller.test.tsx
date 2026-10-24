@@ -19,6 +19,14 @@ beforeEach(() => {
 			return isViewport(this) ? 1000 : 0;
 		},
 	);
+	// jsdom runs every queued frame callback in one task. Browsers run
+	// microtasks, and so React re-renders, between frame callbacks.
+	vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) =>
+		window.setTimeout(() => callback(performance.now())),
+	);
+	vi.stubGlobal("cancelAnimationFrame", (handle: number) =>
+		window.clearTimeout(handle),
+	);
 	// jsdom has no Element.scrollTo.
 	Element.prototype.scrollTo = function (
 		this: Element,
@@ -30,6 +38,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	vi.unstubAllGlobals();
 	vi.restoreAllMocks();
 	Reflect.deleteProperty(Element.prototype, "scrollTo");
 });
