@@ -111,6 +111,7 @@
 		"no-unused-expressions": "error",
 		"static-components": "error",
 		"no-conditional-tests": "error",
+		"no-useless-fallback-in-spread": "error",
 
 		// --- security ---
 		"jsx-no-target-blank": "error",
@@ -238,7 +239,6 @@
 		"preserve-manual-memoization": "off", // (small)
 		"control-has-associated-label": "off", // (small)
 		"no-noninteractive-element-interactions": "off", // (small)
-		"no-useless-fallback-in-spread": "off", // (small)
 
 		"no-restricted-imports": [
 			"error",
