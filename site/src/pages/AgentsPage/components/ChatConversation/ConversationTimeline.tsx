@@ -28,6 +28,7 @@ import { TextPreviewDialog } from "../TextPreviewDialog";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
 import { FileProbeProvider } from "./FileProbeContext";
+import { FoldFocusRestorer, foldFocusItems } from "./FoldFocusRestorer";
 import {
 	emptyLiveBlockKeys,
 	reconcileLiveBlockKeys,
@@ -58,6 +59,7 @@ import {
 	groupWorkingBlocks,
 	isAgentAttachmentOnlyRow,
 	type RowSlice,
+	type WorkingBlock,
 	wholeRowItem,
 } from "./workingBlockGrouping";
 
@@ -561,6 +563,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		if (nextLiveBlockKeys !== liveBlockKeys) {
 			setLiveBlockKeys(nextLiveBlockKeys);
 		}
+		const getItemKey = (block: WorkingBlock) =>
+			nextLiveBlockKeys.itemKeys.get(block.key) ?? block.key;
 
 		if (renderRows.length === 0) {
 			return null;
@@ -727,8 +731,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				{layout.items.map((item) => {
 					if (item.type === "block") {
 						const { block } = item;
-						const itemKey =
-							nextLiveBlockKeys.itemKeys.get(block.key) ?? block.key;
+						const itemKey = getItemKey(block);
 						const expansionKeys = getExpansionKeys(block, itemKey);
 						const expandedKey = expansionKeys.findLast((key) =>
 							expandedBlocks.has(key),
@@ -796,6 +799,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						</MessageScroller.Item>
 					);
 				})}
+				<FoldFocusRestorer
+					items={foldFocusItems(layout.items, renderRows, getItemKey)}
+				/>
 			</FileProbeProvider>
 		);
 	},

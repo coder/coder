@@ -1,5 +1,5 @@
 import { fireEvent, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -98,6 +98,30 @@ const mockAssistantNote: ChatMessage = {
 	role: "assistant",
 	created_at: workingFixtureTime(1),
 	content: [{ type: "text", text: "Looking around first." }],
+};
+
+/** Text between MockWorkingMessages' two steps, in a row of its own. */
+const mockNote: ChatMessage = {
+	...MockChatMessage,
+	id: 4,
+	role: "assistant",
+	created_at: workingFixtureTime(5),
+	content: [{ type: "text", text: "Found the config." }],
+};
+
+// MockWorkingMessages' second step, its result, and the answer, with IDs above
+// mockNote's, as rows persisted after it.
+const mockLiveStep: ChatMessage = { ...MockWorkingMessages[3], id: 5 };
+const mockLiveStepResult: ChatMessage = { ...MockWorkingMessages[4], id: 6 };
+const mockAnswerAfterNote: ChatMessage = { ...MockWorkingMessages[5], id: 7 };
+
+/** MockWorkingMessages' second step, called after text with a link. */
+const mockLinkBeforeSecondStep: ChatMessage = {
+	...MockWorkingMessages[3],
+	content: [
+		{ type: "text", text: "See [the trial plan](https://docs.example.com)." },
+		...(MockWorkingMessages[3].content ?? []),
+	],
 };
 
 const focusCopyCommand = (messageId: number) => {
@@ -221,6 +245,76 @@ describe("ConversationTimeline working blocks", () => {
 		},
 	);
 
+	const linkSplitTurn = [
+		...MockWorkingMessages.slice(0, 3),
+		mockLinkBeforeSecondStep,
+	];
+	const runningStage = (messages: ChatMessage[]): TimelineStage => ({
+		messages,
+		pendingToolCallIDs: getPendingToolCallIDs(messages, "running"),
+		chatStatus: "running",
+		liveStatus: idleLive,
+	});
+
+	it.each<
+		[string, TimelineStage, (user: UserEvent) => Promise<void>, ChatMessage[]]
+	>([
+		[
+			"a control in an earlier block",
+			runningStage(textSplitTurn),
+			async (user) => {
+				await user.click(screen.getByRole("button", { name: /^Worked for/ }));
+				focusCopyCommand(2);
+			},
+			[...textSplitTurn, ...MockWorkingMessages.slice(4)],
+		],
+		[
+			"a link in text between steps",
+			runningStage(linkSplitTurn),
+			async () => screen.getByRole("link", { name: "the trial plan" }).focus(),
+			[...linkSplitTurn, ...MockWorkingMessages.slice(4)],
+		],
+		[
+			"a control in the turn's last block",
+			runningStage(MockWorkingMessages.slice(0, 4)),
+			async (user) => {
+				await user.click(screen.getByRole("button", { name: /^Working for/ }));
+				focusCopyCommand(4);
+			},
+			MockWorkingMessages,
+		],
+		[
+			"the summary of a block only the stream had",
+			{
+				messages: [...MockWorkingMessages.slice(0, 3), mockNote],
+				chatStatus: "running",
+				...buildStreamRenderState(MockWorkingMessages[3].content ?? []),
+			},
+			async () => screen.getByRole("button", { name: /^Working for/ }).focus(),
+			[
+				...MockWorkingMessages.slice(0, 3),
+				mockNote,
+				mockLiveStep,
+				mockLiveStepResult,
+				mockAnswerAfterNote,
+			],
+		],
+	])(
+		"moves focus from %s to its turn's fold at the turn's end",
+		async (_, running, focus, finalMessages) => {
+			const user = userEvent.setup();
+			const { rerenderStage } = renderTimeline(running);
+			await focus(user);
+
+			rerenderStage({
+				messages: finalMessages,
+				chatStatus: "waiting",
+				liveStatus: idleLive,
+			});
+			expect(screen.getByRole("button", { name: /^Worked for/ })).toHaveFocus();
+		},
+	);
+
 	it("keeps focus inside an open live block when its prompt page arrives", async () => {
 		const user = userEvent.setup();
 		const messages = MockWorkingMessages.slice(1, 4);
@@ -326,14 +420,6 @@ describe("ConversationTimeline working blocks", () => {
 
 	it("keeps an open live block mounted when an older page reveals an earlier block of its turn", async () => {
 		const user = userEvent.setup();
-		const mockNote: ChatMessage = {
-			...MockChatMessage,
-			id: 4,
-			role: "assistant",
-			created_at: workingFixtureTime(5),
-			content: [{ type: "text", text: "Found the config." }],
-		};
-		const mockLiveStep: ChatMessage = { ...MockWorkingMessages[3], id: 5 };
 		const stage = (messages: ChatMessage[]): TimelineStage => ({
 			messages,
 			pendingToolCallIDs: new Set(["second"]),
