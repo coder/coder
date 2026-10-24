@@ -24,6 +24,7 @@ import { Message, MessageContent } from "../ChatElements/Message";
 import { Response } from "../ChatElements/Response";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ImageLightbox } from "../ImageLightbox";
+import { LightboxHost, useLightbox } from "../LightboxHost";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
@@ -196,9 +197,22 @@ const ChatMessageItem = memo<{
 	}) => {
 		const isUser = message?.role === "user";
 		const messageId = message?.id;
-		const [previewImage, setPreviewImage] = useState<string | null>(null);
-		const [previewText, setPreviewText] =
-			useState<PreviewTextAttachment | null>(null);
+		const { openLightbox } = useLightbox();
+		const previewImage = (src: string) =>
+			openLightbox((close) => <ImageLightbox src={src} onClose={close} />);
+		const previewText = ({
+			content,
+			fileName,
+			mediaType,
+		}: PreviewTextAttachment) =>
+			openLightbox((close) => (
+				<TextPreviewDialog
+					content={content}
+					fileName={fileName}
+					mediaType={mediaType}
+					onClose={close}
+				/>
+			));
 		const { blocks, tools, endsRow, coversRow } = getSliceContent(
 			parsed?.blocks ?? liveBlocks,
 			parsed?.tools ?? liveTools,
@@ -282,8 +296,8 @@ const ChatMessageItem = memo<{
 							isEditing={
 								messageId !== undefined && editingMessageId === messageId
 							}
-							onImageClick={setPreviewImage}
-							onTextFileClick={setPreviewText}
+							onImageClick={previewImage}
+							onTextFileClick={previewText}
 						/>
 					) : (
 						<Message className="w-full">
@@ -309,8 +323,8 @@ const ChatMessageItem = memo<{
 									hasUserResponseAfterAskQuestion={
 										hasUserResponseAfterAskQuestion
 									}
-									onImageClick={setPreviewImage}
-									onTextFileClick={setPreviewText}
+									onImageClick={previewImage}
+									onTextFileClick={previewText}
 									urlTransform={urlTransform}
 									mcpServers={mcpServers}
 								/>
@@ -431,20 +445,6 @@ const ChatMessageItem = memo<{
 					)}
 				{displayState?.needsAssistantBottomSpacer && !isLastMessage && (
 					<div className="min-h-6" data-testid="assistant-bottom-spacer" />
-				)}
-				{previewImage && (
-					<ImageLightbox
-						src={previewImage}
-						onClose={() => setPreviewImage(null)}
-					/>
-				)}
-				{previewText !== null && (
-					<TextPreviewDialog
-						content={previewText.content}
-						fileName={previewText.fileName}
-						mediaType={previewText.mediaType}
-						onClose={() => setPreviewText(null)}
-					/>
 				)}
 			</div>
 		);
@@ -728,80 +728,82 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 
 		return (
 			<FileProbeProvider evictedFileIds={evictedFileIds}>
-				{layout.items.map((item) => {
-					if (item.type === "block") {
-						const { block } = item;
-						const itemKey = getItemKey(block);
-						const expansionKeys = getExpansionKeys(block, itemKey);
-						const expandedKey = expansionKeys.findLast((key) =>
-							expandedBlocks.has(key),
-						);
-						const expanded =
-							expandedKey !== undefined &&
-							expandedBlocks.get(expandedKey) === true;
-						const firstRow = renderRows[block.slices[0].rowIndex];
-						const isAfterEditingMessage =
-							firstRow.type === "message" &&
-							afterEditingMessageIds.has(firstRow.entry.message.id);
+				<LightboxHost>
+					{layout.items.map((item) => {
+						if (item.type === "block") {
+							const { block } = item;
+							const itemKey = getItemKey(block);
+							const expansionKeys = getExpansionKeys(block, itemKey);
+							const expandedKey = expansionKeys.findLast((key) =>
+								expandedBlocks.has(key),
+							);
+							const expanded =
+								expandedKey !== undefined &&
+								expandedBlocks.get(expandedKey) === true;
+							const firstRow = renderRows[block.slices[0].rowIndex];
+							const isAfterEditingMessage =
+								firstRow.type === "message" &&
+								afterEditingMessageIds.has(firstRow.entry.message.id);
 
+							return (
+								<MessageScroller.Item
+									key={itemKey}
+									messageId={itemKey}
+									className={cn(
+										isAfterEditingMessage && "opacity-40 pointer-events-none",
+										"transition-opacity duration-200",
+									)}
+									inert={isAfterEditingMessage ? true : undefined}
+									onFocus={() => keepBlock(block.liveKey)}
+								>
+									<WorkingBlockDisclosure
+										block={block}
+										expanded={expanded}
+										onExpandedChange={(value) => {
+											keepBlock(block.liveKey);
+											setExpandedBlocks((previous) => {
+												const next = new Map(previous);
+												for (const key of expansionKeys) {
+													next.set(key, value);
+												}
+												return next;
+											});
+										}}
+									>
+										{expanded &&
+											block.slices.map((slice) =>
+												renderSlice(slice, { inWorkingBlock: true }),
+											)}
+									</WorkingBlockDisclosure>
+								</MessageScroller.Item>
+							);
+						}
+
+						const { slice } = item;
+						const row = renderRows[slice.rowIndex];
+						if (collapseSteps && isAgentAttachmentOnlyRow(row)) {
+							return null;
+						}
+						const suppressInitialAnchor =
+							row.type === "message" &&
+							initialActiveTurnMaxMessageId !== undefined &&
+							row.entry.message.id <= initialActiveTurnMaxMessageId;
 						return (
 							<MessageScroller.Item
-								key={itemKey}
-								messageId={itemKey}
-								className={cn(
-									isAfterEditingMessage && "opacity-40 pointer-events-none",
-									"transition-opacity duration-200",
-								)}
-								inert={isAfterEditingMessage ? true : undefined}
-								onFocus={() => keepBlock(block.liveKey)}
+								key={slice.key}
+								messageId={slice.key}
+								scrollAnchor={
+									slice.key === anchorUserRowKey && !suppressInitialAnchor
+								}
 							>
-								<WorkingBlockDisclosure
-									block={block}
-									expanded={expanded}
-									onExpandedChange={(value) => {
-										keepBlock(block.liveKey);
-										setExpandedBlocks((previous) => {
-											const next = new Map(previous);
-											for (const key of expansionKeys) {
-												next.set(key, value);
-											}
-											return next;
-										});
-									}}
-								>
-									{expanded &&
-										block.slices.map((slice) =>
-											renderSlice(slice, { inWorkingBlock: true }),
-										)}
-								</WorkingBlockDisclosure>
+								{renderSlice(slice, { inWorkingBlock: false })}
 							</MessageScroller.Item>
 						);
-					}
-
-					const { slice } = item;
-					const row = renderRows[slice.rowIndex];
-					if (collapseSteps && isAgentAttachmentOnlyRow(row)) {
-						return null;
-					}
-					const suppressInitialAnchor =
-						row.type === "message" &&
-						initialActiveTurnMaxMessageId !== undefined &&
-						row.entry.message.id <= initialActiveTurnMaxMessageId;
-					return (
-						<MessageScroller.Item
-							key={slice.key}
-							messageId={slice.key}
-							scrollAnchor={
-								slice.key === anchorUserRowKey && !suppressInitialAnchor
-							}
-						>
-							{renderSlice(slice, { inWorkingBlock: false })}
-						</MessageScroller.Item>
-					);
-				})}
-				<FoldFocusRestorer
-					items={foldFocusItems(layout.items, renderRows, getItemKey)}
-				/>
+					})}
+					<FoldFocusRestorer
+						items={foldFocusItems(layout.items, renderRows, getItemKey)}
+					/>
+				</LightboxHost>
 			</FileProbeProvider>
 		);
 	},

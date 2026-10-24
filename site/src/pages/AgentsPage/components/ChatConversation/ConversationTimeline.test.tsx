@@ -1,15 +1,23 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import {
+	fireEvent,
+	screen,
+	waitForElementToBeRemoved,
+	within,
+} from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
 import { QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
 	createTestQueryClient,
 	renderComponent,
 } from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import {
@@ -17,6 +25,7 @@ import {
 	parseMessagesWithMergedTools,
 } from "./messageParsing";
 import {
+	attachmentStepMessages,
 	buildLiveStatus,
 	buildStreamRenderState,
 	MockCollapsedStepsPreferences,
@@ -28,6 +37,14 @@ import {
 	workingFixtureTime,
 } from "./storyFixtures";
 import { createEmptyStreamState } from "./streamState";
+
+// jsdom cannot lay out a real diagram.
+vi.mock("mermaid", () => ({
+	default: {
+		initialize: vi.fn(),
+		render: vi.fn(async () => ({ svg: "<svg></svg>" })),
+	},
+}));
 
 type TimelineStage = {
 	messages?: ChatMessage[];
@@ -314,6 +331,42 @@ describe("ConversationTimeline working blocks", () => {
 			expect(screen.getByRole("button", { name: /^Worked for/ })).toHaveFocus();
 		},
 	);
+
+	it("keeps an image the reader opened in a block open as its turn folds", async () => {
+		const user = userEvent.setup();
+		const messages = [
+			MockWorkingMessages[0],
+			...attachmentStepMessages({
+				id: 2,
+				toolCallId: "attach",
+				callAt: 1,
+				toolName: "attach_file",
+				args: { path: "/home/coder/chart.png" },
+				file: {
+					type: "file",
+					media_type: "image/png",
+					name: "chart.png",
+					file_id: "chart-file",
+				},
+				result: { name: "chart.png" },
+			}),
+		];
+		const mockAnswer: ChatMessage = { ...MockWorkingMessages[5], id: 5 };
+		const { rerenderStage } = renderTimeline(runningStage(messages));
+
+		await user.click(screen.getByRole("button", { name: /^Working for/ }));
+		await user.click(screen.getByRole("button", { name: "View chart.png" }));
+		const lightbox = screen.getByRole("dialog", { name: "Image preview" });
+
+		rerenderStage({
+			messages: [...messages, mockAnswer],
+			chatStatus: "waiting",
+			liveStatus: idleLive,
+		});
+		expect(screen.getByRole("dialog", { name: "Image preview" })).toBe(
+			lightbox,
+		);
+	});
 
 	it("keeps focus inside an open live block when its prompt page arrives", async () => {
 		const user = userEvent.setup();
@@ -645,5 +698,71 @@ describe("ConversationTimeline live working blocks", () => {
 			liveStatus: idleLive,
 		});
 		expect(summary).toHaveFocus();
+	});
+});
+
+describe("ConversationTimeline lightboxes", () => {
+	it("keeps the open lightbox when a text attachment preview loads after it opened", async () => {
+		const user = userEvent.setup();
+		const notesResponse = createDeferred<undefined>();
+		server.use(
+			http.get("/api/v2/chats/files/notes", async () => {
+				await notesResponse.promise;
+				return HttpResponse.text("Release notes");
+			}),
+		);
+		const mockNotesPrompt: ChatMessage = {
+			...MockWorkingMessages[0],
+			content: [
+				{
+					type: "file",
+					media_type: "text/plain",
+					file_id: "notes",
+					name: "notes.txt",
+				},
+				{ type: "file", media_type: "image/png", file_id: "photo" },
+			],
+		};
+		renderTimeline({ messages: [mockNotesPrompt] });
+
+		await user.click(screen.getByRole("button", { name: "View notes.txt" }));
+		const loading = screen.getByText("Loading attachment preview…");
+		await user.click(
+			screen.getByRole("button", { name: "View Attached image" }),
+		);
+		const lightbox = screen.getByRole("dialog", { name: "Image preview" });
+
+		notesResponse.resolve(undefined);
+		await waitForElementToBeRemoved(loading);
+		expect(screen.getByRole("dialog")).toBe(lightbox);
+	});
+
+	it("opens a diagram in a Markdown attachment's preview over that preview", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get("/api/v2/chats/files/plan", () =>
+				HttpResponse.text("```mermaid\ngraph TD\n  A --> B\n```"),
+			),
+		);
+		const mockPlanPrompt: ChatMessage = {
+			...MockWorkingMessages[0],
+			content: [
+				{
+					type: "file",
+					media_type: "text/markdown",
+					file_id: "plan",
+					name: "plan.md",
+				},
+			],
+		};
+		renderTimeline({ messages: [mockPlanPrompt] });
+
+		await user.click(screen.getByRole("button", { name: "View plan.md" }));
+		await user.click(
+			await screen.findByRole("button", { name: "View diagram full size" }),
+		);
+		expect(
+			screen.getByRole("dialog", { name: "Diagram preview" }),
+		).toHaveFocus();
 	});
 });

@@ -1,12 +1,12 @@
-import { useState } from "react";
 import { ImageLightbox } from "../../ImageLightbox";
+import { LightboxSlot, useLightbox } from "../../LightboxHost";
 
 export const ToolResultImage: React.FC<{
 	data: string;
 	mimeType: string;
 	alt: string;
 }> = ({ data, mimeType, alt }) => {
-	const [showLightbox, setShowLightbox] = useState(false);
+	const { openLightbox, lightbox } = useLightbox();
 	const imageSrc = `data:${mimeType};base64,${data}`;
 
 	return (
@@ -15,7 +15,11 @@ export const ToolResultImage: React.FC<{
 				<button
 					type="button"
 					className="cursor-pointer bg-transparent p-0 border-none"
-					onClick={() => setShowLightbox(true)}
+					onClick={() =>
+						openLightbox((close) => (
+							<ImageLightbox src={imageSrc} onClose={close} />
+						))
+					}
 				>
 					<img
 						src={imageSrc}
@@ -24,9 +28,7 @@ export const ToolResultImage: React.FC<{
 					/>
 				</button>
 			</div>
-			{showLightbox && (
-				<ImageLightbox src={imageSrc} onClose={() => setShowLightbox(false)} />
-			)}
+			<LightboxSlot lightbox={lightbox} />
 		</>
 	);
 };
