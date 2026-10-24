@@ -240,7 +240,7 @@ func TestConcurrentRecovery(t *testing.T) {
 			call.MustRelease(ctx)
 			trap.Close()
 			if tc.mode == fakeHarnessModeHang {
-				clock.Advance(setupTimeout).MustWait(ctx)
+				clock.Advance(sessionInitializationTimeout).MustWait(ctx)
 			}
 			first := testutil.RequireReceive(ctx, t, results)
 			for range 9 {

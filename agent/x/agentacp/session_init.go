@@ -5,6 +5,7 @@ import (
 	"maps"
 	"path/filepath"
 	"slices"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/spf13/afero"
@@ -15,6 +16,8 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
+
+const sessionInitializationTimeout = 30 * time.Second
 
 func validateSessionRequest(fs afero.Fs, slug, directory string) error {
 	if slug == "" {
@@ -77,7 +80,7 @@ func startSessionRuntime(ctx context.Context, cfg harnessConfig, req sessionInit
 	// Close the session when its parent context is canceled.
 	// Register after startProcess so Close cannot run before s.proc is set.
 	context.AfterFunc(s.ctx, s.Close)
-	setupCtx, cancel := timeout(ctx, opts.launch.clock, setupTimeout)
+	setupCtx, cancel := timeout(ctx, opts.launch.clock, sessionInitializationTimeout)
 	defer cancel()
 	init, err := p.conn.Initialize(setupCtx, acp.InitializeRequest{
 		ProtocolVersion: acp.ProtocolVersionNumber,
