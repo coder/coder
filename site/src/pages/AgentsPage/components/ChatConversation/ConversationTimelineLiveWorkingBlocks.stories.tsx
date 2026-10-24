@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
 import { fn, userEvent, within } from "storybook/test";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ConversationTimeline } from "./ConversationTimeline";
@@ -232,4 +234,64 @@ export const PromptlessLiveBlock: Story = {
 		liveStatus: { phase: "idle", hasAccumulatedOutput: false },
 	},
 	play: expandBlock("Working for at least 12s"),
+};
+
+const MockFoldingReply = {
+	type: "text",
+	text: "I'll start by listing the workspace files so I can see how the project is laid out, then read the main entry point and the build configuration.",
+} as const;
+
+const MockFoldingToolCall = {
+	type: "tool-call",
+	tool_call_id: "fold",
+	tool_name: "execute",
+	args: { command: "ls -la" },
+	created_at: workingFixtureTime(5),
+} as const;
+
+const renderReplyFold = (messages: ChatMessage[]): Story["render"] =>
+	function Render(args) {
+		const [toolStarted, setToolStarted] = useState(false);
+		const [run, setRun] = useState(0);
+		const parts = toolStarted
+			? [MockFoldingReply, MockFoldingToolCall]
+			: [MockFoldingReply];
+
+		return (
+			<>
+				<ConversationTimeline
+					key={run}
+					{...args}
+					parsedMessages={parseMessagesWithMergedTools(messages)}
+					{...buildStreamRenderState(parts)}
+				/>
+				<Button
+					className="fixed top-2 right-2 z-20"
+					onClick={() => {
+						if (toolStarted) {
+							setRun(run + 1);
+						}
+						setToolStarted(!toolStarted);
+					}}
+				>
+					{toolStarted ? "Reset" : "Start tool call"}
+				</Button>
+			</>
+		);
+	};
+
+const startToolCall: Story["play"] = async ({ canvasElement }) => {
+	await userEvent.click(
+		within(canvasElement).getByRole("button", { name: "Start tool call" }),
+	);
+};
+
+export const ReplyFoldsUnderNewLabel: Story = {
+	render: renderReplyFold(MockWorkingMessages.slice(0, 1)),
+	play: startToolCall,
+};
+
+export const ReplyFoldsIntoExistingLabel: Story = {
+	render: renderReplyFold(MockWorkingMessages.slice(0, 3)),
+	play: startToolCall,
 };
