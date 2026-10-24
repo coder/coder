@@ -1,9 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, screen, userEvent } from "storybook/test";
+import { groupsByOrganization } from "#/api/queries/groups";
+import { organizationMembers } from "#/api/queries/organizations";
 import type { ChatProjectACL } from "#/api/typesGenerated";
 import {
 	MockChatProject,
 	MockChatProjectACL,
+	MockGroup3,
 	MockUserMember,
 	mockApiError,
 } from "#/testHelpers/entities";
@@ -124,6 +127,33 @@ export const ManageRowMenu: Story = {
 
 export const ManagePendingChange: Story = {
 	args: { canManage: true, pendingPrincipalId: "sharee-2" },
+};
+
+const orgId = MockChatProject.organization_id;
+
+/** Back-End is picked in the add row and its add is saving. */
+export const ManagePendingAdd: Story = {
+	args: { canManage: true, pendingPrincipalId: MockGroup3.id },
+	parameters: {
+		queries: [
+			{ key: groupsByOrganization(orgId).queryKey, data: [MockGroup3] },
+			{
+				key: organizationMembers(orgId, { limit: 0 }).queryKey,
+				data: { members: [], count: 0 },
+			},
+		],
+	},
+	// The role comes first: picking the pending principal disables its select.
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("combobox", { name: "Role" }),
+		);
+		await userEvent.click(await screen.findByRole("option", { name: /Admin/ }));
+		await userEvent.click(
+			await screen.findByRole("button", { name: /^User or group/ }),
+		);
+		await userEvent.click(await screen.findByRole("option", { name: /Back/ }));
+	},
 };
 
 export const ManageChangeError: Story = {
