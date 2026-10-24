@@ -293,21 +293,14 @@ func subagentTypeFromChat(chat database.Chat) string {
 	}
 }
 
-func withSubagentType(result map[string]any, chat database.Chat) map[string]any {
-	if result == nil {
-		result = map[string]any{}
-	}
-	result["type"] = subagentTypeFromChat(chat)
-	return result
-}
-
 func subagentErrorResponse(err error, chat *database.Chat) fantasy.ToolResponse {
 	if chat == nil {
 		return fantasy.NewTextErrorResponse(err.Error())
 	}
-	return toolJSONErrorResponse(withSubagentType(map[string]any{
+	return toolJSONErrorResponse(map[string]any{
 		"error": err.Error(),
-	}, *chat))
+		"type":  subagentTypeFromChat(*chat),
+	})
 }
 
 func buildSpawnAgentDescription(
