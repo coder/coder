@@ -1408,8 +1408,9 @@ func TestBufferedPartsToPartialMessages_SynthesizesMissingToolResults(t *testing
 func parseMessageParts(t *testing.T, role database.ChatMessageRole, raw pqtype.NullRawMessage) []codersdk.ChatMessagePart {
 	t.Helper()
 	parts, err := chatprompt.ParseContent(database.ChatMessage{
-		Role:    role,
-		Content: raw,
+		Role:           role,
+		Content:        raw,
+		ContentVersion: chatprompt.CurrentContentVersion,
 	})
 	require.NoError(t, err)
 	return parts

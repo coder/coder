@@ -1631,5 +1631,6 @@ func mustChatMessage(
 			RawMessage: content,
 			Valid:      len(content) > 0,
 		},
+		ContentVersion: chatprompt.CurrentContentVersion,
 	}
 }
