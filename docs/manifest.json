@@ -396,6 +396,12 @@
 					]
 				},
 				{
+					"title": "Install as PWA",
+					"description": "Install the Coder dashboard or Coder Agents as a PWA on your desktop, Android device, iPhone, or iPad.",
+					"path": "./user-guides/install-pwa.md",
+					"icon_path": "./images/icons/computer-code.svg"
+				},
+				{
 					"title": "Manage workspaces",
 					"description": "Create, start, stop, update, and delete your Coder workspaces from the dashboard or CLI.",
 					"path": "./user-guides/workspace-management.md",
