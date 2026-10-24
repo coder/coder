@@ -173,7 +173,7 @@ const ProjectAccessDialogContent: React.FC<ProjectAccessDialogContentProps> = ({
 						// Grows the scroll area instead of scrolling inside it.
 						wrapperClassName="shrink-0"
 					>
-						<TableHeader className="max-sm:hidden">
+						<TableHeader className="max-sm:sr-only">
 							<TableRow>
 								<TableHead className="w-full">User or group</TableHead>
 								<TableHead>Role</TableHead>
