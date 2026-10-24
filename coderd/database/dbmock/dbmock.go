@@ -6759,6 +6759,21 @@ func (mr *MockStoreMockRecorder) GetUserByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserByID", reflect.TypeOf((*MockStore)(nil).GetUserByID), ctx, id)
 }
 
+// GetUserChatCompactionStrategy mocks base method.
+func (m *MockStore) GetUserChatCompactionStrategy(ctx context.Context, userID uuid.UUID) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserChatCompactionStrategy", ctx, userID)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserChatCompactionStrategy indicates an expected call of GetUserChatCompactionStrategy.
+func (mr *MockStoreMockRecorder) GetUserChatCompactionStrategy(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserChatCompactionStrategy", reflect.TypeOf((*MockStore)(nil).GetUserChatCompactionStrategy), ctx, userID)
+}
+
 // GetUserChatCompactionThreshold mocks base method.
 func (m *MockStore) GetUserChatCompactionThreshold(ctx context.Context, arg database.GetUserChatCompactionThresholdParams) (string, error) {
 	m.ctrl.T.Helper()
@@ -13276,6 +13291,20 @@ func (m *MockStore) UpsertUserAIProviderKey(ctx context.Context, arg database.Up
 func (mr *MockStoreMockRecorder) UpsertUserAIProviderKey(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertUserAIProviderKey", reflect.TypeOf((*MockStore)(nil).UpsertUserAIProviderKey), ctx, arg)
+}
+
+// UpsertUserChatCompactionStrategy mocks base method.
+func (m *MockStore) UpsertUserChatCompactionStrategy(ctx context.Context, arg database.UpsertUserChatCompactionStrategyParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertUserChatCompactionStrategy", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertUserChatCompactionStrategy indicates an expected call of UpsertUserChatCompactionStrategy.
+func (mr *MockStoreMockRecorder) UpsertUserChatCompactionStrategy(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertUserChatCompactionStrategy", reflect.TypeOf((*MockStore)(nil).UpsertUserChatCompactionStrategy), ctx, arg)
 }
 
 // UpsertUserChatDebugLoggingEnabled mocks base method.

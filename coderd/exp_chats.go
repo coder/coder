@@ -6963,6 +6963,80 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// @Summary Get user chat compaction strategy
+// @ID get-user-chat-compaction-strategy
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.UserChatCompactionStrategy
+// @Router /api/experimental/chats/config/user-compaction-strategy [get]
+// @x-apidocgen {"skip": true}
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getUserChatCompactionStrategy(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+	)
+
+	strategy, err := api.Database.GetUserChatCompactionStrategy(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error reading user chat compaction strategy.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCompactionStrategy{
+		Strategy: codersdk.ChatCompactionStrategy(strategy),
+	})
+}
+
+// @Summary Update user chat compaction strategy
+// @ID update-user-chat-compaction-strategy
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UserChatCompactionStrategy true "Request body"
+// @Produce json
+// @Success 200 {object} codersdk.UserChatCompactionStrategy
+// @Router /api/experimental/chats/config/user-compaction-strategy [put]
+// @x-apidocgen {"skip": true}
+func (api *API) putUserChatCompactionStrategy(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+	)
+
+	var req codersdk.UserChatCompactionStrategy
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if !slices.Contains(codersdk.ValidChatCompactionStrategies, req.Strategy) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid chat compaction strategy.",
+			Detail:  fmt.Sprintf("strategy must be one of %v, got %q.", codersdk.ValidChatCompactionStrategies, req.Strategy),
+		})
+		return
+	}
+
+	if err := api.Database.UpsertUserChatCompactionStrategy(ctx, database.UpsertUserChatCompactionStrategyParams{
+		UserID:             apiKey.UserID,
+		CompactionStrategy: string(req.Strategy),
+	}); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error updating user chat compaction strategy.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCompactionStrategy{
+		Strategy: req.Strategy,
+	})
+}
+
 // @Summary Upload chat file
 // @ID upload-chat-file
 // @Security CoderSessionToken

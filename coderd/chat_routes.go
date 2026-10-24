@@ -126,6 +126,11 @@ func (api *API) registerExperimentalChatRoutes(r chi.Router, apiKeyMiddleware fu
 				r.Get("/advisor", api.getChatAdvisorConfig)
 				r.Put("/advisor", api.putChatAdvisorConfig)
 			})
+			r.Group(func(r chi.Router) {
+				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatTokenBudget))
+				r.Get("/user-compaction-strategy", api.getUserChatCompactionStrategy)
+				r.Put("/user-compaction-strategy", api.putUserChatCompactionStrategy)
+			})
 		})
 		r.Route("/{chat}", func(r chi.Router) {
 			r.Use(httpmw.ExtractChatParam(api.Database))

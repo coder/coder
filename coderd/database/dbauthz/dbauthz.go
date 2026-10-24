@@ -5562,6 +5562,17 @@ func (q *querier) GetUserByID(ctx context.Context, id uuid.UUID) (database.User,
 	return fetch(q.log, q.auth, q.db.GetUserByID)(ctx, id)
 }
 
+func (q *querier) GetUserChatCompactionStrategy(ctx context.Context, userID uuid.UUID) (string, error) {
+	u, err := q.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, u); err != nil {
+		return "", err
+	}
+	return q.db.GetUserChatCompactionStrategy(ctx, userID)
+}
+
 func (q *querier) GetUserChatCompactionThreshold(ctx context.Context, arg database.GetUserChatCompactionThresholdParams) (string, error) {
 	u, err := q.db.GetUserByID(ctx, arg.UserID)
 	if err != nil {
@@ -9825,6 +9836,17 @@ func (q *querier) UpsertUserAIProviderKey(ctx context.Context, arg database.Upse
 		return database.UserAIProviderKey{}, err
 	}
 	return q.db.UpsertUserAIProviderKey(ctx, arg)
+}
+
+func (q *querier) UpsertUserChatCompactionStrategy(ctx context.Context, arg database.UpsertUserChatCompactionStrategyParams) error {
+	u, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
+		return err
+	}
+	return q.db.UpsertUserChatCompactionStrategy(ctx, arg)
 }
 
 func (q *querier) UpsertUserChatDebugLoggingEnabled(ctx context.Context, arg database.UpsertUserChatDebugLoggingEnabledParams) error {

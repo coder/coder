@@ -2714,6 +2714,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------|
 | `api`, `ui` |
 
+## codersdk.ChatCompactionStrategy
+
+```json
+"summarize"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                    |
+|-----------------------------|
+| `summarize`, `token_budget` |
+
 ## codersdk.ChatConfig
 
 ```json
@@ -9848,9 +9862,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                       |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-projects`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                            |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-projects`, `chat-stage-metrics`, `chat-token-budget`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 
@@ -18221,6 +18235,26 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `theme_light`      | string                                                 | false    |              | Ignored when ThemeMode is "single"                                                                                                                                                                                                                                                                                                        |
 | `theme_mode`       | [codersdk.ThemeMode](#codersdkthememode)               | false    |              |                                                                                                                                                                                                                                                                                                                                           |
 | `theme_preference` | string                                                 | false    |              | Theme preference is the legacy single-field appearance setting. In "single" mode it mirrors the active theme. In "sync" mode modern clients normally mirror the active OS slot, but older clients can update only this field, so it may diverge from ThemeLight or ThemeDark until a modern client saves the full appearance state again. |
+
+## codersdk.UserChatCompactionStrategy
+
+```json
+{
+  "strategy": "summarize"
+}
+```
+
+### Properties
+
+| Name       | Type                                                               | Required | Restrictions | Description |
+|------------|--------------------------------------------------------------------|----------|--------------|-------------|
+| `strategy` | [codersdk.ChatCompactionStrategy](#codersdkchatcompactionstrategy) | false    |              |             |
+
+#### Enumerated Values
+
+| Property   | Value(s)                    |
+|------------|-----------------------------|
+| `strategy` | `summarize`, `token_budget` |
 
 ## codersdk.UserChatCompactionThreshold
 
