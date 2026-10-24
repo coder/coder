@@ -18,29 +18,29 @@ describe("formatMembersHeading", () => {
 });
 
 describe("buildAccessEntries", () => {
-	const unnamedUser = {
+	const mockUnnamedUser = {
 		...MockUserMember,
 		id: "unnamed-user",
 		username: "unnamed",
 		name: "",
 	};
-	const acl = {
+	const mockACL = {
 		users: [
 			{ ...MockUserMember, role: "admin" as const },
-			{ ...unnamedUser, role: "use" as const },
+			{ ...mockUnnamedUser, role: "use" as const },
 		],
 		groups: [{ ...MockGroup, role: "use" as const }],
 	};
 
 	it("lists the owner first, then users, then groups", () => {
 		expect(
-			buildAccessEntries(MockUserOwner.id, MockUserOwner, acl).map(
+			buildAccessEntries(MockUserOwner.id, MockUserOwner, mockACL).map(
 				({ kind, id }) => ({ kind, id }),
 			),
 		).toEqual([
 			{ kind: "owner", id: MockUserOwner.id },
 			{ kind: "user", id: MockUserMember.id },
-			{ kind: "user", id: unnamedUser.id },
+			{ kind: "user", id: mockUnnamedUser.id },
 			{ kind: "group", id: MockGroup.id },
 		]);
 	});
@@ -49,10 +49,10 @@ describe("buildAccessEntries", () => {
 		const [, , unnamed] = buildAccessEntries(
 			MockUserOwner.id,
 			MockUserOwner,
-			acl,
+			mockACL,
 		);
 		expect(unnamed).toMatchObject({
-			name: unnamedUser.username,
+			name: mockUnnamedUser.username,
 			subtitle: undefined,
 		});
 	});
@@ -61,7 +61,7 @@ describe("buildAccessEntries", () => {
 		["loading", undefined, undefined],
 		["failed to load", null, "Unknown"],
 	])("names the owner when it is %s", (_, owner, name) => {
-		const [ownerEntry] = buildAccessEntries(MockUserOwner.id, owner, acl);
+		const [ownerEntry] = buildAccessEntries(MockUserOwner.id, owner, mockACL);
 		expect(ownerEntry).toMatchObject({ kind: "owner", name });
 	});
 });

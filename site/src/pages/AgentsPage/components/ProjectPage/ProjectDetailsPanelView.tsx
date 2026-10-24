@@ -12,14 +12,16 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
+import { RetryButton } from "../RetryButton";
 import { formatMembersHeading, type ProjectAccessEntry } from "./projectAccess";
 
 const MAX_VISIBLE_MEMBERS = 7;
 
-type ProjectMembers = {
+type MembersSectionProps = {
 	/** `undefined` while the access list loads or after loading fails. */
 	readonly entries: readonly ProjectAccessEntry[] | undefined;
 	readonly error: unknown;
+	readonly isRetrying: boolean;
 	readonly onRetry: () => void;
 	readonly onOpenAccess: (event: React.MouseEvent<HTMLButtonElement>) => void;
 };
@@ -42,8 +44,8 @@ type ProjectDetailsPanelViewProps = {
 	readonly onRetry: () => void;
 	/** Opens the instructions editor. Omit when the caller cannot edit. */
 	readonly onEditInstructions?: () => void;
-	/** Omit to hide the members section, such as when sharing is disabled. */
-	readonly members?: ProjectMembers;
+	/** Omit to hide the members section. */
+	readonly members?: MembersSectionProps;
 };
 
 /** The project's shared configuration, shown beside its chats. */
@@ -214,9 +216,10 @@ export const ProjectDetailsPanelView: React.FC<
 	);
 };
 
-const MembersSection: React.FC<ProjectMembers> = ({
+const MembersSection: React.FC<MembersSectionProps> = ({
 	entries,
 	error,
+	isRetrying,
 	onRetry,
 	onOpenAccess,
 }) => {
@@ -283,9 +286,12 @@ const MembersSection: React.FC<ProjectMembers> = ({
 				<ErrorAlert
 					error={error}
 					actions={
-						<Button size="sm" variant="outline" onClick={onRetry}>
-							Retry
-						</Button>
+						<RetryButton
+							size="sm"
+							variant="outline"
+							isRetrying={isRetrying}
+							onRetry={onRetry}
+						/>
 					}
 				/>
 			)}

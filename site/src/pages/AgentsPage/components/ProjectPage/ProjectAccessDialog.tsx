@@ -103,38 +103,30 @@ type AccessRowProps = {
 	readonly entry: ProjectAccessEntry;
 };
 
-const AccessRow: React.FC<AccessRowProps> = ({ entry }) => {
-	if (entry.kind === "owner" && entry.name === undefined) {
-		return (
-			<TableRow>
-				<TableCell>
+const AccessRow: React.FC<AccessRowProps> = ({ entry }) => (
+	<TableRow>
+		<TableCell>
+			{entry.name === undefined ? (
+				<>
 					<AvatarDataSkeleton />
 					<span className="sr-only">Loading</span>
-				</TableCell>
-				<TableCell>
-					<Badge variant="info">Owner</Badge>
-				</TableCell>
-			</TableRow>
-		);
-	}
-	return (
-		<TableRow>
-			<TableCell>
+				</>
+			) : (
 				<AvatarData
 					title={entry.name}
 					subtitle={entry.subtitle}
 					src={entry.avatarUrl}
 				/>
-			</TableCell>
-			<TableCell>
-				{entry.kind === "owner" ? (
-					<Badge variant="info">Owner</Badge>
-				) : (
-					<Badge>
-						{entry.role === "" ? "Unknown" : chatProjectRoleLabel[entry.role]}
-					</Badge>
-				)}
-			</TableCell>
-		</TableRow>
-	);
-};
+			)}
+		</TableCell>
+		<TableCell>
+			{entry.kind === "owner" ? (
+				<Badge variant="info">Owner</Badge>
+			) : (
+				<Badge>
+					{entry.role === "" ? "Unknown" : chatProjectRoleLabel[entry.role]}
+				</Badge>
+			)}
+		</TableCell>
+	</TableRow>
+);

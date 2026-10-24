@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
+import type { ChatProjectACL } from "#/api/typesGenerated";
 import {
 	MockGroup,
 	MockUserMember,
@@ -9,18 +10,18 @@ import {
 import { ProjectAccessDialog } from "./ProjectAccessDialog";
 import { buildAccessEntries } from "./projectAccess";
 
-const mockACL = {
+const mockACL: ChatProjectACL = {
 	users: [
-		{ ...MockUserMember, role: "admin" as const },
+		{ ...MockUserMember, role: "admin" },
 		{
 			...MockUserMember,
 			id: "sharee-2",
 			username: "grace",
 			name: "",
-			role: "use" as const,
+			role: "use",
 		},
 	],
-	groups: [{ ...MockGroup, role: "use" as const }],
+	groups: [{ ...MockGroup, role: "use" }],
 };
 
 const meta: Meta<typeof ProjectAccessDialog> = {
@@ -70,6 +71,21 @@ export const Loading: Story = {
 export const LoadError: Story = {
 	args: {
 		entries: undefined,
+		error: mockApiError({ message: "Failed to get chat project ACL." }),
+	},
+};
+
+export const Retrying: Story = {
+	args: {
+		entries: undefined,
+		error: mockApiError({ message: "Failed to get chat project ACL." }),
+		isRetrying: true,
+	},
+};
+
+/** A failed refetch keeps the cached access list and shows the error. */
+export const RefetchError: Story = {
+	args: {
 		error: mockApiError({ message: "Failed to get chat project ACL." }),
 	},
 };

@@ -100,7 +100,7 @@ export const chatProjectInstructions = (project: TypesGen.ChatProject) =>
 		refetchOnWindowFocus: true,
 	});
 
-const chatProjectACLKey = (projectId: string) =>
+export const chatProjectACLKey = (projectId: string) =>
 	[...chatProjectsKey, projectId, "acl"] as const;
 
 /** Lists the users and groups a project is shared with, without its owner. */

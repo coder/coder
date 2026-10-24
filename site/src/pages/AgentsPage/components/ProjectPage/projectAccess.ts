@@ -5,6 +5,7 @@ import type {
 } from "#/api/typesGenerated";
 import { getGroupSubtitle } from "#/modules/groups";
 
+/** Display labels for project roles. The empty role means removed and never appears in an ACL. */
 export const chatProjectRoleLabel: Record<
 	Exclude<ChatProjectRole, "">,
 	string
@@ -19,7 +20,7 @@ type ProjectAccessEntryBase = {
 	readonly avatarUrl: string | undefined;
 };
 
-/** One row of a project's access list, shared by the summary and the dialog. */
+/** The owner, a user, or a group with access to a project. */
 export type ProjectAccessEntry =
 	| (ProjectAccessEntryBase & {
 			readonly kind: "owner";

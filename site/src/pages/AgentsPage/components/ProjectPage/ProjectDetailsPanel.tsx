@@ -131,6 +131,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 						: {
 								entries: accessEntries,
 								error: aclQuery.error,
+								isRetrying: aclQuery.isFetching,
 								onRetry: retryACL,
 								onOpenAccess: (event) => {
 									accessFocusReturn.rememberTrigger(event);

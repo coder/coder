@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, within } from "storybook/test";
-import type { ChatProjectUser } from "#/api/typesGenerated";
+import { expect, fn, userEvent, within } from "storybook/test";
+import type {
+	ChatProjectACL,
+	ChatProjectUser,
+	MinimalUser,
+} from "#/api/typesGenerated";
 import {
 	MockChatProject,
 	MockChatProjectInstructions,
@@ -33,15 +37,23 @@ const mockSharees: ChatProjectUser[] = [
 	role: index === 0 ? "admin" : "use",
 }));
 
+const mockACL: ChatProjectACL = {
+	users: mockSharees.slice(0, 2),
+	groups: [],
+};
+
 const mockMembers = {
-	entries: buildAccessEntries(MockUserOwner.id, MockUserOwner, {
-		users: mockSharees.slice(0, 2),
-		groups: [],
-	}),
+	entries: buildAccessEntries(MockUserOwner.id, MockUserOwner, mockACL),
 	error: undefined,
+	isRetrying: false,
 	onRetry: fn(),
 	onOpenAccess: fn(),
 };
+
+const mockMembersWithOwner = (owner: MinimalUser | null | undefined) => ({
+	...mockMembers,
+	entries: buildAccessEntries(MockUserMember.id, owner, mockACL),
+});
 
 const meta: Meta<typeof ProjectDetailsPanelView> = {
 	title: "pages/AgentsPage/ProjectPage/ProjectDetailsPanelView",
@@ -104,15 +116,18 @@ export const WithOrganization: Story = {
 };
 
 export const OwnerLoading: Story = {
-	args: { ownerLabel: undefined },
+	args: { ownerLabel: undefined, members: mockMembersWithOwner(undefined) },
 };
 
 export const OtherOwner: Story = {
-	args: { ownerLabel: "Jane Doe" },
+	args: {
+		ownerLabel: "Jane Doe",
+		members: mockMembersWithOwner({ ...MockUserMember, name: "Jane Doe" }),
+	},
 };
 
 export const OwnerUnknown: Story = {
-	args: { ownerLabel: "Unknown" },
+	args: { ownerLabel: "Unknown", members: mockMembersWithOwner(null) },
 };
 
 /** Long owner and organization names wrap so they stay readable. */
@@ -120,6 +135,11 @@ export const LongNames: Story = {
 	args: {
 		ownerLabel: "bartholomewmontgomeryfitzgerald1",
 		organizationLabel: "Platform-Infrastructure-Engineering-Europe",
+		members: mockMembersWithOwner({
+			...MockUserMember,
+			username: "bartholomewmontgomeryfitzgerald1",
+			name: "",
+		}),
 	},
 };
 
@@ -217,7 +237,7 @@ export const OwnerOnly: Story = {
 	},
 };
 
-/** Entries past the seventh collapse into a "+K" tile. */
+/** Entries past the visible limit collapse into a "+K" tile. */
 export const MembersOverflow: Story = {
 	args: {
 		members: {
@@ -246,16 +266,10 @@ export const MembersWithGroups: Story = {
 	},
 };
 
-/** The owner of a project shared with the viewer is still loading. */
-export const MembersOwnerLoading: Story = {
-	args: {
-		members: {
-			...mockMembers,
-			entries: buildAccessEntries(MockUserOwner.id, undefined, {
-				users: mockSharees.slice(0, 2),
-				groups: [],
-			}),
-		},
+/** Hovering a member avatar shows the member's name. */
+export const MemberTooltip: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(within(canvasElement).getByText("AD"));
 	},
 };
 
