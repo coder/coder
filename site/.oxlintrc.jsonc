@@ -112,6 +112,7 @@
 		"static-components": "error",
 		"no-conditional-tests": "error",
 		"no-useless-fallback-in-spread": "error",
+		"no-noninteractive-element-interactions": "error",
 
 		// --- security ---
 		"jsx-no-target-blank": "error",
@@ -238,7 +239,6 @@
 		"no-useless-spread": "off", // (small)
 		"preserve-manual-memoization": "off", // (small)
 		"control-has-associated-label": "off", // (small)
-		"no-noninteractive-element-interactions": "off", // (small)
 
 		"no-restricted-imports": [
 			"error",
