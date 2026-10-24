@@ -231,18 +231,12 @@ const beginsWithFrontmatterDelimiter = (content: string): boolean =>
 		.split(/\r?\n/, 1)[0]
 		?.trim() === "---";
 
-type SkillEditorImportProps = {
-	/**
-	 * Turns automatic use back on before a create-mode import, so a file
-	 * without the setting does not inherit an earlier import's value.
-	 */
-	resetsModelInvocable?: boolean;
-};
-
-/** Fills the fields from an uploaded or pasted SKILL.md file. */
-export const SkillEditorImport: React.FC<SkillEditorImportProps> = ({
-	resetsModelInvocable = false,
-}) => {
+/**
+ * Fills the fields from an uploaded or pasted SKILL.md file. A file with
+ * `disable-model-invocation: true` turns automatic use off, matching how the
+ * server reads uploaded content.
+ */
+export const SkillEditorImport: React.FC = () => {
 	const { form, mode, isBusy, isReadingFile, setIsReadingFile } =
 		useSkillEditorContext();
 	const isCreate = mode === "create";
@@ -266,10 +260,13 @@ export const SkillEditorImport: React.FC<SkillEditorImportProps> = ({
 			return;
 		}
 
+		const disablesModelInvocation = result.values.modelInvocable === false;
 		if (isCreate) {
+			// Turn automatic use back on first, so a file without the setting
+			// does not inherit an earlier import's value.
 			await form.setValues({
 				...form.values,
-				...(resetsModelInvocable && { modelInvocable: true }),
+				modelInvocable: true,
 				...result.values,
 			});
 			await form.setTouched(
@@ -281,6 +278,7 @@ export const SkillEditorImport: React.FC<SkillEditorImportProps> = ({
 				...form.values,
 				description: result.values.description,
 				body: result.values.body,
+				...(disablesModelInvocation && { modelInvocable: false }),
 			});
 			await form.setTouched(
 				{ name: false, description: true, body: true },
@@ -293,10 +291,10 @@ export const SkillEditorImport: React.FC<SkillEditorImportProps> = ({
 			kind: "success",
 			title: "Imported SKILL.md",
 			detail: isCreate
-				? resetsModelInvocable
-					? "Updated name, description, body, and automatic use."
-					: "Updated name, description, and body fields."
-				: "Updated description and body fields. Kept the existing name.",
+				? "Updated name, description, body, and automatic use."
+				: disablesModelInvocation
+					? "Updated description, body, and automatic use. Kept the existing name."
+					: "Updated description and body fields. Kept the existing name.",
 		});
 	};
 
@@ -591,16 +589,23 @@ export const SkillEditorProjectSettings: React.FC = () => {
 					void form.setFieldValue("action", checked)
 				}
 			/>
-			<SkillSettingSwitch
-				label="Agents can use it automatically"
-				description="When off, agents use the skill only when someone invokes it."
-				checked={form.values.modelInvocable ?? true}
-				disabled={readOnly || isBusy}
-				onCheckedChange={(checked) =>
-					void form.setFieldValue("modelInvocable", checked)
-				}
-			/>
+			<SkillEditorAutomaticUseSetting />
 		</>
+	);
+};
+
+const SkillEditorAutomaticUseSetting: React.FC = () => {
+	const { form, readOnly, isBusy } = useSkillEditorContext();
+	return (
+		<SkillSettingSwitch
+			label="Agents can use it automatically"
+			description="When off, agents use the skill only when someone invokes it."
+			checked={form.values.modelInvocable ?? true}
+			disabled={readOnly || isBusy}
+			onCheckedChange={(checked) =>
+				void form.setFieldValue("modelInvocable", checked)
+			}
+		/>
 	);
 };
 
@@ -723,6 +728,7 @@ export const SkillEditorDialog: React.FC<SkillEditorDialogProps> = ({
 						{!readOnly && <SkillEditorImport />}
 						<SkillEditorNameField />
 						<SkillEditorDescriptionField />
+						<SkillEditorAutomaticUseSetting />
 						<SkillEditorBodyField />
 					</SkillEditorFields>
 					<SkillEditorDialogFooter

@@ -42,22 +42,22 @@ export type SkillFormValues = {
 	body: string;
 	/** Project skills only: offers the skill above project composers. */
 	action?: boolean;
-	/** Project skills only: lets agents find and load the skill. */
+	/** Lets agents find and load the skill on their own. */
 	modelInvocable?: boolean;
 };
 
-/** The fields of a skill that has not been written yet. */
+/** The fields and API defaults of a skill that has not been written yet. */
 export const emptySkillFormValues: SkillFormValues = {
 	name: "",
 	description: "",
 	body: "",
+	modelInvocable: true,
 };
 
 /** The fields and API defaults of a project skill not written yet. */
 export const emptyProjectSkillFormValues: SkillFormValues = {
 	...emptySkillFormValues,
 	action: false,
-	modelInvocable: true,
 };
 
 type SkillSearchMetadata = {
@@ -288,21 +288,49 @@ export const buildSkillMarkdown = (values: SkillFormValues): string => {
  * it, so a downloaded manual-only skill keeps that setting when re-imported.
  * Content the marker would push past the size limit is returned unchanged.
  */
-export const withDisabledModelInvocation = (content: string): string => {
-	const opening = /^---(\r?\n)/.exec(content);
-	const frontmatterEnd = content.search(/\r?\n---/);
+const withDisabledModelInvocation = (content: string): string => {
+	// The server accepts and stores content that starts with a UTF-8 BOM.
+	const bom = content.startsWith("\uFEFF") ? "\uFEFF" : "";
+	const text = content.slice(bom.length);
+	const opening = /^---(\r?\n)/.exec(text);
+	const frontmatterEnd = text.search(/\r?\n---/);
 	if (!opening || frontmatterEnd < 3) {
 		return content;
 	}
-	if (/^disable-model-invocation:/m.test(content.slice(0, frontmatterEnd))) {
+	if (/^disable-model-invocation:/m.test(text.slice(0, frontmatterEnd))) {
 		return content;
 	}
 	const newline = opening[1];
-	const marked = `---${newline}disable-model-invocation: true${newline}${content.slice(opening[0].length)}`;
+	const marked = `${bom}---${newline}disable-model-invocation: true${newline}${text.slice(opening[0].length)}`;
 	return getSkillContentSizeBytes(marked) > SKILL_MAX_SIZE_BYTES
 		? content
 		: marked;
 };
+
+/**
+ * Returns the SKILL.md file to download for a skill. Manual-only skills get
+ * `disable-model-invocation: true`, so Claude Code, Cursor, and VS Code treat
+ * the file as manual-only too, and re-importing it keeps the setting. Content
+ * within a line of the size limit downloads unmarked so it can be re-imported.
+ */
+export const skillFileContent = (skill: Skill): string =>
+	skill.model_invocable
+		? skill.content
+		: withDisabledModelInvocation(skill.content);
+
+/**
+ * Reports whether saving `values`, the editor's submitted values with trimmed
+ * fields, changes the SKILL.md fields the editor rebuilds. Settings-only edits
+ * omit content so the stored file keeps frontmatter keys and formatting that
+ * the editor does not show.
+ */
+export const isSkillContentChanged = (
+	opened: SkillFormValues,
+	values: SkillFormValues,
+): boolean =>
+	values.name !== opened.name ||
+	values.description !== opened.description.trim() ||
+	values.body !== opened.body;
 
 export const getSkillContentSizeBytes = (content: string): number =>
 	textEncoder.encode(content).length;
