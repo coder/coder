@@ -126,7 +126,7 @@ Queued messages wait in two lanes. These rules apply to every transition that qu
 
 1. `busy_behavior` names the lane, `steer` or `queue`. Inside a lane, `position` gives the order.
 2. The whole `steer` lane goes first, in position order, then the `queue` lane. Every queue list shows this delivery order: the HTTP API, the `queue_update` stream event, and the `coder_get_chat_messages` MCP tool.
-3. Queued messages go into history only at delivery points. At `FinishTurn` and `FinishInterruption`, the whole `steer` lane goes in; if it is empty, the first `queue` message goes in. In an errored chat with queued messages, each `queue` or `steer` send is a delivery point with the same rule; a `steer` send delivers the `steer` lane with the new message at its end. From `E1` or `A1`, `PromoteQueuedMessage(qid)` delivers only `qid`.
+3. Queued messages go into history only at delivery points. Before each assistant LLM API call, the whole `steer` lane goes in, and never a `queue` message. At `FinishTurn` and `FinishInterruption`, the whole `steer` lane goes in; if it is empty, the first `queue` message goes in. In an errored chat with queued messages, each `queue` or `steer` send is a delivery point with the same rule; a `steer` send delivers the `steer` lane with the new message at its end. From `E1` or `A1`, `PromoteQueuedMessage(qid)` delivers only `qid`.
 
 ### Transitions used by the HTTP endpoints
 
@@ -151,6 +151,7 @@ Queued messages wait in two lanes. These rules apply to every transition that qu
 - `EnterRequiresAction` records a pending-action episode by relying on the committed assistant tool-call messages as the durable call set, sets `requires_action_deadline_at`, which is a timestamp 5 minutes in the future, and lands in `requires_action`.
 - `FinishInterruption(optionalPartialStep)` inserts one final interrupted assistant/tool suffix if present, or finalizes interruption without a suffix if none is available, clears the interrupting state, and lands in `waiting` if no queued message is promoted. If interrupt finalization also promotes queued messages, it inserts every `steer` message, or the queue head if there are none, into history and lands in `running`.
 - `RecordGenerationAttempt` verifies the chat is still `running`, increments `generation_attempt`, and returns the updated chat snapshot.
+- `DeliverSteerMessages` verifies the chat is still `running`, removes the `steer` messages from the queue, inserts them into history in queue order, and stays in `running`. `queue` messages stay queued.
 - `RecordRetryState(payload)` verifies the chat is still `running`, stores the retry payload sent to clients as `retry_state`, and returns the updated chat snapshot.
 - `FinishTurn` completes the current generation turn atomically. If the queue is empty, it lands in `waiting`. If the queue is non-empty, it removes every `steer` message, or the queue head if there are none, inserts them into history as a user turn, and lands in `running`.
 - `FinishError(err)` parks the chat in `error` and persists `last_error = err`, replacing any previously stored error. It is allowed when an unarchived chat is waiting or running.
@@ -213,6 +214,7 @@ stateDiagram-v2
     R0 --> E0: FinishError
     R0 --> R1: SendMessage(queue)
     R0 --> R1: SendMessage(steer)
+    R0 --> R0: DeliverSteerMessages
 
     R1 --> R1: RecordGenerationAttempt
     R1 --> R1: RecordRetryState
@@ -224,6 +226,8 @@ stateDiagram-v2
     R1 --> E1: FinishError
     R1 --> R1: SendMessage(queue)
     R1 --> R1: SendMessage(steer)
+    R1 --> R0: DeliverSteerMessages / promoted last queued
+    R1 --> R1: DeliverSteerMessages / queue still non-empty
     R1 --> R0: DeleteQueuedMessage / removed last queued
     R1 --> R1: DeleteQueuedMessage / queue still non-empty
     R1 --> I1: PromoteQueuedMessage
@@ -1001,12 +1005,13 @@ It inspects the chat's message history, and decides what's the next step to take
 - `FinishTurn`: applied when the chat processing logic determines that there's no more work to do for the current message history (no pending tool calls, user message is not the last message in the history, etc.).
 - `FinishError`: applied when the LLM API call fails and the retry limit is reached, determined by the `generation_attempt` value.
 - `EnterRequiresAction`: applied when there are pending dynamic tool calls.
+- `DeliverSteerMessages`: applied when `steer` messages are queued before an assistant LLM API call. The step then ends without the call.
 
 The retry limit is the `CODER_CHAT_MAX_GENERATION_RETRIES` deployment option (25 by default). When an attempt fails with a retryable error and `generation_attempt` exceeds the limit, the goroutine applies `FinishError` instead of retrying, so the default allows 26 attempts. A non-retryable error applies `FinishError` immediately. Because `generation_attempt` resets whenever `history_version` changes, the limit counts consecutive failed attempts since the last history change, and every committed step restores the full budget. Advisor calls and the background generation of chat titles, summaries, and turn status labels retry through `chatretry` with the same limit. Each of those calls has its own budget, which `generation_attempt` does not track. An advisor call that runs out of retries returns an error tool result, and background generation that runs out leaves the chat status unchanged.
 
 The step limit is the `CODER_CHAT_MAX_STEPS_PER_TURN` deployment option (1200 by default). A step is one committed assistant response; compressed compaction and clear messages do not count. The count starts after the latest user message that is not model-only, so hook context and replayed compaction input do not restart it. After the tool calls requested by the last response have run, the goroutine checks the count, and once it reaches the limit, the goroutine finishes the turn the way it finishes a completed one instead of calling the LLM API again. The chat shows no error and gets no final assistant reply. With lifecycle hooks enabled, that finish dispatches the `stop` hook first, and a `stop` response with model context can continue the turn once, so a turn can exceed the limit by one response.
 
-The generation goroutine also applies the `RecordGenerationAttempt` transition every time before calling the LLM API. It may apply this transition multiple times in case of retries. When an LLM API call fails with a retryable error and the goroutine will retry after a backoff, it applies `RecordRetryState(payload)` with the retry payload that should be sent to clients.
+The generation goroutine also applies the `RecordGenerationAttempt` transition every time before calling the LLM API. It may apply this transition multiple times in case of retries. Before each assistant LLM API call, it first applies `DeliverSteerMessages`. Compaction calls don't apply it. When an LLM API call fails with a retryable error and the goroutine will retry after a backoff, it applies `RecordRetryState(payload)` with the retry payload that should be sent to clients.
 
 When receiving streaming message parts from the LLM API, the generation goroutine adds them to the [Message part buffer](#message-part-buffer) in real time. Whenever it starts a new generation attempt, it must start a new episode in the buffer, and mark it as closed when the attempt is finished; either because the LLM API call returned a response, or the attempt was cancelled. If `AddPart` returns an error, the goroutine ignores it. Storing parts in the buffer is best-effort: if the buffer is full, or the episode is closed, the parts are dropped. A stale generation goroutine may keep on adding parts to the buffer until it is cancelled or exits.
 
