@@ -3441,14 +3441,6 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
-	updateChatProjectACL = async (
-		organizationId: string,
-		projectId: string,
-		req: TypesGen.UpdateChatProjectACL,
-	): Promise<void> => {
-		await this.axios.patch(chatProjectACLPath(organizationId, projectId), req);
-	};
-
 	getChat = async (
 		chatId: string,
 		signal?: AbortSignal,
