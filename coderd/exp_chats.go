@@ -748,14 +748,6 @@ func validateChatPlanMode(mode codersdk.ChatPlanMode) bool {
 	}
 }
 
-func lookupEnabledChatModelConfigByID(
-	ctx context.Context,
-	db database.Store,
-	id uuid.UUID,
-) (database.ChatModelConfig, error) {
-	return db.GetEnabledChatModelConfigByID(ctx, id)
-}
-
 func parseChatModelCallConfig(options json.RawMessage) (*codersdk.ChatModelCallConfig, error) {
 	callConfig := &codersdk.ChatModelCallConfig{}
 	if len(options) == 0 {
@@ -823,7 +815,7 @@ func validateChatModelOverride(
 			Message: "Invalid model_config_id.",
 		}
 	}
-	modelConfig, err := lookupEnabledChatModelConfigByID(ctx, db, *id)
+	modelConfig, err := db.GetEnabledChatModelConfigByID(ctx, *id)
 	if err == nil && modelConfig.OrganizationID != organizationID {
 		err = sql.ErrNoRows
 	}
@@ -2035,8 +2027,8 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatMessagesResponse{
-		Messages:       convertChatMessages(messages),
-		QueuedMessages: convertChatQueuedMessages(queuedMessages),
+		Messages:       slice.List(messages, db2sdk.ChatMessage),
+		QueuedMessages: db2sdk.ChatQueuedMessages(queuedMessages),
 		HasMore:        hasMore,
 		TurnStartID:    turnStartID,
 	})
@@ -3239,11 +3231,10 @@ func (api *API) sendChatMessage(
 	response := codersdk.CreateChatMessageResponse{Queued: sendResult.Queued}
 	if sendResult.Queued {
 		if sendResult.QueuedMessage != nil {
-			response.QueuedMessage = convertChatQueuedMessagePtr(*sendResult.QueuedMessage)
+			response.QueuedMessage = new(db2sdk.ChatQueuedMessage(*sendResult.QueuedMessage))
 		}
 	} else {
-		message := convertChatMessage(sendResult.Message)
-		response.Message = &message
+		response.Message = new(db2sdk.ChatMessage(sendResult.Message))
 	}
 	// Return the full user-visible inserted batch. A queued send on an errored
 	// chat can promote the previous queue head, which clients must cache.
@@ -3251,7 +3242,7 @@ func (api *API) sendChatMessage(
 		if inserted.Visibility == database.ChatMessageVisibilityModel {
 			continue
 		}
-		response.Messages = append(response.Messages, convertChatMessage(inserted))
+		response.Messages = append(response.Messages, db2sdk.ChatMessage(inserted))
 	}
 	return response, nil
 }
@@ -3452,7 +3443,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := codersdk.EditChatMessageResponse{Message: convertChatMessage(editResult.Message)}
+	response := codersdk.EditChatMessageResponse{Message: db2sdk.ChatMessage(editResult.Message)}
 	// Synthetic cancellations precede the replacement with lower IDs;
 	// clients that seed their transcript cache from this response need
 	// all user-visible inserted rows, or a stream reconnect with
@@ -3461,7 +3452,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		if inserted.Visibility == database.ChatMessageVisibilityModel {
 			continue
 		}
-		response.Messages = append(response.Messages, convertChatMessage(inserted))
+		response.Messages = append(response.Messages, db2sdk.ChatMessage(inserted))
 	}
 	response.DeletedMessageIDs = editResult.DeletedMessageIDs
 	httpapi.Write(ctx, rw, http.StatusOK, response)
@@ -8009,35 +8000,6 @@ func (api *API) fetchChatFileMetadata(ctx context.Context, chatID uuid.UUID) []d
 		return nil
 	}
 	return rows
-}
-
-func convertChatQueuedMessage(m database.ChatQueuedMessage) codersdk.ChatQueuedMessage {
-	return db2sdk.ChatQueuedMessage(m)
-}
-
-func convertChatQueuedMessagePtr(m database.ChatQueuedMessage) *codersdk.ChatQueuedMessage {
-	qm := convertChatQueuedMessage(m)
-	return &qm
-}
-
-func convertChatQueuedMessages(msgs []database.ChatQueuedMessage) []codersdk.ChatQueuedMessage {
-	result := make([]codersdk.ChatQueuedMessage, 0, len(msgs))
-	for _, m := range msgs {
-		result = append(result, convertChatQueuedMessage(m))
-	}
-	return result
-}
-
-func convertChatMessage(m database.ChatMessage) codersdk.ChatMessage {
-	return db2sdk.ChatMessage(m)
-}
-
-func convertChatMessages(messages []database.ChatMessage) []codersdk.ChatMessage {
-	result := make([]codersdk.ChatMessage, 0, len(messages))
-	for _, m := range messages {
-		result = append(result, convertChatMessage(m))
-	}
-	return result
 }
 
 func parseUserAIProviderID(r *http.Request) (uuid.UUID, error) {
