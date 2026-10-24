@@ -4828,7 +4828,6 @@ func assertBytes(t testing.TB, expectedBytes, gotBytes int64, label string) {
 }
 
 func TestAgent_ToolCall(t *testing.T) {
-	t.Skip("flaky until PLAT-717: the agent netstack drops a SYN that reuses a source port it holds in TIME_WAIT")
 	t.Parallel()
 	//nolint:dogsled
 	conn, _, _, agentFS, _ := setupAgent(t, agentsdk.Manifest{}, 0)
