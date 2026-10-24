@@ -58,6 +58,8 @@ extend-exclude = [
 	"**/pnpm-lock.yaml",
 	"tailnet/testdata/**",
 	"site/src/pages/SetupPage/countries.tsx",
+	# Generated upstream emoji names and Unicode code points are not authored prose.
+	"site/src/theme/emojiDescriptionsGenerated.json",
 	"provisioner/terraform/testdata/**",
 	"coderd/azureidentity/roots_darwin.go",
 	"coderd/azureidentity/azureidentity.go",
