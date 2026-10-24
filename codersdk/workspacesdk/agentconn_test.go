@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -75,6 +76,35 @@ func TestAgentConn_DialBoundedByRequestContext(t *testing.T) {
 	require.NoError(t, err)
 
 	goleak.VerifyNone(t, ignoreCurrent)
+}
+
+func TestAgentConn_CloseEndsKeepAliveDial(t *testing.T) {
+	t.Parallel()
+
+	tailnetConn, err := tailnet.NewConn(&tailnet.Options{
+		Addresses: []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
+		Logger:    testutil.Logger(t),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = tailnetConn.Close()
+	})
+	conn := workspacesdk.NewAgentConn(tailnetConn, workspacesdk.AgentConnOptions{
+		AgentID:            uuid.New(),
+		CloseFunc:          func() error { return workspacesdk.ErrSkipClose },
+		APIIdleConnTimeout: time.Minute,
+	})
+
+	// No workspace agent exists, so the request waits on its dial until Close
+	// ends it.
+	reqCtx := testutil.Context(t, testutil.WaitLong)
+	errs := make(chan error, 1)
+	go func() {
+		_, err := conn.ListeningPorts(reqCtx)
+		errs <- err
+	}()
+	require.NoError(t, conn.Close())
+	require.Error(t, testutil.RequireReceive(testutil.Context(t, testutil.WaitMedium), t, errs))
 }
 
 func TestAgentConnRejectsCrossAgentRedirects(t *testing.T) {
@@ -374,4 +404,81 @@ func stitchTailnet(t *testing.T, conns map[uuid.UUID]*tailnet.Conn) {
 			conn.SetNodeCallback(nil)
 		}
 	})
+}
+
+func newAPIPeers(t *testing.T, server *http.Server) (client *tailnet.Conn, agentID uuid.UUID) {
+	t.Helper()
+
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+	clientID := uuid.New()
+	agentID = uuid.New()
+	clientConn, _ := newTailnetConn(t, derpMap, clientID, "client")
+	agentConn, agentIP := newTailnetConn(t, derpMap, agentID, "agent")
+	stitchTailnet(t, map[uuid.UUID]*tailnet.Conn{clientID: clientConn, agentID: agentConn})
+
+	ln, err := agentConn.Listen("tcp", fmt.Sprintf(":%d", workspacesdk.AgentHTTPAPIServerPort))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, server.Close())
+	})
+	go func() {
+		err := server.Serve(ln)
+		if err != nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, http.ErrServerClosed) {
+			assert.NoError(t, err)
+		}
+	}()
+	require.True(t, clientConn.AwaitReachable(testutil.Context(t, testutil.WaitMedium), agentIP))
+	return clientConn, agentID
+}
+
+func TestAgentConn_APIIdleConnTimeout(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name        string
+		idleTimeout time.Duration
+		conns       int32
+	}{
+		{name: "Set", idleTimeout: time.Minute, conns: 1},
+		{name: "Unset", conns: 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var accepted, closed atomic.Int32
+			clientConn, agentID := newAPIPeers(t, &http.Server{
+				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					_, _ = io.Copy(io.Discard, r.Body)
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte("{}\n"))
+				}),
+				ReadHeaderTimeout: testutil.WaitShort,
+				ConnState: func(_ net.Conn, state http.ConnState) {
+					switch state {
+					case http.StateNew:
+						accepted.Add(1)
+					case http.StateClosed:
+						closed.Add(1)
+					}
+				},
+			})
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			conn := workspacesdk.NewAgentConn(clientConn, workspacesdk.AgentConnOptions{
+				AgentID:            agentID,
+				CloseFunc:          func() error { return workspacesdk.ErrSkipClose },
+				APIIdleConnTimeout: tc.idleTimeout,
+			})
+
+			_, err := conn.ListeningPorts(ctx)
+			require.NoError(t, err)
+			require.NoError(t, conn.WriteFile(ctx, "/tmp/f", strings.NewReader("x")))
+			require.Equal(t, tc.conns, accepted.Load(), "connections")
+			if tc.idleTimeout > 0 {
+				require.NoError(t, conn.Close())
+				require.Eventually(t, func() bool {
+					return closed.Load() == accepted.Load()
+				}, testutil.WaitShort, testutil.IntervalFast, "Close closes the idle connection")
+			}
+		})
+	}
 }

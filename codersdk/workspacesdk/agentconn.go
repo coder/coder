@@ -38,10 +38,16 @@ import (
 // conn is shared and closing it is undesirable, you may return ErrNoClose from
 // opts.CloseFunc. This will ensure the underlying conn is not closed.
 func NewAgentConn(conn *tailnet.Conn, opts AgentConnOptions) AgentConn {
-	return &agentConn{
+	c := &agentConn{
 		Conn: conn,
 		opts: opts,
 	}
+	if opts.APIIdleConnTimeout > 0 {
+		var dialCtx context.Context
+		dialCtx, c.endKeepAliveDials = context.WithCancel(context.Background())
+		c.keepAliveClient = c.newAPIClient(dialCtx, opts.APIIdleConnTimeout)
+	}
+	return c
 }
 
 // WrapAgentConn returns an AgentConn that delegates every operation to conn and
@@ -145,9 +151,11 @@ type AgentConn interface {
 // @typescript-ignore AgentConn
 type agentConn struct {
 	*tailnet.Conn
-	opts         AgentConnOptions
-	headersMu    sync.RWMutex
-	extraHeaders http.Header
+	opts              AgentConnOptions
+	keepAliveClient   *http.Client // Nil unless opts.APIIdleConnTimeout is set.
+	endKeepAliveDials context.CancelFunc
+	headersMu         sync.RWMutex
+	extraHeaders      http.Header
 }
 
 func (c *agentConn) TailnetConn() *tailnet.Conn {
@@ -165,6 +173,13 @@ type AgentConnOptions struct {
 	AgentID   uuid.UUID
 	CloseFunc func() error
 	Logger    slog.Logger
+	// APIIdleConnTimeout, if positive, sends every request through one client
+	// that keeps connections to the workspace agent's HTTP API server open for
+	// up to this long while idle. Keep it below the workspace agent's idle
+	// timeout: a request sent on a connection the workspace agent closed, for
+	// example by restarting, can fail. Close ends the client's dials and
+	// connections.
+	APIIdleConnTimeout time.Duration
 }
 
 func (c *agentConn) agentAddress() netip.Addr {
@@ -190,6 +205,10 @@ func (c *agentConn) Ping(ctx context.Context) (time.Duration, bool, *ipnstate.Pi
 
 // Close ends the connection to the workspace agent.
 func (c *agentConn) Close() error {
+	if c.keepAliveClient != nil {
+		c.endKeepAliveDials()
+		c.keepAliveClient.CloseIdleConnections()
+	}
 	var cerr error
 	if c.opts.CloseFunc != nil {
 		cerr = c.opts.CloseFunc()
@@ -1703,69 +1722,88 @@ func (c *agentConn) apiRequestWithHeader(ctx context.Context, method, path strin
 //
 //nolint:gocritic // See doc comment.
 func decodeAgentJSON(res *http.Response, v any) error {
-	return json.NewDecoder(res.Body).Decode(v)
+	if err := json.NewDecoder(res.Body).Decode(v); err != nil {
+		return err
+	}
+	//nolint:errcheck // If the drain fails, http.Transport does not reuse the connection; v is already decoded.
+	_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, maxJSONTrailerBytes))
+	return nil
 }
 
-// apiClient returns an HTTP client that can be used to make
-// requests to the workspace agent's HTTP API server. The client is
-// scoped to a single request: its transport cancels in-flight dials
-// once reqCtx ends.
+// maxJSONTrailerBytes is how much decodeAgentJSON reads after the value, so
+// that http.Transport can reuse the connection: it reuses one only after the
+// body was read to EOF, and the decoder can stop before the end of a chunked
+// body. The workspace agent writes one newline after the value.
+const maxJSONTrailerBytes = 4 << 10
+
+// apiClient returns the client for a request to the workspace agent's HTTP
+// API server: the keep-alive client if opts.APIIdleConnTimeout is set, or
+// else a client scoped to the request, whose dials end when reqCtx ends.
 func (c *agentConn) apiClient(reqCtx context.Context) *http.Client {
+	if c.keepAliveClient != nil {
+		return c.keepAliveClient
+	}
+	return c.newAPIClient(reqCtx, 0)
+}
+
+// newAPIClient returns a client for the workspace agent's HTTP API server
+// whose dials end when dialCtx ends.
+func (c *agentConn) newAPIClient(dialCtx context.Context, idleConnTimeout time.Duration) *http.Client {
 	agentAddr := netip.AddrPortFrom(c.agentAddress(), AgentHTTPAPIServerPort)
+	dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if network != "tcp" {
+			return nil, xerrors.Errorf("network must be tcp")
+		}
+
+		host, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			return nil, xerrors.Errorf("split host port %q: %w", addr, err)
+		}
+		if port != strconv.Itoa(AgentHTTPAPIServerPort) {
+			return nil, xerrors.Errorf("request %q does not appear to be for http api", addr)
+		}
+		if reqAddr, err := netip.ParseAddr(host); err != nil || reqAddr != agentAddr.Addr() {
+			c.opts.Logger.Warn(ctx, "blocked workspace agent API request to unintended host",
+				slog.F("agent_id", c.opts.AgentID),
+				slog.F("request_host", host),
+				slog.F("intended_agent_addr", agentAddr.Addr()),
+			)
+			return nil, xerrors.Errorf("request host %q does not match intended agent %q", host, agentAddr.Addr())
+		}
+
+		// http.Transport detaches ctx from the request context so a
+		// pending dial can outlive its request and serve future requests.
+		// Without ending it with dialCtx, the dial could block in
+		// AwaitReachable until the workspace agent becomes reachable, which
+		// may be never.
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		stop := context.AfterFunc(dialCtx, cancel)
+		defer stop()
+
+		if !c.AwaitReachable(ctx) {
+			return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
+		}
+
+		// Always dial the pinned agent address, never the request host.
+		conn, err := c.DialContextTCP(ctx, agentAddr)
+		if err != nil {
+			return nil, xerrors.Errorf("dial http api: %w", err)
+		}
+
+		return conn, nil
+	}
 	return &http.Client{
 		// Redirects are blocked to prevent misuse.
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
 		Transport: &http.Transport{
-			// Disable keep alives as we're usually only making a single
-			// request, and this triggers goleak in tests
-			DisableKeepAlives: true,
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				if network != "tcp" {
-					return nil, xerrors.Errorf("network must be tcp")
-				}
-
-				host, port, err := net.SplitHostPort(addr)
-				if err != nil {
-					return nil, xerrors.Errorf("split host port %q: %w", addr, err)
-				}
-				if port != strconv.Itoa(AgentHTTPAPIServerPort) {
-					return nil, xerrors.Errorf("request %q does not appear to be for http api", addr)
-				}
-				if reqAddr, err := netip.ParseAddr(host); err != nil || reqAddr != agentAddr.Addr() {
-					c.opts.Logger.Warn(ctx, "blocked workspace agent API request to unintended host",
-						slog.F("agent_id", c.opts.AgentID),
-						slog.F("request_host", host),
-						slog.F("intended_agent_addr", agentAddr.Addr()),
-					)
-					return nil, xerrors.Errorf("request host %q does not match intended agent %q", host, agentAddr.Addr())
-				}
-
-				// http.Transport detaches ctx from the request context so
-				// a pending dial can outlive its request and serve future
-				// requests. This client is request-scoped with keep-alives
-				// disabled, so a detached dial can never be reused. Without
-				// re-linking cancellation, a canceled request would leave
-				// the dial blocked in AwaitReachable until the agent becomes
-				// reachable, which may be never.
-				ctx, cancel := context.WithCancel(ctx)
-				defer cancel()
-				stop := context.AfterFunc(reqCtx, cancel)
-				defer stop()
-
-				if !c.AwaitReachable(ctx) {
-					return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
-				}
-
-				// Always dial the pinned agent address, never the request host.
-				conn, err := c.DialContextTCP(ctx, agentAddr)
-				if err != nil {
-					return nil, xerrors.Errorf("dial http api: %w", err)
-				}
-
-				return conn, nil
-			},
+			// Disable keep alives for a client scoped to one request, as its
+			// idle connections would trigger goleak in tests.
+			DisableKeepAlives: idleConnTimeout == 0,
+			IdleConnTimeout:   idleConnTimeout,
+			DialContext:       dial,
 		},
 	}
 }
